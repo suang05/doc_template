@@ -1,0 +1,24 @@
+{
+  "name": "smk-doc-platform",
+  "version": "1.0.0",
+  "private": true,
+  "description": "SMK Document Generation Platform — Clean Monorepo",
+  "scripts": {
+    "dev": "npm --prefix frontend-v2 run dev",
+    "dev:v2": "npm --prefix frontend-v2 run dev",
+    "dev:v1": "npm --prefix frontend run dev",
+    "dev:backend": "dotnet run --project backend-v2/src/SmkDoc.Api/SmkDoc.Api.csproj",
+    "dev:backend:v1": "dotnet run --project backend/SmkDocServer.csproj",
+    "build": "npm --prefix frontend-v2 run build && dotnet build backend-v2/src/SmkDoc.Api/SmkDoc.Api.csproj",
+    "build:frontend": "npm --prefix frontend-v2 run build",
+    "build:frontend:v1": "npm --prefix frontend run build",
+    "build:backend": "dotnet build backend-v2/src/SmkDoc.Api/SmkDoc.Api.csproj",
+    "lint": "npm --prefix frontend-v2 run lint",
+    "docker:up": "docker compose -f docker-compose.v2.yml -p smk-v2 up -d",
+    "docker:down": "docker compose -f docker-compose.v2.yml -p smk-v2 down",
+    "docker:build": "docker compose -f docker-compose.v2.yml -p smk-v2 up -d --build",
+    "docker:logs": "docker compose -f docker-compose.v2.yml -p smk-v2 logs -f",
+    "docker:up:v1": "docker compose -f docker-compose.yml -f docker-compose.v1.override.yml --env-file .env.v1 -p smk-v1 up -d",
+    "docker:down:v1": "docker compose -f docker-compose.yml -p smk-v1 down"
+  }
+}

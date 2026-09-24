@@ -1,0 +1,70 @@
+# Environment Variables & Local Secrets
+.env
+.env.*.local
+*.user
+
+# Backend .NET (V1 & V2)
+**/bin/
+**/obj/
+**/.vs/
+**/.vscode/
+*.docx
+*.xlsx
+!backend/Templates/**/*.docx
+!backend/Templates/**/*.xlsx
+!backend-v2/Templates/**/*.docx
+!backend-v2/Templates/**/*.xlsx
+
+# Template Test Files, Generated Documents & Version Archives (V1 & V2)
+backend/Templates/versions/
+backend/Templates/**/test_*
+backend/Templates/**/test.*
+backend/Templates/**/sample_*
+backend/Templates/**/*_test.*
+backend/OutputFiles/
+backend-v2/Templates/versions/
+backend-v2/Templates/**/test_*
+backend-v2/Templates/**/test.*
+backend-v2/Templates/**/sample_*
+backend-v2/Templates/**/*_test.*
+backend-v2/OutputFiles/
+*.pdf
+
+# Frontend Next.js (V1 & V2)
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/.env.local
+frontend/*.log
+frontend/tsconfig.tsbuildinfo
+
+frontend-v2/node_modules/
+frontend-v2/.next/
+frontend-v2/out/
+frontend-v2/.env.local
+frontend-v2/*.log
+frontend-v2/tsconfig.tsbuildinfo
+
+# AI Agents, Assistant Logs & Artifacts
+.gemini/
+.agents/
+.cursor/
+.cursorrules
+.windsurfrules
+.clinerules
+.copilot/
+.claude/
+*.prompt.md
+*.chat
+*.ai-workspace
+.system_generated/
+scratch/
+COOLIFY.md
+
+# Documentation & Implementation Plans
+**/Doc/
+**/Docs/
+**/docs/
+scratch/
+tools/
+*.zip

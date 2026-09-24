@@ -1,0 +1,39 @@
+import { z } from 'zod';
+
+export const OutputFormatSchema = z.enum(['pdf', 'docx', 'xlsx']);
+export type OutputFormat = z.infer<typeof OutputFormatSchema>;
+
+export const GenerateDocumentRequestSchema = z.object({
+  data: z.record(z.any()).default({}),
+  output: OutputFormatSchema.default('pdf'),
+  documentRef: z.string().optional().nullable(),
+  changeNote: z.string().optional().nullable(),
+});
+export type GenerateDocumentRequest = z.infer<typeof GenerateDocumentRequestSchema>;
+
+export const GenerateDocumentResponseSchema = z.object({
+  url: z.string().url(),
+  expiresAt: z.string(),
+  generationId: z.string().uuid(),
+  outputFormat: z.string(),
+});
+export type GenerateDocumentResponse = z.infer<typeof GenerateDocumentResponseSchema>;
+
+export const PreviewDocumentRequestSchema = z.object({
+  data: z.record(z.any()).default({}),
+  html: z.string().optional().nullable(),
+});
+export type PreviewDocumentRequest = z.infer<typeof PreviewDocumentRequestSchema>;
+
+export const DocumentVersionDtoSchema = z.object({
+  id: z.string().uuid(),
+  documentId: z.string().uuid(),
+  documentRef: z.string(),
+  version: z.number().int().positive(),
+  templateVersionId: z.string().uuid().nullable().optional(),
+  generationLogId: z.string().uuid().nullable().optional(),
+  changeNote: z.string().nullable().optional(),
+  createdBy: z.string().nullable().optional(),
+  createdAt: z.string(),
+});
+export type DocumentVersionDto = z.infer<typeof DocumentVersionDtoSchema>;

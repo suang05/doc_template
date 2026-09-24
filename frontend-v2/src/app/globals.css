@@ -1,0 +1,59 @@
+@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&family=Inter:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --topbar-h: 48px;
+  --sidebar-w: 240px;
+  /* Design token CSS variables — values match tokens/index.ts */
+  --color-canvas: #f8fbfe;
+  --color-surface: #ffffff;
+  --color-surface-subtle: #f1f5f9;
+  --color-border: #e2e8f0;
+  --color-text-primary: #0f172a;
+  --color-text-secondary: #475569;
+  --color-text-muted: #94a3b8;
+}
+
+body {
+  background-color: var(--color-canvas);
+  color: var(--color-text-primary);
+  font-family: 'Sarabun', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Custom minimal scrollbar */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 2px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-muted);
+}
+
+/* Fix Monaco Editor Find Widget Tooltip Blocking Clicks */
+.monaco-editor .monaco-hover {
+  pointer-events: none !important;
+}
+/* Generic Monaco tooltip fix */
+.monaco-hover, .monaco-tooltip, .shadow-root-host { pointer-events: none !important; }
+
+/* Fix Monaco Editor Codicons (missing icons like the close button) */
+.monaco-editor .codicon {
+  font-family: 'codicon' !important;
+}

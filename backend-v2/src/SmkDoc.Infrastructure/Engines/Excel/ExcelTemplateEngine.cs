@@ -1,0 +1,93 @@
+using System.Text.Json;
+using ClosedXML.Excel;
+using SmkDoc.Application.Common.Helpers;
+using SmkDoc.Application.Common.Interfaces;
+using SmkDoc.Application.Engines;
+using SmkDoc.Domain.Enums;
+using static SmkDoc.Application.Common.Helpers.PlaceholderHelper;
+
+namespace SmkDoc.Infrastructure.Engines.Excel;
+
+public class ExcelTemplateEngine : IRenderEngine
+{
+    private readonly IPdfRenderer        _pdfRenderer;
+    private readonly ExcelMediaInjector    _mediaInjector;
+    private readonly ExcelTableExpander    _tableExpander;
+    private readonly IJsonDataParser       _jsonDataParser;
+
+    public ExcelTemplateEngine(IPdfRenderer pdfRenderer, ExcelMediaInjector mediaInjector, IJsonDataParser? jsonDataParser = null)
+    {
+        _pdfRenderer    = pdfRenderer;
+        _mediaInjector  = mediaInjector;
+        _tableExpander  = new ExcelTableExpander();
+        _jsonDataParser = jsonDataParser ?? new SmkDoc.Infrastructure.Parsing.JsonDataParser();
+    }
+
+    public RenderEngineType EngineType => RenderEngineType.Excel;
+
+    public async Task<byte[]> RenderAsync(
+        Stream templateStream,
+        string inputDataJson,
+        OutputFormat outputFormat,
+        CancellationToken ct = default)
+    {
+        var (replacements, arrays) = _jsonDataParser.FlattenNamed(inputDataJson);
+
+        using var memoryStream = new MemoryStream();
+        await templateStream.CopyToAsync(memoryStream, ct);
+        memoryStream.Position = 0;
+
+        using var workbook = new XLWorkbook(memoryStream);
+
+        foreach (var worksheet in workbook.Worksheets)
+        {
+            worksheet.PageSetup.PaperSize = XLPaperSize.A4Paper;
+            worksheet.PageSetup.PagesWide = 1;
+            worksheet.PageSetup.PagesTall = 0;
+
+            // 1. Inject QR / Barcode images
+            _mediaInjector.InjectMedia(worksheet, replacements);
+
+            // 2. Expand array template rows
+            _tableExpander.ExpandTables(worksheet, arrays);
+
+            // 3. Replace flat text placeholders
+            foreach (var cell in worksheet.CellsUsed())
+            {
+                if (cell.HasFormula) continue;
+                string val = cell.GetString();
+                if (string.IsNullOrWhiteSpace(val) || !val.Contains("{{")) continue;
+
+                string updated = Pattern.Replace(val, m =>
+                {
+                    var parsed = Parse(m.Groups[1].Value);
+                    return parsed.Kind switch
+                    {
+                        PlaceholderKind.Text =>
+                            replacements.TryGetValue(parsed.Key, out var r) ? r : m.Value,
+                        PlaceholderKind.Transform =>
+                            replacements.TryGetValue(parsed.Key, out var r)
+                                ? ThaiDataTransformer.Transform(r, parsed.Extra!)
+                                : m.Value,
+                        _ => m.Value // QR / Barcode / Image already handled
+                    };
+                });
+
+                if (updated != val)
+                    cell.SetValue(updated);
+            }
+        }
+
+        using var outputStream = new MemoryStream();
+        workbook.SaveAs(outputStream);
+        byte[] processedXlsx = outputStream.ToArray();
+
+        if (outputFormat == OutputFormat.Pdf)
+        {
+            using var officeStream = new MemoryStream(processedXlsx);
+            return await _pdfRenderer.RenderOfficeToPdfAsync(officeStream, "spreadsheet.xlsx", ct);
+        }
+
+        return processedXlsx;
+    }
+}

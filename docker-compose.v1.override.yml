@@ -1,0 +1,13 @@
+services:
+  doc-server:
+    container_name: smk-v1-doc-server
+  portal:
+    container_name: smk-v1-portal
+  gotenberg:
+    container_name: smk-v1-gotenberg
+  db:
+    container_name: smk-v1-db
+  minio:
+    container_name: smk-v1-minio
+  reportbro:
+    container_name: smk-v1-reportbro

@@ -1,0 +1,98 @@
+services:
+  doc-server:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: smk-doc-server
+    restart: always
+    ports:
+      - "${DOC_SERVER_PORT:-8080}:8080"
+    volumes:
+      - ./backend/Templates:/app/Templates
+      - ./backend/Fonts:/usr/share/fonts/truetype/custom:ro
+    environment:
+      - ASPNETCORE_ENVIRONMENT=${ASPNETCORE_ENVIRONMENT:-Production}
+      - GotenbergUrl=http://gotenberg:3000
+      - Minio__Endpoint=http://minio:9000
+      - Minio__PublicEndpoint=http://localhost:9000
+      - Minio__AccessKey=${MINIO_ROOT_USER:-admin}
+      - Minio__SecretKey=${MINIO_ROOT_PASSWORD:-password}
+      - ConnectionStrings__DefaultConnection=Host=db;Database=${POSTGRES_DB:-smkdoc};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-password}
+      - Security__ApiKey=${MASTER_API_KEY:-secret-smk-key-2026}
+      - DocServerInternalUrl=http://doc-server:8080
+    depends_on:
+      - gotenberg
+      - minio
+      - db
+
+  portal:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-}
+    container_name: smk-doc-portal
+    restart: always
+    ports:
+      - "${PORTAL_PORT:-3001}:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DOC_SERVER_INTERNAL_URL=http://doc-server:8080
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-}
+    depends_on:
+      - doc-server
+
+  gotenberg:
+    image: gotenberg/gotenberg:8
+    container_name: smk-gotenberg
+    restart: always
+    ports:
+      - "${GOTENBERG_PORT:-3000}:3000"
+    volumes:
+      - ./backend/Fonts:/usr/share/fonts/truetype/custom:ro
+    command:
+      - "gotenberg"
+      - "--api-port=3000"
+      
+  db:
+    image: postgres:15-alpine
+    container_name: smk-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+      POSTGRES_DB: ${POSTGRES_DB:-smkdoc}
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  minio:
+    image: minio/minio
+    container_name: smk-minio
+    restart: always
+    ports:
+      - "${MINIO_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-admin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-password}
+    command: server /data --console-address ":9001"
+    volumes:
+      - miniodata:/data
+
+  reportbro:
+    build:
+      context: ./backend/reportbro
+      dockerfile: Dockerfile
+    container_name: smk-reportbro
+    restart: always
+    ports:
+      - "${REPORTBRO_PORT:-5000}:5000"
+    volumes:
+      - ./backend/Fonts:/usr/share/fonts/truetype/custom:ro
+
+volumes:
+  pgdata:
+  miniodata:

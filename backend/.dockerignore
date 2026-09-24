@@ -1,0 +1,10 @@
+**/.git
+**/.vs
+**/.vscode
+**/bin
+**/obj
+**/OutputFiles
+**/Templates
+portal/
+.env
+.env.*

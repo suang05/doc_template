@@ -1,0 +1,118 @@
+/*
+ * Design tokens — SSoT: docs/AI/DESIGN.md
+ * ห้ามแก้ค่าที่นี่โดยไม่อัปเดต DESIGN.md ด้วย
+ * ห้ามเพิ่ม color/radius/spacing ที่ไม่มีใน DESIGN.md
+ */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* ── Brand ────────────────────────── ref: DESIGN.md §Colors/Brand */
+    --navy:      #1e3a5f;
+    --blue:      #2954ff;
+    --blue-t:    #eaf1ff;
+    --blue2:     #2563eb;
+    --blue2-t:   #eff6ff;
+
+    /* ── Semantic ─────────────────────── ref: DESIGN.md §Colors/Semantic */
+    --emerald:   #059669;
+    --emerald-t: #ecfdf5;
+    --amber:     #d97706;
+    --amber-t:   #fffbeb;
+    --rose:      #e11d48;
+    --rose-t:    #fff1f2;
+    --rose2:     #dc2626;
+    --rose2-t:   #fef2f2;
+    --sky:       #0ea5e9;
+    --sky-t:     #f0f9ff;
+    --violet:    #7c3aed;
+    --violet-t:  #f5f3ff;
+
+    /* ── Neutrals ─────────────────────── ref: DESIGN.md §Colors/Neutrals */
+    --t1:        #0f172a;   /* text primary */
+    --t2:        #475467;   /* text secondary */
+    --t3:        #8892a0;   /* text muted */
+    --border:    #e5e7eb;
+    --sep:       #f1f2f4;   /* row separator / hover bg */
+    --bg:        #f7f8fa;   /* page background */
+    --surf:      #ffffff;   /* card / sidebar surface */
+
+    /* ── Border radius ────────────────── ref: DESIGN.md §Spacing/Radius */
+    --r:   10px;   /* cards, containers */
+    --rb:  8px;    /* buttons, inputs */
+    --ri:  7px;    /* icon containers */
+    --rp:  6px;    /* badges, pills */
+
+    /* ── Layout ───────────────────────── ref: DESIGN.md §Layout */
+    --sw:        228px;  /* sidebar width */
+    --topbar-h:  44px;   /* topbar height */
+
+    /* ── Nav / Sidebar special ───────── ref: DESIGN.md §Special */
+    --nav-active:      rgba(41,84,255,0.07); /* active nav item bg */
+    --nav-active-text: #2954ff;             /* active nav item text */
+    --nav-label:       #6b6a66;            /* nav label text (default) */
+    --nav-chip-bg:     #efeeec;            /* nav icon chip bg (default) */
+    --nav-chip-color:  #8a8985;            /* nav icon chip icon (default) */
+    --nav-section:     #b8b7b0;   /* sidebar section header text */
+    --sidebar-zone-bg: #f9fafb;   /* topbar sidebar-zone background */
+
+    /* ── Typography ───────────────────── ref: DESIGN.md §Typography */
+    --font-sans: 'Inter', system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+    /* ── Type scale ───────────────────── ref: DESIGN.md §Typography/Scale */
+    --text-xs:   11px;    /* badges, chips, timestamps */
+    --text-sm:   12px;    /* secondary / meta / mono */
+    --text-base: 13px;    /* body, table cells, buttons */
+    --text-md:   13.5px;  /* inputs, dropdown values */
+    --text-lg:   14px;    /* card titles */
+    --text-xl:   15px;    /* section titles */
+    --text-2xl:  17px;    /* view titles */
+    --text-3xl:  18px;    /* page titles (topbar) */
+    --text-kpi:  26px;    /* KPI numbers */
+
+    /* ── Transition ───────────────────── ref: DESIGN.md §Animation */
+    --duration:    0.12s;   /* buttons, badges, nav item bg */
+    --duration-md: 0.18s;   /* sidebar, modal backdrop */
+    --ease:        ease;
+
+    /* ── Z-index scale ────────────────── ref: DESIGN.md §Layout/Z */
+    --z-topbar: 100;
+    --z-modal:  200;
+    --z-toast:  300;
+
+    /* ── Disabled state ───────────────── ref: DESIGN.md §Components/States */
+    --disabled-text: rgba(0, 0, 0, .38);
+    --disabled-bg:   rgba(0, 0, 0, .06);
+  }
+
+  body {
+    background-color: var(--bg);
+    color: var(--t1);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Focus visible — ใช้ --blue-t เสมอ */
+  :focus-visible {
+    outline: 2px solid var(--blue);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background-color: var(--blue);
+    color: #fff;
+  }
+}
+
+/* ── Scrollbar ─────────────────────────────────────────────────────────────
+   ใช้ --border / --t3 จาก token เท่านั้น
+*/
+::-webkit-scrollbar       { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--t3); }
