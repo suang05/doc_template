@@ -1,18 +1,35 @@
-using System.Runtime.Serialization;
+using SmkDoc.Domain.Common;
 
 namespace SmkDoc.Domain.Enums;
 
-public enum TemplateFormat
+public class TemplateFormat : Enumeration
 {
-    [EnumMember(Value = "html")]
-    Html = 1,
+    public static readonly TemplateFormat Html = new(1, "html", "text/html", RenderEngineType.Html);
+    public static readonly TemplateFormat Docx = new(2, "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", RenderEngineType.Docx);
+    public static readonly TemplateFormat Xlsx = new(3, "xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", RenderEngineType.Excel);
+    public static readonly TemplateFormat Pdf  = new(4, "pdf", "application/pdf", RenderEngineType.Html);
 
-    [EnumMember(Value = "docx")]
-    Docx = 2,
+    public string Extension { get; }
+    public string MimeType { get; }
+    public RenderEngineType DefaultEngineType { get; }
 
-    [EnumMember(Value = "xlsx")]
-    Xlsx = 3,
+    private TemplateFormat(int id, string name, string mimeType, RenderEngineType defaultEngineType) : base(id, name)
+    {
+        Extension = $".{name}";
+        MimeType = mimeType;
+        DefaultEngineType = defaultEngineType;
+    }
 
-    [EnumMember(Value = "pdf")]
-    Pdf = 4
+    public static bool TryFromExtension(string? extension, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out TemplateFormat? format)
+    {
+        if (string.IsNullOrWhiteSpace(extension))
+        {
+            format = null;
+            return false;
+        }
+
+        string normalized = extension.Trim().TrimStart('.').ToLowerInvariant();
+        return TryFromDisplayName(normalized, out format);
+    }
 }
+

@@ -1,8 +1,12 @@
+using SmkDoc.Domain.Common;
+
 namespace SmkDoc.Domain.Enums;
 
-public enum RoleType
+public class RoleType : Enumeration
 {
-    Viewer = 0,
-    Developer = 1,
-    Admin = 2
+    public static readonly RoleType Viewer = new(0, "Viewer");
+    public static readonly RoleType Developer = new(1, "Developer");
+    public static readonly RoleType Admin = new(2, "Admin");
+
+    private RoleType(int id, string name) : base(id, name) { }
 }

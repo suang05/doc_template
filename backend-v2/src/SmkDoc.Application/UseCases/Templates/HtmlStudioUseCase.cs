@@ -1,45 +1,36 @@
 using System.Text;
 using SmkDoc.Application.Common;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.Common.Models;
-using SmkDoc.Application.Engines;
+using SmkDoc.Application.DTOs.Templates;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
+using SmkDoc.Domain.Exceptions;
 
 namespace SmkDoc.Application.UseCases.Templates;
 
-public class HtmlStudioUseCase : IHtmlStudioUseCase
+public sealed class HtmlStudioUseCase(
+    IRepository<Template> templateRepo,
+    IRepository<TemplateVersion> versionRepo,
+    IStorageService storageService,
+    IEnumerable<IRenderEngine> renderEngines,
+    ITemplateScannerService scannerService) : IHtmlStudioUseCase
 {
-    private readonly IRepository<Template>        _templateRepo;
-    private readonly IRepository<TemplateVersion> _versionRepo;
-    private readonly IStorageService              _storageService;
-    private readonly IRenderEngine                _htmlEngine;
-    private readonly ITemplateScannerService      _scannerService;
-
-    public HtmlStudioUseCase(
-        IRepository<Template> templateRepo,
-        IRepository<TemplateVersion> versionRepo,
-        IStorageService storageService,
-        IEnumerable<IRenderEngine> renderEngines,
-        ITemplateScannerService scannerService)
-    {
-        _templateRepo   = templateRepo;
-        _versionRepo    = versionRepo;
-        _storageService = storageService;
-        _htmlEngine     = renderEngines.First(e => e.EngineType == RenderEngineType.Html);
-        _scannerService = scannerService;
-    }
+    private readonly IRepository<Template> _templateRepo = templateRepo;
+    private readonly IRepository<TemplateVersion> _versionRepo = versionRepo;
+    private readonly IStorageService _storageService = storageService;
+    private readonly IRenderEngine _htmlEngine = renderEngines.First(e => e.EngineType == RenderEngineType.Html);
+    private readonly ITemplateScannerService _scannerService = scannerService;
 
     public async Task<string> GetHtmlSourceAsync(Guid templateId, CancellationToken ct = default)
     {
         var template = await _templateRepo.GetByIdAsync(templateId, ct)
-            ?? throw new KeyNotFoundException($"Template '{templateId}' not found.");
+            ?? throw new NotFoundException($"Template '{templateId}' not found.");
 
         if (template.CurrentVersionId == null)
             throw new InvalidOperationException($"Template '{templateId}' has no active published version.");
 
         var version = await _versionRepo.GetByIdAsync(template.CurrentVersionId.Value, ct)
-            ?? throw new KeyNotFoundException($"Active version for template '{templateId}' not found.");
+            ?? throw new NotFoundException($"Active version for template '{templateId}' not found.");
 
         if (version.FileFormat != null && version.FileFormat != TemplateFormat.Html)
             throw new InvalidOperationException("Only HTML templates can be opened in the Monaco editor.");
@@ -52,13 +43,13 @@ public class HtmlStudioUseCase : IHtmlStudioUseCase
     public async Task<TemplateStudioDto> GetStudioBundleAsync(Guid templateId, CancellationToken ct = default)
     {
         var template = await _templateRepo.GetByIdAsync(templateId, ct)
-            ?? throw new KeyNotFoundException($"Template '{templateId}' not found.");
+            ?? throw new NotFoundException($"Template '{templateId}' not found.");
 
         if (template.CurrentVersionId == null)
             throw new InvalidOperationException($"Template '{templateId}' has no active published version.");
 
         var version = await _versionRepo.GetByIdAsync(template.CurrentVersionId.Value, ct)
-            ?? throw new KeyNotFoundException($"Active version for template '{templateId}' not found.");
+            ?? throw new NotFoundException($"Active version for template '{templateId}' not found.");
 
         if (version.FileFormat != null && version.FileFormat != TemplateFormat.Html)
             throw new InvalidOperationException("Only HTML templates can be opened in the Monaco editor.");
@@ -78,7 +69,7 @@ public class HtmlStudioUseCase : IHtmlStudioUseCase
     public async Task<TemplateSchemaDto> GetTemplateSchemaAsync(Guid templateId, CancellationToken ct = default)
     {
         var template = await _templateRepo.GetByIdAsync(templateId, ct)
-            ?? throw new KeyNotFoundException($"Template '{templateId}' not found.");
+            ?? throw new NotFoundException($"Template '{templateId}' not found.");
 
         TemplateVersion? activeVersion = null;
         if (template.CurrentVersionId.HasValue)
@@ -105,11 +96,11 @@ public class HtmlStudioUseCase : IHtmlStudioUseCase
         return await _htmlEngine.RenderAsync(templateStream, safeData, OutputFormat.Pdf, ct);
     }
 
-    public async Task<TemplateValidationResult> ValidateHtmlAsync(string htmlContent, CancellationToken ct = default)
+    public async Task<TemplateValidationResultDto> ValidateHtmlAsync(string htmlContent, CancellationToken ct = default)
     {
         using var stream = new MemoryStream(Encoding.UTF8.GetBytes(htmlContent ?? string.Empty));
         var placeholders = await _scannerService.ScanPlaceholdersAsync(stream, ".html", ct);
-        return new TemplateValidationResult(
+        return new TemplateValidationResultDto(
             Valid: true,
             Fields: placeholders,
             Errors: new List<string>()

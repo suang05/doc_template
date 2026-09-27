@@ -2,7 +2,7 @@ using FluentAssertions;
 using SmkDoc.Infrastructure.Imaging;
 using Xunit;
 
-namespace SmkDoc.Tests;
+namespace SmkDoc.Tests.Infrastructure.Imaging;
 
 public class BarcodeQrCodeServiceTests
 {

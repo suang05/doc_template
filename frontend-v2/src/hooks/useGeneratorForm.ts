@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { FieldMappingDto, TemplateSchemaDto } from '@/types/api';
 import { templatesApi } from '@/lib/api/templates.api';
+import { FETCH_TIMEOUT_MS } from '@/constants/timeouts';
 
 // Build nested object from dot-notation paths: "customer.name" → { customer: { name: v } }
 function setNestedValue(obj: Record<string, unknown>, path: string, value: string): void {
@@ -40,10 +41,14 @@ export function useGeneratorForm(templateId: string | undefined) {
     setMappingsLoading(true);
     setFieldErrors({});
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+
     Promise.allSettled([
       templatesApi.getTemplateMappings(templateId),
       templatesApi.getTemplateSchema(templateId),
     ]).then(([mappingsRes, schemaRes]) => {
+      if (controller.signal.aborted) return;
       if (mappingsRes.status === 'fulfilled') {
         setMappings(mappingsRes.value);
         const initial: Record<string, string> = {};
@@ -62,7 +67,9 @@ export function useGeneratorForm(templateId: string | undefined) {
         }
       }
       setMappingsLoading(false);
-    });
+    }).finally(() => clearTimeout(timeoutId));
+
+    return () => controller.abort();
   }, [templateId]);
 
   const hasMappings = mappings.length > 0;
@@ -127,27 +134,16 @@ export function useGeneratorForm(templateId: string | undefined) {
   }, []);
 
   const fillSampleData = useCallback(() => {
-    // 1. If template has a persisted samplePayload from backend schema, use it directly
+    // Parse samplePayload once; use it to prime fallbackJson and as lookup during field fill
+    let parsedSample: Record<string, unknown> | null = null;
     if (templateSchema?.samplePayload) {
       try {
-        const parsed = JSON.parse(templateSchema.samplePayload);
-        setFallbackJson(JSON.stringify(parsed, null, 2));
+        parsedSample = JSON.parse(templateSchema.samplePayload);
+        setFallbackJson(JSON.stringify(parsedSample, null, 2));
         setJsonError(null);
-
-        if (hasMappings) {
-          const sampleData: Record<string, string> = { ...formValues };
-          for (const m of mappings) {
-            if (parsed[m.sourcePath] !== undefined && typeof parsed[m.sourcePath] !== 'object') {
-              sampleData[m.sourcePath] = String(parsed[m.sourcePath]);
-            }
-          }
-          setFormValues(sampleData);
-          setFieldErrors({});
-          return;
-        }
-        return;
+        if (!hasMappings) return;
       } catch {
-        // fallback to standard heuristics
+        parsedSample = null;
       }
     }
 
@@ -161,14 +157,22 @@ export function useGeneratorForm(templateId: string | undefined) {
 
     const sampleData: Record<string, string> = { ...formValues };
     for (const m of mappings) {
-      if (sampleData[m.sourcePath]) continue; // Skip already filled
+      if (sampleData[m.sourcePath]) continue;
+
+      // samplePayload is keyed by placeholder; try that first, then sourcePath for compat
+      if (parsedSample !== null) {
+        const val = parsedSample[m.placeholder] ?? parsedSample[m.sourcePath];
+        if (val !== undefined && typeof val !== 'object') {
+          sampleData[m.sourcePath] = String(val);
+          continue;
+        }
+      }
 
       if (m.defaultValue) {
         sampleData[m.sourcePath] = m.defaultValue;
         continue;
       }
 
-      // Generate based on transform or field name
       const pathLower = m.sourcePath.toLowerCase();
       if (m.transform === 'ThaiBahtText' || pathLower.includes('amount') || pathLower.includes('price') || pathLower.includes('total') || pathLower.includes('ยอด')) {
         sampleData[m.sourcePath] = '1500000.00';
@@ -185,7 +189,7 @@ export function useGeneratorForm(templateId: string | undefined) {
       }
     }
     setFormValues(sampleData);
-    setFieldErrors({}); // Clear errors since we filled everything
+    setFieldErrors({});
   }, [templateSchema, mappings, hasMappings, formValues]);
 
   return {

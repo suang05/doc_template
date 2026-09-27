@@ -2,12 +2,14 @@ using System.Linq.Expressions;
 using FluentAssertions;
 using Moq;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.Common.Models;
+using SmkDoc.Application.DTOs.FieldMappings;
 using SmkDoc.Application.UseCases.FieldMappings;
 using SmkDoc.Domain.Entities;
 using Xunit;
+using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.Exceptions;
 
-namespace SmkDoc.Tests;
+namespace SmkDoc.Tests.Application.UseCases.Datasets;
 
 public class TemplateDatasetUseCaseTests
 {
@@ -30,14 +32,14 @@ public class TemplateDatasetUseCaseTests
 
         var rows = new List<TemplateDataset>
         {
-            new() { Id = Guid.NewGuid(), TemplateId = templateId, DatasetId = dsId2, Alias = "items", SortOrder = 2 },
-            new() { Id = Guid.NewGuid(), TemplateId = templateId, DatasetId = dsId1, Alias = "header", SortOrder = 1 }
+            new TemplateDataset(templateId, dsId2, "items", 2) { Id = Guid.NewGuid() },
+            new TemplateDataset(templateId, dsId1, "header", 1) { Id = Guid.NewGuid() }
         };
 
         var datasets = new List<Dataset>
         {
-            new() { Id = dsId1, Name = "Invoice Header" },
-            new() { Id = dsId2, Name = "Invoice Items" }
+            new Dataset("Invoice Header", null, Guid.NewGuid(), "sql", 0) { Id = dsId1 },
+            new Dataset("Invoice Items", null, Guid.NewGuid(), "sql", 0) { Id = dsId2 }
         };
 
         _tdRepoMock.Setup(r => r.ListAsync(It.IsAny<Expression<Func<TemplateDataset, bool>>>(), It.IsAny<CancellationToken>()))
@@ -61,16 +63,16 @@ public class TemplateDatasetUseCaseTests
     // ── SaveAsync ──────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task SaveAsync_ShouldThrowKeyNotFoundException_WhenTemplateDoesNotExist()
+    public async Task SaveAsync_ShouldThrowNotFoundException_WhenTemplateDoesNotExist()
     {
         var templateId = Guid.NewGuid();
         _templateRepoMock.Setup(r => r.GetByIdAsync(templateId, It.IsAny<CancellationToken>()))
             .ReturnsAsync((Template?)null);
 
         var sut = CreateSut();
-        var act = () => sut.SaveAsync(templateId, new List<SaveTemplateDatasetItem>());
+        var act = () => sut.SaveAsync(templateId, new List<SaveTemplateDatasetItemDto>());
 
-        await act.Should().ThrowAsync<KeyNotFoundException>()
+        await act.Should().ThrowAsync<NotFoundException>()
             .WithMessage($"*{templateId}*");
     }
 
@@ -79,9 +81,9 @@ public class TemplateDatasetUseCaseTests
     {
         var templateId = Guid.NewGuid();
         _templateRepoMock.Setup(r => r.GetByIdAsync(templateId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new Template { Id = templateId, Name = "Contract" });
+            .ReturnsAsync(new Template(Guid.NewGuid(), "Contract", "contract", null) { Id = templateId });
 
-        var items = new List<SaveTemplateDatasetItem>
+        var items = new List<SaveTemplateDatasetItemDto>
         {
             new(Guid.NewGuid(), "orders", 1),
             new(Guid.NewGuid(), "ORDERS ", 2) // Duplicate case-insensitive
@@ -99,11 +101,11 @@ public class TemplateDatasetUseCaseTests
     {
         var templateId = Guid.NewGuid();
         _templateRepoMock.Setup(r => r.GetByIdAsync(templateId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new Template { Id = templateId, Name = "Receipt" });
+            .ReturnsAsync(new Template(Guid.NewGuid(), "Receipt", "receipt", null) { Id = templateId });
 
         var existingOld = new List<TemplateDataset>
         {
-            new() { Id = Guid.NewGuid(), TemplateId = templateId, Alias = "old_alias" }
+            new TemplateDataset(templateId, Guid.NewGuid(), "old_alias", 1) { Id = Guid.NewGuid() }
         };
 
         _tdRepoMock.Setup(r => r.ListAsync(It.IsAny<Expression<Func<TemplateDataset, bool>>>(), It.IsAny<CancellationToken>()))
@@ -114,11 +116,11 @@ public class TemplateDatasetUseCaseTests
             .Callback<TemplateDataset, CancellationToken>((td, _) => addedItems.Add(td))
             .Returns(Task.CompletedTask);
 
-        _unitOfWorkMock.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
+        _unitOfWorkMock.Setup(u => u.CommitAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(1);
 
         var dsId = Guid.NewGuid();
-        var newItems = new List<SaveTemplateDatasetItem>
+        var newItems = new List<SaveTemplateDatasetItemDto>
         {
             new(dsId, "payments", 1)
         };
@@ -131,6 +133,6 @@ public class TemplateDatasetUseCaseTests
         addedItems[0].Alias.Should().Be("payments");
         addedItems[0].DatasetId.Should().Be(dsId);
         addedItems[0].TemplateId.Should().Be(templateId);
-        _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _unitOfWorkMock.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 }

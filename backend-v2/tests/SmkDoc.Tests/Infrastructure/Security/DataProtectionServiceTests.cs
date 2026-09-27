@@ -4,7 +4,7 @@ using Moq;
 using SmkDoc.Infrastructure.Security;
 using Xunit;
 
-namespace SmkDoc.Tests;
+namespace SmkDoc.Tests.Infrastructure.Security;
 
 public class DataProtectionServiceTests
 {

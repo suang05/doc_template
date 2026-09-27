@@ -1,5 +1,5 @@
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.Common.Models;
+using SmkDoc.Application.DTOs.FieldMappings;
 using SmkDoc.Domain.Entities;
 
 namespace SmkDoc.Application.Common.Helpers;
@@ -7,10 +7,10 @@ namespace SmkDoc.Application.Common.Helpers;
 public static class DatasetAliasMapBuilder
 {
     /// <summary>
-    /// Builds alias → ResolvedDataset map for a template.
+    /// Builds alias → ResolvedDatasetContext map for a template.
     /// Called by use cases before invoking IFieldMappingApplicatorService.
     /// </summary>
-    public static async Task<IReadOnlyDictionary<string, ResolvedDataset>> BuildAsync(
+    public static async Task<IReadOnlyDictionary<string, ResolvedDatasetContext>> BuildAsync(
         Guid templateId,
         IRepository<TemplateDataset> tdRepo,
         IRepository<Dataset> datasetRepo,
@@ -20,9 +20,9 @@ public static class DatasetAliasMapBuilder
     {
         var assignments = await tdRepo.ListAsync(td => td.TemplateId == templateId, ct);
         if (assignments.Count == 0)
-            return new Dictionary<string, ResolvedDataset>(StringComparer.OrdinalIgnoreCase);
+            return new Dictionary<string, ResolvedDatasetContext>(StringComparer.OrdinalIgnoreCase);
 
-        var result = new Dictionary<string, ResolvedDataset>(StringComparer.OrdinalIgnoreCase);
+        var result = new Dictionary<string, ResolvedDatasetContext>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var td in assignments)
         {
@@ -35,7 +35,7 @@ public static class DatasetAliasMapBuilder
             try
             {
                 var cs = dataProtection.Decrypt(connection.EncryptedConnectionString);
-                result[td.Alias] = new ResolvedDataset(connection.Provider, cs, dataset.SqlQuery);
+                result[td.Alias] = new ResolvedDatasetContext(connection.Provider, cs, dataset.SqlQuery);
             }
             catch { /* skip if decryption fails */ }
         }

@@ -1,43 +1,23 @@
 using System.Security.Cryptography;
 using System.Text;
 using SmkDoc.Application.Common.Interfaces;
+using SmkDoc.Application.DTOs.Security;
 using SmkDoc.Domain.Entities;
+using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.Exceptions;
 
 namespace SmkDoc.Application.UseCases.Security;
 
-public record ApiKeyDto(
-    Guid Id,
-    string Name,
-    string CallerApp,
-    bool IsActive,
-    DateTimeOffset? LastUsedAt,
-    DateTimeOffset CreatedAt
-);
-
-public record CreateApiKeyResult(
-    Guid Id,
-    string Name,
-    string CallerApp,
-    string PlainTextKey
-);
-
-public class ApiKeyUseCase
+public sealed class ApiKeyUseCase(
+    IRepository<ApiKey> apiKeyRepo,
+    IUnitOfWork unitOfWork,
+    IRepository<Project>? projectRepo = null)
 {
-    private readonly IRepository<ApiKey> _apiKeyRepo;
-    private readonly IUnitOfWork _unitOfWork;
-    private readonly IRepository<Project>? _projectRepo;
+    private readonly IRepository<ApiKey> _apiKeyRepo = apiKeyRepo;
+    private readonly IUnitOfWork _unitOfWork = unitOfWork;
+    private readonly IRepository<Project>? _projectRepo = projectRepo;
 
-    public ApiKeyUseCase(
-        IRepository<ApiKey> apiKeyRepo,
-        IUnitOfWork unitOfWork,
-        IRepository<Project>? projectRepo = null)
-    {
-        _apiKeyRepo = apiKeyRepo;
-        _unitOfWork = unitOfWork;
-        _projectRepo = projectRepo;
-    }
-
-    public async Task<ApiKey?> ValidateKeyAsync(string plainTextKey, CancellationToken ct = default)
+    public async Task<ValidatedApiKeyDto?> ValidateKeyAsync(string plainTextKey, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(plainTextKey)) return null;
 
@@ -45,11 +25,12 @@ public class ApiKeyUseCase
         var key = await _apiKeyRepo.FirstOrDefaultAsync(k => k.KeyHash == hash && k.IsActive, ct);
         if (key != null)
         {
-            key.LastUsedAt = DateTimeOffset.UtcNow;
+            key.RecordUsage();
             _apiKeyRepo.Update(key);
-            await _unitOfWork.SaveChangesAsync(ct);
+            await _unitOfWork.CommitAsync(ct);
+            return new ValidatedApiKeyDto(key.Id, key.CallerApp, key.ProjectId);
         }
-        return key;
+        return null;
     }
 
     public async Task<List<ApiKeyDto>> ListKeysAsync(CancellationToken ct = default)
@@ -76,19 +57,10 @@ public class ApiKeyUseCase
         string rawSecret = $"smk_{callerApp.ToLowerInvariant()}_{Guid.NewGuid():N}";
         string hash = ComputeHash(rawSecret);
 
-        var key = new ApiKey
-        {
-            Id = Guid.NewGuid(),
-            ProjectId = targetProjectId,
-            Name = name,
-            CallerApp = callerApp,
-            KeyHash = hash,
-            IsActive = true,
-            CreatedAt = DateTimeOffset.UtcNow
-        };
+        var key = new ApiKey(targetProjectId, name, callerApp, hash, null);
 
         await _apiKeyRepo.AddAsync(key, ct);
-        await _unitOfWork.SaveChangesAsync(ct);
+        await _unitOfWork.CommitAsync(ct);
 
         return new CreateApiKeyResult(key.Id, key.Name, key.CallerApp, rawSecret);
     }
@@ -96,11 +68,11 @@ public class ApiKeyUseCase
     public async Task RevokeKeyAsync(Guid id, CancellationToken ct = default)
     {
         var key = await _apiKeyRepo.GetByIdAsync(id, ct)
-            ?? throw new KeyNotFoundException($"API Key '{id}' not found.");
+            ?? throw new NotFoundException($"API Key '{id}' not found.");
 
-        key.IsActive = false;
+        key.Revoke();
         _apiKeyRepo.Update(key);
-        await _unitOfWork.SaveChangesAsync(ct);
+        await _unitOfWork.CommitAsync(ct);
     }
 
     public static string ComputeHash(string input)

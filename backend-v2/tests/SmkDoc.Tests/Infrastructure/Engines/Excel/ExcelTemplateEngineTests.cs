@@ -7,7 +7,7 @@ using SmkDoc.Infrastructure.Engines.Excel;
 using SmkDoc.Infrastructure.Imaging;
 using Xunit;
 
-namespace SmkDoc.Tests;
+namespace SmkDoc.Tests.Infrastructure.Engines.Excel;
 
 public class ExcelTemplateEngineTests
 {
@@ -260,4 +260,30 @@ public class ExcelTemplateEngineTests
         wsMilestones.Cell("A4").GetString().Should().Be("Phase 2");
         wsMilestones.Cell("B4").GetString().Should().Be("งานโครงสร้าง");
     }
+
+    [Fact]
+    public async Task RenderAsync_PreservesCustomOrientationAndCustomFit()
+    {
+        var engine = CreateEngine();
+        using var template = BuildWorkbook(ws =>
+        {
+            ws.PageSetup.PageOrientation = XLPageOrientation.Landscape;
+            ws.PageSetup.PagesWide = 2;
+            ws.PageSetup.PagesTall = 1;
+            ws.Cell("A1").Value = "Header: {{title}}";
+        });
+
+        string json = """{"title": "Landscape Report"}""";
+
+        var result = await engine.RenderAsync(template, json, OutputFormat.Xlsx);
+
+        using var wb = new XLWorkbook(new MemoryStream(result));
+        var ws = wb.Worksheet("Sheet1");
+
+        ws.PageSetup.PageOrientation.Should().Be(XLPageOrientation.Landscape);
+        ws.PageSetup.PagesWide.Should().Be(2);
+        ws.PageSetup.PagesTall.Should().Be(1);
+        ws.Cell("A1").GetString().Should().Be("Header: Landscape Report");
+    }
 }
+

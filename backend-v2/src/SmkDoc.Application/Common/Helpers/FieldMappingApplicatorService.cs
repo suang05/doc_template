@@ -1,31 +1,23 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.Common.Models;
+using SmkDoc.Application.DTOs.FieldMappings;
 using SmkDoc.Domain.Entities;
+using SmkDoc.Domain.ValueObjects;
 
 namespace SmkDoc.Application.Common.Helpers;
 
-public class FieldMappingApplicatorService : IFieldMappingApplicatorService
+public sealed class FieldMappingApplicatorService(
+    ISqlExecutorService sqlExecutor,
+    IMathExpressionResolver mathResolver) : IFieldMappingApplicatorService
 {
     private static readonly Regex SqlVariablePattern = new(@"@(\w+)", RegexOptions.Compiled);
     private static readonly Regex JsonPathArrayPattern = new(@"^([a-zA-Z0-9_-]+)\[(\d+)\]$", RegexOptions.Compiled);
 
-    private readonly ISqlExecutorService _sqlExecutor;
-    private readonly IMathExpressionResolver _mathResolver;
-
-    public FieldMappingApplicatorService(
-        ISqlExecutorService sqlExecutor,
-        IMathExpressionResolver mathResolver)
-    {
-        _sqlExecutor    = sqlExecutor;
-        _mathResolver   = mathResolver;
-    }
-
     public async Task<string> ApplyAsync(
         JsonElement root,
         IEnumerable<FieldMapping> mappings,
-        IReadOnlyDictionary<string, ResolvedDataset> datasetAliases)
+        IReadOnlyDictionary<string, ResolvedDatasetContext> datasetAliases)
     {
         var dict = new Dictionary<string, object?>();
 
@@ -38,7 +30,7 @@ public class FieldMappingApplicatorService : IFieldMappingApplicatorService
         var ordered = mappings.OrderBy(m => m.SortOrder).ToList();
 
         // ── Pass 1: json ──────────────────────────────────────────────────
-        foreach (var mapping in ordered.Where(m => m.DataSourceType == "json"))
+        foreach (var mapping in ordered.Where(m => m.DataSourceType == DataSourceType.Json))
         {
             var val = Finalize(ResolveJsonPath(root, mapping.SourcePath), mapping);
             dict[mapping.Placeholder] = val;
@@ -46,7 +38,7 @@ public class FieldMappingApplicatorService : IFieldMappingApplicatorService
 
         // ── Pass 1b: sql — group by alias, execute each query once ────────
         var sqlMappings = ordered
-            .Where(m => m.DataSourceType == "sql" && !string.IsNullOrWhiteSpace(m.DatasetAlias))
+            .Where(m => m.DataSourceType == DataSourceType.Sql && !string.IsNullOrWhiteSpace(m.DatasetAlias))
             .ToList();
 
         // Cache: alias → parsed JSON result
@@ -59,7 +51,7 @@ public class FieldMappingApplicatorService : IFieldMappingApplicatorService
             try
             {
                 var query = ReplaceVariables(ds.SqlQuery, dict);
-                var json  = await _sqlExecutor.ExecuteQueryAsJsonAsync(ds.Provider, ds.ConnectionString, query);
+                var json  = await sqlExecutor.ExecuteQueryAsJsonAsync(ds.Provider, ds.ConnectionString, query);
 
                 if (!string.IsNullOrWhiteSpace(json))
                     aliasCache[alias] = JsonDocument.Parse(json).RootElement.Clone();
@@ -84,7 +76,7 @@ public class FieldMappingApplicatorService : IFieldMappingApplicatorService
         var stringVars = BuildStringVars(dict);
         foreach (var mapping in ordered.Where(m => !string.IsNullOrWhiteSpace(m.MathExpression)))
         {
-            var val = _mathResolver.Resolve(mapping.MathExpression!, stringVars);
+            var val = mathResolver.Resolve(mapping.MathExpression!, stringVars);
 
             if (string.IsNullOrWhiteSpace(val)) val = mapping.DefaultValue ?? string.Empty;
 

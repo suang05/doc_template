@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using SmkDoc.Api.Models;
 using SmkDoc.Application.UseCases.Security;
 
 namespace SmkDoc.Api.Controllers;

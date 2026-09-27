@@ -1,42 +1,24 @@
 using SmkDoc.Application.Common.Interfaces;
+using SmkDoc.Application.DTOs.Security;
 using SmkDoc.Domain.Entities;
+using SmkDoc.Domain.Enums;
 
 namespace SmkDoc.Application.UseCases.Security;
 
-public class LoginRequest
+public sealed class LoginUseCase(
+    IRepository<User> userRepo,
+    IRepository<UserProjectRole> roleRepo,
+    IRepository<Project> projectRepo,
+    IPasswordHasher passwordHasher,
+    IJwtTokenGenerator jwtTokenGenerator)
 {
-    public string Email { get; set; } = string.Empty;
-    public string Password { get; set; } = string.Empty;
-    public Guid ProjectId { get; set; }
-}
+    private readonly IRepository<User> _userRepo = userRepo;
+    private readonly IRepository<UserProjectRole> _roleRepo = roleRepo;
+    private readonly IRepository<Project> _projectRepo = projectRepo;
+    private readonly IPasswordHasher _passwordHasher = passwordHasher;
+    private readonly IJwtTokenGenerator _jwtTokenGenerator = jwtTokenGenerator;
 
-public class LoginResponse
-{
-    public string AccessToken { get; set; } = string.Empty;
-    public string TokenType { get; set; } = "Bearer";
-    public int ExpiresIn { get; set; } = 86400; // 24 hours
-}
-
-public class LoginUseCase
-{
-    private readonly IRepository<User> _userRepo;
-    private readonly IRepository<UserProjectRole> _roleRepo;
-    private readonly IPasswordHasher _passwordHasher;
-    private readonly IJwtTokenGenerator _jwtTokenGenerator;
-
-    public LoginUseCase(
-        IRepository<User> userRepo, 
-        IRepository<UserProjectRole> roleRepo,
-        IPasswordHasher passwordHasher, 
-        IJwtTokenGenerator jwtTokenGenerator)
-    {
-        _userRepo = userRepo;
-        _roleRepo = roleRepo;
-        _passwordHasher = passwordHasher;
-        _jwtTokenGenerator = jwtTokenGenerator;
-    }
-
-    public async Task<LoginResponse> ExecuteAsync(LoginRequest request, CancellationToken ct = default)
+    public async Task<LoginResponse> ExecuteAsync(LoginCommand request, CancellationToken ct = default)
     {
         var user = await _userRepo.FirstOrDefaultAsync(u => u.Email == request.Email && u.IsActive, ct);
 
@@ -45,18 +27,64 @@ public class LoginUseCase
             throw new UnauthorizedAccessException("Invalid email or password.");
         }
 
-        var role = await _roleRepo.FirstOrDefaultAsync(r => r.UserId == user.Id && r.ProjectId == request.ProjectId, ct);
-        if (role == null)
+        var accessibleProjects = new List<AccessibleProjectDto>();
+        string activeRole = "Viewer";
+
+        if (user.SystemRole == SystemRole.SuperAdmin)
         {
-            throw new UnauthorizedAccessException("User does not have access to the specified project.");
+            var allProjects = await _projectRepo.ListAsync(p => p.IsActive, ct);
+            accessibleProjects = allProjects.Select(p => new AccessibleProjectDto(p.Id, p.Name, p.Slug, "Admin")).ToList();
+            activeRole = "Admin";
+        }
+        else
+        {
+            var userRoles = await _roleRepo.ListAsync(r => r.UserId == user.Id, ct);
+            if (userRoles.Count > 0)
+            {
+                var projectIds = userRoles.Select(r => r.ProjectId).ToHashSet();
+                var projects = await _projectRepo.ListAsync(p => projectIds.Contains(p.Id) && p.IsActive, ct);
+                var roleMap = userRoles.ToDictionary(r => r.ProjectId, r => r.Role.ToString());
+
+                accessibleProjects = projects.Select(p => 
+                    new AccessibleProjectDto(p.Id, p.Name, p.Slug, roleMap.GetValueOrDefault(p.Id, "Viewer"))
+                ).ToList();
+            }
         }
 
-        var roles = new List<string> { role.Role.ToString() };
-        var token = _jwtTokenGenerator.GenerateToken(user, request.ProjectId, roles);
+        Guid? activeProjectId = null;
+        if (request.ProjectId.HasValue && request.ProjectId.Value != Guid.Empty)
+        {
+            var target = accessibleProjects.FirstOrDefault(p => p.Id == request.ProjectId.Value);
+            if (target == null && user.SystemRole != SystemRole.SuperAdmin)
+            {
+                throw new UnauthorizedAccessException("User does not have access to the specified project.");
+            }
+            activeProjectId = request.ProjectId.Value;
+            if (target != null)
+            {
+                activeRole = target.Role;
+            }
+        }
+        else
+        {
+            var defaultProject = accessibleProjects.FirstOrDefault();
+            activeProjectId = defaultProject?.Id;
+            if (defaultProject != null)
+            {
+                activeRole = defaultProject.Role;
+            }
+        }
+
+        var roles = new List<string> { activeRole };
+        var token = _jwtTokenGenerator.GenerateToken(user, activeProjectId, roles);
 
         return new LoginResponse
         {
-            AccessToken = token
+            AccessToken = token,
+            User = new UserProfileDto(user.Id, user.Email, user.FirstName, user.LastName, user.SystemRole.Name),
+            AccessibleProjects = accessibleProjects,
+            DefaultProjectId = activeProjectId
         };
     }
 }
+

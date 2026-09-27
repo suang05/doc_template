@@ -12,11 +12,13 @@ using SmkDoc.Infrastructure.Engines.Word;
 using SmkDoc.Infrastructure.Imaging;
 using Xunit;
 
-namespace SmkDoc.Tests;
+namespace SmkDoc.Tests.Integration.Generators;
 
+[Trait("Category", "Generator")]
 public class MultiPageFixturesGeneratorTests
 {
-    private readonly string _outDir = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../../docs/tests/multi-page-samples"));
+    private readonly string _outDir = Environment.GetEnvironmentVariable("SMK_FIXTURES_OUT_DIR")
+        ?? Path.Combine(Path.GetTempPath(), "smkdoc-tests", "multi-page-samples");
 
     [Fact]
     public async Task Generate_Word_MultiPage_DefectReport()

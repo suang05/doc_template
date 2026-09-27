@@ -1,22 +1,16 @@
 using System.Text.RegularExpressions;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.Common.Models;
+using SmkDoc.Application.DTOs.Templates;
 
 namespace SmkDoc.Application.UseCases.Templates;
 
-public class TemplateValidateUseCase
+public sealed class TemplateValidateUseCase(IPdfRenderer pdfRenderer)
 {
-    private readonly IPdfRenderer _pdfRenderer;
     private static readonly Regex FieldTagPattern = new(@"<Field\s+([^>]+?)\s*\/?>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex NameAttributePattern = new(@"name=[""']([^""']+)[""']", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex LabelAttributePattern = new(@"label=[""']([^""']+)[""']", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
-    public TemplateValidateUseCase(IPdfRenderer pdfRenderer)
-    {
-        _pdfRenderer = pdfRenderer;
-    }
-
-    public async Task<TemplateValidationResult> ValidateHtmlAsync(string html, CancellationToken ct = default)
+    public async Task<TemplateValidationResultDto> ValidateHtmlAsync(string html, CancellationToken ct = default)
     {
         var fields = new List<string>();
         var errors = new List<string>();
@@ -24,7 +18,7 @@ public class TemplateValidateUseCase
         if (string.IsNullOrWhiteSpace(html))
         {
             errors.Add("HTML template cannot be empty.");
-            return new TemplateValidationResult(false, fields, errors);
+            return new TemplateValidationResultDto(false, fields, errors);
         }
 
         // Scan <Field> tags
@@ -55,7 +49,7 @@ public class TemplateValidateUseCase
         // Dry-run render via Gotenberg Chromium
         try
         {
-            await _pdfRenderer.RenderHtmlToPdfAsync(html, ct: ct);
+            await pdfRenderer.RenderHtmlToPdfAsync(html, ct: ct);
         }
         catch (Exception ex)
         {
@@ -63,6 +57,6 @@ public class TemplateValidateUseCase
         }
 
         bool isValid = errors.Count == 0 || !errors.Any(e => e.StartsWith("Renderer validation error:"));
-        return new TemplateValidationResult(isValid, fields, errors);
+        return new TemplateValidationResultDto(isValid, fields, errors);
     }
 }

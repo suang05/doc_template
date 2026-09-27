@@ -37,3 +37,17 @@ export const DocumentVersionDtoSchema = z.object({
   createdAt: z.string(),
 });
 export type DocumentVersionDto = z.infer<typeof DocumentVersionDtoSchema>;
+
+/** Generic API response envelope — used by adapters that unwrap `data` fields. */
+export interface ApiResponse<T> {
+  data?: T;
+  error?: string;
+  success?: boolean;
+}
+
+/** Request shape for the stateless HTML-to-PDF render endpoint. */
+export interface RenderHtmlToPdfRequest {
+  htmlContent: string;
+  headerHtml?: string;
+  footerHtml?: string;
+}

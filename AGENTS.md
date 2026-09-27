@@ -4,442 +4,168 @@ Guidance and operational reference for AI coding agents (Claude, Cursor, Copilot
 
 ---
 
-## 🎯 System Overview
+## 1. 🎯 System Overview & Architectural Anchor
 
+You are acting as the **Senior System Architect, Tech Lead, and Domain Expert in Enterprise Document Generation** for `smk-doc-server`.
 `smk-doc-server` is an enterprise document generation microservice written in **C# ASP.NET Core (.NET 10)** for **SAMMAKORN**. It accepts structured JSON payloads and merges them into **HTML**, **DOCX** (Word), and **XLSX** (Excel) templates, producing **PDF**, **DOCX**, or **XLSX** output via REST API, replacing legacy SSRS systems.
 
-### Key Architectural Traits (v2 Clean Architecture — SDD v1.3)
-1. **Multi-Project Solution (`backend-v2/`):** Strict compilation-enforced layering (`SmkDoc.Domain`, `SmkDoc.Application`, `SmkDoc.Infrastructure`, `SmkDoc.Api`).
-2. **Docker V2 Runtime:** All V2 infrastructure (Database, MinIO, API, Portal) MUST be orchestrated using `docker-compose.v2.yml` with the project name `smk-v2` to avoid conflicts with legacy V1 containers.
-   * **Run Command:** `docker compose -p smk-v2 -f docker-compose.v2.yml up -d`
-3. **Template Engines (Strategy Pattern):**
-   - **HTML-First (Chromium):** HTML templates with `<Field>` tags written via Monaco Editor, rendered to pixel-perfect PDF via Gotenberg Chromium with full Thai word-breaking (`Sarabun` font).
-   - **OpenXML Engine:** Modular, composable pipeline (`WordTextReplacer`, `WordTableExpander`, `WordMediaInjector`) replacing legacy God-classes.
-   - **ClosedXML Engine:** Excel templates formatted to standard A4 printing.
-4. **Storage & Delivery:** Dual persistence in **MinIO** object storage (buckets: `outputs` for generated documents, `templates` for template files) and **PostgreSQL** (`smkdoc` database). Pre-signed S3 download URLs (24-hour expiry) are issued for secure delivery.
-5. **Document Versioning:** Complete legal audit trail via `document_versions` storing input JSON snapshot, document reference, and output artifacts.
-6. **No Dead Weight:** Zero unused libraries (`Google.Cloud.Storage`, `MimeTypesMap`, and `ExcelSnapshotService` have been completely removed).
+### Core Technology Stack & Runtime Baseline
+
+| Layer / Domain | Technology Target | Key Specifications & Boundaries |
+|---|---|---|
+| **Backend API** | ASP.NET Core (.NET 10) | C# 13, Nullable reference types, REST API (`:8080`) |
+| **Persistence & Storage** | PostgreSQL 15 + MinIO | EF Core 10 (`Npgsql`) for entities, Dapper for queries, MinIO S3 (`:9000` / Console `:9001`) |
+| **Document Engines** | Strategy-based Pipeline | `Handlebars.Net` (HTML), `DocumentFormat.OpenXml` (DOCX), `ClosedXML` (XLSX) |
+| **PDF Conversion** | Gotenberg 8 | Headless Chromium (HTML) & LibreOffice (Office) via HTTP (`:3000`) |
+| **Barcodes & Graphic** | SkiaSharp & QRCoder | `JsonSchema.Net`, `QRCoder`, `ZXing.Net.Bindings.SkiaSharp` |
+| **Auth & Security** | Dual-Channel Architecture | M2M `X-API-Key` (`ApiKeyMiddleware`) + Portal `JWT Bearer` (`BCrypt.Net-Next`) |
+| **Frontend Portal** | Next.js 15 (App Router) | React 19, TypeScript, Tailwind CSS 3, Monaco Editor (`:3001`) |
+| **Testing Suites** | Automated Testing | Backend: `xUnit`, `FluentAssertions`, `Moq` \| Frontend: `Vitest` |
+| **Docker Composition** | `docker-compose.v2.yml` | Services: `smk-doc-server-v2`, `smk-doc-portal-v2`, `smk-gotenberg-v2`, `smk-postgres-v2`, `smk-minio-v2` |
 
 ---
 
-## 🏛️ Core Engineering Principles & Architecture Rules
+## 2. 🛡️ Architectural Invariants & Non-Negotiables
 
-All developments and extensions MUST strictly adhere to the following software engineering standards:
+AI Agents MUST preserve these competitive advantages over legacy systems (SSRS/Jasper/Carbone):
 
-### 1. Clean Architecture Layering (`backend-v2/`)
-- **Domain Layer (`SmkDoc.Domain`):** Pure C# POCO entities, Enums, Value Objects, Domain Exceptions (`SchemaValidationException`, `NotFoundException`, `RenderException`). Zero external dependencies (no EF Core, no OpenXml, no ASP.NET).
-- **Application Layer (`SmkDoc.Application`):** Use cases (`GenerateDocumentUseCase`, `ValidatePayloadUseCase`, `PreviewDocumentUseCase`, `TemplateManagementUseCase`, `FieldMappingUseCase`, `DocumentVersionUseCase`), DTOs, Pipeline Interfaces (`IRepository<T>`, `IUnitOfWork`, `IStorageService`, `IPdfRenderer`, `IRenderEngine`, `IJsonSchemaValidationService`, `IExecutionContext`). Depends ONLY on `Domain`.
-- **Infrastructure Layer (`SmkDoc.Infrastructure`):** Adapters implementing Application ports:
-  - `Persistence/`: EF Core `AppDbContext`, Repositories, Migrations
-  - `Storage/`: MinIO S3 adapter
-  - `Pdf/`: Gotenberg 8 client (Chromium & LibreOffice)
-  - `Engines/`: `HtmlTemplateEngine`, `DocxTemplateEngine`, `ExcelTemplateEngine`
-  - `Schema/`: `JsonSchemaValidationService` (Draft-07 validation via `JsonSchema.Net`), `SchemaInferenceService`
-- **Presentation Layer (`SmkDoc.Api`):** HTTP Controllers strictly matching SDD v1.3 routes, `ApiKeyMiddleware`, `SchemaValidationExceptionFilter` (RFC 7807 Problem Details), global exception handling, and DI container configuration.
-
-### 2. Standard Software Design Patterns
-- **Dependency Inversion (DIP):** Depend on abstractions (`IRepository`, `IStorageService`, `IPdfRenderer`, `IRenderEngine`), never concrete classes. Application Layer must NEVER reference `AppDbContext` or `MinioStorageService` directly.
-- **Strategy Pattern (OCP):** Route document rendering through `IRenderEngine` implementations (`HtmlTemplateEngine`, `DocxTemplateEngine`, `ExcelTemplateEngine`) resolved by `RenderEngineType`. NEVER use `if/else` or `switch` on engine types inside orchestrators.
-- **Pipeline Pattern (SRP):** Decompose complex Word/Excel processing into single-responsibility steps (`WordTextReplacer`, `WordTableExpander`, `WordMediaInjector`).
-- **Options Pattern:** Strongly-typed configuration injection (e.g., `IOptions<MinioSettings>`, `IOptions<GotenbergSettings>`).
-
-### 3. SOLID, KISS, DRY Rules
-- **S — Single Responsibility:** 1 Service = 1 Responsibility. Do not bundle storage, versioning, database queries, and regex parsing into a single monster class.
-- **O — Open/Closed:** Open for extension (add new `IRenderEngine` or `ITransformFunction`), closed for modification.
-- **L — Liskov Substitution:** Subtypes must be fully substitutable for their interface contracts.
-- **I — Interface Segregation:** Narrow, purpose-driven interfaces. No monolithic interfaces forcing unused methods.
-- **D — Dependency Inversion:** Inward-pointing dependencies. Core has zero framework coupling.
-- **KISS:** Avoid over-abstraction. Do not introduce CQRS/MediatR unless complexity genuinely warrants it. Use clean Use-Case services.
-- **DRY:** Single Source of Truth for placeholder regex (`PlaceholderHelper.Pattern`) and Thai data transformations (`ThaiDataTransformer`).
-- **Security:** Use `IDocxSecurityScanner` in the pipeline to enforce security scanning of uploaded documents.
+| Core Invariant | Rationale (Why) | Hard Constraint (What NOT to Do) |
+|---|---|---|
+| **Stateless Rendering** | Prevent session memory leaks and scaling bottlenecks | **NEVER** write to DB or MinIO during Preview endpoints. Previews MUST remain 100% in-memory. |
+| **HTML-First Engine** | Modern layout rendering with Thai font fidelity | Gotenberg Chromium is first-class. Always inject Sarabun fonts & Thai word-breaking. |
+| **Native Thai Formatting** | Enterprise financial compliance (พ.ศ., Baht text) | **NEVER** format Thai dates or currencies manually. **ALWAYS** route through `ThaiDataTransformer`. |
+| **Engine Extensibility** | Open/Closed Principle for output formats | **ALWAYS** implement `IRenderEngine`. **NEVER** use `switch` or `if/else` on engine types in orchestrators. |
+| **API-First Parity** | Headless document generation support | Every capability in Web Studio **MUST** be fully accessible via headless REST API. |
+| **Legal Audit Snapshots** | Point-in-time legal auditability | Persist complete JSON payload snapshots and immutable document versions for generated outputs. |
+| **No Auto-Docker** | Host environment safety | **NEVER** run `docker` or `docker compose` commands autonomously. Provide command snippets for the user instead. |
 
 ---
 
-## 🗄️ Database Schema (PostgreSQL — SDD v1.3)
+## 3. 🧠 Proactive Thinking Partner & Engineering Protocol
 
-```sql
--- 0. Multi-Tenancy & Auth
-CREATE TABLE companies (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name VARCHAR(200) NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
+You are NOT a passive code generator, and you are NOT a superficial Q&A chatbot. In **EVERY interaction** (whether answering technical questions, analyzing architecture, reviewing code, or proposing designs), you MUST act as a **Senior System Architect and Tech Lead**:
 
-CREATE TABLE projects (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
-    name VARCHAR(200) NOT NULL,
-    slug VARCHAR(100) UNIQUE NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
+### Universal Analysis & Thinking Protocol (Every Interaction & Inquiry)
 
-CREATE TABLE users (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    email VARCHAR(255) UNIQUE NOT NULL,
-    password_hash VARCHAR(255) NOT NULL,
-    first_name VARCHAR(100),
-    last_name VARCHAR(100),
-    is_active BOOLEAN DEFAULT true,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
+1. **Analyze from First Principles (Never Give Surface-Level Answers):**
+   - When asked a technical or architectural question (e.g., *"Why is X designed this way?"* or *"Why don't we use Y here?"*):
+     - **Do NOT just quote code locations or give a superficial factual answer.**
+     - **Deconstruct the Architectural Rationale:** Explain *why* the system is designed this way according to Clean Architecture boundaries, performance trade-offs, and enterprise invariants.
+     - **Identify Root Causes:** Address underlying architectural challenges rather than surface-level symptoms.
+     - **Proactively Propose the Best Path:** Evaluate whether the current implementation is optimal, identify hidden pitfalls, and actively propose the best enterprise industry standard for `smk-doc-server`.
 
-CREATE TABLE user_project_roles (
-    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-    project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
-    role VARCHAR(20) NOT NULL, -- 'Admin', 'Editor', 'Viewer'
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    PRIMARY KEY (user_id, project_id)
-);
+2. **Proactive Guidance & Concrete Recommendations:**
+   - **Challenge & Warn:** Proactively flag anti-patterns, DIP violations, or layer leaks (e.g., leaking `IQueryable` from DB into UseCases, DTOs in Domain, direct DB access in Controllers).
+   - **Comparative Options when Warranted:** Present concrete options (e.g., Option A vs. Option B) with trade-offs when meaningful architectural choices or risks exist. For clear, standard solutions, directly recommend the best approach with sound rationale rather than forcing artificial alternatives.
 
--- 1. Templates
-CREATE TABLE templates (
-    id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    project_id         UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-    name               VARCHAR(200) NOT NULL,
-    slug               VARCHAR(100) UNIQUE NOT NULL,
-    category           VARCHAR(50),
-    is_active          BOOLEAN DEFAULT true,
-    current_version_id UUID,
-    created_at         TIMESTAMPTZ DEFAULT NOW(),
-    updated_at         TIMESTAMPTZ DEFAULT NOW()
-);
+3. **Design Blueprint Alignment (Before Modifying Code):**
+   - **NEVER jump straight to code** for non-trivial requests or architectural changes.
+   - For new features, DB schema changes, or multi-file refactoring, clearly present the design blueprint before writing code:
+     - **Layer placement & new abstractions:** (New interfaces, DTOs, Entities, or Ports)
+     - **Side-effects & Stateless Preview:** (Does it touch DB/MinIO? Is an in-memory preview counterpart needed?)
+     - **Risks & Scope boundaries:** (Impacted pipelines, regression risks, out-of-scope items)
 
--- 2. Field Mappings
-CREATE TABLE field_mappings (
-    id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    template_id      UUID NOT NULL REFERENCES templates(id) ON DELETE CASCADE,
-    placeholder      VARCHAR(100) NOT NULL,
-    data_source_type VARCHAR(20) DEFAULT 'json',
-    source_path      VARCHAR(200) NOT NULL,
-    dataset_alias    VARCHAR(50),
-    result_path      VARCHAR(300),
-    math_expression  VARCHAR(500),
-    label            VARCHAR(200) NOT NULL,
-    required         BOOLEAN DEFAULT false,
-    default_value    TEXT,
-    transform        VARCHAR(50),
-    sort_order       INTEGER DEFAULT 0,
-    UNIQUE(template_id, placeholder)
-);
+4. **Maintain Standards:**
+   - Enforce SOLID principles, Clean Architecture dependency rules, Zod-first validation in frontend, and established UI tokens.
 
--- 3. Template Versions
-CREATE TABLE template_versions (
-    id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    template_id       UUID NOT NULL REFERENCES templates(id) ON DELETE CASCADE,
-    version           INTEGER NOT NULL,
-    storage_key       VARCHAR(500) NOT NULL,
-    status            INTEGER DEFAULT 0,
-    file_format       VARCHAR(10),
-    data_schema       JSONB,
-    sample_payload    JSONB,
-    mappings_snapshot TEXT,
-    change_note       TEXT,
-    commit_message    VARCHAR(500),
-    created_by        VARCHAR(100),
-    created_at        TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE(template_id, version)
-);
-
--- 4. API Keys
-CREATE TABLE api_keys (
-    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    project_id   UUID REFERENCES projects(id) ON DELETE CASCADE,
-    name         VARCHAR(100) NOT NULL,
-    caller_app   VARCHAR(50)  NOT NULL,
-    key_hash     VARCHAR(255) NOT NULL,
-    is_active    BOOLEAN DEFAULT true,
-    last_used_at TIMESTAMPTZ,
-    created_at   TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 5. Generation Logs
-CREATE TABLE generation_logs (
-    id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    template_id           UUID REFERENCES templates(id) ON DELETE SET NULL,
-    template_version_id   UUID REFERENCES template_versions(id) ON DELETE SET NULL,
-    api_key_id            UUID REFERENCES api_keys(id) ON DELETE SET NULL,
-    caller_app            VARCHAR(50),
-    trigger_source        VARCHAR(20),
-    input_data            JSONB,
-    payload_hash_sha256   VARCHAR(64),
-    output_key            VARCHAR(500),
-    output_format         VARCHAR(10),
-    file_size_bytes       BIGINT,
-    page_count            INTEGER,
-    duration_ms           INTEGER,
-    status                VARCHAR(20) NOT NULL,
-    error_msg             TEXT,
-    created_at            TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 6. Documents (Legal Audit Trail Base)
-CREATE TABLE documents (
-    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    document_ref  VARCHAR(100) NOT NULL,
-    template_id   UUID REFERENCES templates(id) ON DELETE SET NULL,
-    created_at    TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE(document_ref)
-);
-
--- 6.1. Document Versions (Legal Audit Trail Snapshots)
-CREATE TABLE document_versions (
-    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    document_id         UUID NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
-    version             INTEGER NOT NULL,
-    template_version_id UUID REFERENCES template_versions(id) ON DELETE SET NULL,
-    generation_log_id   UUID REFERENCES generation_logs(id) ON DELETE SET NULL,
-    change_note         TEXT,
-    created_by          VARCHAR(100),
-    created_at          TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE(document_id, version)
-);
-
--- 7. Data Connections (Datasources V2)
-CREATE TABLE data_connections (
-    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name         VARCHAR(200) NOT NULL,
-    provider     VARCHAR(50) NOT NULL,
-    encrypted_connection_string TEXT NOT NULL,
-    created_at   TIMESTAMPTZ DEFAULT NOW(),
-    updated_at   TIMESTAMPTZ
-);
-
--- 8. Datasets
-CREATE TABLE datasets (
-    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name         VARCHAR(200) NOT NULL,
-    description  TEXT,
-    data_connection_id UUID NOT NULL REFERENCES data_connections(id) ON DELETE CASCADE,
-    sql_query    TEXT NOT NULL,
-    cache_seconds INTEGER DEFAULT 0,
-    created_at   TIMESTAMPTZ DEFAULT NOW(),
-    updated_at   TIMESTAMPTZ
-);
-
--- 9. Template Datasets
-CREATE TABLE template_datasets (
-    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    template_id  UUID NOT NULL REFERENCES templates(id) ON DELETE CASCADE,
-    dataset_id   UUID NOT NULL REFERENCES datasets(id) ON DELETE CASCADE,
-    alias        VARCHAR(50) NOT NULL,
-    sort_order   INTEGER DEFAULT 0,
-    UNIQUE(template_id, alias)
-);
-```
+5. **Continuous Doc Drift Evaluation:**
+   - During and after modifying code, actively evaluate whether changes affect `AGENTS.md` (invariants, tech baseline, conventions) or files in `docs/AI/` (e.g. `DB_SCHEMA.md` for tables, `API_CONTRACT.md` for endpoints, `PROJECT_STRUCTURE.md` for new classes).
+   - **Ask Before Mutating:** Identify specific drifted documents and proactively ask the user for confirmation before editing documentation. Never silently modify `AGENTS.md` or `docs/AI/`.
 
 ---
 
-## 🔌 API Endpoints & Auth (SDD v1.3 Standards)
+## 4. 🏛️ Clean Architecture Boundary & Dependency Matrix
 
-All endpoints require authentication, using dual-mode auth depending on the caller context:
-* **System / External API callers:** `X-API-Key: <plainTextKey>` mapped to a `ProjectId` and tracked via DB hashes (SHA-256).
-* **Portal UI users (Human):** `Authorization: Bearer <jwtToken>`. Stateless JWT signed via `Jwt:Secret`, containing `sub` (UserId), `email`, `ProjectId`, and `role` claims.
+The `backend-v2/` solution strictly enforces Clean Architecture dependency inversion:
 
-### 0. Authentication
-* **Login (Portal):** `POST /api/auth/login`
-  * Body: `{ "email": "...", "password": "...", "projectId": "uuid" }`
-  * Response: `{ "accessToken": "jwt...", "expiresIn": 86400 }`
+| Layer | Project | Allowed Inward Dependencies | Forbidden Elements (Zero Tolerance) | Return Types |
+|---|---|---|---|---|
+| **Domain** | `SmkDoc.Domain` | None (Pure C# POCOs) | • NO EF Core / OpenXml / ASP.NET<br>• **NO DTOs or API Models**<br>• No I/O or HTTP concerns | Domain Entities, Value Objects, Enums, Domain Exceptions |
+| **Application** | `SmkDoc.Application` | `SmkDoc.Domain` | • NO `AppDbContext` or MinIO SDK<br>• **NO API Request/Response models**<br>• No Gotenberg or HTTP controllers | **Application DTOs ONLY** (Never expose Domain Entities) |
+| **Infrastructure** | `SmkDoc.Infrastructure` | `SmkDoc.Application`, `SmkDoc.Domain` | • NO API Controllers or HTTP Routing<br>• No Business Validation Logic | Internal Adapter implementations |
+| **Presentation** | `SmkDoc.Api` | `SmkDoc.Application` (via DIP) | • **NO Direct Domain Entity access**<br>• No database queries or storage calls | API Responses (`ApiResponse<T>`) |
 
-### 1. Document Operations
-* **Generate Document:** `POST /api/documents/generate/:slug`
-  * Body: `{ "data": { ... }, "output": "pdf" | "docx" | "xlsx", "skipValidation": false }`
-  * Response: `{ "url": "https://...", "expiresAt": "...", "generationId": "uuid" }`
-  * Schema Validation: Enforces template's Draft-07 JSON Schema. Returns `400 Bad Request` (RFC 7807 Problem Details) on violation with `{ "errors": [{ "path": "...", "message": "...", "rule": "..." }] }`. Can be bypassed with `"skipValidation": true`.
-* **Pre-flight Payload Validation:** `POST /api/documents/validate/:slug`
-  * Body: `{ "data": { ... } }`
-  * Response (200 / 400): `{ "valid": true | false, "templateSlug": "...", "schemaVersion": 1, "errors": [...] }`
-  * Behavior: Validates payload against template Draft-07 JSON schema with zero side-effects (no MinIO upload, no DB audit log).
-* **Live Preview:** `POST /api/documents/preview/:slug`
-  * Body: `{ "data": { ... }, "html": "optional current editor content" }`
-  * Behavior: Streams PDF bytes directly (`application/pdf`) with `Content-Disposition: inline`.
-  * **Rule:** NEVER upload to MinIO, NEVER write to `generation_logs`, NEVER increment versions (Zero side-effects).
-* **Document Version History:** `GET /api/documents/:ref/versions`
-* **Download Historical Version:** `GET /api/documents/:ref/versions/:v/download`
-* **Stateless Document Rendering:** `POST /api/documents/render`
-  * Body: `multipart/form-data` with `file` and `jsonData`
-  * Behavior: Renders PDF byte stream directly from file stream without touching storage/logs.
+### Core Design Patterns & Principles (SOLID, KISS, DRY, SSoT)
+- **SOLID in Practice:**
+  - **SRP:** 1 UseCase = 1 Business Workflow. Controllers only translate HTTP ↔ Application DTOs.
+  - **OCP & Strategy Pattern:** Extend functionality via `IRenderEngine` keyed by `RenderEngineType`. Never use `switch` or `if/else` on engine types.
+  - **LSP & ISP:** Narrow, purpose-driven interfaces (`IRepository`, `IPdfRenderer`, `IStorageService`). Avoid bloated God-interfaces.
+  - **DIP:** Application layer defines abstractions; Infrastructure implements them. Never instantiate concrete infrastructure in Application.
+- **Pipeline Pattern:** Decompose Word/Excel parsing into single-responsibility steps (`WordTextReplacer`, `WordTableExpander`, `WordMediaInjector`).
+- **Security Scanner:** Enforce `IDocxSecurityScanner` in the pipeline for all uploaded templates.
+- **KISS & Pragmatic Architecture:** Simple and explicit beats clever and convoluted. Avoid over-engineering:
+  - Complex state changes and mutations MUST strictly route through UseCases and Domain Invariants.
+  - Pure read-only queries or reporting lookups may leverage direct Dapper queries or streamlined Application handlers to maintain high throughput without unnecessary domain boilerplate.
+  - Do NOT add unnecessary abstractions (e.g., CQRS/MediatR) unless business complexity genuinely warrants it.
+- **DRY & Single Source of Truth (SSoT):**
+  - Placeholder Regex SSoT: `PlaceholderHelper.Pattern`
+  - Thai Data Transformation SSoT: `ThaiDataTransformer`
+  - Frontend Fetch SSoT: `apiClient<T>` & `apiClientBlob`
+  - Frontend Types SSoT: Zod schemas in `schemas/` re-exported in `types/api.ts`
 
-### 2. Template Operations
-* **List Templates:** `GET /api/templates`
-* **Create Template:** `POST /api/templates` (multipart/form-data)
-* **Get HTML for Monaco Editor:** `GET /api/templates/:id/html`
-* **Save HTML from Editor:** `PUT /api/templates/:id/html` (Auto-increments version +1)
-* **Update Template Metadata:** `PUT /api/templates/:id`
-* **Deactivate / Soft Delete:** `DELETE /api/templates/:id`
-* **Get Field Mappings:** `GET /api/templates/:id/mappings`
-* **Save Field Mappings:** `PUT /api/templates/:id/mappings`
-* **Validate Template:** `POST /api/templates/:id/validate`
-* **List Template Versions:** `GET /api/templates/:id/versions`
+### 🧼 Clean Code, Readability & Best Practices
+- **Readability First:** Code must read like clean prose. Use intention-revealing names; avoid cryptic abbreviations.
+- **Small & Focused Units:** Keep functions and methods short, doing exactly one thing well with clear boundaries.
+- **Explicit Error Handling:** Throw strongly-typed Domain Exceptions (`NotFoundException`, `ConflictException`, `RenderException`). NEVER swallow exceptions silently with empty `catch` blocks.
+- **Async/Await Safety:** Always propagate `CancellationToken` in I/O operations; NEVER block threads with `.Result` or `.Wait()`.
+- **Zero Dead Code:** Remove unused variables, dead code, commented-out blocks, and debug artifacts (`Console.WriteLine`, `console.log`) before completing tasks.
 
-### 3. Settings & Logs
-* **List Generation Logs:** `GET /api/logs?page=1&limit=50&app=sales`
-* **List API Keys:** `GET /api/api-keys`
-* **Create API Key:** `POST /api/api-keys`
-* **Revoke API Key:** `DELETE /api/api-keys/:id`
-
-### 4. Datasources & Datasets
-* **List Data Connections:** `GET /api/dataconnections`
-* **Create Data Connection:** `POST /api/dataconnections`
-* **List Datasets:** `GET /api/datasets`
-* **Create Dataset:** `POST /api/datasets`
-* **Link Dataset to Template:** `POST /api/templates/:id/datasets`
+### ⚡ Scalability & High-Throughput Principles
+- **Horizontal Scalability (Stateless by Design):** Application instances must remain 100% stateless. Never store session state, persistent locks, or temp files on local container disks that would prevent running behind a multi-replica load balancer.
+- **Memory Footprint & OOM Prevention:**
+  - **Prefer Streams over Buffers:** Stream Gotenberg/MinIO payloads directly to client responses instead of buffering entire multi-megabyte PDFs in RAM (`byte[]`).
+  - **Strict Resource Disposal:** Always dispose OpenXml/ClosedXML packages and streams deterministically (`using` statements) to prevent Large Object Heap (LOH) memory fragmentation.
+- **Thread Pool Protection & Concurrency:** Enforce non-blocking async I/O end-to-end. Always propagate `CancellationToken` so when a client cancels or disconnects, expensive Gotenberg rendering and DB queries terminate immediately.
+- **Performance Targets (Latency Guardrails):**
+  - **Standard Documents (1–5 pages):** HTML Preview `< 200ms` | Docx/Excel `< 500ms` | PDF Generation `< 3s` | Template Scan `< 100ms`.
+  - **Large / Batch Reports (> 50 pages or high volume):** Design for streaming, async worker queues, or chunking to maintain system responsiveness rather than enforcing rigid synchronous ceilings.
+  - Any solution that risks exceeding baseline targets without sound architectural rationale MUST trigger an inquiry.
 
 ---
 
-## 🛠️ Project Structure
+## 5. 📁 Progressive Disclosure: Action-Triggered Documentation
 
-```
-smk-doc-server/
-├── backend-v2/                 # C# .NET 10 Clean Architecture Solution
-│   ├── Directory.Build.props
-│   ├── Directory.Packages.props
-│   ├── SmkDocServerV2.slnx
-│   ├── src/
-│   │   ├── SmkDoc.Domain/          # Pure C# POCOs (Templates, FieldMappings, ApiKeys, Logs, DocVersions)
-│   │   ├── SmkDoc.Application/     # Use Cases, Ports (IRepository, IStorageService), DTOs
-│   │   ├── SmkDoc.Infrastructure/  # EF Core, MinIO, Gotenberg 8, Engines (Html, Word, Excel)
-│   │   └── SmkDoc.Api/             # Controllers, Middlewares, Program.cs
-│   └── tests/
-│       └── SmkDoc.Tests/           # Unit tests (198/198 passing)
-│
-└── frontend-v2/                # Next.js App Router Clean Architecture Portal
-    ├── DESIGN.md               # Design Tokens Specification
-    ├── src/
-    │   ├── tokens/             # SSoT Design Tokens (Zero hardcoding)
-    │   ├── schemas/            # Domain Zod Schemas & Inferred Types
-    │   ├── lib/api/            # Infrastructure API Adapters (RESTful gateways)
-    │   ├── hooks/              # Application Use-Case Hooks (business logic)
-    │   ├── components/
-    │   │   ├── ui/             # Atomic Reusable UI Blocks (2-4px radius, compact)
-    │   │   ├── layout/         # Shell, Topbar, Sidebar (Lucide icons only)
-    │   │   └── features/       # Feature Blocks (Studio, Generator, Mappings, Audit)
-    │   └── app/                # App Router (Single Page Tab Switcher via AppShell)
-```
+Do NOT read all documentation at once. Read specific documents in `docs/AI/` only when triggered by the task scope:
+
+| When your task touches... | You MUST read this document FIRST |
+|---|---|
+| Coding standards, C#/TS conventions, naming rules | [docs/AI/CODING_CONVENTIONS.md](docs/AI/CODING_CONVENTIONS.md) |
+| Database tables, migrations, EF Core mappings | [docs/AI/DB_SCHEMA.md](docs/AI/DB_SCHEMA.md) |
+| Endpoints, DTOs, API Keys, JWT, Rate Limiting | [docs/AI/API_CONTRACT.md](docs/AI/API_CONTRACT.md) |
+| Project structure, solution layout, layer namespaces | [docs/AI/PROJECT_STRUCTURE.md](docs/AI/PROJECT_STRUCTURE.md) |
+| Handlebars helpers, Thai font sync, Word/Excel engines | [docs/AI/TEMPLATE_ENGINE.md](docs/AI/TEMPLATE_ENGINE.md) |
+| Next.js Portal UI, Monaco Editor, Tailwind tokens | [docs/AI/DESIGN.md](docs/AI/DESIGN.md) |
+| Architectural patterns, pipeline designs | [docs/AI/PATTERNS.md](docs/AI/PATTERNS.md) |
+| Code review, refactoring, avoiding architectural pitfalls | [docs/AI/ANTI-PATTERNS.md](docs/AI/ANTI-PATTERNS.md) |
+| Past architectural decisions and context rationale | [docs/AI/DECISIONS.md](docs/AI/DECISIONS.md) |
 
 ---
 
-## 🎨 Frontend Architecture & Design Rules (`frontend-v2/`)
+## 6. 🧪 Build & Test Verification Commands
 
-All developments in `frontend-v2/` MUST strictly adhere to the following standards:
+When modifying source files, execute automated checks in the relevant directory. **Do NOT run these for documentation-only changes.**
 
-### 1. Single Source of Truth (SSoT) for Design Tokens
-- All visual values (colors, category accents, radii, typography, spacing) MUST be defined in `src/tokens/index.ts` and mirrored in `DESIGN.md`.
-- **STRICT PROHIBITION:** Never hardcode hex colors (e.g. `#10b981`) or arbitrary radii in components. Always use semantic token utilities or token references.
-- **NO SAMMAKORN Navy:** Never use dark navy. The base canvas is Modern Minimalist **ขาวอมฟ้า (Ice-White `#f8fbfe` / `#f0f7ff`)**.
-- **Category Colorful Accents:** Document types must use designated functional colors:
-  - 💜 **Contracts / Legal:** Indigo (`#6366f1`)
-  - 💚 **Financial / Invoices:** Emerald (`#10b981`)
-  - 💙 **Official Letters:** Sky Blue (`#0284c7`)
-  - 🧡 **HR / Personnel:** Amber (`#f59e0b`)
-  - 🩵 **Operations / General:** Cyan / Slate (`#0891b2`)
-
-### 2. Geometry, Icons & Micro-Copy Rules
-- **Border Radius:** Strictly **2px to 4px** (`--radius-sm: 2px; --radius-md: 4px;` / `rounded-[2px]`, `rounded-[4px]`, `rounded-sm`). No bubble or circular rounded shapes.
-- **Iconography:** Use **Lucide icons ONLY** (`lucide-react`). No mixing with other icon sets.
-- **Layout & Typography:** High-density, compact dashboard layout (`text-xs`, `text-sm`, `h-8` action buttons). Do not use oversized banners.
-- **Concise Micro-Copy:** Rely on symbolic communication (colored status dots, icons, badges). Keep Thai text crisp, short, and natural. Do NOT use redundant English brackets (e.g., use `"เอกสาร"` instead of `"เอกสาร (Documents)"`, `"ผู้ดูแลระบบ"` instead of `"ผู้ดูแล [ADMIN]"`). Avoid robotic or "AI-generated" phrasing.
-
-### 3. Zod-First Validation (Runtime Type-Safety)
-- Every API request, response, and form input must be validated via Zod schemas in `src/schemas/`.
-- Never use raw `any` types for document payloads or API responses.
-
-### 4. SOLID / KISS / DRY in Frontend
-- **SRP:** UI components only render presentation; business logic lives in `src/hooks/`; API calls live in `src/lib/api/`.
-- **OCP:** UI blocks (e.g. `Badge`, `CardBlock`) accept category variant props mapped to tokens.
-- **DIP:** Hooks depend on API abstractions and Zod schemas, not raw fetch calls inside UI.
-- **DRY:** Single source of truth for API routes, tokens, and schemas.
-- **KISS:** Keep React state simple, predictable, and clean.
-
-### 5. Navigation & Layout Architecture (SPA Tab Switcher)
-The frontend implements a Single Page Application (SPA) architecture for layout navigation. Instead of using native Next.js App Router navigation (`/app/[route]`), the main page (`app/page.tsx`) uses an `<AppShell>` that manages an `activeTab` state and renders views using a `switch` statement.
-- **Topbar (`Topbar.tsx`):**
-  - Left: Toggle Sidebar (`PanelLeftClose`), Navigation history back/forward (`ChevronLeft`, `ChevronRight`), Home (`Home`).
-  - Right: Quick Master API Key input box with mono font, Quick Search (`Search` / `Ctrl+K`), Notifications (`Bell`), Help (`HelpCircle`).
-- **Sidebar (`Sidebar.tsx`):**
-  - **เอกสาร:** `templates` (แม่แบบทั้งหมด), `generator` (สร้างเอกสาร), `audit` (ประวัติการสร้าง), `logs` (ประวัติการใช้งาน).
-  - **จัดการ:** `studio` (Template Editor v2), `upload` (อัปโหลด Template), `mapping` (กำหนดฟิลด์), `version-history` (Version History), `analytics` (Analytics).
-  - **ผู้ดูแลระบบ:** `datasources` (Datasources v2), `projects` (API Keys), `users` (จัดการผู้ใช้), `settings` (ตั้งค่าระบบ), `apidocs` (API Docs).
-  - **Footer:** User Profile + Popover (เปลี่ยน API Key, ออกจากระบบ).
-
-### 5.1 Card UI Structure
-- Card main actions (e.g., Primary Button "สร้างเอกสาร") MUST be aligned to the **bottom-right**.
-- Secondary/Context menus (e.g., Dropdown `⋮`) MUST be aligned to the **bottom-left** to prevent dropdown clipping.
-- Do NOT use massive Modals for complex forms (e.g., Upload Template); always use split-screen layouts.
-
-### 6. Consolidated Reusable UI Blocks (17 Atomic Components)
-Eliminate legacy duplication (`Badge` + `StatusBadge` + `Pill` -> `Badge.tsx`; `Tabs` + `FilterTabs` -> `Tabs.tsx`):
-1. **`Button.tsx`**: Semantic actions (`primary` [Sky Blue], `secondary`, `outline`, `ghost`, `danger`, `success`), loading spinner, 2-4px radius. Zero `navy` variant.
-2. **`Badge.tsx`**: Consolidated for format tags (`pdf`, `docx`, `xlsx`, `html`), status dots (`success`, `failed`, `pending`), and category accents (`contract`, `financial`, `official`, `hr`, `operations`).
-3. **`CardBlock.tsx`**: HyperUI-style card block on Ice-White canvas with 1px border (`border-border`).
-4. **`StatBlock.tsx`**: HyperUI metric tile with value, label, trend badge, and colored icon box.
-5. **`Input.tsx`**: Form input with Zod validation error integration, icon slot, clear button.
-6. **`Select.tsx`**: Dropdown select with Zod validation.
-7. **`Modal.tsx`**: Accessible dialog overlay with backdrop and 2-4px radius.
-8. **`Table.tsx`**: Data grid with column alignment, sorting indicators, and striped/hover rows.
-9. **`Pagination.tsx`**: Page navigator with item counter and page size selector.
-10. **`Tabs.tsx`**: Consolidated tabs with optional count badges.
-11. **`CodeBlock.tsx`**: Syntax-highlighted code viewer with 1-click copy.
-12. **`EmptyState.tsx`**: Symbolic empty indicator with icon, title, and action button.
-13. **`Toast.tsx`**: Floating notification alerts.
-14. **`Toolbar.tsx`**: Action bar container combining search, category filters, and action buttons.
-15. **`Dropdown.tsx`**: Accessible dropdown menu component with customizable triggers.
-16. **`PdfPreviewPanel.tsx`**: Integrated PDF previewer for studio and generator.
-17. **`Pill.tsx`**: Specialized tag-like pill component.
+| Scope | Working Directory | Command |
+|---|---|---|
+| **Backend Build** | `backend-v2/` | `dotnet build SmkDoc.sln` |
+| **Backend Tests** | `backend-v2/` | `dotnet test SmkDoc.sln` |
+| **Frontend Test** | `frontend-v2/` | `npm test` |
+| **Frontend Build** | `frontend-v2/` | `npm run build` |
 
 ---
 
-## 🚫 Anti-Patterns & Pitfalls to Avoid
+## 7. ✅ Pre-Delivery Self-Correction Checklist
 
-1. **NO Hardcoded Colors/Radii in UI:** Never use raw hex codes or random border-radii in JSX.
-2. **NO Leaking Web Framework to Application in Backend:** Never pass `IFormFile` or `IHttpContextAccessor` into Use Cases. Pass pure `Stream` or DTOs.
-3. **NO Direct Database Queries in Application:** Application must use `IRepository<T>` or `IUnitOfWork`. Never import `AppDbContext` in `SmkDoc.Application`.
-4. **NO God Classes for OpenXML:** Always decompose Word operations into focused classes (`WordTextReplacer`, `WordTableExpander`, `WordMediaInjector`).
-5. **DrawingML ID Requirement:** Microsoft Word Desktop strictly requires `pic:cNvPr Id` to be a non-zero positive integer (`Id > 0`). Setting `Id = 0` causes Word to reject the drawingML node.
-6. **Pre-signed URL Signature Integrity:** Always use the public endpoint (`http://localhost:9000` or configured external domain) for signing client URLs. Never perform string replacement on signed URLs.
-7. **NO Touching V1 (Legacy):** Never modify files in `frontend/` or `backend/`. All active development strictly occurs in `frontend-v2/` and `backend-v2/`.
-8. **NO Broken Tests (Frontend/Backend):** If you add new services, hooks, or modify constructors in either the Application/Infrastructure layers (backend) or React components/hooks (frontend), you MUST update their respective test files immediately to ensure 100% passing tests.
-9. **Next.js 15 ESLint Flat Config:** The frontend uses ESLint 9 Flat Config (`eslint.config.mjs`). DO NOT create legacy `.eslintrc.json` files. If ESLint blocks Docker builds due to pre-existing code debt, you may downgrade specific noisy rules (e.g., `@typescript-eslint/no-unused-vars`, `@typescript-eslint/no-explicit-any`) to `warn` in `eslint.config.mjs`, but new code MUST be strictly typed and clean.
+Output this checklist **only when source code files have been modified**. Skip for analysis-only or documentation-only responses.
 
----
+**🔧 Code Changes (run when any source file was modified)**
+- [ ] **Layering Boundaries:** Did Domain remain POCO-only? Did Application return only Application DTOs? Are Controllers isolated from Domain entities?
+- [ ] **Test Execution:** Did I execute tests via `dotnet test` or `npm test` and verify all tests pass?
+- [ ] **Clean Code:** Did I remove unused imports, debug logs (`Console.WriteLine`, `console.log`), and dead code?
+- [ ] **Frontend Type Safety:** Did I use Zod schemas for forms/API validation without any `any` types?
+- [ ] **No Auto-Docker:** Did I refrain from executing Docker commands directly?
 
-## 🤖 AI Agent Behavior & Workflow Rules
-
-### 0. Core Persona & Domain Expertise
-You are acting as a **Senior System Architect, Tech Lead, and Domain Expert in Enterprise Document Generation** for the `smk-doc-server` project. 
-Your primary goal is NOT just to reactively fix bugs or generate code blindly. You MUST act as a proactive thinking partner who understands the high stakes of enterprise reporting.
-
-**Domain Context & Architectural Benchmarks:**
-You must deeply understand that `smk-doc-server` is a state-of-the-art enterprise template reporting engine. Your mindset and proposed solutions must aim to be **superior, more scalable, more maintainable, and highly performant** compared to legacy or alternative solutions such as:
-- **Jasper Reports**
-- **Legacy SSRS (SQL Server Reporting Services) + C#**
-- **carbone.io**
-- **qorstack/qorstack-report**
-
-When interacting with the user, you MUST:
-1. **Analyze First:** Before writing code, analyze the request against our Clean Architecture rules. Identify root causes, not just surface-level symptoms. Always consider how changes impact the document rendering pipeline, latency, and memory footprint.
-2. **Be Proactive & Guide:** Suggest architectural improvements, flag potential anti-patterns, and warn the user if their request violates any rules in this `AGENTS.md` document (e.g., breaking DIP, using wrong UI tokens).
-3. **Design Before Coding:** When asked to build a new feature, always propose a brief architectural design (Which layer? What interfaces? Any side-effects?) and get alignment before generating the actual code.
-4. **Maintain Standards:** Ensure 100% adherence to SOLID principles, Zod-first validation in frontend, and our strict UI Geometry rules (2-4px radius, Ice-White canvas).
-
-### General Behavioral Protocols
-
-As an AI agent working on this project, you MUST strictly adhere to the following behavioral protocols:
-
-1. **Reference Docs First:** Before implementing new features, you MUST read and reference any relevant Architecture Standards and Design Rules located in `docs\AI`.
-2. **Auto Test & Build (No Docker):** You MUST automatically run build and test commands (e.g., `dotnet build`, `dotnet test`, `npm run test`) to verify your changes. However, DO NOT autonomously run Docker commands (e.g., `docker compose up`). For Docker operations, provide the exact command and instruct the user to run it.
-3. **Ask for Architecture Updates:** Upon finishing a task or feature implementation, you MUST ask the user: *"Do you want me to update the architecture documentation/structure to reflect these changes?"*
-
----
-
-## ✅ AI Agent & Developer Checklist (Pre-Delivery)
-
-Every agent MUST review this checklist mentally before concluding a task and notifying the user:
-
-- [ ] **Docs Reference:** Did I read and apply the standards from `docs\AI`?
-- [ ] **V1/V2 Isolation Check:** Did I strictly modify only `-v2` directories, leaving legacy V1 entirely untouched?
-- [ ] **Unit Test Sync & Run:** Did I update the unit tests for any modified code, and proactively run the build and test commands to verify them?
-- [ ] **UI Component DRY:** Did I use the Design System tokens and shared atomic components (e.g., `Dropdown`, `Badge`) rather than writing raw HTML/CSS?
-- [ ] **KISS Layouts:** Are complex forms properly broken out into Split-screen pages instead of massive Modals?
-- [ ] **No Auto-Docker:** Did I refrain from running Docker commands autonomously, and instead provided the commands for the user to execute?
-- [ ] **Update Prompt:** Did I explicitly ask the user if they want to update the architecture documentation/structure?
-
+**📝 Always (every response modifying the codebase)**
+- [ ] **Doc Drift Evaluation & Confirmation:** Did I evaluate whether `AGENTS.md` or any files in `docs/AI/` drifted, and proactively ask the user before editing?
+  - Specify the exact documents affected (e.g., *"This change added a new endpoint. Would you like me to update `docs/AI/API_CONTRACT.md` and `PROJECT_STRUCTURE.md` (or `AGENTS.md`) to reflect this?"*)
+  - **NEVER** modify `AGENTS.md` or `docs/AI/` silently without explicit user approval.

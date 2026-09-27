@@ -1,4 +1,4 @@
-using SmkDoc.Application.Common.Models;
+using SmkDoc.Application.DTOs.Templates;
 
 namespace SmkDoc.Application.Common.Interfaces;
 

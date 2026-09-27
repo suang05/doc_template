@@ -3,7 +3,7 @@ using FluentAssertions;
 using SmkDoc.Infrastructure.Engines;
 using Xunit;
 
-namespace SmkDoc.Tests;
+namespace SmkDoc.Tests.Infrastructure.Parsing;
 
 public class TemplateScannerServiceTests
 {

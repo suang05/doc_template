@@ -1,4 +1,5 @@
 using SmkDoc.Application.Common.Interfaces;
+using SmkDoc.Domain.Interfaces;
 
 namespace SmkDoc.Infrastructure.Persistence.Repositories;
 
@@ -11,8 +12,8 @@ public class UnitOfWork : IUnitOfWork
         _context = context;
     }
 
-    public async Task<int> SaveChangesAsync(CancellationToken ct = default)
+    public async Task<int> CommitAsync(CancellationToken cancellationToken = default)
     {
-        return await _context.SaveChangesAsync(ct);
+        return await _context.SaveChangesAsync(cancellationToken);
     }
 }

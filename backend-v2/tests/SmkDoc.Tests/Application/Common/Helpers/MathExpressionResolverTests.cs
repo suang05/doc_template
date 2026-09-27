@@ -2,7 +2,7 @@ using FluentAssertions;
 using SmkDoc.Application.Common.Helpers;
 using Xunit;
 
-namespace SmkDoc.Tests;
+namespace SmkDoc.Tests.Application.Common.Helpers;
 
 public class MathExpressionResolverTests
 {

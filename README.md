@@ -43,6 +43,10 @@ Business App  →  POST /api/documents/generate/{slug}  →  PDF / DOCX / XLSX
 - QR code / Barcode inline ใน template ผ่าน `{{qr:key}}` และ `{{barcode:key}}`
 - Audit trail — log ทุก generation พร้อม document versioning
 - Portal (Next.js) สำหรับ admin จัดการ template, mapping, และดู log
+- **Multi-tenancy** — Companies → Projects → API Keys / Templates แยกต่อ project
+- **JWT Portal Auth** — User login + RBAC roles (Admin/Editor/Viewer) ต่อ project
+- **JSON Schema inference** — infer schema จาก placeholder แล้ว validate payload ก่อน generate
+- **HTML Studio** — Monaco Editor + Handlebars helper autocomplete + live preview
 
 ---
 
@@ -64,7 +68,8 @@ Business App  →  POST /api/documents/generate/{slug}  →  PDF / DOCX / XLSX
 | Styling | Tailwind CSS 3 | 3.4.17 |
 | Editor | Monaco Editor | 4.7.0 |
 | Validation | Zod | 3.24.2 |
-| Auth | API Key (SHA-256 hash) | custom |
+| Auth (API) | API Key (SHA-256 hash) | machine-to-machine, scoped to Project |
+| Auth (Portal) | JWT Bearer | user login, RBAC roles (Admin/Editor/Viewer) |
 
 ---
 
@@ -179,6 +184,9 @@ npm run dev
 | `DOC_SERVER_PORT` | `8080` | port ของ backend |
 | `PORTAL_PORT` | `3500` | port ของ frontend portal |
 | `NEXT_PUBLIC_API_URL` | `http://127.0.0.1:8080` | URL ที่ browser เรียก backend — **ต้องตั้งค่าใน production** |
+| `JWT_SECRET` | `dev-smk-jwt-secret-2026-...` | JWT signing secret — **ต้องเปลี่ยนใน production (≥32 chars)** |
+| `ADMIN_EMAIL` | `admin@sammakorn.co.th` | Email ของ admin user เริ่มต้น (seed ตอน startup) |
+| `ADMIN_PASSWORD` | `Admin@2026!` | Password ของ admin user เริ่มต้น — **ต้องเปลี่ยนใน production** |
 
 ### Backend (`appsettings.json`)
 
@@ -189,7 +197,9 @@ npm run dev
   "ConnectionStrings": { "DefaultConnection": "Host=localhost;Port=5433;..." },
   "Minio": { "Endpoint": "localhost:9000", "AccessKey": "admin", "SecretKey": "password" },
   "Security": { "ApiKey": "dev-smk-key-2026" },
-  "GotenbergUrl": "http://localhost:3000"
+  "GotenbergUrl": "http://localhost:3000",
+  "Jwt": { "Secret": "dev-smk-jwt-secret-2026-must-be-at-least-32-chars", "Issuer": "smk-doc-server", "Audience": "smk-portal", "ExpiryHours": 8 },
+  "Admin": { "Email": "admin@sammakorn.co.th", "Password": "Admin@2026!" }
 }
 ```
 
@@ -199,11 +209,13 @@ npm run dev
 
 ### Authentication
 
-ทุก request ต้องใส่ header (ยกเว้น `/`, `/health`, `/swagger`, preview endpoints):
+Machine-to-machine: ส่ง header (ยกเว้น public routes):
 
 ```
 X-API-Key: <your-api-key>
 ```
+
+Portal users: login ผ่าน `POST /api/auth/login` → ได้รับ JWT token
 
 ### Document Generation
 
@@ -317,6 +329,18 @@ GET/PUT              /api/templates/{id}/datasets # Template-dataset assignments
 GET    /api/api-keys          # List keys (hash ปกปิด)
 POST   /api/api-keys          # Create — response แสดง plaintext ครั้งเดียว
 DELETE /api/api-keys/{id}     # Revoke (soft delete)
+```
+
+### User Management
+
+ต้องใช้ทั้ง `X-API-Key` และ `Authorization: Bearer <jwt>` — Admin role เท่านั้น
+
+```
+GET    /api/users                    # รายชื่อสมาชิกใน project
+POST   /api/users                    # Invite user ใหม่ (สร้าง account หรือเพิ่มใน project)
+PUT    /api/users/{id}/role          # เปลี่ยน role
+DELETE /api/users/{id}               # Remove ออกจาก project
+PATCH  /api/users/{id}/status        # Suspend / เปิดใช้งาน account
 ```
 
 ### Audit Logs
@@ -488,13 +512,14 @@ MathExpression: "{qty} * {unitPrice}"    → คำนวณ subtotal
 
 ## Authentication
 
-ระบบใช้ **API Key** แบบ custom (ไม่ใช่ JWT):
+ระบบใช้ **two-layer auth**:
 
-- ทุก request ส่ง `X-API-Key: <key>` header
+### Layer 1 — API Key (machine-to-machine)
+
+- ทุก request จากระบบภายนอกส่ง `X-API-Key: <key>` header
 - Server hash ด้วย SHA-256 แล้วเทียบกับ `api_keys` table
+- API Key scoped ต่อ **Project** — เปลี่ยน key ได้ต่อ project
 - Rate limit: 60 request/นาที ต่อ API Key
-
-### สร้าง API Key
 
 ```bash
 curl -X POST http://localhost:8080/api/api-keys \
@@ -513,6 +538,45 @@ Response (แสดง plaintext ครั้งเดียว):
 ```
 
 **Master Key** สร้างอัตโนมัติจาก `MASTER_API_KEY` env var ตอน startup
+
+### Layer 2 — JWT Bearer (portal users)
+
+Portal ใช้ JWT สำหรับ user login — endpoint นี้เป็น **public** (ไม่ต้องมี API Key):
+
+```
+POST /api/auth/login
+```
+
+```json
+{
+  "email": "admin@sammakorn.co.th",
+  "password": "Admin@2026!"
+}
+```
+
+Response:
+```json
+{
+  "token": "eyJhbGci...",
+  "expiresAt": "2026-09-22T10:00:00Z",
+  "user": { "email": "admin@sammakorn.co.th", "firstName": "Admin" }
+}
+```
+
+- Password hashed ด้วย BCrypt
+- Token เป็น JWT — ตรวจสอบด้วย `[Authorize]` attribute ใน protected endpoints
+- RBAC roles: `Admin`, `Editor`, `Viewer` ต่อ Project (`user_project_roles` table)
+- Default admin seed ตอน startup: `Admin:Email` / `Admin:Password` ใน `appsettings.json`
+
+### Public routes (ไม่ต้อง auth ใดๆ)
+
+| Route | เหตุผล |
+|-------|--------|
+| `GET /` | health ping |
+| `GET /health` | health check |
+| `GET /swagger*` | API docs (Development only) |
+| `POST /api/documents/preview/{slug}` | stateless preview |
+| `POST /api/auth/login` | เข้าสู่ระบบ Portal |
 
 ---
 
@@ -569,6 +633,7 @@ ASPNETCORE_ENVIRONMENT=Production    # ปิด Swagger (แนะนำ)
 | `AddDatasourceSupport` | 2026-09-16 | Schema เริ่มต้น: templates, template_versions, field_mappings, generation_logs, api_keys, data_connections |
 | `AddDatasetLayer` | 2026-09-17 | เพิ่ม datasets table, ปรับ field_mappings |
 | `WaveTwo_FullSchemaRebuild` | 2026-09-17 | Template versioning redesign, documents anchor entity, generation_logs เพิ่มฟิลด์, template_datasets |
+| `AddAuthAndMultiTenancy` | 2026-09-18 | Multi-tenancy: companies, projects, users, user_project_roles; api_keys + templates scoped to Project; PL/pgSQL backfill |
 
 ### รัน Migration ด้วยตนเอง
 
@@ -592,27 +657,44 @@ dotnet ef migrations add <MigrationName> \
 
 ## Frontend Portal
 
-Next.js 15 App Router — single-page admin portal
+Next.js 15 App Router — single-page admin portal พร้อม JWT auth + RBAC
 
 ### หน้าต่างๆ
 
-| หน้า | คำอธิบาย |
-|------|---------|
-| **Templates** | List, create, delete template; copy slug |
-| **Studio** | Monaco Editor แก้ HTML + live PDF preview + version history |
-| **Upload** | Wizard: upload file → scan placeholders → สร้าง mappings อัตโนมัติ |
-| **Mapping** | Drag-and-drop field mapping configuration |
-| **Generator** | ทดสอบ generate เอกสารพร้อม form input |
-| **Audit** | ค้นหา document history ด้วย reference |
-| **Logs** | Generation log พร้อม filter |
-| **API Keys** | จัดการ API keys |
-| **Data Sources** | จัดการ Data Connections และ Datasets |
-| **API Docs** | Developer guide พร้อม code samples |
-| **Settings** | Health check + ตั้งค่า API key |
+| หน้า | Role ขั้นต่ำ | คำอธิบาย |
+|------|------------|---------|
+| **Login** | Public | หน้าเข้าสู่ระบบ — JWT token เก็บใน `localStorage` |
+| **Templates** | Editor | List, create, delete template; copy slug |
+| **Studio** | Editor | Monaco Editor แก้ HTML + live PDF preview + version history |
+| **Upload** | Editor | Wizard: upload file → scan placeholders → สร้าง mappings อัตโนมัติ |
+| **Mapping** | Editor | Drag-and-drop field mapping configuration |
+| **Generator** | Viewer | ทดสอบ generate เอกสารพร้อม form input |
+| **Audit** | Viewer | ค้นหา document history ด้วย reference |
+| **Logs** | Admin | Generation log พร้อม filter |
+| **API Keys** | Admin | จัดการ API keys |
+| **Users** | Admin | จัดการสมาชิก + role ต่อ project (invite / change role / suspend / remove) |
+| **Data Sources** | Admin | จัดการ Data Connections และ Datasets |
+| **API Docs** | Viewer | Developer guide พร้อม code samples |
+| **Settings** | Admin | Health check + ตั้งค่า API key |
+
+### Authentication & RBAC
+
+Portal ใช้ JWT auth ผ่าน `AuthContext` (React Context SSoT):
+
+- **Login**: `POST /api/auth/login` → JWT เก็บใน `localStorage('smk_jwt')`
+- **Auto-logout**: decode JWT `exp` claim → warning modal 60 วินาทีก่อนหมดอายุ → redirect login
+- **Unauthorized (401)**: `apiClient` dispatch `auth:unauthorized` event → `AuthContext` logout อัตโนมัติ
+- **RBAC**: `lib/rbac.ts` กำหนด `NAV_MIN_ROLE` ต่อ tab — Sidebar filter nav items ตาม role, `RequireRole` component guard view
+
+| Role | สิทธิ์ |
+|------|--------|
+| **Admin** | เข้าถึงทุกหน้า รวม Logs, Settings, Data Sources, API Keys |
+| **Editor** | Templates, Studio, Upload, Mapping + ทุกหน้าของ Viewer |
+| **Viewer** | Generator, Audit, API Docs เท่านั้น |
 
 ### API Key ใน Portal
 
-Portal เก็บ API key ใน `localStorage` (`smk_api_key`) — ตั้งค่าได้จาก Topbar หรือ Settings
+Portal เก็บ API key ใน `localStorage` (`smk_api_key`) — ตั้งค่าได้จาก Settings
 
 Default key ถูก bake เข้า bundle จาก `NEXT_PUBLIC_DEFAULT_API_KEY` (= `MASTER_API_KEY` ตอน build)
 
@@ -634,7 +716,7 @@ dotnet test --filter "FullyQualifiedName~GenerateDocumentUseCaseTests"
 dotnet test --collect:"XPlat Code Coverage"
 ```
 
-Test files: 20 files ครอบคลุม Use Cases, Engines, Helpers, Security
+Test files: 21 files ครอบคลุม Use Cases, Engines, Helpers, Security — 208 tests passing
 
 ### Frontend (TypeScript)
 
@@ -656,40 +738,53 @@ smk-doc-server/
 │   │   ├── SmkDoc.Domain/
 │   │   │   ├── Entities/          Template, TemplateVersion, Document, DocumentVersion,
 │   │   │   │                      FieldMapping, GenerationLog, ApiKey,
-│   │   │   │                      DataConnection, Dataset, TemplateDataset
-│   │   │   └── Enums/             RenderEngineType, TemplateVersionStatus, TemplateFormat
+│   │   │   │                      DataConnection, Dataset, TemplateDataset,
+│   │   │   │                      User, Company, Project, UserProjectRole
+│   │   │   └── Enums/             RenderEngineType, TemplateVersionStatus, TemplateFormat,
+│   │   │                          RoleType (Admin/Editor/Viewer)
 │   │   ├── SmkDoc.Application/
 │   │   │   ├── Common/
 │   │   │   │   ├── Interfaces/    IRepository, IUnitOfWork, IStorageService, IPdfRenderer,
 │   │   │   │   │                  IExecutionContext, IRenderEngine, ITemplateScannerService,
-│   │   │   │   │                  IFieldMappingApplicatorService
-│   │   │   │   ├── Models/        DTOs (Request/Response)
+│   │   │   │   │                  IFieldMappingApplicatorService,
+│   │   │   │   │                  IPasswordHasher, IJwtTokenGenerator,
+│   │   │   │   │                  IJsonDataParser, ISchemaInferenceService, IJsonSchemaValidationService
+│   │   │   │   ├── Models/        DTOs (Request/Response, LoginRequest/Response)
 │   │   │   │   └── Helpers/       PlaceholderHelper, ThaiDataTransformer,
 │   │   │   │                      FieldMappingApplicatorService, MathExpressionResolverService
 │   │   │   ├── Engines/           IRenderEngine (Strategy interface)
 │   │   │   └── UseCases/
 │   │   │       ├── Documents/     GenerateDocumentUseCase, PreviewDocumentUseCase,
 │   │   │       │                  DocumentVersionUseCase, RenderStatelessDocumentUseCase
-│   │   │       ├── Templates/     TemplateManagementUseCase, TemplateValidateUseCase
+│   │   │       ├── Templates/     TemplateManagementUseCase, TemplateValidateUseCase,
+│   │   │       │                  HtmlStudioUseCase, HtmlPersistenceUseCase
 │   │   │       ├── FieldMappings/ FieldMappingUseCase, PreviewMappingUseCase, TemplateDatasetUseCase
-│   │   │       ├── Security/      ApiKeyUseCase
-│   │   │       └── Datasets/      DatasetUseCase, DataConnectionUseCase
+│   │   │       ├── Security/      ApiKeyUseCase, LoginUseCase, UserManagementUseCase
+│   │   │       ├── Datasets/      DatasetUseCase, DataConnectionUseCase
+│   │   │       └── Validation/    ValidatePayloadUseCase
 │   │   ├── SmkDoc.Infrastructure/
+│   │   │   ├── Auth/              BcryptPasswordHasher, JwtTokenGenerator
 │   │   │   ├── Engines/
-│   │   │   │   ├── Html/          HtmlTemplateEngine (Handlebars + Gotenberg Chromium)
+│   │   │   │   ├── Html/          HtmlTemplateEngine (Handlebars + Gotenberg Chromium),
+│   │   │   │   │                  HtmlHelperRegistry, HtmlLayoutProcessor, HtmlPlaceholderTransformer
 │   │   │   │   ├── Word/          DocxTemplateEngine (OpenXML + Gotenberg LibreOffice)
-│   │   │   │   └── Excel/         ExcelTemplateEngine (ClosedXML + Gotenberg LibreOffice)
+│   │   │   │   └── Excel/         ExcelTemplateEngine (ClosedXML + Gotenberg LibreOffice),
+│   │   │   │                      ExcelTableExpander, ExcelMediaInjector
 │   │   │   ├── Imaging/           QrCodeService, BarcodeService, ImageOptimizerService
+│   │   │   ├── Parsing/           JsonDataParser (SSoT for FlattenNamed)
 │   │   │   ├── Pdf/               GotenbergPdfRenderer
 │   │   │   ├── Persistence/       AppDbContext, EfRepository, UnitOfWork, Migrations/
+│   │   │   ├── Schema/            SchemaInferenceService, JsonSchemaValidationService
 │   │   │   ├── Security/          DataProtectionService, DocxSecurityScannerService
 │   │   │   └── Storage/           MinioStorageService
 │   │   └── SmkDoc.Api/
 │   │       ├── Controllers/       DocumentController, TemplateController,
-│   │       │                      ApiKeyController, AuditLogController
+│   │       │                      ApiKeyController, AuditLogController,
+│   │       │                      AuthController, UsersController,
+│   │       │                      DataConnectionsController, DatasetController
 │   │       ├── Middleware/        ApiKeyMiddleware, SecurityHeadersMiddleware
 │   │       ├── HealthChecks/      GotenbergHealthCheck, MinioHealthCheck
-│   │       └── Program.cs
+│   │       └── Program.cs         (seed: Company → Project → AdminUser → ApiKey)
 │   └── tests/SmkDoc.Tests/       xUnit tests (20 files)
 ├── frontend-v2/
 │   └── src/

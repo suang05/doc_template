@@ -1,21 +1,18 @@
+using SmkDoc.Domain.ValueObjects.Validation;
+
 namespace SmkDoc.Domain.Exceptions;
 
 /// <summary>
-/// Represents an individual validation error for a specific field/path in the payload.
+/// Backward compatibility alias for <see cref="ValidationErrorItem"/>.
 /// </summary>
-/// <param name="PropertyPath">JSON Pointer path (e.g. "/customer/tax_id").</param>
-/// <param name="Message">Human-readable error description.</param>
-/// <param name="SchemaRule">The Draft-07 keyword that triggered the error (e.g. "pattern", "required").</param>
-public record SchemaValidationError(
-    string PropertyPath,
-    string Message,
-    string? SchemaRule = null);
+public record SchemaValidationError(string PropertyPath, string Message, string? SchemaRule = null)
+    : ValidationErrorItem(PropertyPath, SchemaRule ?? string.Empty, Message);
 
 /// <summary>
 /// Thrown by <c>GenerateDocumentUseCase</c> when the incoming JSON payload fails Draft-07
 /// schema validation. Maps to HTTP 400 Bad Request at the presentation layer.
 /// </summary>
-public sealed class SchemaValidationException : Exception
+public sealed class SchemaValidationException : DomainException
 {
     /// <summary>Slug of the template whose schema was violated.</summary>
     public string TemplateSlug { get; }
@@ -24,14 +21,18 @@ public sealed class SchemaValidationException : Exception
     public int Version { get; }
 
     /// <summary>All validation errors collected from the Draft-07 evaluation.</summary>
-    public IReadOnlyList<SchemaValidationError> Errors { get; }
+    public IReadOnlyList<ValidationErrorItem> Errors { get; }
 
     public SchemaValidationException(
         string templateSlug,
         int version,
-        IReadOnlyList<SchemaValidationError> errors)
+        IReadOnlyList<ValidationErrorItem> errors,
+        Exception? innerException = null)
         : base($"Payload validation failed for template '{templateSlug}' v{version} " +
-               $"({errors.Count} error(s)).")
+               $"({errors.Count} error(s)).",
+               "SCHEMA_VALIDATION_FAILED",
+               400,
+               innerException)
     {
         TemplateSlug = templateSlug;
         Version      = version;

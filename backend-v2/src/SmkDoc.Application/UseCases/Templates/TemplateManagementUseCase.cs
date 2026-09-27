@@ -1,42 +1,32 @@
 using System.Text;
 using SmkDoc.Application.Common;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.Common.Models;
+using SmkDoc.Application.DTOs.Templates;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
+using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.Exceptions;
 
 namespace SmkDoc.Application.UseCases.Templates;
 
-public class TemplateManagementUseCase
+public sealed class TemplateManagementUseCase(
+    IRepository<Template> templateRepo,
+    IRepository<TemplateVersion> versionRepo,
+    IStorageService storageService,
+    ITemplateScannerService scanner,
+    IDocxSecurityScanner securityScanner,
+    IExecutionContext executionContext,
+    IUnitOfWork unitOfWork,
+    IRepository<Project>? projectRepo = null)
 {
-    private readonly IRepository<Template> _templateRepo;
-    private readonly IRepository<TemplateVersion> _versionRepo;
-    private readonly IStorageService _storageService;
-    private readonly ITemplateScannerService _scanner;
-    private readonly IDocxSecurityScanner _securityScanner;
-    private readonly IExecutionContext _executionContext;
-    private readonly IUnitOfWork _unitOfWork;
-    private readonly IRepository<Project>? _projectRepo;
-
-    public TemplateManagementUseCase(
-        IRepository<Template> templateRepo,
-        IRepository<TemplateVersion> versionRepo,
-        IStorageService storageService,
-        ITemplateScannerService scanner,
-        IDocxSecurityScanner securityScanner,
-        IExecutionContext executionContext,
-        IUnitOfWork unitOfWork,
-        IRepository<Project>? projectRepo = null)
-    {
-        _templateRepo = templateRepo;
-        _versionRepo = versionRepo;
-        _storageService = storageService;
-        _scanner = scanner;
-        _securityScanner = securityScanner;
-        _executionContext = executionContext;
-        _unitOfWork = unitOfWork;
-        _projectRepo = projectRepo;
-    }
+    private readonly IRepository<Template> _templateRepo = templateRepo;
+    private readonly IRepository<TemplateVersion> _versionRepo = versionRepo;
+    private readonly IStorageService _storageService = storageService;
+    private readonly ITemplateScannerService _scanner = scanner;
+    private readonly IDocxSecurityScanner _securityScanner = securityScanner;
+    private readonly IExecutionContext _executionContext = executionContext;
+    private readonly IUnitOfWork _unitOfWork = unitOfWork;
+    private readonly IRepository<Project>? _projectRepo = projectRepo;
 
     public async Task<List<TemplateDto>> ListTemplatesAsync(CancellationToken ct = default)
     {
@@ -51,14 +41,14 @@ public class TemplateManagementUseCase
                 t.Id, t.Name, t.Slug, t.Category, t.IsActive,
                 t.CurrentVersionId, 
                 t.CurrentVersionId.HasValue && versionDict.TryGetValue(t.CurrentVersionId.Value, out var fmt) ? fmt : null,
-                t.CreatedAt, t.UpdatedAt))
+                t.CreatedAt, t.UpdatedAt ?? t.CreatedAt))
             .ToList();
     }
 
     public async Task<TemplateDto> GetByIdAsync(Guid id, CancellationToken ct = default)
     {
         var t = await _templateRepo.GetByIdAsync(id, ct)
-            ?? throw new KeyNotFoundException($"Template with ID '{id}' not found.");
+            ?? throw new NotFoundException($"Template with ID '{id}' not found.");
 
         TemplateFormat? format = null;
         if (t.CurrentVersionId.HasValue)
@@ -68,18 +58,18 @@ public class TemplateManagementUseCase
         }
 
         return new TemplateDto(t.Id, t.Name, t.Slug, t.Category, t.IsActive,
-            t.CurrentVersionId, format, t.CreatedAt, t.UpdatedAt);
+            t.CurrentVersionId, format, t.CreatedAt, t.UpdatedAt ?? t.CreatedAt);
     }
 
     public async Task<TemplateDto> CreateTemplateAsync(
-        CreateTemplateRequest request,
+        CreateTemplateCommand request,
         Stream? fileStream = null,
         string? fileName = null,
         CancellationToken ct = default)
     {
         var existing = await _templateRepo.FirstOrDefaultAsync(t => t.Slug == request.Slug, ct);
         if (existing != null)
-            throw new InvalidOperationException($"Template slug '{request.Slug}' is already in use.");
+            throw ConflictException.DuplicateSlug(request.Slug);
 
         string storageKey;
         TemplateFormat fileFormat;
@@ -110,12 +100,7 @@ public class TemplateManagementUseCase
                 ".xlsx" => TemplateFormat.Xlsx,
                 _       => TemplateFormat.Html
             };
-            string contentType = ext switch
-            {
-                ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                ".xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                _       => "text/html; charset=utf-8"
-            };
+            string contentType = fileFormat.MimeType;
             await _storageService.UploadAsync(StorageBuckets.Templates, storageKey, fileStream, contentType, ct);
         }
         else
@@ -136,45 +121,27 @@ public class TemplateManagementUseCase
             if (defaultProj != null) targetProjectId = defaultProj.Id;
         }
 
-        var template = new Template
-        {
-            ProjectId = targetProjectId,
-            Name = request.Name,
-            Slug = request.Slug,
-            Category = request.Category,
-            IsActive = true,
-            CreatedAt = DateTimeOffset.UtcNow,
-            UpdatedAt = DateTimeOffset.UtcNow
-        };
+        var template = new Template(targetProjectId, request.Name, request.Slug, request.Category);
         await _templateRepo.AddAsync(template, ct);
-        await _unitOfWork.SaveChangesAsync(ct); // Save template first to generate ID and break circular dependency
+        await _unitOfWork.CommitAsync(ct); // Save template first to generate ID and break circular dependency
 
-        var initialVersion = new TemplateVersion
-        {
-            TemplateId = template.Id,
-            Version = 1,
-            StorageKey = storageKey,
-            FileFormat = fileFormat,
-            Status = TemplateVersionStatus.Published,
-            CommitMessage = "Initial version",
-            CreatedBy = _executionContext.CallerApp ?? "system",
-            CreatedAt = DateTimeOffset.UtcNow
-        };
+        var initialVersion = new TemplateVersion(template.Id, 1, storageKey, fileFormat, _executionContext.CallerApp ?? "system", "Initial version");
+        initialVersion.Publish();
         await _versionRepo.AddAsync(initialVersion, ct);
-        await _unitOfWork.SaveChangesAsync(ct); // Save version first to generate ID
+        await _unitOfWork.CommitAsync(ct); // Save version first to generate ID
 
-        template.CurrentVersionId = initialVersion.Id;
+        template.SetCurrentVersion(initialVersion.Id);
         _templateRepo.Update(template);
-        await _unitOfWork.SaveChangesAsync(ct); // Update template with CurrentVersionId
+        await _unitOfWork.CommitAsync(ct); // Update template with CurrentVersionId
 
         return new TemplateDto(template.Id, template.Name, template.Slug, template.Category,
-            template.IsActive, template.CurrentVersionId, initialVersion.FileFormat, template.CreatedAt, template.UpdatedAt);
+            template.IsActive, template.CurrentVersionId, initialVersion.FileFormat, template.CreatedAt, template.UpdatedAt ?? template.CreatedAt);
     }
 
     public async Task<string> GetTemplateHtmlAsync(Guid id, CancellationToken ct = default)
     {
         var template = await _templateRepo.GetByIdAsync(id, ct)
-            ?? throw new KeyNotFoundException($"Template '{id}' not found.");
+            ?? throw new NotFoundException($"Template '{id}' not found.");
 
         var version = await GetCurrentVersionAsync(template, ct);
         
@@ -186,10 +153,10 @@ public class TemplateManagementUseCase
         return await reader.ReadToEndAsync(ct);
     }
 
-    public async Task<int> SaveTemplateHtmlAsync(Guid id, SaveTemplateHtmlRequest request, CancellationToken ct = default)
+    public async Task<int> SaveTemplateHtmlAsync(Guid id, SaveTemplateHtmlCommand request, CancellationToken ct = default)
     {
         var template = await _templateRepo.GetByIdAsync(id, ct)
-            ?? throw new KeyNotFoundException($"Template '{id}' not found.");
+            ?? throw new NotFoundException($"Template '{id}' not found.");
 
         var currentVersion = await GetCurrentVersionAsync(template, ct);
         int nextVersionNumber = currentVersion.Version + 1;
@@ -205,68 +172,65 @@ public class TemplateManagementUseCase
         using (var stream = new MemoryStream(htmlBytes))
             await _storageService.UploadAsync(StorageBuckets.Templates, activeKey, stream, "text/html; charset=utf-8", ct);
 
-        var newVersion = new TemplateVersion
-        {
-            TemplateId = template.Id,
-            Version = nextVersionNumber,
-            StorageKey = versionedKey,
-            FileFormat = TemplateFormat.Html,
-            Status = TemplateVersionStatus.Published,
-            CommitMessage = request.ChangeNote,
-            CreatedBy = _executionContext.CallerApp ?? "developer",
-            CreatedAt = DateTimeOffset.UtcNow
-        };
+        var newVersion = new TemplateVersion(template.Id, nextVersionNumber, versionedKey, TemplateFormat.Html, _executionContext.CallerApp ?? "developer", request.ChangeNote);
+        newVersion.Publish();
         await _versionRepo.AddAsync(newVersion, ct);
 
-        template.CurrentVersionId = newVersion.Id;
-        template.UpdatedAt = DateTimeOffset.UtcNow;
+        template.SetCurrentVersion(newVersion.Id);
         _templateRepo.Update(template);
 
-        await _unitOfWork.SaveChangesAsync(ct);
+        await _unitOfWork.CommitAsync(ct);
         return nextVersionNumber;
     }
 
-    public async Task UpdateMetadataAsync(Guid id, UpdateTemplateRequest request, CancellationToken ct = default)
+    public async Task UpdateMetadataAsync(Guid id, UpdateTemplateMetadataCommand request, CancellationToken ct = default)
     {
         var template = await _templateRepo.GetByIdAsync(id, ct)
-            ?? throw new KeyNotFoundException($"Template '{id}' not found.");
+            ?? throw new NotFoundException($"Template '{id}' not found.");
 
-        if (request.Name != null) template.Name = request.Name;
-        if (request.Category != null) template.Category = request.Category;
-        if (request.IsActive.HasValue) template.IsActive = request.IsActive.Value;
-        template.UpdatedAt = DateTimeOffset.UtcNow;
+        template.UpdateDetails(request.Name ?? template.Name, request.Category ?? template.Category);
+        if (request.IsActive.HasValue) 
+        { 
+            if (request.IsActive.Value) template.Activate(); 
+            else template.Deactivate(); 
+        }
 
         _templateRepo.Update(template);
-        await _unitOfWork.SaveChangesAsync(ct);
+        await _unitOfWork.CommitAsync(ct);
     }
 
     public async Task DeactivateTemplateAsync(Guid id, CancellationToken ct = default)
     {
         var template = await _templateRepo.GetByIdAsync(id, ct)
-            ?? throw new KeyNotFoundException($"Template '{id}' not found.");
+            ?? throw new NotFoundException($"Template '{id}' not found.");
 
-        template.IsActive = false;
-        template.UpdatedAt = DateTimeOffset.UtcNow;
+        template.Deactivate();
         _templateRepo.Update(template);
-        await _unitOfWork.SaveChangesAsync(ct);
+        await _unitOfWork.CommitAsync(ct);
     }
 
-    public async Task<List<TemplateVersion>> ListVersionsAsync(Guid templateId, CancellationToken ct = default)
+    public async Task<List<TemplateVersionDto>> ListVersionsAsync(Guid templateId, CancellationToken ct = default)
     {
         var versions = await _versionRepo.ListAsync(v => v.TemplateId == templateId, ct);
-        return versions.OrderByDescending(v => v.Version).ToList();
+        return versions
+            .Select(v => new TemplateVersionDto(
+                v.Id, v.TemplateId, v.Version, v.StorageKey, v.Status.Name, v.FileFormat?.Name,
+                v.DataSchema, v.SamplePayload, v.MappingsSnapshot, v.CommitMessage, v.CreatedBy,
+                v.CreatedAt, v.UpdatedAt))
+            .OrderByDescending(v => v.Version)
+            .ToList();
     }
 
     public async Task<int> RollbackVersionAsync(Guid templateId, int targetVersion, CancellationToken ct = default)
     {
         var template = await _templateRepo.GetByIdAsync(templateId, ct)
-            ?? throw new KeyNotFoundException($"Template '{templateId}' not found.");
+            ?? throw new NotFoundException($"Template '{templateId}' not found.");
 
         var currentVersion = await GetCurrentVersionAsync(template, ct);
 
         var archived = await _versionRepo.FirstOrDefaultAsync(
             v => v.TemplateId == templateId && v.Version == targetVersion, ct)
-            ?? throw new KeyNotFoundException($"Version {targetVersion} not found for template '{templateId}'.");
+            ?? throw new NotFoundException($"Version {targetVersion} not found for template '{templateId}'.");
 
         using var archivedStream = await _storageService.DownloadAsync(StorageBuckets.Templates, archived.StorageKey, ct);
         using var memoryStream = new MemoryStream();
@@ -275,41 +239,21 @@ public class TemplateManagementUseCase
 
         int nextVersionNumber = currentVersion.Version + 1;
         
-        string ext = archived.FileFormat switch
-        {
-            TemplateFormat.Docx => ".docx",
-            TemplateFormat.Xlsx => ".xlsx",
-            _ => ".html"
-        };
-        string contentType = archived.FileFormat switch
-        {
-            TemplateFormat.Docx => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            TemplateFormat.Xlsx => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            _ => "text/html; charset=utf-8"
-        };
+        string ext = archived.FileFormat?.Extension ?? ".html";
+        string contentType = archived.FileFormat?.MimeType ?? "text/html; charset=utf-8";
 
         string versionedKey = $"templates/archive/{template.Slug}_v{nextVersionNumber}{ext}";
 
         await _storageService.UploadAsync(StorageBuckets.Templates, versionedKey, memoryStream, contentType, ct);
 
-        var newVersion = new TemplateVersion
-        {
-            TemplateId = template.Id,
-            Version = nextVersionNumber,
-            StorageKey = versionedKey,
-            FileFormat = archived.FileFormat,
-            Status = TemplateVersionStatus.Published,
-            CommitMessage = $"Rollback to v{targetVersion}",
-            CreatedBy = _executionContext.CallerApp ?? "system",
-            CreatedAt = DateTimeOffset.UtcNow
-        };
+        var newVersion = new TemplateVersion(template.Id, nextVersionNumber, versionedKey, archived.FileFormat, _executionContext.CallerApp ?? "system", $"Rollback to v{targetVersion}");
+        newVersion.Publish();
         await _versionRepo.AddAsync(newVersion, ct);
 
-        template.CurrentVersionId = newVersion.Id;
-        template.UpdatedAt = DateTimeOffset.UtcNow;
+        template.SetCurrentVersion(newVersion.Id);
         _templateRepo.Update(template);
 
-        await _unitOfWork.SaveChangesAsync(ct);
+        await _unitOfWork.CommitAsync(ct);
         return nextVersionNumber;
     }
 
@@ -319,7 +263,7 @@ public class TemplateManagementUseCase
     public async Task<List<string>> ScanPlaceholdersAsync(Guid id, CancellationToken ct = default)
     {
         var template = await _templateRepo.GetByIdAsync(id, ct)
-            ?? throw new KeyNotFoundException($"Template '{id}' not found.");
+            ?? throw new NotFoundException($"Template '{id}' not found.");
 
         var version = await GetCurrentVersionAsync(template, ct);
         using var stream = await _storageService.DownloadAsync(StorageBuckets.Templates, version.StorageKey, ct);
@@ -330,7 +274,7 @@ public class TemplateManagementUseCase
     public async Task<(Stream Stream, string ContentType, string FileName)> DownloadTemplateAsync(Guid id, CancellationToken ct = default)
     {
         var template = await _templateRepo.GetByIdAsync(id, ct)
-            ?? throw new KeyNotFoundException($"Template '{id}' not found.");
+            ?? throw new NotFoundException($"Template '{id}' not found.");
 
         var version = await GetCurrentVersionAsync(template, ct);
         var stream = await _storageService.DownloadAsync(StorageBuckets.Templates, version.StorageKey, ct);

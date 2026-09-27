@@ -10,7 +10,7 @@ using SmkDoc.Infrastructure.Engines.Word;
 using SmkDoc.Infrastructure.Imaging;
 using Xunit;
 
-namespace SmkDoc.Tests;
+namespace SmkDoc.Tests.Infrastructure.Engines.Word;
 
 public class DocxTemplateEngineTests
 {

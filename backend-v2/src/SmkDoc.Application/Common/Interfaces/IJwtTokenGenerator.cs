@@ -4,5 +4,6 @@ namespace SmkDoc.Application.Common.Interfaces;
 
 public interface IJwtTokenGenerator
 {
-    string GenerateToken(User user, Guid projectId, IEnumerable<string> roles);
+    string GenerateToken(User user, Guid? projectId = null, IEnumerable<string>? roles = null);
 }
+

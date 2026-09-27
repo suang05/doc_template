@@ -19,8 +19,8 @@ export function useLegalAudit() {
       const list = await documentsApi.getDocumentVersions(ref.trim());
       setVersions(list);
       setDocumentRef(ref.trim());
-    } catch (err: any) {
-      setError(err.message || 'ไม่พบประวัติเวอร์ชันของเอกสารนี้');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'ไม่พบประวัติเวอร์ชันของเอกสารนี้');
       setVersions([]);
     } finally {
       setLoading(false);
@@ -39,8 +39,9 @@ export function useLegalAudit() {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-    } catch (err: any) {
-      alert(err.message || 'ดาวน์โหลดเอกสารล้มเหลว');
+    } catch (err: unknown) {
+      // Re-throw to let caller show error UI (e.g. toast)
+      throw new Error(err instanceof Error ? err.message : 'ดาวน์โหลดเอกสารล้มเหลว');
     } finally {
       setDownloadingVersion(null);
     }

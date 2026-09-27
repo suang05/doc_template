@@ -1,26 +1,61 @@
+using SmkDoc.Domain.Enums;
+using SmkDoc.Domain.ValueObjects;
+
 namespace SmkDoc.Domain.Entities;
 
-public class GenerationLog
+public class GenerationLog : BaseEntity
 {
-    public Guid Id { get; set; } = Guid.NewGuid();
-    public Guid? TemplateId { get; set; }
-    public Guid? TemplateVersionId { get; set; }
-    public Guid? ApiKeyId { get; set; }
-    public string? CallerApp { get; set; }
-    public string? TriggerSource { get; set; }
-    public string? InputData { get; set; }
-    public string? OutputKey { get; set; }
-    public string? OutputFormat { get; set; }
-    public long? FileSizeBytes { get; set; }
-    public int? PageCount { get; set; }
-    public string? PayloadHashSha256 { get; set; }
-    public int DurationMs { get; set; }
-    public string Status { get; set; } = "SUCCESS";
-    public string? ErrorMsg { get; set; }
-    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public Guid? TemplateId { get; private set; }
+    public Guid? TemplateVersionId { get; private set; }
+    public Guid? ApiKeyId { get; private set; }
+    public string? CallerApp { get; private set; }
+    public string? TriggerSource { get; private set; }
+    public string? InputData { get; private set; }
+    public string? OutputKey { get; private set; }
+    public OutputFormat? OutputFormat { get; private set; }
+    public long? FileSizeBytes { get; private set; }
+    public int? PageCount { get; private set; }
+    public Sha256Hash? PayloadHashSha256 { get; private set; }
+    public int DurationMs { get; private set; }
+    public string Status { get; private set; } = "SUCCESS";
+    public string? ErrorMsg { get; private set; }
 
     // Navigation properties
-    public Template? Template { get; set; }
-    public TemplateVersion? TemplateVersion { get; set; }
-    public ApiKey? ApiKey { get; set; }
+    public virtual Template? Template { get; private set; }
+    public virtual TemplateVersion? TemplateVersion { get; private set; }
+    public virtual ApiKey? ApiKey { get; private set; }
+
+    private GenerationLog() { }
+
+    public GenerationLog(
+        Guid? templateId, 
+        Guid? templateVersionId, 
+        Guid? apiKeyId, 
+        string? callerApp, 
+        string? triggerSource, 
+        string? inputData, 
+        string? outputKey, 
+        OutputFormat? outputFormat, 
+        long? fileSizeBytes, 
+        int? pageCount, 
+        Sha256Hash? payloadHashSha256, 
+        int durationMs, 
+        string status, 
+        string? errorMsg)
+    {
+        TemplateId = templateId;
+        TemplateVersionId = templateVersionId;
+        ApiKeyId = apiKeyId;
+        CallerApp = callerApp;
+        TriggerSource = triggerSource;
+        InputData = inputData;
+        OutputKey = outputKey;
+        OutputFormat = outputFormat;
+        FileSizeBytes = fileSizeBytes;
+        PageCount = pageCount;
+        PayloadHashSha256 = payloadHashSha256;
+        DurationMs = durationMs;
+        Status = status;
+        ErrorMsg = errorMsg;
+    }
 }

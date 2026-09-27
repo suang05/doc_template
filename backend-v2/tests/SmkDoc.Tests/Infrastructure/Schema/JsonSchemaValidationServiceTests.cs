@@ -2,7 +2,9 @@ using FluentAssertions;
 using SmkDoc.Infrastructure.Schema;
 using Xunit;
 
-namespace SmkDoc.Tests;
+using Microsoft.Extensions.Caching.Memory;
+
+namespace SmkDoc.Tests.Infrastructure.Schema;
 
 /// <summary>
 /// Unit tests for <see cref="JsonSchemaValidationService"/>.
@@ -11,7 +13,7 @@ namespace SmkDoc.Tests;
 /// </summary>
 public class JsonSchemaValidationServiceTests
 {
-    private readonly JsonSchemaValidationService _sut = new();
+    private readonly JsonSchemaValidationService _sut = new(new MemoryCache(new MemoryCacheOptions()));
 
     // ─── Shared test schema ───────────────────────────────────────────────────
 
@@ -220,7 +222,7 @@ public class JsonSchemaValidationServiceTests
 
         result.IsValid.Should().BeFalse();
         result.Errors.Should().NotBeEmpty();
-        result.Errors[0].PropertyPath.Should().Be("/");
+        result.Errors[0].Field.Should().Be("/");
     }
 
     [Fact]
@@ -230,7 +232,7 @@ public class JsonSchemaValidationServiceTests
 
         result.IsValid.Should().BeFalse();
         result.Errors.Should().NotBeEmpty();
-        result.Errors[0].PropertyPath.Should().Be("/");
+        result.Errors[0].Field.Should().Be("/");
     }
 
     // ─── No schema (pass-through) ─────────────────────────────────────────────
@@ -242,5 +244,17 @@ public class JsonSchemaValidationServiceTests
         var result = _sut.Validate("{}", ValidPayload);
 
         result.IsValid.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Validate_WithJsonElements_ShouldValidateCorrectly()
+    {
+        using var schemaDoc = System.Text.Json.JsonDocument.Parse(InvoiceSchema);
+        using var validDoc = System.Text.Json.JsonDocument.Parse(ValidPayload);
+
+        var result = _sut.Validate(schemaDoc.RootElement, validDoc.RootElement);
+
+        result.IsValid.Should().BeTrue();
+        result.Errors.Should().BeEmpty();
     }
 }

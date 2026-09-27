@@ -1,41 +1,33 @@
 using System.Text;
 using SmkDoc.Application.Common;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.Common.Models;
+using SmkDoc.Application.DTOs.Templates;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
+using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.Exceptions;
 
 namespace SmkDoc.Application.UseCases.Templates;
 
-public class HtmlPersistenceUseCase : IHtmlPersistenceUseCase
+public sealed class HtmlPersistenceUseCase(
+    IRepository<Template> templateRepo,
+    IRepository<TemplateVersion> versionRepo,
+    IStorageService storageService,
+    IUnitOfWork unitOfWork,
+    IExecutionContext executionContext,
+    ISchemaInferenceService schemaInferenceService) : IHtmlPersistenceUseCase
 {
-    private readonly IRepository<Template>        _templateRepo;
-    private readonly IRepository<TemplateVersion> _versionRepo;
-    private readonly IStorageService              _storageService;
-    private readonly IUnitOfWork                  _unitOfWork;
-    private readonly IExecutionContext             _executionContext;
-    private readonly ISchemaInferenceService      _schemaInferenceService;
+    private readonly IRepository<Template> _templateRepo = templateRepo;
+    private readonly IRepository<TemplateVersion> _versionRepo = versionRepo;
+    private readonly IStorageService _storageService = storageService;
+    private readonly IUnitOfWork _unitOfWork = unitOfWork;
+    private readonly IExecutionContext _executionContext = executionContext;
+    private readonly ISchemaInferenceService _schemaInferenceService = schemaInferenceService;
 
-    public HtmlPersistenceUseCase(
-        IRepository<Template> templateRepo,
-        IRepository<TemplateVersion> versionRepo,
-        IStorageService storageService,
-        IUnitOfWork unitOfWork,
-        IExecutionContext executionContext,
-        ISchemaInferenceService schemaInferenceService)
-    {
-        _templateRepo           = templateRepo;
-        _versionRepo            = versionRepo;
-        _storageService         = storageService;
-        _unitOfWork             = unitOfWork;
-        _executionContext       = executionContext;
-        _schemaInferenceService = schemaInferenceService;
-    }
-
-    public async Task<int> SaveHtmlVersionAsync(Guid templateId, SaveTemplateHtmlRequest request, CancellationToken ct = default)
+    public async Task<int> SaveHtmlVersionAsync(Guid templateId, SaveTemplateHtmlCommand request, CancellationToken ct = default)
     {
         var template = await _templateRepo.GetByIdAsync(templateId, ct)
-            ?? throw new KeyNotFoundException($"Template '{templateId}' not found.");
+            ?? throw new NotFoundException($"Template '{templateId}' not found.");
 
         int currentVersionNumber = 0;
         if (template.CurrentVersionId.HasValue)
@@ -69,27 +61,16 @@ public class HtmlPersistenceUseCase : IHtmlPersistenceUseCase
             : defaultSamplePayload;
 
         // 4. Create new database version record (Legal Audit Trail with Schema & SamplePayload snapshots)
-        var newVersion = new TemplateVersion
-        {
-            TemplateId = template.Id,
-            Version = nextVersionNumber,
-            StorageKey = versionedKey,
-            FileFormat = TemplateFormat.Html,
-            Status = TemplateVersionStatus.Published,
-            CommitMessage = request.ChangeNote,
-            CreatedBy = _executionContext.CallerApp ?? "developer",
-            DataSchema = inferredSchema,
-            SamplePayload = finalSamplePayload,
-            CreatedAt = DateTimeOffset.UtcNow
-        };
+        var newVersion = new TemplateVersion(template.Id, nextVersionNumber, versionedKey, TemplateFormat.Html, _executionContext.CallerApp ?? "developer", request.ChangeNote);
+        newVersion.UpdateDataSchema(inferredSchema, finalSamplePayload);
+        newVersion.Publish();
         await _versionRepo.AddAsync(newVersion, ct);
 
         // 4. Update template active pointer and timestamp
-        template.CurrentVersionId = newVersion.Id;
-        template.UpdatedAt = DateTimeOffset.UtcNow;
+        template.SetCurrentVersion(newVersion.Id);
         _templateRepo.Update(template);
 
-        await _unitOfWork.SaveChangesAsync(ct);
+        await _unitOfWork.CommitAsync(ct);
         return nextVersionNumber;
     }
 }

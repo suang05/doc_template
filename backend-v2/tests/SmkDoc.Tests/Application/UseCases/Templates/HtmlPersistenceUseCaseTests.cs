@@ -1,13 +1,14 @@
 using FluentAssertions;
 using Moq;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.Common.Models;
+using SmkDoc.Application.DTOs.Templates;
 using SmkDoc.Application.UseCases.Templates;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using Xunit;
+using SmkDoc.Domain.Interfaces;
 
-namespace SmkDoc.Tests;
+namespace SmkDoc.Tests.Application.UseCases.Templates;
 
 public class HtmlPersistenceUseCaseTests
 {
@@ -25,20 +26,10 @@ public class HtmlPersistenceUseCaseTests
         var templateId = Guid.NewGuid();
         var currentVersionId = Guid.NewGuid();
 
-        var template = new Template
-        {
-            Id = templateId,
-            Slug = "official-contract",
-            CurrentVersionId = currentVersionId
-        };
+        var template = new Template(Guid.NewGuid(), "official-contract", "official-contract", null) { Id = templateId };
+        template.SetCurrentVersion(currentVersionId);
 
-        var currentVersion = new TemplateVersion
-        {
-            Id = currentVersionId,
-            TemplateId = templateId,
-            Version = 3,
-            FileFormat = TemplateFormat.Html
-        };
+        var currentVersion = new TemplateVersion(templateId, 3, "", TemplateFormat.Html, null) { Id = currentVersionId };
 
         _mockTemplateRepo.Setup(r => r.GetByIdAsync(templateId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
@@ -61,7 +52,7 @@ public class HtmlPersistenceUseCaseTests
             _mockSchemaInference.Object
         );
 
-        var request = new SaveTemplateHtmlRequest(
+        var request = new SaveTemplateHtmlCommand(
             Html: "<html><body><h1>Contract Version 4</h1></body></html>",
             SamplePayload: dummySample,
             ChangeNote: "Updated payment terms"
@@ -98,6 +89,6 @@ public class HtmlPersistenceUseCaseTests
             It.IsAny<CancellationToken>()), Times.Once);
 
         // Verify UoW saved
-        _mockUow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _mockUow.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 }

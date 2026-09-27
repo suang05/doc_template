@@ -1,7 +1,7 @@
+using System.Security.Cryptography;
 using System.Text;
 using HandlebarsDotNet;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.Engines;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Infrastructure.Engines.Html.Helpers;
 using SmkDoc.Infrastructure.Engines.Html.Pipeline;
@@ -18,17 +18,20 @@ public class HtmlTemplateEngine : IRenderEngine
     private readonly HtmlPlaceholderTransformer _placeholderTransformer;
     private readonly HtmlLayoutProcessor        _layoutProcessor;
     private readonly IHandlebars               _handlebars;
+    private readonly ICompiledTemplateCache?    _templateCache;
 
     [Microsoft.Extensions.DependencyInjection.ActivatorUtilitiesConstructor]
     public HtmlTemplateEngine(
         IPdfRenderer pdfRenderer,
         IHtmlHelperRegistry helperRegistry,
+        ICompiledTemplateCache? templateCache = null,
         IJsonDataParser? jsonDataParser = null,
         HtmlPlaceholderTransformer? placeholderTransformer = null,
         HtmlLayoutProcessor? layoutProcessor = null)
     {
         _pdfRenderer            = pdfRenderer;
         _helperRegistry         = helperRegistry;
+        _templateCache          = templateCache;
         _jsonDataParser         = jsonDataParser ?? new JsonDataParser();
         _placeholderTransformer = placeholderTransformer ?? new HtmlPlaceholderTransformer();
         _layoutProcessor        = layoutProcessor ?? new HtmlLayoutProcessor();
@@ -54,9 +57,24 @@ public class HtmlTemplateEngine : IRenderEngine
         // 2. Normalize template placeholders and media markers into Handlebars expressions
         string normalizedHtml = _placeholderTransformer.Transform(rawHtml);
 
-        // 3. Compile and evaluate Handlebars template
-        var compiledTemplate = _handlebars.Compile(normalizedHtml);
-        string renderedHtml = compiledTemplate(dataHierarchy);
+        // 3. Compile and evaluate Handlebars template (using cache if available)
+        Func<object, string> evaluate;
+        if (_templateCache != null)
+        {
+            string cacheKey = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(normalizedHtml)));
+            evaluate = _templateCache.GetOrAdd(cacheKey, () =>
+            {
+                var compiled = _handlebars.Compile(normalizedHtml);
+                return data => compiled(data);
+            });
+        }
+        else
+        {
+            var compiled = _handlebars.Compile(normalizedHtml);
+            evaluate = data => compiled(data);
+        }
+
+        string renderedHtml = evaluate(dataHierarchy);
 
         // 4. Process layout: font injection and Gotenberg header/footer extraction
         var layoutResult = _layoutProcessor.Process(renderedHtml);

@@ -1,17 +1,42 @@
+using SmkDoc.Domain.Interfaces;
+
 namespace SmkDoc.Domain.Entities;
 
-public class ApiKey
+public class ApiKey : BaseEntity, IMustHaveProject
 {
-    public Guid Id { get; set; } = Guid.NewGuid();
-    public Guid ProjectId { get; set; }
-    public string Name { get; set; } = string.Empty;
-    public string CallerApp { get; set; } = string.Empty;
-    public string KeyHash { get; set; } = string.Empty; // System uses SHA-256 for fast validation
-    public bool IsActive { get; set; } = true;
-    public DateTimeOffset? ExpiresAt { get; set; }
-    public DateTimeOffset? LastUsedAt { get; set; }
-    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public Guid ProjectId { get; private set; }
+    public string Name { get; private set; } = string.Empty;
+    public string CallerApp { get; private set; } = string.Empty;
+    public string KeyHash { get; private set; } = string.Empty;
+    public bool IsActive { get; private set; } = true;
+    public DateTimeOffset? ExpiresAt { get; private set; }
+    public DateTimeOffset? LastUsedAt { get; private set; }
 
     // Navigation properties
-    public Project? Project { get; set; }
+    public virtual Project? Project { get; private set; }
+
+    // For EF Core
+    private ApiKey() { }
+
+    public ApiKey(Guid projectId, string name, string? callerApp, string keyHash, DateTimeOffset? expiresAt)
+    {
+        ProjectId = projectId;
+        Name = name;
+        CallerApp = callerApp ?? string.Empty;
+        KeyHash = keyHash;
+        ExpiresAt = expiresAt;
+        IsActive = true;
+    }
+
+    public void RecordUsage()
+    {
+        LastUsedAt = DateTimeOffset.UtcNow;
+        SetUpdated();
+    }
+
+    public void Revoke()
+    {
+        IsActive = false;
+        SetUpdated();
+    }
 }

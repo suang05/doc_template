@@ -4,15 +4,16 @@ using System.Text.Json;
 using FluentAssertions;
 using Moq;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.Common.Models;
-using SmkDoc.Application.Engines;
+using SmkDoc.Application.DTOs.Documents;
+using SmkDoc.Application.DTOs.FieldMappings;
 using SmkDoc.Application.UseCases.Documents;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Infrastructure.Engines.Html;
 using Xunit;
+using SmkDoc.Domain.Interfaces;
 
-namespace SmkDoc.Tests;
+namespace SmkDoc.Tests.Infrastructure.Engines.Html;
 
 public class HtmlDirectGenerationTests
 {
@@ -43,23 +44,10 @@ public class HtmlDirectGenerationTests
         var versionId  = Guid.NewGuid();
         string capturedHtml = string.Empty;
 
-        var template = new Template
-        {
-            Id = templateId,
-            Slug = "invoice-direct-html",
-            Name = "Direct HTML Invoice",
-            IsActive = true,
-            CurrentVersionId = versionId
-        };
+        var template = new Template(Guid.NewGuid(), "Direct HTML Invoice", "invoice-direct-html", null) { Id = templateId };
+        template.SetCurrentVersion(versionId);
 
-        var version = new TemplateVersion
-        {
-            Id = versionId,
-            TemplateId = templateId,
-            Version = 1,
-            FileFormat = TemplateFormat.Html,
-            StorageKey = "templates/invoice.html"
-        };
+        var version = new TemplateVersion(templateId, 1, "templates/invoice.html", TemplateFormat.Html, "Published", "Initial") { Id = versionId };
 
         string htmlContent = @"
             <html>
@@ -145,7 +133,7 @@ public class HtmlDirectGenerationTests
             ""totalAmount"": 5525000.50
         }").RootElement;
 
-        var request = new GenerateDocumentRequest(payload, Output: "pdf", DocumentRef: "INV-2026-0001");
+        var request = new GenerateDocumentCommand(payload, Output: "pdf", DocumentRef: "INV-2026-0001");
 
         // Act
         var response = await useCase.ExecuteAsync("invoice-direct-html", request, CancellationToken.None);
@@ -168,6 +156,6 @@ public class HtmlDirectGenerationTests
         capturedHtml.Should().Contain("ห้าล้านห้าแสนสองหมื่นห้าพันบาทห้าสิบสตางค์");
 
         // Verify Applicator was NOT invoked since mappings were 0
-        _mockApplicator.Verify(a => a.ApplyAsync(It.IsAny<JsonElement>(), It.IsAny<IEnumerable<FieldMapping>>(), It.IsAny<IReadOnlyDictionary<string, ResolvedDataset>>()), Times.Never);
+        _mockApplicator.Verify(a => a.ApplyAsync(It.IsAny<JsonElement>(), It.IsAny<IEnumerable<FieldMapping>>(), It.IsAny<IReadOnlyDictionary<string, ResolvedDatasetContext>>()), Times.Never);
     }
 }

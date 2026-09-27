@@ -17,8 +17,9 @@ using SmkDoc.Infrastructure.Imaging;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace SmkDoc.Tests;
+namespace SmkDoc.Tests.Integration.Benchmarks;
 
+[Trait("Category", "Benchmark")]
 public class PerformanceBenchmarkTests
 {
     private readonly ITestOutputHelper _output;
@@ -304,5 +305,44 @@ public class PerformanceBenchmarkTests
         resultBytes.Should().NotBeNullOrEmpty();
         resultBytes.Length.Should().BeGreaterThan(50000);
         elapsedMs.Should().BeLessThan(1000); // Handlebars merge should be very fast (< 1s)
+    }
+
+    [Fact]
+    public async Task Benchmark_Engine_Concurrency_Performance()
+    {
+        const int concurrentRequests = 50;
+        var htmlTemplate = "<html><body><h1>Hello World</h1></body></html>";
+        var templateBytes = Encoding.UTF8.GetBytes(htmlTemplate);
+        
+        var mockPdf = new Mock<IPdfRenderer>();
+        mockPdf.Setup(p => p.RenderHtmlToPdfAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((string html, string? h, string? f, CancellationToken ct) => Encoding.UTF8.GetBytes(html)); // mock returns bytes
+
+        var htmlMediaService = new MediaGenerationService(new Mock<IQrCodeService>().Object, new Mock<IBarcodeService>().Object);
+        var engine = new HtmlTemplateEngine(mockPdf.Object, new HtmlHelperRegistry(htmlMediaService));
+        var payload = "{}";
+
+        var sw = Stopwatch.StartNew();
+        var tasks = new List<Task<byte[]>>();
+
+        for (int i = 0; i < concurrentRequests; i++)
+        {
+            var stream = new MemoryStream(templateBytes);
+            tasks.Add(engine.RenderAsync(stream, payload, OutputFormat.Pdf));
+        }
+
+        var results = await Task.WhenAll(tasks);
+        sw.Stop();
+
+        _output.WriteLine($"==========================================================");
+        _output.WriteLine($"[CONCURRENCY BENCHMARK] {concurrentRequests} Concurrent HTML->PDF Render Requests");
+        _output.WriteLine($"  - Elapsed Time       : {sw.ElapsedMilliseconds} ms");
+        _output.WriteLine($"==========================================================");
+
+        results.Length.Should().Be(concurrentRequests);
+        foreach (var result in results)
+        {
+            result.Should().NotBeNullOrEmpty();
+        }
     }
 }

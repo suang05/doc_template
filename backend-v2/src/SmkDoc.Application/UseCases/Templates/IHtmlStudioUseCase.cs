@@ -1,4 +1,4 @@
-using SmkDoc.Application.Common.Models;
+using SmkDoc.Application.DTOs.Templates;
 
 namespace SmkDoc.Application.UseCases.Templates;
 
@@ -32,6 +32,6 @@ public interface IHtmlStudioUseCase
     /// <summary>
     /// Validates HTML syntax and extracts placeholders for the Monaco Editor interface.
     /// </summary>
-    Task<TemplateValidationResult> ValidateHtmlAsync(string htmlContent, CancellationToken ct = default);
+    Task<TemplateValidationResultDto> ValidateHtmlAsync(string htmlContent, CancellationToken ct = default);
 }
 

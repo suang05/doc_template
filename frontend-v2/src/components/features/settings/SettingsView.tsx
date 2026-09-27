@@ -12,7 +12,7 @@ import {
   FileText,
 } from 'lucide-react';
 import { getStoredApiKey, setStoredApiKey } from '@/lib/api/client';
-import { healthApi } from '@/lib/api/health.api';
+import { checkHealth as checkHealthApi } from '@/lib/api/health.api';
 import { tokens } from '@/tokens';
 import {
   CardBlock,
@@ -54,7 +54,7 @@ export const SettingsView: React.FC = () => {
     setCheckingHealth(true);
     setHealthReport(null);
     try {
-      const data = await healthApi.check();
+      const data = await checkHealthApi();
       setApiReachable(true);
       setHealthReport(data);
     } catch {

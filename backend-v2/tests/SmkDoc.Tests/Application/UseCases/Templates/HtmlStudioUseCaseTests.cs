@@ -2,13 +2,12 @@ using System.Text;
 using FluentAssertions;
 using Moq;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.Engines;
 using SmkDoc.Application.UseCases.Templates;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using Xunit;
 
-namespace SmkDoc.Tests;
+namespace SmkDoc.Tests.Application.UseCases.Templates;
 
 public class HtmlStudioUseCaseTests
 {
@@ -60,20 +59,10 @@ public class HtmlStudioUseCaseTests
         var templateId = Guid.NewGuid();
         var versionId = Guid.NewGuid();
 
-        var template = new Template
-        {
-            Id = templateId,
-            Slug = "receipt-template",
-            CurrentVersionId = versionId
-        };
+        var template = new Template(Guid.NewGuid(), "receipt-template", "receipt-template", null) { Id = templateId };
+        template.SetCurrentVersion(versionId);
 
-        var version = new TemplateVersion
-        {
-            Id = versionId,
-            TemplateId = templateId,
-            FileFormat = TemplateFormat.Html,
-            StorageKey = "templates/receipt.html"
-        };
+        var version = new TemplateVersion(templateId, 1, "templates/receipt.html", TemplateFormat.Html, null) { Id = versionId };
 
         _mockTemplateRepo.Setup(r => r.GetByIdAsync(templateId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);

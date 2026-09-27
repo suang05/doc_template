@@ -20,8 +20,8 @@ export function useGenerationLogs() {
       const res = await logsApi.listLogs(page, limit, appFilter);
       setLogs(res.logs);
       setTotal(res.total);
-    } catch (err: any) {
-      setError(err.message || 'ไม่สามารถโหลดประวัติการสร้างเอกสารได้');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'ไม่สามารถโหลดประวัติการสร้างเอกสารได้');
     } finally {
       setLoading(false);
     }

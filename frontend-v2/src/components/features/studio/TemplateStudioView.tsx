@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import {
   Save,
@@ -12,8 +12,9 @@ import {
   RefreshCw,
   Upload,
 } from 'lucide-react';
-import { useTemplateStudio } from '@/hooks/useTemplateStudio';
+import { useTemplateStudio, parseCombinedHtml, getCombinedHtml } from '@/hooks/useTemplateStudio';
 import { useLivePreview } from '@/hooks/useLivePreview';
+import { extractVariablesFromHtml } from '@/lib/html/variableExtractor';
 import { Button, Modal } from '@/components/ui';
 import { registerTemplateCompletion } from '@/lib/monaco/templateCompletion';
 
@@ -29,6 +30,10 @@ export const TemplateStudioView: React.FC<TemplateStudioViewProps> = ({
   templateId,
   onBack,
 }) => {
+  useEffect(() => {
+    if (!templateId) onBack();
+  }, [templateId, onBack]);
+
   const {
     template,
     html,
@@ -54,6 +59,7 @@ export const TemplateStudioView: React.FC<TemplateStudioViewProps> = ({
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [changeNote, setChangeNote] = useState('');
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
+  const [importNotice, setImportNotice] = useState<string | null>(null);
 
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const editorRef = React.useRef<any>(null);
@@ -66,8 +72,14 @@ export const TemplateStudioView: React.FC<TemplateStudioViewProps> = ({
     const reader = new FileReader();
     reader.onload = (event) => {
       const content = event.target?.result as string;
-      if (content) {
-        updateMainHtml(content);
+      if (!content) return;
+      const { main, header, footer } = parseCombinedHtml(content);
+      updateMainHtml(main);
+      updateHeaderHtml(header);
+      updateFooterHtml(footer);
+      if (header || footer) {
+        setImportNotice('แยก Header / Footer ออกจากไฟล์อัตโนมัติ — ตรวจสอบใน Tab "Header & Footer"');
+        setTimeout(() => setImportNotice(null), 5000);
       }
     };
     reader.readAsText(file);
@@ -111,107 +123,15 @@ export const TemplateStudioView: React.FC<TemplateStudioViewProps> = ({
     editor.focus();
   };
 
-  // Auto-extract Handlebars variables and array loops from HTML
+  // Auto-extract Handlebars variables and array loops from HTML into sample data
   React.useEffect(() => {
     if (!html) return;
-    
     try {
-      const currentData = JSON.parse(sampleDataJson);
-      let updated = false;
-
-      // 1. Detect arrays from {{#each items}}
-      const eachRegex = /{{#each\s+([a-zA-Z0-9_.]+)\s*}}([\s\S]*?){{\/each}}/g;
-      let eachMatch: RegExpExecArray | null;
-      const arrayKeys = new Set<string>();
-
-      while ((eachMatch = eachRegex.exec(html)) !== null) {
-        const arrayKey = eachMatch[1];
-        const innerContent = eachMatch[2];
-        arrayKeys.add(arrayKey);
-
-        if (!Array.isArray(currentData[arrayKey]) || currentData[arrayKey].length === 0) {
-          const innerFieldRegex = /{{\s*([a-zA-Z0-9_.]+)(?::\w+)?\s*}}/g;
-          let innerFieldMatch: RegExpExecArray | null;
-          const innerItem: Record<string, any> = {};
-
-          while ((innerFieldMatch = innerFieldRegex.exec(innerContent)) !== null) {
-            const f = innerFieldMatch[1];
-            if (['addOne', 'inc', '@index', 'this', 'else', 'if'].includes(f)) continue;
-            innerItem[f] = f.toLowerCase().includes('amount') || f.toLowerCase().includes('price')
-              ? 1500.0
-              : f.toLowerCase().includes('no') ? '1' : `Sample ${f}`;
-          }
-
-          if (Object.keys(innerItem).length === 0) {
-            innerItem['name'] = 'ตัวอย่างรายการที่ 1';
-          }
-
-          const innerItem2 = { ...innerItem };
-          if (innerItem2['no']) innerItem2['no'] = '2';
-          if (typeof innerItem2['amount'] === 'number') innerItem2['amount'] = 2500.0;
-
-          currentData[arrayKey] = [innerItem, innerItem2];
-          updated = true;
-        }
-      }
-
-      // 2. Detect plain variables & nested objects (e.g. customer.name)
-      const varRegex = /{{\s*(?:qr:|barcode:|image:)?([a-zA-Z0-9_.]+)(?::\w+)?\s*}}/g;
-      let varMatch: RegExpExecArray | null;
-      while ((varMatch = varRegex.exec(html)) !== null) {
-        const v = varMatch[1];
-        if (v.startsWith('#') || v.startsWith('/') || v.startsWith('@') || v.startsWith('^')) continue;
-        if (['addOne', 'inc', 'else', 'this', 'if', 'each', 'ifEquals'].includes(v)) continue;
-        if (arrayKeys.has(v)) continue;
-
-        if (v.includes('.')) {
-          const parts = v.split('.');
-          const objKey = parts[0];
-          const fieldKey = parts.slice(1).join('.');
-
-          if (!currentData[objKey] || typeof currentData[objKey] !== 'object' || Array.isArray(currentData[objKey])) {
-            currentData[objKey] = {};
-          }
-
-          if (currentData[objKey][fieldKey] === undefined) {
-            const lk = fieldKey.toLowerCase();
-            if (lk.includes('tax_id') || lk.includes('citizen_id') || lk.includes('idcard')) {
-              currentData[objKey][fieldKey] = '0107536000123';
-            } else if (lk.includes('email')) {
-              currentData[objKey][fieldKey] = 'contact@sammakorn.co.th';
-            } else if (lk.includes('amount') || lk.includes('total') || lk.includes('price')) {
-              currentData[objKey][fieldKey] = 250000.0;
-            } else if (lk.includes('date')) {
-              currentData[objKey][fieldKey] = '2026-09-20';
-            } else {
-              currentData[objKey][fieldKey] = `ตัวอย่าง ${fieldKey}`;
-            }
-            updated = true;
-          }
-        } else {
-          if (currentData[v] === undefined) {
-            const lk = v.toLowerCase();
-            if (lk.includes('tax_id') || lk.includes('citizen_id') || lk.includes('idcard')) {
-              currentData[v] = '0107536000123';
-            } else if (lk.includes('email')) {
-              currentData[v] = 'contact@sammakorn.co.th';
-            } else if (lk.includes('amount') || lk.includes('total') || lk.includes('price')) {
-              currentData[v] = 250000.0;
-            } else if (lk.includes('date')) {
-              currentData[v] = '2026-09-20';
-            } else {
-              currentData[v] = `ตัวอย่าง ${v}`;
-            }
-            updated = true;
-          }
-        }
-      }
-
-      if (updated) {
-        setSampleDataJson(JSON.stringify(currentData, null, 2));
-      }
+      const current = JSON.parse(sampleDataJson) as Record<string, unknown>;
+      const next = extractVariablesFromHtml(html, current);
+      if (next !== current) setSampleDataJson(JSON.stringify(next, null, 2));
     } catch {
-      // If parsing fails, skip until valid JSON
+      // skip until sampleDataJson is valid JSON
     }
   }, [html]);
 
@@ -361,6 +281,14 @@ export const TemplateStudioView: React.FC<TemplateStudioViewProps> = ({
               )}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Import notice banner */}
+      {importNotice && (
+        <div className="px-3 py-1.5 bg-sky-50 border-b border-sky-200 text-xs text-sky-800 flex items-center justify-between shrink-0">
+          <span>📂 {importNotice}</span>
+          <button onClick={() => setImportNotice(null)} className="text-sky-500 hover:text-sky-700 ml-3 font-bold leading-none cursor-pointer">×</button>
         </div>
       )}
 
@@ -523,7 +451,11 @@ export const TemplateStudioView: React.FC<TemplateStudioViewProps> = ({
             {leftTab === 'headerFooter' && (
               <div className="flex-1 flex flex-col">
                 <div className="flex-1 flex flex-col border-b border-zinc-800">
-                  <div className="text-[10px] font-mono text-zinc-500 bg-zinc-900 px-3 py-1 border-b border-zinc-800">Header HTML (Top)</div>
+                  <div className="text-[10px] font-mono text-zinc-500 bg-zinc-900 px-3 py-1 border-b border-zinc-800 flex items-center gap-1.5">
+                    <span>Header HTML</span>
+                    <span className="text-zinc-700">·</span>
+                    <span className="text-sky-600/60">{'<template id="header">'}&hellip;{'</template>'}</span>
+                  </div>
                   <div className="flex-1 relative">
                     <Editor
                       height="100%"
@@ -545,7 +477,11 @@ export const TemplateStudioView: React.FC<TemplateStudioViewProps> = ({
                   </div>
                 </div>
                 <div className="flex-1 flex flex-col">
-                  <div className="text-[10px] font-mono text-zinc-500 bg-zinc-900 px-3 py-1 border-b border-zinc-800">Footer HTML (Bottom)</div>
+                  <div className="text-[10px] font-mono text-zinc-500 bg-zinc-900 px-3 py-1 border-b border-zinc-800 flex items-center gap-1.5">
+                    <span>Footer HTML</span>
+                    <span className="text-zinc-700">·</span>
+                    <span className="text-sky-600/60">{'<template id="footer">'}&hellip;{'</template>'}</span>
+                  </div>
                   <div className="flex-1 relative">
                     <Editor
                       height="100%"

@@ -3,7 +3,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using SmkDoc.Infrastructure.Imaging;
 using Xunit;
 
-namespace SmkDoc.Tests;
+namespace SmkDoc.Tests.Infrastructure.Imaging;
 
 public class ImageOptimizerServiceTests
 {

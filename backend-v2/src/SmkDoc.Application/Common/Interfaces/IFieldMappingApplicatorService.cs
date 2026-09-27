@@ -1,5 +1,5 @@
 using System.Text.Json;
-using SmkDoc.Application.Common.Models;
+using SmkDoc.Application.DTOs.FieldMappings;
 using SmkDoc.Domain.Entities;
 
 namespace SmkDoc.Application.Common.Interfaces;
@@ -14,5 +14,5 @@ public interface IFieldMappingApplicatorService
     Task<string> ApplyAsync(
         JsonElement root,
         IEnumerable<FieldMapping> mappings,
-        IReadOnlyDictionary<string, ResolvedDataset> datasetAliases);
+        IReadOnlyDictionary<string, ResolvedDatasetContext> datasetAliases);
 }

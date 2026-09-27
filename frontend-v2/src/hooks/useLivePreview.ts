@@ -31,7 +31,6 @@ export function useLivePreview(slug?: string, html?: string, sampleDataJson?: st
         html: html || undefined,
       });
 
-      const url = URL.createObjectURL(blob);
       if (previousUrlRef.current) {
         URL.revokeObjectURL(previousUrlRef.current);
       }

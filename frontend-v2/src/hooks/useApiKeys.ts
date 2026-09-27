@@ -16,8 +16,8 @@ export function useApiKeys() {
     try {
       const list = await apiKeysApi.listKeys();
       setKeys(list);
-    } catch (err: any) {
-      setError(err.message || 'ไม่สามารถโหลดรายการ API Keys ได้');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'ไม่สามารถโหลดรายการ API Keys ได้');
     } finally {
       setLoading(false);
     }
@@ -33,7 +33,7 @@ export function useApiKeys() {
       setNewlyCreatedKey(res);
       await fetchKeys();
       return res;
-    } catch (err: any) {
+    } catch (err: unknown) {
       throw err;
     }
   }, [fetchKeys]);
@@ -42,8 +42,8 @@ export function useApiKeys() {
     try {
       await apiKeysApi.revokeKey(id);
       await fetchKeys();
-    } catch (err: any) {
-      alert(err.message || 'เพิกถอน API Key ล้มเหลว');
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'เพิกถอน API Key ล้มเหลว');
     }
   }, [fetchKeys]);
 

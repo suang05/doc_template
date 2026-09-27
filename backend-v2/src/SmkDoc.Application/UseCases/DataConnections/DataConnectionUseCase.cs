@@ -1,27 +1,20 @@
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.DTOs.DataConnections;
 using SmkDoc.Domain.Entities;
+using SmkDoc.Domain.Interfaces;
 
 namespace SmkDoc.Application.UseCases.DataConnections;
 
-public class DataConnectionUseCase
+public sealed class DataConnectionUseCase(
+    IRepository<DataConnection> repository,
+    IUnitOfWork unitOfWork,
+    IDataProtectionService dataProtection,
+    ISqlExecutorService sqlExecutor)
 {
-    private readonly IRepository<DataConnection> _repository;
-    private readonly IUnitOfWork _unitOfWork;
-    private readonly IDataProtectionService _dataProtection;
-    private readonly ISqlExecutorService _sqlExecutor;
-
-    public DataConnectionUseCase(
-        IRepository<DataConnection> repository,
-        IUnitOfWork unitOfWork,
-        IDataProtectionService dataProtection,
-        ISqlExecutorService sqlExecutor)
-    {
-        _repository = repository;
-        _unitOfWork = unitOfWork;
-        _dataProtection = dataProtection;
-        _sqlExecutor = sqlExecutor;
-    }
+    private readonly IRepository<DataConnection> _repository = repository;
+    private readonly IUnitOfWork _unitOfWork = unitOfWork;
+    private readonly IDataProtectionService _dataProtection = dataProtection;
+    private readonly ISqlExecutorService _sqlExecutor = sqlExecutor;
 
     public async Task<List<DataConnectionDto>> GetAllAsync()
     {
@@ -53,16 +46,10 @@ public class DataConnectionUseCase
 
     public async Task<DataConnectionDto> CreateAsync(CreateDataConnectionDto dto)
     {
-        var entity = new DataConnection
-        {
-            Id = Guid.NewGuid(),
-            Name = dto.Name,
-            Provider = dto.Provider,
-            EncryptedConnectionString = _dataProtection.Encrypt(dto.ConnectionString)
-        };
+        var entity = new DataConnection(dto.Name, dto.Provider, _dataProtection.Encrypt(dto.ConnectionString));
 
         await _repository.AddAsync(entity);
-        await _unitOfWork.SaveChangesAsync();
+        await _unitOfWork.CommitAsync();
 
         return new DataConnectionDto
         {
@@ -79,16 +66,10 @@ public class DataConnectionUseCase
         var entity = await _repository.GetByIdAsync(id);
         if (entity == null) return null;
 
-        entity.Name = dto.Name;
-        entity.Provider = dto.Provider;
-        if (!string.IsNullOrEmpty(dto.ConnectionString))
-        {
-            entity.EncryptedConnectionString = _dataProtection.Encrypt(dto.ConnectionString);
-        }
-        entity.UpdatedAt = DateTimeOffset.UtcNow;
+        entity.UpdateConnection(dto.Name, dto.Provider, string.IsNullOrEmpty(dto.ConnectionString) ? entity.EncryptedConnectionString : _dataProtection.Encrypt(dto.ConnectionString));
 
         _repository.Update(entity);
-        await _unitOfWork.SaveChangesAsync();
+        await _unitOfWork.CommitAsync();
 
         return new DataConnectionDto
         {
@@ -106,7 +87,7 @@ public class DataConnectionUseCase
         if (entity == null) return false;
 
         _repository.Remove(entity);
-        await _unitOfWork.SaveChangesAsync();
+        await _unitOfWork.CommitAsync();
         return true;
     }
 

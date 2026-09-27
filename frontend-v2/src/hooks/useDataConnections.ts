@@ -18,8 +18,8 @@ export function useDataConnections() {
     try {
       const data = await dataconnectionsApi.getAll();
       setConnections(Array.isArray(data) ? data : []);
-    } catch (err: any) {
-      setError(err.message || 'Failed to fetch connections');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch connections');
     } finally {
       setIsLoading(false);
     }
@@ -32,8 +32,8 @@ export function useDataConnections() {
       const newConnection = await dataconnectionsApi.create(data);
       setConnections((prev) => [...prev, newConnection]);
       return newConnection;
-    } catch (err: any) {
-      setError(err.message || 'Failed to create connection');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to create connection');
       throw err;
     } finally {
       setIsLoading(false);
@@ -49,8 +49,8 @@ export function useDataConnections() {
         prev.map((c) => (c.id === id ? updated : c))
       );
       return updated;
-    } catch (err: any) {
-      setError(err.message || 'Failed to update connection');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to update connection');
       throw err;
     } finally {
       setIsLoading(false);
@@ -63,8 +63,8 @@ export function useDataConnections() {
     try {
       await dataconnectionsApi.delete(id);
       setConnections((prev) => prev.filter((c) => c.id !== id));
-    } catch (err: any) {
-      setError(err.message || 'Failed to delete connection');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to delete connection');
       throw err;
     } finally {
       setIsLoading(false);
@@ -75,7 +75,7 @@ export function useDataConnections() {
     try {
       const res = await dataconnectionsApi.test(data);
       return res;
-    } catch (err: any) {
+    } catch (err: unknown) {
       throw err;
     }
   };

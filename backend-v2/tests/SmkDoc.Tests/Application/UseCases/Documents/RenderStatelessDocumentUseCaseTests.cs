@@ -1,11 +1,11 @@
 using FluentAssertions;
 using Moq;
-using SmkDoc.Application.Engines;
+using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.UseCases.Documents;
 using SmkDoc.Domain.Enums;
 using Xunit;
 
-namespace SmkDoc.Tests;
+namespace SmkDoc.Tests.Application.UseCases.Documents;
 
 public class RenderStatelessDocumentUseCaseTests
 {

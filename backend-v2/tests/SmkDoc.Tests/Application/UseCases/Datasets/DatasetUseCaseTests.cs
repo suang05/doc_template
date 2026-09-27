@@ -5,8 +5,10 @@ using SmkDoc.Application.DTOs.Datasets;
 using SmkDoc.Application.UseCases.Datasets;
 using SmkDoc.Domain.Entities;
 using Xunit;
+using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.Exceptions;
 
-namespace SmkDoc.Tests;
+namespace SmkDoc.Tests.Application.UseCases.Datasets;
 
 public class DatasetUseCaseTests
 {
@@ -23,8 +25,8 @@ public class DatasetUseCaseTests
     public async Task GetAllAsync_ShouldReturnAllDatasetsWithConnectionName()
     {
         var connId  = Guid.NewGuid();
-        var conn    = new DataConnection { Id = connId, Name = "ProdDB", Provider = "PostgreSQL" };
-        var dataset = new Dataset { Id = Guid.NewGuid(), Name = "Orders", DataConnectionId = connId, SqlQuery = "SELECT * FROM orders" };
+        var conn    = new DataConnection("ProdDB", "PostgreSQL", "") { Id = connId };
+        var dataset = new Dataset("Orders", null, connId, "SELECT * FROM orders", 0) { Id = Guid.NewGuid() };
 
         _datasetRepo.Setup(r => r.ListAsync(It.IsAny<System.Linq.Expressions.Expression<Func<Dataset, bool>>>(), It.IsAny<CancellationToken>()))
                     .ReturnsAsync(new List<Dataset> { dataset });
@@ -44,7 +46,7 @@ public class DatasetUseCaseTests
     public async Task CreateAsync_ShouldPersistDatasetAndReturnDto()
     {
         var connId = Guid.NewGuid();
-        var conn   = new DataConnection { Id = connId, Name = "DB1", Provider = "SqlServer" };
+        var conn   = new DataConnection("DB1", "SqlServer", "") { Id = connId };
         var dto    = new CreateDatasetDto
         {
             Name             = "InvoiceSet",
@@ -55,7 +57,7 @@ public class DatasetUseCaseTests
 
         _connRepo.Setup(r => r.GetByIdAsync(connId, It.IsAny<CancellationToken>())).ReturnsAsync(conn);
         _datasetRepo.Setup(r => r.AddAsync(It.IsAny<Dataset>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
-        _uow.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
+        _uow.Setup(u => u.CommitAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
 
         var result = await CreateSut().CreateAsync(dto);
 
@@ -66,7 +68,7 @@ public class DatasetUseCaseTests
             d.Name             == "InvoiceSet" &&
             d.DataConnectionId == connId        &&
             d.CacheSeconds     == 60), It.IsAny<CancellationToken>()), Times.Once);
-        _uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _uow.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -82,7 +84,7 @@ public class DatasetUseCaseTests
             SqlQuery         = "SELECT 1",
         });
 
-        await act.Should().ThrowAsync<KeyNotFoundException>();
+        await act.Should().ThrowAsync<NotFoundException>();
     }
 
     // ── DeleteAsync ────────────────────────────────────────────────────────
@@ -90,9 +92,9 @@ public class DatasetUseCaseTests
     [Fact]
     public async Task DeleteAsync_WhenExists_ShouldReturnTrue()
     {
-        var entity = new Dataset { Id = Guid.NewGuid(), Name = "DS", DataConnectionId = Guid.NewGuid(), SqlQuery = "SELECT 1" };
+        var entity = new Dataset("DS", null, Guid.NewGuid(), "SELECT 1", 0) { Id = Guid.NewGuid() };
         _datasetRepo.Setup(r => r.GetByIdAsync(entity.Id, It.IsAny<CancellationToken>())).ReturnsAsync(entity);
-        _uow.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
+        _uow.Setup(u => u.CommitAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
 
         var result = await CreateSut().DeleteAsync(entity.Id);
 

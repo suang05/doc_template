@@ -2,6 +2,7 @@ using System.Net.Http.Headers;
 using System.Text;
 using Microsoft.Extensions.Logging;
 using SmkDoc.Application.Common.Interfaces;
+using SmkDoc.Domain.Exceptions;
 
 namespace SmkDoc.Infrastructure.Pdf;
 
@@ -42,7 +43,7 @@ public class GotenbergPdfRenderer : IPdfRenderer
         {
             string err = await response.Content.ReadAsStringAsync(ct);
             _logger.LogError("Gotenberg Chromium HTML render failed ({StatusCode}): {Error}", response.StatusCode, err);
-            throw new InvalidOperationException($"Gotenberg PDF render failed: {err}");
+            throw new RenderException("html", "GotenbergChromium", err);
         }
 
         return await response.Content.ReadAsByteArrayAsync(ct);
@@ -60,7 +61,7 @@ public class GotenbergPdfRenderer : IPdfRenderer
         {
             string err = await response.Content.ReadAsStringAsync(ct);
             _logger.LogError("Gotenberg LibreOffice render failed ({StatusCode}): {Error}", response.StatusCode, err);
-            throw new InvalidOperationException($"Gotenberg Office convert failed: {err}");
+            throw new RenderException(fileName, "GotenbergLibreOffice", err);
         }
 
         return await response.Content.ReadAsByteArrayAsync(ct);

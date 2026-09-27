@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { templatesApi } from '@/lib/api/templates.api';
 import { TemplateDto, TemplateVersionDto, TemplateValidationResult } from '@/types/api';
+import { FETCH_TIMEOUT_MS, TOAST_AUTO_DISMISS_MS } from '@/constants/timeouts';
 
 export const DEFAULT_STARTER_HTML = `<!DOCTYPE html>
 <html lang="th">
@@ -115,13 +116,25 @@ export const parseCombinedHtml = (fullHtml: string) => {
   return { main: main.trim(), header, footer };
 };
 
+export const getCombinedHtml = (main: string, header: string, footer: string) => {
+  let combined = main;
+  if (header.trim()) {
+    combined += `\n<template id="header">\n${header.trim()}\n</template>`;
+  }
+  if (footer.trim()) {
+    combined += `\n<template id="footer">\n${footer.trim()}\n</template>`;
+  }
+  return combined;
+};
+
 const defaultParsed = parseCombinedHtml(DEFAULT_STARTER_HTML);
+const DEFAULT_NORMALIZED = getCombinedHtml(defaultParsed.main, defaultParsed.header, defaultParsed.footer);
 
 export function useTemplateStudio(templateId: string | null) {
   const [template, setTemplate] = useState<TemplateDto | null>(null);
-  const [html, setHtml] = useState<string>(DEFAULT_STARTER_HTML); // The combined HTML string
-  const [initialHtml, setInitialHtml] = useState<string>(DEFAULT_STARTER_HTML);
-  
+  const [html, setHtml] = useState<string>(DEFAULT_NORMALIZED);
+  const [initialHtml, setInitialHtml] = useState<string>(DEFAULT_NORMALIZED);
+
   // Split states for the editor
   const [mainHtml, setMainHtml] = useState<string>(defaultParsed.main);
   const [headerHtml, setHeaderHtml] = useState<string>(defaultParsed.header);
@@ -138,23 +151,12 @@ export function useTemplateStudio(templateId: string | null) {
   const [persistedSamplePayload, setPersistedSamplePayload] = useState<string | null>(null);
   const [dataSchema, setDataSchema] = useState<string | null>(null);
 
-  const getCombinedHtml = (main: string, header: string, footer: string) => {
-    let combined = main;
-    if (header.trim()) {
-      combined += `\n<template id="header">\n${header.trim()}\n</template>`;
-    }
-    if (footer.trim()) {
-      combined += `\n<template id="footer">\n${footer.trim()}\n</template>`;
-    }
-    return combined;
-  };
-
-  const loadTemplateData = useCallback(async () => {
+  const loadTemplateData = useCallback(async (signal?: AbortSignal) => {
     if (!templateId) return;
     setLoading(true);
     setError(null);
     try {
-      const templates = await templatesApi.listTemplates();
+      const templates = await templatesApi.listTemplates({ signal });
       const current = templates.find((t) => t.id === templateId);
       if (!current) throw new Error('ไม่พบเทมเพลตที่ต้องการแก้ไข');
       setTemplate(current);
@@ -182,35 +184,41 @@ export function useTemplateStudio(templateId: string | null) {
       }
 
       const { main, header, footer } = parseCombinedHtml(content);
-      
+      const normalizedHtml = getCombinedHtml(main, header, footer);
+
       setMainHtml(main);
       setHeaderHtml(header);
       setFooterHtml(footer);
-      
-      setHtml(content);
-      setInitialHtml(content);
+      setHtml(normalizedHtml);
+      setInitialHtml(normalizedHtml);
       setIsDirty(false);
 
       const vList = await templatesApi.listTemplateVersions(templateId);
       setVersions(vList);
-    } catch (err: any) {
-      setError(err.message || 'ไม่สามารถโหลดข้อมูลเทมเพลตได้');
+    } catch (err: unknown) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
+      setError(err instanceof Error ? err.message : 'ไม่สามารถโหลดข้อมูลเทมเพลตได้');
     } finally {
       setLoading(false);
     }
   }, [templateId]);
 
   useEffect(() => {
-    loadTemplateData();
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+
+    loadTemplateData(controller.signal).finally(() => clearTimeout(timeoutId));
+
+    return () => controller.abort();
   }, [loadTemplateData]);
 
   // Sync individual editor parts back to the combined HTML
   useEffect(() => {
     // Only re-combine if they have been parsed once (i.e. not during initial load empty states)
     if (initialHtml) {
-        const combined = getCombinedHtml(mainHtml, headerHtml, footerHtml);
-        setHtml(combined);
-        setIsDirty(combined !== initialHtml);
+      const combined = getCombinedHtml(mainHtml, headerHtml, footerHtml);
+      setHtml(combined);
+      setIsDirty(combined !== initialHtml);
     }
   }, [mainHtml, headerHtml, footerHtml, initialHtml]);
 
@@ -219,7 +227,7 @@ export function useTemplateStudio(templateId: string | null) {
   const updateFooterHtml = (val: string) => setFooterHtml(val);
 
   const saveHtmlAction = useCallback(async (changeNote?: string, samplePayload?: string) => {
-    if (!templateId) return;
+    if (!templateId) throw new Error('ไม่พบ Template ID — กรุณาเปิด Template จากรายการก่อนบันทึก');
     setSaving(true);
     setError(null);
     try {
@@ -236,9 +244,10 @@ export function useTemplateStudio(templateId: string | null) {
       const vList = await templatesApi.listTemplateVersions(templateId);
       setVersions(vList);
       return res.version;
-    } catch (err: any) {
-      setError(err.message || 'บันทึก HTML ไม่สำเร็จ');
-      throw err;
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'บันทึก HTML ไม่สำเร็จ';
+      setError(msg);
+      throw new Error(msg);
     } finally {
       setSaving(false);
     }
@@ -251,8 +260,8 @@ export function useTemplateStudio(templateId: string | null) {
       const res = await templatesApi.validateTemplate(templateId, html);
       setValidationResult(res);
       return res;
-    } catch (err: any) {
-      setError(err.message || 'ตรวจสอบโครงสร้างไม่สำเร็จ');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'ตรวจสอบโครงสร้างไม่สำเร็จ');
     } finally {
       setValidating(false);
     }
@@ -278,8 +287,6 @@ export function useTemplateStudio(templateId: string | null) {
     dataSchema,
     saveHtml: saveHtmlAction,
     validate,
-    reload: loadTemplateData,
+    reload: () => loadTemplateData(),
   };
 }
-
-

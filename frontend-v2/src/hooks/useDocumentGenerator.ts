@@ -30,8 +30,8 @@ export function useDocumentGenerator() {
       });
       setResult(response);
       return response;
-    } catch (err: any) {
-      setError(err.message || 'สร้างเอกสารล้มเหลว');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'สร้างเอกสารล้มเหลว');
       throw err;
     } finally {
       setLoading(false);

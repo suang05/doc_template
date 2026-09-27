@@ -9,6 +9,8 @@
     <PackageVersion Include="Handlebars.Net" Version="2.4.3" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.4" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.4" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.Extensions.Http" Version="10.0.12" />
     <PackageVersion Include="Npgsql" Version="10.0.3" />
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.4" />
@@ -17,6 +19,9 @@
     <PackageVersion Include="ClosedXML" Version="0.104.2" />
     <!-- JSON Schema Validation (Draft-07) -->
     <PackageVersion Include="JsonSchema.Net" Version="7.3.3" />
+    <!-- FluentValidation -->
+    <PackageVersion Include="FluentValidation" Version="11.11.0" />
+    <PackageVersion Include="FluentValidation.DependencyInjectionExtensions" Version="11.11.0" />
     <!-- Graphics, Barcode & QR Code Rendering -->
     <PackageVersion Include="QRCoder" Version="1.8.0" />
     <PackageVersion Include="SkiaSharp" Version="3.119.1" />

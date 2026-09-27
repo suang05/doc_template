@@ -4,8 +4,9 @@ using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.UseCases.Security;
 using SmkDoc.Domain.Entities;
 using Xunit;
+using SmkDoc.Domain.Interfaces;
 
-namespace SmkDoc.Tests;
+namespace SmkDoc.Tests.Application.UseCases.Security;
 
 public class ApiKeyUseCaseTests
 {
@@ -28,6 +29,6 @@ public class ApiKeyUseCaseTests
         result.PlainTextKey.Should().StartWith("smk_sales_");
         capturedKey.Should().NotBeNull();
         capturedKey!.KeyHash.Should().Be(ApiKeyUseCase.ComputeHash(result.PlainTextKey));
-        mockUow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+        mockUow.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 }

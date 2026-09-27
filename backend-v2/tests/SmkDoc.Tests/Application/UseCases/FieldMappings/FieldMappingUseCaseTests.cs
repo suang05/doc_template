@@ -1,12 +1,14 @@
 using FluentAssertions;
 using Moq;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.Common.Models;
+using SmkDoc.Application.DTOs.FieldMappings;
 using SmkDoc.Application.UseCases.FieldMappings;
 using SmkDoc.Domain.Entities;
 using Xunit;
+using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects;
 
-namespace SmkDoc.Tests;
+namespace SmkDoc.Tests.Application.UseCases.FieldMappings;
 
 public class FieldMappingUseCaseTests
 {
@@ -19,11 +21,9 @@ public class FieldMappingUseCaseTests
     {
         // Arrange
         var templateId = Guid.NewGuid();
-        var mappings = new List<FieldMapping>
-        {
-            new() { Id = Guid.NewGuid(), TemplateId = templateId, Placeholder = "total", SourcePath = "payment.total", Label = "ยอดชำระ", SortOrder = 2 },
-            new() { Id = Guid.NewGuid(), TemplateId = templateId, Placeholder = "name", SourcePath = "customer.name", Label = "ชื่อลูกค้า", SortOrder = 1 }
-        };
+        var m1 = new FieldMapping(templateId, "total", "payment.total", "ยอดชำระ", false, 2, DataSourceType.Json) { Id = Guid.NewGuid() };
+        var m2 = new FieldMapping(templateId, "name", "customer.name", "ชื่อลูกค้า", false, 1, DataSourceType.Json) { Id = Guid.NewGuid() };
+        var mappings = new List<FieldMapping> { m1, m2 };
 
         _mockMappingRepo.Setup(r => r.ListAsync(It.IsAny<System.Linq.Expressions.Expression<Func<FieldMapping, bool>>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(mappings);
@@ -44,8 +44,8 @@ public class FieldMappingUseCaseTests
     {
         // Arrange
         var templateId = Guid.NewGuid();
-        var template = new Template { Id = templateId, Name = "Invoice", Slug = "invoice" };
-        var existingMapping = new FieldMapping { Id = Guid.NewGuid(), TemplateId = templateId, Placeholder = "old", SourcePath = "old", Label = "Old" };
+        var template = new Template(Guid.NewGuid(), "Invoice", "invoice", null) { Id = templateId };
+        var existingMapping = new FieldMapping(templateId, "old", "old", "Old", false, 1, DataSourceType.Json) { Id = Guid.NewGuid() };
 
         _mockTemplateRepo.Setup(r => r.GetByIdAsync(templateId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
@@ -55,7 +55,7 @@ public class FieldMappingUseCaseTests
 
         var useCase = new FieldMappingUseCase(_mockMappingRepo.Object, _mockTemplateRepo.Object, _mockUow.Object);
 
-        var items = new List<SaveFieldMappingItem>
+        var items = new List<SaveFieldMappingItemDto>
         {
             new("amount", "payment.amount", "จำนวนเงิน", true, "0", "thai_baht_text", 1)
         };
@@ -66,6 +66,6 @@ public class FieldMappingUseCaseTests
         // Assert
         _mockMappingRepo.Verify(r => r.Remove(existingMapping), Times.Once);
         _mockMappingRepo.Verify(r => r.AddAsync(It.Is<FieldMapping>(m => m.TemplateId == templateId && m.Placeholder == "amount" && m.Transform == "thai_baht_text"), It.IsAny<CancellationToken>()), Times.Once);
-        _mockUow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _mockUow.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 }

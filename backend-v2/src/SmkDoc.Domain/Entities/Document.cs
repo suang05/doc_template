@@ -1,13 +1,19 @@
 namespace SmkDoc.Domain.Entities;
 
-public class Document
+public class Document : BaseEntity
 {
-    public Guid Id { get; set; } = Guid.NewGuid();
-    public string DocumentRef { get; set; } = string.Empty;
-    public Guid? TemplateId { get; set; }
-    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public string DocumentRef { get; private set; } = string.Empty;
+    public Guid? TemplateId { get; private set; }
 
     // Navigation properties
-    public Template? Template { get; set; }
-    public ICollection<DocumentVersion> Versions { get; set; } = new List<DocumentVersion>();
+    public virtual Template? Template { get; private set; }
+    public virtual ICollection<DocumentVersion> Versions { get; private set; } = new List<DocumentVersion>();
+
+    private Document() { }
+
+    public Document(string documentRef, Guid? templateId = null)
+    {
+        DocumentRef = documentRef;
+        TemplateId = templateId;
+    }
 }

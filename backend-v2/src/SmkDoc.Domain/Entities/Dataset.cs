@@ -1,16 +1,34 @@
 namespace SmkDoc.Domain.Entities;
 
-public class Dataset
+public class Dataset : BaseEntity
 {
-    public Guid Id { get; set; } = Guid.NewGuid();
-    public string Name { get; set; } = string.Empty;
-    public string? Description { get; set; }
-    public Guid DataConnectionId { get; set; }
-    public string SqlQuery { get; set; } = string.Empty;
-    public int CacheSeconds { get; set; } = 0;
-    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
-    public DateTimeOffset? UpdatedAt { get; set; }
+    public string Name { get; private set; } = string.Empty;
+    public string? Description { get; private set; }
+    public Guid DataConnectionId { get; private set; }
+    public string SqlQuery { get; private set; } = string.Empty;
+    public int CacheSeconds { get; private set; } = 0;
 
     // Navigation
-    public DataConnection? DataConnection { get; set; }
+    public virtual DataConnection? DataConnection { get; private set; }
+
+    private Dataset() { }
+
+    public Dataset(string name, string? description, Guid dataConnectionId, string sqlQuery, int cacheSeconds = 0)
+    {
+        Name = name;
+        Description = description;
+        DataConnectionId = dataConnectionId;
+        SqlQuery = sqlQuery;
+        CacheSeconds = cacheSeconds;
+    }
+
+    public void UpdateDetails(string name, string? description, Guid dataConnectionId, string sqlQuery, int cacheSeconds)
+    {
+        Name = name;
+        Description = description;
+        DataConnectionId = dataConnectionId;
+        SqlQuery = sqlQuery;
+        CacheSeconds = cacheSeconds;
+        SetUpdated();
+    }
 }

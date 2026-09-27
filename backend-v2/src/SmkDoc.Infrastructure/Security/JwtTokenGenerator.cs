@@ -17,7 +17,7 @@ public class JwtTokenGenerator : IJwtTokenGenerator
         _configuration = configuration;
     }
 
-    public string GenerateToken(User user, Guid projectId, IEnumerable<string> roles)
+    public string GenerateToken(User user, Guid? projectId = null, IEnumerable<string>? roles = null)
     {
         var secret = _configuration["Jwt:Secret"] ?? throw new InvalidOperationException("JWT Secret is missing.");
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secret));
@@ -27,12 +27,22 @@ public class JwtTokenGenerator : IJwtTokenGenerator
         {
             new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
             new Claim(JwtRegisteredClaimNames.Email, user.Email),
-            new Claim("ProjectId", projectId.ToString())
+            new Claim(JwtRegisteredClaimNames.GivenName, user.FirstName),
+            new Claim(JwtRegisteredClaimNames.FamilyName, user.LastName),
+            new Claim("SystemRole", user.SystemRole.Name)
         };
 
-        foreach (var role in roles)
+        if (projectId.HasValue && projectId.Value != Guid.Empty)
         {
-            claims.Add(new Claim(ClaimTypes.Role, role));
+            claims.Add(new Claim("ProjectId", projectId.Value.ToString()));
+        }
+
+        if (roles != null)
+        {
+            foreach (var role in roles)
+            {
+                claims.Add(new Claim(ClaimTypes.Role, role));
+            }
         }
 
         var token = new JwtSecurityToken(
@@ -45,3 +55,4 @@ public class JwtTokenGenerator : IJwtTokenGenerator
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
 }
+

@@ -12,11 +12,13 @@ using SmkDoc.Infrastructure.Engines.Word;
 using SmkDoc.Infrastructure.Imaging;
 using Xunit;
 
-namespace SmkDoc.Tests;
+namespace SmkDoc.Tests.Integration.Generators;
 
+[Trait("Category", "Generator")]
 public class RealEstateDocumentsGeneratorTests
 {
-    private readonly string _outputDir = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../../docs/tests/real-estate"));
+    private readonly string _outputDir = Environment.GetEnvironmentVariable("SMK_REALESTATE_OUT_DIR")
+        ?? Path.Combine(Path.GetTempPath(), "smkdoc-tests", "real-estate");
 
     [Fact]
     public async Task GenerateAndVerify_WordTemplate_SalesHandoverNotice()

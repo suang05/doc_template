@@ -1,24 +1,20 @@
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.Common.Models;
+using SmkDoc.Application.DTOs.FieldMappings;
 using SmkDoc.Domain.Entities;
+using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.Exceptions;
 
 namespace SmkDoc.Application.UseCases.FieldMappings;
 
-public class FieldMappingUseCase
+public sealed class FieldMappingUseCase(
+    IRepository<FieldMapping> mappingRepo,
+    IRepository<Template> templateRepo,
+    IUnitOfWork unitOfWork)
 {
-    private readonly IRepository<FieldMapping> _mappingRepo;
-    private readonly IRepository<Template> _templateRepo;
-    private readonly IUnitOfWork _unitOfWork;
-
-    public FieldMappingUseCase(
-        IRepository<FieldMapping> mappingRepo,
-        IRepository<Template> templateRepo,
-        IUnitOfWork unitOfWork)
-    {
-        _mappingRepo = mappingRepo;
-        _templateRepo = templateRepo;
-        _unitOfWork = unitOfWork;
-    }
+    private readonly IRepository<FieldMapping> _mappingRepo = mappingRepo;
+    private readonly IRepository<Template> _templateRepo = templateRepo;
+    private readonly IUnitOfWork _unitOfWork = unitOfWork;
 
     public async Task<List<FieldMappingDto>> GetMappingsByTemplateIdAsync(Guid templateId, CancellationToken ct = default)
     {
@@ -35,7 +31,7 @@ public class FieldMappingUseCase
                 m.DefaultValue,
                 m.Transform,
                 m.SortOrder,
-                m.DataSourceType,
+                m.DataSourceType.Value,
                 m.DatasetAlias,
                 m.ResultPath,
                 m.MathExpression
@@ -43,10 +39,10 @@ public class FieldMappingUseCase
             .ToList();
     }
 
-    public async Task SaveMappingsAsync(Guid templateId, List<SaveFieldMappingItem> items, CancellationToken ct = default)
+    public async Task SaveMappingsAsync(Guid templateId, List<SaveFieldMappingItemDto> items, CancellationToken ct = default)
     {
         var template = await _templateRepo.GetByIdAsync(templateId, ct)
-            ?? throw new KeyNotFoundException($"Template '{templateId}' not found.");
+            ?? throw new NotFoundException($"Template '{templateId}' not found.");
 
         var existing = await _mappingRepo.ListAsync(m => m.TemplateId == templateId, ct);
         foreach (var m in existing)
@@ -56,25 +52,13 @@ public class FieldMappingUseCase
 
         foreach (var item in items)
         {
-            var mapping = new FieldMapping
-            {
-                Id = Guid.NewGuid(),
-                TemplateId = templateId,
-                Placeholder = item.Placeholder,
-                SourcePath = item.SourcePath,
-                Label = item.Label,
-                Required = item.Required,
-                DefaultValue = item.DefaultValue,
-                Transform = item.Transform,
-                SortOrder = item.SortOrder,
-                DataSourceType = item.DataSourceType,
-                DatasetAlias   = item.DatasetAlias,
-                ResultPath     = item.ResultPath,
-                MathExpression = item.MathExpression
-            };
+            var dsType = item.DataSourceType != null ? DataSourceType.FromString(item.DataSourceType) : DataSourceType.Json;
+            var mapping = new FieldMapping(templateId, item.Placeholder, item.SourcePath, item.Label, item.Required, item.SortOrder, dsType);
+            mapping.UpdateMappingDetails(item.SourcePath, item.Label, item.Required, item.DefaultValue, item.Transform, item.SortOrder);
+            mapping.ConfigureDataSource(dsType, item.DatasetAlias, item.ResultPath, item.MathExpression);
             await _mappingRepo.AddAsync(mapping, ct);
         }
 
-        await _unitOfWork.SaveChangesAsync(ct);
+        await _unitOfWork.CommitAsync(ct);
     }
 }

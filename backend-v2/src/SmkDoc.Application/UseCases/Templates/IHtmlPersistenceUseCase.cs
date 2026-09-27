@@ -1,4 +1,4 @@
-using SmkDoc.Application.Common.Models;
+using SmkDoc.Application.DTOs.Templates;
 
 namespace SmkDoc.Application.UseCases.Templates;
 
@@ -12,5 +12,5 @@ public interface IHtmlPersistenceUseCase
     /// Persists a new version of an HTML template: uploads versioned archive and active files to MinIO,
     /// increments the template version in the database, and updates the active pointer atomically.
     /// </summary>
-    Task<int> SaveHtmlVersionAsync(Guid templateId, SaveTemplateHtmlRequest request, CancellationToken ct = default);
+    Task<int> SaveHtmlVersionAsync(Guid templateId, SaveTemplateHtmlCommand request, CancellationToken ct = default);
 }

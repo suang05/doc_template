@@ -1,8 +1,12 @@
+using SmkDoc.Domain.Common;
+
 namespace SmkDoc.Domain.Enums;
 
-public enum RenderEngineType
+public class RenderEngineType : Enumeration
 {
-    Html = 1,
-    Docx = 2,
-    Excel = 3
+    public static readonly RenderEngineType Html = new(1, "Html");
+    public static readonly RenderEngineType Docx = new(2, "Docx");
+    public static readonly RenderEngineType Excel = new(3, "Excel");
+
+    private RenderEngineType(int id, string name) : base(id, name) { }
 }

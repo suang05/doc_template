@@ -28,6 +28,9 @@ public class ApiKeyMiddleware
         if (path == "/" ||
             path == "/health" ||
             path.StartsWith("/swagger") ||
+            path.StartsWith("/api/auth") ||
+            path.StartsWith("/api/v1/schemas/validate") ||
+            path.StartsWith("/api/schemas/validate") ||
             path.StartsWith("/api/documents/preview"))
         {
             await _next(context);
@@ -40,7 +43,13 @@ public class ApiKeyMiddleware
         {
             context.Response.StatusCode = StatusCodes.Status401Unauthorized;
             context.Response.ContentType = "application/json";
-            await context.Response.WriteAsJsonAsync(new { error = "Unauthorized", message = "X-API-Key header is missing or empty." });
+            await context.Response.WriteAsJsonAsync(new
+            {
+                type = "https://tools.ietf.org/html/rfc7807",
+                title = "Unauthorized",
+                status = StatusCodes.Status401Unauthorized,
+                detail = "X-API-Key header is missing or empty."
+            });
             return;
         }
 
@@ -60,13 +69,21 @@ public class ApiKeyMiddleware
             _logger.LogWarning("Invalid API Key attempt from {IpAddress} to {Path}", executionContext.ClientIp, path);
             context.Response.StatusCode = StatusCodes.Status401Unauthorized;
             context.Response.ContentType = "application/json";
-            await context.Response.WriteAsJsonAsync(new { error = "Unauthorized", message = "Invalid or inactive API Key." });
+            await context.Response.WriteAsJsonAsync(new
+            {
+                type = "https://tools.ietf.org/html/rfc7807",
+                title = "Unauthorized",
+                status = StatusCodes.Status401Unauthorized,
+                detail = "Invalid or inactive API Key."
+            });
             return;
         }
 
         executionContext.ApiKeyId = key.Id;
         executionContext.CallerApp = key.CallerApp;
+        executionContext.ProjectId = key.ProjectId;
 
         await _next(context);
+
     }
 }

@@ -6,8 +6,9 @@ using SmkDoc.Application.DTOs.DataConnections;
 using SmkDoc.Application.UseCases.DataConnections;
 using SmkDoc.Domain.Entities;
 using Xunit;
+using SmkDoc.Domain.Interfaces;
 
-namespace SmkDoc.Tests;
+namespace SmkDoc.Tests.Application.UseCases.Datasets;
 
 public class DataConnectionUseCaseTests
 {
@@ -24,21 +25,13 @@ public class DataConnectionUseCaseTests
     [Fact]
     public async Task GetAllAsync_ShouldReturnAllConnectionsWithoutExposingConnectionString()
     {
-        var conn1 = new DataConnection
+        var conn1 = new DataConnection("Postgres Main", "PostgreSQL", "enc_secret_1")
         {
-            Id = Guid.NewGuid(),
-            Name = "Postgres Main",
-            Provider = "PostgreSQL",
-            EncryptedConnectionString = "enc_secret_1",
-            CreatedAt = DateTimeOffset.UtcNow
+            Id = Guid.NewGuid()
         };
-        var conn2 = new DataConnection
+        var conn2 = new DataConnection("SqlServer Legacy", "SqlServer", "enc_secret_2")
         {
-            Id = Guid.NewGuid(),
-            Name = "SqlServer Legacy",
-            Provider = "SqlServer",
-            EncryptedConnectionString = "enc_secret_2",
-            CreatedAt = DateTimeOffset.UtcNow
+            Id = Guid.NewGuid()
         };
 
         _repositoryMock.Setup(r => r.ListAsync(It.IsAny<Expression<Func<DataConnection, bool>>>(), It.IsAny<CancellationToken>()))
@@ -59,12 +52,9 @@ public class DataConnectionUseCaseTests
     public async Task GetByIdAsync_ShouldReturnDto_WhenFound()
     {
         var id = Guid.NewGuid();
-        var conn = new DataConnection
+        var conn = new DataConnection("Production DB", "PostgreSQL", "")
         {
-            Id = id,
-            Name = "Production DB",
-            Provider = "PostgreSQL",
-            CreatedAt = DateTimeOffset.UtcNow
+            Id = id
         };
 
         _repositoryMock.Setup(r => r.GetByIdAsync(id, It.IsAny<CancellationToken>()))
@@ -111,7 +101,7 @@ public class DataConnectionUseCaseTests
             .Callback<DataConnection, CancellationToken>((entity, _) => savedEntity = entity)
             .Returns(Task.CompletedTask);
 
-        _unitOfWorkMock.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
+        _unitOfWorkMock.Setup(u => u.CommitAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(1);
 
         var sut = CreateSut();
@@ -123,7 +113,7 @@ public class DataConnectionUseCaseTests
 
         savedEntity.Should().NotBeNull();
         savedEntity!.EncryptedConnectionString.Should().Be("encrypted_hash_123");
-        _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _unitOfWorkMock.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     // ── UpdateAsync ────────────────────────────────────────────────────────────
@@ -132,12 +122,9 @@ public class DataConnectionUseCaseTests
     public async Task UpdateAsync_ShouldUpdateAndReEncrypt_WhenNewConnectionStringProvided()
     {
         var id = Guid.NewGuid();
-        var existing = new DataConnection
+        var existing = new DataConnection("Old Name", "PostgreSQL", "old_enc")
         {
-            Id = id,
-            Name = "Old Name",
-            Provider = "PostgreSQL",
-            EncryptedConnectionString = "old_enc"
+            Id = id
         };
 
         _repositoryMock.Setup(r => r.GetByIdAsync(id, It.IsAny<CancellationToken>()))
@@ -146,7 +133,7 @@ public class DataConnectionUseCaseTests
         _dataProtectionMock.Setup(p => p.Encrypt("new_plain_conn"))
             .Returns("new_enc_conn");
 
-        _unitOfWorkMock.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
+        _unitOfWorkMock.Setup(u => u.CommitAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(1);
 
         var updateDto = new UpdateDataConnectionDto
@@ -171,12 +158,9 @@ public class DataConnectionUseCaseTests
     public async Task UpdateAsync_ShouldPreserveExistingConnectionString_WhenConnectionStringIsEmpty()
     {
         var id = Guid.NewGuid();
-        var existing = new DataConnection
+        var existing = new DataConnection("DB", "PostgreSQL", "keep_this_enc")
         {
-            Id = id,
-            Name = "DB",
-            Provider = "PostgreSQL",
-            EncryptedConnectionString = "keep_this_enc"
+            Id = id
         };
 
         _repositoryMock.Setup(r => r.GetByIdAsync(id, It.IsAny<CancellationToken>()))
@@ -216,11 +200,11 @@ public class DataConnectionUseCaseTests
     public async Task DeleteAsync_ShouldRemoveAndReturnTrue_WhenExists()
     {
         var id = Guid.NewGuid();
-        var existing = new DataConnection { Id = id, Name = "To Delete" };
+        var existing = new DataConnection("To Delete", "sql", "") { Id = id };
 
         _repositoryMock.Setup(r => r.GetByIdAsync(id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(existing);
-        _unitOfWorkMock.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
+        _unitOfWorkMock.Setup(u => u.CommitAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(1);
 
         var sut = CreateSut();

@@ -67,6 +67,11 @@ services:
       - Minio__SecretKey=${MINIO_ROOT_PASSWORD:-password}
       - ConnectionStrings__DefaultConnection=Host=db;Port=5432;Database=${POSTGRES_DB:-smkdoc};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-password}
       - MASTER_API_KEY=${MASTER_API_KEY:-secret-smk-key-2026}
+      - Jwt__Secret=${JWT_SECRET:-dev-smk-jwt-secret-2026-must-be-at-least-32-chars}
+      - Jwt__Issuer=${JWT_ISSUER:-smk-doc-server}
+      - Jwt__Audience=${JWT_AUDIENCE:-smk-portal}
+      - Admin__Email=${ADMIN_EMAIL:-admin@sammakorn.co.th}
+      - Admin__Password=${ADMIN_PASSWORD:-Admin@2026!}
     depends_on:
       db:
         condition: service_healthy
@@ -94,6 +99,9 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3000
+      - API_INTERNAL_URL=http://doc-server-v2:8080
+      - AUTH_SECRET=${AUTH_SECRET:?AUTH_SECRET is required — generate with `openssl rand -base64 32`}
+      - AUTH_TRUST_HOST=true
     depends_on:
       doc-server-v2:
         condition: service_healthy

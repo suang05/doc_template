@@ -1,23 +1,20 @@
-/**
- * API Client Core Gateway
- * Handles authentication header, baseUrl configuration, and error unwrapping.
- */
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+// Requests go through the Next.js proxy (`/api/proxy/*`) instead of hitting the backend
+// directly — the proxy attaches the JWT from the httpOnly session cookie server-side, so
+// the browser never has access to the token (see src/app/api/proxy/[...path]/route.ts).
+const API_BASE_URL = '/api/proxy';
 const STORAGE_KEY = 'smk_api_key';
 
 export class ApiError extends Error {
   constructor(
     public status: number,
     public message: string,
-    public data?: any
+    public data?: unknown
   ) {
     super(message);
     this.name = 'ApiError';
   }
 }
 
-// Helper to retrieve API key dynamically
 export const getStoredApiKey = (): string => {
   const defaultKey = process.env.NEXT_PUBLIC_DEFAULT_API_KEY || '';
   if (typeof window === 'undefined') return defaultKey;
@@ -29,85 +26,98 @@ export function setStoredApiKey(key: string): void {
   localStorage.setItem(STORAGE_KEY, key.trim());
 }
 
-export async function apiClient<T>(
-  endpoint: string,
-  options: RequestInit = {}
-): Promise<T> {
+// ── Shared helpers ──────────────────────────────────────────────────────────
+
+function buildHeaders(extra: Record<string, string> = {}): Record<string, string> {
+  const headers: Record<string, string> = { ...extra };
   const apiKey = getStoredApiKey();
-  const url = `${API_BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
 
-  const headers: Record<string, string> = {
-    ...(options.headers as Record<string, string> || {}),
-  };
+  if (apiKey) headers['X-API-Key'] = apiKey;
 
-  if (apiKey) {
-    headers['X-API-Key'] = apiKey;
-  }
+  return headers;
+}
 
-  // If not FormData, default to application/json
+function prepareJsonHeaders(options: RequestInit): Record<string, string> {
+  const headers = buildHeaders(options.headers as Record<string, string>);
+  
   if (!(options.body instanceof FormData) && !headers['Content-Type']) {
     headers['Content-Type'] = 'application/json';
   }
-
-  const response = await fetch(url, {
-    ...options,
-    headers,
-  });
-
-  if (!response.ok) {
-    let errorMessage = `HTTP Error ${response.status}: ${response.statusText}`;
-    let errorData = null;
-    try {
-      const text = await response.text();
-      if (text) {
-        try {
-          const json = JSON.parse(text);
-          errorData = json;
-          errorMessage = json.error || json.message || errorMessage;
-        } catch {
-          errorMessage = text;
-        }
-      }
-    } catch {
-      // ignore read error
-    }
-    throw new ApiError(response.status, errorMessage, errorData);
-  }
-
-  // Handle empty responses
-  if (response.status === 204) {
-    return {} as T;
-  }
-
-  return response.json();
+  
+  return headers;
 }
 
-export async function apiClientText(
-  endpoint: string,
-  options: RequestInit = {}
-): Promise<string> {
-  const apiKey = getStoredApiKey();
-  const url = `${API_BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+function dispatchUnauthorized(endpoint: string): void {
+  if (typeof window === 'undefined') return;
+  if (endpoint.includes('/auth/login')) return;
+  
+  window.dispatchEvent(new CustomEvent('auth:unauthorized'));
+}
 
-  const headers: Record<string, string> = {
-    ...(options.headers as Record<string, string> || {}),
-  };
+async function parseErrorMessage(response: Response): Promise<string> {
+  const fallbackMsg = `HTTP Error ${response.status}: ${response.statusText}`;
+  
+  try {
+    const text = await response.text();
+    if (!text) return fallbackMsg;
 
-  if (apiKey) {
-    headers['X-API-Key'] = apiKey;
-  }
-
-  const response = await fetch(url, { ...options, headers });
-
-  if (!response.ok) {
-    let errorMessage = `HTTP Error ${response.status}: ${response.statusText}`;
     try {
-      const text = await response.text();
-      if (text) errorMessage = text;
-    } catch { /* ignore */ }
-    throw new ApiError(response.status, errorMessage);
+      const json = JSON.parse(text) as Record<string, string>;
+      return json['error'] || json['message'] || fallbackMsg;
+    } catch {
+      return text; // Not JSON, return raw text
+    }
+  } catch {
+    return fallbackMsg; // Failed to read response body
   }
+}
 
+async function assertOk(response: Response, endpoint: string): Promise<void> {
+  if (response.ok) return;
+
+  const msg = await parseErrorMessage(response);
+  
+  if (response.status === 401) {
+    dispatchUnauthorized(endpoint);
+  }
+  
+  throw new ApiError(response.status, msg);
+}
+
+function resolveUrl(endpoint: string): string {
+  const normalizedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  // The proxy re-applies the `/api` prefix itself (see [...path]/route.ts), so strip it here.
+  const withoutApiPrefix = normalizedEndpoint.startsWith('/api/')
+    ? normalizedEndpoint.slice(4)
+    : normalizedEndpoint;
+  return `${API_BASE_URL}${withoutApiPrefix}`;
+}
+
+function extractFileName(disposition: string | null): string | undefined {
+  if (!disposition || !disposition.includes('filename=')) return undefined;
+  
+  const match = disposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+  return match?.[1]?.replace(/['"]/g, '');
+}
+
+// ── Public API ──────────────────────────────────────────────────────────────
+
+export async function apiClient<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  const headers = prepareJsonHeaders(options);
+  const response = await fetch(resolveUrl(endpoint), { ...options, headers });
+  
+  await assertOk(response, endpoint);
+  
+  if (response.status === 204) return {} as T;
+  return response.json() as Promise<T>;
+}
+
+export async function apiClientText(endpoint: string, options: RequestInit = {}): Promise<string> {
+  const headers = buildHeaders(options.headers as Record<string, string>);
+  const response = await fetch(resolveUrl(endpoint), { ...options, headers });
+  
+  await assertOk(response, endpoint);
+  
   return response.text();
 }
 
@@ -115,54 +125,14 @@ export async function apiClientBlob(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<{ blob: Blob; fileName?: string }> {
-  const apiKey = getStoredApiKey();
-  const url = `${API_BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
-
-  const headers: Record<string, string> = {
-    ...(options.headers as Record<string, string> || {}),
-  };
-
-  if (apiKey) {
-    headers['X-API-Key'] = apiKey;
-  }
-
-  // If not FormData, default to application/json
-  if (!(options.body instanceof FormData) && !headers['Content-Type']) {
-    headers['Content-Type'] = 'application/json';
-  }
-
-  const response = await fetch(url, {
-    ...options,
-    headers,
-  });
-
-  if (!response.ok) {
-    let errorMessage = `HTTP Error ${response.status}: ${response.statusText}`;
-    try {
-      const text = await response.text();
-      if (text) {
-        try {
-          const json = JSON.parse(text);
-          errorMessage = json.error || json.message || errorMessage;
-        } catch {
-          errorMessage = text;
-        }
-      }
-    } catch {
-      // ignore read error
-    }
-    throw new ApiError(response.status, errorMessage);
-  }
+  const headers = prepareJsonHeaders(options);
+  const response = await fetch(resolveUrl(endpoint), { ...options, headers });
+  
+  await assertOk(response, endpoint);
 
   const disposition = response.headers.get('content-disposition');
-  let fileName: string | undefined;
-  if (disposition && disposition.includes('filename=')) {
-    const match = disposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
-    if (match && match[1]) {
-      fileName = match[1].replace(/['"]/g, '');
-    }
-  }
-
-  const blob = await response.blob();
-  return { blob, fileName };
+  return { 
+    blob: await response.blob(), 
+    fileName: extractFileName(disposition) 
+  };
 }

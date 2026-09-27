@@ -9,10 +9,10 @@ using SmkDoc.Application.Common.Interfaces;
 namespace SmkDoc.Infrastructure.Schema;
 
 /// <summary>
-/// Infrastructure adapter providing strict Standard JSON Schema (Draft-07) inference and smart mock data generation
-/// for HTML (Handlebars), Word (OpenXML), and Excel (ClosedXML) templates.
+/// Infrastructure adapter providing strict Standard JSON Schema (Draft-07) inference
+/// and mock data generation for HTML, Word (OpenXML), and Excel (ClosedXML) templates.
 /// </summary>
-public class SchemaInferenceService : ISchemaInferenceService
+public partial class SchemaInferenceService : ISchemaInferenceService
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -20,60 +20,88 @@ public class SchemaInferenceService : ISchemaInferenceService
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
     };
 
-    public string InferSchemaFromPlaceholders(IEnumerable<string> placeholders, string? samplePayloadJson = null, string? templateSlug = null)
+    private static readonly HashSet<string> SkipHtmlTags = new(StringComparer.OrdinalIgnoreCase)
     {
-        return InferSchemaInternal(placeholders, explicitArrayKeys: null, samplePayloadJson, templateSlug);
+        "addOne", "inc", "this", "else", "if", "each", "ifEquals"
+    };
+
+    public string InferSchemaFromPlaceholders(
+        IEnumerable<string> placeholders,
+        string? samplePayloadJson = null,
+        string? templateSlug = null)
+    {
+        var grouped = GroupPlaceholders(placeholders, explicitArrayKeys: null);
+        return BuildDraft07Schema(grouped, templateSlug);
     }
 
     public string GenerateDefaultSamplePayload(IEnumerable<string> placeholders)
     {
-        return GenerateDefaultSamplePayloadInternal(placeholders, explicitArrayKeys: null);
+        var grouped = GroupPlaceholders(placeholders, explicitArrayKeys: null);
+        return BuildSamplePayloadJson(grouped);
     }
 
-    public (string DataSchema, string SamplePayload) InferFromHtml(string htmlContent, string? customSamplePayloadJson = null, string? templateSlug = null)
+    public (string DataSchema, string SamplePayload) InferFromHtml(
+        string htmlContent,
+        string? customSamplePayloadJson = null,
+        string? templateSlug = null)
+    {
+        var (tokens, explicitArrayKeys) = ExtractTokensFromHtml(htmlContent ?? string.Empty);
+        var grouped = GroupPlaceholders(tokens, explicitArrayKeys);
+
+        string defaultPayload = BuildSamplePayloadJson(grouped);
+        string finalPayload = MergeWithCustomPayload(defaultPayload, customSamplePayloadJson);
+        string schema = BuildDraft07Schema(grouped, templateSlug);
+
+        return (schema, finalPayload);
+    }
+
+    // ─── Token Extraction & Classification ──────────────────────────────────────
+
+    private record GroupedTokens(
+        List<string> Scalars,
+        Dictionary<string, List<string>> Objects,
+        Dictionary<string, List<string>> Arrays);
+
+    private static (List<string> Tokens, HashSet<string> ArrayKeys) ExtractTokensFromHtml(string htmlContent)
     {
         var scalarPlaceholders = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var arrayGroups = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
 
-        // 1. Extract {{#each items}} blocks
-        var eachRegex = new Regex(@"\{\{#each\s+([a-zA-Z0-9_.]+)\s*\}\}([\s\S]*?)\{\{/each\}\}", RegexOptions.Compiled);
-        var eachMatches = eachRegex.Matches(htmlContent ?? string.Empty);
+        // 1. Extract {{#each items}} loop blocks
+        var eachMatches = EachBlockRegex().Matches(htmlContent);
         foreach (Match m in eachMatches)
         {
             string arrayKey = m.Groups[1].Value.Trim();
-            string inner = m.Groups[2].Value;
+            string innerHtml = m.Groups[2].Value;
 
-            if (!arrayGroups.ContainsKey(arrayKey))
-                arrayGroups[arrayKey] = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (!arrayGroups.TryGetValue(arrayKey, out var group))
+            {
+                group = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                arrayGroups[arrayKey] = group;
+            }
 
-            var innerMatches = PlaceholderHelper.Pattern.Matches(inner);
-            foreach (Match im in innerMatches)
+            foreach (Match im in PlaceholderHelper.Pattern.Matches(innerHtml))
             {
                 string tag = im.Groups[1].Value.Trim();
-                if (tag.StartsWith('#') || tag.StartsWith('/') || tag.StartsWith('@') || tag.StartsWith('^')) continue;
-                if (new[] { "addOne", "inc", "this", "else", "if" }.Contains(tag)) continue;
-
-                arrayGroups[arrayKey].Add(tag);
+                if (IsControlTag(tag) || SkipHtmlTags.Contains(tag)) continue;
+                group.Add(tag);
             }
         }
 
-        var explicitArrayKeys = new HashSet<string>(arrayGroups.Keys, StringComparer.OrdinalIgnoreCase);
-
         // 2. Extract standard placeholders outside loop blocks
-        var plainMatches = PlaceholderHelper.Pattern.Matches(htmlContent ?? string.Empty);
-        foreach (Match pm in plainMatches)
+        foreach (Match pm in PlaceholderHelper.Pattern.Matches(htmlContent))
         {
             string tag = pm.Groups[1].Value.Trim();
-            if (tag.StartsWith('#') || tag.StartsWith('/') || tag.StartsWith('@') || tag.StartsWith('^')) continue;
-            if (new[] { "addOne", "inc", "this", "else", "if", "each", "ifEquals" }.Contains(tag)) continue;
+            if (IsControlTag(tag) || SkipHtmlTags.Contains(tag)) continue;
 
             var parsed = PlaceholderHelper.Parse(tag);
-            if (arrayGroups.ContainsKey(parsed.Key)) continue;
-
-            scalarPlaceholders.Add(tag);
+            if (!arrayGroups.ContainsKey(parsed.Key))
+            {
+                scalarPlaceholders.Add(tag);
+            }
         }
 
-        // Combine into virtual tokens for unified processing
+        // 3. Combine into unified tokens list
         var allTokens = new List<string>(scalarPlaceholders);
         foreach (var (arrKey, subFields) in arrayGroups)
         {
@@ -88,145 +116,87 @@ public class SchemaInferenceService : ISchemaInferenceService
             }
         }
 
-        string defaultPayload = GenerateDefaultSamplePayloadInternal(allTokens, explicitArrayKeys);
-        string finalPayload = defaultPayload;
-
-        // If custom payload provided, try merging
-        if (!string.IsNullOrWhiteSpace(customSamplePayloadJson) && customSamplePayloadJson.Trim() != "{}")
-        {
-            try
-            {
-                var customNode = JsonNode.Parse(customSamplePayloadJson)?.AsObject();
-                var defaultNode = JsonNode.Parse(defaultPayload)?.AsObject();
-
-                if (customNode != null && defaultNode != null)
-                {
-                    foreach (var kvp in defaultNode)
-                    {
-                        if (!customNode.ContainsKey(kvp.Key))
-                        {
-                            customNode[kvp.Key] = kvp.Value?.DeepClone();
-                        }
-                    }
-                    finalPayload = customNode.ToJsonString(JsonOptions);
-                }
-            }
-            catch
-            {
-                // Fallback to default payload on parse failure
-            }
-        }
-
-        string schema = InferSchemaInternal(allTokens, explicitArrayKeys, finalPayload, templateSlug);
-        return (schema, finalPayload);
+        return (allTokens, new HashSet<string>(arrayGroups.Keys, StringComparer.OrdinalIgnoreCase));
     }
 
-    private static string InferSchemaInternal(
-        IEnumerable<string> placeholders,
-        ISet<string>? explicitArrayKeys,
-        string? samplePayloadJson,
-        string? templateSlug)
+    private static bool IsControlTag(string tag) =>
+        tag.StartsWith('#') || tag.StartsWith('/') || tag.StartsWith('@') || tag.StartsWith('^');
+
+    private static GroupedTokens GroupPlaceholders(IEnumerable<string> placeholders, ISet<string>? explicitArrayKeys)
     {
-        var rootProperties = new JsonObject();
-        var requiredFields = new JsonArray();
+        var scalars = new List<string>();
+        var objects = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        var arrays = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
 
-        var arrayGroups = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
-        var objectGroups = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
-        var scalarPlaceholders = new List<string>();
-
-        // 1. Classify tokens into scalar, single nested object, or array collection
         foreach (var ph in placeholders)
         {
             if (string.IsNullOrWhiteSpace(ph)) continue;
             var parsed = PlaceholderHelper.Parse(ph);
 
-            if (parsed.Key.Contains('.'))
+            if (!parsed.Key.Contains('.'))
             {
-                var parts = parsed.Key.Split('.', 2);
-                string groupKey = parts[0].Trim();
-                string fieldKey = parts[1].Trim();
-
-                string itemPh = string.IsNullOrEmpty(parsed.Extra) ? fieldKey : $"{fieldKey}:{parsed.Extra}";
-
-                bool isArray = explicitArrayKeys != null
-                    ? explicitArrayKeys.Contains(groupKey)
-                    : IsCollectionName(groupKey);
-
-                if (isArray)
-                {
-                    if (!arrayGroups.ContainsKey(groupKey))
-                        arrayGroups[groupKey] = new List<string>();
-                    arrayGroups[groupKey].Add(itemPh);
-                }
-                else
-                {
-                    if (!objectGroups.ContainsKey(groupKey))
-                        objectGroups[groupKey] = new List<string>();
-                    objectGroups[groupKey].Add(itemPh);
-                }
+                scalars.Add(ph);
+                continue;
             }
-            else
+
+            var parts = parsed.Key.Split('.', 2);
+            string groupKey = parts[0].Trim();
+            string fieldKey = parts[1].Trim();
+            string itemPh = string.IsNullOrEmpty(parsed.Extra) ? fieldKey : $"{fieldKey}:{parsed.Extra}";
+
+            bool isArray = explicitArrayKeys != null
+                ? explicitArrayKeys.Contains(groupKey)
+                : IsCollectionName(groupKey);
+
+            var targetDict = isArray ? arrays : objects;
+            if (!targetDict.TryGetValue(groupKey, out var list))
             {
-                scalarPlaceholders.Add(ph);
+                list = [];
+                targetDict[groupKey] = list;
             }
+            list.Add(itemPh);
         }
 
-        // 2. Add scalar properties
-        foreach (var ph in scalarPlaceholders)
+        return new GroupedTokens(scalars, objects, arrays);
+    }
+
+    // ─── Draft-07 Schema Assembly ───────────────────────────────────────────────
+
+    private static string BuildDraft07Schema(GroupedTokens grouped, string? templateSlug)
+    {
+        var rootProperties = new JsonObject();
+        var requiredFields = new JsonArray();
+
+        // 1. Scalar properties
+        foreach (var ph in grouped.Scalars)
         {
             var parsed = PlaceholderHelper.Parse(ph);
-            string key = parsed.Key;
-            if (rootProperties.ContainsKey(key)) continue;
+            if (rootProperties.ContainsKey(parsed.Key)) continue;
 
-            var propObj = InferPropertySchema(key, parsed.Extra, parsed.Kind);
-            rootProperties[key] = propObj;
-            requiredFields.Add(key);
+            rootProperties[parsed.Key] = InferPropertySchema(parsed.Key, parsed.Extra, parsed.Kind);
+            requiredFields.Add(parsed.Key);
         }
 
-        // 3. Add single nested object properties (e.g. customer.name, customer.tax_id)
-        foreach (var (objKey, subFields) in objectGroups)
+        // 2. Nested objects
+        foreach (var (objKey, subFields) in grouped.Objects)
         {
-            var itemProperties = new JsonObject();
-            var itemRequired = new JsonArray();
-
-            foreach (var subPh in subFields)
-            {
-                var parsed = PlaceholderHelper.Parse(subPh);
-                if (itemProperties.ContainsKey(parsed.Key)) continue;
-
-                itemProperties[parsed.Key] = InferPropertySchema(parsed.Key, parsed.Extra, parsed.Kind);
-                itemRequired.Add(parsed.Key);
-            }
-
-            var objectProp = new JsonObject
+            var (itemProps, itemReq) = BuildChildProperties(subFields);
+            rootProperties[objKey] = new JsonObject
             {
                 ["type"] = "object",
                 ["description"] = $"Information for {objKey}",
-                ["required"] = itemRequired,
-                ["properties"] = itemProperties,
+                ["required"] = itemReq,
+                ["properties"] = itemProps,
                 ["additionalProperties"] = false
             };
-
-            rootProperties[objKey] = objectProp;
             requiredFields.Add(objKey);
         }
 
-        // 4. Add array properties (e.g. items)
-        foreach (var (arrayKey, itemPlaceholders) in arrayGroups)
+        // 3. Array collections
+        foreach (var (arrayKey, itemPlaceholders) in grouped.Arrays)
         {
-            var itemProperties = new JsonObject();
-            var itemRequired = new JsonArray();
-
-            foreach (var itemPh in itemPlaceholders)
-            {
-                var parsed = PlaceholderHelper.Parse(itemPh);
-                if (itemProperties.ContainsKey(parsed.Key)) continue;
-
-                itemProperties[parsed.Key] = InferPropertySchema(parsed.Key, parsed.Extra, parsed.Kind);
-                itemRequired.Add(parsed.Key);
-            }
-
-            var arrayProp = new JsonObject
+            var (itemProps, itemReq) = BuildChildProperties(itemPlaceholders);
+            rootProperties[arrayKey] = new JsonObject
             {
                 ["type"] = "array",
                 ["description"] = $"List of {arrayKey} entries",
@@ -234,13 +204,11 @@ public class SchemaInferenceService : ISchemaInferenceService
                 ["items"] = new JsonObject
                 {
                     ["type"] = "object",
-                    ["required"] = itemRequired,
-                    ["properties"] = itemProperties,
+                    ["required"] = itemReq,
+                    ["properties"] = itemProps,
                     ["additionalProperties"] = false
                 }
             };
-
-            rootProperties[arrayKey] = arrayProp;
             requiredFields.Add(arrayKey);
         }
 
@@ -262,134 +230,146 @@ public class SchemaInferenceService : ISchemaInferenceService
         return schema.ToJsonString(JsonOptions);
     }
 
-    private static string GenerateDefaultSamplePayloadInternal(IEnumerable<string> placeholders, ISet<string>? explicitArrayKeys)
+    private static (JsonObject Properties, JsonArray Required) BuildChildProperties(IEnumerable<string> subPlaceholders)
+    {
+        var properties = new JsonObject();
+        var required = new JsonArray();
+
+        foreach (var ph in subPlaceholders)
+        {
+            var parsed = PlaceholderHelper.Parse(ph);
+            if (properties.ContainsKey(parsed.Key)) continue;
+
+            properties[parsed.Key] = InferPropertySchema(parsed.Key, parsed.Extra, parsed.Kind);
+            required.Add(parsed.Key);
+        }
+
+        return (properties, required);
+    }
+
+    // ─── Sample Payload Generation ──────────────────────────────────────────────
+
+    private static string BuildSamplePayloadJson(GroupedTokens grouped)
     {
         var root = new JsonObject();
-        var arrayGroups = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
-        var objectGroups = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var ph in placeholders)
+        // 1. Scalars
+        foreach (var ph in grouped.Scalars)
         {
-            if (string.IsNullOrWhiteSpace(ph)) continue;
             var parsed = PlaceholderHelper.Parse(ph);
-
-            if (parsed.Key.Contains('.'))
+            if (!root.ContainsKey(parsed.Key))
             {
-                var parts = parsed.Key.Split('.', 2);
-                string groupKey = parts[0].Trim();
-                string fieldKey = parts[1].Trim();
-
-                string itemPh = string.IsNullOrEmpty(parsed.Extra) ? fieldKey : $"{fieldKey}:{parsed.Extra}";
-
-                bool isArray = explicitArrayKeys != null
-                    ? explicitArrayKeys.Contains(groupKey)
-                    : IsCollectionName(groupKey);
-
-                if (isArray)
-                {
-                    if (!arrayGroups.ContainsKey(groupKey))
-                        arrayGroups[groupKey] = new List<string>();
-                    arrayGroups[groupKey].Add(itemPh);
-                }
-                else
-                {
-                    if (!objectGroups.ContainsKey(groupKey))
-                        objectGroups[groupKey] = new List<string>();
-                    objectGroups[groupKey].Add(itemPh);
-                }
-            }
-            else
-            {
-                if (!root.ContainsKey(parsed.Key))
-                {
-                    root[parsed.Key] = GenerateMockValue(parsed.Key, parsed.Extra, parsed.Kind);
-                }
+                root[parsed.Key] = GenerateMockValue(parsed.Key, parsed.Extra, parsed.Kind);
             }
         }
 
-        // Generate nested objects
-        foreach (var (objKey, subFields) in objectGroups)
+        // 2. Nested objects
+        foreach (var (objKey, subFields) in grouped.Objects)
         {
-            var nestedObj = new JsonObject();
+            var nested = new JsonObject();
             foreach (var subPh in subFields)
             {
                 var parsed = PlaceholderHelper.Parse(subPh);
-                if (!nestedObj.ContainsKey(parsed.Key))
+                if (!nested.ContainsKey(parsed.Key))
                 {
-                    nestedObj[parsed.Key] = GenerateMockValue(parsed.Key, parsed.Extra, parsed.Kind);
+                    nested[parsed.Key] = GenerateMockValue(parsed.Key, parsed.Extra, parsed.Kind);
                 }
             }
-            root[objKey] = nestedObj;
+            root[objKey] = nested;
         }
 
-        // Generate array of objects
-        foreach (var (arrayKey, itemPlaceholders) in arrayGroups)
+        // 3. Arrays
+        foreach (var (arrayKey, itemPlaceholders) in grouped.Arrays)
         {
             var arr = new JsonArray();
-
             for (int i = 1; i <= 2; i++)
             {
                 var itemObj = new JsonObject();
                 foreach (var itemPh in itemPlaceholders)
                 {
                     var parsed = PlaceholderHelper.Parse(itemPh);
-                    if (parsed.Key.Equals("no", StringComparison.OrdinalIgnoreCase) || parsed.Key.Equals("seq", StringComparison.OrdinalIgnoreCase))
-                    {
-                        itemObj[parsed.Key] = i.ToString();
-                    }
-                    else if (IsIntegerKey(parsed.Key, parsed.Extra))
-                    {
-                        itemObj[parsed.Key] = i;
-                    }
-                    else if (IsNumericKey(parsed.Key, parsed.Extra))
-                    {
-                        itemObj[parsed.Key] = (decimal)(i * 1500);
-                    }
-                    else
-                    {
-                        itemObj[parsed.Key] = $"ตัวอย่าง {parsed.Key} {i}";
-                    }
+                    itemObj[parsed.Key] = GenerateItemMockValue(parsed.Key, parsed.Extra, i);
                 }
                 arr.Add(itemObj);
             }
-
             root[arrayKey] = arr;
         }
 
         return root.ToJsonString(JsonOptions);
     }
 
+    private static JsonNode GenerateItemMockValue(string key, string? extra, int index)
+    {
+        if (key.Equals("no", StringComparison.OrdinalIgnoreCase) || key.Equals("seq", StringComparison.OrdinalIgnoreCase))
+            return JsonValue.Create(index.ToString());
+
+        if (IsIntegerKey(key, extra))
+            return JsonValue.Create(index);
+
+        if (IsNumericKey(key, extra))
+            return JsonValue.Create((decimal)(index * 1500));
+
+        return JsonValue.Create($"ตัวอย่าง {key} {index}");
+    }
+
+    private static string MergeWithCustomPayload(string defaultPayload, string? customPayloadJson)
+    {
+        if (string.IsNullOrWhiteSpace(customPayloadJson) || customPayloadJson.Trim() == "{}")
+            return defaultPayload;
+
+        try
+        {
+            var customNode = JsonNode.Parse(customPayloadJson)?.AsObject();
+            var defaultNode = JsonNode.Parse(defaultPayload)?.AsObject();
+
+            if (customNode != null && defaultNode != null)
+            {
+                foreach (var (key, value) in defaultNode)
+                {
+                    if (!customNode.ContainsKey(key))
+                    {
+                        customNode[key] = value?.DeepClone();
+                    }
+                }
+                return customNode.ToJsonString(JsonOptions);
+            }
+        }
+        catch
+        {
+            // Fallback on invalid JSON
+        }
+
+        return defaultPayload;
+    }
+
+    // ─── Semantic Type Inference & Mock Generators ──────────────────────────────
+
     private static JsonObject InferPropertySchema(string key, string? extra, PlaceholderHelper.PlaceholderKind kind)
     {
         var obj = new JsonObject();
         string lk = key.ToLowerInvariant();
 
-        if (kind == PlaceholderHelper.PlaceholderKind.Qr)
+        switch (kind)
         {
-            obj["type"] = "string";
-            obj["format"] = "uri";
-            obj["description"] = "QR Code target URL or URI";
-            return obj;
+            case PlaceholderHelper.PlaceholderKind.Qr:
+                obj["type"] = "string";
+                obj["format"] = "uri";
+                obj["description"] = "QR Code target URL or URI";
+                return obj;
+
+            case PlaceholderHelper.PlaceholderKind.Barcode:
+                obj["type"] = "string";
+                obj["pattern"] = "^[A-Za-z0-9-_]+$";
+                obj["description"] = "Barcode alphanumeric code string";
+                return obj;
+
+            case PlaceholderHelper.PlaceholderKind.Image:
+                obj["type"] = "string";
+                obj["description"] = "Image URL or Base64 data URI";
+                return obj;
         }
 
-        if (kind == PlaceholderHelper.PlaceholderKind.Barcode)
-        {
-            obj["type"] = "string";
-            obj["pattern"] = "^[A-Za-z0-9-_]+$";
-            obj["description"] = "Barcode alphanumeric code string";
-            return obj;
-        }
-
-        if (kind == PlaceholderHelper.PlaceholderKind.Image)
-        {
-            obj["type"] = "string";
-            obj["description"] = "Image URL or Base64 data URI";
-            return obj;
-        }
-
-        // Thai Tax ID / Citizen ID (13 digits)
-        if (lk == "tax_id" || lk == "taxid" || lk == "citizen_id" || lk == "citizenid" ||
-            lk == "idcard" || lk == "id_card" || lk == "identification_no" || lk == "personal_id")
+        if (IsThaiIdentityKey(lk))
         {
             obj["type"] = "string";
             obj["pattern"] = "^[0-9]{13}$";
@@ -397,8 +377,7 @@ public class SchemaInferenceService : ISchemaInferenceService
             return obj;
         }
 
-        // Email
-        if (lk.Contains("email") || lk.Contains("e_mail"))
+        if (lk.Contains("email"))
         {
             obj["type"] = "string";
             obj["format"] = "email";
@@ -406,7 +385,6 @@ public class SchemaInferenceService : ISchemaInferenceService
             return obj;
         }
 
-        // Phone / Tel
         if (lk.Contains("tel") || lk.Contains("phone") || lk.Contains("mobile") || lk.Contains("fax"))
         {
             obj["type"] = "string";
@@ -415,7 +393,6 @@ public class SchemaInferenceService : ISchemaInferenceService
             return obj;
         }
 
-        // Date
         if (IsDateKey(key, extra))
         {
             obj["type"] = "string";
@@ -424,7 +401,6 @@ public class SchemaInferenceService : ISchemaInferenceService
             return obj;
         }
 
-        // Time
         if (lk.Contains("time") && !lk.Contains("date"))
         {
             obj["type"] = "string";
@@ -433,16 +409,14 @@ public class SchemaInferenceService : ISchemaInferenceService
             return obj;
         }
 
-        // Integer / Quantity / Sequence
         if (IsIntegerKey(key, extra))
         {
             obj["type"] = "integer";
-            obj["minimum"] = (lk == "qty" || lk == "quantity" || lk == "no" || lk == "seq" || lk == "item_no") ? 1 : 0;
+            obj["minimum"] = (lk is "qty" or "quantity" or "no" or "seq" or "item_no") ? 1 : 0;
             obj["description"] = $"Integer quantity or sequence for {key}";
             return obj;
         }
 
-        // Numeric / Financial
         if (IsNumericKey(key, extra))
         {
             obj["type"] = "number";
@@ -451,7 +425,7 @@ public class SchemaInferenceService : ISchemaInferenceService
             return obj;
         }
 
-        // Default string with minLength: 1
+        // Default string constraint
         obj["type"] = "string";
         obj["minLength"] = 1;
         obj["description"] = $"Text value for {key}";
@@ -460,70 +434,56 @@ public class SchemaInferenceService : ISchemaInferenceService
 
     private static JsonNode GenerateMockValue(string key, string? extra, PlaceholderHelper.PlaceholderKind kind)
     {
-        if (kind == PlaceholderHelper.PlaceholderKind.Qr)
-            return JsonValue.Create("https://sammakorn.co.th");
-        if (kind == PlaceholderHelper.PlaceholderKind.Barcode)
-            return JsonValue.Create("SMK-998822");
-        if (kind == PlaceholderHelper.PlaceholderKind.Image)
-            return JsonValue.Create("https://placehold.co/300x200/png");
+        switch (kind)
+        {
+            case PlaceholderHelper.PlaceholderKind.Qr:
+                return JsonValue.Create("https://sammakorn.co.th");
+            case PlaceholderHelper.PlaceholderKind.Barcode:
+                return JsonValue.Create("SMK-998822");
+            case PlaceholderHelper.PlaceholderKind.Image:
+                return JsonValue.Create("https://placehold.co/300x200/png");
+        }
 
         string lk = key.ToLowerInvariant();
 
-        if (lk == "tax_id" || lk == "taxid" || lk == "citizen_id" || lk == "citizenid" ||
-            lk == "idcard" || lk == "id_card" || lk == "identification_no" || lk == "personal_id")
-        {
-            return JsonValue.Create("0107536000123");
-        }
-
-        if (IsIntegerKey(key, extra))
-            return JsonValue.Create(1);
-
-        if (IsNumericKey(key, extra))
-            return JsonValue.Create(250000.00m);
-
-        if (IsDateKey(key, extra))
-            return JsonValue.Create(DateTime.UtcNow.ToString("yyyy-MM-dd"));
-
-        if (lk.Contains("email"))
-            return JsonValue.Create("contact@sammakorn.co.th");
-
-        if (lk.Contains("phone") || lk.Contains("tel"))
-            return JsonValue.Create("02-123-4567");
-
+        if (IsThaiIdentityKey(lk)) return JsonValue.Create("0107536000123");
+        if (IsIntegerKey(key, extra)) return JsonValue.Create(1);
+        if (IsNumericKey(key, extra)) return JsonValue.Create(250000.00m);
+        if (IsDateKey(key, extra)) return JsonValue.Create(DateTime.UtcNow.ToString("yyyy-MM-dd"));
+        if (lk.Contains("email")) return JsonValue.Create("contact@sammakorn.co.th");
+        if (lk.Contains("phone") || lk.Contains("tel")) return JsonValue.Create("02-123-4567");
         if (lk.Contains("doc_no") || lk.Contains("inv_no") || lk.Contains("contract_no") || lk.Contains("receipt_no"))
             return JsonValue.Create($"INV-{DateTime.UtcNow:yyyy}-0001");
-
         if (lk.Contains("address"))
             return JsonValue.Create("123/45 ถนนพัฒนาการ แขวงสวนหลวง กรุงเทพมหานคร 10250");
-
         if (lk.Contains("name"))
             return JsonValue.Create("บริษัท สัมมากร จำกัด (มหาชน)");
 
         return JsonValue.Create($"ตัวอย่าง {key}");
     }
 
+    // ─── Classification Predicates ──────────────────────────────────────────────
+
+    private static bool IsThaiIdentityKey(string lk) =>
+        lk is "tax_id" or "taxid" or "citizen_id" or "citizenid" or "idcard" or "id_card"
+           or "identification_no" or "personal_id";
+
     private static bool IsIntegerKey(string key, string? extra)
     {
-        if (!string.IsNullOrEmpty(extra))
-        {
-            string ext = extra.ToLowerInvariant();
-            if (ext is "int" or "integer" or "count") return true;
-        }
+        if (!string.IsNullOrEmpty(extra) && extra.ToLowerInvariant() is "int" or "integer" or "count")
+            return true;
 
         string lk = key.ToLowerInvariant();
-        return lk == "qty" || lk == "quantity" || lk == "count" || lk == "seq" || lk == "no" || lk == "item_no" || lk == "unit" || lk == "age";
+        return lk is "qty" or "quantity" or "count" or "seq" or "no" or "item_no" or "unit" or "age";
     }
 
     private static bool IsNumericKey(string key, string? extra)
     {
         if (IsIntegerKey(key, extra)) return false;
 
-        if (!string.IsNullOrEmpty(extra))
-        {
-            string ext = extra.ToLowerInvariant();
-            if (ext is "number" or "currency" or "currency0" or "baht" or "thaibaht" or "thai_baht_text" or "baht_text" or "bahttext" or "decimal")
-                return true;
-        }
+        if (!string.IsNullOrEmpty(extra) &&
+            extra.ToLowerInvariant() is "number" or "currency" or "currency0" or "baht" or "thaibaht" or "thai_baht_text" or "baht_text" or "bahttext" or "decimal")
+            return true;
 
         string lk = key.ToLowerInvariant();
         return lk.Contains("amount") || lk.Contains("price") || lk.Contains("total") ||
@@ -537,8 +497,7 @@ public class SchemaInferenceService : ISchemaInferenceService
         if (!string.IsNullOrEmpty(extra))
         {
             string ext = extra.ToLowerInvariant();
-            if (ext.Contains("date") || ext.Contains("time"))
-                return true;
+            if (ext.Contains("date") || ext.Contains("time")) return true;
         }
 
         string lk = key.ToLowerInvariant();
@@ -554,7 +513,10 @@ public class SchemaInferenceService : ISchemaInferenceService
         if (lk.EndsWith("_list") || lk.EndsWith("_items") || lk.EndsWith("_details") || lk.EndsWith("_rows") || lk.EndsWith("_lines") || lk.EndsWith("_records"))
             return true;
 
-        if (lk is "customer" or "buyer" or "seller" or "vendor" or "company" or "recipient" or "issuer" or "payer" or "payee" or "approver" or "applicant" or "tenant" or "landlord" or "owner" or "client" or "header" or "footer" or "meta" or "config" or "contact" or "sender" or "receiver" or "user" or "profile")
+        if (lk is "customer" or "buyer" or "seller" or "vendor" or "company" or "recipient" or "issuer"
+               or "payer" or "payee" or "approver" or "applicant" or "tenant" or "landlord" or "owner"
+               or "client" or "header" or "footer" or "meta" or "config" or "contact" or "sender" or "receiver"
+               or "user" or "profile")
             return false;
 
         return lk.EndsWith("s");
@@ -573,4 +535,7 @@ public class SchemaInferenceService : ISchemaInferenceService
         }
         return sb.Length > 0 ? sb.ToString() : "Document";
     }
+
+    [GeneratedRegex(@"\{\{#each\s+([a-zA-Z0-9_.]+)\s*\}\}([\s\S]*?)\{\{/each\}\}")]
+    private static partial Regex EachBlockRegex();
 }

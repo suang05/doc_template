@@ -8,7 +8,7 @@ using SmkDoc.Infrastructure.Engines.Html.Helpers;
 using SmkDoc.Infrastructure.Imaging;
 using Xunit;
 
-namespace SmkDoc.Tests;
+namespace SmkDoc.Tests.Infrastructure.Engines.Html;
 
 public class HtmlTemplateEngineTests
 {
@@ -84,4 +84,34 @@ public class HtmlTemplateEngineTests
         capturedHtml.Should().Contain("STATUS_OK");
         capturedHtml.Should().NotContain("STATUS_WAITING");
     }
+
+    [Fact]
+    public async Task RenderAsync_WithTemplateCache_UsesCachedEvaluation()
+    {
+        var mockPdf = new Mock<IPdfRenderer>();
+        mockPdf.Setup(p => p.RenderHtmlToPdfAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Encoding.UTF8.GetBytes("%PDF-1.4 mock"));
+
+        var mockCache = new Mock<ICompiledTemplateCache>();
+        mockCache.Setup(c => c.GetOrAdd(It.IsAny<string>(), It.IsAny<Func<Func<object, string>>>()))
+            .Returns<string, Func<Func<object, string>>>((k, factory) => factory());
+
+        var mediaService = new MediaGenerationService(
+            new Mock<IQrCodeService>().Object,
+            new Mock<IBarcodeService>().Object,
+            new ImageOptimizerService());
+        var registry = new HtmlHelperRegistry(mediaService);
+
+        var engine = new HtmlTemplateEngine(mockPdf.Object, registry, mockCache.Object);
+
+        string template = "<html><body><h1>User: {{name}}</h1></body></html>";
+        string inputData = "{\"name\": \"Somchai\"}";
+
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(template));
+        var result = await engine.RenderAsync(stream, inputData, OutputFormat.Pdf);
+
+        result.Should().NotBeNull();
+        mockCache.Verify(c => c.GetOrAdd(It.Is<string>(s => !string.IsNullOrEmpty(s)), It.IsAny<Func<Func<object, string>>>()), Times.Once);
+    }
 }
+

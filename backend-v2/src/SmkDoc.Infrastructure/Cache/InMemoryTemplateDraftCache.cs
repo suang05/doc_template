@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Caching.Memory;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.Common.Models;
+using SmkDoc.Application.DTOs.Templates;
 
 namespace SmkDoc.Infrastructure.Cache;
 

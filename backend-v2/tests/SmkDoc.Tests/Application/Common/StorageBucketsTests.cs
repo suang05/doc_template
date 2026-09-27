@@ -2,7 +2,7 @@ using FluentAssertions;
 using SmkDoc.Application.Common;
 using Xunit;
 
-namespace SmkDoc.Tests;
+namespace SmkDoc.Tests.Application.Common;
 
 public class StorageBucketsTests
 {

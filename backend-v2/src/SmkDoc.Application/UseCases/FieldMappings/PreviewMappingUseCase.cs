@@ -2,9 +2,9 @@ using System.Text.Json;
 using SmkDoc.Application.Common;
 using SmkDoc.Application.Common.Helpers;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.Engines;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
+using SmkDoc.Domain.Exceptions;
 
 namespace SmkDoc.Application.UseCases.FieldMappings;
 
@@ -12,47 +12,33 @@ namespace SmkDoc.Application.UseCases.FieldMappings;
 /// Renders a template with its field mappings applied to caller-supplied sample data.
 /// Zero side-effects: no DB writes, no MinIO uploads, no log entries.
 /// </summary>
-public class PreviewMappingUseCase
+public sealed class PreviewMappingUseCase(
+    IRepository<Template> templateRepo,
+    IRepository<TemplateVersion> versionRepo,
+    IRepository<FieldMapping> mappingRepo,
+    IRepository<TemplateDataset> tdRepo,
+    IRepository<Dataset> datasetRepo,
+    IRepository<DataConnection> connectionRepo,
+    IStorageService storageService,
+    IEnumerable<IRenderEngine> engines,
+    IFieldMappingApplicatorService fieldMappingApplicator,
+    IDataProtectionService dataProtection)
 {
-    private readonly IRepository<Template> _templateRepo;
-    private readonly IRepository<TemplateVersion> _versionRepo;
-    private readonly IRepository<FieldMapping> _mappingRepo;
-    private readonly IRepository<TemplateDataset> _tdRepo;
-    private readonly IRepository<Dataset> _datasetRepo;
-    private readonly IRepository<DataConnection> _connectionRepo;
-    private readonly IStorageService _storageService;
-    private readonly IEnumerable<IRenderEngine> _engines;
-    private readonly IFieldMappingApplicatorService _fieldMappingApplicator;
-    private readonly IDataProtectionService _dataProtection;
-
-    public PreviewMappingUseCase(
-        IRepository<Template> templateRepo,
-        IRepository<TemplateVersion> versionRepo,
-        IRepository<FieldMapping> mappingRepo,
-        IRepository<TemplateDataset> tdRepo,
-        IRepository<Dataset> datasetRepo,
-        IRepository<DataConnection> connectionRepo,
-        IStorageService storageService,
-        IEnumerable<IRenderEngine> engines,
-        IFieldMappingApplicatorService fieldMappingApplicator,
-        IDataProtectionService dataProtection)
-    {
-        _templateRepo = templateRepo;
-        _versionRepo = versionRepo;
-        _mappingRepo = mappingRepo;
-        _tdRepo = tdRepo;
-        _datasetRepo = datasetRepo;
-        _connectionRepo = connectionRepo;
-        _storageService = storageService;
-        _engines = engines;
-        _fieldMappingApplicator = fieldMappingApplicator;
-        _dataProtection = dataProtection;
-    }
+    private readonly IRepository<Template> _templateRepo = templateRepo;
+    private readonly IRepository<TemplateVersion> _versionRepo = versionRepo;
+    private readonly IRepository<FieldMapping> _mappingRepo = mappingRepo;
+    private readonly IRepository<TemplateDataset> _tdRepo = tdRepo;
+    private readonly IRepository<Dataset> _datasetRepo = datasetRepo;
+    private readonly IRepository<DataConnection> _connectionRepo = connectionRepo;
+    private readonly IStorageService _storageService = storageService;
+    private readonly IEnumerable<IRenderEngine> _engines = engines;
+    private readonly IFieldMappingApplicatorService _fieldMappingApplicator = fieldMappingApplicator;
+    private readonly IDataProtectionService _dataProtection = dataProtection;
 
     public async Task<byte[]> ExecuteAsync(Guid templateId, JsonElement sampleData, CancellationToken ct = default)
     {
         var template = await _templateRepo.GetByIdAsync(templateId, ct)
-            ?? throw new KeyNotFoundException($"Template '{templateId}' not found.");
+            ?? throw new NotFoundException($"Template '{templateId}' not found.");
 
         var mappings = await _mappingRepo.ListAsync(m => m.TemplateId == templateId, ct);
 

@@ -2,7 +2,6 @@ using System.Text.Json;
 using ClosedXML.Excel;
 using SmkDoc.Application.Common.Helpers;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.Engines;
 using SmkDoc.Domain.Enums;
 using static SmkDoc.Application.Common.Helpers.PlaceholderHelper;
 
@@ -41,9 +40,18 @@ public class ExcelTemplateEngine : IRenderEngine
 
         foreach (var worksheet in workbook.Worksheets)
         {
-            worksheet.PageSetup.PaperSize = XLPaperSize.A4Paper;
-            worksheet.PageSetup.PagesWide = 1;
-            worksheet.PageSetup.PagesTall = 0;
+            // Standardize to A4 paper size if left at Excel default (Letter)
+            if (worksheet.PageSetup.PaperSize == XLPaperSize.LetterPaper)
+            {
+                worksheet.PageSetup.PaperSize = XLPaperSize.A4Paper;
+            }
+
+            // Only apply 1-page-wide fit if not already customized by the template designer
+            if (worksheet.PageSetup.PagesWide == 0 && worksheet.PageSetup.PagesTall == 0)
+            {
+                worksheet.PageSetup.PagesWide = 1;
+                worksheet.PageSetup.PagesTall = 0;
+            }
 
             // 1. Inject QR / Barcode images
             _mediaInjector.InjectMedia(worksheet, replacements);

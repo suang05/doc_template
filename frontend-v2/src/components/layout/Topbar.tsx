@@ -13,7 +13,7 @@ import {
   HelpCircle,
   Check,
 } from 'lucide-react';
-import { getStoredApiKey, setStoredApiKey } from '@/lib/api/client';
+import { useStoredApiKey } from '@/hooks/useStoredApiKey';
 
 export interface TopbarProps {
   isSidebarOpen: boolean;
@@ -30,12 +30,10 @@ export const Topbar: React.FC<TopbarProps> = ({
   onOpenSearch,
   activeViewTitle,
 }) => {
-  const [apiKey, setApiKey] = useState('');
+  const { apiKey, saveApiKey } = useStoredApiKey();
   const [keySaved, setKeySaved] = useState(false);
 
   useEffect(() => {
-    setApiKey(getStoredApiKey());
-
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
         e.preventDefault();
@@ -47,8 +45,7 @@ export const Topbar: React.FC<TopbarProps> = ({
   }, [onOpenSearch]);
 
   const handleKeySave = (val: string) => {
-    setApiKey(val);
-    setStoredApiKey(val);
+    saveApiKey(val);
     setKeySaved(true);
     setTimeout(() => setKeySaved(false), 2000);
   };

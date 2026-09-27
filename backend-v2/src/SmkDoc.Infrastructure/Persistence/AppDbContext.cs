@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
+using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Application.Common.Interfaces;
 
 namespace SmkDoc.Infrastructure.Persistence;
@@ -67,14 +68,21 @@ public class AppDbContext : DbContext
             entity.Property(e => e.PasswordHash).IsRequired().HasMaxLength(255);
             entity.Property(e => e.FirstName).HasMaxLength(100);
             entity.Property(e => e.LastName).HasMaxLength(100);
+            entity.Property(e => e.SystemRole)
+                  .HasConversion(r => r.Name, v => SystemRole.FromDisplayName<SystemRole>(v))
+                  .HasMaxLength(30)
+                  .HasDefaultValue(SystemRole.Member);
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("NOW()");
         });
+
 
         modelBuilder.Entity<UserProjectRole>(entity =>
         {
             entity.ToTable("user_project_roles");
             entity.HasKey(e => new { e.UserId, e.ProjectId });
-            entity.Property(e => e.Role).HasConversion<string>().HasMaxLength(20);
+            entity.Property(e => e.Role)
+                  .HasConversion(r => r.Name, v => RoleType.FromDisplayName<RoleType>(v))
+                  .HasMaxLength(20);
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("NOW()");
 
             entity.HasOne(e => e.User)
@@ -128,7 +136,9 @@ public class AppDbContext : DbContext
             entity.Property(e => e.SourcePath).IsRequired().HasMaxLength(200);
             entity.Property(e => e.Label).IsRequired().HasMaxLength(200);
             entity.Property(e => e.Transform).HasMaxLength(50);
-            entity.Property(e => e.DataSourceType).HasMaxLength(20).HasDefaultValue("json");
+            entity.Property(e => e.DataSourceType)
+                  .HasConversion(d => d.Value, v => DataSourceType.FromString(v))
+                  .HasMaxLength(20).HasDefaultValue(DataSourceType.Json);
             entity.Property(e => e.DatasetAlias).HasMaxLength(50);
             entity.Property(e => e.ResultPath).HasMaxLength(300);
             entity.Property(e => e.MathExpression).HasMaxLength(500);
@@ -146,8 +156,12 @@ public class AppDbContext : DbContext
             entity.HasKey(e => e.Id);
             entity.HasIndex(e => new { e.TemplateId, e.Version }).IsUnique();
             entity.Property(e => e.StorageKey).IsRequired().HasMaxLength(500);
-            entity.Property(e => e.Status).HasDefaultValue(TemplateVersionStatus.Draft);
-            entity.Property(e => e.FileFormat).HasConversion<string>().HasMaxLength(10);
+            entity.Property(e => e.Status)
+                  .HasConversion(s => s.Id, v => TemplateVersionStatus.FromValue<TemplateVersionStatus>(v))
+                  .HasDefaultValue(TemplateVersionStatus.Draft);
+            entity.Property(e => e.FileFormat)
+                  .HasConversion(f => f == null ? null : f.Name, v => v == null ? null : TemplateFormat.FromDisplayName<TemplateFormat>(v))
+                  .HasMaxLength(10);
             entity.Property(e => e.DataSchema).HasColumnType("jsonb");
             entity.Property(e => e.SamplePayload).HasColumnType("jsonb");
             entity.Property(e => e.CommitMessage).HasMaxLength(500);
@@ -181,8 +195,12 @@ public class AppDbContext : DbContext
             entity.Property(e => e.CallerApp).HasMaxLength(50);
             entity.Property(e => e.TriggerSource).HasMaxLength(20);
             entity.Property(e => e.OutputKey).HasMaxLength(500);
-            entity.Property(e => e.OutputFormat).HasMaxLength(10);
-            entity.Property(e => e.PayloadHashSha256).HasMaxLength(64);
+            entity.Property(e => e.OutputFormat)
+                  .HasConversion(f => f == null ? null : f.Name, v => v == null ? null : OutputFormat.FromDisplayName<OutputFormat>(v))
+                  .HasMaxLength(10);
+            entity.Property(e => e.PayloadHashSha256)
+                  .HasConversion(h => h == null ? null : h.Value, v => v == null ? null : new Sha256Hash(v))
+                  .HasMaxLength(64);
             entity.Property(e => e.Status).IsRequired().HasMaxLength(20);
             entity.Property(e => e.InputData).HasColumnType("jsonb");
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("NOW()");

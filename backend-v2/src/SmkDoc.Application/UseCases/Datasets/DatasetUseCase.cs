@@ -1,24 +1,19 @@
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.DTOs.Datasets;
 using SmkDoc.Domain.Entities;
+using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.Exceptions;
 
 namespace SmkDoc.Application.UseCases.Datasets;
 
-public class DatasetUseCase
+public sealed class DatasetUseCase(
+    IRepository<Dataset> datasetRepo,
+    IRepository<DataConnection> connectionRepo,
+    IUnitOfWork unitOfWork)
 {
-    private readonly IRepository<Dataset> _datasetRepo;
-    private readonly IRepository<DataConnection> _connectionRepo;
-    private readonly IUnitOfWork _unitOfWork;
-
-    public DatasetUseCase(
-        IRepository<Dataset> datasetRepo,
-        IRepository<DataConnection> connectionRepo,
-        IUnitOfWork unitOfWork)
-    {
-        _datasetRepo    = datasetRepo;
-        _connectionRepo = connectionRepo;
-        _unitOfWork     = unitOfWork;
-    }
+    private readonly IRepository<Dataset> _datasetRepo = datasetRepo;
+    private readonly IRepository<DataConnection> _connectionRepo = connectionRepo;
+    private readonly IUnitOfWork _unitOfWork = unitOfWork;
 
     public async Task<List<DatasetDto>> GetAllAsync(CancellationToken ct = default)
     {
@@ -44,20 +39,12 @@ public class DatasetUseCase
     public async Task<DatasetDto> CreateAsync(CreateDatasetDto dto, CancellationToken ct = default)
     {
         var connection = await _connectionRepo.GetByIdAsync(dto.DataConnectionId, ct)
-            ?? throw new KeyNotFoundException($"DataConnection '{dto.DataConnectionId}' not found.");
+            ?? throw new NotFoundException($"DataConnection '{dto.DataConnectionId}' not found.");
 
-        var entity = new Dataset
-        {
-            Id               = Guid.NewGuid(),
-            Name             = dto.Name,
-            Description      = dto.Description,
-            DataConnectionId = dto.DataConnectionId,
-            SqlQuery         = dto.SqlQuery,
-            CacheSeconds     = dto.CacheSeconds,
-        };
+        var entity = new Dataset(dto.Name, dto.Description, dto.DataConnectionId, dto.SqlQuery, dto.CacheSeconds);
 
         await _datasetRepo.AddAsync(entity, ct);
-        await _unitOfWork.SaveChangesAsync(ct);
+        await _unitOfWork.CommitAsync(ct);
 
         return ToDto(entity, new Dictionary<Guid, DataConnection> { [connection.Id] = connection });
     }
@@ -68,17 +55,12 @@ public class DatasetUseCase
         if (entity == null) return null;
 
         var connection = await _connectionRepo.GetByIdAsync(dto.DataConnectionId, ct)
-            ?? throw new KeyNotFoundException($"DataConnection '{dto.DataConnectionId}' not found.");
+            ?? throw new NotFoundException($"DataConnection '{dto.DataConnectionId}' not found.");
 
-        entity.Name             = dto.Name;
-        entity.Description      = dto.Description;
-        entity.DataConnectionId = dto.DataConnectionId;
-        entity.SqlQuery         = dto.SqlQuery;
-        entity.CacheSeconds     = dto.CacheSeconds;
-        entity.UpdatedAt        = DateTimeOffset.UtcNow;
+        entity.UpdateDetails(dto.Name, dto.Description, dto.DataConnectionId, dto.SqlQuery, dto.CacheSeconds);
 
         _datasetRepo.Update(entity);
-        await _unitOfWork.SaveChangesAsync(ct);
+        await _unitOfWork.CommitAsync(ct);
 
         return ToDto(entity, new Dictionary<Guid, DataConnection> { [connection.Id] = connection });
     }
@@ -89,7 +71,7 @@ public class DatasetUseCase
         if (entity == null) return false;
 
         _datasetRepo.Remove(entity);
-        await _unitOfWork.SaveChangesAsync(ct);
+        await _unitOfWork.CommitAsync(ct);
         return true;
     }
 

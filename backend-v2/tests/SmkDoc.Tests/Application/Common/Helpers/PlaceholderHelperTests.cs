@@ -3,7 +3,7 @@ using SmkDoc.Application.Common.Helpers;
 using Xunit;
 using static SmkDoc.Application.Common.Helpers.PlaceholderHelper;
 
-namespace SmkDoc.Tests;
+namespace SmkDoc.Tests.Application.Common.Helpers;
 
 public class PlaceholderHelperTests
 {

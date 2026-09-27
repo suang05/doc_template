@@ -3,14 +3,13 @@ using System.Text.Json;
 using FluentAssertions;
 using Moq;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.Common.Models;
-using SmkDoc.Application.Engines;
+using SmkDoc.Application.DTOs.Documents;
 using SmkDoc.Application.UseCases.Documents;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using Xunit;
 
-namespace SmkDoc.Tests;
+namespace SmkDoc.Tests.Application.UseCases.Documents;
 
 public class PreviewDocumentUseCaseTests
 {
@@ -35,7 +34,7 @@ public class PreviewDocumentUseCaseTests
         );
 
         using var jsonDoc = JsonDocument.Parse("{\"buyer\": \"สมศรี\"}");
-        var request = new PreviewDocumentRequest(
+        var request = new PreviewDocumentQuery(
             Data: jsonDoc.RootElement,
             Html: "<html><body><Field name=\"buyer\" /><h2>Preview: {{buyer}}</h2></body></html>"
         );
@@ -67,7 +66,7 @@ public class PreviewDocumentUseCaseTests
         );
 
         using var jsonDoc = JsonDocument.Parse("{\"key\": \"val\"}");
-        var request = new PreviewDocumentRequest(
+        var request = new PreviewDocumentQuery(
             Data: jsonDoc.RootElement,
             Html: "<html><body>Hello Unsaved</body></html>"
         );

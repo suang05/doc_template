@@ -17,8 +17,8 @@ import { useTemplates } from '@/hooks/useTemplates';
 import { useDocumentGenerator } from '@/hooks/useDocumentGenerator';
 import { useGeneratorForm } from '@/hooks/useGeneratorForm';
 import { useFormPreview } from '@/hooks/useFormPreview';
-import { OutputFormat, TemplateDto, ThaiTransformTypes } from '@/types/api';
-import { tokens, DocumentFormat } from '@/tokens';
+import { useAutoSelectFirst } from '@/hooks/useAutoSelectFirst';
+import { OutputFormat, TemplateDto, ThaiTransformTypes, tokens, DocumentFormat } from '@/types/api';
 import {
   Button,
   Badge,
@@ -41,7 +41,7 @@ export const GeneratorView: React.FC<GeneratorViewProps> = ({ initialSlug }) => 
   const { templates, loading: templatesLoading } = useTemplates();
   const { generate, loading: generating, error: generateError, result, resetResult } = useDocumentGenerator();
 
-  const [selectedSlug, setSelectedSlug] = useState<string>(initialSlug || '');
+  const [selectedSlug, setSelectedSlug] = useAutoSelectFirst(templates, (t) => t.slug, initialSlug);
   const [outputFormat, setOutputFormat] = useState<OutputFormat>('pdf');
   const [documentRef, setDocumentRef] = useState('DOC-2026-0001');
   const [changeNote, setChangeNote] = useState('สร้างเอกสารฉบับจริง');
@@ -60,17 +60,6 @@ export const GeneratorView: React.FC<GeneratorViewProps> = ({ initialSlug }) => 
       setOutputFormat('pdf');
     }
   }, [selectedTemplate?.fileFormat, outputFormat]);
-
-  // Auto-select first template
-  useEffect(() => {
-    if (initialSlug) {
-      setSelectedSlug(initialSlug);
-    } else if (templates.length > 0 && !selectedSlug) {
-      setSelectedSlug(templates[0].slug);
-    }
-  }, [initialSlug, templates, selectedSlug]);
-
-
 
   // Field mappings + form state for selected template
   const {
@@ -399,7 +388,7 @@ export const GeneratorView: React.FC<GeneratorViewProps> = ({ initialSlug }) => 
           {/* PDF iframe */}
           {preview.pdfUrl && (
             <iframe
-              src={preview.pdfUrl}
+              src={`${preview.pdfUrl}#toolbar=0`}
               className="w-full h-full border-none"
               title="PDF Preview"
             />

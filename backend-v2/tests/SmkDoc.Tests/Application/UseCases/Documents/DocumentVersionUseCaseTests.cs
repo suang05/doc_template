@@ -4,9 +4,11 @@ using Moq;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.UseCases.Documents;
 using SmkDoc.Domain.Entities;
+using SmkDoc.Domain.Enums;
+using SmkDoc.Domain.Exceptions;
 using Xunit;
 
-namespace SmkDoc.Tests;
+namespace SmkDoc.Tests.Application.UseCases.Documents;
 
 public class DocumentVersionUseCaseTests
 {
@@ -27,15 +29,15 @@ public class DocumentVersionUseCaseTests
     {
         // Arrange
         var documentId = Guid.NewGuid();
-        var document = new Document { Id = documentId, DocumentRef = "SC-001" };
+        var document = new Document("SC-001", Guid.NewGuid()) { Id = documentId };
 
         _mockDocumentRepo.Setup(r => r.FirstOrDefaultAsync(It.IsAny<Expression<Func<Document, bool>>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(document);
 
         _mockVersionRepo.Setup(r => r.ListAsync(It.IsAny<Expression<Func<DocumentVersion, bool>>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([
-                new() { Id = Guid.NewGuid(), DocumentId = documentId, Version = 1 },
-                new() { Id = Guid.NewGuid(), DocumentId = documentId, Version = 2 }
+                new DocumentVersion(documentId, 1, Guid.NewGuid(), null, null, null) { Id = Guid.NewGuid() },
+                new DocumentVersion(documentId, 2, Guid.NewGuid(), null, null, null) { Id = Guid.NewGuid() }
             ]);
 
         // Act
@@ -68,9 +70,9 @@ public class DocumentVersionUseCaseTests
         // Arrange
         var documentId = Guid.NewGuid();
         var logId      = Guid.NewGuid();
-        var document   = new Document { Id = documentId, DocumentRef = "SC-001" };
-        var docVersion = new DocumentVersion { DocumentId = documentId, Version = 1, GenerationLogId = logId };
-        var log        = new GenerationLog { Id = logId, OutputKey = "outputs/sc001_v1.pdf", OutputFormat = "pdf" };
+        var document   = new Document("SC-001", Guid.NewGuid()) { Id = documentId };
+        var docVersion = new DocumentVersion(documentId, 1, Guid.NewGuid(), logId, null, null) { Id = Guid.NewGuid() };
+        var log        = new GenerationLog(null, null, null, null, null, null, "outputs/sc001_v1.pdf", OutputFormat.Pdf, null, null, null, 1, "SUCCESS", null) { Id = logId };
         var pdfBytes   = new byte[] { 0x25, 0x50, 0x44, 0x46 };
 
         _mockDocumentRepo.Setup(r => r.FirstOrDefaultAsync(It.IsAny<Expression<Func<Document, bool>>>(), It.IsAny<CancellationToken>()))
@@ -92,12 +94,13 @@ public class DocumentVersionUseCaseTests
     }
 
     [Fact]
-    public async Task DownloadVersionAsync_WhenDocumentNotFound_ShouldThrowKeyNotFoundException()
+    public async Task DownloadVersionAsync_WhenDocumentNotFound_ShouldThrowNotFoundException()
     {
         _mockDocumentRepo.Setup(r => r.FirstOrDefaultAsync(It.IsAny<Expression<Func<Document, bool>>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((Document?)null);
 
-        await Assert.ThrowsAsync<KeyNotFoundException>(() => BuildUseCase().DownloadVersionAsync("MISSING", 1));
+        var act = () => BuildUseCase().DownloadVersionAsync("MISSING", 1);
+        await act.Should().ThrowAsync<NotFoundException>();
     }
 
     [Fact]
@@ -105,7 +108,7 @@ public class DocumentVersionUseCaseTests
     {
         // Arrange
         var logId = Guid.NewGuid();
-        var log = new GenerationLog { Id = logId, OutputKey = "outputs/doc.pdf" };
+        var log = new GenerationLog(null, null, null, null, null, null, "outputs/doc.pdf", null, null, null, null, 1, "SUCCESS", null) { Id = logId };
 
         _mockLogRepo.Setup(r => r.GetByIdAsync(logId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(log);

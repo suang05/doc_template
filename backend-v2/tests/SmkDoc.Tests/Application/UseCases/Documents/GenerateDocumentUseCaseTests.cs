@@ -4,15 +4,19 @@ using System.Text.Json;
 using FluentAssertions;
 using Moq;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.Common.Models;
-using SmkDoc.Application.Engines;
+using SmkDoc.Application.DTOs.Documents;
+using SmkDoc.Application.DTOs.FieldMappings;
 using SmkDoc.Application.UseCases.Documents;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
+using SmkDoc.Domain.ValueObjects;
 using Xunit;
+using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects.Validation;
+using SmkDoc.Tests.Common.Builders;
 
-namespace SmkDoc.Tests;
+namespace SmkDoc.Tests.Application.UseCases.Documents;
 
 public class GenerateDocumentUseCaseTests
 {
@@ -59,22 +63,20 @@ public class GenerateDocumentUseCaseTests
         var templateId = Guid.NewGuid();
         var versionId  = Guid.NewGuid();
 
-        var template = new Template
-        {
-            Id = templateId,
-            Name = "Sale Contract",
-            Slug = "sale-contract",
-            IsActive = true,
-            CurrentVersionId = versionId
-        };
+        var template = new TemplateBuilder()
+            .WithId(templateId)
+            .WithName("Sale Contract")
+            .WithSlug("sale-contract")
+            .WithCurrentVersion(versionId)
+            .Build();
 
-        var currentVersion = new TemplateVersion
-        {
-            Id = versionId,
-            TemplateId = templateId,
-            Version = 2,
-            StorageKey = "templates/sale-contract.html"
-        };
+        var currentVersion = new TemplateVersionBuilder()
+            .WithId(versionId)
+            .WithTemplateId(templateId)
+            .WithVersion(2)
+            .WithStorageKey("templates/sale-contract.html")
+            .WithFormat(TemplateFormat.Html)
+            .Build();
 
         _mockTemplateRepo.Setup(r => r.FirstOrDefaultAsync(It.IsAny<Expression<Func<Template, bool>>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
@@ -106,7 +108,7 @@ public class GenerateDocumentUseCaseTests
 
         var useCase = BuildUseCase();
         using var jsonDoc = JsonDocument.Parse("{\"name\": \"สมชาย ใจดี\"}");
-        var request = new GenerateDocumentRequest(jsonDoc.RootElement, Output: "pdf", DocumentRef: "SC-2026-0001");
+        var request = new GenerateDocumentCommand(jsonDoc.RootElement, Output: "pdf", DocumentRef: "SC-2026-0001");
 
         // Act
         var result = await useCase.ExecuteAsync("sale-contract", request);
@@ -115,6 +117,7 @@ public class GenerateDocumentUseCaseTests
         result.Should().NotBeNull();
         result.Url.Should().StartWith("https://minio.sammakorn.co.th");
         result.OutputFormat.Should().Be("pdf");
+        result.GenerationId.Version.Should().Be(7);
 
         _mockLogRepo.Verify(r => r.AddAsync(
             It.Is<GenerationLog>(l => l.TemplateId == templateId
@@ -131,39 +134,41 @@ public class GenerateDocumentUseCaseTests
             It.Is<DocumentVersion>(v => v.GenerationLogId != null && v.Version == 1),
             It.IsAny<CancellationToken>()), Times.Once);
 
-        _mockUow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _mockUow.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
-    public async Task ExecuteAsync_WhenTemplateInactive_ShouldThrowKeyNotFoundException()
+    public async Task ExecuteAsync_WhenTemplateInactive_ShouldThrowNotFoundException()
     {
         // Arrange
-        var template = new Template { Slug = "inactive-tpl", IsActive = false };
+        var template = new TemplateBuilder().AsInactive().WithSlug("inactive-tpl").Build();
         _mockTemplateRepo.Setup(r => r.FirstOrDefaultAsync(It.IsAny<Expression<Func<Template, bool>>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
 
         var useCase = BuildUseCase();
         using var jsonDoc = JsonDocument.Parse("{}");
-        var request = new GenerateDocumentRequest(jsonDoc.RootElement);
+        var request = new GenerateDocumentCommand(jsonDoc.RootElement);
 
         // Act & Assert
-        await Assert.ThrowsAsync<KeyNotFoundException>(() => useCase.ExecuteAsync("inactive-tpl", request));
+        var act = () => useCase.ExecuteAsync("inactive-tpl", request);
+        await act.Should().ThrowAsync<NotFoundException>();
     }
 
     [Fact]
     public async Task ExecuteAsync_WhenNoCurrentVersion_ShouldThrowInvalidOperationException()
     {
         // Arrange
-        var template = new Template { Slug = "no-ver-tpl", IsActive = true, CurrentVersionId = null };
+        var template = new TemplateBuilder().WithoutCurrentVersion().WithSlug("no-ver-tpl").Build();
         _mockTemplateRepo.Setup(r => r.FirstOrDefaultAsync(It.IsAny<Expression<Func<Template, bool>>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
 
         var useCase = BuildUseCase();
         using var jsonDoc = JsonDocument.Parse("{}");
-        var request = new GenerateDocumentRequest(jsonDoc.RootElement);
+        var request = new GenerateDocumentCommand(jsonDoc.RootElement);
 
         // Act & Assert
-        await Assert.ThrowsAsync<InvalidOperationException>(() => useCase.ExecuteAsync("no-ver-tpl", request));
+        var act = () => useCase.ExecuteAsync("no-ver-tpl", request);
+        await act.Should().ThrowAsync<InvalidOperationException>();
     }
 
     [Fact]
@@ -173,22 +178,10 @@ public class GenerateDocumentUseCaseTests
         var templateId = Guid.NewGuid();
         var versionId  = Guid.NewGuid();
 
-        var template = new Template
-        {
-            Id = templateId,
-            Name = "Contract With Mappings",
-            Slug = "contract-mapped",
-            IsActive = true,
-            CurrentVersionId = versionId
-        };
+        var template = new Template(Guid.NewGuid(), "Contract With Mappings", "contract-mapped", null) { Id = templateId };
+        template.SetCurrentVersion(versionId);
 
-        var currentVersion = new TemplateVersion
-        {
-            Id = versionId,
-            TemplateId = templateId,
-            Version = 1,
-            StorageKey = "templates/contract-mapped.html"
-        };
+        var currentVersion = new TemplateVersion(templateId, 1, "templates/contract-mapped.html", TemplateFormat.Html, "Published", "Commit") { Id = versionId };
 
         _mockTemplateRepo.Setup(r => r.FirstOrDefaultAsync(It.IsAny<Expression<Func<Template, bool>>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
@@ -201,11 +194,10 @@ public class GenerateDocumentUseCaseTests
 
         var mappings = new List<FieldMapping>
         {
-            new() { Id = Guid.NewGuid(), TemplateId = templateId,
-                    Placeholder = "amount_baht", SourcePath = "contract.price",
-                    Label = "Price in Baht Text", Transform = "baht", Required = true }
+            new FieldMapping(templateId, "amount_baht", "contract.price", "Price in Baht Text", true, 1, DataSourceType.Json) { Id = Guid.NewGuid() }
         };
 
+        mappings[0].UpdateMappingDetails("contract.price", "Price in Baht Text", true, null, "baht", 1);
         _mockMappingRepo.Setup(r => r.ListAsync(It.IsAny<Expression<Func<FieldMapping, bool>>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(mappings);
 
@@ -215,7 +207,7 @@ public class GenerateDocumentUseCaseTests
         _mockApplicator.Setup(s => s.ApplyAsync(
                 It.IsAny<JsonElement>(),
                 It.IsAny<IEnumerable<FieldMapping>>(),
-                It.IsAny<IReadOnlyDictionary<string, ResolvedDataset>>()))
+                It.IsAny<IReadOnlyDictionary<string, ResolvedDatasetContext>>()))
             .ReturnsAsync("{\"amount_baht\":\"สองล้านห้าแสนบาทถ้วน\"}");
 
         string capturedDataJson = string.Empty;
@@ -229,7 +221,7 @@ public class GenerateDocumentUseCaseTests
 
         var useCase = BuildUseCase();
         using var jsonDoc = JsonDocument.Parse("{\"contract\": {\"price\": \"2500000\"}}");
-        var request = new GenerateDocumentRequest(jsonDoc.RootElement);
+        var request = new GenerateDocumentCommand(jsonDoc.RootElement);
 
         // Act
         var result = await useCase.ExecuteAsync("contract-mapped", request);
@@ -248,20 +240,10 @@ public class GenerateDocumentUseCaseTests
         var versionId   = Guid.NewGuid();
         var documentId  = Guid.NewGuid();
 
-        var template = new Template
-        {
-            Id = templateId, Slug = "sale-contract",
-            IsActive = true, CurrentVersionId = versionId
-        };
-        var currentVersion = new TemplateVersion
-        {
-            Id = versionId, TemplateId = templateId,
-            Version = 1, StorageKey = "templates/sale-contract.html"
-        };
-        var existingDocument = new Document
-        {
-            Id = documentId, DocumentRef = "SC-2026-0001", TemplateId = templateId
-        };
+        var template = new Template(Guid.NewGuid(), "Contract", "sale-contract", null) { Id = templateId };
+        template.SetCurrentVersion(versionId);
+        var currentVersion = new TemplateVersion(templateId, 1, "templates/sale-contract.html", TemplateFormat.Html, "Published", "Commit") { Id = versionId };
+        var existingDocument = new Document("SC-2026-0001", templateId) { Id = documentId };
 
         _mockTemplateRepo.Setup(r => r.FirstOrDefaultAsync(It.IsAny<Expression<Func<Template, bool>>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
@@ -288,7 +270,7 @@ public class GenerateDocumentUseCaseTests
 
         var useCase = BuildUseCase();
         using var jsonDoc = JsonDocument.Parse("{}");
-        var request = new GenerateDocumentRequest(jsonDoc.RootElement, Output: "pdf", DocumentRef: "SC-2026-0001");
+        var request = new GenerateDocumentCommand(jsonDoc.RootElement, Output: "pdf", DocumentRef: "SC-2026-0001");
 
         // Act
         await useCase.ExecuteAsync("sale-contract", request);
@@ -313,17 +295,10 @@ public class GenerateDocumentUseCaseTests
         var versionId  = Guid.NewGuid();
         const string schemaJson = """{"$schema":"http://json-schema.org/draft-07/schema#","type":"object","required":["doc_no"]}""";
 
-        var template = new Template
-        {
-            Id = templateId, Name = "Invoice", Slug = "invoice",
-            IsActive = true, CurrentVersionId = versionId
-        };
-        var currentVersion = new TemplateVersion
-        {
-            Id = versionId, TemplateId = templateId, Version = 1,
-            StorageKey = "templates/invoice.html",
-            DataSchema = schemaJson          // Schema requires "doc_no"
-        };
+        var template = new Template(Guid.NewGuid(), "Invoice", "invoice", null) { Id = templateId };
+        template.SetCurrentVersion(versionId);
+        var currentVersion = new TemplateVersion(templateId, 1, "templates/invoice.html", TemplateFormat.Html, "Published", "Commit") { Id = versionId };
+        currentVersion.UpdateDataSchema(schemaJson, null);
 
         _mockTemplateRepo.Setup(r => r.FirstOrDefaultAsync(It.IsAny<Expression<Func<Template, bool>>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
@@ -333,13 +308,13 @@ public class GenerateDocumentUseCaseTests
             .ReturnsAsync([]);
 
         // Service returns invalid result (missing required field "doc_no")
-        var errors = new List<SchemaValidationError>
+        var errors = new List<ValidationErrorItem>
         {
-            new("/", "Required property 'doc_no' not found in JSON.", "required")
+            new("/", "required", "Required property 'doc_no' not found in JSON.")
         };
         _mockSchemaValidation
             .Setup(s => s.Validate(schemaJson, It.IsAny<string>()))
-            .Returns(new SchemaValidationResult(IsValid: false, Errors: errors));
+            .Returns(SchemaValidationResult.Failure(errors));
 
         // Engine and storage must be set up so the use case reaches the validation gate
         _mockEngine.Setup(e => e.EngineType).Returns(RenderEngineType.Html);
@@ -348,12 +323,12 @@ public class GenerateDocumentUseCaseTests
 
         _mockLogRepo.Setup(r => r.AddAsync(It.IsAny<GenerationLog>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
-        _mockUow.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
+        _mockUow.Setup(u => u.CommitAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(1);
 
         var useCase = BuildUseCase();
         using var jsonDoc = JsonDocument.Parse("""{"customer":"ACME"}"""); // missing doc_no
-        var request = new GenerateDocumentRequest(jsonDoc.RootElement, Output: "pdf");
+        var request = new GenerateDocumentCommand(jsonDoc.RootElement, Output: "pdf");
 
         // Act
         var act = async () => await useCase.ExecuteAsync("invoice", request);
@@ -363,7 +338,7 @@ public class GenerateDocumentUseCaseTests
         ex.Which.TemplateSlug.Should().Be("invoice");
         ex.Which.Version.Should().Be(1);
         ex.Which.Errors.Should().HaveCount(1);
-        ex.Which.Errors[0].SchemaRule.Should().Be("required");
+        ex.Which.Errors[0].Rule.Should().Be("required");
 
         // Assert — VALIDATION_FAILED logged (no rendering attempted)
         _mockLogRepo.Verify(r => r.AddAsync(
@@ -382,17 +357,10 @@ public class GenerateDocumentUseCaseTests
         var versionId  = Guid.NewGuid();
         const string schemaJson = """{"$schema":"http://json-schema.org/draft-07/schema#","type":"object","required":["doc_no"]}""";
 
-        var template = new Template
-        {
-            Id = templateId, Name = "Invoice", Slug = "invoice",
-            IsActive = true, CurrentVersionId = versionId
-        };
-        var currentVersion = new TemplateVersion
-        {
-            Id = versionId, TemplateId = templateId, Version = 1,
-            StorageKey = "templates/invoice.html",
-            DataSchema = schemaJson
-        };
+        var template = new Template(Guid.NewGuid(), "Invoice", "invoice", null) { Id = templateId };
+        template.SetCurrentVersion(versionId);
+        var currentVersion = new TemplateVersion(templateId, 1, "templates/invoice.html", TemplateFormat.Html, "Published", "Commit") { Id = versionId };
+        currentVersion.UpdateDataSchema(schemaJson, null);
 
         _mockTemplateRepo.Setup(r => r.FirstOrDefaultAsync(It.IsAny<Expression<Func<Template, bool>>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
@@ -412,11 +380,11 @@ public class GenerateDocumentUseCaseTests
             .ReturnsAsync("https://example.com/download/invoice.pdf");
         _mockLogRepo.Setup(r => r.AddAsync(It.IsAny<GenerationLog>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
-        _mockUow.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
+        _mockUow.Setup(u => u.CommitAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
 
         var useCase = BuildUseCase();
         using var jsonDoc = JsonDocument.Parse("""{"customer":"ACME"}"""); // missing doc_no — but SkipValidation
-        var request = new GenerateDocumentRequest(jsonDoc.RootElement, Output: "pdf", SkipValidation: true);
+        var request = new GenerateDocumentCommand(jsonDoc.RootElement, Output: "pdf", SkipValidation: true);
 
         // Act
         var result = await useCase.ExecuteAsync("invoice", request);

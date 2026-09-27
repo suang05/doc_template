@@ -1,27 +1,21 @@
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.Common.Models;
+using SmkDoc.Application.DTOs.FieldMappings;
 using SmkDoc.Domain.Entities;
+using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.Exceptions;
 
 namespace SmkDoc.Application.UseCases.FieldMappings;
 
-public class TemplateDatasetUseCase
+public sealed class TemplateDatasetUseCase(
+    IRepository<TemplateDataset> tdRepo,
+    IRepository<Template> templateRepo,
+    IRepository<Dataset> datasetRepo,
+    IUnitOfWork unitOfWork)
 {
-    private readonly IRepository<TemplateDataset> _tdRepo;
-    private readonly IRepository<Template> _templateRepo;
-    private readonly IRepository<Dataset> _datasetRepo;
-    private readonly IUnitOfWork _unitOfWork;
-
-    public TemplateDatasetUseCase(
-        IRepository<TemplateDataset> tdRepo,
-        IRepository<Template> templateRepo,
-        IRepository<Dataset> datasetRepo,
-        IUnitOfWork unitOfWork)
-    {
-        _tdRepo      = tdRepo;
-        _templateRepo = templateRepo;
-        _datasetRepo  = datasetRepo;
-        _unitOfWork   = unitOfWork;
-    }
+    private readonly IRepository<TemplateDataset> _tdRepo = tdRepo;
+    private readonly IRepository<Template> _templateRepo = templateRepo;
+    private readonly IRepository<Dataset> _datasetRepo = datasetRepo;
+    private readonly IUnitOfWork _unitOfWork = unitOfWork;
 
     public async Task<List<TemplateDatasetDto>> GetByTemplateIdAsync(Guid templateId, CancellationToken ct = default)
     {
@@ -44,10 +38,10 @@ public class TemplateDatasetUseCase
             .ToList();
     }
 
-    public async Task SaveAsync(Guid templateId, List<SaveTemplateDatasetItem> items, CancellationToken ct = default)
+    public async Task SaveAsync(Guid templateId, List<SaveTemplateDatasetItemDto> items, CancellationToken ct = default)
     {
         _ = await _templateRepo.GetByIdAsync(templateId, ct)
-            ?? throw new KeyNotFoundException($"Template '{templateId}' not found.");
+            ?? throw new NotFoundException($"Template '{templateId}' not found.");
 
         // Validate unique aliases
         var aliases = items.Select(i => i.Alias.Trim().ToLowerInvariant()).ToList();
@@ -61,16 +55,9 @@ public class TemplateDatasetUseCase
 
         foreach (var item in items)
         {
-            await _tdRepo.AddAsync(new TemplateDataset
-            {
-                Id         = Guid.NewGuid(),
-                TemplateId = templateId,
-                DatasetId  = item.DatasetId,
-                Alias      = item.Alias.Trim().ToLowerInvariant(),
-                SortOrder  = item.SortOrder,
-            }, ct);
+            await _tdRepo.AddAsync(new TemplateDataset(templateId, item.DatasetId, item.Alias.Trim().ToLowerInvariant(), item.SortOrder), ct);
         }
 
-        await _unitOfWork.SaveChangesAsync(ct);
+        await _unitOfWork.CommitAsync(ct);
     }
 }

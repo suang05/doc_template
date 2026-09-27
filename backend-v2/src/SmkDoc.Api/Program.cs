@@ -10,7 +10,6 @@ using SmkDoc.Api.HealthChecks;
 using SmkDoc.Api.Middleware;
 using SmkDoc.Api.Models;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.Engines;
 using SmkDoc.Application.UseCases.Documents;
 using SmkDoc.Application.UseCases.Datasets;
 using SmkDoc.Application.UseCases.FieldMappings;  // FieldMappingUseCase, PreviewMappingUseCase
@@ -28,6 +27,7 @@ using SmkDoc.Infrastructure.Persistence.Repositories;
 using SmkDoc.Infrastructure.Storage;
 using SmkDoc.Infrastructure.Schema;
 using SmkDoc.Domain.Exceptions;
+using SmkDoc.Domain.Interfaces;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -44,8 +44,10 @@ builder.Services.AddMemoryCache();
 // --- 1. Presentation ---
 builder.Services.AddControllers(options =>
 {
-    // Global exception filter: SchemaValidationException -> 400 Problem Details (RFC 7807)
-    options.Filters.Add<SmkDoc.Api.Filters.SchemaValidationExceptionFilter>();
+    // Automatic FluentValidation command validation filter
+    options.Filters.Add<SmkDoc.Api.Filters.ValidateCommandFilter>();
+    // Global exception filter: handles all Domain Exceptions -> RFC 7807 Problem Details
+    options.Filters.Add<SmkDoc.Api.Filters.GlobalExceptionFilter>();
 }).AddJsonOptions(options =>
 {
     options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
@@ -239,6 +241,7 @@ builder.Services.AddSingleton<IMathExpressionResolver, SmkDoc.Application.Common
 builder.Services.AddScoped<IFieldMappingApplicatorService, SmkDoc.Application.Common.Helpers.FieldMappingApplicatorService>();
 builder.Services.AddScoped<GenerateDocumentUseCase>();
 builder.Services.AddScoped<ValidatePayloadUseCase>();
+builder.Services.AddScoped<SmkDoc.Application.UseCases.Schemas.ValidateStandaloneSchemaUseCase>();
 builder.Services.AddScoped<PreviewDocumentUseCase>();
 builder.Services.AddScoped<DocumentVersionUseCase>();
 builder.Services.AddScoped<RenderStatelessDocumentUseCase>();
@@ -246,6 +249,7 @@ builder.Services.AddScoped<TemplateManagementUseCase>();
 builder.Services.AddScoped<IHtmlStudioUseCase, HtmlStudioUseCase>();
 builder.Services.AddScoped<IHtmlPersistenceUseCase, HtmlPersistenceUseCase>();
 builder.Services.AddScoped<TemplateValidateUseCase>();
+builder.Services.AddScoped<ValidateTemplatePayloadUseCase>();
 builder.Services.AddScoped<FieldMappingUseCase>();
 builder.Services.AddScoped<PreviewMappingUseCase>();
 builder.Services.AddScoped<TemplateDatasetUseCase>();
@@ -277,31 +281,17 @@ using (var scope = app.Services.CreateScope())
         var company = await companyRepo.FirstOrDefaultAsync(c => c.Name == "SAMMAKORN");
         if (company == null)
         {
-            company = new SmkDoc.Domain.Entities.Company
-            {
-                Name = "SAMMAKORN",
-                IsActive = true,
-                CreatedAt = DateTimeOffset.UtcNow,
-                UpdatedAt = DateTimeOffset.UtcNow
-            };
+            company = new SmkDoc.Domain.Entities.Company("SAMMAKORN");
             await companyRepo.AddAsync(company);
-            await uow.SaveChangesAsync();
+            await uow.CommitAsync();
         }
 
         var project = await projectRepo.FirstOrDefaultAsync(p => p.CompanyId == company.Id);
         if (project == null)
         {
-            project = new SmkDoc.Domain.Entities.Project
-            {
-                CompanyId = company.Id,
-                Name = "Default Project",
-                Slug = "default",
-                IsActive = true,
-                CreatedAt = DateTimeOffset.UtcNow,
-                UpdatedAt = DateTimeOffset.UtcNow
-            };
+            project = new SmkDoc.Domain.Entities.Project(company.Id, "Default Project", "default");
             await projectRepo.AddAsync(project);
-            await uow.SaveChangesAsync();
+            await uow.CommitAsync();
         }
 
         string? masterApiKey = builder.Configuration["MASTER_API_KEY"]
@@ -323,16 +313,8 @@ using (var scope = app.Services.CreateScope())
         var existingKey = await apiKeyRepo.FirstOrDefaultAsync(k => k.KeyHash == defaultKeyHash);
         if (existingKey == null)
         {
-            await apiKeyRepo.AddAsync(new SmkDoc.Domain.Entities.ApiKey
-            {
-                Id = Guid.NewGuid(),
-                ProjectId = project.Id,
-                Name = "Master Environment Key",
-                CallerApp = "master",
-                KeyHash = defaultKeyHash,
-                IsActive = true
-            });
-            await uow.SaveChangesAsync();
+            await apiKeyRepo.AddAsync(new SmkDoc.Domain.Entities.ApiKey(project.Id, "Master Environment Key", "master", defaultKeyHash, null));
+            await uow.CommitAsync();
         }
     }
     catch (Exception ex)

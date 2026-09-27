@@ -1,9 +1,12 @@
 using SmkDoc.Application.Common;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.Common.Models;
-using SmkDoc.Application.Engines;
+using SmkDoc.Application.DTOs.Templates;
+using SmkDoc.Application.DTOs.FieldMappings;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
+using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.Exceptions;
 
 namespace SmkDoc.Application.UseCases.Templates;
 
@@ -13,45 +16,31 @@ namespace SmkDoc.Application.UseCases.Templates;
 ///   2. PreviewAsync — render PDF from cache for live preview (pure, no side-effects)
 ///   3. CommitAsync  — upload to MinIO + write DB atomically, then clear cache
 /// </summary>
-public class TemplateDraftUseCase
+public sealed class TemplateDraftUseCase(
+    ITemplateScannerService scanner,
+    ITemplateDraftCache draftCache,
+    IEnumerable<IRenderEngine> engines,
+    IStorageService storageService,
+    IRepository<Template> templateRepo,
+    IRepository<TemplateVersion> versionRepo,
+    IRepository<FieldMapping> mappingRepo,
+    IUnitOfWork unitOfWork,
+    IRepository<Project>? projectRepo = null,
+    ISchemaInferenceService? schemaInferenceService = null)
 {
-    private readonly ITemplateScannerService _scanner;
-    private readonly ITemplateDraftCache _draftCache;
-    private readonly IEnumerable<IRenderEngine> _engines;
-    private readonly IStorageService _storageService;
-    private readonly IRepository<Template> _templateRepo;
-    private readonly IRepository<TemplateVersion> _versionRepo;
-    private readonly IRepository<FieldMapping> _mappingRepo;
-    private readonly IUnitOfWork _unitOfWork;
-    private readonly IRepository<Project>? _projectRepo;
-    private readonly ISchemaInferenceService? _schemaInferenceService;
-
-    public TemplateDraftUseCase(
-        ITemplateScannerService scanner,
-        ITemplateDraftCache draftCache,
-        IEnumerable<IRenderEngine> engines,
-        IStorageService storageService,
-        IRepository<Template> templateRepo,
-        IRepository<TemplateVersion> versionRepo,
-        IRepository<FieldMapping> mappingRepo,
-        IUnitOfWork unitOfWork,
-        IRepository<Project>? projectRepo = null,
-        ISchemaInferenceService? schemaInferenceService = null)
-    {
-        _scanner                = scanner;
-        _draftCache             = draftCache;
-        _engines                = engines;
-        _storageService         = storageService;
-        _templateRepo           = templateRepo;
-        _versionRepo            = versionRepo;
-        _mappingRepo            = mappingRepo;
-        _unitOfWork             = unitOfWork;
-        _projectRepo            = projectRepo;
-        _schemaInferenceService = schemaInferenceService;
-    }
+    private readonly ITemplateScannerService _scanner = scanner;
+    private readonly ITemplateDraftCache _draftCache = draftCache;
+    private readonly IEnumerable<IRenderEngine> _engines = engines;
+    private readonly IStorageService _storageService = storageService;
+    private readonly IRepository<Template> _templateRepo = templateRepo;
+    private readonly IRepository<TemplateVersion> _versionRepo = versionRepo;
+    private readonly IRepository<FieldMapping> _mappingRepo = mappingRepo;
+    private readonly IUnitOfWork _unitOfWork = unitOfWork;
+    private readonly IRepository<Project>? _projectRepo = projectRepo;
+    private readonly ISchemaInferenceService? _schemaInferenceService = schemaInferenceService;
 
     // ── Step 1 ───────────────────────────────────────────────────────────────
-    public async Task<ParseDraftResult> ParseAsync(Stream fileStream, string fileName, CancellationToken ct)
+    public async Task<ParseDraftResultDto> ParseAsync(Stream fileStream, string fileName, CancellationToken ct)
     {
         var ext = Path.GetExtension(fileName).ToLowerInvariant();
 
@@ -68,7 +57,7 @@ public class TemplateDraftUseCase
         var entry   = new TemplateDraftEntry(fileBytes, fileName, ext, placeholders);
         var draftId = await _draftCache.StoreAsync(entry, ct);
 
-        return new ParseDraftResult(draftId, placeholders);
+        return new ParseDraftResultDto(draftId, placeholders);
     }
 
     // ── Step 2 ───────────────────────────────────────────────────────────────
@@ -85,14 +74,14 @@ public class TemplateDraftUseCase
     }
 
     // ── Step 3 ───────────────────────────────────────────────────────────────
-    public async Task<string> CommitAsync(string draftId, CommitDraftRequest request, CancellationToken ct)
+    public async Task<string> CommitAsync(string draftId, CommitDraftCommand request, CancellationToken ct)
     {
         var draft = await _draftCache.GetAsync(draftId, ct)
             ?? throw new DraftExpiredException(draftId);
 
         var format      = FormatFromExt(draft.FileExtension);
-        var templateId  = Guid.NewGuid();
-        var versionId   = Guid.NewGuid();
+        var templateId  = Guid.CreateVersion7();
+        var versionId   = Guid.CreateVersion7();
         var storageKey  = $"{templateId}/{versionId}{draft.FileExtension}";
         var contentType = ContentTypeFromExt(draft.FileExtension);
 
@@ -111,32 +100,20 @@ public class TemplateDraftUseCase
 
         try
         {
-            var template = new Template
+            var template = new Template(targetProjectId, request.Name, request.Slug, request.Category)
             {
-                Id               = templateId,
-                ProjectId        = targetProjectId,
-                Name             = request.Name,
-                Slug             = request.Slug,
-                Category         = request.Category,
-                IsActive         = true,
-                CurrentVersionId = null, // Set to null initially to break circular dependency in EF Core
+                Id = templateId
             };
             var placeholderList = request.Mappings?.Select(m => m.Placeholder).ToList() ?? new List<string>();
             string? inferredSchema = _schemaInferenceService?.InferSchemaFromPlaceholders(placeholderList, templateSlug: request.Slug);
             string? samplePayload = _schemaInferenceService?.GenerateDefaultSamplePayload(placeholderList);
 
-            var version = new TemplateVersion
+            var version = new TemplateVersion(templateId, 1, uploadedKey, format, "system", "Initial upload via draft pipeline")
             {
-                Id            = versionId,
-                TemplateId    = templateId,
-                Version       = 1,
-                StorageKey    = uploadedKey,
-                FileFormat    = format,
-                Status        = TemplateVersionStatus.Published,
-                CommitMessage = "Initial upload via draft pipeline",
-                DataSchema    = inferredSchema,
-                SamplePayload = samplePayload,
+                Id = versionId
             };
+            version.UpdateDataSchema(inferredSchema, samplePayload);
+            version.Publish();
 
             await _templateRepo.AddAsync(template, ct);
             await _versionRepo.AddAsync(version, ct);
@@ -145,31 +122,20 @@ public class TemplateDraftUseCase
             {
                 foreach (var m in request.Mappings)
                 {
-                await _mappingRepo.AddAsync(new FieldMapping
-                {
-                    Id             = Guid.NewGuid(),
-                    TemplateId     = templateId,
-                    Placeholder    = m.Placeholder,
-                    SourcePath     = m.SourcePath,
-                    Label          = m.Label,
-                    Required       = m.Required,
-                    DefaultValue   = m.DefaultValue,
-                    Transform      = m.Transform,
-                    SortOrder      = m.SortOrder,
-                    DataSourceType = m.DataSourceType,
-                    DatasetAlias   = m.DatasetAlias,
-                    ResultPath     = m.ResultPath,
-                    MathExpression = m.MathExpression,
-                }, ct);
+                var dsType = m.DataSourceType != null ? DataSourceType.FromString(m.DataSourceType) : DataSourceType.Json;
+                var fm = new FieldMapping(templateId, m.Placeholder, m.SourcePath, m.Label, m.Required, m.SortOrder, dsType);
+                fm.UpdateMappingDetails(m.SourcePath, m.Label, m.Required, m.DefaultValue, m.Transform, m.SortOrder);
+                fm.ConfigureDataSource(dsType, m.DatasetAlias, m.ResultPath, m.MathExpression);
+                await _mappingRepo.AddAsync(fm, ct);
                 }
             }
 
-            await _unitOfWork.SaveChangesAsync(ct);
+            await _unitOfWork.CommitAsync(ct);
 
             // Once both Template and TemplateVersion rows exist, link CurrentVersionId
-            template.CurrentVersionId = versionId;
+            template.SetCurrentVersion(versionId);
             _templateRepo.Update(template);
-            await _unitOfWork.SaveChangesAsync(ct);
+            await _unitOfWork.CommitAsync(ct);
         }
         catch
         {
@@ -210,10 +176,4 @@ public class TemplateDraftUseCase
         ".xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         _       => "text/html; charset=utf-8",
     };
-}
-
-public class DraftExpiredException : Exception
-{
-    public DraftExpiredException(string draftId)
-        : base($"Draft '{draftId}' has expired or does not exist. Please re-upload the file.") { }
 }

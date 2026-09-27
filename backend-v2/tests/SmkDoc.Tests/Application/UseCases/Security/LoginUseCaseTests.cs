@@ -1,69 +1,109 @@
+using System.Linq.Expressions;
+using FluentAssertions;
 using Moq;
 using SmkDoc.Application.Common.Interfaces;
+using SmkDoc.Application.DTOs.Security;
 using SmkDoc.Application.UseCases.Security;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
-using System.Linq.Expressions;
 using Xunit;
 
 namespace SmkDoc.Tests.Application.UseCases.Security;
 
 public class LoginUseCaseTests
 {
-    private readonly Mock<IRepository<User>> _userRepoMock;
-    private readonly Mock<IRepository<UserProjectRole>> _roleRepoMock;
-    private readonly Mock<IPasswordHasher> _passwordHasherMock;
-    private readonly Mock<IJwtTokenGenerator> _jwtGeneratorMock;
+    private readonly Mock<IRepository<User>> _userRepoMock = new();
+    private readonly Mock<IRepository<UserProjectRole>> _roleRepoMock = new();
+    private readonly Mock<IRepository<Project>> _projectRepoMock = new();
+    private readonly Mock<IPasswordHasher> _passwordHasherMock = new();
+    private readonly Mock<IJwtTokenGenerator> _jwtGeneratorMock = new();
     private readonly LoginUseCase _useCase;
 
     public LoginUseCaseTests()
     {
-        _userRepoMock = new Mock<IRepository<User>>();
-        _roleRepoMock = new Mock<IRepository<UserProjectRole>>();
-        _passwordHasherMock = new Mock<IPasswordHasher>();
-        _jwtGeneratorMock = new Mock<IJwtTokenGenerator>();
-
         _useCase = new LoginUseCase(
             _userRepoMock.Object,
             _roleRepoMock.Object,
+            _projectRepoMock.Object,
             _passwordHasherMock.Object,
             _jwtGeneratorMock.Object);
     }
 
     [Fact]
-    public async Task ExecuteAsync_WithValidCredentialsAndRole_ReturnsToken()
+    public async Task ExecuteAsync_WithValidCredentialsAndRole_ReturnsTokenAndProjects()
     {
         // Arrange
-        var request = new LoginRequest { Email = "test@example.com", Password = "password123", ProjectId = Guid.NewGuid() };
-        var user = new User { Id = Guid.NewGuid(), Email = "test@example.com", PasswordHash = "hashed_pw", IsActive = true };
-        var role = new UserProjectRole { UserId = user.Id, ProjectId = request.ProjectId, Role = RoleType.Viewer };
+        var projectId = Guid.NewGuid();
+        var request = new LoginRequest { Email = "test@example.com", Password = "password123", ProjectId = projectId };
+        var user = new User("test@example.com", "hashed_pw", "Test", "User", SystemRole.Member) { Id = Guid.NewGuid() };
+        var role = new UserProjectRole(user.Id, projectId, RoleType.Viewer);
+        var project = new Project(Guid.NewGuid(), "Project Alpha", "project-alpha") { Id = projectId };
 
         _userRepoMock.Setup(r => r.FirstOrDefaultAsync(It.IsAny<Expression<Func<User, bool>>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);
-        
-        _roleRepoMock.Setup(r => r.FirstOrDefaultAsync(It.IsAny<Expression<Func<UserProjectRole, bool>>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(role);
+
+        _roleRepoMock.Setup(r => r.ListAsync(It.IsAny<Expression<Func<UserProjectRole, bool>>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<UserProjectRole> { role });
+
+        _projectRepoMock.Setup(r => r.ListAsync(It.IsAny<Expression<Func<Project, bool>>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<Project> { project });
 
         _passwordHasherMock.Setup(p => p.VerifyPassword("password123", "hashed_pw"))
             .Returns(true);
 
-        _jwtGeneratorMock.Setup(j => j.GenerateToken(user, request.ProjectId, It.IsAny<IEnumerable<string>>()))
+        _jwtGeneratorMock.Setup(j => j.GenerateToken(user, projectId, It.IsAny<IEnumerable<string>>()))
             .Returns("valid_token");
 
         // Act
         var result = await _useCase.ExecuteAsync(request);
 
         // Assert
-        Assert.NotNull(result);
-        Assert.Equal("valid_token", result.AccessToken);
+        result.Should().NotBeNull();
+        result.AccessToken.Should().Be("valid_token");
+        result.Token.Should().Be("valid_token");
+        result.AccessibleProjects.Should().ContainSingle();
+        result.DefaultProjectId.Should().Be(projectId);
+        result.User.SystemRole.Should().Be("Member");
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_AsSuperAdmin_ReturnsAllProjectsWithAdminRole()
+    {
+        // Arrange
+        var request = new LoginRequest { Email = "admin@example.com", Password = "admin_password" };
+        var user = new User("admin@example.com", "hashed_pw", "Super", "Admin", SystemRole.SuperAdmin) { Id = Guid.NewGuid() };
+        var p1 = new Project(Guid.NewGuid(), "ERP", "erp") { Id = Guid.NewGuid() };
+        var p2 = new Project(Guid.NewGuid(), "CRM", "crm") { Id = Guid.NewGuid() };
+
+        _userRepoMock.Setup(r => r.FirstOrDefaultAsync(It.IsAny<Expression<Func<User, bool>>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(user);
+
+        _passwordHasherMock.Setup(p => p.VerifyPassword("admin_password", "hashed_pw"))
+            .Returns(true);
+
+        _projectRepoMock.Setup(r => r.ListAsync(It.IsAny<Expression<Func<Project, bool>>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<Project> { p1, p2 });
+
+        _jwtGeneratorMock.Setup(j => j.GenerateToken(user, p1.Id, It.IsAny<IEnumerable<string>>()))
+            .Returns("superadmin_token");
+
+        // Act
+        var result = await _useCase.ExecuteAsync(request);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.AccessToken.Should().Be("superadmin_token");
+        result.AccessibleProjects.Should().HaveCount(2);
+        result.AccessibleProjects.Should().AllSatisfy(p => p.Role.Should().Be("Admin"));
+        result.DefaultProjectId.Should().Be(p1.Id);
     }
 
     [Fact]
     public async Task ExecuteAsync_WithInvalidPassword_ThrowsUnauthorized()
     {
         // Arrange
-        var request = new LoginRequest { Email = "test@example.com", Password = "wrong_password", ProjectId = Guid.NewGuid() };
-        var user = new User { Id = Guid.NewGuid(), Email = "test@example.com", PasswordHash = "hashed_pw", IsActive = true };
+        var request = new LoginRequest { Email = "test@example.com", Password = "wrong_password" };
+        var user = new User("test@example.com", "hashed_pw", "", "") { Id = Guid.NewGuid() };
 
         _userRepoMock.Setup(r => r.FirstOrDefaultAsync(It.IsAny<Expression<Func<User, bool>>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);
@@ -72,6 +112,7 @@ public class LoginUseCaseTests
             .Returns(false);
 
         // Act & Assert
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => _useCase.ExecuteAsync(request));
+        var act = () => _useCase.ExecuteAsync(request);
+        await act.Should().ThrowAsync<UnauthorizedAccessException>();
     }
 }

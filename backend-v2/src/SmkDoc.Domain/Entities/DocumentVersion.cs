@@ -1,18 +1,28 @@
 namespace SmkDoc.Domain.Entities;
 
-public class DocumentVersion
+public class DocumentVersion : BaseEntity
 {
-    public Guid Id { get; set; } = Guid.NewGuid();
-    public Guid DocumentId { get; set; }
-    public int Version { get; set; } = 1;
-    public Guid? TemplateVersionId { get; set; }
-    public Guid? GenerationLogId { get; set; }
-    public string? ChangeNote { get; set; }
-    public string? CreatedBy { get; set; }
-    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public Guid DocumentId { get; private set; }
+    public int Version { get; private set; } = 1;
+    public Guid? TemplateVersionId { get; private set; }
+    public Guid? GenerationLogId { get; private set; }
+    public string? ChangeNote { get; private set; }
+    public string? CreatedBy { get; private set; }
 
     // Navigation properties
-    public Document? Document { get; set; }
-    public TemplateVersion? TemplateVersion { get; set; }
-    public GenerationLog? GenerationLog { get; set; }
+    public virtual Document? Document { get; private set; }
+    public virtual TemplateVersion? TemplateVersion { get; private set; }
+    public virtual GenerationLog? GenerationLog { get; private set; }
+
+    private DocumentVersion() { }
+
+    public DocumentVersion(Guid documentId, int version, Guid? templateVersionId, Guid? generationLogId, string? changeNote, string? createdBy)
+    {
+        DocumentId = documentId;
+        Version = version;
+        TemplateVersionId = templateVersionId;
+        GenerationLogId = generationLogId;
+        ChangeNote = changeNote;
+        CreatedBy = createdBy;
+    }
 }

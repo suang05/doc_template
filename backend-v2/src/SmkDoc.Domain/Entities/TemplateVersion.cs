@@ -2,29 +2,63 @@ using SmkDoc.Domain.Enums;
 
 namespace SmkDoc.Domain.Entities;
 
-public class TemplateVersion
+public class TemplateVersion : BaseEntity
 {
-    public Guid Id { get; set; } = Guid.NewGuid();
-    public Guid TemplateId { get; set; }
-    public int Version { get; set; }
-    public string StorageKey { get; set; } = string.Empty;
-    public TemplateVersionStatus Status { get; set; } = TemplateVersionStatus.Draft;
-    public TemplateFormat? FileFormat { get; set; }
-    public string? DataSchema { get; set; }
-    public string? SamplePayload { get; set; }
-    public string? MappingsSnapshot { get; set; }
-    public string? CommitMessage { get; set; }
-    public string? CreatedBy { get; set; }
-    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public Guid TemplateId { get; private set; }
+    public int Version { get; private set; }
+    public string StorageKey { get; private set; } = string.Empty;
+    public TemplateVersionStatus Status { get; private set; } = TemplateVersionStatus.Draft;
+    public TemplateFormat? FileFormat { get; private set; }
+    public string? DataSchema { get; private set; }
+    public string? SamplePayload { get; private set; }
+    public string? MappingsSnapshot { get; private set; }
+    public string? CommitMessage { get; private set; }
+    public string? CreatedBy { get; private set; }
 
-    public RenderEngineType GetRenderEngineType() =>
-        FileFormat switch
-        {
-            TemplateFormat.Xlsx => RenderEngineType.Excel,
-            TemplateFormat.Docx => RenderEngineType.Docx,
-            _ => RenderEngineType.Html
-        };
+    public RenderEngineType GetRenderEngineType()
+    {
+        return FileFormat?.DefaultEngineType ?? RenderEngineType.Html;
+    }
+
 
     // Navigation property
-    public Template? Template { get; set; }
+    public virtual Template? Template { get; private set; }
+
+    private TemplateVersion() { }
+
+    public TemplateVersion(Guid templateId, int version, string storageKey, TemplateFormat? fileFormat, string? createdBy, string? commitMessage = null)
+    {
+        TemplateId = templateId;
+        Version = version;
+        StorageKey = storageKey;
+        FileFormat = fileFormat;
+        CreatedBy = createdBy;
+        CommitMessage = commitMessage;
+        Status = TemplateVersionStatus.Draft;
+    }
+
+    public void Publish()
+    {
+        Status = TemplateVersionStatus.Published;
+        SetUpdated();
+    }
+
+    public void Archive()
+    {
+        Status = TemplateVersionStatus.Archived;
+        SetUpdated();
+    }
+
+    public void UpdateDataSchema(string? schema, string? samplePayload)
+    {
+        DataSchema = schema;
+        SamplePayload = samplePayload;
+        SetUpdated();
+    }
+
+    public void UpdateMappingsSnapshot(string? snapshot)
+    {
+        MappingsSnapshot = snapshot;
+        SetUpdated();
+    }
 }

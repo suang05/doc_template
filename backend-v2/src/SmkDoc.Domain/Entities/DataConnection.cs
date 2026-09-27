@@ -1,11 +1,25 @@
 namespace SmkDoc.Domain.Entities;
 
-public class DataConnection
+public class DataConnection : BaseEntity
 {
-    public Guid Id { get; set; } = Guid.NewGuid();
-    public string Name { get; set; } = string.Empty;
-    public string Provider { get; set; } = "PostgreSQL"; // e.g. PostgreSQL, SqlServer, MySQL
-    public string EncryptedConnectionString { get; set; } = string.Empty;
-    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
-    public DateTimeOffset? UpdatedAt { get; set; }
+    public string Name { get; private set; } = string.Empty;
+    public string Provider { get; private set; } = "PostgreSQL"; // e.g. PostgreSQL, SqlServer, MySQL
+    public string EncryptedConnectionString { get; private set; } = string.Empty;
+
+    private DataConnection() { }
+
+    public DataConnection(string name, string provider, string encryptedConnectionString)
+    {
+        Name = name;
+        Provider = provider;
+        EncryptedConnectionString = encryptedConnectionString;
+    }
+
+    public void UpdateConnection(string name, string provider, string encryptedConnectionString)
+    {
+        Name = name;
+        Provider = provider;
+        EncryptedConnectionString = encryptedConnectionString;
+        SetUpdated();
+    }
 }
