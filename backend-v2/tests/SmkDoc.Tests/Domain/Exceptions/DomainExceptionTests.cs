@@ -10,7 +10,6 @@ public class DomainExceptionTests
     public void NotFoundException_ShouldHaveCorrectDefaults()
     {
         var ex = new NotFoundException("Template", "tpl-123");
-        ex.StatusCode.Should().Be(404);
         ex.ErrorCode.Should().Be("RESOURCE_NOT_FOUND");
         ex.Message.Should().Contain("tpl-123");
     }
@@ -19,7 +18,6 @@ public class DomainExceptionTests
     public void DraftExpiredException_ShouldHaveCorrectDefaults()
     {
         var ex = new DraftExpiredException("draft-abc");
-        ex.StatusCode.Should().Be(410);
         ex.ErrorCode.Should().Be("DRAFT_EXPIRED");
         ex.DraftId.Should().Be("draft-abc");
     }
@@ -28,7 +26,6 @@ public class DomainExceptionTests
     public void ConflictException_ShouldHaveCorrectDefaults()
     {
         var ex = ConflictException.DuplicateSlug("invoice-slug");
-        ex.StatusCode.Should().Be(409);
         ex.ErrorCode.Should().Be("RESOURCE_CONFLICT");
         ex.Message.Should().Contain("invoice-slug");
     }
@@ -37,7 +34,6 @@ public class DomainExceptionTests
     public void RenderException_ShouldHaveCorrectDefaults()
     {
         var ex = new RenderException("sales-report", "Chromium", "Process killed");
-        ex.StatusCode.Should().Be(500);
         ex.ErrorCode.Should().Be("DOCUMENT_RENDER_FAILED");
         ex.TemplateSlug.Should().Be("sales-report");
         ex.EngineType.Should().Be("Chromium");
@@ -51,7 +47,6 @@ public class DomainExceptionTests
             new("/customer/name", "Customer name is required", "required")
         };
         var ex = new SchemaValidationException("invoice", 2, errors);
-        ex.StatusCode.Should().Be(400);
         ex.ErrorCode.Should().Be("SCHEMA_VALIDATION_FAILED");
         ex.TemplateSlug.Should().Be("invoice");
         ex.Version.Should().Be(2);

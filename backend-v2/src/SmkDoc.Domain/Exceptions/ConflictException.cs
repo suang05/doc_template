@@ -7,7 +7,7 @@ namespace SmkDoc.Domain.Exceptions;
 public class ConflictException : DomainException
 {
     public ConflictException(string message, Exception? innerException = null)
-        : base(message, "RESOURCE_CONFLICT", 409, innerException)
+        : base(message, "RESOURCE_CONFLICT", innerException)
     {
     }
 

@@ -101,23 +101,28 @@ public class HtmlDirectGenerationTests
         var mediaService = new SmkDoc.Infrastructure.Imaging.MediaGenerationService(_mockQrService.Object, _mockBarcodeService.Object, new SmkDoc.Infrastructure.Imaging.ImageOptimizerService());
         var htmlEngine = new HtmlTemplateEngine(_mockPdfRenderer.Object, new SmkDoc.Infrastructure.Engines.Html.Helpers.HtmlHelperRegistry(mediaService));
 
-        var useCase = new GenerateDocumentUseCase(
-            _mockTemplateRepo.Object,
-            _mockVersionRepo.Object,
+        var dataPrep = new SmkDoc.Application.Modules.Rendering.Documents.Services.DocumentDataPreparationService(
             _mockMappingRepo.Object,
             _mockTdRepo.Object,
             _mockDatasetRepo.Object,
             _mockConnectionRepo.Object,
-            _mockLogRepo.Object,
-            _mockDocumentRepo.Object,
-            _mockDocVersionRepo.Object,
+            _mockDataProtection.Object,
+            _mockApplicator.Object,
+            _mockSchemaValidation.Object);
+        var audit = new SmkDoc.Application.Modules.Rendering.Documents.Services.DocumentAuditService(
+            _mockLogRepo.Object, _mockContext.Object, _mockUow.Object);
+        var versioning = new SmkDoc.Application.Modules.Rendering.Documents.Services.DocumentVersioningService(
+            _mockDocumentRepo.Object, _mockDocVersionRepo.Object, _mockContext.Object, _mockUow.Object);
+
+        var useCase = new GenerateDocumentUseCase(
+            _mockTemplateRepo.Object,
+            _mockVersionRepo.Object,
             _mockStorage.Object,
             new IRenderEngine[] { htmlEngine },
-            _mockContext.Object,
-            _mockUow.Object,
-            _mockApplicator.Object,
-            _mockDataProtection.Object,
-            _mockSchemaValidation.Object
+            dataPrep,
+            audit,
+            versioning,
+            _mockUow.Object
         );
 
         var payload = JsonDocument.Parse(@"{

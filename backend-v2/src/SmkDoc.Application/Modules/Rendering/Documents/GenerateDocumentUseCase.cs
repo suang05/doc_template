@@ -1,12 +1,10 @@
 using System.Diagnostics;
-using System.Text.Json;
 using SmkDoc.Application.Common;
-using SmkDoc.Application.Common.Helpers;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Rendering.Documents.DTOs;
+using SmkDoc.Application.Modules.Rendering.Documents.Services;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
-using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 
@@ -15,37 +13,21 @@ namespace SmkDoc.Application.Modules.Rendering.Documents;
 public sealed class GenerateDocumentUseCase(
     IRepository<Template> templateRepo,
     IRepository<TemplateVersion> versionRepo,
-    IRepository<FieldMapping> mappingRepo,
-    IRepository<TemplateDataset> tdRepo,
-    IRepository<Dataset> datasetRepo,
-    IRepository<DataConnection> connectionRepo,
-    IRepository<GenerationLog> logRepo,
-    IRepository<Document> documentRepo,
-    IRepository<DocumentVersion> docVersionRepo,
     IStorageService storageService,
     IEnumerable<IRenderEngine> engines,
-    IExecutionContext executionContext,
-    IUnitOfWork unitOfWork,
-    IFieldMappingApplicatorService fieldMappingApplicator,
-    IDataProtectionService dataProtection,
-    IJsonSchemaValidationService schemaValidation)
+    IDocumentDataPreparationService dataPreparationService,
+    IDocumentAuditService auditService,
+    IDocumentVersioningService versioningService,
+    IUnitOfWork unitOfWork)
 {
     private readonly IRepository<Template> _templateRepo = templateRepo;
     private readonly IRepository<TemplateVersion> _versionRepo = versionRepo;
-    private readonly IRepository<FieldMapping> _mappingRepo = mappingRepo;
-    private readonly IRepository<TemplateDataset> _tdRepo = tdRepo;
-    private readonly IRepository<Dataset> _datasetRepo = datasetRepo;
-    private readonly IRepository<DataConnection> _connectionRepo = connectionRepo;
-    private readonly IRepository<GenerationLog> _logRepo = logRepo;
-    private readonly IRepository<Document> _documentRepo = documentRepo;
-    private readonly IRepository<DocumentVersion> _docVersionRepo = docVersionRepo;
     private readonly IStorageService _storageService = storageService;
     private readonly IEnumerable<IRenderEngine> _engines = engines;
-    private readonly IExecutionContext _executionContext = executionContext;
+    private readonly IDocumentDataPreparationService _dataPreparationService = dataPreparationService;
+    private readonly IDocumentAuditService _auditService = auditService;
+    private readonly IDocumentVersioningService _versioningService = versioningService;
     private readonly IUnitOfWork _unitOfWork = unitOfWork;
-    private readonly IFieldMappingApplicatorService _fieldMappingApplicator = fieldMappingApplicator;
-    private readonly IDataProtectionService _dataProtection = dataProtection;
-    private readonly IJsonSchemaValidationService _schemaValidation = schemaValidation;
 
     public async Task<GenerateDocumentResultDto> ExecuteAsync(
         string slug, GenerateDocumentCommand request, CancellationToken ct = default)
@@ -74,53 +56,30 @@ public sealed class GenerateDocumentUseCase(
         var engine = _engines.FirstOrDefault(e => e.EngineType == engineType)
             ?? throw new InvalidOperationException($"No render engine registered for engine type '{engineType}'.");
 
+        // --- Step 1: Fail-Fast Data Preparation & Schema Validation Gate ---
+        var preparedData = await _dataPreparationService.PrepareDataAsync(
+            template, currentVersion, request.Data, request.SkipValidation, ct);
+
+        if (preparedData.ValidationResult is { IsValid: false })
+        {
+            sw.Stop();
+            var errorMessage = $"{preparedData.ValidationResult.Errors.Count} schema violation(s) detected.";
+            await _auditService.LogValidationFailureAsync(
+                template.Id,
+                currentVersion.Id,
+                preparedData.DataJson,
+                outputFormat,
+                (int)sw.ElapsedMilliseconds,
+                errorMessage,
+                ct);
+
+            throw new SchemaValidationException(
+                slug, currentVersion.Version, preparedData.ValidationResult.Errors);
+        }
+
+        // --- Step 2: Download Template from Storage & Render Output ---
         using var templateStream = await _storageService.DownloadAsync(StorageBuckets.Templates, currentVersion.StorageKey, ct);
-
-        var mappings = await _mappingRepo.ListAsync(m => m.TemplateId == template.Id, ct) ?? [];
-        string dataJson;
-        if (mappings.Count > 0)
-        {
-            var aliasMap = await DatasetAliasMapBuilder.BuildAsync(
-                template.Id, _tdRepo, _datasetRepo, _connectionRepo, _dataProtection, ct);
-            dataJson = await _fieldMappingApplicator.ApplyAsync(request.Data, mappings, aliasMap);
-        }
-        else
-        {
-            dataJson = request.Data.ValueKind != JsonValueKind.Undefined ? request.Data.GetRawText() : "{}";
-        }
-
-        // --- Schema Validation Gate (Draft-07) ---
-        if (!request.SkipValidation && !string.IsNullOrWhiteSpace(currentVersion.DataSchema))
-        {
-            var validationResult = _schemaValidation.Validate(currentVersion.DataSchema, dataJson);
-            if (!validationResult.IsValid)
-            {
-                // Log VALIDATION_FAILED as a Legal Audit Trail entry (no output artifact).
-                sw.Stop();
-                var failLog = new GenerationLog(
-                    template.Id, 
-                    currentVersion.Id, 
-                    _executionContext.ApiKeyId, 
-                    _executionContext.CallerApp, 
-                    "api", 
-                    dataJson, 
-                    null, 
-                    outputFormat, 
-                    0, 
-                    null, 
-                    null, 
-                    (int)sw.ElapsedMilliseconds, 
-                    "VALIDATION_FAILED", 
-                    $"{validationResult.Errors.Count} schema violation(s) detected.");
-                await _logRepo.AddAsync(failLog, ct);
-                await _unitOfWork.CommitAsync(ct);
-
-                throw new SchemaValidationException(
-                    slug, currentVersion.Version, validationResult.Errors);
-            }
-        }
-
-        byte[] outputBytes = await engine.RenderAsync(templateStream, dataJson, outputFormat, ct);
+        byte[] outputBytes = await engine.RenderAsync(templateStream, preparedData.DataJson, outputFormat, ct);
 
         string ext = outputFormat.Extension;
         string contentType = outputFormat.MimeType;
@@ -136,62 +95,27 @@ public sealed class GenerateDocumentUseCase(
 
         sw.Stop();
 
-        var log = new GenerationLog(
-            template.Id, 
-            currentVersion.Id, 
-            _executionContext.ApiKeyId, 
-            _executionContext.CallerApp, 
-            "api", 
-            dataJson, 
-            outputKey, 
-            outputFormat, 
-            outputBytes.LongLength, 
-            null, 
-            null, 
-            (int)sw.ElapsedMilliseconds, 
-            "SUCCESS", 
-            null)
-        {
-            Id = generationId
-        };
-        await _logRepo.AddAsync(log, ct);
+        // --- Step 3: Audit Logging & Version Tracking ---
+        await _auditService.LogSuccessAsync(
+            generationId,
+            template.Id,
+            currentVersion.Id,
+            preparedData.DataJson,
+            outputKey,
+            outputFormat,
+            outputBytes.LongLength,
+            (int)sw.ElapsedMilliseconds,
+            ct);
 
         if (!string.IsNullOrWhiteSpace(request.DocumentRef))
         {
-            var document = await _documentRepo.FirstOrDefaultAsync(
-                d => d.DocumentRef == request.DocumentRef, ct);
-
-            if (document is null)
-            {
-                document = new Document(request.DocumentRef, template.Id);
-                await _documentRepo.AddAsync(document, ct);
-            }
-
-            const int maxRetries = 3;
-            for (int retry = 0; retry < maxRetries; retry++)
-            {
-                int currentMax = await _docVersionRepo.MaxOrDefaultAsync(
-                    v => v.DocumentId == document.Id, v => v.Version, 0, ct);
-
-                var docVersion = new DocumentVersion(
-                    document.Id, 
-                    currentMax + 1, 
-                    currentVersion.Id, 
-                    generationId, 
-                    request.ChangeNote, 
-                    _executionContext.CallerApp);
-
-                try
-                {
-                    await _docVersionRepo.AddAsync(docVersion, ct);
-                    await _unitOfWork.CommitAsync(ct);
-                    break;
-                }
-                catch (Exception) when (retry < maxRetries - 1)
-                {
-                    _docVersionRepo.Remove(docVersion);
-                }
-            }
+            await _versioningService.RecordVersionAsync(
+                request.DocumentRef,
+                template.Id,
+                currentVersion.Id,
+                generationId,
+                request.ChangeNote,
+                ct);
         }
         else
         {

@@ -7,12 +7,12 @@ namespace SmkDoc.Domain.Exceptions;
 public class NotFoundException : DomainException
 {
     public NotFoundException(string message, Exception? innerException = null) 
-        : base(message, "RESOURCE_NOT_FOUND", 404, innerException)
+        : base(message, "RESOURCE_NOT_FOUND", innerException)
     {
     }
 
     public NotFoundException(string name, object key, Exception? innerException = null) 
-        : base($"Entity \"{name}\" ({key}) was not found.", "RESOURCE_NOT_FOUND", 404, innerException)
+        : base($"Entity \"{name}\" ({key}) was not found.", "RESOURCE_NOT_FOUND", innerException)
     {
     }
 }

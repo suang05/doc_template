@@ -31,7 +31,6 @@ public sealed class SchemaValidationException : DomainException
         : base($"Payload validation failed for template '{templateSlug}' v{version} " +
                $"({errors.Count} error(s)).",
                "SCHEMA_VALIDATION_FAILED",
-               400,
                innerException)
     {
         TemplateSlug = templateSlug;

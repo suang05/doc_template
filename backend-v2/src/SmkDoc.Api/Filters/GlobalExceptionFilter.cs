@@ -39,14 +39,13 @@ public sealed class GlobalExceptionFilter(ILogger<GlobalExceptionFilter> logger)
 
         if (context.Exception is DomainException domainEx)
         {
-            status = domainEx.StatusCode;
-            title = domainEx switch
+            (status, title) = domainEx switch
             {
-                NotFoundException     => "Not Found",
-                DraftExpiredException => "Draft Expired",
-                ConflictException     => "Conflict",
-                RenderException       => "Render Failed",
-                _                     => "Domain Error"
+                NotFoundException     => (StatusCodes.Status404NotFound, "Not Found"),
+                DraftExpiredException => (StatusCodes.Status410Gone, "Draft Expired"),
+                ConflictException     => (StatusCodes.Status409Conflict, "Conflict"),
+                RenderException       => (StatusCodes.Status500InternalServerError, "Render Failed"),
+                _                     => (StatusCodes.Status400BadRequest, "Domain Error")
             };
         }
         else

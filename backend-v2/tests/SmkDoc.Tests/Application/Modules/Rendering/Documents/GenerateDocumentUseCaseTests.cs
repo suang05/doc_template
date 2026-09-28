@@ -15,46 +15,32 @@ using Xunit;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Validation;
 using SmkDoc.Tests.Common.Builders;
+using SmkDoc.Tests.Common.Fixtures;
 
 namespace SmkDoc.Tests.Application.Modules.Rendering.Documents;
 
 public class GenerateDocumentUseCaseTests
 {
-    private readonly Mock<IRepository<Template>>        _mockTemplateRepo    = new();
-    private readonly Mock<IRepository<TemplateVersion>> _mockVersionRepo     = new();
-    private readonly Mock<IRepository<FieldMapping>>    _mockMappingRepo     = new();
-    private readonly Mock<IRepository<TemplateDataset>> _mockTdRepo          = new();
-    private readonly Mock<IRepository<Dataset>>         _mockDatasetRepo     = new();
-    private readonly Mock<IRepository<DataConnection>>  _mockConnectionRepo  = new();
-    private readonly Mock<IRepository<GenerationLog>>   _mockLogRepo         = new();
-    private readonly Mock<IRepository<Document>>        _mockDocumentRepo    = new();
-    private readonly Mock<IRepository<DocumentVersion>> _mockDocVersionRepo  = new();
-    private readonly Mock<IStorageService>              _mockStorage         = new();
-    private readonly Mock<IRenderEngine>                _mockEngine          = new();
-    private readonly Mock<IExecutionContext>             _mockContext         = new();
-    private readonly Mock<IUnitOfWork>                  _mockUow             = new();
-    private readonly Mock<IFieldMappingApplicatorService> _mockApplicator    = new();
-    private readonly Mock<IDataProtectionService>       _mockDataProtection  = new();
-    private readonly Mock<IJsonSchemaValidationService> _mockSchemaValidation = new();
+    private readonly GenerateDocumentTestFixture _fixture = new();
 
-    private GenerateDocumentUseCase BuildUseCase() => new(
-        _mockTemplateRepo.Object,
-        _mockVersionRepo.Object,
-        _mockMappingRepo.Object,
-        _mockTdRepo.Object,
-        _mockDatasetRepo.Object,
-        _mockConnectionRepo.Object,
-        _mockLogRepo.Object,
-        _mockDocumentRepo.Object,
-        _mockDocVersionRepo.Object,
-        _mockStorage.Object,
-        new[] { _mockEngine.Object },
-        _mockContext.Object,
-        _mockUow.Object,
-        _mockApplicator.Object,
-        _mockDataProtection.Object,
-        _mockSchemaValidation.Object
-    );
+    private Mock<IRepository<Template>> _mockTemplateRepo => _fixture.TemplateRepo;
+    private Mock<IRepository<TemplateVersion>> _mockVersionRepo => _fixture.VersionRepo;
+    private Mock<IRepository<FieldMapping>> _mockMappingRepo => _fixture.MappingRepo;
+    private Mock<IRepository<TemplateDataset>> _mockTdRepo => _fixture.TdRepo;
+    private Mock<IRepository<Dataset>> _mockDatasetRepo => _fixture.DatasetRepo;
+    private Mock<IRepository<DataConnection>> _mockConnectionRepo => _fixture.ConnectionRepo;
+    private Mock<IRepository<GenerationLog>> _mockLogRepo => _fixture.LogRepo;
+    private Mock<IRepository<Document>> _mockDocumentRepo => _fixture.DocumentRepo;
+    private Mock<IRepository<DocumentVersion>> _mockDocVersionRepo => _fixture.DocVersionRepo;
+    private Mock<IStorageService> _mockStorage => _fixture.Storage;
+    private Mock<IRenderEngine> _mockEngine => _fixture.Engine;
+    private Mock<IExecutionContext> _mockContext => _fixture.Context;
+    private Mock<IUnitOfWork> _mockUow => _fixture.Uow;
+    private Mock<IFieldMappingApplicatorService> _mockApplicator => _fixture.Applicator;
+    private Mock<IDataProtectionService> _mockDataProtection => _fixture.DataProtection;
+    private Mock<IJsonSchemaValidationService> _mockSchemaValidation => _fixture.SchemaValidation;
+
+    private GenerateDocumentUseCase BuildUseCase() => _fixture.BuildUseCase();
 
     [Fact]
     public async Task ExecuteAsync_WhenTemplateActive_ShouldGenerateAndReturnPresignedUrl()
@@ -346,6 +332,9 @@ public class GenerateDocumentUseCaseTests
             It.IsAny<CancellationToken>()), Times.Once);
         _mockEngine.Verify(e => e.RenderAsync(
             It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<OutputFormat>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        _mockStorage.Verify(s => s.DownloadAsync(
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
 

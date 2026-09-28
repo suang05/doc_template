@@ -11,7 +11,7 @@ public sealed class RenderException : DomainException
 
     public RenderException(string templateSlug, string engineType, string reason, Exception? innerException = null)
         : base($"Document rendering failed for template '{templateSlug}' using engine '{engineType}': {reason}",
-               "DOCUMENT_RENDER_FAILED", 500, innerException)
+               "DOCUMENT_RENDER_FAILED", innerException)
     {
         TemplateSlug = templateSlug;
         EngineType = engineType;

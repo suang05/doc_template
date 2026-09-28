@@ -4,6 +4,9 @@ using SmkDoc.Application.Modules.Rendering.Documents.DTOs;
 using SmkDoc.Application.Modules.Rendering.Documents;
 using System.Text.Json;
 
+using SmkDoc.Application.Modules.Authoring.Templates;
+using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
+
 namespace SmkDoc.Api.Controllers;
 
 [ApiController]
@@ -13,8 +16,7 @@ public class DocumentController(
     GenerateDocumentUseCase generateUseCase,
     PreviewDocumentUseCase previewUseCase,
     DocumentVersionUseCase versionUseCase,
-    RenderStatelessDocumentUseCase renderStatelessUseCase,
-    ValidatePayloadUseCase validateUseCase) : ControllerBase
+    RenderStatelessDocumentUseCase renderStatelessUseCase) : ControllerBase
 {
     /// <summary>
     /// Generate a document from template slug and input JSON data
@@ -30,32 +32,22 @@ public class DocumentController(
 
     /// <summary>
     /// Pre-flight schema validation — checks payload against the template's Draft-07 schema
-    /// without generating any document. Zero side-effects (no DB writes, no MinIO uploads).
+    /// without generating any document. Multi-tenant scoped. Zero side-effects (no DB writes, no MinIO uploads).
     /// </summary>
     [HttpPost("validate/{slug}")]
-    [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<ValidateTemplatePayloadResult>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<ValidateTemplatePayloadResult>), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> ValidatePayload(
         [FromRoute] string slug,
         [FromBody] JsonElement data,
+        [FromServices] ValidateTemplatePayloadUseCase payloadValidator,
         CancellationToken ct)
     {
-        var result = await validateUseCase.ExecuteAsync(slug, data, ct);
-
-        var response = new
-        {
-            valid          = result.IsValid,
-            templateSlug   = result.TemplateSlug,
-            schemaVersion  = result.SchemaVersion,
-            errors         = result.Errors.Select(e => new
-            {
-                path    = e.Field,
-                message = e.Message,
-                rule    = e.Rule
-            })
-        };
-
-        return result.IsValid ? Ok(new ApiResponse<object>(response)) : BadRequest(new ApiResponse<object>(response));
+        var command = new ValidateTemplatePayloadCommand(slug, data);
+        var result = await payloadValidator.ExecuteAsync(command, ct);
+        return result.Valid 
+            ? Ok(new ApiResponse<ValidateTemplatePayloadResult>(result)) 
+            : BadRequest(new ApiResponse<ValidateTemplatePayloadResult>(result));
     }
 
     /// <summary>

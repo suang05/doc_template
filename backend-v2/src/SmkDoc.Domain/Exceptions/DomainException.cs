@@ -11,15 +11,9 @@ public abstract class DomainException : Exception
     /// </summary>
     public string ErrorCode { get; }
 
-    /// <summary>
-    /// HTTP status code mapping recommended for presentation layers (e.g. 400, 404, 409, 410, 500).
-    /// </summary>
-    public int StatusCode { get; }
-
-    protected DomainException(string message, string errorCode, int statusCode = 400, Exception? innerException = null)
+    protected DomainException(string message, string errorCode, Exception? innerException = null)
         : base(message, innerException)
     {
         ErrorCode = errorCode;
-        StatusCode = statusCode;
     }
 }
