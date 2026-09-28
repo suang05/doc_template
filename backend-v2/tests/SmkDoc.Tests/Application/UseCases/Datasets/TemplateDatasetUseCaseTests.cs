@@ -70,7 +70,7 @@ public class TemplateDatasetUseCaseTests
             .ReturnsAsync((Template?)null);
 
         var sut = CreateSut();
-        var act = () => sut.SaveAsync(templateId, new List<SaveTemplateDatasetItemDto>());
+        Func<Task> act = () => sut.SaveAsync(templateId, new List<SaveTemplateDatasetItemDto>());
 
         await act.Should().ThrowAsync<NotFoundException>()
             .WithMessage($"*{templateId}*");
@@ -90,7 +90,7 @@ public class TemplateDatasetUseCaseTests
         };
 
         var sut = CreateSut();
-        var act = () => sut.SaveAsync(templateId, items);
+        Func<Task> act = () => sut.SaveAsync(templateId, items);
 
         await act.Should().ThrowAsync<InvalidOperationException>()
             .WithMessage("*aliases must be unique*");

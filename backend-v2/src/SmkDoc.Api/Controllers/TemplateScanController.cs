@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using SmkDoc.Application.UseCases.Templates;
+using SmkDoc.Application.Common.Interfaces;
+using SmkDoc.Application.UseCases.Templates.Queries.ScanTemplatePlaceholders;
 using SmkDoc.Api.Models;
 
 namespace SmkDoc.Api.Controllers;
@@ -12,7 +13,9 @@ namespace SmkDoc.Api.Controllers;
 [ApiController]
 [Route("api/v1/templates")]
 [Authorize(Policy = "ApiKeyPolicy")]
-public class TemplateScanController(TemplateManagementUseCase templateUseCase) : ControllerBase
+public class TemplateScanController(
+    ITemplateScannerService scanner,
+    ScanTemplatePlaceholdersUseCase scanUseCase) : ControllerBase
 {
     /// <summary>
     /// Stateless scan — upload any file and get its placeholders without creating a template.
@@ -28,7 +31,7 @@ public class TemplateScanController(TemplateManagementUseCase templateUseCase) :
 
         var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
         using var stream = file.OpenReadStream();
-        var placeholders = await templateUseCase.ScanPlaceholdersFromStreamAsync(stream, ext, ct);
+        var placeholders = await scanner.ScanPlaceholdersAsync(stream, ext, ct);
         return Ok(new ApiResponse<ScanFieldsResponse>(new ScanFieldsResponse(placeholders)));
     }
 
@@ -37,7 +40,7 @@ public class TemplateScanController(TemplateManagementUseCase templateUseCase) :
     [ProducesResponseType(typeof(ApiResponse<ScanFieldsResponse>), StatusCodes.Status200OK)]
     public async Task<IActionResult> ScanFieldsById([FromRoute] Guid id, CancellationToken ct)
     {
-        var placeholders = await templateUseCase.ScanPlaceholdersAsync(id, ct);
+        var placeholders = await scanUseCase.ExecuteAsync(new ScanTemplatePlaceholdersQuery(id), ct);
         return Ok(new ApiResponse<ScanFieldsResponse>(new ScanFieldsResponse(placeholders)));
     }
 }

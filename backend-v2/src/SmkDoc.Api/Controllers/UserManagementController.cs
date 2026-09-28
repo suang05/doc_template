@@ -1,11 +1,12 @@
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using SmkDoc.Api.Models;
-using SmkDoc.Application.DTOs.Users;
-using SmkDoc.Application.UseCases.Security;
 using SmkDoc.Api.Extensions;
+using SmkDoc.Api.Models;
+using SmkDoc.Application.UseCases.Users.Commands.InviteUser;
+using SmkDoc.Application.UseCases.Users.Commands.RemoveUser;
+using SmkDoc.Application.UseCases.Users.Commands.SetUserStatus;
+using SmkDoc.Application.UseCases.Users.Commands.UpdateUserRole;
+using SmkDoc.Application.UseCases.Users.Queries.ListProjectUsers;
 
 namespace SmkDoc.Api.Controllers;
 
@@ -16,14 +17,17 @@ namespace SmkDoc.Api.Controllers;
 [ApiController]
 [Route("api/v1/management/projects/{projectId:guid}/users")]
 [Authorize(Policy = "JwtPolicy")]
-public class UserManagementController(UserManagementUseCase useCase) : ControllerBase
+public class UserManagementController : ControllerBase
 {
     /// <summary>List all users in a project.</summary>
     [HttpGet]
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<UserListItem>>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> List([FromRoute] Guid projectId, CancellationToken ct)
+    public async Task<IActionResult> List(
+        [FromRoute] Guid projectId,
+        [FromServices] ListProjectUsersUseCase useCase,
+        CancellationToken ct)
     {
-        var users = await useCase.ListAsync(projectId, ct);
+        var users = await useCase.ExecuteAsync(new ListProjectUsersQuery(projectId), ct);
         var result = users.Select(u => new UserListItem(u.Id, u.Email, u.FirstName, u.LastName, u.Role, u.IsActive, u.CreatedAt));
         return Ok(new ApiResponse<IEnumerable<UserListItem>>(result));
     }
@@ -37,10 +41,12 @@ public class UserManagementController(UserManagementUseCase useCase) : Controlle
     public async Task<IActionResult> AddUser(
         [FromRoute] Guid projectId,
         [FromBody] InviteUserRequest req,
+        [FromServices] InviteUserUseCase useCase,
         CancellationToken ct)
     {
         User.RequireAdmin();
-        var user = await useCase.InviteAsync(projectId, req.Email, req.Password, req.FirstName, req.LastName, req.Role, ct);
+        var command = new InviteUserCommand(projectId, req.Email, req.Password, req.FirstName, req.LastName, req.Role);
+        var user = await useCase.ExecuteAsync(command, ct);
         var result = new UserListItem(user.Id, user.Email, user.FirstName, user.LastName, user.Role, user.IsActive, user.CreatedAt);
         return Ok(new ApiResponse<UserListItem>(result));
     }
@@ -56,10 +62,12 @@ public class UserManagementController(UserManagementUseCase useCase) : Controlle
         [FromRoute] Guid projectId,
         [FromRoute] Guid userId,
         [FromBody] UpdateUserRoleRequest req,
+        [FromServices] UpdateUserRoleUseCase useCase,
         CancellationToken ct)
     {
         User.RequireAdmin();
-        await useCase.UpdateRoleAsync(projectId, userId, req.Role, ct);
+        var command = new UpdateUserRoleCommand(projectId, userId, req.Role);
+        await useCase.ExecuteAsync(command, ct);
         return NoContent();
     }
 
@@ -72,11 +80,13 @@ public class UserManagementController(UserManagementUseCase useCase) : Controlle
     public async Task<IActionResult> Remove(
         [FromRoute] Guid projectId,
         [FromRoute] Guid userId,
+        [FromServices] RemoveUserUseCase useCase,
         CancellationToken ct)
     {
         User.RequireAdmin();
         var currentUserId = User.GetUserId();
-        await useCase.RemoveAsync(projectId, userId, currentUserId, ct);
+        var command = new RemoveUserCommand(projectId, userId, currentUserId);
+        await useCase.ExecuteAsync(command, ct);
         return NoContent();
     }
 
@@ -89,10 +99,12 @@ public class UserManagementController(UserManagementUseCase useCase) : Controlle
         [FromRoute] Guid projectId,
         [FromRoute] Guid userId,
         [FromBody] bool isActive,
+        [FromServices] SetUserStatusUseCase useCase,
         CancellationToken ct)
     {
         User.RequireAdmin();
-        await useCase.SetActiveAsync(projectId, userId, isActive, ct);
+        var command = new SetUserStatusCommand(projectId, userId, isActive);
+        await useCase.ExecuteAsync(command, ct);
         return NoContent();
     }
 }

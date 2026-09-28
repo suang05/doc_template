@@ -112,7 +112,7 @@ public class LoginUseCaseTests
             .Returns(false);
 
         // Act & Assert
-        var act = () => _useCase.ExecuteAsync(request);
+        Func<Task> act = () => _useCase.ExecuteAsync(request);
         await act.Should().ThrowAsync<UnauthorizedAccessException>();
     }
 }

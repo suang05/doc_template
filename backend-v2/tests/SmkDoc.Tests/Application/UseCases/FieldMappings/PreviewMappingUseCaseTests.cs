@@ -156,7 +156,7 @@ public class PreviewMappingUseCaseTests
         _mockTemplateRepo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((Template?)null);
 
-        var act = () => CreateUseCase().ExecuteAsync(Guid.NewGuid(), default);
+        Func<Task> act = () => CreateUseCase().ExecuteAsync(Guid.NewGuid(), default);
         await act.Should().ThrowAsync<NotFoundException>();
     }
 
@@ -169,7 +169,7 @@ public class PreviewMappingUseCaseTests
         _mockMappingRepo.Setup(r => r.ListAsync(It.IsAny<Expression<Func<FieldMapping, bool>>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
 
-        var act = () => CreateUseCase().ExecuteAsync(templateId, default);
+        Func<Task> act = () => CreateUseCase().ExecuteAsync(templateId, default);
         await act.Should().ThrowAsync<InvalidOperationException>();
     }
 
@@ -191,7 +191,7 @@ public class PreviewMappingUseCaseTests
             .ReturnsAsync(new MemoryStream());
 
         // Only Html engine registered — Docx engine is missing
-        var act = () => CreateUseCase().ExecuteAsync(templateId, default);
+        Func<Task> act = () => CreateUseCase().ExecuteAsync(templateId, default);
         await act.Should().ThrowAsync<InvalidOperationException>();
     }
 

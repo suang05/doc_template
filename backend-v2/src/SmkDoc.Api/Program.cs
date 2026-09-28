@@ -245,7 +245,16 @@ builder.Services.AddScoped<SmkDoc.Application.UseCases.Schemas.ValidateStandalon
 builder.Services.AddScoped<PreviewDocumentUseCase>();
 builder.Services.AddScoped<DocumentVersionUseCase>();
 builder.Services.AddScoped<RenderStatelessDocumentUseCase>();
-builder.Services.AddScoped<TemplateManagementUseCase>();
+builder.Services.AddScoped<SmkDoc.Application.UseCases.Templates.Commands.CreateTemplate.CreateTemplateUseCase>();
+builder.Services.AddScoped<SmkDoc.Application.UseCases.Templates.Commands.UpdateTemplateDetails.UpdateTemplateDetailsUseCase>();
+builder.Services.AddScoped<SmkDoc.Application.UseCases.Templates.Commands.ActivateTemplateVersion.ActivateTemplateVersionUseCase>();
+builder.Services.AddScoped<SmkDoc.Application.UseCases.Templates.Commands.DeactivateTemplate.DeactivateTemplateUseCase>();
+builder.Services.AddScoped<SmkDoc.Application.UseCases.Templates.Commands.RollbackTemplateVersion.RollbackTemplateVersionUseCase>();
+builder.Services.AddScoped<SmkDoc.Application.UseCases.Templates.Queries.GetTemplateById.GetTemplateByIdUseCase>();
+builder.Services.AddScoped<SmkDoc.Application.UseCases.Templates.Queries.ListTemplates.ListTemplatesUseCase>();
+builder.Services.AddScoped<SmkDoc.Application.UseCases.Templates.Queries.ListTemplateVersions.ListTemplateVersionsUseCase>();
+builder.Services.AddScoped<SmkDoc.Application.UseCases.Templates.Queries.DownloadTemplate.DownloadTemplateUseCase>();
+builder.Services.AddScoped<SmkDoc.Application.UseCases.Templates.Queries.ScanTemplatePlaceholders.ScanTemplatePlaceholdersUseCase>();
 builder.Services.AddScoped<IHtmlStudioUseCase, HtmlStudioUseCase>();
 builder.Services.AddScoped<IHtmlPersistenceUseCase, HtmlPersistenceUseCase>();
 builder.Services.AddScoped<TemplateValidateUseCase>();

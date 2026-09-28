@@ -99,7 +99,7 @@ public class DocumentVersionUseCaseTests
         _mockDocumentRepo.Setup(r => r.FirstOrDefaultAsync(It.IsAny<Expression<Func<Document, bool>>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((Document?)null);
 
-        var act = () => BuildUseCase().DownloadVersionAsync("MISSING", 1);
+        Func<Task> act = () => BuildUseCase().DownloadVersionAsync("MISSING", 1);
         await act.Should().ThrowAsync<NotFoundException>();
     }
 

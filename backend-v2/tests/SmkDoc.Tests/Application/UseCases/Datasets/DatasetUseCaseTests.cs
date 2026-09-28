@@ -77,7 +77,7 @@ public class DatasetUseCaseTests
         _connRepo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
                  .ReturnsAsync((DataConnection?)null);
 
-        var act = () => CreateSut().CreateAsync(new CreateDatasetDto
+        Func<Task> act = () => CreateSut().CreateAsync(new CreateDatasetDto
         {
             Name             = "X",
             DataConnectionId = Guid.NewGuid(),

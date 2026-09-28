@@ -45,6 +45,9 @@ public static class DependencyInjection
                 errorCodesToAdd: null)));
 
         services.AddScoped(typeof(IRepository<>), typeof(EfRepository<>));
+        services.AddScoped<ITemplateRepository, TemplateRepository>();
+        services.AddScoped<IUserRepository, UserRepository>();
+        services.AddScoped<IUserProjectRoleRepository, UserProjectRoleRepository>();
         services.AddScoped<IGenerationLogMetricsRepository, GenerationLogMetricsRepository>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
 

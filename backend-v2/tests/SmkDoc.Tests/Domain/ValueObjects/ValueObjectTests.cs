@@ -22,7 +22,7 @@ public class ValueObjectTests
     [InlineData("")]
     public void Sha256Hash_InvalidHex_ThrowsArgumentException(string invalidInput)
     {
-        var act = () => new Sha256Hash(invalidInput);
+        Action act = () => new Sha256Hash(invalidInput);
         act.Should().Throw<ArgumentException>();
     }
 }

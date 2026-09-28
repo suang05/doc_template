@@ -4,7 +4,18 @@ using SmkDoc.Application.DTOs.Templates;
 using SmkDoc.Application.DTOs.FieldMappings;
 using SmkDoc.Application.UseCases.FieldMappings;
 using SmkDoc.Application.UseCases.Templates;
+using SmkDoc.Application.UseCases.Templates.Commands.CreateTemplate;
+using SmkDoc.Application.UseCases.Templates.Commands.UpdateTemplateDetails;
+using SmkDoc.Application.UseCases.Templates.Commands.DeactivateTemplate;
+using SmkDoc.Application.UseCases.Templates.Commands.RollbackTemplateVersion;
+using SmkDoc.Application.UseCases.Templates.Queries.GetTemplateById;
+using SmkDoc.Application.UseCases.Templates.Queries.ListTemplates;
+using SmkDoc.Application.UseCases.Templates.Queries.ListTemplateVersions;
+using SmkDoc.Application.UseCases.Templates.Queries.DownloadTemplate;
+using SmkDoc.Application.UseCases.Templates.Queries.ScanTemplatePlaceholders;
+using SmkDoc.Application.Common.Interfaces;
 
+using CreateTemplateCommand = SmkDoc.Application.UseCases.Templates.Commands.CreateTemplate.CreateTemplateCommand;
 using ValidateTemplatePayloadCommand = SmkDoc.Application.DTOs.Templates.ValidateTemplatePayloadCommand;
 using ValidateTemplatePayloadResult = SmkDoc.Application.DTOs.Templates.ValidateTemplatePayloadResult;
 
@@ -14,7 +25,16 @@ namespace SmkDoc.Api.Controllers;
 [Route("api/v1/templates")]
 [Route("api/templates")]
 public class TemplateController(
-    TemplateManagementUseCase templateUseCase,
+    ListTemplatesUseCase listTemplatesUseCase,
+    GetTemplateByIdUseCase getTemplateByIdUseCase,
+    CreateTemplateUseCase createTemplateUseCase,
+    UpdateTemplateDetailsUseCase updateTemplateDetailsUseCase,
+    DeactivateTemplateUseCase deactivateTemplateUseCase,
+    DownloadTemplateUseCase downloadTemplateUseCase,
+    ScanTemplatePlaceholdersUseCase scanPlaceholdersUseCase,
+    ListTemplateVersionsUseCase listVersionsUseCase,
+    RollbackTemplateVersionUseCase rollbackUseCase,
+    ITemplateScannerService scanner,
     TemplateValidateUseCase validateUseCase,
     FieldMappingUseCase mappingUseCase,
     PreviewMappingUseCase previewMappingUseCase,
@@ -24,11 +44,19 @@ public class TemplateController(
     IHtmlPersistenceUseCase htmlPersistenceUseCase) : ControllerBase
 {
     [HttpGet]
-    [ProducesResponseType(typeof(ApiResponse<IEnumerable<TemplateDto>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<IEnumerable<TemplateResponse>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> ListTemplates(CancellationToken ct)
     {
-        var templates = await templateUseCase.ListTemplatesAsync(ct);
-        return Ok(new ApiResponse<IEnumerable<TemplateDto>>(templates));
+        var templates = await listTemplatesUseCase.ExecuteAsync(new ListTemplatesQuery(), ct);
+        return Ok(new ApiResponse<IEnumerable<TemplateResponse>>(templates));
+    }
+
+    [HttpGet("{id:guid}")]
+    [ProducesResponseType(typeof(ApiResponse<TemplateResponse>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetById([FromRoute] Guid id, CancellationToken ct)
+    {
+        var template = await getTemplateByIdUseCase.ExecuteAsync(new GetTemplateByIdQuery(id), ct);
+        return Ok(new ApiResponse<TemplateResponse>(template));
     }
 
     [HttpPost]
@@ -45,8 +73,8 @@ public class TemplateController(
             fileName = file.FileName;
         }
 
-        var request = new CreateTemplateCommand(name, slug, category, null);
-        var created = await templateUseCase.CreateTemplateAsync(request, stream, fileName, ct);
+        var command = new CreateTemplateCommand(Guid.Empty, name, slug, category, stream, fileName);
+        var created = await createTemplateUseCase.ExecuteAsync(command, ct);
         return Ok(new ApiResponse<object>(new { id = created.Id, slug = created.Slug }));
     }
 
@@ -73,7 +101,6 @@ public class TemplateController(
         return Ok(new ApiResponse<TemplateSchemaDto>(schemaDto));
     }
 
-
     [HttpPut("{id:guid}/html")]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     public async Task<IActionResult> SaveHtml([FromRoute] Guid id, [FromBody] SaveTemplateHtmlCommand request, CancellationToken ct)
@@ -83,18 +110,19 @@ public class TemplateController(
     }
 
     [HttpPut("{id:guid}")]
-    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<TemplateResponse>), StatusCodes.Status200OK)]
     public async Task<IActionResult> UpdateMetadata([FromRoute] Guid id, [FromBody] UpdateTemplateMetadataCommand request, CancellationToken ct)
     {
-        await templateUseCase.UpdateMetadataAsync(id, request, ct);
-        return Ok(new ApiResponse<object>(new { success = true }));
+        var command = new UpdateTemplateDetailsCommand(id, request.Name ?? string.Empty, request.Category);
+        var result = await updateTemplateDetailsUseCase.ExecuteAsync(command, ct);
+        return Ok(new ApiResponse<TemplateResponse>(result));
     }
 
     [HttpDelete("{id:guid}")]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     public async Task<IActionResult> Deactivate([FromRoute] Guid id, CancellationToken ct)
     {
-        await templateUseCase.DeactivateTemplateAsync(id, ct);
+        await deactivateTemplateUseCase.ExecuteAsync(new DeactivateTemplateCommand(id), ct);
         return Ok(new ApiResponse<object>(new { success = true }));
     }
 
@@ -201,7 +229,7 @@ public class TemplateController(
 
         string ext = Path.GetExtension(file.FileName).ToLowerInvariant();
         using var stream = file.OpenReadStream();
-        var placeholders = await templateUseCase.ScanPlaceholdersFromStreamAsync(stream, ext, ct);
+        var placeholders = await scanner.ScanPlaceholdersAsync(stream, ext, ct);
         return Ok(new ApiResponse<object>(new { placeholders }));
     }
 
@@ -209,7 +237,7 @@ public class TemplateController(
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     public async Task<IActionResult> ScanFields([FromRoute] Guid id, CancellationToken ct)
     {
-        var placeholders = await templateUseCase.ScanPlaceholdersAsync(id, ct);
+        var placeholders = await scanPlaceholdersUseCase.ExecuteAsync(new ScanTemplatePlaceholdersQuery(id), ct);
         return Ok(new ApiResponse<object>(new { placeholders }));
     }
 
@@ -217,7 +245,7 @@ public class TemplateController(
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetVersions([FromRoute] Guid id, CancellationToken ct)
     {
-        var versions = await templateUseCase.ListVersionsAsync(id, ct);
+        var versions = await listVersionsUseCase.ExecuteAsync(new ListTemplateVersionsQuery(id), ct);
         return Ok(new ApiResponse<object>(new { versions }));
     }
 
@@ -225,15 +253,15 @@ public class TemplateController(
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     public async Task<IActionResult> RollbackVersion([FromRoute] Guid id, [FromRoute] int version, CancellationToken ct)
     {
-        int newVersion = await templateUseCase.RollbackVersionAsync(id, version, ct);
+        int newVersion = await rollbackUseCase.ExecuteAsync(new RollbackTemplateVersionCommand(id, version), ct);
         return Ok(new ApiResponse<object>(new { version = newVersion }));
     }
 
     [HttpGet("{id:guid}/download")]
     public async Task<IActionResult> Download([FromRoute] Guid id, CancellationToken ct)
     {
-        var (stream, contentType, fileName) = await templateUseCase.DownloadTemplateAsync(id, ct);
-        return File(stream, contentType, fileName);
+        var result = await downloadTemplateUseCase.ExecuteAsync(new DownloadTemplateQuery(id), ct);
+        return File(result.Stream, result.ContentType, result.FileName);
     }
 
     [HttpGet("{id:guid}/datasets")]

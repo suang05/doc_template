@@ -150,7 +150,7 @@ public class GenerateDocumentUseCaseTests
         var request = new GenerateDocumentCommand(jsonDoc.RootElement);
 
         // Act & Assert
-        var act = () => useCase.ExecuteAsync("inactive-tpl", request);
+        Func<Task> act = () => useCase.ExecuteAsync("inactive-tpl", request);
         await act.Should().ThrowAsync<NotFoundException>();
     }
 
@@ -167,7 +167,7 @@ public class GenerateDocumentUseCaseTests
         var request = new GenerateDocumentCommand(jsonDoc.RootElement);
 
         // Act & Assert
-        var act = () => useCase.ExecuteAsync("no-ver-tpl", request);
+        Func<Task> act = () => useCase.ExecuteAsync("no-ver-tpl", request);
         await act.Should().ThrowAsync<InvalidOperationException>();
     }
 

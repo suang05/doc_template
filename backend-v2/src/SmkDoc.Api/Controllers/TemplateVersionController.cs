@@ -7,6 +7,9 @@ using SmkDoc.Application.UseCases.FieldMappings;
 using SmkDoc.Application.UseCases.Templates;
 
 
+using SmkDoc.Application.UseCases.Templates.Queries.ListTemplateVersions;
+using SmkDoc.Application.UseCases.Templates.Commands.RollbackTemplateVersion;
+
 namespace SmkDoc.Api.Controllers;
 
 /// <summary>
@@ -17,7 +20,8 @@ namespace SmkDoc.Api.Controllers;
 [Route("api/v1/templates/{id:guid}")]
 [Authorize(Policy = "ApiKeyPolicy")]
 public class TemplateVersionController(
-    TemplateManagementUseCase templateUseCase,
+    ListTemplateVersionsUseCase listVersionsUseCase,
+    RollbackTemplateVersionUseCase rollbackUseCase,
     TemplateDatasetUseCase templateDatasetUseCase) : ControllerBase
 {
     // ── Versioning ────────────────────────────────────────────────────────────
@@ -27,7 +31,7 @@ public class TemplateVersionController(
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<TemplateVersionDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetVersions([FromRoute] Guid id, CancellationToken ct)
     {
-        var versions = await templateUseCase.ListVersionsAsync(id, ct);
+        var versions = await listVersionsUseCase.ExecuteAsync(new ListTemplateVersionsQuery(id), ct);
         return Ok(new ApiResponse<IEnumerable<TemplateVersionDto>>(versions));
     }
 
@@ -41,7 +45,7 @@ public class TemplateVersionController(
         [FromRoute] int version,
         CancellationToken ct)
     {
-        int newVersion = await templateUseCase.RollbackVersionAsync(id, version, ct);
+        int newVersion = await rollbackUseCase.ExecuteAsync(new RollbackTemplateVersionCommand(id, version), ct);
         return Ok(new ApiResponse<RollbackVersionResponse>(new RollbackVersionResponse(newVersion)));
     }
 
