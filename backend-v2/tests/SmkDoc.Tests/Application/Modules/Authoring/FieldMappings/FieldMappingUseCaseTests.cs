@@ -8,7 +8,7 @@ using Xunit;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
 
-namespace SmkDoc.Tests.Application.UseCases.FieldMappings;
+namespace SmkDoc.Tests.Application.Modules.Authoring.FieldMappings;
 
 public class FieldMappingUseCaseTests
 {

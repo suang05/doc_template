@@ -6,7 +6,7 @@ using SmkDoc.Domain.Entities;
 using Xunit;
 using SmkDoc.Domain.Interfaces;
 
-namespace SmkDoc.Tests.Application.UseCases.Security;
+namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Security;
 
 public class ApiKeyUseCaseTests
 {

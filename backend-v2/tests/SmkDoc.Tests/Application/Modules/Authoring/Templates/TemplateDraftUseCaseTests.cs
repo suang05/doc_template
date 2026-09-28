@@ -12,7 +12,7 @@ using Xunit;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.Exceptions;
 
-namespace SmkDoc.Tests.Application.UseCases.Templates;
+namespace SmkDoc.Tests.Application.Modules.Authoring.Templates;
 
 public class TemplateDraftUseCaseTests
 {

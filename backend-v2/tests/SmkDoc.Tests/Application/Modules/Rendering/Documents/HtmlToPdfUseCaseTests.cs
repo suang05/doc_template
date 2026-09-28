@@ -6,7 +6,7 @@ using SmkDoc.Application.Modules.Rendering.Documents.DTOs;
 using SmkDoc.Application.Modules.Rendering.Documents;
 using Xunit;
 
-namespace SmkDoc.Tests.Application.UseCases.Documents;
+namespace SmkDoc.Tests.Application.Modules.Rendering.Documents;
 
 public class HtmlToPdfUseCaseTests
 {

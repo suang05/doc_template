@@ -12,7 +12,7 @@ using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.Exceptions;
 using Xunit;
 
-namespace SmkDoc.Tests.Application.UseCases.FieldMappings;
+namespace SmkDoc.Tests.Application.Modules.Authoring.FieldMappings;
 
 public class PreviewMappingUseCaseTests
 {

@@ -8,7 +8,7 @@ using SmkDoc.Domain.Enums;
 using Xunit;
 using SmkDoc.Domain.Interfaces;
 
-namespace SmkDoc.Tests.Application.UseCases.Templates;
+namespace SmkDoc.Tests.Application.Modules.Authoring.Templates;
 
 public class HtmlPersistenceUseCaseTests
 {

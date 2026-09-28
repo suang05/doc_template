@@ -16,7 +16,7 @@ using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Validation;
 using SmkDoc.Tests.Common.Builders;
 
-namespace SmkDoc.Tests.Application.UseCases.Documents;
+namespace SmkDoc.Tests.Application.Modules.Rendering.Documents;
 
 public class GenerateDocumentUseCaseTests
 {

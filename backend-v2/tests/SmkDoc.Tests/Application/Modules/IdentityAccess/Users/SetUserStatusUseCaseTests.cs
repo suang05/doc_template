@@ -7,7 +7,7 @@ using SmkDoc.Tests.Common.Builders;
 using SmkDoc.Tests.Common.Fixtures;
 using Xunit;
 
-namespace SmkDoc.Tests.Application.UseCases.Users;
+namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Users;
 
 public class SetUserStatusUseCaseTests
 {

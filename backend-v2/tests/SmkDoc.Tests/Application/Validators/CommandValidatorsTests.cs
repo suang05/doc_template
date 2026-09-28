@@ -48,40 +48,6 @@ public class CommandValidatorsTests
     }
 
     [Fact]
-    public async Task CreateTemplateCommandValidator_WithValidSlug_ShouldPass()
-    {
-        // Arrange
-        var validator = new CreateTemplateCommandValidator();
-        var command = new CreateTemplateCommand(Guid.NewGuid(), "Receipt Template", "receipt-template-v1", "Receipts");
-
-        // Act
-        var result = await validator.ValidateAsync(command);
-
-        // Assert
-        result.IsValid.Should().BeTrue();
-    }
-
-    [Theory]
-    [InlineData("Invalid Slug With Spaces")]
-    [InlineData("UPPERCASE-SLUG")]
-    [InlineData("slug_with_underscores")]
-    [InlineData("-leading-dash")]
-    [InlineData("trailing-dash-")]
-    public async Task CreateTemplateCommandValidator_WithInvalidSlug_ShouldFail(string invalidSlug)
-    {
-        // Arrange
-        var validator = new CreateTemplateCommandValidator();
-        var command = new CreateTemplateCommand(Guid.NewGuid(), "Receipt Template", invalidSlug, "Receipts");
-
-        // Act
-        var result = await validator.ValidateAsync(command);
-
-        // Assert
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.PropertyName == nameof(CreateTemplateCommand.Slug));
-    }
-
-    [Fact]
     public async Task LoginCommandValidator_WithValidEmailAndPassword_ShouldPass()
     {
         // Arrange

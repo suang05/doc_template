@@ -2,7 +2,7 @@ using FluentAssertions;
 using SmkDoc.Application.Modules.IdentityAccess.Users.Commands.RemoveUser;
 using Xunit;
 
-namespace SmkDoc.Tests.Application.UseCases.Users.Validators;
+namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Users.Validators;
 
 public class RemoveUserCommandValidatorTests
 {

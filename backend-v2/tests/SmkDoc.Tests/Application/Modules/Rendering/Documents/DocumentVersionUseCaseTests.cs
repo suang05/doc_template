@@ -8,7 +8,7 @@ using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using Xunit;
 
-namespace SmkDoc.Tests.Application.UseCases.Documents;
+namespace SmkDoc.Tests.Application.Modules.Rendering.Documents;
 
 public class DocumentVersionUseCaseTests
 {

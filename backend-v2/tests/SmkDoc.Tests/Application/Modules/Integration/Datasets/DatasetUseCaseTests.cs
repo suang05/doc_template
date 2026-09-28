@@ -8,7 +8,7 @@ using Xunit;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.Exceptions;
 
-namespace SmkDoc.Tests.Application.UseCases.Datasets;
+namespace SmkDoc.Tests.Application.Modules.Integration.Datasets;
 
 public class DatasetUseCaseTests
 {

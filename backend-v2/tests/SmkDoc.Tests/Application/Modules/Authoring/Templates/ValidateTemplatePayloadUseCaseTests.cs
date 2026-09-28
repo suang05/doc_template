@@ -11,7 +11,7 @@ using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects.Validation;
 using Xunit;
 
-namespace SmkDoc.Tests.Application.UseCases.Templates;
+namespace SmkDoc.Tests.Application.Modules.Authoring.Templates;
 
 public class ValidateTemplatePayloadUseCaseTests
 {

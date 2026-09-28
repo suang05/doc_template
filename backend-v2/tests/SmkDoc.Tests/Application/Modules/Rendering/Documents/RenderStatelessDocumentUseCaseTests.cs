@@ -5,7 +5,7 @@ using SmkDoc.Application.Modules.Rendering.Documents;
 using SmkDoc.Domain.Enums;
 using Xunit;
 
-namespace SmkDoc.Tests.Application.UseCases.Documents;
+namespace SmkDoc.Tests.Application.Modules.Rendering.Documents;
 
 public class RenderStatelessDocumentUseCaseTests
 {

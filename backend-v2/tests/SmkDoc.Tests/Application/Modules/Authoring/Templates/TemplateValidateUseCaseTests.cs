@@ -4,7 +4,7 @@ using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Templates;
 using Xunit;
 
-namespace SmkDoc.Tests.Application.UseCases.Templates;
+namespace SmkDoc.Tests.Application.Modules.Authoring.Templates;
 
 public class TemplateValidateUseCaseTests
 {

@@ -6,7 +6,7 @@ using SmkDoc.Application.Modules.Authoring.Schemas;
 using SmkDoc.Infrastructure.Schema;
 using Xunit;
 
-namespace SmkDoc.Tests.Application.UseCases.Schemas;
+namespace SmkDoc.Tests.Application.Modules.Authoring.Schemas;
 
 public class ValidateStandaloneSchemaUseCaseTests
 {

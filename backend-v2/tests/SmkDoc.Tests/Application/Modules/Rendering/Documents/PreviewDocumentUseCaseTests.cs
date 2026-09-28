@@ -9,7 +9,7 @@ using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using Xunit;
 
-namespace SmkDoc.Tests.Application.UseCases.Documents;
+namespace SmkDoc.Tests.Application.Modules.Rendering.Documents;
 
 public class PreviewDocumentUseCaseTests
 {

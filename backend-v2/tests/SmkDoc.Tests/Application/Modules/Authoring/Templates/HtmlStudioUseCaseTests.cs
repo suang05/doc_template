@@ -7,7 +7,7 @@ using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using Xunit;
 
-namespace SmkDoc.Tests.Application.UseCases.Templates;
+namespace SmkDoc.Tests.Application.Modules.Authoring.Templates;
 
 public class HtmlStudioUseCaseTests
 {

@@ -8,7 +8,7 @@ using SmkDoc.Domain.Entities;
 using Xunit;
 using SmkDoc.Domain.Interfaces;
 
-namespace SmkDoc.Tests.Application.UseCases.Datasets;
+namespace SmkDoc.Tests.Application.Modules.Integration.Datasets;
 
 public class DataConnectionUseCaseTests
 {

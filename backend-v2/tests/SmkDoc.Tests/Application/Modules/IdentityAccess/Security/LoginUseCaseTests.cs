@@ -8,7 +8,7 @@ using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using Xunit;
 
-namespace SmkDoc.Tests.Application.UseCases.Security;
+namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Security;
 
 public class LoginUseCaseTests
 {
