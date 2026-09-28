@@ -5,6 +5,7 @@ using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
+using SmkDoc.Domain.Interfaces;
 
 namespace SmkDoc.Application.Modules.Authoring.FieldMappings;
 
@@ -13,23 +14,23 @@ namespace SmkDoc.Application.Modules.Authoring.FieldMappings;
 /// Zero side-effects: no DB writes, no MinIO uploads, no log entries.
 /// </summary>
 public sealed class PreviewMappingUseCase(
-    IRepository<Template> templateRepo,
+    ITemplateRepository templateRepo,
     IRepository<TemplateVersion> versionRepo,
-    IRepository<FieldMapping> mappingRepo,
-    IRepository<TemplateDataset> tdRepo,
-    IRepository<Dataset> datasetRepo,
-    IRepository<DataConnection> connectionRepo,
+    IFieldMappingRepository mappingRepo,
+    ITemplateDatasetRepository tdRepo,
+    IDatasetRepository datasetRepo,
+    IDataConnectionRepository connectionRepo,
     IStorageService storageService,
     IEnumerable<IRenderEngine> engines,
     IFieldMappingApplicatorService fieldMappingApplicator,
     IDataProtectionService dataProtection)
 {
-    private readonly IRepository<Template> _templateRepo = templateRepo;
+    private readonly ITemplateRepository _templateRepo = templateRepo;
     private readonly IRepository<TemplateVersion> _versionRepo = versionRepo;
-    private readonly IRepository<FieldMapping> _mappingRepo = mappingRepo;
-    private readonly IRepository<TemplateDataset> _tdRepo = tdRepo;
-    private readonly IRepository<Dataset> _datasetRepo = datasetRepo;
-    private readonly IRepository<DataConnection> _connectionRepo = connectionRepo;
+    private readonly IFieldMappingRepository _mappingRepo = mappingRepo;
+    private readonly ITemplateDatasetRepository _tdRepo = tdRepo;
+    private readonly IDatasetRepository _datasetRepo = datasetRepo;
+    private readonly IDataConnectionRepository _connectionRepo = connectionRepo;
     private readonly IStorageService _storageService = storageService;
     private readonly IEnumerable<IRenderEngine> _engines = engines;
     private readonly IFieldMappingApplicatorService _fieldMappingApplicator = fieldMappingApplicator;
@@ -40,7 +41,7 @@ public sealed class PreviewMappingUseCase(
         var template = await _templateRepo.GetByIdAsync(templateId, ct)
             ?? throw new NotFoundException($"Template '{templateId}' not found.");
 
-        var mappings = await _mappingRepo.ListAsync(m => m.TemplateId == templateId, ct);
+        var mappings = await _mappingRepo.GetByTemplateIdAsync(templateId, ct);
 
         string dataJson;
         if (mappings.Count > 0)

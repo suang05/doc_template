@@ -1,4 +1,3 @@
-using System.Linq.Expressions;
 using System.Text.Json;
 using FluentAssertions;
 using Moq;
@@ -8,20 +7,21 @@ using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 using SmkDoc.Application.Modules.Authoring.FieldMappings;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
-using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.Exceptions;
+using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects;
 using Xunit;
 
 namespace SmkDoc.Tests.Application.Modules.Authoring.FieldMappings;
 
 public class PreviewMappingUseCaseTests
 {
-    private readonly Mock<IRepository<Template>>        _mockTemplateRepo    = new();
+    private readonly Mock<ITemplateRepository>          _mockTemplateRepo    = new();
     private readonly Mock<IRepository<TemplateVersion>> _mockVersionRepo     = new();
-    private readonly Mock<IRepository<FieldMapping>>    _mockMappingRepo     = new();
-    private readonly Mock<IRepository<TemplateDataset>> _mockTdRepo          = new();
-    private readonly Mock<IRepository<Dataset>>         _mockDatasetRepo     = new();
-    private readonly Mock<IRepository<DataConnection>>  _mockConnectionRepo  = new();
+    private readonly Mock<IFieldMappingRepository>      _mockMappingRepo     = new();
+    private readonly Mock<ITemplateDatasetRepository>   _mockTdRepo          = new();
+    private readonly Mock<IDatasetRepository>           _mockDatasetRepo     = new();
+    private readonly Mock<IDataConnectionRepository>    _mockConnectionRepo  = new();
     private readonly Mock<IStorageService>              _mockStorage         = new();
     private readonly Mock<IRenderEngine>                _mockHtmlEngine      = new();
     private readonly Mock<IFieldMappingApplicatorService> _mockApplicator    = new();
@@ -50,7 +50,6 @@ public class PreviewMappingUseCaseTests
         TemplateFormat? format = engineType == RenderEngineType.Excel ? TemplateFormat.Xlsx : 
                                  engineType == RenderEngineType.Docx ? TemplateFormat.Docx : TemplateFormat.Html;
 
-
         var template = new Template(Guid.NewGuid(), "T", "t", null) { Id = templateId };
         template.SetCurrentVersion(versionId);
         _mockTemplateRepo.Setup(r => r.GetByIdAsync(templateId, It.IsAny<CancellationToken>()))
@@ -68,7 +67,7 @@ public class PreviewMappingUseCaseTests
         var versionId  = Guid.NewGuid();
         SetupTemplate(templateId, versionId);
 
-        _mockMappingRepo.Setup(r => r.ListAsync(It.IsAny<Expression<Func<FieldMapping, bool>>>(), It.IsAny<CancellationToken>()))
+        _mockMappingRepo.Setup(r => r.GetByTemplateIdAsync(templateId, It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
         _mockStorage.Setup(s => s.DownloadAsync(StorageBuckets.Templates, "templates/t.html", It.IsAny<CancellationToken>()))
             .ReturnsAsync(new MemoryStream("<html></html>"u8.ToArray()));
@@ -95,7 +94,7 @@ public class PreviewMappingUseCaseTests
         var versionId  = Guid.NewGuid();
         SetupTemplate(templateId, versionId);
 
-        _mockMappingRepo.Setup(r => r.ListAsync(It.IsAny<Expression<Func<FieldMapping, bool>>>(), It.IsAny<CancellationToken>()))
+        _mockMappingRepo.Setup(r => r.GetByTemplateIdAsync(templateId, It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
         _mockStorage.Setup(s => s.DownloadAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new MemoryStream());
@@ -126,9 +125,9 @@ public class PreviewMappingUseCaseTests
         {
             new FieldMapping(templateId, "fullName", "customer.name", "Full Name", false, 1, DataSourceType.Json)
         };
-        _mockMappingRepo.Setup(r => r.ListAsync(It.IsAny<Expression<Func<FieldMapping, bool>>>(), It.IsAny<CancellationToken>()))
+        _mockMappingRepo.Setup(r => r.GetByTemplateIdAsync(templateId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(mappings);
-        _mockTdRepo.Setup(r => r.ListAsync(It.IsAny<Expression<Func<TemplateDataset, bool>>>(), It.IsAny<CancellationToken>()))
+        _mockTdRepo.Setup(r => r.GetByTemplateIdAsync(templateId, It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
         _mockStorage.Setup(s => s.DownloadAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new MemoryStream());
@@ -166,7 +165,7 @@ public class PreviewMappingUseCaseTests
         var templateId = Guid.NewGuid();
         _mockTemplateRepo.Setup(r => r.GetByIdAsync(templateId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new Template(Guid.NewGuid(), "T", "t", null) { Id = templateId });
-        _mockMappingRepo.Setup(r => r.ListAsync(It.IsAny<Expression<Func<FieldMapping, bool>>>(), It.IsAny<CancellationToken>()))
+        _mockMappingRepo.Setup(r => r.GetByTemplateIdAsync(templateId, It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
 
         Func<Task> act = () => CreateUseCase().ExecuteAsync(templateId, default);
@@ -185,7 +184,7 @@ public class PreviewMappingUseCaseTests
             .ReturnsAsync(template);
         _mockVersionRepo.Setup(r => r.GetByIdAsync(versionId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new TemplateVersion(templateId, 1, "templates/t.docx", TemplateFormat.Docx, "Published", "Commit") { Id = versionId });
-        _mockMappingRepo.Setup(r => r.ListAsync(It.IsAny<Expression<Func<FieldMapping, bool>>>(), It.IsAny<CancellationToken>()))
+        _mockMappingRepo.Setup(r => r.GetByTemplateIdAsync(templateId, It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
         _mockStorage.Setup(s => s.DownloadAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new MemoryStream());
@@ -204,7 +203,7 @@ public class PreviewMappingUseCaseTests
         var versionId  = Guid.NewGuid();
         SetupTemplate(templateId, versionId);
 
-        _mockMappingRepo.Setup(r => r.ListAsync(It.IsAny<Expression<Func<FieldMapping, bool>>>(), It.IsAny<CancellationToken>()))
+        _mockMappingRepo.Setup(r => r.GetByTemplateIdAsync(templateId, It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
         _mockStorage.Setup(s => s.DownloadAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new MemoryStream());
@@ -225,7 +224,7 @@ public class PreviewMappingUseCaseTests
         var versionId  = Guid.NewGuid();
         SetupTemplate(templateId, versionId);
 
-        _mockMappingRepo.Setup(r => r.ListAsync(It.IsAny<Expression<Func<FieldMapping, bool>>>(), It.IsAny<CancellationToken>()))
+        _mockMappingRepo.Setup(r => r.GetByTemplateIdAsync(templateId, It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
         _mockStorage.Setup(s => s.DownloadAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new MemoryStream());

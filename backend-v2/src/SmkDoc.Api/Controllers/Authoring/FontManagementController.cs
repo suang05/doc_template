@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Application.Modules.Authoring.Fonts;
 using SmkDoc.Api.Models;
 
-namespace SmkDoc.Api.Controllers;
+namespace SmkDoc.Api.Controllers.Authoring;
 
 /// <summary>
 /// Font management — list and upload custom fonts for PDF rendering.

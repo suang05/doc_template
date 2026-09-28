@@ -2,8 +2,9 @@ using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Models;
 using SmkDoc.Application.Modules.Authoring.Schemas.DTOs;
 using SmkDoc.Application.Modules.Authoring.Schemas;
+using System.Text.Json;
 
-namespace SmkDoc.Api.Controllers;
+namespace SmkDoc.Api.Controllers.Authoring;
 
 /// <summary>
 /// Standalone JSON Schema Draft-07 validation endpoints.
@@ -33,8 +34,8 @@ public class SchemaController : ControllerBase
     public IActionResult Validate([FromBody] ValidateStandaloneSchemaCommand command)
     {
         if (command == null ||
-            command.Schema.ValueKind is System.Text.Json.JsonValueKind.Undefined or System.Text.Json.JsonValueKind.Null ||
-            command.Payload.ValueKind is System.Text.Json.JsonValueKind.Undefined or System.Text.Json.JsonValueKind.Null)
+            command.Schema.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null ||
+            command.Payload.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null)
         {
             return BadRequest(new ApiResponse<object>(new
             {

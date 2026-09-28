@@ -285,5 +285,27 @@ public class ExcelTemplateEngineTests
         ws.PageSetup.PagesTall.Should().Be(1);
         ws.Cell("A1").GetString().Should().Be("Header: Landscape Report");
     }
+
+    [Fact]
+    public async Task RenderStreamAsync_WithOutputFormatPdf_ShouldCallPdfRendererStream()
+    {
+        var expectedStream = new MemoryStream(new byte[] { 0x25, 0x50, 0x44, 0x46 });
+        var mockPdf = new Mock<IPdfRenderer>();
+        mockPdf.Setup(p => p.RenderOfficeToPdfStreamAsync(It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+               .ReturnsAsync(expectedStream);
+
+        var engine = CreateEngine(mockPdf: mockPdf);
+        using var template = BuildWorkbook(ws =>
+        {
+            ws.Cell("A1").Value = "Header: {{title}}";
+        });
+
+        string json = """{"title": "Direct Stream Report"}""";
+
+        var resultStream = await engine.RenderStreamAsync(template, json, OutputFormat.Pdf);
+
+        mockPdf.Verify(p => p.RenderOfficeToPdfStreamAsync(It.IsAny<Stream>(), "spreadsheet.xlsx", It.IsAny<CancellationToken>()), Times.Once);
+        resultStream.Should().BeSameAs(expectedStream);
+    }
 }
 

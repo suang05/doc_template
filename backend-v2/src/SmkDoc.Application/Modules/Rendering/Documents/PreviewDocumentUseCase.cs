@@ -18,7 +18,7 @@ public sealed class PreviewDocumentUseCase(
     IStorageService storageService,
     IEnumerable<IRenderEngine> engines)
 {
-    public async Task<byte[]> ExecuteAsync(string? slug, PreviewDocumentQuery request, CancellationToken ct = default)
+    public async Task<Stream> ExecuteStreamAsync(string? slug, PreviewDocumentQuery request, CancellationToken ct = default)
     {
         Stream templateStream;
         RenderEngineType engineType;
@@ -56,11 +56,22 @@ public sealed class PreviewDocumentUseCase(
             string dataJson = request.Data.ValueKind != JsonValueKind.Undefined ? request.Data.GetRawText() : "{}";
 
             // Always render to PDF for preview
-            return await engine.RenderAsync(templateStream, dataJson, OutputFormat.Pdf, ct);
+            return await engine.RenderStreamAsync(templateStream, dataJson, OutputFormat.Pdf, ct);
         }
         finally
         {
             await templateStream.DisposeAsync();
         }
+    }
+
+    public async Task<byte[]> ExecuteAsync(string? slug, PreviewDocumentQuery request, CancellationToken ct = default)
+    {
+        await using var stream = await ExecuteStreamAsync(slug, request, ct);
+        if (stream is MemoryStream ms)
+            return ms.ToArray();
+
+        using var copyMs = new MemoryStream();
+        await stream.CopyToAsync(copyMs, ct);
+        return copyMs.ToArray();
     }
 }

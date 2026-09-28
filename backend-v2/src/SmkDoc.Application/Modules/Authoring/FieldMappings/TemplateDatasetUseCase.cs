@@ -7,23 +7,23 @@ using SmkDoc.Domain.Exceptions;
 namespace SmkDoc.Application.Modules.Authoring.FieldMappings;
 
 public sealed class TemplateDatasetUseCase(
-    IRepository<TemplateDataset> tdRepo,
-    IRepository<Template> templateRepo,
-    IRepository<Dataset> datasetRepo,
+    ITemplateDatasetRepository tdRepo,
+    ITemplateRepository templateRepo,
+    IDatasetRepository datasetRepo,
     IUnitOfWork unitOfWork)
 {
-    private readonly IRepository<TemplateDataset> _tdRepo = tdRepo;
-    private readonly IRepository<Template> _templateRepo = templateRepo;
-    private readonly IRepository<Dataset> _datasetRepo = datasetRepo;
+    private readonly ITemplateDatasetRepository _tdRepo = tdRepo;
+    private readonly ITemplateRepository _templateRepo = templateRepo;
+    private readonly IDatasetRepository _datasetRepo = datasetRepo;
     private readonly IUnitOfWork _unitOfWork = unitOfWork;
 
     public async Task<List<TemplateDatasetDto>> GetByTemplateIdAsync(Guid templateId, CancellationToken ct = default)
     {
-        var rows = await _tdRepo.ListAsync(td => td.TemplateId == templateId, ct);
+        var rows = await _tdRepo.GetByTemplateIdAsync(templateId, ct);
 
         // Enrich with dataset name
         var datasetIds = rows.Select(r => r.DatasetId).Distinct().ToList();
-        var datasets   = await _datasetRepo.ListAsync(d => datasetIds.Contains(d.Id), ct);
+        var datasets   = await _datasetRepo.GetByIdsAsync(datasetIds, ct);
         var dsMap      = datasets.ToDictionary(d => d.Id, d => d.Name);
 
         return rows
@@ -49,9 +49,8 @@ public sealed class TemplateDatasetUseCase(
             throw new InvalidOperationException("Dataset aliases must be unique within a template.");
 
         // Replace all existing assignments
-        var existing = await _tdRepo.ListAsync(td => td.TemplateId == templateId, ct);
-        foreach (var td in existing)
-            _tdRepo.Remove(td);
+        var existing = await _tdRepo.GetByTemplateIdAsync(templateId, ct);
+        _tdRepo.RemoveRange(existing);
 
         foreach (var item in items)
         {

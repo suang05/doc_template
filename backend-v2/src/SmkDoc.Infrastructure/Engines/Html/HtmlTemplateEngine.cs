@@ -42,7 +42,7 @@ public class HtmlTemplateEngine : IRenderEngine
 
     public RenderEngineType EngineType => RenderEngineType.Html;
 
-    public async Task<byte[]> RenderAsync(
+    public async Task<Stream> RenderStreamAsync(
         Stream templateStream,
         string inputDataJson,
         OutputFormat outputFormat,
@@ -82,13 +82,37 @@ public class HtmlTemplateEngine : IRenderEngine
         // 5. Render output format
         if (outputFormat == OutputFormat.Pdf)
         {
-            return await _pdfRenderer.RenderHtmlToPdfAsync(
+            var stream = await _pdfRenderer.RenderHtmlToPdfStreamAsync(
                 layoutResult.BodyHtml,
                 layoutResult.HeaderHtml,
                 layoutResult.FooterHtml,
                 ct);
+
+            if (stream == null)
+            {
+                var bytes = await _pdfRenderer.RenderHtmlToPdfAsync(
+                    layoutResult.BodyHtml,
+                    layoutResult.HeaderHtml,
+                    layoutResult.FooterHtml,
+                    ct);
+                return new MemoryStream(bytes);
+            }
+
+            return stream;
         }
 
-        return Encoding.UTF8.GetBytes(layoutResult.BodyHtml);
+        return new MemoryStream(Encoding.UTF8.GetBytes(layoutResult.BodyHtml));
+    }
+
+    public async Task<byte[]> RenderAsync(
+        Stream templateStream,
+        string inputDataJson,
+        OutputFormat outputFormat,
+        CancellationToken ct = default)
+    {
+        await using var stream = await RenderStreamAsync(templateStream, inputDataJson, outputFormat, ct);
+        using var ms = new MemoryStream();
+        await stream.CopyToAsync(ms, ct);
+        return ms.ToArray();
     }
 }

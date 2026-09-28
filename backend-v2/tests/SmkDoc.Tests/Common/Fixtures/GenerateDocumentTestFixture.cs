@@ -11,10 +11,10 @@ public class GenerateDocumentTestFixture
 {
     public Mock<IRepository<Template>> TemplateRepo { get; } = new();
     public Mock<IRepository<TemplateVersion>> VersionRepo { get; } = new();
-    public Mock<IRepository<FieldMapping>> MappingRepo { get; } = new();
-    public Mock<IRepository<TemplateDataset>> TdRepo { get; } = new();
-    public Mock<IRepository<Dataset>> DatasetRepo { get; } = new();
-    public Mock<IRepository<DataConnection>> ConnectionRepo { get; } = new();
+    public Mock<IFieldMappingRepository> MappingRepo { get; } = new();
+    public Mock<ITemplateDatasetRepository> TdRepo { get; } = new();
+    public Mock<IDatasetRepository> DatasetRepo { get; } = new();
+    public Mock<IDataConnectionRepository> ConnectionRepo { get; } = new();
     public Mock<IRepository<GenerationLog>> LogRepo { get; } = new();
     public Mock<IRepository<Document>> DocumentRepo { get; } = new();
     public Mock<IRepository<DocumentVersion>> DocVersionRepo { get; } = new();

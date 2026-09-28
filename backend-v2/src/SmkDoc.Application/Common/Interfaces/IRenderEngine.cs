@@ -14,7 +14,12 @@ public interface IRenderEngine
     RenderEngineType EngineType { get; }
 
     /// <summary>
-    /// Renders the template with provided data into target output format.
+    /// Renders the template with provided data into target output format as bytes.
     /// </summary>
     Task<byte[]> RenderAsync(Stream templateStream, string inputDataJson, OutputFormat outputFormat, CancellationToken ct = default);
+
+    /// <summary>
+    /// Renders the template with provided data directly into an output stream (Zero-LOH Buffering).
+    /// </summary>
+    Task<Stream> RenderStreamAsync(Stream templateStream, string inputDataJson, OutputFormat outputFormat, CancellationToken ct = default);
 }

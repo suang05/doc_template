@@ -45,9 +45,16 @@ public static class AuthoringModuleExtensions
         services.AddScoped<FieldMappingUseCase>();
         services.AddScoped<PreviewMappingUseCase>();
         services.AddScoped<TemplateDatasetUseCase>();
+        services.AddScoped<SmkDoc.Application.Modules.Authoring.FieldMappings.Queries.GetTemplateMappings.GetTemplateMappingsUseCase>();
+        services.AddScoped<SmkDoc.Application.Modules.Authoring.FieldMappings.Commands.SaveTemplateMappings.SaveTemplateMappingsUseCase>();
+        services.AddScoped<SmkDoc.Application.Modules.Authoring.FieldMappings.Queries.GetTemplateDatasets.GetTemplateDatasetsUseCase>();
+        services.AddScoped<SmkDoc.Application.Modules.Authoring.FieldMappings.Commands.SaveTemplateDatasets.SaveTemplateDatasetsUseCase>();
 
         // Fonts
         services.AddScoped<FontManagementUseCase>();
+        services.AddScoped<SmkDoc.Application.Modules.Authoring.Fonts.Queries.ListFonts.ListFontsUseCase>();
+        services.AddScoped<SmkDoc.Application.Modules.Authoring.Fonts.Commands.UploadFont.UploadFontUseCase>();
+        services.AddScoped<SmkDoc.Application.Modules.Authoring.Fonts.Queries.GetFontBase64.GetFontBase64UseCase>();
 
         // Schemas
         services.AddScoped<ValidateStandaloneSchemaUseCase>();

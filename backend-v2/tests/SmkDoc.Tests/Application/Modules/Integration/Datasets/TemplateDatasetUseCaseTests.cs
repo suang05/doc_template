@@ -1,21 +1,19 @@
-using System.Linq.Expressions;
 using FluentAssertions;
 using Moq;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 using SmkDoc.Application.Modules.Authoring.FieldMappings;
 using SmkDoc.Domain.Entities;
-using Xunit;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.Exceptions;
+using SmkDoc.Domain.Interfaces;
+using Xunit;
 
 namespace SmkDoc.Tests.Application.Modules.Integration.Datasets;
 
 public class TemplateDatasetUseCaseTests
 {
-    private readonly Mock<IRepository<TemplateDataset>> _tdRepoMock = new();
-    private readonly Mock<IRepository<Template>> _templateRepoMock = new();
-    private readonly Mock<IRepository<Dataset>> _datasetRepoMock = new();
+    private readonly Mock<ITemplateDatasetRepository> _tdRepoMock = new();
+    private readonly Mock<ITemplateRepository> _templateRepoMock = new();
+    private readonly Mock<IDatasetRepository> _datasetRepoMock = new();
     private readonly Mock<IUnitOfWork> _unitOfWorkMock = new();
 
     private TemplateDatasetUseCase CreateSut() =>
@@ -42,9 +40,9 @@ public class TemplateDatasetUseCaseTests
             new Dataset("Invoice Items", null, Guid.NewGuid(), "sql", 0) { Id = dsId2 }
         };
 
-        _tdRepoMock.Setup(r => r.ListAsync(It.IsAny<Expression<Func<TemplateDataset, bool>>>(), It.IsAny<CancellationToken>()))
+        _tdRepoMock.Setup(r => r.GetByTemplateIdAsync(templateId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(rows);
-        _datasetRepoMock.Setup(r => r.ListAsync(It.IsAny<Expression<Func<Dataset, bool>>>(), It.IsAny<CancellationToken>()))
+        _datasetRepoMock.Setup(r => r.GetByIdsAsync(It.IsAny<IEnumerable<Guid>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(datasets);
 
         var sut = CreateSut();
@@ -108,7 +106,7 @@ public class TemplateDatasetUseCaseTests
             new TemplateDataset(templateId, Guid.NewGuid(), "old_alias", 1) { Id = Guid.NewGuid() }
         };
 
-        _tdRepoMock.Setup(r => r.ListAsync(It.IsAny<Expression<Func<TemplateDataset, bool>>>(), It.IsAny<CancellationToken>()))
+        _tdRepoMock.Setup(r => r.GetByTemplateIdAsync(templateId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(existingOld);
 
         var addedItems = new List<TemplateDataset>();
@@ -128,7 +126,7 @@ public class TemplateDatasetUseCaseTests
         var sut = CreateSut();
         await sut.SaveAsync(templateId, newItems);
 
-        _tdRepoMock.Verify(r => r.Remove(existingOld[0]), Times.Once);
+        _tdRepoMock.Verify(r => r.RemoveRange(existingOld), Times.Once);
         addedItems.Should().HaveCount(1);
         addedItems[0].Alias.Should().Be("payments");
         addedItems[0].DatasetId.Should().Be(dsId);

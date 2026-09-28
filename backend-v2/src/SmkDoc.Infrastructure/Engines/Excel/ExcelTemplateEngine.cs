@@ -24,7 +24,7 @@ public class ExcelTemplateEngine : IRenderEngine
 
     public RenderEngineType EngineType => RenderEngineType.Excel;
 
-    public async Task<byte[]> RenderAsync(
+    public async Task<Stream> RenderStreamAsync(
         Stream templateStream,
         string inputDataJson,
         OutputFormat outputFormat,
@@ -86,16 +86,33 @@ public class ExcelTemplateEngine : IRenderEngine
             }
         }
 
-        using var outputStream = new MemoryStream();
+        var outputStream = new MemoryStream();
         workbook.SaveAs(outputStream);
-        byte[] processedXlsx = outputStream.ToArray();
+        outputStream.Position = 0;
 
         if (outputFormat == OutputFormat.Pdf)
         {
-            using var officeStream = new MemoryStream(processedXlsx);
-            return await _pdfRenderer.RenderOfficeToPdfAsync(officeStream, "spreadsheet.xlsx", ct);
+            var pdfStream = await _pdfRenderer.RenderOfficeToPdfStreamAsync(outputStream, "spreadsheet.xlsx", ct);
+            if (pdfStream == null)
+            {
+                var bytes = await _pdfRenderer.RenderOfficeToPdfAsync(outputStream, "spreadsheet.xlsx", ct);
+                return new MemoryStream(bytes);
+            }
+            return pdfStream;
         }
 
-        return processedXlsx;
+        return outputStream;
+    }
+
+    public async Task<byte[]> RenderAsync(
+        Stream templateStream,
+        string inputDataJson,
+        OutputFormat outputFormat,
+        CancellationToken ct = default)
+    {
+        await using var stream = await RenderStreamAsync(templateStream, inputDataJson, outputFormat, ct);
+        using var ms = new MemoryStream();
+        await stream.CopyToAsync(ms, ct);
+        return ms.ToArray();
     }
 }

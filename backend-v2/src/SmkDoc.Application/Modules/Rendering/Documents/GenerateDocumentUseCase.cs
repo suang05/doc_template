@@ -79,7 +79,7 @@ public sealed class GenerateDocumentUseCase(
 
         // --- Step 2: Download Template from Storage & Render Output ---
         using var templateStream = await _storageService.DownloadAsync(StorageBuckets.Templates, currentVersion.StorageKey, ct);
-        byte[] outputBytes = await engine.RenderAsync(templateStream, preparedData.DataJson, outputFormat, ct);
+        await using var outputStream = await engine.RenderStreamAsync(templateStream, preparedData.DataJson, outputFormat, ct);
 
         string ext = outputFormat.Extension;
         string contentType = outputFormat.MimeType;
@@ -87,8 +87,9 @@ public sealed class GenerateDocumentUseCase(
         var generationId = Guid.CreateVersion7();
         string outputKey = $"outputs/{DateTime.UtcNow:yyyy/MM/dd}/{slug}_{generationId:N}.{ext}";
 
-        using (var outputStream = new MemoryStream(outputBytes))
-            await _storageService.UploadAsync(StorageBuckets.Outputs, outputKey, outputStream, contentType, ct);
+        long fileSizeBytes = outputStream.CanSeek ? outputStream.Length : 0;
+
+        await _storageService.UploadAsync(StorageBuckets.Outputs, outputKey, outputStream, contentType, ct);
 
         var expiry = TimeSpan.FromHours(24);
         string downloadUrl = await _storageService.GetPresignedUrlAsync(StorageBuckets.Outputs, outputKey, expiry, ct);
@@ -103,7 +104,7 @@ public sealed class GenerateDocumentUseCase(
             preparedData.DataJson,
             outputKey,
             outputFormat,
-            outputBytes.LongLength,
+            fileSizeBytes,
             (int)sw.ElapsedMilliseconds,
             ct);
 

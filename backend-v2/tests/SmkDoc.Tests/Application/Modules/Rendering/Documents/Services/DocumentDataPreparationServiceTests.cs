@@ -1,4 +1,3 @@
-using System.Linq.Expressions;
 using System.Text.Json;
 using FluentAssertions;
 using Moq;
@@ -7,6 +6,7 @@ using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 using SmkDoc.Application.Modules.Rendering.Documents.Services;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
+using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Validation;
 using Xunit;
 
@@ -14,10 +14,10 @@ namespace SmkDoc.Tests.Application.Modules.Rendering.Documents.Services;
 
 public class DocumentDataPreparationServiceTests
 {
-    private readonly Mock<IRepository<FieldMapping>> _mockMappingRepo = new();
-    private readonly Mock<IRepository<TemplateDataset>> _mockTdRepo = new();
-    private readonly Mock<IRepository<Dataset>> _mockDatasetRepo = new();
-    private readonly Mock<IRepository<DataConnection>> _mockConnectionRepo = new();
+    private readonly Mock<IFieldMappingRepository> _mockMappingRepo = new();
+    private readonly Mock<ITemplateDatasetRepository> _mockTdRepo = new();
+    private readonly Mock<IDatasetRepository> _mockDatasetRepo = new();
+    private readonly Mock<IDataConnectionRepository> _mockConnectionRepo = new();
     private readonly Mock<IDataProtectionService> _mockDataProtection = new();
     private readonly Mock<IFieldMappingApplicatorService> _mockApplicator = new();
     private readonly Mock<IJsonSchemaValidationService> _mockSchemaValidation = new();
@@ -37,7 +37,7 @@ public class DocumentDataPreparationServiceTests
         // Arrange
         var template = new Template(Guid.NewGuid(), "Tpl", "tpl", null);
         var version = new TemplateVersion(template.Id, 1, "tpl.html", TemplateFormat.Html, "Pub", "Commit");
-        _mockMappingRepo.Setup(r => r.ListAsync(It.IsAny<Expression<Func<FieldMapping, bool>>>(), It.IsAny<CancellationToken>()))
+        _mockMappingRepo.Setup(r => r.GetByTemplateIdAsync(template.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<FieldMapping>());
 
         var service = BuildService();
@@ -61,7 +61,7 @@ public class DocumentDataPreparationServiceTests
         const string schema = """{"required":["field"]}""";
         version.UpdateDataSchema(schema, null);
 
-        _mockMappingRepo.Setup(r => r.ListAsync(It.IsAny<Expression<Func<FieldMapping, bool>>>(), It.IsAny<CancellationToken>()))
+        _mockMappingRepo.Setup(r => r.GetByTemplateIdAsync(template.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<FieldMapping>());
 
         var errors = new List<ValidationErrorItem> { new("/", "required", "Missing field") };

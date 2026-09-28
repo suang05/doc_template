@@ -58,9 +58,9 @@ public class DocumentController(
     [Produces("application/pdf")]
     public async Task<IActionResult> Preview([FromRoute] string? slug, [FromBody] PreviewDocumentQuery request, CancellationToken ct)
     {
-        byte[] pdfBytes = await previewUseCase.ExecuteAsync(slug, request, ct);
+        var pdfStream = await previewUseCase.ExecuteStreamAsync(slug, request, ct);
         Response.Headers.ContentDisposition = "inline";
-        return File(pdfBytes, "application/pdf");
+        return File(pdfStream, "application/pdf");
     }
 
     /// <summary>
@@ -106,10 +106,10 @@ public class DocumentController(
             return BadRequest(new { error = "File is required." });
         }
 
-        using var stream = file.OpenReadStream();
-        byte[] pdfBytes = await renderStatelessUseCase.ExecuteAsync(stream, file.FileName, jsonData, ct);
+        var stream = file.OpenReadStream();
+        var pdfStream = await renderStatelessUseCase.ExecuteStreamAsync(stream, file.FileName, jsonData, ct);
         
         Response.Headers.ContentDisposition = "inline";
-        return File(pdfBytes, "application/pdf");
+        return File(pdfStream, "application/pdf");
     }
 }

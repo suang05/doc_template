@@ -24,11 +24,11 @@ public class DocxTemplateEngine : IRenderEngine
 
     public RenderEngineType EngineType => RenderEngineType.Docx;
 
-    public async Task<byte[]> RenderAsync(Stream templateStream, string inputDataJson, OutputFormat outputFormat, CancellationToken ct = default)
+    public async Task<Stream> RenderStreamAsync(Stream templateStream, string inputDataJson, OutputFormat outputFormat, CancellationToken ct = default)
     {
         var (replacements, tables) = _jsonDataParser.Flatten(inputDataJson);
 
-        using var memoryStream = new MemoryStream();
+        var memoryStream = new MemoryStream();
         await templateStream.CopyToAsync(memoryStream, ct);
         memoryStream.Position = 0;
 
@@ -49,14 +49,27 @@ public class DocxTemplateEngine : IRenderEngine
             mainPart.Document.Save();
         }
 
-        byte[] processedDocx = memoryStream.ToArray();
+        memoryStream.Position = 0;
 
         if (outputFormat == OutputFormat.Pdf)
         {
-            using var officeStream = new MemoryStream(processedDocx);
-            return await _pdfRenderer.RenderOfficeToPdfAsync(officeStream, "document.docx", ct);
+            var pdfStream = await _pdfRenderer.RenderOfficeToPdfStreamAsync(memoryStream, "document.docx", ct);
+            if (pdfStream == null)
+            {
+                var bytes = await _pdfRenderer.RenderOfficeToPdfAsync(memoryStream, "document.docx", ct);
+                return new MemoryStream(bytes);
+            }
+            return pdfStream;
         }
 
-        return processedDocx;
+        return memoryStream;
+    }
+
+    public async Task<byte[]> RenderAsync(Stream templateStream, string inputDataJson, OutputFormat outputFormat, CancellationToken ct = default)
+    {
+        await using var stream = await RenderStreamAsync(templateStream, inputDataJson, outputFormat, ct);
+        using var ms = new MemoryStream();
+        await stream.CopyToAsync(ms, ct);
+        return ms.ToArray();
     }
 }

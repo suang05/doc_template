@@ -12,7 +12,7 @@ namespace SmkDoc.Tests.Application.Modules.Integration.Datasets;
 
 public class DataConnectionUseCaseTests
 {
-    private readonly Mock<IRepository<DataConnection>> _repositoryMock = new();
+    private readonly Mock<IDataConnectionRepository> _repositoryMock = new();
     private readonly Mock<IUnitOfWork> _unitOfWorkMock = new();
     private readonly Mock<IDataProtectionService> _dataProtectionMock = new();
     private readonly Mock<ISqlExecutorService> _sqlExecutorMock = new();
@@ -34,7 +34,7 @@ public class DataConnectionUseCaseTests
             Id = Guid.NewGuid()
         };
 
-        _repositoryMock.Setup(r => r.ListAsync(It.IsAny<Expression<Func<DataConnection, bool>>>(), It.IsAny<CancellationToken>()))
+        _repositoryMock.Setup(r => r.ListAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<DataConnection> { conn1, conn2 });
 
         var sut = CreateSut();

@@ -1,6 +1,7 @@
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 using SmkDoc.Domain.Entities;
+using SmkDoc.Domain.Interfaces;
 
 namespace SmkDoc.Application.Common.Helpers;
 
@@ -12,13 +13,13 @@ public static class DatasetAliasMapBuilder
     /// </summary>
     public static async Task<IReadOnlyDictionary<string, ResolvedDatasetContext>> BuildAsync(
         Guid templateId,
-        IRepository<TemplateDataset> tdRepo,
-        IRepository<Dataset> datasetRepo,
-        IRepository<DataConnection> connectionRepo,
+        ITemplateDatasetRepository tdRepo,
+        IDatasetRepository datasetRepo,
+        IDataConnectionRepository connectionRepo,
         IDataProtectionService dataProtection,
         CancellationToken ct)
     {
-        var assignments = await tdRepo.ListAsync(td => td.TemplateId == templateId, ct);
+        var assignments = await tdRepo.GetByTemplateIdAsync(templateId, ct);
         if (assignments.Count == 0)
             return new Dictionary<string, ResolvedDatasetContext>(StringComparer.OrdinalIgnoreCase);
 

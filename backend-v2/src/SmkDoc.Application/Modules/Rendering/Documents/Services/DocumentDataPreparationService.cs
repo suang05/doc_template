@@ -2,23 +2,24 @@ using System.Text.Json;
 using SmkDoc.Application.Common.Helpers;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Entities;
+using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Validation;
 
 namespace SmkDoc.Application.Modules.Rendering.Documents.Services;
 
 public sealed class DocumentDataPreparationService(
-    IRepository<FieldMapping> mappingRepo,
-    IRepository<TemplateDataset> tdRepo,
-    IRepository<Dataset> datasetRepo,
-    IRepository<DataConnection> connectionRepo,
+    IFieldMappingRepository mappingRepo,
+    ITemplateDatasetRepository tdRepo,
+    IDatasetRepository datasetRepo,
+    IDataConnectionRepository connectionRepo,
     IDataProtectionService dataProtection,
     IFieldMappingApplicatorService fieldMappingApplicator,
     IJsonSchemaValidationService schemaValidation) : IDocumentDataPreparationService
 {
-    private readonly IRepository<FieldMapping> _mappingRepo = mappingRepo;
-    private readonly IRepository<TemplateDataset> _tdRepo = tdRepo;
-    private readonly IRepository<Dataset> _datasetRepo = datasetRepo;
-    private readonly IRepository<DataConnection> _connectionRepo = connectionRepo;
+    private readonly IFieldMappingRepository _mappingRepo = mappingRepo;
+    private readonly ITemplateDatasetRepository _tdRepo = tdRepo;
+    private readonly IDatasetRepository _datasetRepo = datasetRepo;
+    private readonly IDataConnectionRepository _connectionRepo = connectionRepo;
     private readonly IDataProtectionService _dataProtection = dataProtection;
     private readonly IFieldMappingApplicatorService _fieldMappingApplicator = fieldMappingApplicator;
     private readonly IJsonSchemaValidationService _schemaValidation = schemaValidation;
@@ -30,7 +31,7 @@ public sealed class DocumentDataPreparationService(
         bool skipValidation,
         CancellationToken ct = default)
     {
-        var mappings = await _mappingRepo.ListAsync(m => m.TemplateId == template.Id, ct) ?? [];
+        var mappings = await _mappingRepo.GetByTemplateIdAsync(template.Id, ct) ?? [];
         string dataJson;
 
         if (mappings.Count > 0)

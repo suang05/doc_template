@@ -25,10 +25,10 @@ public class GenerateDocumentUseCaseTests
 
     private Mock<IRepository<Template>> _mockTemplateRepo => _fixture.TemplateRepo;
     private Mock<IRepository<TemplateVersion>> _mockVersionRepo => _fixture.VersionRepo;
-    private Mock<IRepository<FieldMapping>> _mockMappingRepo => _fixture.MappingRepo;
-    private Mock<IRepository<TemplateDataset>> _mockTdRepo => _fixture.TdRepo;
-    private Mock<IRepository<Dataset>> _mockDatasetRepo => _fixture.DatasetRepo;
-    private Mock<IRepository<DataConnection>> _mockConnectionRepo => _fixture.ConnectionRepo;
+    private Mock<IFieldMappingRepository> _mockMappingRepo => _fixture.MappingRepo;
+    private Mock<ITemplateDatasetRepository> _mockTdRepo => _fixture.TdRepo;
+    private Mock<IDatasetRepository> _mockDatasetRepo => _fixture.DatasetRepo;
+    private Mock<IDataConnectionRepository> _mockConnectionRepo => _fixture.ConnectionRepo;
     private Mock<IRepository<GenerationLog>> _mockLogRepo => _fixture.LogRepo;
     private Mock<IRepository<Document>> _mockDocumentRepo => _fixture.DocumentRepo;
     private Mock<IRepository<DocumentVersion>> _mockDocVersionRepo => _fixture.DocVersionRepo;
@@ -74,10 +74,10 @@ public class GenerateDocumentUseCaseTests
             .ReturnsAsync(new MemoryStream(Encoding.UTF8.GetBytes("<html><body>{{name}}</body></html>")));
 
         _mockEngine.Setup(e => e.EngineType).Returns(RenderEngineType.Html);
-        _mockEngine.Setup(e => e.RenderAsync(It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<OutputFormat>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Encoding.UTF8.GetBytes("%PDF-1.4 Mock Output"));
+        _mockEngine.Setup(e => e.RenderStreamAsync(It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<OutputFormat>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MemoryStream(Encoding.UTF8.GetBytes("%PDF-1.4 Mock Output")));
 
-        _mockMappingRepo.Setup(r => r.ListAsync(It.IsAny<Expression<Func<FieldMapping, bool>>>(), It.IsAny<CancellationToken>()))
+        _mockMappingRepo.Setup(r => r.GetByTemplateIdAsync(templateId, It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
 
         // No existing Document for this ref
@@ -184,10 +184,10 @@ public class GenerateDocumentUseCaseTests
         };
 
         mappings[0].UpdateMappingDetails("contract.price", "Price in Baht Text", true, null, "baht", 1);
-        _mockMappingRepo.Setup(r => r.ListAsync(It.IsAny<Expression<Func<FieldMapping, bool>>>(), It.IsAny<CancellationToken>()))
+        _mockMappingRepo.Setup(r => r.GetByTemplateIdAsync(templateId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(mappings);
 
-        _mockTdRepo.Setup(r => r.ListAsync(It.IsAny<Expression<Func<TemplateDataset, bool>>>(), It.IsAny<CancellationToken>()))
+        _mockTdRepo.Setup(r => r.GetByTemplateIdAsync(templateId, It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
 
         _mockApplicator.Setup(s => s.ApplyAsync(
@@ -198,9 +198,9 @@ public class GenerateDocumentUseCaseTests
 
         string capturedDataJson = string.Empty;
         _mockEngine.Setup(e => e.EngineType).Returns(RenderEngineType.Html);
-        _mockEngine.Setup(e => e.RenderAsync(It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<OutputFormat>(), It.IsAny<CancellationToken>()))
+        _mockEngine.Setup(e => e.RenderStreamAsync(It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<OutputFormat>(), It.IsAny<CancellationToken>()))
             .Callback<Stream, string, OutputFormat, CancellationToken>((_, json, _, _) => capturedDataJson = json)
-            .ReturnsAsync(Encoding.UTF8.GetBytes("%PDF-1.4 Mock Output"));
+            .ReturnsAsync(new MemoryStream(Encoding.UTF8.GetBytes("%PDF-1.4 Mock Output")));
 
         _mockStorage.Setup(s => s.GetPresignedUrlAsync("outputs", It.IsAny<string>(), It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("https://minio.sammakorn.co.th/outputs/sample.pdf");
@@ -238,12 +238,12 @@ public class GenerateDocumentUseCaseTests
         _mockStorage.Setup(s => s.DownloadAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new MemoryStream(Encoding.UTF8.GetBytes("<html></html>")));
         _mockEngine.Setup(e => e.EngineType).Returns(RenderEngineType.Html);
-        _mockEngine.Setup(e => e.RenderAsync(It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<OutputFormat>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Encoding.UTF8.GetBytes("%PDF-1.4"));
+        _mockEngine.Setup(e => e.RenderStreamAsync(It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<OutputFormat>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MemoryStream(Encoding.UTF8.GetBytes("%PDF-1.4")));
         _mockStorage.Setup(s => s.GetPresignedUrlAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("https://minio.sammakorn.co.th/outputs/sc.pdf");
 
-        _mockMappingRepo.Setup(r => r.ListAsync(It.IsAny<Expression<Func<FieldMapping, bool>>>(), It.IsAny<CancellationToken>()))
+        _mockMappingRepo.Setup(r => r.GetByTemplateIdAsync(templateId, It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
 
         // Existing document found
@@ -290,7 +290,7 @@ public class GenerateDocumentUseCaseTests
             .ReturnsAsync(template);
         _mockVersionRepo.Setup(r => r.GetByIdAsync(versionId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(currentVersion);
-        _mockMappingRepo.Setup(r => r.ListAsync(It.IsAny<Expression<Func<FieldMapping, bool>>>(), It.IsAny<CancellationToken>()))
+        _mockMappingRepo.Setup(r => r.GetByTemplateIdAsync(templateId, It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
 
         // Service returns invalid result (missing required field "doc_no")
@@ -330,7 +330,7 @@ public class GenerateDocumentUseCaseTests
         _mockLogRepo.Verify(r => r.AddAsync(
             It.Is<GenerationLog>(l => l.Status == "VALIDATION_FAILED"),
             It.IsAny<CancellationToken>()), Times.Once);
-        _mockEngine.Verify(e => e.RenderAsync(
+        _mockEngine.Verify(e => e.RenderStreamAsync(
             It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<OutputFormat>(), It.IsAny<CancellationToken>()),
             Times.Never);
         _mockStorage.Verify(s => s.DownloadAsync(
@@ -355,12 +355,12 @@ public class GenerateDocumentUseCaseTests
             .ReturnsAsync(template);
         _mockVersionRepo.Setup(r => r.GetByIdAsync(versionId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(currentVersion);
-        _mockMappingRepo.Setup(r => r.ListAsync(It.IsAny<Expression<Func<FieldMapping, bool>>>(), It.IsAny<CancellationToken>()))
+        _mockMappingRepo.Setup(r => r.GetByTemplateIdAsync(templateId, It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
 
         _mockEngine.Setup(e => e.EngineType).Returns(RenderEngineType.Html);
-        _mockEngine.Setup(e => e.RenderAsync(It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<OutputFormat>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new byte[] { 1, 2, 3 });
+        _mockEngine.Setup(e => e.RenderStreamAsync(It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<OutputFormat>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MemoryStream(new byte[] { 1, 2, 3 }));
         _mockStorage.Setup(s => s.DownloadAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new MemoryStream());
         _mockStorage.Setup(s => s.UploadAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
@@ -380,7 +380,7 @@ public class GenerateDocumentUseCaseTests
 
         // Assert — validation service never called; render completed successfully
         _mockSchemaValidation.Verify(s => s.Validate(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
-        _mockEngine.Verify(e => e.RenderAsync(It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<OutputFormat>(), It.IsAny<CancellationToken>()), Times.Once);
+        _mockEngine.Verify(e => e.RenderStreamAsync(It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<OutputFormat>(), It.IsAny<CancellationToken>()), Times.Once);
         result.Url.Should().Be("https://example.com/download/invoice.pdf");
     }
 }

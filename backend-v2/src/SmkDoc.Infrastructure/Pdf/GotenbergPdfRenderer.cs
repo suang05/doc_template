@@ -17,9 +17,9 @@ public class GotenbergPdfRenderer : IPdfRenderer
         _logger = logger;
     }
 
-    public async Task<byte[]> RenderHtmlToPdfAsync(string html, string? headerHtml = null, string? footerHtml = null, CancellationToken ct = default)
+    public async Task<Stream> RenderHtmlToPdfStreamAsync(string html, string? headerHtml = null, string? footerHtml = null, CancellationToken ct = default)
     {
-        using var content = new MultipartFormDataContent();
+        var content = new MultipartFormDataContent();
         var htmlContent = new ByteArrayContent(Encoding.UTF8.GetBytes(html));
         htmlContent.Headers.ContentType = new MediaTypeHeaderValue("text/html");
         content.Add(htmlContent, "files", "index.html");
@@ -46,13 +46,21 @@ public class GotenbergPdfRenderer : IPdfRenderer
             throw new RenderException("html", "GotenbergChromium", err);
         }
 
-        return await response.Content.ReadAsByteArrayAsync(ct);
+        return await response.Content.ReadAsStreamAsync(ct);
     }
 
-    public async Task<byte[]> RenderOfficeToPdfAsync(Stream officeStream, string fileName, CancellationToken ct = default)
+    public async Task<byte[]> RenderHtmlToPdfAsync(string html, string? headerHtml = null, string? footerHtml = null, CancellationToken ct = default)
     {
-        using var content = new MultipartFormDataContent();
-        using var streamContent = new StreamContent(officeStream);
+        await using var stream = await RenderHtmlToPdfStreamAsync(html, headerHtml, footerHtml, ct);
+        using var ms = new MemoryStream();
+        await stream.CopyToAsync(ms, ct);
+        return ms.ToArray();
+    }
+
+    public async Task<Stream> RenderOfficeToPdfStreamAsync(Stream officeStream, string fileName, CancellationToken ct = default)
+    {
+        var content = new MultipartFormDataContent();
+        var streamContent = new StreamContent(officeStream);
         streamContent.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
         content.Add(streamContent, "files", fileName);
 
@@ -64,6 +72,14 @@ public class GotenbergPdfRenderer : IPdfRenderer
             throw new RenderException(fileName, "GotenbergLibreOffice", err);
         }
 
-        return await response.Content.ReadAsByteArrayAsync(ct);
+        return await response.Content.ReadAsStreamAsync(ct);
+    }
+
+    public async Task<byte[]> RenderOfficeToPdfAsync(Stream officeStream, string fileName, CancellationToken ct = default)
+    {
+        await using var stream = await RenderOfficeToPdfStreamAsync(officeStream, fileName, ct);
+        using var ms = new MemoryStream();
+        await stream.CopyToAsync(ms, ct);
+        return ms.ToArray();
     }
 }

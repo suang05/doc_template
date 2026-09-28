@@ -7,19 +7,19 @@ using SmkDoc.Domain.Exceptions;
 namespace SmkDoc.Application.Modules.Integration.Datasets;
 
 public sealed class DatasetUseCase(
-    IRepository<Dataset> datasetRepo,
-    IRepository<DataConnection> connectionRepo,
+    IDatasetRepository datasetRepo,
+    IDataConnectionRepository connectionRepo,
     IUnitOfWork unitOfWork)
 {
-    private readonly IRepository<Dataset> _datasetRepo = datasetRepo;
-    private readonly IRepository<DataConnection> _connectionRepo = connectionRepo;
+    private readonly IDatasetRepository _datasetRepo = datasetRepo;
+    private readonly IDataConnectionRepository _connectionRepo = connectionRepo;
     private readonly IUnitOfWork _unitOfWork = unitOfWork;
 
     public async Task<List<DatasetDto>> GetAllAsync(CancellationToken ct = default)
     {
-        var datasets     = await _datasetRepo.ListAsync(_ => true, ct);
+        var datasets     = await _datasetRepo.ListAsync(ct);
         var connectionIds = datasets.Select(d => d.DataConnectionId).Distinct().ToList();
-        var connections  = await _connectionRepo.ListAsync(c => connectionIds.Contains(c.Id), ct);
+        var connections  = await _connectionRepo.GetByIdsAsync(connectionIds, ct);
         var connMap      = connections.ToDictionary(c => c.Id);
 
         return datasets.Select(d => ToDto(d, connMap)).ToList();

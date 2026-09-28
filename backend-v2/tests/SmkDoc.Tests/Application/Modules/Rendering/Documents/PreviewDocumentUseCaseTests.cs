@@ -23,8 +23,8 @@ public class PreviewDocumentUseCaseTests
     {
         // Arrange
         _mockEngine.Setup(e => e.EngineType).Returns(RenderEngineType.Html);
-        _mockEngine.Setup(e => e.RenderAsync(It.IsAny<Stream>(), It.IsAny<string>(), OutputFormat.Pdf, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Encoding.UTF8.GetBytes("%PDF-1.4 Ephemeral Preview"));
+        _mockEngine.Setup(e => e.RenderStreamAsync(It.IsAny<Stream>(), It.IsAny<string>(), OutputFormat.Pdf, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MemoryStream(Encoding.UTF8.GetBytes("%PDF-1.4 Ephemeral Preview")));
 
         var useCase = new PreviewDocumentUseCase(
             _mockTemplateRepo.Object,
@@ -55,8 +55,8 @@ public class PreviewDocumentUseCaseTests
     {
         // Arrange
         _mockEngine.Setup(e => e.EngineType).Returns(RenderEngineType.Html);
-        _mockEngine.Setup(e => e.RenderAsync(It.IsAny<Stream>(), It.IsAny<string>(), OutputFormat.Pdf, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Encoding.UTF8.GetBytes("%PDF-1.4 Unsaved Template Preview"));
+        _mockEngine.Setup(e => e.RenderStreamAsync(It.IsAny<Stream>(), It.IsAny<string>(), OutputFormat.Pdf, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MemoryStream(Encoding.UTF8.GetBytes("%PDF-1.4 Unsaved Template Preview")));
 
         var useCase = new PreviewDocumentUseCase(
             _mockTemplateRepo.Object,
@@ -77,5 +77,38 @@ public class PreviewDocumentUseCaseTests
         // Assert
         previewBytes.Should().NotBeNullOrEmpty();
         _mockTemplateRepo.Verify(r => r.FirstOrDefaultAsync(It.IsAny<System.Linq.Expressions.Expression<System.Func<Template, bool>>>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ExecuteStreamAsync_ShouldReturnDirectStreamWithoutStorageSideEffects()
+    {
+        // Arrange
+        _mockEngine.Setup(e => e.EngineType).Returns(RenderEngineType.Html);
+        _mockEngine.Setup(e => e.RenderStreamAsync(It.IsAny<Stream>(), It.IsAny<string>(), OutputFormat.Pdf, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MemoryStream(Encoding.UTF8.GetBytes("%PDF-1.4 Direct Stream Preview")));
+
+        var useCase = new PreviewDocumentUseCase(
+            _mockTemplateRepo.Object,
+            _mockVersionRepo.Object,
+            _mockStorage.Object,
+            new[] { _mockEngine.Object }
+        );
+
+        using var jsonDoc = JsonDocument.Parse("{\"key\": \"val\"}");
+        var request = new PreviewDocumentQuery(
+            Data: jsonDoc.RootElement,
+            Html: "<html><body>Stream Test</body></html>"
+        );
+
+        // Act
+        await using var streamResult = await useCase.ExecuteStreamAsync(null, request);
+
+        // Assert
+        streamResult.Should().NotBeNull();
+        using var reader = new StreamReader(streamResult);
+        string text = await reader.ReadToEndAsync();
+        text.Should().Contain("%PDF-1.4 Direct Stream Preview");
+
+        _mockStorage.Verify(s => s.UploadAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 }

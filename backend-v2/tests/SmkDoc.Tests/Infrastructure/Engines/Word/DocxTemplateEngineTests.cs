@@ -216,4 +216,22 @@ public class DocxTemplateEngineTests
         var text = ExtractText(result);
         text.Should().Contain("{{documentNo}}");
     }
+
+    [Fact]
+    public async Task RenderStreamAsync_WithOutputFormatPdf_ShouldCallPdfRendererStream()
+    {
+        var expectedStream = new MemoryStream(new byte[] { 0x25, 0x50, 0x44, 0x46 });
+        var mockPdf = new Mock<IPdfRenderer>();
+        mockPdf.Setup(p => p.RenderOfficeToPdfStreamAsync(It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+               .ReturnsAsync(expectedStream);
+
+        var engine = CreateEngine(mockPdf);
+        using var stream = BuildDocx("{{title}}");
+        string data = "{\"title\": \"Test\"}";
+
+        var resultStream = await engine.RenderStreamAsync(stream, data, OutputFormat.Pdf);
+
+        mockPdf.Verify(p => p.RenderOfficeToPdfStreamAsync(It.IsAny<Stream>(), "document.docx", It.IsAny<CancellationToken>()), Times.Once);
+        resultStream.Should().BeSameAs(expectedStream);
+    }
 }

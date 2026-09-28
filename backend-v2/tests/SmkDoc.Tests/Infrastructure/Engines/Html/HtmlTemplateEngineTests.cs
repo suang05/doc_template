@@ -113,5 +113,22 @@ public class HtmlTemplateEngineTests
         result.Should().NotBeNull();
         mockCache.Verify(c => c.GetOrAdd(It.Is<string>(s => !string.IsNullOrEmpty(s)), It.IsAny<Func<Func<object, string>>>()), Times.Once);
     }
+
+    [Fact]
+    public async Task RenderStreamAsync_ShouldDirectlyReturnStreamFromPdfRenderer()
+    {
+        var mockPdf = new Mock<IPdfRenderer>();
+        var expectedStream = new MemoryStream(Encoding.UTF8.GetBytes("%PDF-1.4 direct stream"));
+        mockPdf.Setup(p => p.RenderHtmlToPdfStreamAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(expectedStream);
+
+        var engine = CreateEngine(mockPdf.Object);
+
+        string template = "<html><body><h1>Direct Stream</h1></body></html>";
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(template));
+        var resultStream = await engine.RenderStreamAsync(stream, "{}", OutputFormat.Pdf);
+
+        resultStream.Should().BeSameAs(expectedStream);
+    }
 }
 

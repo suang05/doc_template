@@ -8,17 +8,17 @@ using SmkDoc.Domain.Exceptions;
 namespace SmkDoc.Application.Modules.Authoring.FieldMappings;
 
 public sealed class FieldMappingUseCase(
-    IRepository<FieldMapping> mappingRepo,
-    IRepository<Template> templateRepo,
+    IFieldMappingRepository mappingRepo,
+    ITemplateRepository templateRepo,
     IUnitOfWork unitOfWork)
 {
-    private readonly IRepository<FieldMapping> _mappingRepo = mappingRepo;
-    private readonly IRepository<Template> _templateRepo = templateRepo;
+    private readonly IFieldMappingRepository _mappingRepo = mappingRepo;
+    private readonly ITemplateRepository _templateRepo = templateRepo;
     private readonly IUnitOfWork _unitOfWork = unitOfWork;
 
     public async Task<List<FieldMappingDto>> GetMappingsByTemplateIdAsync(Guid templateId, CancellationToken ct = default)
     {
-        var mappings = await _mappingRepo.ListAsync(m => m.TemplateId == templateId, ct);
+        var mappings = await _mappingRepo.GetByTemplateIdAsync(templateId, ct);
         return mappings
             .OrderBy(m => m.SortOrder)
             .Select(m => new FieldMappingDto(
@@ -44,11 +44,8 @@ public sealed class FieldMappingUseCase(
         var template = await _templateRepo.GetByIdAsync(templateId, ct)
             ?? throw new NotFoundException($"Template '{templateId}' not found.");
 
-        var existing = await _mappingRepo.ListAsync(m => m.TemplateId == templateId, ct);
-        foreach (var m in existing)
-        {
-            _mappingRepo.Remove(m);
-        }
+        var existing = await _mappingRepo.GetByTemplateIdAsync(templateId, ct);
+        _mappingRepo.RemoveRange(existing);
 
         foreach (var item in items)
         {

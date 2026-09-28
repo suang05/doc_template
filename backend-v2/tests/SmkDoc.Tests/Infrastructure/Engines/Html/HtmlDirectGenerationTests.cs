@@ -19,10 +19,10 @@ public class HtmlDirectGenerationTests
 {
     private readonly Mock<IRepository<Template>>        _mockTemplateRepo    = new();
     private readonly Mock<IRepository<TemplateVersion>> _mockVersionRepo     = new();
-    private readonly Mock<IRepository<FieldMapping>>    _mockMappingRepo     = new();
-    private readonly Mock<IRepository<TemplateDataset>> _mockTdRepo          = new();
-    private readonly Mock<IRepository<Dataset>>         _mockDatasetRepo     = new();
-    private readonly Mock<IRepository<DataConnection>>  _mockConnectionRepo  = new();
+    private readonly Mock<IFieldMappingRepository>      _mockMappingRepo     = new();
+    private readonly Mock<ITemplateDatasetRepository>   _mockTdRepo          = new();
+    private readonly Mock<IDatasetRepository>           _mockDatasetRepo     = new();
+    private readonly Mock<IDataConnectionRepository>    _mockConnectionRepo  = new();
     private readonly Mock<IRepository<GenerationLog>>   _mockLogRepo         = new();
     private readonly Mock<IRepository<Document>>        _mockDocumentRepo    = new();
     private readonly Mock<IRepository<DocumentVersion>> _mockDocVersionRepo  = new();
@@ -82,7 +82,7 @@ public class HtmlDirectGenerationTests
             .ReturnsAsync(version);
 
         // Crucial: 0 mappings in database!
-        _mockMappingRepo.Setup(r => r.ListAsync(It.IsAny<Expression<Func<FieldMapping, bool>>>(), It.IsAny<CancellationToken>()))
+        _mockMappingRepo.Setup(r => r.GetByTemplateIdAsync(templateId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<FieldMapping>());
 
         _mockStorage.Setup(s => s.DownloadAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))

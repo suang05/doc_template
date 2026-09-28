@@ -6,19 +6,19 @@ using SmkDoc.Domain.Interfaces;
 namespace SmkDoc.Application.Modules.Integration.DataConnections;
 
 public sealed class DataConnectionUseCase(
-    IRepository<DataConnection> repository,
+    IDataConnectionRepository repository,
     IUnitOfWork unitOfWork,
     IDataProtectionService dataProtection,
     ISqlExecutorService sqlExecutor)
 {
-    private readonly IRepository<DataConnection> _repository = repository;
+    private readonly IDataConnectionRepository _repository = repository;
     private readonly IUnitOfWork _unitOfWork = unitOfWork;
     private readonly IDataProtectionService _dataProtection = dataProtection;
     private readonly ISqlExecutorService _sqlExecutor = sqlExecutor;
 
     public async Task<List<DataConnectionDto>> GetAllAsync()
     {
-        var connections = await _repository.ListAsync(c => true);
+        var connections = await _repository.ListAsync();
         return connections.Select(c => new DataConnectionDto
         {
             Id = c.Id,

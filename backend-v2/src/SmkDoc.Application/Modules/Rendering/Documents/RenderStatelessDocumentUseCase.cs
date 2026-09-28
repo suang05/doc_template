@@ -10,7 +10,7 @@ namespace SmkDoc.Application.Modules.Rendering.Documents;
 /// </summary>
 public sealed class RenderStatelessDocumentUseCase(IEnumerable<IRenderEngine> engines)
 {
-    public async Task<byte[]> ExecuteAsync(Stream fileStream, string fileName, string? jsonData, CancellationToken ct = default)
+    public async Task<Stream> ExecuteStreamAsync(Stream fileStream, string fileName, string? jsonData, CancellationToken ct = default)
     {
         var engineType = GetEngineTypeFromFileName(fileName);
         var engine = engines.FirstOrDefault(e => e.EngineType == engineType) 
@@ -18,8 +18,19 @@ public sealed class RenderStatelessDocumentUseCase(IEnumerable<IRenderEngine> en
 
         string payload = string.IsNullOrWhiteSpace(jsonData) ? "{}" : jsonData;
 
-        // Render stateless document to PDF
-        return await engine.RenderAsync(fileStream, payload, OutputFormat.Pdf, ct);
+        // Render stateless document to PDF stream
+        return await engine.RenderStreamAsync(fileStream, payload, OutputFormat.Pdf, ct);
+    }
+
+    public async Task<byte[]> ExecuteAsync(Stream fileStream, string fileName, string? jsonData, CancellationToken ct = default)
+    {
+        await using var stream = await ExecuteStreamAsync(fileStream, fileName, jsonData, ct);
+        if (stream is MemoryStream ms)
+            return ms.ToArray();
+
+        using var copyMs = new MemoryStream();
+        await stream.CopyToAsync(copyMs, ct);
+        return copyMs.ToArray();
     }
 
     private RenderEngineType GetEngineTypeFromFileName(string fileName)

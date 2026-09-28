@@ -46,6 +46,10 @@ public static class DependencyInjection
 
         services.AddScoped(typeof(IRepository<>), typeof(EfRepository<>));
         services.AddScoped<ITemplateRepository, TemplateRepository>();
+        services.AddScoped<IDatasetRepository, DatasetRepository>();
+        services.AddScoped<IDataConnectionRepository, DataConnectionRepository>();
+        services.AddScoped<IFieldMappingRepository, FieldMappingRepository>();
+        services.AddScoped<ITemplateDatasetRepository, TemplateDatasetRepository>();
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IUserProjectRoleRepository, UserProjectRoleRepository>();
         services.AddScoped<IGenerationLogMetricsRepository, GenerationLogMetricsRepository>();
