@@ -1,8 +1,8 @@
 using FluentAssertions;
 using Moq;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.DTOs.FieldMappings;
-using SmkDoc.Application.UseCases.FieldMappings;
+using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
+using SmkDoc.Application.Modules.Authoring.FieldMappings;
 using SmkDoc.Domain.Entities;
 using Xunit;
 using SmkDoc.Domain.Interfaces;

@@ -1,7 +1,7 @@
 using System.Text.RegularExpressions;
 using FluentValidation;
 
-namespace SmkDoc.Application.UseCases.Templates.Commands.CreateTemplate;
+namespace SmkDoc.Application.Modules.Authoring.Templates.Commands.CreateTemplate;
 
 public sealed partial class CreateTemplateCommandValidator : AbstractValidator<CreateTemplateCommand>
 {

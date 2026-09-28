@@ -1,10 +1,10 @@
 using FluentValidation;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.DTOs.Templates;
+using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 
-namespace SmkDoc.Application.UseCases.Templates.Commands.UpdateTemplateDetails;
+namespace SmkDoc.Application.Modules.Authoring.Templates.Commands.UpdateTemplateDetails;
 
 /// <summary>
 /// Single-responsibility Use Case for updating template metadata (name, category).

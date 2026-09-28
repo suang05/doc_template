@@ -1,6 +1,6 @@
-using SmkDoc.Application.DTOs.Templates;
+using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 
-namespace SmkDoc.Application.UseCases.Templates;
+namespace SmkDoc.Application.Modules.Authoring.Templates;
 
 /// <summary>
 /// Stateful use case handling HTML template persistence, MinIO versioning,

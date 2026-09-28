@@ -1,6 +1,6 @@
 using FluentValidation;
 
-namespace SmkDoc.Application.UseCases.Users.Commands.RemoveUser;
+namespace SmkDoc.Application.Modules.IdentityAccess.Users.Commands.RemoveUser;
 
 public sealed class RemoveUserCommandValidator : AbstractValidator<RemoveUserCommand>
 {

@@ -1,14 +1,14 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Models;
-using SmkDoc.Application.DTOs.Templates;
-using SmkDoc.Application.DTOs.FieldMappings;
-using SmkDoc.Application.UseCases.FieldMappings;
-using SmkDoc.Application.UseCases.Templates;
+using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
+using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
+using SmkDoc.Application.Modules.Authoring.FieldMappings;
+using SmkDoc.Application.Modules.Authoring.Templates;
 
 
-using SmkDoc.Application.UseCases.Templates.Queries.ListTemplateVersions;
-using SmkDoc.Application.UseCases.Templates.Commands.RollbackTemplateVersion;
+using SmkDoc.Application.Modules.Authoring.Templates.Queries.ListTemplateVersions;
+using SmkDoc.Application.Modules.Authoring.Templates.Commands.RollbackTemplateVersion;
 
 namespace SmkDoc.Api.Controllers;
 
@@ -18,7 +18,7 @@ namespace SmkDoc.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/v1/templates/{id:guid}")]
-[Authorize(Policy = "ApiKeyPolicy")]
+[Route("api/templates/{id:guid}")]
 public class TemplateVersionController(
     ListTemplateVersionsUseCase listVersionsUseCase,
     RollbackTemplateVersionUseCase rollbackUseCase,
@@ -62,13 +62,13 @@ public class TemplateVersionController(
 
     /// <summary>Save (replace-all) dataset links for a template.</summary>
     [HttpPut("datasets")]
-    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     public async Task<IActionResult> SaveDatasets(
         [FromRoute] Guid id,
         [FromBody] List<SaveTemplateDatasetItemDto> items,
         CancellationToken ct)
     {
         await templateDatasetUseCase.SaveAsync(id, items, ct);
-        return NoContent();
+        return Ok(new ApiResponse<object>(new { success = true }));
     }
 }

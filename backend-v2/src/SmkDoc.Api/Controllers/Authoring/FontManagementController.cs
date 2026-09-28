@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using SmkDoc.Application.UseCases.Fonts;
+using SmkDoc.Application.Modules.Authoring.Fonts;
 using SmkDoc.Api.Models;
 
 namespace SmkDoc.Api.Controllers;

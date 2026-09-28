@@ -1,12 +1,12 @@
 using System.Security.Cryptography;
 using System.Text;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.DTOs.Security;
+using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.Exceptions;
 
-namespace SmkDoc.Application.UseCases.Security;
+namespace SmkDoc.Application.Modules.IdentityAccess.Security;
 
 public sealed class ApiKeyUseCase(
     IRepository<ApiKey> apiKeyRepo,

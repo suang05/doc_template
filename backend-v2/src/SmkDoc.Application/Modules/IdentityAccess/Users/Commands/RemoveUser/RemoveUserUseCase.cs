@@ -4,7 +4,7 @@ using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 
-namespace SmkDoc.Application.UseCases.Users.Commands.RemoveUser;
+namespace SmkDoc.Application.Modules.IdentityAccess.Users.Commands.RemoveUser;
 
 public sealed class RemoveUserUseCase(
     IUserProjectRoleRepository roleRepo,

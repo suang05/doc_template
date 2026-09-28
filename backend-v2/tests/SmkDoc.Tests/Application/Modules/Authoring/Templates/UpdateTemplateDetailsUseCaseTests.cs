@@ -1,6 +1,6 @@
 using FluentAssertions;
 using Moq;
-using SmkDoc.Application.UseCases.Templates.Commands.UpdateTemplateDetails;
+using SmkDoc.Application.Modules.Authoring.Templates.Commands.UpdateTemplateDetails;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;

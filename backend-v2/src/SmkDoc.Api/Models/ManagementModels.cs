@@ -1,4 +1,4 @@
-using SmkDoc.Application.DTOs.Projects;
+using SmkDoc.Application.Modules.IdentityAccess.Projects.DTOs;
 
 namespace SmkDoc.Api.Models;
 

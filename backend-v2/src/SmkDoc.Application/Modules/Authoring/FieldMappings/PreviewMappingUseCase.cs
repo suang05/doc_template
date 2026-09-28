@@ -6,7 +6,7 @@ using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 
-namespace SmkDoc.Application.UseCases.FieldMappings;
+namespace SmkDoc.Application.Modules.Authoring.FieldMappings;
 
 /// <summary>
 /// Renders a template with its field mappings applied to caller-supplied sample data.

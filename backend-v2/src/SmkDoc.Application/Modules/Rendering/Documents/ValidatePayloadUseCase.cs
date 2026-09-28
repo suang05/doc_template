@@ -1,10 +1,10 @@
 using System.Text.Json;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.DTOs.Documents;
+using SmkDoc.Application.Modules.Rendering.Documents.DTOs;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
 
-namespace SmkDoc.Application.UseCases.Documents;
+namespace SmkDoc.Application.Modules.Rendering.Documents;
 
 /// <summary>
 /// Pre-flight schema validation endpoint use case.

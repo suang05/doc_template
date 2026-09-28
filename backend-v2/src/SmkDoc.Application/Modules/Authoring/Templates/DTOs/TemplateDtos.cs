@@ -1,7 +1,7 @@
 using SmkDoc.Domain.Enums;
-using SmkDoc.Application.DTOs.FieldMappings;
+using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 
-namespace SmkDoc.Application.DTOs.Templates;
+namespace SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 
 /// <summary>
 /// Summary DTO for templates.
@@ -35,16 +35,6 @@ public record TemplateVersionDto(
     string? CreatedBy,
     DateTimeOffset CreatedAt,
     DateTimeOffset? UpdatedAt
-);
-
-/// <summary>
-/// Command for creating a new template.
-/// </summary>
-public record CreateTemplateCommand(
-    string Name,
-    string Slug,
-    string? Category,
-    string? HtmlContent
 );
 
 /// <summary>

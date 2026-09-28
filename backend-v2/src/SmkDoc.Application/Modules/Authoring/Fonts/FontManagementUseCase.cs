@@ -1,6 +1,6 @@
 using SmkDoc.Application.Common.Interfaces;
 
-namespace SmkDoc.Application.UseCases.Fonts;
+namespace SmkDoc.Application.Modules.Authoring.Fonts;
 
 public sealed class FontManagementUseCase(IStorageService storageService)
 {

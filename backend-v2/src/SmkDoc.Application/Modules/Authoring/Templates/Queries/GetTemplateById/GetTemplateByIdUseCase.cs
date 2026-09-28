@@ -1,9 +1,9 @@
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.DTOs.Templates;
+using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 
-namespace SmkDoc.Application.UseCases.Templates.Queries.GetTemplateById;
+namespace SmkDoc.Application.Modules.Authoring.Templates.Queries.GetTemplateById;
 
 /// <summary>
 /// Single-responsibility Query Use Case for retrieving a template by ID.

@@ -1,5 +1,5 @@
 using System.Text.Json;
-using SmkDoc.Application.DTOs.FieldMappings;
+using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 using SmkDoc.Domain.Entities;
 
 namespace SmkDoc.Application.Common.Interfaces;

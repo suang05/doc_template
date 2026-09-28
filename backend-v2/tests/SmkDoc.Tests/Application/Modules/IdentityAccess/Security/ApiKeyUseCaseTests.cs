@@ -1,7 +1,7 @@
 using FluentAssertions;
 using Moq;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.UseCases.Security;
+using SmkDoc.Application.Modules.IdentityAccess.Security;
 using SmkDoc.Domain.Entities;
 using Xunit;
 using SmkDoc.Domain.Interfaces;

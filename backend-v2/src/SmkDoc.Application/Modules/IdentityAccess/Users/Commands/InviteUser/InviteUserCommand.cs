@@ -1,4 +1,4 @@
-namespace SmkDoc.Application.UseCases.Users.Commands.InviteUser;
+namespace SmkDoc.Application.Modules.IdentityAccess.Users.Commands.InviteUser;
 
 public sealed record InviteUserCommand(
     Guid ProjectId,

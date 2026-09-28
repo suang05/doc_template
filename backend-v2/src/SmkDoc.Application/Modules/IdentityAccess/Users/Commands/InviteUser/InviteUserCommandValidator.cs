@@ -2,7 +2,7 @@ using FluentValidation;
 using SmkDoc.Domain.Common;
 using SmkDoc.Domain.Enums;
 
-namespace SmkDoc.Application.UseCases.Users.Commands.InviteUser;
+namespace SmkDoc.Application.Modules.IdentityAccess.Users.Commands.InviteUser;
 
 public sealed class InviteUserCommandValidator : AbstractValidator<InviteUserCommand>
 {

@@ -1,10 +1,10 @@
 using System.Text.Json;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.DTOs.Templates;
+using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
 
-namespace SmkDoc.Application.UseCases.Templates;
+namespace SmkDoc.Application.Modules.Authoring.Templates;
 
 /// <summary>
 /// Pre-flight template schema validation use case.

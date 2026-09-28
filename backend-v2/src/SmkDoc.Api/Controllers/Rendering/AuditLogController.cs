@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.UseCases.Logs;
+using SmkDoc.Application.Modules.Rendering.Logs;
 using SmkDoc.Domain.Entities;
 
 namespace SmkDoc.Api.Controllers;

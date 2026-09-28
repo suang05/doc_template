@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Models;
-using SmkDoc.Application.DTOs.Schemas;
-using SmkDoc.Application.UseCases.Schemas;
+using SmkDoc.Application.Modules.Authoring.Schemas.DTOs;
+using SmkDoc.Application.Modules.Authoring.Schemas;
 
 namespace SmkDoc.Api.Controllers;
 

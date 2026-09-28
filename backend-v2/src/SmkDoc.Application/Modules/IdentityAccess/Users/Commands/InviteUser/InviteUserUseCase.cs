@@ -1,12 +1,12 @@
 using FluentValidation;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.DTOs.Users;
+using SmkDoc.Application.Modules.IdentityAccess.Users.DTOs;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 
-namespace SmkDoc.Application.UseCases.Users.Commands.InviteUser;
+namespace SmkDoc.Application.Modules.IdentityAccess.Users.Commands.InviteUser;
 
 public sealed class InviteUserUseCase(
     IUserRepository userRepo,

@@ -3,7 +3,7 @@ using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects.Validation;
 
-namespace SmkDoc.Application.DTOs.Documents;
+namespace SmkDoc.Application.Modules.Rendering.Documents.DTOs;
 
 /// <summary>
 /// Command for generating a document from a published template.

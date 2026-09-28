@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Models;
-using SmkDoc.Application.UseCases.Security;
+using SmkDoc.Application.Modules.IdentityAccess.Security;
 
 namespace SmkDoc.Api.Controllers;
 

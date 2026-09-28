@@ -1,4 +1,4 @@
-namespace SmkDoc.Application.DTOs.Users;
+namespace SmkDoc.Application.Modules.IdentityAccess.Users.DTOs;
 
 /// <summary>
 /// Immutable response DTO representing user membership in a project.

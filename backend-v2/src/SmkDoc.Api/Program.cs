@@ -9,12 +9,10 @@ using Microsoft.OpenApi.Models;
 using SmkDoc.Api.HealthChecks;
 using SmkDoc.Api.Middleware;
 using SmkDoc.Api.Models;
+using SmkDoc.Application;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.UseCases.Documents;
-using SmkDoc.Application.UseCases.Datasets;
-using SmkDoc.Application.UseCases.FieldMappings;  // FieldMappingUseCase, PreviewMappingUseCase
-using SmkDoc.Application.UseCases.Security;
-using SmkDoc.Application.UseCases.Templates;
+using SmkDoc.Application.Modules.IdentityAccess;
+using SmkDoc.Application.Modules.IdentityAccess.Security;
 using SmkDoc.Infrastructure.Engines.Excel;
 using SmkDoc.Infrastructure.Engines.Html;
 using SmkDoc.Infrastructure.Engines.Word;
@@ -236,42 +234,13 @@ builder.Services.AddRateLimiter(options =>
     };
 });
 
-// --- 7. Application Use Cases ---
-builder.Services.AddSingleton<IMathExpressionResolver, SmkDoc.Application.Common.Helpers.MathExpressionResolverService>();
-builder.Services.AddScoped<IFieldMappingApplicatorService, SmkDoc.Application.Common.Helpers.FieldMappingApplicatorService>();
-builder.Services.AddScoped<GenerateDocumentUseCase>();
-builder.Services.AddScoped<ValidatePayloadUseCase>();
-builder.Services.AddScoped<SmkDoc.Application.UseCases.Schemas.ValidateStandaloneSchemaUseCase>();
-builder.Services.AddScoped<PreviewDocumentUseCase>();
-builder.Services.AddScoped<DocumentVersionUseCase>();
-builder.Services.AddScoped<RenderStatelessDocumentUseCase>();
-builder.Services.AddScoped<SmkDoc.Application.UseCases.Templates.Commands.CreateTemplate.CreateTemplateUseCase>();
-builder.Services.AddScoped<SmkDoc.Application.UseCases.Templates.Commands.UpdateTemplateDetails.UpdateTemplateDetailsUseCase>();
-builder.Services.AddScoped<SmkDoc.Application.UseCases.Templates.Commands.ActivateTemplateVersion.ActivateTemplateVersionUseCase>();
-builder.Services.AddScoped<SmkDoc.Application.UseCases.Templates.Commands.DeactivateTemplate.DeactivateTemplateUseCase>();
-builder.Services.AddScoped<SmkDoc.Application.UseCases.Templates.Commands.RollbackTemplateVersion.RollbackTemplateVersionUseCase>();
-builder.Services.AddScoped<SmkDoc.Application.UseCases.Templates.Queries.GetTemplateById.GetTemplateByIdUseCase>();
-builder.Services.AddScoped<SmkDoc.Application.UseCases.Templates.Queries.ListTemplates.ListTemplatesUseCase>();
-builder.Services.AddScoped<SmkDoc.Application.UseCases.Templates.Queries.ListTemplateVersions.ListTemplateVersionsUseCase>();
-builder.Services.AddScoped<SmkDoc.Application.UseCases.Templates.Queries.DownloadTemplate.DownloadTemplateUseCase>();
-builder.Services.AddScoped<SmkDoc.Application.UseCases.Templates.Queries.ScanTemplatePlaceholders.ScanTemplatePlaceholdersUseCase>();
-builder.Services.AddScoped<IHtmlStudioUseCase, HtmlStudioUseCase>();
-builder.Services.AddScoped<IHtmlPersistenceUseCase, HtmlPersistenceUseCase>();
-builder.Services.AddScoped<TemplateValidateUseCase>();
-builder.Services.AddScoped<ValidateTemplatePayloadUseCase>();
-builder.Services.AddScoped<FieldMappingUseCase>();
-builder.Services.AddScoped<PreviewMappingUseCase>();
-builder.Services.AddScoped<TemplateDatasetUseCase>();
+// --- 7. Application Use Cases (Modular Monolith) ---
 builder.Services.AddSingleton<ITemplateDraftCache, InMemoryTemplateDraftCache>();
-builder.Services.AddScoped<TemplateDraftUseCase>();
-builder.Services.AddScoped<ApiKeyUseCase>();
-builder.Services.AddScoped<SmkDoc.Application.UseCases.DataConnections.DataConnectionUseCase>();
-builder.Services.AddScoped<DatasetUseCase>();
+builder.Services.AddApplicationServices();
 
 // --- 8. Security Services ---
 builder.Services.AddScoped<IPasswordHasher, SmkDoc.Infrastructure.Security.BcryptPasswordHasher>();
 builder.Services.AddScoped<IJwtTokenGenerator, SmkDoc.Infrastructure.Security.JwtTokenGenerator>();
-builder.Services.AddScoped<LoginUseCase>();
 
 var app = builder.Build();
 

@@ -4,7 +4,7 @@ using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 
-namespace SmkDoc.Application.UseCases.Users.Commands.UpdateUserRole;
+namespace SmkDoc.Application.Modules.IdentityAccess.Users.Commands.UpdateUserRole;
 
 public sealed class UpdateUserRoleUseCase(
     IUserProjectRoleRepository roleRepo,

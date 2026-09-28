@@ -1,4 +1,4 @@
-namespace SmkDoc.Application.DTOs.DataConnections;
+namespace SmkDoc.Application.Modules.Integration.DataConnections.DTOs;
 
 /// <summary>
 /// DTO representing a safe database connection definition (connection string omitted).

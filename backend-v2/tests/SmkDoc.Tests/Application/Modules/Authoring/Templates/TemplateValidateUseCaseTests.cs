@@ -1,7 +1,7 @@
 using FluentAssertions;
 using Moq;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.UseCases.Templates;
+using SmkDoc.Application.Modules.Authoring.Templates;
 using Xunit;
 
 namespace SmkDoc.Tests.Application.UseCases.Templates;

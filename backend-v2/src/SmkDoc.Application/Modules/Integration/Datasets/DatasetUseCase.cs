@@ -1,10 +1,10 @@
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.DTOs.Datasets;
+using SmkDoc.Application.Modules.Integration.Datasets.DTOs;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.Exceptions;
 
-namespace SmkDoc.Application.UseCases.Datasets;
+namespace SmkDoc.Application.Modules.Integration.Datasets;
 
 public sealed class DatasetUseCase(
     IRepository<Dataset> datasetRepo,

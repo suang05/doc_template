@@ -1,7 +1,7 @@
 using FluentAssertions;
 using Moq;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.UseCases.Documents;
+using SmkDoc.Application.Modules.Rendering.Documents;
 using SmkDoc.Domain.Enums;
 using Xunit;
 

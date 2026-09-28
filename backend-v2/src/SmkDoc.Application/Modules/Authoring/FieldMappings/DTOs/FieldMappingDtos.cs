@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace SmkDoc.Application.DTOs.FieldMappings;
+namespace SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 
 /// <summary>
 /// DTO representing an individual template placeholder-to-datasource mapping rule.

@@ -5,8 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.DTOs;
-using SmkDoc.Application.DTOs.Logs;
+using SmkDoc.Application.Modules.Rendering.Logs.DTOs;
 using SmkDoc.Infrastructure.Persistence;
 
 namespace SmkDoc.Infrastructure.Persistence.Repositories;

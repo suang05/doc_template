@@ -1,7 +1,7 @@
 using DocumentFormat.OpenXml.Packaging;
 using Microsoft.Extensions.Logging;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.DTOs.Documents;
+using SmkDoc.Application.Modules.Rendering.Documents.DTOs;
 
 namespace SmkDoc.Infrastructure.Security;
 

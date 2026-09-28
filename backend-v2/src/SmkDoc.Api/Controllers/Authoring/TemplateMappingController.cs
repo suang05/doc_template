@@ -1,8 +1,8 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Models;
-using SmkDoc.Application.DTOs.FieldMappings;
-using SmkDoc.Application.UseCases.FieldMappings;
+using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
+using SmkDoc.Application.Modules.Authoring.FieldMappings;
 
 namespace SmkDoc.Api.Controllers;
 
@@ -12,7 +12,7 @@ namespace SmkDoc.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/v1/templates/{id:guid}/mappings")]
-[Authorize(Policy = "ApiKeyPolicy")]
+[Route("api/templates/{id:guid}/mappings")]
 public class TemplateMappingController(
     FieldMappingUseCase mappingUseCase,
     PreviewMappingUseCase previewMappingUseCase) : ControllerBase
@@ -28,14 +28,14 @@ public class TemplateMappingController(
 
     /// <summary>Save (replace-all) field mappings for a template.</summary>
     [HttpPut]
-    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     public async Task<IActionResult> SaveMappings(
         [FromRoute] Guid id,
         [FromBody] List<SaveFieldMappingItemDto> mappings,
         CancellationToken ct)
     {
         await mappingUseCase.SaveMappingsAsync(id, mappings, ct);
-        return NoContent();
+        return Ok(new ApiResponse<object>(new { success = true }));
     }
 
     /// <summary>

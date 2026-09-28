@@ -1,10 +1,10 @@
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.DTOs.Projects;
+using SmkDoc.Application.Modules.IdentityAccess.Projects.DTOs;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Interfaces;
 
-namespace SmkDoc.Application.UseCases.Projects;
+namespace SmkDoc.Application.Modules.IdentityAccess.Projects;
 
 public sealed class ProjectManagementUseCase(
     IRepository<Project> projectRepo,

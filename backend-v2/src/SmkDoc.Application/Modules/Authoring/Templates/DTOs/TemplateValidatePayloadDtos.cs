@@ -1,7 +1,7 @@
 using System.Text.Json;
 using SmkDoc.Domain.ValueObjects.Validation;
 
-namespace SmkDoc.Application.DTOs.Templates;
+namespace SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 
 /// <summary>
 /// Command for validating a JSON payload against a published template's schema contract.

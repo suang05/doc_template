@@ -2,7 +2,7 @@ using System.Text;
 using FluentAssertions;
 using Moq;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.UseCases.Templates;
+using SmkDoc.Application.Modules.Authoring.Templates;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using Xunit;

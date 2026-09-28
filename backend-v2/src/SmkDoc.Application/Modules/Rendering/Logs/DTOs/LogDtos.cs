@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace SmkDoc.Application.DTOs.Logs;
+namespace SmkDoc.Application.Modules.Rendering.Logs.DTOs;
 
 /// <summary>
 /// DTO representing an execution log entry for document generation.

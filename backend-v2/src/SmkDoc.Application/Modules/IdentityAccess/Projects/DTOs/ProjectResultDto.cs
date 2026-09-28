@@ -1,4 +1,4 @@
-namespace SmkDoc.Application.DTOs.Projects;
+namespace SmkDoc.Application.Modules.IdentityAccess.Projects.DTOs;
 
 /// <summary>
 /// DTO representing project details.

@@ -1,8 +1,8 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Models;
-using SmkDoc.Application.DTOs.Templates;
-using SmkDoc.Application.UseCases.Templates;
+using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
+using SmkDoc.Application.Modules.Authoring.Templates;
 
 namespace SmkDoc.Api.Controllers;
 
@@ -12,7 +12,7 @@ namespace SmkDoc.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/v1/templates/{id:guid}")]
-[Authorize(Policy = "ApiKeyPolicy")]
+[Route("api/templates/{id:guid}")]
 public class TemplateHtmlController(
     IHtmlStudioUseCase htmlStudioUseCase,
     IHtmlPersistenceUseCase htmlPersistenceUseCase,

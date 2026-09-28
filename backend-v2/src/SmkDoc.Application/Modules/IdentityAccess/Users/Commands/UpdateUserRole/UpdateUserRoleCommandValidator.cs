@@ -2,7 +2,7 @@ using FluentValidation;
 using SmkDoc.Domain.Common;
 using SmkDoc.Domain.Enums;
 
-namespace SmkDoc.Application.UseCases.Users.Commands.UpdateUserRole;
+namespace SmkDoc.Application.Modules.IdentityAccess.Users.Commands.UpdateUserRole;
 
 public sealed class UpdateUserRoleCommandValidator : AbstractValidator<UpdateUserRoleCommand>
 {

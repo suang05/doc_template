@@ -2,11 +2,11 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Extensions;
 using SmkDoc.Api.Models;
-using SmkDoc.Application.UseCases.Users.Commands.InviteUser;
-using SmkDoc.Application.UseCases.Users.Commands.RemoveUser;
-using SmkDoc.Application.UseCases.Users.Commands.SetUserStatus;
-using SmkDoc.Application.UseCases.Users.Commands.UpdateUserRole;
-using SmkDoc.Application.UseCases.Users.Queries.ListProjectUsers;
+using SmkDoc.Application.Modules.IdentityAccess.Users.Commands.InviteUser;
+using SmkDoc.Application.Modules.IdentityAccess.Users.Commands.RemoveUser;
+using SmkDoc.Application.Modules.IdentityAccess.Users.Commands.SetUserStatus;
+using SmkDoc.Application.Modules.IdentityAccess.Users.Commands.UpdateUserRole;
+using SmkDoc.Application.Modules.IdentityAccess.Users.Queries.ListProjectUsers;
 
 namespace SmkDoc.Api.Controllers;
 

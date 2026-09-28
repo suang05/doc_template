@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
-using SmkDoc.Application.DTOs.DataConnections;
-using SmkDoc.Application.UseCases.DataConnections;
+using SmkDoc.Application.Modules.Integration.DataConnections.DTOs;
+using SmkDoc.Application.Modules.Integration.DataConnections;
 
 namespace SmkDoc.Api.Controllers;
 

@@ -5,10 +5,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Application.DTOs;
-using SmkDoc.Application.DTOs.Logs;
+using SmkDoc.Application.Modules.Rendering.Logs.DTOs;
 
-namespace SmkDoc.Application.UseCases.Logs;
+namespace SmkDoc.Application.Modules.Rendering.Logs;
 
 /// <summary>
 /// Application Use Case for querying Generation Logs.

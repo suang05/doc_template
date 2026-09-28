@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace SmkDoc.Application.DTOs.Security;
+namespace SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
 
 /// <summary>
 /// Command for authenticating a user with email and password.

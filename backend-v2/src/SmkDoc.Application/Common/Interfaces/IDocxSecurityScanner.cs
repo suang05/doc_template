@@ -1,4 +1,4 @@
-using SmkDoc.Application.DTOs.Documents;
+using SmkDoc.Application.Modules.Rendering.Documents.DTOs;
 
 namespace SmkDoc.Application.Common.Interfaces;
 

@@ -2,7 +2,7 @@ using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 
-namespace SmkDoc.Application.UseCases.Templates.Commands.DeactivateTemplate;
+namespace SmkDoc.Application.Modules.Authoring.Templates.Commands.DeactivateTemplate;
 
 /// <summary>
 /// Single-responsibility Use Case for deactivating a template.

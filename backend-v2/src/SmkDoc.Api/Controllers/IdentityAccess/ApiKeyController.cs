@@ -1,5 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
-using SmkDoc.Application.UseCases.Security;
+using SmkDoc.Application.Modules.IdentityAccess.Security;
 
 namespace SmkDoc.Api.Controllers;
 

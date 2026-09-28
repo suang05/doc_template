@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
-using SmkDoc.Application.DTOs.Datasets;
-using SmkDoc.Application.UseCases.Datasets;
+using SmkDoc.Application.Modules.Integration.Datasets.DTOs;
+using SmkDoc.Application.Modules.Integration.Datasets;
 
 namespace SmkDoc.Api.Controllers;
 

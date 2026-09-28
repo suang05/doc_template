@@ -3,7 +3,7 @@ using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 
-namespace SmkDoc.Application.UseCases.Users.Commands.SetUserStatus;
+namespace SmkDoc.Application.Modules.IdentityAccess.Users.Commands.SetUserStatus;
 
 public sealed class SetUserStatusUseCase(
     IUserRepository userRepo,

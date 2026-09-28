@@ -1,10 +1,10 @@
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.DTOs.FieldMappings;
+using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.Exceptions;
 
-namespace SmkDoc.Application.UseCases.FieldMappings;
+namespace SmkDoc.Application.Modules.Authoring.FieldMappings;
 
 public sealed class TemplateDatasetUseCase(
     IRepository<TemplateDataset> tdRepo,

@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.DTOs.FieldMappings;
+using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.ValueObjects;
 

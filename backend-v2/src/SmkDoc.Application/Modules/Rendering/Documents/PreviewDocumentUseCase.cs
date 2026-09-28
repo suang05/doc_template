@@ -1,12 +1,12 @@
 using System.Text.Json;
 using SmkDoc.Application.Common;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.DTOs.Documents;
+using SmkDoc.Application.Modules.Rendering.Documents.DTOs;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 
-namespace SmkDoc.Application.UseCases.Documents;
+namespace SmkDoc.Application.Modules.Rendering.Documents;
 
 /// <summary>
 /// Preview use-case: Generates PDF bytes directly for Monaco/Form preview with zero side-effects.

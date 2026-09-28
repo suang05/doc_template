@@ -1,4 +1,4 @@
-using SmkDoc.Application.DTOs.Templates;
+using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 
 namespace SmkDoc.Application.Common.Interfaces;
 

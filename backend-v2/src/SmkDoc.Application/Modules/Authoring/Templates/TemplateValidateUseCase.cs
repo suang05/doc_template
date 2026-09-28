@@ -1,8 +1,8 @@
 using System.Text.RegularExpressions;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.DTOs.Templates;
+using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 
-namespace SmkDoc.Application.UseCases.Templates;
+namespace SmkDoc.Application.Modules.Authoring.Templates;
 
 public sealed class TemplateValidateUseCase(IPdfRenderer pdfRenderer)
 {

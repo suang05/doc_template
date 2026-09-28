@@ -1,4 +1,4 @@
-namespace SmkDoc.Application.UseCases.Users.Commands.UpdateUserRole;
+namespace SmkDoc.Application.Modules.IdentityAccess.Users.Commands.UpdateUserRole;
 
 public sealed record UpdateUserRoleCommand(
     Guid ProjectId,

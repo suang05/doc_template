@@ -1,44 +1,40 @@
 using FluentAssertions;
 using Moq;
-using SmkDoc.Application.UseCases.Users.Commands.UpdateUserRole;
+using SmkDoc.Application.Modules.IdentityAccess.Users.Commands.UpdateUserRole;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.Interfaces;
+using SmkDoc.Tests.Common.Builders;
+using SmkDoc.Tests.Common.Fixtures;
 using Xunit;
 
 namespace SmkDoc.Tests.Application.UseCases.Users;
 
 public class UpdateUserRoleUseCaseTests
 {
-    private readonly Mock<IUserProjectRoleRepository> _roleRepoMock = new();
-    private readonly Mock<IUnitOfWork> _uowMock = new();
-    private readonly UpdateUserRoleUseCase _useCase;
-
-    public UpdateUserRoleUseCaseTests()
-    {
-        _useCase = new UpdateUserRoleUseCase(
-            _roleRepoMock.Object,
-            _uowMock.Object,
-            new UpdateUserRoleCommandValidator());
-    }
+    private readonly UserManagementTestFixture _fixture = new();
 
     [Fact]
     public async Task ExecuteAsync_UpdatesRoleSuccessfully()
     {
         var projectId = Guid.NewGuid();
         var userId = Guid.NewGuid();
-        var roleEntry = new UserProjectRole(userId, projectId, RoleType.Viewer);
+        var roleEntry = new UserProjectRoleBuilder()
+            .InProject(projectId)
+            .ForUser(userId)
+            .AsViewer()
+            .Build();
 
-        _roleRepoMock.Setup(r => r.GetAsync(projectId, userId, It.IsAny<CancellationToken>()))
+        _fixture.RoleRepo.Setup(r => r.GetAsync(projectId, userId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(roleEntry);
 
+        var useCase = _fixture.BuildUpdateUserRoleUseCase();
         var command = new UpdateUserRoleCommand(projectId, userId, "Developer");
-        await _useCase.ExecuteAsync(command);
+        await useCase.ExecuteAsync(command);
 
         roleEntry.Role.Should().Be(RoleType.Developer);
-        _roleRepoMock.Verify(r => r.Update(roleEntry), Times.Once);
-        _uowMock.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _fixture.RoleRepo.Verify(r => r.Update(roleEntry), Times.Once);
+        _fixture.Uow.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -46,15 +42,35 @@ public class UpdateUserRoleUseCaseTests
     {
         var projectId = Guid.NewGuid();
         var userId = Guid.NewGuid();
-        var roleEntry = new UserProjectRole(userId, projectId, RoleType.Admin);
+        var roleEntry = new UserProjectRoleBuilder()
+            .InProject(projectId)
+            .ForUser(userId)
+            .AsAdmin()
+            .Build();
 
-        _roleRepoMock.Setup(r => r.GetAsync(projectId, userId, It.IsAny<CancellationToken>()))
+        _fixture.RoleRepo.Setup(r => r.GetAsync(projectId, userId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(roleEntry);
-        _roleRepoMock.Setup(r => r.CountAdminsAsync(projectId, It.IsAny<CancellationToken>()))
+        _fixture.RoleRepo.Setup(r => r.CountAdminsAsync(projectId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(1);
 
+        var useCase = _fixture.BuildUpdateUserRoleUseCase();
         var command = new UpdateUserRoleCommand(projectId, userId, "Viewer");
-        Func<Task> act = () => _useCase.ExecuteAsync(command);
+        Func<Task> act = () => useCase.ExecuteAsync(command);
         await act.Should().ThrowAsync<ConflictException>();
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_UserNotInProject_ThrowsNotFoundException()
+    {
+        var projectId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+
+        _fixture.RoleRepo.Setup(r => r.GetAsync(projectId, userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((UserProjectRole?)null);
+
+        var useCase = _fixture.BuildUpdateUserRoleUseCase();
+        var command = new UpdateUserRoleCommand(projectId, userId, "Developer");
+        Func<Task> act = () => useCase.ExecuteAsync(command);
+        await act.Should().ThrowAsync<NotFoundException>();
     }
 }

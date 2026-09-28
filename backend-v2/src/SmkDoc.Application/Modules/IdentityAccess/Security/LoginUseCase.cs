@@ -1,9 +1,9 @@
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.DTOs.Security;
+using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 
-namespace SmkDoc.Application.UseCases.Security;
+namespace SmkDoc.Application.Modules.IdentityAccess.Security;
 
 public sealed class LoginUseCase(
     IRepository<User> userRepo,

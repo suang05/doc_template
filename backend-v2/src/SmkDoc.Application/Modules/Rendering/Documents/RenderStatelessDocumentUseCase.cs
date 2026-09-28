@@ -2,7 +2,7 @@ using System.Text.Json;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Enums;
 
-namespace SmkDoc.Application.UseCases.Documents;
+namespace SmkDoc.Application.Modules.Rendering.Documents;
 
 /// <summary>
 /// Stateless preview use-case: Generates PDF bytes directly from an uploaded file stream and JSON payload.

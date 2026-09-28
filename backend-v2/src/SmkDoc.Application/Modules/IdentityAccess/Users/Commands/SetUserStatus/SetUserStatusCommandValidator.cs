@@ -1,6 +1,6 @@
 using FluentValidation;
 
-namespace SmkDoc.Application.UseCases.Users.Commands.SetUserStatus;
+namespace SmkDoc.Application.Modules.IdentityAccess.Users.Commands.SetUserStatus;
 
 public sealed class SetUserStatusCommandValidator : AbstractValidator<SetUserStatusCommand>
 {

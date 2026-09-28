@@ -1,10 +1,10 @@
 using SmkDoc.Application.Common;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.DTOs.Documents;
+using SmkDoc.Application.Modules.Rendering.Documents.DTOs;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
 
-namespace SmkDoc.Application.UseCases.Documents;
+namespace SmkDoc.Application.Modules.Rendering.Documents;
 
 public sealed class DocumentVersionUseCase(
     IRepository<Document> documentRepo,

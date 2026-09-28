@@ -1,8 +1,8 @@
 using System.Text.Json;
 using FluentValidation;
-using SmkDoc.Application.DTOs.Documents;
+using SmkDoc.Application.Modules.Rendering.Documents.DTOs;
 
-namespace SmkDoc.Application.Validators.Documents;
+namespace SmkDoc.Application.Modules.Rendering.Documents.Validators;
 
 /// <summary>
 /// Validator for <see cref="GenerateDocumentCommand"/>.

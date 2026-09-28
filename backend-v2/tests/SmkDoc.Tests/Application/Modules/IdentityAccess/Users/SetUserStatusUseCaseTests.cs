@@ -1,49 +1,42 @@
 using FluentAssertions;
 using Moq;
-using SmkDoc.Application.UseCases.Users.Commands.SetUserStatus;
+using SmkDoc.Application.Modules.IdentityAccess.Users.Commands.SetUserStatus;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.Interfaces;
+using SmkDoc.Tests.Common.Builders;
+using SmkDoc.Tests.Common.Fixtures;
 using Xunit;
 
 namespace SmkDoc.Tests.Application.UseCases.Users;
 
 public class SetUserStatusUseCaseTests
 {
-    private readonly Mock<IUserRepository> _userRepoMock = new();
-    private readonly Mock<IUserProjectRoleRepository> _roleRepoMock = new();
-    private readonly Mock<IUnitOfWork> _uowMock = new();
-    private readonly SetUserStatusUseCase _useCase;
-
-    public SetUserStatusUseCaseTests()
-    {
-        _useCase = new SetUserStatusUseCase(
-            _userRepoMock.Object,
-            _roleRepoMock.Object,
-            _uowMock.Object,
-            new SetUserStatusCommandValidator());
-    }
+    private readonly UserManagementTestFixture _fixture = new();
 
     [Fact]
     public async Task ExecuteAsync_DeactivatesUserSuccessfully()
     {
         var projectId = Guid.NewGuid();
-        var user = new User("user@test.com", "hash", "First", "Last");
+        var user = new UserBuilder().Build();
         var userId = user.Id;
-        var roleEntry = new UserProjectRole(userId, projectId, RoleType.Developer);
+        var roleEntry = new UserProjectRoleBuilder()
+            .InProject(projectId)
+            .ForUser(userId)
+            .AsDeveloper()
+            .Build();
 
-        _roleRepoMock.Setup(r => r.GetAsync(projectId, userId, It.IsAny<CancellationToken>()))
+        _fixture.RoleRepo.Setup(r => r.GetAsync(projectId, userId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(roleEntry);
-        _userRepoMock.Setup(r => r.GetByIdAsync(userId, It.IsAny<CancellationToken>()))
+        _fixture.UserRepo.Setup(r => r.GetByIdAsync(userId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);
 
+        var useCase = _fixture.BuildSetUserStatusUseCase();
         var command = new SetUserStatusCommand(projectId, userId, false);
-        await _useCase.ExecuteAsync(command);
+        await useCase.ExecuteAsync(command);
 
         user.IsActive.Should().BeFalse();
-        _userRepoMock.Verify(r => r.Update(user), Times.Once);
-        _uowMock.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _fixture.UserRepo.Verify(r => r.Update(user), Times.Once);
+        _fixture.Uow.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -52,11 +45,12 @@ public class SetUserStatusUseCaseTests
         var projectId = Guid.NewGuid();
         var userId = Guid.NewGuid();
 
-        _roleRepoMock.Setup(r => r.GetAsync(projectId, userId, It.IsAny<CancellationToken>()))
+        _fixture.RoleRepo.Setup(r => r.GetAsync(projectId, userId, It.IsAny<CancellationToken>()))
             .ReturnsAsync((UserProjectRole?)null);
 
+        var useCase = _fixture.BuildSetUserStatusUseCase();
         var command = new SetUserStatusCommand(projectId, userId, true);
-        Func<Task> act = () => _useCase.ExecuteAsync(command);
+        Func<Task> act = () => useCase.ExecuteAsync(command);
         await act.Should().ThrowAsync<NotFoundException>();
     }
 }

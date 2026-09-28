@@ -1,4 +1,4 @@
-namespace SmkDoc.Application.UseCases.Templates.Commands.ActivateTemplateVersion;
+namespace SmkDoc.Application.Modules.Authoring.Templates.Commands.ActivateTemplateVersion;
 
 public sealed record ActivateTemplateVersionCommand(
     Guid TemplateId,

@@ -1,4 +1,4 @@
-using SmkDoc.Application.DTOs.Users;
+using SmkDoc.Application.Modules.IdentityAccess.Users.DTOs;
 
 namespace SmkDoc.Api.Models;
 
@@ -18,8 +18,8 @@ public record InviteUserRequest(
     string FirstName,
     string LastName,
     string Role = "Viewer"
-) : InviteUserCommand(Email, Password, FirstName, LastName, Role);
+);
 
 public record UpdateUserRoleRequest(
     string Role
-) : UpdateUserRoleCommand(Role);
+);

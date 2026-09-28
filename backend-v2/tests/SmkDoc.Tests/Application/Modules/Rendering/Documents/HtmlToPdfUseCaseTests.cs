@@ -2,8 +2,8 @@ using System.Text;
 using FluentAssertions;
 using Moq;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.DTOs.Documents;
-using SmkDoc.Application.UseCases.Documents;
+using SmkDoc.Application.Modules.Rendering.Documents.DTOs;
+using SmkDoc.Application.Modules.Rendering.Documents;
 using Xunit;
 
 namespace SmkDoc.Tests.Application.UseCases.Documents;

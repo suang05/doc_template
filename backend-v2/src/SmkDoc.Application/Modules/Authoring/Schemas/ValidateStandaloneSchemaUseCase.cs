@@ -1,8 +1,8 @@
 using System.Text.Json;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.DTOs.Schemas;
+using SmkDoc.Application.Modules.Authoring.Schemas.DTOs;
 
-namespace SmkDoc.Application.UseCases.Schemas;
+namespace SmkDoc.Application.Modules.Authoring.Schemas;
 
 /// <summary>
 /// Stateless, zero-database standalone schema validation use case.

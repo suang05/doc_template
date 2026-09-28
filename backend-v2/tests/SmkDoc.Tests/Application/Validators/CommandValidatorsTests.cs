@@ -1,12 +1,12 @@
 using System.Text.Json;
 using FluentAssertions;
-using SmkDoc.Application.DTOs.Documents;
-using SmkDoc.Application.DTOs.Security;
-using SmkDoc.Application.DTOs.Templates;
-using SmkDoc.Application.DTOs.Users;
-using SmkDoc.Application.Validators.Documents;
-using SmkDoc.Application.Validators.Security;
-using SmkDoc.Application.Validators.Templates;
+using SmkDoc.Application.Modules.Rendering.Documents.DTOs;
+using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
+using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
+using SmkDoc.Application.Modules.Rendering.Documents.Validators;
+using SmkDoc.Application.Modules.IdentityAccess.Security.Validators;
+using SmkDoc.Application.Modules.Authoring.Templates.Validators;
+using SmkDoc.Application.Modules.Authoring.Templates.Commands.CreateTemplate;
 using Xunit;
 
 namespace SmkDoc.Tests.Application.Validators;
@@ -52,7 +52,7 @@ public class CommandValidatorsTests
     {
         // Arrange
         var validator = new CreateTemplateCommandValidator();
-        var command = new CreateTemplateCommand("Receipt Template", "receipt-template-v1", "Receipts", "<html></html>");
+        var command = new CreateTemplateCommand(Guid.NewGuid(), "Receipt Template", "receipt-template-v1", "Receipts");
 
         // Act
         var result = await validator.ValidateAsync(command);
@@ -71,7 +71,7 @@ public class CommandValidatorsTests
     {
         // Arrange
         var validator = new CreateTemplateCommandValidator();
-        var command = new CreateTemplateCommand("Receipt Template", invalidSlug, "Receipts", "<html></html>");
+        var command = new CreateTemplateCommand(Guid.NewGuid(), "Receipt Template", invalidSlug, "Receipts");
 
         // Act
         var result = await validator.ValidateAsync(command);
@@ -113,11 +113,11 @@ public class CommandValidatorsTests
     }
 
     [Fact]
-    public async Task InviteUserCommandValidator_WithValidData_ShouldPass()
+    public async Task CreateApiKeyCommandValidator_WithValidData_ShouldPass()
     {
         // Arrange
-        var validator = new InviteUserCommandValidator();
-        var command = new InviteUserCommand("user@sammakorn.co.th", "Pass12345", "Somchai", "Jaidee", "Editor");
+        var validator = new CreateApiKeyCommandValidator();
+        var command = new CreateApiKeyCommand("Test Key", "BillingService");
 
         // Act
         var result = await validator.ValidateAsync(command);
@@ -127,17 +127,18 @@ public class CommandValidatorsTests
     }
 
     [Fact]
-    public async Task InviteUserCommandValidator_WithInvalidRole_ShouldFail()
+    public async Task CreateApiKeyCommandValidator_WithEmptyData_ShouldFail()
     {
         // Arrange
-        var validator = new InviteUserCommandValidator();
-        var command = new InviteUserCommand("user@sammakorn.co.th", "Pass12345", "Somchai", "Jaidee", "SuperAdmin");
+        var validator = new CreateApiKeyCommandValidator();
+        var command = new CreateApiKeyCommand("", "");
 
         // Act
         var result = await validator.ValidateAsync(command);
 
         // Assert
         result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.PropertyName == nameof(InviteUserCommand.Role));
+        result.Errors.Should().Contain(e => e.PropertyName == nameof(CreateApiKeyCommand.Name));
+        result.Errors.Should().Contain(e => e.PropertyName == nameof(CreateApiKeyCommand.CallerApp));
     }
 }

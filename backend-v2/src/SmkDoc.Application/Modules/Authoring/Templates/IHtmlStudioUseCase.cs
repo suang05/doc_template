@@ -1,6 +1,6 @@
-using SmkDoc.Application.DTOs.Templates;
+using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 
-namespace SmkDoc.Application.UseCases.Templates;
+namespace SmkDoc.Application.Modules.Authoring.Templates;
 
 /// <summary>
 /// Stateless use case for Monaco Editor interactions: loading HTML source,

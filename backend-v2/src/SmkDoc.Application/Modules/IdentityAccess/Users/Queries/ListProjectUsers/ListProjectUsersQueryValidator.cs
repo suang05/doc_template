@@ -1,6 +1,6 @@
 using FluentValidation;
 
-namespace SmkDoc.Application.UseCases.Users.Queries.ListProjectUsers;
+namespace SmkDoc.Application.Modules.IdentityAccess.Users.Queries.ListProjectUsers;
 
 public sealed class ListProjectUsersQueryValidator : AbstractValidator<ListProjectUsersQuery>
 {

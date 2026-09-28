@@ -1,4 +1,4 @@
-using SmkDoc.Application.DTOs.Security;
+using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
 
 namespace SmkDoc.Api.Models;
 

@@ -1,8 +1,8 @@
 using System.Text.Json;
 using FluentAssertions;
 using Microsoft.Extensions.Caching.Memory;
-using SmkDoc.Application.DTOs.Schemas;
-using SmkDoc.Application.UseCases.Schemas;
+using SmkDoc.Application.Modules.Authoring.Schemas.DTOs;
+using SmkDoc.Application.Modules.Authoring.Schemas;
 using SmkDoc.Infrastructure.Schema;
 using Xunit;
 

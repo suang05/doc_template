@@ -1,4 +1,4 @@
-namespace SmkDoc.Application.DTOs.Templates;
+namespace SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 
 /// <summary>
 /// Safe immutable Response DTO for templates, strictly isolating Domain Entities from Presentation.

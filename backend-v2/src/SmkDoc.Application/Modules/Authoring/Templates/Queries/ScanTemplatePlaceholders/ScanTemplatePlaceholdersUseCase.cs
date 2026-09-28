@@ -4,7 +4,7 @@ using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 
-namespace SmkDoc.Application.UseCases.Templates.Queries.ScanTemplatePlaceholders;
+namespace SmkDoc.Application.Modules.Authoring.Templates.Queries.ScanTemplatePlaceholders;
 
 public sealed record ScanTemplatePlaceholdersQuery(Guid Id);
 

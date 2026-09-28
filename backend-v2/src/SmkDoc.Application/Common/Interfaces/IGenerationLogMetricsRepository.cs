@@ -2,8 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using SmkDoc.Application.DTOs;
-using SmkDoc.Application.DTOs.Logs;
+using SmkDoc.Application.Modules.Rendering.Logs.DTOs;
 
 namespace SmkDoc.Application.Common.Interfaces;
 

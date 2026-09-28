@@ -1,8 +1,8 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Models;
-using SmkDoc.Application.DTOs.Security;
-using SmkDoc.Application.UseCases.Security;
+using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
+using SmkDoc.Application.Modules.IdentityAccess.Security;
 using SmkDoc.Api.Extensions;
 
 namespace SmkDoc.Api.Controllers;

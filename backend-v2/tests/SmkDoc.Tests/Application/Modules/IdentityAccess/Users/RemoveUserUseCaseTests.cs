@@ -1,27 +1,18 @@
 using FluentAssertions;
 using Moq;
-using SmkDoc.Application.UseCases.Users.Commands.RemoveUser;
+using SmkDoc.Application.Modules.IdentityAccess.Users.Commands.RemoveUser;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.Interfaces;
+using SmkDoc.Tests.Common.Builders;
+using SmkDoc.Tests.Common.Fixtures;
 using Xunit;
 
 namespace SmkDoc.Tests.Application.UseCases.Users;
 
 public class RemoveUserUseCaseTests
 {
-    private readonly Mock<IUserProjectRoleRepository> _roleRepoMock = new();
-    private readonly Mock<IUnitOfWork> _uowMock = new();
-    private readonly RemoveUserUseCase _useCase;
-
-    public RemoveUserUseCaseTests()
-    {
-        _useCase = new RemoveUserUseCase(
-            _roleRepoMock.Object,
-            _uowMock.Object,
-            new RemoveUserCommandValidator());
-    }
+    private readonly UserManagementTestFixture _fixture = new();
 
     [Fact]
     public async Task ExecuteAsync_RemovesUserSuccessfully()
@@ -29,16 +20,22 @@ public class RemoveUserUseCaseTests
         var projectId = Guid.NewGuid();
         var userId = Guid.NewGuid();
         var currentUserId = Guid.NewGuid();
-        var roleEntry = new UserProjectRole(userId, projectId, RoleType.Viewer);
+        var roleEntry = new UserProjectRoleBuilder()
+            .InProject(projectId)
+            .ForUser(userId)
+            .AsViewer()
+            .Build();
 
-        _roleRepoMock.Setup(r => r.GetAsync(projectId, userId, It.IsAny<CancellationToken>()))
+        _fixture.RoleRepo.Setup(r => r.GetAsync(projectId, userId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(roleEntry);
 
+        var useCase = _fixture.BuildRemoveUserUseCase();
         var command = new RemoveUserCommand(projectId, userId, currentUserId);
-        await _useCase.ExecuteAsync(command);
+        
+        await useCase.ExecuteAsync(command);
 
-        _roleRepoMock.Verify(r => r.Remove(roleEntry), Times.Once);
-        _uowMock.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _fixture.RoleRepo.Verify(r => r.Remove(roleEntry), Times.Once);
+        _fixture.Uow.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -47,24 +44,38 @@ public class RemoveUserUseCaseTests
         var projectId = Guid.NewGuid();
         var userId = Guid.NewGuid();
         var currentUserId = Guid.NewGuid();
-        var roleEntry = new UserProjectRole(userId, projectId, RoleType.Admin);
+        var roleEntry = new UserProjectRoleBuilder()
+            .InProject(projectId)
+            .ForUser(userId)
+            .AsAdmin()
+            .Build();
 
-        _roleRepoMock.Setup(r => r.GetAsync(projectId, userId, It.IsAny<CancellationToken>()))
+        _fixture.RoleRepo.Setup(r => r.GetAsync(projectId, userId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(roleEntry);
-        _roleRepoMock.Setup(r => r.CountAdminsAsync(projectId, It.IsAny<CancellationToken>()))
+        _fixture.RoleRepo.Setup(r => r.CountAdminsAsync(projectId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(1);
 
+        var useCase = _fixture.BuildRemoveUserUseCase();
         var command = new RemoveUserCommand(projectId, userId, currentUserId);
-        Func<Task> act = () => _useCase.ExecuteAsync(command);
+        
+        Func<Task> act = () => useCase.ExecuteAsync(command);
         await act.Should().ThrowAsync<ConflictException>();
     }
 
     [Fact]
-    public async Task ExecuteAsync_Self_ThrowsValidationException()
+    public async Task ExecuteAsync_UserNotInProject_ThrowsNotFoundException()
     {
+        var projectId = Guid.NewGuid();
         var userId = Guid.NewGuid();
-        var command = new RemoveUserCommand(Guid.NewGuid(), userId, userId);
-        Func<Task> act = () => _useCase.ExecuteAsync(command);
-        await act.Should().ThrowAsync<SmkDoc.Domain.Exceptions.ValidationException>();
+        var currentUserId = Guid.NewGuid();
+
+        _fixture.RoleRepo.Setup(r => r.GetAsync(projectId, userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((UserProjectRole?)null);
+
+        var useCase = _fixture.BuildRemoveUserUseCase();
+        var command = new RemoveUserCommand(projectId, userId, currentUserId);
+
+        Func<Task> act = () => useCase.ExecuteAsync(command);
+        await act.Should().ThrowAsync<NotFoundException>();
     }
 }

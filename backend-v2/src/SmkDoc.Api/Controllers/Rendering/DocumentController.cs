@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Models;
-using SmkDoc.Application.DTOs.Documents;
-using SmkDoc.Application.UseCases.Documents;
+using SmkDoc.Application.Modules.Rendering.Documents.DTOs;
+using SmkDoc.Application.Modules.Rendering.Documents;
 using System.Text.Json;
 
 namespace SmkDoc.Api.Controllers;

@@ -1,3 +1,3 @@
-namespace SmkDoc.Application.UseCases.Users.Queries.ListProjectUsers;
+namespace SmkDoc.Application.Modules.IdentityAccess.Users.Queries.ListProjectUsers;
 
 public sealed record ListProjectUsersQuery(Guid ProjectId);

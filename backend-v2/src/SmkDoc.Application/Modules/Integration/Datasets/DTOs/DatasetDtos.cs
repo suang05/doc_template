@@ -1,4 +1,4 @@
-namespace SmkDoc.Application.DTOs.Datasets;
+namespace SmkDoc.Application.Modules.Integration.Datasets.DTOs;
 
 /// <summary>
 /// DTO representing a dataset query and cache configuration.

@@ -1,10 +1,10 @@
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.DTOs.Templates;
+using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 
-namespace SmkDoc.Application.UseCases.Templates.Commands.ActivateTemplateVersion;
+namespace SmkDoc.Application.Modules.Authoring.Templates.Commands.ActivateTemplateVersion;
 
 /// <summary>
 /// Single-responsibility Use Case for activating a specific template version.

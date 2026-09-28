@@ -1,7 +1,7 @@
 using System.Text.Json;
 using SmkDoc.Domain.ValueObjects.Validation;
 
-namespace SmkDoc.Application.DTOs.Schemas;
+namespace SmkDoc.Application.Modules.Authoring.Schemas.DTOs;
 
 /// <summary>
 /// Command DTO for validating an arbitrary payload against an arbitrary JSON Schema Draft-07.

@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.UseCases.Templates.Queries.ScanTemplatePlaceholders;
+using SmkDoc.Application.Modules.Authoring.Templates.Queries.ScanTemplatePlaceholders;
 using SmkDoc.Api.Models;
 
 namespace SmkDoc.Api.Controllers;
@@ -12,7 +12,7 @@ namespace SmkDoc.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/v1/templates")]
-[Authorize(Policy = "ApiKeyPolicy")]
+[Route("api/templates")]
 public class TemplateScanController(
     ITemplateScannerService scanner,
     ScanTemplatePlaceholdersUseCase scanUseCase) : ControllerBase

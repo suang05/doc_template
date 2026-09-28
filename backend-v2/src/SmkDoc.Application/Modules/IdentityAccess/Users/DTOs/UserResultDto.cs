@@ -1,4 +1,4 @@
-namespace SmkDoc.Application.DTOs.Users;
+namespace SmkDoc.Application.Modules.IdentityAccess.Users.DTOs;
 
 /// <summary>
 /// DTO representing user membership in a project.
@@ -11,22 +11,4 @@ public record UserResultDto(
     string Role,
     bool IsActive,
     DateTimeOffset CreatedAt
-);
-
-/// <summary>
-/// Command for inviting/adding a user to a project.
-/// </summary>
-public record InviteUserCommand(
-    string Email,
-    string Password,
-    string FirstName,
-    string LastName,
-    string Role = "Viewer"
-);
-
-/// <summary>
-/// Command for updating a user's role in a project.
-/// </summary>
-public record UpdateUserRoleCommand(
-    string Role
 );

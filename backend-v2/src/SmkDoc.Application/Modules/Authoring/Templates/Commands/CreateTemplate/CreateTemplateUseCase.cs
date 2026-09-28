@@ -2,13 +2,13 @@ using System.Text;
 using FluentValidation;
 using SmkDoc.Application.Common;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.DTOs.Templates;
+using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 
-namespace SmkDoc.Application.UseCases.Templates.Commands.CreateTemplate;
+namespace SmkDoc.Application.Modules.Authoring.Templates.Commands.CreateTemplate;
 
 /// <summary>
 /// Single-responsibility Use Case for creating a new template and its initial version.

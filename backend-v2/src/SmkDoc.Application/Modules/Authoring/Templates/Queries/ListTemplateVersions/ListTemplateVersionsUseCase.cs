@@ -1,8 +1,8 @@
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.DTOs.Templates;
+using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Domain.Entities;
 
-namespace SmkDoc.Application.UseCases.Templates.Queries.ListTemplateVersions;
+namespace SmkDoc.Application.Modules.Authoring.Templates.Queries.ListTemplateVersions;
 
 public sealed record ListTemplateVersionsQuery(Guid TemplateId);
 

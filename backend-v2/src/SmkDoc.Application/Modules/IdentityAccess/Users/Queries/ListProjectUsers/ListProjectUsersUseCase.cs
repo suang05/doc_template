@@ -1,10 +1,10 @@
 using FluentValidation;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.DTOs.Users;
+using SmkDoc.Application.Modules.IdentityAccess.Users.DTOs;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 
-namespace SmkDoc.Application.UseCases.Users.Queries.ListProjectUsers;
+namespace SmkDoc.Application.Modules.IdentityAccess.Users.Queries.ListProjectUsers;
 
 public sealed class ListProjectUsersUseCase(
     IUserProjectRoleRepository roleRepo,

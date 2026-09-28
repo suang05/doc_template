@@ -1,8 +1,8 @@
 using FluentAssertions;
 using Moq;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.DTOs.Datasets;
-using SmkDoc.Application.UseCases.Datasets;
+using SmkDoc.Application.Modules.Integration.Datasets.DTOs;
+using SmkDoc.Application.Modules.Integration.Datasets;
 using SmkDoc.Domain.Entities;
 using Xunit;
 using SmkDoc.Domain.Interfaces;

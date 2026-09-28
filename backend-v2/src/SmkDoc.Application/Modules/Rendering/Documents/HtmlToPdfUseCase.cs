@@ -1,9 +1,9 @@
 using System.Threading;
 using System.Threading.Tasks;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.DTOs.Documents;
+using SmkDoc.Application.Modules.Rendering.Documents.DTOs;
 
-namespace SmkDoc.Application.UseCases.Documents;
+namespace SmkDoc.Application.Modules.Rendering.Documents;
 
 /// <summary>
 /// Stateless utility Use Case for converting raw HTML string to PDF bytes.

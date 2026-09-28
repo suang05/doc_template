@@ -1,9 +1,9 @@
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.DTOs.DataConnections;
+using SmkDoc.Application.Modules.Integration.DataConnections.DTOs;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Interfaces;
 
-namespace SmkDoc.Application.UseCases.DataConnections;
+namespace SmkDoc.Application.Modules.Integration.DataConnections;
 
 public sealed class DataConnectionUseCase(
     IRepository<DataConnection> repository,

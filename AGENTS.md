@@ -49,6 +49,7 @@ Preserve these core invariants over legacy systems at all times:
 - Analyze trade-offs and enforce Clean Architecture DIP interfaces.
 - Use `PlaceholderHelper.Pattern` as SSoT for placeholder regex.
 - Validate inputs using Zod (frontend) and Domain Exceptions (backend).
+- Maintain anti-bloat test suites: Use Test Fixtures (`*TestFixture`) and Domain Builders (`*Builder`) for SUT/entity creation, and isolate input validation into `*ValidatorTests` using `[Theory]`.
 - Run automated tests (`dotnet test`, `npm test`) before finishing code modifications.
 
 ### 🟡 ASK FIRST (High-Impact Gates — Require Explicit Approval)

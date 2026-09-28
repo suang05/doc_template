@@ -1,8 +1,8 @@
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.DTOs.Templates;
+using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Domain.Interfaces;
 
-namespace SmkDoc.Application.UseCases.Templates.Queries.ListTemplates;
+namespace SmkDoc.Application.Modules.Authoring.Templates.Queries.ListTemplates;
 
 /// <summary>
 /// Single-responsibility Query Use Case for listing templates.
