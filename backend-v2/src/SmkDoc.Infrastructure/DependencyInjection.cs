@@ -55,6 +55,9 @@ public static class DependencyInjection
         services.AddScoped<ITemplateDatasetRepository, TemplateDatasetRepository>();
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IUserProjectRoleRepository, UserProjectRoleRepository>();
+        services.AddScoped<IProjectRepository, ProjectRepository>();
+        services.AddScoped<IApiKeyRepository, ApiKeyRepository>();
+        services.AddScoped<ICompanyRepository, CompanyRepository>();
         services.AddScoped<IGenerationLogMetricsRepository, GenerationLogMetricsRepository>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
 

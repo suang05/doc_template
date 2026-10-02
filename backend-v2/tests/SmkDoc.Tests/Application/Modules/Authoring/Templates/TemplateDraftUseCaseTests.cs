@@ -4,13 +4,15 @@ using Moq;
 using SmkDoc.Application.Common;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
+using SmkDoc.Application.Modules.Authoring.Templates.Commands.CommitTemplateDraft;
+using SmkDoc.Application.Modules.Authoring.Templates.Commands.ParseTemplateDraft;
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
-using SmkDoc.Application.Modules.Authoring.Templates;
+using SmkDoc.Application.Modules.Authoring.Templates.Queries.PreviewTemplateDraft;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
-using Xunit;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.Exceptions;
+using SmkDoc.Domain.Interfaces;
+using Xunit;
 
 namespace SmkDoc.Tests.Application.Modules.Authoring.Templates;
 
@@ -21,23 +23,12 @@ public class TemplateDraftUseCaseTests
     private readonly Mock<ITemplateDraftCache> _cache = new();
     private readonly Mock<IRenderEngine> _engine = new();
     private readonly Mock<IStorageService> _storage = new();
-    private readonly Mock<IRepository<Template>> _templateRepo = new();
+    private readonly Mock<ITemplateRepository> _templateRepo = new();
     private readonly Mock<IRepository<TemplateVersion>> _versionRepo = new();
-    private readonly Mock<IRepository<FieldMapping>> _mappingRepo = new();
+    private readonly Mock<IFieldMappingRepository> _mappingRepo = new();
     private readonly Mock<IUnitOfWork> _uow = new();
 
-    private TemplateDraftUseCase BuildUseCase() => new(
-        _scanner.Object,
-        _cache.Object,
-        new[] { _engine.Object },
-        _storage.Object,
-        _templateRepo.Object,
-        _versionRepo.Object,
-        _mappingRepo.Object,
-        _uow.Object
-    );
-
-    // ── ParseAsync ────────────────────────────────────────────────────────────
+    // ── ParseTemplateDraftUseCase ─────────────────────────────────────────────
 
     [Fact]
     public async Task ParseAsync_ValidFile_StoresDraftAndReturnsPlaceholders()
@@ -49,11 +40,11 @@ public class TemplateDraftUseCaseTests
         _cache.Setup(c => c.StoreAsync(It.IsAny<TemplateDraftEntry>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("draft-abc");
 
-        var useCase = BuildUseCase();
+        var useCase = new ParseTemplateDraftUseCase(_scanner.Object, _cache.Object);
         using var stream = new MemoryStream(Encoding.UTF8.GetBytes("fake-docx"));
 
         // Act
-        var result = await useCase.ParseAsync(stream, "invoice.docx", CancellationToken.None);
+        var result = await useCase.ExecuteAsync(new ParseTemplateDraftCommand(stream, "invoice.docx"), CancellationToken.None);
 
         // Assert
         result.DraftId.Should().Be("draft-abc");
@@ -70,16 +61,16 @@ public class TemplateDraftUseCaseTests
         _cache.Setup(c => c.StoreAsync(It.IsAny<TemplateDraftEntry>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("draft-empty");
 
-        var useCase = BuildUseCase();
+        var useCase = new ParseTemplateDraftUseCase(_scanner.Object, _cache.Object);
         using var stream = new MemoryStream(Encoding.UTF8.GetBytes("<html></html>"));
 
-        var result = await useCase.ParseAsync(stream, "empty.html", CancellationToken.None);
+        var result = await useCase.ExecuteAsync(new ParseTemplateDraftCommand(stream, "empty.html"), CancellationToken.None);
 
         result.Placeholders.Should().BeEmpty();
         result.DraftId.Should().Be("draft-empty");
     }
 
-    // ── PreviewAsync ──────────────────────────────────────────────────────────
+    // ── PreviewTemplateDraftUseCase ───────────────────────────────────────────
 
     [Fact]
     public async Task PreviewAsync_ValidDraftId_RendersWithoutSideEffects()
@@ -93,9 +84,9 @@ public class TemplateDraftUseCaseTests
                 e.RenderAsync(It.IsAny<Stream>(), It.IsAny<string>(), OutputFormat.Pdf, It.IsAny<CancellationToken>()))
             .ReturnsAsync(pdfBytes);
 
-        var useCase = BuildUseCase();
+        var useCase = new PreviewTemplateDraftUseCase(_cache.Object, new[] { _engine.Object });
 
-        var result = await useCase.PreviewAsync("draft-1", "{\"field\":\"val\"}", CancellationToken.None);
+        var result = await useCase.ExecuteAsync(new PreviewTemplateDraftQuery("draft-1", "{\"field\":\"val\"}"), CancellationToken.None);
 
         result.Should().BeEquivalentTo(pdfBytes);
         // Zero side-effects — no MinIO writes, no DB saves, no cache eviction:
@@ -111,13 +102,13 @@ public class TemplateDraftUseCaseTests
     {
         _cache.Setup(c => c.GetAsync("gone", It.IsAny<CancellationToken>())).ReturnsAsync((TemplateDraftEntry?)null);
 
-        var useCase = BuildUseCase();
+        var useCase = new PreviewTemplateDraftUseCase(_cache.Object, new[] { _engine.Object });
 
-        await useCase.Invoking(u => u.PreviewAsync("gone", "{}", CancellationToken.None))
+        await useCase.Invoking(u => u.ExecuteAsync(new PreviewTemplateDraftQuery("gone", "{}"), CancellationToken.None))
             .Should().ThrowAsync<DraftExpiredException>();
     }
 
-    // ── CommitAsync ───────────────────────────────────────────────────────────
+    // ── CommitTemplateDraftUseCase ────────────────────────────────────────────
 
     [Fact]
     public async Task CommitAsync_HappyPath_UploadsToMinioThenWritesDb()
@@ -137,8 +128,10 @@ public class TemplateDraftUseCaseTests
         _uow.Setup(u => u.CommitAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
         _cache.Setup(c => c.RemoveAsync("draft-commit", It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
 
-        var useCase = BuildUseCase();
-        var templateId = await useCase.CommitAsync("draft-commit", request, CancellationToken.None);
+        var useCase = new CommitTemplateDraftUseCase(
+            _cache.Object, _storage.Object, _templateRepo.Object, _versionRepo.Object, _mappingRepo.Object, _uow.Object);
+
+        var templateId = await useCase.ExecuteAsync(new CommitTemplateDraftCommand("draft-commit", request), CancellationToken.None);
 
         templateId.Should().NotBeEmpty();
         _storage.Verify(s => s.UploadAsync(StorageBuckets.Templates, It.IsAny<string>(), It.IsAny<Stream>(),
@@ -166,9 +159,10 @@ public class TemplateDraftUseCaseTests
         _storage.Setup(s => s.DeleteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        var useCase = BuildUseCase();
+        var useCase = new CommitTemplateDraftUseCase(
+            _cache.Object, _storage.Object, _templateRepo.Object, _versionRepo.Object, _mappingRepo.Object, _uow.Object);
 
-        await useCase.Invoking(u => u.CommitAsync("draft-fail", request, CancellationToken.None))
+        await useCase.Invoking(u => u.ExecuteAsync(new CommitTemplateDraftCommand("draft-fail", request), CancellationToken.None))
             .Should().ThrowAsync<Exception>().WithMessage("DB error");
 
         _storage.Verify(s => s.DeleteAsync(StorageBuckets.Templates, It.IsAny<string>(), It.IsAny<CancellationToken>()),
@@ -180,10 +174,11 @@ public class TemplateDraftUseCaseTests
     {
         _cache.Setup(c => c.GetAsync("stale", It.IsAny<CancellationToken>())).ReturnsAsync((TemplateDraftEntry?)null);
 
-        var useCase = BuildUseCase();
+        var useCase = new CommitTemplateDraftUseCase(
+            _cache.Object, _storage.Object, _templateRepo.Object, _versionRepo.Object, _mappingRepo.Object, _uow.Object);
         var request = new CommitDraftCommand("T", "t", null, []);
 
-        await useCase.Invoking(u => u.CommitAsync("stale", request, CancellationToken.None))
+        await useCase.Invoking(u => u.ExecuteAsync(new CommitTemplateDraftCommand("stale", request), CancellationToken.None))
             .Should().ThrowAsync<DraftExpiredException>();
     }
 
@@ -211,8 +206,9 @@ public class TemplateDraftUseCaseTests
         _uow.Setup(u => u.CommitAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
         _cache.Setup(c => c.RemoveAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
 
-        var useCase = BuildUseCase();
-        await useCase.CommitAsync("draft-map", request, CancellationToken.None);
+        var useCase = new CommitTemplateDraftUseCase(
+            _cache.Object, _storage.Object, _templateRepo.Object, _versionRepo.Object, _mappingRepo.Object, _uow.Object);
+        await useCase.ExecuteAsync(new CommitTemplateDraftCommand("draft-map", request), CancellationToken.None);
 
         _mappingRepo.Verify(r => r.AddAsync(It.IsAny<FieldMapping>(), It.IsAny<CancellationToken>()), Times.Exactly(2));
     }

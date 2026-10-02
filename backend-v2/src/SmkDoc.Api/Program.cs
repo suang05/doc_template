@@ -13,6 +13,7 @@ using SmkDoc.Application;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess;
 using SmkDoc.Application.Modules.IdentityAccess.Security;
+using SmkDoc.Application.Modules.IdentityAccess.Security.Helpers;
 using SmkDoc.Infrastructure.Engines.Excel;
 using SmkDoc.Infrastructure.Engines.Html;
 using SmkDoc.Infrastructure.Engines.Word;
@@ -286,9 +287,9 @@ using (var scope = app.Services.CreateScope())
             logger.LogWarning("Using temporary Development API Key. NEVER use this in production.");
         }
 
-        var apiKeyRepo = scope.ServiceProvider.GetRequiredService<IRepository<SmkDoc.Domain.Entities.ApiKey>>();
-        var defaultKeyHash = ApiKeyUseCase.ComputeHash(masterApiKey);
-        var existingKey = await apiKeyRepo.FirstOrDefaultAsync(k => k.KeyHash == defaultKeyHash);
+        var apiKeyRepo = scope.ServiceProvider.GetRequiredService<IApiKeyRepository>();
+        var defaultKeyHash = ApiKeyHelper.ComputeHash(masterApiKey);
+        var existingKey = await apiKeyRepo.GetByKeyHashAsync(defaultKeyHash);
         if (existingKey == null)
         {
             await apiKeyRepo.AddAsync(new SmkDoc.Domain.Entities.ApiKey(project.Id, "Master Environment Key", "master", defaultKeyHash, null));

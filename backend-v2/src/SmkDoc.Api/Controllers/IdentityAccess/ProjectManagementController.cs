@@ -1,8 +1,9 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using SmkDoc.Api.Models;
-using SmkDoc.Application.Modules.IdentityAccess.Projects;
 using SmkDoc.Api.Extensions;
+using SmkDoc.Api.Models;
+using SmkDoc.Application.Modules.IdentityAccess.Projects.Commands.CreateProject;
+using SmkDoc.Application.Modules.IdentityAccess.Projects.Queries.ListProjects;
 
 namespace SmkDoc.Api.Controllers.IdentityAccess;
 
@@ -13,15 +14,20 @@ namespace SmkDoc.Api.Controllers.IdentityAccess;
 [ApiController]
 [Route("api/v1/management/projects")]
 [Authorize(Policy = "JwtPolicy")]
-public class ProjectManagementController(ProjectManagementUseCase useCase) : ControllerBase
+public class ProjectManagementController(
+    ListProjectsUseCase listProjectsUseCase,
+    CreateProjectUseCase createProjectUseCase) : ControllerBase
 {
+    private readonly ListProjectsUseCase _listProjectsUseCase = listProjectsUseCase;
+    private readonly CreateProjectUseCase _createProjectUseCase = createProjectUseCase;
+
     /// <summary>List all projects accessible to the authenticated user.</summary>
     [HttpGet]
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<ProjectListItemDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> ListProjects(CancellationToken ct)
     {
         var userId = User.GetUserId();
-        var projects = await useCase.ListProjectsAsync(userId, ct);
+        var projects = await _listProjectsUseCase.ExecuteAsync(new ListProjectsQuery(userId), ct);
         var result = projects.Select(p => new ProjectListItemDto(p.Id, p.Name, p.Slug, p.IsActive, p.CreatedAt));
         return Ok(new ApiResponse<IEnumerable<ProjectListItemDto>>(result));
     }
@@ -37,7 +43,7 @@ public class ProjectManagementController(ProjectManagementUseCase useCase) : Con
     {
         User.RequireAdmin();
         var userId = User.GetUserId();
-        var project = await useCase.CreateProjectAsync(userId, req.Name, req.Slug, ct);
+        var project = await _createProjectUseCase.ExecuteAsync(new CreateProjectCommand(userId, req.Name, req.Slug), ct);
 
         var responseDto = new ProjectDto(project.Id, project.Name, project.Slug, project.IsActive, project.CreatedAt);
         return CreatedAtAction(nameof(ListProjects), new { id = project.Id }, new ApiResponse<ProjectDto>(responseDto));

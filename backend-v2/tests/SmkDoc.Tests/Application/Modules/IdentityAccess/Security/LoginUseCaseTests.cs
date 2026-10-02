@@ -1,20 +1,21 @@
-using System.Linq.Expressions;
 using FluentAssertions;
 using Moq;
 using SmkDoc.Application.Common.Interfaces;
+using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.Login;
 using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
-using SmkDoc.Application.Modules.IdentityAccess.Security;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
+using SmkDoc.Domain.Exceptions;
+using SmkDoc.Domain.Interfaces;
 using Xunit;
 
 namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Security;
 
 public class LoginUseCaseTests
 {
-    private readonly Mock<IRepository<User>> _userRepoMock = new();
-    private readonly Mock<IRepository<UserProjectRole>> _roleRepoMock = new();
-    private readonly Mock<IRepository<Project>> _projectRepoMock = new();
+    private readonly Mock<IUserRepository> _userRepoMock = new();
+    private readonly Mock<IUserProjectRoleRepository> _roleRepoMock = new();
+    private readonly Mock<IProjectRepository> _projectRepoMock = new();
     private readonly Mock<IPasswordHasher> _passwordHasherMock = new();
     private readonly Mock<IJwtTokenGenerator> _jwtGeneratorMock = new();
     private readonly LoginUseCase _useCase;
@@ -39,13 +40,13 @@ public class LoginUseCaseTests
         var role = new UserProjectRole(user.Id, projectId, RoleType.Viewer);
         var project = new Project(Guid.NewGuid(), "Project Alpha", "project-alpha") { Id = projectId };
 
-        _userRepoMock.Setup(r => r.FirstOrDefaultAsync(It.IsAny<Expression<Func<User, bool>>>(), It.IsAny<CancellationToken>()))
+        _userRepoMock.Setup(r => r.GetByEmailAsync("test@example.com", It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);
 
-        _roleRepoMock.Setup(r => r.ListAsync(It.IsAny<Expression<Func<UserProjectRole, bool>>>(), It.IsAny<CancellationToken>()))
+        _roleRepoMock.Setup(r => r.ListByUserAsync(user.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<UserProjectRole> { role });
 
-        _projectRepoMock.Setup(r => r.ListAsync(It.IsAny<Expression<Func<Project, bool>>>(), It.IsAny<CancellationToken>()))
+        _projectRepoMock.Setup(r => r.ListByIdsAsync(It.IsAny<IEnumerable<Guid>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<Project> { project });
 
         _passwordHasherMock.Setup(p => p.VerifyPassword("password123", "hashed_pw"))
@@ -75,13 +76,13 @@ public class LoginUseCaseTests
         var p1 = new Project(Guid.NewGuid(), "ERP", "erp") { Id = Guid.NewGuid() };
         var p2 = new Project(Guid.NewGuid(), "CRM", "crm") { Id = Guid.NewGuid() };
 
-        _userRepoMock.Setup(r => r.FirstOrDefaultAsync(It.IsAny<Expression<Func<User, bool>>>(), It.IsAny<CancellationToken>()))
+        _userRepoMock.Setup(r => r.GetByEmailAsync("admin@example.com", It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);
 
         _passwordHasherMock.Setup(p => p.VerifyPassword("admin_password", "hashed_pw"))
             .Returns(true);
 
-        _projectRepoMock.Setup(r => r.ListAsync(It.IsAny<Expression<Func<Project, bool>>>(), It.IsAny<CancellationToken>()))
+        _projectRepoMock.Setup(r => r.ListActiveAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<Project> { p1, p2 });
 
         _jwtGeneratorMock.Setup(j => j.GenerateToken(user, p1.Id, It.IsAny<IEnumerable<string>>()))
@@ -105,7 +106,7 @@ public class LoginUseCaseTests
         var request = new LoginRequest { Email = "test@example.com", Password = "wrong_password" };
         var user = new User("test@example.com", "hashed_pw", "", "") { Id = Guid.NewGuid() };
 
-        _userRepoMock.Setup(r => r.FirstOrDefaultAsync(It.IsAny<Expression<Func<User, bool>>>(), It.IsAny<CancellationToken>()))
+        _userRepoMock.Setup(r => r.GetByEmailAsync("test@example.com", It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);
 
         _passwordHasherMock.Setup(p => p.VerifyPassword("wrong_password", "hashed_pw"))
@@ -113,6 +114,6 @@ public class LoginUseCaseTests
 
         // Act & Assert
         Func<Task> act = () => _useCase.ExecuteAsync(request);
-        await act.Should().ThrowAsync<UnauthorizedAccessException>();
+        await act.Should().ThrowAsync<UnauthorizedException>();
     }
 }

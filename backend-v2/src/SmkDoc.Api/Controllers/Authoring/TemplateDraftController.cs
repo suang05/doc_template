@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Models;
+using SmkDoc.Application.Modules.Authoring.Templates.Commands.CommitTemplateDraft;
+using SmkDoc.Application.Modules.Authoring.Templates.Commands.ParseTemplateDraft;
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
-using SmkDoc.Application.Modules.Authoring.Templates;
+using SmkDoc.Application.Modules.Authoring.Templates.Queries.PreviewTemplateDraft;
 
 namespace SmkDoc.Api.Controllers.Authoring;
 
@@ -13,8 +15,15 @@ namespace SmkDoc.Api.Controllers.Authoring;
 [ApiController]
 [Route("api/v1/templates/draft")]
 [Route("api/templates/draft")]
-public class TemplateDraftController(TemplateDraftUseCase draftUseCase) : ControllerBase
+public class TemplateDraftController(
+    ParseTemplateDraftUseCase parseUseCase,
+    PreviewTemplateDraftUseCase previewUseCase,
+    CommitTemplateDraftUseCase commitUseCase) : ControllerBase
 {
+    private readonly ParseTemplateDraftUseCase _parseUseCase = parseUseCase;
+    private readonly PreviewTemplateDraftUseCase _previewUseCase = previewUseCase;
+    private readonly CommitTemplateDraftUseCase _commitUseCase = commitUseCase;
+
     /// <summary>
     /// Step 1 — Parse: upload file to RAM cache, return draftId + discovered placeholders.
     /// Zero side-effects (no DB or MinIO writes).
@@ -28,7 +37,7 @@ public class TemplateDraftController(TemplateDraftUseCase draftUseCase) : Contro
             return BadRequest(new { error = "File is required." });
 
         using var stream = file.OpenReadStream();
-        var result = await draftUseCase.ParseAsync(stream, file.FileName, ct);
+        var result = await _parseUseCase.ExecuteAsync(new ParseTemplateDraftCommand(stream, file.FileName), ct);
         return Ok(new ApiResponse<ParseDraftResponse>(new ParseDraftResponse(result.DraftId, result.Placeholders)));
     }
 
@@ -45,7 +54,7 @@ public class TemplateDraftController(TemplateDraftUseCase draftUseCase) : Contro
         [FromBody] PreviewDraftQuery request,
         CancellationToken ct)
     {
-        byte[] pdfBytes = await draftUseCase.PreviewAsync(draftId, request.DataJson, ct);
+        byte[] pdfBytes = await _previewUseCase.ExecuteAsync(new PreviewTemplateDraftQuery(draftId, request.DataJson), ct);
         Response.Headers.ContentDisposition = "inline";
         return File(pdfBytes, "application/pdf");
     }
@@ -62,7 +71,7 @@ public class TemplateDraftController(TemplateDraftUseCase draftUseCase) : Contro
         [FromBody] CommitDraftCommand request,
         CancellationToken ct)
     {
-        var templateId = await draftUseCase.CommitAsync(draftId, request, ct);
+        var templateId = await _commitUseCase.ExecuteAsync(new CommitTemplateDraftCommand(draftId, request), ct);
         return Ok(new ApiResponse<CommitDraftResponse>(new CommitDraftResponse(Guid.Parse(templateId))));
     }
 }

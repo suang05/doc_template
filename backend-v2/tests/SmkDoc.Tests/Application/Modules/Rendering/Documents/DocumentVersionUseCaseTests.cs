@@ -2,7 +2,9 @@ using System.Linq.Expressions;
 using FluentAssertions;
 using Moq;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.Modules.Rendering.Documents;
+using SmkDoc.Application.Modules.Rendering.Documents.Queries.DownloadDocumentVersion;
+using SmkDoc.Application.Modules.Rendering.Documents.Queries.GetDocumentVersions;
+using SmkDoc.Application.Modules.Rendering.Logs.Queries.GetLogDownloadUrl;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
@@ -16,13 +18,6 @@ public class DocumentVersionUseCaseTests
     private readonly Mock<IRepository<DocumentVersion>> _mockVersionRepo  = new();
     private readonly Mock<IRepository<GenerationLog>>   _mockLogRepo      = new();
     private readonly Mock<IStorageService>              _mockStorage      = new();
-
-    private DocumentVersionUseCase BuildUseCase() => new(
-        _mockDocumentRepo.Object,
-        _mockVersionRepo.Object,
-        _mockLogRepo.Object,
-        _mockStorage.Object
-    );
 
     [Fact]
     public async Task GetVersionsByRefAsync_ShouldReturnOrderedVersions()
@@ -40,8 +35,10 @@ public class DocumentVersionUseCaseTests
                 new DocumentVersion(documentId, 2, Guid.NewGuid(), null, null, null) { Id = Guid.NewGuid() }
             ]);
 
+        var useCase = new GetDocumentVersionsUseCase(_mockDocumentRepo.Object, _mockVersionRepo.Object);
+
         // Act
-        var result = await BuildUseCase().GetVersionsByRefAsync("SC-001");
+        var result = await useCase.ExecuteAsync(new GetDocumentVersionsQuery("SC-001"));
 
         // Assert
         result.Should().HaveCount(2);
@@ -57,8 +54,10 @@ public class DocumentVersionUseCaseTests
         _mockDocumentRepo.Setup(r => r.FirstOrDefaultAsync(It.IsAny<Expression<Func<Document, bool>>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((Document?)null);
 
+        var useCase = new GetDocumentVersionsUseCase(_mockDocumentRepo.Object, _mockVersionRepo.Object);
+
         // Act
-        var result = await BuildUseCase().GetVersionsByRefAsync("DOES-NOT-EXIST");
+        var result = await useCase.ExecuteAsync(new GetDocumentVersionsQuery("DOES-NOT-EXIST"));
 
         // Assert
         result.Should().BeEmpty();
@@ -84,13 +83,15 @@ public class DocumentVersionUseCaseTests
         _mockStorage.Setup(s => s.DownloadAsync("outputs", "outputs/sc001_v1.pdf", It.IsAny<CancellationToken>()))
             .ReturnsAsync(new MemoryStream(pdfBytes));
 
+        var useCase = new DownloadDocumentVersionUseCase(_mockDocumentRepo.Object, _mockVersionRepo.Object, _mockLogRepo.Object, _mockStorage.Object);
+
         // Act
-        var (stream, contentType, fileName) = await BuildUseCase().DownloadVersionAsync("SC-001", 1);
+        var result = await useCase.ExecuteAsync(new DownloadDocumentVersionQuery("SC-001", 1));
 
         // Assert
-        contentType.Should().Be("application/pdf");
-        fileName.Should().Be("SC-001_v1.pdf");
-        stream.Should().NotBeNull();
+        result.ContentType.Should().Be("application/pdf");
+        result.FileName.Should().Be("SC-001_v1.pdf");
+        result.Stream.Should().NotBeNull();
     }
 
     [Fact]
@@ -99,7 +100,9 @@ public class DocumentVersionUseCaseTests
         _mockDocumentRepo.Setup(r => r.FirstOrDefaultAsync(It.IsAny<Expression<Func<Document, bool>>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((Document?)null);
 
-        Func<Task> act = () => BuildUseCase().DownloadVersionAsync("MISSING", 1);
+        var useCase = new DownloadDocumentVersionUseCase(_mockDocumentRepo.Object, _mockVersionRepo.Object, _mockLogRepo.Object, _mockStorage.Object);
+
+        Func<Task> act = () => useCase.ExecuteAsync(new DownloadDocumentVersionQuery("MISSING", 1));
         await act.Should().ThrowAsync<NotFoundException>();
     }
 
@@ -115,8 +118,10 @@ public class DocumentVersionUseCaseTests
         _mockStorage.Setup(s => s.GetPresignedUrlAsync("outputs", "outputs/doc.pdf", It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("https://minio.sammakorn.co.th/outputs/doc.pdf?token=abc");
 
+        var useCase = new GetLogDownloadUrlUseCase(_mockLogRepo.Object, _mockStorage.Object);
+
         // Act
-        var url = await BuildUseCase().GetDownloadUrlByLogIdAsync(logId);
+        var url = await useCase.ExecuteAsync(new GetLogDownloadUrlQuery(logId));
 
         // Assert
         url.Should().Contain("minio.sammakorn.co.th");

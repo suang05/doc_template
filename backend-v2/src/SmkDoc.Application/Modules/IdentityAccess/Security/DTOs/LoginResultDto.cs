@@ -105,15 +105,6 @@ public record ApiKeyDto(
 );
 
 /// <summary>
-/// Command for generating a new API key.
-/// </summary>
-public record CreateApiKeyCommand(
-    string Name,
-    string CallerApp,
-    Guid? ProjectId = null
-);
-
-/// <summary>
 /// Result returned immediately after creating an API key, containing the one-time plain-text key.
 /// </summary>
 public record CreateApiKeyResultDto(

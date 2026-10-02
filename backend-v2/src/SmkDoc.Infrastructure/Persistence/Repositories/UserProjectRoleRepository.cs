@@ -16,6 +16,13 @@ public sealed class UserProjectRoleRepository(AppDbContext context) : IUserProje
             .ToListAsync(ct);
     }
 
+    public async Task<List<UserProjectRole>> ListByUserAsync(Guid userId, CancellationToken ct = default)
+    {
+        return await _context.UserProjectRoles
+            .Where(r => r.UserId == userId)
+            .ToListAsync(ct);
+    }
+
     public async Task<UserProjectRole?> GetAsync(Guid projectId, Guid userId, CancellationToken ct = default)
     {
         return await _context.UserProjectRoles

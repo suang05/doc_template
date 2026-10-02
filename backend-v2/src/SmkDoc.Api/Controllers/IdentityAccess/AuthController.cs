@@ -1,38 +1,24 @@
 using Microsoft.AspNetCore.Mvc;
-using SmkDoc.Api.Models;
-using SmkDoc.Application.Modules.IdentityAccess.Security;
+using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.Login;
+using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
 
 namespace SmkDoc.Api.Controllers.IdentityAccess;
 
 [ApiController]
 [Route("api/auth")]
-public class AuthController : ControllerBase
+public class AuthController(LoginUseCase loginUseCase) : ControllerBase
 {
-    private readonly LoginUseCase _loginUseCase;
-
-    public AuthController(LoginUseCase loginUseCase)
-    {
-        _loginUseCase = loginUseCase;
-    }
+    private readonly LoginUseCase _loginUseCase = loginUseCase;
 
     /// <summary>
     /// Authenticate a user and return a JWT access token.
     /// </summary>
     [HttpPost("login")]
+    [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> Login([FromBody] LoginRequest request, CancellationToken ct)
     {
-        try
-        {
-            var response = await _loginUseCase.ExecuteAsync(request, ct);
-            return Ok(response);
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            return Unauthorized(new { error = ex.Message });
-        }
-        catch (Exception ex)
-        {
-            return StatusCode(500, new { error = "Internal server error.", message = ex.Message });
-        }
+        var response = await _loginUseCase.ExecuteAsync(request, ct);
+        return Ok(response);
     }
 }

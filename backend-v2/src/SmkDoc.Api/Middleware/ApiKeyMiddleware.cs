@@ -1,5 +1,5 @@
 using SmkDoc.Api.Models;
-using SmkDoc.Application.Modules.IdentityAccess.Security;
+using SmkDoc.Application.Modules.IdentityAccess.Security.Queries.ValidateApiKey;
 
 namespace SmkDoc.Api.Middleware;
 
@@ -16,7 +16,7 @@ public class ApiKeyMiddleware
         _masterApiKey = configuration["MASTER_API_KEY"] ?? configuration["Security:ApiKey"];
     }
 
-    public async Task InvokeAsync(HttpContext context, ApiKeyUseCase apiKeyUseCase, ExecutionContextImpl executionContext)
+    public async Task InvokeAsync(HttpContext context, ValidateApiKeyUseCase validateApiKeyUseCase, ExecutionContextImpl executionContext)
     {
         string path = context.Request.Path.Value?.ToLowerInvariant() ?? "";
 
@@ -63,7 +63,7 @@ public class ApiKeyMiddleware
             return;
         }
 
-        var key = await apiKeyUseCase.ValidateKeyAsync(rawKey);
+        var key = await validateApiKeyUseCase.ExecuteAsync(new ValidateApiKeyQuery(rawKey));
         if (key == null)
         {
             _logger.LogWarning("Invalid API Key attempt from {IpAddress} to {Path}", executionContext.ClientIp, path);

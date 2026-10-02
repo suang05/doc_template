@@ -2,6 +2,9 @@ using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Models;
 using SmkDoc.Application.Modules.Rendering.Documents.DTOs;
 using SmkDoc.Application.Modules.Rendering.Documents;
+using SmkDoc.Application.Modules.Rendering.Documents.Queries.GetDocumentVersions;
+using SmkDoc.Application.Modules.Rendering.Documents.Queries.DownloadDocumentVersion;
+using SmkDoc.Application.Modules.Rendering.Logs.Queries.GetLogDownloadUrl;
 using System.Text.Json;
 
 using SmkDoc.Application.Modules.Authoring.Templates;
@@ -15,9 +18,18 @@ namespace SmkDoc.Api.Controllers;
 public class DocumentController(
     GenerateDocumentUseCase generateUseCase,
     PreviewDocumentUseCase previewUseCase,
-    DocumentVersionUseCase versionUseCase,
+    GetDocumentVersionsUseCase getVersionsUseCase,
+    DownloadDocumentVersionUseCase downloadVersionUseCase,
+    GetLogDownloadUrlUseCase getLogDownloadUrlUseCase,
     RenderStatelessDocumentUseCase renderStatelessUseCase) : ControllerBase
 {
+    private readonly GenerateDocumentUseCase _generateUseCase = generateUseCase;
+    private readonly PreviewDocumentUseCase _previewUseCase = previewUseCase;
+    private readonly GetDocumentVersionsUseCase _getVersionsUseCase = getVersionsUseCase;
+    private readonly DownloadDocumentVersionUseCase _downloadVersionUseCase = downloadVersionUseCase;
+    private readonly GetLogDownloadUrlUseCase _getLogDownloadUrlUseCase = getLogDownloadUrlUseCase;
+    private readonly RenderStatelessDocumentUseCase _renderStatelessUseCase = renderStatelessUseCase;
+
     /// <summary>
     /// Generate a document from template slug and input JSON data
     /// </summary>
@@ -26,7 +38,7 @@ public class DocumentController(
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Generate([FromRoute] string slug, [FromBody] GenerateDocumentCommand request, CancellationToken ct)
     {
-        var response = await generateUseCase.ExecuteAsync(slug, request, ct);
+        var response = await _generateUseCase.ExecuteAsync(slug, request, ct);
         return Ok(new ApiResponse<GenerateDocumentResultDto>(response));
     }
 
@@ -58,7 +70,7 @@ public class DocumentController(
     [Produces("application/pdf")]
     public async Task<IActionResult> Preview([FromRoute] string? slug, [FromBody] PreviewDocumentQuery request, CancellationToken ct)
     {
-        var pdfStream = await previewUseCase.ExecuteStreamAsync(slug, request, ct);
+        var pdfStream = await _previewUseCase.ExecuteStreamAsync(slug, request, ct);
         Response.Headers.ContentDisposition = "inline";
         return File(pdfStream, "application/pdf");
     }
@@ -70,7 +82,7 @@ public class DocumentController(
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<DocumentVersionDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetVersions([FromRoute] string documentRef, CancellationToken ct)
     {
-        var versions = await versionUseCase.GetVersionsByRefAsync(documentRef, ct);
+        var versions = await _getVersionsUseCase.ExecuteAsync(new GetDocumentVersionsQuery(documentRef), ct);
         return Ok(new ApiResponse<IEnumerable<DocumentVersionDto>>(versions));
     }
 
@@ -80,15 +92,15 @@ public class DocumentController(
     [HttpGet("{documentRef}/versions/{version:int}/download")]
     public async Task<IActionResult> DownloadVersion([FromRoute] string documentRef, [FromRoute] int version, CancellationToken ct)
     {
-        var (stream, contentType, fileName) = await versionUseCase.DownloadVersionAsync(documentRef, version, ct);
-        return File(stream, contentType, fileName);
+        var result = await _downloadVersionUseCase.ExecuteAsync(new DownloadDocumentVersionQuery(documentRef, version), ct);
+        return File(result.Stream, result.ContentType, result.FileName);
     }
 
     [HttpGet("download/{logId:guid}")]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     public async Task<IActionResult> DownloadByLogId([FromRoute] Guid logId, CancellationToken ct)
     {
-        var url = await versionUseCase.GetDownloadUrlByLogIdAsync(logId, ct);
+        var url = await _getLogDownloadUrlUseCase.ExecuteAsync(new GetLogDownloadUrlQuery(logId), ct);
         return Ok(new ApiResponse<object>(new { url, expiresInSeconds = 3600 }));
     }
 
@@ -107,7 +119,7 @@ public class DocumentController(
         }
 
         var stream = file.OpenReadStream();
-        var pdfStream = await renderStatelessUseCase.ExecuteStreamAsync(stream, file.FileName, jsonData, ct);
+        var pdfStream = await _renderStatelessUseCase.ExecuteStreamAsync(stream, file.FileName, jsonData, ct);
         
         Response.Headers.ContentDisposition = "inline";
         return File(pdfStream, "application/pdf");

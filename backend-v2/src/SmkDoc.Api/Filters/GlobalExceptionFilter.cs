@@ -45,6 +45,7 @@ public sealed class GlobalExceptionFilter(ILogger<GlobalExceptionFilter> logger)
                 DraftExpiredException => (StatusCodes.Status410Gone, "Draft Expired"),
                 ConflictException     => (StatusCodes.Status409Conflict, "Conflict"),
                 RenderException       => (StatusCodes.Status500InternalServerError, "Render Failed"),
+                UnauthorizedException => (StatusCodes.Status401Unauthorized, "Unauthorized"),
                 _                     => (StatusCodes.Status400BadRequest, "Domain Error")
             };
         }

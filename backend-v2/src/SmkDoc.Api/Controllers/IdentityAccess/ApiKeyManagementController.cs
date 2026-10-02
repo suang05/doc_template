@@ -1,9 +1,11 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using SmkDoc.Api.Models;
-using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
-using SmkDoc.Application.Modules.IdentityAccess.Security;
 using SmkDoc.Api.Extensions;
+using SmkDoc.Api.Models;
+using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.CreateApiKey;
+using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.RevokeApiKey;
+using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
+using SmkDoc.Application.Modules.IdentityAccess.Security.Queries.ListApiKeys;
 
 namespace SmkDoc.Api.Controllers;
 
@@ -14,8 +16,15 @@ namespace SmkDoc.Api.Controllers;
 [ApiController]
 [Route("api/v1/management/projects/{projectId:guid}/api-keys")]
 [Authorize(Policy = "JwtPolicy")]
-public class ApiKeyManagementController(ApiKeyUseCase apiKeyUseCase) : ControllerBase
+public class ApiKeyManagementController(
+    ListApiKeysUseCase listApiKeysUseCase,
+    CreateApiKeyUseCase createApiKeyUseCase,
+    RevokeApiKeyUseCase revokeApiKeyUseCase) : ControllerBase
 {
+    private readonly ListApiKeysUseCase _listApiKeysUseCase = listApiKeysUseCase;
+    private readonly CreateApiKeyUseCase _createApiKeyUseCase = createApiKeyUseCase;
+    private readonly RevokeApiKeyUseCase _revokeApiKeyUseCase = revokeApiKeyUseCase;
+
     /// <summary>List all API keys for the specified project. Admin only.</summary>
     [HttpGet]
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<ApiKeyDto>>), StatusCodes.Status200OK)]
@@ -23,7 +32,7 @@ public class ApiKeyManagementController(ApiKeyUseCase apiKeyUseCase) : Controlle
     public async Task<IActionResult> ListKeys([FromRoute] Guid projectId, CancellationToken ct)
     {
         User.RequireAdmin();
-        var keys = await apiKeyUseCase.ListKeysAsync(ct);
+        var keys = await _listApiKeysUseCase.ExecuteAsync(new ListApiKeysQuery(projectId), ct);
         return Ok(new ApiResponse<IEnumerable<ApiKeyDto>>(keys));
     }
 
@@ -37,10 +46,8 @@ public class ApiKeyManagementController(ApiKeyUseCase apiKeyUseCase) : Controlle
         CancellationToken ct)
     {
         User.RequireAdmin();
-        var result = await apiKeyUseCase.CreateKeyAsync(
-            request.Name,
-            request.CallerApp,
-            projectId,
+        var result = await _createApiKeyUseCase.ExecuteAsync(
+            new CreateApiKeyCommand(request.Name, request.CallerApp, projectId),
             ct);
 
         var dto = new ApiKeyResponseDto(result.Id, result.Name, result.CallerApp, result.PlainTextKey, null);
@@ -57,7 +64,7 @@ public class ApiKeyManagementController(ApiKeyUseCase apiKeyUseCase) : Controlle
         CancellationToken ct)
     {
         User.RequireAdmin();
-        await apiKeyUseCase.RevokeKeyAsync(keyId, ct);
+        await _revokeApiKeyUseCase.ExecuteAsync(new RevokeApiKeyCommand(keyId), ct);
         return NoContent();
     }
 }

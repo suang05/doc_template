@@ -1,7 +1,8 @@
 using FluentAssertions;
 using Moq;
+using SmkDoc.Application.Modules.Authoring.FieldMappings.Commands.SaveTemplateMappings;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
-using SmkDoc.Application.Modules.Authoring.FieldMappings;
+using SmkDoc.Application.Modules.Authoring.FieldMappings.Queries.GetTemplateMappings;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
@@ -27,10 +28,10 @@ public class FieldMappingUseCaseTests
         _mockMappingRepo.Setup(r => r.GetByTemplateIdAsync(templateId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(mappings);
 
-        var useCase = new FieldMappingUseCase(_mockMappingRepo.Object, _mockTemplateRepo.Object, _mockUow.Object);
+        var useCase = new GetTemplateMappingsUseCase(_mockMappingRepo.Object);
 
         // Act
-        var result = await useCase.GetMappingsByTemplateIdAsync(templateId);
+        var result = await useCase.ExecuteAsync(new GetTemplateMappingsQuery(templateId));
 
         // Assert
         result.Should().HaveCount(2);
@@ -53,7 +54,7 @@ public class FieldMappingUseCaseTests
         _mockMappingRepo.Setup(r => r.GetByTemplateIdAsync(templateId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(existingList);
 
-        var useCase = new FieldMappingUseCase(_mockMappingRepo.Object, _mockTemplateRepo.Object, _mockUow.Object);
+        var useCase = new SaveTemplateMappingsUseCase(_mockMappingRepo.Object, _mockTemplateRepo.Object, _mockUow.Object);
 
         var items = new List<SaveFieldMappingItemDto>
         {
@@ -61,7 +62,7 @@ public class FieldMappingUseCaseTests
         };
 
         // Act
-        await useCase.SaveMappingsAsync(templateId, items);
+        await useCase.ExecuteAsync(new SaveTemplateMappingsCommand(templateId, items));
 
         // Assert
         _mockMappingRepo.Verify(r => r.RemoveRange(existingList), Times.Once);
