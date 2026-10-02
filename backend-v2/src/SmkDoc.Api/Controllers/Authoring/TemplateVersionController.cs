@@ -1,16 +1,12 @@
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Models;
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 using SmkDoc.Application.Modules.Authoring.FieldMappings;
-using SmkDoc.Application.Modules.Authoring.Templates;
-
-
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.ListTemplateVersions;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.RollbackTemplateVersion;
 
-namespace SmkDoc.Api.Controllers;
+namespace SmkDoc.Api.Controllers.Authoring;
 
 /// <summary>
 /// Template Versioning — list versions, rollback, and link/unlink datasets.

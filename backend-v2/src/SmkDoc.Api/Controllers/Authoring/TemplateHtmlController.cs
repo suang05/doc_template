@@ -1,10 +1,9 @@
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Models;
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Application.Modules.Authoring.Templates;
 
-namespace SmkDoc.Api.Controllers;
+namespace SmkDoc.Api.Controllers.Authoring;
 
 /// <summary>
 /// HTML Studio — Monaco Editor integration: get/save HTML source, view schema, validate.

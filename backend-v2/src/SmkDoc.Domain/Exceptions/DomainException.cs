@@ -14,6 +14,7 @@ public abstract class DomainException : Exception
     protected DomainException(string message, string errorCode, Exception? innerException = null)
         : base(message, innerException)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(errorCode);
         ErrorCode = errorCode;
     }
 }

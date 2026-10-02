@@ -1,6 +1,7 @@
 using FluentValidation;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Users.DTOs;
+using SmkDoc.Domain.Common;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
@@ -26,10 +27,10 @@ public sealed class InviteUserUseCase(
         var validationResult = await _validator.ValidateAsync(command, ct);
         if (!validationResult.IsValid)
         {
-            throw new SmkDoc.Domain.Exceptions.ValidationException(validationResult.ToDictionary());
+            throw new Domain.Exceptions.ValidationException(validationResult.ToDictionary());
         }
 
-        var roleType = RoleType.FromDisplayName<RoleType>(command.Role);
+        var roleType = Enumeration.FromDisplayName<RoleType>(command.Role);
         var normalizedEmail = command.Email.Trim().ToLowerInvariant();
 
         var existingUser = await _userRepo.GetByEmailAsync(normalizedEmail, ct);
@@ -58,7 +59,8 @@ public sealed class InviteUserUseCase(
 
         if (string.IsNullOrWhiteSpace(command.Password) || command.Password.Length < 8)
         {
-            throw new SmkDoc.Domain.Exceptions.ValidationException("Password", "Password must be at least 8 characters.");
+            throw new Domain.Exceptions.ValidationException("Password",
+                "Password must be at least 8 characters.");
         }
 
         var newUser = new User(

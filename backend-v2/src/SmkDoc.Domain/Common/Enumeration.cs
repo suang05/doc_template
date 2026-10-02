@@ -3,12 +3,10 @@ using System.Reflection;
 
 namespace SmkDoc.Domain.Common;
 
-public abstract class Enumeration : IComparable
+public abstract class Enumeration(int id, string name) : IComparable
 {
-    public string Name { get; private set; }
-    public int Id { get; private set; }
-
-    protected Enumeration(int id, string name) => (Id, Name) = (id, name);
+    public string Name { get; } = name;
+    public int Id { get; } = id;
 
     public override string ToString() => Name;
 
@@ -23,9 +21,9 @@ public abstract class Enumeration : IComparable
             All = typeof(T).GetFields(BindingFlags.Public |
                                       BindingFlags.Static |
                                       BindingFlags.DeclaredOnly)
-                           .Select(f => f.GetValue(null))
-                           .Cast<T>()
-                           .ToArray();
+                .Select(f => f.GetValue(null))
+                .Cast<T>()
+                .ToArray();
 
             ById = All.ToDictionary(x => x.Id);
             ByName = All.ToDictionary(x => x.Name, StringComparer.OrdinalIgnoreCase);
@@ -41,7 +39,7 @@ public abstract class Enumeration : IComparable
             return false;
         }
 
-        var typeMatches = GetType().Equals(obj.GetType());
+        var typeMatches = GetType() == obj.GetType();
         var valueMatches = Id.Equals(otherValue.Id);
 
         return typeMatches && valueMatches;
@@ -63,7 +61,7 @@ public abstract class Enumeration : IComparable
 
     public static T FromDisplayName<T>(string displayName) where T : Enumeration
     {
-        if (displayName != null && Cache<T>.ByName.TryGetValue(displayName, out var matchingItem))
+        if (!string.IsNullOrWhiteSpace(displayName) && Cache<T>.ByName.TryGetValue(displayName, out var matchingItem))
         {
             return matchingItem;
         }
@@ -76,7 +74,8 @@ public abstract class Enumeration : IComparable
         return Cache<T>.ById.TryGetValue(value, out result);
     }
 
-    public static bool TryFromDisplayName<T>(string? displayName, [NotNullWhen(true)] out T? result) where T : Enumeration
+    public static bool TryFromDisplayName<T>(string? displayName, [NotNullWhen(true)] out T? result)
+        where T : Enumeration
     {
         if (displayName != null)
         {

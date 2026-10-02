@@ -4,7 +4,23 @@
 const API_BASE_URL = '/api/proxy';
 const STORAGE_KEY = 'smk_api_key';
 
+export interface ProblemDetails {
+  type?: string;
+  title?: string;
+  status?: number;
+  detail?: string;
+  instance?: string;
+  errorCode?: string;
+  errors?: Record<string, string[]>;
+  [key: string]: unknown;
+}
+
 export class ApiError extends Error {
+  public errorCode?: string;
+  public detail?: string;
+  public errors?: Record<string, string[]>;
+  public problemDetails?: ProblemDetails;
+
   constructor(
     public status: number,
     public message: string,
@@ -12,6 +28,14 @@ export class ApiError extends Error {
   ) {
     super(message);
     this.name = 'ApiError';
+
+    if (data && typeof data === 'object') {
+      const p = data as ProblemDetails;
+      this.errorCode = p.errorCode;
+      this.detail = p.detail;
+      this.errors = p.errors;
+      this.problemDetails = p;
+    }
   }
 }
 
@@ -54,34 +78,44 @@ function dispatchUnauthorized(endpoint: string): void {
   window.dispatchEvent(new CustomEvent('auth:unauthorized'));
 }
 
-async function parseErrorMessage(response: Response): Promise<string> {
+interface ParsedErrorPayload {
+  message: string;
+  data?: unknown;
+}
+
+async function parseErrorPayload(response: Response): Promise<ParsedErrorPayload> {
   const fallbackMsg = `HTTP Error ${response.status}: ${response.statusText}`;
   
   try {
     const text = await response.text();
-    if (!text) return fallbackMsg;
+    if (!text) return { message: fallbackMsg };
 
     try {
-      const json = JSON.parse(text) as Record<string, string>;
-      return json['error'] || json['message'] || fallbackMsg;
+      const json = JSON.parse(text) as Record<string, any>;
+      // RFC 7807 Problem Details inspection
+      let message = json.detail || json.title || json.message || json.error || fallbackMsg;
+      if (json.errorCode && !message.includes(json.errorCode)) {
+        message = `[${json.errorCode}] ${message}`;
+      }
+      return { message, data: json };
     } catch {
-      return text; // Not JSON, return raw text
+      return { message: text }; // Not JSON, return raw text
     }
   } catch {
-    return fallbackMsg; // Failed to read response body
+    return { message: fallbackMsg }; // Failed to read response body
   }
 }
 
 async function assertOk(response: Response, endpoint: string): Promise<void> {
   if (response.ok) return;
 
-  const msg = await parseErrorMessage(response);
+  const { message, data } = await parseErrorPayload(response);
   
   if (response.status === 401) {
     dispatchUnauthorized(endpoint);
   }
   
-  throw new ApiError(response.status, msg);
+  throw new ApiError(response.status, message, data);
 }
 
 function resolveUrl(endpoint: string): string {
@@ -121,18 +155,62 @@ export async function apiClientText(endpoint: string, options: RequestInit = {})
   return response.text();
 }
 
+export interface ApiBlobResult {
+  blob: Blob;
+  fileName?: string;
+  contentType?: string;
+  contentLength?: number;
+}
+
 export async function apiClientBlob(
   endpoint: string,
   options: RequestInit = {}
-): Promise<{ blob: Blob; fileName?: string }> {
+): Promise<ApiBlobResult> {
   const headers = prepareJsonHeaders(options);
   const response = await fetch(resolveUrl(endpoint), { ...options, headers });
   
   await assertOk(response, endpoint);
 
   const disposition = response.headers.get('content-disposition');
+  const contentType = response.headers.get('content-type') || undefined;
+  const contentLengthHeader = response.headers.get('content-length');
+  const contentLength = contentLengthHeader ? parseInt(contentLengthHeader, 10) : undefined;
+
   return { 
     blob: await response.blob(), 
-    fileName: extractFileName(disposition) 
+    fileName: extractFileName(disposition),
+    contentType,
+    contentLength,
+  };
+}
+
+export interface ApiStreamResult {
+  stream: ReadableStream<Uint8Array>;
+  response: Response;
+  fileName?: string;
+  contentType?: string;
+}
+
+export async function apiClientStream(
+  endpoint: string,
+  options: RequestInit = {}
+): Promise<ApiStreamResult> {
+  const headers = prepareJsonHeaders(options);
+  const response = await fetch(resolveUrl(endpoint), { ...options, headers });
+
+  await assertOk(response, endpoint);
+
+  if (!response.body) {
+    throw new ApiError(response.status, 'Response body is empty');
+  }
+
+  const disposition = response.headers.get('content-disposition');
+  const contentType = response.headers.get('content-type') || undefined;
+
+  return {
+    stream: response.body,
+    response,
+    fileName: extractFileName(disposition),
+    contentType,
   };
 }

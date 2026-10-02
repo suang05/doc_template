@@ -1,3 +1,4 @@
+using System.Text.Json;
 using SmkDoc.Domain.ValueObjects.Validation;
 
 namespace SmkDoc.Application.Common.Interfaces;
@@ -21,11 +22,11 @@ public interface IJsonSchemaValidationService
     /// Validates <paramref name="dataElement"/> against the Draft-07 schema contained in
     /// <paramref name="schemaJson"/>.
     /// </summary>
-    SchemaValidationResult Validate(string schemaJson, System.Text.Json.JsonElement dataElement);
+    SchemaValidationResult Validate(string schemaJson, JsonElement dataElement);
 
     /// <summary>
     /// Validates <paramref name="dataElement"/> against the Draft-07 schema contained in
     /// <paramref name="schemaElement"/>.
     /// </summary>
-    SchemaValidationResult Validate(System.Text.Json.JsonElement schemaElement, System.Text.Json.JsonElement dataElement);
+    SchemaValidationResult Validate(JsonElement schemaElement, JsonElement dataElement);
 }

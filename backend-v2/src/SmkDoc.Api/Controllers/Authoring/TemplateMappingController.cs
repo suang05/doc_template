@@ -1,10 +1,9 @@
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Models;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 using SmkDoc.Application.Modules.Authoring.FieldMappings;
 
-namespace SmkDoc.Api.Controllers;
+namespace SmkDoc.Api.Controllers.Authoring;
 
 /// <summary>
 /// Template Field Mappings — get, save, and preview with sample data.

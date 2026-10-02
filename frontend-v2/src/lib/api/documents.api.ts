@@ -22,11 +22,16 @@ export const documentsApi = {
   /**
    * Stream live preview PDF (ephemeral, zero side-effects)
    */
-  async previewDocument(slug?: string, request: PreviewDocumentRequest = { data: {} }): Promise<Blob> {
+  async previewDocument(
+    slug?: string,
+    request: PreviewDocumentRequest = { data: {} },
+    options?: { signal?: AbortSignal }
+  ): Promise<Blob> {
     const endpoint = slug ? `/api/documents/preview/${slug}` : `/api/documents/preview`;
     const { blob } = await apiClientBlob(endpoint, {
       method: 'POST',
       body: JSON.stringify(request),
+      signal: options?.signal,
     });
     return blob;
   },

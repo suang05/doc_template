@@ -8,8 +8,9 @@ using SmkDoc.Application.Modules.Authoring.Templates.Queries.GetTemplateById;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.ListTemplates;
 using SmkDoc.Application.Modules.Authoring.Templates;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.DownloadTemplate;
+using System.Text.Json;
 
-namespace SmkDoc.Api.Controllers;
+namespace SmkDoc.Api.Controllers.Authoring;
 
 [ApiController]
 [Route("api/v1/templates")]
@@ -39,7 +40,8 @@ public class TemplateController(
     }
 
     [HttpPost]
-    public async Task<IActionResult> CreateTemplate([FromForm] string name, [FromForm] string slug, [FromForm] string? category, IFormFile? file, CancellationToken ct)
+    public async Task<IActionResult> CreateTemplate([FromForm] string name, [FromForm] string slug,
+        [FromForm] string? category, IFormFile? file, CancellationToken ct)
     {
         Stream? stream = null;
         string? fileName = null;
@@ -59,7 +61,8 @@ public class TemplateController(
 
     [HttpPut("{id:guid}")]
     [ProducesResponseType(typeof(ApiResponse<TemplateResponse>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> UpdateMetadata([FromRoute] Guid id, [FromBody] UpdateTemplateMetadataCommand request, CancellationToken ct)
+    public async Task<IActionResult> UpdateMetadata([FromRoute] Guid id,
+        [FromBody] UpdateTemplateMetadataCommand request, CancellationToken ct)
     {
         var command = new UpdateTemplateDetailsCommand(id, request.Name ?? string.Empty, request.Category);
         var result = await updateTemplateDetailsUseCase.ExecuteAsync(command, ct);
@@ -92,11 +95,11 @@ public class TemplateController(
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> ValidatePayload(
         [FromRoute] string slug,
-        [FromBody] System.Text.Json.JsonElement data,
+        [FromBody] JsonElement data,
         [FromServices] ValidateTemplatePayloadUseCase payloadValidator,
         CancellationToken ct)
     {
-        if (data.ValueKind is System.Text.Json.JsonValueKind.Undefined or System.Text.Json.JsonValueKind.Null)
+        if (data.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null)
         {
             return BadRequest(new ApiResponse<object>(new { error = "Request payload body cannot be null or empty." }));
         }

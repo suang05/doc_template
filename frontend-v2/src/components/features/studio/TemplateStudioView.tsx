@@ -147,8 +147,16 @@ export const TemplateStudioView: React.FC<TemplateStudioViewProps> = ({
     }
   }, [persistedSamplePayload]);
 
-  // Live PDF preview hook with debouncing
-  const { pdfUrl, loading: previewLoading, error: previewError, refreshPreview } = useLivePreview(
+  // Live PDF preview hook with debouncing and APM telemetry
+  const {
+    pdfUrl,
+    loading: previewLoading,
+    error: previewError,
+    errorDetails: previewErrorDetails,
+    renderLatencyMs,
+    contentSizeBytes,
+    refreshPreview,
+  } = useLivePreview(
     template?.slug,
     html,
     sampleDataJson
@@ -534,9 +542,25 @@ export const TemplateStudioView: React.FC<TemplateStudioViewProps> = ({
                 <Eye className="w-3.5 h-3.5 text-primary" />
                 Live PDF Preview (Gotenberg)
               </span>
-              {previewLoading && (
-                <span className="w-3 h-3 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-              )}
+              {previewLoading ? (
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[2px] text-[10px] font-mono bg-blue-50 text-blue-700 border border-blue-200">
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                  เรนเดอร์...
+                </span>
+              ) : renderLatencyMs !== null ? (
+                <span
+                  className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[2px] text-[10px] font-mono border ${
+                    renderLatencyMs < 600
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      : renderLatencyMs < 2000
+                      ? 'bg-amber-50 text-amber-700 border-amber-200'
+                      : 'bg-rose-50 text-rose-700 border-rose-200'
+                  }`}
+                  title="Client roundtrip rendering latency"
+                >
+                  ⚡ {renderLatencyMs}ms · {contentSizeBytes ? `${(contentSizeBytes / 1024).toFixed(1)} KB` : 'Stream'}
+                </span>
+              ) : null}
             </div>
 
             <div className="flex items-center gap-2">
@@ -567,10 +591,36 @@ export const TemplateStudioView: React.FC<TemplateStudioViewProps> = ({
                 <span>กำลังจำลองผล PDF (Gotenberg)...</span>
               </div>
             ) : previewError ? (
-              <div className="bg-white border border-border p-6 rounded-sm text-center text-xs text-red-600 space-y-2 max-w-sm shadow-sm">
-                <AlertTriangle className="w-8 h-8 mx-auto text-red-500" />
-                <p className="font-medium">เกิดข้อผิดพลาดในการสร้างพรีวิว</p>
-                <p className="text-[11px] text-textMuted">{previewError}</p>
+              <div className="bg-white border border-border p-5 rounded-sm text-left text-xs text-red-600 space-y-2.5 max-w-md shadow-sm mx-4">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="w-5 h-5 text-red-500 shrink-0" />
+                  <span className="font-semibold text-textPrimary">เกิดข้อผิดพลาดในการสร้างพรีวิว</span>
+                  {previewErrorDetails?.code && (
+                    <span className="ml-auto font-mono text-[10px] bg-red-50 text-red-700 px-1.5 py-0.5 rounded-[2px] border border-red-200">
+                      {previewErrorDetails.code}
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-textMuted leading-relaxed font-mono bg-slate-50 p-2 rounded-sm border border-slate-200 overflow-x-auto whitespace-pre-wrap">
+                  {previewErrorDetails?.detail || previewError}
+                </p>
+                {previewErrorDetails?.errors && Object.keys(previewErrorDetails.errors).length > 0 && (
+                  <div className="text-[11px] space-y-1 bg-red-50/50 p-2 rounded-sm border border-red-100">
+                    <span className="font-medium text-red-800">รายละเอียดจุดที่ผิดพลาด:</span>
+                    <ul className="list-disc list-inside text-red-700 space-y-0.5">
+                      {Object.entries(previewErrorDetails.errors).map(([key, errs]) => (
+                        <li key={key}>
+                          <strong className="font-mono">{key}:</strong> {errs.join(', ')}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                <div className="pt-1 flex justify-end">
+                  <Button variant="outline" size="sm" icon={RefreshCw} onClick={refreshPreview}>
+                    ลองใหม่อีกครั้ง
+                  </Button>
+                </div>
               </div>
             ) : pdfUrl ? (
               <div className="w-full h-full bg-white shadow-sm flex flex-col">

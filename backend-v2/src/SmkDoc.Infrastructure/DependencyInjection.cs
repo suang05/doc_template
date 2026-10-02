@@ -1,6 +1,9 @@
+using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Http.Resilience;
+using Polly;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Infrastructure.Cache;
 using SmkDoc.Infrastructure.Contexts;
@@ -12,6 +15,7 @@ using SmkDoc.Infrastructure.Engines.Html.Helpers;
 using SmkDoc.Infrastructure.Engines.Html.Pipeline;
 using SmkDoc.Infrastructure.Engines.Word;
 using SmkDoc.Infrastructure.Imaging;
+using SmkDoc.Infrastructure.Observability;
 using SmkDoc.Infrastructure.Parsing;
 using SmkDoc.Infrastructure.Pdf;
 using SmkDoc.Infrastructure.Persistence;
@@ -19,7 +23,6 @@ using SmkDoc.Infrastructure.Persistence.Repositories;
 using SmkDoc.Infrastructure.Schema;
 using SmkDoc.Infrastructure.Security;
 using SmkDoc.Infrastructure.Storage;
-using System;
 using SmkDoc.Domain.Interfaces;
 
 namespace SmkDoc.Infrastructure;
@@ -85,6 +88,52 @@ public static class DependencyInjection
         {
             if (!string.IsNullOrEmpty(gotenbergSettings.Url))
                 client.BaseAddress = new Uri(gotenbergSettings.Url);
+        })
+        .AddResilienceHandler("gotenberg-resilience", builder =>
+        {
+            // 1. Total request timeout (inclusive of all attempts)
+            builder.AddTimeout(TimeSpan.FromSeconds(60));
+
+            // 2. Adaptive Retry with Exponential Backoff + Jitter for transient errors
+            builder.AddRetry(new Microsoft.Extensions.Http.Resilience.HttpRetryStrategyOptions
+            {
+                MaxRetryAttempts = 3,
+                Delay = TimeSpan.FromSeconds(1),
+                BackoffType = Polly.DelayBackoffType.Exponential,
+                UseJitter = true,
+                ShouldHandle = args =>
+                {
+                    if (args.Outcome.Result is HttpResponseMessage response)
+                    {
+                        int statusCode = (int)response.StatusCode;
+                        return ValueTask.FromResult(statusCode == 503 || statusCode == 504);
+                    }
+
+                    return ValueTask.FromResult(args.Outcome.Exception is HttpRequestException or Polly.Timeout.TimeoutRejectedException);
+                }
+            });
+
+            // 3. Circuit Breaker: Trip on 50% transient failures over 30s window; 15s break duration
+            builder.AddCircuitBreaker(new Microsoft.Extensions.Http.Resilience.HttpCircuitBreakerStrategyOptions
+            {
+                FailureRatio = 0.5,
+                SamplingDuration = TimeSpan.FromSeconds(30),
+                MinimumThroughput = 5,
+                BreakDuration = TimeSpan.FromSeconds(15),
+                ShouldHandle = args =>
+                {
+                    if (args.Outcome.Result is HttpResponseMessage response)
+                    {
+                        int statusCode = (int)response.StatusCode;
+                        return ValueTask.FromResult(statusCode == 503 || statusCode == 504);
+                    }
+
+                    return ValueTask.FromResult(args.Outcome.Exception is HttpRequestException or Polly.Timeout.TimeoutRejectedException);
+                }
+            });
+
+            // 4. Per-attempt timeout (safeguards against hanging Chromium/LibreOffice render)
+            builder.AddTimeout(TimeSpan.FromSeconds(30));
         });
 
         services.AddHttpClient("gotenberg-health", client =>
@@ -111,6 +160,7 @@ public static class DependencyInjection
         services.AddSingleton<IJsonSchemaValidationService, JsonSchemaValidationService>();
         services.AddSingleton<ITemplateDraftCache, InMemoryTemplateDraftCache>();
         services.AddSingleton<ICompiledTemplateCache, MemoryCompiledTemplateCache>();
+        services.AddSingleton<IDocumentMetrics, DocumentMetrics>();
 
         // 6b. Render Engines
         services.AddScoped<WordMediaInjector>();

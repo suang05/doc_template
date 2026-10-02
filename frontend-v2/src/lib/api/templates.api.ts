@@ -154,10 +154,15 @@ export const templatesApi = {
     return res.placeholders;
   },
 
-  async previewMappings(id: string, sampleData: Record<string, unknown>): Promise<Blob> {
+  async previewMappings(
+    id: string,
+    sampleData: Record<string, unknown>,
+    options?: { signal?: AbortSignal }
+  ): Promise<Blob> {
     const { blob } = await apiClientBlob(`/api/templates/${id}/mappings/preview`, {
       method: 'POST',
       body: JSON.stringify({ sampleData }),
+      signal: options?.signal,
     });
     return blob;
   },

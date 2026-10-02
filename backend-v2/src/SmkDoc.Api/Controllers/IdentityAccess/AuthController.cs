@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Models;
 using SmkDoc.Application.Modules.IdentityAccess.Security;
 
-namespace SmkDoc.Api.Controllers;
+namespace SmkDoc.Api.Controllers.IdentityAccess;
 
 [ApiController]
 [Route("api/auth")]

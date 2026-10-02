@@ -14,11 +14,20 @@ public sealed class ValidationException : DomainException
     public ValidationException(IDictionary<string, string[]> errors)
         : base("One or more validation errors occurred.", "VALIDATION_FAILED")
     {
-        Errors = errors;
+        ArgumentNullException.ThrowIfNull(errors);
+        Errors = errors.ToDictionary(
+            kvp => kvp.Key,
+            kvp => kvp.Value?.ToArray() ?? []
+        ).AsReadOnly();
     }
 
     public ValidationException(string propertyName, string errorMessage)
-        : this(new Dictionary<string, string[]> { [propertyName] = [errorMessage] })
+        : this(new Dictionary<string, string[]>
+        {
+            [propertyName] = [errorMessage]
+        })
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(propertyName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(errorMessage);
     }
 }

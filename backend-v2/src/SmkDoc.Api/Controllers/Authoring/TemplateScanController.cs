@@ -1,10 +1,9 @@
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.ScanTemplatePlaceholders;
 using SmkDoc.Api.Models;
 
-namespace SmkDoc.Api.Controllers;
+namespace SmkDoc.Api.Controllers.Authoring;
 
 /// <summary>
 /// Template Field Scanning — discover placeholders from stored or uploaded templates.
