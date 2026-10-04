@@ -19,7 +19,7 @@ public class CreateDatasetUseCaseTests
     public async Task ExecuteAsync_ShouldPersistDatasetAndReturnDto()
     {
         var connId = Guid.NewGuid();
-        var conn = new DataConnection("DB1", "SqlServer", "") { Id = connId };
+        var conn = new DataConnection("DB1", "SqlServer", "enc_db1", id: connId);
         var command = new CreateDatasetCommand("OrdersSet", "desc", connId, "SELECT * FROM orders", 60);
 
         _fixture.ConnectionRepo.Setup(r => r.GetByIdAsync(connId, It.IsAny<CancellationToken>()))

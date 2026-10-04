@@ -14,14 +14,14 @@ public sealed class DataConnectionRepository(AppDbContext context) : IDataConnec
             .FirstOrDefaultAsync(c => c.Id == id, ct);
     }
 
-    public async Task<List<DataConnection>> GetByIdsAsync(IEnumerable<Guid> ids, CancellationToken ct = default)
+    public async Task<IReadOnlyList<DataConnection>> GetByIdsAsync(IEnumerable<Guid> ids, CancellationToken ct = default)
     {
         return await _context.DataConnections
             .Where(c => ids.Contains(c.Id))
             .ToListAsync(ct);
     }
 
-    public async Task<List<DataConnection>> ListAsync(CancellationToken ct = default)
+    public async Task<IReadOnlyList<DataConnection>> ListAsync(CancellationToken ct = default)
     {
         return await _context.DataConnections
             .OrderByDescending(c => c.UpdatedAt ?? c.CreatedAt)

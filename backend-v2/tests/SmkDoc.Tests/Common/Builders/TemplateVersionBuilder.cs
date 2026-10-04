@@ -51,9 +51,6 @@ public class TemplateVersionBuilder
 
     public TemplateVersion Build()
     {
-        return new TemplateVersion(_templateId, _version, _storageKey, _format, _status, _commitMessage)
-        {
-            Id = _id
-        };
+        return new TemplateVersion(_templateId, _version, _storageKey, _format, _status, _commitMessage, id: _id);
     }
 }

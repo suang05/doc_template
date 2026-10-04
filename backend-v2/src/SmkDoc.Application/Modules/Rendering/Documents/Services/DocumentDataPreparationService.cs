@@ -8,16 +8,12 @@ using SmkDoc.Domain.ValueObjects.Validation;
 namespace SmkDoc.Application.Modules.Rendering.Documents.Services;
 
 public sealed class DocumentDataPreparationService(
-    IFieldMappingRepository mappingRepo,
-    ITemplateDatasetRepository tdRepo,
     IDatasetRepository datasetRepo,
     IDataConnectionRepository connectionRepo,
     IDataProtectionService dataProtection,
     IFieldMappingApplicatorService fieldMappingApplicator,
     IJsonSchemaValidationService schemaValidation) : IDocumentDataPreparationService
 {
-    private readonly IFieldMappingRepository _mappingRepo = mappingRepo;
-    private readonly ITemplateDatasetRepository _tdRepo = tdRepo;
     private readonly IDatasetRepository _datasetRepo = datasetRepo;
     private readonly IDataConnectionRepository _connectionRepo = connectionRepo;
     private readonly IDataProtectionService _dataProtection = dataProtection;
@@ -31,13 +27,13 @@ public sealed class DocumentDataPreparationService(
         bool skipValidation,
         CancellationToken ct = default)
     {
-        var mappings = await _mappingRepo.GetByTemplateIdAsync(template.Id, ct) ?? [];
+        var mappings = template.FieldMappings.ToList();
         string dataJson;
 
         if (mappings.Count > 0)
         {
             var aliasMap = await DatasetAliasMapBuilder.BuildAsync(
-                template.Id, _tdRepo, _datasetRepo, _connectionRepo, _dataProtection, ct);
+                template.TemplateDatasets, _datasetRepo, _connectionRepo, _dataProtection, ct);
             dataJson = await _fieldMappingApplicator.ApplyAsync(rawData, mappings, aliasMap);
         }
         else

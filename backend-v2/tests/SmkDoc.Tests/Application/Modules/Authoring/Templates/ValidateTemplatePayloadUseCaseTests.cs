@@ -15,7 +15,7 @@ namespace SmkDoc.Tests.Application.Modules.Authoring.Templates;
 
 public class ValidateTemplatePayloadUseCaseTests
 {
-    private readonly Mock<IRepository<Template>> _mockTemplateRepo = new();
+    private readonly Mock<ITemplateRepository> _mockTemplateRepo = new();
     private readonly Mock<IRepository<TemplateVersion>> _mockVersionRepo = new();
     private readonly Mock<IJsonSchemaValidationService> _mockSchemaValidation = new();
     private readonly Mock<IExecutionContext> _mockContext = new();
@@ -49,7 +49,7 @@ public class ValidateTemplatePayloadUseCaseTests
 
         _mockContext.Setup(c => c.ProjectId).Returns(projectId);
         _mockTemplateRepo
-            .Setup(r => r.FirstOrDefaultAsync(It.IsAny<Expression<Func<Template, bool>>>(), It.IsAny<CancellationToken>()))
+            .Setup(r => r.GetBySlugAsync(slug, projectId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
         _mockVersionRepo
             .Setup(r => r.GetByIdAsync(versionId, It.IsAny<CancellationToken>()))
@@ -90,7 +90,7 @@ public class ValidateTemplatePayloadUseCaseTests
 
         _mockContext.Setup(c => c.ProjectId).Returns(projectId);
         _mockTemplateRepo
-            .Setup(r => r.FirstOrDefaultAsync(It.IsAny<Expression<Func<Template, bool>>>(), It.IsAny<CancellationToken>()))
+            .Setup(r => r.GetBySlugAsync(slug, projectId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
         _mockVersionRepo
             .Setup(r => r.GetByIdAsync(versionId, It.IsAny<CancellationToken>()))
@@ -131,10 +131,9 @@ public class ValidateTemplatePayloadUseCaseTests
         template.SetCurrentVersion(versionId);
 
         var version = new TemplateVersion(templateId, 1, "templates/none.html", TemplateFormat.Html, "Published", "init");
-        // No schema stored
-
+        _mockContext.Setup(c => c.ProjectId).Returns(projectId);
         _mockTemplateRepo
-            .Setup(r => r.FirstOrDefaultAsync(It.IsAny<Expression<Func<Template, bool>>>(), It.IsAny<CancellationToken>()))
+            .Setup(r => r.GetBySlugAsync(slug, projectId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
         _mockVersionRepo
             .Setup(r => r.GetByIdAsync(versionId, It.IsAny<CancellationToken>()))
@@ -155,7 +154,7 @@ public class ValidateTemplatePayloadUseCaseTests
     public async Task ExecuteAsync_WhenTemplateNotFound_ThrowsNotFoundException()
     {
         _mockTemplateRepo
-            .Setup(r => r.FirstOrDefaultAsync(It.IsAny<Expression<Func<Template, bool>>>(), It.IsAny<CancellationToken>()))
+            .Setup(r => r.GetBySlugAsync(It.IsAny<string>(), It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((Template?)null);
 
         using var doc = JsonDocument.Parse("{}");

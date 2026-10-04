@@ -25,14 +25,8 @@ public class DataConnectionUseCaseTests
     [Fact]
     public async Task GetAllAsync_ShouldReturnAllConnectionsWithoutExposingConnectionString()
     {
-        var conn1 = new DataConnection("Postgres Main", "PostgreSQL", "enc_secret_1")
-        {
-            Id = Guid.NewGuid()
-        };
-        var conn2 = new DataConnection("SqlServer Legacy", "SqlServer", "enc_secret_2")
-        {
-            Id = Guid.NewGuid()
-        };
+        var conn1 = new DataConnection("Postgres Main", "PostgreSQL", "enc_secret_1");
+        var conn2 = new DataConnection("SqlServer Legacy", "SqlServer", "enc_secret_2");
 
         _repositoryMock.Setup(r => r.ListAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<DataConnection> { conn1, conn2 });
@@ -52,10 +46,7 @@ public class DataConnectionUseCaseTests
     public async Task GetByIdAsync_ShouldReturnDto_WhenFound()
     {
         var id = Guid.NewGuid();
-        var conn = new DataConnection("Production DB", "PostgreSQL", "")
-        {
-            Id = id
-        };
+        var conn = new DataConnection("Production DB", "PostgreSQL", "enc_secret", id: id);
 
         _repositoryMock.Setup(r => r.GetByIdAsync(id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(conn);
@@ -122,10 +113,7 @@ public class DataConnectionUseCaseTests
     public async Task UpdateAsync_ShouldUpdateAndReEncrypt_WhenNewConnectionStringProvided()
     {
         var id = Guid.NewGuid();
-        var existing = new DataConnection("Old Name", "PostgreSQL", "old_enc")
-        {
-            Id = id
-        };
+        var existing = new DataConnection("Old Name", "PostgreSQL", "old_enc", id: id);
 
         _repositoryMock.Setup(r => r.GetByIdAsync(id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(existing);
@@ -158,10 +146,7 @@ public class DataConnectionUseCaseTests
     public async Task UpdateAsync_ShouldPreserveExistingConnectionString_WhenConnectionStringIsEmpty()
     {
         var id = Guid.NewGuid();
-        var existing = new DataConnection("DB", "PostgreSQL", "keep_this_enc")
-        {
-            Id = id
-        };
+        var existing = new DataConnection("DB", "PostgreSQL", "keep_this_enc", id: id);
 
         _repositoryMock.Setup(r => r.GetByIdAsync(id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(existing);
@@ -200,7 +185,7 @@ public class DataConnectionUseCaseTests
     public async Task DeleteAsync_ShouldRemoveAndReturnTrue_WhenExists()
     {
         var id = Guid.NewGuid();
-        var existing = new DataConnection("To Delete", "sql", "") { Id = id };
+        var existing = new DataConnection("To Delete", "sql", "enc_delete", id: id);
 
         _repositoryMock.Setup(r => r.GetByIdAsync(id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(existing);

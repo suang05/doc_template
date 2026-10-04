@@ -37,7 +37,7 @@ public sealed class CreateTemplateUseCase(
         var validationResult = await _validator.ValidateAsync(command, ct);
         if (!validationResult.IsValid)
         {
-            throw new SmkDoc.Domain.Exceptions.ValidationException(validationResult.ToDictionary());
+            throw new ValidationException(validationResult.ToDictionary());
         }
 
         // 2. Domain Rule Check (Slug uniqueness)

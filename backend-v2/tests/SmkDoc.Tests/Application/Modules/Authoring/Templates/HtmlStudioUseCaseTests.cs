@@ -5,13 +5,14 @@ using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Templates;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
+using SmkDoc.Domain.Interfaces;
 using Xunit;
 
 namespace SmkDoc.Tests.Application.Modules.Authoring.Templates;
 
 public class HtmlStudioUseCaseTests
 {
-    private readonly Mock<IRepository<Template>>        _mockTemplateRepo = new();
+    private readonly Mock<ITemplateRepository>          _mockTemplateRepo = new();
     private readonly Mock<IRepository<TemplateVersion>> _mockVersionRepo  = new();
     private readonly Mock<IStorageService>              _mockStorage      = new();
     private readonly Mock<IRenderEngine>                _mockHtmlEngine   = new();
@@ -59,10 +60,10 @@ public class HtmlStudioUseCaseTests
         var templateId = Guid.NewGuid();
         var versionId = Guid.NewGuid();
 
-        var template = new Template(Guid.NewGuid(), "receipt-template", "receipt-template", null) { Id = templateId };
+        var template = new Template(Guid.NewGuid(), "receipt-template", "receipt-template", null, id: templateId);
         template.SetCurrentVersion(versionId);
 
-        var version = new TemplateVersion(templateId, 1, "templates/receipt.html", TemplateFormat.Html, null) { Id = versionId };
+        var version = new TemplateVersion(templateId, 1, "templates/receipt.html", TemplateFormat.Html, null, id: versionId);
 
         _mockTemplateRepo.Setup(r => r.GetByIdAsync(templateId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);

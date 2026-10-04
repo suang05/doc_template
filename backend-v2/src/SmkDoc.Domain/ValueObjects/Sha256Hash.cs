@@ -1,4 +1,5 @@
 using SmkDoc.Domain.Common;
+using SmkDoc.Domain.Exceptions;
 
 namespace SmkDoc.Domain.ValueObjects;
 
@@ -9,10 +10,10 @@ public class Sha256Hash : ValueObject
     public Sha256Hash(string value)
     {
         if (string.IsNullOrWhiteSpace(value))
-            throw new ArgumentException("Hash value cannot be null or empty.");
+            throw new DomainValidationException("Hash value cannot be null or empty.");
 
         if (value.Length != 64 || !IsValidHex(value))
-            throw new ArgumentException("Hash must be exactly 64 hexadecimal characters.");
+            throw new DomainValidationException("Hash must be exactly 64 hexadecimal characters.");
 
         Value = value.ToLowerInvariant();
     }

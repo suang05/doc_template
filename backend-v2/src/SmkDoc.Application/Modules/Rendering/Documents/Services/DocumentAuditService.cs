@@ -72,10 +72,8 @@ public sealed class DocumentAuditService(
             null,
             elapsedMs,
             "SUCCESS",
-            null)
-        {
-            Id = generationId
-        };
+            null,
+            id: generationId);
 
         await _logRepo.AddAsync(log, ct);
 

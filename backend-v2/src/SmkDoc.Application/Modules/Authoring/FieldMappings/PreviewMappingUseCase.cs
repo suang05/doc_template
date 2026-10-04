@@ -16,8 +16,6 @@ namespace SmkDoc.Application.Modules.Authoring.FieldMappings;
 public sealed class PreviewMappingUseCase(
     ITemplateRepository templateRepo,
     IRepository<TemplateVersion> versionRepo,
-    IFieldMappingRepository mappingRepo,
-    ITemplateDatasetRepository tdRepo,
     IDatasetRepository datasetRepo,
     IDataConnectionRepository connectionRepo,
     IStorageService storageService,
@@ -27,8 +25,6 @@ public sealed class PreviewMappingUseCase(
 {
     private readonly ITemplateRepository _templateRepo = templateRepo;
     private readonly IRepository<TemplateVersion> _versionRepo = versionRepo;
-    private readonly IFieldMappingRepository _mappingRepo = mappingRepo;
-    private readonly ITemplateDatasetRepository _tdRepo = tdRepo;
     private readonly IDatasetRepository _datasetRepo = datasetRepo;
     private readonly IDataConnectionRepository _connectionRepo = connectionRepo;
     private readonly IStorageService _storageService = storageService;
@@ -38,16 +34,17 @@ public sealed class PreviewMappingUseCase(
 
     public async Task<byte[]> ExecuteAsync(Guid templateId, JsonElement sampleData, CancellationToken ct = default)
     {
-        var template = await _templateRepo.GetByIdAsync(templateId, ct)
+        var template = await _templateRepo.GetByIdWithDetailsAsync(templateId, ct)
+            ?? await _templateRepo.GetByIdAsync(templateId, ct)
             ?? throw new NotFoundException($"Template '{templateId}' not found.");
 
-        var mappings = await _mappingRepo.GetByTemplateIdAsync(templateId, ct);
+        var mappings = template.FieldMappings.ToList();
 
         string dataJson;
         if (mappings.Count > 0)
         {
             var aliasMap = await DatasetAliasMapBuilder.BuildAsync(
-                templateId, _tdRepo, _datasetRepo, _connectionRepo, _dataProtection, ct);
+                template.TemplateDatasets, _datasetRepo, _connectionRepo, _dataProtection, ct);
             dataJson = await _fieldMappingApplicator.ApplyAsync(sampleData, mappings, aliasMap);
         }
         else

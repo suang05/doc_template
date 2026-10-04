@@ -1,4 +1,6 @@
-namespace SmkDoc.Domain.Exceptions;
+using SmkDoc.Domain.Exceptions;
+
+namespace SmkDoc.Application.Common.Exceptions;
 
 /// <summary>
 /// Thrown when incoming Command or Query parameters fail static input validation (e.g. via FluentValidation).

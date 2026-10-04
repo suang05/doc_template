@@ -1,4 +1,5 @@
 using SmkDoc.Domain.Common;
+using SmkDoc.Domain.Exceptions;
 
 namespace SmkDoc.Domain.ValueObjects;
 
@@ -17,14 +18,14 @@ public class DataSourceType : ValueObject
     public static DataSourceType FromString(string type)
     {
         if (string.IsNullOrWhiteSpace(type))
-            throw new ArgumentException("DataSourceType cannot be null or empty.");
+            throw new DomainValidationException("DataSourceType cannot be null or empty.");
 
         var normalized = type.ToLowerInvariant();
         return normalized switch
         {
             "json" => Json,
             "sql" => Sql,
-            _ => throw new ArgumentException($"Invalid DataSourceType: {type}. Allowed values are 'json' and 'sql'.")
+            _ => throw new DomainValidationException($"Invalid DataSourceType: {type}. Allowed values are 'json' and 'sql'.")
         };
     }
 

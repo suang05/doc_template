@@ -116,5 +116,6 @@ public record CommitDraftCommand(
     string Name,
     string Slug,
     string? Category,
-    IReadOnlyList<SaveFieldMappingItemDto> Mappings
+    IReadOnlyList<SaveFieldMappingItemDto> Mappings,
+    Guid? ProjectId = null
 );

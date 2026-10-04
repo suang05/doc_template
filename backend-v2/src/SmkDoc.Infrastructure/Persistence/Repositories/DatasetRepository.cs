@@ -15,14 +15,14 @@ public sealed class DatasetRepository(AppDbContext context) : IDatasetRepository
             .FirstOrDefaultAsync(d => d.Id == id, ct);
     }
 
-    public async Task<List<Dataset>> GetByIdsAsync(IEnumerable<Guid> ids, CancellationToken ct = default)
+    public async Task<IReadOnlyList<Dataset>> GetByIdsAsync(IEnumerable<Guid> ids, CancellationToken ct = default)
     {
         return await _context.Datasets
             .Where(d => ids.Contains(d.Id))
             .ToListAsync(ct);
     }
 
-    public async Task<List<Dataset>> ListAsync(CancellationToken ct = default)
+    public async Task<IReadOnlyList<Dataset>> ListAsync(CancellationToken ct = default)
     {
         return await _context.Datasets
             .Include(d => d.DataConnection)

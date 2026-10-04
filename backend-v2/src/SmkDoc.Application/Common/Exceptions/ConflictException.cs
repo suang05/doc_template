@@ -1,4 +1,6 @@
-namespace SmkDoc.Domain.Exceptions;
+using SmkDoc.Domain.Exceptions;
+
+namespace SmkDoc.Application.Common.Exceptions;
 
 /// <summary>
 /// Thrown when a business conflict occurs (e.g. duplicate slug, resource already exists).

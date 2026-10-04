@@ -10,14 +10,14 @@ using SmkDoc.Domain.Exceptions;
 namespace SmkDoc.Application.Modules.Authoring.Templates;
 
 public sealed class HtmlPersistenceUseCase(
-    IRepository<Template> templateRepo,
+    ITemplateRepository templateRepo,
     IRepository<TemplateVersion> versionRepo,
     IStorageService storageService,
     IUnitOfWork unitOfWork,
     IExecutionContext executionContext,
     ISchemaInferenceService schemaInferenceService) : IHtmlPersistenceUseCase
 {
-    private readonly IRepository<Template> _templateRepo = templateRepo;
+    private readonly ITemplateRepository _templateRepo = templateRepo;
     private readonly IRepository<TemplateVersion> _versionRepo = versionRepo;
     private readonly IStorageService _storageService = storageService;
     private readonly IUnitOfWork _unitOfWork = unitOfWork;

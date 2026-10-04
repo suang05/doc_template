@@ -18,7 +18,7 @@ public sealed class UserRepository(AppDbContext context) : IUserRepository
         return await _context.Users.FirstOrDefaultAsync(u => u.Email == normalizedEmail, ct);
     }
 
-    public async Task<List<User>> GetByIdsAsync(IEnumerable<Guid> ids, CancellationToken ct = default)
+    public async Task<IReadOnlyList<User>> GetByIdsAsync(IEnumerable<Guid> ids, CancellationToken ct = default)
     {
         var idSet = ids.ToHashSet();
         return await _context.Users.Where(u => idSet.Contains(u.Id)).ToListAsync(ct);

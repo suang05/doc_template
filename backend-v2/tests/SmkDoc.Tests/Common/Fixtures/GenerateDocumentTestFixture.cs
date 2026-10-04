@@ -9,10 +9,8 @@ namespace SmkDoc.Tests.Common.Fixtures;
 
 public class GenerateDocumentTestFixture
 {
-    public Mock<IRepository<Template>> TemplateRepo { get; } = new();
+    public Mock<ITemplateRepository> TemplateRepo { get; } = new();
     public Mock<IRepository<TemplateVersion>> VersionRepo { get; } = new();
-    public Mock<IFieldMappingRepository> MappingRepo { get; } = new();
-    public Mock<ITemplateDatasetRepository> TdRepo { get; } = new();
     public Mock<IDatasetRepository> DatasetRepo { get; } = new();
     public Mock<IDataConnectionRepository> ConnectionRepo { get; } = new();
     public Mock<IRepository<GenerationLog>> LogRepo { get; } = new();
@@ -36,8 +34,6 @@ public class GenerateDocumentTestFixture
 
     public IDocumentDataPreparationService BuildDataPreparationService() =>
         new DocumentDataPreparationService(
-            MappingRepo.Object,
-            TdRepo.Object,
             DatasetRepo.Object,
             ConnectionRepo.Object,
             DataProtection.Object,

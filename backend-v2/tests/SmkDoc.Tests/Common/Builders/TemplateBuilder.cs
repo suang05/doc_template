@@ -56,7 +56,7 @@ public class TemplateBuilder
 
     public Template Build()
     {
-        var template = new Template(_projectId, _name, _slug, _description) { Id = _id };
+        var template = new Template(_projectId, _name, _slug, _description, id: _id);
 
         if (_currentVersionId.HasValue)
         {

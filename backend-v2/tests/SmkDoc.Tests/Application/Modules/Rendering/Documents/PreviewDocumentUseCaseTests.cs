@@ -13,7 +13,7 @@ namespace SmkDoc.Tests.Application.Modules.Rendering.Documents;
 
 public class PreviewDocumentUseCaseTests
 {
-    private readonly Mock<IRepository<Template>>        _mockTemplateRepo = new();
+    private readonly Mock<ITemplateRepository>          _mockTemplateRepo = new();
     private readonly Mock<IRepository<TemplateVersion>> _mockVersionRepo  = new();
     private readonly Mock<IStorageService>              _mockStorage      = new();
     private readonly Mock<IRenderEngine>                _mockEngine       = new();
@@ -76,7 +76,7 @@ public class PreviewDocumentUseCaseTests
 
         // Assert
         previewBytes.Should().NotBeNullOrEmpty();
-        _mockTemplateRepo.Verify(r => r.FirstOrDefaultAsync(It.IsAny<System.Linq.Expressions.Expression<System.Func<Template, bool>>>(), It.IsAny<CancellationToken>()), Times.Never);
+        _mockTemplateRepo.Verify(r => r.GetBySlugAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]

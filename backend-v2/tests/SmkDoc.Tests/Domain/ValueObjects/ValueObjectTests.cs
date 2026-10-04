@@ -1,4 +1,5 @@
 using FluentAssertions;
+using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects;
 using Xunit;
 
@@ -20,9 +21,30 @@ public class ValueObjectTests
     [InlineData("too_short")]
     [InlineData("zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz")]
     [InlineData("")]
-    public void Sha256Hash_InvalidHex_ThrowsArgumentException(string invalidInput)
+    public void Sha256Hash_InvalidHex_ThrowsDomainValidationException(string invalidInput)
     {
         Action act = () => new Sha256Hash(invalidInput);
-        act.Should().Throw<ArgumentException>();
+        act.Should().Throw<DomainValidationException>();
+    }
+
+    // ── DataSourceType Validation ──────────────────────────────────────────
+
+    [Fact]
+    public void DataSourceType_ValidValues_Succeed()
+    {
+        DataSourceType.FromString("json").Should().Be(DataSourceType.Json);
+        DataSourceType.FromString("sql").Should().Be(DataSourceType.Sql);
+        DataSourceType.FromString("JSON").Should().Be(DataSourceType.Json);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("oracle")]
+    [InlineData("csv")]
+    public void DataSourceType_InvalidValues_ThrowsDomainValidationException(string invalidInput)
+    {
+        Action act = () => DataSourceType.FromString(invalidInput);
+        act.Should().Throw<DomainValidationException>();
     }
 }

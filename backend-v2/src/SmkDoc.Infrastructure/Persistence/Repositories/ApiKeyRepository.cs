@@ -18,7 +18,7 @@ public sealed class ApiKeyRepository(AppDbContext context) : IApiKeyRepository
         return await _context.ApiKeys.FirstOrDefaultAsync(k => k.KeyHash == keyHash && k.IsActive, ct);
     }
 
-    public async Task<List<ApiKey>> ListAsync(Guid? projectId = null, CancellationToken ct = default)
+    public async Task<IReadOnlyList<ApiKey>> ListAsync(Guid? projectId = null, CancellationToken ct = default)
     {
         var query = _context.ApiKeys.AsQueryable();
         if (projectId.HasValue && projectId.Value != Guid.Empty)

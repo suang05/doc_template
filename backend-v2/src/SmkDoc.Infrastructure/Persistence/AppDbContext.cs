@@ -102,9 +102,10 @@ public class AppDbContext : DbContext
             entity.ToTable("templates");
             entity.HasKey(e => e.Id);
             entity.HasIndex(e => e.Slug).IsUnique();
-            entity.Property(e => e.Name).IsRequired().HasMaxLength(200);
-            entity.Property(e => e.Slug).IsRequired().HasMaxLength(100);
-            entity.Property(e => e.Category).HasMaxLength(50);
+            entity.Property(e => e.Slug)
+                  .HasConversion(s => s.Value, v => new TemplateSlug(v))
+                  .IsRequired()
+                  .HasMaxLength(100);
             entity.Property(e => e.IsActive).HasDefaultValue(true);
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("NOW()");
             entity.Property(e => e.UpdatedAt).HasDefaultValueSql("NOW()");

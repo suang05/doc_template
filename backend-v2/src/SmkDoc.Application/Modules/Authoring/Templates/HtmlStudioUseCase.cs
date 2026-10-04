@@ -9,13 +9,13 @@ using SmkDoc.Domain.Exceptions;
 namespace SmkDoc.Application.Modules.Authoring.Templates;
 
 public sealed class HtmlStudioUseCase(
-    IRepository<Template> templateRepo,
+    ITemplateRepository templateRepo,
     IRepository<TemplateVersion> versionRepo,
     IStorageService storageService,
     IEnumerable<IRenderEngine> renderEngines,
     ITemplateScannerService scannerService) : IHtmlStudioUseCase
 {
-    private readonly IRepository<Template> _templateRepo = templateRepo;
+    private readonly ITemplateRepository _templateRepo = templateRepo;
     private readonly IRepository<TemplateVersion> _versionRepo = versionRepo;
     private readonly IStorageService _storageService = storageService;
     private readonly IRenderEngine _htmlEngine = renderEngines.First(e => e.EngineType == RenderEngineType.Html);

@@ -11,7 +11,7 @@ using SmkDoc.Domain.Interfaces;
 namespace SmkDoc.Application.Modules.Rendering.Documents;
 
 public sealed class GenerateDocumentUseCase(
-    IRepository<Template> templateRepo,
+    ITemplateRepository templateRepo,
     IRepository<TemplateVersion> versionRepo,
     IStorageService storageService,
     IEnumerable<IRenderEngine> engines,
@@ -20,7 +20,7 @@ public sealed class GenerateDocumentUseCase(
     IDocumentVersioningService versioningService,
     IUnitOfWork unitOfWork)
 {
-    private readonly IRepository<Template> _templateRepo = templateRepo;
+    private readonly ITemplateRepository _templateRepo = templateRepo;
     private readonly IRepository<TemplateVersion> _versionRepo = versionRepo;
     private readonly IStorageService _storageService = storageService;
     private readonly IEnumerable<IRenderEngine> _engines = engines;
@@ -34,7 +34,8 @@ public sealed class GenerateDocumentUseCase(
     {
         var sw = Stopwatch.StartNew();
 
-        var template = await _templateRepo.FirstOrDefaultAsync(t => t.Slug == slug, ct);
+        var template = await _templateRepo.GetBySlugWithDetailsAsync(slug, ct)
+            ?? await _templateRepo.GetBySlugAsync(slug, ct);
         if (template == null || !template.IsActive)
             throw new NotFoundException($"Template '{slug}' not found or inactive.");
 

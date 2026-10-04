@@ -1,6 +1,7 @@
+using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects.Validation;
 
-namespace SmkDoc.Domain.Exceptions;
+namespace SmkDoc.Application.Common.Exceptions;
 
 /// <summary>
 /// Backward compatibility alias for <see cref="ValidationErrorItem"/>.

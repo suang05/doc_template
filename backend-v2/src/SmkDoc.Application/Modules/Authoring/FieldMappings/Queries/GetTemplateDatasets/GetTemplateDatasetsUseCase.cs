@@ -7,15 +7,18 @@ namespace SmkDoc.Application.Modules.Authoring.FieldMappings.Queries.GetTemplate
 public record GetTemplateDatasetsQuery(Guid TemplateId);
 
 public sealed class GetTemplateDatasetsUseCase(
-    ITemplateDatasetRepository tdRepo,
+    ITemplateRepository templateRepo,
     IDatasetRepository datasetRepo) : IUseCase<GetTemplateDatasetsQuery, List<TemplateDatasetDto>>
 {
-    private readonly ITemplateDatasetRepository _tdRepo = tdRepo;
+    private readonly ITemplateRepository _templateRepo = templateRepo;
     private readonly IDatasetRepository _datasetRepo = datasetRepo;
 
     public async Task<List<TemplateDatasetDto>> ExecuteAsync(GetTemplateDatasetsQuery query, CancellationToken ct = default)
     {
-        var rows = await _tdRepo.GetByTemplateIdAsync(query.TemplateId, ct);
+        var template = await _templateRepo.GetByIdWithDetailsAsync(query.TemplateId, ct);
+        if (template == null) return [];
+
+        var rows = template.TemplateDatasets;
         var datasetIds = rows.Select(r => r.DatasetId).Distinct().ToList();
         var datasets = await _datasetRepo.GetByIdsAsync(datasetIds, ct);
         var dsMap = datasets.ToDictionary(d => d.Id, d => d.Name);

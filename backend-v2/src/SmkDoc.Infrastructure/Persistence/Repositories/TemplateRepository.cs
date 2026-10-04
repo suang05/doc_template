@@ -15,10 +15,37 @@ public sealed class TemplateRepository(AppDbContext context) : ITemplateReposito
             .FirstOrDefaultAsync(t => t.Id == id, ct);
     }
 
+    public async Task<Template?> GetByIdWithDetailsAsync(Guid id, CancellationToken ct = default)
+    {
+        return await _context.Templates
+            .Include(t => t.CurrentVersion)
+            .Include(t => t.Versions)
+            .Include(t => t.FieldMappings)
+            .Include(t => t.TemplateDatasets)
+            .FirstOrDefaultAsync(t => t.Id == id, ct);
+    }
+
     public async Task<Template?> GetBySlugAsync(string slug, CancellationToken ct = default)
     {
         return await _context.Templates
             .Include(t => t.CurrentVersion)
+            .FirstOrDefaultAsync(t => t.Slug == slug, ct);
+    }
+
+    public async Task<Template?> GetBySlugAsync(string slug, Guid? projectId, CancellationToken ct = default)
+    {
+        return await _context.Templates
+            .Include(t => t.CurrentVersion)
+            .FirstOrDefaultAsync(t => t.Slug == slug && (!projectId.HasValue || t.ProjectId == projectId.Value), ct);
+    }
+
+    public async Task<Template?> GetBySlugWithDetailsAsync(string slug, CancellationToken ct = default)
+    {
+        return await _context.Templates
+            .Include(t => t.CurrentVersion)
+            .Include(t => t.Versions)
+            .Include(t => t.FieldMappings)
+            .Include(t => t.TemplateDatasets)
             .FirstOrDefaultAsync(t => t.Slug == slug, ct);
     }
 
@@ -28,7 +55,7 @@ public sealed class TemplateRepository(AppDbContext context) : ITemplateReposito
             .AnyAsync(t => t.Slug == slug && (projectId == Guid.Empty || t.ProjectId == projectId), ct);
     }
 
-    public async Task<List<Template>> ListAsync(CancellationToken ct = default)
+    public async Task<IReadOnlyList<Template>> ListAsync(CancellationToken ct = default)
     {
         return await _context.Templates
             .Include(t => t.CurrentVersion)

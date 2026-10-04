@@ -20,7 +20,7 @@ public sealed class ListProjectUsersUseCase(
         var validationResult = await _validator.ValidateAsync(query, ct);
         if (!validationResult.IsValid)
         {
-            throw new SmkDoc.Domain.Exceptions.ValidationException(validationResult.ToDictionary());
+            throw new ValidationException(validationResult.ToDictionary());
         }
 
         var roles = await _roleRepo.ListByProjectAsync(query.ProjectId, ct);

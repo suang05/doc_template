@@ -18,7 +18,7 @@ public sealed class CompanyRepository(AppDbContext context) : ICompanyRepository
         return await _context.Companies.FirstOrDefaultAsync(c => c.Id == id, ct);
     }
 
-    public async Task<List<Company>> ListAsync(CancellationToken ct = default)
+    public async Task<IReadOnlyList<Company>> ListAsync(CancellationToken ct = default)
     {
         return await _context.Companies.ToListAsync(ct);
     }

@@ -18,8 +18,8 @@ public class ListDatasetsUseCaseTests
     public async Task ExecuteAsync_ShouldReturnEnrichedDatasets()
     {
         var connId = Guid.NewGuid();
-        var conn = new DataConnection("PostgresDB", "PostgreSQL", "") { Id = connId };
-        var dataset = new Dataset("CustomerData", "Customer queries", connId, "SELECT * FROM customers", 120) { Id = Guid.NewGuid() };
+        var conn = new DataConnection("PostgresDB", "PostgreSQL", "enc_pg", id: connId);
+        var dataset = new Dataset("CustomerData", "Customer queries", connId, "SELECT * FROM customers", 120);
 
         _fixture.DatasetRepo.Setup(r => r.ListAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<Dataset> { dataset });

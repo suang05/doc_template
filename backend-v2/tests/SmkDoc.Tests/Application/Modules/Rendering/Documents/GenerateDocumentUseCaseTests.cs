@@ -23,10 +23,8 @@ public class GenerateDocumentUseCaseTests
 {
     private readonly GenerateDocumentTestFixture _fixture = new();
 
-    private Mock<IRepository<Template>> _mockTemplateRepo => _fixture.TemplateRepo;
+    private Mock<ITemplateRepository> _mockTemplateRepo => _fixture.TemplateRepo;
     private Mock<IRepository<TemplateVersion>> _mockVersionRepo => _fixture.VersionRepo;
-    private Mock<IFieldMappingRepository> _mockMappingRepo => _fixture.MappingRepo;
-    private Mock<ITemplateDatasetRepository> _mockTdRepo => _fixture.TdRepo;
     private Mock<IDatasetRepository> _mockDatasetRepo => _fixture.DatasetRepo;
     private Mock<IDataConnectionRepository> _mockConnectionRepo => _fixture.ConnectionRepo;
     private Mock<IRepository<GenerationLog>> _mockLogRepo => _fixture.LogRepo;
@@ -64,7 +62,9 @@ public class GenerateDocumentUseCaseTests
             .WithFormat(TemplateFormat.Html)
             .Build();
 
-        _mockTemplateRepo.Setup(r => r.FirstOrDefaultAsync(It.IsAny<Expression<Func<Template, bool>>>(), It.IsAny<CancellationToken>()))
+        _mockTemplateRepo.Setup(r => r.GetBySlugWithDetailsAsync("sale-contract", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(template);
+        _mockTemplateRepo.Setup(r => r.GetBySlugAsync("sale-contract", It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
 
         _mockVersionRepo.Setup(r => r.GetByIdAsync(versionId, It.IsAny<CancellationToken>()))
@@ -76,9 +76,6 @@ public class GenerateDocumentUseCaseTests
         _mockEngine.Setup(e => e.EngineType).Returns(RenderEngineType.Html);
         _mockEngine.Setup(e => e.RenderStreamAsync(It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<OutputFormat>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new MemoryStream(Encoding.UTF8.GetBytes("%PDF-1.4 Mock Output")));
-
-        _mockMappingRepo.Setup(r => r.GetByTemplateIdAsync(templateId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync([]);
 
         // No existing Document for this ref
         _mockDocumentRepo.Setup(r => r.FirstOrDefaultAsync(It.IsAny<Expression<Func<Document, bool>>>(), It.IsAny<CancellationToken>()))
@@ -128,7 +125,9 @@ public class GenerateDocumentUseCaseTests
     {
         // Arrange
         var template = new TemplateBuilder().AsInactive().WithSlug("inactive-tpl").Build();
-        _mockTemplateRepo.Setup(r => r.FirstOrDefaultAsync(It.IsAny<Expression<Func<Template, bool>>>(), It.IsAny<CancellationToken>()))
+        _mockTemplateRepo.Setup(r => r.GetBySlugWithDetailsAsync("inactive-tpl", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(template);
+        _mockTemplateRepo.Setup(r => r.GetBySlugAsync("inactive-tpl", It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
 
         var useCase = BuildUseCase();
@@ -145,7 +144,9 @@ public class GenerateDocumentUseCaseTests
     {
         // Arrange
         var template = new TemplateBuilder().WithoutCurrentVersion().WithSlug("no-ver-tpl").Build();
-        _mockTemplateRepo.Setup(r => r.FirstOrDefaultAsync(It.IsAny<Expression<Func<Template, bool>>>(), It.IsAny<CancellationToken>()))
+        _mockTemplateRepo.Setup(r => r.GetBySlugWithDetailsAsync("no-ver-tpl", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(template);
+        _mockTemplateRepo.Setup(r => r.GetBySlugAsync("no-ver-tpl", It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
 
         var useCase = BuildUseCase();
@@ -164,12 +165,14 @@ public class GenerateDocumentUseCaseTests
         var templateId = Guid.NewGuid();
         var versionId  = Guid.NewGuid();
 
-        var template = new Template(Guid.NewGuid(), "Contract With Mappings", "contract-mapped", null) { Id = templateId };
+        var template = new Template(Guid.NewGuid(), "Contract With Mappings", "contract-mapped", null, id: templateId);
         template.SetCurrentVersion(versionId);
 
-        var currentVersion = new TemplateVersion(templateId, 1, "templates/contract-mapped.html", TemplateFormat.Html, "Published", "Commit") { Id = versionId };
+        var currentVersion = new TemplateVersion(templateId, 1, "templates/contract-mapped.html", TemplateFormat.Html, "Published", "Commit", id: versionId);
 
-        _mockTemplateRepo.Setup(r => r.FirstOrDefaultAsync(It.IsAny<Expression<Func<Template, bool>>>(), It.IsAny<CancellationToken>()))
+        _mockTemplateRepo.Setup(r => r.GetBySlugWithDetailsAsync("contract-mapped", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(template);
+        _mockTemplateRepo.Setup(r => r.GetBySlugAsync("contract-mapped", It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
 
         _mockVersionRepo.Setup(r => r.GetByIdAsync(versionId, It.IsAny<CancellationToken>()))
@@ -180,15 +183,11 @@ public class GenerateDocumentUseCaseTests
 
         var mappings = new List<FieldMapping>
         {
-            new FieldMapping(templateId, "amount_baht", "contract.price", "Price in Baht Text", true, 1, DataSourceType.Json) { Id = Guid.NewGuid() }
+            new FieldMapping(templateId, "amount_baht", "contract.price", "Price in Baht Text", true, 1, DataSourceType.Json)
         };
 
         mappings[0].UpdateMappingDetails("contract.price", "Price in Baht Text", true, null, "baht", 1);
-        _mockMappingRepo.Setup(r => r.GetByTemplateIdAsync(templateId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(mappings);
-
-        _mockTdRepo.Setup(r => r.GetByTemplateIdAsync(templateId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync([]);
+        template.ReplaceFieldMappings(mappings);
 
         _mockApplicator.Setup(s => s.ApplyAsync(
                 It.IsAny<JsonElement>(),
@@ -226,12 +225,14 @@ public class GenerateDocumentUseCaseTests
         var versionId   = Guid.NewGuid();
         var documentId  = Guid.NewGuid();
 
-        var template = new Template(Guid.NewGuid(), "Contract", "sale-contract", null) { Id = templateId };
+        var template = new Template(Guid.NewGuid(), "Contract", "sale-contract", null, id: templateId);
         template.SetCurrentVersion(versionId);
-        var currentVersion = new TemplateVersion(templateId, 1, "templates/sale-contract.html", TemplateFormat.Html, "Published", "Commit") { Id = versionId };
-        var existingDocument = new Document("SC-2026-0001", templateId) { Id = documentId };
+        var currentVersion = new TemplateVersion(templateId, 1, "templates/sale-contract.html", TemplateFormat.Html, "Published", "Commit", id: versionId);
+        var existingDocument = new Document("SC-2026-0001", templateId, id: documentId);
 
-        _mockTemplateRepo.Setup(r => r.FirstOrDefaultAsync(It.IsAny<Expression<Func<Template, bool>>>(), It.IsAny<CancellationToken>()))
+        _mockTemplateRepo.Setup(r => r.GetBySlugWithDetailsAsync("sale-contract", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(template);
+        _mockTemplateRepo.Setup(r => r.GetBySlugAsync("sale-contract", It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
         _mockVersionRepo.Setup(r => r.GetByIdAsync(versionId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(currentVersion);
@@ -242,9 +243,6 @@ public class GenerateDocumentUseCaseTests
             .ReturnsAsync(new MemoryStream(Encoding.UTF8.GetBytes("%PDF-1.4")));
         _mockStorage.Setup(s => s.GetPresignedUrlAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("https://minio.sammakorn.co.th/outputs/sc.pdf");
-
-        _mockMappingRepo.Setup(r => r.GetByTemplateIdAsync(templateId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync([]);
 
         // Existing document found
         _mockDocumentRepo.Setup(r => r.FirstOrDefaultAsync(It.IsAny<Expression<Func<Document, bool>>>(), It.IsAny<CancellationToken>()))
@@ -281,17 +279,17 @@ public class GenerateDocumentUseCaseTests
         var versionId  = Guid.NewGuid();
         const string schemaJson = """{"$schema":"http://json-schema.org/draft-07/schema#","type":"object","required":["doc_no"]}""";
 
-        var template = new Template(Guid.NewGuid(), "Invoice", "invoice", null) { Id = templateId };
+        var template = new Template(Guid.NewGuid(), "Invoice", "invoice", null, id: templateId);
         template.SetCurrentVersion(versionId);
-        var currentVersion = new TemplateVersion(templateId, 1, "templates/invoice.html", TemplateFormat.Html, "Published", "Commit") { Id = versionId };
+        var currentVersion = new TemplateVersion(templateId, 1, "templates/invoice.html", TemplateFormat.Html, "Published", "Commit", id: versionId);
         currentVersion.UpdateDataSchema(schemaJson, null);
 
-        _mockTemplateRepo.Setup(r => r.FirstOrDefaultAsync(It.IsAny<Expression<Func<Template, bool>>>(), It.IsAny<CancellationToken>()))
+        _mockTemplateRepo.Setup(r => r.GetBySlugWithDetailsAsync("invoice", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(template);
+        _mockTemplateRepo.Setup(r => r.GetBySlugAsync("invoice", It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
         _mockVersionRepo.Setup(r => r.GetByIdAsync(versionId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(currentVersion);
-        _mockMappingRepo.Setup(r => r.GetByTemplateIdAsync(templateId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync([]);
 
         // Service returns invalid result (missing required field "doc_no")
         var errors = new List<ValidationErrorItem>
@@ -346,17 +344,17 @@ public class GenerateDocumentUseCaseTests
         var versionId  = Guid.NewGuid();
         const string schemaJson = """{"$schema":"http://json-schema.org/draft-07/schema#","type":"object","required":["doc_no"]}""";
 
-        var template = new Template(Guid.NewGuid(), "Invoice", "invoice", null) { Id = templateId };
+        var template = new Template(Guid.NewGuid(), "Invoice", "invoice", null, id: templateId);
         template.SetCurrentVersion(versionId);
-        var currentVersion = new TemplateVersion(templateId, 1, "templates/invoice.html", TemplateFormat.Html, "Published", "Commit") { Id = versionId };
+        var currentVersion = new TemplateVersion(templateId, 1, "templates/invoice.html", TemplateFormat.Html, "Published", "Commit", id: versionId);
         currentVersion.UpdateDataSchema(schemaJson, null);
 
-        _mockTemplateRepo.Setup(r => r.FirstOrDefaultAsync(It.IsAny<Expression<Func<Template, bool>>>(), It.IsAny<CancellationToken>()))
+        _mockTemplateRepo.Setup(r => r.GetBySlugWithDetailsAsync("invoice", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(template);
+        _mockTemplateRepo.Setup(r => r.GetBySlugAsync("invoice", It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
         _mockVersionRepo.Setup(r => r.GetByIdAsync(versionId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(currentVersion);
-        _mockMappingRepo.Setup(r => r.GetByTemplateIdAsync(templateId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync([]);
 
         _mockEngine.Setup(e => e.EngineType).Returns(RenderEngineType.Html);
         _mockEngine.Setup(e => e.RenderStreamAsync(It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<OutputFormat>(), It.IsAny<CancellationToken>()))

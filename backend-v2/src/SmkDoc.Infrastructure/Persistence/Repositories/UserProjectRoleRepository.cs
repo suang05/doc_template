@@ -9,14 +9,14 @@ public sealed class UserProjectRoleRepository(AppDbContext context) : IUserProje
 {
     private readonly AppDbContext _context = context;
 
-    public async Task<List<UserProjectRole>> ListByProjectAsync(Guid projectId, CancellationToken ct = default)
+    public async Task<IReadOnlyList<UserProjectRole>> ListByProjectAsync(Guid projectId, CancellationToken ct = default)
     {
         return await _context.UserProjectRoles
             .Where(r => r.ProjectId == projectId)
             .ToListAsync(ct);
     }
 
-    public async Task<List<UserProjectRole>> ListByUserAsync(Guid userId, CancellationToken ct = default)
+    public async Task<IReadOnlyList<UserProjectRole>> ListByUserAsync(Guid userId, CancellationToken ct = default)
     {
         return await _context.UserProjectRoles
             .Where(r => r.UserId == userId)

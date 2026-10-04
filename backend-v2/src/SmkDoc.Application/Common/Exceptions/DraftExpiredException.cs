@@ -1,4 +1,6 @@
-namespace SmkDoc.Domain.Exceptions;
+using SmkDoc.Domain.Exceptions;
+
+namespace SmkDoc.Application.Common.Exceptions;
 
 /// <summary>
 /// Thrown when a draft has expired or does not exist in the temporary cache.

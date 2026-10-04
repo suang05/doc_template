@@ -1,5 +1,10 @@
+using SmkDoc.Domain.Exceptions;
+
 namespace SmkDoc.Domain.Entities;
 
+/// <summary>
+/// Domain entity representing a version revision of a generated document.
+/// </summary>
 public class DocumentVersion : BaseEntity
 {
     public Guid DocumentId { get; private set; }
@@ -14,10 +19,22 @@ public class DocumentVersion : BaseEntity
     public virtual TemplateVersion? TemplateVersion { get; private set; }
     public virtual GenerationLog? GenerationLog { get; private set; }
 
+    // For EF Core materialization
     private DocumentVersion() { }
 
-    public DocumentVersion(Guid documentId, int version, Guid? templateVersionId, Guid? generationLogId, string? changeNote, string? createdBy)
+    public DocumentVersion(Guid documentId, int version, Guid? templateVersionId, Guid? generationLogId, string? changeNote, string? createdBy, Guid? id = null)
+        : base(id)
     {
+        if (documentId == Guid.Empty)
+        {
+            throw new DomainValidationException("DocumentId cannot be empty.");
+        }
+
+        if (version <= 0)
+        {
+            throw new DomainValidationException("Document version must be greater than zero.");
+        }
+
         DocumentId = documentId;
         Version = version;
         TemplateVersionId = templateVersionId;

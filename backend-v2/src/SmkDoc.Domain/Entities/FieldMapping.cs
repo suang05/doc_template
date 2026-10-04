@@ -1,7 +1,11 @@
+using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects;
 
 namespace SmkDoc.Domain.Entities;
 
+/// <summary>
+/// Domain entity representing a mapping between template placeholders and data source paths.
+/// </summary>
 public class FieldMapping : BaseEntity
 {
     public Guid TemplateId { get; private set; }
@@ -21,14 +25,33 @@ public class FieldMapping : BaseEntity
     // Navigation property
     public virtual Template? Template { get; private set; }
 
+    // For EF Core materialization
     private FieldMapping() { }
 
-    public FieldMapping(Guid templateId, string placeholder, string sourcePath, string label, bool required, int sortOrder, DataSourceType? dataSourceType = null)
+    public FieldMapping(
+        Guid templateId, 
+        string placeholder, 
+        string sourcePath, 
+        string label, 
+        bool required, 
+        int sortOrder, 
+        DataSourceType? dataSourceType = null,
+        Guid? id = null) : base(id)
     {
+        if (templateId == Guid.Empty)
+        {
+            throw new DomainValidationException("TemplateId cannot be empty.");
+        }
+
+        if (string.IsNullOrWhiteSpace(placeholder))
+        {
+            throw new DomainValidationException("Placeholder cannot be empty or whitespace.");
+        }
+
         TemplateId = templateId;
-        Placeholder = placeholder;
-        SourcePath = sourcePath;
-        Label = label;
+        Placeholder = placeholder.Trim();
+        SourcePath = (sourcePath ?? string.Empty).Trim();
+        Label = (label ?? string.Empty).Trim();
         Required = required;
         SortOrder = sortOrder;
         DataSourceType = dataSourceType ?? DataSourceType.Json;
@@ -36,8 +59,8 @@ public class FieldMapping : BaseEntity
 
     public void UpdateMappingDetails(string sourcePath, string label, bool required, string? defaultValue, string? transform, int sortOrder)
     {
-        SourcePath = sourcePath;
-        Label = label;
+        SourcePath = (sourcePath ?? string.Empty).Trim();
+        Label = (label ?? string.Empty).Trim();
         Required = required;
         DefaultValue = defaultValue;
         Transform = transform;
@@ -47,7 +70,7 @@ public class FieldMapping : BaseEntity
     
     public void ConfigureDataSource(DataSourceType type, string? alias, string? resultPath, string? mathExpression)
     {
-        DataSourceType = type;
+        DataSourceType = type ?? DataSourceType.Json;
         DatasetAlias = alias;
         ResultPath = resultPath;
         MathExpression = mathExpression;

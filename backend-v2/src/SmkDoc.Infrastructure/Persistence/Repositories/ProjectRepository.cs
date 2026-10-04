@@ -18,7 +18,7 @@ public sealed class ProjectRepository(AppDbContext context) : IProjectRepository
         return await _context.Projects.FirstOrDefaultAsync(p => p.Slug == slug, ct);
     }
 
-    public async Task<List<Project>> ListByIdsAsync(IEnumerable<Guid> ids, CancellationToken ct = default)
+    public async Task<IReadOnlyList<Project>> ListByIdsAsync(IEnumerable<Guid> ids, CancellationToken ct = default)
     {
         var idSet = ids.ToHashSet();
         return await _context.Projects
@@ -26,20 +26,12 @@ public sealed class ProjectRepository(AppDbContext context) : IProjectRepository
             .ToListAsync(ct);
     }
 
-    public async Task<List<Project>> ListActiveAsync(CancellationToken ct = default)
+    public async Task<IReadOnlyList<Project>> ListActiveAsync(CancellationToken ct = default)
     {
         return await _context.Projects
             .Where(p => p.IsActive)
             .OrderBy(p => p.Name)
             .ToListAsync(ct);
-    }
-
-    public async Task<Project?> GetDefaultAsync(CancellationToken ct = default)
-    {
-        return await _context.Projects
-            .Where(p => p.IsActive)
-            .OrderBy(p => p.CreatedAt)
-            .FirstOrDefaultAsync(ct);
     }
 
     public async Task AddAsync(Project project, CancellationToken ct = default)

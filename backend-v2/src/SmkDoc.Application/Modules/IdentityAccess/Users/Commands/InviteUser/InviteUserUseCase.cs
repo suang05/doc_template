@@ -27,7 +27,7 @@ public sealed class InviteUserUseCase(
         var validationResult = await _validator.ValidateAsync(command, ct);
         if (!validationResult.IsValid)
         {
-            throw new Domain.Exceptions.ValidationException(validationResult.ToDictionary());
+            throw new ValidationException(validationResult.ToDictionary());
         }
 
         var roleType = Enumeration.FromDisplayName<RoleType>(command.Role);
@@ -59,7 +59,7 @@ public sealed class InviteUserUseCase(
 
         if (string.IsNullOrWhiteSpace(command.Password) || command.Password.Length < 8)
         {
-            throw new Domain.Exceptions.ValidationException("Password",
+            throw new ValidationException("Password",
                 "Password must be at least 8 characters.");
         }
 

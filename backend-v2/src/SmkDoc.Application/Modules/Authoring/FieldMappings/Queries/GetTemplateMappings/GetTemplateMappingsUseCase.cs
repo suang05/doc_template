@@ -7,14 +7,16 @@ namespace SmkDoc.Application.Modules.Authoring.FieldMappings.Queries.GetTemplate
 public record GetTemplateMappingsQuery(Guid TemplateId);
 
 public sealed class GetTemplateMappingsUseCase(
-    IFieldMappingRepository mappingRepo) : IUseCase<GetTemplateMappingsQuery, List<FieldMappingDto>>
+    ITemplateRepository templateRepo) : IUseCase<GetTemplateMappingsQuery, List<FieldMappingDto>>
 {
-    private readonly IFieldMappingRepository _mappingRepo = mappingRepo;
+    private readonly ITemplateRepository _templateRepo = templateRepo;
 
     public async Task<List<FieldMappingDto>> ExecuteAsync(GetTemplateMappingsQuery query, CancellationToken ct = default)
     {
-        var mappings = await _mappingRepo.GetByTemplateIdAsync(query.TemplateId, ct);
-        return mappings
+        var template = await _templateRepo.GetByIdWithDetailsAsync(query.TemplateId, ct);
+        if (template == null) return [];
+
+        return template.FieldMappings
             .OrderBy(m => m.SortOrder)
             .Select(m => new FieldMappingDto(
                 m.Id,

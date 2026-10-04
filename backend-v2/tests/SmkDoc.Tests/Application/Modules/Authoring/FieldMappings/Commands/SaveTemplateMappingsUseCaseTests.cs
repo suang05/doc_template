@@ -11,23 +11,20 @@ namespace SmkDoc.Tests.Application.Modules.Authoring.FieldMappings.Commands;
 
 public class SaveTemplateMappingsUseCaseTests
 {
-    private readonly Mock<IFieldMappingRepository> _mappingRepo = new();
     private readonly Mock<ITemplateRepository> _templateRepo = new();
     private readonly Mock<IUnitOfWork> _uow = new();
 
     private SaveTemplateMappingsUseCase CreateSut() =>
-        new(_mappingRepo.Object, _templateRepo.Object, _uow.Object);
+        new(_templateRepo.Object, _uow.Object);
 
     [Fact]
     public async Task ExecuteAsync_ShouldSaveMappingsAndCommit()
     {
         var templateId = Guid.NewGuid();
-        var template = new Template(Guid.NewGuid(), "Contract", "contract", null) { Id = templateId };
+        var template = new Template(Guid.NewGuid(), "Contract", "contract", null, id: templateId);
 
         _templateRepo.Setup(r => r.GetByIdAsync(templateId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
-        _mappingRepo.Setup(r => r.GetByTemplateIdAsync(templateId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new List<FieldMapping>());
 
         var items = new List<SaveFieldMappingItemDto>
         {
@@ -38,10 +35,11 @@ public class SaveTemplateMappingsUseCaseTests
 
         await CreateSut().ExecuteAsync(command);
 
-        _mappingRepo.Verify(r => r.AddAsync(It.Is<FieldMapping>(m =>
-            m.TemplateId == templateId &&
-            m.Placeholder == "customerName" &&
-            m.SourcePath == "customer.name"), It.IsAny<CancellationToken>()), Times.Once);
+        template.FieldMappings.Should().HaveCount(1);
+        var mapping = template.FieldMappings.First();
+        mapping.TemplateId.Should().Be(templateId);
+        mapping.Placeholder.Should().Be("customerName");
+        mapping.SourcePath.Should().Be("customer.name");
         _uow.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 

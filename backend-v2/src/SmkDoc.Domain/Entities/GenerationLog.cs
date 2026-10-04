@@ -1,8 +1,12 @@
 using SmkDoc.Domain.Enums;
+using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects;
 
 namespace SmkDoc.Domain.Entities;
 
+/// <summary>
+/// Domain entity representing an audit log entry of a document generation request.
+/// </summary>
 public class GenerationLog : BaseEntity
 {
     public Guid? TemplateId { get; private set; }
@@ -25,6 +29,7 @@ public class GenerationLog : BaseEntity
     public virtual TemplateVersion? TemplateVersion { get; private set; }
     public virtual ApiKey? ApiKey { get; private set; }
 
+    // For EF Core materialization
     private GenerationLog() { }
 
     public GenerationLog(
@@ -41,8 +46,20 @@ public class GenerationLog : BaseEntity
         Sha256Hash? payloadHashSha256, 
         int durationMs, 
         string status, 
-        string? errorMsg)
+        string? errorMsg,
+        Guid? id = null)
+        : base(id)
     {
+        if (durationMs < 0)
+        {
+            throw new DomainValidationException("DurationMs cannot be negative.");
+        }
+
+        if (fileSizeBytes.HasValue && fileSizeBytes.Value < 0)
+        {
+            throw new DomainValidationException("FileSizeBytes cannot be negative.");
+        }
+
         TemplateId = templateId;
         TemplateVersionId = templateVersionId;
         ApiKeyId = apiKeyId;
@@ -55,7 +72,7 @@ public class GenerationLog : BaseEntity
         PageCount = pageCount;
         PayloadHashSha256 = payloadHashSha256;
         DurationMs = durationMs;
-        Status = status;
+        Status = string.IsNullOrWhiteSpace(status) ? "SUCCESS" : status.Trim();
         ErrorMsg = errorMsg;
     }
 }

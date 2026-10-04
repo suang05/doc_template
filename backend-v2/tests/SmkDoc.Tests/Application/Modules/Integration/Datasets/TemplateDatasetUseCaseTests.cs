@@ -11,13 +11,12 @@ namespace SmkDoc.Tests.Application.Modules.Integration.Datasets;
 
 public class TemplateDatasetUseCaseTests
 {
-    private readonly Mock<ITemplateDatasetRepository> _tdRepoMock = new();
     private readonly Mock<ITemplateRepository> _templateRepoMock = new();
     private readonly Mock<IDatasetRepository> _datasetRepoMock = new();
     private readonly Mock<IUnitOfWork> _unitOfWorkMock = new();
 
     private TemplateDatasetUseCase CreateSut() =>
-        new(_tdRepoMock.Object, _templateRepoMock.Object, _datasetRepoMock.Object, _unitOfWorkMock.Object);
+        new(_templateRepoMock.Object, _datasetRepoMock.Object, _unitOfWorkMock.Object);
 
     // ── GetByTemplateIdAsync ───────────────────────────────────────────────────
 
@@ -30,18 +29,20 @@ public class TemplateDatasetUseCaseTests
 
         var rows = new List<TemplateDataset>
         {
-            new TemplateDataset(templateId, dsId2, "items", 2) { Id = Guid.NewGuid() },
-            new TemplateDataset(templateId, dsId1, "header", 1) { Id = Guid.NewGuid() }
+            new TemplateDataset(templateId, dsId2, "items", 2),
+            new TemplateDataset(templateId, dsId1, "header", 1)
         };
 
         var datasets = new List<Dataset>
         {
-            new Dataset("Invoice Header", null, Guid.NewGuid(), "sql", 0) { Id = dsId1 },
-            new Dataset("Invoice Items", null, Guid.NewGuid(), "sql", 0) { Id = dsId2 }
+            new Dataset("Invoice Header", null, Guid.NewGuid(), "sql", 0, id: dsId1),
+            new Dataset("Invoice Items", null, Guid.NewGuid(), "sql", 0, id: dsId2)
         };
 
-        _tdRepoMock.Setup(r => r.GetByTemplateIdAsync(templateId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(rows);
+        var template = new Template(Guid.NewGuid(), "Invoice", "invoice", null, id: templateId);
+        template.ReplaceDatasets(rows);
+        _templateRepoMock.Setup(r => r.GetByIdWithDetailsAsync(templateId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(template);
         _datasetRepoMock.Setup(r => r.GetByIdsAsync(It.IsAny<IEnumerable<Guid>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(datasets);
 
@@ -75,11 +76,11 @@ public class TemplateDatasetUseCaseTests
     }
 
     [Fact]
-    public async Task SaveAsync_ShouldThrowInvalidOperationException_WhenDuplicateAliasesProvided()
+    public async Task SaveAsync_ShouldThrowBusinessRuleViolationException_WhenDuplicateAliasesProvided()
     {
         var templateId = Guid.NewGuid();
-        _templateRepoMock.Setup(r => r.GetByIdAsync(templateId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new Template(Guid.NewGuid(), "Contract", "contract", null) { Id = templateId });
+        _templateRepoMock.Setup(r => r.GetByIdWithDetailsAsync(templateId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Template(Guid.NewGuid(), "Contract", "contract", null, id: templateId));
 
         var items = new List<SaveTemplateDatasetItemDto>
         {
@@ -90,29 +91,20 @@ public class TemplateDatasetUseCaseTests
         var sut = CreateSut();
         Func<Task> act = () => sut.SaveAsync(templateId, items);
 
-        await act.Should().ThrowAsync<InvalidOperationException>()
+        var ex = await act.Should().ThrowAsync<BusinessRuleViolationException>()
             .WithMessage("*aliases must be unique*");
+        ex.Which.ErrorCode.Should().Be("DUPLICATE_DATASET_ALIAS");
     }
 
     [Fact]
     public async Task SaveAsync_ShouldReplaceOldAssignmentsAndPersistNew()
     {
         var templateId = Guid.NewGuid();
-        _templateRepoMock.Setup(r => r.GetByIdAsync(templateId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new Template(Guid.NewGuid(), "Receipt", "receipt", null) { Id = templateId });
+        var template = new Template(Guid.NewGuid(), "Receipt", "receipt", null, id: templateId);
+        template.AttachDataset(Guid.NewGuid(), "old_alias", 1);
 
-        var existingOld = new List<TemplateDataset>
-        {
-            new TemplateDataset(templateId, Guid.NewGuid(), "old_alias", 1) { Id = Guid.NewGuid() }
-        };
-
-        _tdRepoMock.Setup(r => r.GetByTemplateIdAsync(templateId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(existingOld);
-
-        var addedItems = new List<TemplateDataset>();
-        _tdRepoMock.Setup(r => r.AddAsync(It.IsAny<TemplateDataset>(), It.IsAny<CancellationToken>()))
-            .Callback<TemplateDataset, CancellationToken>((td, _) => addedItems.Add(td))
-            .Returns(Task.CompletedTask);
+        _templateRepoMock.Setup(r => r.GetByIdWithDetailsAsync(templateId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(template);
 
         _unitOfWorkMock.Setup(u => u.CommitAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(1);
@@ -126,11 +118,9 @@ public class TemplateDatasetUseCaseTests
         var sut = CreateSut();
         await sut.SaveAsync(templateId, newItems);
 
-        _tdRepoMock.Verify(r => r.RemoveRange(existingOld), Times.Once);
-        addedItems.Should().HaveCount(1);
-        addedItems[0].Alias.Should().Be("payments");
-        addedItems[0].DatasetId.Should().Be(dsId);
-        addedItems[0].TemplateId.Should().Be(templateId);
+        template.TemplateDatasets.Should().HaveCount(1);
+        template.TemplateDatasets.First().Alias.Should().Be("payments");
+        template.TemplateDatasets.First().DatasetId.Should().Be(dsId);
         _unitOfWorkMock.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 }

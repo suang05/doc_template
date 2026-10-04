@@ -1,7 +1,11 @@
+using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 
 namespace SmkDoc.Domain.Entities;
 
+/// <summary>
+/// Domain entity representing a cryptographic API key credential for machine-to-machine access.
+/// </summary>
 public class ApiKey : BaseEntity, IMustHaveProject
 {
     public Guid ProjectId { get; private set; }
@@ -15,15 +19,31 @@ public class ApiKey : BaseEntity, IMustHaveProject
     // Navigation properties
     public virtual Project? Project { get; private set; }
 
-    // For EF Core
+    // For EF Core materialization
     private ApiKey() { }
 
-    public ApiKey(Guid projectId, string name, string? callerApp, string keyHash, DateTimeOffset? expiresAt)
+    public ApiKey(Guid projectId, string name, string? callerApp, string keyHash, DateTimeOffset? expiresAt, Guid? id = null)
+        : base(id)
     {
+        if (projectId == Guid.Empty)
+        {
+            throw new DomainValidationException("ProjectId cannot be empty.");
+        }
+
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            throw new DomainValidationException("ApiKey name cannot be empty or whitespace.");
+        }
+
+        if (string.IsNullOrWhiteSpace(keyHash))
+        {
+            throw new DomainValidationException("KeyHash cannot be empty or whitespace.");
+        }
+
         ProjectId = projectId;
-        Name = name;
-        CallerApp = callerApp ?? string.Empty;
-        KeyHash = keyHash;
+        Name = name.Trim();
+        CallerApp = callerApp?.Trim() ?? string.Empty;
+        KeyHash = keyHash.Trim();
         ExpiresAt = expiresAt;
         IsActive = true;
     }
@@ -36,6 +56,7 @@ public class ApiKey : BaseEntity, IMustHaveProject
 
     public void Revoke()
     {
+        if (!IsActive) return;
         IsActive = false;
         SetUpdated();
     }

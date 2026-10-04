@@ -42,4 +42,35 @@ public class BaseEntityTests
         role.UpdateRole(RoleType.Admin);
         role.Role.Should().Be(RoleType.Admin);
     }
+
+    [Fact]
+    public void BaseEntity_IdSetter_IsProtected_AndCannotBeCalledExternally()
+    {
+        var idProp = typeof(BaseEntity).GetProperty(nameof(BaseEntity.Id));
+        idProp.Should().NotBeNull();
+        idProp!.GetSetMethod(nonPublic: false).Should().BeNull("BaseEntity.Id setter must not be public (AP-021)");
+        idProp.GetSetMethod(nonPublic: true)!.IsFamily.Should().BeTrue("BaseEntity.Id setter must be protected");
+    }
+
+    [Fact]
+    public void BaseEntity_Constructor_AllowsControlledIdentityPassThrough()
+    {
+        var customId = Guid.NewGuid();
+        var template = new Template(Guid.NewGuid(), "Sample", "sample", id: customId);
+
+        template.Id.Should().Be(customId);
+    }
+
+    [Fact]
+    public void BaseEntity_SetAuditTimestampsForTesting_SetsCreatedAtAndUpdatedAt()
+    {
+        var template = new Template(Guid.NewGuid(), "Audit Test", "audit-test");
+        var fixedCreatedAt = new DateTimeOffset(2026, 1, 15, 8, 30, 0, TimeSpan.Zero);
+        var fixedUpdatedAt = new DateTimeOffset(2026, 1, 16, 9, 0, 0, TimeSpan.Zero);
+
+        template.SetAuditTimestampsForTesting(fixedCreatedAt, fixedUpdatedAt);
+
+        template.CreatedAt.Should().Be(fixedCreatedAt);
+        template.UpdatedAt.Should().Be(fixedUpdatedAt);
+    }
 }

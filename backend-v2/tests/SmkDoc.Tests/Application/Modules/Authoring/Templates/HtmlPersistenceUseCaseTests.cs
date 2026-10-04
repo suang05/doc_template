@@ -12,7 +12,7 @@ namespace SmkDoc.Tests.Application.Modules.Authoring.Templates;
 
 public class HtmlPersistenceUseCaseTests
 {
-    private readonly Mock<IRepository<Template>>        _mockTemplateRepo    = new();
+    private readonly Mock<ITemplateRepository>          _mockTemplateRepo    = new();
     private readonly Mock<IRepository<TemplateVersion>> _mockVersionRepo     = new();
     private readonly Mock<IStorageService>              _mockStorage         = new();
     private readonly Mock<IUnitOfWork>                  _mockUow             = new();
@@ -26,10 +26,10 @@ public class HtmlPersistenceUseCaseTests
         var templateId = Guid.NewGuid();
         var currentVersionId = Guid.NewGuid();
 
-        var template = new Template(Guid.NewGuid(), "official-contract", "official-contract", null) { Id = templateId };
+        var template = new Template(Guid.NewGuid(), "official-contract", "official-contract", null, id: templateId);
         template.SetCurrentVersion(currentVersionId);
 
-        var currentVersion = new TemplateVersion(templateId, 3, "", TemplateFormat.Html, null) { Id = currentVersionId };
+        var currentVersion = new TemplateVersion(templateId, 3, "", TemplateFormat.Html, null, id: currentVersionId);
 
         _mockTemplateRepo.Setup(r => r.GetByIdAsync(templateId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);

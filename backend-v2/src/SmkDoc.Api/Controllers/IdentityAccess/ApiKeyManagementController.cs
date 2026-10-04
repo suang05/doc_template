@@ -7,7 +7,7 @@ using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.RevokeApiKey;
 using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Queries.ListApiKeys;
 
-namespace SmkDoc.Api.Controllers;
+namespace SmkDoc.Api.Controllers.IdentityAccess;
 
 /// <summary>
 /// API Key lifecycle management within a project.

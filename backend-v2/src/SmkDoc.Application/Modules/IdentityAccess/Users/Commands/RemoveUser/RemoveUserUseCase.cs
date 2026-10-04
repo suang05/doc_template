@@ -20,7 +20,7 @@ public sealed class RemoveUserUseCase(
         var validationResult = await _validator.ValidateAsync(command, ct);
         if (!validationResult.IsValid)
         {
-            throw new SmkDoc.Domain.Exceptions.ValidationException(validationResult.ToDictionary());
+            throw new ValidationException(validationResult.ToDictionary());
         }
 
         var roleEntry = await _roleRepo.GetAsync(command.ProjectId, command.UserId, ct)

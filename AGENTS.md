@@ -36,7 +36,11 @@ Preserve these core invariants over legacy systems at all times:
 | **Stream over RAM** | Stream Gotenberg/MinIO payloads directly to responses. Avoid buffering multi-MB PDFs in RAM (`byte[]`). |
 
 ### Clean Architecture Dependency Matrix (`backend-v2/`)
-- **Domain (`SmkDoc.Domain`):** Pure C# POCOs, Entities, Enums, Domain Exceptions. **Zero** dependencies on EF Core, ASP.NET, OpenXml, or DTOs.
+- **Domain (`SmkDoc.Domain`):** Pure C# POCOs, Entities, Value Objects, Smart Enums, Domain Exceptions, Repository/UoW interfaces. **Zero** dependencies on EF Core, ASP.NET, OpenXml, DTOs, or Data Annotations. Enforced rules (see [ARCHITECTURE.md §Layer 1](docs/AI/ARCHITECTURE.md), [PATTERNS.md §1.4](docs/AI/PATTERNS.md), ADR-021):
+  - `private set` / `protected set` (BaseEntity.Id) — ห้ามใช้ `public init` (AP-021) · parameterized ctor + `private` EF ctor · state changes via business methods only
+  - Fail-fast: throw `DomainValidationException` / `BusinessRuleViolationException` (never `ArgumentException`); **never weaken an invariant to make callers/tests pass** (AP-023)
+  - Aggregate roots own child collections (`IReadOnlyCollection<T>`); cross-aggregate refs by Id; no `{ Id = ... }` overrides (AP-021/022)
+  - Repositories return Entities / `IReadOnlyList<T>` only — no `IQueryable`, no DTOs, tenant lookups take `projectId` (AP-025)
 - **Application (`SmkDoc.Application`):** UseCases and Interfaces. Returns **Application DTOs ONLY** (never expose Domain entities). No direct `AppDbContext` or Gotenberg references.
 - **Infrastructure (`SmkDoc.Infrastructure`):** Implements Application interfaces (EF Core, Repositories, Gotenberg, MinIO, OpenXml).
 - **Presentation (`SmkDoc.Api`):** Controllers translate HTTP ↔ Application DTOs (`ApiResponse<T>`). No direct DB access.

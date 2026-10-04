@@ -22,8 +22,8 @@ public class DatasetUseCaseTests
     public async Task GetAllAsync_ShouldReturnAllDatasetsWithConnectionName()
     {
         var connId  = Guid.NewGuid();
-        var conn    = new DataConnection("ProdDB", "PostgreSQL", "") { Id = connId };
-        var dataset = new Dataset("Orders", null, connId, "SELECT * FROM orders", 0) { Id = Guid.NewGuid() };
+        var conn    = new DataConnection("ProdDB", "PostgreSQL", "enc_prod", id: connId);
+        var dataset = new Dataset("Orders", null, connId, "SELECT * FROM orders", 0);
 
         _fixture.DatasetRepo.Setup(r => r.ListAsync(It.IsAny<CancellationToken>()))
                     .ReturnsAsync(new List<Dataset> { dataset });
@@ -43,7 +43,7 @@ public class DatasetUseCaseTests
     public async Task CreateAsync_ShouldPersistDatasetAndReturnDto()
     {
         var connId = Guid.NewGuid();
-        var conn   = new DataConnection("DB1", "SqlServer", "") { Id = connId };
+        var conn   = new DataConnection("DB1", "SqlServer", "enc_db1", id: connId);
         var dto    = new CreateDatasetDto
         {
             Name             = "InvoiceSet",
@@ -88,7 +88,7 @@ public class DatasetUseCaseTests
     [Fact]
     public async Task DeleteAsync_WhenExists_ShouldReturnTrue()
     {
-        var entity = new Dataset("DS", null, Guid.NewGuid(), "SELECT 1", 0) { Id = Guid.NewGuid() };
+        var entity = new Dataset("DS", null, Guid.NewGuid(), "SELECT 1", 0);
         _fixture.DatasetRepo.Setup(r => r.GetByIdAsync(entity.Id, It.IsAny<CancellationToken>())).ReturnsAsync(entity);
 
         var result = await CreateSut().DeleteAsync(entity.Id);

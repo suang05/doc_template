@@ -12,12 +12,12 @@ namespace SmkDoc.Application.Modules.Authoring.Templates;
 /// Pure dry-run with zero side-effects.
 /// </summary>
 public sealed class ValidateTemplatePayloadUseCase(
-    IRepository<Template> templateRepo,
+    ITemplateRepository templateRepo,
     IRepository<TemplateVersion> versionRepo,
     IJsonSchemaValidationService schemaValidation,
     IExecutionContext executionContext)
 {
-    private readonly IRepository<Template> _templateRepo = templateRepo;
+    private readonly ITemplateRepository _templateRepo = templateRepo;
     private readonly IRepository<TemplateVersion> _versionRepo = versionRepo;
     private readonly IJsonSchemaValidationService _schemaValidation = schemaValidation;
     private readonly IExecutionContext _executionContext = executionContext;
@@ -33,12 +33,9 @@ public sealed class ValidateTemplatePayloadUseCase(
         }
 
         // 1. Fetch template with tenant isolation if ProjectId is bound in execution context
-        var template = await _templateRepo.FirstOrDefaultAsync(
-            t => t.Slug == command.Slug && t.IsActive &&
-                 (!_executionContext.ProjectId.HasValue || t.ProjectId == _executionContext.ProjectId.Value),
-            ct);
+        var template = await _templateRepo.GetBySlugAsync(command.Slug, _executionContext.ProjectId, ct);
 
-        if (template == null)
+        if (template == null || !template.IsActive)
         {
             throw new NotFoundException($"Template '{command.Slug}' not found or inactive.");
         }

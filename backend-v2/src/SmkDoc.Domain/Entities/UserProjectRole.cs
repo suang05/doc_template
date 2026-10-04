@@ -1,36 +1,45 @@
 using SmkDoc.Domain.Enums;
+using SmkDoc.Domain.Exceptions;
 
 namespace SmkDoc.Domain.Entities;
 
+/// <summary>
+/// Domain entity representing a user's role assignment within a specific project.
+/// </summary>
 public class UserProjectRole
 {
-    private RoleType _role = RoleType.Viewer;
-
-    public Guid UserId { get; init; }
-    public Guid ProjectId { get; init; }
-    public RoleType Role 
-    { 
-        get => _role; 
-        init => _role = value; 
-    }
-    public DateTimeOffset CreatedAt { get; init; } = DateTimeOffset.UtcNow;
+    public Guid UserId { get; private set; }
+    public Guid ProjectId { get; private set; }
+    public RoleType Role { get; private set; } = RoleType.Viewer;
+    public DateTimeOffset CreatedAt { get; private set; } = DateTimeOffset.UtcNow;
 
     // Navigation properties
-    public virtual User? User { get; init; }
-    public virtual Project? Project { get; init; }
+    public virtual User? User { get; private set; }
+    public virtual Project? Project { get; private set; }
 
-    public UserProjectRole() { }
+    // For EF Core materialization
+    private UserProjectRole() { }
 
     public UserProjectRole(Guid userId, Guid projectId, RoleType role)
     {
+        if (userId == Guid.Empty)
+        {
+            throw new DomainValidationException("UserId cannot be empty.");
+        }
+
+        if (projectId == Guid.Empty)
+        {
+            throw new DomainValidationException("ProjectId cannot be empty.");
+        }
+
         UserId = userId;
         ProjectId = projectId;
-        _role = role;
+        Role = role;
+        CreatedAt = DateTimeOffset.UtcNow;
     }
 
     public void UpdateRole(RoleType newRole)
     {
-        _role = newRole;
+        Role = newRole;
     }
 }
-

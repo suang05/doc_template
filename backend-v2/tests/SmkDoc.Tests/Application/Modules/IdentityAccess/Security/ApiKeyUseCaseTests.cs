@@ -25,9 +25,13 @@ public class ApiKeyUseCaseTests
             .Callback<ApiKey, CancellationToken>((k, _) => capturedKey = k)
             .Returns(Task.CompletedTask);
 
+        var projectId = Guid.NewGuid();
+        mockProjectRepo.Setup(r => r.GetByIdAsync(projectId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Project(Guid.NewGuid(), "Sales Project", "sales-proj"));
+
         var useCase = new CreateApiKeyUseCase(mockRepo.Object, mockProjectRepo.Object, mockUow.Object, validator);
 
-        var result = await useCase.ExecuteAsync(new CreateApiKeyCommand("Sales App", "sales"));
+        var result = await useCase.ExecuteAsync(new CreateApiKeyCommand("Sales App", "sales", projectId));
 
         result.Should().NotBeNull();
         result.PlainTextKey.Should().StartWith("smk_sales_");

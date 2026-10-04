@@ -1,6 +1,6 @@
 using FluentValidation;
 using Microsoft.AspNetCore.Mvc.Filters;
-using DomainValidationException = SmkDoc.Domain.Exceptions.ValidationException;
+using DomainValidationException = SmkDoc.Application.Common.Exceptions.ValidationException;
 
 namespace SmkDoc.Api.Filters;
 

@@ -12,20 +12,19 @@ public static class DatasetAliasMapBuilder
     /// Called by use cases before invoking IFieldMappingApplicatorService.
     /// </summary>
     public static async Task<IReadOnlyDictionary<string, ResolvedDatasetContext>> BuildAsync(
-        Guid templateId,
-        ITemplateDatasetRepository tdRepo,
+        IEnumerable<TemplateDataset> assignments,
         IDatasetRepository datasetRepo,
         IDataConnectionRepository connectionRepo,
         IDataProtectionService dataProtection,
         CancellationToken ct)
     {
-        var assignments = await tdRepo.GetByTemplateIdAsync(templateId, ct);
-        if (assignments.Count == 0)
+        var assignmentList = assignments as IReadOnlyList<TemplateDataset> ?? assignments.ToList();
+        if (assignmentList.Count == 0)
             return new Dictionary<string, ResolvedDatasetContext>(StringComparer.OrdinalIgnoreCase);
 
         var result = new Dictionary<string, ResolvedDatasetContext>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var td in assignments)
+        foreach (var td in assignmentList)
         {
             var dataset = await datasetRepo.GetByIdAsync(td.DatasetId, ct);
             if (dataset == null) continue;

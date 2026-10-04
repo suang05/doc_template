@@ -24,15 +24,15 @@ public class DocumentVersionUseCaseTests
     {
         // Arrange
         var documentId = Guid.NewGuid();
-        var document = new Document("SC-001", Guid.NewGuid()) { Id = documentId };
+        var document = new Document("SC-001", Guid.NewGuid(), id: documentId);
 
         _mockDocumentRepo.Setup(r => r.FirstOrDefaultAsync(It.IsAny<Expression<Func<Document, bool>>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(document);
 
         _mockVersionRepo.Setup(r => r.ListAsync(It.IsAny<Expression<Func<DocumentVersion, bool>>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([
-                new DocumentVersion(documentId, 1, Guid.NewGuid(), null, null, null) { Id = Guid.NewGuid() },
-                new DocumentVersion(documentId, 2, Guid.NewGuid(), null, null, null) { Id = Guid.NewGuid() }
+                new DocumentVersion(documentId, 1, Guid.NewGuid(), null, null, null),
+                new DocumentVersion(documentId, 2, Guid.NewGuid(), null, null, null)
             ]);
 
         var useCase = new GetDocumentVersionsUseCase(_mockDocumentRepo.Object, _mockVersionRepo.Object);
@@ -69,9 +69,9 @@ public class DocumentVersionUseCaseTests
         // Arrange
         var documentId = Guid.NewGuid();
         var logId      = Guid.NewGuid();
-        var document   = new Document("SC-001", Guid.NewGuid()) { Id = documentId };
-        var docVersion = new DocumentVersion(documentId, 1, Guid.NewGuid(), logId, null, null) { Id = Guid.NewGuid() };
-        var log        = new GenerationLog(null, null, null, null, null, null, "outputs/sc001_v1.pdf", OutputFormat.Pdf, null, null, null, 1, "SUCCESS", null) { Id = logId };
+        var document   = new Document("SC-001", Guid.NewGuid(), id: documentId);
+        var docVersion = new DocumentVersion(documentId, 1, Guid.NewGuid(), logId, null, null);
+        var log        = new GenerationLog(null, null, null, null, null, null, "outputs/sc001_v1.pdf", OutputFormat.Pdf, null, null, null, 1, "SUCCESS", null, id: logId);
         var pdfBytes   = new byte[] { 0x25, 0x50, 0x44, 0x46 };
 
         _mockDocumentRepo.Setup(r => r.FirstOrDefaultAsync(It.IsAny<Expression<Func<Document, bool>>>(), It.IsAny<CancellationToken>()))
@@ -111,7 +111,7 @@ public class DocumentVersionUseCaseTests
     {
         // Arrange
         var logId = Guid.NewGuid();
-        var log = new GenerationLog(null, null, null, null, null, null, "outputs/doc.pdf", null, null, null, null, 1, "SUCCESS", null) { Id = logId };
+        var log = new GenerationLog(null, null, null, null, null, null, "outputs/doc.pdf", null, null, null, null, 1, "SUCCESS", null, id: logId);
 
         _mockLogRepo.Setup(r => r.GetByIdAsync(logId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(log);

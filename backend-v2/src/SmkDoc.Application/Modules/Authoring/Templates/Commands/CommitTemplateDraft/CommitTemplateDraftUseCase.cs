@@ -14,19 +14,19 @@ public sealed class CommitTemplateDraftUseCase(
     IStorageService storageService,
     ITemplateRepository templateRepo,
     IRepository<TemplateVersion> versionRepo,
-    IFieldMappingRepository mappingRepo,
     IUnitOfWork unitOfWork,
     IProjectRepository? projectRepo = null,
-    ISchemaInferenceService? schemaInferenceService = null) : IUseCase<CommitTemplateDraftCommand, string>
+    ISchemaInferenceService? schemaInferenceService = null,
+    IExecutionContext? executionContext = null) : IUseCase<CommitTemplateDraftCommand, string>
 {
     private readonly ITemplateDraftCache _draftCache = draftCache;
     private readonly IStorageService _storageService = storageService;
     private readonly ITemplateRepository _templateRepo = templateRepo;
     private readonly IRepository<TemplateVersion> _versionRepo = versionRepo;
-    private readonly IFieldMappingRepository _mappingRepo = mappingRepo;
     private readonly IUnitOfWork _unitOfWork = unitOfWork;
     private readonly IProjectRepository? _projectRepo = projectRepo;
     private readonly ISchemaInferenceService? _schemaInferenceService = schemaInferenceService;
+    private readonly IExecutionContext? _executionContext = executionContext;
 
     public async Task<string> ExecuteAsync(CommitTemplateDraftCommand command, CancellationToken ct = default)
     {
@@ -45,45 +45,43 @@ public sealed class CommitTemplateDraftUseCase(
             uploadedKey = await _storageService.UploadAsync(StorageBuckets.Templates, storageKey, ms, contentType, ct);
         }
 
-        Guid targetProjectId = Guid.Empty;
-        if (_projectRepo != null)
+        Guid targetProjectId = command.Request.ProjectId 
+            ?? (_executionContext?.ProjectId.HasValue == true ? _executionContext.ProjectId.Value : Guid.Empty);
+
+        if (targetProjectId == Guid.Empty)
         {
-            var defaultProj = await _projectRepo.GetDefaultAsync(ct);
-            if (defaultProj != null) targetProjectId = defaultProj.Id;
+            throw new ValidationException("ProjectId", "ProjectId is required to commit template.");
         }
 
         try
         {
-            var template = new Template(targetProjectId, command.Request.Name, command.Request.Slug, command.Request.Category)
-            {
-                Id = templateId
-            };
+            var template = new Template(targetProjectId, command.Request.Name, command.Request.Slug, command.Request.Category, id: templateId);
             var placeholderList = command.Request.Mappings?.Select(m => m.Placeholder).ToList() ?? new List<string>();
             string? inferredSchema = _schemaInferenceService?.InferSchemaFromPlaceholders(placeholderList, templateSlug: command.Request.Slug);
             string? samplePayload = _schemaInferenceService?.GenerateDefaultSamplePayload(placeholderList);
 
-            var version = new TemplateVersion(templateId, 1, uploadedKey, format, "system", "Initial upload via draft pipeline")
-            {
-                Id = versionId
-            };
+            var version = new TemplateVersion(templateId, 1, uploadedKey, format, "system", "Initial upload via draft pipeline", id: versionId);
             version.UpdateDataSchema(inferredSchema, samplePayload);
             version.Publish();
 
-            await _templateRepo.AddAsync(template, ct);
-            await _versionRepo.AddAsync(version, ct);
+            template.AddVersion(version);
 
             if (command.Request.Mappings != null)
             {
+                var mappings = new List<FieldMapping>();
                 foreach (var m in command.Request.Mappings)
                 {
                     var dsType = m.DataSourceType != null ? DataSourceType.FromString(m.DataSourceType) : DataSourceType.Json;
                     var fm = new FieldMapping(templateId, m.Placeholder, m.SourcePath, m.Label, m.Required, m.SortOrder, dsType);
                     fm.UpdateMappingDetails(m.SourcePath, m.Label, m.Required, m.DefaultValue, m.Transform, m.SortOrder);
                     fm.ConfigureDataSource(dsType, m.DatasetAlias, m.ResultPath, m.MathExpression);
-                    await _mappingRepo.AddAsync(fm, ct);
+                    mappings.Add(fm);
                 }
+                template.ReplaceFieldMappings(mappings);
             }
 
+            await _templateRepo.AddAsync(template, ct);
+            await _versionRepo.AddAsync(version, ct);
             await _unitOfWork.CommitAsync(ct);
 
             template.SetCurrentVersion(versionId);

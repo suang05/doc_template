@@ -2,22 +2,17 @@ using System.Text.Json;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.HttpOverrides;
-using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.OpenApi.Models;
 using SmkDoc.Api.HealthChecks;
 using SmkDoc.Api.Middleware;
 using SmkDoc.Api.Models;
 using SmkDoc.Application;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.Modules.IdentityAccess;
-using SmkDoc.Application.Modules.IdentityAccess.Security;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Helpers;
 using SmkDoc.Infrastructure.Engines.Excel;
 using SmkDoc.Infrastructure.Engines.Html;
 using SmkDoc.Infrastructure.Engines.Word;
-using SmkDoc.Infrastructure.Engines;
 using SmkDoc.Infrastructure.Imaging;
 using SmkDoc.Infrastructure.Pdf;
 using SmkDoc.Infrastructure.Cache;
@@ -25,7 +20,6 @@ using SmkDoc.Infrastructure.Persistence;
 using SmkDoc.Infrastructure.Persistence.Repositories;
 using SmkDoc.Infrastructure.Storage;
 using SmkDoc.Infrastructure.Schema;
-using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -50,7 +44,8 @@ builder.Services.AddControllers(options =>
 }).AddJsonOptions(options =>
 {
     options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
-    options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter(System.Text.Json.JsonNamingPolicy.CamelCase));
+    options.JsonSerializerOptions.Converters.Add(
+        new System.Text.Json.Serialization.JsonStringEnumConverter(JsonNamingPolicy.CamelCase));
 });
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddCors(options =>
@@ -58,8 +53,8 @@ builder.Services.AddCors(options =>
     options.AddDefaultPolicy(policy =>
     {
         policy.AllowAnyOrigin()
-              .AllowAnyHeader()
-              .AllowAnyMethod();
+            .AllowAnyHeader()
+            .AllowAnyMethod();
     });
 });
 
@@ -88,7 +83,8 @@ builder.Services.AddSwaggerGen(c =>
     {
         Title = "SAMMAKORN Document Generation Service API",
         Version = "v2",
-        Description = "Enterprise document generation microservice accepting JSON payloads and generating pixel-perfect PDF, DOCX, or XLSX output based on SDD v1.3."
+        Description =
+            "Enterprise document generation microservice accepting JSON payloads and generating pixel-perfect PDF, DOCX, or XLSX output based on SDD v1.3."
     });
     c.AddSecurityDefinition("ApiKey", new OpenApiSecurityScheme
     {
@@ -123,9 +119,9 @@ builder.Services.AddScoped<IExecutionContext>(sp => sp.GetRequiredService<Execut
 
 // --- 3. Database (PostgreSQL) ---
 string connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
-    ?? builder.Configuration["DATABASE_URL"]
-    ?? throw new InvalidOperationException(
-        "Database connection string is required. Set ConnectionStrings:DefaultConnection or DATABASE_URL.");
+                          ?? builder.Configuration["DATABASE_URL"]
+                          ?? throw new InvalidOperationException(
+                              "Database connection string is required. Set ConnectionStrings:DefaultConnection or DATABASE_URL.");
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(connectionString, sqlOptions => sqlOptions.EnableRetryOnFailure(
@@ -143,8 +139,10 @@ builder.Services.Configure<MinioSettings>(options =>
     options.Endpoint = minioSection["Endpoint"] ?? builder.Configuration["MINIO_ENDPOINT"] ?? string.Empty;
     options.AccessKey = minioSection["AccessKey"] ?? builder.Configuration["MINIO_ROOT_USER"] ?? string.Empty;
     options.SecretKey = minioSection["SecretKey"] ?? builder.Configuration["MINIO_ROOT_PASSWORD"] ?? string.Empty;
-    options.PublicEndpoint = minioSection["PublicEndpoint"] ?? builder.Configuration["MINIO_PUBLIC_ENDPOINT"] ?? string.Empty;
-    options.Secure = bool.TryParse(minioSection["Secure"] ?? builder.Configuration["MINIO_SECURE"], out bool sec) && sec;
+    options.PublicEndpoint =
+        minioSection["PublicEndpoint"] ?? builder.Configuration["MINIO_PUBLIC_ENDPOINT"] ?? string.Empty;
+    options.Secure = bool.TryParse(minioSection["Secure"] ?? builder.Configuration["MINIO_SECURE"], out bool sec) &&
+                     sec;
 });
 builder.Services.AddSingleton<IStorageService, MinioStorageService>();
 
@@ -157,8 +155,8 @@ builder.Services.AddScoped<ISqlExecutorService, SmkDoc.Infrastructure.Data.SqlEx
 var gotenbergSettings = new GotenbergSettings
 {
     Url = builder.Configuration["GotenbergUrl"]
-        ?? builder.Configuration["GOTENBERG_URL"]
-        ?? string.Empty
+          ?? builder.Configuration["GOTENBERG_URL"]
+          ?? string.Empty
 };
 builder.Services.Configure<GotenbergSettings>(opts => opts.Url = gotenbergSettings.Url);
 
@@ -175,31 +173,30 @@ builder.Services.AddHttpClient("gotenberg-health", client =>
         client.BaseAddress = new Uri(gotenbergSettings.Url);
     client.Timeout = TimeSpan.FromSeconds(5);
 });
-builder.Services.AddHttpClient("minio-health", client =>
-{
-    client.Timeout = TimeSpan.FromSeconds(5);
-});
+builder.Services.AddHttpClient("minio-health", client => { client.Timeout = TimeSpan.FromSeconds(5); });
 
 // --- 5c. Health Checks ---
 builder.Services.AddHealthChecks()
-    .AddDbContextCheck<SmkDoc.Infrastructure.Persistence.AppDbContext>("postgres", tags: ["db"])
+    .AddDbContextCheck<AppDbContext>("postgres", tags: ["db"])
     .AddCheck<GotenbergHealthCheck>("gotenberg", tags: ["deps"])
     .AddCheck<MinioHealthCheck>("minio", tags: ["deps"]);
 
 // --- 6. Imaging & Shared Services ---
 builder.Services.AddSingleton<IQrCodeService, QrCodeService>();
 builder.Services.AddSingleton<IBarcodeService, BarcodeService>();
-builder.Services.AddSingleton<IImageOptimizer, SmkDoc.Infrastructure.Imaging.ImageOptimizerService>();
-builder.Services.AddSingleton<IMediaGenerationService, SmkDoc.Infrastructure.Imaging.MediaGenerationService>();
+builder.Services.AddSingleton<IImageOptimizer, ImageOptimizerService>();
+builder.Services.AddSingleton<IMediaGenerationService, MediaGenerationService>();
 builder.Services.AddSingleton<IJsonDataParser, SmkDoc.Infrastructure.Parsing.JsonDataParser>();
 builder.Services.AddSingleton<ITemplateScannerService, SmkDoc.Infrastructure.Engines.TemplateScannerService>();
-builder.Services.AddSingleton<ISchemaInferenceService, SmkDoc.Infrastructure.Schema.SchemaInferenceService>();
+builder.Services.AddSingleton<ISchemaInferenceService, SchemaInferenceService>();
 builder.Services.AddSingleton<IJsonSchemaValidationService, JsonSchemaValidationService>();
 
 // --- 6b. Render Engines & Pipeline Components (Strategy Pattern) ---
 builder.Services.AddScoped<WordMediaInjector>();
-builder.Services.AddScoped<SmkDoc.Infrastructure.Engines.Excel.ExcelMediaInjector>();
-builder.Services.AddScoped<SmkDoc.Infrastructure.Engines.Html.Helpers.IHtmlHelperRegistry, SmkDoc.Infrastructure.Engines.Html.Helpers.HtmlHelperRegistry>();
+builder.Services.AddScoped<ExcelMediaInjector>();
+builder.Services
+    .AddScoped<SmkDoc.Infrastructure.Engines.Html.Helpers.IHtmlHelperRegistry,
+        SmkDoc.Infrastructure.Engines.Html.Helpers.HtmlHelperRegistry>();
 builder.Services.AddSingleton<SmkDoc.Infrastructure.Engines.Html.Pipeline.HtmlPlaceholderTransformer>();
 builder.Services.AddSingleton<SmkDoc.Infrastructure.Engines.Html.Pipeline.HtmlLayoutProcessor>();
 builder.Services.AddScoped<IRenderEngine, HtmlTemplateEngine>();
@@ -231,7 +228,10 @@ builder.Services.AddRateLimiter(options =>
     {
         context.HttpContext.Response.ContentType = "application/json";
         await context.HttpContext.Response.WriteAsJsonAsync(
-            new { error = "TooManyRequests", message = "Rate limit exceeded. Maximum 60 requests per minute per API key." }, ct);
+            new
+            {
+                error = "TooManyRequests", message = "Rate limit exceeded. Maximum 60 requests per minute per API key."
+            }, ct);
     };
 });
 
@@ -274,14 +274,16 @@ using (var scope = app.Services.CreateScope())
         }
 
         string? masterApiKey = builder.Configuration["MASTER_API_KEY"]
-            ?? builder.Configuration["Security:ApiKey"];
+                               ?? builder.Configuration["Security:ApiKey"];
 
         if (string.IsNullOrWhiteSpace(masterApiKey))
         {
             if (app.Environment.IsProduction())
             {
-                throw new InvalidOperationException("CRITICAL SECURITY ERROR: MASTER_API_KEY or Security:ApiKey must be set in Production.");
+                throw new InvalidOperationException(
+                    "CRITICAL SECURITY ERROR: MASTER_API_KEY or Security:ApiKey must be set in Production.");
             }
+
             masterApiKey = "dev-smk-key-2026";
             var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
             logger.LogWarning("Using temporary Development API Key. NEVER use this in production.");
@@ -292,7 +294,8 @@ using (var scope = app.Services.CreateScope())
         var existingKey = await apiKeyRepo.GetByKeyHashAsync(defaultKeyHash);
         if (existingKey == null)
         {
-            await apiKeyRepo.AddAsync(new SmkDoc.Domain.Entities.ApiKey(project.Id, "Master Environment Key", "master", defaultKeyHash, null));
+            await apiKeyRepo.AddAsync(new SmkDoc.Domain.Entities.ApiKey(project.Id, "Master Environment Key", "master",
+                defaultKeyHash, null));
             await uow.CommitAsync();
         }
     }

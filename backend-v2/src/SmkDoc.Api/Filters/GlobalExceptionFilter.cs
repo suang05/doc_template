@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
+using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Domain.Exceptions;
 
 namespace SmkDoc.Api.Filters;

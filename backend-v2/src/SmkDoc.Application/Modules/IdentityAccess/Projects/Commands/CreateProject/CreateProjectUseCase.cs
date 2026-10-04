@@ -28,7 +28,7 @@ public sealed class CreateProjectUseCase(
             var validationResult = await _validator.ValidateAsync(request, ct);
             if (!validationResult.IsValid)
             {
-                throw new Domain.Exceptions.ValidationException(validationResult.ToDictionary());
+                throw new ValidationException(validationResult.ToDictionary());
             }
         }
 

@@ -12,30 +12,33 @@ public sealed class CreateApiKeyUseCase(
     IApiKeyRepository apiKeyRepo,
     IProjectRepository projectRepo,
     IUnitOfWork unitOfWork,
-    IValidator<CreateApiKeyCommand> validator) : IUseCase<CreateApiKeyCommand, CreateApiKeyResult>
+    IValidator<CreateApiKeyCommand> validator,
+    IExecutionContext? executionContext = null) : IUseCase<CreateApiKeyCommand, CreateApiKeyResult>
 {
     private readonly IApiKeyRepository _apiKeyRepo = apiKeyRepo;
     private readonly IProjectRepository _projectRepo = projectRepo;
     private readonly IUnitOfWork _unitOfWork = unitOfWork;
     private readonly IValidator<CreateApiKeyCommand> _validator = validator;
+    private readonly IExecutionContext? _executionContext = executionContext;
 
     public async Task<CreateApiKeyResult> ExecuteAsync(CreateApiKeyCommand command, CancellationToken ct = default)
     {
         var validationResult = await _validator.ValidateAsync(command, ct);
         if (!validationResult.IsValid)
         {
-            throw new Domain.Exceptions.ValidationException(validationResult.ToDictionary());
+            throw new ValidationException(validationResult.ToDictionary());
         }
 
-        Guid targetProjectId = command.ProjectId ?? Guid.Empty;
+        Guid targetProjectId = command.ProjectId 
+            ?? (_executionContext?.ProjectId.HasValue == true ? _executionContext.ProjectId.Value : Guid.Empty);
+
         if (targetProjectId == Guid.Empty)
         {
-            var defaultProject = await _projectRepo.GetDefaultAsync(ct);
-            if (defaultProject != null)
-            {
-                targetProjectId = defaultProject.Id;
-            }
+            throw new ValidationException("ProjectId", "ProjectId is required to create an API key.");
         }
+
+        var project = await _projectRepo.GetByIdAsync(targetProjectId, ct)
+            ?? throw new NotFoundException($"Project '{targetProjectId}' not found.");
 
         string rawSecret = $"smk_{command.CallerApp.ToLowerInvariant()}_{Guid.NewGuid():N}";
         string hash = ApiKeyHelper.ComputeHash(rawSecret);

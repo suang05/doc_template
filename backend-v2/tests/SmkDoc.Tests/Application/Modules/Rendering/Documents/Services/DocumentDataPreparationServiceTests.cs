@@ -14,8 +14,6 @@ namespace SmkDoc.Tests.Application.Modules.Rendering.Documents.Services;
 
 public class DocumentDataPreparationServiceTests
 {
-    private readonly Mock<IFieldMappingRepository> _mockMappingRepo = new();
-    private readonly Mock<ITemplateDatasetRepository> _mockTdRepo = new();
     private readonly Mock<IDatasetRepository> _mockDatasetRepo = new();
     private readonly Mock<IDataConnectionRepository> _mockConnectionRepo = new();
     private readonly Mock<IDataProtectionService> _mockDataProtection = new();
@@ -23,8 +21,6 @@ public class DocumentDataPreparationServiceTests
     private readonly Mock<IJsonSchemaValidationService> _mockSchemaValidation = new();
 
     private DocumentDataPreparationService BuildService() => new(
-        _mockMappingRepo.Object,
-        _mockTdRepo.Object,
         _mockDatasetRepo.Object,
         _mockConnectionRepo.Object,
         _mockDataProtection.Object,
@@ -37,8 +33,6 @@ public class DocumentDataPreparationServiceTests
         // Arrange
         var template = new Template(Guid.NewGuid(), "Tpl", "tpl", null);
         var version = new TemplateVersion(template.Id, 1, "tpl.html", TemplateFormat.Html, "Pub", "Commit");
-        _mockMappingRepo.Setup(r => r.GetByTemplateIdAsync(template.Id, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new List<FieldMapping>());
 
         var service = BuildService();
         using var jsonDoc = JsonDocument.Parse("""{"key":"value"}""");
@@ -60,9 +54,6 @@ public class DocumentDataPreparationServiceTests
         var version = new TemplateVersion(template.Id, 1, "tpl.html", TemplateFormat.Html, "Pub", "Commit");
         const string schema = """{"required":["field"]}""";
         version.UpdateDataSchema(schema, null);
-
-        _mockMappingRepo.Setup(r => r.GetByTemplateIdAsync(template.Id, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new List<FieldMapping>());
 
         var errors = new List<ValidationErrorItem> { new("/", "required", "Missing field") };
         _mockSchemaValidation.Setup(s => s.Validate(schema, It.IsAny<string>()))

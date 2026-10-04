@@ -8,8 +8,8 @@ namespace SmkDoc.Domain.Interfaces;
 public interface IDataConnectionRepository
 {
     Task<DataConnection?> GetByIdAsync(Guid id, CancellationToken ct = default);
-    Task<List<DataConnection>> GetByIdsAsync(IEnumerable<Guid> ids, CancellationToken ct = default);
-    Task<List<DataConnection>> ListAsync(CancellationToken ct = default);
+    Task<IReadOnlyList<DataConnection>> GetByIdsAsync(IEnumerable<Guid> ids, CancellationToken ct = default);
+    Task<IReadOnlyList<DataConnection>> ListAsync(CancellationToken ct = default);
     Task AddAsync(DataConnection connection, CancellationToken ct = default);
     void Update(DataConnection connection);
     void Remove(DataConnection connection);

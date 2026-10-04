@@ -45,9 +45,6 @@ public class UserBuilder
 
     public User Build()
     {
-        return new User(_email, _passwordHash, _firstName, _lastName, _systemRole)
-        {
-            Id = _id
-        };
+        return new User(_email, _passwordHash, _firstName, _lastName, _systemRole, id: _id);
     }
 }

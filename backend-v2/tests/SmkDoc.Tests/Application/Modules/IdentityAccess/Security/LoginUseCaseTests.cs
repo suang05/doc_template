@@ -36,9 +36,9 @@ public class LoginUseCaseTests
         // Arrange
         var projectId = Guid.NewGuid();
         var request = new LoginRequest { Email = "test@example.com", Password = "password123", ProjectId = projectId };
-        var user = new User("test@example.com", "hashed_pw", "Test", "User", SystemRole.Member) { Id = Guid.NewGuid() };
+        var user = new User("test@example.com", "hashed_pw", "Test", "User", SystemRole.Member);
         var role = new UserProjectRole(user.Id, projectId, RoleType.Viewer);
-        var project = new Project(Guid.NewGuid(), "Project Alpha", "project-alpha") { Id = projectId };
+        var project = new Project(Guid.NewGuid(), "Project Alpha", "project-alpha", id: projectId);
 
         _userRepoMock.Setup(r => r.GetByEmailAsync("test@example.com", It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);
@@ -72,9 +72,9 @@ public class LoginUseCaseTests
     {
         // Arrange
         var request = new LoginRequest { Email = "admin@example.com", Password = "admin_password" };
-        var user = new User("admin@example.com", "hashed_pw", "Super", "Admin", SystemRole.SuperAdmin) { Id = Guid.NewGuid() };
-        var p1 = new Project(Guid.NewGuid(), "ERP", "erp") { Id = Guid.NewGuid() };
-        var p2 = new Project(Guid.NewGuid(), "CRM", "crm") { Id = Guid.NewGuid() };
+        var user = new User("admin@example.com", "hashed_pw", "Super", "Admin", SystemRole.SuperAdmin);
+        var p1 = new Project(Guid.NewGuid(), "ERP", "erp");
+        var p2 = new Project(Guid.NewGuid(), "CRM", "crm");
 
         _userRepoMock.Setup(r => r.GetByEmailAsync("admin@example.com", It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);
@@ -104,7 +104,7 @@ public class LoginUseCaseTests
     {
         // Arrange
         var request = new LoginRequest { Email = "test@example.com", Password = "wrong_password" };
-        var user = new User("test@example.com", "hashed_pw", "", "") { Id = Guid.NewGuid() };
+        var user = new User("test@example.com", "hashed_pw", "Test", "User");
 
         _userRepoMock.Setup(r => r.GetByEmailAsync("test@example.com", It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);

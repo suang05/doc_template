@@ -13,7 +13,7 @@ namespace SmkDoc.Application.Modules.Rendering.Documents;
 /// Rule: NEVER upload to MinIO, NEVER write to generation_logs, NEVER increment versions.
 /// </summary>
 public sealed class PreviewDocumentUseCase(
-    IRepository<Template> templateRepo,
+    ITemplateRepository templateRepo,
     IRepository<TemplateVersion> versionRepo,
     IStorageService storageService,
     IEnumerable<IRenderEngine> engines)
@@ -34,7 +34,7 @@ public sealed class PreviewDocumentUseCase(
             if (string.IsNullOrWhiteSpace(slug))
                 throw new ArgumentException("Template slug or HTML content is required for preview.");
 
-            var template = await templateRepo.FirstOrDefaultAsync(t => t.Slug == slug, ct)
+            var template = await templateRepo.GetBySlugAsync(slug, ct)
                 ?? throw new NotFoundException($"Template '{slug}' not found.");
 
             if (template.CurrentVersionId is null)

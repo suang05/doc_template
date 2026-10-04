@@ -17,10 +17,8 @@ namespace SmkDoc.Tests.Infrastructure.Engines.Html;
 
 public class HtmlDirectGenerationTests
 {
-    private readonly Mock<IRepository<Template>>        _mockTemplateRepo    = new();
+    private readonly Mock<ITemplateRepository>         _mockTemplateRepo    = new();
     private readonly Mock<IRepository<TemplateVersion>> _mockVersionRepo     = new();
-    private readonly Mock<IFieldMappingRepository>      _mockMappingRepo     = new();
-    private readonly Mock<ITemplateDatasetRepository>   _mockTdRepo          = new();
     private readonly Mock<IDatasetRepository>           _mockDatasetRepo     = new();
     private readonly Mock<IDataConnectionRepository>    _mockConnectionRepo  = new();
     private readonly Mock<IRepository<GenerationLog>>   _mockLogRepo         = new();
@@ -44,10 +42,10 @@ public class HtmlDirectGenerationTests
         var versionId  = Guid.NewGuid();
         string capturedHtml = string.Empty;
 
-        var template = new Template(Guid.NewGuid(), "Direct HTML Invoice", "invoice-direct-html", null) { Id = templateId };
+        var template = new Template(Guid.NewGuid(), "Direct HTML Invoice", "invoice-direct-html", null, id: templateId);
         template.SetCurrentVersion(versionId);
 
-        var version = new TemplateVersion(templateId, 1, "templates/invoice.html", TemplateFormat.Html, "Published", "Initial") { Id = versionId };
+        var version = new TemplateVersion(templateId, 1, "templates/invoice.html", TemplateFormat.Html, "Published", "Initial", id: versionId);
 
         string htmlContent = @"
             <html>
@@ -76,14 +74,12 @@ public class HtmlDirectGenerationTests
             </body>
             </html>";
 
-        _mockTemplateRepo.Setup(r => r.FirstOrDefaultAsync(It.IsAny<Expression<Func<Template, bool>>>(), It.IsAny<CancellationToken>()))
+        _mockTemplateRepo.Setup(r => r.GetBySlugWithDetailsAsync("invoice-direct-html", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(template);
+        _mockTemplateRepo.Setup(r => r.GetBySlugAsync("invoice-direct-html", It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
         _mockVersionRepo.Setup(r => r.GetByIdAsync(versionId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(version);
-
-        // Crucial: 0 mappings in database!
-        _mockMappingRepo.Setup(r => r.GetByTemplateIdAsync(templateId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new List<FieldMapping>());
 
         _mockStorage.Setup(s => s.DownloadAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new MemoryStream(Encoding.UTF8.GetBytes(htmlContent)));
@@ -102,8 +98,6 @@ public class HtmlDirectGenerationTests
         var htmlEngine = new HtmlTemplateEngine(_mockPdfRenderer.Object, new SmkDoc.Infrastructure.Engines.Html.Helpers.HtmlHelperRegistry(mediaService));
 
         var dataPrep = new SmkDoc.Application.Modules.Rendering.Documents.Services.DocumentDataPreparationService(
-            _mockMappingRepo.Object,
-            _mockTdRepo.Object,
             _mockDatasetRepo.Object,
             _mockConnectionRepo.Object,
             _mockDataProtection.Object,

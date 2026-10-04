@@ -25,7 +25,6 @@ public class TemplateDraftUseCaseTests
     private readonly Mock<IStorageService> _storage = new();
     private readonly Mock<ITemplateRepository> _templateRepo = new();
     private readonly Mock<IRepository<TemplateVersion>> _versionRepo = new();
-    private readonly Mock<IFieldMappingRepository> _mappingRepo = new();
     private readonly Mock<IUnitOfWork> _uow = new();
 
     // ── ParseTemplateDraftUseCase ─────────────────────────────────────────────
@@ -115,7 +114,7 @@ public class TemplateDraftUseCaseTests
     {
         var fileBytes = Encoding.UTF8.GetBytes("xlsx-content");
         var entry = new TemplateDraftEntry(fileBytes, "report.xlsx", ".xlsx", []);
-        var request = new CommitDraftCommand("Report", "report", "finance", []);
+        var request = new CommitDraftCommand("Report", "report", "finance", [], ProjectId: Guid.NewGuid());
 
         _cache.Setup(c => c.GetAsync("draft-commit", It.IsAny<CancellationToken>())).ReturnsAsync(entry);
         _storage.Setup(s => s.UploadAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Stream>(),
@@ -129,7 +128,7 @@ public class TemplateDraftUseCaseTests
         _cache.Setup(c => c.RemoveAsync("draft-commit", It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
 
         var useCase = new CommitTemplateDraftUseCase(
-            _cache.Object, _storage.Object, _templateRepo.Object, _versionRepo.Object, _mappingRepo.Object, _uow.Object);
+            _cache.Object, _storage.Object, _templateRepo.Object, _versionRepo.Object, _uow.Object);
 
         var templateId = await useCase.ExecuteAsync(new CommitTemplateDraftCommand("draft-commit", request), CancellationToken.None);
 
@@ -145,7 +144,7 @@ public class TemplateDraftUseCaseTests
     public async Task CommitAsync_DbWriteFails_RollsBackMinioUpload()
     {
         var entry = new TemplateDraftEntry(Encoding.UTF8.GetBytes("data"), "t.docx", ".docx", []);
-        var request = new CommitDraftCommand("T", "t", null, []);
+        var request = new CommitDraftCommand("T", "test-template", null, [], ProjectId: Guid.NewGuid());
 
         _cache.Setup(c => c.GetAsync("draft-fail", It.IsAny<CancellationToken>())).ReturnsAsync(entry);
         _storage.Setup(s => s.UploadAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Stream>(),
@@ -160,7 +159,7 @@ public class TemplateDraftUseCaseTests
             .Returns(Task.CompletedTask);
 
         var useCase = new CommitTemplateDraftUseCase(
-            _cache.Object, _storage.Object, _templateRepo.Object, _versionRepo.Object, _mappingRepo.Object, _uow.Object);
+            _cache.Object, _storage.Object, _templateRepo.Object, _versionRepo.Object, _uow.Object);
 
         await useCase.Invoking(u => u.ExecuteAsync(new CommitTemplateDraftCommand("draft-fail", request), CancellationToken.None))
             .Should().ThrowAsync<Exception>().WithMessage("DB error");
@@ -175,8 +174,8 @@ public class TemplateDraftUseCaseTests
         _cache.Setup(c => c.GetAsync("stale", It.IsAny<CancellationToken>())).ReturnsAsync((TemplateDraftEntry?)null);
 
         var useCase = new CommitTemplateDraftUseCase(
-            _cache.Object, _storage.Object, _templateRepo.Object, _versionRepo.Object, _mappingRepo.Object, _uow.Object);
-        var request = new CommitDraftCommand("T", "t", null, []);
+            _cache.Object, _storage.Object, _templateRepo.Object, _versionRepo.Object, _uow.Object);
+        var request = new CommitDraftCommand("T", "test-template", null, [], ProjectId: Guid.NewGuid());
 
         await useCase.Invoking(u => u.ExecuteAsync(new CommitTemplateDraftCommand("stale", request), CancellationToken.None))
             .Should().ThrowAsync<DraftExpiredException>();
@@ -191,7 +190,7 @@ public class TemplateDraftUseCaseTests
             new("name", "customer.name", "ชื่อลูกค้า", true, null, null, 0),
             new("total", "invoice.total", "ยอดรวม", false, null, null, 1),
         };
-        var request = new CommitDraftCommand("Invoice", "invoice", null, mappings);
+        var request = new CommitDraftCommand("Invoice", "invoice", null, mappings, ProjectId: Guid.NewGuid());
 
         _cache.Setup(c => c.GetAsync("draft-map", It.IsAny<CancellationToken>())).ReturnsAsync(entry);
         _storage.Setup(s => s.UploadAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Stream>(),
@@ -201,15 +200,15 @@ public class TemplateDraftUseCaseTests
             .Returns(Task.CompletedTask);
         _versionRepo.Setup(r => r.AddAsync(It.IsAny<TemplateVersion>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
-        _mappingRepo.Setup(r => r.AddAsync(It.IsAny<FieldMapping>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
         _uow.Setup(u => u.CommitAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
         _cache.Setup(c => c.RemoveAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
 
         var useCase = new CommitTemplateDraftUseCase(
-            _cache.Object, _storage.Object, _templateRepo.Object, _versionRepo.Object, _mappingRepo.Object, _uow.Object);
+            _cache.Object, _storage.Object, _templateRepo.Object, _versionRepo.Object, _uow.Object);
         await useCase.ExecuteAsync(new CommitTemplateDraftCommand("draft-map", request), CancellationToken.None);
 
-        _mappingRepo.Verify(r => r.AddAsync(It.IsAny<FieldMapping>(), It.IsAny<CancellationToken>()), Times.Exactly(2));
+        _templateRepo.Verify(r => r.AddAsync(
+            It.Is<Template>(t => t.FieldMappings.Count == 2),
+            It.IsAny<CancellationToken>()), Times.Once);
     }
 }
