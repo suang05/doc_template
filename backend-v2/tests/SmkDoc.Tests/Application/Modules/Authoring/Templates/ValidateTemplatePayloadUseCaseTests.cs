@@ -154,7 +154,7 @@ public class ValidateTemplatePayloadUseCaseTests
     public async Task ExecuteAsync_WhenTemplateNotFound_ThrowsNotFoundException()
     {
         _mockTemplateRepo
-            .Setup(r => r.GetBySlugAsync(It.IsAny<string>(), It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
+            .Setup(r => r.GetBySlugAsync(It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((Template?)null);
 
         using var doc = JsonDocument.Parse("{}");

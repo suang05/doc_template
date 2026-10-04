@@ -62,9 +62,9 @@ public class GenerateDocumentUseCaseTests
             .WithFormat(TemplateFormat.Html)
             .Build();
 
-        _mockTemplateRepo.Setup(r => r.GetBySlugWithDetailsAsync("sale-contract", It.IsAny<CancellationToken>()))
+        _mockTemplateRepo.Setup(r => r.GetBySlugWithDetailsAsync("sale-contract", It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
-        _mockTemplateRepo.Setup(r => r.GetBySlugAsync("sale-contract", It.IsAny<CancellationToken>()))
+        _mockTemplateRepo.Setup(r => r.GetBySlugAsync("sale-contract", It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
 
         _mockVersionRepo.Setup(r => r.GetByIdAsync(versionId, It.IsAny<CancellationToken>()))
@@ -125,9 +125,9 @@ public class GenerateDocumentUseCaseTests
     {
         // Arrange
         var template = new TemplateBuilder().AsInactive().WithSlug("inactive-tpl").Build();
-        _mockTemplateRepo.Setup(r => r.GetBySlugWithDetailsAsync("inactive-tpl", It.IsAny<CancellationToken>()))
+        _mockTemplateRepo.Setup(r => r.GetBySlugWithDetailsAsync("inactive-tpl", It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
-        _mockTemplateRepo.Setup(r => r.GetBySlugAsync("inactive-tpl", It.IsAny<CancellationToken>()))
+        _mockTemplateRepo.Setup(r => r.GetBySlugAsync("inactive-tpl", It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
 
         var useCase = BuildUseCase();
@@ -144,9 +144,9 @@ public class GenerateDocumentUseCaseTests
     {
         // Arrange
         var template = new TemplateBuilder().WithoutCurrentVersion().WithSlug("no-ver-tpl").Build();
-        _mockTemplateRepo.Setup(r => r.GetBySlugWithDetailsAsync("no-ver-tpl", It.IsAny<CancellationToken>()))
+        _mockTemplateRepo.Setup(r => r.GetBySlugWithDetailsAsync("no-ver-tpl", It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
-        _mockTemplateRepo.Setup(r => r.GetBySlugAsync("no-ver-tpl", It.IsAny<CancellationToken>()))
+        _mockTemplateRepo.Setup(r => r.GetBySlugAsync("no-ver-tpl", It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
 
         var useCase = BuildUseCase();
@@ -170,9 +170,9 @@ public class GenerateDocumentUseCaseTests
 
         var currentVersion = new TemplateVersion(templateId, 1, "templates/contract-mapped.html", TemplateFormat.Html, "Published", "Commit", id: versionId);
 
-        _mockTemplateRepo.Setup(r => r.GetBySlugWithDetailsAsync("contract-mapped", It.IsAny<CancellationToken>()))
+        _mockTemplateRepo.Setup(r => r.GetBySlugWithDetailsAsync("contract-mapped", It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
-        _mockTemplateRepo.Setup(r => r.GetBySlugAsync("contract-mapped", It.IsAny<CancellationToken>()))
+        _mockTemplateRepo.Setup(r => r.GetBySlugAsync("contract-mapped", It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
 
         _mockVersionRepo.Setup(r => r.GetByIdAsync(versionId, It.IsAny<CancellationToken>()))
@@ -230,9 +230,9 @@ public class GenerateDocumentUseCaseTests
         var currentVersion = new TemplateVersion(templateId, 1, "templates/sale-contract.html", TemplateFormat.Html, "Published", "Commit", id: versionId);
         var existingDocument = new Document("SC-2026-0001", templateId, id: documentId);
 
-        _mockTemplateRepo.Setup(r => r.GetBySlugWithDetailsAsync("sale-contract", It.IsAny<CancellationToken>()))
+        _mockTemplateRepo.Setup(r => r.GetBySlugWithDetailsAsync("sale-contract", It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
-        _mockTemplateRepo.Setup(r => r.GetBySlugAsync("sale-contract", It.IsAny<CancellationToken>()))
+        _mockTemplateRepo.Setup(r => r.GetBySlugAsync("sale-contract", It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
         _mockVersionRepo.Setup(r => r.GetByIdAsync(versionId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(currentVersion);
@@ -284,9 +284,9 @@ public class GenerateDocumentUseCaseTests
         var currentVersion = new TemplateVersion(templateId, 1, "templates/invoice.html", TemplateFormat.Html, "Published", "Commit", id: versionId);
         currentVersion.UpdateDataSchema(schemaJson, null);
 
-        _mockTemplateRepo.Setup(r => r.GetBySlugWithDetailsAsync("invoice", It.IsAny<CancellationToken>()))
+        _mockTemplateRepo.Setup(r => r.GetBySlugWithDetailsAsync("invoice", It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
-        _mockTemplateRepo.Setup(r => r.GetBySlugAsync("invoice", It.IsAny<CancellationToken>()))
+        _mockTemplateRepo.Setup(r => r.GetBySlugAsync("invoice", It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
         _mockVersionRepo.Setup(r => r.GetByIdAsync(versionId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(currentVersion);
@@ -349,9 +349,9 @@ public class GenerateDocumentUseCaseTests
         var currentVersion = new TemplateVersion(templateId, 1, "templates/invoice.html", TemplateFormat.Html, "Published", "Commit", id: versionId);
         currentVersion.UpdateDataSchema(schemaJson, null);
 
-        _mockTemplateRepo.Setup(r => r.GetBySlugWithDetailsAsync("invoice", It.IsAny<CancellationToken>()))
+        _mockTemplateRepo.Setup(r => r.GetBySlugWithDetailsAsync("invoice", It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
-        _mockTemplateRepo.Setup(r => r.GetBySlugAsync("invoice", It.IsAny<CancellationToken>()))
+        _mockTemplateRepo.Setup(r => r.GetBySlugAsync("invoice", It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
         _mockVersionRepo.Setup(r => r.GetByIdAsync(versionId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(currentVersion);

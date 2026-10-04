@@ -1,14 +1,16 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using SmkDoc.Api.Common.Responses;
+using SmkDoc.Api.Contracts.IdentityAccess.Users;
 using SmkDoc.Api.Extensions;
-using SmkDoc.Api.Models;
 using SmkDoc.Application.Modules.IdentityAccess.Users.Commands.InviteUser;
 using SmkDoc.Application.Modules.IdentityAccess.Users.Commands.RemoveUser;
 using SmkDoc.Application.Modules.IdentityAccess.Users.Commands.SetUserStatus;
 using SmkDoc.Application.Modules.IdentityAccess.Users.Commands.UpdateUserRole;
+using SmkDoc.Application.Modules.IdentityAccess.Users.DTOs;
 using SmkDoc.Application.Modules.IdentityAccess.Users.Queries.ListProjectUsers;
 
-namespace SmkDoc.Api.Controllers;
+namespace SmkDoc.Api.Controllers.IdentityAccess;
 
 /// <summary>
 /// User management within a project scope.
@@ -21,20 +23,19 @@ public class UserManagementController : ControllerBase
 {
     /// <summary>List all users in a project.</summary>
     [HttpGet]
-    [ProducesResponseType(typeof(ApiResponse<IEnumerable<UserListItem>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<IEnumerable<UserResponseDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> List(
         [FromRoute] Guid projectId,
         [FromServices] ListProjectUsersUseCase useCase,
         CancellationToken ct)
     {
         var users = await useCase.ExecuteAsync(new ListProjectUsersQuery(projectId), ct);
-        var result = users.Select(u => new UserListItem(u.Id, u.Email, u.FirstName, u.LastName, u.Role, u.IsActive, u.CreatedAt));
-        return Ok(new ApiResponse<IEnumerable<UserListItem>>(result));
+        return Ok(new ApiResponse<IEnumerable<UserResponseDto>>(users));
     }
 
     /// <summary>Invite a new user to the project. Admin only.</summary>
     [HttpPost]
-    [ProducesResponseType(typeof(ApiResponse<UserListItem>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<UserResponseDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
@@ -47,8 +48,7 @@ public class UserManagementController : ControllerBase
         User.RequireAdmin();
         var command = new InviteUserCommand(projectId, req.Email, req.Password, req.FirstName, req.LastName, req.Role);
         var user = await useCase.ExecuteAsync(command, ct);
-        var result = new UserListItem(user.Id, user.Email, user.FirstName, user.LastName, user.Role, user.IsActive, user.CreatedAt);
-        return Ok(new ApiResponse<UserListItem>(result));
+        return Ok(new ApiResponse<UserResponseDto>(user));
     }
 
     /// <summary>Update a user's role within the project. Admin only.</summary>

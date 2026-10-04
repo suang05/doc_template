@@ -18,7 +18,8 @@ public sealed class GenerateDocumentUseCase(
     IDocumentDataPreparationService dataPreparationService,
     IDocumentAuditService auditService,
     IDocumentVersioningService versioningService,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork,
+    IExecutionContext executionContext)
 {
     private readonly ITemplateRepository _templateRepo = templateRepo;
     private readonly IRepository<TemplateVersion> _versionRepo = versionRepo;
@@ -28,14 +29,16 @@ public sealed class GenerateDocumentUseCase(
     private readonly IDocumentAuditService _auditService = auditService;
     private readonly IDocumentVersioningService _versioningService = versioningService;
     private readonly IUnitOfWork _unitOfWork = unitOfWork;
+    private readonly IExecutionContext _executionContext = executionContext;
 
     public async Task<GenerateDocumentResultDto> ExecuteAsync(
         string slug, GenerateDocumentCommand request, CancellationToken ct = default)
     {
         var sw = Stopwatch.StartNew();
 
-        var template = await _templateRepo.GetBySlugWithDetailsAsync(slug, ct)
-            ?? await _templateRepo.GetBySlugAsync(slug, ct);
+        var projectId = _executionContext.ProjectId ?? Guid.Empty;
+        var template = await _templateRepo.GetBySlugWithDetailsAsync(slug, projectId, ct)
+            ?? await _templateRepo.GetBySlugAsync(slug, projectId, ct);
         if (template == null || !template.IsActive)
             throw new NotFoundException($"Template '{slug}' not found or inactive.");
 

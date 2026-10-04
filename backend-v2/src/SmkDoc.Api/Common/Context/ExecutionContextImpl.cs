@@ -1,6 +1,6 @@
 using SmkDoc.Application.Common.Interfaces;
 
-namespace SmkDoc.Api.Models;
+namespace SmkDoc.Api.Common.Context;
 
 public class ExecutionContextImpl : IExecutionContext
 {
@@ -11,4 +11,3 @@ public class ExecutionContextImpl : IExecutionContext
     public string? ClientIp { get; set; }
     public string? UserAgent { get; set; }
 }
-

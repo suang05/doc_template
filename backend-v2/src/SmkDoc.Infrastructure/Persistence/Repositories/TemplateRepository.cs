@@ -25,28 +25,21 @@ public sealed class TemplateRepository(AppDbContext context) : ITemplateReposito
             .FirstOrDefaultAsync(t => t.Id == id, ct);
     }
 
-    public async Task<Template?> GetBySlugAsync(string slug, CancellationToken ct = default)
+    public async Task<Template?> GetBySlugAsync(string slug, Guid projectId, CancellationToken ct = default)
     {
         return await _context.Templates
             .Include(t => t.CurrentVersion)
-            .FirstOrDefaultAsync(t => t.Slug == slug, ct);
+            .FirstOrDefaultAsync(t => t.Slug == slug && t.ProjectId == projectId, ct);
     }
 
-    public async Task<Template?> GetBySlugAsync(string slug, Guid? projectId, CancellationToken ct = default)
-    {
-        return await _context.Templates
-            .Include(t => t.CurrentVersion)
-            .FirstOrDefaultAsync(t => t.Slug == slug && (!projectId.HasValue || t.ProjectId == projectId.Value), ct);
-    }
-
-    public async Task<Template?> GetBySlugWithDetailsAsync(string slug, CancellationToken ct = default)
+    public async Task<Template?> GetBySlugWithDetailsAsync(string slug, Guid projectId, CancellationToken ct = default)
     {
         return await _context.Templates
             .Include(t => t.CurrentVersion)
             .Include(t => t.Versions)
             .Include(t => t.FieldMappings)
             .Include(t => t.TemplateDatasets)
-            .FirstOrDefaultAsync(t => t.Slug == slug, ct);
+            .FirstOrDefaultAsync(t => t.Slug == slug && t.ProjectId == projectId, ct);
     }
 
     public async Task<bool> SlugExistsAsync(string slug, Guid projectId, CancellationToken ct = default)
@@ -55,10 +48,11 @@ public sealed class TemplateRepository(AppDbContext context) : ITemplateReposito
             .AnyAsync(t => t.Slug == slug && (projectId == Guid.Empty || t.ProjectId == projectId), ct);
     }
 
-    public async Task<IReadOnlyList<Template>> ListAsync(CancellationToken ct = default)
+    public async Task<IReadOnlyList<Template>> ListByProjectAsync(Guid projectId, CancellationToken ct = default)
     {
         return await _context.Templates
             .Include(t => t.CurrentVersion)
+            .Where(t => t.ProjectId == projectId)
             .OrderByDescending(t => t.UpdatedAt ?? t.CreatedAt)
             .ToListAsync(ct);
     }

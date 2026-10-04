@@ -1,5 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
-using SmkDoc.Api.Models;
+using SmkDoc.Api.Common.Responses;
 using SmkDoc.Application.Modules.Authoring.Schemas.DTOs;
 using SmkDoc.Application.Modules.Authoring.Schemas;
 using System.Text.Json;

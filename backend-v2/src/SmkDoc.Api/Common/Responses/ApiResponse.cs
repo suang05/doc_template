@@ -1,4 +1,4 @@
-namespace SmkDoc.Api.Models;
+namespace SmkDoc.Api.Common.Responses;
 
 /// <summary>
 /// Standard API Response wrapper for successful requests that return data.

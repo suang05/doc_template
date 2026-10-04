@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
+using SmkDoc.Api.Contracts.IdentityAccess.Auth;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.Login;
 using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
+using LoginRequest = SmkDoc.Api.Contracts.IdentityAccess.Auth.LoginRequest;
 
 namespace SmkDoc.Api.Controllers.IdentityAccess;
 
@@ -18,7 +20,8 @@ public class AuthController(LoginUseCase loginUseCase) : ControllerBase
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> Login([FromBody] LoginRequest request, CancellationToken ct)
     {
-        var response = await _loginUseCase.ExecuteAsync(request, ct);
+        var command = new LoginCommand(request.Email, request.Password, request.ProjectId);
+        var response = await _loginUseCase.ExecuteAsync(command, ct);
         return Ok(response);
     }
 }

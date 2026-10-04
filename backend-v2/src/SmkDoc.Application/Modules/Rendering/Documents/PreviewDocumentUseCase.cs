@@ -16,7 +16,8 @@ public sealed class PreviewDocumentUseCase(
     ITemplateRepository templateRepo,
     IRepository<TemplateVersion> versionRepo,
     IStorageService storageService,
-    IEnumerable<IRenderEngine> engines)
+    IEnumerable<IRenderEngine> engines,
+    IExecutionContext? executionContext = null)
 {
     public async Task<Stream> ExecuteStreamAsync(string? slug, PreviewDocumentQuery request, CancellationToken ct = default)
     {
@@ -34,7 +35,8 @@ public sealed class PreviewDocumentUseCase(
             if (string.IsNullOrWhiteSpace(slug))
                 throw new ArgumentException("Template slug or HTML content is required for preview.");
 
-            var template = await templateRepo.GetBySlugAsync(slug, ct)
+            var projectId = executionContext?.ProjectId ?? Guid.Empty;
+            var template = await templateRepo.GetBySlugAsync(slug, projectId, ct)
                 ?? throw new NotFoundException($"Template '{slug}' not found.");
 
             if (template.CurrentVersionId is null)

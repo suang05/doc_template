@@ -33,7 +33,8 @@ public sealed class ValidateTemplatePayloadUseCase(
         }
 
         // 1. Fetch template with tenant isolation if ProjectId is bound in execution context
-        var template = await _templateRepo.GetBySlugAsync(command.Slug, _executionContext.ProjectId, ct);
+        var projectId = _executionContext.ProjectId ?? Guid.Empty;
+        var template = await _templateRepo.GetBySlugAsync(command.Slug, projectId, ct);
 
         if (template == null || !template.IsActive)
         {

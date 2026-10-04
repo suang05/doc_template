@@ -13,20 +13,20 @@ public sealed class ApiKeyRepository(AppDbContext context) : IApiKeyRepository
         return await _context.ApiKeys.FirstOrDefaultAsync(k => k.Id == id, ct);
     }
 
+    public async Task<ApiKey?> GetByIdAsync(Guid id, Guid projectId, CancellationToken ct = default)
+    {
+        return await _context.ApiKeys.FirstOrDefaultAsync(k => k.Id == id && k.ProjectId == projectId, ct);
+    }
+
     public async Task<ApiKey?> GetByKeyHashAsync(string keyHash, CancellationToken ct = default)
     {
         return await _context.ApiKeys.FirstOrDefaultAsync(k => k.KeyHash == keyHash && k.IsActive, ct);
     }
 
-    public async Task<IReadOnlyList<ApiKey>> ListAsync(Guid? projectId = null, CancellationToken ct = default)
+    public async Task<IReadOnlyList<ApiKey>> ListByProjectAsync(Guid projectId, CancellationToken ct = default)
     {
-        var query = _context.ApiKeys.AsQueryable();
-        if (projectId.HasValue && projectId.Value != Guid.Empty)
-        {
-            query = query.Where(k => k.ProjectId == projectId.Value);
-        }
-
-        return await query
+        return await _context.ApiKeys
+            .Where(k => k.ProjectId == projectId)
             .OrderByDescending(k => k.CreatedAt)
             .ToListAsync(ct);
     }

@@ -30,6 +30,7 @@ public class GenerateDocumentTestFixture
     {
         Engines.Add(Engine.Object);
         Uow.Setup(u => u.CommitAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
+        Context.Setup(c => c.ProjectId).Returns(Guid.NewGuid());
     }
 
     public IDocumentDataPreparationService BuildDataPreparationService() =>
@@ -64,6 +65,7 @@ public class GenerateDocumentTestFixture
             dataPrep ?? BuildDataPreparationService(),
             audit ?? BuildAuditService(),
             versioning ?? BuildVersioningService(),
-            Uow.Object
+            Uow.Object,
+            Context.Object
         );
 }

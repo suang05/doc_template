@@ -10,11 +10,3 @@ public record ProjectResultDto(
     bool IsActive,
     DateTimeOffset CreatedAt
 );
-
-/// <summary>
-/// Command for creating a new tenant project.
-/// </summary>
-public record CreateProjectCommand(
-    string Name,
-    string Slug
-);

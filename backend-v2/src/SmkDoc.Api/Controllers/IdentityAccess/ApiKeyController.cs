@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.CreateApiKey;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.RevokeApiKey;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Queries.ListApiKeys;
@@ -17,9 +18,14 @@ public class ApiKeyController(
     private readonly RevokeApiKeyUseCase _revokeApiKeyUseCase = revokeApiKeyUseCase;
 
     [HttpGet]
-    public async Task<IActionResult> ListKeys(CancellationToken ct)
+    public async Task<IActionResult> ListKeys(
+        [FromQuery] Guid? projectId,
+        [FromServices] IExecutionContext context,
+        CancellationToken ct)
     {
-        var keys = await _listApiKeysUseCase.ExecuteAsync(new ListApiKeysQuery(), ct);
+        var targetProjectId = projectId ?? context.ProjectId
+            ?? throw new BadHttpRequestException("ProjectId is required to list API keys.");
+        var keys = await _listApiKeysUseCase.ExecuteAsync(new ListApiKeysQuery(targetProjectId), ct);
         return Ok(new { keys });
     }
 
@@ -39,9 +45,15 @@ public class ApiKeyController(
     }
 
     [HttpDelete("{id:guid}")]
-    public async Task<IActionResult> RevokeKey([FromRoute] Guid id, CancellationToken ct)
+    public async Task<IActionResult> RevokeKey(
+        [FromRoute] Guid id,
+        [FromQuery] Guid? projectId,
+        [FromServices] IExecutionContext context,
+        CancellationToken ct)
     {
-        await _revokeApiKeyUseCase.ExecuteAsync(new RevokeApiKeyCommand(id), ct);
+        var targetProjectId = projectId ?? context.ProjectId
+            ?? throw new BadHttpRequestException("ProjectId is required to revoke an API key.");
+        await _revokeApiKeyUseCase.ExecuteAsync(new RevokeApiKeyCommand(id, targetProjectId), ct);
         return Ok(new { success = true });
     }
 }

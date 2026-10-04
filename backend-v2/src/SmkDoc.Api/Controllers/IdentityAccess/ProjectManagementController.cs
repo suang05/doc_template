@@ -1,51 +1,72 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using SmkDoc.Api.Common.Responses;
+using SmkDoc.Api.Contracts.IdentityAccess.Projects;
 using SmkDoc.Api.Extensions;
-using SmkDoc.Api.Models;
 using SmkDoc.Application.Modules.IdentityAccess.Projects.Commands.CreateProject;
+using SmkDoc.Application.Modules.IdentityAccess.Projects.DTOs;
+using SmkDoc.Application.Modules.IdentityAccess.Projects.Queries.GetProjectById;
 using SmkDoc.Application.Modules.IdentityAccess.Projects.Queries.ListProjects;
 
 namespace SmkDoc.Api.Controllers.IdentityAccess;
 
 /// <summary>
-/// Project management — list and create projects.
-/// Auth: JWT Bearer (JwtPolicy) — Admin role required for mutating operations.
+/// Project management — list, view, and create tenant projects.
 /// </summary>
 [ApiController]
 [Route("api/v1/management/projects")]
-[Authorize(Policy = "JwtPolicy")]
+[Authorize]
+[ProducesResponseType(StatusCodes.Status401Unauthorized)]
 public class ProjectManagementController(
     ListProjectsUseCase listProjectsUseCase,
+    GetProjectByIdUseCase getProjectByIdUseCase,
     CreateProjectUseCase createProjectUseCase) : ControllerBase
 {
-    private readonly ListProjectsUseCase _listProjectsUseCase = listProjectsUseCase;
-    private readonly CreateProjectUseCase _createProjectUseCase = createProjectUseCase;
-
     /// <summary>List all projects accessible to the authenticated user.</summary>
     [HttpGet]
-    [ProducesResponseType(typeof(ApiResponse<IEnumerable<ProjectListItemDto>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<IEnumerable<ProjectResultDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> ListProjects(CancellationToken ct)
     {
         var userId = User.GetUserId();
-        var projects = await _listProjectsUseCase.ExecuteAsync(new ListProjectsQuery(userId), ct);
-        var result = projects.Select(p => new ProjectListItemDto(p.Id, p.Name, p.Slug, p.IsActive, p.CreatedAt));
-        return Ok(new ApiResponse<IEnumerable<ProjectListItemDto>>(result));
+        var projects = await listProjectsUseCase.ExecuteAsync(new ListProjectsQuery(userId), ct);
+
+        return Ok(new ApiResponse<IEnumerable<ProjectResultDto>>(projects));
+    }
+
+    /// <summary>Get a specific project by its ID.</summary>
+    [HttpGet("{projectId:guid}")]
+    [ProducesResponseType(typeof(ApiResponse<ProjectResultDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetProjectById([FromRoute] Guid projectId, CancellationToken ct)
+    {
+        var project = await getProjectByIdUseCase.ExecuteAsync(new GetProjectByIdQuery(projectId), ct);
+        if (project is null)
+        {
+            return NotFound();
+        }
+
+        return Ok(new ApiResponse<ProjectResultDto>(project));
     }
 
     /// <summary>Create a new project. Admin only.</summary>
     [HttpPost]
-    [ProducesResponseType(StatusCodes.Status201Created)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [Authorize(Roles = "Admin")] // Declarative RBAC คืน 403 Forbidden อัตโนมัติเมื่อไม่มีสิทธิ์
+    [ProducesResponseType(typeof(ApiResponse<ProjectResultDto>), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> CreateProject(
         [FromBody] CreateProjectRequest req,
         CancellationToken ct)
     {
-        User.RequireAdmin();
         var userId = User.GetUserId();
-        var project = await _createProjectUseCase.ExecuteAsync(new CreateProjectCommand(userId, req.Name, req.Slug), ct);
+        var command = new CreateProjectCommand(userId, req.Name, req.Slug);
+        var project = await createProjectUseCase.ExecuteAsync(command, ct);
 
-        var responseDto = new ProjectDto(project.Id, project.Name, project.Slug, project.IsActive, project.CreatedAt);
-        return CreatedAtAction(nameof(ListProjects), new { id = project.Id }, new ApiResponse<ProjectDto>(responseDto));
+        // ชี้ Location Header ไปยัง GetProjectById ที่สร้างขึ้นจริงอย่างถูกต้องตาม RFC 7231
+        return CreatedAtAction(
+            nameof(GetProjectById),
+            new { projectId = project.Id },
+            new ApiResponse<ProjectResultDto>(project));
     }
 }

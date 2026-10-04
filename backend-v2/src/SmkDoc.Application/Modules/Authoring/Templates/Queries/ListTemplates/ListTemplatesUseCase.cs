@@ -1,5 +1,6 @@
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
+using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 
 namespace SmkDoc.Application.Modules.Authoring.Templates.Queries.ListTemplates;
@@ -14,7 +15,12 @@ public sealed class ListTemplatesUseCase(ITemplateRepository templateRepo) : IUs
 
     public async Task<List<TemplateResponse>> ExecuteAsync(ListTemplatesQuery query, CancellationToken ct = default)
     {
-        var templates = await _templateRepo.ListAsync(ct);
+        if (query.ProjectId == Guid.Empty)
+        {
+            throw new DomainValidationException("ProjectId cannot be empty.");
+        }
+
+        var templates = await _templateRepo.ListByProjectAsync(query.ProjectId, ct);
 
         return templates
             .Select(t => new TemplateResponse(

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
-using SmkDoc.Api.Models;
+using SmkDoc.Api.Common.Responses;
+using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.CreateTemplate;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.UpdateTemplateDetails;
@@ -25,9 +26,14 @@ public class TemplateController(
 {
     [HttpGet]
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<TemplateResponse>>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> ListTemplates(CancellationToken ct)
+    public async Task<IActionResult> ListTemplates(
+        [FromQuery] Guid? projectId,
+        [FromServices] IExecutionContext context,
+        CancellationToken ct)
     {
-        var templates = await listTemplatesUseCase.ExecuteAsync(new ListTemplatesQuery(), ct);
+        var targetProjectId = projectId ?? context.ProjectId 
+            ?? throw new BadHttpRequestException("ProjectId is required to list templates.");
+        var templates = await listTemplatesUseCase.ExecuteAsync(new ListTemplatesQuery(targetProjectId), ct);
         return Ok(new ApiResponse<IEnumerable<TemplateResponse>>(templates));
     }
 

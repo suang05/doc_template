@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
 using SmkDoc.Api.HealthChecks;
 using SmkDoc.Api.Middleware;
-using SmkDoc.Api.Models;
+using SmkDoc.Api.Common.Context;
 using SmkDoc.Application;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Helpers;

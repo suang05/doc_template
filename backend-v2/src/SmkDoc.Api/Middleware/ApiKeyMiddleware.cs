@@ -1,4 +1,4 @@
-using SmkDoc.Api.Models;
+using SmkDoc.Api.Common.Context;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Queries.ValidateApiKey;
 
 namespace SmkDoc.Api.Middleware;

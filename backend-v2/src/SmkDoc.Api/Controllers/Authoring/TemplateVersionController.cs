@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
-using SmkDoc.Api.Models;
+using SmkDoc.Api.Common.Responses;
+using SmkDoc.Api.Contracts.Authoring.Templates;
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 using SmkDoc.Application.Modules.Authoring.FieldMappings;

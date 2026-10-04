@@ -14,7 +14,12 @@ public sealed class RevokeApiKeyUseCase(
 
     public async Task ExecuteAsync(RevokeApiKeyCommand command, CancellationToken ct = default)
     {
-        var key = await _apiKeyRepo.GetByIdAsync(command.Id, ct)
+        if (command.ProjectId == Guid.Empty)
+        {
+            throw new DomainValidationException("ProjectId cannot be empty.");
+        }
+
+        var key = await _apiKeyRepo.GetByIdAsync(command.Id, command.ProjectId, ct)
             ?? throw new NotFoundException($"API Key '{command.Id}' not found.");
 
         key.Revoke();

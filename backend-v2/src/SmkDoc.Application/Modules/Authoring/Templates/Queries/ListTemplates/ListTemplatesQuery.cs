@@ -1,3 +1,3 @@
 namespace SmkDoc.Application.Modules.Authoring.Templates.Queries.ListTemplates;
 
-public sealed record ListTemplatesQuery();
+public sealed record ListTemplatesQuery(Guid ProjectId);

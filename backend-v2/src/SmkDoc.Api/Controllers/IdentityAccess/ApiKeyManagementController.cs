@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using SmkDoc.Api.Extensions;
-using SmkDoc.Api.Models;
+using SmkDoc.Api.Common.Responses;
+using SmkDoc.Api.Contracts.IdentityAccess.ApiKeys;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.CreateApiKey;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.RevokeApiKey;
 using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
@@ -11,60 +11,60 @@ namespace SmkDoc.Api.Controllers.IdentityAccess;
 
 /// <summary>
 /// API Key lifecycle management within a project.
-/// Auth: JWT Bearer (JwtPolicy) — Admin role required for all operations.
+/// Auth: JWT Bearer — Admin role required for all operations.
 /// </summary>
 [ApiController]
 [Route("api/v1/management/projects/{projectId:guid}/api-keys")]
-[Authorize(Policy = "JwtPolicy")]
+[Authorize(Roles = "Admin")] // ใช้ Declarative Authorization ระดับ Controller ป้องกันข้อผิดพลาดแบบ Fail-Safe
+[ProducesResponseType(StatusCodes.Status401Unauthorized)]
+[ProducesResponseType(StatusCodes.Status403Forbidden)]
 public class ApiKeyManagementController(
     ListApiKeysUseCase listApiKeysUseCase,
     CreateApiKeyUseCase createApiKeyUseCase,
     RevokeApiKeyUseCase revokeApiKeyUseCase) : ControllerBase
 {
-    private readonly ListApiKeysUseCase _listApiKeysUseCase = listApiKeysUseCase;
-    private readonly CreateApiKeyUseCase _createApiKeyUseCase = createApiKeyUseCase;
-    private readonly RevokeApiKeyUseCase _revokeApiKeyUseCase = revokeApiKeyUseCase;
-
     /// <summary>List all API keys for the specified project. Admin only.</summary>
     [HttpGet]
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<ApiKeyDto>>), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> ListKeys([FromRoute] Guid projectId, CancellationToken ct)
     {
-        User.RequireAdmin();
-        var keys = await _listApiKeysUseCase.ExecuteAsync(new ListApiKeysQuery(projectId), ct);
+        var keys = await listApiKeysUseCase.ExecuteAsync(new ListApiKeysQuery(projectId), ct);
         return Ok(new ApiResponse<IEnumerable<ApiKeyDto>>(keys));
     }
 
     /// <summary>Create a new API key for the specified project. Admin only.</summary>
     [HttpPost]
-    [ProducesResponseType(typeof(ApiResponse<ApiKeyResponseDto>), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiResponse<ApiKeyResponseDto>), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> CreateKey(
         [FromRoute] Guid projectId,
         [FromBody] CreateApiKeyRequest request,
         CancellationToken ct)
     {
-        User.RequireAdmin();
-        var result = await _createApiKeyUseCase.ExecuteAsync(
-            new CreateApiKeyCommand(request.Name, request.CallerApp, projectId),
-            ct);
+        var command = new CreateApiKeyCommand(request.Name, request.CallerApp, projectId);
+        var result = await createApiKeyUseCase.ExecuteAsync(command, ct);
 
-        var dto = new ApiKeyResponseDto(result.Id, result.Name, result.CallerApp, result.PlainTextKey, null);
-        return Ok(new ApiResponse<ApiKeyResponseDto>(dto));
+        var dto = new ApiKeyResponseDto(
+            result.Id,
+            result.Name,
+            result.CallerApp,
+            result.PlainTextKey,
+            request.ExpiresAt);
+
+        // คืน 201 Created ตามมาตรฐาน RESTful
+        return StatusCode(StatusCodes.Status201Created, new ApiResponse<ApiKeyResponseDto>(dto));
     }
 
     /// <summary>Revoke (permanently delete) an API key. Admin only.</summary>
     [HttpDelete("{keyId:guid}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> RevokeKey(
         [FromRoute] Guid projectId,
         [FromRoute] Guid keyId,
         CancellationToken ct)
     {
-        User.RequireAdmin();
-        await _revokeApiKeyUseCase.ExecuteAsync(new RevokeApiKeyCommand(keyId), ct);
+        await revokeApiKeyUseCase.ExecuteAsync(new RevokeApiKeyCommand(keyId, projectId), ct);
         return NoContent();
     }
 }

@@ -1,5 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
-using SmkDoc.Api.Models;
+using SmkDoc.Api.Common.Responses;
 using SmkDoc.Application.Modules.Rendering.Documents.DTOs;
 using SmkDoc.Application.Modules.Rendering.Documents;
 using SmkDoc.Application.Modules.Rendering.Documents.Queries.GetDocumentVersions;

@@ -76,7 +76,7 @@ public class PreviewDocumentUseCaseTests
 
         // Assert
         previewBytes.Should().NotBeNullOrEmpty();
-        _mockTemplateRepo.Verify(r => r.GetBySlugAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        _mockTemplateRepo.Verify(r => r.GetBySlugAsync(It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]

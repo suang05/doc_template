@@ -1,7 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.ScanTemplatePlaceholders;
-using SmkDoc.Api.Models;
+using SmkDoc.Api.Common.Responses;
+using SmkDoc.Api.Contracts.Authoring.Templates;
 
 namespace SmkDoc.Api.Controllers.Authoring;
 
