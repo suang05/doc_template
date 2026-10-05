@@ -26,8 +26,8 @@ public class TemplateScanController(
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> ScanFieldsStateless(IFormFile file, CancellationToken ct)
     {
-        if (file == null || file.Length == 0)
-            return BadRequest(new { error = "File is required." });
+        if (file is not { Length: > 0 })
+            return BadRequest(new ApiResponse<object>(new { error = "File is required." }));
 
         var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
         using var stream = file.OpenReadStream();

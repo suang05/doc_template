@@ -17,8 +17,10 @@ public class DataConnectionUseCaseTests
     private readonly Mock<IDataProtectionService> _dataProtectionMock = new();
     private readonly Mock<ISqlExecutorService> _sqlExecutorMock = new();
 
+#pragma warning disable CS0618
     private DataConnectionUseCase CreateSut() =>
         new(_repositoryMock.Object, _unitOfWorkMock.Object, _dataProtectionMock.Object, _sqlExecutorMock.Object);
+#pragma warning restore CS0618
 
     // ── GetAllAsync ────────────────────────────────────────────────────────────
 

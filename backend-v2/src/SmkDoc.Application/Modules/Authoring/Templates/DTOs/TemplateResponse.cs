@@ -1,8 +1,9 @@
 namespace SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 
 /// <summary>
-/// Safe immutable Response DTO for templates, strictly isolating Domain Entities from Presentation.
+/// Legacy Response DTO alias for templates.
 /// </summary>
+[Obsolete("Use TemplateResultDto instead.")]
 public sealed record TemplateResponse(
     Guid Id,
     Guid ProjectId,
@@ -14,4 +15,5 @@ public sealed record TemplateResponse(
     string? FileFormat,
     DateTimeOffset CreatedAt,
     DateTimeOffset? UpdatedAt
-);
+) : TemplateResultDto(Id, ProjectId, Name, Slug, Category, IsActive, CurrentVersionId, FileFormat, CreatedAt, UpdatedAt);
+

@@ -1,8 +1,9 @@
 using FluentAssertions;
 using Moq;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Application.Modules.Authoring.Templates;
+using SmkDoc.Application.Modules.Authoring.Templates.Commands.SaveTemplateHtml;
+using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using Xunit;
@@ -43,7 +44,7 @@ public class HtmlPersistenceUseCaseTests
         _mockSchemaInference.Setup(s => s.InferFromHtml(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string?>()))
             .Returns((dummySchema, dummySample));
 
-        var useCase = new HtmlPersistenceUseCase(
+        var useCase = new SaveTemplateHtmlUseCase(
             _mockTemplateRepo.Object,
             _mockVersionRepo.Object,
             _mockStorage.Object,

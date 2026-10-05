@@ -2,6 +2,7 @@ using System.Text.Json;
 using SmkDoc.Application.Common;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Rendering.Documents.DTOs;
+using SmkDoc.Application.Modules.Rendering.Documents.Queries.PreviewDocument;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;

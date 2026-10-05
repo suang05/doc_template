@@ -2,8 +2,9 @@ using System.Text;
 using FluentAssertions;
 using Moq;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.Modules.Rendering.Documents.DTOs;
 using SmkDoc.Application.Modules.Rendering.Documents;
+using SmkDoc.Application.Modules.Rendering.Documents.Commands.HtmlToPdf;
+using SmkDoc.Application.Modules.Rendering.Documents.DTOs;
 using Xunit;
 
 namespace SmkDoc.Tests.Application.Modules.Rendering.Documents;

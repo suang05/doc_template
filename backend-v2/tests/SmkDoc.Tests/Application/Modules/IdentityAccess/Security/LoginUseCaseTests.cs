@@ -35,7 +35,7 @@ public class LoginUseCaseTests
     {
         // Arrange
         var projectId = Guid.NewGuid();
-        var request = new LoginRequest { Email = "test@example.com", Password = "password123", ProjectId = projectId };
+        var command = new LoginCommand("test@example.com", "password123", projectId);
         var user = new User("test@example.com", "hashed_pw", "Test", "User", SystemRole.Member);
         var role = new UserProjectRole(user.Id, projectId, RoleType.Viewer);
         var project = new Project(Guid.NewGuid(), "Project Alpha", "project-alpha", id: projectId);
@@ -56,7 +56,7 @@ public class LoginUseCaseTests
             .Returns("valid_token");
 
         // Act
-        var result = await _useCase.ExecuteAsync(request);
+        var result = await _useCase.ExecuteAsync(command);
 
         // Assert
         result.Should().NotBeNull();
@@ -71,7 +71,7 @@ public class LoginUseCaseTests
     public async Task ExecuteAsync_AsSuperAdmin_ReturnsAllProjectsWithAdminRole()
     {
         // Arrange
-        var request = new LoginRequest { Email = "admin@example.com", Password = "admin_password" };
+        var command = new LoginCommand("admin@example.com", "admin_password");
         var user = new User("admin@example.com", "hashed_pw", "Super", "Admin", SystemRole.SuperAdmin);
         var p1 = new Project(Guid.NewGuid(), "ERP", "erp");
         var p2 = new Project(Guid.NewGuid(), "CRM", "crm");
@@ -89,7 +89,7 @@ public class LoginUseCaseTests
             .Returns("superadmin_token");
 
         // Act
-        var result = await _useCase.ExecuteAsync(request);
+        var result = await _useCase.ExecuteAsync(command);
 
         // Assert
         result.Should().NotBeNull();
@@ -103,7 +103,7 @@ public class LoginUseCaseTests
     public async Task ExecuteAsync_WithInvalidPassword_ThrowsUnauthorized()
     {
         // Arrange
-        var request = new LoginRequest { Email = "test@example.com", Password = "wrong_password" };
+        var command = new LoginCommand("test@example.com", "wrong_password");
         var user = new User("test@example.com", "hashed_pw", "Test", "User");
 
         _userRepoMock.Setup(r => r.GetByEmailAsync("test@example.com", It.IsAny<CancellationToken>()))
@@ -113,7 +113,7 @@ public class LoginUseCaseTests
             .Returns(false);
 
         // Act & Assert
-        Func<Task> act = () => _useCase.ExecuteAsync(request);
+        Func<Task> act = () => _useCase.ExecuteAsync(command);
         await act.Should().ThrowAsync<UnauthorizedException>();
     }
 }

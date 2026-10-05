@@ -9,13 +9,13 @@ namespace SmkDoc.Application.Modules.IdentityAccess.Users.Queries.ListProjectUse
 public sealed class ListProjectUsersUseCase(
     IUserProjectRoleRepository roleRepo,
     IUserRepository userRepo,
-    IValidator<ListProjectUsersQuery> validator) : IUseCase<ListProjectUsersQuery, List<UserResponseDto>>
+    IValidator<ListProjectUsersQuery> validator) : IUseCase<ListProjectUsersQuery, List<UserResultDto>>
 {
     private readonly IUserProjectRoleRepository _roleRepo = roleRepo;
     private readonly IUserRepository _userRepo = userRepo;
     private readonly IValidator<ListProjectUsersQuery> _validator = validator;
 
-    public async Task<List<UserResponseDto>> ExecuteAsync(ListProjectUsersQuery query, CancellationToken ct = default)
+    public async Task<List<UserResultDto>> ExecuteAsync(ListProjectUsersQuery query, CancellationToken ct = default)
     {
         var validationResult = await _validator.ValidateAsync(query, ct);
         if (!validationResult.IsValid)
@@ -33,7 +33,7 @@ public sealed class ListProjectUsersUseCase(
             .Select(r =>
             {
                 var u = userMap[r.UserId];
-                return new UserResponseDto(
+                return new UserResultDto(
                     u.Id,
                     u.Email,
                     u.FirstName,

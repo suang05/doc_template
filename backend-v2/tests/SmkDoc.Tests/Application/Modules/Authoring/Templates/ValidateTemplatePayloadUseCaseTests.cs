@@ -4,7 +4,7 @@ using FluentAssertions;
 using Moq;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
-using SmkDoc.Application.Modules.Authoring.Templates;
+using SmkDoc.Application.Modules.Authoring.Templates.Queries.ValidateTemplatePayload;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
@@ -60,7 +60,7 @@ public class ValidateTemplatePayloadUseCaseTests
             .Returns(SchemaValidationResult.Success());
 
         using var doc = JsonDocument.Parse("""{"doc_no":"INV-001"}""");
-        var command = new ValidateTemplatePayloadCommand(slug, doc.RootElement);
+        var command = new ValidateTemplatePayloadQuery(slug, doc.RootElement);
 
         // Act
         var result = await _useCase.ExecuteAsync(command);
@@ -105,7 +105,7 @@ public class ValidateTemplatePayloadUseCaseTests
             .Returns(SchemaValidationResult.Failure(errors));
 
         using var doc = JsonDocument.Parse("""{}""");
-        var command = new ValidateTemplatePayloadCommand(slug, doc.RootElement);
+        var command = new ValidateTemplatePayloadQuery(slug, doc.RootElement);
 
         // Act
         var result = await _useCase.ExecuteAsync(command);
@@ -140,7 +140,7 @@ public class ValidateTemplatePayloadUseCaseTests
             .ReturnsAsync(version);
 
         using var doc = JsonDocument.Parse("""{"any":"field"}""");
-        var command = new ValidateTemplatePayloadCommand(slug, doc.RootElement);
+        var command = new ValidateTemplatePayloadQuery(slug, doc.RootElement);
 
         // Act
         var result = await _useCase.ExecuteAsync(command);
@@ -158,7 +158,7 @@ public class ValidateTemplatePayloadUseCaseTests
             .ReturnsAsync((Template?)null);
 
         using var doc = JsonDocument.Parse("{}");
-        var command = new ValidateTemplatePayloadCommand("missing-template", doc.RootElement);
+        var command = new ValidateTemplatePayloadQuery("missing-template", doc.RootElement);
 
         var act = async () => await _useCase.ExecuteAsync(command);
 

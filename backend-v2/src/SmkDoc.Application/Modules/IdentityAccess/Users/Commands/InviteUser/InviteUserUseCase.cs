@@ -14,7 +14,7 @@ public sealed class InviteUserUseCase(
     IUserProjectRoleRepository roleRepo,
     IPasswordHasher passwordHasher,
     IUnitOfWork uow,
-    IValidator<InviteUserCommand> validator) : IUseCase<InviteUserCommand, UserResponseDto>
+    IValidator<InviteUserCommand> validator) : IUseCase<InviteUserCommand, UserResultDto>
 {
     private readonly IUserRepository _userRepo = userRepo;
     private readonly IUserProjectRoleRepository _roleRepo = roleRepo;
@@ -22,7 +22,7 @@ public sealed class InviteUserUseCase(
     private readonly IUnitOfWork _uow = uow;
     private readonly IValidator<InviteUserCommand> _validator = validator;
 
-    public async Task<UserResponseDto> ExecuteAsync(InviteUserCommand command, CancellationToken ct = default)
+    public async Task<UserResultDto> ExecuteAsync(InviteUserCommand command, CancellationToken ct = default)
     {
         var validationResult = await _validator.ValidateAsync(command, ct);
         if (!validationResult.IsValid)
@@ -46,7 +46,7 @@ public sealed class InviteUserUseCase(
             await _roleRepo.AddAsync(newRole, ct);
             await _uow.CommitAsync(ct);
 
-            return new UserResponseDto(
+            return new UserResultDto(
                 existingUser.Id,
                 existingUser.Email,
                 existingUser.FirstName,
@@ -74,7 +74,7 @@ public sealed class InviteUserUseCase(
         await _roleRepo.AddAsync(new UserProjectRole(newUser.Id, command.ProjectId, roleType), ct);
         await _uow.CommitAsync(ct);
 
-        return new UserResponseDto(
+        return new UserResultDto(
             newUser.Id,
             newUser.Email,
             newUser.FirstName,

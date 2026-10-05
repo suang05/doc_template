@@ -43,7 +43,7 @@ Preserve these core invariants over legacy systems at all times:
   - Repositories return Entities / `IReadOnlyList<T>` only — no `IQueryable`, no DTOs, tenant lookups take `projectId` (AP-025)
 - **Application (`SmkDoc.Application`):** UseCases and Interfaces. Returns **Application DTOs ONLY** (never expose Domain entities). No direct `AppDbContext` or Gotenberg references.
 - **Infrastructure (`SmkDoc.Infrastructure`):** Implements Application interfaces (EF Core, Repositories, Gotenberg, MinIO, OpenXml).
-- **Presentation (`SmkDoc.Api`):** Controllers translate HTTP ↔ Application DTOs (`ApiResponse<T>`). No direct DB access.
+- **Presentation (`SmkDoc.Api`):** Controllers translate HTTP ↔ Application DTOs (`ApiResponse<T>`). Controllers MUST use C# 12 Primary Constructors for DI, Declarative RBAC (`[Authorize(Roles = '...')]`), and return `201 Created` on resource creation. No direct DB access.
 
 ---
 
@@ -117,6 +117,7 @@ Output this checklist **only when source code files have been modified**:
 
 - [ ] **Layering Boundaries:** Did Domain remain POCO-only? Did Application return only Application DTOs? Are Controllers isolated from Domain entities?
 - [ ] **Test Execution:** Did all tests pass via `dotnet test` or `npm test`?
+- [ ] **Tenant Isolation & RBAC:** Did tenant-scoped mutations validate both `projectId` and entity ID to prevent IDOR? Are admin mutating operations guarded declaratively via `[Authorize(Roles = "Admin")]`?
 - [ ] **Clean Code:** Removed unused imports, debug logs (`Console.WriteLine`, `console.log`), and dead code?
 - [ ] **No Auto-Docker:** Did I refrain from executing Docker commands directly?
 - [ ] **Doc Drift Confirmation (Ask First):** Did I evaluate whether `AGENTS.md` or any files in `docs/AI/` drifted, and proactively ask the user before editing them?

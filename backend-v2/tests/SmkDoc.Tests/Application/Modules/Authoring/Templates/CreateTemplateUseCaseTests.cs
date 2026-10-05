@@ -44,7 +44,7 @@ public class CreateTemplateUseCaseTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_WhenValidHtmlTemplate_ShouldPersistAndReturnTemplateResponse()
+    public async Task ExecuteAsync_WhenValidHtmlTemplate_ShouldPersistAndReturnTemplateResultDto()
     {
         var projectId = Guid.NewGuid();
         _fixture.TemplateRepo

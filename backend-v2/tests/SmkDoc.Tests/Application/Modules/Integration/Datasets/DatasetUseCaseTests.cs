@@ -13,8 +13,10 @@ public class DatasetUseCaseTests
 {
     private readonly IntegrationModuleTestFixture _fixture = new();
 
+#pragma warning disable CS0618
     private DatasetUseCase CreateSut() =>
         new(_fixture.DatasetRepo.Object, _fixture.ConnectionRepo.Object, _fixture.UnitOfWork.Object);
+#pragma warning restore CS0618
 
     // ── GetAllAsync ────────────────────────────────────────────────────────
 

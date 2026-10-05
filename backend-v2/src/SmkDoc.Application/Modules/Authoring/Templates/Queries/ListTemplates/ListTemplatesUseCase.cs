@@ -9,11 +9,11 @@ namespace SmkDoc.Application.Modules.Authoring.Templates.Queries.ListTemplates;
 /// Single-responsibility Query Use Case for listing templates.
 /// Injects only ITemplateRepository (Zero unused dependencies).
 /// </summary>
-public sealed class ListTemplatesUseCase(ITemplateRepository templateRepo) : IUseCase<ListTemplatesQuery, List<TemplateResponse>>
+public sealed class ListTemplatesUseCase(ITemplateRepository templateRepo) : IUseCase<ListTemplatesQuery, List<TemplateResultDto>>
 {
     private readonly ITemplateRepository _templateRepo = templateRepo;
 
-    public async Task<List<TemplateResponse>> ExecuteAsync(ListTemplatesQuery query, CancellationToken ct = default)
+    public async Task<List<TemplateResultDto>> ExecuteAsync(ListTemplatesQuery query, CancellationToken ct = default)
     {
         if (query.ProjectId == Guid.Empty)
         {
@@ -23,7 +23,7 @@ public sealed class ListTemplatesUseCase(ITemplateRepository templateRepo) : IUs
         var templates = await _templateRepo.ListByProjectAsync(query.ProjectId, ct);
 
         return templates
-            .Select(t => new TemplateResponse(
+            .Select(t => new TemplateResultDto(
                 t.Id,
                 t.ProjectId,
                 t.Name,

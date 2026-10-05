@@ -1,4 +1,5 @@
 using SmkDoc.Application.Common.Interfaces;
+using SmkDoc.Application.Modules.Rendering.Documents.Commands.HtmlToPdf;
 using SmkDoc.Application.Modules.Rendering.Documents.DTOs;
 
 namespace SmkDoc.Application.Modules.Rendering.Documents;

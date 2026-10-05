@@ -6,6 +6,7 @@ using SmkDoc.Domain.Exceptions;
 
 namespace SmkDoc.Application.Modules.Integration.Datasets;
 
+[Obsolete("Use single-intent UseCases instead (CreateDatasetUseCase, UpdateDatasetUseCase, etc.).")]
 public sealed class DatasetUseCase(
     IDatasetRepository datasetRepo,
     IDataConnectionRepository connectionRepo,

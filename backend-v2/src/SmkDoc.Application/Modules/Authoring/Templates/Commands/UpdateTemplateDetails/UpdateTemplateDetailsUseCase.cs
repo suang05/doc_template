@@ -13,13 +13,13 @@ namespace SmkDoc.Application.Modules.Authoring.Templates.Commands.UpdateTemplate
 public sealed class UpdateTemplateDetailsUseCase(
     ITemplateRepository templateRepo,
     IUnitOfWork unitOfWork,
-    IValidator<UpdateTemplateDetailsCommand> validator) : IUseCase<UpdateTemplateDetailsCommand, TemplateResponse>
+    IValidator<UpdateTemplateDetailsCommand> validator) : IUseCase<UpdateTemplateDetailsCommand, TemplateResultDto>
 {
     private readonly ITemplateRepository _templateRepo = templateRepo;
     private readonly IUnitOfWork _unitOfWork = unitOfWork;
     private readonly IValidator<UpdateTemplateDetailsCommand> _validator = validator;
 
-    public async Task<TemplateResponse> ExecuteAsync(UpdateTemplateDetailsCommand command, CancellationToken ct = default)
+    public async Task<TemplateResultDto> ExecuteAsync(UpdateTemplateDetailsCommand command, CancellationToken ct = default)
     {
         // 1. Fail-Fast Validation
         var validationResult = await _validator.ValidateAsync(command, ct);
@@ -40,7 +40,7 @@ public sealed class UpdateTemplateDetailsUseCase(
         await _unitOfWork.CommitAsync(ct);
 
         // 5. Return Safe DTO
-        return new TemplateResponse(
+        return new TemplateResultDto(
             template.Id,
             template.ProjectId,
             template.Name,

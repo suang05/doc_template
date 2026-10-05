@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using SmkDoc.Application.Common;
 using SmkDoc.Application.Common.Interfaces;
+using SmkDoc.Application.Modules.Rendering.Documents.Commands.GenerateDocument;
 using SmkDoc.Application.Modules.Rendering.Documents.DTOs;
 using SmkDoc.Application.Modules.Rendering.Documents.Services;
 using SmkDoc.Domain.Entities;

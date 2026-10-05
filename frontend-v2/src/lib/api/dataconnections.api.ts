@@ -43,8 +43,8 @@ export const dataconnectionsApi = {
     apiClient<void>(`/api/data-connections/${id}`, { method: 'DELETE' }),
 
   test: (data: TestDataConnectionRequest) =>
-    apiClient<TestDataConnectionResponse>('/api/data-connections/test', {
+    apiClient<any>('/api/data-connections/test', {
       method: 'POST',
       body: JSON.stringify(data),
-    }),
+    }).then(res => (res?.data ?? res) as TestDataConnectionResponse),
 };

@@ -4,21 +4,6 @@ using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 namespace SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 
 /// <summary>
-/// Summary DTO for templates.
-/// </summary>
-public record TemplateDto(
-    Guid Id,
-    string Name,
-    string Slug,
-    string? Category,
-    bool IsActive,
-    Guid? CurrentVersionId,
-    TemplateFormat? FileFormat,
-    DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt
-);
-
-/// <summary>
 /// DTO representing an immutable version of a template file and its configuration snapshot.
 /// </summary>
 public record TemplateVersionDto(
@@ -35,24 +20,6 @@ public record TemplateVersionDto(
     string? CreatedBy,
     DateTimeOffset CreatedAt,
     DateTimeOffset? UpdatedAt
-);
-
-/// <summary>
-/// Command for updating template metadata.
-/// </summary>
-public record UpdateTemplateMetadataCommand(
-    string? Name,
-    string? Category,
-    bool? IsActive
-);
-
-/// <summary>
-/// Command for persisting updated HTML code from Monaco Studio.
-/// </summary>
-public record SaveTemplateHtmlCommand(
-    string Html,
-    string? SamplePayload = null,
-    string? ChangeNote = null
 );
 
 /// <summary>
@@ -102,20 +69,4 @@ public record TemplateDraftEntry(
 public record ParseDraftResultDto(
     string DraftId,
     IReadOnlyList<string> Placeholders
-);
-
-/// <summary>
-/// Query for previewing a draft template with test JSON data.
-/// </summary>
-public record PreviewDraftQuery(string DataJson);
-
-/// <summary>
-/// Command for committing a draft template to persistent storage and database.
-/// </summary>
-public record CommitDraftCommand(
-    string Name,
-    string Slug,
-    string? Category,
-    IReadOnlyList<SaveFieldMappingItemDto> Mappings,
-    Guid? ProjectId = null
 );

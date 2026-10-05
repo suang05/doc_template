@@ -3,7 +3,6 @@ using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.Contracts.Authoring.Templates;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.CommitTemplateDraft;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.ParseTemplateDraft;
-using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.PreviewTemplateDraft;
 
 namespace SmkDoc.Api.Controllers.Authoring;
@@ -21,10 +20,6 @@ public class TemplateDraftController(
     PreviewTemplateDraftUseCase previewUseCase,
     CommitTemplateDraftUseCase commitUseCase) : ControllerBase
 {
-    private readonly ParseTemplateDraftUseCase _parseUseCase = parseUseCase;
-    private readonly PreviewTemplateDraftUseCase _previewUseCase = previewUseCase;
-    private readonly CommitTemplateDraftUseCase _commitUseCase = commitUseCase;
-
     /// <summary>
     /// Step 1 — Parse: upload file to RAM cache, return draftId + discovered placeholders.
     /// Zero side-effects (no DB or MinIO writes).
@@ -34,11 +29,11 @@ public class TemplateDraftController(
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> ParseDraft(IFormFile file, CancellationToken ct)
     {
-        if (file == null || file.Length == 0)
-            return BadRequest(new { error = "File is required." });
+        if (file is not { Length: > 0 })
+            return BadRequest(new ApiResponse<object>(new { error = "File is required." }));
 
         using var stream = file.OpenReadStream();
-        var result = await _parseUseCase.ExecuteAsync(new ParseTemplateDraftCommand(stream, file.FileName), ct);
+        var result = await parseUseCase.ExecuteAsync(new ParseTemplateDraftCommand(stream, file.FileName), ct);
         return Ok(new ApiResponse<ParseDraftResponse>(new ParseDraftResponse(result.DraftId, result.Placeholders)));
     }
 
@@ -52,10 +47,11 @@ public class TemplateDraftController(
     [ProducesResponseType(StatusCodes.Status410Gone)]
     public async Task<IActionResult> PreviewDraft(
         [FromRoute] string draftId,
-        [FromBody] PreviewDraftQuery request,
+        [FromBody] PreviewDraftRequest request,
         CancellationToken ct)
     {
-        byte[] pdfBytes = await _previewUseCase.ExecuteAsync(new PreviewTemplateDraftQuery(draftId, request.DataJson), ct);
+        byte[] pdfBytes =
+            await previewUseCase.ExecuteAsync(new PreviewTemplateDraftQuery(draftId, request.DataJson), ct);
         Response.Headers.ContentDisposition = "inline";
         return File(pdfBytes, "application/pdf");
     }
@@ -69,10 +65,12 @@ public class TemplateDraftController(
     [ProducesResponseType(StatusCodes.Status410Gone)]
     public async Task<IActionResult> CommitDraft(
         [FromRoute] string draftId,
-        [FromBody] CommitDraftCommand request,
+        [FromBody] CommitDraftRequest request,
         CancellationToken ct)
     {
-        var templateId = await _commitUseCase.ExecuteAsync(new CommitTemplateDraftCommand(draftId, request), ct);
+        var commandPayload = new CommitDraftCommand(request.Name, request.Slug, request.Category, request.Mappings,
+            request.ProjectId);
+        var templateId = await commitUseCase.ExecuteAsync(new CommitTemplateDraftCommand(draftId, commandPayload), ct);
         return Ok(new ApiResponse<CommitDraftResponse>(new CommitDraftResponse(Guid.Parse(templateId))));
     }
 }

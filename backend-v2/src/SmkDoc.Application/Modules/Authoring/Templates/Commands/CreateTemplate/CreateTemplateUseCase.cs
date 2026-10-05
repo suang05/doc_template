@@ -21,7 +21,7 @@ public sealed class CreateTemplateUseCase(
     IDocxSecurityScanner securityScanner,
     IExecutionContext executionContext,
     IUnitOfWork unitOfWork,
-    IValidator<CreateTemplateCommand> validator) : IUseCase<CreateTemplateCommand, TemplateResponse>
+    IValidator<CreateTemplateCommand> validator) : IUseCase<CreateTemplateCommand, TemplateResultDto>
 {
     private readonly ITemplateRepository _templateRepo = templateRepo;
     private readonly IRepository<TemplateVersion> _versionRepo = versionRepo;
@@ -31,7 +31,7 @@ public sealed class CreateTemplateUseCase(
     private readonly IUnitOfWork _unitOfWork = unitOfWork;
     private readonly IValidator<CreateTemplateCommand> _validator = validator;
 
-    public async Task<TemplateResponse> ExecuteAsync(CreateTemplateCommand command, CancellationToken ct = default)
+    public async Task<TemplateResultDto> ExecuteAsync(CreateTemplateCommand command, CancellationToken ct = default)
     {
         // 1. Fail-Fast Input Validation
         var validationResult = await _validator.ValidateAsync(command, ct);
@@ -115,8 +115,8 @@ public sealed class CreateTemplateUseCase(
         _templateRepo.Update(template);
         await _unitOfWork.CommitAsync(ct);
 
-        // 5. Safe Response DTO Mapping
-        return new TemplateResponse(
+        // 5. Safe Result DTO Mapping
+        return new TemplateResultDto(
             template.Id,
             template.ProjectId,
             template.Name,

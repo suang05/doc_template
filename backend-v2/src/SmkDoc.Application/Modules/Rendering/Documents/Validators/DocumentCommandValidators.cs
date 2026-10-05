@@ -1,5 +1,7 @@
 using System.Text.Json;
 using FluentValidation;
+using SmkDoc.Application.Modules.Rendering.Documents.Commands.GenerateDocument;
+using SmkDoc.Application.Modules.Rendering.Documents.Commands.HtmlToPdf;
 using SmkDoc.Application.Modules.Rendering.Documents.DTOs;
 
 namespace SmkDoc.Application.Modules.Rendering.Documents.Validators;

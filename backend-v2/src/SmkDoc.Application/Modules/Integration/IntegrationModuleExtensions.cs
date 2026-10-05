@@ -8,9 +8,11 @@ public static class IntegrationModuleExtensions
 {
     public static IServiceCollection AddIntegrationModule(this IServiceCollection services)
     {
-        // External Data Connections & Datasets Pipeline
+        // External Data Connections & Datasets Pipeline (Legacy multi-method services retained for backwards compatibility)
+#pragma warning disable CS0618
         services.AddScoped<DataConnectionUseCase>();
         services.AddScoped<DatasetUseCase>();
+#pragma warning restore CS0618
 
         // Single-Responsibility UseCases - Datasets
         services.AddScoped<SmkDoc.Application.Modules.Integration.Datasets.Commands.CreateDataset.CreateDatasetUseCase>();

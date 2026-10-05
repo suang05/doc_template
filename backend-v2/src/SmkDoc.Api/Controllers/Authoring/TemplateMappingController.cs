@@ -1,9 +1,10 @@
 using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Common.Responses;
-using SmkDoc.Application.Modules.Authoring.FieldMappings;
+using SmkDoc.Api.Contracts.Authoring.FieldMappings;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.Commands.SaveTemplateMappings;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.Queries.GetTemplateMappings;
+using SmkDoc.Application.Modules.Authoring.FieldMappings.Queries.PreviewMapping;
 
 namespace SmkDoc.Api.Controllers.Authoring;
 
@@ -19,16 +20,12 @@ public class TemplateMappingController(
     SaveTemplateMappingsUseCase saveMappingsUseCase,
     PreviewMappingUseCase previewMappingUseCase) : ControllerBase
 {
-    private readonly GetTemplateMappingsUseCase _getMappingsUseCase = getMappingsUseCase;
-    private readonly SaveTemplateMappingsUseCase _saveMappingsUseCase = saveMappingsUseCase;
-    private readonly PreviewMappingUseCase _previewMappingUseCase = previewMappingUseCase;
-
     /// <summary>Get all field mappings for a template.</summary>
     [HttpGet]
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<FieldMappingDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetMappings([FromRoute] Guid id, CancellationToken ct)
     {
-        var mappings = await _getMappingsUseCase.ExecuteAsync(new GetTemplateMappingsQuery(id), ct);
+        var mappings = await getMappingsUseCase.ExecuteAsync(new GetTemplateMappingsQuery(id), ct);
         return Ok(new ApiResponse<IEnumerable<FieldMappingDto>>(mappings));
     }
 
@@ -37,10 +34,13 @@ public class TemplateMappingController(
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     public async Task<IActionResult> SaveMappings(
         [FromRoute] Guid id,
-        [FromBody] List<SaveFieldMappingItemDto> mappings,
+        [FromBody] List<SaveFieldMappingItemRequest> mappings,
         CancellationToken ct)
     {
-        await _saveMappingsUseCase.ExecuteAsync(new SaveTemplateMappingsCommand(id, mappings), ct);
+        var dtos = mappings.Select(m => new SaveFieldMappingItemDto(
+            m.Placeholder, m.SourcePath, m.Label, m.Required, m.DefaultValue, m.Transform,
+            m.SortOrder, m.DataSourceType, m.DatasetAlias, m.ResultPath, m.MathExpression)).ToList();
+        await saveMappingsUseCase.ExecuteAsync(new SaveTemplateMappingsCommand(id, dtos), ct);
         return Ok(new ApiResponse<object>(new { success = true }));
     }
 
@@ -53,10 +53,10 @@ public class TemplateMappingController(
     [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<IActionResult> PreviewMappings(
         [FromRoute] Guid id,
-        [FromBody] PreviewMappingsQuery request,
+        [FromBody] PreviewMappingRequest request,
         CancellationToken ct)
     {
-        byte[] pdfBytes = await _previewMappingUseCase.ExecuteAsync(id, request.SampleData, ct);
+        byte[] pdfBytes = await previewMappingUseCase.ExecuteAsync(id, request.SampleData, ct);
         Response.Headers.ContentDisposition = "inline";
         return File(pdfBytes, "application/pdf");
     }

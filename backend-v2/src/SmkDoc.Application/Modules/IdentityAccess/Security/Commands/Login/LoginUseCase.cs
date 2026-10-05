@@ -14,7 +14,7 @@ public sealed class LoginUseCase(
     IProjectRepository projectRepo,
     IPasswordHasher passwordHasher,
     IJwtTokenGenerator jwtTokenGenerator,
-    IValidator<LoginCommand>? validator = null) : IUseCase<LoginCommand, LoginResponse>
+    IValidator<LoginCommand>? validator = null) : IUseCase<LoginCommand, LoginResultDto>
 {
     private readonly IUserRepository _userRepo = userRepo;
     private readonly IUserProjectRoleRepository _roleRepo = roleRepo;
@@ -23,7 +23,7 @@ public sealed class LoginUseCase(
     private readonly IJwtTokenGenerator _jwtTokenGenerator = jwtTokenGenerator;
     private readonly IValidator<LoginCommand>? _validator = validator;
 
-    public async Task<LoginResponse> ExecuteAsync(LoginCommand request, CancellationToken ct = default)
+    public async Task<LoginResultDto> ExecuteAsync(LoginCommand request, CancellationToken ct = default)
     {
         if (_validator != null)
         {
@@ -94,7 +94,7 @@ public sealed class LoginUseCase(
         var roles = new List<string> { activeRole };
         var token = _jwtTokenGenerator.GenerateToken(user, activeProjectId, roles);
 
-        return new LoginResponse
+        return new LoginResultDto
         {
             AccessToken = token,
             User = new UserProfileDto(user.Id, user.Email, user.FirstName, user.LastName, user.SystemRole.Name),

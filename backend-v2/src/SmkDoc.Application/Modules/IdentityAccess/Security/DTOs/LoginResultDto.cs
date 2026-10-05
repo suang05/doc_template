@@ -73,25 +73,6 @@ public record LoginResultDto
     }
 }
 
-public record LoginRequest : LoginCommand
-{
-    public LoginRequest() {}
-    public LoginRequest(string email, string password, Guid? projectId = null) : base(email, password, projectId) {}
-}
-
-public record LoginResponse : LoginResultDto
-{
-    public LoginResponse() {}
-    public LoginResponse(
-        string accessToken,
-        UserProfileDto user,
-        IReadOnlyList<AccessibleProjectDto> accessibleProjects,
-        Guid? defaultProjectId,
-        string tokenType = "Bearer",
-        int expiresIn = 86400)
-        : base(accessToken, user, accessibleProjects, defaultProjectId, tokenType, expiresIn) {}
-}
-
 /// <summary>
 /// DTO representing an API Key record.
 /// </summary>
@@ -113,13 +94,6 @@ public record CreateApiKeyResultDto(
     string CallerApp,
     string PlainTextKey
 );
-
-public record CreateApiKeyResult(
-    Guid Id,
-    string Name,
-    string CallerApp,
-    string PlainTextKey
-) : CreateApiKeyResultDto(Id, Name, CallerApp, PlainTextKey);
 
 /// <summary>
 /// DTO returned after validating an API key. Replaces passing the Domain Entity to Presentation Layer.

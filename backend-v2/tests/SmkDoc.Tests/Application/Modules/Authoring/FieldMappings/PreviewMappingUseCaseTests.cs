@@ -3,7 +3,7 @@ using FluentAssertions;
 using Moq;
 using SmkDoc.Application.Common;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.Modules.Authoring.FieldMappings;
+using SmkDoc.Application.Modules.Authoring.FieldMappings.Queries.PreviewMapping;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;

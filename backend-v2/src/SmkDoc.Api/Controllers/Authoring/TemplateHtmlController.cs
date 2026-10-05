@@ -3,6 +3,7 @@ using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.Contracts.Authoring.Templates;
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Application.Modules.Authoring.Templates;
+using SmkDoc.Application.Modules.Authoring.Templates.Queries.ValidateTemplateHtml;
 
 namespace SmkDoc.Api.Controllers.Authoring;
 
@@ -16,7 +17,7 @@ namespace SmkDoc.Api.Controllers.Authoring;
 public class TemplateHtmlController(
     IHtmlStudioUseCase htmlStudioUseCase,
     IHtmlPersistenceUseCase htmlPersistenceUseCase,
-    TemplateValidateUseCase validateUseCase) : ControllerBase
+    ValidateTemplateHtmlUseCase validateUseCase) : ControllerBase
 {
     /// <summary>Get raw HTML source for the Monaco Editor.</summary>
     [HttpGet("html")]
@@ -50,10 +51,11 @@ public class TemplateHtmlController(
     [ProducesResponseType(typeof(ApiResponse<SaveHtmlResponse>), StatusCodes.Status200OK)]
     public async Task<IActionResult> SaveHtml(
         [FromRoute] Guid id,
-        [FromBody] SaveTemplateHtmlCommand request,
+        [FromBody] SaveHtmlRequest request,
         CancellationToken ct)
     {
-        int newVersion = await htmlPersistenceUseCase.SaveHtmlVersionAsync(id, request, ct);
+        var command = new Application.Modules.Authoring.Templates.Commands.SaveTemplateHtml.SaveTemplateHtmlCommand(request.Html, request.SamplePayload, request.ChangeNote);
+        int newVersion = await htmlPersistenceUseCase.SaveHtmlVersionAsync(id, command, ct);
         return Ok(new ApiResponse<SaveHtmlResponse>(new SaveHtmlResponse(newVersion)));
     }
 
@@ -62,7 +64,7 @@ public class TemplateHtmlController(
     [ProducesResponseType(typeof(ApiResponse<TemplateValidationResultDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> Validate(
         [FromRoute] Guid id,
-        [FromBody] SaveTemplateHtmlCommand request,
+        [FromBody] ValidateHtmlRequest request,
         CancellationToken ct)
     {
         var result = await validateUseCase.ValidateHtmlAsync(request.Html, ct);

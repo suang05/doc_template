@@ -6,6 +6,7 @@ using SmkDoc.Domain.Exceptions;
 
 namespace SmkDoc.Application.Modules.Authoring.FieldMappings;
 
+[Obsolete("Use GetTemplateDatasetsUseCase and SaveTemplateDatasetsUseCase instead.")]
 public sealed class TemplateDatasetUseCase(
     ITemplateRepository templateRepo,
     IDatasetRepository datasetRepo,

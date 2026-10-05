@@ -1,84 +1,18 @@
-using System.Text.Json;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Exceptions;
+using SmkDoc.Domain.Interfaces;
 
 namespace SmkDoc.Application.Modules.Authoring.Templates;
 
 /// <summary>
-/// Pre-flight template schema validation use case.
-/// Validates incoming payload against published Draft-07 schema with multi-tenant scoping.
-/// Pure dry-run with zero side-effects.
+/// Legacy wrapper for ValidateTemplatePayloadUseCase. Retained for backwards compatibility.
 /// </summary>
-public sealed class ValidateTemplatePayloadUseCase(
+[Obsolete("Use SmkDoc.Application.Modules.Authoring.Templates.Queries.ValidateTemplatePayload.ValidateTemplatePayloadUseCase instead.")]
+public class ValidateTemplatePayloadUseCase(
     ITemplateRepository templateRepo,
     IRepository<TemplateVersion> versionRepo,
     IJsonSchemaValidationService schemaValidation,
     IExecutionContext executionContext)
+    : Queries.ValidateTemplatePayload.ValidateTemplatePayloadUseCase(templateRepo, versionRepo, schemaValidation, executionContext)
 {
-    private readonly ITemplateRepository _templateRepo = templateRepo;
-    private readonly IRepository<TemplateVersion> _versionRepo = versionRepo;
-    private readonly IJsonSchemaValidationService _schemaValidation = schemaValidation;
-    private readonly IExecutionContext _executionContext = executionContext;
-
-    public async Task<ValidateTemplatePayloadResult> ExecuteAsync(
-        ValidateTemplatePayloadCommand command, CancellationToken ct = default)
-    {
-        ArgumentNullException.ThrowIfNull(command);
-
-        if (string.IsNullOrWhiteSpace(command.Slug))
-        {
-            throw new NotFoundException("Template slug cannot be empty.");
-        }
-
-        // 1. Fetch template with tenant isolation if ProjectId is bound in execution context
-        var projectId = _executionContext.ProjectId ?? Guid.Empty;
-        var template = await _templateRepo.GetBySlugAsync(command.Slug, projectId, ct);
-
-        if (template == null || !template.IsActive)
-        {
-            throw new NotFoundException($"Template '{command.Slug}' not found or inactive.");
-        }
-
-        if (template.CurrentVersionId is null)
-        {
-            throw new InvalidOperationException($"Template '{command.Slug}' has no published version.");
-        }
-
-        var currentVersion = await _versionRepo.GetByIdAsync(template.CurrentVersionId.Value, ct)
-            ?? throw new NotFoundException($"Current version for template '{command.Slug}' not found.");
-
-        // 2. If no schema is stored, treat as valid pass-through
-        if (string.IsNullOrWhiteSpace(currentVersion.DataSchema))
-        {
-            return new ValidateTemplatePayloadResult(
-                Valid: true,
-                TemplateSlug: command.Slug,
-                Version: currentVersion.Version,
-                Message: "Template has no defined schema contract (passed by default)."
-            );
-        }
-
-        // 3. Evaluate payload against template Draft-07 schema
-        var result = _schemaValidation.Validate(currentVersion.DataSchema, command.Data);
-
-        if (!result.IsValid)
-        {
-            return new ValidateTemplatePayloadResult(
-                Valid: false,
-                TemplateSlug: command.Slug,
-                Version: currentVersion.Version,
-                Message: "Payload does not conform to the template schema.",
-                Errors: result.Errors
-            );
-        }
-
-        return new ValidateTemplatePayloadResult(
-            Valid: true,
-            TemplateSlug: command.Slug,
-            Version: currentVersion.Version,
-            Message: "Payload conforms to template schema."
-        );
-    }
 }

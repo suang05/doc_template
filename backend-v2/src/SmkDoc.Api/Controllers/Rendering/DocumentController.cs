@@ -1,14 +1,17 @@
 using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Common.Responses;
-using SmkDoc.Application.Modules.Rendering.Documents.DTOs;
+using SmkDoc.Api.Contracts.Rendering.Documents;
 using SmkDoc.Application.Modules.Rendering.Documents;
-using SmkDoc.Application.Modules.Rendering.Documents.Queries.GetDocumentVersions;
+using SmkDoc.Application.Modules.Rendering.Documents.Commands.GenerateDocument;
+using SmkDoc.Application.Modules.Rendering.Documents.DTOs;
 using SmkDoc.Application.Modules.Rendering.Documents.Queries.DownloadDocumentVersion;
+using SmkDoc.Application.Modules.Rendering.Documents.Queries.GetDocumentVersions;
+using SmkDoc.Application.Modules.Rendering.Documents.Queries.PreviewDocument;
 using SmkDoc.Application.Modules.Rendering.Logs.Queries.GetLogDownloadUrl;
 using System.Text.Json;
 
-using SmkDoc.Application.Modules.Authoring.Templates;
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
+using SmkDoc.Application.Modules.Authoring.Templates.Queries.ValidateTemplatePayload;
 
 namespace SmkDoc.Api.Controllers;
 
@@ -21,24 +24,19 @@ public class DocumentController(
     GetDocumentVersionsUseCase getVersionsUseCase,
     DownloadDocumentVersionUseCase downloadVersionUseCase,
     GetLogDownloadUrlUseCase getLogDownloadUrlUseCase,
-    RenderStatelessDocumentUseCase renderStatelessUseCase) : ControllerBase
+    RenderStatelessDocumentUseCase renderStatelessUseCase,
+    ValidateTemplatePayloadUseCase payloadValidator) : ControllerBase
 {
-    private readonly GenerateDocumentUseCase _generateUseCase = generateUseCase;
-    private readonly PreviewDocumentUseCase _previewUseCase = previewUseCase;
-    private readonly GetDocumentVersionsUseCase _getVersionsUseCase = getVersionsUseCase;
-    private readonly DownloadDocumentVersionUseCase _downloadVersionUseCase = downloadVersionUseCase;
-    private readonly GetLogDownloadUrlUseCase _getLogDownloadUrlUseCase = getLogDownloadUrlUseCase;
-    private readonly RenderStatelessDocumentUseCase _renderStatelessUseCase = renderStatelessUseCase;
-
     /// <summary>
     /// Generate a document from template slug and input JSON data
     /// </summary>
     [HttpPost("generate/{slug}")]
     [ProducesResponseType(typeof(ApiResponse<GenerateDocumentResultDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> Generate([FromRoute] string slug, [FromBody] GenerateDocumentCommand request, CancellationToken ct)
+    public async Task<IActionResult> Generate([FromRoute] string slug, [FromBody] GenerateDocumentRequest request, CancellationToken ct)
     {
-        var response = await _generateUseCase.ExecuteAsync(slug, request, ct);
+        var command = new GenerateDocumentCommand(request.Data, request.Output, request.DocumentRef, request.ChangeNote, request.SkipValidation);
+        var response = await generateUseCase.ExecuteAsync(slug, command, ct);
         return Ok(new ApiResponse<GenerateDocumentResultDto>(response));
     }
 
@@ -52,11 +50,10 @@ public class DocumentController(
     public async Task<IActionResult> ValidatePayload(
         [FromRoute] string slug,
         [FromBody] JsonElement data,
-        [FromServices] ValidateTemplatePayloadUseCase payloadValidator,
         CancellationToken ct)
     {
-        var command = new ValidateTemplatePayloadCommand(slug, data);
-        var result = await payloadValidator.ExecuteAsync(command, ct);
+        var query = new ValidateTemplatePayloadQuery(slug, data);
+        var result = await payloadValidator.ExecuteAsync(query, ct);
         return result.Valid 
             ? Ok(new ApiResponse<ValidateTemplatePayloadResult>(result)) 
             : BadRequest(new ApiResponse<ValidateTemplatePayloadResult>(result));
@@ -68,9 +65,10 @@ public class DocumentController(
     [HttpPost("preview")]
     [HttpPost("preview/{slug}")]
     [Produces("application/pdf")]
-    public async Task<IActionResult> Preview([FromRoute] string? slug, [FromBody] PreviewDocumentQuery request, CancellationToken ct)
+    public async Task<IActionResult> Preview([FromRoute] string? slug, [FromBody] PreviewDocumentRequest request, CancellationToken ct)
     {
-        var pdfStream = await _previewUseCase.ExecuteStreamAsync(slug, request, ct);
+        var query = new PreviewDocumentQuery(request.Data, request.Html);
+        var pdfStream = await previewUseCase.ExecuteStreamAsync(slug, query, ct);
         Response.Headers.ContentDisposition = "inline";
         return File(pdfStream, "application/pdf");
     }
@@ -82,7 +80,7 @@ public class DocumentController(
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<DocumentVersionDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetVersions([FromRoute] string documentRef, CancellationToken ct)
     {
-        var versions = await _getVersionsUseCase.ExecuteAsync(new GetDocumentVersionsQuery(documentRef), ct);
+        var versions = await getVersionsUseCase.ExecuteAsync(new GetDocumentVersionsQuery(documentRef), ct);
         return Ok(new ApiResponse<IEnumerable<DocumentVersionDto>>(versions));
     }
 
@@ -92,7 +90,7 @@ public class DocumentController(
     [HttpGet("{documentRef}/versions/{version:int}/download")]
     public async Task<IActionResult> DownloadVersion([FromRoute] string documentRef, [FromRoute] int version, CancellationToken ct)
     {
-        var result = await _downloadVersionUseCase.ExecuteAsync(new DownloadDocumentVersionQuery(documentRef, version), ct);
+        var result = await downloadVersionUseCase.ExecuteAsync(new DownloadDocumentVersionQuery(documentRef, version), ct);
         return File(result.Stream, result.ContentType, result.FileName);
     }
 
@@ -100,7 +98,7 @@ public class DocumentController(
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     public async Task<IActionResult> DownloadByLogId([FromRoute] Guid logId, CancellationToken ct)
     {
-        var url = await _getLogDownloadUrlUseCase.ExecuteAsync(new GetLogDownloadUrlQuery(logId), ct);
+        var url = await getLogDownloadUrlUseCase.ExecuteAsync(new GetLogDownloadUrlQuery(logId), ct);
         return Ok(new ApiResponse<object>(new { url, expiresInSeconds = 3600 }));
     }
 
@@ -115,11 +113,11 @@ public class DocumentController(
     {
         if (file == null || file.Length == 0)
         {
-            return BadRequest(new { error = "File is required." });
+            return BadRequest(new ApiResponse<object>(new { error = "File is required." }));
         }
 
         var stream = file.OpenReadStream();
-        var pdfStream = await _renderStatelessUseCase.ExecuteStreamAsync(stream, file.FileName, jsonData, ct);
+        var pdfStream = await renderStatelessUseCase.ExecuteStreamAsync(stream, file.FileName, jsonData, ct);
         
         Response.Headers.ContentDisposition = "inline";
         return File(pdfStream, "application/pdf");

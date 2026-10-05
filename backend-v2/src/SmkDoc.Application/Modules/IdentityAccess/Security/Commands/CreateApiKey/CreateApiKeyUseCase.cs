@@ -13,7 +13,7 @@ public sealed class CreateApiKeyUseCase(
     IProjectRepository projectRepo,
     IUnitOfWork unitOfWork,
     IValidator<CreateApiKeyCommand> validator,
-    IExecutionContext? executionContext = null) : IUseCase<CreateApiKeyCommand, CreateApiKeyResult>
+    IExecutionContext? executionContext = null) : IUseCase<CreateApiKeyCommand, CreateApiKeyResultDto>
 {
     private readonly IApiKeyRepository _apiKeyRepo = apiKeyRepo;
     private readonly IProjectRepository _projectRepo = projectRepo;
@@ -21,7 +21,7 @@ public sealed class CreateApiKeyUseCase(
     private readonly IValidator<CreateApiKeyCommand> _validator = validator;
     private readonly IExecutionContext? _executionContext = executionContext;
 
-    public async Task<CreateApiKeyResult> ExecuteAsync(CreateApiKeyCommand command, CancellationToken ct = default)
+    public async Task<CreateApiKeyResultDto> ExecuteAsync(CreateApiKeyCommand command, CancellationToken ct = default)
     {
         var validationResult = await _validator.ValidateAsync(command, ct);
         if (!validationResult.IsValid)
@@ -48,6 +48,6 @@ public sealed class CreateApiKeyUseCase(
         await _apiKeyRepo.AddAsync(key, ct);
         await _unitOfWork.CommitAsync(ct);
 
-        return new CreateApiKeyResult(key.Id, key.Name, key.CallerApp, rawSecret);
+        return new CreateApiKeyResultDto(key.Id, key.Name, key.CallerApp, rawSecret);
     }
 }

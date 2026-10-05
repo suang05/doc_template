@@ -45,16 +45,25 @@ public static class AuthoringModuleExtensions
 
         // Monaco Studio & Draft Pipeline (Action-Centric Vertical Slice)
         services.AddScoped<IHtmlStudioUseCase, HtmlStudioUseCase>();
-        services.AddScoped<IHtmlPersistenceUseCase, HtmlPersistenceUseCase>();
+        services.AddScoped<SmkDoc.Application.Modules.Authoring.Templates.Commands.SaveTemplateHtml.SaveTemplateHtmlUseCase>();
+        services.AddScoped<IHtmlPersistenceUseCase>(sp => sp.GetRequiredService<SmkDoc.Application.Modules.Authoring.Templates.Commands.SaveTemplateHtml.SaveTemplateHtmlUseCase>());
         services.AddScoped<ParseTemplateDraftUseCase>();
         services.AddScoped<PreviewTemplateDraftUseCase>();
         services.AddScoped<CommitTemplateDraftUseCase>();
+        services.AddScoped<SmkDoc.Application.Modules.Authoring.Templates.Queries.ValidateTemplateHtml.ValidateTemplateHtmlUseCase>();
+        services.AddScoped<SmkDoc.Application.Modules.Authoring.Templates.Queries.ValidateTemplatePayload.ValidateTemplatePayloadUseCase>();
+#pragma warning disable CS0618
+        services.AddScoped<HtmlPersistenceUseCase>();
         services.AddScoped<TemplateValidateUseCase>();
         services.AddScoped<ValidateTemplatePayloadUseCase>();
+#pragma warning restore CS0618
 
         // Field Mappings & Datasets (Action-Centric Vertical Slice)
+        services.AddScoped<SmkDoc.Application.Modules.Authoring.FieldMappings.Queries.PreviewMapping.PreviewMappingUseCase>();
+#pragma warning disable CS0618
         services.AddScoped<PreviewMappingUseCase>();
         services.AddScoped<TemplateDatasetUseCase>();
+#pragma warning restore CS0618
         services.AddScoped<GetTemplateMappingsUseCase>();
         services.AddScoped<SaveTemplateMappingsUseCase>();
         services.AddScoped<GetTemplateDatasetsUseCase>();

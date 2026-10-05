@@ -14,97 +14,98 @@ namespace SmkDoc.Api.Controllers.IdentityAccess;
 
 /// <summary>
 /// User management within a project scope.
-/// Auth: JWT Bearer (JwtPolicy) — Admin role required for mutating operations.
 /// </summary>
 [ApiController]
 [Route("api/v1/management/projects/{projectId:guid}/users")]
-[Authorize(Policy = "JwtPolicy")]
-public class UserManagementController : ControllerBase
+[Authorize] // บังคับ JWT สำหรับทุก endpoint
+[ProducesResponseType(StatusCodes.Status401Unauthorized)]
+public class UserManagementController(
+    ListProjectUsersUseCase listProjectUsersUseCase,
+    InviteUserUseCase inviteUserUseCase,
+    UpdateUserRoleUseCase updateUserRoleUseCase,
+    RemoveUserUseCase removeUserUseCase,
+    SetUserStatusUseCase setUserStatusUseCase) : ControllerBase
 {
     /// <summary>List all users in a project.</summary>
     [HttpGet]
-    [ProducesResponseType(typeof(ApiResponse<IEnumerable<UserResponseDto>>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> List(
-        [FromRoute] Guid projectId,
-        [FromServices] ListProjectUsersUseCase useCase,
-        CancellationToken ct)
+    [ProducesResponseType(typeof(ApiResponse<IEnumerable<UserResultDto>>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> List([FromRoute] Guid projectId, CancellationToken ct)
     {
-        var users = await useCase.ExecuteAsync(new ListProjectUsersQuery(projectId), ct);
-        return Ok(new ApiResponse<IEnumerable<UserResponseDto>>(users));
+        var users = await listProjectUsersUseCase.ExecuteAsync(new ListProjectUsersQuery(projectId), ct);
+        return Ok(new ApiResponse<IEnumerable<UserResultDto>>(users));
     }
 
     /// <summary>Invite a new user to the project. Admin only.</summary>
     [HttpPost]
-    [ProducesResponseType(typeof(ApiResponse<UserResponseDto>), StatusCodes.Status200OK)]
+    [Authorize(Roles = "Admin")]
+    [ProducesResponseType(typeof(ApiResponse<UserResultDto>), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> AddUser(
         [FromRoute] Guid projectId,
         [FromBody] InviteUserRequest req,
-        [FromServices] InviteUserUseCase useCase,
         CancellationToken ct)
     {
-        User.RequireAdmin();
         var command = new InviteUserCommand(projectId, req.Email, req.Password, req.FirstName, req.LastName, req.Role);
-        var user = await useCase.ExecuteAsync(command, ct);
-        return Ok(new ApiResponse<UserResponseDto>(user));
+        var user = await inviteUserUseCase.ExecuteAsync(command, ct);
+
+        return StatusCode(StatusCodes.Status201Created, new ApiResponse<UserResultDto>(user));
     }
 
     /// <summary>Update a user's role within the project. Admin only.</summary>
     [HttpPut("{userId:guid}/role")]
+    [Authorize(Roles = "Admin")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> UpdateRole(
         [FromRoute] Guid projectId,
         [FromRoute] Guid userId,
         [FromBody] UpdateUserRoleRequest req,
-        [FromServices] UpdateUserRoleUseCase useCase,
         CancellationToken ct)
     {
-        User.RequireAdmin();
         var command = new UpdateUserRoleCommand(projectId, userId, req.Role);
-        await useCase.ExecuteAsync(command, ct);
+        await updateUserRoleUseCase.ExecuteAsync(command, ct);
         return NoContent();
     }
 
     /// <summary>Remove a user from the project. Admin only.</summary>
     [HttpDelete("{userId:guid}")]
+    [Authorize(Roles = "Admin")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Remove(
         [FromRoute] Guid projectId,
         [FromRoute] Guid userId,
-        [FromServices] RemoveUserUseCase useCase,
         CancellationToken ct)
     {
-        User.RequireAdmin();
         var currentUserId = User.GetUserId();
         var command = new RemoveUserCommand(projectId, userId, currentUserId);
-        await useCase.ExecuteAsync(command, ct);
+        await removeUserUseCase.ExecuteAsync(command, ct);
         return NoContent();
     }
 
     /// <summary>Activate or deactivate a user account. Admin only.</summary>
     [HttpPatch("{userId:guid}/status")]
+    [Authorize(Roles = "Admin")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> SetStatus(
         [FromRoute] Guid projectId,
         [FromRoute] Guid userId,
-        [FromBody] bool isActive,
-        [FromServices] SetUserStatusUseCase useCase,
+        [FromBody] SetUserStatusRequest req,
         CancellationToken ct)
     {
-        User.RequireAdmin();
-        var command = new SetUserStatusCommand(projectId, userId, isActive);
-        await useCase.ExecuteAsync(command, ct);
+        var command = new SetUserStatusCommand(projectId, userId, req.IsActive);
+        await setUserStatusUseCase.ExecuteAsync(command, ct);
         return NoContent();
     }
 }

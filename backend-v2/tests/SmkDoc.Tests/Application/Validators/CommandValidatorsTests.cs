@@ -1,13 +1,13 @@
 using System.Text.Json;
 using FluentAssertions;
-using SmkDoc.Application.Modules.Rendering.Documents.DTOs;
-using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
-using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
-using SmkDoc.Application.Modules.Rendering.Documents.Validators;
-using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.Login;
-using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.CreateApiKey;
-using SmkDoc.Application.Modules.Authoring.Templates.Validators;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.CreateTemplate;
+using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
+using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.CreateApiKey;
+using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.Login;
+using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
+using SmkDoc.Application.Modules.Rendering.Documents.Commands.GenerateDocument;
+using SmkDoc.Application.Modules.Rendering.Documents.DTOs;
+using SmkDoc.Application.Modules.Rendering.Documents.Validators;
 using Xunit;
 
 namespace SmkDoc.Tests.Application.Validators;

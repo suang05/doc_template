@@ -6,17 +6,6 @@ using SmkDoc.Domain.ValueObjects.Validation;
 namespace SmkDoc.Application.Modules.Rendering.Documents.DTOs;
 
 /// <summary>
-/// Command for generating a document from a published template.
-/// </summary>
-public record GenerateDocumentCommand(
-    JsonElement Data,
-    string Output = "pdf",
-    string? DocumentRef = null,
-    string? ChangeNote = null,
-    bool SkipValidation = false
-);
-
-/// <summary>
 /// Result returned after document generation and MinIO persistence.
 /// </summary>
 public record GenerateDocumentResultDto(
@@ -24,23 +13,6 @@ public record GenerateDocumentResultDto(
     DateTimeOffset ExpiresAt,
     Guid GenerationId,
     string OutputFormat
-);
-
-/// <summary>
-/// Query parameters for rendering a stateless preview document.
-/// </summary>
-public record PreviewDocumentQuery(
-    JsonElement Data,
-    string? Html = null
-);
-
-/// <summary>
-/// Command for converting raw HTML directly to PDF bytes.
-/// </summary>
-public record HtmlToPdfCommand(
-    string Html,
-    string? HeaderHtml = null,
-    string? FooterHtml = null
 );
 
 /// <summary>
@@ -67,13 +39,6 @@ public record PayloadValidationResultDto(
     int SchemaVersion,
     IReadOnlyList<ValidationErrorItem> Errors
 );
-
-public record ValidatePayloadResult(
-    bool IsValid,
-    string TemplateSlug,
-    int SchemaVersion,
-    IReadOnlyList<ValidationErrorItem> Errors
-) : PayloadValidationResultDto(IsValid, TemplateSlug, SchemaVersion, Errors);
 
 /// <summary>
 /// Security scan result for OpenXML DOCX files.

@@ -1,15 +1,15 @@
 using System.Text.Json;
 using SmkDoc.Domain.ValueObjects.Validation;
+using SmkDoc.Application.Modules.Authoring.Templates.Queries.ValidateTemplatePayload;
 
 namespace SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 
 /// <summary>
-/// Command for validating a JSON payload against a published template's schema contract.
+/// Legacy Command alias for ValidateTemplatePayloadQuery.
 /// </summary>
-public record ValidateTemplatePayloadCommand(
-    string Slug,
-    JsonElement Data
-);
+[Obsolete("Use SmkDoc.Application.Modules.Authoring.Templates.Queries.ValidateTemplatePayload.ValidateTemplatePayloadQuery instead.")]
+public record ValidateTemplatePayloadCommand(string Slug, JsonElement Data) 
+    : ValidateTemplatePayloadQuery(Slug, Data);
 
 /// <summary>
 /// Result returned after pre-flight template payload schema validation.

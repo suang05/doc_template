@@ -3,7 +3,8 @@ using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.Contracts.Authoring.Templates;
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
-using SmkDoc.Application.Modules.Authoring.FieldMappings;
+using SmkDoc.Application.Modules.Authoring.FieldMappings.Queries.GetTemplateDatasets;
+using SmkDoc.Application.Modules.Authoring.FieldMappings.Commands.SaveTemplateDatasets;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.ListTemplateVersions;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.RollbackTemplateVersion;
 
@@ -19,7 +20,8 @@ namespace SmkDoc.Api.Controllers.Authoring;
 public class TemplateVersionController(
     ListTemplateVersionsUseCase listVersionsUseCase,
     RollbackTemplateVersionUseCase rollbackUseCase,
-    TemplateDatasetUseCase templateDatasetUseCase) : ControllerBase
+    GetTemplateDatasetsUseCase getDatasetsUseCase,
+    SaveTemplateDatasetsUseCase saveDatasetsUseCase) : ControllerBase
 {
     // ── Versioning ────────────────────────────────────────────────────────────
 
@@ -53,7 +55,7 @@ public class TemplateVersionController(
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<TemplateDatasetDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetDatasets([FromRoute] Guid id, CancellationToken ct)
     {
-        var datasets = await templateDatasetUseCase.GetByTemplateIdAsync(id, ct);
+        var datasets = await getDatasetsUseCase.ExecuteAsync(new GetTemplateDatasetsQuery(id), ct);
         return Ok(new ApiResponse<IEnumerable<TemplateDatasetDto>>(datasets));
     }
 
@@ -62,10 +64,11 @@ public class TemplateVersionController(
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     public async Task<IActionResult> SaveDatasets(
         [FromRoute] Guid id,
-        [FromBody] List<SaveTemplateDatasetItemDto> items,
+        [FromBody] List<SaveTemplateDatasetItemRequest> items,
         CancellationToken ct)
     {
-        await templateDatasetUseCase.SaveAsync(id, items, ct);
+        var dtos = items.Select(i => new SaveTemplateDatasetItemDto(i.DatasetId, i.Alias, i.SortOrder)).ToList();
+        await saveDatasetsUseCase.ExecuteAsync(new SaveTemplateDatasetsCommand(id, dtos), ct);
         return Ok(new ApiResponse<object>(new { success = true }));
     }
 }

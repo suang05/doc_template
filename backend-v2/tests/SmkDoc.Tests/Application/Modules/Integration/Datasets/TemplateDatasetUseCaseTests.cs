@@ -15,8 +15,10 @@ public class TemplateDatasetUseCaseTests
     private readonly Mock<IDatasetRepository> _datasetRepoMock = new();
     private readonly Mock<IUnitOfWork> _unitOfWorkMock = new();
 
+#pragma warning disable CS0618
     private TemplateDatasetUseCase CreateSut() =>
         new(_templateRepoMock.Object, _datasetRepoMock.Object, _unitOfWorkMock.Object);
+#pragma warning restore CS0618
 
     // ── GetByTemplateIdAsync ───────────────────────────────────────────────────
 

@@ -5,6 +5,7 @@ using SmkDoc.Domain.Interfaces;
 
 namespace SmkDoc.Application.Modules.Integration.DataConnections;
 
+[Obsolete("Use single-intent UseCases instead (CreateDataConnectionUseCase, UpdateDataConnectionUseCase, etc.).")]
 public sealed class DataConnectionUseCase(
     IDataConnectionRepository repository,
     IUnitOfWork unitOfWork,
