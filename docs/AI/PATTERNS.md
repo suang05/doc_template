@@ -27,12 +27,13 @@
 2. Use Cases ทั้งหมดต้องเป็น **`sealed class`** และใช้ **C# 12 Primary Constructor** เพื่อลด Boilerplate Code (ห้ามเขียน field declarations + constructor assignments แบบเดิม):
 
 ```csharp
-// ✅ CORRECT — Thin Controller
+// ✅ CORRECT — Thin Controller with Explicit Query & Command
 [HttpGet("{id:guid}")]
 [ProducesResponseType(typeof(ApiResponse<TemplateDto>), StatusCodes.Status200OK)]
 public async Task<IActionResult> GetById([FromRoute] Guid id, CancellationToken ct)
 {
-    var dto = await getTemplateByIdUseCase.ExecuteAsync(new GetTemplateByIdQuery(id), ct);
+    var query = new GetTemplateByIdQuery(id);
+    var dto = await getTemplateByIdUseCase.ExecuteAsync(query, ct);
     return Ok(new ApiResponse<TemplateDto>(dto));
 }
 
@@ -41,7 +42,8 @@ public async Task<IActionResult> GetById([FromRoute] Guid id, CancellationToken 
 [ProducesResponseType(typeof(ApiResponse<TemplateResponseDto>), StatusCodes.Status201Created)]
 public async Task<IActionResult> Create([FromBody] CreateTemplateRequest req, CancellationToken ct)
 {
-    var result = await createTemplateUseCase.ExecuteAsync(new CreateTemplateCommand(req.Name, req.Slug), ct);
+    var command = new CreateTemplateCommand(req.Name, req.Slug);
+    var result = await createTemplateUseCase.ExecuteAsync(command, ct);
     return CreatedAtAction(nameof(GetById), new { id = result.Id }, new ApiResponse<TemplateResponseDto>(result));
 }
 

@@ -28,7 +28,8 @@ public class ProjectManagementController(
     public async Task<IActionResult> ListProjects(CancellationToken ct)
     {
         var userId = User.GetUserId();
-        var projects = await listProjectsUseCase.ExecuteAsync(new ListProjectsQuery(userId), ct);
+        var query = new ListProjectsQuery(userId);
+        var projects = await listProjectsUseCase.ExecuteAsync(query, ct);
 
         return Ok(new ApiResponse<IEnumerable<ProjectResultDto>>(projects));
     }
@@ -39,7 +40,8 @@ public class ProjectManagementController(
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetProjectById([FromRoute] Guid projectId, CancellationToken ct)
     {
-        var project = await getProjectByIdUseCase.ExecuteAsync(new GetProjectByIdQuery(projectId), ct);
+        var query = new GetProjectByIdQuery(projectId);
+        var project = await getProjectByIdUseCase.ExecuteAsync(query, ct);
         if (project is null)
         {
             return NotFound();

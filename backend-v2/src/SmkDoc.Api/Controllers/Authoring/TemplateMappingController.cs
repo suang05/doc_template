@@ -25,7 +25,8 @@ public class TemplateMappingController(
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<FieldMappingDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetMappings([FromRoute] Guid id, CancellationToken ct)
     {
-        var mappings = await getMappingsUseCase.ExecuteAsync(new GetTemplateMappingsQuery(id), ct);
+        var query = new GetTemplateMappingsQuery(id);
+        var mappings = await getMappingsUseCase.ExecuteAsync(query, ct);
         return Ok(new ApiResponse<IEnumerable<FieldMappingDto>>(mappings));
     }
 
@@ -42,7 +43,8 @@ public class TemplateMappingController(
         var dtos = mappings.Select(m => new SaveFieldMappingItemDto(
             m.Placeholder, m.SourcePath, m.Label, m.Required, m.DefaultValue, m.Transform,
             m.SortOrder, m.DataSourceType, m.DatasetAlias, m.ResultPath, m.MathExpression)).ToList();
-        await saveMappingsUseCase.ExecuteAsync(new SaveTemplateMappingsCommand(id, dtos), ct);
+        var command = new SaveTemplateMappingsCommand(id, dtos);
+        await saveMappingsUseCase.ExecuteAsync(command, ct);
         return NoContent();
     }
 

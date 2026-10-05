@@ -25,7 +25,8 @@ public class FontManagementController(
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<string>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> ListFonts(CancellationToken ct)
     {
-        var fonts = await listFontsUseCase.ExecuteAsync(new ListFontsQuery(), ct);
+        var query = new ListFontsQuery();
+        var fonts = await listFontsUseCase.ExecuteAsync(query, ct);
         return Ok(new ApiResponse<IEnumerable<string>>(fonts));
     }
 
@@ -40,7 +41,8 @@ public class FontManagementController(
             throw new DomainValidationException("Font file is required and must not be empty.");
 
         using var stream = file.OpenReadStream();
-        var fontName = await uploadFontUseCase.ExecuteAsync(new UploadFontCommand(stream, file.FileName, file.ContentType), ct);
+        var command = new UploadFontCommand(stream, file.FileName, file.ContentType);
+        var fontName = await uploadFontUseCase.ExecuteAsync(command, ct);
         return StatusCode(StatusCodes.Status201Created, new ApiResponse<UploadFontResponse>(new UploadFontResponse("Font uploaded successfully.", fontName)));
     }
 }

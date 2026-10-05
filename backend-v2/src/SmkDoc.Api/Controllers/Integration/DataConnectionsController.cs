@@ -34,7 +34,8 @@ public class DataConnectionsController(
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<DataConnectionDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetAll(CancellationToken ct)
     {
-        var result = await listUseCase.ExecuteAsync(new ListDataConnectionsQuery(), ct);
+        var query = new ListDataConnectionsQuery();
+        var result = await listUseCase.ExecuteAsync(query, ct);
         return Ok(new ApiResponse<IEnumerable<DataConnectionDto>>(result));
     }
 
@@ -44,7 +45,8 @@ public class DataConnectionsController(
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetById(Guid id, CancellationToken ct)
     {
-        var result = await getByIdUseCase.ExecuteAsync(new GetDataConnectionByIdQuery(id), ct);
+        var query = new GetDataConnectionByIdQuery(id);
+        var result = await getByIdUseCase.ExecuteAsync(query, ct);
         if (result == null) return NotFound();
         return Ok(new ApiResponse<DataConnectionDto>(result));
     }
@@ -79,7 +81,8 @@ public class DataConnectionsController(
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
-        var success = await deleteUseCase.ExecuteAsync(new DeleteDataConnectionCommand(id), ct);
+        var command = new DeleteDataConnectionCommand(id);
+        var success = await deleteUseCase.ExecuteAsync(command, ct);
         if (!success) return NotFound();
         return NoContent();
     }

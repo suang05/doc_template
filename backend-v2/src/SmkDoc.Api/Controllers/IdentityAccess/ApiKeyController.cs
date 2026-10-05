@@ -30,14 +30,16 @@ public class ApiKeyController(
     {
         var targetProjectId = projectId ?? context.ProjectId
             ?? throw new BadHttpRequestException("ProjectId is required to list API keys.");
-        var keys = await listApiKeysUseCase.ExecuteAsync(new ListApiKeysQuery(targetProjectId), ct);
+        var query = new ListApiKeysQuery(targetProjectId);
+        var keys = await listApiKeysUseCase.ExecuteAsync(query, ct);
         return Ok(new { keys });
     }
 
     [HttpPost]
     public async Task<IActionResult> CreateKey([FromBody] CreateApiKeyRequest request, CancellationToken ct)
     {
-        var result = await createApiKeyUseCase.ExecuteAsync(new CreateApiKeyCommand(request.Name, request.CallerApp, request.ProjectId), ct);
+        var command = new CreateApiKeyCommand(request.Name, request.CallerApp, request.ProjectId);
+        var result = await createApiKeyUseCase.ExecuteAsync(command, ct);
         return Ok(new
         {
             id = result.Id,
@@ -55,7 +57,8 @@ public class ApiKeyController(
     {
         var targetProjectId = projectId ?? context.ProjectId
             ?? throw new BadHttpRequestException("ProjectId is required to revoke an API key.");
-        await revokeApiKeyUseCase.ExecuteAsync(new RevokeApiKeyCommand(id, targetProjectId), ct);
+        var command = new RevokeApiKeyCommand(id, targetProjectId);
+        await revokeApiKeyUseCase.ExecuteAsync(command, ct);
         return Ok(new { success = true });
     }
 }

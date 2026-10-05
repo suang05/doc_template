@@ -231,11 +231,15 @@ Controllers in `SmkDoc.Api/Controllers` are thin HTTP facades that bridge HTTP r
 #### 1. Thin Orchestrator Only (Zero Business Logic)
 - Controllers translate HTTP requests (headers, route parameters, query strings, body) into Application Commands/Queries, pass them to a **single dedicated UseCase**, and translate the result into HTTP responses.
 - **NEVER** inject `AppDbContext`, repositories (`IRepository`), domain entities, or domain/infrastructure services (e.g. `ITemplateScannerService`) directly into controllers. Inject only UseCases (`*UseCase`).
+- **Parameter Naming in Primary Constructors:** Name injected UseCases using `camelCase` matching their UseCase class name (e.g. `CreateTemplateUseCase createTemplateUseCase`, `ValidateTemplatePayloadUseCase validatePayloadUseCase`, `GenerateDocumentUseCase generateUseCase`). **NEVER** prefix with underscore (`_`) in primary constructors, and **NEVER** use ambiguous names like `service` or `handler`.
+- **Clean Usings (No Inline Namespaces):** Always place imports at top of file (e.g. `using SmkDoc.Domain.Exceptions;`). **NEVER** inline fully-qualified namespaces in method bodies or signatures (e.g. ❌ `throw new SmkDoc.Domain.Exceptions.DomainValidationException(...)`).
+- **Explicit Command/Query Instantiation (No Inline Nested Objects):** Always instantiate `Command` or `Query` into an explicit local variable (`var command = new ...;` or `var query = new ...;`) before passing to `ExecuteAsync(command, ct)`. **NEVER** instantiate objects inline nested directly inside `ExecuteAsync(new DoSomethingCommand(...), ct)` (❌ AP-036). This ensures clean 3-phase readability (1. Input/Preparation → 2. Execution → 3. Response) and trivial debugging.
 
 #### 2. Strict Route Versioning & Prefixes
 - **External / M2M Routes:** MUST use `api/v1/{resource}` (e.g. `api/v1/documents`, `api/v1/templates`).
 - **Portal Management Routes:** MUST use `api/v1/management/projects/{projectId:guid}/{resource}` or `api/v1/management/settings/...`.
-- **Ban Dual-Routing on Canonical Endpoints:** Never decorate controllers with both `[Route("api/v1/x")]` and `[Route("api/x")]`. Legacy compatibility routes must be placed in explicit backward-compatibility redirect middleware or deprecated legacy adapters.
+- **Canonical vs. Legacy Routes:** All new canonical controllers and endpoints MUST be prefixed exclusively with `api/v1/...`. Pre-existing dual routes (`[Route("api/...")]`) exist strictly as temporary legacy fallbacks for backward compatibility with frontend clients. **NEVER** add unversioned routes to new controllers or endpoints.
+- **Ban Dual-Routing on Canonical Endpoints:** Never decorate new controllers with both `[Route("api/v1/x")]` and `[Route("api/x")]`. Legacy compatibility routes must be placed in explicit backward-compatibility redirect middleware or deprecated legacy adapters.
 
 #### 3. Canonical Response Envelope Policy
 - **JSON Data:** MUST always be wrapped in `ApiResponse<T>(T Data)` or `PagedApiResponse<T>(IEnumerable<T> Data, int Total, int Page, int Limit)`.
@@ -289,7 +293,8 @@ public class UserManagementController(
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<UserResultDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> List([FromRoute] Guid projectId, CancellationToken ct)
     {
-        var users = await listUsersUseCase.ExecuteAsync(new ListProjectUsersQuery(projectId), ct);
+        var query = new ListProjectUsersQuery(projectId);
+        var users = await listUsersUseCase.ExecuteAsync(query, ct);
         return Ok(new ApiResponse<IEnumerable<UserResultDto>>(users));
     }
 
@@ -322,7 +327,8 @@ public class UserManagementController(
         CancellationToken ct)
     {
         var currentUserId = User.GetUserId();
-        await removeUserUseCase.ExecuteAsync(new RemoveUserCommand(projectId, userId, currentUserId), ct);
+        var command = new RemoveUserCommand(projectId, userId, currentUserId);
+        await removeUserUseCase.ExecuteAsync(command, ct);
         return NoContent();
     }
 }

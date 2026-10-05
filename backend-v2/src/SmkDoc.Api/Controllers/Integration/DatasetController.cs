@@ -32,7 +32,8 @@ public class DatasetController(
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<DatasetDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetAll(CancellationToken ct)
     {
-        var result = await listUseCase.ExecuteAsync(new ListDatasetsQuery(), ct);
+        var query = new ListDatasetsQuery();
+        var result = await listUseCase.ExecuteAsync(query, ct);
         return Ok(new ApiResponse<IEnumerable<DatasetDto>>(result));
     }
 
@@ -41,7 +42,8 @@ public class DatasetController(
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetById(Guid id, CancellationToken ct)
     {
-        var result = await getByIdUseCase.ExecuteAsync(new GetDatasetByIdQuery(id), ct);
+        var query = new GetDatasetByIdQuery(id);
+        var result = await getByIdUseCase.ExecuteAsync(query, ct);
         if (result == null) return NotFound();
         return Ok(new ApiResponse<DatasetDto>(result));
     }
@@ -71,7 +73,8 @@ public class DatasetController(
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
-        var success = await deleteUseCase.ExecuteAsync(new DeleteDatasetCommand(id), ct);
+        var command = new DeleteDatasetCommand(id);
+        var success = await deleteUseCase.ExecuteAsync(command, ct);
         if (!success) return NotFound();
         return NoContent();
     }

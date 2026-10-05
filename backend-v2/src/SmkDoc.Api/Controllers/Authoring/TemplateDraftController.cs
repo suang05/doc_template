@@ -34,7 +34,8 @@ public class TemplateDraftController(
             throw new DomainValidationException("File is required and must not be empty.");
 
         using var stream = file.OpenReadStream();
-        var result = await parseUseCase.ExecuteAsync(new ParseTemplateDraftCommand(stream, file.FileName), ct);
+        var command = new ParseTemplateDraftCommand(stream, file.FileName);
+        var result = await parseUseCase.ExecuteAsync(command, ct);
         return Ok(new ApiResponse<ParseDraftResponse>(new ParseDraftResponse(result.DraftId, result.Placeholders)));
     }
 
@@ -51,8 +52,8 @@ public class TemplateDraftController(
         [FromBody] PreviewDraftRequest request,
         CancellationToken ct)
     {
-        byte[] pdfBytes =
-            await previewUseCase.ExecuteAsync(new PreviewTemplateDraftQuery(draftId, request.DataJson), ct);
+        var query = new PreviewTemplateDraftQuery(draftId, request.DataJson);
+        byte[] pdfBytes = await previewUseCase.ExecuteAsync(query, ct);
         Response.Headers.ContentDisposition = "inline";
         return File(pdfBytes, "application/pdf");
     }
@@ -73,7 +74,8 @@ public class TemplateDraftController(
     {
         var commandPayload = new CommitDraftCommand(request.Name, request.Slug, request.Category, request.Mappings,
             request.ProjectId);
-        var templateId = await commitUseCase.ExecuteAsync(new CommitTemplateDraftCommand(draftId, commandPayload), ct);
+        var command = new CommitTemplateDraftCommand(draftId, commandPayload);
+        var templateId = await commitUseCase.ExecuteAsync(command, ct);
         return StatusCode(StatusCodes.Status201Created, new ApiResponse<CommitDraftResponse>(new CommitDraftResponse(Guid.Parse(templateId))));
     }
 }

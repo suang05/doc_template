@@ -447,7 +447,23 @@ if (file is not { Length: > 0 })
 
 // ✅ CORRECT — โยน Domain Exception หรือใช้ FluentValidation / Model Validation ปล่อยให้ GlobalExceptionFilter จัดการเป็น RFC 7807 Problem Details
 if (file is not { Length: > 0 })
-    throw new DomainValidationException("FILE_REQUIRED", "File must not be null or empty.");
+    throw new DomainValidationException("File must not be null or empty."); // errorCode มีค่า default เป็น "DOMAIN_VALIDATION_ERROR"
+// หรือหากต้องการระบุ error code อิสระ:
+// throw new BusinessRuleViolationException("File must not be null or empty.", "FILE_REQUIRED");
+```
+
+### AP-036: ห้ามสร้าง Command/Query Object ซ้อนข้างใน `ExecuteAsync` โดยตรง (Nested Inline Instantiation)
+```csharp
+// ❌ WRONG — ประกาศ new Command/Query ซ้อนข้างใน ExecuteAsync(...) ทำให้อ่านยาก และ Debug ตรวจสอบค่าก่อนยิงได้ยาก
+await removeUserUseCase.ExecuteAsync(new RemoveUserCommand(projectId, userId, currentUserId), ct);
+var result = await listUsersUseCase.ExecuteAsync(new ListProjectUsersQuery(projectId), ct);
+
+// ✅ CORRECT — แยกตัวแปร local variable (var command = ... หรือ var query = ...) ก่อนส่งเข้า ExecuteAsync เสมอ
+var query = new ListProjectUsersQuery(projectId);
+var result = await listUsersUseCase.ExecuteAsync(query, ct);
+
+var command = new RemoveUserCommand(projectId, userId, currentUserId);
+await removeUserUseCase.ExecuteAsync(command, ct);
 ```
 
 ---

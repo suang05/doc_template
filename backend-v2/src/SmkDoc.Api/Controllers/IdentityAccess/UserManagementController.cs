@@ -31,7 +31,8 @@ public class UserManagementController(
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<UserResultDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> List([FromRoute] Guid projectId, CancellationToken ct)
     {
-        var users = await listProjectUsersUseCase.ExecuteAsync(new ListProjectUsersQuery(projectId), ct);
+        var query = new ListProjectUsersQuery(projectId);
+        var users = await listProjectUsersUseCase.ExecuteAsync(query, ct);
         return Ok(new ApiResponse<IEnumerable<UserResultDto>>(users));
     }
 

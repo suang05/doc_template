@@ -32,7 +32,8 @@ public class TemplateScanController(
 
         var ext = Path.GetExtension(file.FileName);
         using var stream = file.OpenReadStream();
-        var placeholders = await scanUploadedUseCase.ExecuteAsync(new ScanUploadedTemplateQuery(stream, ext), ct);
+        var query = new ScanUploadedTemplateQuery(stream, ext);
+        var placeholders = await scanUploadedUseCase.ExecuteAsync(query, ct);
         return Ok(new ApiResponse<ScanFieldsResponse>(new ScanFieldsResponse(placeholders)));
     }
 
@@ -42,7 +43,8 @@ public class TemplateScanController(
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> ScanFieldsById([FromRoute] Guid id, CancellationToken ct)
     {
-        var placeholders = await scanStoredUseCase.ExecuteAsync(new ScanTemplatePlaceholdersQuery(id), ct);
+        var query = new ScanTemplatePlaceholdersQuery(id);
+        var placeholders = await scanStoredUseCase.ExecuteAsync(query, ct);
         return Ok(new ApiResponse<ScanFieldsResponse>(new ScanFieldsResponse(placeholders)));
     }
 }

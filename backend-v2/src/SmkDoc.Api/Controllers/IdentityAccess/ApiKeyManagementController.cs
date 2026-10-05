@@ -28,7 +28,8 @@ public class ApiKeyManagementController(
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<ApiKeyDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> ListKeys([FromRoute] Guid projectId, CancellationToken ct)
     {
-        var keys = await listApiKeysUseCase.ExecuteAsync(new ListApiKeysQuery(projectId), ct);
+        var query = new ListApiKeysQuery(projectId);
+        var keys = await listApiKeysUseCase.ExecuteAsync(query, ct);
         return Ok(new ApiResponse<IEnumerable<ApiKeyDto>>(keys));
     }
 
@@ -64,7 +65,8 @@ public class ApiKeyManagementController(
         [FromRoute] Guid keyId,
         CancellationToken ct)
     {
-        await revokeApiKeyUseCase.ExecuteAsync(new RevokeApiKeyCommand(keyId, projectId), ct);
+        var command = new RevokeApiKeyCommand(keyId, projectId);
+        await revokeApiKeyUseCase.ExecuteAsync(command, ct);
         return NoContent();
     }
 }

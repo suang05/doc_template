@@ -29,7 +29,8 @@ public class AuditLogController(
         [FromQuery] string? app = null,
         CancellationToken ct = default)
     {
-        var result = await listUseCase.ExecuteAsync(new ListGenerationLogsQuery(page, limit, app), ct);
+        var query = new ListGenerationLogsQuery(page, limit, app);
+        var result = await listUseCase.ExecuteAsync(query, ct);
         return Ok(new ApiResponse<GenerationLogPagedResultDto>(result));
     }
 
@@ -41,7 +42,8 @@ public class AuditLogController(
         [FromQuery] DateTimeOffset? endDate = null,
         CancellationToken ct = default)
     {
-        var result = await metricsUseCase.ExecuteAsync(new GetLogMetricsQuery(startDate, endDate), ct);
+        var query = new GetLogMetricsQuery(startDate, endDate);
+        var result = await metricsUseCase.ExecuteAsync(query, ct);
         return Ok(new ApiResponse<LogMetricsDto>(result));
     }
 }

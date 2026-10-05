@@ -85,7 +85,8 @@ public class DocumentController(
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<DocumentVersionDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetVersions([FromRoute] string documentRef, CancellationToken ct)
     {
-        var versions = await getVersionsUseCase.ExecuteAsync(new GetDocumentVersionsQuery(documentRef), ct);
+        var query = new GetDocumentVersionsQuery(documentRef);
+        var versions = await getVersionsUseCase.ExecuteAsync(query, ct);
         return Ok(new ApiResponse<IEnumerable<DocumentVersionDto>>(versions));
     }
 
@@ -95,7 +96,8 @@ public class DocumentController(
     [HttpGet("{documentRef}/versions/{version:int}/download")]
     public async Task<IActionResult> DownloadVersion([FromRoute] string documentRef, [FromRoute] int version, CancellationToken ct)
     {
-        var result = await downloadVersionUseCase.ExecuteAsync(new DownloadDocumentVersionQuery(documentRef, version), ct);
+        var query = new DownloadDocumentVersionQuery(documentRef, version);
+        var result = await downloadVersionUseCase.ExecuteAsync(query, ct);
         return File(result.Stream, result.ContentType, result.FileName);
     }
 
@@ -105,7 +107,8 @@ public class DocumentController(
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> DownloadByLogId([FromRoute] Guid logId, CancellationToken ct)
     {
-        var url = await getLogDownloadUrlUseCase.ExecuteAsync(new GetLogDownloadUrlQuery(logId), ct);
+        var query = new GetLogDownloadUrlQuery(logId);
+        var url = await getLogDownloadUrlUseCase.ExecuteAsync(query, ct);
         return Ok(new ApiResponse<DownloadUrlResponseDto>(new DownloadUrlResponseDto(url, 3600)));
     }
 

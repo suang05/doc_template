@@ -30,7 +30,8 @@ public class TemplateVersionController(
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<TemplateVersionDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetVersions([FromRoute] Guid id, CancellationToken ct)
     {
-        var versions = await listVersionsUseCase.ExecuteAsync(new ListTemplateVersionsQuery(id), ct);
+        var query = new ListTemplateVersionsQuery(id);
+        var versions = await listVersionsUseCase.ExecuteAsync(query, ct);
         return Ok(new ApiResponse<IEnumerable<TemplateVersionDto>>(versions));
     }
 
@@ -44,7 +45,8 @@ public class TemplateVersionController(
         [FromRoute] int version,
         CancellationToken ct)
     {
-        int newVersion = await rollbackUseCase.ExecuteAsync(new RollbackTemplateVersionCommand(id, version), ct);
+        var command = new RollbackTemplateVersionCommand(id, version);
+        int newVersion = await rollbackUseCase.ExecuteAsync(command, ct);
         return Ok(new ApiResponse<RollbackVersionResponse>(new RollbackVersionResponse(newVersion)));
     }
 
@@ -55,7 +57,8 @@ public class TemplateVersionController(
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<TemplateDatasetDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetDatasets([FromRoute] Guid id, CancellationToken ct)
     {
-        var datasets = await getDatasetsUseCase.ExecuteAsync(new GetTemplateDatasetsQuery(id), ct);
+        var query = new GetTemplateDatasetsQuery(id);
+        var datasets = await getDatasetsUseCase.ExecuteAsync(query, ct);
         return Ok(new ApiResponse<IEnumerable<TemplateDatasetDto>>(datasets));
     }
 
@@ -70,7 +73,8 @@ public class TemplateVersionController(
         CancellationToken ct)
     {
         var dtos = items.Select(i => new SaveTemplateDatasetItemDto(i.DatasetId, i.Alias, i.SortOrder)).ToList();
-        await saveDatasetsUseCase.ExecuteAsync(new SaveTemplateDatasetsCommand(id, dtos), ct);
+        var command = new SaveTemplateDatasetsCommand(id, dtos);
+        await saveDatasetsUseCase.ExecuteAsync(command, ct);
         return NoContent();
     }
 }
