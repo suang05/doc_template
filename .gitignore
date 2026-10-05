@@ -65,6 +65,8 @@ COOLIFY.md
 **/Doc/
 **/Docs/
 **/docs/
+!docs/
+docs/*
 !docs/AI/
 scratch/
 tools/
