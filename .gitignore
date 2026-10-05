@@ -65,6 +65,7 @@ COOLIFY.md
 **/Doc/
 **/Docs/
 **/docs/
+!docs/AI/
 scratch/
 tools/
 *.zip
