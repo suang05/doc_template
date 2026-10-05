@@ -20,7 +20,7 @@ public sealed class ListApiKeysUseCase(
 
         var keys = await _apiKeyRepo.ListByProjectAsync(query.ProjectId, ct);
         return keys
-            .Select(k => new ApiKeyDto(k.Id, k.Name, k.CallerApp, k.IsActive, k.LastUsedAt, k.CreatedAt))
+            .Select(k => new ApiKeyDto(k.Id, k.Name.Value, k.CallerApp, k.IsActive, k.LastUsedAt, k.CreatedAt))
             .ToList();
     }
 }

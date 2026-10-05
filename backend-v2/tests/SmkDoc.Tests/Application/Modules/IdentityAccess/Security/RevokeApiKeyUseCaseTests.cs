@@ -5,6 +5,7 @@ using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.RevokeApiKey;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects;
 using Xunit;
 
 namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Security;
@@ -48,8 +49,8 @@ public class RevokeApiKeyUseCaseTests
     public async Task ExecuteAsync_WhenKeyExistsInProject_ShouldRevokeAndCommit()
     {
         var projectId = Guid.NewGuid();
-        var keyId = Guid.NewGuid();
-        var key = new ApiKey(projectId, "Test Key", "test-caller", "hash123", null, id: keyId);
+        var key = ApiKey.Issue(projectId, ApiKeyName.Create("Test Key"), "test-caller", new Sha256Hash(new string('a', 64)), ExpirationPolicy.Never, DateTimeOffset.UtcNow);
+        var keyId = key.Id;
 
         _mockRepo.Setup(r => r.GetByIdAsync(keyId, projectId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(key);

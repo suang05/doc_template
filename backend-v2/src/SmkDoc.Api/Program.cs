@@ -147,6 +147,7 @@ builder.Services.Configure<MinioSettings>(options =>
 builder.Services.AddSingleton<IStorageService, MinioStorageService>();
 
 // --- 4b. Security & Data ---
+builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<IDataProtectionService, SmkDoc.Infrastructure.Security.DataProtectionService>();
 builder.Services.AddSingleton<IDocxSecurityScanner, SmkDoc.Infrastructure.Security.DocxSecurityScannerService>();
 builder.Services.AddScoped<ISqlExecutorService, SmkDoc.Infrastructure.Data.SqlExecutorService>();
@@ -290,12 +291,13 @@ using (var scope = app.Services.CreateScope())
         }
 
         var apiKeyRepo = scope.ServiceProvider.GetRequiredService<IApiKeyRepository>();
-        var defaultKeyHash = ApiKeyHelper.ComputeHash(masterApiKey);
+        var defaultKeyHash = new SmkDoc.Domain.ValueObjects.Sha256Hash(ApiKeyHelper.ComputeHash(masterApiKey));
         var existingKey = await apiKeyRepo.GetByKeyHashAsync(defaultKeyHash);
         if (existingKey == null)
         {
-            await apiKeyRepo.AddAsync(new SmkDoc.Domain.Entities.ApiKey(project.Id, "Master Environment Key", "master",
-                defaultKeyHash, null));
+            await apiKeyRepo.AddAsync(SmkDoc.Domain.Entities.ApiKey.Issue(project.Id,
+                SmkDoc.Domain.ValueObjects.ApiKeyName.Create("Master Environment Key"), "master",
+                defaultKeyHash, SmkDoc.Domain.ValueObjects.ExpirationPolicy.Never, TimeProvider.System.GetUtcNow()));
             await uow.CommitAsync();
         }
     }

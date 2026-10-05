@@ -1,39 +1,46 @@
 namespace SmkDoc.Domain.Common;
 
-public abstract class ValueObject
+/// <summary>
+/// Base class for Domain-Driven Design Value Objects.
+/// Compares instances by structural equality of components rather than identity.
+/// </summary>
+public abstract class ValueObject : IEquatable<ValueObject>
 {
-    protected static bool EqualOperator(ValueObject left, ValueObject right)
+    public static bool operator ==(ValueObject? left, ValueObject? right)
     {
-        if (ReferenceEquals(left, null) ^ ReferenceEquals(right, null))
-        {
-            return false;
-        }
-        return ReferenceEquals(left, null) || left.Equals(right);
-    }
-
-    protected static bool NotEqualOperator(ValueObject left, ValueObject right)
-    {
-        return !(EqualOperator(left, right));
-    }
-
-    protected abstract IEnumerable<object> GetEqualityComponents();
-
-    public override bool Equals(object? obj)
-    {
-        if (obj == null || obj.GetType() != GetType())
+        if (left is null ^ right is null)
         {
             return false;
         }
 
-        var other = (ValueObject)obj;
-
-        return this.GetEqualityComponents().SequenceEqual(other.GetEqualityComponents());
+        return left is null || left.Equals(right);
     }
+
+    public static bool operator !=(ValueObject? left, ValueObject? right) => !(left == right);
+
+    protected abstract IEnumerable<object?> GetEqualityComponents();
+
+    public bool Equals(ValueObject? other)
+    {
+        if (other is null || other.GetType() != GetType())
+        {
+            return false;
+        }
+
+        return GetEqualityComponents().SequenceEqual(other.GetEqualityComponents());
+    }
+
+    public override bool Equals(object? obj) =>
+        obj is ValueObject other && Equals(other);
 
     public override int GetHashCode()
     {
-        return GetEqualityComponents()
-            .Select(x => x != null ? x.GetHashCode() : 0)
-            .Aggregate((x, y) => x ^ y);
+        var hash = new HashCode();
+        foreach (var component in GetEqualityComponents())
+        {
+            hash.Add(component);
+        }
+
+        return hash.ToHashCode();
     }
 }

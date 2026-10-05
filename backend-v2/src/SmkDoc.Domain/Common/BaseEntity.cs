@@ -1,6 +1,10 @@
-namespace SmkDoc.Domain.Entities;
+namespace SmkDoc.Domain.Common;
 
-public abstract class BaseEntity
+/// <summary>
+/// Abstract base class for all Domain Entities.
+/// Provides UUIDv7 primary identity, audit timestamps, and entity equality based on identity.
+/// </summary>
+public abstract class BaseEntity : IEquatable<BaseEntity>
 {
     public Guid Id { get; protected set; } = Guid.CreateVersion7();
     public DateTimeOffset CreatedAt { get; protected set; } = DateTimeOffset.UtcNow;
@@ -24,9 +28,35 @@ public abstract class BaseEntity
     protected void SetUpdated(DateTimeOffset? updatedAt = null) =>
         UpdatedAt = updatedAt ?? DateTimeOffset.UtcNow;
 
-    public void SetAuditTimestampsForTesting(DateTimeOffset createdAt, DateTimeOffset? updatedAt = null)
+    public override bool Equals(object? obj) =>
+        obj is BaseEntity other && Equals(other);
+
+    public bool Equals(BaseEntity? other)
     {
-        CreatedAt = createdAt;
-        UpdatedAt = updatedAt;
+        if (other is null || other.GetType() != GetType())
+        {
+            return false;
+        }
+
+        if (Id == Guid.Empty || other.Id == Guid.Empty)
+        {
+            return false;
+        }
+
+        return Id == other.Id;
     }
+
+    public override int GetHashCode() => HashCode.Combine(GetType(), Id);
+
+    public static bool operator ==(BaseEntity? left, BaseEntity? right)
+    {
+        if (left is null ^ right is null)
+        {
+            return false;
+        }
+
+        return left is null || left.Equals(right);
+    }
+
+    public static bool operator !=(BaseEntity? left, BaseEntity? right) => !(left == right);
 }

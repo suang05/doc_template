@@ -2,6 +2,7 @@ using FluentAssertions;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
+using SmkDoc.Domain.ValueObjects;
 using Xunit;
 
 namespace SmkDoc.Tests.Domain.Entities;
@@ -117,7 +118,7 @@ public class DomainInvariantTests
     [Fact]
     public void ApiKey_Constructor_WithEmptyProjectId_ThrowsDomainValidationException()
     {
-        var act = () => new ApiKey(Guid.Empty, "Key", "app", "hash", null);
+        var act = () => ApiKey.Issue(Guid.Empty, ApiKeyName.Create("Key"), "app", new Sha256Hash(new string('a', 64)), ExpirationPolicy.Never, DateTimeOffset.UtcNow);
         act.Should().Throw<DomainValidationException>()
             .WithMessage("*ProjectId cannot be empty*");
     }

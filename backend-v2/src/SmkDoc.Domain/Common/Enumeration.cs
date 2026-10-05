@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
+using SmkDoc.Domain.Exceptions;
 
 namespace SmkDoc.Domain.Common;
 
@@ -56,7 +57,7 @@ public abstract class Enumeration(int id, string name) : IComparable
             return matchingItem;
         }
 
-        throw new InvalidOperationException($"'{value}' is not a valid value in {typeof(T)}");
+        throw new DomainValidationException($"'{value}' is not a valid value in {typeof(T).Name}");
     }
 
     public static T FromDisplayName<T>(string displayName) where T : Enumeration
@@ -66,7 +67,7 @@ public abstract class Enumeration(int id, string name) : IComparable
             return matchingItem;
         }
 
-        throw new InvalidOperationException($"'{displayName}' is not a valid display name in {typeof(T)}");
+        throw new DomainValidationException($"'{displayName}' is not a valid display name in {typeof(T).Name}");
     }
 
     public static bool TryFromValue<T>(int value, [NotNullWhen(true)] out T? result) where T : Enumeration
@@ -86,4 +87,3 @@ public abstract class Enumeration(int id, string name) : IComparable
         return false;
     }
 }
-

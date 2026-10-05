@@ -23,7 +23,7 @@ public class EntityEncapsulationTests
         actMutateTemplates.Should().Throw<NotSupportedException>();
 
         Action actMutateApiKeys = () => ((IList<ApiKey>)project.ApiKeys).Add(
-            new ApiKey(project.Id, "Key", "App", "hash", null));
+            ApiKey.Issue(project.Id, ApiKeyName.Create("Key"), "App", new Sha256Hash(new string('a', 64)), ExpirationPolicy.Never, DateTimeOffset.UtcNow));
         actMutateApiKeys.Should().Throw<NotSupportedException>();
 
         Action actMutateUserRoles = () => ((IList<UserProjectRole>)project.UserRoles).Add(

@@ -1,3 +1,4 @@
+using SmkDoc.Domain.Common;
 using SmkDoc.Domain.Exceptions;
 
 namespace SmkDoc.Domain.Entities;

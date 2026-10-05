@@ -180,9 +180,15 @@ public class AppDbContext : DbContext
         {
             entity.ToTable("api_keys");
             entity.HasKey(e => e.Id);
-            entity.Property(e => e.Name).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.Name).IsRequired().HasMaxLength(100)
+                  .HasConversion(v => v.Value, v => ApiKeyName.Create(v));
             entity.Property(e => e.CallerApp).IsRequired().HasMaxLength(50);
-            entity.Property(e => e.KeyHash).IsRequired().HasMaxLength(255);
+            entity.Property(e => e.KeyHash).IsRequired().HasMaxLength(255)
+                  .HasConversion(v => v.Value, v => new Sha256Hash(v));
+            entity.Property(e => e.Expiration)
+                  .HasColumnName("expires_at")
+                  .HasConversion(v => v.ExpiresAt, v => ExpirationPolicy.FromExisting(v));
+            entity.Ignore(e => e.IsRevoked);
             entity.Property(e => e.IsActive).HasDefaultValue(true);
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("NOW()");
         });

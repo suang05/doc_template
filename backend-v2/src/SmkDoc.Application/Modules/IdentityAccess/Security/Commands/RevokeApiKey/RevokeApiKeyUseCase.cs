@@ -7,10 +7,12 @@ namespace SmkDoc.Application.Modules.IdentityAccess.Security.Commands.RevokeApiK
 
 public sealed class RevokeApiKeyUseCase(
     IApiKeyRepository apiKeyRepo,
-    IUnitOfWork unitOfWork) : IUseCase<RevokeApiKeyCommand>
+    IUnitOfWork unitOfWork,
+    TimeProvider? timeProvider = null) : IUseCase<RevokeApiKeyCommand>
 {
     private readonly IApiKeyRepository _apiKeyRepo = apiKeyRepo;
     private readonly IUnitOfWork _unitOfWork = unitOfWork;
+    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
 
     public async Task ExecuteAsync(RevokeApiKeyCommand command, CancellationToken ct = default)
     {
@@ -22,7 +24,7 @@ public sealed class RevokeApiKeyUseCase(
         var key = await _apiKeyRepo.GetByIdAsync(command.Id, command.ProjectId, ct)
             ?? throw new NotFoundException($"API Key '{command.Id}' not found.");
 
-        key.Revoke();
+        key.Revoke(_timeProvider.GetUtcNow());
         _apiKeyRepo.Update(key);
         await _unitOfWork.CommitAsync(ct);
     }

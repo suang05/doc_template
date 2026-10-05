@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects;
 
 namespace SmkDoc.Infrastructure.Persistence.Repositories;
 
@@ -18,7 +19,7 @@ public sealed class ApiKeyRepository(AppDbContext context) : IApiKeyRepository
         return await _context.ApiKeys.FirstOrDefaultAsync(k => k.Id == id && k.ProjectId == projectId, ct);
     }
 
-    public async Task<ApiKey?> GetByKeyHashAsync(string keyHash, CancellationToken ct = default)
+    public async Task<ApiKey?> GetByKeyHashAsync(Sha256Hash keyHash, CancellationToken ct = default)
     {
         return await _context.ApiKeys.FirstOrDefaultAsync(k => k.KeyHash == keyHash && k.IsActive, ct);
     }
@@ -29,6 +30,11 @@ public sealed class ApiKeyRepository(AppDbContext context) : IApiKeyRepository
             .Where(k => k.ProjectId == projectId)
             .OrderByDescending(k => k.CreatedAt)
             .ToListAsync(ct);
+    }
+
+    public async Task<bool> ExistsByNameAsync(Guid projectId, ApiKeyName name, CancellationToken ct = default)
+    {
+        return await _context.ApiKeys.AnyAsync(k => k.ProjectId == projectId && k.Name == name, ct);
     }
 
     public async Task AddAsync(ApiKey key, CancellationToken ct = default)

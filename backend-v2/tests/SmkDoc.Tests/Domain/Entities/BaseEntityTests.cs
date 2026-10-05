@@ -1,4 +1,5 @@
 using FluentAssertions;
+using SmkDoc.Domain.Common;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using Xunit;
@@ -21,9 +22,6 @@ public class BaseEntityTests
         entity2.Id.Should().NotBe(Guid.Empty);
         entity1.Id.Should().NotBe(entity2.Id);
 
-        // In UUIDv7, version field in byte 6 is 0x70
-        var bytes = entity1.Id.ToByteArray();
-        var version = (bytes[7] >> 4) & 0x0F; // Big-endian representation of time_hi_and_version
         // Validate that Guid is created and valid
         entity1.Id.ToString().Length.Should().Be(36);
     }
@@ -62,15 +60,17 @@ public class BaseEntityTests
     }
 
     [Fact]
-    public void BaseEntity_SetAuditTimestampsForTesting_SetsCreatedAtAndUpdatedAt()
+    public void BaseEntity_EqualsAndOperators_CompareByIdAndType()
     {
-        var template = new Template(Guid.NewGuid(), "Audit Test", "audit-test");
-        var fixedCreatedAt = new DateTimeOffset(2026, 1, 15, 8, 30, 0, TimeSpan.Zero);
-        var fixedUpdatedAt = new DateTimeOffset(2026, 1, 16, 9, 0, 0, TimeSpan.Zero);
+        var id = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+        var t1 = new Template(projectId, "T1", "t1", id: id);
+        var t2 = new Template(projectId, "T2", "t2", id: id);
+        var other = new Template(projectId, "T3", "t3", id: Guid.NewGuid());
 
-        template.SetAuditTimestampsForTesting(fixedCreatedAt, fixedUpdatedAt);
-
-        template.CreatedAt.Should().Be(fixedCreatedAt);
-        template.UpdatedAt.Should().Be(fixedUpdatedAt);
+        t1.Should().Be(t2);
+        (t1 == t2).Should().BeTrue();
+        (t1 != other).Should().BeTrue();
+        t1.GetHashCode().Should().Be(t2.GetHashCode());
     }
 }

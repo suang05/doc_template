@@ -26,6 +26,22 @@ public class EnumerationTests
     }
 
     [Fact]
+    public void Enumeration_FromValue_InvalidValue_ThrowsDomainValidationException()
+    {
+        var act = () => TemplateFormat.FromValue<TemplateFormat>(9999);
+        act.Should().Throw<SmkDoc.Domain.Exceptions.DomainValidationException>()
+            .WithMessage("*'9999' is not a valid value*");
+    }
+
+    [Fact]
+    public void Enumeration_FromDisplayName_InvalidName_ThrowsDomainValidationException()
+    {
+        var act = () => TemplateFormat.FromDisplayName<TemplateFormat>("invalid_name");
+        act.Should().Throw<SmkDoc.Domain.Exceptions.DomainValidationException>()
+            .WithMessage("*'invalid_name' is not a valid display name*");
+    }
+
+    [Fact]
     public void Enumeration_TryFromValue_WorksCorrectly()
     {
         var found = TemplateFormat.TryFromValue<TemplateFormat>(2, out var result);

@@ -36,7 +36,7 @@ public class ApiKeyUseCaseTests
         result.Should().NotBeNull();
         result.PlainTextKey.Should().StartWith("smk_sales_");
         capturedKey.Should().NotBeNull();
-        capturedKey!.KeyHash.Should().Be(ApiKeyHelper.ComputeHash(result.PlainTextKey));
+        capturedKey!.KeyHash.Value.Should().Be(ApiKeyHelper.ComputeHash(result.PlainTextKey));
         mockUow.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 }
