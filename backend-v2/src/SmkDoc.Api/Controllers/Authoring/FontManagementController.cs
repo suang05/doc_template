@@ -5,6 +5,7 @@ using SmkDoc.Api.Contracts.Authoring.Fonts;
 using SmkDoc.Application.Modules.Authoring.Fonts;
 using SmkDoc.Application.Modules.Authoring.Fonts.Commands.UploadFont;
 using SmkDoc.Application.Modules.Authoring.Fonts.Queries.ListFonts;
+using SmkDoc.Domain.Exceptions;
 
 namespace SmkDoc.Api.Controllers.Authoring;
 
@@ -31,15 +32,15 @@ public class FontManagementController(
     /// <summary>Upload a new font file (.ttf, .otf). Max 10 MB.</summary>
     [HttpPost]
     [RequestSizeLimit(10 * 1024 * 1024)]
-    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<UploadFontResponse>), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> UploadFont(IFormFile file, CancellationToken ct)
     {
         if (file is not { Length: > 0 })
-            return BadRequest(new ApiResponse<object>(new { error = "File is required." }));
+            throw new DomainValidationException("Font file is required and must not be empty.");
 
         using var stream = file.OpenReadStream();
         var fontName = await uploadFontUseCase.ExecuteAsync(new UploadFontCommand(stream, file.FileName, file.ContentType), ct);
-        return Ok(new ApiResponse<UploadFontResponse>(new UploadFontResponse("Font uploaded successfully.", fontName)));
+        return StatusCode(StatusCodes.Status201Created, new ApiResponse<UploadFontResponse>(new UploadFontResponse("Font uploaded successfully.", fontName)));
     }
 }

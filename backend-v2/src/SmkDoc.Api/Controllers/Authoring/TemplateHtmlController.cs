@@ -3,6 +3,7 @@ using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.Contracts.Authoring.Templates;
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Application.Modules.Authoring.Templates;
+using SmkDoc.Application.Modules.Authoring.Templates.Commands.SaveTemplateHtml;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.ValidateTemplateHtml;
 
 namespace SmkDoc.Api.Controllers.Authoring;
@@ -54,7 +55,7 @@ public class TemplateHtmlController(
         [FromBody] SaveHtmlRequest request,
         CancellationToken ct)
     {
-        var command = new Application.Modules.Authoring.Templates.Commands.SaveTemplateHtml.SaveTemplateHtmlCommand(request.Html, request.SamplePayload, request.ChangeNote);
+        var command = new SaveTemplateHtmlCommand(request.Html, request.SamplePayload, request.ChangeNote);
         int newVersion = await htmlPersistenceUseCase.SaveHtmlVersionAsync(id, command, ct);
         return Ok(new ApiResponse<SaveHtmlResponse>(new SaveHtmlResponse(newVersion)));
     }

@@ -193,7 +193,144 @@
    - Controllers MUST use Declarative Authorization (`[Authorize(Roles = "Admin")]` or policies) rather than imperative in-method checks (`User.RequireAdmin()`).
    - Mutation endpoints that create resources MUST return `201 Created` with `ApiResponse<T>` and a valid `Location` header pointing to the single-resource endpoint.
 
-### 2.6 🧪 Unit Testing Standards & Anti-Bloat Patterns
+### 2.6 🎮 Presentation Layer & Controller Standards (`SmkDoc.Api`)
+
+Controllers in `SmkDoc.Api/Controllers` are thin HTTP facades that bridge HTTP requests to Application UseCases. All controllers MUST strictly adhere to the **8 Controller Golden Rules**:
+
+```
+                                  HTTP Request
+                                       │
+                      ┌────────────────┴────────────────┐
+                      ▼                                 ▼
+             Channel A: M2M                     Channel B: Portal
+          Header: X-API-Key                  Header: Bearer <JWT>
+         (ApiKeyMiddleware)                 ([Authorize] / RBAC)
+                      │                                 │
+                      └────────────────┬────────────────┘
+                                       ▼
+                   ┌─────────────────────────────────────────┐
+                   │        ApiController (Thin Facade)      │
+                   │  - C# 12 Primary Constructor DI ONLY    │
+                   │  - Injects IUseCase<TReq, TRes> Only    │
+                   │  - Route: api/v1/[management/]resource  │
+                   │  - Validates [ProducesResponseType]     │
+                   └───────────────────┬─────────────────────┘
+                                       │
+                    Executes Command / Query via UseCase
+                                       │
+                                       ▼
+                   ┌─────────────────────────────────────────┐
+                   │             Response Formats            │
+                   │  • JSON Data: ApiResponse<T> (200 / 201)│
+                   │  • Mutations without body: 204 NoContent│
+                   │  • Binary/Stream: File / Content (Raw)  │
+                   │  • Errors: Handled by ExceptionFilter   │
+                   └─────────────────────────────────────────┘
+```
+
+#### 1. Thin Orchestrator Only (Zero Business Logic)
+- Controllers translate HTTP requests (headers, route parameters, query strings, body) into Application Commands/Queries, pass them to a **single dedicated UseCase**, and translate the result into HTTP responses.
+- **NEVER** inject `AppDbContext`, repositories (`IRepository`), domain entities, or domain/infrastructure services (e.g. `ITemplateScannerService`) directly into controllers. Inject only UseCases (`*UseCase`).
+
+#### 2. Strict Route Versioning & Prefixes
+- **External / M2M Routes:** MUST use `api/v1/{resource}` (e.g. `api/v1/documents`, `api/v1/templates`).
+- **Portal Management Routes:** MUST use `api/v1/management/projects/{projectId:guid}/{resource}` or `api/v1/management/settings/...`.
+- **Ban Dual-Routing on Canonical Endpoints:** Never decorate controllers with both `[Route("api/v1/x")]` and `[Route("api/x")]`. Legacy compatibility routes must be placed in explicit backward-compatibility redirect middleware or deprecated legacy adapters.
+
+#### 3. Canonical Response Envelope Policy
+- **JSON Data:** MUST always be wrapped in `ApiResponse<T>(T Data)` or `PagedApiResponse<T>(IEnumerable<T> Data, int Total, int Page, int Limit)`.
+- **Binary & Media Streams:** Raw PDF, DOCX, XLSX, or HTML streams (`FileResult`, `ContentResult`) MUST return the direct binary stream with proper MIME headers (`application/pdf`, `Content-Disposition: inline`) and **NEVER** be wrapped in JSON envelopes.
+- **Strictly BAN Anonymous Return Objects:** Never return anonymous objects (`return Ok(new { success = true });`, `return Ok(new { id = result.Id });`). Always return strongly-typed DTOs wrapped in `ApiResponse<T>` or `204 NoContent`.
+
+#### 4. Deterministic HTTP Status Codes for Mutations
+| Action Type | HTTP Status | Response Payload |
+|---|---|---|
+| **Resource Creation** | `201 Created` / `CreatedAtAction(...)` | `ApiResponse<TDto>` |
+| **Idempotent Update (Data returned)** | `200 OK` | `ApiResponse<TDto>` |
+| **Idempotent Update / State Change (No body)** | `204 NoContent` | *None* |
+| **Deletion / Revocation** | `204 NoContent` | *None* |
+| **Read / Query / RPC Execution** | `200 OK` | `ApiResponse<TResultDto>` |
+| **Stateless Stream Render / Preview** | `200 OK` | Stream (`application/pdf`) |
+
+#### 5. Declarative Security & Dual-Channel Authorization
+- All Portal endpoints MUST be guarded by declarative attributes:
+  - `[Authorize]` at controller level for authenticated users.
+  - `[Authorize(Roles = "Admin")]` for administrative actions.
+- Machine-to-Machine (M2M) controllers (e.g., `DocumentController`, `TemplateController`) must be clearly documented with XML doc comments specifying authentication channel (`X-API-Key via ApiKeyMiddleware`), and tenant isolation verified from `IExecutionContext`.
+
+#### 6. Zero try-catch & RFC 7807 Error Delegation
+- Controllers MUST NOT contain `try-catch` blocks.
+- Controllers MUST NOT return ad-hoc error shapes like `BadRequest(new { error = "..." })`.
+- All errors must be thrown as strongly-typed `DomainException` or validated by FluentValidation/ModelBinding, allowing `GlobalExceptionFilter` to emit uniform RFC 7807 Problem Details.
+
+#### 7. Complete OpenAPI & Swagger Documentation
+- Every endpoint MUST define XML doc `<summary>` explaining the business intent.
+- Every endpoint MUST declare explicit `[ProducesResponseType]` for all expected status codes (e.g. 200/201, 204, 400, 401, 403, 404, 409).
+
+#### 8. Canonical Controller Reference Example
+```csharp
+namespace SmkDoc.Api.Controllers.IdentityAccess;
+
+/// <summary>
+/// Project user lifecycle management within a tenant project.
+/// Auth: Channel B (Bearer JWT) — Admin role required for mutations.
+/// </summary>
+[ApiController]
+[Route("api/v1/management/projects/{projectId:guid}/users")]
+[Authorize]
+[ProducesResponseType(StatusCodes.Status401Unauthorized)]
+public class UserManagementController(
+    ListProjectUsersUseCase listUsersUseCase,
+    InviteUserUseCase inviteUserUseCase,
+    RemoveUserUseCase removeUserUseCase) : ControllerBase
+{
+    /// <summary>List all users belonging to the specified project.</summary>
+    [HttpGet]
+    [ProducesResponseType(typeof(ApiResponse<IEnumerable<UserResultDto>>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> List([FromRoute] Guid projectId, CancellationToken ct)
+    {
+        var users = await listUsersUseCase.ExecuteAsync(new ListProjectUsersQuery(projectId), ct);
+        return Ok(new ApiResponse<IEnumerable<UserResultDto>>(users));
+    }
+
+    /// <summary>Invite a new user to the project. Admin only.</summary>
+    [HttpPost]
+    [Authorize(Roles = "Admin")]
+    [ProducesResponseType(typeof(ApiResponse<UserResultDto>), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> AddUser(
+        [FromRoute] Guid projectId,
+        [FromBody] InviteUserRequest req,
+        CancellationToken ct)
+    {
+        var command = new InviteUserCommand(projectId, req.Email, req.Password, req.FirstName, req.LastName, req.Role);
+        var user = await inviteUserUseCase.ExecuteAsync(command, ct);
+        return StatusCode(StatusCodes.Status201Created, new ApiResponse<UserResultDto>(user));
+    }
+
+    /// <summary>Remove a user from the project. Admin only.</summary>
+    [HttpDelete("{userId:guid}")]
+    [Authorize(Roles = "Admin")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> Remove(
+        [FromRoute] Guid projectId,
+        [FromRoute] Guid userId,
+        CancellationToken ct)
+    {
+        var currentUserId = User.GetUserId();
+        await removeUserUseCase.ExecuteAsync(new RemoveUserCommand(projectId, userId, currentUserId), ct);
+        return NoContent();
+    }
+}
+```
+
+---
+
+### 2.7 🧪 Unit Testing Standards & Anti-Bloat Patterns
 
 To keep test suites maintainable, fast, and resilient to refactoring:
 

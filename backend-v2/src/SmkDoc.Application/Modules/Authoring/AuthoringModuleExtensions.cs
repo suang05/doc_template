@@ -22,6 +22,7 @@ using SmkDoc.Application.Modules.Authoring.Templates.Queries.ListTemplates;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.ListTemplateVersions;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.PreviewTemplateDraft;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.ScanTemplatePlaceholders;
+using SmkDoc.Application.Modules.Authoring.Templates.Queries.ScanUploadedTemplate;
 
 namespace SmkDoc.Application.Modules.Authoring;
 
@@ -42,6 +43,7 @@ public static class AuthoringModuleExtensions
         services.AddScoped<ListTemplateVersionsUseCase>();
         services.AddScoped<DownloadTemplateUseCase>();
         services.AddScoped<ScanTemplatePlaceholdersUseCase>();
+        services.AddScoped<ScanUploadedTemplateUseCase>();
 
         // Monaco Studio & Draft Pipeline (Action-Centric Vertical Slice)
         services.AddScoped<IHtmlStudioUseCase, HtmlStudioUseCase>();

@@ -4,6 +4,7 @@ using SmkDoc.Api.Contracts.Authoring.Templates;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.CommitTemplateDraft;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.ParseTemplateDraft;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.PreviewTemplateDraft;
+using SmkDoc.Domain.Exceptions;
 
 namespace SmkDoc.Api.Controllers.Authoring;
 
@@ -30,7 +31,7 @@ public class TemplateDraftController(
     public async Task<IActionResult> ParseDraft(IFormFile file, CancellationToken ct)
     {
         if (file is not { Length: > 0 })
-            return BadRequest(new ApiResponse<object>(new { error = "File is required." }));
+            throw new DomainValidationException("File is required and must not be empty.");
 
         using var stream = file.OpenReadStream();
         var result = await parseUseCase.ExecuteAsync(new ParseTemplateDraftCommand(stream, file.FileName), ct);
@@ -61,7 +62,9 @@ public class TemplateDraftController(
     /// Returns HTTP 410 if draft has expired from cache.
     /// </summary>
     [HttpPost("{draftId}/commit")]
-    [ProducesResponseType(typeof(ApiResponse<CommitDraftResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<CommitDraftResponse>), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
     [ProducesResponseType(StatusCodes.Status410Gone)]
     public async Task<IActionResult> CommitDraft(
         [FromRoute] string draftId,
@@ -71,6 +74,6 @@ public class TemplateDraftController(
         var commandPayload = new CommitDraftCommand(request.Name, request.Slug, request.Category, request.Mappings,
             request.ProjectId);
         var templateId = await commitUseCase.ExecuteAsync(new CommitTemplateDraftCommand(draftId, commandPayload), ct);
-        return Ok(new ApiResponse<CommitDraftResponse>(new CommitDraftResponse(Guid.Parse(templateId))));
+        return StatusCode(StatusCodes.Status201Created, new ApiResponse<CommitDraftResponse>(new CommitDraftResponse(Guid.Parse(templateId))));
     }
 }

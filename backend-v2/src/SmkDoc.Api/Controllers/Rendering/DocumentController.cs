@@ -12,9 +12,14 @@ using System.Text.Json;
 
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.ValidateTemplatePayload;
+using SmkDoc.Domain.Exceptions;
 
-namespace SmkDoc.Api.Controllers;
+namespace SmkDoc.Api.Controllers.Rendering;
 
+/// <summary>
+/// Core document rendering, generation, validation, and version retrieval endpoints.
+/// Auth: Channel A (X-API-Key via ApiKeyMiddleware). Ephemeral preview is stateless.
+/// </summary>
 [ApiController]
 [Route("api/v1/documents")]
 [Route("api/documents")]
@@ -25,7 +30,7 @@ public class DocumentController(
     DownloadDocumentVersionUseCase downloadVersionUseCase,
     GetLogDownloadUrlUseCase getLogDownloadUrlUseCase,
     RenderStatelessDocumentUseCase renderStatelessUseCase,
-    ValidateTemplatePayloadUseCase payloadValidator) : ControllerBase
+    ValidateTemplatePayloadUseCase validatePayloadUseCase) : ControllerBase
 {
     /// <summary>
     /// Generate a document from template slug and input JSON data
@@ -53,7 +58,7 @@ public class DocumentController(
         CancellationToken ct)
     {
         var query = new ValidateTemplatePayloadQuery(slug, data);
-        var result = await payloadValidator.ExecuteAsync(query, ct);
+        var result = await validatePayloadUseCase.ExecuteAsync(query, ct);
         return result.Valid 
             ? Ok(new ApiResponse<ValidateTemplatePayloadResult>(result)) 
             : BadRequest(new ApiResponse<ValidateTemplatePayloadResult>(result));
@@ -94,12 +99,14 @@ public class DocumentController(
         return File(result.Stream, result.ContentType, result.FileName);
     }
 
+    /// <summary>Get pre-signed download URL for a generated document.</summary>
     [HttpGet("download/{logId:guid}")]
-    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<DownloadUrlResponseDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> DownloadByLogId([FromRoute] Guid logId, CancellationToken ct)
     {
         var url = await getLogDownloadUrlUseCase.ExecuteAsync(new GetLogDownloadUrlQuery(logId), ct);
-        return Ok(new ApiResponse<object>(new { url, expiresInSeconds = 3600 }));
+        return Ok(new ApiResponse<DownloadUrlResponseDto>(new DownloadUrlResponseDto(url, 3600)));
     }
 
     /// <summary>
@@ -109,11 +116,13 @@ public class DocumentController(
     [HttpPost("render/stateless")]
     [Produces("application/pdf")]
     [Consumes("multipart/form-data")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> RenderStatelessPdf(IFormFile file, [FromForm] string? jsonData, CancellationToken ct)
     {
         if (file == null || file.Length == 0)
         {
-            return BadRequest(new ApiResponse<object>(new { error = "File is required." }));
+            throw new DomainValidationException("File is required and must not be empty.");
         }
 
         var stream = file.OpenReadStream();

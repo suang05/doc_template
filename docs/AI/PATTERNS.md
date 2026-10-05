@@ -32,8 +32,17 @@
 [ProducesResponseType(typeof(ApiResponse<TemplateDto>), StatusCodes.Status200OK)]
 public async Task<IActionResult> GetById([FromRoute] Guid id, CancellationToken ct)
 {
-    var dto = await _templateUseCase.GetByIdAsync(id, ct);
+    var dto = await getTemplateByIdUseCase.ExecuteAsync(new GetTemplateByIdQuery(id), ct);
     return Ok(new ApiResponse<TemplateDto>(dto));
+}
+
+// ✅ CORRECT — Creation Endpoint with 201 Created
+[HttpPost]
+[ProducesResponseType(typeof(ApiResponse<TemplateResponseDto>), StatusCodes.Status201Created)]
+public async Task<IActionResult> Create([FromBody] CreateTemplateRequest req, CancellationToken ct)
+{
+    var result = await createTemplateUseCase.ExecuteAsync(new CreateTemplateCommand(req.Name, req.Slug), ct);
+    return CreatedAtAction(nameof(GetById), new { id = result.Id }, new ApiResponse<TemplateResponseDto>(result));
 }
 
 // ✅ CORRECT — Use Case with C# 12 Primary Constructor, sealed class & IUseCase<TReq, TRes>
@@ -45,36 +54,46 @@ public sealed class UpdateTemplateDetailsUseCase(
     // โค้ด UseCase เริ่มทำงานได้ทันที โดยไม่มี boilerplate fields/constructors
 }
 
-// ❌ WRONG — Business logic ใน Controller
+// ❌ WRONG — Business logic หรือ Service/Repo ใน Controller
 [HttpGet("{id:guid}")]
 public async Task<IActionResult> GetById(Guid id)
 {
-    var template = await _templateRepo.GetByIdAsync(id); // ห้าม inject IRepository ใน Controller
+    var template = await _templateRepo.GetByIdAsync(id); // ❌ ห้าม inject IRepository หรือ Service ใน Controller
     if (template == null) return NotFound();
-    return Ok(template); // ห้าม return Entity โดยตรง
+    return Ok(template); // ❌ ห้าม return Entity โดยตรง
 }
 ```
 
 ### 1.2 API Envelope Pattern
 
-**ทุก** HTTP 200 Response ต้องห่อด้วย `ApiResponse<T>` หรือ `ApiPagedResponse<T>` เสมอ:
-
+1. **ทุก JSON Response ต้องห่อด้วย `ApiResponse<T>` หรือ `PagedApiResponse<T>` เสมอ:**
 ```csharp
 // ✅ Success (single object)
 return Ok(new ApiResponse<TemplateDto>(dto));
+
+// ✅ Success (created single object — 201 Created)
+return StatusCode(StatusCodes.Status201Created, new ApiResponse<TemplateDto>(dto));
 
 // ✅ Success (list)
 return Ok(new ApiResponse<IEnumerable<TemplateDto>>(dtos));
 
 // ✅ Success (paginated)
-return Ok(new ApiPagedResponse<TemplateDto>(items, total, page, pageSize));
+return Ok(new PagedApiResponse<TemplateDto>(items, total, page, limit));
 
 // ✅ Mutation without body
 return NoContent();  // HTTP 204
 
 // ❌ NEVER
-return Ok(new { success = true });
-return Ok(entity);   // Domain Entity ห้ามออกจาก API layer
+return Ok(new { success = true }); // ❌ Anonymous object
+return Ok(entity);   // ❌ Domain Entity ห้ามออกจาก API layer
+```
+
+2. **ข้อยกเว้นสำหรับ Binary / Media Stream:**
+เมื่อส่งออกไฟล์ PDF, Excel, Word หรือ Raw HTML (`application/pdf`, `text/html`) **ต้องคืน Stream ดิบโดยตรง ไม่ต้องครอบด้วย `ApiResponse<T>`**:
+```csharp
+// ✅ Stream Direct Delivery
+Response.Headers.ContentDisposition = "inline";
+return File(pdfStream, "application/pdf");
 ```
 
 ### 1.3 Global Exception Handling (RFC 7807 & DomainException)

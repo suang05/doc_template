@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Contracts.IdentityAccess.ApiKeys;
 using SmkDoc.Application.Common.Interfaces;
@@ -7,8 +8,15 @@ using SmkDoc.Application.Modules.IdentityAccess.Security.Queries.ListApiKeys;
 
 namespace SmkDoc.Api.Controllers.IdentityAccess;
 
+/// <summary>
+/// Flat API Key management endpoints for legacy Portal UI compatibility.
+/// Canonical multi-tenant endpoints are in <see cref="ApiKeyManagementController"/>.
+/// Auth: Channel B (Bearer JWT).
+/// </summary>
 [ApiController]
 [Route("api/api-keys")]
+[Authorize]
+[ProducesResponseType(StatusCodes.Status401Unauthorized)]
 public class ApiKeyController(
     ListApiKeysUseCase listApiKeysUseCase,
     CreateApiKeyUseCase createApiKeyUseCase,

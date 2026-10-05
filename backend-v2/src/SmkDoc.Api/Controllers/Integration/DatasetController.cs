@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.Contracts.Integration.Datasets;
@@ -10,8 +11,15 @@ using SmkDoc.Application.Modules.Integration.Datasets.Queries.ListDatasets;
 
 namespace SmkDoc.Api.Controllers.Integration;
 
+/// <summary>
+/// SQL dataset definitions for query execution and template data binding.
+/// Auth: Channel B (Bearer JWT).
+/// </summary>
 [ApiController]
+[Route("api/v1/datasets")]
 [Route("api/datasets")]
+[Authorize]
+[ProducesResponseType(StatusCodes.Status401Unauthorized)]
 public class DatasetController(
     ListDatasetsUseCase listUseCase,
     GetDatasetByIdUseCase getByIdUseCase,
@@ -19,6 +27,7 @@ public class DatasetController(
     UpdateDatasetUseCase updateUseCase,
     DeleteDatasetUseCase deleteUseCase) : ControllerBase
 {
+    /// <summary>List all configured SQL datasets.</summary>
     [HttpGet]
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<DatasetDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetAll(CancellationToken ct)

@@ -9,20 +9,34 @@ const BACKEND_INTERNAL_URL =
   process.env.API_INTERNAL_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
 interface BackendLoginResponse {
-  token: string;
+  token?: string;
+  accessToken?: string;
+  data?: {
+    token?: string;
+    accessToken?: string;
+  };
 }
 
 async function loginAgainstBackend(email: string, password: string): Promise<string | null> {
-  const res = await fetch(`${BACKEND_INTERNAL_URL}/api/auth/login`, {
+  const res = await fetch(`${BACKEND_INTERNAL_URL}/api/v1/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password }),
-  });
+  }).catch(() => null);
 
-  if (!res.ok) return null;
+  // Fallback to /api/auth/login if /api/v1/auth/login fails with 404
+  const finalRes = res && res.status !== 404
+    ? res
+    : await fetch(`${BACKEND_INTERNAL_URL}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
 
-  const data = (await res.json()) as BackendLoginResponse;
-  return data.token;
+  if (!finalRes.ok) return null;
+
+  const data = (await finalRes.json()) as BackendLoginResponse;
+  return data.data?.token || data.data?.accessToken || data.token || data.accessToken || null;
 }
 
 const nextAuth = NextAuth({

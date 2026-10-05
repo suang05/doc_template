@@ -43,7 +43,15 @@ Preserve these core invariants over legacy systems at all times:
   - Repositories return Entities / `IReadOnlyList<T>` only — no `IQueryable`, no DTOs, tenant lookups take `projectId` (AP-025)
 - **Application (`SmkDoc.Application`):** UseCases and Interfaces. Returns **Application DTOs ONLY** (never expose Domain entities). No direct `AppDbContext` or Gotenberg references.
 - **Infrastructure (`SmkDoc.Infrastructure`):** Implements Application interfaces (EF Core, Repositories, Gotenberg, MinIO, OpenXml).
-- **Presentation (`SmkDoc.Api`):** Controllers translate HTTP ↔ Application DTOs (`ApiResponse<T>`). Controllers MUST use C# 12 Primary Constructors for DI, Declarative RBAC (`[Authorize(Roles = '...')]`), and return `201 Created` on resource creation. No direct DB access.
+- **Presentation (`SmkDoc.Api`):** Thin HTTP facade orchestrating Application UseCases. Must strictly enforce the **8 Controller Golden Rules** (see [CODING_CONVENTIONS.md §2.6](docs/AI/CODING_CONVENTIONS.md)):
+  1. *Thin Orchestrators Only:* Inject only UseCases (`*UseCase`) via C# 12 Primary Constructors. No direct DbContext, Repositories, or domain/infrastructure services.
+  2. *Strict Route Prefixes:* `api/v1/{resource}` for M2M, `api/v1/management/projects/{projectId:guid}/{resource}` for Portal management. Zero unversioned or duplicate dual routes on canonical endpoints.
+  3. *Envelope Policy:* Standard JSON data MUST be wrapped in `ApiResponse<T>` or `PagedApiResponse<T>`. Binary streams (`application/pdf`, `text/html`) MUST return raw streams without JSON envelope. **Never return anonymous types** (`new { success = true }` or `new { id }`).
+  4. *Deterministic Status Codes:* `201 Created` / `CreatedAtAction` for POST creation, `204 NoContent` for DELETE or mutations returning no body, `200 OK` for reads/executions.
+  5. *Declarative Security:* Explicit `[Authorize]` or `[Authorize(Roles = "...")]` at controller/action level for Portal endpoints; explicit XML docs for M2M `X-API-Key` channels.
+  6. *Zero try-catch & RFC 7807 Delegation:* Throw domain exceptions; let `GlobalExceptionFilter` emit RFC 7807 Problem Details. No custom `BadRequest(new { error = ... })`.
+  7. *OpenAPI Completeness:* Every action requires `<summary>` and complete `[ProducesResponseType]` (200/201, 204, 400, 401, 403, 404, 409).
+  8. *Matching Namespaces:* Namespaces must mirror folder structure (e.g. `SmkDoc.Api.Controllers.Rendering`).
 
 ---
 

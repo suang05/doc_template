@@ -3,6 +3,7 @@ using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.Contracts.Authoring.Schemas;
 using SmkDoc.Application.Modules.Authoring.Schemas;
 using SmkDoc.Application.Modules.Authoring.Schemas.DTOs;
+using SmkDoc.Domain.Exceptions;
 using System.Text.Json;
 
 namespace SmkDoc.Api.Controllers.Authoring;
@@ -31,11 +32,8 @@ public class SchemaController(ValidateStandaloneSchemaUseCase validateUseCase) :
             request.Schema.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null ||
             request.Payload.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null)
         {
-            return BadRequest(new ApiResponse<object>(new
-            {
-                code = "INVALID_REQUEST",
-                message = "Both 'schema' and 'payload' must be provided in the request body."
-            }));
+            throw new DomainValidationException(
+                "Both 'schema' and 'payload' must be provided in the request body.");
         }
 
         var command = new ValidateStandaloneSchemaCommand(request.Schema, request.Payload);

@@ -362,6 +362,94 @@ public async Task<IActionResult> RevokeKey([FromRoute] Guid projectId, [FromRout
 }
 ```
 
+### AP-031: ห้ามคืน Anonymous Objects หรือ Un-enveloped JSON จาก Controller (`new { success = true }`, `new { id }`)
+```csharp
+// ❌ WRONG — ทำลาย Contract schema ของ Client, Swagger ไม่รู้ type, ขาด Envelope มาตรฐาน
+return Ok(new { success = true });
+return Ok(new { keys });
+return Ok(new ApiResponse<object>(new { id = created.Id }));
+
+// ✅ CORRECT — ใช้ strongly-typed DTO ห่อด้วย ApiResponse<T> หรือตอบ 204 NoContent
+return Ok(new ApiResponse<TemplateResultDto>(result));
+// หรือหากไม่มี body ตอบกลับ:
+return NoContent();
+```
+
+### AP-032: ห้ามใช้ HTTP Status Code ผิดความหมาย (`200 OK` ในการสร้างหรือลบ Resource)
+```csharp
+// ❌ WRONG — POST สร้าง entity หรือ DELETE ลบ entity แต่ตอบ 200 OK
+[HttpPost]
+public async Task<IActionResult> Create(...) { return Ok(result); }
+
+[HttpDelete("{id:guid}")]
+public async Task<IActionResult> Delete(...) { return Ok(new { success = true }); }
+
+// ✅ CORRECT — ยึดตาม RFC 7231 REST Semantics
+[HttpPost]
+public async Task<IActionResult> Create(...)
+{
+    var result = await createUseCase.ExecuteAsync(command, ct);
+    return StatusCode(StatusCodes.Status201Created, new ApiResponse<TemplateResponseDto>(result));
+    // หรือ CreatedAtAction(...)
+}
+
+[HttpDelete("{id:guid}")]
+public async Task<IActionResult> Delete(...)
+{
+    await deleteUseCase.ExecuteAsync(command, ct);
+    return NoContent(); // 204 NoContent
+}
+```
+
+### AP-033: ห้ามฉีด Domain/Infrastructure Services เข้า Controller โดยตรง (Bypassing UseCases)
+```csharp
+// ❌ WRONG — Controller ทำงานข้าม Layer ไปเรียก Service ตรงๆ ฝ่าฝืน Clean Architecture DIP
+public class TemplateScanController(ITemplateScannerService scanner) : ControllerBase
+{
+    [HttpPost("scan-fields")]
+    public async Task<IActionResult> Scan(IFormFile file, CancellationToken ct)
+    {
+        var result = await scanner.ScanPlaceholdersAsync(stream, ext, ct);
+    }
+}
+
+// ✅ CORRECT — Controller ต้องคุยผ่าน UseCase เท่านั้น (1 Use Case = 1 Action)
+public class TemplateScanController(ScanUploadedTemplateUseCase scanUseCase) : ControllerBase
+{
+    [HttpPost("scan-fields")]
+    public async Task<IActionResult> Scan(IFormFile file, CancellationToken ct)
+    {
+        var result = await scanUseCase.ExecuteAsync(new ScanUploadedTemplateCommand(stream, ext), ct);
+        return Ok(new ApiResponse<ScanFieldsResponseDto>(result));
+    }
+}
+```
+
+### AP-034: ห้ามทำ Dual-Routing หรือ Route ที่ไม่มี Version บน Canonical Controller
+```csharp
+// ❌ WRONG — ติด attribute 2 เส้นทางบน Controller เดียวกัน ทำให้เกิด ambiguity และยากต่อการทำ API Governance
+[ApiController]
+[Route("api/v1/templates")]
+[Route("api/templates")] // ❌ Route เก่าปะปนกับ Route ใหม่
+public class TemplateController : ControllerBase { ... }
+
+// ✅ CORRECT — ใช้ Route มาตรฐานเวอร์ชันเดียวชัดเจน
+[ApiController]
+[Route("api/v1/templates")]
+public class TemplateController : ControllerBase { ... }
+```
+
+### AP-035: ห้ามสร้าง Ad-hoc Error Payloads ใน Controller (`BadRequest(new { error = ... })`)
+```csharp
+// ❌ WRONG — Controller ผลิต error schema เอง ทำให้ caller ได้ format ไม่ตรงกับ GlobalExceptionFilter
+if (file is not { Length: > 0 })
+    return BadRequest(new ApiResponse<object>(new { error = "File is required." }));
+
+// ✅ CORRECT — โยน Domain Exception หรือใช้ FluentValidation / Model Validation ปล่อยให้ GlobalExceptionFilter จัดการเป็น RFC 7807 Problem Details
+if (file is not { Length: > 0 })
+    throw new DomainValidationException("FILE_REQUIRED", "File must not be null or empty.");
+```
+
 ---
 
 ## 🟡 Frontend Anti-Patterns

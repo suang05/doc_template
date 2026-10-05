@@ -8,8 +8,53 @@
 | Route Category | Primary Auth Channel | Header Required | Target Controllers |
 |---|---|---|---|
 | **M2M Document Generation** | Channel A (API Key) | `X-API-Key: <key>` | `DocumentController`, `TemplateController` |
-| **Portal Administration** | Channel B (Bearer JWT) | `Authorization: Bearer <jwt>` | `UsersController`, `ApiKeyController`, `DataConnectionsController` |
-| **Public Endpoints** | Anonymous | None | `POST /api/auth/login`, `GET /health` |
+| **Portal Administration** | Channel B (Bearer JWT) | `Authorization: Bearer <jwt>` | `UserManagementController`, `ApiKeyManagementController`, `DataConnectionsController` |
+| **Public Endpoints** | Anonymous | None | `POST /api/v1/auth/login`, `GET /health` |
+
+---
+
+## 📦 Standard API Response Envelopes
+
+Every successful JSON API response MUST adhere to one of the following authoritative schemas:
+
+### 1. Single Resource Envelope (`ApiResponse<T>`)
+```json
+{
+  "data": {
+    "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+    "name": "Invoice Template",
+    "slug": "invoice"
+  }
+}
+```
+
+### 2. Paged Collection Envelope (`PagedApiResponse<T>`)
+```json
+{
+  "data": [
+    { "id": "3fa85f64-...", "name": "Item 1" },
+    { "id": "4fb96a75-...", "name": "Item 2" }
+  ],
+  "total": 42,
+  "page": 1,
+  "limit": 20
+}
+```
+
+### 3. Binary & Media Streams (No Envelope)
+Endpoints returning documents (`application/pdf`, `application/vnd.openxmlformats-officedocument...`) or raw markup (`text/html`) MUST return the direct binary stream with `Content-Disposition: inline` (preview) or `attachment; filename="..."` (download). **Zero JSON envelope wrapper.**
+
+### 4. Error Responses (RFC 7807 Problem Details)
+All error responses emitted by `GlobalExceptionFilter` follow RFC 7807:
+```json
+{
+  "type": "https://tools.ietf.org/html/rfc7807",
+  "title": "Resource Conflict",
+  "status": 409,
+  "detail": "Slug 'invoice' is already in use.",
+  "errorCode": "RESOURCE_CONFLICT"
+}
+```
 
 ---
 

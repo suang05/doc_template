@@ -31,7 +31,9 @@ public class TemplateMappingController(
 
     /// <summary>Save (replace-all) field mappings for a template.</summary>
     [HttpPut]
-    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> SaveMappings(
         [FromRoute] Guid id,
         [FromBody] List<SaveFieldMappingItemRequest> mappings,
@@ -41,7 +43,7 @@ public class TemplateMappingController(
             m.Placeholder, m.SourcePath, m.Label, m.Required, m.DefaultValue, m.Transform,
             m.SortOrder, m.DataSourceType, m.DatasetAlias, m.ResultPath, m.MathExpression)).ToList();
         await saveMappingsUseCase.ExecuteAsync(new SaveTemplateMappingsCommand(id, dtos), ct);
-        return Ok(new ApiResponse<object>(new { success = true }));
+        return NoContent();
     }
 
     /// <summary>
