@@ -5,7 +5,7 @@ using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Tests.Common.Factories;
 
-namespace SmkDoc.Tests.Application.Modules.Authoring.FieldMappings.Commands;
+namespace SmkDoc.Tests.Application.Modules.Authoring.FieldMappings.Commands.SaveTemplateMappings;
 
 public class SaveTemplateMappingsUseCaseTests
 {

@@ -1,30 +1,27 @@
 using System.Text.Json;
-using FluentAssertions;
-using Moq;
 using SmkDoc.Application.Common;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.Modules.Authoring.FieldMappings.Queries.PreviewMapping;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
+using SmkDoc.Application.Modules.Authoring.FieldMappings.Queries.PreviewMapping;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Tests.Common.Factories;
-using Xunit;
 
-namespace SmkDoc.Tests.Application.Modules.Authoring.FieldMappings;
+namespace SmkDoc.Tests.Application.Modules.Authoring.FieldMappings.Queries.PreviewMapping;
 
 public class PreviewMappingUseCaseTests
 {
-    private readonly Mock<ITemplateRepository>          _mockTemplateRepo    = new();
-    private readonly Mock<IRepository<TemplateVersion>> _mockVersionRepo     = new();
-    private readonly Mock<IDatasetRepository>           _mockDatasetRepo     = new();
-    private readonly Mock<IDataConnectionRepository>    _mockConnectionRepo  = new();
-    private readonly Mock<IStorageService>              _mockStorage         = new();
-    private readonly Mock<IRenderEngine>                _mockHtmlEngine      = new();
-    private readonly Mock<IFieldMappingApplicatorService> _mockApplicator    = new();
-    private readonly Mock<IDataProtectionService>       _mockDataProtection  = new();
+    private readonly Mock<ITemplateRepository> _mockTemplateRepo = new();
+    private readonly Mock<IRepository<TemplateVersion>> _mockVersionRepo = new();
+    private readonly Mock<IDatasetRepository> _mockDatasetRepo = new();
+    private readonly Mock<IDataConnectionRepository> _mockConnectionRepo = new();
+    private readonly Mock<IStorageService> _mockStorage = new();
+    private readonly Mock<IRenderEngine> _mockHtmlEngine = new();
+    private readonly Mock<IFieldMappingApplicatorService> _mockApplicator = new();
+    private readonly Mock<IDataProtectionService> _mockDataProtection = new();
 
     private PreviewMappingUseCase CreateUseCase()
     {
@@ -44,10 +41,10 @@ public class PreviewMappingUseCaseTests
     private Template SetupTemplate(Guid templateId, Guid versionId, RenderEngineType? engineType = null, IEnumerable<FieldMapping>? mappings = null)
     {
         engineType ??= RenderEngineType.Html;
-        TemplateFormat? format = engineType == RenderEngineType.Excel ? TemplateFormat.Xlsx : 
-                                 engineType == RenderEngineType.Docx ? TemplateFormat.Docx : TemplateFormat.Html;
+        var format = engineType == RenderEngineType.Excel ? TemplateFormat.Xlsx : 
+                     engineType == RenderEngineType.Docx ? TemplateFormat.Docx : TemplateFormat.Html;
 
-        var now = DateTimeOffset.UtcNow;
+        var now = TestConstants.BaselineTime;
         var template = TemplateTestFactory.Create(templateId, Guid.NewGuid(), "T", "sample-template");
         template.SetCurrentVersion(versionId, now);
         if (mappings != null)
@@ -60,7 +57,7 @@ public class PreviewMappingUseCaseTests
         _mockTemplateRepo.Setup(r => r.GetByIdAsync(templateId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
         _mockVersionRepo.Setup(r => r.GetByIdAsync(versionId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(TemplateVersionTestFactory.Create(versionId, templateId, 1, $"templates/sample-template.html", format, "Published", "Commit", now));
+            .ReturnsAsync(TemplateVersionTestFactory.Create(versionId, templateId, 1, "templates/sample-template.html", format, "Published", "Commit", now));
 
         return template;
     }
@@ -71,7 +68,7 @@ public class PreviewMappingUseCaseTests
     public async Task ExecuteAsync_WithNoMappings_ShouldPassRawJsonToEngine()
     {
         var templateId = Guid.NewGuid();
-        var versionId  = Guid.NewGuid();
+        var versionId = Guid.NewGuid();
         SetupTemplate(templateId, versionId);
 
         _mockStorage.Setup(s => s.DownloadAsync(StorageBuckets.Templates, "templates/sample-template.html", It.IsAny<CancellationToken>()))
@@ -96,7 +93,7 @@ public class PreviewMappingUseCaseTests
     public async Task ExecuteAsync_WithUndefinedSampleData_AndNoMappings_ShouldPassEmptyJson()
     {
         var templateId = Guid.NewGuid();
-        var versionId  = Guid.NewGuid();
+        var versionId = Guid.NewGuid();
         SetupTemplate(templateId, versionId);
 
         _mockStorage.Setup(s => s.DownloadAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
@@ -104,7 +101,7 @@ public class PreviewMappingUseCaseTests
         _mockHtmlEngine.Setup(e => e.RenderAsync(It.IsAny<Stream>(), It.IsAny<string>(), OutputFormat.Pdf, It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
 
-        var undefined = default(JsonElement); // JsonValueKind.Undefined
+        var undefined = default(JsonElement);
 
         await CreateUseCase().ExecuteAsync(templateId, undefined);
 
@@ -121,11 +118,11 @@ public class PreviewMappingUseCaseTests
     public async Task ExecuteAsync_WithMappings_ShouldCallFieldMappingApplicator()
     {
         var templateId = Guid.NewGuid();
-        var versionId  = Guid.NewGuid();
+        var versionId = Guid.NewGuid();
 
         var mappings = new List<FieldMapping>
         {
-            FieldMapping.Create(templateId, "fullName", "customer.name", "Full Name", false, 1, DateTimeOffset.UtcNow, DataSourceType.Json)
+            FieldMapping.Create(templateId, "fullName", "customer.name", "Full Name", false, 1, TestConstants.BaselineTime, DataSourceType.Json)
         };
         SetupTemplate(templateId, versionId, mappings: mappings);
 
@@ -179,9 +176,9 @@ public class PreviewMappingUseCaseTests
     public async Task ExecuteAsync_WhenNoEngineForType_ShouldThrowInvalidOperationException()
     {
         var templateId = Guid.NewGuid();
-        var versionId  = Guid.NewGuid();
+        var versionId = Guid.NewGuid();
 
-        var now = DateTimeOffset.UtcNow;
+        var now = TestConstants.BaselineTime;
         var template = TemplateTestFactory.Create(templateId, Guid.NewGuid(), "T", "sample-template");
         template.SetCurrentVersion(versionId, now);
         _mockTemplateRepo.Setup(r => r.GetByIdWithDetailsAsync(templateId, It.IsAny<CancellationToken>()))
@@ -204,7 +201,7 @@ public class PreviewMappingUseCaseTests
     public async Task ExecuteAsync_ShouldNeverCallStorageUpload()
     {
         var templateId = Guid.NewGuid();
-        var versionId  = Guid.NewGuid();
+        var versionId = Guid.NewGuid();
         SetupTemplate(templateId, versionId);
 
         _mockStorage.Setup(s => s.DownloadAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
@@ -223,7 +220,7 @@ public class PreviewMappingUseCaseTests
     public async Task ExecuteAsync_ShouldDownloadTemplateFromTemplatesBucket()
     {
         var templateId = Guid.NewGuid();
-        var versionId  = Guid.NewGuid();
+        var versionId = Guid.NewGuid();
         SetupTemplate(templateId, versionId);
 
         _mockStorage.Setup(s => s.DownloadAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))

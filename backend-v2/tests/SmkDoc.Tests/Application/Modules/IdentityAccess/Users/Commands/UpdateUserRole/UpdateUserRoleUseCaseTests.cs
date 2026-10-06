@@ -1,21 +1,18 @@
-using FluentAssertions;
-using Moq;
 using SmkDoc.Application.Modules.IdentityAccess.Users.Commands.UpdateUserRole;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Tests.Common.Builders;
 using SmkDoc.Tests.Common.Fixtures;
-using Xunit;
 
-namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Users;
+namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Users.Commands.UpdateUserRole;
 
 public class UpdateUserRoleUseCaseTests
 {
     private readonly UserManagementTestFixture _fixture = new();
 
     [Fact]
-    public async Task ExecuteAsync_UpdatesRoleSuccessfully()
+    public async Task ExecuteAsync_WhenValidInput_UpdatesRoleSuccessfully()
     {
         var projectId = Guid.NewGuid();
         var userId = Guid.NewGuid();
@@ -38,7 +35,7 @@ public class UpdateUserRoleUseCaseTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_LastAdmin_Demotion_ThrowsConflictException()
+    public async Task ExecuteAsync_WhenLastAdminDemoted_ThrowsConflictException()
     {
         var projectId = Guid.NewGuid();
         var userId = Guid.NewGuid();
@@ -55,12 +52,12 @@ public class UpdateUserRoleUseCaseTests
 
         var useCase = _fixture.BuildUpdateUserRoleUseCase();
         var command = new UpdateUserRoleCommand(projectId, userId, "Viewer");
-        Func<Task> act = () => useCase.ExecuteAsync(command);
+        var act = () => useCase.ExecuteAsync(command);
         await act.Should().ThrowAsync<ConflictException>();
     }
 
     [Fact]
-    public async Task ExecuteAsync_UserNotInProject_ThrowsNotFoundException()
+    public async Task ExecuteAsync_WhenUserNotInProject_ThrowsNotFoundException()
     {
         var projectId = Guid.NewGuid();
         var userId = Guid.NewGuid();
@@ -70,7 +67,7 @@ public class UpdateUserRoleUseCaseTests
 
         var useCase = _fixture.BuildUpdateUserRoleUseCase();
         var command = new UpdateUserRoleCommand(projectId, userId, "Developer");
-        Func<Task> act = () => useCase.ExecuteAsync(command);
+        var act = () => useCase.ExecuteAsync(command);
         await act.Should().ThrowAsync<NotFoundException>();
     }
 }

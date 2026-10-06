@@ -1,21 +1,17 @@
-using FluentAssertions;
-using Moq;
 using SmkDoc.Application.Modules.IdentityAccess.Users.Commands.InviteUser;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Tests.Common.Builders;
 using SmkDoc.Tests.Common.Fixtures;
-using Xunit;
 
-namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Users;
+namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Users.Commands.InviteUser;
 
 public class InviteUserUseCaseTests
 {
     private readonly UserManagementTestFixture _fixture = new();
 
     [Fact]
-    public async Task ExecuteAsync_NewUser_CreatesUserAndRole()
+    public async Task ExecuteAsync_WhenUserDoesNotExist_CreatesUserAndRole()
     {
         var projectId = Guid.NewGuid();
         var email = "new@test.com";
@@ -38,7 +34,7 @@ public class InviteUserUseCaseTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_ExistingMember_ThrowsConflictException()
+    public async Task ExecuteAsync_WhenUserAlreadyMember_ThrowsConflictException()
     {
         var projectId = Guid.NewGuid();
         var existingUser = new UserBuilder().WithEmail("exist@test.com").Build();
@@ -55,7 +51,7 @@ public class InviteUserUseCaseTests
 
         var useCase = _fixture.BuildInviteUserUseCase();
         var command = new InviteUserCommand(projectId, "exist@test.com", "Pass@1234", "", "", "Viewer");
-        Func<Task> act = () => useCase.ExecuteAsync(command);
+        var act = () => useCase.ExecuteAsync(command);
         await act.Should().ThrowAsync<ConflictException>();
     }
 }

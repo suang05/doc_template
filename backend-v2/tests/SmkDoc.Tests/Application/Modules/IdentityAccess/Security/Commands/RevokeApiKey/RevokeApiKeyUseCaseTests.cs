@@ -1,8 +1,8 @@
 using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.RevokeApiKey;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Domain.Exceptions;
 
-namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Security;
+namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Security.Commands.RevokeApiKey;
 
 public class RevokeApiKeyUseCaseTests
 {
@@ -30,7 +30,6 @@ public class RevokeApiKeyUseCaseTests
         var projectA = Guid.NewGuid();
         var keyId = Guid.NewGuid();
 
-        // Repo lookup with projectA returns null because key belongs to another project
         _mockRepo.Setup(r => r.GetByIdAsync(keyId, projectA, It.IsAny<CancellationToken>()))
             .ReturnsAsync((ApiKey?)null);
 
@@ -52,23 +51,23 @@ public class RevokeApiKeyUseCaseTests
         var projectId = Guid.NewGuid();
         var key = ApiKey.Issue(
             projectId,
-            ApiKeyName.Create("Test Key"),
-            "test-caller",
+            ApiKeyName.Create("Ops-Token"),
+            "ops-service",
             new Sha256Hash(new string('a', 64)),
             ExpirationPolicy.Never,
             TestConstants.BaselineTime);
-        var keyId = key.Id;
 
-        _mockRepo.Setup(r => r.GetByIdAsync(keyId, projectId, It.IsAny<CancellationToken>()))
+        _mockRepo.Setup(r => r.GetByIdAsync(key.Id, projectId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(key);
 
         var useCase = new RevokeApiKeyUseCase(_mockRepo.Object, _mockUow.Object);
 
         // Act
-        await useCase.ExecuteAsync(new RevokeApiKeyCommand(keyId, projectId));
+        await useCase.ExecuteAsync(new RevokeApiKeyCommand(key.Id, projectId));
 
         // Assert
         key.IsActive.Should().BeFalse();
+        key.UpdatedAt.Should().NotBeNull();
         _mockRepo.Verify(r => r.Update(key), Times.Once);
         _mockUow.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
     }

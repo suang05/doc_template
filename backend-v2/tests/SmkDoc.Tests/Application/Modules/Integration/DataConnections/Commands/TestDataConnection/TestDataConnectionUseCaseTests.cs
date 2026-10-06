@@ -1,10 +1,7 @@
-using FluentAssertions;
-using Moq;
 using SmkDoc.Application.Modules.Integration.DataConnections.Commands.TestDataConnection;
 using SmkDoc.Tests.Common.Fixtures;
-using Xunit;
 
-namespace SmkDoc.Tests.Application.Modules.Integration.DataConnections.Commands;
+namespace SmkDoc.Tests.Application.Modules.Integration.DataConnections.Commands.TestDataConnection;
 
 public class TestDataConnectionUseCaseTests
 {

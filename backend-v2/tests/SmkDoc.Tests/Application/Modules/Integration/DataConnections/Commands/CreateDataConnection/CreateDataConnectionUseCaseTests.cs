@@ -1,12 +1,9 @@
-using FluentAssertions;
-using Moq;
 using SmkDoc.Application.Modules.Integration.DataConnections.Commands.CreateDataConnection;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Tests.Common.Fixtures;
-using Xunit;
 
-namespace SmkDoc.Tests.Application.Modules.Integration.DataConnections.Commands;
+namespace SmkDoc.Tests.Application.Modules.Integration.DataConnections.Commands.CreateDataConnection;
 
 public class CreateDataConnectionUseCaseTests
 {

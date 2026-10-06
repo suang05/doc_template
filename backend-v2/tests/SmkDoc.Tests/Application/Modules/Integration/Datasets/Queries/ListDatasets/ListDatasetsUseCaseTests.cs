@@ -1,13 +1,10 @@
-using FluentAssertions;
-using Moq;
 using SmkDoc.Application.Modules.Integration.Datasets.Queries.ListDatasets;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Tests.Common.Factories;
 using SmkDoc.Tests.Common.Fixtures;
-using Xunit;
 
-namespace SmkDoc.Tests.Application.Modules.Integration.Datasets.Queries;
+namespace SmkDoc.Tests.Application.Modules.Integration.Datasets.Queries.ListDatasets;
 
 public class ListDatasetsUseCaseTests
 {

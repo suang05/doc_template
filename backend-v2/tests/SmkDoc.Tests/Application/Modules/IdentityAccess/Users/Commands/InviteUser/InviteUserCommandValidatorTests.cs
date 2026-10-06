@@ -1,8 +1,6 @@
-using FluentAssertions;
 using SmkDoc.Application.Modules.IdentityAccess.Users.Commands.InviteUser;
-using Xunit;
 
-namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Users.Validators;
+namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Users.Commands.InviteUser;
 
 public class InviteUserCommandValidatorTests
 {
@@ -14,7 +12,7 @@ public class InviteUserCommandValidatorTests
     [InlineData("Viewer")]
     [InlineData("admin")]
     [InlineData("DEVELOPER")]
-    public void Validate_ValidRoles_ShouldPass(string role)
+    public void Validate_WhenRoleIsValid_ShouldPass(string role)
     {
         var command = new InviteUserCommand(Guid.NewGuid(), "user@test.com", "Pass@1234", "First", "Last", role);
         var result = _validator.Validate(command);
@@ -25,7 +23,7 @@ public class InviteUserCommandValidatorTests
     [InlineData("SuperAdmin")]
     [InlineData("Manager")]
     [InlineData("")]
-    public void Validate_InvalidRole_ShouldFail(string role)
+    public void Validate_WhenRoleIsInvalid_ShouldFail(string role)
     {
         var command = new InviteUserCommand(Guid.NewGuid(), "user@test.com", "Pass@1234", "First", "Last", role);
         var result = _validator.Validate(command);
@@ -37,7 +35,7 @@ public class InviteUserCommandValidatorTests
     [InlineData("invalid-email")]
     [InlineData("@nodomain.com")]
     [InlineData("")]
-    public void Validate_InvalidEmail_ShouldFail(string email)
+    public void Validate_WhenEmailIsInvalid_ShouldFail(string email)
     {
         var command = new InviteUserCommand(Guid.NewGuid(), email, "Pass@1234", "First", "Last", "Viewer");
         var result = _validator.Validate(command);

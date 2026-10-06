@@ -1,21 +1,17 @@
-using FluentAssertions;
-using Moq;
 using SmkDoc.Application.Modules.IdentityAccess.Users.Commands.RemoveUser;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Tests.Common.Builders;
 using SmkDoc.Tests.Common.Fixtures;
-using Xunit;
 
-namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Users;
+namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Users.Commands.RemoveUser;
 
 public class RemoveUserUseCaseTests
 {
     private readonly UserManagementTestFixture _fixture = new();
 
     [Fact]
-    public async Task ExecuteAsync_RemovesUserSuccessfully()
+    public async Task ExecuteAsync_WhenValidInput_RemovesUserSuccessfully()
     {
         var projectId = Guid.NewGuid();
         var userId = Guid.NewGuid();
@@ -39,7 +35,7 @@ public class RemoveUserUseCaseTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_LastAdmin_ThrowsConflictException()
+    public async Task ExecuteAsync_WhenLastAdmin_ThrowsConflictException()
     {
         var projectId = Guid.NewGuid();
         var userId = Guid.NewGuid();
@@ -58,12 +54,12 @@ public class RemoveUserUseCaseTests
         var useCase = _fixture.BuildRemoveUserUseCase();
         var command = new RemoveUserCommand(projectId, userId, currentUserId);
         
-        Func<Task> act = () => useCase.ExecuteAsync(command);
+        var act = () => useCase.ExecuteAsync(command);
         await act.Should().ThrowAsync<ConflictException>();
     }
 
     [Fact]
-    public async Task ExecuteAsync_UserNotInProject_ThrowsNotFoundException()
+    public async Task ExecuteAsync_WhenUserNotInProject_ThrowsNotFoundException()
     {
         var projectId = Guid.NewGuid();
         var userId = Guid.NewGuid();
@@ -75,7 +71,7 @@ public class RemoveUserUseCaseTests
         var useCase = _fixture.BuildRemoveUserUseCase();
         var command = new RemoveUserCommand(projectId, userId, currentUserId);
 
-        Func<Task> act = () => useCase.ExecuteAsync(command);
+        var act = () => useCase.ExecuteAsync(command);
         await act.Should().ThrowAsync<NotFoundException>();
     }
 }

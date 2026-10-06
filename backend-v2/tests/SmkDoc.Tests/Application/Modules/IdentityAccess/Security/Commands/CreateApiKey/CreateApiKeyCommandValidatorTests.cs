@@ -1,6 +1,6 @@
 using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.CreateApiKey;
 
-namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Security.Validators;
+namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Security.Commands.CreateApiKey;
 
 public class CreateApiKeyCommandValidatorTests
 {

@@ -1,8 +1,9 @@
 using SmkDoc.Application.Modules.IdentityAccess.Security.Queries.ListApiKeys;
 using SmkDoc.Domain.Entities;
+using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects;
 
-namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Security;
+namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Security.Queries.ListApiKeys;
 
 public class ListApiKeysUseCaseTests
 {

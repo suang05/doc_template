@@ -1,19 +1,16 @@
-using FluentAssertions;
-using Moq;
 using SmkDoc.Application.Modules.IdentityAccess.Users.Queries.ListProjectUsers;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Tests.Common.Builders;
 using SmkDoc.Tests.Common.Fixtures;
-using Xunit;
 
-namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Users;
+namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Users.Queries.ListProjectUsers;
 
 public class ListProjectUsersUseCaseTests
 {
     private readonly UserManagementTestFixture _fixture = new();
 
     [Fact]
-    public async Task ExecuteAsync_ReturnsUsersInProject()
+    public async Task ExecuteAsync_WhenUsersExist_ReturnsUsersInProject()
     {
         var projectId = Guid.NewGuid();
         var user = new UserBuilder().WithEmail("admin@test.com").WithName("Admin", "User").Build();

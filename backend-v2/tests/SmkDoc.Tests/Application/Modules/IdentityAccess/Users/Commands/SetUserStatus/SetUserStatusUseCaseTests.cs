@@ -1,20 +1,17 @@
-using FluentAssertions;
-using Moq;
 using SmkDoc.Application.Modules.IdentityAccess.Users.Commands.SetUserStatus;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Tests.Common.Builders;
 using SmkDoc.Tests.Common.Fixtures;
-using Xunit;
 
-namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Users;
+namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Users.Commands.SetUserStatus;
 
 public class SetUserStatusUseCaseTests
 {
     private readonly UserManagementTestFixture _fixture = new();
 
     [Fact]
-    public async Task ExecuteAsync_DeactivatesUserSuccessfully()
+    public async Task ExecuteAsync_WhenValidInput_DeactivatesUserSuccessfully()
     {
         var projectId = Guid.NewGuid();
         var user = new UserBuilder().Build();
@@ -40,7 +37,7 @@ public class SetUserStatusUseCaseTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_UserNotInProject_ThrowsNotFoundException()
+    public async Task ExecuteAsync_WhenUserNotInProject_ThrowsNotFoundException()
     {
         var projectId = Guid.NewGuid();
         var userId = Guid.NewGuid();
@@ -50,7 +47,7 @@ public class SetUserStatusUseCaseTests
 
         var useCase = _fixture.BuildSetUserStatusUseCase();
         var command = new SetUserStatusCommand(projectId, userId, true);
-        Func<Task> act = () => useCase.ExecuteAsync(command);
+        var act = () => useCase.ExecuteAsync(command);
         await act.Should().ThrowAsync<NotFoundException>();
     }
 }

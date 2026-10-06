@@ -1,14 +1,11 @@
-using FluentAssertions;
-using Moq;
 using SmkDoc.Application.Modules.Integration.Datasets.Commands.CreateDataset;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Tests.Common.Factories;
 using SmkDoc.Tests.Common.Fixtures;
-using Xunit;
 
-namespace SmkDoc.Tests.Application.Modules.Integration.Datasets.Commands;
+namespace SmkDoc.Tests.Application.Modules.Integration.Datasets.Commands.CreateDataset;
 
 public class CreateDatasetUseCaseTests
 {

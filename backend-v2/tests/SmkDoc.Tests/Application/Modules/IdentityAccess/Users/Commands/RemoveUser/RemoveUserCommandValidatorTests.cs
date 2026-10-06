@@ -1,15 +1,13 @@
-using FluentAssertions;
 using SmkDoc.Application.Modules.IdentityAccess.Users.Commands.RemoveUser;
-using Xunit;
 
-namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Users.Validators;
+namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Users.Commands.RemoveUser;
 
 public class RemoveUserCommandValidatorTests
 {
     private readonly RemoveUserCommandValidator _validator = new();
 
     [Fact]
-    public void Validate_ValidCommand_ShouldPass()
+    public void Validate_WhenCommandIsValid_ShouldPass()
     {
         var command = new RemoveUserCommand(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
         var result = _validator.Validate(command);
@@ -17,7 +15,7 @@ public class RemoveUserCommandValidatorTests
     }
 
     [Fact]
-    public void Validate_SelfRemoval_ShouldFail()
+    public void Validate_WhenSelfRemoval_ShouldFail()
     {
         var userId = Guid.NewGuid();
         var command = new RemoveUserCommand(Guid.NewGuid(), userId, userId);
@@ -31,7 +29,7 @@ public class RemoveUserCommandValidatorTests
     [InlineData("00000000-0000-0000-0000-000000000000", "e7d1b32f-7634-4b52-b88a-3e4b01e35d11", "9c5123d4-4f81-4b13-a417-64dfd48227b9", "ProjectId")]
     [InlineData("e7d1b32f-7634-4b52-b88a-3e4b01e35d11", "00000000-0000-0000-0000-000000000000", "9c5123d4-4f81-4b13-a417-64dfd48227b9", "UserId")]
     [InlineData("e7d1b32f-7634-4b52-b88a-3e4b01e35d11", "9c5123d4-4f81-4b13-a417-64dfd48227b9", "00000000-0000-0000-0000-000000000000", "CurrentUserId")]
-    public void Validate_EmptyGuid_ShouldFail(string projectId, string userId, string currentUserId, string expectedProperty)
+    public void Validate_WhenGuidIsEmpty_ShouldFail(string projectId, string userId, string currentUserId, string expectedProperty)
     {
         var command = new RemoveUserCommand(
             Guid.Parse(projectId),
