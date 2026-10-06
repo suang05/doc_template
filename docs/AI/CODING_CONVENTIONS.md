@@ -519,9 +519,26 @@ public sealed class CreateApiKeyUseCaseTests
 }
 ```
 
-##### 🏷️ Strict Test Naming Formula for LLMs
-เพื่อไม่ให้เกิดความสับสนหรือตั้งชื่อหลากหลาย ให้ใช้สูตร Roy Osherove มาตรฐานเดียวทั้งระบบ:
-`ExecuteAsync_When{ConditionOrState}_{ExpectedOutcome}`
+##### 🏷️ Strict Test Naming Standards (The 3 Layers)
+เพื่อให้โค้ดอ่านเหมือน prose เดียวกันทั้งระบบ และป้องกันไม่ให้ LLM สับสนหรือสุ่มตั้งชื่อ ให้ยึดมาตรฐาน 3 ระดับ:
+
+###### 1. Test Class Naming (ระดับชื่อคลาส)
+- **Archetype A (UseCase SUT):** `{UseCaseName}Tests` เสมอ (เช่น `CreateApiKeyUseCaseTests`, `CreateTemplateUseCaseTests`)
+- **Archetype B (Validator):** `{CommandOrQuery}ValidatorTests` (เช่น `CreateTemplateCommandValidatorTests`)
+- **Archetype C (Domain Entity):** `{EntityName}Tests` (เช่น `TemplateTests`, `UserTests`)
+- **Infrastructure Services:** `{ServiceName}Tests` (เช่น `GotenbergPdfRendererTests`)
+
+###### 2. Test Method Naming (Roy Osherove Canonical Formula)
+สูตรมาตรฐานเดียว: `MethodUnderedTest_When{ConditionOrState}_{ExpectedOutcome}`
+- **Method Under Test:** 
+  - UseCase ต้องขึ้นต้นด้วย `ExecuteAsync` เสมอ
+  - Validator ต้องขึ้นต้นด้วย `Validate` (หรือ `ValidateAsync`)
+  - Domain Entity ต้องขึ้นต้นด้วยชื่อ Business Method เช่น `Activate`, `Publish`
+- **Condition (`When...`):** ใช้ `When` เสมอ (**ห้ามใช้ `With...`**) เช่น `WhenValidCommand`, `WhenProjectNotFound`, `WhenSlugAlreadyExists`
+- **Expected Outcome (Active Verbs):** ระบุสิ่งที่เกิดขึ้นจริง (**ห้ามใช้คำว่า `Should`**):
+  - สำเร็จ $\rightarrow$ `Returns{Type/Behavior}` (เช่น `ReturnsSuccessResult`, `ReturnsPlainTextKeyAndPersistsHashedKey`)
+  - ข้อผิดพลาด $\rightarrow$ `Throws{ExceptionType}` (เช่น `ThrowsNotFoundException`, `ThrowsConflictException`)
+  - Validation ไม่ผ่าน $\rightarrow$ `HasValidationError` หรือ `ThrowsValidationExceptionWithoutCommit`
 
 | Category | Example Method Name | Expected Behavior |
 |---|---|---|
@@ -531,6 +548,14 @@ public sealed class CreateApiKeyUseCaseTests
 | **Business Rule** | `ExecuteAsync_WhenInactive_ThrowsBusinessRuleViolationException` | โยน 400 + `Times.Never` commit |
 | **Validation Fail** | `ExecuteAsync_WhenValidationFails_ThrowsValidationExceptionWithoutCommit` | โยน 400 + `Times.Never` commit |
 | **Short-Circuit** | `ExecuteAsync_WhenEmptyList_ReturnsEmptyWithoutQueryingRepo` | คืนผลลัพธ์ทันที ไม่แตะ I/O |
+
+###### 3. Local Variables & Mocks Naming (ระดับตัวแปร)
+- **Mock Fields:** `_{dependencyName}Mock` (เช่น `_templateRepoMock`, `_uowMock`)
+- **Real Validator:** `_realValidator` หรือ `_validator`
+- **SUT Factory:** `CreateSut` เท่านั้น (ห้าม `BuildSut`, `CreateUseCase`)
+- **Input Payload:** `command` หรือ `query`
+- **Result:** `result` หรือ `response`
+- **Exception Delegate:** `act` (ห้าม `action` หรือ `invoking`)
 
 
 ##### 🎯 The Canonical SUT Factory Standard (`CreateSut`)

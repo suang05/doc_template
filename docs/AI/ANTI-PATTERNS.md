@@ -698,6 +698,20 @@ public async Task ExecuteAsync_WhenSlugAlreadyExists_ThrowsConflictException()
 
 ---
 
+### 🚦 Unit Testing Anti-Patterns Quick Matrix
+
+| Anti-Pattern | ❌ Do NOT Do This | ✅ Always Do This Instead |
+|---|---|---|
+| **AP-042** | รวมหลาย UseCase ในไฟล์เดียว | 1 UseCase = 1 Test Class ในโฟลเดอร์ CQRS เฉพาะ |
+| **AP-043** | รัน OpenXml / Disk I/O ใน `SmkDoc.Tests` | ย้าย I/O หนักไปที่ `SmkDoc.IntegrationTests` |
+| **AP-044** | `new Entity(...)` สดๆ / `DateTimeOffset.UtcNow` | ใช้ `*Builder` / `*TestFactory` + `TestConstants.BaselineTime` |
+| **AP-045** | สร้างไฟล์รวม invariant `DomainInvariantTests` | ยึด SSoT ใน `{Aggregate}Tests.cs` โดยตรง |
+| **AP-046** | Mock dependencies ใน Validator Tests | ใช้ `[Theory]` + `[InlineData]` เพียวๆ 0 Mocks |
+| **AP-047** | `var sut = new ...` ในทุก test method | เรียกผ่าน `CreateSut().ExecuteAsync(...)` เสมอ |
+| **AP-048** | Assert แค่ Exception Type โดยไม่เช็ค Commit | ใช้ Semantic Wildcard + `_uowMock.Verify(Times.Never)` |
+
+---
+
 ## 🟡 Frontend Anti-Patterns
 
 ### AP-F001: ห้าม Hardcode สีหรือขนาดใน Component

@@ -78,6 +78,17 @@ Strictly enforce consistent naming conventions across all layers:
      - *Archetype B (Input Validator):* Pure parameterization via `[Theory]` + `[InlineData]` without mocks.
      - *Archetype C (Aggregate Root):* Encapsulated domain invariant mutations directly inside `{Aggregate}Tests.cs`.
    - **Prohibited Patterns:** Strictly adhere to the anti-patterns catalog in [docs/AI/ANTI-PATTERNS.md](docs/AI/ANTI-PATTERNS.md) (AP-042 to AP-048).
+   - **⚡ Quick Blueprint Card for LLMs (The 5-Part Anatomy):**
+     ```text
+     Part 1: Direct Blank Mocks (Mock<IRepo> _repoMock = new();)
+     Part 2: SSoT SUT Factory   (CreateSut(...) => new(_repoMock.Object, ...);)
+     Part 3: Happy Path Fact    (ExecuteAsync_WhenValid_ReturnsSuccess -> Times.Once commit)
+     Part 4: Guard/Error Fact   (ExecuteAsync_WhenNotFound_Throws -> Times.Never commit)
+     Part 5: Validation Fact    (ExecuteAsync_WhenInvalid_Throws -> Times.Never commit)
+     Rule A: Zero 'var sut = ...' (always await CreateSut().ExecuteAsync(...))
+     Rule B: Zero UtcNow (always TestConstants.BaselineTime / FakeTimeProvider)
+     Rule C: Zero Entity new in UseCase tests (always *Builder / *TestFactory)
+     ```
 5. **Frontend File & Component Standards:**
    - React components: `PascalCase.tsx` (e.g. `TemplateCard.tsx`, `AppShell.tsx`)
    - Custom hooks: `use` + `PascalCase.ts` (e.g. `useTemplates.ts`, `useDebounce.ts`)
