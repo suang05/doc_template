@@ -12,6 +12,8 @@ public class UpdateTemplateDetailsUseCaseTests
 {
     private readonly TemplateAuthoringTestFixture _fixture = new();
 
+    private UpdateTemplateDetailsUseCase CreateSut() => _fixture.BuildUpdateTemplateDetailsUseCase();
+
     [Fact]
     public async Task ExecuteAsync_WhenTemplateNotFound_ShouldThrowNotFoundException()
     {
@@ -20,10 +22,9 @@ public class UpdateTemplateDetailsUseCaseTests
             .Setup(r => r.GetByIdAsync(templateId, It.IsAny<CancellationToken>()))
             .ReturnsAsync((SmkDoc.Domain.Entities.Template?)null);
 
-        var useCase = _fixture.BuildUpdateTemplateDetailsUseCase();
         var command = new UpdateTemplateDetailsCommand(templateId, "New Name", "New Category");
 
-        var act = () => useCase.ExecuteAsync(command);
+        var act = () => CreateSut().ExecuteAsync(command);
 
         await act.Should().ThrowAsync<NotFoundException>();
     }
@@ -42,10 +43,9 @@ public class UpdateTemplateDetailsUseCaseTests
             .Setup(r => r.GetByIdAsync(templateId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
 
-        var useCase = _fixture.BuildUpdateTemplateDetailsUseCase();
         var command = new UpdateTemplateDetailsCommand(templateId, "Updated Name", "Updated Category");
 
-        var response = await useCase.ExecuteAsync(command);
+        var response = await CreateSut().ExecuteAsync(command);
 
         template.Name.Value.Should().Be("Updated Name");
         template.Category.Should().Be("Updated Category");

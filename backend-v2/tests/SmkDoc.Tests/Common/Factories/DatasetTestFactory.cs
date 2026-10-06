@@ -18,7 +18,7 @@ public static class DatasetTestFactory
         int cacheSeconds = 0,
         DateTimeOffset? now = null)
     {
-        var timestamp = now ?? DateTimeOffset.UtcNow;
+        var timestamp = now ?? TestConstants.BaselineTime;
         return new Dataset(
             id ?? Guid.NewGuid(),
             DatasetName.Create(name),

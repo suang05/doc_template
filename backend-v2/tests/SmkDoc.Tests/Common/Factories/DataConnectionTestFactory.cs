@@ -17,7 +17,7 @@ public static class DataConnectionTestFactory
         string encryptedConnectionString = "Host=localhost;Database=test",
         DateTimeOffset? now = null)
     {
-        var timestamp = now ?? DateTimeOffset.UtcNow;
+        var timestamp = now ?? TestConstants.BaselineTime;
         return new DataConnection(
             id ?? Guid.NewGuid(),
             ConnectionName.Create(name),

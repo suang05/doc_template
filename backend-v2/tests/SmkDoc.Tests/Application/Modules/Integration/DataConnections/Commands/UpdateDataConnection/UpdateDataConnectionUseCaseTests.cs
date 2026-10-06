@@ -34,10 +34,9 @@ public class UpdateDataConnectionUseCaseTests
             .ReturnsAsync(1);
 
         var command = new UpdateDataConnectionCommand(id, "New Name", "SqlServer", "new_plain_conn");
-        var sut = CreateSut();
 
         // Act
-        var result = await sut.ExecuteAsync(command);
+        var result = await CreateSut().ExecuteAsync(command);
 
         // Assert
         result.Should().NotBeNull();
@@ -65,10 +64,9 @@ public class UpdateDataConnectionUseCaseTests
             .ReturnsAsync(1);
 
         var command = new UpdateDataConnectionCommand(id, "DB Renamed", "PostgreSQL", "");
-        var sut = CreateSut();
 
         // Act
-        var result = await sut.ExecuteAsync(command);
+        var result = await CreateSut().ExecuteAsync(command);
 
         // Assert
         result.Should().NotBeNull();
@@ -87,10 +85,9 @@ public class UpdateDataConnectionUseCaseTests
             .ReturnsAsync((DataConnection?)null);
 
         var command = new UpdateDataConnectionCommand(id, "X", "PostgreSQL", "conn");
-        var sut = CreateSut();
 
         // Act
-        var result = await sut.ExecuteAsync(command);
+        var result = await CreateSut().ExecuteAsync(command);
 
         // Assert
         result.Should().BeNull();

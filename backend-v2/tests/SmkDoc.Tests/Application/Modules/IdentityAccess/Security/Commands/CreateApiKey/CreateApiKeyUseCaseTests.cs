@@ -13,7 +13,7 @@ public class CreateApiKeyUseCaseTests
     private readonly Mock<IUnitOfWork> _uowMock = new();
     private readonly CreateApiKeyCommandValidator _validator = new();
 
-    private CreateApiKeyUseCase BuildSut() =>
+    private CreateApiKeyUseCase CreateSut() =>
         new(_apiKeyRepoMock.Object, _projectRepoMock.Object, _uowMock.Object, _validator);
 
     [Fact]
@@ -35,11 +35,10 @@ public class CreateApiKeyUseCaseTests
         _projectRepoMock.Setup(r => r.GetByIdAsync(projectId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(project);
 
-        var sut = BuildSut();
         var command = new CreateApiKeyCommand("Sales App", "sales", projectId);
 
         // Act
-        var result = await sut.ExecuteAsync(command);
+        var result = await CreateSut().ExecuteAsync(command);
 
         // Assert
         result.Should().NotBeNull();

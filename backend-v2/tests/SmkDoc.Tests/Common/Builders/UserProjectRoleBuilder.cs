@@ -47,6 +47,6 @@ public class UserProjectRoleBuilder
 
     public UserProjectRole Build()
     {
-        return UserProjectRole.Create(_userId, _projectId, _role, DateTimeOffset.UtcNow);
+        return UserProjectRole.Create(_userId, _projectId, _role, TestConstants.BaselineTime);
     }
 }

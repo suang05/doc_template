@@ -9,14 +9,13 @@ public class RevokeApiKeyUseCaseTests
     private readonly Mock<IApiKeyRepository> _mockRepo = new();
     private readonly Mock<IUnitOfWork> _mockUow = new();
 
+    private RevokeApiKeyUseCase CreateSut() => new(_mockRepo.Object, _mockUow.Object);
+
     [Fact]
     public async Task ExecuteAsync_WhenEmptyProjectId_ThrowsDomainValidationException()
     {
-        // Arrange
-        var useCase = new RevokeApiKeyUseCase(_mockRepo.Object, _mockUow.Object);
-
         // Act
-        var act = () => useCase.ExecuteAsync(new RevokeApiKeyCommand(Guid.NewGuid(), Guid.Empty));
+        var act = () => CreateSut().ExecuteAsync(new RevokeApiKeyCommand(Guid.NewGuid(), Guid.Empty));
 
         // Assert
         await act.Should().ThrowAsync<DomainValidationException>()
@@ -33,10 +32,8 @@ public class RevokeApiKeyUseCaseTests
         _mockRepo.Setup(r => r.GetByIdAsync(keyId, projectA, It.IsAny<CancellationToken>()))
             .ReturnsAsync((ApiKey?)null);
 
-        var useCase = new RevokeApiKeyUseCase(_mockRepo.Object, _mockUow.Object);
-
         // Act
-        var act = () => useCase.ExecuteAsync(new RevokeApiKeyCommand(keyId, projectA));
+        var act = () => CreateSut().ExecuteAsync(new RevokeApiKeyCommand(keyId, projectA));
 
         // Assert - IDOR Attempt blocked — 404 returned without leaking existence
         await act.Should().ThrowAsync<NotFoundException>();
@@ -60,10 +57,8 @@ public class RevokeApiKeyUseCaseTests
         _mockRepo.Setup(r => r.GetByIdAsync(key.Id, projectId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(key);
 
-        var useCase = new RevokeApiKeyUseCase(_mockRepo.Object, _mockUow.Object);
-
         // Act
-        await useCase.ExecuteAsync(new RevokeApiKeyCommand(key.Id, projectId));
+        await CreateSut().ExecuteAsync(new RevokeApiKeyCommand(key.Id, projectId));
 
         // Assert
         key.IsActive.Should().BeFalse();

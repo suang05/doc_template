@@ -16,10 +16,9 @@ public class BaseEntityTests
     public void BaseEntity_Id_IsSequentialUuidV7()
     {
         // UUIDv7 is monotonic / chronological: id1 should precede id2 when generated in sequence
-        var now = DateTimeOffset.UtcNow;
+        var now = TestConstants.BaselineTime;
         var entity1 = Template.Create(Guid.NewGuid(), TemplateName.Create("T1"), TemplateSlug.Create("t1"), null, now);
-        Thread.Sleep(2);
-        var entity2 = Template.Create(Guid.NewGuid(), TemplateName.Create("T2"), TemplateSlug.Create("t2"), null, DateTimeOffset.UtcNow);
+        var entity2 = Template.Create(Guid.NewGuid(), TemplateName.Create("T2"), TemplateSlug.Create("t2"), null, now.AddMilliseconds(1));
 
         entity1.Id.Should().NotBe(Guid.Empty);
         entity2.Id.Should().NotBe(Guid.Empty);
@@ -34,7 +33,7 @@ public class BaseEntityTests
     {
         var userId = Guid.NewGuid();
         var projectId = Guid.NewGuid();
-        var role = UserProjectRole.Create(userId, projectId, RoleType.Developer, DateTimeOffset.UtcNow);
+        var role = UserProjectRole.Create(userId, projectId, RoleType.Developer, TestConstants.BaselineTime);
 
         role.UserId.Should().Be(userId);
         role.ProjectId.Should().Be(projectId);

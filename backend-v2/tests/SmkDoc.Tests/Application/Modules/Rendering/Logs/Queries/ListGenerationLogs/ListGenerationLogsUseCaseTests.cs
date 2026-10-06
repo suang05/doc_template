@@ -44,10 +44,8 @@ public class ListGenerationLogsUseCaseTests
             It.IsAny<CancellationToken>()))
             .ReturnsAsync((logs, 1));
 
-        var sut = CreateSut();
-
         // Act
-        var result = await sut.ExecuteAsync(new ListGenerationLogsQuery(1, 50));
+        var result = await CreateSut().ExecuteAsync(new ListGenerationLogsQuery(1, 50));
 
         // Assert
         result.Should().NotBeNull();

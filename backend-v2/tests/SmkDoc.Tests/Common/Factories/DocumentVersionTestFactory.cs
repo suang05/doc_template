@@ -22,6 +22,6 @@ public static class DocumentVersionTestFactory
             generationLogId,
             changeNote,
             createdBy,
-            now ?? DateTimeOffset.UtcNow);
+            now ?? TestConstants.BaselineTime);
     }
 }

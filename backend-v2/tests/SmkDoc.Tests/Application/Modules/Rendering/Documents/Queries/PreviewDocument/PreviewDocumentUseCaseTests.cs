@@ -19,6 +19,13 @@ public class PreviewDocumentUseCaseTests
     private readonly Mock<IStorageService>              _mockStorage      = new();
     private readonly Mock<IRenderEngine>                _mockEngine       = new();
 
+    private PreviewDocumentUseCase CreateSut() => new(
+        _mockTemplateRepo.Object,
+        _mockVersionRepo.Object,
+        _mockStorage.Object,
+        [_mockEngine.Object]
+    );
+
     [Fact]
     public async Task ExecuteAsync_ShouldHaveZeroSideEffects_AndNeverUploadToStorage()
     {
@@ -27,13 +34,6 @@ public class PreviewDocumentUseCaseTests
         _mockEngine.Setup(e => e.RenderStreamAsync(It.IsAny<Stream>(), It.IsAny<string>(), OutputFormat.Pdf, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new MemoryStream(Encoding.UTF8.GetBytes("%PDF-1.4 Ephemeral Preview")));
 
-        var useCase = new PreviewDocumentUseCase(
-            _mockTemplateRepo.Object,
-            _mockVersionRepo.Object,
-            _mockStorage.Object,
-            new[] { _mockEngine.Object }
-        );
-
         using var jsonDoc = JsonDocument.Parse("{\"buyer\": \"สมศรี\"}");
         var request = new PreviewDocumentQuery(
             Data: jsonDoc.RootElement,
@@ -41,7 +41,7 @@ public class PreviewDocumentUseCaseTests
         );
 
         // Act
-        byte[] previewBytes = await useCase.ExecuteAsync("sale-contract", request);
+        byte[] previewBytes = await CreateSut().ExecuteAsync("sale-contract", request);
 
         // Assert
         previewBytes.Should().NotBeNullOrEmpty();
@@ -59,13 +59,6 @@ public class PreviewDocumentUseCaseTests
         _mockEngine.Setup(e => e.RenderStreamAsync(It.IsAny<Stream>(), It.IsAny<string>(), OutputFormat.Pdf, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new MemoryStream(Encoding.UTF8.GetBytes("%PDF-1.4 Unsaved Template Preview")));
 
-        var useCase = new PreviewDocumentUseCase(
-            _mockTemplateRepo.Object,
-            _mockVersionRepo.Object,
-            _mockStorage.Object,
-            new[] { _mockEngine.Object }
-        );
-
         using var jsonDoc = JsonDocument.Parse("{\"key\": \"val\"}");
         var request = new PreviewDocumentQuery(
             Data: jsonDoc.RootElement,
@@ -73,7 +66,7 @@ public class PreviewDocumentUseCaseTests
         );
 
         // Act
-        byte[] previewBytes = await useCase.ExecuteAsync(null, request);
+        byte[] previewBytes = await CreateSut().ExecuteAsync(null, request);
 
         // Assert
         previewBytes.Should().NotBeNullOrEmpty();
@@ -88,13 +81,6 @@ public class PreviewDocumentUseCaseTests
         _mockEngine.Setup(e => e.RenderStreamAsync(It.IsAny<Stream>(), It.IsAny<string>(), OutputFormat.Pdf, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new MemoryStream(Encoding.UTF8.GetBytes("%PDF-1.4 Direct Stream Preview")));
 
-        var useCase = new PreviewDocumentUseCase(
-            _mockTemplateRepo.Object,
-            _mockVersionRepo.Object,
-            _mockStorage.Object,
-            new[] { _mockEngine.Object }
-        );
-
         using var jsonDoc = JsonDocument.Parse("{\"key\": \"val\"}");
         var request = new PreviewDocumentQuery(
             Data: jsonDoc.RootElement,
@@ -102,7 +88,7 @@ public class PreviewDocumentUseCaseTests
         );
 
         // Act
-        await using var streamResult = await useCase.ExecuteStreamAsync(null, request);
+        await using var streamResult = await CreateSut().ExecuteStreamAsync(null, request);
 
         // Assert
         streamResult.Should().NotBeNull();

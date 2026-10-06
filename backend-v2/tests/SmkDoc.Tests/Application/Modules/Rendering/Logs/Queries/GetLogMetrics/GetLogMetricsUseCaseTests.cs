@@ -20,10 +20,8 @@ public class GetLogMetricsUseCaseTests
             .Setup(r => r.GetMetricsAsync(It.IsAny<DateTimeOffset?>(), It.IsAny<DateTimeOffset?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(expected);
 
-        var sut = CreateSut();
-
         // Act
-        var result = await sut.ExecuteAsync(new GetLogMetricsQuery());
+        var result = await CreateSut().ExecuteAsync(new GetLogMetricsQuery());
 
         // Assert
         result.Should().NotBeNull();

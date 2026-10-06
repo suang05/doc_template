@@ -9,14 +9,13 @@ public class ListApiKeysUseCaseTests
 {
     private readonly Mock<IApiKeyRepository> _mockRepo = new();
 
+    private ListApiKeysUseCase CreateSut() => new(_mockRepo.Object);
+
     [Fact]
     public async Task ExecuteAsync_WhenEmptyProjectId_ThrowsDomainValidationException()
     {
-        // Arrange
-        var useCase = new ListApiKeysUseCase(_mockRepo.Object);
-
         // Act
-        var act = () => useCase.ExecuteAsync(new ListApiKeysQuery(Guid.Empty));
+        var act = () => CreateSut().ExecuteAsync(new ListApiKeysQuery(Guid.Empty));
 
         // Assert
         await act.Should().ThrowAsync<DomainValidationException>()
@@ -35,10 +34,8 @@ public class ListApiKeysUseCaseTests
         _mockRepo.Setup(r => r.ListByProjectAsync(projectId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<ApiKey> { key1, key2 });
 
-        var useCase = new ListApiKeysUseCase(_mockRepo.Object);
-
         // Act
-        var result = await useCase.ExecuteAsync(new ListApiKeysQuery(projectId));
+        var result = await CreateSut().ExecuteAsync(new ListApiKeysQuery(projectId));
 
         // Assert
         result.Should().HaveCount(2);

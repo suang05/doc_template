@@ -10,6 +10,8 @@ public class RemoveUserUseCaseTests
 {
     private readonly UserManagementTestFixture _fixture = new();
 
+    private RemoveUserUseCase CreateSut() => _fixture.BuildRemoveUserUseCase();
+
     [Fact]
     public async Task ExecuteAsync_WhenValidInput_RemovesUserSuccessfully()
     {
@@ -25,10 +27,9 @@ public class RemoveUserUseCaseTests
         _fixture.RoleRepo.Setup(r => r.GetAsync(projectId, userId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(roleEntry);
 
-        var useCase = _fixture.BuildRemoveUserUseCase();
         var command = new RemoveUserCommand(projectId, userId, currentUserId);
         
-        await useCase.ExecuteAsync(command);
+        await CreateSut().ExecuteAsync(command);
 
         _fixture.RoleRepo.Verify(r => r.Remove(roleEntry), Times.Once);
         _fixture.Uow.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
@@ -51,10 +52,9 @@ public class RemoveUserUseCaseTests
         _fixture.RoleRepo.Setup(r => r.CountAdminsAsync(projectId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(1);
 
-        var useCase = _fixture.BuildRemoveUserUseCase();
         var command = new RemoveUserCommand(projectId, userId, currentUserId);
         
-        var act = () => useCase.ExecuteAsync(command);
+        var act = () => CreateSut().ExecuteAsync(command);
         await act.Should().ThrowAsync<ConflictException>();
     }
 
@@ -68,10 +68,9 @@ public class RemoveUserUseCaseTests
         _fixture.RoleRepo.Setup(r => r.GetAsync(projectId, userId, It.IsAny<CancellationToken>()))
             .ReturnsAsync((UserProjectRole?)null);
 
-        var useCase = _fixture.BuildRemoveUserUseCase();
         var command = new RemoveUserCommand(projectId, userId, currentUserId);
 
-        var act = () => useCase.ExecuteAsync(command);
+        var act = () => CreateSut().ExecuteAsync(command);
         await act.Should().ThrowAsync<NotFoundException>();
     }
 }

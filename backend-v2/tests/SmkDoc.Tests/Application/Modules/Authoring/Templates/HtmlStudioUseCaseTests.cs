@@ -24,6 +24,14 @@ public class HtmlStudioUseCaseTests
         _mockHtmlEngine.SetupGet(e => e.EngineType).Returns(RenderEngineType.Html);
     }
 
+    private HtmlStudioUseCase CreateSut() => new(
+        _mockTemplateRepo.Object,
+        _mockVersionRepo.Object,
+        _mockStorage.Object,
+        [_mockHtmlEngine.Object],
+        _mockScanner.Object
+    );
+
     [Fact]
     public async Task PreviewHtmlBufferAsync_ShouldRenderInMemory_WithoutTouchingStorageOrDatabase()
     {
@@ -32,19 +40,11 @@ public class HtmlStudioUseCaseTests
         _mockHtmlEngine.Setup(e => e.RenderAsync(It.IsAny<Stream>(), It.IsAny<string>(), OutputFormat.Pdf, It.IsAny<CancellationToken>()))
             .ReturnsAsync(expectedPdf);
 
-        var useCase = new HtmlStudioUseCase(
-            _mockTemplateRepo.Object,
-            _mockVersionRepo.Object,
-            _mockStorage.Object,
-            new[] { _mockHtmlEngine.Object },
-            _mockScanner.Object
-        );
-
         string bufferHtml = "<html><body><h1>Direct Editor Buffer</h1></body></html>";
         string sampleJson = "{\"title\": \"Test\"}";
 
         // Act
-        var result = await useCase.PreviewHtmlBufferAsync(bufferHtml, sampleJson, CancellationToken.None);
+        var result = await CreateSut().PreviewHtmlBufferAsync(bufferHtml, sampleJson, CancellationToken.None);
 
         // Assert
         result.Should().BeEquivalentTo(expectedPdf);
@@ -62,7 +62,7 @@ public class HtmlStudioUseCaseTests
         var versionId = Guid.NewGuid();
 
         var template = TemplateTestFactory.Create(templateId, Guid.NewGuid(), "receipt-template", "receipt-template");
-        template.SetCurrentVersion(versionId, DateTimeOffset.UtcNow);
+        template.SetCurrentVersion(versionId, TestConstants.BaselineTime);
 
         var version = TemplateVersionTestFactory.Create(versionId, templateId, 1, "templates/receipt.html", TemplateFormat.Html, createdBy: null);
 
@@ -73,16 +73,8 @@ public class HtmlStudioUseCaseTests
         _mockStorage.Setup(s => s.DownloadAsync("templates", "templates/receipt.html", It.IsAny<CancellationToken>()))
             .ReturnsAsync(new MemoryStream(Encoding.UTF8.GetBytes("<h1>Receipt Source</h1>")));
 
-        var useCase = new HtmlStudioUseCase(
-            _mockTemplateRepo.Object,
-            _mockVersionRepo.Object,
-            _mockStorage.Object,
-            new[] { _mockHtmlEngine.Object },
-            _mockScanner.Object
-        );
-
         // Act
-        var html = await useCase.GetHtmlSourceAsync(templateId);
+        var html = await CreateSut().GetHtmlSourceAsync(templateId);
 
         // Assert
         html.Should().Be("<h1>Receipt Source</h1>");

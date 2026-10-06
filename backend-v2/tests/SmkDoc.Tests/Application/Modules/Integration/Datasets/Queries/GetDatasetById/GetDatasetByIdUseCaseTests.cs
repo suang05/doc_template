@@ -30,10 +30,8 @@ public class GetDatasetByIdUseCaseTests
             .Setup(r => r.GetByIdAsync(connId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(conn);
 
-        var sut = CreateSut();
-
         // Act
-        var result = await sut.ExecuteAsync(new GetDatasetByIdQuery(id));
+        var result = await CreateSut().ExecuteAsync(new GetDatasetByIdQuery(id));
 
         // Assert
         result.Should().NotBeNull();
@@ -51,10 +49,8 @@ public class GetDatasetByIdUseCaseTests
             .Setup(r => r.GetByIdAsync(id, It.IsAny<CancellationToken>()))
             .ReturnsAsync((Dataset?)null);
 
-        var sut = CreateSut();
-
         // Act
-        var result = await sut.ExecuteAsync(new GetDatasetByIdQuery(id));
+        var result = await CreateSut().ExecuteAsync(new GetDatasetByIdQuery(id));
 
         // Assert
         result.Should().BeNull();

@@ -18,7 +18,7 @@ public class GenerateDocumentUseCaseTests
 {
     private readonly GenerateDocumentTestFixture _fixture = new();
 
-    private GenerateDocumentUseCase BuildUseCase() => _fixture.BuildUseCase();
+    private GenerateDocumentUseCase CreateSut() => _fixture.BuildUseCase();
 
     [Fact]
     public async Task ExecuteAsync_WhenTemplateActive_ShouldGenerateAndReturnPresignedUrl()
@@ -55,12 +55,11 @@ public class GenerateDocumentUseCaseTests
 
         _fixture.Context.Setup(c => c.CallerApp).Returns("sales-app");
 
-        var useCase = BuildUseCase();
         using var jsonDoc = JsonDocument.Parse("{\"name\": \"สมชาย ใจดี\"}");
         var request = new GenerateDocumentCommand(jsonDoc.RootElement, Output: "pdf", DocumentRef: "SC-2026-0001");
 
         // Act
-        var result = await useCase.ExecuteAsync("sale-contract", request);
+        var result = await CreateSut().ExecuteAsync("sale-contract", request);
 
         // Assert
         result.Should().NotBeNull();
@@ -96,12 +95,11 @@ public class GenerateDocumentUseCaseTests
         _fixture.TemplateRepo.Setup(r => r.GetBySlugAsync("inactive-tpl", It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
 
-        var useCase = BuildUseCase();
         using var jsonDoc = JsonDocument.Parse("{}");
         var request = new GenerateDocumentCommand(jsonDoc.RootElement);
 
         // Act & Assert
-        Func<Task> act = () => useCase.ExecuteAsync("inactive-tpl", request);
+        Func<Task> act = () => CreateSut().ExecuteAsync("inactive-tpl", request);
         await act.Should().ThrowAsync<NotFoundException>();
     }
 
@@ -115,12 +113,11 @@ public class GenerateDocumentUseCaseTests
         _fixture.TemplateRepo.Setup(r => r.GetBySlugAsync("no-ver-tpl", It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
 
-        var useCase = BuildUseCase();
         using var jsonDoc = JsonDocument.Parse("{}");
         var request = new GenerateDocumentCommand(jsonDoc.RootElement);
 
         // Act & Assert
-        Func<Task> act = () => useCase.ExecuteAsync("no-ver-tpl", request);
+        Func<Task> act = () => CreateSut().ExecuteAsync("no-ver-tpl", request);
         await act.Should().ThrowAsync<InvalidOperationException>();
     }
 
@@ -173,12 +170,11 @@ public class GenerateDocumentUseCaseTests
 
         _fixture.GivenPresignedUrl("https://minio.sammakorn.co.th/outputs/sample.pdf");
 
-        var useCase = BuildUseCase();
         using var jsonDoc = JsonDocument.Parse("{\"contract\": {\"price\": \"2500000\"}}");
         var request = new GenerateDocumentCommand(jsonDoc.RootElement);
 
         // Act
-        var result = await useCase.ExecuteAsync("contract-mapped", request);
+        var result = await CreateSut().ExecuteAsync("contract-mapped", request);
 
         // Assert
         result.Should().NotBeNull();
@@ -231,12 +227,11 @@ public class GenerateDocumentUseCaseTests
         _fixture.DocVersionRepo.Setup(r => r.MaxOrDefaultAsync(It.IsAny<Expression<Func<DocumentVersion, bool>>>(), It.IsAny<Expression<Func<DocumentVersion, int>>>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(2);
 
-        var useCase = BuildUseCase();
         using var jsonDoc = JsonDocument.Parse("{}");
         var request = new GenerateDocumentCommand(jsonDoc.RootElement, Output: "pdf", DocumentRef: "SC-2026-0001");
 
         // Act
-        await useCase.ExecuteAsync("sale-contract", request);
+        await CreateSut().ExecuteAsync("sale-contract", request);
 
         // Assert — Document NOT created again
         _fixture.DocumentRepo.Verify(r => r.AddAsync(It.IsAny<Document>(), It.IsAny<CancellationToken>()), Times.Never);
@@ -304,12 +299,11 @@ public class GenerateDocumentUseCaseTests
         _fixture.Uow.Setup(u => u.CommitAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(1);
 
-        var useCase = BuildUseCase();
         using var jsonDoc = JsonDocument.Parse("""{"customer":"ACME"}"""); // missing doc_no
         var request = new GenerateDocumentCommand(jsonDoc.RootElement, Output: "pdf");
 
         // Act
-        var act = async () => await useCase.ExecuteAsync("invoice", request);
+        var act = () => CreateSut().ExecuteAsync("invoice", request);
 
         // Assert — SchemaValidationException is thrown
         var ex = await act.Should().ThrowAsync<SchemaValidationException>();
@@ -377,12 +371,11 @@ public class GenerateDocumentUseCaseTests
             .Returns(Task.CompletedTask);
         _fixture.Uow.Setup(u => u.CommitAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
 
-        var useCase = BuildUseCase();
         using var jsonDoc = JsonDocument.Parse("""{"customer":"ACME"}"""); // missing doc_no — but SkipValidation
         var request = new GenerateDocumentCommand(jsonDoc.RootElement, Output: "pdf", SkipValidation: true);
 
         // Act
-        var result = await useCase.ExecuteAsync("invoice", request);
+        var result = await CreateSut().ExecuteAsync("invoice", request);
 
         // Assert — validation service never called; render completed successfully
         _fixture.SchemaValidation.Verify(s => s.Validate(It.IsAny<string>(), It.IsAny<string>()), Times.Never);

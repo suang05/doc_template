@@ -11,7 +11,7 @@ public class ListProjectsUseCaseTests
     private readonly Mock<IProjectRepository> _projectRepoMock = new();
     private readonly Mock<IUserProjectRoleRepository> _roleRepoMock = new();
 
-    private ListProjectsUseCase BuildSut() =>
+    private ListProjectsUseCase CreateSut() =>
         new(_projectRepoMock.Object, _roleRepoMock.Object);
 
     [Fact]
@@ -34,10 +34,8 @@ public class ListProjectsUseCaseTests
         _projectRepoMock.Setup(r => r.ListByIdsAsync(It.IsAny<IEnumerable<Guid>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<Project> { p1, p2 });
 
-        var sut = BuildSut();
-
         // Act
-        var result = (await sut.ExecuteAsync(new ListProjectsQuery(userId))).ToList();
+        var result = (await CreateSut().ExecuteAsync(new ListProjectsQuery(userId))).ToList();
 
         // Assert
         result.Should().HaveCount(1);

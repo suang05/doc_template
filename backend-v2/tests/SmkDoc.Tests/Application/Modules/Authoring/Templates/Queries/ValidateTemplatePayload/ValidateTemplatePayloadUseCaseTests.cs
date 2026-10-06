@@ -21,16 +21,11 @@ public class ValidateTemplatePayloadUseCaseTests
     private readonly Mock<IJsonSchemaValidationService> _mockSchemaValidation = new();
     private readonly Mock<IExecutionContext> _mockContext = new();
 
-    private readonly ValidateTemplatePayloadUseCase _useCase;
-
-    public ValidateTemplatePayloadUseCaseTests()
-    {
-        _useCase = new ValidateTemplatePayloadUseCase(
-            _mockTemplateRepo.Object,
-            _mockVersionRepo.Object,
-            _mockSchemaValidation.Object,
-            _mockContext.Object);
-    }
+    private ValidateTemplatePayloadUseCase CreateSut() => new(
+        _mockTemplateRepo.Object,
+        _mockVersionRepo.Object,
+        _mockSchemaValidation.Object,
+        _mockContext.Object);
 
     [Fact]
     public async Task ExecuteAsync_WhenPayloadValid_ReturnsSuccess()
@@ -43,10 +38,10 @@ public class ValidateTemplatePayloadUseCaseTests
         const string schema = """{"type":"object","required":["doc_no"]}""";
 
         var template = TemplateTestFactory.Create(projectId: projectId, name: "Invoice TH", slug: slug);
-        template.SetCurrentVersion(versionId, DateTimeOffset.UtcNow);
+        template.SetCurrentVersion(versionId, TestConstants.BaselineTime);
 
         var version = TemplateVersionTestFactory.Create(Guid.NewGuid(), templateId, 1, "templates/invoice.html", TemplateFormat.Html, "Published", "init");
-        version.UpdateDataSchema(schema, "{}", DateTimeOffset.UtcNow);
+        version.UpdateDataSchema(schema, "{}", TestConstants.BaselineTime);
 
         _mockContext.Setup(c => c.ProjectId).Returns(projectId);
         _mockTemplateRepo
@@ -64,7 +59,7 @@ public class ValidateTemplatePayloadUseCaseTests
         var command = new ValidateTemplatePayloadQuery(slug, doc.RootElement);
 
         // Act
-        var result = await _useCase.ExecuteAsync(command);
+        var result = await CreateSut().ExecuteAsync(command);
 
         // Assert
         result.Valid.Should().BeTrue();
@@ -84,10 +79,10 @@ public class ValidateTemplatePayloadUseCaseTests
         const string schema = """{"type":"object","required":["doc_no"]}""";
 
         var template = TemplateTestFactory.Create(projectId: projectId, name: "Invoice TH", slug: slug);
-        template.SetCurrentVersion(versionId, DateTimeOffset.UtcNow);
+        template.SetCurrentVersion(versionId, TestConstants.BaselineTime);
 
         var version = TemplateVersionTestFactory.Create(Guid.NewGuid(), templateId, 2, "templates/invoice.html", TemplateFormat.Html, "Published", "v2");
-        version.UpdateDataSchema(schema, "{}", DateTimeOffset.UtcNow);
+        version.UpdateDataSchema(schema, "{}", TestConstants.BaselineTime);
 
         _mockContext.Setup(c => c.ProjectId).Returns(projectId);
         _mockTemplateRepo
@@ -109,7 +104,7 @@ public class ValidateTemplatePayloadUseCaseTests
         var command = new ValidateTemplatePayloadQuery(slug, doc.RootElement);
 
         // Act
-        var result = await _useCase.ExecuteAsync(command);
+        var result = await CreateSut().ExecuteAsync(command);
 
         // Assert
         result.Valid.Should().BeFalse();
@@ -129,7 +124,7 @@ public class ValidateTemplatePayloadUseCaseTests
         const string slug = "no-schema-template";
 
         var template = TemplateTestFactory.Create(projectId: projectId, name: "No Schema", slug: slug);
-        template.SetCurrentVersion(versionId, DateTimeOffset.UtcNow);
+        template.SetCurrentVersion(versionId, TestConstants.BaselineTime);
 
         var version = TemplateVersionTestFactory.Create(Guid.NewGuid(), templateId, 1, "templates/none.html", TemplateFormat.Html, "Published", "init");
         _mockContext.Setup(c => c.ProjectId).Returns(projectId);
@@ -144,7 +139,7 @@ public class ValidateTemplatePayloadUseCaseTests
         var command = new ValidateTemplatePayloadQuery(slug, doc.RootElement);
 
         // Act
-        var result = await _useCase.ExecuteAsync(command);
+        var result = await CreateSut().ExecuteAsync(command);
 
         // Assert
         result.Valid.Should().BeTrue();
@@ -161,7 +156,7 @@ public class ValidateTemplatePayloadUseCaseTests
         using var doc = JsonDocument.Parse("{}");
         var command = new ValidateTemplatePayloadQuery("missing-template", doc.RootElement);
 
-        var act = async () => await _useCase.ExecuteAsync(command);
+        var act = async () => await CreateSut().ExecuteAsync(command);
 
         await act.Should().ThrowAsync<NotFoundException>();
     }

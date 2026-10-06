@@ -54,7 +54,7 @@ public class DocumentDataPreparationServiceTests
         var template = TemplateTestFactory.Create(name: "Tpl", slug: "tpl");
         var version = TemplateVersionTestFactory.Create(Guid.NewGuid(), template.Id, 1, "tpl.html", TemplateFormat.Html, "Pub", "Commit");
         const string schema = """{"required":["field"]}""";
-        version.UpdateDataSchema(schema, null, DateTimeOffset.UtcNow);
+        version.UpdateDataSchema(schema, null, TestConstants.BaselineTime);
 
         var errors = new List<ValidationErrorItem> { new("/", "required", "Missing field") };
         _mockSchemaValidation.Setup(s => s.Validate(schema, It.IsAny<string>()))

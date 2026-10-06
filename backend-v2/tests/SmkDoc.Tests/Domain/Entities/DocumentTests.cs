@@ -28,7 +28,7 @@ public class DocumentTests
     public void Create_WithDocumentReference_InitializesCorrectly()
     {
         var docRef = DocumentReference.Create("REF-ABC");
-        var now = DateTimeOffset.UtcNow;
+        var now = TestConstants.BaselineTime;
 
         var document = Document.Create(docRef, null, now);
 
@@ -39,7 +39,7 @@ public class DocumentTests
     [Fact]
     public void Create_WithNullDocumentReference_ThrowsDomainValidationException()
     {
-        var act = () => Document.Create(null!, null, DateTimeOffset.UtcNow);
+        var act = () => Document.Create(null!, null, TestConstants.BaselineTime);
 
         act.Should().Throw<DomainValidationException>()
             .WithMessage("*DocumentRef is required*");
@@ -62,7 +62,7 @@ public class DocumentTests
     [Fact]
     public void AddVersion_WithNullVersion_ThrowsDomainValidationException()
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = TestConstants.BaselineTime;
         var document = Document.Create(DocumentReference.Create("DOC-001"), null, now);
         var act = () => document.AddVersion(null!, now);
 
@@ -73,7 +73,7 @@ public class DocumentTests
     [Fact]
     public void AddVersion_WithMismatchedDocumentId_ThrowsDomainValidationException()
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = TestConstants.BaselineTime;
         var document = Document.Create(DocumentReference.Create("DOC-001"), null, now);
         var otherDocumentId = Guid.NewGuid();
         var version = DocumentVersion.Create(otherDocumentId, 1, null, null, null, null, now);
@@ -87,7 +87,7 @@ public class DocumentTests
     [Fact]
     public void AddVersion_WithDuplicateVersionNumber_ThrowsDuplicateDocumentVersionException()
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = TestConstants.BaselineTime;
         var document = Document.Create(DocumentReference.Create("DOC-001"), null, now);
         var v1 = DocumentVersion.Create(document.Id, 1, null, null, null, null, now);
         document.AddVersion(v1, now);

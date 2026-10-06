@@ -24,10 +24,8 @@ public class ListDataConnectionsUseCaseTests
             .Setup(r => r.ListAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<DataConnection> { conn1, conn2 });
 
-        var sut = CreateSut();
-
         // Act
-        var results = await sut.ExecuteAsync(new ListDataConnectionsQuery());
+        var results = await CreateSut().ExecuteAsync(new ListDataConnectionsQuery());
 
         // Assert
         results.Should().HaveCount(2);

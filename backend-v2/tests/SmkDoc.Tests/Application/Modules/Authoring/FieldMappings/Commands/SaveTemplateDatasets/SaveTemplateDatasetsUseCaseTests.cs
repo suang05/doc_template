@@ -40,10 +40,9 @@ public class SaveTemplateDatasetsUseCaseTests
         };
 
         var command = new SaveTemplateDatasetsCommand(templateId, items);
-        var sut = CreateSut();
 
         // Act
-        await sut.ExecuteAsync(command);
+        await CreateSut().ExecuteAsync(command);
 
         // Assert
         template.TemplateDatasets.Should().HaveCount(1);
@@ -65,10 +64,9 @@ public class SaveTemplateDatasetsUseCaseTests
             .ReturnsAsync((Template?)null);
 
         var command = new SaveTemplateDatasetsCommand(templateId, new List<SaveTemplateDatasetItemDto>());
-        var sut = CreateSut();
 
         // Act
-        var act = () => sut.ExecuteAsync(command);
+        var act = () => CreateSut().ExecuteAsync(command);
 
         // Assert
         await act.Should().ThrowAsync<NotFoundException>()
@@ -91,10 +89,9 @@ public class SaveTemplateDatasetsUseCaseTests
         };
 
         var command = new SaveTemplateDatasetsCommand(templateId, items);
-        var sut = CreateSut();
 
         // Act
-        var act = () => sut.ExecuteAsync(command);
+        var act = () => CreateSut().ExecuteAsync(command);
 
         // Assert
         var ex = await act.Should().ThrowAsync<BusinessRuleViolationException>();

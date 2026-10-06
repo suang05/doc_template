@@ -13,11 +13,12 @@ public class ListTemplatesUseCaseTests
 {
     private readonly Mock<ITemplateRepository> _mockRepo = new();
 
+    private ListTemplatesUseCase CreateSut() => new(_mockRepo.Object);
+
     [Fact]
     public async Task ExecuteAsync_WhenEmptyProjectId_ShouldThrowDomainValidationException()
     {
-        var useCase = new ListTemplatesUseCase(_mockRepo.Object);
-        var act = () => useCase.ExecuteAsync(new ListTemplatesQuery(Guid.Empty));
+        var act = () => CreateSut().ExecuteAsync(new ListTemplatesQuery(Guid.Empty));
 
         await act.Should().ThrowAsync<DomainValidationException>()
             .WithMessage("*ProjectId cannot be empty*");
@@ -41,8 +42,7 @@ public class ListTemplatesUseCaseTests
         _mockRepo.Setup(r => r.ListByProjectAsync(projectId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<Template> { template1, template2 });
 
-        var useCase = new ListTemplatesUseCase(_mockRepo.Object);
-        var result = await useCase.ExecuteAsync(new ListTemplatesQuery(projectId));
+        var result = await CreateSut().ExecuteAsync(new ListTemplatesQuery(projectId));
 
         result.Should().HaveCount(2);
         result[0].Name.Should().Be("Invoice");

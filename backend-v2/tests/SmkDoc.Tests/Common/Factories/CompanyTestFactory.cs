@@ -15,7 +15,7 @@ public static class CompanyTestFactory
         DateTimeOffset? now = null,
         bool isActive = true)
     {
-        var timestamp = now ?? DateTimeOffset.UtcNow;
+        var timestamp = now ?? TestConstants.BaselineTime;
         var company = new Company(
             id ?? Guid.NewGuid(),
             CompanyName.Create(name),

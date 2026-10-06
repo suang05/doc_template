@@ -10,6 +10,8 @@ public class InviteUserUseCaseTests
 {
     private readonly UserManagementTestFixture _fixture = new();
 
+    private InviteUserUseCase CreateSut() => _fixture.BuildInviteUserUseCase();
+
     [Fact]
     public async Task ExecuteAsync_WhenUserDoesNotExist_CreatesUserAndRole()
     {
@@ -22,9 +24,8 @@ public class InviteUserUseCaseTests
             .ReturnsAsync((User?)null);
         _fixture.PasswordHasher.Setup(p => p.HashPassword(password)).Returns("hash");
 
-        var useCase = _fixture.BuildInviteUserUseCase();
         var command = new InviteUserCommand(projectId, email, password, "New", "User", roleStr);
-        var result = await useCase.ExecuteAsync(command);
+        var result = await CreateSut().ExecuteAsync(command);
 
         _fixture.UserRepo.Verify(r => r.AddAsync(It.IsAny<User>(), It.IsAny<CancellationToken>()), Times.Once);
         _fixture.RoleRepo.Verify(r => r.AddAsync(It.IsAny<UserProjectRole>(), It.IsAny<CancellationToken>()), Times.Once);
@@ -49,9 +50,8 @@ public class InviteUserUseCaseTests
         _fixture.RoleRepo.Setup(r => r.GetAsync(projectId, existingUser.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(existingRole);
 
-        var useCase = _fixture.BuildInviteUserUseCase();
         var command = new InviteUserCommand(projectId, "exist@test.com", "Pass@1234", "", "", "Viewer");
-        var act = () => useCase.ExecuteAsync(command);
+        var act = () => CreateSut().ExecuteAsync(command);
         await act.Should().ThrowAsync<ConflictException>();
     }
 }

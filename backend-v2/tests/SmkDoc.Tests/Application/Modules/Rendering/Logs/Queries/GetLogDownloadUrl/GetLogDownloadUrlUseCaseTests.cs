@@ -28,10 +28,8 @@ public class GetLogDownloadUrlUseCaseTests
             .Setup(s => s.GetPresignedUrlAsync("outputs", "outputs/doc.pdf", It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("https://minio.sammakorn.co.th/outputs/doc.pdf?token=abc");
 
-        var sut = CreateSut();
-
         // Act
-        var url = await sut.ExecuteAsync(new GetLogDownloadUrlQuery(logId));
+        var url = await CreateSut().ExecuteAsync(new GetLogDownloadUrlQuery(logId));
 
         // Assert
         url.Should().Contain("minio.sammakorn.co.th");

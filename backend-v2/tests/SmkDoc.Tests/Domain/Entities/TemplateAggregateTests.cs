@@ -3,6 +3,7 @@ using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Tests.Common;
 using Xunit;
 
 namespace SmkDoc.Tests.Domain.Entities;
@@ -12,7 +13,7 @@ public class TemplateAggregateTests
     private readonly Guid _projectId = Guid.NewGuid();
 
     private Template CreateTemplate(string name = "Invoice", string slug = "invoice", string? category = null, DateTimeOffset? now = null) =>
-        Template.Create(_projectId, TemplateName.Create(name), TemplateSlug.Create(slug), category, now ?? DateTimeOffset.UtcNow);
+        Template.Create(_projectId, TemplateName.Create(name), TemplateSlug.Create(slug), category, now ?? TestConstants.BaselineTime);
 
     [Fact]
     public void Collections_ShouldBeReadOnly_AndNotDirectlyMutable()
@@ -23,7 +24,7 @@ public class TemplateAggregateTests
         template.FieldMappings.Should().BeAssignableTo<IReadOnlyCollection<FieldMapping>>();
         template.TemplateDatasets.Should().BeAssignableTo<IReadOnlyCollection<TemplateDataset>>();
 
-        var now = DateTimeOffset.UtcNow;
+        var now = TestConstants.BaselineTime;
 
         // Verify that casting to mutable list throws or is not supported
         Action actMutateVersions = () => ((IList<TemplateVersion>)template.Versions).Add(
@@ -44,7 +45,7 @@ public class TemplateAggregateTests
     [Fact]
     public void AddVersion_ValidVersion_AddsToVersionsCollection()
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = TestConstants.BaselineTime;
         var template = CreateTemplate("Invoice", "invoice", now: now);
         var version = TemplateVersion.Draft(template.Id, 1, "s3-key-1", TemplateFormat.Html, "author", now);
 
@@ -57,7 +58,7 @@ public class TemplateAggregateTests
     [Fact]
     public void AddVersion_NullOrTemplateIdMismatch_ThrowsDomainValidationException()
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = TestConstants.BaselineTime;
         var template = CreateTemplate("Invoice", "invoice", now: now);
 
         Action actNull = () => template.AddVersion(null!, now);
@@ -72,7 +73,7 @@ public class TemplateAggregateTests
     [Fact]
     public void AddVersion_DuplicateVersionNumber_ThrowsBusinessRuleViolationException()
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = TestConstants.BaselineTime;
         var template = CreateTemplate("Invoice", "invoice", now: now);
         var v1 = TemplateVersion.Draft(template.Id, 1, "key-1", TemplateFormat.Html, "author", now);
         var v2 = TemplateVersion.Draft(template.Id, 1, "key-2", TemplateFormat.Html, "author", now);
@@ -88,7 +89,7 @@ public class TemplateAggregateTests
     [Fact]
     public void SetCurrentVersion_VersionBelongsToTemplate_SetsCurrentVersionId()
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = TestConstants.BaselineTime;
         var template = CreateTemplate("Invoice", "invoice", now: now);
         var version = TemplateVersion.Draft(template.Id, 1, "key", TemplateFormat.Html, "author", now);
         template.AddVersion(version, now);
@@ -101,7 +102,7 @@ public class TemplateAggregateTests
     [Fact]
     public void SetCurrentVersion_VersionNotInTemplate_ThrowsBusinessRuleViolationException()
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = TestConstants.BaselineTime;
         var template = CreateTemplate("Invoice", "invoice", now: now);
         var version = TemplateVersion.Draft(template.Id, 1, "key", TemplateFormat.Html, "author", now);
         template.AddVersion(version, now);
@@ -142,7 +143,7 @@ public class TemplateAggregateTests
     [Fact]
     public void ReplaceFieldMappings_ValidMappings_ReplacesCollection()
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = TestConstants.BaselineTime;
         var template = CreateTemplate("Receipt", "receipt", now: now);
         var initial = FieldMapping.Create(template.Id, "name", "customer.name", "Name", true, 1, now);
         template.AddFieldMapping(initial, now);
@@ -162,7 +163,7 @@ public class TemplateAggregateTests
     [Fact]
     public void ReplaceFieldMappings_DuplicatePlaceholders_ThrowsBusinessRuleViolationException()
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = TestConstants.BaselineTime;
         var template = CreateTemplate("Receipt", "receipt", now: now);
         var mappings = new List<FieldMapping>
         {
@@ -182,7 +183,7 @@ public class TemplateAggregateTests
     [Fact]
     public void AttachDataset_And_DetachDataset_ModifiesCollection()
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = TestConstants.BaselineTime;
         var template = CreateTemplate("Order", "order", now: now);
         var dsId = Guid.NewGuid();
 
@@ -199,7 +200,7 @@ public class TemplateAggregateTests
     [Fact]
     public void AttachDataset_DuplicateAlias_ThrowsBusinessRuleViolationException()
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = TestConstants.BaselineTime;
         var template = CreateTemplate("Order", "order", now: now);
         template.AttachDataset(Guid.NewGuid(), DatasetAlias.Create("header"), 1, now);
 
@@ -213,7 +214,7 @@ public class TemplateAggregateTests
     [Fact]
     public void ReplaceDatasets_DuplicateAliases_ThrowsBusinessRuleViolationException()
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = TestConstants.BaselineTime;
         var template = CreateTemplate("Order", "order", now: now);
         var datasets = new List<TemplateDataset>
         {
@@ -233,7 +234,7 @@ public class TemplateAggregateTests
     [Fact]
     public void Document_AddVersion_EnforcesEncapsulationAndDuplicateGuards()
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = TestConstants.BaselineTime;
         var doc = Document.Create(DocumentReference.Create("DOC-001"), null, now);
         var v1 = DocumentVersion.Create(doc.Id, 1, null, null, "First version", "admin", now);
 

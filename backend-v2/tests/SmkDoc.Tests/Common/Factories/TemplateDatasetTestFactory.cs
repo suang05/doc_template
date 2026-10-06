@@ -19,6 +19,6 @@ public static class TemplateDatasetTestFactory
             datasetId ?? Guid.NewGuid(),
             alias ?? DatasetAlias.Create("default_alias"),
             sortOrder,
-            now ?? DateTimeOffset.UtcNow);
+            now ?? TestConstants.BaselineTime);
     }
 }

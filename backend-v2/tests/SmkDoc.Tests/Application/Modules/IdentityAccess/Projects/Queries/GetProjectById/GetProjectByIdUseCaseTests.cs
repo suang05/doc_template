@@ -8,7 +8,7 @@ public class GetProjectByIdUseCaseTests
 {
     private readonly Mock<IProjectRepository> _projectRepoMock = new();
 
-    private GetProjectByIdUseCase BuildSut() => new(_projectRepoMock.Object);
+    private GetProjectByIdUseCase CreateSut() => new(_projectRepoMock.Object);
 
     [Fact]
     public async Task ExecuteAsync_WhenProjectNotFound_ThrowsNotFoundException()
@@ -18,10 +18,8 @@ public class GetProjectByIdUseCaseTests
         _projectRepoMock.Setup(r => r.GetByIdAsync(projectId, It.IsAny<CancellationToken>()))
             .ReturnsAsync((Project?)null);
 
-        var sut = BuildSut();
-
         // Act
-        var act = () => sut.ExecuteAsync(new GetProjectByIdQuery(projectId));
+        var act = () => CreateSut().ExecuteAsync(new GetProjectByIdQuery(projectId));
 
         // Assert
         await act.Should().ThrowAsync<NotFoundException>();
@@ -41,10 +39,8 @@ public class GetProjectByIdUseCaseTests
         _projectRepoMock.Setup(r => r.GetByIdAsync(projectId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(project);
 
-        var sut = BuildSut();
-
         // Act
-        var result = await sut.ExecuteAsync(new GetProjectByIdQuery(projectId));
+        var result = await CreateSut().ExecuteAsync(new GetProjectByIdQuery(projectId));
 
         // Assert
         result.Should().NotBeNull();

@@ -4,17 +4,13 @@ using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.ValidateTemplateHtml;
 using Xunit;
 
-namespace SmkDoc.Tests.Application.Modules.Authoring.Templates;
+namespace SmkDoc.Tests.Application.Modules.Authoring.Templates.Queries.ValidateTemplateHtml;
 
-public class TemplateValidateUseCaseTests
+public class ValidateTemplateHtmlUseCaseTests
 {
     private readonly Mock<IPdfRenderer> _mockRenderer = new();
-    private readonly ValidateTemplateHtmlUseCase _sut;
 
-    public TemplateValidateUseCaseTests()
-    {
-        _sut = new ValidateTemplateHtmlUseCase(_mockRenderer.Object);
-    }
+    private ValidateTemplateHtmlUseCase CreateSut() => new(_mockRenderer.Object);
 
     [Fact]
     public async Task ValidateHtmlAsync_WithValidTags_ShouldDetectFields()
@@ -25,7 +21,7 @@ public class TemplateValidateUseCaseTests
             .ReturnsAsync([0x25, 0x50, 0x44, 0x46]);
 
         // Act
-        var result = await _sut.ValidateHtmlAsync(html);
+        var result = await CreateSut().ValidateHtmlAsync(html);
 
         // Assert
         result.Valid.Should().BeTrue();
@@ -40,7 +36,7 @@ public class TemplateValidateUseCaseTests
         const string html = "<html><body><Field label=\"Missing Name\" /></body></html>";
 
         // Act
-        var result = await _sut.ValidateHtmlAsync(html);
+        var result = await CreateSut().ValidateHtmlAsync(html);
 
         // Assert
         result.Errors.Should().Contain(e => e.Contains("missing 'name' attribute"));
@@ -50,7 +46,7 @@ public class TemplateValidateUseCaseTests
     public async Task ValidateHtmlAsync_WithEmptyHtml_ShouldReturnInvalid()
     {
         // Act
-        var result = await _sut.ValidateHtmlAsync(string.Empty);
+        var result = await CreateSut().ValidateHtmlAsync(string.Empty);
 
         // Assert
         result.Valid.Should().BeFalse();

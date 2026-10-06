@@ -15,6 +15,6 @@ public static class DocumentTestFactory
             id ?? Guid.NewGuid(),
             DocumentReference.Create(documentRef),
             templateId,
-            now ?? DateTimeOffset.UtcNow);
+            now ?? TestConstants.BaselineTime);
     }
 }

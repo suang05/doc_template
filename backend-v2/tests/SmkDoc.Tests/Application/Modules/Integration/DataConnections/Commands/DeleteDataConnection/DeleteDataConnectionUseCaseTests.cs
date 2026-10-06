@@ -29,10 +29,9 @@ public class DeleteDataConnectionUseCaseTests
             .ReturnsAsync(1);
 
         var command = new DeleteDataConnectionCommand(id);
-        var sut = CreateSut();
 
         // Act
-        var result = await sut.ExecuteAsync(command);
+        var result = await CreateSut().ExecuteAsync(command);
 
         // Assert
         result.Should().BeTrue();
@@ -50,10 +49,9 @@ public class DeleteDataConnectionUseCaseTests
             .ReturnsAsync((DataConnection?)null);
 
         var command = new DeleteDataConnectionCommand(id);
-        var sut = CreateSut();
 
         // Act
-        var result = await sut.ExecuteAsync(command);
+        var result = await CreateSut().ExecuteAsync(command);
 
         // Assert
         result.Should().BeFalse();

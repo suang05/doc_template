@@ -10,6 +10,8 @@ public class SetUserStatusUseCaseTests
 {
     private readonly UserManagementTestFixture _fixture = new();
 
+    private SetUserStatusUseCase CreateSut() => _fixture.BuildSetUserStatusUseCase();
+
     [Fact]
     public async Task ExecuteAsync_WhenValidInput_DeactivatesUserSuccessfully()
     {
@@ -27,9 +29,8 @@ public class SetUserStatusUseCaseTests
         _fixture.UserRepo.Setup(r => r.GetByIdAsync(userId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);
 
-        var useCase = _fixture.BuildSetUserStatusUseCase();
         var command = new SetUserStatusCommand(projectId, userId, false);
-        await useCase.ExecuteAsync(command);
+        await CreateSut().ExecuteAsync(command);
 
         user.IsActive.Should().BeFalse();
         _fixture.UserRepo.Verify(r => r.Update(user), Times.Once);
@@ -45,9 +46,8 @@ public class SetUserStatusUseCaseTests
         _fixture.RoleRepo.Setup(r => r.GetAsync(projectId, userId, It.IsAny<CancellationToken>()))
             .ReturnsAsync((UserProjectRole?)null);
 
-        var useCase = _fixture.BuildSetUserStatusUseCase();
         var command = new SetUserStatusCommand(projectId, userId, true);
-        var act = () => useCase.ExecuteAsync(command);
+        var act = () => CreateSut().ExecuteAsync(command);
         await act.Should().ThrowAsync<NotFoundException>();
     }
 }

@@ -21,6 +21,6 @@ public static class ApiKeyTestFactory
             callerApp,
             keyHash ?? Sha256Hash.Create(new string('a', 64)),
             expiration ?? ExpirationPolicy.Never,
-            now ?? DateTimeOffset.UtcNow);
+            now ?? TestConstants.BaselineTime);
     }
 }

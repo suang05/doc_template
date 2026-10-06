@@ -23,10 +23,13 @@ public class PreviewMappingUseCaseTests
     private readonly Mock<IFieldMappingApplicatorService> _mockApplicator = new();
     private readonly Mock<IDataProtectionService> _mockDataProtection = new();
 
-    private PreviewMappingUseCase CreateUseCase()
+    public PreviewMappingUseCaseTests()
     {
         _mockHtmlEngine.Setup(e => e.EngineType).Returns(RenderEngineType.Html);
-        return new PreviewMappingUseCase(
+    }
+
+    private PreviewMappingUseCase CreateSut() =>
+        new(
             _mockTemplateRepo.Object,
             _mockVersionRepo.Object,
             _mockDatasetRepo.Object,
@@ -36,7 +39,6 @@ public class PreviewMappingUseCaseTests
             _mockApplicator.Object,
             _mockDataProtection.Object
         );
-    }
 
     private Template SetupTemplate(Guid templateId, Guid versionId, RenderEngineType? engineType = null, IEnumerable<FieldMapping>? mappings = null)
     {
@@ -78,7 +80,7 @@ public class PreviewMappingUseCaseTests
 
         var sampleData = JsonDocument.Parse("{\"name\":\"John\"}").RootElement;
 
-        var result = await CreateUseCase().ExecuteAsync(templateId, sampleData);
+        var result = await CreateSut().ExecuteAsync(templateId, sampleData);
 
         result.Should().NotBeEmpty();
         _mockHtmlEngine.Verify(e => e.RenderAsync(
@@ -103,7 +105,7 @@ public class PreviewMappingUseCaseTests
 
         var undefined = default(JsonElement);
 
-        await CreateUseCase().ExecuteAsync(templateId, undefined);
+        await CreateSut().ExecuteAsync(templateId, undefined);
 
         _mockHtmlEngine.Verify(e => e.RenderAsync(
             It.IsAny<Stream>(),
@@ -135,7 +137,7 @@ public class PreviewMappingUseCaseTests
 
         var sampleData = JsonDocument.Parse("{\"customer\":{\"name\":\"John Doe\"}}").RootElement;
 
-        var result = await CreateUseCase().ExecuteAsync(templateId, sampleData);
+        var result = await CreateSut().ExecuteAsync(templateId, sampleData);
 
         result.Should().NotBeEmpty();
         _mockApplicator.Verify(a => a.ApplyAsync(
@@ -154,7 +156,7 @@ public class PreviewMappingUseCaseTests
         _mockTemplateRepo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((Template?)null);
 
-        Func<Task> act = () => CreateUseCase().ExecuteAsync(Guid.NewGuid(), default);
+        Func<Task> act = () => CreateSut().ExecuteAsync(Guid.NewGuid(), default);
         await act.Should().ThrowAsync<NotFoundException>();
     }
 
@@ -168,7 +170,7 @@ public class PreviewMappingUseCaseTests
         _mockTemplateRepo.Setup(r => r.GetByIdAsync(templateId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
 
-        Func<Task> act = () => CreateUseCase().ExecuteAsync(templateId, default);
+        Func<Task> act = () => CreateSut().ExecuteAsync(templateId, default);
         await act.Should().ThrowAsync<InvalidOperationException>();
     }
 
@@ -191,7 +193,7 @@ public class PreviewMappingUseCaseTests
             .ReturnsAsync(new MemoryStream());
 
         // Only Html engine registered — Docx engine is missing
-        Func<Task> act = () => CreateUseCase().ExecuteAsync(templateId, default);
+        Func<Task> act = () => CreateSut().ExecuteAsync(templateId, default);
         await act.Should().ThrowAsync<InvalidOperationException>();
     }
 
@@ -209,7 +211,7 @@ public class PreviewMappingUseCaseTests
         _mockHtmlEngine.Setup(e => e.RenderAsync(It.IsAny<Stream>(), It.IsAny<string>(), OutputFormat.Pdf, It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
 
-        await CreateUseCase().ExecuteAsync(templateId, default);
+        await CreateSut().ExecuteAsync(templateId, default);
 
         _mockStorage.Verify(s => s.UploadAsync(
             It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Stream>(),
@@ -228,7 +230,7 @@ public class PreviewMappingUseCaseTests
         _mockHtmlEngine.Setup(e => e.RenderAsync(It.IsAny<Stream>(), It.IsAny<string>(), OutputFormat.Pdf, It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
 
-        await CreateUseCase().ExecuteAsync(templateId, default);
+        await CreateSut().ExecuteAsync(templateId, default);
 
         _mockStorage.Verify(s => s.DownloadAsync(
             StorageBuckets.Templates,

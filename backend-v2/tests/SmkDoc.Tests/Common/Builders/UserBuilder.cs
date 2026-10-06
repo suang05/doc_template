@@ -46,6 +46,6 @@ public class UserBuilder
 
     public User Build()
     {
-        return new User(_id, EmailAddress.Create(_email), _passwordHash, _firstName, _lastName, _systemRole, DateTimeOffset.UtcNow);
+        return new User(_id, EmailAddress.Create(_email), _passwordHash, _firstName, _lastName, _systemRole, TestConstants.BaselineTime);
     }
 }

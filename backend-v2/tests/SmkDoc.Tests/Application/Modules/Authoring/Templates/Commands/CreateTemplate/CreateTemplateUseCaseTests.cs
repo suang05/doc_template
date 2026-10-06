@@ -12,13 +12,14 @@ public class CreateTemplateUseCaseTests
 {
     private readonly TemplateAuthoringTestFixture _fixture = new();
 
+    private CreateTemplateUseCase CreateSut() => _fixture.BuildCreateTemplateUseCase();
+
     [Fact]
     public async Task ExecuteAsync_WhenCommandIsInvalid_ShouldFailFastWithoutTouchingDb()
     {
-        var useCase = _fixture.BuildCreateTemplateUseCase();
         var invalidCommand = new CreateTemplateCommand(Guid.Empty, "", "INVALID_SLUG", null);
 
-        var act = () => useCase.ExecuteAsync(invalidCommand);
+        var act = () => CreateSut().ExecuteAsync(invalidCommand);
 
         await act.Should().ThrowAsync<ValidationException>();
 
@@ -34,10 +35,9 @@ public class CreateTemplateUseCaseTests
             .Setup(r => r.SlugExistsAsync("tax-invoice", projectId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
 
-        var useCase = _fixture.BuildCreateTemplateUseCase();
         var command = new CreateTemplateCommand(projectId, "Tax Invoice", "tax-invoice", "Finance");
 
-        var act = () => useCase.ExecuteAsync(command);
+        var act = () => CreateSut().ExecuteAsync(command);
 
         await act.Should().ThrowAsync<ConflictException>();
         _fixture.TemplateRepo.Verify(r => r.AddAsync(It.IsAny<Template>(), It.IsAny<CancellationToken>()), Times.Never);
@@ -52,10 +52,9 @@ public class CreateTemplateUseCaseTests
             .ReturnsAsync(false);
         _fixture.Context.Setup(c => c.CallerApp).Returns("erp-system");
 
-        var useCase = _fixture.BuildCreateTemplateUseCase();
         var command = new CreateTemplateCommand(projectId, "Tax Invoice", "tax-invoice", "Finance");
 
-        var response = await useCase.ExecuteAsync(command);
+        var response = await CreateSut().ExecuteAsync(command);
 
         response.Should().NotBeNull();
         response.Name.Should().Be("Tax Invoice");

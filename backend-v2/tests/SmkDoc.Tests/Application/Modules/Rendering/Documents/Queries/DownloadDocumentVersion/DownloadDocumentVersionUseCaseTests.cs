@@ -42,10 +42,8 @@ public class DownloadDocumentVersionUseCaseTests
             .Setup(s => s.DownloadAsync("outputs", "outputs/sc001_v1.pdf", It.IsAny<CancellationToken>()))
             .ReturnsAsync(new MemoryStream(pdfBytes));
 
-        var sut = CreateSut();
-
         // Act
-        var result = await sut.ExecuteAsync(new DownloadDocumentVersionQuery("SC-001", 1));
+        var result = await CreateSut().ExecuteAsync(new DownloadDocumentVersionQuery("SC-001", 1));
 
         // Assert
         result.ContentType.Should().Be("application/pdf");
@@ -61,10 +59,8 @@ public class DownloadDocumentVersionUseCaseTests
             .Setup(r => r.FirstOrDefaultAsync(It.IsAny<Expression<Func<Document, bool>>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((Document?)null);
 
-        var sut = CreateSut();
-
         // Act
-        var act = () => sut.ExecuteAsync(new DownloadDocumentVersionQuery("MISSING", 1));
+        var act = () => CreateSut().ExecuteAsync(new DownloadDocumentVersionQuery("MISSING", 1));
 
         // Assert
         await act.Should().ThrowAsync<NotFoundException>();

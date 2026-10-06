@@ -19,7 +19,7 @@ public static class TemplateTestFactory
         bool isActive = true,
         Guid? currentVersionId = null)
     {
-        var timestamp = now ?? DateTimeOffset.UtcNow;
+        var timestamp = now ?? TestConstants.BaselineTime;
         var template = new Template(
             id ?? Guid.NewGuid(),
             projectId ?? Guid.NewGuid(),

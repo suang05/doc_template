@@ -40,6 +40,6 @@ public static class GenerationLogTestFactory
             durationMs,
             status ?? GenerationStatus.Success,
             errorMsg,
-            now ?? DateTimeOffset.UtcNow);
+            now ?? TestConstants.BaselineTime);
     }
 }

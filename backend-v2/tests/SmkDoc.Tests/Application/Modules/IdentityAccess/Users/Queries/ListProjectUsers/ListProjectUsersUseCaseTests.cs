@@ -9,6 +9,8 @@ public class ListProjectUsersUseCaseTests
 {
     private readonly UserManagementTestFixture _fixture = new();
 
+    private ListProjectUsersUseCase CreateSut() => _fixture.BuildListProjectUsersUseCase();
+
     [Fact]
     public async Task ExecuteAsync_WhenUsersExist_ReturnsUsersInProject()
     {
@@ -21,8 +23,7 @@ public class ListProjectUsersUseCaseTests
         _fixture.UserRepo.Setup(r => r.GetByIdsAsync(It.IsAny<IEnumerable<Guid>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<User> { user });
 
-        var useCase = _fixture.BuildListProjectUsersUseCase();
-        var result = await useCase.ExecuteAsync(new ListProjectUsersQuery(projectId));
+        var result = await CreateSut().ExecuteAsync(new ListProjectUsersQuery(projectId));
 
         result.Should().ContainSingle();
         result[0].Email.Should().Be("admin@test.com");

@@ -45,10 +45,8 @@ public class GetTemplateDatasetsUseCaseTests
             .Setup(r => r.GetByIdsAsync(It.IsAny<IEnumerable<Guid>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(datasets);
 
-        var sut = CreateSut();
-
         // Act
-        var result = await sut.ExecuteAsync(new GetTemplateDatasetsQuery(templateId));
+        var result = await CreateSut().ExecuteAsync(new GetTemplateDatasetsQuery(templateId));
 
         // Assert
         result.Should().HaveCount(2);
@@ -70,10 +68,8 @@ public class GetTemplateDatasetsUseCaseTests
             .Setup(r => r.GetByIdWithDetailsAsync(templateId, It.IsAny<CancellationToken>()))
             .ReturnsAsync((Template?)null);
 
-        var sut = CreateSut();
-
         // Act
-        var result = await sut.ExecuteAsync(new GetTemplateDatasetsQuery(templateId));
+        var result = await CreateSut().ExecuteAsync(new GetTemplateDatasetsQuery(templateId));
 
         // Assert
         result.Should().BeEmpty();

@@ -16,17 +16,12 @@ public class LoginUseCaseTests
     private readonly Mock<IProjectRepository> _projectRepoMock = new();
     private readonly Mock<IPasswordHasher> _passwordHasherMock = new();
     private readonly Mock<IJwtTokenGenerator> _jwtGeneratorMock = new();
-    private readonly LoginUseCase _useCase;
-
-    public LoginUseCaseTests()
-    {
-        _useCase = new LoginUseCase(
-            _userRepoMock.Object,
-            _roleRepoMock.Object,
-            _projectRepoMock.Object,
-            _passwordHasherMock.Object,
-            _jwtGeneratorMock.Object);
-    }
+    private LoginUseCase CreateSut() => new(
+        _userRepoMock.Object,
+        _roleRepoMock.Object,
+        _projectRepoMock.Object,
+        _passwordHasherMock.Object,
+        _jwtGeneratorMock.Object);
 
     [Fact]
     public async Task ExecuteAsync_WhenValidCredentialsAndRole_ReturnsTokenAndProjects()
@@ -55,7 +50,7 @@ public class LoginUseCaseTests
             .Returns("valid_token");
 
         // Act
-        var result = await _useCase.ExecuteAsync(command);
+        var result = await CreateSut().ExecuteAsync(command);
 
         // Assert
         result.Should().NotBeNull();
@@ -74,7 +69,7 @@ public class LoginUseCaseTests
             .ReturnsAsync((User?)null);
 
         // Act
-        var act = () => _useCase.ExecuteAsync(command);
+        var act = () => CreateSut().ExecuteAsync(command);
 
         // Assert
         await act.Should().ThrowAsync<UnauthorizedException>()
@@ -94,7 +89,7 @@ public class LoginUseCaseTests
             .ReturnsAsync(user);
 
         // Act
-        var act = () => _useCase.ExecuteAsync(command);
+        var act = () => CreateSut().ExecuteAsync(command);
 
         // Assert
         await act.Should().ThrowAsync<UnauthorizedException>()
@@ -114,7 +109,7 @@ public class LoginUseCaseTests
             .Returns(false);
 
         // Act
-        var act = () => _useCase.ExecuteAsync(command);
+        var act = () => CreateSut().ExecuteAsync(command);
 
         // Assert
         await act.Should().ThrowAsync<UnauthorizedException>()
@@ -143,7 +138,7 @@ public class LoginUseCaseTests
             .ReturnsAsync(new List<Project> { project });
 
         // Act
-        var act = () => _useCase.ExecuteAsync(command);
+        var act = () => CreateSut().ExecuteAsync(command);
 
         // Assert
         await act.Should().ThrowAsync<UnauthorizedException>()

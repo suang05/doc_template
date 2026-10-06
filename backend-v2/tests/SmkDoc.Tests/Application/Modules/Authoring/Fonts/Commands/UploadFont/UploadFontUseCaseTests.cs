@@ -4,7 +4,7 @@ using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Fonts.Commands.UploadFont;
 using Xunit;
 
-namespace SmkDoc.Tests.Application.Modules.Authoring.Fonts.Commands;
+namespace SmkDoc.Tests.Application.Modules.Authoring.Fonts.Commands.UploadFont;
 
 public class UploadFontUseCaseTests
 {

@@ -12,6 +12,8 @@ public class GetTemplateByIdUseCaseTests
 {
     private readonly TemplateAuthoringTestFixture _fixture = new();
 
+    private GetTemplateByIdUseCase CreateSut() => _fixture.BuildGetTemplateByIdUseCase();
+
     [Fact]
     public async Task ExecuteAsync_WhenTemplateNotFound_ShouldThrowNotFoundException()
     {
@@ -20,8 +22,7 @@ public class GetTemplateByIdUseCaseTests
             .Setup(r => r.GetByIdAsync(templateId, It.IsAny<CancellationToken>()))
             .ReturnsAsync((SmkDoc.Domain.Entities.Template?)null);
 
-        var useCase = _fixture.BuildGetTemplateByIdUseCase();
-        var act = () => useCase.ExecuteAsync(new GetTemplateByIdQuery(templateId));
+        var act = () => CreateSut().ExecuteAsync(new GetTemplateByIdQuery(templateId));
 
         await act.Should().ThrowAsync<NotFoundException>();
     }
@@ -40,8 +41,7 @@ public class GetTemplateByIdUseCaseTests
             .Setup(r => r.GetByIdAsync(templateId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
 
-        var useCase = _fixture.BuildGetTemplateByIdUseCase();
-        var response = await useCase.ExecuteAsync(new GetTemplateByIdQuery(templateId));
+        var response = await CreateSut().ExecuteAsync(new GetTemplateByIdQuery(templateId));
 
         response.Should().NotBeNull();
         response.Id.Should().Be(templateId);

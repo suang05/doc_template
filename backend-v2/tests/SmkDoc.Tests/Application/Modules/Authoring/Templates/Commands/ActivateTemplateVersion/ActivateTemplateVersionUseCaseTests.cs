@@ -13,6 +13,8 @@ public class ActivateTemplateVersionUseCaseTests
 {
     private readonly TemplateAuthoringTestFixture _fixture = new();
 
+    private ActivateTemplateVersionUseCase CreateSut() => _fixture.BuildActivateTemplateVersionUseCase();
+
     [Fact]
     public async Task ExecuteAsync_WhenTemplateNotFound_ShouldThrowNotFoundException()
     {
@@ -23,8 +25,7 @@ public class ActivateTemplateVersionUseCaseTests
             .Setup(r => r.GetByIdAsync(templateId, It.IsAny<CancellationToken>()))
             .ReturnsAsync((Template?)null);
 
-        var useCase = _fixture.BuildActivateTemplateVersionUseCase();
-        var act = () => useCase.ExecuteAsync(new ActivateTemplateVersionCommand(templateId, versionId));
+        var act = () => CreateSut().ExecuteAsync(new ActivateTemplateVersionCommand(templateId, versionId));
 
         await act.Should().ThrowAsync<NotFoundException>();
     }
@@ -49,8 +50,7 @@ public class ActivateTemplateVersionUseCaseTests
             .Setup(r => r.GetByIdAsync(versionId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(foreignVersion);
 
-        var useCase = _fixture.BuildActivateTemplateVersionUseCase();
-        var act = () => useCase.ExecuteAsync(new ActivateTemplateVersionCommand(templateId, versionId));
+        var act = () => CreateSut().ExecuteAsync(new ActivateTemplateVersionCommand(templateId, versionId));
 
         await act.Should().ThrowAsync<ConflictException>();
     }
@@ -75,8 +75,7 @@ public class ActivateTemplateVersionUseCaseTests
             .Setup(r => r.GetByIdAsync(versionId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(version);
 
-        var useCase = _fixture.BuildActivateTemplateVersionUseCase();
-        var response = await useCase.ExecuteAsync(new ActivateTemplateVersionCommand(templateId, versionId));
+        var response = await CreateSut().ExecuteAsync(new ActivateTemplateVersionCommand(templateId, versionId));
 
         template.CurrentVersionId.Should().Be(versionId);
         template.IsActive.Should().BeTrue();

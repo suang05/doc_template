@@ -12,7 +12,7 @@ public class CreateProjectUseCaseTests
     private readonly Mock<ICompanyRepository> _companyRepoMock = new();
     private readonly Mock<IUnitOfWork> _uowMock = new();
 
-    private CreateProjectUseCase BuildSut() =>
+    private CreateProjectUseCase CreateSut() =>
         new(
             _projectRepoMock.Object,
             _roleRepoMock.Object,
@@ -30,10 +30,8 @@ public class CreateProjectUseCaseTests
         _projectRepoMock.Setup(r => r.GetBySlugAsync("existing-slug", It.IsAny<CancellationToken>()))
             .ReturnsAsync(existingProject);
 
-        var sut = BuildSut();
-
         // Act
-        var act = () => sut.ExecuteAsync(command);
+        var act = () => CreateSut().ExecuteAsync(command);
 
         // Assert
         await act.Should().ThrowAsync<ConflictException>();
@@ -65,10 +63,8 @@ public class CreateProjectUseCaseTests
             .Callback<UserProjectRole, CancellationToken>((r, _) => capturedRole = r)
             .Returns(Task.CompletedTask);
 
-        var sut = BuildSut();
-
         // Act
-        var result = await sut.ExecuteAsync(command);
+        var result = await CreateSut().ExecuteAsync(command);
 
         // Assert
         result.Should().NotBeNull();

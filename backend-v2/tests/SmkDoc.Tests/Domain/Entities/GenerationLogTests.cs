@@ -54,7 +54,7 @@ public class GenerationLogTests
     {
         var templateId = Guid.NewGuid();
         var templateVersionId = Guid.NewGuid();
-        var now = DateTimeOffset.UtcNow;
+        var now = TestConstants.BaselineTime;
 
         var log = GenerationLog.CreateValidationFailure(
             templateId,
@@ -79,7 +79,7 @@ public class GenerationLogTests
     {
         var templateId = Guid.NewGuid();
         var templateVersionId = Guid.NewGuid();
-        var now = DateTimeOffset.UtcNow;
+        var now = TestConstants.BaselineTime;
 
         var log = GenerationLog.CreateFailure(
             templateId,
@@ -100,7 +100,7 @@ public class GenerationLogTests
     [Fact]
     public void Create_WithNegativeDurationMs_ThrowsDomainValidationException()
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = TestConstants.BaselineTime;
         var act = () => GenerationLog.Create(null, null, null, null, null, null, null, null, null, null, null, -1, GenerationStatus.Success, null, now);
 
         act.Should().Throw<DomainValidationException>()
@@ -110,7 +110,7 @@ public class GenerationLogTests
     [Fact]
     public void Create_WithNegativeFileSizeBytes_ThrowsDomainValidationException()
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = TestConstants.BaselineTime;
         var act = () => GenerationLog.Create(null, null, null, null, null, null, null, null, -50, null, null, 10, GenerationStatus.Success, null, now);
 
         act.Should().Throw<DomainValidationException>()
@@ -120,7 +120,7 @@ public class GenerationLogTests
     [Fact]
     public void Create_WithNegativePageCount_ThrowsDomainValidationException()
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = TestConstants.BaselineTime;
         var act = () => GenerationLog.Create(null, null, null, null, null, null, null, null, 100, -1, null, 10, GenerationStatus.Success, null, now);
 
         act.Should().Throw<DomainValidationException>()
@@ -130,7 +130,7 @@ public class GenerationLogTests
     [Fact]
     public void Create_WithCallerAppExceedingMaxLength_ThrowsDomainValidationException()
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = TestConstants.BaselineTime;
         var longApp = new string('A', GenerationLog.MaxCallerAppLength + 1);
         var act = () => GenerationLog.Create(null, null, null, longApp, null, null, null, null, null, null, null, 10, GenerationStatus.Success, null, now);
 
@@ -141,7 +141,7 @@ public class GenerationLogTests
     [Fact]
     public void Create_WithTriggerSourceExceedingMaxLength_ThrowsDomainValidationException()
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = TestConstants.BaselineTime;
         var longSource = new string('S', GenerationLog.MaxTriggerSourceLength + 1);
         var act = () => GenerationLog.Create(null, null, null, null, longSource, null, null, null, null, null, null, 10, GenerationStatus.Success, null, now);
 
@@ -152,7 +152,7 @@ public class GenerationLogTests
     [Fact]
     public void Create_WithOutputKeyExceedingMaxLength_ThrowsDomainValidationException()
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = TestConstants.BaselineTime;
         var longKey = new string('K', GenerationLog.MaxOutputKeyLength + 1);
         var act = () => GenerationLog.Create(null, null, null, null, null, null, longKey, null, null, null, null, 10, GenerationStatus.Success, null, now);
 
@@ -163,7 +163,7 @@ public class GenerationLogTests
     [Fact]
     public void Create_WithSmartEnumStatus_InitializesSuccessfully()
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = TestConstants.BaselineTime;
         var log = GenerationLog.Create(null, null, null, null, null, null, null, null, null, null, null, 10, GenerationStatus.Timeout, null, now);
 
         log.Status.Should().Be(GenerationStatus.Timeout);

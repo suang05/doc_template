@@ -12,12 +12,7 @@ namespace SmkDoc.Tests.Application.Modules.Rendering.Documents.Commands.HtmlToPd
 public class HtmlToPdfUseCaseTests
 {
     private readonly Mock<IPdfRenderer> _pdfRendererMock = new();
-    private readonly HtmlToPdfUseCase _useCase;
-
-    public HtmlToPdfUseCaseTests()
-    {
-        _useCase = new HtmlToPdfUseCase(_pdfRendererMock.Object);
-    }
+    private HtmlToPdfUseCase CreateSut() => new(_pdfRendererMock.Object);
 
     [Fact]
     public async Task ExecuteAsync_ShouldCallRenderer_AndReturnPdfBytes()
@@ -34,7 +29,7 @@ public class HtmlToPdfUseCaseTests
             .ReturnsAsync(expectedBytes);
 
         // Act
-        var result = await _useCase.ExecuteAsync(request, CancellationToken.None);
+        var result = await CreateSut().ExecuteAsync(request, CancellationToken.None);
 
         // Assert
         result.Should().NotBeNull();

@@ -10,14 +10,9 @@ namespace SmkDoc.Tests.Application.Modules.Authoring.Schemas;
 
 public class ValidateStandaloneSchemaUseCaseTests
 {
-    private readonly ValidateStandaloneSchemaUseCase _useCase;
+    private readonly JsonSchemaValidationService _validator = new(new MemoryCache(new MemoryCacheOptions()));
 
-    public ValidateStandaloneSchemaUseCaseTests()
-    {
-        var cache = new MemoryCache(new MemoryCacheOptions());
-        var validator = new JsonSchemaValidationService(cache);
-        _useCase = new ValidateStandaloneSchemaUseCase(validator);
-    }
+    private ValidateStandaloneSchemaUseCase CreateSut() => new(_validator);
 
     [Fact]
     public void Execute_WithValidSchemaAndPayload_ReturnsValidResult()
@@ -45,7 +40,7 @@ public class ValidateStandaloneSchemaUseCaseTests
         using var payloadDoc = JsonDocument.Parse(payloadJson);
 
         var command = new ValidateStandaloneSchemaCommand(schemaDoc.RootElement, payloadDoc.RootElement);
-        var result = _useCase.Execute(command);
+        var result = CreateSut().Execute(command);
 
         result.Valid.Should().BeTrue();
         result.Message.Should().Contain("successfully");
@@ -78,7 +73,7 @@ public class ValidateStandaloneSchemaUseCaseTests
         using var payloadDoc = JsonDocument.Parse(payloadJson);
 
         var command = new ValidateStandaloneSchemaCommand(schemaDoc.RootElement, payloadDoc.RootElement);
-        var result = _useCase.Execute(command);
+        var result = CreateSut().Execute(command);
 
         result.Valid.Should().BeFalse();
         result.Errors.Should().NotBeNullOrEmpty();
@@ -92,7 +87,7 @@ public class ValidateStandaloneSchemaUseCaseTests
         using var payloadDoc = JsonDocument.Parse("{\"any\": \"data\"}");
 
         var command = new ValidateStandaloneSchemaCommand(schemaDoc.RootElement, payloadDoc.RootElement);
-        var result = _useCase.Execute(command);
+        var result = CreateSut().Execute(command);
 
         result.Valid.Should().BeTrue();
     }

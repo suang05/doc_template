@@ -1,25 +1,32 @@
 using FluentAssertions;
 using Moq;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.Modules.Authoring.Templates;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.SaveTemplateHtml;
-using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
-using Xunit;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Tests.Common.Factories;
+using Xunit;
 
-namespace SmkDoc.Tests.Application.Modules.Authoring.Templates;
+namespace SmkDoc.Tests.Application.Modules.Authoring.Templates.Commands.SaveTemplateHtml;
 
-public class HtmlPersistenceUseCaseTests
+public class SaveTemplateHtmlUseCaseTests
 {
-    private readonly Mock<ITemplateRepository>          _mockTemplateRepo    = new();
-    private readonly Mock<IRepository<TemplateVersion>> _mockVersionRepo     = new();
-    private readonly Mock<IStorageService>              _mockStorage         = new();
-    private readonly Mock<IUnitOfWork>                  _mockUow             = new();
-    private readonly Mock<IExecutionContext>             _mockContext         = new();
-    private readonly Mock<ISchemaInferenceService>      _mockSchemaInference = new();
+    private readonly Mock<ITemplateRepository> _mockTemplateRepo = new();
+    private readonly Mock<IRepository<TemplateVersion>> _mockVersionRepo = new();
+    private readonly Mock<IStorageService> _mockStorage = new();
+    private readonly Mock<IUnitOfWork> _mockUow = new();
+    private readonly Mock<IExecutionContext> _mockContext = new();
+    private readonly Mock<ISchemaInferenceService> _mockSchemaInference = new();
+
+    private SaveTemplateHtmlUseCase CreateSut() => new(
+        _mockTemplateRepo.Object,
+        _mockVersionRepo.Object,
+        _mockStorage.Object,
+        _mockUow.Object,
+        _mockContext.Object,
+        _mockSchemaInference.Object
+    );
 
     [Fact]
     public async Task SaveHtmlVersionAsync_ShouldUploadArchivedAndActiveKeys_AndIncrementVersion_AndPersistSchema()
@@ -29,7 +36,7 @@ public class HtmlPersistenceUseCaseTests
         var currentVersionId = Guid.NewGuid();
 
         var template = TemplateTestFactory.Create(templateId, Guid.NewGuid(), "official-contract", "official-contract");
-        template.SetCurrentVersion(currentVersionId, DateTimeOffset.UtcNow);
+        template.SetCurrentVersion(currentVersionId, TestConstants.BaselineTime);
 
         var currentVersion = TemplateVersionTestFactory.Create(currentVersionId, templateId, 3, "", TemplateFormat.Html, createdBy: null);
 
@@ -45,15 +52,6 @@ public class HtmlPersistenceUseCaseTests
         _mockSchemaInference.Setup(s => s.InferFromHtml(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string?>()))
             .Returns((dummySchema, dummySample));
 
-        var useCase = new SaveTemplateHtmlUseCase(
-            _mockTemplateRepo.Object,
-            _mockVersionRepo.Object,
-            _mockStorage.Object,
-            _mockUow.Object,
-            _mockContext.Object,
-            _mockSchemaInference.Object
-        );
-
         var request = new SaveTemplateHtmlCommand(
             Html: "<html><body><h1>Contract Version 4</h1></body></html>",
             SamplePayload: dummySample,
@@ -61,7 +59,7 @@ public class HtmlPersistenceUseCaseTests
         );
 
         // Act
-        int nextVersion = await useCase.SaveHtmlVersionAsync(templateId, request);
+        int nextVersion = await CreateSut().SaveHtmlVersionAsync(templateId, request);
 
         // Assert
         nextVersion.Should().Be(4);

@@ -441,11 +441,14 @@ namespace SmkDoc.Tests.Application.Modules.Authoring.Templates.Commands.CreateTe
 
 /// <summary>
 /// 📌 GOLDEN ARCHETYPE: Use Case Test (1 SUT Isolation per File)
-/// สะท้อนโครงสร้าง Application 1:1, ใช้ *TestFixture (Given*), *Builder, และ TestConstants.BaselineTime
+/// สะท้อนโครงสร้าง Application 1:1, ใช้ SUT Factory (CreateSut), *TestFixture (Given*), *Builder, และ TestConstants.BaselineTime
 /// </summary>
 public sealed class CreateTemplateUseCaseTests
 {
     private readonly TemplateTestFixture _fixture = new();
+
+    // 🌟 SSoT SUT Factory: จุดเดียวเท่านั้นที่ instantiate SUT
+    private CreateTemplateUseCase CreateSut() => _fixture.BuildCreateTemplateUseCase();
 
     [Fact]
     public async Task ExecuteAsync_WhenValidInput_ReturnsSuccessResult()
@@ -454,11 +457,10 @@ public sealed class CreateTemplateUseCaseTests
         var project = new ProjectBuilder().WithDefaults().Build();
         _fixture.GivenProjectExists(project);
 
-        var sut = _fixture.BuildCreateTemplateUseCase();
         var command = new CreateTemplateCommand(project.Id, "Invoice", "invoice-01", null);
 
-        // 2. Act
-        var result = await sut.ExecuteAsync(command);
+        // 2. Act: เรียกผ่าน CreateSut() โดยตรง (ตัด temporary variable 'sut' ออก)
+        var result = await CreateSut().ExecuteAsync(command);
 
         // 3. Assert: ตรวจสอบผลลัพธ์และ Side-effects
         result.Should().NotBeNull();
@@ -471,15 +473,57 @@ public sealed class CreateTemplateUseCaseTests
     {
         // Arrange
         _fixture.GivenTemplateSlugExists("invoice-01");
-        var sut = _fixture.BuildCreateTemplateUseCase();
         var command = new CreateTemplateCommand(Guid.NewGuid(), "Invoice", "invoice-01", null);
 
-        // Act & Assert
-        var act = () => sut.ExecuteAsync(command);
+        // Act & Assert: Exception Path ชัดเจนผ่าน Lambda โดยตรง
+        var act = () => CreateSut().ExecuteAsync(command);
         await act.Should().ThrowAsync<ConflictException>();
     }
 }
 ```
+
+##### 🎯 The Canonical SUT Factory Standard (`CreateSut`)
+เพื่อรักษา Clean Code, Readability, และ Simplicity ให้ทุกคลาสทดสอบ UseCase ในระบบเหมือนกัน 100% ให้ปฏิบัติตาม **5 เสาหลัก (The 5 Pillars)**:
+1. **SSoT Factory:** ทุกคลาสทดสอบ UseCase ต้องมี `private {UseCase} CreateSut(...)` เมธอดเดียวเท่านั้น **ห้าม** เขียน `new {UseCase}` ภายใน Test Method เด็ดขาด
+2. **Standardized Signature & Placement:**
+   - วางไว้ใต้ mock fields / fixture (ก่อน test method แรกเสมอ)
+   - ใช้ Expression-bodied (`=> new(...)` หรือ `=> _fixture.Build...()`)
+   - ตั้งชื่อ `CreateSut` เสมอ (ห้ามใช้ `BuildSut`, `CreateUseCase`, `BuildUseCase`)
+3. **Optional Parameter Overrides:** หาก test method ใดต้องการ mock พิเศษ (เช่น validator ล้มเหลว) ให้ส่งผ่าน optional parameter (`CreateSut(validator: customValidator.Object)`) โดย `CreateSut` จะ fallback กลับไปหา default mock หากส่ง `null`
+4. **Pure Factory (Zero Side-Effects):** `CreateSut()` ต้องคืน fresh instance เสมอ และปราศจาก mock setup หรือ state mutation ภายใน factory
+5. **Unified 3-A Invocation Flow:**
+   - **Happy Path:** `var result = await CreateSut().ExecuteAsync(command);` (ไม่มีตัวแปรซ้ำซ้อน `var sut = ...`)
+   - **Exception Path:** `var act = () => CreateSut().ExecuteAsync(command); await act.Should().ThrowAsync<...>();`
+
+##### 🎯 The Assertion & Mock Verification Matrix (Precision Testing)
+เพื่อยกระดับ Unit Test สู่ระดับ Enterprise-Grade และป้องกัน False Positives รวมถึงหลีกเลี่ยง Brittle Tests:
+1. **Deep Semantic Assertions (Not Just Exception Type):**
+   - ❌ **Anti-Pattern (Shallow Type Only):** `await act.Should().ThrowAsync<ConflictException>();` (เสี่ยง False Positive เมื่อเกิด Exception ชนิดเดียวกันจากคนละสาเหตุ)
+   - ❌ **Anti-Pattern (Brittle Exact Match):** `.WithMessage("Exact long hardcoded string...");` (เปราะบางต่อการแก้ wording/punctuation)
+   - ✅ **Best Practice (Semantic Wildcard Match):** ตรวจสอบ Business Identifier หรือ Keyword สำคัญด้วย Wildcard `*`:
+     ```csharp
+     await act.Should().ThrowAsync<ConflictException>()
+         .WithMessage($"*'{command.Slug}'*");
+     ```
+   - ✅ **Best Practice (Structured Properties):** หากเป็น Exception ที่มี Property เฉพาะ (เช่น `SchemaValidationException`) ให้ assert ที่ property โดยตรง:
+     ```csharp
+     var ex = await act.Should().ThrowAsync<SchemaValidationException>();
+     ex.Which.TemplateSlug.Should().Be("invoice");
+     ```
+2. **Zero Mock State Pollution:**
+   - ใน xUnit ทุก Test Method ถูกสร้างคลาสใหม่เสมอ (`new TestClass()`) ดังนั้น class-level mocks จึงแยกขาดจากกันโดยธรรมชาติ
+   - **ห้าม** ตั้งค่า mock พร่ำเพรื่อใน Constructor ให้ mock fields เป็น Blank Mocks เสมอ และทำ Setup เฉพาะสิ่งที่ Test Method นั้นสนใจ
+   - **ห้าม** นำ Mock ที่ไม่ได้เป็น Dependency ของ UseCase นั้นเข้ามาใน Test Class (รักษา 1:1 CQRS Parity)
+3. **The Golden Side-Effect Verification Matrix:**
+   - ใน Clean Architecture "การไม่เกิด Side-effect เมื่อเกิดข้อผิดพลาด" สำคัญเท่ากับ "การเกิด Side-effect เมื่อสำเร็จ":
+
+   | Scenario / Path | Target Method | Expectation | Rationale |
+   |---|---|:---:|---|
+   | **Happy Path (Success)** | Mutation Repo (`Add`, `Update`, `Remove`) | `Times.Once()` | ยืนยันการเปลี่ยนแปลง State |
+   | **Happy Path (Success)** | `IUnitOfWork.CommitAsync` | `Times.Once()` | ยืนยันการ Commit Transaction |
+   | **Guard/Exception Path** | Mutation Repo (`Add`, `Update`, `Remove`) | `Times.Never()` | ป้องกัน Data Mutation ขณะเกิดข้อผิดพลาด |
+   | **Guard/Exception Path** | `IUnitOfWork.CommitAsync` | `Times.Never()` | ป้องกัน Data Corruption เด็ดขาด |
+   | **Guard/Exception Path** | Downstream I/O (`IStorageService`, `IRenderEngine`) | `Times.Never()` | ป้องกัน Resource Leak / Side-effect |
 
 ---
 

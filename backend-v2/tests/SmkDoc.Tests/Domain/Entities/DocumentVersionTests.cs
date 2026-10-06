@@ -38,7 +38,7 @@ public class DocumentVersionTests
     [Fact]
     public void Create_WithEmptyDocumentId_ThrowsDomainValidationException()
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = TestConstants.BaselineTime;
         var act = () => DocumentVersion.Create(Guid.Empty, 1, null, null, null, null, now);
 
         act.Should().Throw<DomainValidationException>()
@@ -51,7 +51,7 @@ public class DocumentVersionTests
     [InlineData(-100)]
     public void Create_WithNonPositiveVersion_ThrowsDomainValidationException(int invalidVersion)
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = TestConstants.BaselineTime;
         var act = () => DocumentVersion.Create(Guid.NewGuid(), invalidVersion, null, null, null, null, now);
 
         act.Should().Throw<DomainValidationException>()
@@ -61,7 +61,7 @@ public class DocumentVersionTests
     [Fact]
     public void Create_WithChangeNoteExceedingMaxLength_ThrowsDomainValidationException()
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = TestConstants.BaselineTime;
         var longNote = new string('N', DocumentVersion.MaxChangeNoteLength + 1);
         var act = () => DocumentVersion.Create(Guid.NewGuid(), 1, null, null, longNote, null, now);
 
@@ -72,7 +72,7 @@ public class DocumentVersionTests
     [Fact]
     public void Create_WithCreatedByExceedingMaxLength_ThrowsDomainValidationException()
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = TestConstants.BaselineTime;
         var longUser = new string('U', DocumentVersion.MaxCreatedByLength + 1);
         var act = () => DocumentVersion.Create(Guid.NewGuid(), 1, null, null, null, longUser, now);
 

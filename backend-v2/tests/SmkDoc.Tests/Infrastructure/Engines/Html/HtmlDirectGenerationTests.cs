@@ -45,7 +45,7 @@ public class HtmlDirectGenerationTests
         string capturedHtml = string.Empty;
 
         var template = TemplateTestFactory.Create(templateId, Guid.NewGuid(), "Direct HTML Invoice", "invoice-direct-html");
-        template.SetCurrentVersion(versionId, DateTimeOffset.UtcNow);
+        template.SetCurrentVersion(versionId, TestConstants.BaselineTime);
 
         var version = TemplateVersionTestFactory.Create(versionId, templateId, 1, "templates/invoice.html", TemplateFormat.Html, "Published", "Initial");
 

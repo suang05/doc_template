@@ -32,10 +32,8 @@ public class SaveTemplateMappingsUseCaseTests
         };
 
         var command = new SaveTemplateMappingsCommand(templateId, items);
-        var sut = CreateSut();
-
         // Act
-        await sut.ExecuteAsync(command);
+        await CreateSut().ExecuteAsync(command);
 
         // Assert
         template.FieldMappings.Should().HaveCount(1);
@@ -57,10 +55,9 @@ public class SaveTemplateMappingsUseCaseTests
             .ReturnsAsync((Template?)null);
 
         var command = new SaveTemplateMappingsCommand(templateId, new List<SaveFieldMappingItemDto>());
-        var sut = CreateSut();
 
         // Act
-        var act = () => sut.ExecuteAsync(command);
+        var act = () => CreateSut().ExecuteAsync(command);
 
         // Assert
         await act.Should().ThrowAsync<NotFoundException>();

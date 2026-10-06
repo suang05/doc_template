@@ -24,10 +24,8 @@ public class GetDataConnectionByIdUseCaseTests
             .Setup(r => r.GetByIdAsync(id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(conn);
 
-        var sut = CreateSut();
-
         // Act
-        var result = await sut.ExecuteAsync(new GetDataConnectionByIdQuery(id));
+        var result = await CreateSut().ExecuteAsync(new GetDataConnectionByIdQuery(id));
 
         // Assert
         result.Should().NotBeNull();
@@ -44,10 +42,8 @@ public class GetDataConnectionByIdUseCaseTests
             .Setup(r => r.GetByIdAsync(id, It.IsAny<CancellationToken>()))
             .ReturnsAsync((DataConnection?)null);
 
-        var sut = CreateSut();
-
         // Act
-        var result = await sut.ExecuteAsync(new GetDataConnectionByIdQuery(id));
+        var result = await CreateSut().ExecuteAsync(new GetDataConnectionByIdQuery(id));
 
         // Assert
         result.Should().BeNull();

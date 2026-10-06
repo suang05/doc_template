@@ -29,6 +29,6 @@ public static class FieldMappingTestFactory
             dataSourceType ?? DataSourceType.Json,
             defaultValue,
             transform,
-            now ?? DateTimeOffset.UtcNow);
+            now ?? TestConstants.BaselineTime);
     }
 }

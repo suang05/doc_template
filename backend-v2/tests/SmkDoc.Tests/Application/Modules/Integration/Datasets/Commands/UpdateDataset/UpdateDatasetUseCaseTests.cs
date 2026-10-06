@@ -37,10 +37,9 @@ public class UpdateDatasetUseCaseTests
             .ReturnsAsync(1);
 
         var command = new UpdateDatasetCommand(id, "NewName", "new desc", connId, "SELECT 2", 60);
-        var sut = CreateSut();
 
         // Act
-        var result = await sut.ExecuteAsync(command);
+        var result = await CreateSut().ExecuteAsync(command);
 
         // Assert
         result.Should().NotBeNull();
@@ -61,10 +60,9 @@ public class UpdateDatasetUseCaseTests
             .ReturnsAsync((Dataset?)null);
 
         var command = new UpdateDatasetCommand(id, "Name", null, Guid.NewGuid(), "SELECT 1");
-        var sut = CreateSut();
 
         // Act
-        var result = await sut.ExecuteAsync(command);
+        var result = await CreateSut().ExecuteAsync(command);
 
         // Assert
         result.Should().BeNull();
@@ -86,10 +84,9 @@ public class UpdateDatasetUseCaseTests
             .ReturnsAsync((DataConnection?)null);
 
         var command = new UpdateDatasetCommand(id, "Name", null, Guid.NewGuid(), "SELECT 1");
-        var sut = CreateSut();
 
         // Act
-        var act = () => sut.ExecuteAsync(command);
+        var act = () => CreateSut().ExecuteAsync(command);
 
         // Assert
         await act.Should().ThrowAsync<NotFoundException>();

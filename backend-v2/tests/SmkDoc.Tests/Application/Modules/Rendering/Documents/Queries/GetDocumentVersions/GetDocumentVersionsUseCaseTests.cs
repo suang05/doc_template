@@ -32,10 +32,8 @@ public class GetDocumentVersionsUseCaseTests
                 DocumentVersionTestFactory.Create(documentId: documentId, version: 2)
             ]);
 
-        var sut = CreateSut();
-
         // Act
-        var result = await sut.ExecuteAsync(new GetDocumentVersionsQuery("SC-001"));
+        var result = await CreateSut().ExecuteAsync(new GetDocumentVersionsQuery("SC-001"));
 
         // Assert
         result.Should().HaveCount(2);
@@ -52,10 +50,8 @@ public class GetDocumentVersionsUseCaseTests
             .Setup(r => r.FirstOrDefaultAsync(It.IsAny<Expression<Func<Document, bool>>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((Document?)null);
 
-        var sut = CreateSut();
-
         // Act
-        var result = await sut.ExecuteAsync(new GetDocumentVersionsQuery("DOES-NOT-EXIST"));
+        var result = await CreateSut().ExecuteAsync(new GetDocumentVersionsQuery("DOES-NOT-EXIST"));
 
         // Assert
         result.Should().BeEmpty();

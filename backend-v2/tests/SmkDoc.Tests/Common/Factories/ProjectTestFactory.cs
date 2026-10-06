@@ -17,7 +17,7 @@ public static class ProjectTestFactory
         DateTimeOffset? now = null,
         bool isActive = true)
     {
-        var timestamp = now ?? DateTimeOffset.UtcNow;
+        var timestamp = now ?? TestConstants.BaselineTime;
         var project = new Project(
             id ?? Guid.NewGuid(),
             companyId ?? Guid.NewGuid(),

@@ -29,10 +29,8 @@ public class GetTemplateMappingsUseCaseTests
             .Setup(r => r.GetByIdWithDetailsAsync(templateId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
 
-        var sut = CreateSut();
-
         // Act
-        var result = await sut.ExecuteAsync(new GetTemplateMappingsQuery(templateId));
+        var result = await CreateSut().ExecuteAsync(new GetTemplateMappingsQuery(templateId));
 
         // Assert
         result.Should().HaveCount(2);
@@ -49,10 +47,8 @@ public class GetTemplateMappingsUseCaseTests
             .Setup(r => r.GetByIdWithDetailsAsync(templateId, It.IsAny<CancellationToken>()))
             .ReturnsAsync((Template?)null);
 
-        var sut = CreateSut();
-
         // Act
-        var result = await sut.ExecuteAsync(new GetTemplateMappingsQuery(templateId));
+        var result = await CreateSut().ExecuteAsync(new GetTemplateMappingsQuery(templateId));
 
         // Assert
         result.Should().BeEmpty();

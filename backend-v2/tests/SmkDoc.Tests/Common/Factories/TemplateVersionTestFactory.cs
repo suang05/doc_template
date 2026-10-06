@@ -16,7 +16,7 @@ public static class TemplateVersionTestFactory
         DateTimeOffset? now = null,
         string? createdBy = null)
     {
-        var timestamp = now ?? DateTimeOffset.UtcNow;
+        var timestamp = now ?? TestConstants.BaselineTime;
         var tv = new TemplateVersion(
             id ?? Guid.NewGuid(),
             templateId ?? Guid.NewGuid(),

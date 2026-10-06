@@ -11,6 +11,8 @@ public class UpdateUserRoleUseCaseTests
 {
     private readonly UserManagementTestFixture _fixture = new();
 
+    private UpdateUserRoleUseCase CreateSut() => _fixture.BuildUpdateUserRoleUseCase();
+
     [Fact]
     public async Task ExecuteAsync_WhenValidInput_UpdatesRoleSuccessfully()
     {
@@ -25,9 +27,8 @@ public class UpdateUserRoleUseCaseTests
         _fixture.RoleRepo.Setup(r => r.GetAsync(projectId, userId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(roleEntry);
 
-        var useCase = _fixture.BuildUpdateUserRoleUseCase();
         var command = new UpdateUserRoleCommand(projectId, userId, "Developer");
-        await useCase.ExecuteAsync(command);
+        await CreateSut().ExecuteAsync(command);
 
         roleEntry.Role.Should().Be(RoleType.Developer);
         _fixture.RoleRepo.Verify(r => r.Update(roleEntry), Times.Once);
@@ -50,9 +51,8 @@ public class UpdateUserRoleUseCaseTests
         _fixture.RoleRepo.Setup(r => r.CountAdminsAsync(projectId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(1);
 
-        var useCase = _fixture.BuildUpdateUserRoleUseCase();
         var command = new UpdateUserRoleCommand(projectId, userId, "Viewer");
-        var act = () => useCase.ExecuteAsync(command);
+        var act = () => CreateSut().ExecuteAsync(command);
         await act.Should().ThrowAsync<ConflictException>();
     }
 
@@ -65,9 +65,8 @@ public class UpdateUserRoleUseCaseTests
         _fixture.RoleRepo.Setup(r => r.GetAsync(projectId, userId, It.IsAny<CancellationToken>()))
             .ReturnsAsync((UserProjectRole?)null);
 
-        var useCase = _fixture.BuildUpdateUserRoleUseCase();
         var command = new UpdateUserRoleCommand(projectId, userId, "Developer");
-        var act = () => useCase.ExecuteAsync(command);
+        var act = () => CreateSut().ExecuteAsync(command);
         await act.Should().ThrowAsync<NotFoundException>();
     }
 }

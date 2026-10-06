@@ -1,8 +1,10 @@
 using System.Text.Json;
+using FluentAssertions;
 using SmkDoc.Application.Modules.Rendering.Documents.Commands.GenerateDocument;
 using SmkDoc.Application.Modules.Rendering.Documents.Validators;
+using Xunit;
 
-namespace SmkDoc.Tests.Application.Modules.Rendering.Documents.Validators;
+namespace SmkDoc.Tests.Application.Modules.Rendering.Documents.Commands.GenerateDocument;
 
 public class GenerateDocumentCommandValidatorTests
 {

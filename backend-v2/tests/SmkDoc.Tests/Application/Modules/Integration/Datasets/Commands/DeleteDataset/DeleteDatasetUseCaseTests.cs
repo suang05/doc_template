@@ -27,10 +27,9 @@ public class DeleteDatasetUseCaseTests
             .ReturnsAsync(1);
 
         var command = new DeleteDatasetCommand(entity.Id);
-        var sut = CreateSut();
 
         // Act
-        var result = await sut.ExecuteAsync(command);
+        var result = await CreateSut().ExecuteAsync(command);
 
         // Assert
         result.Should().BeTrue();
@@ -48,10 +47,9 @@ public class DeleteDatasetUseCaseTests
             .ReturnsAsync((Dataset?)null);
 
         var command = new DeleteDatasetCommand(id);
-        var sut = CreateSut();
 
         // Act
-        var result = await sut.ExecuteAsync(command);
+        var result = await CreateSut().ExecuteAsync(command);
 
         // Assert
         result.Should().BeFalse();
