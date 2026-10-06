@@ -72,13 +72,12 @@ Strictly enforce consistent naming conventions across all layers:
 3. **Primary Constructor Parameters:**
    - Standardized `camelCase` 1:1 mirroring dependency class/interface name (`templateRepo`, `unitOfWork`, `createTemplateUseCase`, `logger`). **Strictly BAN underscore prefix (`_`) and generic names** (`service`, `repo`).
 4. **Unit & Integration Test Standards (The Golden Archetype Model):**
-   - **Pure In-Memory (Zero I/O):** `SmkDoc.Tests` MUST remain 100% in-memory unit tests (Zero Disk/Network/DB I/O, fast PR gate). Heavy generators, benchmarks, and container fixtures belong strictly in `SmkDoc.IntegrationTests`.
-   - **1:1 CQRS Single SUT:** Exactly 1 Use Case tested per class file, mirroring Application 1:1 under `Commands/{Action}/` or `Queries/{Action}/` (Strictly BAN monolithic test classes).
-   - **Deterministic SSoT & Clock:** Always instantiate domain data via `*Builder` / `*TestFactory` with `TestConstants.BaselineTime`. Strictly BAN ad-hoc entity instantiation (`new Entity` / `Entity.Create`) in UseCase tests and BAN `DateTimeOffset.UtcNow` inside unit tests (use `FakeTimeProvider` for UseCases consuming `TimeProvider`).
-   - **Pragmatic Role-Based Testing:** Mandate `[Theory]` + `[InlineData]` for input validators (`*ValidatorTests`), boundary value analysis, and pure converters. Preserve `[Fact]` for distinct business workflows, state transitions, and complex orchestrations.
-   - **SSoT SUT Factory (`CreateSut`):** Every UseCase test class MUST define exactly one private factory `private {UseCase} CreateSut(...) => ...;`. Strictly BAN `new {UseCase}` inside test methods. Act phase MUST call `await CreateSut().ExecuteAsync(...)` directly for clean 3-A flow without redundant `var sut` assignments.
-   - **Precision Testing & Side-Effect Matrix:** Strictly BAN shallow exception asserts (`ThrowAsync<T>()` without detail). Always verify semantic keywords via `.WithMessage($"*{identifier}*")` or structured exception properties. Verify negative side-effects (`Times.Never()`) on `IUnitOfWork.CommitAsync` and mutating repositories whenever validation or guard clauses fail.
-   - **Golden Archetypes:** Before writing any test, mirror the 3 canonical blueprints in [docs/AI/CODING_CONVENTIONS.md §2.7](docs/AI/CODING_CONVENTIONS.md#27--unit-testing-standards--the-golden-archetypes) (Archetype A: UseCase SUT, Archetype B: Pure Validator `[Theory]`, Archetype C: Domain Aggregate Root).
+   - **Solution Segregation (Zero I/O):** `SmkDoc.Tests` MUST remain 100% in-memory unit tests (Zero Disk/Network/DB I/O, fast PR gate). Heavy generators, benchmarks, and container fixtures belong strictly in `SmkDoc.IntegrationTests`.
+   - **The 3 Golden Archetypes (SSoT):** All unit tests MUST strictly mirror the 3 canonical blueprints in [docs/AI/CODING_CONVENTIONS.md §2.7](docs/AI/CODING_CONVENTIONS.md#27--unit-testing-standards--the-golden-archetypes):
+     - *Archetype A (UseCase SUT):* 1:1 CQRS folder parity, direct mocks, SSoT `CreateSut()`, domain data via `*Builder` / `*TestFactory`, deterministic time via `TestConstants.BaselineTime` / `FakeTimeProvider`.
+     - *Archetype B (Input Validator):* Pure parameterization via `[Theory]` + `[InlineData]` without mocks.
+     - *Archetype C (Aggregate Root):* Encapsulated domain invariant mutations directly inside `{Aggregate}Tests.cs`.
+   - **Prohibited Patterns:** Strictly adhere to the anti-patterns catalog in [docs/AI/ANTI-PATTERNS.md](docs/AI/ANTI-PATTERNS.md) (AP-042 to AP-048).
 5. **Frontend File & Component Standards:**
    - React components: `PascalCase.tsx` (e.g. `TemplateCard.tsx`, `AppShell.tsx`)
    - Custom hooks: `use` + `PascalCase.ts` (e.g. `useTemplates.ts`, `useDebounce.ts`)
@@ -99,7 +98,7 @@ Strictly enforce consistent naming conventions across all layers:
 - Enforce Universal Code Hygiene across all C# layers: Clean Usings (no inline namespaces), Standardized Primary Constructor parameter naming (`camelCase`, no `_` prefix), and Whitespace Consistency (single blank line, no dead code).
 - Use `PlaceholderHelper.Pattern` as SSoT for placeholder regex.
 - Validate inputs using Zod (frontend) and Domain Exceptions (backend).
-- Maintain anti-bloat test suites: Adhere strictly to the **Golden Test Archetypes** in [docs/AI/CODING_CONVENTIONS.md §2.7](docs/AI/CODING_CONVENTIONS.md#27--unit-testing-standards--the-golden-archetypes) (Single SUT, 1:1 CQRS, `TestConstants.BaselineTime`, `*Builder`, `*TestFixture`, `[Theory]` for validators).
+- Maintain anti-bloat test suites: Adhere strictly to the **Golden Test Archetypes** in [docs/AI/CODING_CONVENTIONS.md §2.7](docs/AI/CODING_CONVENTIONS.md#27--unit-testing-standards--the-golden-archetypes).
 - Document system quality and coverage using **Invariant-Driven Quality Gates** (e.g. 100% Pass Rate, Zero Tolerated Failures, Bounded Context grouping) instead of fragile, high-churn counts.
 - Run automated tests (`dotnet test`, `npm test`) before finishing code modifications.
 
@@ -112,10 +111,7 @@ Strictly enforce consistent naming conventions across all layers:
 - **NO Auto-Docker:** **NEVER** run `docker` or `docker compose` commands autonomously. Provide command snippets for the user to run manually.
 - **NO Hardcoded High-Churn Metrics in Docs:** **NEVER** hardcode volatile execution numbers (e.g. frozen test counts, controller counts, entity counts) in living documentation or agent guidance. Use invariant quality gates instead.
 - **NO I/O in Unit Tests:** **NEVER** put disk-writing generators, benchmarks, or OpenXml generation into `SmkDoc.Tests` (must be placed in `SmkDoc.IntegrationTests`).
-- **NO Monolithic Test Classes:** **NEVER** combine multiple distinct UseCases into a single test class or place UseCase tests flatly outside `Commands/` and `Queries/` folders.
-- **NO Ad-hoc Entity Instantiation or Nondeterministic Time:** **NEVER** instantiate domain entities in tests bypassing `*Builder` / `*TestFactory` or pass `DateTimeOffset.UtcNow` directly (always use `TestConstants.BaselineTime`).
-- **NO Invariant Test Dumping Grounds:** **NEVER** create separate artificial test suites like `DomainInvariantTests` or `EntityEncapsulationTests`. Invariants belong in their respective `{Aggregate}Tests.cs`.
-- **NO Mocks in Validator Tests:** **NEVER** mock dependencies for input validators; test them purely using `[Theory]` + `[InlineData]`.
+- **NO Violating Test Archetypes & Anti-Patterns:** **NEVER** violate the canonical test blueprints or anti-patterns cataloged in [docs/AI/ANTI-PATTERNS.md](docs/AI/ANTI-PATTERNS.md) (AP-042 to AP-048: e.g. monolithic test classes, ad-hoc entity instantiation, bypassing `CreateSut()`, shallow exception assertions, mock pollution in validators, or invariant dumping grounds).
 - **NO DB Writes in Preview:** Previews must not touch persistence or object storage.
 - **NO Leaky Queries:** Never leak `IQueryable` from repositories into UseCases or Presentation.
 - **NO Silent Failures:** Never catch exceptions with empty blocks; throw strongly-typed Domain Exceptions.

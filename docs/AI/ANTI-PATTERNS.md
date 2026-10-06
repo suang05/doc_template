@@ -649,6 +649,53 @@ public class CreateTemplateCommandValidatorTests
 }
 ```
 
+### AP-047: ห้ามเรียก `new UseCase(...)` สดๆ หรือประกาศตัวแปร `var sut = ...` ภายใน Test Method
+```csharp
+// ❌ WRONG — New UseCase เองในทุกเทสต์ ทำให้เกิด Constructor Coupling และมีตัวแปร sut ซ้ำซ้อน
+[Fact]
+public async Task ExecuteAsync_HappyPath()
+{
+    var sut = new CreateApiKeyUseCase(_apiKeyRepoMock.Object, _projectRepoMock.Object, _uowMock.Object, _validator);
+    var result = await sut.ExecuteAsync(command);
+    ...
+}
+
+// ✅ CORRECT — SSoT SUT Factory (`CreateSut`) + Direct 3-A Invocation
+private CreateApiKeyUseCase CreateSut(IValidator<CreateApiKeyCommand>? validator = null) =>
+    new(_apiKeyRepoMock.Object, _projectRepoMock.Object, _uowMock.Object, validator ?? _validator);
+
+[Fact]
+public async Task ExecuteAsync_WhenValidCommand_ReturnsSuccessResult()
+{
+    var result = await CreateSut().ExecuteAsync(command);
+    ...
+}
+```
+
+### AP-048: ห้าม Shallow Exception Assertions และห้ามละเลยการ Verify `Times.Never` บน Mutation Repositories / Unit of Work
+```csharp
+// ❌ WRONG — เช็คแค่ประเภท Exception (เสี่ยง False Positive) และไม่ตรวจสอบ Side-effect (เสี่ยง Bug แอบเซฟข้อมูล)
+[Fact]
+public async Task ExecuteAsync_WhenConflict_Throws()
+{
+    var act = () => CreateSut().ExecuteAsync(command);
+    await act.Should().ThrowAsync<ConflictException>(); // ขาดการตรวจ Identifier
+    // ขาดการ Verify ว่าไม่ได้ Commit ข้อมูลลง DB
+}
+
+// ✅ CORRECT — Deep Semantic Assertions ด้วย Wildcard Keyword + ตรวจสอบ Negative Side-effects ครบถ้วน
+[Fact]
+public async Task ExecuteAsync_WhenSlugAlreadyExists_ThrowsConflictException()
+{
+    var act = () => CreateSut().ExecuteAsync(command);
+    await act.Should().ThrowAsync<ConflictException>()
+        .WithMessage($"*'{command.Slug}'*");
+
+    _uowMock.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Never);
+    _apiKeyRepoMock.Verify(r => r.AddAsync(It.IsAny<ApiKey>(), It.IsAny<CancellationToken>()), Times.Never);
+}
+```
+
 ---
 
 ## 🟡 Frontend Anti-Patterns

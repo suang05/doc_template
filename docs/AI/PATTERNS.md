@@ -369,69 +369,24 @@ ThaiDataTransformer.Transform(value, "date");   // → FormatThaiDate
 1. **`SmkDoc.Tests` (Pure In-Memory Unit Tests):** ตัดขาดจาก I/O 100% (Zero Disk/Network/Database), รันในระดับ 1 วินาที เหมาะสำหรับ PR CI gate, และ **Mirror โครงสร้าง `src/SmkDoc.Application/` แบบ 1:1 CQRS Parity** (`Commands/{CommandName}/` และ `Queries/{QueryName}/`)
 2. **`SmkDoc.IntegrationTests` (Integration, Benchmarks & Generators):** แยกจัดเก็บ Generators, Performance Benchmarks, OpenXml/ClosedXML File Writers, และ Container Fixtures (`Fixtures/`, `Repositories/`, `Storage/`, `Generators/`, `Benchmarks/`)
 
-#### 1. Mocking Interface Only
-```csharp
-// ✅ CORRECT — Mock interface ไม่ใช่ concrete class (และใช้ Aggregate Repository เฉพาะ)
-private readonly Mock<ITemplateRepository> _mockTemplateRepo = new();
-private readonly Mock<IStorageService> _mockStorage = new();
+#### 📌 Implementation Standards & Archetypes (SSoT Delegation)
+รายละเอียดโค้ดและพิมพ์เขียวการเขียน Unit Test ทั้งหมด ถูกกำหนดเป็นมาตรฐานเดียวที่ [docs/AI/CODING_CONVENTIONS.md §2.7](CODING_CONVENTIONS.md#27--unit-testing-standards--the-golden-archetypes):
+- **Archetype A (UseCase SUT):** Direct Mocks (`_repoMock`), SSoT `CreateSut()` factory, and clean 3-A invocation (ห้าม `var sut = ...`)
+- **Archetype B (Input Validator):** Pure function parameterization ผ่าน `[Theory]` + `[InlineData]` โดยปราศจาก mock
+- **Archetype C (Domain Aggregate):** Business invariants และ state mutations ภายใน Aggregate Root โดยตรง
+- **Prohibited Patterns:** รายการข้อห้ามและ Anti-patterns ทั้งหมดถูกรวบรวมไว้ที่ [docs/AI/ANTI-PATTERNS.md](ANTI-PATTERNS.md) (AP-042 ถึง AP-048)
 
-// Setup + Verify
-_mockTemplateRepo.Setup(r => r.GetByIdAsync(templateId, It.IsAny<CancellationToken>()))
-    .ReturnsAsync(template);
+#### 🧪 Test Verification & CI/CD Commands
+```bash
+# 1. Fast PR Gate — 100% In-Memory Unit Tests (~1.0s, Zero I/O)
+dotnet test tests/SmkDoc.Tests/SmkDoc.Tests.csproj
 
-_mockStorage.Verify(s => s.UploadAsync(
-    It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Stream>(),
-    It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+# 2. Heavy Validation / Release Pipeline — Generators & Benchmarks
+dotnet test tests/SmkDoc.IntegrationTests/SmkDoc.IntegrationTests.csproj
+
+# 3. Full Solution Verification
+dotnet test SmkDocServerV2.slnx
 ```
-
-#### 2. FluentAssertions Single Source of Truth (SSoT)
-**ห้ามใช้ xUnit `Assert.*` ในเทสต์ใหม่** ให้ใช้ FluentAssertions 100%:
-```csharp
-// ✅ CORRECT — FluentAssertions SSoT
-result.Should().NotBeNull();
-result.AccessToken.Should().Be("expected_token");
-result.AccessibleProjects.Should().ContainSingle();
-result.AccessibleProjects.Should().AllSatisfy(p => p.Role.Should().Be("Admin"));
-
-// Exception Testing Pattern
-var act = () => _useCase.ExecuteAsync(request);
-await act.Should().ThrowAsync<UnauthorizedAccessException>();
-
-// ❌ WRONG — Legacy Assertions
-Assert.NotNull(result);
-Assert.Equal("expected_token", result.AccessToken);
-await Assert.ThrowsAsync<UnauthorizedAccessException>(() => ...);
-```
-
-#### 3. Test Data Builder Pattern & Fixtures (`Common/Builders/`)
-ใช้ Fluent Builders แทนการสร้าง Entity แบบ ad-hoc เพื่อลดความเปราะบางของ Constructor:
-```csharp
-// ✅ CORRECT — ใช้ TemplateBuilder & TemplateVersionBuilder
-var template = new TemplateBuilder()
-    .WithId(templateId)
-    .WithName("Sale Contract")
-    .WithSlug("sale-contract")
-    .WithCurrentVersion(versionId)
-    .Build();
-
-var inactiveTemplate = new TemplateBuilder().AsInactive().WithSlug("inactive-tpl").Build();
-```
-สำหรับ Use Case ในโมดูล Rendering (เช่น `GenerateDocumentUseCase`) ให้ใช้ `GenerateDocumentTestFixture` ใน `Common/Fixtures/` ซึ่งประกอบด้วย Collaborator Services (`IDocumentDataPreparationService`, `IDocumentAuditService`, `IDocumentVersioningService`) ไว้เรียบร้อยแล้วเพื่อลด mock boilerplate
-
-#### 4. Test Segregation, Single SUT Parity & Roy Osherove Naming
-- **Single SUT per Test Class:** ทุก Use Case Test คลาสทดสอบ SUT เพียงคลาสเดียวเท่านั้น โดยตั้งชื่อแบบ Roy Osherove: `ExecuteAsync_When[Condition]_[ExpectedResult]`
-- **Deterministic Baseline Time:** บังคับใช้ `TestConstants.BaselineTime` ในเทสต์ ห้ามใช้ `DateTimeOffset.UtcNow` แบบสุ่ม
-- **Project Separation & CI/CD Commands:**
-  ```bash
-  # 1. Fast PR Gate — 100% In-Memory Unit Tests (~1.0s, Zero I/O)
-  dotnet test tests/SmkDoc.Tests/SmkDoc.Tests.csproj
-
-  # 2. Heavy Validation / Release Pipeline — Generators & Benchmarks
-  dotnet test tests/SmkDoc.IntegrationTests/SmkDoc.IntegrationTests.csproj
-
-  # 3. Full Solution Verification
-  dotnet test SmkDocServerV2.slnx
-  ```
 
 ### 1.11 ApiKeyMiddleware Pattern
 
