@@ -434,53 +434,104 @@ To ensure absolute consistency, zero test rot, and effortless pattern replicatio
 
 #### 🌟 Archetype A: Use Case Test (Single SUT Isolation)
 - **Placement:** Mirror Application 1:1 (e.g. `SmkDoc.Tests/Application/Modules/{Context}/{SubModule}/Commands/{Action}/{Action}UseCaseTests.cs`)
-- **Key Traits:** Exactly 1 Use Case tested per file, instantiates SUT via `_fixture.Build*UseCase()`, domain data from `*Builder`, deterministic time from `TestConstants.BaselineTime`.
+- **Standard Anatomy (90% of Solution):** Exactly 1 Use Case tested per file, direct `Mock<T>` fields, SSoT `CreateSut()` factory, domain data via `*Builder` / `*TestFactory`, deterministic time via `TestConstants.BaselineTime` or `FakeTimeProvider`.
+*(Note: สำหรับ Authoring Templates ที่มีกราฟข้อมูลร่วมซับซ้อน สามารถใช้ `TemplateTestFixture` เป็น variant ขั้นสูงได้ แต่ UseCase ทั่วไปให้ยึด Direct Mocks เป็นหลัก)*
 
 ```csharp
-namespace SmkDoc.Tests.Application.Modules.Authoring.Templates.Commands.CreateTemplate;
+using FluentValidation;
+using ValidationException = SmkDoc.Application.Common.Exceptions.ValidationException; // 🛡️ Disambiguate with FluentValidation
+using SmkDoc.Tests.Common;
+using SmkDoc.Tests.Common.Builders;
+
+namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Security.Commands.CreateApiKey;
 
 /// <summary>
-/// 📌 GOLDEN ARCHETYPE: Use Case Test (1 SUT Isolation per File)
-/// สะท้อนโครงสร้าง Application 1:1, ใช้ SUT Factory (CreateSut), *TestFixture (Given*), *Builder, และ TestConstants.BaselineTime
+/// 📌 GOLDEN ARCHETYPE: Use Case Test (Canonical 5-Part Anatomy)
+/// สะท้อน Application 1:1, ใช้ Direct Mocks, SSoT CreateSut, *Builder, และ Zero var sut redundancy
 /// </summary>
-public sealed class CreateTemplateUseCaseTests
+public sealed class CreateApiKeyUseCaseTests
 {
-    private readonly TemplateTestFixture _fixture = new();
+    // 1. Direct Mock Dependencies (Blank mocks by default)
+    private readonly Mock<IApiKeyRepository> _apiKeyRepoMock = new();
+    private readonly Mock<IProjectRepository> _projectRepoMock = new();
+    private readonly Mock<IUnitOfWork> _uowMock = new();
+    private readonly CreateApiKeyCommandValidator _realValidator = new();
 
-    // 🌟 SSoT SUT Factory: จุดเดียวเท่านั้นที่ instantiate SUT
-    private CreateTemplateUseCase CreateSut() => _fixture.BuildCreateTemplateUseCase();
+    // 2. SSoT SUT Factory: จุดเดียวเท่านั้นที่ instantiate SUT (รองรับ mock override)
+    private CreateApiKeyUseCase CreateSut(IValidator<CreateApiKeyCommand>? validator = null) =>
+        new(_apiKeyRepoMock.Object, _projectRepoMock.Object, _uowMock.Object, validator ?? _realValidator);
 
+    // 3. Happy Path (Max 8-12 lines, Clean 3-A flow)
     [Fact]
-    public async Task ExecuteAsync_WhenValidInput_ReturnsSuccessResult()
-    {
-        // 1. Arrange: สร้าง Domain Data ผ่าน Builder + BaselineTime เสมอ
-        var project = new ProjectBuilder().WithDefaults().Build();
-        _fixture.GivenProjectExists(project);
-
-        var command = new CreateTemplateCommand(project.Id, "Invoice", "invoice-01", null);
-
-        // 2. Act: เรียกผ่าน CreateSut() โดยตรง (ตัด temporary variable 'sut' ออก)
-        var result = await CreateSut().ExecuteAsync(command);
-
-        // 3. Assert: ตรวจสอบผลลัพธ์และ Side-effects
-        result.Should().NotBeNull();
-        result.Slug.Should().Be("invoice-01");
-        _fixture.VerifyCommitted();
-    }
-
-    [Fact]
-    public async Task ExecuteAsync_WhenSlugAlreadyExists_ThrowsConflictException()
+    public async Task ExecuteAsync_WhenValidCommand_ReturnsPlainTextKeyAndPersistsHashedKey()
     {
         // Arrange
-        _fixture.GivenTemplateSlugExists("invoice-01");
-        var command = new CreateTemplateCommand(Guid.NewGuid(), "Invoice", "invoice-01", null);
+        ApiKey? capturedKey = null;
+        _apiKeyRepoMock.Setup(r => r.AddAsync(It.IsAny<ApiKey>(), It.IsAny<CancellationToken>()))
+            .Callback<ApiKey, CancellationToken>((k, _) => capturedKey = k)
+            .Returns(Task.CompletedTask);
 
-        // Act & Assert: Exception Path ชัดเจนผ่าน Lambda โดยตรง
+        var projectId = Guid.NewGuid();
+        var project = ProjectBuilder.AProject().WithId(projectId).Build();
+        _projectRepoMock.Setup(r => r.GetByIdAsync(projectId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(project);
+
+        var command = new CreateApiKeyCommand("Sales App", "sales", projectId);
+
+        // Act (Direct SUT execution, zero 'var sut' temporary variable)
+        var result = await CreateSut().ExecuteAsync(command);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.PlainTextKey.Should().StartWith("smk_sales_");
+        _uowMock.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    // 4. Business Guard / NotFound Path (Precise Exception + Times.Never)
+    [Fact]
+    public async Task ExecuteAsync_WhenProjectNotFound_ThrowsNotFoundException()
+    {
+        // Arrange
+        var command = new CreateApiKeyCommand("Sales App", "sales", Guid.NewGuid());
+
+        // Act & Assert (Exception path via direct lambda)
         var act = () => CreateSut().ExecuteAsync(command);
-        await act.Should().ThrowAsync<ConflictException>();
+        await act.Should().ThrowAsync<NotFoundException>()
+            .WithMessage($"*{command.ProjectId}*");
+
+        _uowMock.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    // 5. Input Validation Fail-Fast Path (Using Mocked Failing Validator)
+    [Fact]
+    public async Task ExecuteAsync_WhenValidationFails_ThrowsValidationExceptionWithoutCommit()
+    {
+        // Arrange
+        var failingValidator = TestMockHelpers.CreateFailingValidator<CreateApiKeyCommand>("Name", "Name is required");
+        var command = new CreateApiKeyCommand("", "sales", Guid.NewGuid());
+
+        // Act & Assert
+        var act = () => CreateSut(validator: failingValidator.Object).ExecuteAsync(command);
+        await act.Should().ThrowAsync<ValidationException>();
+
+        _uowMock.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 }
 ```
+
+##### 🏷️ Strict Test Naming Formula for LLMs
+เพื่อไม่ให้เกิดความสับสนหรือตั้งชื่อหลากหลาย ให้ใช้สูตร Roy Osherove มาตรฐานเดียวทั้งระบบ:
+`ExecuteAsync_When{ConditionOrState}_{ExpectedOutcome}`
+
+| Category | Example Method Name | Expected Behavior |
+|---|---|---|
+| **Happy Path** | `ExecuteAsync_WhenValidInput_ReturnsSuccessResult` | สำเร็จ + `uow.CommitAsync` 1 ครั้ง |
+| **Not Found Guard** | `ExecuteAsync_WhenEntityNotFound_ThrowsNotFoundException` | โยน 404 + `Times.Never` commit |
+| **Conflict Guard** | `ExecuteAsync_WhenSlugAlreadyExists_ThrowsConflictException` | โยน 409 + `Times.Never` commit |
+| **Business Rule** | `ExecuteAsync_WhenInactive_ThrowsBusinessRuleViolationException` | โยน 400 + `Times.Never` commit |
+| **Validation Fail** | `ExecuteAsync_WhenValidationFails_ThrowsValidationExceptionWithoutCommit` | โยน 400 + `Times.Never` commit |
+| **Short-Circuit** | `ExecuteAsync_WhenEmptyList_ReturnsEmptyWithoutQueryingRepo` | คืนผลลัพธ์ทันที ไม่แตะ I/O |
+
 
 ##### 🎯 The Canonical SUT Factory Standard (`CreateSut`)
 เพื่อรักษา Clean Code, Readability, และ Simplicity ให้ทุกคลาสทดสอบ UseCase ในระบบเหมือนกัน 100% ให้ปฏิบัติตาม **5 เสาหลัก (The 5 Pillars)**:
