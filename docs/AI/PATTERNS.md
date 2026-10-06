@@ -371,8 +371,8 @@ ThaiDataTransformer.Transform(value, "date");   // → FormatThaiDate
 
 #### 1. Mocking Interface Only
 ```csharp
-// ✅ CORRECT — Mock interface ไม่ใช่ concrete class
-private readonly Mock<IRepository<Template>> _mockTemplateRepo = new();
+// ✅ CORRECT — Mock interface ไม่ใช่ concrete class (และใช้ Aggregate Repository เฉพาะ)
+private readonly Mock<ITemplateRepository> _mockTemplateRepo = new();
 private readonly Mock<IStorageService> _mockStorage = new();
 
 // Setup + Verify

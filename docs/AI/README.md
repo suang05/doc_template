@@ -17,7 +17,7 @@ Do **NOT** load all documents into your context simultaneously. Use **Progressiv
 | **System Architecture & Boundaries** | [ARCHITECTURE.md](ARCHITECTURE.md) | 4 Clean Architecture layers, M2M vs Portal Auth channels, Gotenberg/MinIO pipeline |
 | **Directory Map & File Catalog** | [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) | Full folder tree, complete list of Entities, Enums, Value Objects, UseCases |
 | **Design Patterns (Canonical)** | [PATTERNS.md](PATTERNS.md) | Thin Controllers, Sealed UseCases, Strategy Pattern, Positional Records, FluentValidation |
-| **Prohibited Patterns & Anti-Patterns** | [ANTI-PATTERNS.md](ANTI-PATTERNS.md) | AP-001 to AP-041: What NOT to do, with explicit ❌/✅ code comparison diffs |
+| **Prohibited Patterns & Anti-Patterns** | [ANTI-PATTERNS.md](ANTI-PATTERNS.md) | AP-001 to AP-046: What NOT to do, with explicit ❌/✅ code comparison diffs |
 | **Database Schema & Migrations** | [DB_SCHEMA.md](DB_SCHEMA.md) | PostgreSQL tables, columns, UUIDv7 PKs, indexes, cascade delete rules |
 | **REST Endpoints & DTO Contracts** | [API_CONTRACT.md](API_CONTRACT.md) | OpenAPI/REST specs, Request/Response payloads, RFC 7807 Error codes, API Keys |
 | **Template Engine & PDF Generation** | [TEMPLATE_ENGINE.md](TEMPLATE_ENGINE.md) | Handlebars helpers, Chromium vs LibreOffice, Thai font sync, Baht text, Word/Excel engines |

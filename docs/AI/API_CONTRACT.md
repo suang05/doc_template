@@ -251,7 +251,8 @@ smk-doc-server/
 │   │   ├── SmkDoc.Infrastructure/  # EF Core, MinIO, Gotenberg 8, Engines (Html, Word, Excel)
 │   │   └── SmkDoc.Api/             # Controllers, Middlewares, Program.cs
 │   └── tests/
-│       └── SmkDoc.Tests/           # Unit & Integration test suite (100% passing)
+│       ├── SmkDoc.Tests/           # Pure in-memory unit tests (100% passing, zero I/O)
+│       └── SmkDoc.IntegrationTests/# Integration, benchmarks & generators (100% passing)
 │
 └── frontend-v2/                # Next.js App Router Clean Architecture Portal
     ├── DESIGN.md               # Design Tokens Specification

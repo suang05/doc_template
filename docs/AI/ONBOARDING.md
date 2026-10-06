@@ -7,7 +7,7 @@
 
 | Layer | Technology | Version | Notes |
 |---|---|---|---|
-| Backend API | ASP.NET Core | .NET 10 | Clean Architecture (4 projects) |
+| Backend API | ASP.NET Core | .NET 10 | Clean Architecture (4 core projects + 2 test projects) |
 | Frontend Portal | Next.js | 15 + React 19 | App Router, TypeScript |
 | ORM | Entity Framework Core + Npgsql | 10 | Code-first, Migrations |
 | Database | PostgreSQL | 15-alpine | `smkdoc` database |

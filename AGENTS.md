@@ -71,17 +71,11 @@ Strictly enforce consistent naming conventions across all layers:
    - Business Mutations: Expressive domain verbs (`Activate`, `Publish`, `Archive`, `AssignRole` — never generic `SetXxx`)
 3. **Primary Constructor Parameters:**
    - Standardized `camelCase` 1:1 mirroring dependency class/interface name (`templateRepo`, `unitOfWork`, `createTemplateUseCase`, `logger`). **Strictly BAN underscore prefix (`_`) and generic names** (`service`, `repo`).
-4. **Unit & Integration Test Standards (The 6 Clean Testing Pillars):**
-   - **Pillar 1 — Solution-Level Segregation:** `SmkDoc.Tests` MUST remain 100% Pure In-Memory Unit Tests (Zero Disk/Network/Database I/O, fast PR gate). Heavy Generators, Performance Benchmarks, OpenXml/ClosedXML disk writers, and container fixtures belong strictly in `SmkDoc.IntegrationTests`.
-   - **Pillar 2 — Strict 1:1 CQRS Folder Parity (Single SUT Isolation):** Every Use Case test in `SmkDoc.Tests/Application/Modules/` MUST mirror `src/SmkDoc.Application/Modules/` 1:1 under `Commands/{CommandName}/{CommandName}UseCaseTests.cs` or `Queries/{QueryName}/{QueryName}UseCaseTests.cs`. **Strictly BAN Monolithic test classes** combining multiple UseCases (e.g. `ProjectUseCaseTests`, `DocumentVersionUseCaseTests`, `FieldMappingUseCaseTests`) and **BAN flat placement** when Application uses CQRS folders.
-   - **Pillar 3 — Roy Osherove Naming & Deterministic Baseline Time:**
-     - Test methods: `ExecuteAsync_When[Condition]_[ExpectedResult]` (e.g. `ExecuteAsync_WhenSlugAlreadyExists_ThrowsConflictException`)
-     - Deterministic Time: Test assertions and mutations MUST use `TestConstants.BaselineTime` (Zero nondeterministic `DateTimeOffset.UtcNow` inside unit tests).
-   - **Pillar 4 — Validator Colocation & Independent Pure Testing:** Input validation tests (`*ValidatorTests.cs`) MUST be colocated directly in the feature/module folder alongside commands/queries. Test constraints with `[Theory]` + `[InlineData]` as pure functions without mocks. **Strictly BAN monolithic validator test suites** (e.g. `CommandValidatorsTests.cs`).
-   - **Pillar 5 — Domain Invariant Consolidation (Aggregate Root SSoT):** Business rules, validations, and encapsulation MUST be tested directly inside the aggregate root's test file (`SmkDoc.Tests/Domain/Entities/{Aggregate}Tests.cs`). **Strictly BAN separate generic dumping grounds** like `DomainInvariantTests` or `EntityEncapsulationTests`.
-   - **Pillar 6 — Fluent Object Mother Builders & Semantic Fixtures:**
-     - Domain Entities MUST be created via `*Builder` (e.g. `TemplateBuilder`, `DocumentBuilder`) or `*TestFactory` utilizing `TestConstants.BaselineTime`.
-     - Use Case SUTs MUST be configured via `*TestFixture` (e.g. `GenerateDocumentTestFixture`) using expressive `Given*` semantic methods instead of raw, repetitive mock setup boilerplate.
+4. **Unit & Integration Test Standards (The Golden Archetype Model):**
+   - **Pure In-Memory (Zero I/O):** `SmkDoc.Tests` MUST remain 100% in-memory unit tests (Zero Disk/Network/DB I/O, fast PR gate). Heavy generators, benchmarks, and container fixtures belong strictly in `SmkDoc.IntegrationTests`.
+   - **1:1 CQRS Single SUT:** Exactly 1 Use Case tested per class file, mirroring Application 1:1 under `Commands/{Action}/` or `Queries/{Action}/` (Strictly BAN monolithic test classes).
+   - **Deterministic SSoT:** Always instantiate domain data via `*Builder` / `*TestFactory` with `TestConstants.BaselineTime` (Strictly BAN `DateTimeOffset.UtcNow` inside unit tests).
+   - **Golden Archetypes:** Before writing any test, mirror the 3 canonical blueprints in [docs/AI/CODING_CONVENTIONS.md §2.7](docs/AI/CODING_CONVENTIONS.md#27--unit-testing-standards--the-golden-archetypes) (Archetype A: UseCase SUT, Archetype B: Pure Validator `[Theory]`, Archetype C: Domain Aggregate Root).
 5. **Frontend File & Component Standards:**
    - React components: `PascalCase.tsx` (e.g. `TemplateCard.tsx`, `AppShell.tsx`)
    - Custom hooks: `use` + `PascalCase.ts` (e.g. `useTemplates.ts`, `useDebounce.ts`)
@@ -102,7 +96,7 @@ Strictly enforce consistent naming conventions across all layers:
 - Enforce Universal Code Hygiene across all C# layers: Clean Usings (no inline namespaces), Standardized Primary Constructor parameter naming (`camelCase`, no `_` prefix), and Whitespace Consistency (single blank line, no dead code).
 - Use `PlaceholderHelper.Pattern` as SSoT for placeholder regex.
 - Validate inputs using Zod (frontend) and Domain Exceptions (backend).
-- Maintain anti-bloat test suites: Adhere strictly to **The 6 Clean Testing Pillars** (`*TestFixture` with `Given*` helpers, `*Builder`, colocated `*ValidatorTests` using `[Theory]`, 1:1 CQRS folder parity, and Roy Osherove naming).
+- Maintain anti-bloat test suites: Adhere strictly to the **Golden Test Archetypes** in [docs/AI/CODING_CONVENTIONS.md §2.7](docs/AI/CODING_CONVENTIONS.md#27--unit-testing-standards--the-golden-archetypes) (Single SUT, 1:1 CQRS, `TestConstants.BaselineTime`, `*Builder`, `*TestFixture`, `[Theory]` for validators).
 - Document system quality and coverage using **Invariant-Driven Quality Gates** (e.g. 100% Pass Rate, Zero Tolerated Failures, Bounded Context grouping) instead of fragile, high-churn counts.
 - Run automated tests (`dotnet test`, `npm test`) before finishing code modifications.
 

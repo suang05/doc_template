@@ -410,36 +410,137 @@ public class UserManagementController(
 
 ---
 
-### 2.7 🧪 Unit Testing Standards & Anti-Bloat Patterns (The 6 Clean Testing Pillars)
+### 2.7 🧪 Unit Testing Standards & The Golden Archetypes
 
-To keep test suites maintainable, blazing fast, and resilient to refactoring, all backend tests MUST strictly follow the **6 Clean Testing Pillars**:
+To ensure absolute consistency, zero test rot, and effortless pattern replication, all unit tests MUST mirror the **3 Golden Archetypes**. These archetypes natively embody all testing requirements (1:1 CQRS folder parity, Single SUT isolation, `TestConstants.BaselineTime`, `*Builder`, `*TestFixture`, Roy Osherove naming, pure `[Theory]` validation, and Aggregate Root invariant testing).
 
-1. **Pillar 1 — Solution-Level Segregation (Zero I/O Unit Tests):**
-   - `SmkDoc.Tests` MUST remain 100% Pure In-Memory Unit Tests (Zero Disk, Network, or Database I/O, fast PR gate).
-   - Heavy document generators, performance benchmarks, OpenXml/ClosedXML disk writers, and container fixtures belong strictly in `SmkDoc.IntegrationTests`.
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                   THE 3x3 CLEAN TESTING FRAMEWORK                      │
+├────────────────────┬────────────────────┬──────────────────────────────┤
+│  1. 🏗️ STRUCTURE   │   2. ⏳ STATE       │   3. ✍️ CONVENTION           │
+│     (จัดวางให้ถูกที่)  │      (ข้อมูลต้องนิ่ง)  │      (เขียนให้อ่านง่าย)         │
+├────────────────────┼────────────────────┼──────────────────────────────┤
+│ 1.1 Solution Split │ 2.1 Builder &      │ 3.1 Roy Osherove             │
+│     (Unit vs Integ)│     Factory SSoT   │     Naming Standard          │
+│ 1.2 1:1 CQRS Parity│ 2.2 BaselineTime   │ 3.2 Pure Parameterization    │
+│     (Folder mirror)│     (Ban UtcNow)   │     ([Theory] vs loop)       │
+│ 1.3 Single SUT     │ 2.3 Semantic       │ 3.3 Modern C# &              │
+│     (1 Intent = 1) │     Fixtures (Given) Clean Usings Hygiene       │
+└────────────────────┴────────────────────┴──────────────────────────────┘
+```
 
-2. **Pillar 2 — Strict 1:1 CQRS Folder Parity (Single SUT Isolation):**
-   - Every Use Case test in `SmkDoc.Tests/Application/Modules/` MUST mirror `src/SmkDoc.Application/Modules/` 1:1 under `Commands/{CommandName}/{CommandName}UseCaseTests.cs` or `Queries/{QueryName}/{QueryName}UseCaseTests.cs`.
-   - **Strictly BAN Monolithic test classes** combining multiple UseCases (e.g. `ProjectUseCaseTests`, `DocumentVersionUseCaseTests`, `FieldMappingUseCaseTests`).
-   - **Strictly BAN flat placement** when Application code uses CQRS subfolders.
+---
 
-3. **Pillar 3 — Roy Osherove Naming & Deterministic Baseline Time:**
-   - Test methods: `ExecuteAsync_When[Condition]_[ExpectedResult]` (e.g. `ExecuteAsync_WhenSlugAlreadyExists_ThrowsConflictException()`).
-   - **Deterministic Time:** Test assertions and mutations MUST use `TestConstants.BaselineTime` (Zero nondeterministic `DateTimeOffset.UtcNow` inside unit tests).
+#### 🌟 Archetype A: Use Case Test (Single SUT Isolation)
+- **Placement:** Mirror Application 1:1 (e.g. `SmkDoc.Tests/Application/Modules/{Context}/{SubModule}/Commands/{Action}/{Action}UseCaseTests.cs`)
+- **Key Traits:** Exactly 1 Use Case tested per file, instantiates SUT via `_fixture.Build*UseCase()`, domain data from `*Builder`, deterministic time from `TestConstants.BaselineTime`.
 
-4. **Pillar 4 — Validator Colocation & Independent Pure Testing:**
-   - Input validation tests (`*ValidatorTests.cs`) MUST be colocated in the feature folder alongside their command/query.
-   - Test input constraints (empty GUIDs, invalid roles, length limits) independently using `[Theory]` and `[InlineData]`.
-   - **Zero Mocks Required:** Validators are pure functions; never mock repositories or services inside validator tests.
+```csharp
+namespace SmkDoc.Tests.Application.Modules.Authoring.Templates.Commands.CreateTemplate;
 
-5. **Pillar 5 — Domain Invariant Consolidation (Aggregate Root SSoT):**
-   - Invariants, encapsulation, and state mutations MUST be tested directly inside the aggregate root's test file (`SmkDoc.Tests/Domain/Entities/{Aggregate}Tests.cs`).
-   - **Strictly BAN separate generic dumping grounds** like `DomainInvariantTests` or `EntityEncapsulationTests`.
+/// <summary>
+/// 📌 GOLDEN ARCHETYPE: Use Case Test (1 SUT Isolation per File)
+/// สะท้อนโครงสร้าง Application 1:1, ใช้ *TestFixture (Given*), *Builder, และ TestConstants.BaselineTime
+/// </summary>
+public sealed class CreateTemplateUseCaseTests
+{
+    private readonly TemplateTestFixture _fixture = new();
 
-6. **Pillar 6 — Fluent Object Mother Builders & Semantic Fixtures:**
-   - **Domain Builders (`*Builder`):** Entities MUST be instantiated using fluent test builders under `SmkDoc.Tests/Common/Builders/` (e.g., `UserBuilder`, `TemplateBuilder`, `DocumentBuilder`) with default baseline time.
-   - **Test Fixtures (`*TestFixture`):** Use Case SUTs MUST be configured via dedicated fixtures under `SmkDoc.Tests/Common/Fixtures/` (e.g., `GenerateDocumentTestFixture`) using expressive `Given*` semantic methods instead of repetitive mock setup boilerplate.
-   - **Outcome Verification over Implementation Coupling:** Verify only state changes and critical side effects (`CommitAsync()`, `Remove()`). Avoid asserting internal read methods (`GetAsync(...)`) with `Times.Once` unless strictly required by domain specification.
+    [Fact]
+    public async Task ExecuteAsync_WhenValidInput_ReturnsSuccessResult()
+    {
+        // 1. Arrange: สร้าง Domain Data ผ่าน Builder + BaselineTime เสมอ
+        var project = new ProjectBuilder().WithDefaults().Build();
+        _fixture.GivenProjectExists(project);
+
+        var sut = _fixture.BuildCreateTemplateUseCase();
+        var command = new CreateTemplateCommand(project.Id, "Invoice", "invoice-01", null);
+
+        // 2. Act
+        var result = await sut.ExecuteAsync(command);
+
+        // 3. Assert: ตรวจสอบผลลัพธ์และ Side-effects
+        result.Should().NotBeNull();
+        result.Slug.Should().Be("invoice-01");
+        _fixture.VerifyCommitted();
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenSlugAlreadyExists_ThrowsConflictException()
+    {
+        // Arrange
+        _fixture.GivenTemplateSlugExists("invoice-01");
+        var sut = _fixture.BuildCreateTemplateUseCase();
+        var command = new CreateTemplateCommand(Guid.NewGuid(), "Invoice", "invoice-01", null);
+
+        // Act & Assert
+        var act = () => sut.ExecuteAsync(command);
+        await act.Should().ThrowAsync<ConflictException>();
+    }
+}
+```
+
+---
+
+#### 🌟 Archetype B: Input Validator Test (Pure Parameterized Testing)
+- **Placement:** Colocated alongside Command/Query in the same folder (`*ValidatorTests.cs`).
+- **Key Traits:** Pure function testing without mocks, exhaustive constraint verification using `[Theory]` + `[InlineData]`.
+
+```csharp
+namespace SmkDoc.Tests.Application.Modules.Authoring.Templates.Commands.CreateTemplate;
+
+/// <summary>
+/// 📌 GOLDEN ARCHETYPE: Input Validator Test (Pure Function Parameterized Testing)
+/// วางประกบคู่กับ Command ในโฟลเดอร์เดียวกัน, ทดสอบ constraints ด้วย [Theory], ปราศจาก mock 100%
+/// </summary>
+public sealed class CreateTemplateCommandValidatorTests
+{
+    private readonly CreateTemplateCommandValidator _sut = new();
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(" ")]
+    [InlineData(null)]
+    public void Validate_WhenNameIsInvalid_HasValidationError(string? invalidName)
+    {
+        var command = new CreateTemplateCommand(Guid.NewGuid(), invalidName!, "valid-slug", null);
+
+        var result = _sut.Validate(command);
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().Contain(e => e.PropertyName == nameof(CreateTemplateCommand.Name));
+    }
+}
+```
+
+---
+
+#### 🌟 Archetype C: Domain Aggregate Root Test (Business Invariants & Mutations)
+- **Placement:** `SmkDoc.Tests/Domain/Entities/{Aggregate}Tests.cs` (e.g. `TemplateTests.cs`, `UserTests.cs`).
+- **Key Traits:** All invariants, encapsulation, and state mutations tested directly inside the aggregate test file. Strictly ban separate generic dumping grounds (`DomainInvariantTests`).
+
+```csharp
+namespace SmkDoc.Tests.Domain.Entities;
+
+/// <summary>
+/// 📌 GOLDEN ARCHETYPE: Aggregate Root Invariant Test
+/// รวมการทดสอบกฎธุรกิจและการกลายสภาพ (Mutation) ไว้ที่ Entity โดยตรง ห้ามแยกไฟล์ dumping ground
+/// </summary>
+public sealed class TemplateTests
+{
+    [Fact]
+    public void Activate_WhenAlreadyActive_ThrowsBusinessRuleViolationException()
+    {
+        // Arrange: ใช้ BaselineTime จาก Builder
+        var template = new TemplateBuilder().AsActive().Build();
+
+        // Act & Assert: ทุก mutation ต้องส่ง BaselineTime
+        var act = () => template.Activate(TestConstants.BaselineTime);
+        act.Should().Throw<BusinessRuleViolationException>();
+    }
+}
+```
 
 ---
 
@@ -489,18 +590,11 @@ To ensure universal consistency, clean readability, and seamless LLM context adh
    - **Strictly BAN Underscore (`_`) prefix:** Parameters in primary constructors are NOT private fields (❌ `_templateRepo`).
    - **Strictly BAN Generic names:** Never use `repo`, `service`, `helper`, or `handler` without descriptive context.
 
-4. **Unit & Integration Test Standards (The 6 Clean Testing Pillars):**
-   - **Pillar 1 — Solution-Level Segregation:** `SmkDoc.Tests` MUST be 100% Pure In-Memory Unit Tests (Zero Disk/Network/Database I/O, fast PR gate). Heavy Generators, Performance Benchmarks, OpenXml/ClosedXML disk writers, and container fixtures belong strictly in `SmkDoc.IntegrationTests`.
-   - **Pillar 2 — Strict 1:1 CQRS Folder Parity (Single SUT Isolation):** Every Use Case test in `SmkDoc.Tests/Application/Modules/` MUST mirror `src/SmkDoc.Application/Modules/` 1:1 under `Commands/{CommandName}/{CommandName}UseCaseTests.cs` or `Queries/{QueryName}/{QueryName}UseCaseTests.cs`. Strictly BAN Monolithic test classes combining multiple UseCases and BAN flat placement when Application uses CQRS folders.
-   - **Pillar 3 — Roy Osherove Naming & Deterministic Baseline Time:**
-     - Test methods: `MethodUnderTest_Scenario_ExpectedResult` (e.g. `ExecuteAsync_WhenSlugAlreadyExists_ThrowsConflictException()`).
-     - Deterministic Time: Test assertions and mutations MUST use `TestConstants.BaselineTime` (Zero nondeterministic `DateTimeOffset.UtcNow` inside unit tests).
-   - **Pillar 4 — Validator Colocation & Independent Pure Testing:** Colocate `*ValidatorTests.cs` next to commands/queries. Test constraints with `[Theory]` + `[InlineData]` without mocks. Strictly BAN monolithic validator test suites.
-   - **Pillar 5 — Domain Invariant Consolidation (Aggregate Root SSoT):** Invariants and encapsulation belong directly in `Domain/Entities/{Aggregate}Tests.cs`. Strictly BAN separate generic dumping grounds like `DomainInvariantTests` or `EntityEncapsulationTests`.
-   - **Pillar 6 — Fluent Object Mother Builders & Semantic Fixtures:**
-     - Factory: `*TestFactory` (e.g., `TemplateTestFactory`, `UserTestFactory`)
-     - Builder: `*Builder` (e.g., `TemplateBuilder`, `UserBuilder`) with baseline time
-     - Fixture: `*TestFixture` (e.g., `GenerateDocumentTestFixture`) with expressive `Given*` semantic methods
+4. **Unit & Integration Test Standards (The Golden Archetypes):**
+   - **Pure In-Memory (Zero I/O):** `SmkDoc.Tests` MUST be 100% in-memory unit tests (Zero Disk/Network/DB I/O). Benchmarks, generators, and container fixtures belong in `SmkDoc.IntegrationTests`.
+   - **1:1 CQRS Single SUT:** Exactly 1 Use Case tested per class file, mirroring Application 1:1 under `Commands/{Action}/` or `Queries/{Action}/` (Strictly BAN monolithic test classes).
+   - **Deterministic SSoT:** Always instantiate domain data via `*Builder` / `*TestFactory` with `TestConstants.BaselineTime` (Strictly BAN `DateTimeOffset.UtcNow` inside unit tests).
+   - **Mirror the 3 Golden Blueprints:** Refer to [§2.7](#27--unit-testing-standards--the-golden-archetypes) for Archetype A (UseCase SUT), Archetype B (Pure Validator `[Theory]`), and Archetype C (Domain Aggregate Root).
 
 5. **Frontend File & Component Standards (`frontend-v2/`):**
    - **React Components:** `PascalCase.tsx` (e.g., `TemplateCard.tsx`, `AppShell.tsx`, `StudioWorkspace.tsx`).
