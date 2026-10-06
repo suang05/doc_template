@@ -8,6 +8,9 @@ public class UserProjectRoleBuilder
     private Guid _userId = Guid.NewGuid();
     private Guid _projectId = Guid.NewGuid();
     private RoleType _role = RoleType.Viewer;
+    private DateTimeOffset _now = TestConstants.BaselineTime;
+
+    public static UserProjectRoleBuilder ARole() => new();
 
     public UserProjectRoleBuilder ForUser(Guid userId)
     {
@@ -15,9 +18,19 @@ public class UserProjectRoleBuilder
         return this;
     }
 
+    public UserProjectRoleBuilder WithUserId(Guid userId) => ForUser(userId);
+
     public UserProjectRoleBuilder InProject(Guid projectId)
     {
         _projectId = projectId;
+        return this;
+    }
+
+    public UserProjectRoleBuilder WithProjectId(Guid projectId) => InProject(projectId);
+
+    public UserProjectRoleBuilder WithTime(DateTimeOffset time)
+    {
+        _now = time;
         return this;
     }
 
@@ -47,6 +60,6 @@ public class UserProjectRoleBuilder
 
     public UserProjectRole Build()
     {
-        return UserProjectRole.Create(_userId, _projectId, _role, TestConstants.BaselineTime);
+        return UserProjectRole.Create(_userId, _projectId, _role, _now);
     }
 }

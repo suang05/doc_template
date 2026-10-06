@@ -29,6 +29,8 @@ backend-v2/Templates/**/sample_*
 backend-v2/Templates/**/*_test.*
 backend-v2/OutputFiles/
 *.pdf
+coverlet.*
+backend-v2/TestResults/
 
 # Frontend Next.js (V1 & V2)
 frontend/node_modules/

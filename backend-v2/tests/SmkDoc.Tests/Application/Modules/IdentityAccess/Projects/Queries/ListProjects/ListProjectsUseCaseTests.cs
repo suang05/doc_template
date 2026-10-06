@@ -25,8 +25,8 @@ public class ListProjectsUseCaseTests
 
         var roles = new List<UserProjectRole>
         {
-            UserProjectRole.Create(userId, p1.Id, RoleType.Admin, now),
-            UserProjectRole.Create(userId, p2.Id, RoleType.Viewer, now)
+            UserProjectRoleBuilder.ARole().ForUser(userId).InProject(p1.Id).AsAdmin().WithTime(now).Build(),
+            UserProjectRoleBuilder.ARole().ForUser(userId).InProject(p2.Id).AsViewer().WithTime(now).Build()
         };
 
         _roleRepoMock.Setup(r => r.ListByUserAsync(userId, It.IsAny<CancellationToken>()))
@@ -41,5 +41,21 @@ public class ListProjectsUseCaseTests
         result.Should().HaveCount(1);
         result[0].Id.Should().Be(p1.Id);
         result[0].Name.Should().Be("Proj 1");
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenUserHasNoProjectRoles_ReturnsEmptyAndDoesNotQueryProjectRepository()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        _roleRepoMock.Setup(r => r.ListByUserAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<UserProjectRole>());
+
+        // Act
+        var result = await CreateSut().ExecuteAsync(new ListProjectsQuery(userId));
+
+        // Assert
+        result.Should().BeEmpty();
+        _projectRepoMock.Verify(r => r.ListByIdsAsync(It.IsAny<IEnumerable<Guid>>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 }

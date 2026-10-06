@@ -16,6 +16,7 @@ public class IntegrationModuleTestFixture
     public Mock<IUnitOfWork> UnitOfWork { get; } = new();
     public Mock<IDataProtectionService> DataProtection { get; } = new();
     public Mock<ISqlExecutorService> SqlExecutor { get; } = new();
+    public Microsoft.Extensions.Time.Testing.FakeTimeProvider Clock { get; } = TestConstants.CreateFakeClock();
 
     public IntegrationModuleTestFixture()
     {

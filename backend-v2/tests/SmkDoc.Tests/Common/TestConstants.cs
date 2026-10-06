@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Time.Testing;
+
 namespace SmkDoc.Tests.Common;
 
 /// <summary>
@@ -6,6 +8,13 @@ namespace SmkDoc.Tests.Common;
 /// </summary>
 public static class TestConstants
 {
+    /// <summary>
+    /// Creates a deterministic fake clock initialized to BaselineTime unless overridden.
+    /// Eliminates temporal drift across test executions for UseCases consuming TimeProvider.
+    /// </summary>
+    public static FakeTimeProvider CreateFakeClock(DateTimeOffset? initialTime = null)
+        => new(initialTime ?? BaselineTime);
+
     /// <summary>
     /// Deterministic baseline timestamp used across unit test fixtures and builders.
     /// </summary>

@@ -19,6 +19,7 @@ public class TemplateAuthoringTestFixture
     public Mock<IDocxSecurityScanner> Security { get; } = new();
     public Mock<IExecutionContext> Context { get; } = new();
     public Mock<IUnitOfWork> Uow { get; } = new();
+    public Microsoft.Extensions.Time.Testing.FakeTimeProvider Clock { get; } = TestConstants.CreateFakeClock();
 
     public static readonly Guid TestUserId = Guid.Parse("11111111-1111-1111-1111-111111111111");
 
@@ -34,19 +35,22 @@ public class TemplateAuthoringTestFixture
         Security.Object,
         Context.Object,
         Uow.Object,
-        new CreateTemplateCommandValidator()
+        new CreateTemplateCommandValidator(),
+        Clock
     );
 
     public ActivateTemplateVersionUseCase BuildActivateTemplateVersionUseCase() => new(
         TemplateRepo.Object,
         VersionRepo.Object,
-        Uow.Object
+        Uow.Object,
+        Clock
     );
 
     public UpdateTemplateDetailsUseCase BuildUpdateTemplateDetailsUseCase() => new(
         TemplateRepo.Object,
         Uow.Object,
-        new UpdateTemplateDetailsCommandValidator()
+        new UpdateTemplateDetailsCommandValidator(),
+        Clock
     );
 
     public GetTemplateByIdUseCase BuildGetTemplateByIdUseCase() => new(
@@ -58,11 +62,13 @@ public class TemplateAuthoringTestFixture
         VersionRepo.Object,
         Storage.Object,
         Context.Object,
-        Uow.Object
+        Uow.Object,
+        Clock
     );
 
     public DeactivateTemplateUseCase BuildDeactivateTemplateUseCase() => new(
         TemplateRepo.Object,
-        Uow.Object
+        Uow.Object,
+        Clock
     );
 }

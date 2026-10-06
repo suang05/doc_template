@@ -1,10 +1,12 @@
-using SmkDoc.Application.Common.Exceptions;
+using FluentValidation;
+using ValidationException = SmkDoc.Application.Common.Exceptions.ValidationException;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.Login;
 using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Tests.Common.Builders;
 using SmkDoc.Tests.Common.Factories;
 
 namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Security.Commands.Login;
@@ -16,12 +18,13 @@ public class LoginUseCaseTests
     private readonly Mock<IProjectRepository> _projectRepoMock = new();
     private readonly Mock<IPasswordHasher> _passwordHasherMock = new();
     private readonly Mock<IJwtTokenGenerator> _jwtGeneratorMock = new();
-    private LoginUseCase CreateSut() => new(
+    private LoginUseCase CreateSut(IValidator<LoginCommand>? validator = null) => new(
         _userRepoMock.Object,
         _roleRepoMock.Object,
         _projectRepoMock.Object,
         _passwordHasherMock.Object,
-        _jwtGeneratorMock.Object);
+        _jwtGeneratorMock.Object,
+        validator);
 
     [Fact]
     public async Task ExecuteAsync_WhenValidCredentialsAndRole_ReturnsTokenAndProjects()
@@ -30,8 +33,19 @@ public class LoginUseCaseTests
         var now = TestConstants.BaselineTime;
         var projectId = Guid.NewGuid();
         var command = new LoginCommand("test@example.com", "password123", projectId);
-        var user = User.Register(EmailAddress.Create("test@example.com"), "hashed_pw", "Test", "User", now, SystemRole.Member);
-        var role = UserProjectRole.Create(user.Id, projectId, RoleType.Viewer, now);
+        var user = UserBuilder.AUser()
+            .WithEmail("test@example.com")
+            .WithPasswordHash("hashed_pw")
+            .WithName("Test", "User")
+            .WithSystemRole(SystemRole.Member)
+            .WithTime(now)
+            .Build();
+        var role = UserProjectRoleBuilder.ARole()
+            .ForUser(user.Id)
+            .InProject(projectId)
+            .AsViewer()
+            .WithTime(now)
+            .Build();
         var project = ProjectTestFactory.Create(projectId, Guid.NewGuid(), "Project Alpha", "project-alpha", now);
 
         _userRepoMock.Setup(r => r.GetByEmailAsync("test@example.com", It.IsAny<CancellationToken>()))
@@ -82,8 +96,14 @@ public class LoginUseCaseTests
         // Arrange
         var now = TestConstants.BaselineTime;
         var command = new LoginCommand("inactive@example.com", "password123");
-        var user = User.Register(EmailAddress.Create("inactive@example.com"), "hashed_pw", "Inactive", "User", now, SystemRole.Member);
-        user.Deactivate(now.AddDays(1));
+        var user = UserBuilder.AUser()
+            .WithEmail("inactive@example.com")
+            .WithPasswordHash("hashed_pw")
+            .WithName("Inactive", "User")
+            .WithSystemRole(SystemRole.Member)
+            .AsInactive()
+            .WithTime(now)
+            .Build();
 
         _userRepoMock.Setup(r => r.GetByEmailAsync("inactive@example.com", It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);
@@ -101,7 +121,13 @@ public class LoginUseCaseTests
     {
         // Arrange
         var command = new LoginCommand("test@example.com", "wrongpassword");
-        var user = User.Register(EmailAddress.Create("test@example.com"), "hashed_pw", "Test", "User", TestConstants.BaselineTime, SystemRole.Member);
+        var user = UserBuilder.AUser()
+            .WithEmail("test@example.com")
+            .WithPasswordHash("hashed_pw")
+            .WithName("Test", "User")
+            .WithSystemRole(SystemRole.Member)
+            .WithTime(TestConstants.BaselineTime)
+            .Build();
 
         _userRepoMock.Setup(r => r.GetByEmailAsync("test@example.com", It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);
@@ -124,9 +150,25 @@ public class LoginUseCaseTests
         var selectedProjectId = Guid.NewGuid();
         var anotherProjectId = Guid.NewGuid();
         var command = new LoginCommand("test@example.com", "password123", selectedProjectId);
-        var user = User.Register(EmailAddress.Create("test@example.com"), "hashed_pw", "Test", "User", now, SystemRole.Member);
-        var role = UserProjectRole.Create(user.Id, anotherProjectId, RoleType.Viewer, now);
-        var project = Project.Create(anotherProjectId, ProjectName.Create("Another"), TemplateSlug.Create("another"), now);
+        var user = UserBuilder.AUser()
+            .WithEmail("test@example.com")
+            .WithPasswordHash("hashed_pw")
+            .WithName("Test", "User")
+            .WithSystemRole(SystemRole.Member)
+            .WithTime(now)
+            .Build();
+        var role = UserProjectRoleBuilder.ARole()
+            .ForUser(user.Id)
+            .InProject(anotherProjectId)
+            .AsViewer()
+            .WithTime(now)
+            .Build();
+        var project = ProjectBuilder.AProject()
+            .WithId(anotherProjectId)
+            .WithName("Another")
+            .WithSlug("another")
+            .WithTime(now)
+            .Build();
 
         _userRepoMock.Setup(r => r.GetByEmailAsync("test@example.com", It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);
@@ -143,5 +185,20 @@ public class LoginUseCaseTests
         // Assert
         await act.Should().ThrowAsync<UnauthorizedException>()
             .WithMessage("User does not have access to the specified project.");
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenValidationFails_ThrowsValidationException()
+    {
+        // Arrange
+        var command = new LoginCommand("invalid-email", "123");
+        var validator = new LoginCommandValidator();
+
+        // Act
+        var act = () => CreateSut(validator).ExecuteAsync(command);
+
+        // Assert
+        await act.Should().ThrowAsync<ValidationException>();
+        _userRepoMock.Verify(r => r.GetByEmailAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 }

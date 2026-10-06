@@ -43,4 +43,20 @@ public class ListApiKeysUseCaseTests
         result[1].Name.Should().Be("CRM Key");
         _mockRepo.Verify(r => r.ListByProjectAsync(projectId, It.IsAny<CancellationToken>()), Times.Once);
     }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenProjectHasNoApiKeys_ReturnsEmptyList()
+    {
+        // Arrange
+        var projectId = Guid.NewGuid();
+        _mockRepo.Setup(r => r.ListByProjectAsync(projectId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<ApiKey>());
+
+        // Act
+        var result = await CreateSut().ExecuteAsync(new ListApiKeysQuery(projectId));
+
+        // Assert
+        result.Should().BeEmpty();
+        _mockRepo.Verify(r => r.ListByProjectAsync(projectId, It.IsAny<CancellationToken>()), Times.Once);
+    }
 }

@@ -12,6 +12,8 @@ public class ProjectBuilder
     private bool _isActive = true;
     private DateTimeOffset _now = TestConstants.BaselineTime;
 
+    public static ProjectBuilder AProject() => new();
+
     public ProjectBuilder WithId(Guid id)
     {
         _id = id;

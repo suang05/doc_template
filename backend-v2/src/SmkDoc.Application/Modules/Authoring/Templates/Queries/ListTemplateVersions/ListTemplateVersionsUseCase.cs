@@ -8,7 +8,7 @@ public sealed record ListTemplateVersionsQuery(Guid TemplateId);
 
 /// <summary>
 /// Single-responsibility Query Use Case for listing versions of a template.
-/// Injects only IRepository<TemplateVersion> (Zero unused dependencies).
+/// Injects only IRepository&lt;TemplateVersion&gt; (Zero unused dependencies).
 /// </summary>
 public sealed class ListTemplateVersionsUseCase(
     IRepository<TemplateVersion> versionRepo) : IUseCase<ListTemplateVersionsQuery, List<TemplateVersionDto>>

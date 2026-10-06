@@ -5,7 +5,7 @@ using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 namespace SmkDoc.Application.Modules.Authoring.Templates.Queries.ValidateTemplateHtml;
 
 /// <summary>
-/// Validates HTML template syntax, detects <Field> tags, and performs a Gotenberg dry-run render.
+/// Validates HTML template syntax, detects &lt;Field&gt; tags, and performs a Gotenberg dry-run render.
 /// </summary>
 public partial class ValidateTemplateHtmlUseCase(IPdfRenderer pdfRenderer)
 {

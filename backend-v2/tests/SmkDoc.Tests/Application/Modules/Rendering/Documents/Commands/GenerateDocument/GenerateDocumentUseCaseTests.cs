@@ -382,4 +382,45 @@ public class GenerateDocumentUseCaseTests
         _fixture.Engine.Verify(e => e.RenderStreamAsync(It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<OutputFormat>(), It.IsAny<CancellationToken>()), Times.Once);
         result.Url.Should().Be("https://example.com/download/invoice.pdf");
     }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenOutputFormatIsUnrecognized_FallbacksToPdf()
+    {
+        // Arrange
+        var templateId = Guid.NewGuid();
+        var versionId = Guid.NewGuid();
+
+        var template = new TemplateBuilder()
+            .WithId(templateId)
+            .WithName("Fallback Contract")
+            .WithSlug("fallback-contract")
+            .WithCurrentVersion(versionId)
+            .Build();
+
+        var currentVersion = new TemplateVersionBuilder()
+            .WithId(versionId)
+            .WithTemplateId(templateId)
+            .WithVersion(1)
+            .WithStorageKey("templates/fallback-contract.html")
+            .WithFormat(TemplateFormat.Html)
+            .Build();
+
+        _fixture.GivenTemplateWithVersion(template, currentVersion, "<html><body>Fallback</body></html>");
+        _fixture.GivenRenderEnginePdfOutput("%PDF-1.4 Mock Output");
+        _fixture.GivenPresignedUrl("https://example.com/download/fallback.pdf");
+
+        using var jsonDoc = JsonDocument.Parse("{}");
+        var request = new GenerateDocumentCommand(jsonDoc.RootElement, Output: "unknown_format", SkipValidation: true);
+
+        // Act
+        var result = await CreateSut().ExecuteAsync("fallback-contract", request);
+
+        // Assert — verifies engine was called with OutputFormat.Pdf fallback
+        _fixture.Engine.Verify(e => e.RenderStreamAsync(
+            It.IsAny<Stream>(),
+            It.IsAny<string>(),
+            OutputFormat.Pdf,
+            It.IsAny<CancellationToken>()), Times.Once);
+        result.Url.Should().Be("https://example.com/download/fallback.pdf");
+    }
 }

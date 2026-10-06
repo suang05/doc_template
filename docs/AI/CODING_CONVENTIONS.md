@@ -525,6 +525,20 @@ public sealed class CreateTemplateUseCaseTests
    | **Guard/Exception Path** | `IUnitOfWork.CommitAsync` | `Times.Never()` | ป้องกัน Data Corruption เด็ดขาด |
    | **Guard/Exception Path** | Downstream I/O (`IStorageService`, `IRenderEngine`) | `Times.Never()` | ป้องกัน Resource Leak / Side-effect |
 
+##### 🎯 Test Data Management, Deterministic Clock (`FakeTimeProvider`), & Role-Based Testing
+เพื่อป้องกัน Test Cascade Breakages, ขจัดปัญหา Non-deterministic Flakiness, และรักษาความกระชับของ Test Suite:
+1. **Mandatory Builders & Factories (Zero Ad-hoc Entity Instantiation):**
+   - ใน `SmkDoc.Tests/Application/` **ห้าม** เรียก `new Entity(...)` หรือ `Entity.Create(...)` แบบ Hardcode เองเด็ดขาด
+   - **`*Builder` (สำหรับ Aggregate Roots ซับซ้อน):** ใช้ `new ProjectBuilder().WithSlug("...").Build()` เมื่อต้องการ override ค่าเฉพาะบางตัว โดยที่ค่าอื่นๆ เป็น default baseline ที่สมบูรณ์
+   - **`*TestFactory` (สำหรับ Child Entities หรือ POCO ง่ายๆ):** ใช้ `DataConnectionTestFactory.Create(...)` เมื่อต้องการสร้าง entity ที่มี parameter พื้นฐานครบในบรรทัดเดียว
+2. **Deterministic Time with `FakeTimeProvider` (`Microsoft.Extensions.TimeProvider.Testing`):**
+   - **ห้าม** เรียก `DateTimeOffset.UtcNow` ใน Unit Tests เด็ดขาด (ใช้ `TestConstants.BaselineTime` เสมอ)
+   - สำหรับ UseCase ที่รับ `TimeProvider? timeProvider = null` ให้ `CreateSut` inject `timeProvider ?? TestConstants.CreateFakeClock()` เพื่อรับประกันว่า timestamp ทุกตัวที่ UseCase สร้างจะตรงกับ BaselineTime 100%
+   - ทดสอบ TTL / Expiry ด้วย `fakeClock.Advance(TimeSpan.FromHours(24))` แทนการ sleep จริง
+3. **Role-Based Testing: `[Fact]` vs `[Theory]` (Pragmatic Selection):**
+   - **`[Fact]` = "One Unique Behavior / Complex Story":** ใช้สำหรับ UseCase Workflows, State Transitions, Happy Paths หลัก, หรือเคสที่มี Arrange และ Mock Setup เฉพาะเจาะจง (ห้ามฝืนทำเป็น Theory จนต้องมี if-else ในเทสต์)
+   - **`[Theory]` + `[InlineData]` = "One Rule, Multiple Inputs":** ใช้สำหรับ Input Validators (`*ValidatorTests`), Converters, Formatters, และ Boundary Value Analysis (Null, Empty, Whitespace, Min/Max Length) เพื่อเห็นตารางความถูกต้องในจุดเดียวและลดโค้ดซ้ำซ้อน
+
 ---
 
 #### 🌟 Archetype B: Input Validator Test (Pure Parameterized Testing)

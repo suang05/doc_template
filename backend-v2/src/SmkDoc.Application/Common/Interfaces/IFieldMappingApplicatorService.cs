@@ -6,6 +6,8 @@ namespace SmkDoc.Application.Common.Interfaces;
 
 public interface IFieldMappingApplicatorService
 {
+    /// <param name="root">The input payload JSON element.</param>
+    /// <param name="mappings">Field mapping rules to apply.</param>
     /// <param name="datasetAliases">
     /// Alias → resolved dataset (provider, connection string, SQL query).
     /// Built by the calling use case from the template's TemplateDataset assignments.

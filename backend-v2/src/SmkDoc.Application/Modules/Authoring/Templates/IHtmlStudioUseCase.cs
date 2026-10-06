@@ -25,7 +25,7 @@ public interface IHtmlStudioUseCase
     Task<TemplateStudioDto> GetStudioBundleAsync(Guid templateId, CancellationToken ct = default);
 
     /// <summary>
-    /// Retrieves the published template's schema contract (DataSchema & SamplePayload) for external integrations and form generators.
+    /// Retrieves the published template's schema contract (DataSchema &amp; SamplePayload) for external integrations and form generators.
     /// </summary>
     Task<TemplateSchemaDto> GetTemplateSchemaAsync(Guid templateId, CancellationToken ct = default);
 

@@ -1,8 +1,10 @@
+using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.CreateApiKey;
 using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Helpers;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Tests.Common.Builders;
 
 namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Security.Commands.CreateApiKey;
 
@@ -26,11 +28,11 @@ public class CreateApiKeyUseCaseTests
             .Returns(Task.CompletedTask);
 
         var projectId = Guid.NewGuid();
-        var project = Project.Create(
-            Guid.NewGuid(),
-            ProjectName.Create("Sales Project"),
-            TemplateSlug.Create("sales-proj"),
-            TestConstants.BaselineTime);
+        var project = ProjectBuilder.AProject()
+            .WithId(projectId)
+            .WithName("Sales Project")
+            .WithSlug("sales-proj")
+            .Build();
 
         _projectRepoMock.Setup(r => r.GetByIdAsync(projectId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(project);
@@ -48,5 +50,20 @@ public class CreateApiKeyUseCaseTests
         capturedKey!.KeyHash.Value.Should().Be(ApiKeyHelper.ComputeHash(result.PlainTextKey));
 
         _uowMock.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenValidationFails_ThrowsValidationExceptionAndDoesNotPersist()
+    {
+        // Arrange
+        var command = new CreateApiKeyCommand("", "");
+
+        // Act
+        var act = () => CreateSut().ExecuteAsync(command);
+
+        // Assert
+        await act.Should().ThrowAsync<ValidationException>();
+        _apiKeyRepoMock.Verify(r => r.AddAsync(It.IsAny<ApiKey>(), It.IsAny<CancellationToken>()), Times.Never);
+        _uowMock.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 }

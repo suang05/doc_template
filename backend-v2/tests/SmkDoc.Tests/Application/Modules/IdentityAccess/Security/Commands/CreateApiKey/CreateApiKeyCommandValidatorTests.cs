@@ -19,11 +19,14 @@ public class CreateApiKeyCommandValidatorTests
         result.IsValid.Should().BeTrue();
     }
 
-    [Fact]
-    public async Task ValidateAsync_WithEmptyData_ShouldFail()
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task ValidateAsync_WhenNameIsInvalid_ShouldFail(string? invalidName)
     {
         // Arrange
-        var command = new CreateApiKeyCommand("", "");
+        var command = new CreateApiKeyCommand(invalidName!, "BillingService");
 
         // Act
         var result = await _validator.ValidateAsync(command);
@@ -31,6 +34,22 @@ public class CreateApiKeyCommandValidatorTests
         // Assert
         result.IsValid.Should().BeFalse();
         result.Errors.Should().Contain(e => e.PropertyName == nameof(CreateApiKeyCommand.Name));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task ValidateAsync_WhenCallerAppIsInvalid_ShouldFail(string? invalidCallerApp)
+    {
+        // Arrange
+        var command = new CreateApiKeyCommand("Test Key", invalidCallerApp!);
+
+        // Act
+        var result = await _validator.ValidateAsync(command);
+
+        // Assert
+        result.IsValid.Should().BeFalse();
         result.Errors.Should().Contain(e => e.PropertyName == nameof(CreateApiKeyCommand.CallerApp));
     }
 }
