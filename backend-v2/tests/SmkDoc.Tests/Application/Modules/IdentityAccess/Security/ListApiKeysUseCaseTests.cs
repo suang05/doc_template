@@ -3,7 +3,6 @@ using Moq;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Queries.ListApiKeys;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
 using Xunit;
 
@@ -28,8 +27,10 @@ public class ListApiKeysUseCaseTests
     {
         var projectId = Guid.NewGuid();
         var now = DateTimeOffset.UtcNow;
-        var key1 = ApiKey.Issue(projectId, ApiKeyName.Create("ERP Key"), "erp", new Sha256Hash(new string('1', 64)), ExpirationPolicy.Never, now);
-        var key2 = ApiKey.Issue(projectId, ApiKeyName.Create("CRM Key"), "crm", new Sha256Hash(new string('2', 64)), ExpirationPolicy.Never, now);
+        var key1 = ApiKey.Issue(projectId, ApiKeyName.Create("ERP Key"), "erp", new Sha256Hash(new string('1', 64)),
+            ExpirationPolicy.Never, now);
+        var key2 = ApiKey.Issue(projectId, ApiKeyName.Create("CRM Key"), "crm", new Sha256Hash(new string('2', 64)),
+            ExpirationPolicy.Never, now);
 
         _mockRepo.Setup(r => r.ListByProjectAsync(projectId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<ApiKey> { key1, key2 });

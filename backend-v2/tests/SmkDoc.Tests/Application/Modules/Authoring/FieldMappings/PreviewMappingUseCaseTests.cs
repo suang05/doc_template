@@ -10,6 +10,7 @@ using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Tests.Common.Factories;
 using Xunit;
 
 namespace SmkDoc.Tests.Application.Modules.Authoring.FieldMappings;
@@ -46,11 +47,12 @@ public class PreviewMappingUseCaseTests
         TemplateFormat? format = engineType == RenderEngineType.Excel ? TemplateFormat.Xlsx : 
                                  engineType == RenderEngineType.Docx ? TemplateFormat.Docx : TemplateFormat.Html;
 
-        var template = new Template(Guid.NewGuid(), "T", "sample-template", null, id: templateId);
-        template.SetCurrentVersion(versionId);
+        var now = DateTimeOffset.UtcNow;
+        var template = TemplateTestFactory.Create(templateId, Guid.NewGuid(), "T", "sample-template");
+        template.SetCurrentVersion(versionId, now);
         if (mappings != null)
         {
-            template.ReplaceFieldMappings(mappings);
+            template.ReplaceFieldMappings(mappings, now);
         }
 
         _mockTemplateRepo.Setup(r => r.GetByIdWithDetailsAsync(templateId, It.IsAny<CancellationToken>()))
@@ -58,7 +60,7 @@ public class PreviewMappingUseCaseTests
         _mockTemplateRepo.Setup(r => r.GetByIdAsync(templateId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
         _mockVersionRepo.Setup(r => r.GetByIdAsync(versionId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new TemplateVersion(templateId, 1, $"templates/sample-template.html", format, "Published", "Commit", id: versionId));
+            .ReturnsAsync(TemplateVersionTestFactory.Create(versionId, templateId, 1, $"templates/sample-template.html", format, "Published", "Commit", now));
 
         return template;
     }
@@ -123,7 +125,7 @@ public class PreviewMappingUseCaseTests
 
         var mappings = new List<FieldMapping>
         {
-            new FieldMapping(templateId, "fullName", "customer.name", "Full Name", false, 1, DataSourceType.Json)
+            FieldMapping.Create(templateId, "fullName", "customer.name", "Full Name", false, 1, DateTimeOffset.UtcNow, DataSourceType.Json)
         };
         SetupTemplate(templateId, versionId, mappings: mappings);
 
@@ -163,7 +165,7 @@ public class PreviewMappingUseCaseTests
     public async Task ExecuteAsync_WhenTemplateHasNoCurrentVersion_ShouldThrowInvalidOperationException()
     {
         var templateId = Guid.NewGuid();
-        var template = new Template(Guid.NewGuid(), "T", "sample-template", null, id: templateId);
+        var template = TemplateTestFactory.Create(templateId, Guid.NewGuid(), "T", "sample-template");
         _mockTemplateRepo.Setup(r => r.GetByIdWithDetailsAsync(templateId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
         _mockTemplateRepo.Setup(r => r.GetByIdAsync(templateId, It.IsAny<CancellationToken>()))
@@ -179,14 +181,15 @@ public class PreviewMappingUseCaseTests
         var templateId = Guid.NewGuid();
         var versionId  = Guid.NewGuid();
 
-        var template = new Template(Guid.NewGuid(), "T", "sample-template", null, id: templateId);
-        template.SetCurrentVersion(versionId);
+        var now = DateTimeOffset.UtcNow;
+        var template = TemplateTestFactory.Create(templateId, Guid.NewGuid(), "T", "sample-template");
+        template.SetCurrentVersion(versionId, now);
         _mockTemplateRepo.Setup(r => r.GetByIdWithDetailsAsync(templateId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
         _mockTemplateRepo.Setup(r => r.GetByIdAsync(templateId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
         _mockVersionRepo.Setup(r => r.GetByIdAsync(versionId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new TemplateVersion(templateId, 1, "templates/t.docx", TemplateFormat.Docx, "Published", "Commit", id: versionId));
+            .ReturnsAsync(TemplateVersionTestFactory.Create(versionId, templateId, 1, "templates/t.docx", TemplateFormat.Docx, "Published", "Commit", now));
         _mockStorage.Setup(s => s.DownloadAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new MemoryStream());
 

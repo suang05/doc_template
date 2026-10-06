@@ -36,8 +36,10 @@ Preserve these core invariants over legacy systems at all times:
 | **Stream over RAM** | Stream Gotenberg/MinIO payloads directly to responses. Avoid buffering multi-MB PDFs in RAM (`byte[]`). |
 
 ### Clean Architecture Dependency Matrix (`backend-v2/`)
-- **Domain (`SmkDoc.Domain`):** Pure C# POCOs, Entities, Value Objects, Smart Enums, Domain Exceptions, Repository/UoW interfaces. **Zero** dependencies on EF Core, ASP.NET, OpenXml, DTOs, or Data Annotations. Enforced rules (see [ARCHITECTURE.md §Layer 1](docs/AI/ARCHITECTURE.md), [PATTERNS.md §1.4](docs/AI/PATTERNS.md), ADR-021):
-  - `private set` / `protected set` (BaseEntity.Id) — ห้ามใช้ `public init` (AP-021) · parameterized ctor + `private` EF ctor · state changes via business methods only
+- **Domain (`SmkDoc.Domain`):** Pure C# POCOs, Entities, Value Objects, Smart Enums, Domain Exceptions, Repository/UoW interfaces. **Zero** dependencies on EF Core, ASP.NET, OpenXml, DTOs, or Data Annotations. Enforced rules (see [ARCHITECTURE.md §Layer 1](docs/AI/ARCHITECTURE.md), [PATTERNS.md §1.4](docs/AI/PATTERNS.md), ADR-021, ADR-022, ADR-023):
+  - `private set` / `protected set` (BaseEntity.Id) — ห้ามใช้ `public init` (AP-021) · `internal` parameterized ctor (for tests via `InternalsVisibleTo`) + `private` EF ctor · state changes via business methods only
+  - **Single Canonical Factory Method (SSoT):** Each Entity defines exactly **1 public `Create` factory** accepting strongly-typed Value Objects only and mandatory deterministic `DateTimeOffset now`. **Zero primitive overloads** (`(string, string)`) inside Domain entities — Application UseCases map DTO primitives to Value Objects.
+  - **Zero Test Backdoors in Domain:** `CreateForTest` is strictly prohibited in `SmkDoc.Domain.dll`. Test creations belong in `SmkDoc.Tests/Common/Builders/` (`*Builder`) or `Factories/` (`*TestFactory`).
   - Fail-fast: throw `DomainValidationException` / `BusinessRuleViolationException` (never `ArgumentException`); **never weaken an invariant to make callers/tests pass** (AP-023)
   - Aggregate roots own child collections (`IReadOnlyCollection<T>`); cross-aggregate refs by Id; no `{ Id = ... }` overrides (AP-021/022)
   - Repositories return Entities / `IReadOnlyList<T>` only — no `IQueryable`, no DTOs, tenant lookups take `projectId` (AP-025)
@@ -59,6 +61,7 @@ Preserve these core invariants over legacy systems at all times:
 
 ### 🟢 ALWAYS (Standard Autonomous Actions)
 - Analyze trade-offs and enforce Clean Architecture DIP interfaces.
+- Enforce Universal Code Hygiene across all C# layers: Clean Usings (no inline namespaces), Standardized Primary Constructor parameter naming (`camelCase`, no `_` prefix), and Whitespace Consistency (single blank line, no dead code).
 - Use `PlaceholderHelper.Pattern` as SSoT for placeholder regex.
 - Validate inputs using Zod (frontend) and Domain Exceptions (backend).
 - Maintain anti-bloat test suites: Use Test Fixtures (`*TestFixture`) and Domain Builders (`*Builder`) for SUT/entity creation, and isolate input validation into `*ValidatorTests` using `[Theory]`.
@@ -126,6 +129,6 @@ Output this checklist **only when source code files have been modified**:
 - [ ] **Layering Boundaries:** Did Domain remain POCO-only? Did Application return only Application DTOs? Are Controllers isolated from Domain entities?
 - [ ] **Test Execution:** Did all tests pass via `dotnet test` or `npm test`?
 - [ ] **Tenant Isolation & RBAC:** Did tenant-scoped mutations validate both `projectId` and entity ID to prevent IDOR? Are admin mutating operations guarded declaratively via `[Authorize(Roles = "Admin")]`?
-- [ ] **Clean Code:** Removed unused imports, debug logs (`Console.WriteLine`, `console.log`), and dead code?
+- [ ] **Clean Code & Code Hygiene:** Enforced Clean Usings (zero inline namespaces, zero unused imports), primary constructor parameter naming (`camelCase`, no `_` prefix), whitespace consistency (single blank line between members), and zero dead code/debug logs?
 - [ ] **No Auto-Docker:** Did I refrain from executing Docker commands directly?
 - [ ] **Doc Drift Confirmation (Ask First):** Did I evaluate whether `AGENTS.md` or any files in `docs/AI/` drifted, and proactively ask the user before editing them?

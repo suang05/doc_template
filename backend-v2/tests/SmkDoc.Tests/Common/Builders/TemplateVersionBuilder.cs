@@ -1,5 +1,6 @@
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
+using SmkDoc.Tests.Common.Factories;
 
 namespace SmkDoc.Tests.Common.Builders;
 
@@ -51,6 +52,6 @@ public class TemplateVersionBuilder
 
     public TemplateVersion Build()
     {
-        return new TemplateVersion(_templateId, _version, _storageKey, _format, _status, _commitMessage, id: _id);
+        return TemplateVersionTestFactory.Create(_id, _templateId, _version, _storageKey, _format, _status, _commitMessage, DateTimeOffset.UtcNow);
     }
 }

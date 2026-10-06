@@ -2,6 +2,7 @@ using FluentAssertions;
 using Moq;
 using SmkDoc.Application.Modules.Integration.DataConnections.Commands.CreateDataConnection;
 using SmkDoc.Domain.Entities;
+using SmkDoc.Domain.Enums;
 using SmkDoc.Tests.Common.Fixtures;
 using Xunit;
 
@@ -26,7 +27,7 @@ public class CreateDataConnectionUseCaseTests
 
         _fixture.ConnectionRepo.Verify(r => r.AddAsync(It.Is<DataConnection>(c =>
             c.Name == "Warehouse" &&
-            c.Provider == "PostgreSQL" &&
+            c.Provider == DatabaseProvider.PostgreSQL &&
             c.EncryptedConnectionString == "enc:Host=wh.local;Pass=secret"), It.IsAny<CancellationToken>()), Times.Once);
         _fixture.UnitOfWork.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
     }

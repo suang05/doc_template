@@ -1,82 +1,73 @@
 using SmkDoc.Domain.Common;
 using SmkDoc.Domain.Exceptions;
+using SmkDoc.Domain.ValueObjects;
 
 namespace SmkDoc.Domain.Entities;
 
 /// <summary>
 /// Domain entity representing a dataset query definition associated with a data connection.
 /// </summary>
-public class Dataset : BaseEntity
+public sealed class Dataset : BaseEntity
 {
-    public string Name { get; private set; } = string.Empty;
+    public DatasetName Name { get; private set; } = null!;
     public string? Description { get; private set; }
     public Guid DataConnectionId { get; private set; }
     public string SqlQuery { get; private set; } = string.Empty;
-    public int CacheSeconds { get; private set; } = 0;
+    public int CacheSeconds { get; private set; }
 
-    // Navigation
-    public virtual DataConnection? DataConnection { get; private set; }
+    // Navigation property for EF Core materialization
+    public DataConnection? DataConnection { get; private set; }
 
-    // For EF Core materialization
+    // For EF Core materialization only
     private Dataset() { }
 
-    public Dataset(string name, string? description, Guid dataConnectionId, string sqlQuery, int cacheSeconds = 0, Guid? id = null)
-        : base(id)
+    internal Dataset(
+        Guid? id,
+        DatasetName name,
+        string? description,
+        Guid dataConnectionId,
+        string sqlQuery,
+        int cacheSeconds,
+        DateTimeOffset now)
+        : base(id, createdAt: now)
     {
-        if (string.IsNullOrWhiteSpace(name))
-        {
-            throw new DomainValidationException("Dataset name cannot be empty or whitespace.");
-        }
-
-        if (dataConnectionId == Guid.Empty)
-        {
-            throw new DomainValidationException("DataConnectionId cannot be empty.");
-        }
-
-        if (string.IsNullOrWhiteSpace(sqlQuery))
-        {
-            throw new DomainValidationException("SqlQuery cannot be empty or whitespace.");
-        }
-
+        Name = Guard.NotNull(name, nameof(Name));
+        Description = string.IsNullOrWhiteSpace(description) ? null : description.Trim();
+        DataConnectionId = Guard.NotEmpty(dataConnectionId, nameof(DataConnectionId));
+        SqlQuery = Guard.NotBlank(sqlQuery, nameof(SqlQuery));
         if (cacheSeconds < 0)
         {
             throw new DomainValidationException("CacheSeconds cannot be negative.");
         }
-
-        Name = name.Trim();
-        Description = string.IsNullOrWhiteSpace(description) ? null : description.Trim();
-        DataConnectionId = dataConnectionId;
-        SqlQuery = sqlQuery;
         CacheSeconds = cacheSeconds;
     }
 
-    public void UpdateDetails(string name, string? description, Guid dataConnectionId, string sqlQuery, int cacheSeconds)
+    public static Dataset Create(
+        DatasetName name,
+        string? description,
+        Guid dataConnectionId,
+        string sqlQuery,
+        int cacheSeconds,
+        DateTimeOffset now) =>
+        new(null, name, description, dataConnectionId, sqlQuery, cacheSeconds, now);
+
+    public void UpdateDetails(
+        DatasetName name,
+        string? description,
+        Guid dataConnectionId,
+        string sqlQuery,
+        int cacheSeconds,
+        DateTimeOffset now)
     {
-        if (string.IsNullOrWhiteSpace(name))
-        {
-            throw new DomainValidationException("Dataset name cannot be empty or whitespace.");
-        }
-
-        if (dataConnectionId == Guid.Empty)
-        {
-            throw new DomainValidationException("DataConnectionId cannot be empty.");
-        }
-
-        if (string.IsNullOrWhiteSpace(sqlQuery))
-        {
-            throw new DomainValidationException("SqlQuery cannot be empty or whitespace.");
-        }
-
+        Name = Guard.NotNull(name, nameof(Name));
+        Description = string.IsNullOrWhiteSpace(description) ? null : description.Trim();
+        DataConnectionId = Guard.NotEmpty(dataConnectionId, nameof(DataConnectionId));
+        SqlQuery = Guard.NotBlank(sqlQuery, nameof(SqlQuery));
         if (cacheSeconds < 0)
         {
             throw new DomainValidationException("CacheSeconds cannot be negative.");
         }
-
-        Name = name.Trim();
-        Description = string.IsNullOrWhiteSpace(description) ? null : description.Trim();
-        DataConnectionId = dataConnectionId;
-        SqlQuery = sqlQuery;
         CacheSeconds = cacheSeconds;
-        SetUpdated();
+        SetUpdated(now);
     }
 }

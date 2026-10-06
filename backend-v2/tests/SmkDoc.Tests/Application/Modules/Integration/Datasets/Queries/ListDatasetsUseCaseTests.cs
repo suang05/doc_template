@@ -2,6 +2,8 @@ using FluentAssertions;
 using Moq;
 using SmkDoc.Application.Modules.Integration.Datasets.Queries.ListDatasets;
 using SmkDoc.Domain.Entities;
+using SmkDoc.Domain.Enums;
+using SmkDoc.Tests.Common.Factories;
 using SmkDoc.Tests.Common.Fixtures;
 using Xunit;
 
@@ -18,8 +20,8 @@ public class ListDatasetsUseCaseTests
     public async Task ExecuteAsync_ShouldReturnEnrichedDatasets()
     {
         var connId = Guid.NewGuid();
-        var conn = new DataConnection("PostgresDB", "PostgreSQL", "enc_pg", id: connId);
-        var dataset = new Dataset("CustomerData", "Customer queries", connId, "SELECT * FROM customers", 120);
+        var conn = DataConnectionTestFactory.Create(connId, "PostgresDB", DatabaseProvider.PostgreSQL, "enc_pg");
+        var dataset = DatasetTestFactory.Create(name: "CustomerData", description: "Customer queries", dataConnectionId: connId, sqlQuery: "SELECT * FROM customers", cacheSeconds: 120);
 
         _fixture.DatasetRepo.Setup(r => r.ListAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<Dataset> { dataset });

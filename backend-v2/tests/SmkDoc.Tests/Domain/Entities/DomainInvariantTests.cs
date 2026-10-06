@@ -16,9 +16,8 @@ public class DomainInvariantTests
     [InlineData("   ")]
     public void Template_Constructor_WithEmptyName_ThrowsDomainValidationException(string invalidName)
     {
-        var act = () => new Template(Guid.NewGuid(), invalidName, "valid-slug");
-        act.Should().Throw<DomainValidationException>()
-            .WithMessage("*name cannot be empty*");
+        var act = () => TemplateName.Create(invalidName);
+        act.Should().Throw<DomainValidationException>();
     }
 
     [Theory]
@@ -26,18 +25,18 @@ public class DomainInvariantTests
     [InlineData("   ")]
     public void Template_Constructor_WithEmptySlug_ThrowsDomainValidationException(string invalidSlug)
     {
-        var act = () => new Template(Guid.NewGuid(), "Valid Name", invalidSlug);
-        act.Should().Throw<DomainValidationException>()
-            .WithMessage("*slug cannot be empty*");
+        var act = () => TemplateSlug.Create(invalidSlug);
+        act.Should().Throw<DomainValidationException>();
     }
 
     [Fact]
     public void Template_SetCurrentVersion_WhenInactive_ThrowsBusinessRuleViolationException()
     {
-        var template = new Template(Guid.NewGuid(), "Invoice", "invoice");
-        template.Deactivate();
+        var now = DateTimeOffset.UtcNow;
+        var template = Template.Create(Guid.NewGuid(), TemplateName.Create("Invoice"), TemplateSlug.Create("invoice"), null, now);
+        template.Deactivate(now);
 
-        var act = () => template.SetCurrentVersion(Guid.NewGuid());
+        var act = () => template.SetCurrentVersion(Guid.NewGuid(), now);
         act.Should().Throw<BusinessRuleViolationException>()
             .Which.ErrorCode.Should().Be("INACTIVE_TEMPLATE");
     }
@@ -45,9 +44,10 @@ public class DomainInvariantTests
     [Fact]
     public void Template_SetCurrentVersion_WhenEmptyGuid_ThrowsDomainValidationException()
     {
-        var template = new Template(Guid.NewGuid(), "Invoice", "invoice");
+        var now = DateTimeOffset.UtcNow;
+        var template = Template.Create(Guid.NewGuid(), TemplateName.Create("Invoice"), TemplateSlug.Create("invoice"), null, now);
 
-        var act = () => template.SetCurrentVersion(Guid.Empty);
+        var act = () => template.SetCurrentVersion(Guid.Empty, now);
         act.Should().Throw<DomainValidationException>()
             .WithMessage("*VersionId cannot be empty*");
     }
@@ -60,31 +60,33 @@ public class DomainInvariantTests
     [InlineData(-10)]
     public void TemplateVersion_Constructor_WithInvalidVersionNumber_ThrowsDomainValidationException(int invalidVersion)
     {
-        var act = () => new TemplateVersion(Guid.NewGuid(), invalidVersion, "key", TemplateFormat.Html, "user");
+        var act = () => TemplateVersion.Draft(Guid.NewGuid(), invalidVersion, "key", TemplateFormat.Html, "user", DateTimeOffset.UtcNow);
         act.Should().Throw<DomainValidationException>()
-            .WithMessage("*version number must be greater than zero*");
+            .WithMessage("*greater than zero*");
     }
 
     [Fact]
     public void TemplateVersion_Publish_WhenArchived_ThrowsBusinessRuleViolationException()
     {
-        var version = new TemplateVersion(Guid.NewGuid(), 1, "key", TemplateFormat.Html, "user");
-        version.Archive();
+        var now = DateTimeOffset.UtcNow;
+        var version = TemplateVersion.Draft(Guid.NewGuid(), 1, "key", TemplateFormat.Html, "user", now);
+        version.Archive(now);
 
-        var act = () => version.Publish();
+        var act = () => version.Publish(now);
         act.Should().Throw<BusinessRuleViolationException>()
-            .Which.ErrorCode.Should().Be("ARCHIVED_VERSION_CANNOT_BE_PUBLISHED");
+            .Which.ErrorCode.Should().Be("ARCHIVED_VERSION_IMMUTABLE");
     }
 
     [Fact]
     public void TemplateVersion_UpdateDataSchema_WhenArchived_ThrowsBusinessRuleViolationException()
     {
-        var version = new TemplateVersion(Guid.NewGuid(), 1, "key", TemplateFormat.Html, "user");
-        version.Archive();
+        var now = DateTimeOffset.UtcNow;
+        var version = TemplateVersion.Draft(Guid.NewGuid(), 1, "key", TemplateFormat.Html, "user", now);
+        version.Archive(now);
 
-        var act = () => version.UpdateDataSchema("{}", "{}");
+        var act = () => version.UpdateDataSchema("{}", "{}", now);
         act.Should().Throw<BusinessRuleViolationException>()
-            .Which.ErrorCode.Should().Be("ARCHIVED_VERSION_CANNOT_BE_MODIFIED");
+            .Which.ErrorCode.Should().Be("ARCHIVED_VERSION_IMMUTABLE");
     }
 
     // ── UserProjectRole Invariants ───────────────────────────────────────────
@@ -92,7 +94,7 @@ public class DomainInvariantTests
     [Fact]
     public void UserProjectRole_Constructor_WithEmptyUserId_ThrowsDomainValidationException()
     {
-        var act = () => new UserProjectRole(Guid.Empty, Guid.NewGuid(), RoleType.Viewer);
+        var act = () => UserProjectRole.Create(Guid.Empty, Guid.NewGuid(), RoleType.Viewer, DateTimeOffset.UtcNow);
         act.Should().Throw<DomainValidationException>()
             .WithMessage("*UserId cannot be empty*");
     }
@@ -100,7 +102,7 @@ public class DomainInvariantTests
     [Fact]
     public void UserProjectRole_Constructor_WithEmptyProjectId_ThrowsDomainValidationException()
     {
-        var act = () => new UserProjectRole(Guid.NewGuid(), Guid.Empty, RoleType.Viewer);
+        var act = () => UserProjectRole.Create(Guid.NewGuid(), Guid.Empty, RoleType.Viewer, DateTimeOffset.UtcNow);
         act.Should().Throw<DomainValidationException>()
             .WithMessage("*ProjectId cannot be empty*");
     }
@@ -110,7 +112,7 @@ public class DomainInvariantTests
     [Fact]
     public void Template_Constructor_WithEmptyProjectId_ThrowsDomainValidationException()
     {
-        var act = () => new Template(Guid.Empty, "Invoice", "invoice");
+        var act = () => Template.Create(Guid.Empty, TemplateName.Create("Invoice"), TemplateSlug.Create("invoice"), null, DateTimeOffset.UtcNow);
         act.Should().Throw<DomainValidationException>()
             .WithMessage("*ProjectId cannot be empty*");
     }
@@ -130,9 +132,9 @@ public class DomainInvariantTests
     [InlineData("   ")]
     public void DataConnection_Constructor_WithEmptyConnectionString_ThrowsDomainValidationException(string invalidConn)
     {
-        var act = () => new DataConnection("DB", "PostgreSQL", invalidConn);
+        var act = () => DataConnection.Create(ConnectionName.Create("DB"), DatabaseProvider.PostgreSQL, invalidConn, DateTimeOffset.UtcNow);
         act.Should().Throw<DomainValidationException>()
-            .WithMessage("*Encrypted connection string cannot be empty*");
+            .WithMessage("*EncryptedConnectionString cannot be empty*");
     }
 
     // ── User Invariant Hardening ─────────────────────────────────────────────
@@ -142,7 +144,7 @@ public class DomainInvariantTests
     [InlineData("   ")]
     public void User_Constructor_WithEmptyFirstName_ThrowsDomainValidationException(string invalidFirstName)
     {
-        var act = () => new User("user@example.com", "hash", invalidFirstName, "Last");
+        var act = () => User.Register(EmailAddress.Create("user@example.com"), "hash", invalidFirstName, "Last", DateTimeOffset.UtcNow);
         act.Should().Throw<DomainValidationException>()
             .WithMessage("*FirstName cannot be empty*");
     }

@@ -9,12 +9,14 @@ public sealed class DocumentAuditService(
     IRepository<GenerationLog> logRepo,
     IExecutionContext executionContext,
     IUnitOfWork unitOfWork,
-    IDocumentMetrics? metrics = null) : IDocumentAuditService
+    IDocumentMetrics? metrics = null,
+    TimeProvider? timeProvider = null) : IDocumentAuditService
 {
     private readonly IRepository<GenerationLog> _logRepo = logRepo;
     private readonly IExecutionContext _executionContext = executionContext;
     private readonly IUnitOfWork _unitOfWork = unitOfWork;
     private readonly IDocumentMetrics? _metrics = metrics;
+    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
 
     public async Task LogValidationFailureAsync(
         Guid templateId,
@@ -25,21 +27,17 @@ public sealed class DocumentAuditService(
         string errorMessage,
         CancellationToken ct = default)
     {
-        var failLog = new GenerationLog(
+        var failLog = GenerationLog.CreateValidationFailure(
             templateId,
             templateVersionId,
             _executionContext.ApiKeyId,
             _executionContext.CallerApp,
             "api",
             dataJson,
-            null,
             outputFormat,
-            0,
-            null,
-            null,
             elapsedMs,
-            "VALIDATION_FAILED",
-            errorMessage);
+            errorMessage,
+            _timeProvider.GetUtcNow());
 
         await _logRepo.AddAsync(failLog, ct);
         await _unitOfWork.CommitAsync(ct);
@@ -58,7 +56,8 @@ public sealed class DocumentAuditService(
         int elapsedMs,
         CancellationToken ct = default)
     {
-        var log = new GenerationLog(
+        var log = GenerationLog.CreateSuccess(
+            generationId,
             templateId,
             templateVersionId,
             _executionContext.ApiKeyId,
@@ -68,12 +67,8 @@ public sealed class DocumentAuditService(
             outputKey,
             outputFormat,
             fileSizeBytes,
-            null,
-            null,
             elapsedMs,
-            "SUCCESS",
-            null,
-            id: generationId);
+            _timeProvider.GetUtcNow());
 
         await _logRepo.AddAsync(log, ct);
 

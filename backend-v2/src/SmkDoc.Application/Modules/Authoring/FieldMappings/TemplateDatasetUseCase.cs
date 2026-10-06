@@ -1,8 +1,9 @@
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.Exceptions;
+using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects;
 
 namespace SmkDoc.Application.Modules.Authoring.FieldMappings;
 
@@ -10,11 +11,13 @@ namespace SmkDoc.Application.Modules.Authoring.FieldMappings;
 public sealed class TemplateDatasetUseCase(
     ITemplateRepository templateRepo,
     IDatasetRepository datasetRepo,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork,
+    TimeProvider? timeProvider = null)
 {
     private readonly ITemplateRepository _templateRepo = templateRepo;
     private readonly IDatasetRepository _datasetRepo = datasetRepo;
     private readonly IUnitOfWork _unitOfWork = unitOfWork;
+    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
 
     public async Task<List<TemplateDatasetDto>> GetByTemplateIdAsync(Guid templateId, CancellationToken ct = default)
     {
@@ -26,7 +29,7 @@ public sealed class TemplateDatasetUseCase(
         // Enrich with dataset name
         var datasetIds = rows.Select(r => r.DatasetId).Distinct().ToList();
         var datasets   = await _datasetRepo.GetByIdsAsync(datasetIds, ct);
-        var dsMap      = datasets.ToDictionary(d => d.Id, d => d.Name);
+        var dsMap      = datasets.ToDictionary(d => d.Id, d => d.Name.Value);
 
         return rows
             .OrderBy(r => r.SortOrder)
@@ -35,7 +38,7 @@ public sealed class TemplateDatasetUseCase(
                 r.TemplateId,
                 r.DatasetId,
                 dsMap.GetValueOrDefault(r.DatasetId, "(unknown)"),
-                r.Alias,
+                r.Alias.Value,
                 r.SortOrder))
             .ToList();
     }
@@ -46,11 +49,12 @@ public sealed class TemplateDatasetUseCase(
             ?? await _templateRepo.GetByIdAsync(templateId, ct)
             ?? throw new NotFoundException($"Template '{templateId}' not found.");
 
+        var now = _timeProvider.GetUtcNow();
         var datasets = items.Select(item =>
-            new TemplateDataset(templateId, item.DatasetId, item.Alias.Trim().ToLowerInvariant(), item.SortOrder)
+            TemplateDataset.Create(templateId, item.DatasetId, DatasetAlias.Create(item.Alias), item.SortOrder, now)
         ).ToList();
 
-        template.ReplaceDatasets(datasets);
+        template.ReplaceDatasets(datasets, now);
         await _unitOfWork.CommitAsync(ct);
     }
 }

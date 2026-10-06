@@ -18,6 +18,16 @@ public sealed class UserRepository(AppDbContext context) : IUserRepository
         return await _context.Users.FirstOrDefaultAsync(u => u.Email == normalizedEmail, ct);
     }
 
+    public async Task<User?> GetByEmailAsync(SmkDoc.Domain.ValueObjects.EmailAddress email, CancellationToken ct = default)
+    {
+        return await _context.Users.FirstOrDefaultAsync(u => u.Email == email, ct);
+    }
+
+    public async Task<bool> ExistsByEmailAsync(SmkDoc.Domain.ValueObjects.EmailAddress email, CancellationToken ct = default)
+    {
+        return await _context.Users.AnyAsync(u => u.Email == email, ct);
+    }
+
     public async Task<IReadOnlyList<User>> GetByIdsAsync(IEnumerable<Guid> ids, CancellationToken ct = default)
     {
         var idSet = ids.ToHashSet();

@@ -6,6 +6,7 @@ using SmkDoc.Application.Modules.Authoring.FieldMappings.Queries.GetTemplateMapp
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Tests.Common.Factories;
 using Xunit;
 
 namespace SmkDoc.Tests.Application.Modules.Authoring.FieldMappings;
@@ -20,11 +21,12 @@ public class FieldMappingUseCaseTests
     {
         // Arrange
         var templateId = Guid.NewGuid();
-        var template = new Template(Guid.NewGuid(), "Invoice", "invoice", null, id: templateId);
-        var m1 = new FieldMapping(templateId, "total", "payment.total", "ยอดชำระ", false, 2, DataSourceType.Json);
-        var m2 = new FieldMapping(templateId, "name", "customer.name", "ชื่อลูกค้า", false, 1, DataSourceType.Json);
+        var now = DateTimeOffset.UtcNow;
+        var template = TemplateTestFactory.Create(templateId, Guid.NewGuid(), "Invoice", "invoice");
+        var m1 = FieldMapping.Create(templateId, "total", "payment.total", "ยอดชำระ", false, 2, now, DataSourceType.Json);
+        var m2 = FieldMapping.Create(templateId, "name", "customer.name", "ชื่อลูกค้า", false, 1, now, DataSourceType.Json);
         var mappings = new List<FieldMapping> { m1, m2 };
-        template.ReplaceFieldMappings(mappings);
+        template.ReplaceFieldMappings(mappings, now);
 
         _mockTemplateRepo.Setup(r => r.GetByIdWithDetailsAsync(templateId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
@@ -45,7 +47,7 @@ public class FieldMappingUseCaseTests
     {
         // Arrange
         var templateId = Guid.NewGuid();
-        var template = new Template(Guid.NewGuid(), "Invoice", "invoice", null, id: templateId);
+        var template = TemplateTestFactory.Create(templateId, Guid.NewGuid(), "Invoice", "invoice");
 
         _mockTemplateRepo.Setup(r => r.GetByIdAsync(templateId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);

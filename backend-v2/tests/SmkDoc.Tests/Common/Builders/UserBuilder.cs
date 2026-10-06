@@ -1,5 +1,6 @@
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
+using SmkDoc.Domain.ValueObjects;
 
 namespace SmkDoc.Tests.Common.Builders;
 
@@ -45,6 +46,6 @@ public class UserBuilder
 
     public User Build()
     {
-        return new User(_email, _passwordHash, _firstName, _lastName, _systemRole, id: _id);
+        return new User(_id, EmailAddress.Create(_email), _passwordHash, _firstName, _lastName, _systemRole, DateTimeOffset.UtcNow);
     }
 }

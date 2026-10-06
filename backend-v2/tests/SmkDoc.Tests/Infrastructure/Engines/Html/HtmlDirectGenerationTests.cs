@@ -10,9 +10,10 @@ using SmkDoc.Application.Modules.Rendering.Documents.Commands.GenerateDocument;
 using SmkDoc.Application.Modules.Rendering.Documents.DTOs;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
-using SmkDoc.Infrastructure.Engines.Html;
-using Xunit;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Infrastructure.Engines.Html;
+using SmkDoc.Tests.Common.Factories;
+using Xunit;
 
 namespace SmkDoc.Tests.Infrastructure.Engines.Html;
 
@@ -43,10 +44,10 @@ public class HtmlDirectGenerationTests
         var versionId  = Guid.NewGuid();
         string capturedHtml = string.Empty;
 
-        var template = new Template(Guid.NewGuid(), "Direct HTML Invoice", "invoice-direct-html", null, id: templateId);
-        template.SetCurrentVersion(versionId);
+        var template = TemplateTestFactory.Create(templateId, Guid.NewGuid(), "Direct HTML Invoice", "invoice-direct-html");
+        template.SetCurrentVersion(versionId, DateTimeOffset.UtcNow);
 
-        var version = new TemplateVersion(templateId, 1, "templates/invoice.html", TemplateFormat.Html, "Published", "Initial", id: versionId);
+        var version = TemplateVersionTestFactory.Create(versionId, templateId, 1, "templates/invoice.html", TemplateFormat.Html, "Published", "Initial");
 
         string htmlContent = @"
             <html>

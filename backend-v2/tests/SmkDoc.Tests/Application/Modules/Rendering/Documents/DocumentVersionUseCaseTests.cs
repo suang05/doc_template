@@ -8,6 +8,7 @@ using SmkDoc.Application.Modules.Rendering.Logs.Queries.GetLogDownloadUrl;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
+using SmkDoc.Tests.Common.Factories;
 using Xunit;
 
 namespace SmkDoc.Tests.Application.Modules.Rendering.Documents;
@@ -24,15 +25,15 @@ public class DocumentVersionUseCaseTests
     {
         // Arrange
         var documentId = Guid.NewGuid();
-        var document = new Document("SC-001", Guid.NewGuid(), id: documentId);
+        var document = DocumentTestFactory.Create(documentId, "SC-001", Guid.NewGuid());
 
         _mockDocumentRepo.Setup(r => r.FirstOrDefaultAsync(It.IsAny<Expression<Func<Document, bool>>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(document);
 
         _mockVersionRepo.Setup(r => r.ListAsync(It.IsAny<Expression<Func<DocumentVersion, bool>>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([
-                new DocumentVersion(documentId, 1, Guid.NewGuid(), null, null, null),
-                new DocumentVersion(documentId, 2, Guid.NewGuid(), null, null, null)
+                DocumentVersionTestFactory.Create(documentId: documentId, version: 1),
+                DocumentVersionTestFactory.Create(documentId: documentId, version: 2)
             ]);
 
         var useCase = new GetDocumentVersionsUseCase(_mockDocumentRepo.Object, _mockVersionRepo.Object);
@@ -69,9 +70,9 @@ public class DocumentVersionUseCaseTests
         // Arrange
         var documentId = Guid.NewGuid();
         var logId      = Guid.NewGuid();
-        var document   = new Document("SC-001", Guid.NewGuid(), id: documentId);
-        var docVersion = new DocumentVersion(documentId, 1, Guid.NewGuid(), logId, null, null);
-        var log        = new GenerationLog(null, null, null, null, null, null, "outputs/sc001_v1.pdf", OutputFormat.Pdf, null, null, null, 1, "SUCCESS", null, id: logId);
+        var document   = DocumentTestFactory.Create(documentId, "SC-001", Guid.NewGuid());
+        var docVersion = DocumentVersionTestFactory.Create(documentId: documentId, version: 1, templateVersionId: Guid.NewGuid(), generationLogId: logId);
+        var log        = GenerationLogTestFactory.Create(id: logId, outputKey: "outputs/sc001_v1.pdf", outputFormat: OutputFormat.Pdf, durationMs: 1);
         var pdfBytes   = new byte[] { 0x25, 0x50, 0x44, 0x46 };
 
         _mockDocumentRepo.Setup(r => r.FirstOrDefaultAsync(It.IsAny<Expression<Func<Document, bool>>>(), It.IsAny<CancellationToken>()))
@@ -111,7 +112,7 @@ public class DocumentVersionUseCaseTests
     {
         // Arrange
         var logId = Guid.NewGuid();
-        var log = new GenerationLog(null, null, null, null, null, null, "outputs/doc.pdf", null, null, null, null, 1, "SUCCESS", null, id: logId);
+        var log = GenerationLogTestFactory.Create(id: logId, outputKey: "outputs/doc.pdf", durationMs: 1);
 
         _mockLogRepo.Setup(r => r.GetByIdAsync(logId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(log);

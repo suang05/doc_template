@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Rendering.Logs.DTOs;
+using SmkDoc.Domain.Enums;
 using SmkDoc.Infrastructure.Persistence;
 
 namespace SmkDoc.Infrastructure.Persistence.Repositories;
@@ -23,8 +24,8 @@ public class GenerationLogMetricsRepository(AppDbContext context) : IGenerationL
             query = query.Where(l => l.CreatedAt <= endDate.Value);
 
         var total = await query.CountAsync(ct);
-        var successful = await query.CountAsync(l => l.Status == "SUCCESS", ct);
-        var failed = await query.CountAsync(l => l.Status != "SUCCESS", ct);
+        var successful = await query.CountAsync(l => l.Status == GenerationStatus.Success, ct);
+        var failed = await query.CountAsync(l => l.Status != GenerationStatus.Success, ct);
         var avgDuration = total > 0 ? await query.AverageAsync(l => l.DurationMs, ct) : 0;
         var totalBytes = await query.SumAsync(l => l.FileSizeBytes ?? 0, ct);
 

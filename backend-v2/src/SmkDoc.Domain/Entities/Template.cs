@@ -1,4 +1,5 @@
 using SmkDoc.Domain.Common;
+using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
@@ -7,66 +8,82 @@ namespace SmkDoc.Domain.Entities;
 
 /// <summary>
 /// Domain aggregate root representing a document template.
+/// Owns TemplateVersion, FieldMapping, and TemplateDataset child entities.
 /// </summary>
-public class Template : BaseEntity, IMustHaveProject
+public sealed class Template : BaseEntity, IMustHaveProject
 {
-    public string Name { get; private set; } = string.Empty;
+    public Guid ProjectId { get; private set; }
+    public TemplateName Name { get; private set; } = null!;
     public TemplateSlug Slug { get; private set; } = null!;
     public string? Category { get; private set; }
-    public bool IsActive { get; private set; } = true;
+    public bool IsActive { get; private set; }
     public Guid? CurrentVersionId { get; private set; }
-    public Guid ProjectId { get; private set; }
 
     private readonly List<FieldMapping> _fieldMappings = new();
     private readonly List<TemplateVersion> _versions = new();
     private readonly List<TemplateDataset> _templateDatasets = new();
 
-    // Navigation properties
-    public virtual Project? Project { get; private set; }
-    public virtual TemplateVersion? CurrentVersion { get; private set; }
-    public virtual IReadOnlyCollection<FieldMapping> FieldMappings => _fieldMappings.AsReadOnly();
-    public virtual IReadOnlyCollection<TemplateVersion> Versions => _versions.AsReadOnly();
-    public virtual IReadOnlyCollection<TemplateDataset> TemplateDatasets => _templateDatasets.AsReadOnly();
+    // Child entity collections strictly encapsulated within aggregate root
+    public IReadOnlyCollection<FieldMapping> FieldMappings => _fieldMappings.AsReadOnly();
+    public IReadOnlyCollection<TemplateVersion> Versions => _versions.AsReadOnly();
+    public IReadOnlyCollection<TemplateDataset> TemplateDatasets => _templateDatasets.AsReadOnly();
 
-    // For EF Core materialization
+    // Navigation property for EF Core materialization of current version
+    public TemplateVersion? CurrentVersion { get; private set; }
+
+    // For EF Core materialization only
     private Template() { }
 
-    public Template(Guid projectId, string name, TemplateSlug slug, string? category = null, Guid? id = null)
-        : base(id)
+    internal Template(
+        Guid? id,
+        Guid projectId,
+        TemplateName name,
+        TemplateSlug slug,
+        string? category,
+        DateTimeOffset now)
+        : base(id, createdAt: now)
     {
-        if (projectId == Guid.Empty)
-        {
-            throw new DomainValidationException("ProjectId cannot be empty.");
-        }
-
-        if (string.IsNullOrWhiteSpace(name))
-        {
-            throw new DomainValidationException("Template name cannot be empty or whitespace.");
-        }
-
-        if (slug == null)
-        {
-            throw new DomainValidationException("Template slug cannot be null.");
-        }
-
-        ProjectId = projectId;
-        Name = name.Trim();
-        Slug = slug;
+        ProjectId = Guard.NotEmpty(projectId, nameof(ProjectId));
+        Name = Guard.NotNull(name, nameof(Name));
+        Slug = Guard.NotNull(slug, nameof(Slug));
         Category = string.IsNullOrWhiteSpace(category) ? null : category.Trim();
         IsActive = true;
     }
 
-    public Template(Guid projectId, string name, string slug, string? category = null, Guid? id = null)
-        : this(projectId, name, new TemplateSlug(slug), category, id)
+    /// <summary>
+    /// Canonical factory method for creating a document template.
+    /// Requires strongly-typed Value Objects and deterministic timestamp.
+    /// </summary>
+    public static Template Create(
+        Guid projectId,
+        TemplateName name,
+        TemplateSlug slug,
+        string? category,
+        DateTimeOffset now) =>
+        new(null, projectId, name, slug, category, now);
+
+    public TemplateVersion CreateDraftVersion(
+        int versionNumber,
+        string storageKey,
+        TemplateFormat? fileFormat,
+        string? createdBy,
+        DateTimeOffset now,
+        string? commitMessage = null)
     {
+        if (_versions.Any(v => v.Version == versionNumber))
+        {
+            throw new DuplicateVersionException(Id, versionNumber);
+        }
+
+        var version = TemplateVersion.Draft(Id, versionNumber, storageKey, fileFormat, createdBy, now, commitMessage);
+        _versions.Add(version);
+        SetUpdated(now);
+        return version;
     }
 
-    public void AddVersion(TemplateVersion version)
+    public void AddVersion(TemplateVersion version, DateTimeOffset now)
     {
-        if (version == null)
-        {
-            throw new DomainValidationException("TemplateVersion cannot be null.");
-        }
+        Guard.NotNull(version, nameof(version));
 
         if (version.TemplateId != Id)
         {
@@ -75,46 +92,36 @@ public class Template : BaseEntity, IMustHaveProject
 
         if (_versions.Any(v => v.Version == version.Version))
         {
-            throw new BusinessRuleViolationException(
-                $"Version {version.Version} already exists in template '{Id}'.",
-                "DUPLICATE_VERSION");
+            throw new DuplicateVersionException(Id, version.Version);
         }
 
         _versions.Add(version);
-        SetUpdated();
+        SetUpdated(now);
     }
 
-    public void SetCurrentVersion(Guid versionId)
+    public void SetCurrentVersion(Guid versionId, DateTimeOffset now)
     {
-        if (versionId == Guid.Empty)
-        {
-            throw new DomainValidationException("VersionId cannot be empty.");
-        }
+        Guard.NotEmpty(versionId, nameof(versionId));
 
         if (!IsActive)
         {
             throw new BusinessRuleViolationException(
-                "Cannot assign a current version to an inactive template.", 
+                "Cannot assign a current version to an inactive template.",
                 "INACTIVE_TEMPLATE");
         }
 
         if (_versions.Count > 0 && !_versions.Any(v => v.Id == versionId))
         {
-            throw new BusinessRuleViolationException(
-                $"Version '{versionId}' does not belong to template '{Id}'.",
-                "VERSION_NOT_IN_TEMPLATE");
+            throw new VersionNotInTemplateException(Id, versionId);
         }
 
         CurrentVersionId = versionId;
-        SetUpdated();
+        SetUpdated(now);
     }
 
-    public void AddFieldMapping(FieldMapping mapping)
+    public void AddFieldMapping(FieldMapping mapping, DateTimeOffset now)
     {
-        if (mapping == null)
-        {
-            throw new DomainValidationException("FieldMapping cannot be null.");
-        }
+        Guard.NotNull(mapping, nameof(mapping));
 
         if (mapping.TemplateId != Id)
         {
@@ -123,29 +130,21 @@ public class Template : BaseEntity, IMustHaveProject
 
         if (_fieldMappings.Any(m => string.Equals(m.Placeholder, mapping.Placeholder, StringComparison.OrdinalIgnoreCase)))
         {
-            throw new BusinessRuleViolationException(
-                $"FieldMapping with placeholder '{mapping.Placeholder}' already exists in template '{Id}'.",
-                "DUPLICATE_PLACEHOLDER");
+            throw new DuplicatePlaceholderException(Id, mapping.Placeholder);
         }
 
         _fieldMappings.Add(mapping);
-        SetUpdated();
+        SetUpdated(now);
     }
 
-    public void ReplaceFieldMappings(IEnumerable<FieldMapping> mappings)
+    public void ReplaceFieldMappings(IEnumerable<FieldMapping> mappings, DateTimeOffset now)
     {
-        if (mappings == null)
-        {
-            throw new DomainValidationException("Mappings collection cannot be null.");
-        }
+        Guard.NotNull(mappings, nameof(mappings));
 
         var mappingList = mappings.ToList();
         foreach (var m in mappingList)
         {
-            if (m == null)
-            {
-                throw new DomainValidationException("FieldMapping item cannot be null.");
-            }
+            Guard.NotNull(m, nameof(FieldMapping));
 
             if (m.TemplateId != Id)
             {
@@ -161,64 +160,46 @@ public class Template : BaseEntity, IMustHaveProject
 
         if (duplicates.Count > 0)
         {
-            throw new BusinessRuleViolationException(
-                $"Duplicate placeholders detected in template '{Id}': {string.Join(", ", duplicates)}.",
-                "DUPLICATE_PLACEHOLDER");
+            throw new DuplicatePlaceholderException(Id, string.Join(", ", duplicates));
         }
 
         _fieldMappings.Clear();
         _fieldMappings.AddRange(mappingList);
-        SetUpdated();
+        SetUpdated(now);
     }
 
-    public void AttachDataset(Guid datasetId, string alias, int sortOrder)
+    public void AttachDataset(Guid datasetId, DatasetAlias alias, int sortOrder, DateTimeOffset now)
     {
-        if (datasetId == Guid.Empty)
+        Guard.NotEmpty(datasetId, nameof(datasetId));
+        Guard.NotNull(alias, nameof(alias));
+
+        if (_templateDatasets.Any(d => d.Alias == alias))
         {
-            throw new DomainValidationException("DatasetId cannot be empty.");
+            throw new DuplicateDatasetAliasException(Id, alias.Value);
         }
 
-        if (string.IsNullOrWhiteSpace(alias))
-        {
-            throw new DomainValidationException("Dataset alias cannot be empty or whitespace.");
-        }
-
-        var normalizedAlias = alias.Trim().ToLowerInvariant();
-        if (_templateDatasets.Any(d => string.Equals(d.Alias, normalizedAlias, StringComparison.OrdinalIgnoreCase)))
-        {
-            throw new BusinessRuleViolationException(
-                $"Dataset alias '{normalizedAlias}' already assigned to template '{Id}'.",
-                "DUPLICATE_DATASET_ALIAS");
-        }
-
-        _templateDatasets.Add(new TemplateDataset(Id, datasetId, normalizedAlias, sortOrder));
-        SetUpdated();
+        _templateDatasets.Add(TemplateDataset.Create(Id, datasetId, alias, sortOrder, now));
+        SetUpdated(now);
     }
 
-    public void DetachDataset(Guid datasetId)
+    public void DetachDataset(Guid datasetId, DateTimeOffset now)
     {
         var existing = _templateDatasets.FirstOrDefault(d => d.DatasetId == datasetId);
         if (existing != null)
         {
             _templateDatasets.Remove(existing);
-            SetUpdated();
+            SetUpdated(now);
         }
     }
 
-    public void ReplaceDatasets(IEnumerable<TemplateDataset> datasets)
+    public void ReplaceDatasets(IEnumerable<TemplateDataset> datasets, DateTimeOffset now)
     {
-        if (datasets == null)
-        {
-            throw new DomainValidationException("Datasets collection cannot be null.");
-        }
+        Guard.NotNull(datasets, nameof(datasets));
 
         var datasetList = datasets.ToList();
         foreach (var d in datasetList)
         {
-            if (d == null)
-            {
-                throw new DomainValidationException("TemplateDataset item cannot be null.");
-            }
+            Guard.NotNull(d, nameof(TemplateDataset));
 
             if (d.TemplateId != Id)
             {
@@ -226,42 +207,41 @@ public class Template : BaseEntity, IMustHaveProject
             }
         }
 
-        var aliases = datasetList.Select(d => d.Alias.Trim().ToLowerInvariant()).ToList();
-        if (aliases.Count != aliases.Distinct().Count())
+        var duplicateAliases = datasetList
+            .GroupBy(d => d.Alias.Value, StringComparer.OrdinalIgnoreCase)
+            .Where(g => g.Count() > 1)
+            .Select(g => g.Key)
+            .ToList();
+
+        if (duplicateAliases.Count > 0)
         {
-            throw new BusinessRuleViolationException(
-                "Dataset aliases must be unique within a template.",
-                "DUPLICATE_DATASET_ALIAS");
+            throw new DuplicateDatasetAliasException(Id, string.Join(", ", duplicateAliases));
         }
 
         _templateDatasets.Clear();
         _templateDatasets.AddRange(datasetList);
-        SetUpdated();
+        SetUpdated(now);
     }
 
-    public void UpdateDetails(string name, string? category)
+    public void UpdateDetails(TemplateName name, string? category, DateTimeOffset now)
     {
-        if (string.IsNullOrWhiteSpace(name))
-        {
-            throw new DomainValidationException("Template name cannot be empty or whitespace.");
-        }
-
-        Name = name.Trim();
+        Name = Guard.NotNull(name, nameof(Name));
         Category = string.IsNullOrWhiteSpace(category) ? null : category.Trim();
-        SetUpdated();
+        SetUpdated(now);
     }
 
-    public void Activate()
+    public void Activate(DateTimeOffset now)
     {
         if (IsActive) return;
         IsActive = true;
-        SetUpdated();
+        SetUpdated(now);
     }
 
-    public void Deactivate()
+    public void Deactivate(DateTimeOffset now)
     {
         if (!IsActive) return;
         IsActive = false;
-        SetUpdated();
+        SetUpdated(now);
     }
 }
+

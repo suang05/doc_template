@@ -20,7 +20,7 @@ public sealed class GetDataConnectionByIdUseCase(
         {
             Id = c.Id,
             Name = c.Name,
-            Provider = c.Provider,
+            Provider = c.Provider.Name,
             CreatedAt = c.CreatedAt,
             UpdatedAt = c.UpdatedAt
         };

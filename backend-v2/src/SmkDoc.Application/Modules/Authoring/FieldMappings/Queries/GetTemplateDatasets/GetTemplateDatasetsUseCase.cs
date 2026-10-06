@@ -21,7 +21,7 @@ public sealed class GetTemplateDatasetsUseCase(
         var rows = template.TemplateDatasets;
         var datasetIds = rows.Select(r => r.DatasetId).Distinct().ToList();
         var datasets = await _datasetRepo.GetByIdsAsync(datasetIds, ct);
-        var dsMap = datasets.ToDictionary(d => d.Id, d => d.Name);
+        var dsMap = datasets.ToDictionary(d => d.Id, d => d.Name.Value);
 
         return rows
             .OrderBy(r => r.SortOrder)
@@ -30,7 +30,7 @@ public sealed class GetTemplateDatasetsUseCase(
                 r.TemplateId,
                 r.DatasetId,
                 dsMap.GetValueOrDefault(r.DatasetId, "(unknown)"),
-                r.Alias,
+                r.Alias.Value,
                 r.SortOrder))
             .ToList();
     }

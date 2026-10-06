@@ -1,7 +1,10 @@
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Integration.DataConnections.DTOs;
+using SmkDoc.Domain.Common;
 using SmkDoc.Domain.Entities;
+using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects;
 
 namespace SmkDoc.Application.Modules.Integration.DataConnections;
 
@@ -10,12 +13,14 @@ public sealed class DataConnectionUseCase(
     IDataConnectionRepository repository,
     IUnitOfWork unitOfWork,
     IDataProtectionService dataProtection,
-    ISqlExecutorService sqlExecutor)
+    ISqlExecutorService sqlExecutor,
+    TimeProvider? timeProvider = null)
 {
     private readonly IDataConnectionRepository _repository = repository;
     private readonly IUnitOfWork _unitOfWork = unitOfWork;
     private readonly IDataProtectionService _dataProtection = dataProtection;
     private readonly ISqlExecutorService _sqlExecutor = sqlExecutor;
+    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
 
     public async Task<List<DataConnectionDto>> GetAllAsync()
     {
@@ -23,8 +28,8 @@ public sealed class DataConnectionUseCase(
         return connections.Select(c => new DataConnectionDto
         {
             Id = c.Id,
-            Name = c.Name,
-            Provider = c.Provider,
+            Name = c.Name.Value,
+            Provider = c.Provider.Name,
             CreatedAt = c.CreatedAt,
             UpdatedAt = c.UpdatedAt
         }).ToList();
@@ -38,8 +43,8 @@ public sealed class DataConnectionUseCase(
         return new DataConnectionDto
         {
             Id = c.Id,
-            Name = c.Name,
-            Provider = c.Provider,
+            Name = c.Name.Value,
+            Provider = c.Provider.Name,
             CreatedAt = c.CreatedAt,
             UpdatedAt = c.UpdatedAt
         };
@@ -47,7 +52,12 @@ public sealed class DataConnectionUseCase(
 
     public async Task<DataConnectionDto> CreateAsync(CreateDataConnectionDto dto)
     {
-        var entity = new DataConnection(dto.Name, dto.Provider, _dataProtection.Encrypt(dto.ConnectionString));
+        var now = _timeProvider.GetUtcNow();
+        var entity = DataConnection.Create(
+            ConnectionName.Create(dto.Name),
+            Enumeration.FromDisplayName<DatabaseProvider>(dto.Provider),
+            _dataProtection.Encrypt(dto.ConnectionString),
+            now);
 
         await _repository.AddAsync(entity);
         await _unitOfWork.CommitAsync();
@@ -55,8 +65,8 @@ public sealed class DataConnectionUseCase(
         return new DataConnectionDto
         {
             Id = entity.Id,
-            Name = entity.Name,
-            Provider = entity.Provider,
+            Name = entity.Name.Value,
+            Provider = entity.Provider.Name,
             CreatedAt = entity.CreatedAt,
             UpdatedAt = entity.UpdatedAt
         };
@@ -67,7 +77,12 @@ public sealed class DataConnectionUseCase(
         var entity = await _repository.GetByIdAsync(id);
         if (entity == null) return null;
 
-        entity.UpdateConnection(dto.Name, dto.Provider, string.IsNullOrEmpty(dto.ConnectionString) ? entity.EncryptedConnectionString : _dataProtection.Encrypt(dto.ConnectionString));
+        var now = _timeProvider.GetUtcNow();
+        entity.UpdateConnection(
+            ConnectionName.Create(dto.Name),
+            Enumeration.FromDisplayName<DatabaseProvider>(dto.Provider),
+            string.IsNullOrEmpty(dto.ConnectionString) ? entity.EncryptedConnectionString : _dataProtection.Encrypt(dto.ConnectionString),
+            now);
 
         _repository.Update(entity);
         await _unitOfWork.CommitAsync();
@@ -75,8 +90,8 @@ public sealed class DataConnectionUseCase(
         return new DataConnectionDto
         {
             Id = entity.Id,
-            Name = entity.Name,
-            Provider = entity.Provider,
+            Name = entity.Name.Value,
+            Provider = entity.Provider.Name,
             CreatedAt = entity.CreatedAt,
             UpdatedAt = entity.UpdatedAt
         };

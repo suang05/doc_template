@@ -433,5 +433,85 @@
 
 **Rationale:** ให้ Domain เป็นผู้รับประกันความถูกต้องของข้อมูลเพียงผู้เดียว (single guardian of invariants) ลดการกระจายกฎธุรกิจใน UseCase และป้องกัน tenant leak
 
+---
+
+## ADR-022: Comprehensive Domain Layer Refactoring — DDD Aggregates, Sealed Rich Entities, Value Converters & Cross-Aggregate Id References
+
+**Date:** October 2026 | **Status:** Accepted (Phases 1, 2A, 2B, 2C Implemented — 100% Complete)
+
+**Context & Problem:**
+- Entities ทั้ง 14 ตัวใน `SmkDoc.Domain` แม้จะมี `private set` ตาม ADR-003 แต่หลายตัวยังใช้ public constructor หรือ object initializers โดยไม่มีการตรวจสอบ invariants อย่างรัดกุม
+- ข้อมูลสำคัญทางธุรกิจ (Names, References, Aliases, Hashes, Expiration, Connection types) กระจายตัวเป็น primitive strings ขาด encapsulation และ structural equality
+- การนำทาง (Navigation Properties) ข้าม Aggregate Root (เช่น `Template -> Project`, `Document -> Template`, `GenerationLog -> ApiKey/Template`) ละเมิด DDD Aggregate Boundaries และทำให้ Domain coupling สูง
+- เมธอดและ constructor สร้าง timestamp `DateTimeOffset.UtcNow` ภายในคลาสเอง ทำให้การทดสอบ deterministic state และ replay audit มีความคลาดเคลื่อน
+
+**Decision:**
+1. **Sealed Rich Entities & Static Factories:**
+   - Entities ทั้ง 14 ตัวถูกปรับเป็น `sealed class` เพื่อปิดผนึก encapsulation ป้องกัน improper inheritance
+   - ปิด Constructors ทั้งหมดเป็น `private` สำหรับ EF Core materialization
+   - บังคับการสร้าง Instance ผ่าน Static Factory Methods (`Create`, `Draft`, `Register`, `CreateSuccess`, ฯลฯ) พร้อม internal `CreateForTest`
+2. **Domain Invariant Guards (`Guard.cs`):**
+   - รวม fail-fast validation เข้าสู่ `Guard` helper ใน Domain Common
+   - โยน `DomainValidationException` ทันทีเมื่อ input ผิดเงื่อนไข ปราศจากการพึ่งพา library ภายนอก
+3. **Dedicated Value Objects (13 Types):**
+   - สร้าง Value Objects สืบทอดจาก `ValueObject` (หรือ `record` สำหรับ slug) ครอบคลุม:
+     - Tenant/Identity: `CompanyName`, `ProjectName`, `EmailAddress`
+     - Security: `ApiKeyName`, `Sha256Hash`, `ExpirationPolicy`
+     - Authoring: `TemplateName`, `DatasetName`, `ConnectionName`, `DatasetAlias`, `TemplateSlug`, `DataSourceType`
+     - Rendering: `DocumentReference`
+   - ทุก Value Object มี structural equality ผ่าน `GetEqualityComponents()` และ implicit string conversion
+4. **Smart Enums:**
+   - ใช้งาน `DatabaseProvider`, `GenerationStatus`, `OutputFormat`, `RenderEngineType`, `RoleType`, `SystemRole`, `TemplateFormat`, `TemplateVersionStatus` สืบทอดจาก `Enumeration`
+   - เพิ่ม `ValidationFailed` และ `FromName` helper ใน `GenerationStatus`
+5. **Decouple Cross-Aggregate Navigations (Pure Id References):**
+   - ตัด Domain navigation properties ข้าม Aggregate Root ออกทั้งหมด (คงไว้เฉพาะ Child entities ใน aggregate เดียวกัน เช่น `Template.Versions`, `Document.Versions`)
+   - กำหนด EF Core relationship ผ่าน Fluent API ใน `AppDbContext.cs` เช่น `entity.HasOne<Template>().WithMany().HasForeignKey(e => e.TemplateId)`
+6. **Zero Database Migrations (EF Core Value Converters):**
+   - แมป Value Objects และ Smart Enums ทั้งหมดกลับสู่ primitive database columns เดิมผ่าน `.HasConversion(...)` ใน `AppDbContext.cs`
+   - คงความเข้ากันได้ของ PostgreSQL schema เดิม 100% โดยไม่ต้องสร้าง migration ใหม่
+7. **Deterministic Time Injection:**
+   - ทุก Factory Method และ Business Method รองรับ optional `DateTimeOffset? now = null` เพื่อให้ Application UseCases สามารถส่ง `TimeProvider.GetUtcNow()` เข้ามาได้อย่างสมบูรณ์
+
+**Consequences & Verification:**
+- Domain Layer เป็น Pure C# POCOs 100% ไร้การพึ่งพา external dependencies
+- เพิ่มชุดทดสอบ Unit Tests สำหรับ Value Objects และ Entities โดยเฉพาะ
+- การทดสอบ backend ทั้งหมด 617/617 tests ผ่าน 100% (0 errors, 0 warnings)
+- การทดสอบ frontend ทั้งหมด 133/133 tests และ Next.js production build ผ่าน 100%
+
+---
+
+## ADR-023: Strict Pure DDD Domain Entity Standards — Single Canonical Factory & Zero Test Backdoors in Production Domain (Reference Model: Template.cs)
+
+**Date:** October 2026 | **Status:** Accepted (Template.cs Reference Model Implemented & Verified)
+
+**Context & Problem:**
+- ใน ADR-022 แม้ Entity จะถูกปรับเป็น Rich Domain Model แต่ยังพบ **Architectural Smells**:
+  1. **Overload Explosion & Primitive Obsession Leaking:** Entity มี Factory overloads หลายตัว ทั้งแบบรับ `(string, string)` และรับ Value Objects เพื่ออำนวยความสะดวกให้ Caller (Application UseCases / Tests) ทำให้ Domain ทำหน้าที่แปลง primitive เกินขอบเขต
+  2. **Test Backdoors in Production Model:** มี `internal static CreateForTest(...)` ประกาศปะปนอยู่ในไฟล์ Entity ของ Production assembly (`SmkDoc.Domain.dll`)
+  3. **Dead Code & Ambiguity:** Overload บางตัวที่สร้างขึ้นมาเพื่อแก้ขัดในอดีตไม่ได้ถูกเรียกใช้จริง และการสลับลำดับ parameter (`category` vs `now`) ทำให้เกิดความคลุมเครือ
+
+**Decision:**
+1. **Single Canonical Factory Method (SSoT):**
+   - แต่ละ Entity ต้องมี **1 public `Create` factory method เท่านั้น**
+   - พารามิเตอร์ต้องเป็น **Strongly-Typed Value Objects** (เช่น `TemplateName`, `TemplateSlug`) และ **บังคับส่ง `DateTimeOffset now`** เพื่อความ deterministic 100%
+   - **ห้ามมี Primitive Convenience Overloads** ใน Domain Entity — หน้าที่การแปลง DTO primitive เป็น Value Objects เป็นของ Application UseCases
+2. **Zero Test Backdoors in Domain:**
+   - **ห้ามมี `CreateForTest` ภายใน `SmkDoc.Domain.dll` โดยเด็ดขาด**
+   - การสร้าง Entity สำหรับทดสอบต้องทำผ่าน `*Builder` หรือ `*TestFactory` ในโปรเจกต์ `SmkDoc.Tests` เท่านั้น
+3. **Internal Parameterized Constructor:**
+   - Parameterized constructor ของ Entity ถูกกำหนดเป็น `internal` โดยเปิดให้ `SmkDoc.Tests` เข้าถึงได้ผ่าน `[assembly: InternalsVisibleTo("SmkDoc.Tests")]` ใน `AssemblyInfo.cs`
+   - Parameterless constructor เป็น `private` สำหรับ EF Core materialization เท่านั้น
+4. **Reference Implementation (`Template.cs`):**
+   - ปรับใช้ใน `Template.cs` เป็นแม่แบบมาตรฐาน พร้อมสร้าง `TemplateTestFactory.cs` และอัปเดต `TemplateBuilder.cs` ใน `SmkDoc.Tests`
+   - ปรับ UseCases (`CreateTemplateUseCase`, `CommitTemplateDraftUseCase`) ให้ map Value Objects ก่อนเรียก Entity
+
+**Consequences & Verification:**
+- Domain Layer สะอาดหมดจด มีเพียง Ubiquitous Language และ Invariants ทางธุรกิจจริง
+- Production Assembly ปราศจาก Test methods 100%
+- Build `dotnet build SmkDocServerV2.slnx --warnaserror` สำเร็จ 0 Warnings, 0 Errors
+- Unit & Integration Tests ทั้งหมด 617/617 backend tests และ 133/133 frontend tests ผ่าน 100%
+
+
+
 
 

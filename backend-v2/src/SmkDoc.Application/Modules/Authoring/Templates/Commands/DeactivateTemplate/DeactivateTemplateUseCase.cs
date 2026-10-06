@@ -9,17 +9,20 @@ namespace SmkDoc.Application.Modules.Authoring.Templates.Commands.DeactivateTemp
 /// </summary>
 public sealed class DeactivateTemplateUseCase(
     ITemplateRepository templateRepo,
-    IUnitOfWork unitOfWork) : IUseCase<DeactivateTemplateCommand>
+    IUnitOfWork unitOfWork,
+    TimeProvider? timeProvider = null) : IUseCase<DeactivateTemplateCommand>
 {
     private readonly ITemplateRepository _templateRepo = templateRepo;
     private readonly IUnitOfWork _unitOfWork = unitOfWork;
+    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
 
     public async Task ExecuteAsync(DeactivateTemplateCommand command, CancellationToken ct = default)
     {
         var template = await _templateRepo.GetByIdAsync(command.TemplateId, ct)
             ?? throw new NotFoundException($"Template '{command.TemplateId}' was not found.");
 
-        template.Deactivate();
+        var now = _timeProvider.GetUtcNow();
+        template.Deactivate(now);
 
         _templateRepo.Update(template);
         await _unitOfWork.CommitAsync(ct);

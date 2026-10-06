@@ -6,41 +6,42 @@ namespace SmkDoc.Domain.Entities;
 
 /// <summary>
 /// Domain entity representing a user's role assignment within a specific project.
+/// Composite identity (UserId, ProjectId).
 /// </summary>
-public class UserProjectRole
+public sealed class UserProjectRole : IEquatable<UserProjectRole>
 {
     public Guid UserId { get; private set; }
     public Guid ProjectId { get; private set; }
     public RoleType Role { get; private set; } = RoleType.Viewer;
-    public DateTimeOffset CreatedAt { get; private set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset CreatedAt { get; private set; }
 
-    // Navigation properties
-    public virtual User? User { get; private set; }
-    public virtual Project? Project { get; private set; }
-
-    // For EF Core materialization
+    // For EF Core materialization only
     private UserProjectRole() { }
 
-    public UserProjectRole(Guid userId, Guid projectId, RoleType role)
+    internal UserProjectRole(Guid userId, Guid projectId, RoleType role, DateTimeOffset now)
     {
-        if (userId == Guid.Empty)
-        {
-            throw new DomainValidationException("UserId cannot be empty.");
-        }
-
-        if (projectId == Guid.Empty)
-        {
-            throw new DomainValidationException("ProjectId cannot be empty.");
-        }
-
-        UserId = userId;
-        ProjectId = projectId;
-        Role = role;
-        CreatedAt = DateTimeOffset.UtcNow;
+        UserId = Guard.NotEmpty(userId, nameof(UserId));
+        ProjectId = Guard.NotEmpty(projectId, nameof(ProjectId));
+        Role = role ?? RoleType.Viewer;
+        CreatedAt = now;
     }
+
+    public static UserProjectRole Create(Guid userId, Guid projectId, RoleType role, DateTimeOffset now) =>
+        new(userId, projectId, role, now);
 
     public void UpdateRole(RoleType newRole)
     {
-        Role = newRole;
+        Role = newRole ?? RoleType.Viewer;
     }
+
+    public bool Equals(UserProjectRole? other)
+    {
+        if (other is null) return false;
+        return UserId == other.UserId && ProjectId == other.ProjectId;
+    }
+
+    public override bool Equals(object? obj) =>
+        obj is UserProjectRole other && Equals(other);
+
+    public override int GetHashCode() => HashCode.Combine(UserId, ProjectId);
 }

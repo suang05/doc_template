@@ -2,6 +2,7 @@ using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Integration.Datasets.DTOs;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects;
 
 namespace SmkDoc.Application.Modules.Integration.Datasets.Commands.UpdateDataset;
 
@@ -16,11 +17,13 @@ public record UpdateDatasetCommand(
 public sealed class UpdateDatasetUseCase(
     IDatasetRepository datasetRepo,
     IDataConnectionRepository connectionRepo,
-    IUnitOfWork unitOfWork) : IUseCase<UpdateDatasetCommand, DatasetDto?>
+    IUnitOfWork unitOfWork,
+    TimeProvider? timeProvider = null) : IUseCase<UpdateDatasetCommand, DatasetDto?>
 {
     private readonly IDatasetRepository _datasetRepo = datasetRepo;
     private readonly IDataConnectionRepository _connectionRepo = connectionRepo;
     private readonly IUnitOfWork _unitOfWork = unitOfWork;
+    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
 
     public async Task<DatasetDto?> ExecuteAsync(UpdateDatasetCommand command, CancellationToken ct = default)
     {
@@ -30,12 +33,14 @@ public sealed class UpdateDatasetUseCase(
         var connection = await _connectionRepo.GetByIdAsync(command.DataConnectionId, ct)
             ?? throw new NotFoundException($"DataConnection '{command.DataConnectionId}' not found.");
 
+        var now = _timeProvider.GetUtcNow();
         entity.UpdateDetails(
-            command.Name,
+            DatasetName.Create(command.Name),
             command.Description,
             command.DataConnectionId,
             command.SqlQuery,
-            command.CacheSeconds);
+            command.CacheSeconds,
+            now);
 
         _datasetRepo.Update(entity);
         await _unitOfWork.CommitAsync(ct);
@@ -43,10 +48,10 @@ public sealed class UpdateDatasetUseCase(
         return new DatasetDto
         {
             Id = entity.Id,
-            Name = entity.Name,
+            Name = entity.Name.Value,
             Description = entity.Description,
             DataConnectionId = entity.DataConnectionId,
-            DataConnectionName = connection.Name,
+            DataConnectionName = connection.Name.Value,
             SqlQuery = entity.SqlQuery,
             CacheSeconds = entity.CacheSeconds,
             CreatedAt = entity.CreatedAt,

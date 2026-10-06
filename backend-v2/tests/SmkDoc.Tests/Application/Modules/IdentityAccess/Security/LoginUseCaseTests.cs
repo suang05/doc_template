@@ -5,8 +5,8 @@ using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.Login;
 using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
-using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Tests.Common.Factories;
 using Xunit;
 
 namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Security;
@@ -34,11 +34,12 @@ public class LoginUseCaseTests
     public async Task ExecuteAsync_WithValidCredentialsAndRole_ReturnsTokenAndProjects()
     {
         // Arrange
+        var now = DateTimeOffset.UtcNow;
         var projectId = Guid.NewGuid();
         var command = new LoginCommand("test@example.com", "password123", projectId);
-        var user = new User("test@example.com", "hashed_pw", "Test", "User", SystemRole.Member);
-        var role = new UserProjectRole(user.Id, projectId, RoleType.Viewer);
-        var project = new Project(Guid.NewGuid(), "Project Alpha", "project-alpha", id: projectId);
+        var user = User.Register(EmailAddress.Create("test@example.com"), "hashed_pw", "Test", "User", now, SystemRole.Member);
+        var role = UserProjectRole.Create(user.Id, projectId, RoleType.Viewer, now);
+        var project = ProjectTestFactory.Create(projectId, Guid.NewGuid(), "Project Alpha", "project-alpha", now);
 
         _userRepoMock.Setup(r => r.GetByEmailAsync("test@example.com", It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);
@@ -71,10 +72,11 @@ public class LoginUseCaseTests
     public async Task ExecuteAsync_AsSuperAdmin_ReturnsAllProjectsWithAdminRole()
     {
         // Arrange
+        var now = DateTimeOffset.UtcNow;
         var command = new LoginCommand("admin@example.com", "admin_password");
-        var user = new User("admin@example.com", "hashed_pw", "Super", "Admin", SystemRole.SuperAdmin);
-        var p1 = new Project(Guid.NewGuid(), "ERP", "erp");
-        var p2 = new Project(Guid.NewGuid(), "CRM", "crm");
+        var user = User.Register(EmailAddress.Create("admin@example.com"), "hashed_pw", "Super", "Admin", now, SystemRole.SuperAdmin);
+        var p1 = Project.Create(Guid.NewGuid(), ProjectName.Create("ERP"), TemplateSlug.Create("erp"), now);
+        var p2 = Project.Create(Guid.NewGuid(), ProjectName.Create("CRM"), TemplateSlug.Create("crm"), now);
 
         _userRepoMock.Setup(r => r.GetByEmailAsync("admin@example.com", It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);
@@ -103,8 +105,9 @@ public class LoginUseCaseTests
     public async Task ExecuteAsync_WithInvalidPassword_ThrowsUnauthorized()
     {
         // Arrange
+        var now = DateTimeOffset.UtcNow;
         var command = new LoginCommand("test@example.com", "wrong_password");
-        var user = new User("test@example.com", "hashed_pw", "Test", "User");
+        var user = User.Register(EmailAddress.Create("test@example.com"), "hashed_pw", "Test", "User", now);
 
         _userRepoMock.Setup(r => r.GetByEmailAsync("test@example.com", It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);

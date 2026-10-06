@@ -9,12 +9,14 @@ public sealed class SetUserStatusUseCase(
     IUserRepository userRepo,
     IUserProjectRoleRepository roleRepo,
     IUnitOfWork uow,
-    IValidator<SetUserStatusCommand> validator) : IUseCase<SetUserStatusCommand>
+    IValidator<SetUserStatusCommand> validator,
+    TimeProvider? timeProvider = null) : IUseCase<SetUserStatusCommand>
 {
     private readonly IUserRepository _userRepo = userRepo;
     private readonly IUserProjectRoleRepository _roleRepo = roleRepo;
     private readonly IUnitOfWork _uow = uow;
     private readonly IValidator<SetUserStatusCommand> _validator = validator;
+    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
 
     public async Task ExecuteAsync(SetUserStatusCommand command, CancellationToken ct = default)
     {
@@ -33,13 +35,14 @@ public sealed class SetUserStatusUseCase(
         var user = await _userRepo.GetByIdAsync(command.UserId, ct)
             ?? throw new NotFoundException("User not found.");
 
+        var now = _timeProvider.GetUtcNow();
         if (command.IsActive)
         {
-            user.Activate();
+            user.Activate(now);
         }
         else
         {
-            user.Deactivate();
+            user.Deactivate(now);
         }
 
         _userRepo.Update(user);

@@ -16,6 +16,7 @@ using Xunit;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Validation;
 using SmkDoc.Tests.Common.Builders;
+using SmkDoc.Tests.Common.Factories;
 using SmkDoc.Tests.Common.Fixtures;
 
 namespace SmkDoc.Tests.Application.Modules.Rendering.Documents;
@@ -166,10 +167,11 @@ public class GenerateDocumentUseCaseTests
         var templateId = Guid.NewGuid();
         var versionId  = Guid.NewGuid();
 
-        var template = new Template(Guid.NewGuid(), "Contract With Mappings", "contract-mapped", null, id: templateId);
-        template.SetCurrentVersion(versionId);
+        var now = DateTimeOffset.UtcNow;
+        var template = TemplateTestFactory.Create(templateId, Guid.NewGuid(), "Contract With Mappings", "contract-mapped");
+        template.SetCurrentVersion(versionId, now);
 
-        var currentVersion = new TemplateVersion(templateId, 1, "templates/contract-mapped.html", TemplateFormat.Html, "Published", "Commit", id: versionId);
+        var currentVersion = TemplateVersionTestFactory.Create(versionId, templateId, 1, "templates/contract-mapped.html", TemplateFormat.Html, "Published", "Commit", now);
 
         _mockTemplateRepo.Setup(r => r.GetBySlugWithDetailsAsync("contract-mapped", It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
@@ -184,11 +186,11 @@ public class GenerateDocumentUseCaseTests
 
         var mappings = new List<FieldMapping>
         {
-            new FieldMapping(templateId, "amount_baht", "contract.price", "Price in Baht Text", true, 1, DataSourceType.Json)
+            FieldMapping.Create(templateId, "amount_baht", "contract.price", "Price in Baht Text", true, 1, now, DataSourceType.Json)
         };
 
-        mappings[0].UpdateMappingDetails("contract.price", "Price in Baht Text", true, null, "baht", 1);
-        template.ReplaceFieldMappings(mappings);
+        mappings[0].UpdateMappingDetails("contract.price", "Price in Baht Text", true, null, "baht", 1, now);
+        template.ReplaceFieldMappings(mappings, now);
 
         _mockApplicator.Setup(s => s.ApplyAsync(
                 It.IsAny<JsonElement>(),
@@ -226,10 +228,11 @@ public class GenerateDocumentUseCaseTests
         var versionId   = Guid.NewGuid();
         var documentId  = Guid.NewGuid();
 
-        var template = new Template(Guid.NewGuid(), "Contract", "sale-contract", null, id: templateId);
-        template.SetCurrentVersion(versionId);
-        var currentVersion = new TemplateVersion(templateId, 1, "templates/sale-contract.html", TemplateFormat.Html, "Published", "Commit", id: versionId);
-        var existingDocument = new Document("SC-2026-0001", templateId, id: documentId);
+        var now = DateTimeOffset.UtcNow;
+        var template = TemplateTestFactory.Create(templateId, Guid.NewGuid(), "Contract", "sale-contract");
+        template.SetCurrentVersion(versionId, now);
+        var currentVersion = TemplateVersionTestFactory.Create(versionId, templateId, 1, "templates/sale-contract.html", TemplateFormat.Html, "Published", "Commit", now);
+        var existingDocument = DocumentTestFactory.Create(documentId, "SC-2026-0001", templateId, now);
 
         _mockTemplateRepo.Setup(r => r.GetBySlugWithDetailsAsync("sale-contract", It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
@@ -280,10 +283,11 @@ public class GenerateDocumentUseCaseTests
         var versionId  = Guid.NewGuid();
         const string schemaJson = """{"$schema":"http://json-schema.org/draft-07/schema#","type":"object","required":["doc_no"]}""";
 
-        var template = new Template(Guid.NewGuid(), "Invoice", "invoice", null, id: templateId);
-        template.SetCurrentVersion(versionId);
-        var currentVersion = new TemplateVersion(templateId, 1, "templates/invoice.html", TemplateFormat.Html, "Published", "Commit", id: versionId);
-        currentVersion.UpdateDataSchema(schemaJson, null);
+        var now = DateTimeOffset.UtcNow;
+        var template = TemplateTestFactory.Create(templateId, Guid.NewGuid(), "Invoice", "invoice");
+        template.SetCurrentVersion(versionId, now);
+        var currentVersion = TemplateVersionTestFactory.Create(versionId, templateId, 1, "templates/invoice.html", TemplateFormat.Html, "Published", "Commit", now);
+        currentVersion.UpdateDataSchema(schemaJson, null, now);
 
         _mockTemplateRepo.Setup(r => r.GetBySlugWithDetailsAsync("invoice", It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
@@ -345,10 +349,11 @@ public class GenerateDocumentUseCaseTests
         var versionId  = Guid.NewGuid();
         const string schemaJson = """{"$schema":"http://json-schema.org/draft-07/schema#","type":"object","required":["doc_no"]}""";
 
-        var template = new Template(Guid.NewGuid(), "Invoice", "invoice", null, id: templateId);
-        template.SetCurrentVersion(versionId);
-        var currentVersion = new TemplateVersion(templateId, 1, "templates/invoice.html", TemplateFormat.Html, "Published", "Commit", id: versionId);
-        currentVersion.UpdateDataSchema(schemaJson, null);
+        var now = DateTimeOffset.UtcNow;
+        var template = TemplateTestFactory.Create(templateId, Guid.NewGuid(), "Invoice", "invoice");
+        template.SetCurrentVersion(versionId, now);
+        var currentVersion = TemplateVersionTestFactory.Create(versionId, templateId, 1, "templates/invoice.html", TemplateFormat.Html, "Published", "Commit", now);
+        currentVersion.UpdateDataSchema(schemaJson, null, now);
 
         _mockTemplateRepo.Setup(r => r.GetBySlugWithDetailsAsync("invoice", It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);

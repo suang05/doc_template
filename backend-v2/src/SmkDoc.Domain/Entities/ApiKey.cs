@@ -33,9 +33,15 @@ public sealed class ApiKey : BaseEntity, IMustHaveProject
     {
     }
 
-    private ApiKey(Guid projectId, ApiKeyName name, string? callerApp, Sha256Hash keyHash,
-        ExpirationPolicy? expiration, DateTimeOffset now)
-        : base(id: null, createdAt: now)
+    internal ApiKey(
+        Guid? id,
+        Guid projectId,
+        ApiKeyName name,
+        string? callerApp,
+        Sha256Hash keyHash,
+        ExpirationPolicy? expiration,
+        DateTimeOffset now)
+        : base(id, createdAt: now)
     {
         ProjectId = Guard.NotEmpty(projectId, nameof(ProjectId));
         Name = Guard.NotNull(name, nameof(Name));
@@ -50,7 +56,7 @@ public sealed class ApiKey : BaseEntity, IMustHaveProject
     /// </summary>
     public static ApiKey Issue(Guid projectId, ApiKeyName name, string? callerApp, Sha256Hash keyHash,
         ExpirationPolicy expiration, DateTimeOffset now) =>
-        new(projectId, name, callerApp, keyHash, expiration ?? ExpirationPolicy.Never, now);
+        new(null, projectId, name, callerApp, keyHash, expiration ?? ExpirationPolicy.Never, now);
 
     public bool IsExpiredAt(DateTimeOffset now) => Expiration.IsExpiredAt(now);
 
@@ -68,7 +74,7 @@ public sealed class ApiKey : BaseEntity, IMustHaveProject
 
     public void Rename(ApiKeyName newName, DateTimeOffset now)
     {
-        Guard.NotNull(newName, nameof(Name));
+        Guard.NotNull(newName, nameof(newName));
         if (IsRevoked)
         {
             throw new ApiKeyRevokedException(Id);

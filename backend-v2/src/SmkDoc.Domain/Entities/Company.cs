@@ -1,58 +1,55 @@
 using SmkDoc.Domain.Common;
 using SmkDoc.Domain.Exceptions;
+using SmkDoc.Domain.ValueObjects;
 
 namespace SmkDoc.Domain.Entities;
 
 /// <summary>
 /// Domain entity representing a company / root tenant organization.
 /// </summary>
-public class Company : BaseEntity
+public sealed class Company : BaseEntity
 {
-    public string Name { get; private set; } = string.Empty;
-    public bool IsActive { get; private set; } = true;
+    public CompanyName Name { get; private set; } = null!;
+    public bool IsActive { get; private set; }
 
     private readonly List<Project> _projects = new();
 
     // Navigation properties
-    public virtual IReadOnlyCollection<Project> Projects => _projects.AsReadOnly();
+    public IReadOnlyCollection<Project> Projects => _projects.AsReadOnly();
 
-    // For EF Core materialization
+    // For EF Core materialization only
     private Company() { }
 
-    public Company(string name, Guid? id = null)
-        : base(id)
+    internal Company(Guid? id, CompanyName name, DateTimeOffset now)
+        : base(id, createdAt: now)
     {
-        if (string.IsNullOrWhiteSpace(name))
-        {
-            throw new DomainValidationException("Company name cannot be empty or whitespace.");
-        }
-
-        Name = name.Trim();
+        Name = Guard.NotNull(name, nameof(Name));
         IsActive = true;
     }
 
-    public void UpdateName(string newName)
-    {
-        if (string.IsNullOrWhiteSpace(newName))
-        {
-            throw new DomainValidationException("Company name cannot be empty or whitespace.");
-        }
+    public static Company Create(CompanyName name, DateTimeOffset now) =>
+        new(null, name, now);
 
-        Name = newName.Trim();
-        SetUpdated();
+    public void UpdateName(CompanyName newName, DateTimeOffset now)
+    {
+        Guard.NotNull(newName, nameof(newName));
+        if (Name == newName) return;
+
+        Name = newName;
+        SetUpdated(now);
     }
 
-    public void Activate()
+    public void Activate(DateTimeOffset now)
     {
         if (IsActive) return;
         IsActive = true;
-        SetUpdated();
+        SetUpdated(now);
     }
 
-    public void Deactivate()
+    public void Deactivate(DateTimeOffset now)
     {
         if (!IsActive) return;
         IsActive = false;
-        SetUpdated();
+        SetUpdated(now);
     }
 }

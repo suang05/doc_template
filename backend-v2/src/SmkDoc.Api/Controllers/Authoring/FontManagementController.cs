@@ -2,7 +2,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.Contracts.Authoring.Fonts;
-using SmkDoc.Application.Modules.Authoring.Fonts;
 using SmkDoc.Application.Modules.Authoring.Fonts.Commands.UploadFont;
 using SmkDoc.Application.Modules.Authoring.Fonts.Queries.ListFonts;
 using SmkDoc.Domain.Exceptions;

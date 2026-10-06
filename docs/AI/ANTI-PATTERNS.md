@@ -466,6 +466,45 @@ var command = new RemoveUserCommand(projectId, userId, currentUserId);
 await removeUserUseCase.ExecuteAsync(command, ct);
 ```
 
+### AP-037: ห้ามเขียน Inline Fully-Qualified Namespace ในโค้ด (ฝ่าฝืน Clean Usings)
+```csharp
+// ❌ WRONG — เขียน inline namespace รกใน method body / signature ขัดต่อ Clean Architecture และเสี่ยงซ่อน Layer Leaks
+public async Task<IActionResult> Parse(IFormFile file)
+{
+    if (file == null)
+        throw new SmkDoc.Domain.Exceptions.DomainValidationException("File required.");
+        
+    var command = new SmkDoc.Application.Modules.Authoring.Templates.Commands.ParseTemplateDraft.ParseTemplateDraftCommand(...);
+}
+
+// ✅ CORRECT — ประกาศ using ที่ระดับหัวไฟล์ 100% แล้วเรียกใช้เฉพาะชื่อ Type สั้นๆ
+using SmkDoc.Domain.Exceptions;
+using SmkDoc.Application.Modules.Authoring.Templates.Commands.ParseTemplateDraft;
+
+public async Task<IActionResult> Parse(IFormFile file)
+{
+    if (file == null)
+        throw new DomainValidationException("File required.");
+        
+    var command = new ParseTemplateDraftCommand(...);
+}
+```
+
+### AP-038: ห้ามใช้ Underscore Prefix (`_`) หรือชื่อ Generic คลุมเครือใน Primary Constructor
+```csharp
+// ❌ WRONG — Primary constructor parameter ไม่ใช่ private field และห้ามใช้ชื่อคลุมเครือ (service, repo)
+public class DocumentController(
+    GenerateDocumentUseCase _generateUseCase,
+    ITemplateRepository repo,
+    IStorageService service) : ControllerBase
+
+// ✅ CORRECT — ใช้ camelCase 1:1 ตรงตามชื่อ Class หรือ Interface เสมอ
+public class DocumentController(
+    GenerateDocumentUseCase generateUseCase,
+    ITemplateRepository templateRepo,
+    IStorageService storageService) : ControllerBase
+```
+
 ---
 
 ## 🟡 Frontend Anti-Patterns

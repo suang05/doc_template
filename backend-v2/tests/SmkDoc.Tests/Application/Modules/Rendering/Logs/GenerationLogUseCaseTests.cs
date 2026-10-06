@@ -7,6 +7,7 @@ using SmkDoc.Application.Modules.Rendering.Logs.Queries.GetLogMetrics;
 using SmkDoc.Application.Modules.Rendering.Logs.Queries.ListGenerationLogs;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
+using SmkDoc.Tests.Common.Factories;
 using Xunit;
 
 namespace SmkDoc.Tests.Application.Modules.Rendering.Logs;
@@ -22,7 +23,19 @@ public class GenerationLogUseCaseTests
         // Arrange
         var logs = new List<GenerationLog>
         {
-            new(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "crm", "api", "req-1", "out-1.pdf", OutputFormat.Pdf, 1024, 1, null, 150, "SUCCESS", null)
+            GenerationLogTestFactory.Create(
+                templateId: Guid.NewGuid(),
+                templateVersionId: Guid.NewGuid(),
+                apiKeyId: Guid.NewGuid(),
+                callerApp: "crm",
+                triggerSource: "api",
+                inputData: "req-1",
+                outputKey: "out-1.pdf",
+                outputFormat: OutputFormat.Pdf,
+                fileSizeBytes: 1024,
+                pageCount: 1,
+                durationMs: 150,
+                status: GenerationStatus.Success)
         };
 
         _mockRepo.Setup(r => r.PagedListAsync(

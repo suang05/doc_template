@@ -8,6 +8,7 @@ using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using Xunit;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Tests.Common.Factories;
 
 namespace SmkDoc.Tests.Application.Modules.Authoring.Templates;
 
@@ -27,10 +28,10 @@ public class HtmlPersistenceUseCaseTests
         var templateId = Guid.NewGuid();
         var currentVersionId = Guid.NewGuid();
 
-        var template = new Template(Guid.NewGuid(), "official-contract", "official-contract", null, id: templateId);
-        template.SetCurrentVersion(currentVersionId);
+        var template = TemplateTestFactory.Create(templateId, Guid.NewGuid(), "official-contract", "official-contract");
+        template.SetCurrentVersion(currentVersionId, DateTimeOffset.UtcNow);
 
-        var currentVersion = new TemplateVersion(templateId, 3, "", TemplateFormat.Html, null, id: currentVersionId);
+        var currentVersion = TemplateVersionTestFactory.Create(currentVersionId, templateId, 3, "", TemplateFormat.Html, createdBy: null);
 
         _mockTemplateRepo.Setup(r => r.GetByIdAsync(templateId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);

@@ -20,7 +20,9 @@ using SmkDoc.Infrastructure.Persistence;
 using SmkDoc.Infrastructure.Persistence.Repositories;
 using SmkDoc.Infrastructure.Storage;
 using SmkDoc.Infrastructure.Schema;
+using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -258,10 +260,10 @@ using (var scope = app.Services.CreateScope())
         var projectRepo = scope.ServiceProvider.GetRequiredService<IRepository<SmkDoc.Domain.Entities.Project>>();
         var uow = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
 
-        var company = await companyRepo.FirstOrDefaultAsync(c => c.Name == "SAMMAKORN");
+        var company = await companyRepo.FirstOrDefaultAsync(c => c.Name == CompanyName.Create("SAMMAKORN"));
         if (company == null)
         {
-            company = new SmkDoc.Domain.Entities.Company("SAMMAKORN");
+            company = Company.Create(CompanyName.Create("SAMMAKORN"), DateTimeOffset.UtcNow);
             await companyRepo.AddAsync(company);
             await uow.CommitAsync();
         }
@@ -269,7 +271,7 @@ using (var scope = app.Services.CreateScope())
         var project = await projectRepo.FirstOrDefaultAsync(p => p.CompanyId == company.Id);
         if (project == null)
         {
-            project = new SmkDoc.Domain.Entities.Project(company.Id, "Default Project", "default");
+            project = Project.Create(company.Id, ProjectName.Create("Default Project"), TemplateSlug.Create("default"), DateTimeOffset.UtcNow);
             await projectRepo.AddAsync(project);
             await uow.CommitAsync();
         }

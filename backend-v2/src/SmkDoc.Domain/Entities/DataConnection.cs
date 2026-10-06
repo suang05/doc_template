@@ -1,63 +1,51 @@
 using SmkDoc.Domain.Common;
+using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
+using SmkDoc.Domain.ValueObjects;
 
 namespace SmkDoc.Domain.Entities;
 
 /// <summary>
 /// Domain entity representing an encrypted database connection configuration.
 /// </summary>
-public class DataConnection : BaseEntity
+public sealed class DataConnection : BaseEntity
 {
-    public string Name { get; private set; } = string.Empty;
-    public string Provider { get; private set; } = "PostgreSQL";
+    public ConnectionName Name { get; private set; } = null!;
+    public DatabaseProvider Provider { get; private set; } = DatabaseProvider.PostgreSQL;
     public string EncryptedConnectionString { get; private set; } = string.Empty;
 
-    // For EF Core materialization
+    // For EF Core materialization only
     private DataConnection() { }
 
-    public DataConnection(string name, string provider, string encryptedConnectionString, Guid? id = null)
-        : base(id)
+    internal DataConnection(
+        Guid? id,
+        ConnectionName name,
+        DatabaseProvider provider,
+        string encryptedConnectionString,
+        DateTimeOffset now)
+        : base(id, createdAt: now)
     {
-        if (string.IsNullOrWhiteSpace(name))
-        {
-            throw new DomainValidationException("Data connection name cannot be empty or whitespace.");
-        }
-
-        if (string.IsNullOrWhiteSpace(provider))
-        {
-            throw new DomainValidationException("Provider cannot be empty or whitespace.");
-        }
-
-        if (string.IsNullOrWhiteSpace(encryptedConnectionString))
-        {
-            throw new DomainValidationException("Encrypted connection string cannot be empty or whitespace.");
-        }
-
-        Name = name.Trim();
-        Provider = provider.Trim();
-        EncryptedConnectionString = encryptedConnectionString;
+        Name = Guard.NotNull(name, nameof(Name));
+        Provider = provider ?? DatabaseProvider.PostgreSQL;
+        EncryptedConnectionString = Guard.NotBlank(encryptedConnectionString, nameof(EncryptedConnectionString));
     }
 
-    public void UpdateConnection(string name, string provider, string encryptedConnectionString)
+    public static DataConnection Create(
+        ConnectionName name,
+        DatabaseProvider provider,
+        string encryptedConnectionString,
+        DateTimeOffset now) =>
+        new(null, name, provider, encryptedConnectionString, now);
+
+    public void UpdateConnection(
+        ConnectionName name,
+        DatabaseProvider provider,
+        string encryptedConnectionString,
+        DateTimeOffset now)
     {
-        if (string.IsNullOrWhiteSpace(name))
-        {
-            throw new DomainValidationException("Data connection name cannot be empty or whitespace.");
-        }
-
-        if (string.IsNullOrWhiteSpace(provider))
-        {
-            throw new DomainValidationException("Provider cannot be empty or whitespace.");
-        }
-
-        if (string.IsNullOrWhiteSpace(encryptedConnectionString))
-        {
-            throw new DomainValidationException("Encrypted connection string cannot be empty or whitespace.");
-        }
-
-        Name = name.Trim();
-        Provider = provider.Trim();
-        EncryptedConnectionString = encryptedConnectionString;
-        SetUpdated();
+        Name = Guard.NotNull(name, nameof(Name));
+        Provider = provider ?? DatabaseProvider.PostgreSQL;
+        EncryptedConnectionString = Guard.NotBlank(encryptedConnectionString, nameof(EncryptedConnectionString));
+        SetUpdated(now);
     }
 }

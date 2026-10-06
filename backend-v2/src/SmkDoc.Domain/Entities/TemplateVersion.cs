@@ -5,9 +5,9 @@ using SmkDoc.Domain.Exceptions;
 namespace SmkDoc.Domain.Entities;
 
 /// <summary>
-/// Domain entity representing an immutable or draft revision of a document template.
+/// Domain entity representing a version revision of a document template within the Template aggregate root.
 /// </summary>
-public class TemplateVersion : BaseEntity
+public sealed class TemplateVersion : BaseEntity
 {
     public Guid TemplateId { get; private set; }
     public int Version { get; private set; }
@@ -20,103 +20,91 @@ public class TemplateVersion : BaseEntity
     public string? CommitMessage { get; private set; }
     public string? CreatedBy { get; private set; }
 
-    // Navigation property
-    public virtual Template? Template { get; private set; }
+    // Navigation property for EF Core materialization
+    public Template? Template { get; private set; }
 
+    // For EF Core materialization only
     private TemplateVersion() { }
 
-    public TemplateVersion(
-        Guid templateId, 
-        int version, 
-        string storageKey, 
-        TemplateFormat? fileFormat, 
-        string? createdBy, 
-        string? commitMessage = null,
-        Guid? id = null) : base(id)
+    internal TemplateVersion(
+        Guid? id,
+        Guid templateId,
+        int version,
+        string storageKey,
+        TemplateFormat? fileFormat,
+        string? createdBy,
+        DateTimeOffset now,
+        string? commitMessage = null)
+        : base(id, createdAt: now)
     {
-        if (templateId == Guid.Empty)
-        {
-            throw new DomainValidationException("TemplateId cannot be empty.");
-        }
-
-        if (version <= 0)
-        {
-            throw new DomainValidationException("Template version number must be greater than zero.");
-        }
-
-        TemplateId = templateId;
-        Version = version;
-        StorageKey = storageKey ?? string.Empty;
+        TemplateId = Guard.NotEmpty(templateId, nameof(TemplateId));
+        Version = Guard.Positive(version, nameof(Version));
+        StorageKey = (storageKey ?? string.Empty).Trim();
         FileFormat = fileFormat;
-        CreatedBy = createdBy;
-        CommitMessage = commitMessage;
+        CreatedBy = (createdBy ?? string.Empty).Trim();
+        CommitMessage = commitMessage?.Trim();
         Status = TemplateVersionStatus.Draft;
     }
 
-    public RenderEngineType GetRenderEngineType()
-    {
-        return FileFormat?.DefaultEngineType ?? RenderEngineType.Html;
-    }
+    public static TemplateVersion Draft(
+        Guid templateId,
+        int version,
+        string storageKey,
+        TemplateFormat? fileFormat,
+        string? createdBy,
+        DateTimeOffset now,
+        string? commitMessage = null) =>
+        new(null, templateId, version, storageKey, fileFormat, createdBy, now, commitMessage);
 
-    public void Publish()
+    public RenderEngineType GetRenderEngineType() =>
+        FileFormat?.DefaultEngineType ?? RenderEngineType.Html;
+
+    public void Publish(DateTimeOffset now)
     {
         if (Status == TemplateVersionStatus.Archived)
         {
-            throw new BusinessRuleViolationException(
-                "Cannot publish an archived template version.", 
-                "ARCHIVED_VERSION_CANNOT_BE_PUBLISHED");
+            throw new ArchivedVersionImmutableException(Id, "Publish");
         }
 
         Status = TemplateVersionStatus.Published;
-        SetUpdated();
+        SetUpdated(now);
     }
 
-    public void Archive()
+    public void Archive(DateTimeOffset now)
     {
-        if (Status == TemplateVersionStatus.Archived)
-        {
-            return;
-        }
+        if (Status == TemplateVersionStatus.Archived) return;
 
         Status = TemplateVersionStatus.Archived;
-        SetUpdated();
+        SetUpdated(now);
     }
 
-    public void UpdateStorageKey(string storageKey)
+    public void UpdateStorageKey(string storageKey, DateTimeOffset now)
     {
-        if (string.IsNullOrWhiteSpace(storageKey))
-        {
-            throw new DomainValidationException("Storage key cannot be empty or whitespace.");
-        }
-
-        StorageKey = storageKey;
-        SetUpdated();
+        EnsureNotArchived("UpdateStorageKey");
+        StorageKey = Guard.NotBlank(storageKey, nameof(StorageKey));
+        SetUpdated(now);
     }
 
-    public void UpdateDataSchema(string? schema, string? samplePayload)
+    public void UpdateDataSchema(string? schema, string? samplePayload, DateTimeOffset now)
     {
-        if (Status == TemplateVersionStatus.Archived)
-        {
-            throw new BusinessRuleViolationException(
-                "Cannot modify schema on an archived template version.",
-                "ARCHIVED_VERSION_CANNOT_BE_MODIFIED");
-        }
-
+        EnsureNotArchived("UpdateDataSchema");
         DataSchema = schema;
         SamplePayload = samplePayload;
-        SetUpdated();
+        SetUpdated(now);
     }
 
-    public void UpdateMappingsSnapshot(string? snapshot)
+    public void UpdateMappingsSnapshot(string? snapshot, DateTimeOffset now)
+    {
+        EnsureNotArchived("UpdateMappingsSnapshot");
+        MappingsSnapshot = snapshot;
+        SetUpdated(now);
+    }
+
+    private void EnsureNotArchived(string operation)
     {
         if (Status == TemplateVersionStatus.Archived)
         {
-            throw new BusinessRuleViolationException(
-                "Cannot modify mappings snapshot on an archived template version.",
-                "ARCHIVED_VERSION_CANNOT_BE_MODIFIED");
+            throw new ArchivedVersionImmutableException(Id, operation);
         }
-
-        MappingsSnapshot = snapshot;
-        SetUpdated();
     }
 }

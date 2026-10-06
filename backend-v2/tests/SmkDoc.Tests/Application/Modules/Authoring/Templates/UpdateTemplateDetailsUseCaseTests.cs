@@ -47,7 +47,7 @@ public class UpdateTemplateDetailsUseCaseTests
 
         var response = await useCase.ExecuteAsync(command);
 
-        template.Name.Should().Be("Updated Name");
+        template.Name.Value.Should().Be("Updated Name");
         template.Category.Should().Be("Updated Category");
         response.Name.Should().Be("Updated Name");
         response.Category.Should().Be("Updated Category");

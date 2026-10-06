@@ -1,59 +1,50 @@
 using SmkDoc.Domain.Common;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
+using SmkDoc.Domain.ValueObjects;
 
 namespace SmkDoc.Domain.Entities;
 
 /// <summary>
-/// Domain entity representing an authenticated system user.
+/// Aggregate root representing an authenticated system user.
 /// </summary>
-public class User : BaseEntity
+public sealed class User : BaseEntity
 {
-    public string Email { get; private set; } = string.Empty;
+    public EmailAddress Email { get; private set; } = null!;
     public string PasswordHash { get; private set; } = string.Empty;
     public string FirstName { get; private set; } = string.Empty;
     public string LastName { get; private set; } = string.Empty;
-    public bool IsActive { get; private set; } = true;
+    public bool IsActive { get; private set; }
     public SystemRole SystemRole { get; private set; } = SystemRole.Member;
 
     private readonly List<UserProjectRole> _projectRoles = new();
 
-    // Navigation properties
-    public virtual IReadOnlyCollection<UserProjectRole> ProjectRoles => _projectRoles.AsReadOnly();
+    // Navigation properties (child collection within User aggregate)
+    public IReadOnlyCollection<UserProjectRole> ProjectRoles => _projectRoles.AsReadOnly();
 
-    // For EF Core materialization
+    // For EF Core materialization only
     private User() { }
 
-    public User(string email, string passwordHash, string? firstName, string? lastName, SystemRole? systemRole = null, Guid? id = null)
-        : base(id)
+    internal User(Guid? id, EmailAddress email, string passwordHash, string firstName, string? lastName,
+        SystemRole? systemRole, DateTimeOffset now)
+        : base(id, createdAt: now)
     {
-        if (string.IsNullOrWhiteSpace(email))
-        {
-            throw new DomainValidationException("Email cannot be empty or whitespace.");
-        }
-
-        if (string.IsNullOrWhiteSpace(passwordHash))
-        {
-            throw new DomainValidationException("Password hash cannot be empty.");
-        }
-
-        if (string.IsNullOrWhiteSpace(firstName))
-        {
-            throw new DomainValidationException("FirstName cannot be empty or whitespace.");
-        }
-
-        Email = email.Trim().ToLowerInvariant();
-        PasswordHash = passwordHash;
-        FirstName = firstName.Trim();
+        Email = Guard.NotNull(email, nameof(Email));
+        PasswordHash = Guard.NotBlank(passwordHash, nameof(PasswordHash), 500);
+        FirstName = Guard.NotBlank(firstName, nameof(FirstName), 100);
         LastName = (lastName ?? string.Empty).Trim();
         SystemRole = systemRole ?? SystemRole.Member;
         IsActive = true;
     }
 
-    public void AssignSystemRole(SystemRole role)
+    public static User Register(EmailAddress email, string passwordHash, string firstName, string? lastName,
+        DateTimeOffset now, SystemRole? systemRole = null) =>
+        new(null, email, passwordHash, firstName, lastName, systemRole, now);
+
+    public void AssignSystemRole(SystemRole role, DateTimeOffset now)
     {
-        SystemRole = role;
-        SetUpdated();
+        SystemRole = role ?? SystemRole.Member;
+        SetUpdated(now);
     }
 
     public bool CanAccessProject(Guid projectId)
@@ -66,45 +57,36 @@ public class User : BaseEntity
         return ProjectRoles.Any(r => r.ProjectId == projectId);
     }
 
-    public void UpdateProfile(string firstName, string lastName)
+    public void UpdateProfile(string firstName, string lastName, DateTimeOffset now)
     {
-        FirstName = (firstName ?? string.Empty).Trim();
+        FirstName = Guard.NotBlank(firstName, nameof(FirstName), 100);
         LastName = (lastName ?? string.Empty).Trim();
-        SetUpdated();
+        SetUpdated(now);
     }
 
-    public void UpdatePassword(string newPasswordHash)
+    public void UpdatePassword(string newPasswordHash, DateTimeOffset now)
     {
-        if (string.IsNullOrWhiteSpace(newPasswordHash))
-        {
-            throw new DomainValidationException("Password hash cannot be empty or whitespace.");
-        }
-
-        PasswordHash = newPasswordHash;
-        SetUpdated();
+        PasswordHash = Guard.NotBlank(newPasswordHash, nameof(PasswordHash), 500);
+        SetUpdated(now);
     }
 
-    public void Deactivate()
+    public void Deactivate(DateTimeOffset now)
     {
         if (!IsActive) return;
         IsActive = false;
-        SetUpdated();
+        SetUpdated(now);
     }
 
-    public void Activate()
+    public void Activate(DateTimeOffset now)
     {
         if (IsActive) return;
         IsActive = true;
-        SetUpdated();
+        SetUpdated(now);
     }
 
-    public void AssignProjectRole(UserProjectRole role)
+    public void AssignProjectRole(UserProjectRole role, DateTimeOffset now)
     {
-        if (role == null)
-        {
-            throw new DomainValidationException("UserProjectRole cannot be null.");
-        }
-
+        Guard.NotNull(role, nameof(role));
         if (role.UserId != Id)
         {
             throw new DomainValidationException($"Role user ID '{role.UserId}' does not match user ID '{Id}'.");
@@ -113,20 +95,39 @@ public class User : BaseEntity
         var existing = _projectRoles.FirstOrDefault(r => r.ProjectId == role.ProjectId);
         if (existing != null)
         {
-            _projectRoles.Remove(existing);
+            existing.UpdateRole(role.Role);
+        }
+        else
+        {
+            _projectRoles.Add(role);
         }
 
-        _projectRoles.Add(role);
-        SetUpdated();
+        SetUpdated(now);
     }
 
-    public void RemoveProjectRole(Guid projectId)
+    public void AssignProjectRole(Guid projectId, RoleType role, DateTimeOffset now)
+    {
+        Guard.NotEmpty(projectId, nameof(projectId));
+        var existing = _projectRoles.FirstOrDefault(r => r.ProjectId == projectId);
+        if (existing != null)
+        {
+            existing.UpdateRole(role);
+        }
+        else
+        {
+            _projectRoles.Add(UserProjectRole.Create(Id, projectId, role, now));
+        }
+
+        SetUpdated(now);
+    }
+
+    public void RemoveProjectRole(Guid projectId, DateTimeOffset now)
     {
         var existing = _projectRoles.FirstOrDefault(r => r.ProjectId == projectId);
         if (existing != null)
         {
             _projectRoles.Remove(existing);
-            SetUpdated();
+            SetUpdated(now);
         }
     }
 }

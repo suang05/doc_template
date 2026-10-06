@@ -13,7 +13,12 @@ internal static class Guard
             ? throw new DomainValidationException($"{name} cannot be empty.")
             : value;
 
-    public static string NotBlank(string? value, string name, int maxLength)
+    public static int Positive(int value, string name) =>
+        value <= 0
+            ? throw new DomainValidationException($"{name} must be greater than zero.")
+            : value;
+
+    public static string NotBlank(string? value, string name, int maxLength = int.MaxValue)
     {
         if (string.IsNullOrWhiteSpace(value))
         {

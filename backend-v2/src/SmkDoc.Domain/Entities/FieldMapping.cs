@@ -7,7 +7,7 @@ namespace SmkDoc.Domain.Entities;
 /// <summary>
 /// Domain entity representing a mapping between template placeholders and data source paths.
 /// </summary>
-public class FieldMapping : BaseEntity
+public sealed class FieldMapping : BaseEntity
 {
     public Guid TemplateId { get; private set; }
     public string Placeholder { get; private set; } = string.Empty;
@@ -17,48 +17,64 @@ public class FieldMapping : BaseEntity
     public string? DefaultValue { get; private set; }
     public string? Transform { get; private set; }
     public int SortOrder { get; private set; }
-    
+
     public DataSourceType DataSourceType { get; private set; } = DataSourceType.Json;
-    public string? DatasetAlias { get; private set; }
+    public DatasetAlias? DatasetAlias { get; private set; }
     public string? ResultPath { get; private set; }
     public string? MathExpression { get; private set; }
 
-    // Navigation property
-    public virtual Template? Template { get; private set; }
+    // Navigation property for EF Core materialization
+    public Template? Template { get; private set; }
 
-    // For EF Core materialization
+    // For EF Core materialization only
     private FieldMapping() { }
 
-    public FieldMapping(
-        Guid templateId, 
-        string placeholder, 
-        string sourcePath, 
-        string label, 
-        bool required, 
-        int sortOrder, 
-        DataSourceType? dataSourceType = null,
-        Guid? id = null) : base(id)
+    internal FieldMapping(
+        Guid? id,
+        Guid templateId,
+        string placeholder,
+        string sourcePath,
+        string label,
+        bool required,
+        int sortOrder,
+        DataSourceType? dataSourceType,
+        string? defaultValue,
+        string? transform,
+        DateTimeOffset now)
+        : base(id, createdAt: now)
     {
-        if (templateId == Guid.Empty)
-        {
-            throw new DomainValidationException("TemplateId cannot be empty.");
-        }
-
-        if (string.IsNullOrWhiteSpace(placeholder))
-        {
-            throw new DomainValidationException("Placeholder cannot be empty or whitespace.");
-        }
-
-        TemplateId = templateId;
-        Placeholder = placeholder.Trim();
+        TemplateId = Guard.NotEmpty(templateId, nameof(TemplateId));
+        Placeholder = Guard.NotBlank(placeholder, nameof(Placeholder), 100);
         SourcePath = (sourcePath ?? string.Empty).Trim();
         Label = (label ?? string.Empty).Trim();
         Required = required;
         SortOrder = sortOrder;
         DataSourceType = dataSourceType ?? DataSourceType.Json;
+        DefaultValue = defaultValue;
+        Transform = transform;
     }
 
-    public void UpdateMappingDetails(string sourcePath, string label, bool required, string? defaultValue, string? transform, int sortOrder)
+    public static FieldMapping Create(
+        Guid templateId,
+        string placeholder,
+        string sourcePath,
+        string label,
+        bool required,
+        int sortOrder,
+        DateTimeOffset now,
+        DataSourceType? dataSourceType = null,
+        string? defaultValue = null,
+        string? transform = null) =>
+        new(null, templateId, placeholder, sourcePath, label, required, sortOrder, dataSourceType, defaultValue, transform, now);
+
+    public void UpdateMappingDetails(
+        string sourcePath,
+        string label,
+        bool required,
+        string? defaultValue,
+        string? transform,
+        int sortOrder,
+        DateTimeOffset now)
     {
         SourcePath = (sourcePath ?? string.Empty).Trim();
         Label = (label ?? string.Empty).Trim();
@@ -66,15 +82,20 @@ public class FieldMapping : BaseEntity
         DefaultValue = defaultValue;
         Transform = transform;
         SortOrder = sortOrder;
-        SetUpdated();
+        SetUpdated(now);
     }
-    
-    public void ConfigureDataSource(DataSourceType type, string? alias, string? resultPath, string? mathExpression)
+
+    public void ConfigureDataSource(
+        DataSourceType type,
+        DatasetAlias? alias,
+        string? resultPath,
+        string? mathExpression,
+        DateTimeOffset now)
     {
         DataSourceType = type ?? DataSourceType.Json;
         DatasetAlias = alias;
         ResultPath = resultPath;
         MathExpression = mathExpression;
-        SetUpdated();
+        SetUpdated(now);
     }
 }

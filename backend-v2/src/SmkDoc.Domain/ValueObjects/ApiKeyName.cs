@@ -16,10 +16,12 @@ public sealed class ApiKeyName : ValueObject
     public static ApiKeyName Create(string? value) =>
         new(Guard.NotBlank(value, "API key name", MaxLength));
 
-    protected override IEnumerable<object> GetEqualityComponents()
+    protected override IEnumerable<object?> GetEqualityComponents()
     {
         yield return Value;
     }
 
     public override string ToString() => Value;
+
+    public static implicit operator string(ApiKeyName name) => name.Value;
 }

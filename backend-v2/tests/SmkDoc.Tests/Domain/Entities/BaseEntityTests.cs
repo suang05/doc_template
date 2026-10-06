@@ -2,6 +2,8 @@ using FluentAssertions;
 using SmkDoc.Domain.Common;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
+using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Tests.Common.Factories;
 using Xunit;
 
 namespace SmkDoc.Tests.Domain.Entities;
@@ -14,9 +16,10 @@ public class BaseEntityTests
     public void BaseEntity_Id_IsSequentialUuidV7()
     {
         // UUIDv7 is monotonic / chronological: id1 should precede id2 when generated in sequence
-        var entity1 = new Template(Guid.NewGuid(), "T1", "t1");
+        var now = DateTimeOffset.UtcNow;
+        var entity1 = Template.Create(Guid.NewGuid(), TemplateName.Create("T1"), TemplateSlug.Create("t1"), null, now);
         Thread.Sleep(2);
-        var entity2 = new Template(Guid.NewGuid(), "T2", "t2");
+        var entity2 = Template.Create(Guid.NewGuid(), TemplateName.Create("T2"), TemplateSlug.Create("t2"), null, DateTimeOffset.UtcNow);
 
         entity1.Id.Should().NotBe(Guid.Empty);
         entity2.Id.Should().NotBe(Guid.Empty);
@@ -31,7 +34,7 @@ public class BaseEntityTests
     {
         var userId = Guid.NewGuid();
         var projectId = Guid.NewGuid();
-        var role = new UserProjectRole(userId, projectId, RoleType.Developer);
+        var role = UserProjectRole.Create(userId, projectId, RoleType.Developer, DateTimeOffset.UtcNow);
 
         role.UserId.Should().Be(userId);
         role.ProjectId.Should().Be(projectId);
@@ -54,7 +57,7 @@ public class BaseEntityTests
     public void BaseEntity_Constructor_AllowsControlledIdentityPassThrough()
     {
         var customId = Guid.NewGuid();
-        var template = new Template(Guid.NewGuid(), "Sample", "sample", id: customId);
+        var template = TemplateTestFactory.Create(customId, Guid.NewGuid(), "Sample", "sample");
 
         template.Id.Should().Be(customId);
     }
@@ -64,9 +67,9 @@ public class BaseEntityTests
     {
         var id = Guid.NewGuid();
         var projectId = Guid.NewGuid();
-        var t1 = new Template(projectId, "T1", "t1", id: id);
-        var t2 = new Template(projectId, "T2", "t2", id: id);
-        var other = new Template(projectId, "T3", "t3", id: Guid.NewGuid());
+        var t1 = TemplateTestFactory.Create(id, projectId, "T1", "t1");
+        var t2 = TemplateTestFactory.Create(id, projectId, "T2", "t2");
+        var other = TemplateTestFactory.Create(Guid.NewGuid(), projectId, "T3", "t3");
 
         t1.Should().Be(t2);
         (t1 == t2).Should().BeTrue();

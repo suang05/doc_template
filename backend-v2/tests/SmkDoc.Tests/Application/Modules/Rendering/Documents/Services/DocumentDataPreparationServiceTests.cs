@@ -8,6 +8,7 @@ using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Validation;
+using SmkDoc.Tests.Common.Factories;
 using Xunit;
 
 namespace SmkDoc.Tests.Application.Modules.Rendering.Documents.Services;
@@ -31,8 +32,8 @@ public class DocumentDataPreparationServiceTests
     public async Task PrepareDataAsync_WhenNoMappings_ShouldReturnRawJson()
     {
         // Arrange
-        var template = new Template(Guid.NewGuid(), "Tpl", "tpl", null);
-        var version = new TemplateVersion(template.Id, 1, "tpl.html", TemplateFormat.Html, "Pub", "Commit");
+        var template = TemplateTestFactory.Create(name: "Tpl", slug: "tpl");
+        var version = TemplateVersionTestFactory.Create(Guid.NewGuid(), template.Id, 1, "tpl.html", TemplateFormat.Html, "Pub", "Commit");
 
         var service = BuildService();
         using var jsonDoc = JsonDocument.Parse("""{"key":"value"}""");
@@ -50,10 +51,10 @@ public class DocumentDataPreparationServiceTests
     public async Task PrepareDataAsync_WhenValidationFails_ShouldReturnFailedValidationResult()
     {
         // Arrange
-        var template = new Template(Guid.NewGuid(), "Tpl", "tpl", null);
-        var version = new TemplateVersion(template.Id, 1, "tpl.html", TemplateFormat.Html, "Pub", "Commit");
+        var template = TemplateTestFactory.Create(name: "Tpl", slug: "tpl");
+        var version = TemplateVersionTestFactory.Create(Guid.NewGuid(), template.Id, 1, "tpl.html", TemplateFormat.Html, "Pub", "Commit");
         const string schema = """{"required":["field"]}""";
-        version.UpdateDataSchema(schema, null);
+        version.UpdateDataSchema(schema, null, DateTimeOffset.UtcNow);
 
         var errors = new List<ValidationErrorItem> { new("/", "required", "Missing field") };
         _mockSchemaValidation.Setup(s => s.Validate(schema, It.IsAny<string>()))

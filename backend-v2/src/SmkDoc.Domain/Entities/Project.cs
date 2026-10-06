@@ -1,77 +1,63 @@
 using SmkDoc.Domain.Common;
 using SmkDoc.Domain.Exceptions;
+using SmkDoc.Domain.ValueObjects;
 
 namespace SmkDoc.Domain.Entities;
 
 /// <summary>
-/// Domain entity representing a business project / tenant boundary.
+/// Aggregate root representing a business project / tenant boundary.
 /// </summary>
-public class Project : BaseEntity
+public sealed class Project : BaseEntity
 {
     public Guid CompanyId { get; private set; }
-    public string Name { get; private set; } = string.Empty;
-    public string Slug { get; private set; } = string.Empty;
-    public bool IsActive { get; private set; } = true;
+    public ProjectName Name { get; private set; } = null!;
+    public TemplateSlug Slug { get; private set; } = null!;
+    public bool IsActive { get; private set; }
 
     private readonly List<Template> _templates = new();
     private readonly List<ApiKey> _apiKeys = new();
     private readonly List<UserProjectRole> _userRoles = new();
 
-    // Navigation properties
-    public virtual Company? Company { get; private set; }
-    public virtual IReadOnlyCollection<Template> Templates => _templates.AsReadOnly();
-    public virtual IReadOnlyCollection<ApiKey> ApiKeys => _apiKeys.AsReadOnly();
-    public virtual IReadOnlyCollection<UserProjectRole> UserRoles => _userRoles.AsReadOnly();
+    // Child collections owned by this project aggregate boundary
+    public IReadOnlyCollection<Template> Templates => _templates.AsReadOnly();
+    public IReadOnlyCollection<ApiKey> ApiKeys => _apiKeys.AsReadOnly();
+    public IReadOnlyCollection<UserProjectRole> UserRoles => _userRoles.AsReadOnly();
 
-    // For EF Core materialization
+    // For EF Core materialization only
     private Project() { }
 
-    public Project(Guid companyId, string name, string slug, Guid? id = null)
-        : base(id)
+    internal Project(Guid? id, Guid companyId, ProjectName name, TemplateSlug slug, DateTimeOffset now)
+        : base(id, createdAt: now)
     {
-        if (companyId == Guid.Empty)
-        {
-            throw new DomainValidationException("CompanyId cannot be empty.");
-        }
-
-        if (string.IsNullOrWhiteSpace(name))
-        {
-            throw new DomainValidationException("Project name cannot be empty or whitespace.");
-        }
-
-        if (string.IsNullOrWhiteSpace(slug))
-        {
-            throw new DomainValidationException("Project slug cannot be empty or whitespace.");
-        }
-
-        CompanyId = companyId;
-        Name = name.Trim();
-        Slug = slug.Trim().ToLowerInvariant();
+        CompanyId = Guard.NotEmpty(companyId, nameof(CompanyId));
+        Name = Guard.NotNull(name, nameof(Name));
+        Slug = Guard.NotNull(slug, nameof(Slug));
         IsActive = true;
     }
 
-    public void UpdateName(string newName)
-    {
-        if (string.IsNullOrWhiteSpace(newName))
-        {
-            throw new DomainValidationException("Project name cannot be empty or whitespace.");
-        }
+    public static Project Create(Guid companyId, ProjectName name, TemplateSlug slug, DateTimeOffset now) =>
+        new(null, companyId, name, slug, now);
 
-        Name = newName.Trim();
-        SetUpdated();
+    public void UpdateName(ProjectName newName, DateTimeOffset now)
+    {
+        Guard.NotNull(newName, nameof(newName));
+        if (Name == newName) return;
+
+        Name = newName;
+        SetUpdated(now);
     }
 
-    public void Activate()
+    public void Activate(DateTimeOffset now)
     {
         if (IsActive) return;
         IsActive = true;
-        SetUpdated();
+        SetUpdated(now);
     }
 
-    public void Deactivate()
+    public void Deactivate(DateTimeOffset now)
     {
         if (!IsActive) return;
         IsActive = false;
-        SetUpdated();
+        SetUpdated(now);
     }
 }

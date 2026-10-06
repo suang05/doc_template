@@ -3,6 +3,7 @@ using SmkDoc.Application.Modules.Integration.Datasets.DTOs;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.Exceptions;
+using SmkDoc.Domain.ValueObjects;
 
 namespace SmkDoc.Application.Modules.Integration.Datasets;
 
@@ -10,11 +11,13 @@ namespace SmkDoc.Application.Modules.Integration.Datasets;
 public sealed class DatasetUseCase(
     IDatasetRepository datasetRepo,
     IDataConnectionRepository connectionRepo,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork,
+    TimeProvider? timeProvider = null)
 {
     private readonly IDatasetRepository _datasetRepo = datasetRepo;
     private readonly IDataConnectionRepository _connectionRepo = connectionRepo;
     private readonly IUnitOfWork _unitOfWork = unitOfWork;
+    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
 
     public async Task<List<DatasetDto>> GetAllAsync(CancellationToken ct = default)
     {
@@ -42,7 +45,8 @@ public sealed class DatasetUseCase(
         var connection = await _connectionRepo.GetByIdAsync(dto.DataConnectionId, ct)
             ?? throw new NotFoundException($"DataConnection '{dto.DataConnectionId}' not found.");
 
-        var entity = new Dataset(dto.Name, dto.Description, dto.DataConnectionId, dto.SqlQuery, dto.CacheSeconds);
+        var now = _timeProvider.GetUtcNow();
+        var entity = Dataset.Create(DatasetName.Create(dto.Name), dto.Description, dto.DataConnectionId, dto.SqlQuery, dto.CacheSeconds, now);
 
         await _datasetRepo.AddAsync(entity, ct);
         await _unitOfWork.CommitAsync(ct);
@@ -58,7 +62,8 @@ public sealed class DatasetUseCase(
         var connection = await _connectionRepo.GetByIdAsync(dto.DataConnectionId, ct)
             ?? throw new NotFoundException($"DataConnection '{dto.DataConnectionId}' not found.");
 
-        entity.UpdateDetails(dto.Name, dto.Description, dto.DataConnectionId, dto.SqlQuery, dto.CacheSeconds);
+        var now = _timeProvider.GetUtcNow();
+        entity.UpdateDetails(DatasetName.Create(dto.Name), dto.Description, dto.DataConnectionId, dto.SqlQuery, dto.CacheSeconds, now);
 
         _datasetRepo.Update(entity);
         await _unitOfWork.CommitAsync(ct);
@@ -79,10 +84,10 @@ public sealed class DatasetUseCase(
     private static DatasetDto ToDto(Dataset d, Dictionary<Guid, DataConnection> connMap) => new()
     {
         Id                 = d.Id,
-        Name               = d.Name,
+        Name               = d.Name.Value,
         Description        = d.Description,
         DataConnectionId   = d.DataConnectionId,
-        DataConnectionName = connMap.TryGetValue(d.DataConnectionId, out var c) ? c.Name : string.Empty,
+        DataConnectionName = connMap.TryGetValue(d.DataConnectionId, out var c) ? c.Name.Value : string.Empty,
         SqlQuery           = d.SqlQuery,
         CacheSeconds       = d.CacheSeconds,
         CreatedAt          = d.CreatedAt,

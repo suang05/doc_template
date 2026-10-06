@@ -3,6 +3,7 @@ using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects;
 
 namespace SmkDoc.Application.Modules.Authoring.Templates.Commands.UpdateTemplateDetails;
 
@@ -13,11 +14,13 @@ namespace SmkDoc.Application.Modules.Authoring.Templates.Commands.UpdateTemplate
 public sealed class UpdateTemplateDetailsUseCase(
     ITemplateRepository templateRepo,
     IUnitOfWork unitOfWork,
-    IValidator<UpdateTemplateDetailsCommand> validator) : IUseCase<UpdateTemplateDetailsCommand, TemplateResultDto>
+    IValidator<UpdateTemplateDetailsCommand> validator,
+    TimeProvider? timeProvider = null) : IUseCase<UpdateTemplateDetailsCommand, TemplateResultDto>
 {
     private readonly ITemplateRepository _templateRepo = templateRepo;
     private readonly IUnitOfWork _unitOfWork = unitOfWork;
     private readonly IValidator<UpdateTemplateDetailsCommand> _validator = validator;
+    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
 
     public async Task<TemplateResultDto> ExecuteAsync(UpdateTemplateDetailsCommand command, CancellationToken ct = default)
     {
@@ -33,7 +36,8 @@ public sealed class UpdateTemplateDetailsUseCase(
             ?? throw new NotFoundException($"Template '{command.TemplateId}' was not found.");
 
         // 3. Domain Invariants Execution
-        template.UpdateDetails(command.Name.Trim(), command.Category?.Trim());
+        var now = _timeProvider.GetUtcNow();
+        template.UpdateDetails(TemplateName.Create(command.Name), command.Category?.Trim(), now);
 
         // 4. Persistence & Atomic Commit
         _templateRepo.Update(template);

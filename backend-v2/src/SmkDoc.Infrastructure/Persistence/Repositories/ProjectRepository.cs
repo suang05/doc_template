@@ -18,6 +18,16 @@ public sealed class ProjectRepository(AppDbContext context) : IProjectRepository
         return await _context.Projects.FirstOrDefaultAsync(p => p.Slug == slug, ct);
     }
 
+    public async Task<Project?> GetBySlugAsync(SmkDoc.Domain.ValueObjects.TemplateSlug slug, CancellationToken ct = default)
+    {
+        return await _context.Projects.FirstOrDefaultAsync(p => p.Slug == slug, ct);
+    }
+
+    public async Task<bool> ExistsBySlugAsync(SmkDoc.Domain.ValueObjects.TemplateSlug slug, CancellationToken ct = default)
+    {
+        return await _context.Projects.AnyAsync(p => p.Slug == slug, ct);
+    }
+
     public async Task<IReadOnlyList<Project>> ListByIdsAsync(IEnumerable<Guid> ids, CancellationToken ct = default)
     {
         var idSet = ids.ToHashSet();

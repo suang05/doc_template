@@ -16,17 +16,48 @@
    - Thai Formatting: `ThaiDataTransformer`
    - Frontend API Client: `apiClient<T>` & `apiClientBlob`
    - Frontend Types: `types/api.ts` (re-exported from Zod `schemas/`)
-5. **Zero Dead Code:** Never leave commented-out code blocks, unused imports, or debug artifacts (`Console.WriteLine`, `console.log`) in submitted code.
+5. **Zero Dead Code & High Hygiene:** Never leave commented-out code blocks, unused imports, redundant whitespace, or debug artifacts (`Console.WriteLine`, `console.log`) in submitted code. Maintain pristine namespace and formatting consistency.
 
 ---
 
 ## 2. 🔷 Backend Standards: C# 13 / .NET 10 (`backend-v2/`)
 
-### 2.1 Modern C# Language Idioms
+### 2.1 Solution-Wide Code Hygiene & Modern C# Standards
+
+These three hygiene pillars apply universally across **ALL C# layers** (Domain, Application, Infrastructure, Presentation, Tests) without exception:
+
+#### 2.1.1 Namespace & Usings Hygiene
 - **File-Scoped Namespaces:** Always use file-scoped namespaces to reduce unnecessary indentation:
   ```csharp
-  namespace SmkDoc.Application.UseCases.Templates.Commands.CreateTemplate;
+  namespace SmkDoc.Application.Modules.Authoring.Templates.Commands.CreateTemplate;
   ```
+- **Clean Usings (Zero Inline Namespaces):** All external types, exceptions, and DTOs MUST be imported at the top of the file via `using` directives. **NEVER** write inline fully-qualified namespaces in method bodies, signatures, or attributes (❌ AP-037).
+  ```csharp
+  // ❌ WRONG — Inline namespace clutter and risk of layer leaking
+  throw new SmkDoc.Domain.Exceptions.DomainValidationException("Invalid input.");
+
+  // ✅ CORRECT — Clean top-level using + concise symbol
+  using SmkDoc.Domain.Exceptions;
+  ...
+  throw new DomainValidationException("Invalid input.");
+  ```
+- **Zero Unused Usings:** Remove all redundant `using` directives before committing code.
+
+#### 2.1.2 Standardized Primary Constructor Parameter Naming
+Primary constructors are standard for Dependency Injection across UseCases, Controllers, Repositories, and Services. Parameter names must strictly follow these rules:
+- **1:1 camelCase Mapping:** Parameter names MUST directly mirror the class or interface name in `camelCase`:
+  - *Interface dependencies:* Drop the `I` prefix and convert to `camelCase` (e.g., `ITemplateRepository` → `templateRepo` or `templateRepository`, `IUnitOfWork` → `unitOfWork`, `IValidator<T>` → `validator`, `ILogger<T>` → `logger`).
+  - *UseCase dependencies (in Controllers):* Use `camelCase` matching the UseCase class name (e.g., `CreateTemplateUseCase` → `createTemplateUseCase` or `createUseCase`, `ValidateTemplatePayloadUseCase` → `validatePayloadUseCase`).
+- **BAN Underscore Prefix (`_`):** Primary constructor parameters are NOT private fields; **NEVER** prefix them with `_` (❌ `_templateRepo`, ❌ `_unitOfWork`) (❌ AP-038).
+- **BAN Ambiguous Generic Names:** Never use generic or vague names like `service`, `repo`, `helper`, or `handler` without context.
+
+#### 2.1.3 Whitespace Consistency & Clean Layout Rhythm
+- **Single Blank Line Between Members:** Maintain a consistent 1-blank-line rhythm between methods, properties, and constructors. **NEVER** leave two or more consecutive blank lines (`\n\n\n`).
+- **Zero Blank Lines at Boundaries:** Do NOT leave blank lines immediately after opening braces `{` or immediately before closing braces `}` of classes, records, or methods.
+- **Zero Trailing Whitespace:** Lines must not contain trailing spaces or tabs.
+- **Zero Dead Code:** Never leave commented-out code blocks, unused local variables, or debug artifacts (`Console.WriteLine`).
+
+#### 2.1.4 Language Idioms & Safety
 - **Primary Constructors for DI:** Use primary constructors for dependency injection across UseCases, Controllers, and Services to eliminate boilerplate fields:
   ```csharp
   public sealed class CreateTemplateUseCase(
@@ -45,6 +76,48 @@
     var template = await templateRepo.GetByIdAsync(id, ct)
         ?? throw new NotFoundException($"Template '{id}' not found.");
     ```
+#### 2.1.5 Strict Pure DDD Domain Entity Standards (ADR-023 — Reference: Template.cs)
+Domain Entities in `SmkDoc.Domain/Entities/` must strictly adhere to pure DDD principles:
+1. **Single Canonical Factory Method (SSoT):**
+   - Entities must define exactly **one public `Create` factory method**.
+   - Parameters must be strongly-typed **Value Objects only** (e.g., `TemplateName`, `TemplateSlug`).
+   - Requires explicit, deterministic timestamp (`DateTimeOffset now`).
+   - **Zero Primitive Overloads:** Never declare `Create(string name, string slug)` in the Entity. Application UseCases are responsible for converting DTO primitives to Value Objects.
+2. **Zero Test-Specific Backdoors in Domain:**
+   - **Never declare `CreateForTest`** inside `SmkDoc.Domain.dll`.
+   - Test instantiations with custom `Id` or pre-populated state belong in `SmkDoc.Tests/Common/Builders/` (`*Builder`) or `Factories/` (`*TestFactory`).
+3. **Internal Parameterized Constructor:**
+   - The parameterized constructor is `internal`, granting instantiation access exclusively to `SmkDoc.Domain` and `SmkDoc.Tests` via `[assembly: InternalsVisibleTo("SmkDoc.Tests")]`.
+   - The parameterless constructor is `private` for EF Core materialization only.
+4. **Canonical Entity Template (`Template.cs` Reference):**
+   ```csharp
+   public sealed class Template : BaseEntity, IMustHaveProject
+   {
+       public Guid ProjectId { get; private set; }
+       public TemplateName Name { get; private set; } = null!;
+       public TemplateSlug Slug { get; private set; } = null!;
+       public string? Category { get; private set; }
+       public bool IsActive { get; private set; }
+
+       // Private EF Core ctor
+       private Template() { }
+
+       // Internal ctor accessible to Test Builders via InternalsVisibleTo
+       internal Template(Guid? id, Guid projectId, TemplateName name, TemplateSlug slug, string? category, DateTimeOffset now)
+           : base(id, createdAt: now)
+       {
+           ProjectId = Guard.NotEmpty(projectId, nameof(ProjectId));
+           Name = Guard.NotNull(name, nameof(Name));
+           Slug = Guard.NotNull(slug, nameof(Slug));
+           Category = string.IsNullOrWhiteSpace(category) ? null : category.Trim();
+           IsActive = true;
+       }
+
+       // Single Canonical Factory Method
+       public static Template Create(Guid projectId, TemplateName name, TemplateSlug slug, string? category, DateTimeOffset now) =>
+           new(null, projectId, name, slug, category, now);
+   }
+   ```
 
 ### 2.2 DTOs & Positional Records
 - All DTOs in `SmkDoc.Application/DTOs/` MUST be **immutable positional records**:

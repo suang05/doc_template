@@ -1,6 +1,7 @@
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects;
 
 namespace SmkDoc.Application.Modules.Rendering.Documents.Services;
 
@@ -8,12 +9,14 @@ public sealed class DocumentVersioningService(
     IRepository<Document> documentRepo,
     IRepository<DocumentVersion> docVersionRepo,
     IExecutionContext executionContext,
-    IUnitOfWork unitOfWork) : IDocumentVersioningService
+    IUnitOfWork unitOfWork,
+    TimeProvider? timeProvider = null) : IDocumentVersioningService
 {
     private readonly IRepository<Document> _documentRepo = documentRepo;
     private readonly IRepository<DocumentVersion> _docVersionRepo = docVersionRepo;
     private readonly IExecutionContext _executionContext = executionContext;
     private readonly IUnitOfWork _unitOfWork = unitOfWork;
+    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
 
     public async Task RecordVersionAsync(
         string documentRef,
@@ -28,7 +31,7 @@ public sealed class DocumentVersioningService(
 
         if (document is null)
         {
-            document = new Document(documentRef, templateId);
+            document = Document.Create(DocumentReference.Create(documentRef), templateId, _timeProvider.GetUtcNow());
             await _documentRepo.AddAsync(document, ct);
         }
 
@@ -38,13 +41,14 @@ public sealed class DocumentVersioningService(
             int currentMax = await _docVersionRepo.MaxOrDefaultAsync(
                 v => v.DocumentId == document.Id, v => v.Version, 0, ct);
 
-            var docVersion = new DocumentVersion(
+            var docVersion = DocumentVersion.Create(
                 document.Id,
                 currentMax + 1,
                 currentVersionId,
                 generationId,
                 changeNote,
-                _executionContext.CallerApp);
+                _executionContext.CallerApp,
+                _timeProvider.GetUtcNow());
 
             try
             {

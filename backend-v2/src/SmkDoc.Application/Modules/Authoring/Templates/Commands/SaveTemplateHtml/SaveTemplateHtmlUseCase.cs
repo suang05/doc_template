@@ -14,7 +14,8 @@ public class SaveTemplateHtmlUseCase(
     IStorageService storageService,
     IUnitOfWork unitOfWork,
     IExecutionContext executionContext,
-    ISchemaInferenceService schemaInferenceService) : IHtmlPersistenceUseCase
+    ISchemaInferenceService schemaInferenceService,
+    TimeProvider? timeProvider = null) : IHtmlPersistenceUseCase
 {
     private readonly ITemplateRepository _templateRepo = templateRepo;
     private readonly IRepository<TemplateVersion> _versionRepo = versionRepo;
@@ -22,6 +23,7 @@ public class SaveTemplateHtmlUseCase(
     private readonly IUnitOfWork _unitOfWork = unitOfWork;
     private readonly IExecutionContext _executionContext = executionContext;
     private readonly ISchemaInferenceService _schemaInferenceService = schemaInferenceService;
+    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
 
     public async Task<int> SaveHtmlVersionAsync(Guid templateId, SaveTemplateHtmlCommand request, CancellationToken ct = default)
     {
@@ -56,13 +58,21 @@ public class SaveTemplateHtmlUseCase(
             : request.SamplePayload;
 
         // 3. Create new database version record
-        var newVersion = new TemplateVersion(template.Id, nextVersionNumber, versionedKey, TemplateFormat.Html, _executionContext.CallerApp ?? "developer", request.ChangeNote);
-        newVersion.UpdateDataSchema(inferredSchema, finalSamplePayload);
-        newVersion.Publish();
+        var now = _timeProvider.GetUtcNow();
+        var newVersion = TemplateVersion.Draft(
+            template.Id,
+            nextVersionNumber,
+            versionedKey,
+            TemplateFormat.Html,
+            _executionContext.CallerApp ?? "developer",
+            now,
+            request.ChangeNote);
+        newVersion.UpdateDataSchema(inferredSchema, finalSamplePayload, now);
+        newVersion.Publish(now);
         await _versionRepo.AddAsync(newVersion, ct);
 
         // 4. Update template active pointer and timestamp
-        template.SetCurrentVersion(newVersion.Id);
+        template.SetCurrentVersion(newVersion.Id, now);
         _templateRepo.Update(template);
 
         await _unitOfWork.CommitAsync(ct);

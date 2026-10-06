@@ -8,6 +8,7 @@ using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects;
 using Xunit;
 
 namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Projects;
@@ -23,8 +24,9 @@ public class ProjectUseCaseTests
     public async Task CreateProject_WhenSlugExists_ThrowsConflictException()
     {
         // Arrange
+        var now = DateTimeOffset.UtcNow;
         var command = new CreateProjectCommand(Guid.NewGuid(), "Existing Project", "existing-slug");
-        var existingProject = new Project(Guid.NewGuid(), "Existing Project", "existing-slug");
+        var existingProject = Project.Create(Guid.NewGuid(), ProjectName.Create("Existing Project"), TemplateSlug.Create("existing-slug"), now);
 
         _projectRepoMock.Setup(r => r.GetBySlugAsync("existing-slug", It.IsAny<CancellationToken>()))
             .ReturnsAsync(existingProject);
@@ -44,8 +46,9 @@ public class ProjectUseCaseTests
     public async Task CreateProject_WhenValid_CreatesProjectAndAssignsAdminRole()
     {
         // Arrange
+        var now = DateTimeOffset.UtcNow;
         var userId = Guid.NewGuid();
-        var company = new Company("Test Company");
+        var company = Company.Create(CompanyName.Create("Test Company"), now);
         var command = new CreateProjectCommand(userId, "New Project", "new-project");
 
         _projectRepoMock.Setup(r => r.GetBySlugAsync("new-project", It.IsAny<CancellationToken>()))
@@ -87,15 +90,16 @@ public class ProjectUseCaseTests
     public async Task ListProjects_ReturnsOnlyActiveProjectsForUser()
     {
         // Arrange
+        var now = DateTimeOffset.UtcNow;
         var userId = Guid.NewGuid();
-        var p1 = new Project(Guid.NewGuid(), "Proj 1", "proj-1");
-        var p2 = new Project(Guid.NewGuid(), "Proj 2", "proj-2");
-        p2.Deactivate();
+        var p1 = Project.Create(Guid.NewGuid(), ProjectName.Create("Proj 1"), TemplateSlug.Create("proj-1"), now);
+        var p2 = Project.Create(Guid.NewGuid(), ProjectName.Create("Proj 2"), TemplateSlug.Create("proj-2"), now);
+        p2.Deactivate(now);
 
         var roles = new List<UserProjectRole>
         {
-            new(userId, p1.Id, RoleType.Admin),
-            new(userId, p2.Id, RoleType.Viewer)
+            UserProjectRole.Create(userId, p1.Id, RoleType.Admin, now),
+            UserProjectRole.Create(userId, p2.Id, RoleType.Viewer, now)
         };
 
         _roleRepoMock.Setup(r => r.ListByUserAsync(userId, It.IsAny<CancellationToken>()))

@@ -7,6 +7,7 @@ using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects;
 
 namespace SmkDoc.Application.Modules.Authoring.Templates.Commands.CreateTemplate;
 
@@ -21,7 +22,8 @@ public sealed class CreateTemplateUseCase(
     IDocxSecurityScanner securityScanner,
     IExecutionContext executionContext,
     IUnitOfWork unitOfWork,
-    IValidator<CreateTemplateCommand> validator) : IUseCase<CreateTemplateCommand, TemplateResultDto>
+    IValidator<CreateTemplateCommand> validator,
+    TimeProvider? timeProvider = null) : IUseCase<CreateTemplateCommand, TemplateResultDto>
 {
     private readonly ITemplateRepository _templateRepo = templateRepo;
     private readonly IRepository<TemplateVersion> _versionRepo = versionRepo;
@@ -30,6 +32,7 @@ public sealed class CreateTemplateUseCase(
     private readonly IExecutionContext _executionContext = executionContext;
     private readonly IUnitOfWork _unitOfWork = unitOfWork;
     private readonly IValidator<CreateTemplateCommand> _validator = validator;
+    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
 
     public async Task<TemplateResultDto> ExecuteAsync(CreateTemplateCommand command, CancellationToken ct = default)
     {
@@ -90,28 +93,30 @@ public sealed class CreateTemplateUseCase(
         }
 
         // 4. Domain Entity Instantiation (Encapsulated invariants)
-        var template = new Template(
-            projectId: command.ProjectId,
-            name: command.Name.Trim(),
-            slug: command.Slug.Trim().ToLowerInvariant(),
-            category: command.Category?.Trim()
-        );
+        var now = _timeProvider.GetUtcNow();
+        var template = Template.Create(
+            command.ProjectId,
+            TemplateName.Create(command.Name),
+            TemplateSlug.Create(command.Slug),
+            command.Category?.Trim(),
+            now);
         await _templateRepo.AddAsync(template, ct);
         await _unitOfWork.CommitAsync(ct);
 
-        var initialVersion = new TemplateVersion(
+        var initialVersion = TemplateVersion.Draft(
             template.Id,
             1,
             storageKey,
             fileFormat,
             _executionContext.CallerApp ?? "system",
+            now,
             "Initial version");
 
-        initialVersion.Publish();
+        initialVersion.Publish(now);
         await _versionRepo.AddAsync(initialVersion, ct);
         await _unitOfWork.CommitAsync(ct);
 
-        template.SetCurrentVersion(initialVersion.Id);
+        template.SetCurrentVersion(initialVersion.Id, now);
         _templateRepo.Update(template);
         await _unitOfWork.CommitAsync(ct);
 

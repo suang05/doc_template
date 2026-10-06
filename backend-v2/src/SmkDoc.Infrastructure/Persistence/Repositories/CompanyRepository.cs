@@ -23,6 +23,11 @@ public sealed class CompanyRepository(AppDbContext context) : ICompanyRepository
         return await _context.Companies.ToListAsync(ct);
     }
 
+    public async Task<bool> ExistsByNameAsync(SmkDoc.Domain.ValueObjects.CompanyName name, CancellationToken ct = default)
+    {
+        return await _context.Companies.AnyAsync(c => c.Name == name, ct);
+    }
+
     public async Task AddAsync(Company company, CancellationToken ct = default)
     {
         await _context.Companies.AddAsync(company, ct);

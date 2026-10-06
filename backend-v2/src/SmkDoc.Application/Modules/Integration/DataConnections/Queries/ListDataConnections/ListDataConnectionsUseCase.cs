@@ -18,7 +18,7 @@ public sealed class ListDataConnectionsUseCase(
         {
             Id = c.Id,
             Name = c.Name,
-            Provider = c.Provider,
+            Provider = c.Provider.Name,
             CreatedAt = c.CreatedAt,
             UpdatedAt = c.UpdatedAt
         }).ToList();

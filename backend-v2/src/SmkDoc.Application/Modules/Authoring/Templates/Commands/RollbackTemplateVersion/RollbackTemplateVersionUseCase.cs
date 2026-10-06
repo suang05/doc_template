@@ -16,13 +16,15 @@ public sealed class RollbackTemplateVersionUseCase(
     IRepository<TemplateVersion> versionRepo,
     IStorageService storageService,
     IExecutionContext executionContext,
-    IUnitOfWork unitOfWork) : IUseCase<RollbackTemplateVersionCommand, int>
+    IUnitOfWork unitOfWork,
+    TimeProvider? timeProvider = null) : IUseCase<RollbackTemplateVersionCommand, int>
 {
     private readonly ITemplateRepository _templateRepo = templateRepo;
     private readonly IRepository<TemplateVersion> _versionRepo = versionRepo;
     private readonly IStorageService _storageService = storageService;
     private readonly IExecutionContext _executionContext = executionContext;
     private readonly IUnitOfWork _unitOfWork = unitOfWork;
+    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
 
     public async Task<int> ExecuteAsync(RollbackTemplateVersionCommand command, CancellationToken ct = default)
     {
@@ -51,18 +53,20 @@ public sealed class RollbackTemplateVersionUseCase(
 
         await _storageService.UploadAsync(StorageBuckets.Templates, versionedKey, memoryStream, contentType, ct);
 
-        var newVersion = new TemplateVersion(
+        var now = _timeProvider.GetUtcNow();
+        var newVersion = TemplateVersion.Draft(
             template.Id,
             nextVersionNumber,
             versionedKey,
             archived.FileFormat,
             _executionContext.CallerApp ?? "system",
+            now,
             $"Rollback to v{command.TargetVersion}");
 
-        newVersion.Publish();
+        newVersion.Publish(now);
         await _versionRepo.AddAsync(newVersion, ct);
 
-        template.SetCurrentVersion(newVersion.Id);
+        template.SetCurrentVersion(newVersion.Id, now);
         _templateRepo.Update(template);
 
         await _unitOfWork.CommitAsync(ct);

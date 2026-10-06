@@ -13,11 +13,13 @@ namespace SmkDoc.Application.Modules.Authoring.Templates.Commands.ActivateTempla
 public sealed class ActivateTemplateVersionUseCase(
     ITemplateRepository templateRepo,
     IRepository<TemplateVersion> versionRepo,
-    IUnitOfWork unitOfWork) : IUseCase<ActivateTemplateVersionCommand, TemplateResultDto>
+    IUnitOfWork unitOfWork,
+    TimeProvider? timeProvider = null) : IUseCase<ActivateTemplateVersionCommand, TemplateResultDto>
 {
     private readonly ITemplateRepository _templateRepo = templateRepo;
     private readonly IRepository<TemplateVersion> _versionRepo = versionRepo;
     private readonly IUnitOfWork _unitOfWork = unitOfWork;
+    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
 
     public async Task<TemplateResultDto> ExecuteAsync(ActivateTemplateVersionCommand command, CancellationToken ct = default)
     {
@@ -35,8 +37,9 @@ public sealed class ActivateTemplateVersionUseCase(
         }
 
         // 3. Domain Invariants Execution
-        template.SetCurrentVersion(version.Id);
-        template.Activate();
+        var now = _timeProvider.GetUtcNow();
+        template.SetCurrentVersion(version.Id, now);
+        template.Activate(now);
 
         // 4. Persistence & Atomic Commit
         _templateRepo.Update(template);

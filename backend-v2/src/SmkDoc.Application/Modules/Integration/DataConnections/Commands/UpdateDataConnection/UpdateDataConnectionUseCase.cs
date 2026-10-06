@@ -1,6 +1,9 @@
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Integration.DataConnections.DTOs;
+using SmkDoc.Domain.Common;
+using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects;
 
 namespace SmkDoc.Application.Modules.Integration.DataConnections.Commands.UpdateDataConnection;
 
@@ -13,11 +16,13 @@ public record UpdateDataConnectionCommand(
 public sealed class UpdateDataConnectionUseCase(
     IDataConnectionRepository repository,
     IUnitOfWork unitOfWork,
-    IDataProtectionService dataProtection) : IUseCase<UpdateDataConnectionCommand, DataConnectionDto?>
+    IDataProtectionService dataProtection,
+    TimeProvider? timeProvider = null) : IUseCase<UpdateDataConnectionCommand, DataConnectionDto?>
 {
     private readonly IDataConnectionRepository _repository = repository;
     private readonly IUnitOfWork _unitOfWork = unitOfWork;
     private readonly IDataProtectionService _dataProtection = dataProtection;
+    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
 
     public async Task<DataConnectionDto?> ExecuteAsync(UpdateDataConnectionCommand command, CancellationToken ct = default)
     {
@@ -28,7 +33,12 @@ public sealed class UpdateDataConnectionUseCase(
             ? entity.EncryptedConnectionString
             : _dataProtection.Encrypt(command.ConnectionString);
 
-        entity.UpdateConnection(command.Name, command.Provider, encryptedCs);
+        var now = _timeProvider.GetUtcNow();
+        entity.UpdateConnection(
+            ConnectionName.Create(command.Name),
+            Enumeration.FromDisplayName<DatabaseProvider>(command.Provider),
+            encryptedCs,
+            now);
 
         _repository.Update(entity);
         await _unitOfWork.CommitAsync(ct);
@@ -36,8 +46,8 @@ public sealed class UpdateDataConnectionUseCase(
         return new DataConnectionDto
         {
             Id = entity.Id,
-            Name = entity.Name,
-            Provider = entity.Provider,
+            Name = entity.Name.Value,
+            Provider = entity.Provider.Name,
             CreatedAt = entity.CreatedAt,
             UpdatedAt = entity.UpdatedAt
         };

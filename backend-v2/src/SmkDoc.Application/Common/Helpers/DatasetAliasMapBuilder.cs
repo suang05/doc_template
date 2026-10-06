@@ -35,7 +35,7 @@ public static class DatasetAliasMapBuilder
             try
             {
                 var cs = dataProtection.Decrypt(connection.EncryptedConnectionString);
-                result[td.Alias] = new ResolvedDatasetContext(connection.Provider, cs, dataset.SqlQuery);
+                result[td.Alias.Value] = new ResolvedDatasetContext(connection.Provider.Name, cs, dataset.SqlQuery);
             }
             catch { /* skip if decryption fails */ }
         }

@@ -6,6 +6,7 @@ using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects;
 
 namespace SmkDoc.Application.Modules.IdentityAccess.Users.Commands.InviteUser;
 
@@ -14,13 +15,15 @@ public sealed class InviteUserUseCase(
     IUserProjectRoleRepository roleRepo,
     IPasswordHasher passwordHasher,
     IUnitOfWork uow,
-    IValidator<InviteUserCommand> validator) : IUseCase<InviteUserCommand, UserResultDto>
+    IValidator<InviteUserCommand> validator,
+    TimeProvider? timeProvider = null) : IUseCase<InviteUserCommand, UserResultDto>
 {
     private readonly IUserRepository _userRepo = userRepo;
     private readonly IUserProjectRoleRepository _roleRepo = roleRepo;
     private readonly IPasswordHasher _passwordHasher = passwordHasher;
     private readonly IUnitOfWork _uow = uow;
     private readonly IValidator<InviteUserCommand> _validator = validator;
+    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
 
     public async Task<UserResultDto> ExecuteAsync(InviteUserCommand command, CancellationToken ct = default)
     {
@@ -32,6 +35,7 @@ public sealed class InviteUserUseCase(
 
         var roleType = Enumeration.FromDisplayName<RoleType>(command.Role);
         var normalizedEmail = command.Email.Trim().ToLowerInvariant();
+        var now = _timeProvider.GetUtcNow();
 
         var existingUser = await _userRepo.GetByEmailAsync(normalizedEmail, ct);
         if (existingUser != null)
@@ -42,7 +46,7 @@ public sealed class InviteUserUseCase(
                 throw new ConflictException($"User '{normalizedEmail}' is already a member of this project.");
             }
 
-            var newRole = new UserProjectRole(existingUser.Id, command.ProjectId, roleType);
+            var newRole = UserProjectRole.Create(existingUser.Id, command.ProjectId, roleType, now);
             await _roleRepo.AddAsync(newRole, ct);
             await _uow.CommitAsync(ct);
 
@@ -63,15 +67,16 @@ public sealed class InviteUserUseCase(
                 "Password must be at least 8 characters.");
         }
 
-        var newUser = new User(
-            normalizedEmail,
+        var newUser = User.Register(
+            EmailAddress.Create(normalizedEmail),
             _passwordHasher.HashPassword(command.Password),
             command.FirstName,
-            command.LastName
+            command.LastName,
+            now
         );
 
         await _userRepo.AddAsync(newUser, ct);
-        await _roleRepo.AddAsync(new UserProjectRole(newUser.Id, command.ProjectId, roleType), ct);
+        await _roleRepo.AddAsync(UserProjectRole.Create(newUser.Id, command.ProjectId, roleType, now), ct);
         await _uow.CommitAsync(ct);
 
         return new UserResultDto(

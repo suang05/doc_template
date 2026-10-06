@@ -2,7 +2,9 @@ using FluentAssertions;
 using Moq;
 using SmkDoc.Application.Modules.Integration.Datasets.Commands.CreateDataset;
 using SmkDoc.Domain.Entities;
+using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
+using SmkDoc.Tests.Common.Factories;
 using SmkDoc.Tests.Common.Fixtures;
 using Xunit;
 
@@ -19,7 +21,7 @@ public class CreateDatasetUseCaseTests
     public async Task ExecuteAsync_ShouldPersistDatasetAndReturnDto()
     {
         var connId = Guid.NewGuid();
-        var conn = new DataConnection("DB1", "SqlServer", "enc_db1", id: connId);
+        var conn = DataConnectionTestFactory.Create(connId, "DB1", DatabaseProvider.SqlServer, "enc_db1");
         var command = new CreateDatasetCommand("OrdersSet", "desc", connId, "SELECT * FROM orders", 60);
 
         _fixture.ConnectionRepo.Setup(r => r.GetByIdAsync(connId, It.IsAny<CancellationToken>()))
@@ -32,7 +34,7 @@ public class CreateDatasetUseCaseTests
         result.CacheSeconds.Should().Be(60);
 
         _fixture.DatasetRepo.Verify(r => r.AddAsync(It.Is<Dataset>(d =>
-            d.Name == "OrdersSet" &&
+            d.Name.Value == "OrdersSet" &&
             d.DataConnectionId == connId &&
             d.CacheSeconds == 60), It.IsAny<CancellationToken>()), Times.Once);
         _fixture.UnitOfWork.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);

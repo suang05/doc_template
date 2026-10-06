@@ -1,4 +1,5 @@
 using SmkDoc.Domain.Entities;
+using SmkDoc.Tests.Common.Factories;
 
 namespace SmkDoc.Tests.Common.Builders;
 
@@ -56,17 +57,16 @@ public class TemplateBuilder
 
     public Template Build()
     {
-        var template = new Template(_projectId, _name, _slug, _description, id: _id);
-
-        if (_currentVersionId.HasValue)
-        {
-            template.SetCurrentVersion(_currentVersionId.Value);
-        }
-
-        if (!_isActive)
-        {
-            template.Deactivate();
-        }
+        var now = DateTimeOffset.UtcNow;
+        var template = TemplateTestFactory.Create(
+            id: _id,
+            projectId: _projectId,
+            name: _name,
+            slug: _slug,
+            category: _description,
+            now: now,
+            isActive: _isActive,
+            currentVersionId: _currentVersionId);
 
         return template;
     }

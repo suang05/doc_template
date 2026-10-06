@@ -3,7 +3,9 @@ using Moq;
 using SmkDoc.Application.Modules.Integration.Datasets.DTOs;
 using SmkDoc.Application.Modules.Integration.Datasets;
 using SmkDoc.Domain.Entities;
+using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
+using SmkDoc.Tests.Common.Factories;
 using SmkDoc.Tests.Common.Fixtures;
 using Xunit;
 
@@ -24,8 +26,8 @@ public class DatasetUseCaseTests
     public async Task GetAllAsync_ShouldReturnAllDatasetsWithConnectionName()
     {
         var connId  = Guid.NewGuid();
-        var conn    = new DataConnection("ProdDB", "PostgreSQL", "enc_prod", id: connId);
-        var dataset = new Dataset("Orders", null, connId, "SELECT * FROM orders", 0);
+        var conn    = DataConnectionTestFactory.Create(connId, "ProdDB", DatabaseProvider.PostgreSQL, "enc_prod");
+        var dataset = DatasetTestFactory.Create(name: "Orders", dataConnectionId: connId, sqlQuery: "SELECT * FROM orders", cacheSeconds: 0);
 
         _fixture.DatasetRepo.Setup(r => r.ListAsync(It.IsAny<CancellationToken>()))
                     .ReturnsAsync(new List<Dataset> { dataset });
@@ -45,7 +47,7 @@ public class DatasetUseCaseTests
     public async Task CreateAsync_ShouldPersistDatasetAndReturnDto()
     {
         var connId = Guid.NewGuid();
-        var conn   = new DataConnection("DB1", "SqlServer", "enc_db1", id: connId);
+        var conn   = DataConnectionTestFactory.Create(connId, "DB1", DatabaseProvider.SqlServer, "enc_db1");
         var dto    = new CreateDatasetDto
         {
             Name             = "InvoiceSet",
@@ -63,7 +65,7 @@ public class DatasetUseCaseTests
         result.CacheSeconds.Should().Be(60);
         result.DataConnectionName.Should().Be("DB1");
         _fixture.DatasetRepo.Verify(r => r.AddAsync(It.Is<Dataset>(d =>
-            d.Name             == "InvoiceSet" &&
+            d.Name.Value       == "InvoiceSet" &&
             d.DataConnectionId == connId        &&
             d.CacheSeconds     == 60), It.IsAny<CancellationToken>()), Times.Once);
         _fixture.UnitOfWork.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
@@ -90,7 +92,7 @@ public class DatasetUseCaseTests
     [Fact]
     public async Task DeleteAsync_WhenExists_ShouldReturnTrue()
     {
-        var entity = new Dataset("DS", null, Guid.NewGuid(), "SELECT 1", 0);
+        var entity = DatasetTestFactory.Create(name: "DS", dataConnectionId: Guid.NewGuid(), sqlQuery: "SELECT 1", cacheSeconds: 0);
         _fixture.DatasetRepo.Setup(r => r.GetByIdAsync(entity.Id, It.IsAny<CancellationToken>())).ReturnsAsync(entity);
 
         var result = await CreateSut().DeleteAsync(entity.Id);

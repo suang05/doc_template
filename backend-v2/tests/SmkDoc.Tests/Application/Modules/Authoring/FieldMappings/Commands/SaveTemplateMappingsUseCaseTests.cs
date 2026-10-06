@@ -5,6 +5,7 @@ using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Tests.Common.Factories;
 using Xunit;
 
 namespace SmkDoc.Tests.Application.Modules.Authoring.FieldMappings.Commands;
@@ -21,7 +22,7 @@ public class SaveTemplateMappingsUseCaseTests
     public async Task ExecuteAsync_ShouldSaveMappingsAndCommit()
     {
         var templateId = Guid.NewGuid();
-        var template = new Template(Guid.NewGuid(), "Contract", "contract", null, id: templateId);
+        var template = TemplateTestFactory.Create(templateId, Guid.NewGuid(), "Contract", "contract");
 
         _templateRepo.Setup(r => r.GetByIdAsync(templateId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);

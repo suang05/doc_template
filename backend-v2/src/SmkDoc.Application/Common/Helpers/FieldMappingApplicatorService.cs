@@ -38,13 +38,13 @@ public sealed class FieldMappingApplicatorService(
 
         // ── Pass 1b: sql — group by alias, execute each query once ────────
         var sqlMappings = ordered
-            .Where(m => m.DataSourceType == DataSourceType.Sql && !string.IsNullOrWhiteSpace(m.DatasetAlias))
+            .Where(m => m.DataSourceType == DataSourceType.Sql && m.DatasetAlias != null)
             .ToList();
 
         // Cache: alias → parsed JSON result
         var aliasCache = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var alias in sqlMappings.Select(m => m.DatasetAlias!).Distinct(StringComparer.OrdinalIgnoreCase))
+        foreach (var alias in sqlMappings.Select(m => m.DatasetAlias!.Value).Distinct(StringComparer.OrdinalIgnoreCase))
         {
             if (!datasetAliases.TryGetValue(alias, out var ds)) continue;
 
@@ -63,7 +63,7 @@ public sealed class FieldMappingApplicatorService(
         foreach (var mapping in sqlMappings)
         {
             string? val = null;
-            if (aliasCache.TryGetValue(mapping.DatasetAlias!, out var resultEl))
+            if (mapping.DatasetAlias != null && aliasCache.TryGetValue(mapping.DatasetAlias.Value, out var resultEl))
             {
                 val = string.IsNullOrWhiteSpace(mapping.ResultPath)
                     ? ExtractFirstScalar(resultEl)
