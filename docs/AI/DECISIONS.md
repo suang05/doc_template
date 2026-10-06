@@ -204,7 +204,7 @@
 
 **Date:** September 2026 | **Status:** Accepted
 
-**Decision:** ปรับปรุงโครงสร้างและมาตรฐานชุดการทดสอบทั้งหมดของ `SmkDoc.Tests` (230 tests):
+**Decision:** ปรับปรุงโครงสร้างและมาตรฐานชุดการทดสอบทั้งหมดของ `SmkDoc.Tests` (Unit & Integration Test Suite):
 1. **Mirroring Clean Architecture (1:1 Folders & Namespaces):** ย้ายไฟล์เทสต์ทั้งหมดจาก Root เข้าสู่โครงสร้างตามชั้นสถาปัตยกรรม (`Domain/`, `Application/`, `Infrastructure/`, `Api/`, `Integration/`, `Common/`) พร้อมจัด namespace ให้ตรงกับ directory
 2. **Single Responsibility Principle (SRP):** แยกการทดสอบข้าม Layer เช่น ย้าย `GlobalExceptionFilter` ออกจาก `DomainExceptionTests` ไปยัง `Api/Filters/GlobalExceptionFilterTests.cs` และย่อย `DomainOptimizationTests` เป็น `EnumerationTests`, `BaseEntityTests`, และ `ValueObjectTests`
 3. **FluentAssertions Single Source of Truth (SSoT):** บังคับใช้ FluentAssertions 100% ขจัด xUnit `Assert.*` ทั้งหมด และกำหนดมาตรฐาน Exception testing ผ่าน `FluentActions.Invoking(...)`
@@ -475,14 +475,14 @@
 **Consequences & Verification:**
 - Domain Layer เป็น Pure C# POCOs 100% ไร้การพึ่งพา external dependencies
 - เพิ่มชุดทดสอบ Unit Tests สำหรับ Value Objects และ Entities โดยเฉพาะ
-- การทดสอบ backend ทั้งหมด 617/617 tests ผ่าน 100% (0 errors, 0 warnings)
-- การทดสอบ frontend ทั้งหมด 133/133 tests และ Next.js production build ผ่าน 100%
+- การทดสอบ backend และ frontend ทั้งหมดผ่าน 100% (0 errors, 0 warnings, zero tolerated failures)
+- Next.js production build สำเร็จสมบูรณ์
 
 ---
 
-## ADR-023: Strict Pure DDD Domain Entity Standards — Single Canonical Factory & Zero Test Backdoors in Production Domain (Reference Model: Template.cs)
+## ADR-023: Strict Pure DDD Domain Entity Standards — Single Canonical Factory & Zero Test Backdoors in Production Domain (System-Wide Rollout Across All Domain Entities)
 
-**Date:** October 2026 | **Status:** Accepted (Template.cs Reference Model Implemented & Verified)
+**Date:** October 2026 | **Status:** Accepted (Fully Rolled Out Across All Domain Entities & Verified)
 
 **Context & Problem:**
 - ใน ADR-022 แม้ Entity จะถูกปรับเป็น Rich Domain Model แต่ยังพบ **Architectural Smells**:
@@ -492,26 +492,63 @@
 
 **Decision:**
 1. **Single Canonical Factory Method (SSoT):**
-   - แต่ละ Entity ต้องมี **1 public `Create` factory method เท่านั้น**
-   - พารามิเตอร์ต้องเป็น **Strongly-Typed Value Objects** (เช่น `TemplateName`, `TemplateSlug`) และ **บังคับส่ง `DateTimeOffset now`** เพื่อความ deterministic 100%
+   - แต่ละ Entity ต้องมี **1 canonical factory method เท่านั้น** (เช่น `Create`, `Register`, `Draft`, `Issue`, หรือ specialized `CreateSuccess`/`CreateFailure` บน `GenerationLog`)
+   - พารามิเตอร์ต้องเป็น **Strongly-Typed Value Objects** (เช่น `TemplateName`, `TemplateSlug`, `CompanyName`, `ProjectName`, `DatasetAlias`, `DocumentReference`, `EmailAddress`, `Sha256Hash`) และ **บังคับส่ง `DateTimeOffset now`** เพื่อความ deterministic 100%
    - **ห้ามมี Primitive Convenience Overloads** ใน Domain Entity — หน้าที่การแปลง DTO primitive เป็น Value Objects เป็นของ Application UseCases
-2. **Zero Test Backdoors in Domain:**
-   - **ห้ามมี `CreateForTest` ภายใน `SmkDoc.Domain.dll` โดยเด็ดขาด**
+2. **Mandatory Deterministic Time on All State Mutations:**
+   - ทุกเมธอดที่เปลี่ยนสถานะ (`Activate`, `Deactivate`, `Update*`, `Publish`, `Archive`, `Assign*`, `Remove*`) ต้องรับ `DateTimeOffset now` จาก Application UseCase และเรียก `SetUpdated(now)` โดยห้าม fallback ไปยัง `UtcNow` ภายใน Domain
+3. **Zero Test Backdoors in Domain:**
+   - **ห้ามมี `CreateForTest` และ optional `Guid? id = null` ภายใน `SmkDoc.Domain.dll` โดยเด็ดขาด**
    - การสร้าง Entity สำหรับทดสอบต้องทำผ่าน `*Builder` หรือ `*TestFactory` ในโปรเจกต์ `SmkDoc.Tests` เท่านั้น
-3. **Internal Parameterized Constructor:**
+4. **Internal Parameterized Constructor:**
    - Parameterized constructor ของ Entity ถูกกำหนดเป็น `internal` โดยเปิดให้ `SmkDoc.Tests` เข้าถึงได้ผ่าน `[assembly: InternalsVisibleTo("SmkDoc.Tests")]` ใน `AssemblyInfo.cs`
    - Parameterless constructor เป็น `private` สำหรับ EF Core materialization เท่านั้น
-4. **Reference Implementation (`Template.cs`):**
-   - ปรับใช้ใน `Template.cs` เป็นแม่แบบมาตรฐาน พร้อมสร้าง `TemplateTestFactory.cs` และอัปเดต `TemplateBuilder.cs` ใน `SmkDoc.Tests`
-   - ปรับ UseCases (`CreateTemplateUseCase`, `CommitTemplateDraftUseCase`) ให้ map Value Objects ก่อนเรียก Entity
+5. **System-Wide Rollout (All Domain Entities & Dedicated Test Factories):**
+   - **Slice 1 (Tenant & Identity):** `Company`, `Project`, `User`, `UserProjectRole`
+   - **Slice 2 (Integration):** `DataConnection`, `Dataset`
+   - **Slice 3 (Authoring):** `Template`, `TemplateVersion`, `FieldMapping`, `TemplateDataset`
+   - **Slice 4 (Rendering & Audit):** `ApiKey`, `Document`, `DocumentVersion`, `GenerationLog`
+   - สร้าง Dedicated Test Factories ภายใต้ `backend-v2/tests/SmkDoc.Tests/Common/Factories/` (`*TestFactory`) ครอบคลุมทุก Entity
 
 **Consequences & Verification:**
 - Domain Layer สะอาดหมดจด มีเพียง Ubiquitous Language และ Invariants ทางธุรกิจจริง
 - Production Assembly ปราศจาก Test methods 100%
-- Build `dotnet build SmkDocServerV2.slnx --warnaserror` สำเร็จ 0 Warnings, 0 Errors
-- Unit & Integration Tests ทั้งหมด 617/617 backend tests และ 133/133 frontend tests ผ่าน 100%
+- Build `dotnet build SmkDocServerV2.slnx` สำเร็จ 0 Warnings, 0 Errors ใน application code
+- Zero Database Schema Migrations — เข้ากันได้กับ EF Core mapping เดิม 100%
 
+---
 
+## ADR-024: Test Suite Segregation, 1:1 CQRS Parity & The 6 Clean Testing Pillars
 
+**Status:** Accepted (2026-10-06)
 
+**Context:**
+1. **Monolithic Test Classes & Dumping Grounds:** มีไฟล์เทสต์ขนาดใหญ่ที่รวมหลาย UseCases ไว้ในคลาสเดียว (`ProjectUseCaseTests`, `ApiKeyUseCaseTests`, `DocumentVersionUseCaseTests`, `DataConnectionUseCaseTests`, `DatasetUseCaseTests`, `FieldMappingUseCaseTests`, `CommandValidatorsTests`) และไฟล์ทดสอบแบบ dumping ground (`DomainInvariantTests`, `EntityEncapsulationTests`) ทำให้ผิดหลัก Single Responsibility Principle
+2. **Misplaced & Obsolete Test Classes:** ไฟล์ทดสอบ DataConnection วางปะปนในโฟลเดอร์ Datasets และเรียกใช้ Obsolete service (`DataConnectionUseCase`, `DatasetUseCase`)
+3. **Mixed I/O Concerns:** ไฟล์ Document Generator และ Performance Benchmark ที่เขียนไฟล์ลงดิสก์จริงและใช้ OpenXML วางปะปนอยู่ใน `SmkDoc.Tests` ส่งผลให้เกิด Namespace Collision ระหว่าง `SmkDoc.Domain.Entities.Document` กับ `DocumentFormat.OpenXml.Wordprocessing.Document` และทำให้ Unit Test มี Disk I/O
+4. **Flaky Time & Ad-hoc Instantiations:** มีการเรียกใช้ `DateTimeOffset.UtcNow` และ new Entity แบบ ad-hoc กระจัดกระจายในชุดทดสอบ
 
+**Decision: System-Wide Adoption of The 6 Clean Testing Pillars**
+1. **Pillar 1 — Solution-Level Test Segregation:**
+   - **`SmkDoc.Tests` (Pure In-Memory Unit Tests):** ตัดขาดจาก I/O 100% (Zero Disk/Network/Database I/O) รันเสร็จสิ้นในระดับ 1 วินาที เหมาะสำหรับ PR CI gate
+   - **`SmkDoc.IntegrationTests` (Integration, Benchmarks & Generators):** แยกสร้างโปรเจกต์ใหม่รองรับ Heavy Generators, ClosedXML/OpenXml Document generation, Performance Benchmarks, และ Integration Test Fixtures
+2. **Pillar 2 — 1:1 Clean Architecture CQRS Parity & Single SUT Isolation:**
+   - แตกไฟล์ Monolithic ทั้งหมดออกเป็น Single-SUT Test Classes จัดหมวดหมู่สะท้อนโครงสร้าง `src/SmkDoc.Application/` แบบ 1:1 ครบทุกโมดูล (`Authoring`, `IdentityAccess`, `Integration`, `Rendering`) โดยแยกย่อยเป็น `Commands/{CommandName}/` และ `Queries/{QueryName}/` (1 SUT ต่อ 1 ไฟล์ ห้ามเขียน Monolithic UseCase test รวมกันเด็ดขาด)
+3. **Pillar 3 — Universal Roy Osherove Naming & Deterministic Baseline Time:**
+   - บังคับใช้รูปแบบ `ExecuteAsync_When[Condition]_[ExpectedResult]` ทุกไฟล์เพื่อสื่อสารพฤติกรรมของ SUT อย่างแม่นยำ
+   - ใช้งาน `TestConstants.BaselineTime` เป็น SSoT สำหรับค่าเวลาในการทดสอบและ assertion แทนการใช้ `DateTimeOffset.UtcNow` แบบสุ่ม
+4. **Pillar 4 — Validator Colocation & Independent Pure Testing:**
+   - ย้ายการทดสอบ input validator ออกจาก monolithic suite มาเป็น `*ValidatorTests.cs` ประกบคู่กับ Command/Query ใน feature folder
+   - ทดสอบ input constraints ด้วย `[Theory]` + `[InlineData]` เป็น pure functions โดยปราศจาก mock ใดๆ
+5. **Pillar 5 — Domain Invariant Consolidation (Aggregate Root SSoT):**
+   - ลบไฟล์ dumping grounds (`DomainInvariantTests`, `EntityEncapsulationTests`) ทิ้ง และรวมการทดสอบกฎธุรกิจและการ encapsulate เข้ากับ Aggregate Root Unit Test โดยตรง (`{Aggregate}Tests.cs`)
+6. **Pillar 6 — Fluent Object Mother Builders & Semantic Fixtures:**
+   - สร้าง Domain Entity ผ่าน `*Builder` หรือ `*TestFactory` ร่วมกับ `TestConstants.BaselineTime`
+   - สร้าง UseCase SUT ผ่าน `*TestFixture` พร้อมเมธอดกลุ่ม `Given*` เพื่อขจัด mock setup boilerplate
+
+**Consequences & Verification:**
+- แยก Unit Tests ออกจาก Real I/O เด็ดขาด เพิ่มความเร็วใน CI/CD Pipeline
+- แก้ปัญหา Type Collision ของ OpenXML ใน Unit Test ได้อย่างถาวร
+- โครงสร้างโฟลเดอร์ใน `tests/` สะท้อน `src/` แบบ 1:1 สม่ำเสมอทั้งระบบ
+- กำจัด Test Anti-Patterns (AP-042 ถึง AP-046) ออกจาก Codebase 100%
+- Invariant Quality Gate: 100% Pass Rate และ 0 Failures ทั่วทั้ง Solution (`SmkDocServerV2.slnx` และ `frontend-v2`)

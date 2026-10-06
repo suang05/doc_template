@@ -24,10 +24,12 @@ public class DataConnectionTests
         conn.UpdatedAt.Should().BeNull();
     }
 
-    [Fact]
-    public void Create_WithEmptyConnectionString_ThrowsDomainValidationException()
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Create_WithEmptyOrWhitespaceConnectionString_ThrowsDomainValidationException(string invalidConn)
     {
-        var act = () => DataConnection.Create(ConnectionName.Create("Warehouse"), DatabaseProvider.PostgreSQL, "", _initialTime);
+        var act = () => DataConnection.Create(ConnectionName.Create("Warehouse"), DatabaseProvider.PostgreSQL, invalidConn, _initialTime);
 
         act.Should().Throw<DomainValidationException>()
             .WithMessage("*EncryptedConnectionString cannot be empty*");

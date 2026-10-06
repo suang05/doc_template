@@ -110,4 +110,16 @@ public class CompanyTests
         company.IsActive.Should().BeTrue();
         company.UpdatedAt.Should().BeNull();
     }
+
+    [Fact]
+    public void Projects_ShouldBeReadOnly_AndNotDirectlyMutable()
+    {
+        var company = Company.Create(CompanyName.Create("Acme Corp"), _initialTime);
+
+        company.Projects.Should().BeAssignableTo<IReadOnlyCollection<Project>>();
+
+        Action actMutateProjects = () => ((IList<Project>)company.Projects).Add(
+            Project.Create(company.Id, ProjectName.Create("P"), TemplateSlug.Create("proj-sample"), _initialTime));
+        actMutateProjects.Should().Throw<NotSupportedException>();
+    }
 }

@@ -716,7 +716,7 @@ dotnet test --filter "FullyQualifiedName~GenerateDocumentUseCaseTests"
 dotnet test --collect:"XPlat Code Coverage"
 ```
 
-Test files: 21 files ครอบคลุม Use Cases, Engines, Helpers, Security — 208 tests passing
+Test suite ครอบคลุม Domain, Application Use Cases, Infrastructure Engines, Security และ Web APIs — 100% Passing (0 failures)
 
 ### Frontend (TypeScript)
 
@@ -785,7 +785,7 @@ smk-doc-server/
 │   │       ├── Middleware/        ApiKeyMiddleware, SecurityHeadersMiddleware
 │   │       ├── HealthChecks/      GotenbergHealthCheck, MinioHealthCheck
 │   │       └── Program.cs         (seed: Company → Project → AdminUser → ApiKey)
-│   └── tests/SmkDoc.Tests/       xUnit tests (20 files)
+│   └── tests/SmkDoc.Tests/       Unit & Integration test suite (xUnit + Moq + FluentAssertions)
 ├── frontend-v2/
 │   └── src/
 │       ├── app/page.tsx           Router (switch activeTab)

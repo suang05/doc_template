@@ -180,4 +180,27 @@ public class UserTests
         user.IsActive.Should().BeTrue();
         user.UpdatedAt.Should().Be(reactTime);
     }
+
+    [Fact]
+    public void ProjectRoles_ShouldBeReadOnly_AndNotDirectlyMutable()
+    {
+        var user = User.Register(EmailAddress.Create("user@test.com"), "hashed_pwd", "John", "Doe", _initialTime);
+
+        user.ProjectRoles.Should().BeAssignableTo<IReadOnlyCollection<UserProjectRole>>();
+
+        Action actDirectMutate = () => ((IList<UserProjectRole>)user.ProjectRoles).Add(
+            UserProjectRole.Create(user.Id, Guid.NewGuid(), RoleType.Developer, _initialTime));
+        actDirectMutate.Should().Throw<NotSupportedException>();
+    }
+
+    [Fact]
+    public void AssignProjectRole_MismatchUserId_ThrowsDomainValidationException()
+    {
+        var user = User.Register(EmailAddress.Create("user@test.com"), "hashed_pwd", "John", "Doe", _initialTime);
+        var foreignRole = UserProjectRole.Create(Guid.NewGuid(), Guid.NewGuid(), RoleType.Developer, _initialTime);
+
+        Action act = () => user.AssignProjectRole(foreignRole, _initialTime);
+        act.Should().Throw<DomainValidationException>()
+            .WithMessage("*does not match user ID*");
+    }
 }

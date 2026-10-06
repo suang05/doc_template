@@ -1,60 +1,68 @@
-using FluentAssertions;
-using Moq;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.Commands.SaveTemplateMappings;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Tests.Common.Factories;
-using Xunit;
 
 namespace SmkDoc.Tests.Application.Modules.Authoring.FieldMappings.Commands;
 
 public class SaveTemplateMappingsUseCaseTests
 {
-    private readonly Mock<ITemplateRepository> _templateRepo = new();
-    private readonly Mock<IUnitOfWork> _uow = new();
+    private readonly Mock<ITemplateRepository> _templateRepoMock = new();
+    private readonly Mock<IUnitOfWork> _uowMock = new();
 
     private SaveTemplateMappingsUseCase CreateSut() =>
-        new(_templateRepo.Object, _uow.Object);
+        new(_templateRepoMock.Object, _uowMock.Object);
 
     [Fact]
-    public async Task ExecuteAsync_ShouldSaveMappingsAndCommit()
+    public async Task ExecuteAsync_WhenValidCommand_SavesMappingsAndCommits()
     {
+        // Arrange
         var templateId = Guid.NewGuid();
         var template = TemplateTestFactory.Create(templateId, Guid.NewGuid(), "Contract", "contract");
 
-        _templateRepo.Setup(r => r.GetByIdAsync(templateId, It.IsAny<CancellationToken>()))
+        _templateRepoMock
+            .Setup(r => r.GetByIdAsync(templateId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
 
         var items = new List<SaveFieldMappingItemDto>
         {
-            new("customerName", "customer.name", "ชื่อลูกค้า", true, null, null, 1)
+            new("customerName", "customer.name", "ชื่อลูกค้า", true, null, "thai_baht_text", 1)
         };
 
         var command = new SaveTemplateMappingsCommand(templateId, items);
+        var sut = CreateSut();
 
-        await CreateSut().ExecuteAsync(command);
+        // Act
+        await sut.ExecuteAsync(command);
 
+        // Assert
         template.FieldMappings.Should().HaveCount(1);
         var mapping = template.FieldMappings.First();
         mapping.TemplateId.Should().Be(templateId);
         mapping.Placeholder.Should().Be("customerName");
         mapping.SourcePath.Should().Be("customer.name");
-        _uow.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
+        mapping.Transform.Should().Be("thai_baht_text");
+        _uowMock.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
-    public async Task ExecuteAsync_WhenTemplateNotFound_ShouldThrowNotFoundException()
+    public async Task ExecuteAsync_WhenTemplateNotFound_ThrowsNotFoundException()
     {
+        // Arrange
         var templateId = Guid.NewGuid();
-        _templateRepo.Setup(r => r.GetByIdAsync(templateId, It.IsAny<CancellationToken>()))
+        _templateRepoMock
+            .Setup(r => r.GetByIdAsync(templateId, It.IsAny<CancellationToken>()))
             .ReturnsAsync((Template?)null);
 
         var command = new SaveTemplateMappingsCommand(templateId, new List<SaveFieldMappingItemDto>());
+        var sut = CreateSut();
 
-        Func<Task> act = () => CreateSut().ExecuteAsync(command);
+        // Act
+        var act = () => sut.ExecuteAsync(command);
 
+        // Assert
         await act.Should().ThrowAsync<NotFoundException>();
     }
 }

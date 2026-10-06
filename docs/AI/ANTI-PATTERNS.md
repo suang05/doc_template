@@ -37,6 +37,22 @@
 | **AP-028** | Raw primitive scalar in Request Body (`[FromBody] bool isActive`) | Positional Record Request DTO (`[FromBody] SetUserStatusRequest req`) |
 | **AP-029** | `CreatedAtAction` pointing to collection endpoint (`ListProjects`) | Point to single-item `GetById` with entity route param, or return `StatusCode(201, ...)` |
 | **AP-030** | Unscoped Tenant Mutation (IDOR Vulnerability) | Always pass and validate tenant context (`projectId`) along with entity ID |
+| **AP-031** | Unversioned or duplicated routes | Strict canonical routes `api/v1/{resource}` or `api/v1/management/projects/{projectId}/{resource}` |
+| **AP-032** | Incorrect HTTP status codes | 201 Created for creation, 204 NoContent for delete/empty mutation, 200 OK for reads |
+| **AP-033** | Direct service injection in Controller | Inject single-responsibility UseCases only |
+| **AP-034** | Dual routing attributes on Controller | Single canonical route prefix per controller |
+| **AP-035** | Ad-hoc error payloads in Controller | Throw domain exceptions; RFC 7807 via `GlobalExceptionFilter` |
+| **AP-036** | Nested inline instantiation in `ExecuteAsync` | Declare explicit local variable (`var command = ...`) before calling `ExecuteAsync` |
+| **AP-037** | Inline fully-qualified namespaces | Clean top-level usings only (Zero inline namespaces) |
+| **AP-038** | Underscore prefix or generic names in Primary Ctor | Standardized `camelCase` 1:1 mirroring dependency class/interface |
+| **AP-039** | Primitive overloads & optional timestamp fallback in Domain | Single Canonical Factory taking strongly-typed Value Objects + mandatory deterministic `DateTimeOffset now` |
+| **AP-040** | `CreateForTest` or test backdoors in `SmkDoc.Domain.dll` | Factory/Builder strictly in `SmkDoc.Tests/Common/Factories/` via `internal` constructor |
+| **AP-041** | Hardcoding high-churn execution metrics in docs (e.g. "614 tests", "17 controllers") | Use invariant-driven quality gates (100% pass rate, 0 failures, Bounded Contexts) |
+| **AP-042** | Monolithic UseCase test classes or flat CQRS placement | 1:1 CQRS Folder Parity (`Commands/{Command}/` & `Queries/{Query}/`), single SUT per file |
+| **AP-043** | Heavy I/O, Generators, or Benchmarks in Unit Tests (`SmkDoc.Tests`) | Pure in-memory unit tests in `SmkDoc.Tests`; I/O and benchmarks in `SmkDoc.IntegrationTests` |
+| **AP-044** | Ad-hoc entity instantiation or nondeterministic `UtcNow` in tests | Use `*Builder` / `*TestFactory` with `TestConstants.BaselineTime` |
+| **AP-045** | Artificial dumping grounds for invariant tests (`DomainInvariantTests`) | Test invariants directly in Aggregate Root unit tests (`{Aggregate}Tests.cs`) |
+| **AP-046** | Mocking dependencies in Validator Tests | Test validators as pure functions with `[Theory]` + `[InlineData]` |
 | **AP-F001** | Hardcoded colors/styles in components | Use system design tokens (`bg-surface`, `text-textPrimary`) |
 | **AP-F002** | Raw `fetch()` in components | Custom hooks wrapping `apiClient<T>` |
 | **AP-F003** | `any` types in TypeScript | Zod schema validation + inferred types |
@@ -503,6 +519,134 @@ public class DocumentController(
     GenerateDocumentUseCase generateUseCase,
     ITemplateRepository templateRepo,
     IStorageService storageService) : ControllerBase
+```
+
+### AP-039: ห้ามสร้าง Primitive Convenience Overloads หรือ Default Timestamp Fallback ใน Domain Entities
+```csharp
+// ❌ WRONG — Entity สร้าง overload รับ string เพื่อความสะดวกของ caller หรือ default now เป็น null ทำให้ domain ไม่ deterministic
+public static Template Create(Guid projectId, string name, string slug, DateTimeOffset? now = null)
+{
+    var timestamp = now ?? DateTimeOffset.UtcNow; // ❌ ซ่อน Side-effect ภายใน Domain
+    return new Template(projectId, name, slug, timestamp);
+}
+
+// ✅ CORRECT — Exactly 1 Canonical Factory รับเฉพาะ Value Objects และบังคับ deterministic now จาก Application UseCase
+public static Template Create(Guid projectId, TemplateName name, TemplateSlug slug, string? category, DateTimeOffset now) =>
+    new(null, projectId, name, slug, category, now);
+```
+
+### AP-040: ห้ามสร้าง `CreateForTest` หรือ Test Backdoors ใน Production Assembly `SmkDoc.Domain.dll`
+```csharp
+// ❌ WRONG — มี Test Method หรือ backdoor ใน Domain Entity ของ Production Code
+public sealed class Template : BaseEntity
+{
+    public static Template CreateForTest(Guid id, string name, ...) // ❌ ปนเปื้อน production DLL
+}
+
+// ✅ CORRECT — Constructor พิเศษสำหรับ Test ต้องเป็น internal และตัวสร้างทั้งหมดต้องอยู่ใน SmkDoc.Tests
+// ใน SmkDoc.Domain:
+internal Template(Guid? id, Guid projectId, TemplateName name, TemplateSlug slug, string? category, DateTimeOffset now)
+    : base(id, createdAt: now) { ... }
+
+// ใน SmkDoc.Tests/Common/Factories/TemplateTestFactory.cs:
+public static class TemplateTestFactory
+{
+    public static Template Create(Guid? id = null, ...) => new Template(...);
+}
+```
+
+### AP-041: ห้าม Hardcode ตัวเลขผันผวน (High-Churn Execution Metrics) ลงในเอกสารคู่มือระบบและ Agent Guidelines
+```markdown
+// ❌ WRONG — เอกสารระบุตัวเลขผันผวนแบบ Snapshot ทำให้ล้าสมัยทันทีที่มีการเพิ่มโค้ด และสร้าง Cognitive Bias / ความสับสนให้ LLM
+- Test Suite: 614 tests passing / 244 tests passing
+- API Controllers: 17 controllers
+- Data Entities: 14 domain entities
+
+// ✅ CORRECT — ใช้ Invariant-Driven Quality Gates และเกณฑ์เชิงสถาปัตยกรรมที่ไม่ขึ้นกับกาลเวลา
+- Test Suite: Unit & Integration test suite — 100% Passing (0 errors, 0 failures, zero tolerated regressions)
+- API Controllers: Thin HTTP Controllers organized by Bounded Context (Tenant, Authoring, Rendering, Integration)
+- Data Entities: Sealed Rich Domain Models enforcing SSoT Canonical Factory & Zero Test Backdoors
+```
+
+> **หมายเหตุข้อแตกต่างที่สำคัญ:** ค่าคงที่ทางธุรกิจและสถาปัตยกรรม (Domain Invariant Constants) เช่น *1 Canonical Factory method ต่อ Entity*, *SHA-256 = 64 ตัวอักษร*, *MaxChangeNoteLength = 500* **ต้องคงตัวเลขที่แน่นอนไว้เสมอ** เพราะเป็นกฎทางธุรกิจที่ไม่ใช่ตัวเลขผันผวนจากการรันโค้ด
+
+### AP-042: ห้ามสร้าง Monolithic UseCase Test Class หรือวางไฟล์เทสแบนราบ (Flat) นอก CQRS Folders
+```csharp
+// ❌ WRONG — รวม Use Case หลายตัวไว้ในคลาสเดียว หรือวางไฟล์แบนราบ
+// SmkDoc.Tests/Application/Modules/Tenant/Projects/ProjectUseCaseTests.cs
+public class ProjectUseCaseTests {
+    [Fact] public async Task CreateProject_Works() { ... }
+    [Fact] public async Task UpdateProject_Works() { ... }
+    [Fact] public async Task DeleteProject_Works() { ... }
+}
+
+// ✅ CORRECT — 1:1 CQRS Folder Parity แยก 1 Use Case ต่อ 1 โฟลเดอร์และ 1 ไฟล์ SUT
+// SmkDoc.Tests/Application/Modules/Tenant/Projects/Commands/CreateProject/CreateProjectUseCaseTests.cs
+public class CreateProjectUseCaseTests { ... }
+
+// SmkDoc.Tests/Application/Modules/Tenant/Projects/Commands/UpdateProject/UpdateProjectUseCaseTests.cs
+public class UpdateProjectUseCaseTests { ... }
+```
+
+### AP-043: ห้ามใส่ Heavy I/O, Generators หรือ Benchmarks ใน Unit Test Project (`SmkDoc.Tests`)
+```csharp
+// ❌ WRONG — รัน OpenXml/ClosedXML disk writers หรือ benchmark วัด performance ใน SmkDoc.Tests
+// ทำให้ PR unit test ช้า มี I/O artifact ค้างใน disk และไม่เป็น pure in-memory
+[Fact]
+public async Task GenerateLargeExcel_WriteToDisk_Benchmark() {
+    using var fs = File.Create("test.xlsx");
+    ...
+}
+
+// ✅ CORRECT — แยก solution-level ชัดเจน: ย้ายไป SmkDoc.IntegrationTests
+// SmkDoc.Tests = 100% Pure in-memory (0 disk, 0 network, 0 DB) รันจบในระดับวินาที
+// SmkDoc.IntegrationTests = Benchmarks, Generators, Container Fixtures
+```
+
+### AP-044: ห้าม New Entity สดๆ แบบ Ad-hoc หรือใช้ `DateTimeOffset.UtcNow` ใน Unit Test
+```csharp
+// ❌ WRONG — bypass builders, ค่า mock ไม่สม่ำเสมอ และเวลาเลื่อนไหล (flaky test)
+var template = new Template(Guid.NewGuid(), "Name", "slug", null, DateTimeOffset.UtcNow);
+
+// ✅ CORRECT — ใช้ *Builder / *TestFactory ร่วมกับ TestConstants.BaselineTime
+var template = new TemplateBuilder()
+    .WithName("Invoice")
+    .WithSlug("invoice-01")
+    .Build(); // ภายในใช้ TestConstants.BaselineTime เป็น SSoT
+```
+
+### AP-045: ห้ามสร้างไฟล์รวมกลางทดสอบ Invariant ข้าม Aggregate (`DomainInvariantTests`)
+```csharp
+// ❌ WRONG — นำ invariant ของหลาย Aggregate มารวมในไฟล์เดียว กลายเป็น Dumping Ground
+// SmkDoc.Tests/Domain/DomainInvariantTests.cs
+// SmkDoc.Tests/Domain/EntityEncapsulationTests.cs
+
+// ✅ CORRECT — รวม Invariant และ Encapsulation เข้ากับ Aggregate Root Unit Test โดยตรง (SSoT)
+// SmkDoc.Tests/Domain/Entities/TemplateTests.cs
+// SmkDoc.Tests/Domain/Entities/UserTests.cs
+```
+
+### AP-046: ห้าม Mock Dependencies ใน Command/Query Validator Tests
+```csharp
+// ❌ WRONG — นำ Mock<IRepository> เข้าไปใน Validator test ทำให้หนักและช้า
+var repoMock = new Mock<ITemplateRepository>();
+var validator = new CreateTemplateCommandValidator(repoMock.Object);
+
+// ✅ CORRECT — Validator เป็น Pure Function; ทดสอบ constraints ด้วย [Theory] + [InlineData]
+public class CreateTemplateCommandValidatorTests
+{
+    private readonly CreateTemplateCommandValidator _sut = new();
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(" ")]
+    public void Validate_WhenNameIsEmpty_HasValidationError(string name)
+    {
+        var command = new CreateTemplateCommand(Guid.NewGuid(), name, "slug");
+        var result = _sut.Validate(command);
+        result.IsValid.Should().BeFalse();
+    }
+}
 ```
 
 ---

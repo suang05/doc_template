@@ -63,7 +63,7 @@ The frontend implements a Single Page Application (SPA) architecture for layout 
 - Secondary/Context menus (e.g., Dropdown `⋮`) MUST be aligned to the **bottom-left** to prevent dropdown clipping.
 - Do NOT use massive Modals for complex forms (e.g., Upload Template); always use split-screen layouts.
 
-### 6. Consolidated Reusable UI Blocks (17 Atomic Components)
+### 6. Consolidated Reusable UI Blocks (Atomic Design Components)
 Eliminate legacy duplication (`Badge` + `StatusBadge` + `Pill` -> `Badge.tsx`; `Tabs` + `FilterTabs` -> `Tabs.tsx`):
 1. **`Button.tsx`**: Semantic actions (`primary` [Sky Blue], `secondary`, `outline`, `ghost`, `danger`, `success`), loading spinner, 2-4px radius. Zero `navy` variant.
 2. **`Badge.tsx`**: Consolidated for format tags (`pdf`, `docx`, `xlsx`, `html`), status dots (`success`, `failed`, `pending`), and category accents (`contract`, `financial`, `official`, `hr`, `operations`).

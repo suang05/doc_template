@@ -78,7 +78,7 @@ SmkDoc.Domain ← SmkDoc.Application ← SmkDoc.Infrastructure ← SmkDoc.Api
 7. **Value Objects & Converters:** ข้อมูลที่มี domain validation rules (names, aliases, references, emails, hashes) ต้องสร้างเป็น `ValueObject` และ map สู่ Database column เดิมผ่าน `HasConversion` ใน EF Core ทำให้ **Zero Database Migration** 100%
 
 > [!NOTE]
-> **Domain Layer Modernization & Zero-Migration DDD (ADR-022 & ADR-023):** Entities ทั้งหมดถูก refactor เป็น Sealed Rich Domain Models, Value Objects ครอบคลุม 13 ชนิด, Cross-aggregate navigation ถูก decouple ออกจาก Domain, `Template.cs` นำร่องเป็น Strict Pure DDD Reference Model (Canonical Factory, Zero Primitive Overloads, Zero Test Backdoors ใน Domain), และ 100% ของ Unit/Integration tests (617 backend + 133 frontend) ผ่านทั้งหมด.
+> **Domain Layer Modernization & Zero-Migration DDD (ADR-022 & ADR-023):** Entities ทั้งหมด (Aggregate Roots และ Child Entities) ถูก refactor เป็น Sealed Rich Domain Models ครบถ้วน 100%, Value Objects ครอบคลุมทุก Invariant ของระบบ, Cross-aggregate navigation ถูก decouple ออกจาก Domain, ปฏิบัติตาม Strict Pure DDD ครบทุก Entity (Canonical Factory, Zero Primitive Overloads, Zero Test Backdoors ใน Domain, Mandatory Deterministic Time), รองรับการทดสอบผ่าน Dedicated Test Factories ใน `SmkDoc.Tests/Common/Factories/`, และ 100% ของ Unit/Integration test suites ผ่านทั้งหมด (0 errors, 0 failures).
 
 ---
 
@@ -189,7 +189,7 @@ RenderEngineType (Html / Docx / Excel)
 
 ## 6. Testing Architecture
 
-**Current: 244 tests / 244 passing (2026-09-26)**
+**Quality Baseline: 100% Pass Rate on all Backend & Frontend Test Suites (Zero Tolerated Failures)**
 
 | Suite | ไฟล์ตัวอย่าง | ครอบคลุม |
 |---|---|---|

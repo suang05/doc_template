@@ -1,17 +1,17 @@
 using SmkDoc.Domain.Entities;
-using SmkDoc.Tests.Common.Factories;
 
 namespace SmkDoc.Tests.Common.Builders;
 
 public class TemplateBuilder
 {
     private Guid _id = Guid.NewGuid();
-    private Guid _projectId = Guid.NewGuid();
+    private Guid _projectId = TestConstants.DefaultProjectId;
     private string _name = "Sample Template";
     private string _slug = "sample-template";
-    private string? _description = "Sample Description";
+    private string? _category = "General";
     private Guid? _currentVersionId = Guid.NewGuid();
     private bool _isActive = true;
+    private DateTimeOffset _now = TestConstants.BaselineTime;
 
     public TemplateBuilder WithId(Guid id)
     {
@@ -37,6 +37,12 @@ public class TemplateBuilder
         return this;
     }
 
+    public TemplateBuilder WithCategory(string? category)
+    {
+        _category = category;
+        return this;
+    }
+
     public TemplateBuilder WithCurrentVersion(Guid versionId)
     {
         _currentVersionId = versionId;
@@ -55,18 +61,31 @@ public class TemplateBuilder
         return this;
     }
 
+    public TemplateBuilder WithTime(DateTimeOffset now)
+    {
+        _now = now;
+        return this;
+    }
+
     public Template Build()
     {
-        var now = DateTimeOffset.UtcNow;
-        var template = TemplateTestFactory.Create(
-            id: _id,
-            projectId: _projectId,
-            name: _name,
-            slug: _slug,
-            category: _description,
-            now: now,
-            isActive: _isActive,
-            currentVersionId: _currentVersionId);
+        var template = new Template(
+            _id,
+            _projectId,
+            TemplateName.Create(_name),
+            TemplateSlug.Create(_slug),
+            _category,
+            _now);
+
+        if (_currentVersionId.HasValue)
+        {
+            template.SetCurrentVersion(_currentVersionId.Value, _now);
+        }
+
+        if (!_isActive)
+        {
+            template.Deactivate(_now);
+        }
 
         return template;
     }

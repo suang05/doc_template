@@ -1,6 +1,4 @@
-using FluentAssertions;
 using SmkDoc.Application.Common.Helpers;
-using Xunit;
 
 namespace SmkDoc.Tests.Application.Common.Helpers;
 
@@ -13,58 +11,44 @@ public class ThaiDataTransformerTests
     [InlineData(2500000, "สองล้านห้าแสนบาทถ้วน")]
     [InlineData(10.50, "สิบบาทห้าสิบสตางค์")]
     [InlineData(-150.75, "ลบหนึ่งร้อยห้าสิบบาทเจ็ดสิบห้าสตางค์")]
-    public void ToThaiBahtText_ShouldConvertAccurately(decimal amount, string expected)
+    public void ToThaiBahtText_WhenGivenAmount_ConvertsAccurately(decimal amount, string expected)
     {
-        string result = ThaiDataTransformer.ToThaiBahtText(amount);
+        var result = ThaiDataTransformer.ToThaiBahtText(amount);
+
         result.Should().Be(expected);
     }
 
-    [Fact]
-    public void FormatThaiDate_ShouldConvertGregorianToBuddhistEra()
+    [Theory]
+    [InlineData("2026-09-15", "15 กันยายน 2569")]
+    [InlineData("invalid-date", "invalid-date")]
+    [InlineData("", "")]
+    public void FormatThaiDate_WhenGivenDateString_FormatsOrReturnsOriginal(string input, string expected)
     {
-        string result = ThaiDataTransformer.FormatThaiDate("2026-09-15");
-        result.Should().Be("15 กันยายน 2569");
+        var result = ThaiDataTransformer.FormatThaiDate(input);
+
+        result.Should().Be(expected);
     }
 
-    [Fact]
-    public void FormatThaiDate_ShouldReturnOriginalString_WhenInvalidDate()
+    [Theory]
+    [InlineData("0812345678", "081-234-5678")]
+    [InlineData("021234567", "02-123-4567")]
+    [InlineData("01234567", "01234567")]
+    [InlineData("", "")]
+    public void FormatPhone_WhenGivenVariousPhoneFormats_FormatsOrPreserves(string input, string expected)
     {
-        string result = ThaiDataTransformer.FormatThaiDate("invalid-date");
-        result.Should().Be("invalid-date");
+        var result = ThaiDataTransformer.FormatPhone(input);
+
+        result.Should().Be(expected);
     }
 
-    [Fact]
-    public void FormatPhone_ShouldFormatStandardMobilePhone()
+    [Theory]
+    [InlineData("1234567890123", "1-2345-67890-12-3")]
+    [InlineData("123456", "123456")]
+    [InlineData("", "")]
+    public void FormatThaiIdCard_WhenGivenIdNumber_FormatsOrPreserves(string input, string expected)
     {
-        string result = ThaiDataTransformer.FormatPhone("0812345678");
-        result.Should().Be("081-234-5678");
-    }
+        var result = ThaiDataTransformer.FormatThaiIdCard(input);
 
-    [Fact]
-    public void FormatPhone_ShouldFormat9DigitPhone()
-    {
-        string result = ThaiDataTransformer.FormatPhone("021234567");
-        result.Should().Be("02-123-4567");
-    }
-
-    [Fact]
-    public void FormatPhone_ShouldReturnOriginal_WhenNot9Or10Digits()
-    {
-        string result = ThaiDataTransformer.FormatPhone("01234567");
-        result.Should().Be("01234567");
-    }
-
-    [Fact]
-    public void FormatThaiIdCard_ShouldFormat13Digits()
-    {
-        string result = ThaiDataTransformer.FormatThaiIdCard("1234567890123");
-        result.Should().Be("1-2345-67890-12-3");
-    }
-
-    [Fact]
-    public void FormatThaiIdCard_ShouldReturnOriginal_WhenNot13Digits()
-    {
-        string result = ThaiDataTransformer.FormatThaiIdCard("123456");
-        result.Should().Be("123456");
+        result.Should().Be(expected);
     }
 }

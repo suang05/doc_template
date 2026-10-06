@@ -66,7 +66,7 @@ npm install && npm run dev
 1. **ห้ามแตะ V1** — ไฟล์ใน `frontend/` และ `backend/` เป็น Legacy ห้ามแก้ไข
 2. **Plan before Code** — ทุก feature ต้องนำเสนอ Plan เป็น Artifact และรอ Confirm ก่อน
 3. **Thin Controllers** — Controller ≤ 5 บรรทัด ห้าม inject `IRepository<T>` โดยตรง
-4. **Test must pass** — `dotnet test` ต้องผ่าน 100% ทุกครั้งที่แก้โค้ด (ปัจจุบัน 382/382)
+4. **Test must pass** — `dotnet test` และ `npm test` ต้องผ่าน 100% (0 errors, 0 failures) ทุกครั้งที่แก้โค้ด
 5. **RFC 7807 errors** — Error responses ทั้งหมดต้องเป็น Problem Details format
 
 ---

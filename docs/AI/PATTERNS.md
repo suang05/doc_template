@@ -127,59 +127,67 @@ var template = await _templateRepo.GetByIdAsync(id, ct)
 | `InvalidOperationException` | 409 Conflict | — | ทำงานผิด State / Validation |
 | `Exception` (fallback) | 500 Internal Error | — | Unhandled Technical Errors (Log warning) |
 
-### 1.4 Rich Domain Model Pattern (Canonical — Domain Layer)
+### 1.4 Rich Domain Model Pattern (Canonical Pure DDD — ADR-023)
 
 ```csharp
-// ✅ CORRECT — Usage: Parameterized Constructor + Business Methods
-var template = new Template(projectId, "Invoice", new TemplateSlug("invoice"), "Finance");
-template.SetCurrentVersion(versionId);
+// ✅ CORRECT — Usage: Canonical Factory Method with Value Objects & Deterministic Time
+var template = Template.Create(projectId, TemplateName.Create("Invoice"), TemplateSlug.Create("invoice"), "Finance", now);
+template.SetCurrentVersion(versionId, now);
 
-// ❌ WRONG — Object Initializer / overriding identity
-var template = new Template { Name = "Invoice", IsActive = true };
-var version  = new TemplateVersion(...) { Id = someId };   // ห้าม (AP-008, AP-021)
+// ❌ WRONG — Object Initializer / overriding identity / primitive overload
+var template = new Template { Name = "Invoice", IsActive = true }; // ห้าม (AP-008, AP-021)
+var template = Template.Create(projectId, "Invoice", "invoice", now); // ❌ ห้าม Primitive Overload ใน Domain (AP-039)
+var version  = new TemplateVersion(...) { Id = someId };           // ❌ ห้าม (AP-008, AP-021)
 ```
 
 ```csharp
-// ✅ CORRECT — Entity shape
-public class Template : BaseEntity, IMustHaveProject
+// ✅ CORRECT — Entity shape (Strict Pure DDD Reference Model)
+public sealed class Template : BaseEntity, IMustHaveProject
 {
     private readonly List<TemplateVersion> _versions = [];       // child entities (aggregate-owned)
 
     public Guid ProjectId { get; private set; }                  // cross-aggregate ref = Id only
-    public string Name { get; private set; } = string.Empty;
+    public TemplateName Name { get; private set; } = null!;      // Value Object, not string
     public TemplateSlug Slug { get; private set; } = null!;      // Value Object, not string
+    public string? Category { get; private set; }
     public bool IsActive { get; private set; }
+    public Guid? CurrentVersionId { get; private set; }
     public IReadOnlyCollection<TemplateVersion> Versions => _versions.AsReadOnly();
 
     private Template() { }                                       // EF Core materialization only
 
-    public Template(Guid projectId, string name, TemplateSlug slug, string? category = null)
+    // Internal constructor accessible to Test Factories/Builders via InternalsVisibleTo
+    internal Template(Guid? id, Guid projectId, TemplateName name, TemplateSlug slug, string? category, DateTimeOffset now)
+        : base(id, createdAt: now)
     {
-        if (projectId == Guid.Empty) throw new DomainValidationException("ProjectId cannot be empty.");
-        if (string.IsNullOrWhiteSpace(name)) throw new DomainValidationException("Template name cannot be empty.");
-
-        ProjectId = projectId;
-        Name = name.Trim();
-        Slug = slug ?? throw new DomainValidationException("Slug is required.");
+        ProjectId = Guard.NotEmpty(projectId, nameof(ProjectId));
+        Name = Guard.NotNull(name, nameof(Name));
+        Slug = Guard.NotNull(slug, nameof(Slug));
+        Category = string.IsNullOrWhiteSpace(category) ? null : category.Trim();
         IsActive = true;
     }
 
-    public void SetCurrentVersion(Guid versionId)
+    // Single Canonical Factory Method (SSoT)
+    public static Template Create(Guid projectId, TemplateName name, TemplateSlug slug, string? category, DateTimeOffset now) =>
+        new(null, projectId, name, slug, category, now);
+
+    public void SetCurrentVersion(Guid versionId, DateTimeOffset now)
     {
+        Guard.NotEmpty(versionId, nameof(versionId));
         if (!IsActive)
-            throw new BusinessRuleViolationException("Template is inactive.", "INACTIVE_TEMPLATE");
-        if (_versions.All(v => v.Id != versionId))
-            throw new BusinessRuleViolationException("Version does not belong to this template.", "VERSION_NOT_IN_TEMPLATE");
+            throw new BusinessRuleViolationException("Cannot assign a current version to an inactive template.", "INACTIVE_TEMPLATE");
+        if (_versions.Count > 0 && !_versions.Any(v => v.Id == versionId))
+            throw new VersionNotInTemplateException(Id, versionId);
 
         CurrentVersionId = versionId;
-        SetUpdated();
+        SetUpdated(now);
     }
 
-    public void Deactivate()
+    public void Deactivate(DateTimeOffset now)
     {
         if (!IsActive) return;                                   // idempotent
         IsActive = false;
-        SetUpdated();
+        SetUpdated(now);
     }
 }
 ```
@@ -355,9 +363,11 @@ ThaiDataTransformer.Transform(value, "baht");   // → ToThaiBahtText
 ThaiDataTransformer.Transform(value, "date");   // → FormatThaiDate
 ```
 
-### 1.10 Test Architecture & Clean Testing Standards (SmkDoc.Tests)
+### 1.10 Test Architecture & Clean Testing Standards
 
-โครงสร้างการทดสอบต้อง **Mirror เลเยอร์ของ Clean Architecture 1:1** (`Domain/`, `Application/`, `Infrastructure/`, `Api/`, `Integration/`, `Common/`)
+โครงสร้างการทดสอบแบ่งเป็น **2 โปรเจกต์คู่ขนาน** ในระดับ Solution:
+1. **`SmkDoc.Tests` (Pure In-Memory Unit Tests):** ตัดขาดจาก I/O 100% (Zero Disk/Network/Database), รันในระดับ 1 วินาที เหมาะสำหรับ PR CI gate, และ **Mirror โครงสร้าง `src/SmkDoc.Application/` แบบ 1:1 CQRS Parity** (`Commands/{CommandName}/` และ `Queries/{QueryName}/`)
+2. **`SmkDoc.IntegrationTests` (Integration, Benchmarks & Generators):** แยกจัดเก็บ Generators, Performance Benchmarks, OpenXml/ClosedXML File Writers, และ Container Fixtures (`Fixtures/`, `Repositories/`, `Storage/`, `Generators/`, `Benchmarks/`)
 
 #### 1. Mocking Interface Only
 ```csharp
@@ -408,14 +418,19 @@ var inactiveTemplate = new TemplateBuilder().AsInactive().WithSlug("inactive-tpl
 ```
 สำหรับ Use Case ในโมดูล Rendering (เช่น `GenerateDocumentUseCase`) ให้ใช้ `GenerateDocumentTestFixture` ใน `Common/Fixtures/` ซึ่งประกอบด้วย Collaborator Services (`IDocumentDataPreparationService`, `IDocumentAuditService`, `IDocumentVersioningService`) ไว้เรียบร้อยแล้วเพื่อลด mock boilerplate
 
-#### 4. Test Categorization ([Trait]) & Pure Tests
-- **Pure Unit Tests:** ปราศจาก Side-Effects ไม่เขียนไฟล์ลง Git workspace (`docs/`)
-- **Traits:**
-  - `[Trait("Category", "Benchmark")]` สำหรับ Performance / Throughput Tests
-  - `[Trait("Category", "Generator")]` สำหรับ Sample File Generators
-- **CI/CD Command:**
+#### 4. Test Segregation, Single SUT Parity & Roy Osherove Naming
+- **Single SUT per Test Class:** ทุก Use Case Test คลาสทดสอบ SUT เพียงคลาสเดียวเท่านั้น โดยตั้งชื่อแบบ Roy Osherove: `ExecuteAsync_When[Condition]_[ExpectedResult]`
+- **Deterministic Baseline Time:** บังคับใช้ `TestConstants.BaselineTime` ในเทสต์ ห้ามใช้ `DateTimeOffset.UtcNow` แบบสุ่ม
+- **Project Separation & CI/CD Commands:**
   ```bash
-  dotnet test --filter "Category!=Benchmark&Category!=Generator"
+  # 1. Fast PR Gate — 100% In-Memory Unit Tests (~1.0s, Zero I/O)
+  dotnet test tests/SmkDoc.Tests/SmkDoc.Tests.csproj
+
+  # 2. Heavy Validation / Release Pipeline — Generators & Benchmarks
+  dotnet test tests/SmkDoc.IntegrationTests/SmkDoc.IntegrationTests.csproj
+
+  # 3. Full Solution Verification
+  dotnet test SmkDocServerV2.slnx
   ```
 
 ### 1.11 ApiKeyMiddleware Pattern

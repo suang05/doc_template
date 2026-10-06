@@ -38,8 +38,9 @@ Preserve these core invariants over legacy systems at all times:
 ### Clean Architecture Dependency Matrix (`backend-v2/`)
 - **Domain (`SmkDoc.Domain`):** Pure C# POCOs, Entities, Value Objects, Smart Enums, Domain Exceptions, Repository/UoW interfaces. **Zero** dependencies on EF Core, ASP.NET, OpenXml, DTOs, or Data Annotations. Enforced rules (see [ARCHITECTURE.md §Layer 1](docs/AI/ARCHITECTURE.md), [PATTERNS.md §1.4](docs/AI/PATTERNS.md), ADR-021, ADR-022, ADR-023):
   - `private set` / `protected set` (BaseEntity.Id) — ห้ามใช้ `public init` (AP-021) · `internal` parameterized ctor (for tests via `InternalsVisibleTo`) + `private` EF ctor · state changes via business methods only
-  - **Single Canonical Factory Method (SSoT):** Each Entity defines exactly **1 public `Create` factory** accepting strongly-typed Value Objects only and mandatory deterministic `DateTimeOffset now`. **Zero primitive overloads** (`(string, string)`) inside Domain entities — Application UseCases map DTO primitives to Value Objects.
-  - **Zero Test Backdoors in Domain:** `CreateForTest` is strictly prohibited in `SmkDoc.Domain.dll`. Test creations belong in `SmkDoc.Tests/Common/Builders/` (`*Builder`) or `Factories/` (`*TestFactory`).
+  - **Single Canonical Factory Method (SSoT):** Each Entity defines exactly **1 canonical factory method** (e.g., `Create`, `Register`, `Draft`, `Issue`, or specialized `CreateSuccess`/`CreateFailure` on `GenerationLog`) accepting strongly-typed Value Objects only and mandatory deterministic `DateTimeOffset now`. **Zero primitive overloads** (`(string, string)`) inside Domain entities — Application UseCases map DTO primitives to Value Objects.
+  - **Mandatory Deterministic Time on All Mutations:** Every creation and state mutation method (`Activate`, `Deactivate`, `Update*`, `Publish`, `Archive`, `Assign*`, `Remove*`) strictly mandates `DateTimeOffset now` passed from Application UseCases (Zero fallback to `UtcNow` inside Domain).
+  - **Zero Test Backdoors in Domain:** `CreateForTest` and optional `Guid? id = null` are strictly prohibited in `SmkDoc.Domain.dll`. Test creations belong in `SmkDoc.Tests/Common/Builders/` (`*Builder`) or `Factories/` (`*TestFactory`).
   - Fail-fast: throw `DomainValidationException` / `BusinessRuleViolationException` (never `ArgumentException`); **never weaken an invariant to make callers/tests pass** (AP-023)
   - Aggregate roots own child collections (`IReadOnlyCollection<T>`); cross-aggregate refs by Id; no `{ Id = ... }` overrides (AP-021/022)
   - Repositories return Entities / `IReadOnlyList<T>` only — no `IQueryable`, no DTOs, tenant lookups take `projectId` (AP-025)
@@ -55,6 +56,43 @@ Preserve these core invariants over legacy systems at all times:
   7. *OpenAPI Completeness:* Every action requires `<summary>` and complete `[ProducesResponseType]` (200/201, 204, 400, 401, 403, 404, 409).
   8. *Matching Namespaces:* Namespaces must mirror folder structure (e.g. `SmkDoc.Api.Controllers.Rendering`).
 
+### 🏷️ System-Wide Naming Standards (The 6 Pillars)
+Strictly enforce consistent naming conventions across all layers:
+1. **Flow & Contract Suffixes:**
+   - Presentation HTTP input: `*Request` (in `Contracts/{BoundedContext}/`, e.g. `CreateTemplateRequest`)
+   - Presentation HTTP output: `ApiResponse<T>` / `PagedApiResponse<T>` (never anonymous types)
+   - Application mutation input: `*Command` (e.g. `CreateTemplateCommand`)
+   - Application read input: `*Query` (e.g. `GetTemplateByIdQuery`)
+   - Application output: `*Response` or `*ResultDto` (e.g. `TemplateResponse`, `UserResultDto`)
+2. **Domain Ubiquitous Language:**
+   - Entities: Singular `PascalCase` (`Template`, `DocumentVersion`, `User`)
+   - Value Objects: Semantic `PascalCase` (`TemplateName`, `TemplateSlug`, `Sha256Hash`, `EmailAddress`)
+   - Factory Methods (SSoT): Canonical creation verbs (`Create`, `Register`, `Draft`, `Issue`)
+   - Business Mutations: Expressive domain verbs (`Activate`, `Publish`, `Archive`, `AssignRole` — never generic `SetXxx`)
+3. **Primary Constructor Parameters:**
+   - Standardized `camelCase` 1:1 mirroring dependency class/interface name (`templateRepo`, `unitOfWork`, `createTemplateUseCase`, `logger`). **Strictly BAN underscore prefix (`_`) and generic names** (`service`, `repo`).
+4. **Unit & Integration Test Standards (The 6 Clean Testing Pillars):**
+   - **Pillar 1 — Solution-Level Segregation:** `SmkDoc.Tests` MUST remain 100% Pure In-Memory Unit Tests (Zero Disk/Network/Database I/O, fast PR gate). Heavy Generators, Performance Benchmarks, OpenXml/ClosedXML disk writers, and container fixtures belong strictly in `SmkDoc.IntegrationTests`.
+   - **Pillar 2 — Strict 1:1 CQRS Folder Parity (Single SUT Isolation):** Every Use Case test in `SmkDoc.Tests/Application/Modules/` MUST mirror `src/SmkDoc.Application/Modules/` 1:1 under `Commands/{CommandName}/{CommandName}UseCaseTests.cs` or `Queries/{QueryName}/{QueryName}UseCaseTests.cs`. **Strictly BAN Monolithic test classes** combining multiple UseCases (e.g. `ProjectUseCaseTests`, `DocumentVersionUseCaseTests`, `FieldMappingUseCaseTests`) and **BAN flat placement** when Application uses CQRS folders.
+   - **Pillar 3 — Roy Osherove Naming & Deterministic Baseline Time:**
+     - Test methods: `ExecuteAsync_When[Condition]_[ExpectedResult]` (e.g. `ExecuteAsync_WhenSlugAlreadyExists_ThrowsConflictException`)
+     - Deterministic Time: Test assertions and mutations MUST use `TestConstants.BaselineTime` (Zero nondeterministic `DateTimeOffset.UtcNow` inside unit tests).
+   - **Pillar 4 — Validator Colocation & Independent Pure Testing:** Input validation tests (`*ValidatorTests.cs`) MUST be colocated directly in the feature/module folder alongside commands/queries. Test constraints with `[Theory]` + `[InlineData]` as pure functions without mocks. **Strictly BAN monolithic validator test suites** (e.g. `CommandValidatorsTests.cs`).
+   - **Pillar 5 — Domain Invariant Consolidation (Aggregate Root SSoT):** Business rules, validations, and encapsulation MUST be tested directly inside the aggregate root's test file (`SmkDoc.Tests/Domain/Entities/{Aggregate}Tests.cs`). **Strictly BAN separate generic dumping grounds** like `DomainInvariantTests` or `EntityEncapsulationTests`.
+   - **Pillar 6 — Fluent Object Mother Builders & Semantic Fixtures:**
+     - Domain Entities MUST be created via `*Builder` (e.g. `TemplateBuilder`, `DocumentBuilder`) or `*TestFactory` utilizing `TestConstants.BaselineTime`.
+     - Use Case SUTs MUST be configured via `*TestFixture` (e.g. `GenerateDocumentTestFixture`) using expressive `Given*` semantic methods instead of raw, repetitive mock setup boilerplate.
+5. **Frontend File & Component Standards:**
+   - React components: `PascalCase.tsx` (e.g. `TemplateCard.tsx`, `AppShell.tsx`)
+   - Custom hooks: `use` + `PascalCase.ts` (e.g. `useTemplates.ts`, `useDebounce.ts`)
+   - Zod schemas: `camelCase` + `Schema` in `*.schema.ts` (e.g. `createTemplateSchema` in `template.schema.ts`)
+   - API clients: `*.api.ts` (e.g. `templates.api.ts`, `documents.api.ts`)
+6. **Database Persistence (PostgreSQL):**
+   - Tables: `plural_snake_case` (`templates`, `template_versions`, `generation_logs`)
+   - Foreign keys: `{singular_entity}_id` (`project_id`, `template_id`)
+   - Timestamps: `created_at`, `updated_at`, `revoked_at`, `generated_at`
+   - Booleans: `is_*` (`is_active`, `is_success`, `is_system`)
+
 ---
 
 ## 3. 🚦 Operational Boundaries (The 3-Tier Rule)
@@ -64,7 +102,8 @@ Preserve these core invariants over legacy systems at all times:
 - Enforce Universal Code Hygiene across all C# layers: Clean Usings (no inline namespaces), Standardized Primary Constructor parameter naming (`camelCase`, no `_` prefix), and Whitespace Consistency (single blank line, no dead code).
 - Use `PlaceholderHelper.Pattern` as SSoT for placeholder regex.
 - Validate inputs using Zod (frontend) and Domain Exceptions (backend).
-- Maintain anti-bloat test suites: Use Test Fixtures (`*TestFixture`) and Domain Builders (`*Builder`) for SUT/entity creation, and isolate input validation into `*ValidatorTests` using `[Theory]`.
+- Maintain anti-bloat test suites: Adhere strictly to **The 6 Clean Testing Pillars** (`*TestFixture` with `Given*` helpers, `*Builder`, colocated `*ValidatorTests` using `[Theory]`, 1:1 CQRS folder parity, and Roy Osherove naming).
+- Document system quality and coverage using **Invariant-Driven Quality Gates** (e.g. 100% Pass Rate, Zero Tolerated Failures, Bounded Context grouping) instead of fragile, high-churn counts.
 - Run automated tests (`dotnet test`, `npm test`) before finishing code modifications.
 
 ### 🟡 ASK FIRST (High-Impact Gates — Require Explicit Approval)
@@ -74,6 +113,12 @@ Preserve these core invariants over legacy systems at all times:
 
 ### 🔴 NEVER (Strictly Prohibited)
 - **NO Auto-Docker:** **NEVER** run `docker` or `docker compose` commands autonomously. Provide command snippets for the user to run manually.
+- **NO Hardcoded High-Churn Metrics in Docs:** **NEVER** hardcode volatile execution numbers (e.g. frozen test counts, controller counts, entity counts) in living documentation or agent guidance. Use invariant quality gates instead.
+- **NO I/O in Unit Tests:** **NEVER** put disk-writing generators, benchmarks, or OpenXml generation into `SmkDoc.Tests` (must be placed in `SmkDoc.IntegrationTests`).
+- **NO Monolithic Test Classes:** **NEVER** combine multiple distinct UseCases into a single test class or place UseCase tests flatly outside `Commands/` and `Queries/` folders.
+- **NO Ad-hoc Entity Instantiation or Nondeterministic Time:** **NEVER** instantiate domain entities in tests bypassing `*Builder` / `*TestFactory` or pass `DateTimeOffset.UtcNow` directly (always use `TestConstants.BaselineTime`).
+- **NO Invariant Test Dumping Grounds:** **NEVER** create separate artificial test suites like `DomainInvariantTests` or `EntityEncapsulationTests`. Invariants belong in their respective `{Aggregate}Tests.cs`.
+- **NO Mocks in Validator Tests:** **NEVER** mock dependencies for input validators; test them purely using `[Theory]` + `[InlineData]`.
 - **NO DB Writes in Preview:** Previews must not touch persistence or object storage.
 - **NO Leaky Queries:** Never leak `IQueryable` from repositories into UseCases or Presentation.
 - **NO Silent Failures:** Never catch exceptions with empty blocks; throw strongly-typed Domain Exceptions.

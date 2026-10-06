@@ -1,2 +1,9 @@
+global using FluentAssertions;
+global using Moq;
+global using Xunit;
 global using SmkDoc.Application.Common.Exceptions;
+global using SmkDoc.Domain.Enums;
+global using SmkDoc.Domain.Exceptions;
 global using SmkDoc.Domain.Interfaces;
+global using SmkDoc.Domain.ValueObjects;
+global using SmkDoc.Tests.Common;

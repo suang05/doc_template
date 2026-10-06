@@ -159,4 +159,15 @@ public class TemplateVersionTests
         ex.Which.ErrorCode.Should().Be("ARCHIVED_VERSION_IMMUTABLE");
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    [InlineData(-10)]
+    public void Draft_WithInvalidVersionNumber_ThrowsDomainValidationException(int invalidVersion)
+    {
+        var act = () => TemplateVersion.Draft(Guid.NewGuid(), invalidVersion, "key", TemplateFormat.Html, "user", DateTimeOffset.UtcNow);
+
+        act.Should().Throw<DomainValidationException>()
+            .WithMessage("*greater than zero*");
+    }
 }

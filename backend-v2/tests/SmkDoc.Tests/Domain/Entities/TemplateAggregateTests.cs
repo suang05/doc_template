@@ -114,6 +114,29 @@ public class TemplateAggregateTests
         ex.Which.ErrorCode.Should().Be("VERSION_NOT_IN_TEMPLATE");
     }
 
+    [Fact]
+    public void SetCurrentVersion_WhenInactive_ThrowsBusinessRuleViolationException()
+    {
+        var now = TestConstants.BaselineTime;
+        var template = CreateTemplate("Invoice", "invoice", now: now);
+        template.Deactivate(now);
+
+        var act = () => template.SetCurrentVersion(Guid.NewGuid(), now);
+        act.Should().Throw<BusinessRuleViolationException>()
+            .Which.ErrorCode.Should().Be("INACTIVE_TEMPLATE");
+    }
+
+    [Fact]
+    public void SetCurrentVersion_WhenEmptyGuid_ThrowsDomainValidationException()
+    {
+        var now = TestConstants.BaselineTime;
+        var template = CreateTemplate("Invoice", "invoice", now: now);
+
+        var act = () => template.SetCurrentVersion(Guid.Empty, now);
+        act.Should().Throw<DomainValidationException>()
+            .WithMessage("*VersionId cannot be empty*");
+    }
+
     // ── Field Mappings ─────────────────────────────────────────────────────────
 
     [Fact]

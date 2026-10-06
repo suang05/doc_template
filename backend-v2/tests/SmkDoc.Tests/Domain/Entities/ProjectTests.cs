@@ -136,4 +136,26 @@ public class ProjectTests
         project.IsActive.Should().BeTrue();
         project.UpdatedAt.Should().BeNull();
     }
+
+    [Fact]
+    public void Collections_ShouldBeReadOnly_AndNotDirectlyMutable()
+    {
+        var project = Project.Create(_companyId, ProjectName.Create("Billing System"), TemplateSlug.Create("billing-sys"), _initialTime);
+
+        project.Templates.Should().BeAssignableTo<IReadOnlyCollection<Template>>();
+        project.ApiKeys.Should().BeAssignableTo<IReadOnlyCollection<ApiKey>>();
+        project.UserRoles.Should().BeAssignableTo<IReadOnlyCollection<UserProjectRole>>();
+
+        Action actMutateTemplates = () => ((IList<Template>)project.Templates).Add(
+            Template.Create(project.Id, TemplateName.Create("T"), TemplateSlug.Create("template-sample"), null, _initialTime));
+        actMutateTemplates.Should().Throw<NotSupportedException>();
+
+        Action actMutateApiKeys = () => ((IList<ApiKey>)project.ApiKeys).Add(
+            ApiKey.Issue(project.Id, ApiKeyName.Create("Key"), "App", new Sha256Hash(new string('a', 64)), ExpirationPolicy.Never, _initialTime));
+        actMutateApiKeys.Should().Throw<NotSupportedException>();
+
+        Action actMutateUserRoles = () => ((IList<UserProjectRole>)project.UserRoles).Add(
+            UserProjectRole.Create(Guid.NewGuid(), project.Id, RoleType.Developer, _initialTime));
+        actMutateUserRoles.Should().Throw<NotSupportedException>();
+    }
 }

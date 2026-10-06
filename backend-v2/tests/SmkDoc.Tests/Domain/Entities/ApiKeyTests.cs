@@ -47,6 +47,15 @@ public class ApiKeyTests
     }
 
     [Fact]
+    public void Issue_WithEmptyProjectId_ThrowsDomainValidationException()
+    {
+        var act = () => ApiKey.Issue(Guid.Empty, ApiKeyName.Create("Key"), "app", ValidHash, ExpirationPolicy.Never, FixedNow);
+
+        act.Should().Throw<DomainValidationException>()
+            .WithMessage("*ProjectId cannot be empty*");
+    }
+
+    [Fact]
     public void RecordUsage_WhenUsable_UpdatesLastUsedAt()
     {
         var key = ApiKey.Issue(Guid.NewGuid(), ApiKeyName.Create("Key"), "app", ValidHash, ExpirationPolicy.Never, FixedNow);

@@ -52,9 +52,10 @@ backend-v2/
 │   │   │   ├── SystemRole.cs      # SuperAdmin / Member / Viewer (Platform-Level)
 │   │   │   └── GenerationStatus.cs # Success / Failed / Processing / Timeout
 
-│   │   ├── ValueObjects/           # Immutable types with structural equality
-│   │   │   ├── DataSourceType.cs   # "json" | "sql" — ป้องกัน invalid string
-│   │   │   ├── Sha256Hash.cs       # Validated SHA-256 hash wrapper (Zero-allocation hex check)
+│   │   ├── ValueObjects/           # Immutable types with structural equality (13 Value Objects)
+│   │   │   ├── ApiKeyName.cs, CompanyName.cs, ConnectionName.cs, DatasetAlias.cs, DatasetName.cs
+│   │   │   ├── DataSourceType.cs, DocumentReference.cs, EmailAddress.cs, ExpirationPolicy.cs
+│   │   │   ├── ProjectName.cs, Sha256Hash.cs, TemplateName.cs, TemplateSlug.cs
 │   │   │   └── Validation/         # SchemaValidationResult, ValidationErrorItem (Pure Domain Result Objects)
 │   │   ├── Exceptions/             # Domain Exceptions (Pure POCO — mapped by GlobalExceptionFilter)
 │   │   │   ├── DomainException.cs           # Abstract base class (ErrorCode)
@@ -149,7 +150,7 @@ backend-v2/
 │   │   └── Cache/                  # InMemoryTemplateDraftCache, MemoryCompiledTemplateCache
 │   │
 │   └── SmkDoc.Api/                 # 🔴 Presentation — HTTP surface only
-│       ├── Controllers/            # 17 Controllers organized by Bounded Context
+│       ├── Controllers/            # Thin HTTP Controllers organized by Bounded Context
 │       │   ├── Rendering/          # DocumentController (Stream preview & output), AuditLogController
 │       │   ├── Authoring/          # TemplateController, TemplateDraftController, TemplateHtmlController, TemplateVersionController, SchemaController, FontManagementController...
 │       │   ├── Integration/        # DataConnectionsController, DatasetController
@@ -172,14 +173,20 @@ backend-v2/
 │       └── Program.cs              # DI, Middleware pipeline, Swagger, Rate Limiting
 │
 └── tests/
-    └── SmkDoc.Tests/               # 389 tests / 389 passing (xUnit + Moq + FluentAssertions 100%)
-        ├── Common/                 # Builders (TemplateBuilder, UserBuilder) & Fixtures (GenerateDocumentTestFixture, IntegrationModuleTestFixture, UserManagementTestFixture)
-        ├── Domain/                 # Entities, Enums (EnumerationTests), ValueObjects, Exceptions
-        ├── Application/            # Common Helpers, Modules (Rendering, Authoring, Integration, IdentityAccess)
-        │   └── Modules/            # Mirrored Bounded Context test suites (Commands & Queries isolated)
-        ├── Infrastructure/         # Engines (Html, Word, Excel stream/bytes), Imaging, Security, Schema, Parsing
-        ├── Api/                    # Filters & DependencyInjectionSmokeTests (DI fitness check)
-        └── Integration/            # Categorized [Trait]: Benchmarks & Generators
+    ├── SmkDoc.Tests/                   # Pure In-Memory Unit Test Suite (xUnit + Moq + FluentAssertions — 100% Passing, 0 Failures, Zero I/O)
+    │   ├── Common/                     # Dedicated Test Factories (*TestFactory), Builders (*Builder) & Fixtures (*TestFixture)
+    │   ├── Domain/                     # Entities, Enums (EnumerationTests), ValueObjects, Exceptions
+    │   ├── Application/                # Common Helpers, Modules (CQRS Mirrored 1:1 Parity)
+    │   │   └── Modules/                # Mirrored Bounded Context suites (Commands & Queries isolated)
+    │   ├── Infrastructure/             # Engines (Html, Word, Excel stream/bytes), Imaging, Security, Schema, Parsing
+    │   └── Api/                        # Filters & DependencyInjectionSmokeTests (DI fitness check)
+    │
+    └── SmkDoc.IntegrationTests/        # Segregated Integration & Benchmark Suite (100% Passing)
+        ├── Fixtures/                   # SmkDocApiFactory, PostgreSqlContainerFixture, MinioContainerFixture
+        ├── Repositories/               # Real Database / Npgsql Repository integration checks
+        ├── Storage/                    # Real Object Storage / MinIO integration checks
+        ├── Generators/                 # RealEstateDocuments & MultiPageFixtures document generators
+        └── Benchmarks/                 # Performance & 1000-Row stress benchmark suites
 ```
 
 ---

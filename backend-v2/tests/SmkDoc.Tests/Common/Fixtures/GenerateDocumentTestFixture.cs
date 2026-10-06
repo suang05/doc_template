@@ -68,4 +68,29 @@ public class GenerateDocumentTestFixture
             Uow.Object,
             Context.Object
         );
+
+    public void GivenTemplateWithVersion(Template template, TemplateVersion version, string htmlContent = "<html></html>")
+    {
+        TemplateRepo.Setup(r => r.GetBySlugWithDetailsAsync(template.Slug.Value, It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(template);
+        TemplateRepo.Setup(r => r.GetBySlugAsync(template.Slug.Value, It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(template);
+        VersionRepo.Setup(r => r.GetByIdAsync(version.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(version);
+        Storage.Setup(s => s.DownloadAsync("templates", version.StorageKey, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MemoryStream(System.Text.Encoding.UTF8.GetBytes(htmlContent)));
+    }
+
+    public void GivenRenderEnginePdfOutput(string output = "%PDF-1.4 Mock Output")
+    {
+        Engine.Setup(e => e.EngineType).Returns(RenderEngineType.Html);
+        Engine.Setup(e => e.RenderStreamAsync(It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<OutputFormat>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MemoryStream(System.Text.Encoding.UTF8.GetBytes(output)));
+    }
+
+    public void GivenPresignedUrl(string url = "https://minio.sammakorn.co.th/outputs/sample.pdf")
+    {
+        Storage.Setup(s => s.GetPresignedUrlAsync("outputs", It.IsAny<string>(), It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(url);
+    }
 }
