@@ -10,3 +10,13 @@ public record ProjectResultDto(
     bool IsActive,
     DateTimeOffset CreatedAt
 );
+
+/// <summary>
+/// Paged query result for projects.
+/// </summary>
+public record ProjectPagedResultDto(
+    IReadOnlyList<ProjectResultDto> Items,
+    int TotalCount,
+    int Page,
+    int PageSize
+);

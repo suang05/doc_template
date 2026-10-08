@@ -105,6 +105,7 @@ Strictly enforce consistent naming conventions across all layers:
 ## 3. 🚦 Operational Boundaries (The 3-Tier Rule)
 
 ### 🟢 ALWAYS (Standard Autonomous Actions)
+- **The Boy Scout Rule:** Whenever you open a file to modify any logic, you are **forced** to scan the entire file. If you find dead code, unused variables, or code that violates Clean Architecture, use the `multi_replace_file_content` tool to clean it up in the same operation. Do not be afraid of breaking things; leave the file cleaner than you found it.
 - Analyze trade-offs and enforce Clean Architecture DIP interfaces.
 - Enforce Universal Code Hygiene across all C# layers: Clean Usings (no inline namespaces), Standardized Primary Constructor parameter naming (`camelCase`, no `_` prefix), and Whitespace Consistency (single blank line, no dead code).
 - Use `PlaceholderHelper.Pattern` as SSoT for placeholder regex.
@@ -129,14 +130,12 @@ Strictly enforce consistent naming conventions across all layers:
 
 ---
 
-## 4. 📋 Native Planning & Implementation Protocol
+## 4. 📋 Execution Gate & Planning
 
-When executing non-trivial tasks, refactoring, or architectural features, strictly follow the IDE's native flow:
-
-1. **`implementation_plan.md`:** Create this artifact specifying Clean Architecture layers, DIP interfaces, stateless preview safety, risk mitigation, and test strategies.
-   - **Crucial:** Always set `RequestFeedback: true` and `UserFacing: true` in `ArtifactMetadata` so the IDE renders the interactive **"Proceed"** button.
-2. **`task.md`:** Create this artifact with checkboxes (`[ ]` / `[x]`) to track breakdown and milestones.
-3. **Execution Gate:** **STOP and wait** for the user to click **"Proceed"** or provide written feedback before modifying or creating any source files.
+Before modifying source code for non-trivial tasks, refactoring, or architectural features:
+1. Create an artifact named **`implementation_plan.md`** to summarize the planned modifications.
+2. **CRITICAL:** When creating this file, you MUST ALWAYS set `RequestFeedback: true` and `UserFacing: true` in `ArtifactMetadata`. This stops the execution and waits for the user to click **"Proceed"** or provide feedback before actual code modification begins.
+*(Note: For trivial tasks like fixing typos or renaming variables, you may proceed with modifications directly without creating a plan.)*
 
 ---
 

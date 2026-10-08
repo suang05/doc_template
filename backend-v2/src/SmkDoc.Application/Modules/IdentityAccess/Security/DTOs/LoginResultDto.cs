@@ -49,6 +49,7 @@ public record LoginResultDto
 {
     public string AccessToken { get; init; } = string.Empty;
     public string Token => AccessToken; // Backward compatibility
+    public string? RefreshToken { get; init; }
     public string TokenType { get; init; } = "Bearer";
     public int ExpiresIn { get; init; } = 86400; // 24 hours
     public UserProfileDto User { get; init; } = default!;
@@ -62,9 +63,11 @@ public record LoginResultDto
         IReadOnlyList<AccessibleProjectDto> accessibleProjects,
         Guid? defaultProjectId,
         string tokenType = "Bearer",
-        int expiresIn = 86400)
+        int expiresIn = 86400,
+        string? refreshToken = null)
     {
         AccessToken = accessToken;
+        RefreshToken = refreshToken;
         User = user;
         AccessibleProjects = accessibleProjects;
         DefaultProjectId = defaultProjectId;
@@ -72,6 +75,29 @@ public record LoginResultDto
         ExpiresIn = expiresIn;
     }
 }
+
+/// <summary>
+/// Result returned upon token refresh containing a newly issued token pair.
+/// </summary>
+public record TokenResultDto(
+    string AccessToken,
+    string RefreshToken,
+    int ExpiresIn,
+    string TokenType = "Bearer"
+);
+
+/// <summary>
+/// Profile result returned by GET /api/v1/auth/me for current authenticated user.
+/// </summary>
+public record CurrentUserProfileResultDto(
+    Guid Id,
+    string Email,
+    string FirstName,
+    string LastName,
+    string SystemRole,
+    IReadOnlyList<AccessibleProjectDto> AccessibleProjects,
+    Guid? DefaultProjectId
+);
 
 /// <summary>
 /// DTO representing an API Key record.

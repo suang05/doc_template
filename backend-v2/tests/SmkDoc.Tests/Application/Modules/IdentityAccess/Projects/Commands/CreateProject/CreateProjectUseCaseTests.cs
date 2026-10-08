@@ -90,7 +90,7 @@ public class CreateProjectUseCaseTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_WhenNoCompanyExists_CreatesDefaultCompanyAndCommitsTwice()
+    public async Task ExecuteAsync_WhenNoCompanyExists_CreatesDefaultCompanyAndCommitsOnceAtomically()
     {
         // Arrange
         var userId = Guid.NewGuid();
@@ -114,7 +114,7 @@ public class CreateProjectUseCaseTests
         capturedCompany.Should().NotBeNull();
         capturedCompany!.Name.Value.Should().Be("Default Company");
         _companyRepoMock.Verify(r => r.AddAsync(It.IsAny<Company>(), It.IsAny<CancellationToken>()), Times.Once);
-        _uowMock.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Exactly(2));
+        _uowMock.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]

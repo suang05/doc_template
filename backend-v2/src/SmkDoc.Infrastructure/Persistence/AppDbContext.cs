@@ -19,6 +19,7 @@ public class AppDbContext : DbContext
     public DbSet<Project> Projects => Set<Project>();
     public DbSet<User> Users => Set<User>();
     public DbSet<UserProjectRole> UserProjectRoles => Set<UserProjectRole>();
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
     public DbSet<Template> Templates => Set<Template>();
     public DbSet<FieldMapping> FieldMappings => Set<FieldMapping>();
@@ -97,6 +98,27 @@ public class AppDbContext : DbContext
             entity.HasOne<Project>()
                   .WithMany(p => p.UserRoles)
                   .HasForeignKey(e => e.ProjectId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<RefreshToken>(entity =>
+        {
+            entity.ToTable("refresh_tokens");
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => e.TokenHash).IsUnique();
+            entity.Property(e => e.TokenHash).IsRequired().HasMaxLength(64)
+                  .HasConversion(h => h.Value, v => new Sha256Hash(v));
+            entity.Property(e => e.ReplacedByTokenHash).HasMaxLength(64)
+                  .HasConversion(h => h == null ? null : h.Value, v => v == null ? null : new Sha256Hash(v));
+            entity.Property(e => e.ExpiresAt).IsRequired();
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("NOW()");
+
+            entity.HasIndex(e => new { e.UserId, e.ExpiresAt })
+                  .HasFilter("\"revoked_at\" IS NULL");
+
+            entity.HasOne<User>()
+                  .WithMany()
+                  .HasForeignKey(e => e.UserId)
                   .OnDelete(DeleteBehavior.Cascade);
         });
 

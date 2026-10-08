@@ -17,25 +17,20 @@ public sealed class CreateProjectUseCase(
     IValidator<CreateProjectCommand>? validator = null,
     TimeProvider? timeProvider = null) : IUseCase<CreateProjectCommand, ProjectResultDto>
 {
-    private readonly IProjectRepository _projectRepo = projectRepo;
-    private readonly IUserProjectRoleRepository _userRoleRepo = userRoleRepo;
-    private readonly ICompanyRepository _companyRepo = companyRepo;
-    private readonly IUnitOfWork _unitOfWork = unitOfWork;
-    private readonly IValidator<CreateProjectCommand>? _validator = validator;
     private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
 
     public async Task<ProjectResultDto> ExecuteAsync(CreateProjectCommand request, CancellationToken ct = default)
     {
-        if (_validator != null)
+        if (validator != null)
         {
-            var validationResult = await _validator.ValidateAsync(request, ct);
+            var validationResult = await validator.ValidateAsync(request, ct);
             if (!validationResult.IsValid)
             {
                 throw new ValidationException(validationResult.ToDictionary());
             }
         }
 
-        var existing = await _projectRepo.GetBySlugAsync(request.Slug, ct);
+        var existing = await projectRepo.GetBySlugAsync(request.Slug, ct);
         if (existing != null)
         {
             throw new ConflictException($"Project with slug '{request.Slug}' already exists.");
@@ -43,21 +38,21 @@ public sealed class CreateProjectUseCase(
 
         var now = _timeProvider.GetUtcNow();
 
-        var defaultCompany = await _companyRepo.GetFirstAsync(ct);
+        var defaultCompany = await companyRepo.GetFirstAsync(ct);
         if (defaultCompany == null)
         {
             defaultCompany = Company.Create(CompanyName.Create("Default Company"), now);
-            await _companyRepo.AddAsync(defaultCompany, ct);
-            await _unitOfWork.CommitAsync(ct);
+            await companyRepo.AddAsync(defaultCompany, ct);
         }
 
         var project = Project.Create(defaultCompany.Id, ProjectName.Create(request.Name), TemplateSlug.Create(request.Slug), now);
-        await _projectRepo.AddAsync(project, ct);
+        await projectRepo.AddAsync(project, ct);
 
         var role = UserProjectRole.Create(request.UserId, project.Id, RoleType.Admin, now);
-        await _userRoleRepo.AddAsync(role, ct);
+        await userRoleRepo.AddAsync(role, ct);
 
-        await _unitOfWork.CommitAsync(ct);
+        // Single atomic transaction boundary
+        await unitOfWork.CommitAsync(ct);
 
         return new ProjectResultDto(project.Id, project.Name, project.Slug, project.IsActive, project.CreatedAt);
     }

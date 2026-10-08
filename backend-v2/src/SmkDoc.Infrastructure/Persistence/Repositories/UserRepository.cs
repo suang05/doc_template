@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects;
 
 namespace SmkDoc.Infrastructure.Persistence.Repositories;
 
@@ -18,12 +19,12 @@ public sealed class UserRepository(AppDbContext context) : IUserRepository
         return await _context.Users.FirstOrDefaultAsync(u => u.Email == normalizedEmail, ct);
     }
 
-    public async Task<User?> GetByEmailAsync(SmkDoc.Domain.ValueObjects.EmailAddress email, CancellationToken ct = default)
+    public async Task<User?> GetByEmailAsync(EmailAddress email, CancellationToken ct = default)
     {
         return await _context.Users.FirstOrDefaultAsync(u => u.Email == email, ct);
     }
 
-    public async Task<bool> ExistsByEmailAsync(SmkDoc.Domain.ValueObjects.EmailAddress email, CancellationToken ct = default)
+    public async Task<bool> ExistsByEmailAsync(EmailAddress email, CancellationToken ct = default)
     {
         return await _context.Users.AnyAsync(u => u.Email == email, ct);
     }

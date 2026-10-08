@@ -65,29 +65,65 @@ All endpoints require authentication, using dual-channel auth depending on the c
 * **Portal UI users (Human):** `Authorization: Bearer <jwtToken>`. Stateless JWT signed via `Jwt:Secret`, containing `sub` (UserId), `email`, `given_name`, `family_name`, `SystemRole` (SuperAdmin/Member/Viewer), `role` (Admin/Developer/Viewer), and optional `ProjectId` claims.
 
 ### 0. Authentication & Portal Identity
-* **Login (Portal):** `POST /api/auth/login` (Public)
+* **Login (Portal):** `POST /api/v1/auth/login` (Alias: `POST /api/auth/login`) (Public)
   * Body: `{ "email": "...", "password": "...", "projectId": "optional-uuid" }` (`projectId` is optional)
   * Response:
     ```json
     {
-      "token": "jwt...",
-      "accessToken": "jwt...",
-      "tokenType": "Bearer",
-      "expiresIn": 86400,
-      "user": {
+      "success": true,
+      "data": {
+        "accessToken": "jwt...",
+        "refreshToken": "secure-random-token...",
+        "token": "jwt...",
+        "tokenType": "Bearer",
+        "expiresIn": 86400,
+        "user": {
+          "id": "uuid",
+          "email": "user@sammakorn.co.th",
+          "firstName": "...",
+          "lastName": "...",
+          "systemRole": "SuperAdmin | Member | Viewer"
+        },
+        "accessibleProjects": [
+          { "id": "uuid", "name": "ERP System", "slug": "erp", "role": "Admin" }
+        ],
+        "defaultProjectId": "uuid"
+      }
+    }
+    ```
+* **Refresh Token:** `POST /api/v1/auth/refresh` (Alias: `POST /api/auth/refresh`) (Public)
+  * Body: `{ "refreshToken": "..." }`
+  * Response:
+    ```json
+    {
+      "success": true,
+      "data": {
+        "accessToken": "new-jwt...",
+        "refreshToken": "new-rotated-refresh-token...",
+        "expiresIn": 86400,
+        "tokenType": "Bearer"
+      }
+    }
+    ```
+  * Security: Implements Token Rotation (RTR). Reuse detection immediately revokes all active sessions for the compromised user.
+* **Get Current User:** `GET /api/v1/auth/me` (Alias: `GET /api/auth/me`) (JWT)
+  * Response:
+    ```json
+    {
+      "success": true,
+      "data": {
         "id": "uuid",
         "email": "user@sammakorn.co.th",
         "firstName": "...",
         "lastName": "...",
-        "systemRole": "SuperAdmin | Member | Viewer"
-      },
-      "accessibleProjects": [
-        { "id": "uuid", "name": "ERP System", "slug": "erp", "role": "Admin" }
-      ],
-      "defaultProjectId": "uuid"
+        "systemRole": "SuperAdmin | Member | Viewer",
+        "accessibleProjects": [
+          { "id": "uuid", "name": "ERP System", "slug": "erp", "role": "Admin" }
+        ],
+        "defaultProjectId": "uuid"
+      }
     }
     ```
-* **Get Current User:** `GET /api/auth/me` (JWT)
 
 
 ### 1. Document Operations (X-API-Key)
@@ -146,7 +182,7 @@ All endpoints require authentication, using dual-channel auth depending on the c
 * **List Template Versions:** `GET /api/v1/templates/:id/versions`
 
 ### 3. Management & Settings (JWT Bearer)
-* **List Projects:** GET /api/v1/management/projects
+* **List Projects:** `GET /api/v1/management/projects?search=&page=1&pageSize=20` → `PagedApiResponse<ProjectResultDto>` (Server-side paginated & search filtered)
 * **Get Project by ID:** GET /api/v1/management/projects/:projectId
 * **Create Project:** POST /api/v1/management/projects (Admin only — Returns 201 Created with Location header)
 * **List Project Users:** GET /api/v1/management/projects/:projectId/users

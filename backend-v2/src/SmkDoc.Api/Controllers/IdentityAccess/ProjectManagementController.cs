@@ -22,16 +22,20 @@ public class ProjectManagementController(
     GetProjectByIdUseCase getProjectByIdUseCase,
     CreateProjectUseCase createProjectUseCase) : ControllerBase
 {
-    /// <summary>List all projects accessible to the authenticated user.</summary>
+    /// <summary>List all projects accessible to the authenticated user with server-side pagination and search.</summary>
     [HttpGet]
-    [ProducesResponseType(typeof(ApiResponse<IEnumerable<ProjectResultDto>>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> ListProjects(CancellationToken ct)
+    [ProducesResponseType(typeof(PagedApiResponse<ProjectResultDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> ListProjects(
+        [FromQuery] string? search,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken ct = default)
     {
         var userId = User.GetUserId();
-        var query = new ListProjectsQuery(userId);
-        var projects = await listProjectsUseCase.ExecuteAsync(query, ct);
+        var query = new ListProjectsQuery(userId, search, page, pageSize);
+        var result = await listProjectsUseCase.ExecuteAsync(query, ct);
 
-        return Ok(new ApiResponse<IEnumerable<ProjectResultDto>>(projects));
+        return Ok(new PagedApiResponse<ProjectResultDto>(result.Items, result.TotalCount, result.Page, result.PageSize));
     }
 
     /// <summary>Get a specific project by its ID.</summary>

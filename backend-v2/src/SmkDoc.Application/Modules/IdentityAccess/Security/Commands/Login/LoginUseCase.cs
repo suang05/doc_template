@@ -1,10 +1,12 @@
 using FluentValidation;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
+using SmkDoc.Application.Modules.IdentityAccess.Security.Helpers;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
+using RefreshTokenEntity = SmkDoc.Domain.Entities.RefreshToken;
 
 namespace SmkDoc.Application.Modules.IdentityAccess.Security.Commands.Login;
 
@@ -14,20 +16,18 @@ public sealed class LoginUseCase(
     IProjectRepository projectRepo,
     IPasswordHasher passwordHasher,
     IJwtTokenGenerator jwtTokenGenerator,
-    IValidator<LoginCommand>? validator = null) : IUseCase<LoginCommand, LoginResultDto>
+    IValidator<LoginCommand>? validator = null,
+    IRefreshTokenRepository? tokenRepo = null,
+    IUnitOfWork? unitOfWork = null,
+    TimeProvider? timeProvider = null) : IUseCase<LoginCommand, LoginResultDto>
 {
-    private readonly IUserRepository _userRepo = userRepo;
-    private readonly IUserProjectRoleRepository _roleRepo = roleRepo;
-    private readonly IProjectRepository _projectRepo = projectRepo;
-    private readonly IPasswordHasher _passwordHasher = passwordHasher;
-    private readonly IJwtTokenGenerator _jwtTokenGenerator = jwtTokenGenerator;
-    private readonly IValidator<LoginCommand>? _validator = validator;
+    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
 
     public async Task<LoginResultDto> ExecuteAsync(LoginCommand request, CancellationToken ct = default)
     {
-        if (_validator != null)
+        if (validator != null)
         {
-            var validationResult = await _validator.ValidateAsync(request, ct);
+            var validationResult = await validator.ValidateAsync(request, ct);
             if (!validationResult.IsValid)
             {
                 throw new ValidationException(validationResult.ToDictionary());
@@ -35,9 +35,9 @@ public sealed class LoginUseCase(
         }
 
         var normalizedEmail = request.Email.Trim().ToLowerInvariant();
-        var user = await _userRepo.GetByEmailAsync(normalizedEmail, ct);
+        var user = await userRepo.GetByEmailAsync(normalizedEmail, ct);
 
-        if (user == null || !user.IsActive || !_passwordHasher.VerifyPassword(request.Password, user.PasswordHash))
+        if (user == null || !user.IsActive || !passwordHasher.VerifyPassword(request.Password, user.PasswordHash))
         {
             throw new UnauthorizedException("Invalid email or password.");
         }
@@ -47,21 +47,21 @@ public sealed class LoginUseCase(
 
         if (user.SystemRole == SystemRole.SuperAdmin)
         {
-            var allProjects = await _projectRepo.ListActiveAsync(ct);
+            var allProjects = await projectRepo.ListActiveAsync(ct);
             accessibleProjects = allProjects.Select(p => new AccessibleProjectDto(p.Id, p.Name, p.Slug, "Admin")).ToList();
             activeRole = "Admin";
         }
         else
         {
-            var userRoles = await _roleRepo.ListByUserAsync(user.Id, ct);
+            var userRoles = await roleRepo.ListByUserAsync(user.Id, ct);
             if (userRoles.Count > 0)
             {
                 var projectIds = userRoles.Select(r => r.ProjectId).ToHashSet();
-                var projects = await _projectRepo.ListByIdsAsync(projectIds, ct);
+                var projects = await projectRepo.ListByIdsAsync(projectIds, ct);
                 var activeProjects = projects.Where(p => p.IsActive).ToList();
                 var roleMap = userRoles.ToDictionary(r => r.ProjectId, r => r.Role.ToString());
 
-                accessibleProjects = activeProjects.Select(p => 
+                accessibleProjects = activeProjects.Select(p =>
                     new AccessibleProjectDto(p.Id, p.Name, p.Slug, roleMap.GetValueOrDefault(p.Id, "Viewer"))
                 ).ToList();
             }
@@ -92,11 +92,23 @@ public sealed class LoginUseCase(
         }
 
         var roles = new List<string> { activeRole };
-        var token = _jwtTokenGenerator.GenerateToken(user, activeProjectId, roles);
+        var token = jwtTokenGenerator.GenerateToken(user, activeProjectId, roles);
+
+        string? rawRefreshToken = null;
+        if (tokenRepo != null && unitOfWork != null)
+        {
+            var now = _timeProvider.GetUtcNow();
+            rawRefreshToken = RefreshTokenHelper.GenerateTokenString();
+            var refreshTokenHash = RefreshTokenHelper.HashToken(rawRefreshToken);
+            var refreshToken = RefreshTokenEntity.Create(user.Id, refreshTokenHash, now.AddDays(7), now);
+            await tokenRepo.AddAsync(refreshToken, ct);
+            await unitOfWork.CommitAsync(ct);
+        }
 
         return new LoginResultDto
         {
             AccessToken = token,
+            RefreshToken = rawRefreshToken,
             User = new UserProfileDto(user.Id, user.Email, user.FirstName, user.LastName, user.SystemRole.Name),
             AccessibleProjects = accessibleProjects,
             DefaultProjectId = activeProjectId

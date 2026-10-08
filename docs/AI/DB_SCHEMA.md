@@ -10,6 +10,7 @@
 | `companies` | `Company` | UUID | — |
 | `projects` | `Project` | UUID | `company_id` → `companies(id)`, `slug` UNIQUE |
 | `users` | `User` | UUID | `email` UNIQUE |
+| `refresh_tokens` | `RefreshToken` | UUID | `user_id` → `users(id)`, `token_hash` UNIQUE, `(user_id, expires_at)` INDEX |
 | `api_keys` | `ApiKey` | UUID | `project_id` → `projects(id)`, `key_hash` INDEX |
 | `templates` | `Template` | UUID | `project_id`, `(project_id, slug)` UNIQUE |
 | `template_versions` | `TemplateVersion` | UUID | `template_id` → `templates(id)`, `(template_id, version)` UNIQUE |
@@ -47,6 +48,17 @@ CREATE TABLE users (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+CREATE TABLE refresh_tokens (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token_hash VARCHAR(64) UNIQUE NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    revoked_at TIMESTAMPTZ,
+    replaced_by_token_hash VARCHAR(64)
+);
+
+CREATE INDEX idx_refresh_tokens_user_expires ON refresh_tokens (user_id, expires_at) WHERE revoked_at IS NULL;
 
 CREATE TABLE user_project_roles (
     user_id UUID REFERENCES users(id) ON DELETE CASCADE,

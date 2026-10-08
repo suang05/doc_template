@@ -4,7 +4,9 @@ using SmkDoc.Application.Modules.IdentityAccess.Projects.Queries.GetProjectById;
 using SmkDoc.Application.Modules.IdentityAccess.Projects.Queries.ListProjects;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.CreateApiKey;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.Login;
+using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.RefreshToken;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.RevokeApiKey;
+using SmkDoc.Application.Modules.IdentityAccess.Security.Queries.GetCurrentUserProfile;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Queries.ListApiKeys;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Queries.ValidateApiKey;
 using SmkDoc.Application.Modules.IdentityAccess.Users.Commands.InviteUser;
@@ -33,6 +35,8 @@ public static class IdentityAccessModuleExtensions
 
         // Security / Auth / ApiKey (Action-Centric Vertical Slice)
         services.AddScoped<LoginUseCase>();
+        services.AddScoped<RefreshTokenUseCase>();
+        services.AddScoped<GetCurrentUserProfileUseCase>();
         services.AddScoped<CreateApiKeyUseCase>();
         services.AddScoped<RevokeApiKeyUseCase>();
         services.AddScoped<ListApiKeysUseCase>();
