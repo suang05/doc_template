@@ -9,7 +9,8 @@
 |---|---|---|---|
 | **M2M Document Generation** | Channel A (API Key) | `X-API-Key: <key>` | `DocumentController`, `TemplateController` |
 | **Portal Administration** | Channel B (Bearer JWT) | `Authorization: Bearer <jwt>` | `UserManagementController`, `ApiKeyManagementController`, `DataConnectionsController` |
-| **Public Endpoints** | Anonymous | None | `POST /api/v1/auth/login`, `GET /health` |
+| **Portal Auth Gateway** | Channel A Gated (API Key) | `X-API-Key: <key>` | `POST /api/v1/auth/login`, `POST /api/v1/auth/refresh` |
+| **Public Endpoints** | Anonymous | None | `GET /health`, `/swagger` |
 
 ---
 
@@ -65,16 +66,15 @@ All endpoints require authentication, using dual-channel auth depending on the c
 * **Portal UI users (Human):** `Authorization: Bearer <jwtToken>`. Stateless JWT signed via `Jwt:Secret`, containing `sub` (UserId), `email`, `given_name`, `family_name`, `SystemRole` (SuperAdmin/Member/Viewer), `role` (Admin/Developer/Viewer), and optional `ProjectId` claims.
 
 ### 0. Authentication & Portal Identity
-* **Login (Portal):** `POST /api/v1/auth/login` (Alias: `POST /api/auth/login`) (Public)
-  * Body: `{ "email": "...", "password": "...", "projectId": "optional-uuid" }` (`projectId` is optional)
+* **Login (Portal):** `POST /api/v1/auth/login` (Alias: `POST /api/auth/login`) (Channel A Gated: `X-API-Key: <key>`)
+  * Headers: `X-API-Key: <master-or-admin-key>` (Mandatory: Zero Public Surface Gateway)
+  * Body: `{ "email": "admin@sammakorn.co.th", "password": "SecurePassword123!" }` (`projectId` is eliminated from body; auto-resolved from API key or user defaults)
   * Response:
     ```json
     {
-      "success": true,
       "data": {
         "accessToken": "jwt...",
-        "refreshToken": "secure-random-token...",
-        "token": "jwt...",
+        "refreshToken": "smk_rt_secure_token...",
         "tokenType": "Bearer",
         "expiresIn": 86400,
         "user": {
@@ -87,16 +87,36 @@ All endpoints require authentication, using dual-channel auth depending on the c
         "accessibleProjects": [
           { "id": "uuid", "name": "ERP System", "slug": "erp", "role": "Admin" }
         ],
+        "activeApiKeys": [
+          {
+            "id": "uuid",
+            "name": "Read Key",
+            "callerApp": "default-reader",
+            "scope": "ReadOnly",
+            "isActive": true,
+            "lastUsedAt": null,
+            "createdAt": "2026-10-08T10:00:00Z"
+          },
+          {
+            "id": "uuid",
+            "name": "Write Key",
+            "callerApp": "default-writer",
+            "scope": "ReadWrite",
+            "isActive": true,
+            "lastUsedAt": null,
+            "createdAt": "2026-10-08T10:00:00Z"
+          }
+        ],
         "defaultProjectId": "uuid"
       }
     }
     ```
-* **Refresh Token:** `POST /api/v1/auth/refresh` (Alias: `POST /api/auth/refresh`) (Public)
-  * Body: `{ "refreshToken": "..." }`
+* **Refresh Token:** `POST /api/v1/auth/refresh` (Alias: `POST /api/auth/refresh`) (Channel A Gated: `X-API-Key: <key>`)
+  * Headers: `X-API-Key: <master-or-admin-key>`
+  * Body: `{ "refreshToken": "smk_rt_secure_token..." }`
   * Response:
     ```json
     {
-      "success": true,
       "data": {
         "accessToken": "new-jwt...",
         "refreshToken": "new-rotated-refresh-token...",
@@ -110,7 +130,6 @@ All endpoints require authentication, using dual-channel auth depending on the c
   * Response:
     ```json
     {
-      "success": true,
       "data": {
         "id": "uuid",
         "email": "user@sammakorn.co.th",
@@ -183,8 +202,10 @@ All endpoints require authentication, using dual-channel auth depending on the c
 
 ### 3. Management & Settings (JWT Bearer)
 * **List Projects:** `GET /api/v1/management/projects?search=&page=1&pageSize=20` → `PagedApiResponse<ProjectResultDto>` (Server-side paginated & search filtered)
-* **Get Project by ID:** GET /api/v1/management/projects/:projectId
-* **Create Project:** POST /api/v1/management/projects (Admin only — Returns 201 Created with Location header)
+* **Get Project by ID:** `GET /api/v1/management/projects/:projectId`
+* **Create Project:** `POST /api/v1/management/projects` (Admin only — Returns 201 Created with Location header)
+  * Body: `{ "name": "Accounting System", "slug": "accounting" }`
+  * Response: Returns `ApiResponse<ProjectResultDto>` containing project metadata and auto-provisioned one-time plain-text keys: `readApiKey` (`ReadOnly`) and `writeApiKey` (`ReadWrite`).
 * **List Project Users:** GET /api/v1/management/projects/:projectId/users
 * **Invite User:** POST /api/v1/management/projects/:projectId/users (Admin only — Returns 201 Created)
 * **Update User Role:** PUT /api/v1/management/projects/:projectId/users/:userId/role (Admin only — Returns 204 NoContent)

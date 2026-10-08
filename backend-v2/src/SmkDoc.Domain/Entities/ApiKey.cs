@@ -1,4 +1,5 @@
 using SmkDoc.Domain.Common;
+using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
@@ -17,6 +18,7 @@ public sealed class ApiKey : BaseEntity, IMustHaveProject
     public ApiKeyName Name { get; private set; } = null!;
     public string CallerApp { get; private set; } = string.Empty;
     public Sha256Hash KeyHash { get; private set; } = null!;
+    public ApiKeyScope Scope { get; private set; } = ApiKeyScope.ReadWrite;
     public ExpirationPolicy Expiration { get; private set; } = ExpirationPolicy.Never;
     public bool IsActive { get; private set; }
     public DateTimeOffset? LastUsedAt { get; private set; }
@@ -40,7 +42,8 @@ public sealed class ApiKey : BaseEntity, IMustHaveProject
         string? callerApp,
         Sha256Hash keyHash,
         ExpirationPolicy? expiration,
-        DateTimeOffset now)
+        DateTimeOffset now,
+        ApiKeyScope? scope = null)
         : base(id, createdAt: now)
     {
         ProjectId = Guard.NotEmpty(projectId, nameof(ProjectId));
@@ -48,6 +51,7 @@ public sealed class ApiKey : BaseEntity, IMustHaveProject
         KeyHash = Guard.NotNull(keyHash, nameof(KeyHash));
         CallerApp = Guard.MaxLength(callerApp, nameof(CallerApp), CallerAppMaxLength);
         Expiration = expiration ?? ExpirationPolicy.Never;
+        Scope = scope ?? ApiKeyScope.ReadWrite;
         IsActive = true;
     }
 
@@ -55,8 +59,8 @@ public sealed class ApiKey : BaseEntity, IMustHaveProject
     /// Factory: the only way to create a valid API key with an explicit ExpirationPolicy.
     /// </summary>
     public static ApiKey Issue(Guid projectId, ApiKeyName name, string? callerApp, Sha256Hash keyHash,
-        ExpirationPolicy expiration, DateTimeOffset now) =>
-        new(null, projectId, name, callerApp, keyHash, expiration ?? ExpirationPolicy.Never, now);
+        ExpirationPolicy expiration, DateTimeOffset now, ApiKeyScope? scope = null) =>
+        new(null, projectId, name, callerApp, keyHash, expiration ?? ExpirationPolicy.Never, now, scope);
 
     public bool IsExpiredAt(DateTimeOffset now) => Expiration.IsExpiredAt(now);
 

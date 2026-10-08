@@ -124,6 +124,7 @@ CREATE TABLE api_keys (
     name         VARCHAR(100) NOT NULL,
     caller_app   VARCHAR(50)  NOT NULL,
     key_hash     VARCHAR(255) NOT NULL,
+    scope        VARCHAR(20)  DEFAULT 'ReadWrite' NOT NULL, -- 'ReadOnly', 'ReadWrite'
     is_active    BOOLEAN DEFAULT true,
     last_used_at TIMESTAMPTZ,
     created_at   TIMESTAMPTZ DEFAULT NOW()

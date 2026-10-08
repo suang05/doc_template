@@ -8,7 +8,9 @@ public record ProjectResultDto(
     string Name,
     string Slug,
     bool IsActive,
-    DateTimeOffset CreatedAt
+    DateTimeOffset CreatedAt,
+    string? ReadApiKey = null,
+    string? WriteApiKey = null
 );
 
 /// <summary>

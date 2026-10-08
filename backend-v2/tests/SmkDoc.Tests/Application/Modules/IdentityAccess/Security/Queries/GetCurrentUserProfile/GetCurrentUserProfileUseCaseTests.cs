@@ -1,12 +1,13 @@
 using FluentAssertions;
 using Moq;
+using SmkDoc.Application.Common.Interfaces;
+using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Queries.GetCurrentUserProfile;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Tests.Common.Builders;
-using SmkDoc.Tests.Common.Factories;
 using Xunit;
 
 namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Security.Queries.GetCurrentUserProfile;
@@ -14,13 +15,11 @@ namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Security.Queries.GetCu
 public class GetCurrentUserProfileUseCaseTests
 {
     private readonly Mock<IUserRepository> _userRepoMock = new();
-    private readonly Mock<IUserProjectRoleRepository> _roleRepoMock = new();
-    private readonly Mock<IProjectRepository> _projectRepoMock = new();
+    private readonly Mock<IUserWorkspaceQueryService> _workspaceQueryServiceMock = new();
 
     private GetCurrentUserProfileUseCase CreateSut() => new(
         _userRepoMock.Object,
-        _roleRepoMock.Object,
-        _projectRepoMock.Object);
+        _workspaceQueryServiceMock.Object);
 
     [Fact]
     public async Task ExecuteAsync_WhenStandardUserWithProjects_ReturnsProfileAndAccessibleProjects()
@@ -34,20 +33,15 @@ public class GetCurrentUserProfileUseCaseTests
             .Build();
 
         var projectId = Guid.NewGuid();
-        var project = ProjectTestFactory.Create(projectId, Guid.NewGuid(), "Alpha", "alpha", now);
-        var role = UserProjectRoleBuilder.ARole()
-            .ForUser(user.Id)
-            .InProject(projectId)
-            .AsAdmin()
-            .WithTime(now)
-            .Build();
+        var projects = new List<AccessibleProjectDto>
+        {
+            new(projectId, "Alpha", "alpha", "Admin")
+        };
 
         _userRepoMock.Setup(r => r.GetByIdAsync(user.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);
-        _roleRepoMock.Setup(r => r.ListByUserAsync(user.Id, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new List<UserProjectRole> { role });
-        _projectRepoMock.Setup(r => r.ListByIdsAsync(It.IsAny<IEnumerable<Guid>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new List<Project> { project });
+        _workspaceQueryServiceMock.Setup(q => q.GetAccessibleProjectsAsync(user.Id, false, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(projects);
 
         // Act
         var result = await CreateSut().ExecuteAsync(new GetCurrentUserProfileQuery(user.Id));
@@ -75,13 +69,16 @@ public class GetCurrentUserProfileUseCaseTests
             .WithTime(now)
             .Build();
 
-        var p1 = ProjectTestFactory.Create(Guid.NewGuid(), Guid.NewGuid(), "P1", "p-1", now);
-        var p2 = ProjectTestFactory.Create(Guid.NewGuid(), Guid.NewGuid(), "P2", "p-2", now);
+        var projects = new List<AccessibleProjectDto>
+        {
+            new(Guid.NewGuid(), "P1", "p-1", "Admin"),
+            new(Guid.NewGuid(), "P2", "p-2", "Admin")
+        };
 
         _userRepoMock.Setup(r => r.GetByIdAsync(user.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);
-        _projectRepoMock.Setup(r => r.ListActiveAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new List<Project> { p1, p2 });
+        _workspaceQueryServiceMock.Setup(q => q.GetAccessibleProjectsAsync(user.Id, true, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(projects);
 
         // Act
         var result = await CreateSut().ExecuteAsync(new GetCurrentUserProfileQuery(user.Id));

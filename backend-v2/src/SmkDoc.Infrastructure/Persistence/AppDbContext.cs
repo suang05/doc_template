@@ -217,6 +217,10 @@ public class AppDbContext : DbContext
             entity.Property(e => e.Expiration)
                   .HasColumnName("expires_at")
                   .HasConversion(v => v.ExpiresAt, v => ExpirationPolicy.FromExisting(v));
+            entity.Property(e => e.Scope)
+                  .HasConversion(s => s.Name, v => ApiKeyScope.FromDisplayName<ApiKeyScope>(v))
+                  .HasMaxLength(20)
+                  .HasDefaultValue(ApiKeyScope.ReadWrite);
             entity.Ignore(e => e.IsRevoked);
             entity.Property(e => e.IsActive).HasDefaultValue(true);
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("NOW()");

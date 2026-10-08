@@ -132,6 +132,16 @@ builder.Services.AddDbContext<AppDbContext>(options =>
         errorCodesToAdd: null)));
 
 builder.Services.AddScoped(typeof(IRepository<>), typeof(EfRepository<>));
+builder.Services.AddScoped<ITemplateRepository, TemplateRepository>();
+builder.Services.AddScoped<IDatasetRepository, DatasetRepository>();
+builder.Services.AddScoped<IDataConnectionRepository, DataConnectionRepository>();
+builder.Services.AddScoped<IUserRepository, UserRepository>();
+builder.Services.AddScoped<IUserProjectRoleRepository, UserProjectRoleRepository>();
+builder.Services.AddScoped<IProjectRepository, ProjectRepository>();
+builder.Services.AddScoped<IApiKeyRepository, ApiKeyRepository>();
+builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
+builder.Services.AddScoped<ICompanyRepository, CompanyRepository>();
+builder.Services.AddScoped<IGenerationLogMetricsRepository, GenerationLogMetricsRepository>();
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 
 // --- 4. Storage (MinIO S3) ---

@@ -28,11 +28,22 @@ public class ApiKeyTests
         key.KeyHash.Should().Be(ValidHash);
         key.IsActive.Should().BeTrue();
         key.IsRevoked.Should().BeFalse();
+        key.Scope.Should().Be(ApiKeyScope.ReadWrite);
         key.Expiration.Should().Be(expiration);
         key.ExpiresAt.Should().Be(expiresAt);
         key.IsExpiredAt(FixedNow).Should().BeFalse();
         key.IsUsableAt(FixedNow).Should().BeTrue();
         key.CreatedAt.Should().Be(FixedNow);
+    }
+
+    [Fact]
+    public void Issue_WithReadOnlyScope_SetsScopeCorrectly()
+    {
+        var projectId = Guid.NewGuid();
+        var name = ApiKeyName.Create("Reader Worker");
+        var key = ApiKey.Issue(projectId, name, "reader-service", ValidHash, ExpirationPolicy.Never, FixedNow, ApiKeyScope.ReadOnly);
+
+        key.Scope.Should().Be(ApiKeyScope.ReadOnly);
     }
 
     [Fact]

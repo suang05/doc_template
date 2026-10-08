@@ -8,48 +8,45 @@ using SmkDoc.Domain.Entities;
 
 namespace SmkDoc.Infrastructure.Security;
 
-public class JwtTokenGenerator : IJwtTokenGenerator
+public class JwtTokenGenerator(IConfiguration configuration, TimeProvider? timeProvider = null) : IJwtTokenGenerator
 {
-    private readonly IConfiguration _configuration;
-
-    public JwtTokenGenerator(IConfiguration configuration)
-    {
-        _configuration = configuration;
-    }
+    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
 
     public string GenerateToken(User user, Guid? projectId = null, IEnumerable<string>? roles = null)
     {
-        var secret = _configuration["Jwt:Secret"] ?? throw new InvalidOperationException("JWT Secret is missing.");
+        var secret = configuration["Jwt:Secret"] ?? throw new InvalidOperationException("JWT Secret is missing.");
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secret));
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
         var claims = new List<Claim>
         {
-            new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
-            new Claim(JwtRegisteredClaimNames.Email, user.Email),
-            new Claim(JwtRegisteredClaimNames.GivenName, user.FirstName),
-            new Claim(JwtRegisteredClaimNames.FamilyName, user.LastName),
-            new Claim("SystemRole", user.SystemRole.Name)
+            new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
+            new(JwtRegisteredClaimNames.Email, user.Email.Value),
+            new(JwtRegisteredClaimNames.GivenName, user.FirstName),
+            new(JwtRegisteredClaimNames.FamilyName, user.LastName),
+            new("SystemRole", user.SystemRole.Name)
         };
 
         if (projectId.HasValue && projectId.Value != Guid.Empty)
         {
-            claims.Add(new Claim("ProjectId", projectId.Value.ToString()));
+            claims.Add(new("ProjectId", projectId.Value.ToString()));
         }
 
         if (roles != null)
         {
             foreach (var role in roles)
             {
-                claims.Add(new Claim(ClaimTypes.Role, role));
+                claims.Add(new(ClaimTypes.Role, role));
             }
         }
 
+        var expires = _timeProvider.GetUtcNow().UtcDateTime.AddHours(24);
+
         var token = new JwtSecurityToken(
-            issuer: _configuration["Jwt:Issuer"],
-            audience: _configuration["Jwt:Audience"],
+            issuer: configuration["Jwt:Issuer"],
+            audience: configuration["Jwt:Audience"],
             claims: claims,
-            expires: DateTime.UtcNow.AddHours(24), // Token expires in 24 hours
+            expires: expires,
             signingCredentials: credentials);
 
         return new JwtSecurityTokenHandler().WriteToken(token);

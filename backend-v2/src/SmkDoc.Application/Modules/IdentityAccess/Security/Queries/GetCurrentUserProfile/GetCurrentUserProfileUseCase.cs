@@ -8,8 +8,7 @@ namespace SmkDoc.Application.Modules.IdentityAccess.Security.Queries.GetCurrentU
 
 public sealed class GetCurrentUserProfileUseCase(
     IUserRepository userRepo,
-    IUserProjectRoleRepository roleRepo,
-    IProjectRepository projectRepo) : IUseCase<GetCurrentUserProfileQuery, CurrentUserProfileResultDto>
+    IUserWorkspaceQueryService workspaceQueryService) : IUseCase<GetCurrentUserProfileQuery, CurrentUserProfileResultDto>
 {
     public async Task<CurrentUserProfileResultDto> ExecuteAsync(GetCurrentUserProfileQuery query, CancellationToken ct = default)
     {
@@ -19,30 +18,10 @@ public sealed class GetCurrentUserProfileUseCase(
             throw new UnauthorizedException("User account not found or inactive.");
         }
 
-        var accessibleProjects = new List<AccessibleProjectDto>();
-
-        if (user.SystemRole == SystemRole.SuperAdmin)
-        {
-            var allProjects = await projectRepo.ListActiveAsync(ct);
-            accessibleProjects = allProjects
-                .Select(p => new AccessibleProjectDto(p.Id, p.Name, p.Slug, "Admin"))
-                .ToList();
-        }
-        else
-        {
-            var userRoles = await roleRepo.ListByUserAsync(user.Id, ct);
-            if (userRoles.Count > 0)
-            {
-                var projectIds = userRoles.Select(r => r.ProjectId).ToHashSet();
-                var projects = await projectRepo.ListByIdsAsync(projectIds, ct);
-                var activeProjects = projects.Where(p => p.IsActive).ToList();
-                var roleMap = userRoles.ToDictionary(r => r.ProjectId, r => r.Role.ToString());
-
-                accessibleProjects = activeProjects.Select(p =>
-                    new AccessibleProjectDto(p.Id, p.Name, p.Slug, roleMap.GetValueOrDefault(p.Id, "Viewer"))
-                ).ToList();
-            }
-        }
+        var accessibleProjects = await workspaceQueryService.GetAccessibleProjectsAsync(
+            user.Id,
+            user.SystemRole == SystemRole.SuperAdmin,
+            ct);
 
         var defaultProjectId = accessibleProjects.FirstOrDefault()?.Id;
 

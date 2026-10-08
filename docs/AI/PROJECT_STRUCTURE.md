@@ -28,7 +28,7 @@ backend-v2/
 │   │   │   ├── BaseEntity.cs       # Entity base class (UUIDv7, CreatedAt, UpdatedAt)
 │   │   │   ├── Enumeration.cs      # Smart Enum base class (Id + Name + behavior)
 │   │   │   └── ValueObject.cs      # Value Object base class (structural equality)
-│   │   ├── Entities/               # 14 Rich Domain Models (private set + business methods)
+│   │   ├── Entities/               # 15 Rich Domain Models (private set + business methods)
 │   │   │   ├── Template.cs
 │   │   │   ├── TemplateVersion.cs
 │   │   │   ├── FieldMapping.cs
@@ -37,6 +37,7 @@ backend-v2/
 │   │   │   ├── Document.cs
 │   │   │   ├── DocumentVersion.cs
 │   │   │   ├── User.cs
+│   │   │   ├── RefreshToken.cs
 │   │   │   ├── Project.cs
 │   │   │   ├── Company.cs
 │   │   │   ├── DataConnection.cs
@@ -48,6 +49,7 @@ backend-v2/
 │   │   │   ├── OutputFormat.cs     # Pdf / Docx / Xlsx
 │   │   │   ├── RenderEngineType.cs # Html / Docx / Excel
 │   │   │   ├── TemplateVersionStatus.cs  # Draft / Published / Archived
+│   │   │   ├── ApiKeyScope.cs     # ReadOnly / ReadWrite
 │   │   │   ├── RoleType.cs        # Admin / Developer / Viewer (Project-Scoped)
 │   │   │   ├── SystemRole.cs      # SuperAdmin / Member / Viewer (Platform-Level)
 │   │   │   └── GenerationStatus.cs # Success / Failed / Processing / Timeout
@@ -70,6 +72,7 @@ backend-v2/
 │   │       ├── IProjectRepository.cs            # Domain repository contract for Project aggregate
 │   │       ├── ICompanyRepository.cs            # Domain repository contract for Company aggregate
 │   │       ├── IApiKeyRepository.cs             # Domain repository contract for ApiKey aggregate
+│   │       ├── IRefreshTokenRepository.cs       # Domain repository contract for RefreshToken aggregate
 │   │       ├── IDatasetRepository.cs            # Domain repository contract for Dataset aggregate
 │   │       └── IDataConnectionRepository.cs     # Domain repository contract for DataConnection aggregate
 │   │
@@ -91,6 +94,7 @@ backend-v2/
 │   │   │   │   ├── IRenderEngine.cs        # Stream-first: RenderStreamAsync, RenderAsync
 │   │   │   │   ├── IDocumentMetrics.cs     # Real-time APM Metrics & Tracing Contract
 │   │   │   │   ├── IExecutionContext.cs
+│   │   │   │   ├── IUserWorkspaceQueryService.cs # Cross-aggregate read queries for workspaces & active keys
 │   │   │   │   └── ...
 │   │   │   └── Helpers/
 │   │   │       ├── ThaiDataTransformer.cs  # SSoT สำหรับ Thai formatting ทุกประเภท
@@ -114,7 +118,7 @@ backend-v2/
 │   │   │   └── IdentityAccess/     # IAM, Multi-tenancy Isolation & Security
 │   │   │       ├── Users/          # Commands/ (InviteUser, RemoveUser, SetUserStatus, UpdateUserRole), Queries/ (ListProjectUsers), DTOs/, Validators/
 │   │   │       ├── Projects/       # Commands/ (CreateProject), Queries/ (ListProjects, GetProjectById), DTOs/, Validators/
-│   │   │       ├── Security/       # Commands/ (Login, CreateApiKey, RevokeApiKey), Queries/ (ListApiKeys, ValidateApiKey), Helpers/ (ApiKeyHelper), DTOs/, Validators/
+│   │   │       ├── Security/       # Commands/ (Login [LoginUseCase, LoginCommand], RefreshToken, CreateApiKey, RevokeApiKey), Queries/ (GetCurrentUserProfile, ListApiKeys, ValidateApiKey), DTOs/ (AccessibleProjectDto, ApiKeyDto, CurrentUserProfileResultDto, LoginResultDto, TokenResultDto, UserProfileDto), Helpers/, Validators/
 │   │   │       └── IdentityAccessModuleExtensions.cs
 │   │   └── DependencyInjection.cs  # Aggregates 4 modules into AddApplicationServices()
 │   │
@@ -131,10 +135,13 @@ backend-v2/
 │   │   │   │   ├── ProjectRepository.cs             # IProjectRepository implementation
 │   │   │   │   ├── CompanyRepository.cs             # ICompanyRepository implementation
 │   │   │   │   ├── ApiKeyRepository.cs              # IApiKeyRepository implementation
+│   │   │   │   ├── RefreshTokenRepository.cs        # IRefreshTokenRepository implementation
 │   │   │   │   ├── DatasetRepository.cs             # IDatasetRepository implementation
 │   │   │   │   ├── DataConnectionRepository.cs      # IDataConnectionRepository implementation
 │   │   │   │   ├── GenerationLogMetricsRepository.cs
 │   │   │   │   └── UnitOfWork.cs
+│   │   │   ├── Queries/
+│   │   │   │   └── UserWorkspaceQueryService.cs     # IUserWorkspaceQueryService (Single SQL Join & Projections)
 │   │   │   └── Migrations/
 │   │   ├── Storage/
 │   │   │   └── MinioStorageService.cs  # Buckets: "templates", "outputs" (Stream-to-Stream upload)

@@ -552,3 +552,70 @@
 - โครงสร้างโฟลเดอร์ใน `tests/` สะท้อน `src/` แบบ 1:1 สม่ำเสมอทั้งระบบ
 - กำจัด Test Anti-Patterns (AP-042 ถึง AP-046) ออกจาก Codebase 100%
 - Invariant Quality Gate: 100% Pass Rate และ 0 Failures ทั่วทั้ง Solution (`SmkDocServerV2.slnx` และ `frontend-v2`)
+
+---
+
+## ADR-025: Scoped API Keys (ReadOnly / ReadWrite) & M2M-First Zero Public Surface Security
+
+**Status:** Accepted (2026-10-08)
+
+**Context:**
+1. **Headless M2M Gateway Paradigm:** ระบบถูกออกแบบเป็น Centralized Document Generation Gateway โดยระบบธุรกิจภายนอก (ERP, CRM, Billing) เรียกใช้งานผ่าน Machine-to-Machine (M2M) ด้วย API Key เท่านั้น โดยที่ API Key ผูก 1:1 กับ ProjectId ในระบบอยู่แล้ว External System ไม่จำเป็นต้องรู้หรือเลือก ProjectId เอง
+2. **Least-Privilege Scoping:** ต้องการจำกัดสิทธิ์ API Key ให้มี 2 ระดับอย่างชัดเจนคือ `ReadOnly` (สำหรับ preview, validate payload, download) และ `ReadWrite` (สำหรับ generate document, template mutations)
+3. **Perimeter Security (Zero Public Attack Surface):** ป้องกันไม่ให้แฮกเกอร์หรือบอทภายนอกสแกนหรือ brute-force โจมตีเส้น `/api/v1/auth/login` โดยภายนอกจะมองไม่เห็นและไม่ได้รับ API spec ของเส้น Login เลย
+4. **Frictionless Login Contract:** การมี `projectId` ใน JSON Body ของ Login ก่อให้เกิดความซ้ำซ้อนและเสี่ยงต่อ Context Mismatch ระหว่าง Header กับ Body
+
+**Decision:**
+1. **Smart Enum `ApiKeyScope` (`ReadOnly`, `ReadWrite`):**
+   - ฝัง `ApiKeyScope` ลงใน `ApiKey` Aggregate Root และ persist ลงฟิลด์ `scope VARCHAR(20)` ในตาราง `api_keys`
+   - กำหนด Default เป็น `ReadWrite` เพื่อความ backward-compatible
+2. **Atomic Multi-Key Provisioning upon Project Creation:**
+   - ใน `CreateProjectUseCase` ระบบจะสร้าง Company (ถ้ายังไม่มี), สร้าง Project, ผูกสิทธิ์ Admin ให้ผู้สร้าง และออก API Key พร้อมกัน 2 ดอกทันที (`ReadOnly` และ `ReadWrite`) ภายใต้ **Single Atomic Transaction (`CommitAsync`)** เดียว
+3. **Perimeter-Gated Portal Authentication (Approach A):**
+   - ถอด `/api/v1/auth/*` ออกจาก Public Whitelist ใน `ApiKeyMiddleware`
+   - การเรียก `POST /api/v1/auth/login` และ `POST /api/v1/auth/refresh` ต้องแนบ `X-API-Key` (Master / SuperAdmin Key) ใน Header เสมอ หากไม่มีจะถูกตัดตอนที่ Middleware ทันทีด้วย `401 Unauthorized` (RFC 7807)
+4. **Smart Dual-Channel Auth Bypass:**
+   - ใน `ApiKeyMiddleware` หาก Request ใดมี Bearer JWT ที่ยืนยันตัวตนสำเร็จแล้ว (`context.User.Identity?.IsAuthenticated == true`) Middleware จะดึง `UserId` และ `ProjectId` จาก Claims มาใส่ใน `IExecutionContext` และ bypass การตรวจ `X-API-Key` ให้อัตโนมัติ ทำให้ผู้ใช้บน Web Portal / Swagger ใช้งานได้อย่างราบรื่น
+5. **Zero-Input Project ID on Login:**
+   - ตัดฟิลด์ `projectId` ออกจาก `LoginRequest` และ `LoginCommand` โดยเด็ดขาด
+   - `LoginUseCase` จะ resolve ProjectId จาก `IExecutionContext.ProjectId` (ที่ผูกกับ API Key) หรือ Fallback ไปยัง Default Project ของ SuperAdmin โดยอัตโนมัติ
+
+**Consequences:**
+- ปิดช่องโหว่ Public Attack Surface ของเส้น Login ได้ 100%
+- ป้องกันปัญหา IDOR และ Tenant Mismatch จากการส่ง `projectId` ซ้ำซ้อนใน Body
+- รองรับ M2M Principle ที่โปรเจกต์ใหม่มี Key พร้อมใช้งานแยก Read/Write ทันทีที่สร้างเสร็จ
+
+---
+
+## ADR-026: Application Query Service (`IUserWorkspaceQueryService`), Domain Value Object Enforcement & CQRS DTO Disentanglement
+
+**Status:** Accepted (2026-10-08)
+
+**Context:**
+1. **Multi-Roundtrip & In-Memory Join Debt (N+1 Risk):** ทั้ง `LoginUseCase` และ `GetCurrentUserProfileUseCase` เคยดึงข้อมูลผ่านหลาย Domain Repository (`UserProjectRoleRepository`, `ProjectRepository`) แล้วนำ Entity ทั้งหมดขึ้นมา Join ด้วย `Dictionary<Guid, string>` ใน RAM ซ้ำซ้อนกันกว่า 25 บรรทัด ก่อให้เกิด Memory allocation และ Multiple DB Roundtrips โดยไม่จำเป็น
+2. **Domain Repository Boundary (AP-025):** ตามหลัก Clean Architecture และ DDD Domain Repositories ต้องคืนค่าเฉพาะ Domain Entities เท่านั้น ห้ามคืน DTO หรือ Projection ข้าม Aggregate
+3. **Primitive Obsession:** `LoginUseCase` เคยจัดการ String เองด้วย `.Trim().ToLowerInvariant()` ทั้งที่มี Domain Value Object `EmailAddress` ที่มี Validation และ Invariants สมบูรณ์อยู่แล้ว
+4. **DTO Dumping Ground:** ไฟล์ `LoginResultDto.cs` รวม DTO และ Command ไว้ถึง 10 คลาสในไฟล์เดียว รวมถึง CQRS Command (`LoginCommand`) และ Dead Property Alias (`Token => AccessToken`)
+5. **Constructor Bloat:** `LoginUseCase` เคยฉีดถึง 11 Dependencies รวมทั้ง Write Repositories และ Read Repositories เข้าด้วยกัน
+
+**Decision:**
+1. **Application Query Service (`IUserWorkspaceQueryService`):**
+   - นิยาม Port `IUserWorkspaceQueryService` ใน `SmkDoc.Application.Common.Interfaces`
+   - Implement Adapter `UserWorkspaceQueryService` ใน `SmkDoc.Infrastructure.Persistence.Queries` โดยใช้ EF Core Linq `.Join(...)` ร่วมกับ `AsNoTracking()` เพื่อทำ Single-SQL `INNER JOIN` และ Project ข้อมูลออกมาเป็น `AccessibleProjectDto` และ `ApiKeyDto` โดยตรงจาก Database ในรอบเดียว
+2. **Domain Value Object Integration (`EmailAddress`):**
+   - บังคับใช้ `EmailAddress.Create(request.Email)` ใน `LoginUseCase` เพื่อให้ Domain Invariant (Format regex, Length <= 256, NotEmpty) ทำงานตั้งแต่ก้าวแรก และส่งต่อเข้า `IUserRepository.GetByEmailAsync(EmailAddress, ct)` โดยตรง
+3. **CQRS & DTO Disentanglement:**
+   - ย้าย `LoginCommand` ไปไว้ใน `Commands/Login/LoginCommand.cs` ตามมาตรฐาน CQRS
+   - แยก DTO แต่ละตัวออกเป็นไฟล์อิสระตามหน้าที่: `AccessibleProjectDto.cs`, `UserProfileDto.cs`, `TokenResultDto.cs`, `CurrentUserProfileResultDto.cs`, `ApiKeyDto.cs`
+   - ทำความสะอาด `LoginResultDto.cs` ให้เหลือเฉพาะ Response ของ Login และตัด Dead Alias `Token => AccessToken` ออก
+4. **Streamline UseCase Dependencies:**
+   - ลด Dependency ของ `LoginUseCase` จาก 11 ตัวเหลือเพียง 6 ตัวหลัก โดยถอด `roleRepo`, `projectRepo`, และ `apiKeyRepo` ออกทั้งหมด
+   - ปรับปรุง `GetCurrentUserProfileUseCase` ให้เรียก `workspaceQueryService.GetAccessibleProjectsAsync(...)` ร่วมกัน ทำให้ขนาดโค้ดลดลงจาก 60 บรรทัดเหลือเพียง 30 บรรทัด
+
+**Consequences & Verification:**
+- ขจัดปัญหา N+1 และ In-memory Join ใน RAM ถาวร
+- ลด Database chatter เหลือ 1 Single SQL Query สำหรับการดึงสิทธิ์ Workspace
+- รักษา Clean Architecture DIP: Application Layer ปราศจาก EF Core/Database Leaks
+- Unit Test Mock ง่ายขึ้นอย่างมีนัยสำคัญผ่าน `_workspaceQueryServiceMock` เพียงตัวเดียว
+- 100% Pass Rate ทั้ง Unit Tests (648 tests) และ Integration Tests (11 tests)
+

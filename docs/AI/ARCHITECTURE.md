@@ -88,7 +88,7 @@ SmkDoc.Domain ← SmkDoc.Application ← SmkDoc.Infrastructure ← SmkDoc.Api
 
 | โฟลเดอร์ | ไฟล์สำคัญ | หน้าที่ |
 |---|---|---|
-| `Common/Interfaces/` | `IRepository<T>`, `IStorageService`, `IPdfRenderer`, `IRenderEngine`, `IExecutionContext`, `IUnitOfWork`, `ICompiledTemplateCache` | Ports — Abstractions ที่ Infrastructure จะ Implement |
+| `Common/Interfaces/` | `IRepository<T>`, `IStorageService`, `IPdfRenderer`, `IRenderEngine`, `IExecutionContext`, `IUnitOfWork`, `ICompiledTemplateCache`, `IUserWorkspaceQueryService` | Ports — Abstractions ที่ Infrastructure จะ Implement |
 | `Common/Exceptions/` | `NotFoundException.cs`, `ValidationException.cs`, `UnauthorizedException.cs`, `ConflictException.cs`, `DraftExpiredException.cs`, `RenderException.cs`, `SchemaValidationException.cs` | Application-level exceptions ที่ map ไปเป็น RFC 7807 Problem Details |
 | `UseCases/Documents/` | `GenerateDocumentUseCase`, `PreviewDocumentUseCase`, `ValidatePayloadUseCase`, `DocumentVersionUseCase`, `RenderStatelessDocumentUseCase`, `HtmlToPdfUseCase` | Document generation pipeline |
 | `UseCases/Schemas/` | `ValidateStandaloneSchemaUseCase` | Standalone zero-DB Draft-07 schema validation (Monaco Studio & M2M) |
@@ -110,7 +110,7 @@ SmkDoc.Domain ← SmkDoc.Application ← SmkDoc.Infrastructure ← SmkDoc.Api
 
 | โฟลเดอร์ | ไฟล์สำคัญ | หน้าที่ |
 |---|---|---|
-| `Persistence/` | `AppDbContext.cs`, `EfRepository<T>.cs`, `UnitOfWork.cs`, `GenerationLogMetricsRepository.cs` | EF Core + Npgsql, Generic Repository |
+| `Persistence/` | `AppDbContext.cs`, `EfRepository<T>.cs`, `UnitOfWork.cs`, `GenerationLogMetricsRepository.cs`, `Repositories/`, `Queries/UserWorkspaceQueryService.cs` | EF Core + Npgsql, Repositories, Single-SQL Query Projections |
 | `Storage/` | `MinioStorageService.cs` | MinIO S3 Adapter (`templates/`, `outputs/` buckets) |
 | `Pdf/` | `GotenbergPdfRenderer.cs` | HTTP Client สำหรับ Gotenberg 8 (Chromium + LibreOffice) |
 | `Engines/Html/` | `HtmlTemplateEngine.cs`, `HtmlHelperRegistry.cs`, `HtmlPlaceholderTransformer.cs`, `HtmlLayoutProcessor.cs` | Handlebars-based HTML template processing (พร้อม SHA-256 AST caching) |
@@ -146,12 +146,12 @@ SmkDoc.Domain ← SmkDoc.Application ← SmkDoc.Infrastructure ← SmkDoc.Api
 HTTP Request
   → SecurityHeadersMiddleware   (HSTS, X-Frame-Options ฯลฯ)
   → Dual-Channel Auth:
-      ├─ M2M Channel:
-      │    ApiKeyMiddleware     (Validate X-API-Key → Bind ApiKey.ProjectId to IExecutionContext)
+      ├─ M2M Channel & Portal Auth Gateway:
+      │    ApiKeyMiddleware     (Validate X-API-Key → Bind ApiKey.ProjectId & Scope to IExecutionContext)
       │    RateLimiter          (60 req/min per API key)
-      └─ Portal / Human Channel:
-           AuthenticationMiddleware (Validate Bearer JWT → Extract SystemRole & UserId)
-           ProjectContextBinding    (Bind optional X-Project-Id or default project to IExecutionContext)
+      └─ Portal Authenticated Session (Post-Login):
+           JwtBearer Auth       (Validate Bearer JWT → Extract SystemRole, UserId, Role & ProjectId)
+           ApiKey Bypass        (Authenticated Bearer sessions bypass X-API-Key check automatically)
   → Controller Action           (Thin — no business logic)
   → GlobalExceptionFilter       (Catch Domain Exceptions → RFC 7807)
   → UseCase                    (Business Logic, returns DTO)

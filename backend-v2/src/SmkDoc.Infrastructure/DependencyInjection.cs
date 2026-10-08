@@ -19,6 +19,7 @@ using SmkDoc.Infrastructure.Observability;
 using SmkDoc.Infrastructure.Parsing;
 using SmkDoc.Infrastructure.Pdf;
 using SmkDoc.Infrastructure.Persistence;
+using SmkDoc.Infrastructure.Persistence.Queries;
 using SmkDoc.Infrastructure.Persistence.Repositories;
 using SmkDoc.Infrastructure.Schema;
 using SmkDoc.Infrastructure.Security;
@@ -58,6 +59,7 @@ public static class DependencyInjection
         services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
         services.AddScoped<ICompanyRepository, CompanyRepository>();
         services.AddScoped<IGenerationLogMetricsRepository, GenerationLogMetricsRepository>();
+        services.AddScoped<IUserWorkspaceQueryService, UserWorkspaceQueryService>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
 
         // 4. Storage

@@ -1,6 +1,7 @@
 using FluentValidation;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Projects.DTOs;
+using SmkDoc.Application.Modules.IdentityAccess.Security.Helpers;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
@@ -15,7 +16,8 @@ public sealed class CreateProjectUseCase(
     ICompanyRepository companyRepo,
     IUnitOfWork unitOfWork,
     IValidator<CreateProjectCommand>? validator = null,
-    TimeProvider? timeProvider = null) : IUseCase<CreateProjectCommand, ProjectResultDto>
+    TimeProvider? timeProvider = null,
+    IApiKeyRepository? apiKeyRepo = null) : IUseCase<CreateProjectCommand, ProjectResultDto>
 {
     private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
 
@@ -51,9 +53,48 @@ public sealed class CreateProjectUseCase(
         var role = UserProjectRole.Create(request.UserId, project.Id, RoleType.Admin, now);
         await userRoleRepo.AddAsync(role, ct);
 
+        string? readPlainKey = null;
+        string? writePlainKey = null;
+
+        if (apiKeyRepo != null)
+        {
+            // Auto-provision Read API Key
+            readPlainKey = $"smk_read_{request.Slug}_{Guid.NewGuid():N}";
+            var readHash = new Sha256Hash(ApiKeyHelper.ComputeHash(readPlainKey));
+            var readKey = ApiKey.Issue(
+                project.Id,
+                ApiKeyName.Create($"{request.Name} Read"),
+                "read-client",
+                readHash,
+                ExpirationPolicy.Never,
+                now,
+                ApiKeyScope.ReadOnly);
+            await apiKeyRepo.AddAsync(readKey, ct);
+
+            // Auto-provision Write/Delete API Key
+            writePlainKey = $"smk_write_{request.Slug}_{Guid.NewGuid():N}";
+            var writeHash = new Sha256Hash(ApiKeyHelper.ComputeHash(writePlainKey));
+            var writeKey = ApiKey.Issue(
+                project.Id,
+                ApiKeyName.Create($"{request.Name} Write"),
+                "write-client",
+                writeHash,
+                ExpirationPolicy.Never,
+                now,
+                ApiKeyScope.ReadWrite);
+            await apiKeyRepo.AddAsync(writeKey, ct);
+        }
+
         // Single atomic transaction boundary
         await unitOfWork.CommitAsync(ct);
 
-        return new ProjectResultDto(project.Id, project.Name, project.Slug, project.IsActive, project.CreatedAt);
+        return new ProjectResultDto(
+            project.Id,
+            project.Name,
+            project.Slug,
+            project.IsActive,
+            project.CreatedAt,
+            readPlainKey,
+            writePlainKey);
     }
 }

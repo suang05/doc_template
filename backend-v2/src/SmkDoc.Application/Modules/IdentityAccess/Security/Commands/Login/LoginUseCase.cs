@@ -6,20 +6,21 @@ using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects;
 using RefreshTokenEntity = SmkDoc.Domain.Entities.RefreshToken;
 
 namespace SmkDoc.Application.Modules.IdentityAccess.Security.Commands.Login;
 
 public sealed class LoginUseCase(
     IUserRepository userRepo,
-    IUserProjectRoleRepository roleRepo,
-    IProjectRepository projectRepo,
     IPasswordHasher passwordHasher,
     IJwtTokenGenerator jwtTokenGenerator,
+    IUserWorkspaceQueryService workspaceQueryService,
     IValidator<LoginCommand>? validator = null,
     IRefreshTokenRepository? tokenRepo = null,
     IUnitOfWork? unitOfWork = null,
-    TimeProvider? timeProvider = null) : IUseCase<LoginCommand, LoginResultDto>
+    TimeProvider? timeProvider = null,
+    IExecutionContext? executionContext = null) : IUseCase<LoginCommand, LoginResultDto>
 {
     private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
 
@@ -34,48 +35,30 @@ public sealed class LoginUseCase(
             }
         }
 
-        var normalizedEmail = request.Email.Trim().ToLowerInvariant();
-        var user = await userRepo.GetByEmailAsync(normalizedEmail, ct);
+        var email = EmailAddress.Create(request.Email);
+        var user = await userRepo.GetByEmailAsync(email, ct);
 
         if (user == null || !user.IsActive || !passwordHasher.VerifyPassword(request.Password, user.PasswordHash))
         {
             throw new UnauthorizedException("Invalid email or password.");
         }
 
-        var accessibleProjects = new List<AccessibleProjectDto>();
-        string activeRole = "Viewer";
+        var accessibleProjects = await workspaceQueryService.GetAccessibleProjectsAsync(
+            user.Id,
+            user.SystemRole == SystemRole.SuperAdmin,
+            ct);
 
-        if (user.SystemRole == SystemRole.SuperAdmin)
-        {
-            var allProjects = await projectRepo.ListActiveAsync(ct);
-            accessibleProjects = allProjects.Select(p => new AccessibleProjectDto(p.Id, p.Name, p.Slug, "Admin")).ToList();
-            activeRole = "Admin";
-        }
-        else
-        {
-            var userRoles = await roleRepo.ListByUserAsync(user.Id, ct);
-            if (userRoles.Count > 0)
-            {
-                var projectIds = userRoles.Select(r => r.ProjectId).ToHashSet();
-                var projects = await projectRepo.ListByIdsAsync(projectIds, ct);
-                var activeProjects = projects.Where(p => p.IsActive).ToList();
-                var roleMap = userRoles.ToDictionary(r => r.ProjectId, r => r.Role.ToString());
+        string activeRole = user.SystemRole == SystemRole.SuperAdmin ? "Admin" : "Viewer";
+        Guid? activeProjectId = executionContext?.ProjectId;
 
-                accessibleProjects = activeProjects.Select(p =>
-                    new AccessibleProjectDto(p.Id, p.Name, p.Slug, roleMap.GetValueOrDefault(p.Id, "Viewer"))
-                ).ToList();
-            }
-        }
-
-        Guid? activeProjectId = null;
-        if (request.ProjectId.HasValue && request.ProjectId.Value != Guid.Empty)
+        if (activeProjectId.HasValue && activeProjectId.Value != Guid.Empty)
         {
-            var target = accessibleProjects.FirstOrDefault(p => p.Id == request.ProjectId.Value);
+            var target = accessibleProjects.FirstOrDefault(p => p.Id == activeProjectId.Value);
             if (target == null && user.SystemRole != SystemRole.SuperAdmin)
             {
                 throw new UnauthorizedException("User does not have access to the specified project.");
             }
-            activeProjectId = request.ProjectId.Value;
+
             if (target != null)
             {
                 activeRole = target.Role;
@@ -105,12 +88,17 @@ public sealed class LoginUseCase(
             await unitOfWork.CommitAsync(ct);
         }
 
+        var activeApiKeys = activeProjectId.HasValue
+            ? await workspaceQueryService.GetActiveApiKeysAsync(activeProjectId.Value, ct)
+            : [];
+
         return new LoginResultDto
         {
             AccessToken = token,
             RefreshToken = rawRefreshToken,
-            User = new UserProfileDto(user.Id, user.Email, user.FirstName, user.LastName, user.SystemRole.Name),
+            User = new UserProfileDto(user.Id, user.Email.Value, user.FirstName, user.LastName, user.SystemRole.Name),
             AccessibleProjects = accessibleProjects,
+            ActiveApiKeys = activeApiKeys,
             DefaultProjectId = activeProjectId
         };
     }

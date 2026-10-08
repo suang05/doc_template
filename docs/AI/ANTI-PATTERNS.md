@@ -304,7 +304,7 @@ Task<IReadOnlyList<Template>> ListByProjectAsync(Guid projectId, CancellationTok
 ```csharp
 // ❌ WRONG — Request ผูกติดกับ UseCase Command ข้าม Layer (Leaky Abstraction & Cascading Breaking Changes)
 public record CreateProjectRequest(string Name, string Slug) : CreateProjectCommand(Name, Slug);
-public record LoginRequest(string Email, string Password, Guid? ProjectId) : LoginCommand(Email, Password, ProjectId);
+public record LoginRequest(string Email, string Password) : LoginCommand(Email, Password);
 
 // ❌ WRONG — Empty Subclass ที่ไม่ได้เพิ่ม field หรือ behavior ใดๆ (Fake Abstraction)
 public record ProjectListItemDto(Guid Id, string Name, string Slug, bool IsActive, DateTimeOffset CreatedAt) 

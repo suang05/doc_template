@@ -30,7 +30,7 @@ public class AuthController(
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> Login([FromBody] LoginRequest request, CancellationToken ct)
     {
-        var command = new LoginCommand(request.Email, request.Password, request.ProjectId);
+        var command = new LoginCommand(request.Email, request.Password);
         var response = await loginUseCase.ExecuteAsync(command, ct);
         return Ok(new ApiResponse<LoginResultDto>(response));
     }
