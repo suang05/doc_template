@@ -1,10 +1,35 @@
 # CODING_CONVENTIONS.md — SMK Document Server
 
-> **Purpose:** This document is the Single Source of Truth (SSoT) for engineering standards across the SMK Document Server (`backend-v2/` and `frontend-v2/`). 
-> AI Assistants (LLMs) and developers MUST treat these guidelines as absolute laws to guarantee a clean, readable, and predictable codebase.
+> **Purpose:** This document is the Ultimate Single Source of Truth (SSoT) for engineering standards, architectural patterns, and prohibited anti-patterns across the SMK Document Server (`backend-v2/` and `frontend-v2/`). 
+> **[AI_DIRECTIVE]:** AI Assistants (LLMs) and developers MUST treat these guidelines as absolute laws. You must read the specific section relevant to your task to guarantee a clean, SOLID, and predictable codebase. Never deviate from these structures.
+
+<ai_directive>
+CRITICAL ATTENTION ROUTING: 
+- For Backend (C# / .NET), STRICTLY focus on `<backend_scope>` and `<global_standards>`.
+- For Frontend (Next.js), STRICTLY focus on `<frontend_scope>` and `<global_standards>`.
+- ALWAYS obey `<core_philosophy>` and `<tech_stack>`.
+</ai_directive>
 
 ---
 
+## 📑 Table of Contents
+1. **[Core Philosophy: Clean Architecture & SOLID Design](#1-🏛️-core-philosophy-clean-architecture--solid-design)**
+2. **[System Tech Stack](#2-🏗️-system-tech-stack)**
+3. **[Backend Standards: C# 12 / .NET 10](#3-🔵-backend-standards-c-12--net-10-backend-v2)**
+   - 3.1 The 4-Layer Clean Architecture Responsibilities
+   - 3.2 CQRS Data Flow & Object Mapping
+   - 3.3 Code Hygiene & Instantiation
+   - 3.4 Domain Layer Standards (`SmkDoc.Domain`)
+   - 3.5 Application Layer Standards (`SmkDoc.Application`)
+   - 3.6 Infrastructure Layer Standards (`SmkDoc.Infrastructure`)
+   - 3.7 Presentation Layer & Error Handling (`SmkDoc.Api`)
+   - 3.8 Unit Testing Standards
+4. **[Frontend Standards: TypeScript / Next.js 15](#4-🟡-frontend-standards-typescript--nextjs-15-frontend-v2)**
+5. **[System-Wide Naming Standards & Matrix](#5-🧠-system-wide-naming-standards--matrix-the-6-pillars)**
+
+---
+
+<core_philosophy>
 ## 1. 🏛️ Core Philosophy: Clean Architecture & SOLID Design
 
 All code written for the SMK Document Server MUST strictly adhere to global software engineering best practices. We prioritize **Readability & Simplicity** over premature optimization.
@@ -18,6 +43,9 @@ All code written for the SMK Document Server MUST strictly adhere to global soft
 
 ---
 
+</core_philosophy>
+
+<tech_stack>
 ## 2. 🏗️ System Tech Stack
 
 > **[AI_DIRECTIVE]** The following exact versions MUST be strictly enforced during all code generation and package installation. Do not use newer or older versions unless explicitly commanded.
@@ -34,12 +62,15 @@ All code written for the SMK Document Server MUST strictly adhere to global soft
 
 ---
 
+</tech_stack>
+
+<backend_scope>
 ## 3. 🔵 Backend Standards: C# 12 / .NET 10 (`backend-v2/`)
 
 **Core Stack:** C# 12, ASP.NET Core 10 Web API, Entity Framework Core 10 (PostgreSQL).  
 **Architecture:** The backend strictly follows a 4-Layer Clean Architecture. All development must respect these boundaries:
 
-### 2.1 The 4-Layer Clean Architecture Responsibilities
+### 3.1 The 4-Layer Clean Architecture Responsibilities
 1. **Domain Layer (`SmkDoc.Domain`):** 
    - **The Business Core:** Contains Entities, Value Objects, and Domain Exceptions.
    - **Zero Dependencies:** Must NEVER depend on external NuGet packages, database frameworks, or outer layers.
@@ -55,7 +86,7 @@ All code written for the SMK Document Server MUST strictly adhere to global soft
    - **The Delivery Mechanism:** Acts solely as the HTTP entry point.
    - **Thin Controllers:** Routes parameters to Application UseCases and returns results. MUST NEVER contain any business logic.
 
-### 2.2 CQRS Data Flow & Object Mapping
+### 3.2 CQRS Data Flow & Object Mapping
 Strictly adhere to this object lifecycle. Never leak inner objects to outer layers.
 
 ```text
@@ -84,7 +115,7 @@ Strictly adhere to this object lifecycle. Never leak inner objects to outer laye
      [ ApiResponse<T> ]  ──► HTTP 200/201 (Controller Response)
 ```
 
-### 2.3 Code Hygiene & Instantiation
+### 3.3 Code Hygiene & Instantiation
 - **Explicit Variable Instantiation:** ALWAYS assign newly created objects (e.g., `new Command(...)`) to explicit local variables before passing them into methods. Do not nest object creation inside method arguments.
   ```csharp
   // ❌ Bad: Nested instantiation is hard to read and debug
@@ -111,7 +142,7 @@ Strictly adhere to this object lifecycle. Never leak inner objects to outer laye
   }
   ```
 
-### 2.4 Domain Layer Standards (`SmkDoc.Domain`)
+### 3.4 Domain Layer Standards (`SmkDoc.Domain`)
 
 **The Golden Rules:**
 - **Persistence Ignorance:** Zero external dependencies. MUST NEVER use `using` statements for external frameworks like EF Core, Npgsql, or FluentValidation.
@@ -175,7 +206,7 @@ public sealed class Template : BaseEntity
 }
 ```
 
-### 2.5 Application Layer Standards (`SmkDoc.Application`)
+### 3.5 Application Layer Standards (`SmkDoc.Application`)
 
 **Core Principles:**
 - **Zero Framework Dependency:** MUST NEVER reference `Microsoft.EntityFrameworkCore`, `Npgsql`, or `Microsoft.AspNetCore.Mvc`. The Application layer orchestrates business rules, not database queries or HTTP responses.
@@ -242,7 +273,7 @@ public sealed class CreateTemplateUseCase(
 }
 ```
 
-### 2.6 Infrastructure Layer Standards (`SmkDoc.Infrastructure`)
+### 3.6 Infrastructure Layer Standards (`SmkDoc.Infrastructure`)
 
 **Core Architectural Rules:**
 - **Dependency Inversion Principle (DIP):** Infrastructure services MUST implement interfaces defined in the Application or Domain layers. The Infrastructure layer never creates its own public interfaces for outer layers to consume.
@@ -301,7 +332,7 @@ public async Task<Template?> GetTemplateDataForDisplayAsync(Guid id, Cancellatio
 }
 ```
 
-### 2.7 Presentation Layer & Error Handling (`SmkDoc.Api`)
+### 3.7 Presentation Layer & Error Handling (`SmkDoc.Api`)
 
 **Core Architectural Rules:**
 - **Thin Controllers (No Business Logic):** Controllers solely exist to receive HTTP requests, map them to CQRS Commands/Queries, and return standard HTTP responses. MUST NEVER contain `if/else` business rules, database calls, or complex logic.
@@ -394,7 +425,7 @@ public async Task InvokeAsync(HttpContext context)
 }
 ```
 
-### 2.8 Unit Testing Standards (The Golden Archetypes)
+### 3.8 Testing Standards (Unit & Integration)
 
 **Core Testing Philosophy:**
 - **The 3-Part Naming Rule:** All test methods MUST follow the pattern: `MethodName_StateUnderTest_ExpectedBehavior` (e.g., `Create_WithEmptyProjectId_ThrowsDomainValidationException`).
@@ -458,9 +489,21 @@ public async Task ExecuteAsync_WhenValidHtmlTemplate_ShouldPersistAndReturnTempl
 }
 ```
 
+#### 🌟 Archetype D: Integration Tests (The Real World)
+- **Location:** `SmkDoc.IntegrationTests/`
+- **Focus:** Verifying real database constraints, mapping, and external services (MinIO, Gotenberg).
+- **Rules:** MUST use `Testcontainers` (PostgreSQL, MinIO) to spin up real ephemeral containers. NEVER use In-Memory EF Core provider, as it behaves differently than PostgreSQL (e.g., date truncation, unique constraints). 
+
+### 3.9 Nullability & Control Flow
+- **Strict Nullability:** The project has `<Nullable>enable</Nullable>`. You MUST handle nulls gracefully. Never use the `!` (dammit) operator unless explicitly checking via `Guard.NotNull`.
+- **Exception-Driven Control Flow:** For validation and business logic failures, throw strongly-typed Domain Exceptions (e.g., `NotFoundException`, `ConflictException`). We do **NOT** use the `Result<T>` pattern for control flow in this architecture.
+
 ---
 
-## 3. 🔶 Frontend Standards: TypeScript / Next.js 15 (`frontend-v2/`)
+</backend_scope>
+
+<frontend_scope>
+## 4. 🔶 Frontend Standards: TypeScript / Next.js 15 (`frontend-v2/`)
 
 ### 3.1 Strict TypeScript & Zod-First Validation (SSoT)
 - **Zero `any` Policy:** Avoid the `any` type entirely. If a type is truly unknown, use `unknown` and apply type narrowing.
@@ -527,7 +570,10 @@ export default async function TemplatePage({ params }: { params: { id: string } 
 
 ---
 
-## 4. 🏷️ System-Wide Naming Standards & Matrix (The 6 Pillars)
+</frontend_scope>
+
+## 5. 🏷️ System-Wide Naming Standards & Matrix (The 6 Pillars)
+<global_standards>
 
 Adhere strictly to these naming structures to guarantee context continuity:
 
@@ -551,7 +597,7 @@ Adhere strictly to these naming structures to guarantee context continuity:
 | **Database Tables** | Persistence | `plural_snake_case` | `templates`, `generation_logs` |
 | **Database Columns** | Persistence | `snake_case` / `is_*` | `project_id`, `is_active` |
 
-### 4.1 Variable & Parameter Naming Dictionary (The Anti-Hallucination Matrix)
+### 5.1 Variable & Parameter Naming Dictionary (The Anti-Hallucination Matrix)
 LLMs and developers frequently use inconsistent variable names (e.g., swapping between `req`, `request`, `cmd`, and `command`). **You MUST strictly use the exact variable names listed below based on their context/type.**
 
 | Context / Type | STRICT Variable Name | Forbidden / Banned Names | Reason |
@@ -584,3 +630,4 @@ public async Task<TemplateResultDto> ExecuteAsync(CreateTemplateCommand command,
     return new TemplateResultDto(template.Id); // Return 'result' mapping
 }
 ```
+</global_standards>

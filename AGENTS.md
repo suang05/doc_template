@@ -66,11 +66,12 @@ In every single interaction (answering questions, reviewing code, or planning so
 </system_standards>
 
 <operational_boundaries>
-<always>
-- **Mandatory Planning:** ALWAYS formulate an `implementation_plan.md` and ask for user approval BEFORE modifying any source code. Do not write code impulsively.
-- **Search Before Build:** ALWAYS search the codebase (e.g., using `grep_search`) for existing utilities, helpers, or extensions before writing new generic functions. Do not reinvent the wheel.
-- **Verification Routine:** ALWAYS execute the `<verification_protocol>` checklist at the end of your response after any code modification.
-</always>
+<mandatory_workflow>
+**[AI_DIRECTIVE]: DO NOT BYPASS THESE STEPS**
+1. **Plan & Seek Approval:** ALWAYS formulate an `implementation_plan.md` artifact with `RequestFeedback: true` and `UserFacing: true` BEFORE modifying source code for any non-trivial tasks. Do not write code impulsively. *(Trivial tasks like typo fixes can bypass this).*
+2. **Search Before Build:** ALWAYS search the codebase (e.g., using `grep_search`) for existing utilities, helpers, or extensions before writing new generic functions. Do not reinvent the wheel.
+3. **Verification Routine:** ALWAYS execute the `<verification_protocol>` checklist at the end of your response after any code modification.
+</mandatory_workflow>
 
 <ask_first>
 **APPROVAL GATES - Halt and ask the user before proceeding:**
@@ -89,14 +90,6 @@ In every single interaction (answering questions, reviewing code, or planning so
 4. **I/O in Unit Tests:** NEVER write to disk or generate massive binaries (OpenXml) inside `SmkDoc.Tests`. Those belong in `IntegrationTests`.
 </never>
 </operational_boundaries>
-
-<execution_protocol>
-**MANDATORY PLANNING STEP:**
-Before modifying source code for non-trivial tasks, refactoring, or architectural features:
-1. Create an artifact named `implementation_plan.md`.
-2. MUST set `RequestFeedback: true` and `UserFacing: true` in `ArtifactMetadata`. This forces a user approval gate before code modifications.
-*(Trivial tasks like typo fixes can bypass this).*
-</execution_protocol>
 
 <context_triggers>
 **TRIGGER RULES FOR DOCUMENTATION DISCLOSURE:**
