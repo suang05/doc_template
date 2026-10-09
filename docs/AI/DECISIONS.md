@@ -128,9 +128,11 @@
 
 ## ADR-007: GlobalExceptionFilter แทน SchemaValidationExceptionFilter
 
-**Date:** September 2026 | **Status:** Accepted
+**Date:** September 2026 | **Status:** Superseded by `IExceptionHandler` (October 2026)
 
-**Decision:** รวม `SchemaValidationExceptionFilter` และ Exception handling ทั้งหมดไว้ใน `GlobalExceptionFilter` เดียว แล้วลบ `SchemaValidationExceptionFilter` และ `ApiKeyAuthenticationHandler` ที่ไม่ได้ใช้ออก
+> **[Update October 2026]:** ยกระดับจาก MVC `GlobalExceptionFilter` สู่ **`GlobalExceptionHandler` (`IExceptionHandler`)** ครอบคลุมทั้ง HTTP Pipeline (Middleware + Controller) ตามมาตรฐาน .NET 8/10 (ดู `PATTERNS.md` Section 1.3)
+
+**Decision:** รวม `SchemaValidationExceptionFilter` และ Exception handling ทั้งหมดไว้ในตัวจัดการกลางเดียว แล้วลบ handler ที่ซ้ำซ้อนออก
 
 **Rationale:**
 - Single Responsibility ที่ชัดเจน — 1 Filter จัดการ Exception ทั้งระบบ

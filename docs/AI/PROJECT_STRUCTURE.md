@@ -1,7 +1,7 @@
 <ai_directive>
 CRITICAL ATTENTION ROUTING: 
 This file (`PROJECT_STRUCTURE.md`) defines the Canonical Baseline Folder Map for `smk-doc-server`.
-1. **Enforce the Baseline:** Do not revert to legacy structures (e.g., use `ExceptionHandlers/` instead of `Filters/`, and `Behaviors/` instead of MVC ActionFilters).
+1. **Enforce the Baseline:** Do not revert to legacy structures. Maintain modern .NET patterns with modular grouping, Action Filters for fail-fast validation (`ValidateCommandFilter`), and centralized pipeline error handling (`GlobalExceptionHandler` via `IExceptionHandler`).
 2. **Open for Evolution (The Override Rule):** While this structure strictly enforces Clean Architecture & Modular Monolith patterns, it is NOT a static prison. If you identify a genuinely superior architectural evolution (e.g., newer .NET paradigms, better Vertical Slice optimizations, or advanced performance patterns) that improves the system beyond this baseline, you MUST proactively propose it to the user. Do not let these rules blind you to better engineering choices.
 </ai_directive>
 
@@ -19,7 +19,7 @@ This file (`PROJECT_STRUCTURE.md`) defines the Canonical Baseline Folder Map for
 | `SmkDoc.Domain` | `SmkDoc.Domain` | Business invariants & Core Models | `Entities/`, `Enums/`, `ValueObjects/`, `Exceptions/` |
 | `SmkDoc.Application` | `SmkDoc.Application` | Workflows, UseCases & DTOs | `Modules/`, `Common/Interfaces/`, `Common/Exceptions/` |
 | `SmkDoc.Infrastructure` | `SmkDoc.Infrastructure` | Database, MinIO, Engines, Gotenberg | `Persistence/`, `Storage/`, `Engines/`, `Pdf/`, `Schema/` |
-| `SmkDoc.Api` | `SmkDoc.Api` | HTTP Controllers & Middleware | `Controllers/`, `Middleware/`, `ExceptionHandlers/` |
+| `SmkDoc.Api` | `SmkDoc.Api` | HTTP Controllers & Middleware | `Controllers/`, `Middleware/`, `ExceptionHandlers/`, `Filters/`, `Contracts/` |
 | `frontend-v2` | — | Next.js 15 App Router Portal | `src/app/`, `src/components/`, `src/schemas/`, `src/lib/api/` |
 
 ---
@@ -78,7 +78,7 @@ backend-v2/
 │   │   ├── ValueObjects/           # Immutable types with structural equality (13 Value Objects)
 │   │   │   ├── Validation/         # SchemaValidationResult, ValidationErrorItem
 │   │   │   └── ...                 # ApiKeyName, Sha256Hash, TemplateSlug, etc.
-│   │   ├── Exceptions/             # Domain Exceptions (Pure POCO — mapped by IExceptionHandler)
+│   │   ├── Exceptions/             # Domain Exceptions (Pure POCO — mapped by GlobalExceptionHandler to RFC 9457)
 │   │   │   ├── DomainException.cs           # Abstract base class (ErrorCode)
 │   │   │   ├── DomainValidationException.cs # Invariant violation (format, required, range)
 │   │   │   └── BusinessRuleViolationException.cs # Aggregate/state transition rule violation
@@ -89,7 +89,7 @@ backend-v2/
 │   │
 │   ├── SmkDoc.Application/         # 🔵 Use Cases & Ports — Depends on Domain only
 │   │   ├── Common/
-│   │   │   ├── Exceptions/         # Application Exceptions (mapped to HTTP by IExceptionHandler)
+│   │   │   ├── Exceptions/         # Application Exceptions (mapped to HTTP by GlobalExceptionHandler to RFC 9457)
 │   │   │   │   ├── NotFoundException.cs         # → HTTP 404 (RESOURCE_NOT_FOUND)
 │   │   │   │   ├── ConflictException.cs         # → HTTP 409 (RESOURCE_CONFLICT)
 │   │   │   │   ├── SchemaValidationException.cs # → HTTP 400 (RFC 9457)
@@ -157,8 +157,10 @@ backend-v2/
 │       ├── Middleware/
 │       │   ├── ApiKeyMiddleware.cs       # X-API-Key validation → ExecutionContext
 │       │   └── SecurityHeadersMiddleware.cs
-│       ├── ExceptionHandlers/      # ✅ MODERN .NET 8+ ERROR HANDLING
+│       ├── ExceptionHandlers/      # ✅ MODERN .NET 8+ PIPELINE-WIDE ERROR HANDLING
 │       │   └── GlobalExceptionHandler.cs # Implements IExceptionHandler, Maps to RFC 9457 ProblemDetails
+│       ├── Filters/                # MVC Action Filters (Fail-fast validation only)
+│       │   └── ValidateCommandFilter.cs  # Intercepts commands & executes FluentValidation automatically
 │       ├── HealthChecks/           # Postgres, MinIO, Gotenberg health checks
 │       └── Program.cs              # DI, Middleware pipeline, Swagger, Rate Limiting
 │

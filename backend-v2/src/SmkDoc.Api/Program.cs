@@ -36,13 +36,14 @@ if (!string.IsNullOrEmpty(customPort) && string.IsNullOrEmpty(Environment.GetEnv
 // --- 0b. In-Memory Cache (for TemplateDraftCache) ---
 builder.Services.AddMemoryCache();
 
-// --- 1. Presentation ---
+// --- 1. Presentation & Problem Details ---
+builder.Services.AddProblemDetails();
+builder.Services.AddExceptionHandler<SmkDoc.Api.ExceptionHandlers.GlobalExceptionHandler>();
+
 builder.Services.AddControllers(options =>
 {
     // Automatic FluentValidation command validation filter
     options.Filters.Add<SmkDoc.Api.Filters.ValidateCommandFilter>();
-    // Global exception filter: handles all Domain Exceptions -> RFC 7807 Problem Details
-    options.Filters.Add<SmkDoc.Api.Filters.GlobalExceptionFilter>();
 }).AddJsonOptions(options =>
 {
     options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
@@ -331,6 +332,9 @@ app.UseForwardedHeaders(new ForwardedHeadersOptions
 {
     ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
 });
+
+// Centralized error handling for all unhandled exceptions across the entire HTTP pipeline (.NET 8/10)
+app.UseExceptionHandler();
 
 app.UseMiddleware<SecurityHeadersMiddleware>();
 // UseHttpsRedirection removed — Traefik handles TLS termination in production

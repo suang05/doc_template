@@ -113,33 +113,157 @@ Response.Headers.ContentDisposition = "inline";
 return File(pdfStream, "application/pdf");
 ```
 
-#### 1.3 Global Exception Handling (RFC 9457 & DomainException)
-**ห้ามใช้ try-catch ใน Controllers.** ใช้ Domain Exceptions แทน และให้ `GlobalExceptionHandler` (ที่ implement `IExceptionHandler`) แปลงเป็น RFC 9457 Problem Details พร้อม extensions `errorCode` อัตโนมัติ:
+#### 1.3 Master Blueprint: Centralized RFC 9457 Error Handling via `IExceptionHandler` (.NET 8+)
 
-```csharp
-// ✅ CORRECT — throw Domain Exception ใน UseCase
-var template = await _templateRepo.GetByIdAsync(id, ct)
-    ?? throw new NotFoundException($"Template '{id}' not found.");
+**สถาปัตยกรรมระดับสากล:** ใน ASP.NET Core (.NET 8+), การใช้ MVC `IExceptionFilter` ถือเป็น Legacy Pattern เพราะดักจับได้เฉพาะภายใน Controller Action execution เท่านั้น หากเกิด Exception นอก Controller (เช่น ใน Middleware, Auth, หรือ Routing) จะหลุดออกไปกลายเป็น Unhandled 500  
+`smk-doc-server` จึงกำหนดให้ใช้ **`Microsoft.AspNetCore.Diagnostics.IExceptionHandler`** เป็น **Single Source of Truth** ดักจับ Error ทั้งระบบในระดับ HTTP Request Pipeline
 
-// GlobalExceptionHandler จะแปลงเป็น:
-// HTTP 404 { "type": "...", "title": "Not Found", "status": 404, "detail": "...", "errorCode": "RESOURCE_NOT_FOUND" }
+```mermaid
+graph TD
+    subgraph Pipeline["HTTP Request Pipeline (Whole App)"]
+        Req["HTTP Request"] --> Mid["Middlewares (Security / ApiKey)"]
+        Mid --> ExcMid["⚡ app.UseExceptionHandler()<br/>(Invokes IExceptionHandler)"]
+        ExcMid --> Route["Endpoint Routing"]
+        Route --> Filter["ValidateCommandFilter (Action Filter)"]
+        Filter --> Ctrl["Thin Controller Action"]
+        Ctrl --> UC["Application UseCase / Domain"]
+    end
+
+    Mid -.->|Throws Error| ExcMid
+    UC -->|Throws DomainException| ExcMid
+    ExcMid --> RFC["RFC 9457 ProblemDetails Response"]
 ```
 
-**Exception → HTTP Status & ErrorCode Mapping:**
+##### 1.3.1 ✅ Canonical Golden Implementation (`GlobalExceptionHandler.cs`)
+```csharp
+namespace SmkDoc.Api.ExceptionHandlers;
 
-| Exception | HTTP Status | ErrorCode | คำอธิบาย |
+using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
+using SmkDoc.Application.Common.Exceptions;
+using SmkDoc.Domain.Exceptions;
+
+/// <summary>
+/// Centralized ASP.NET Core exception handler conforming to RFC 9457 Problem Details.
+/// Intercepts unhandled exceptions across the entire HTTP pipeline (Middlewares, UseCases, Controllers).
+/// </summary>
+public sealed class GlobalExceptionHandler(
+    ILogger<GlobalExceptionHandler> logger,
+    IProblemDetailsService problemDetailsService) : IExceptionHandler
+{
+    public async ValueTask<bool> TryHandleAsync(
+        HttpContext httpContext,
+        Exception exception,
+        CancellationToken cancellationToken)
+    {
+        var (status, title, errorCode) = ResolveExceptionDetails(exception);
+
+        // 1. Semantic Logging (Zero string interpolation in log message)
+        if (status >= StatusCodes.Status500InternalServerError)
+        {
+            logger.LogError(exception, "Unhandled 5xx Server Error: {Message}", exception.Message);
+        }
+        else
+        {
+            logger.LogWarning("Handled 4xx Client/Domain Error [{ErrorCode}]: {Message}", errorCode, exception.Message);
+        }
+
+        // 2. Build RFC 9457 ProblemDetails
+        var problemDetails = new ProblemDetails
+        {
+            Status = status,
+            Title = title,
+            Type = $"https://api.sammakorn.co.th/errors/{errorCode.ToLowerInvariant().Replace('_', '-')}",
+            Instance = httpContext.Request.Path,
+            Detail = status == StatusCodes.Status500InternalServerError && exception is not DomainException
+                ? "An unexpected error occurred."
+                : exception.Message
+        };
+
+        problemDetails.Extensions["errorCode"] = errorCode;
+
+        // 3. Attach rich validation errors payload
+        if (exception is SchemaValidationException schemaEx)
+        {
+            problemDetails.Extensions["errors"] = schemaEx.Errors.Select(e => new
+            {
+                path = e.Field,
+                message = e.Message,
+                rule = e.Rule
+            }).ToArray();
+        }
+        else if (exception is ValidationException validationEx)
+        {
+            problemDetails.Extensions["errors"] = validationEx.Errors;
+        }
+
+        // 4. Output response via IProblemDetailsService
+        httpContext.Response.StatusCode = status;
+        return await problemDetailsService.TryWriteAsync(new ProblemDetailsContext
+        {
+            HttpContext = httpContext,
+            ProblemDetails = problemDetails,
+            Exception = exception
+        });
+    }
+
+    private static (int Status, string Title, string ErrorCode) ResolveExceptionDetails(Exception exception) =>
+        exception switch
+        {
+            NotFoundException notFound           => (StatusCodes.Status404NotFound, "Not Found", notFound.ErrorCode),
+            DraftExpiredException draftExpired   => (StatusCodes.Status410Gone, "Draft Expired", draftExpired.ErrorCode),
+            ConflictException conflict           => (StatusCodes.Status409Conflict, "Conflict", conflict.ErrorCode),
+            RenderException render               => (StatusCodes.Status500InternalServerError, "Render Failed", render.ErrorCode),
+            UnauthorizedException unauthorized   => (StatusCodes.Status401Unauthorized, "Unauthorized", unauthorized.ErrorCode),
+            DomainValidationException domainVal  => (StatusCodes.Status400BadRequest, "Domain Validation Error", domainVal.ErrorCode),
+            BusinessRuleViolationException rule  => (StatusCodes.Status400BadRequest, "Business Rule Violation", rule.ErrorCode),
+            SchemaValidationException schema     => (StatusCodes.Status400BadRequest, "Schema Validation Failed", schema.ErrorCode),
+            ValidationException validation       => (StatusCodes.Status400BadRequest, "Validation Failed", validation.ErrorCode),
+            DomainException domain               => (StatusCodes.Status400BadRequest, "Domain Error", domain.ErrorCode),
+            UnauthorizedAccessException          => (StatusCodes.Status401Unauthorized, "Unauthorized", "UNAUTHORIZED"),
+            ArgumentException                    => (StatusCodes.Status400BadRequest, "Bad Request", "BAD_REQUEST"),
+            InvalidOperationException            => (StatusCodes.Status409Conflict, "Conflict", "INVALID_OPERATION"),
+            _                                    => (StatusCodes.Status500InternalServerError, "Internal Server Error", "INTERNAL_SERVER_ERROR")
+        };
+}
+```
+
+##### 1.3.2 Composition Root Registration (`Program.cs`)
+```csharp
+// 1. Service Registration
+builder.Services.AddProblemDetails();
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+
+// 2. Middleware Pipeline (วางไว้ชั้นแรกๆ เพื่อดักจับทุก Middleware ที่รันตามหลัง)
+app.UseExceptionHandler();
+```
+
+##### 1.3.3 Exception → HTTP Status & ErrorCode Mapping Matrix:
+
+| Exception Type | HTTP Status | ErrorCode | เลเยอร์ / คำอธิบาย |
 |---|---|---|---|
+| **Domain & Application Exceptions** | | | *(Business Invariants & Workflow Rules)* |
 | `NotFoundException` | 404 Not Found | `RESOURCE_NOT_FOUND` | Template, Version, Document, Key ไม่พบ |
 | `ConflictException` | 409 Conflict | `RESOURCE_CONFLICT` | Slug หรือ Resource ซ้ำซ้อน |
 | `DraftExpiredException` | 410 Gone | `DRAFT_EXPIRED` | RAM Draft Cache หมดอายุหรือไม่อยู่แล้ว |
 | `SchemaValidationException` | 400 Bad Request | `SCHEMA_VALIDATION_FAILED` | Payload ละเมิด JSON Schema (มี `errors[]`) |
 | `DomainValidationException` | 400 Bad Request | `DOMAIN_VALIDATION_ERROR` | Entity/Value Object invariant ผิด (ค่าว่าง, format ผิด, ค่าติดลบ) |
-| `BusinessRuleViolationException` | 400 Bad Request (fallback `DomainException`) | เฉพาะกฎ เช่น `ARCHIVED_VERSION_CANNOT_BE_PUBLISHED`, `INACTIVE_TEMPLATE` | ผิดกฎธุรกิจ / state transition ไม่ถูกต้อง |
+| `BusinessRuleViolationException` | 400 Bad Request | เฉพาะกฎ เช่น `ARCHIVED_VERSION_CANNOT_BE_PUBLISHED` | ผิดกฎธุรกิจ / state transition ไม่ถูกต้อง |
+| **Infrastructure & Engine Exceptions** | | | *(External Systems & Rendering Failures)* |
 | `RenderException` | 500 Internal Error | `DOCUMENT_RENDER_FAILED` | Engine / Chromium / LibreOffice render ไม่ผ่าน |
-| `ArgumentException` | 400 Bad Request | — | พารามิเตอร์ผิดพลาด |
-| `UnauthorizedAccessException` | 401 Unauthorized | — | สิทธิ์ไม่ถูกต้อง |
-| `InvalidOperationException` | 409 Conflict | — | ทำงานผิด State / Validation |
-| `Exception` (fallback) | 500 Internal Error | — | Unhandled Technical Errors (Log warning) |
+| **Framework & BCL Fallbacks** | | | *(Presentation/HTTP Edge Only — ห้ามใช้ใน Domain/Application)* |
+| `ArgumentException` | 400 Bad Request | `BAD_REQUEST` | พารามิเตอร์ HTTP ผิดพลาด (ห้าม throw ใน Domain) |
+| `UnauthorizedAccessException` | 401 Unauthorized | `UNAUTHORIZED` | สิทธิ์ไม่ถูกต้อง / Token ไม่ผ่าน |
+| `InvalidOperationException` | 409 Conflict | `INVALID_OPERATION` | ทำงานผิด State ทางเทคนิค (ห้าม throw ใน Domain) |
+| `Exception` (fallback) | 500 Internal Error | `INTERNAL_SERVER_ERROR` | Unhandled Technical Errors (Log warning) |
+
+##### 1.3.4 Invariants & Strict Rules
+1. **ห้ามใช้ try-catch ใน Controllers เด็ดขาด:** โยน Domain Exceptions จาก UseCase เสมอ และปล่อยให้ `IExceptionHandler` เป็นตัวแปลง
+2. **ห้ามใช้ MVC `IExceptionFilter` สำหรับ Error Handling ระดับแอปพลิเคชัน:** โค้ดในโฟลเดอร์ `Filters/` ให้สงวนไว้สำหรับ Action Filters เท่านั้น (เช่น `ValidateCommandFilter`)
+3. **ห้ามส่ง Anonymous Error Objects (`new { error = ... }`):** Output ทั้งหมดต้องเป็นไปตาม RFC 9457 Problem Details ที่ผลิตจาก `GlobalExceptionHandler` เท่านั้น
+
 
 #### 1.4 ApiKeyMiddleware Pattern
 ```
@@ -555,7 +679,7 @@ public class GenerateDocumentUseCase(IRenderEngine engine)
 
 #### 📌 Implementation Standards & Archetypes (SSoT Delegation)
 รายละเอียดโค้ดและพิมพ์เขียวการเขียน Unit Test ทั้งหมด ถูกกำหนดเป็นมาตรฐานเดียวที่ [docs/AI/CODING_CONVENTIONS.md §2.7](CODING_CONVENTIONS.md#27--unit-testing-standards--the-golden-archetypes):
-- **Archetype A (UseCase SUT):** Direct Mocks (`_repoMock`), SSoT `CreateSut()` factory, and clean 3-A invocation (ห้าม `var sut = ...`)
+- **Archetype A (UseCase SUT):** Direct Mocks (`templateRepoMock`), SSoT `CreateSut()` factory, and clean 3-A invocation (ห้าม `var sut = ...`)
 - **Archetype B (Input Validator):** Pure function parameterization ผ่าน `[Theory]` + `[InlineData]` โดยปราศจาก mock
 - **Archetype C (Domain Aggregate):** Business invariants และ state mutations ภายใน Aggregate Root โดยตรง
 - **Prohibited Patterns:** รายการข้อห้ามและ Anti-patterns ทั้งหมดถูกรวบรวมไว้ที่ [docs/AI/ANTI-PATTERNS.md](ANTI-PATTERNS.md) (AP-042 ถึง AP-048)

@@ -76,6 +76,7 @@ In every single interaction (answering questions, reviewing code, or planning so
 3. **Verification Routine:** ALWAYS execute the `<verification_protocol>` checklist at the end of your response after any code modification.
 </mandatory_workflow>
 
+
 <ask_first>
 **APPROVAL GATES - Halt and ask the user before proceeding:**
 - **Destructive Actions:** Mass file deletions or large-scale refactoring that touches multiple core domains simultaneously.

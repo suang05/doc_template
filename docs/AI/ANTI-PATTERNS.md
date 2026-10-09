@@ -11,56 +11,75 @@ Do not cross-contaminate architectures.
 </ai_directive>
 
 <backend_scope>
-### ⚡ Backend Quick-Lookup: Prohibited Patterns (What NOT to Do)
+### ⚡ Backend Quick-Lookup: Prohibited Patterns (Categorized by Domain)
 
+#### 🏛️ 1. Clean Architecture & Layer Boundaries
 | Code | Prohibited Pattern | Correct Alternative |
 |---|---|---|
 | **AP-001** | `IRepository<T>` in Controller | Inject specific Single-Responsibility UseCase into Controller |
 | **AP-002** | Return Domain Entity from UseCase | Map to Application DTO record |
-| **AP-003** | Anonymous objects in API Response | Wrap in `ApiResponse<T>` / `ApiPagedResponse<T>` |
-| **AP-004** | `try-catch` blocks in Controllers | Throw DomainException; let `IExceptionHandler` map to RFC 9457 |
 | **AP-005** | Import `AppDbContext` in Application | Depend strictly on `IRepository<T>` and `IUnitOfWork` |
-| **AP-006** | `switch` or `if/else` on `RenderEngineType` | Strategy Pattern via DI (`IEnumerable<IRenderEngine>`) |
 | **AP-007** | `IFormFile` or `HttpContext` in UseCase | Pass pure C# primitives (`Stream`, `string`, `Guid`) |
+| **AP-014** | Modify legacy v1 directories | Edit exclusively in `backend-v2/` and `frontend-v2/` |
+| **AP-018** | Multi-Method Fat Use Case class | 1 Intent = 1 Class implementing `IUseCase<TRequest, TResponse>` |
+| **AP-020** | Generic `IRepository<T>` when Aggregate Repository exists | Use explicit domain repository (`IUserRepository`, `ITemplateRepository`) |
+| **AP-026** | Request inherits from Command / Shallow empty DTO subclasses | Decouple Presentation Request records; explicit mapping in Controller |
+| **AP-033** | Direct service injection in Controller | Inject single-responsibility UseCases only |
+
+#### 💎 2. Domain-Driven Design & Aggregate Roots
+| Code | Prohibited Pattern | Correct Alternative |
+|---|---|---|
 | **AP-008** | Object initializers `{ get; set; }` for Entities | Parameterized constructor + business methods (Rich Domain Model) |
 | **AP-009** | String comparison for Smart Enums | Compare typed Smart Enum instances (e.g., `TemplateFormat.Html`) |
-| **AP-010** | Hardcoded `{{}}` regex | `PlaceholderHelper.Pattern` (SSoT) |
-| **AP-011** | DrawingML Id = 0 | Use positive integer `(uint)counter + 1` |
-| **AP-012** | String-replace on MinIO Presigned URLs | Set `PublicEndpoint` in `MinioSettings` |
-| **AP-013** | Auto-execute Docker commands | Print command snippet for user to execute |
-| **AP-014** | Modify legacy v1 directories | Edit exclusively in `backend-v2/` and `frontend-v2/` |
-| **AP-015** | Throw `KeyNotFoundException` or generic `Exception` | Throw strongly-typed `NotFoundException`, `ConflictException`, etc. |
-| **AP-016** | Mutable classes or DataAnnotations in DTOs | 100% immutable positional `record` types |
-| **AP-017** | Inline DTOs inside UseCase files | Place DTOs in `SmkDoc.Application/DTOs/<Feature>/` |
-| **AP-018** | Multi-Method Fat Use Case class | 1 Intent = 1 Class implementing `IUseCase<TRequest, TResponse>` |
-| **AP-019** | Throwing System Exceptions in UseCase | Throw strongly-typed Domain Exceptions (`UnauthorizedException`, etc.) |
-| **AP-020** | Generic `IRepository<T>` when Aggregate Repository exists | Use explicit domain repository (`IUserRepository`, `ITemplateRepository`) |
 | **AP-021** | Override identity `new X(...) { Id = ... }` | Let `BaseEntity` generate UUIDv7; pass Id via ctor/factory only if domain requires |
 | **AP-022** | Public mutable collections `ICollection<T>` on entities | `private readonly List<T>` + `IReadOnlyCollection<T>` + Aggregate Root methods |
 | **AP-023** | Weakening an invariant to make tests/UseCases pass | Fix the caller (UseCase/test builder); invariants are non-negotiable |
 | **AP-024** | `ArgumentException`/`InvalidOperationException` in Domain | `DomainValidationException` / `BusinessRuleViolationException` |
-| **AP-025** | Repository returning `IQueryable`, DTO, or mutable `List<T>`; unscoped tenant queries | Return Entity / `IReadOnlyList<T>`; require `projectId` on tenant-owned lookups |
-| **AP-026** | Request inherits from Command / Shallow empty DTO subclasses | Decouple Presentation Request records; explicit mapping in Controller; return Application DTOs directly |
-| **AP-027** | Imperative Role check in Controller Action (`User.RequireAdmin()`) | Declarative `[Authorize(Roles = "Admin")]` on Controller/Action (returns 403 Forbidden properly) |
-| **AP-028** | Raw primitive scalar in Request Body (`[FromBody] bool isActive`) | Positional Record Request DTO (`[FromBody] SetUserStatusRequest req`) |
+| **AP-039** | Primitive overloads & optional timestamp fallback in Domain | Single Canonical Factory taking strongly-typed Value Objects + mandatory deterministic `DateTimeOffset now` |
+| **AP-040** | `CreateForTest` or test backdoors in `SmkDoc.Domain.dll` | Factory/Builder strictly in `SmkDoc.Tests/Common/Factories/` via `internal` constructor |
+
+#### 🌐 3. Presentation, Routing & RFC 9457 API Standards
+| Code | Prohibited Pattern | Correct Alternative |
+|---|---|---|
+| **AP-003** | Anonymous objects in API Response | Wrap in `ApiResponse<T>` / `PagedApiResponse<T>` |
+| **AP-004** | `try-catch` blocks in Controllers / Legacy IExceptionFilter | Throw DomainException; let `IExceptionHandler` map to RFC 9457 |
+| **AP-015** | Throw `KeyNotFoundException` or generic `Exception` | Throw strongly-typed `NotFoundException`, `ConflictException`, etc. |
+| **AP-016** | Mutable classes or DataAnnotations in DTOs | 100% immutable positional `record` types |
+| **AP-017** | Inline DTOs inside UseCase files | Place DTOs in `SmkDoc.Application/Modules/{Module}/.../DTOs/` |
+| **AP-019** | Throwing System Exceptions in UseCase | Throw strongly-typed Domain Exceptions (`UnauthorizedException`, etc.) |
+| **AP-027** | Imperative Role check in Controller Action (`User.RequireAdmin()`) | Declarative `[Authorize(Roles = "Admin")]` on Controller/Action |
+| **AP-028** | Raw primitive scalar in Request Body (`[FromBody] bool isActive`) | Positional Record Request DTO (`[FromBody] SetUserStatusRequest request`) |
 | **AP-029** | `CreatedAtAction` pointing to collection endpoint (`ListProjects`) | Point to single-item `GetById` with entity route param, or return `StatusCode(201, ...)` |
 | **AP-030** | Unscoped Tenant Mutation (IDOR Vulnerability) | Always pass and validate tenant context (`projectId`) along with entity ID |
-| **AP-031** | Unversioned or duplicated routes | Strict canonical routes `api/v1/{resource}` or `api/v1/management/projects/{projectId}/{resource}` |
+| **AP-031** | Unversioned or duplicated routes | Strict canonical routes `api/v1/{resource}` |
 | **AP-032** | Incorrect HTTP status codes | 201 Created for creation, 204 NoContent for delete/empty mutation, 200 OK for reads |
-| **AP-033** | Direct service injection in Controller | Inject single-responsibility UseCases only |
 | **AP-034** | Dual routing attributes on Controller | Single canonical route prefix per controller |
 | **AP-035** | Ad-hoc error payloads in Controller | Throw domain exceptions; RFC 9457 via `IExceptionHandler` |
 | **AP-036** | Nested inline instantiation in `ExecuteAsync` | Declare explicit local variable (`var command = ...`) before calling `ExecuteAsync` |
 | **AP-037** | Inline fully-qualified namespaces | Clean top-level usings only (Zero inline namespaces) |
 | **AP-038** | Underscore prefix or generic names in Primary Ctor | Standardized `camelCase` 1:1 mirroring dependency class/interface |
-| **AP-039** | Primitive overloads & optional timestamp fallback in Domain | Single Canonical Factory taking strongly-typed Value Objects + mandatory deterministic `DateTimeOffset now` |
-| **AP-040** | `CreateForTest` or test backdoors in `SmkDoc.Domain.dll` | Factory/Builder strictly in `SmkDoc.Tests/Common/Factories/` via `internal` constructor |
-| **AP-041** | Hardcoding high-churn execution metrics in docs (e.g. "614 tests", "17 controllers") | Use invariant-driven quality gates (100% pass rate, 0 failures, Bounded Contexts) |
+
+#### ⚡ 4. Infrastructure, Engines & Performance
+| Code | Prohibited Pattern | Correct Alternative |
+|---|---|---|
+| **AP-006** | `switch` or `if/else` on `RenderEngineType` | Strategy Pattern via DI (`IEnumerable<IRenderEngine>`) |
+| **AP-010** | Hardcoded `{{}}` regex | `PlaceholderHelper.Pattern` (SSoT) |
+| **AP-011** | DrawingML Id = 0 | Use positive integer `(uint)counter + 1` |
+| **AP-012** | String-replace on MinIO Presigned URLs | Set `PublicEndpoint` in `MinioSettings` |
+| **AP-013** | Auto-execute Docker commands | Print command snippet for user to execute |
+| **AP-025** | Repository returning `IQueryable`, DTO, or mutable `List<T>`; unscoped tenant queries | Return Entity / `IReadOnlyList<T>`; require `projectId` on tenant-owned lookups |
+
+#### 🧪 5. Testing Architecture & Golden Archetypes
+| Code | Prohibited Pattern | Correct Alternative |
+|---|---|---|
+| **AP-041** | Hardcoding high-churn execution metrics in docs | Use invariant-driven quality gates (100% pass rate, 0 failures) |
 | **AP-042** | Monolithic UseCase test classes or flat CQRS placement | 1:1 CQRS Folder Parity (`Commands/{Command}/` & `Queries/{Query}/`), single SUT per file |
-| **AP-043** | Heavy I/O, Generators, or Benchmarks in Unit Tests (`SmkDoc.Tests`) | Pure in-memory unit tests in `SmkDoc.Tests`; I/O and benchmarks in `SmkDoc.IntegrationTests` |
+| **AP-043** | Heavy I/O, Generators, or Benchmarks in Unit Tests (`SmkDoc.Tests`) | Pure in-memory unit tests in `SmkDoc.Tests`; I/O in `SmkDoc.IntegrationTests` |
 | **AP-044** | Ad-hoc entity instantiation or nondeterministic `UtcNow` in tests | Use `*Builder` / `*TestFactory` with `TestConstants.BaselineTime` |
 | **AP-045** | Artificial dumping grounds for invariant tests (`DomainInvariantTests`) | Test invariants directly in Aggregate Root unit tests (`{Aggregate}Tests.cs`) |
 | **AP-046** | Mocking dependencies in Validator Tests | Test validators as pure functions with `[Theory]` + `[InlineData]` |
+| **AP-047** | `var sut = new ...` in every test method | Call via SSoT `CreateSut().ExecuteAsync(...)` |
+| **AP-048** | Asserting only Exception Type without checking DB side-effects | Use Semantic Wildcard + `unitOfWorkMock.Verify(Times.Never)` |
 
 ---
 
@@ -100,7 +119,7 @@ return NoContent();
 // (Exceptions ให้ IExceptionHandler จัดการ)
 ```
 
-### AP-004: ห้ามใช้ try-catch ใน Controllers
+### AP-004: ห้ามใช้ try-catch ใน Controllers หรือใช้ Legacy MVC IExceptionFilter
 ```csharp
 // ❌ WRONG
 try { var result = await useCase.GetAsync(id, ct); return Ok(...); }
@@ -207,7 +226,7 @@ throw new InvalidOperationException("Template slug is already in use.");
 throw ConflictException.DuplicateSlug(request.Slug);
 ```
 
-### AP-012: ห้ามใช้ Mutable Class หรือ DataAnnotations ใน Application DTOs
+### AP-016: ห้ามใช้ Mutable Class หรือ DataAnnotations ใน Application DTOs
 ```csharp
 // ❌ WRONG — ใช้ mutable class และใส่ DataAnnotations ของ HTTP ในชั้น Application
 using System.ComponentModel.DataAnnotations;
@@ -220,14 +239,14 @@ public class HtmlToPdfRequest
 public record HtmlToPdfCommand(string Html, string? HeaderHtml = null, string? FooterHtml = null);
 ```
 
-### AP-013: ห้ามประกาศ DTOs ฝังอยู่ในไฟล์ UseCase (Inline Declarations)
+### AP-017: ห้ามประกาศ DTOs ฝังอยู่ในไฟล์ UseCase (Inline Declarations)
 ```csharp
 // ❌ WRONG — ประกาศ DTO ในไฟล์ UseCase ทำให้กระจัดกระจายและเกิด namespace clashing
 public record ApiKeyDto(...);
 public class ApiKeyUseCase { ... }
 
-// ✅ CORRECT — จัดกลุ่มไว้ใน SmkDoc.Application.DTOs.<Feature>/
-// เช่น DTOs/Security/SecurityDtos.cs, DTOs/Documents/DocumentDtos.cs
+// ✅ CORRECT — จัดกลุ่มไว้ใน SmkDoc.Application/Modules/{Module}/.../DTOs/
+// เช่น Modules/IdentityAccess/Security/DTOs/SecurityDtos.cs
 ```
 
 ### AP-018: ห้ามสร้าง Multi-Method Use Case (Fat Service Class)
@@ -665,8 +684,8 @@ public async Task ExecuteAsync_HappyPath()
 }
 
 // ✅ CORRECT — SSoT SUT Factory (`CreateSut`) + Direct 3-A Invocation
-private CreateApiKeyUseCase CreateSut(IValidator<CreateApiKeyCommand>? validator = null) =>
-    new(_apiKeyRepoMock.Object, _projectRepoMock.Object, _uowMock.Object, validator ?? _validator);
+private CreateApiKeyUseCase CreateSut(IValidator<CreateApiKeyCommand>? customValidator = null) =>
+    new(apiKeyRepoMock.Object, projectRepoMock.Object, unitOfWorkMock.Object, customValidator ?? validator);
 
 [Fact]
 public async Task ExecuteAsync_WhenValidCommand_ReturnsSuccessResult()
@@ -695,8 +714,8 @@ public async Task ExecuteAsync_WhenSlugAlreadyExists_ThrowsConflictException()
     await act.Should().ThrowAsync<ConflictException>()
         .WithMessage($"*'{command.Slug}'*");
 
-    _uowMock.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Never);
-    _apiKeyRepoMock.Verify(r => r.AddAsync(It.IsAny<ApiKey>(), It.IsAny<CancellationToken>()), Times.Never);
+    unitOfWorkMock.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Never);
+    apiKeyRepoMock.Verify(r => r.AddAsync(It.IsAny<ApiKey>(), It.IsAny<CancellationToken>()), Times.Never);
 }
 ```
 
@@ -712,7 +731,7 @@ public async Task ExecuteAsync_WhenSlugAlreadyExists_ThrowsConflictException()
 | **AP-045** | สร้างไฟล์รวม invariant `DomainInvariantTests` | ยึด SSoT ใน `{Aggregate}Tests.cs` โดยตรง |
 | **AP-046** | Mock dependencies ใน Validator Tests | ใช้ `[Theory]` + `[InlineData]` เพียวๆ 0 Mocks |
 | **AP-047** | `var sut = new ...` ในทุก test method | เรียกผ่าน `CreateSut().ExecuteAsync(...)` เสมอ |
-| **AP-048** | Assert แค่ Exception Type โดยไม่เช็ค Commit | ใช้ Semantic Wildcard + `_uowMock.Verify(Times.Never)` |
+| **AP-048** | Assert แค่ Exception Type โดยไม่เช็ค Commit | ใช้ Semantic Wildcard + `unitOfWorkMock.Verify(Times.Never)` |
 
 ---
 </backend_scope>

@@ -8,7 +8,7 @@ namespace SmkDoc.Api.Filters;
 /// Automatic action filter that inspects controller action arguments and executes
 /// registered FluentValidation <see cref="IValidator{T}"/> if one is present in DI.
 /// If validation fails, throws a <see cref="ValidationException"/> that is converted
-/// to an RFC 7807 400 Bad Request by <see cref="GlobalExceptionFilter"/>.
+/// to an RFC 9457 400 Bad Request by <see cref="SmkDoc.Api.ExceptionHandlers.GlobalExceptionHandler"/>.
 /// </summary>
 public sealed class ValidateCommandFilter(IServiceProvider serviceProvider) : IAsyncActionFilter
 {

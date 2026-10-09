@@ -38,7 +38,7 @@ When generating architecture, adding new projects, or writing cross-layer integr
 │  Dual-Channel Authentication:                                                     │
 │    ├─ Channel A (M2M): ApiKeyMiddleware → Scope to ApiKey.ProjectId               │
 │    └─ Channel B (Human): JwtBearer → SystemRole (SuperAdmin / Member)             │
-│  GlobalExceptionFilter → Controllers → UseCases → Domain / Infrastructure        │
+│  GlobalExceptionHandler (IExceptionHandler) → Controllers → UseCases → Domain    │
 │  Engine Routing: Strategy Pattern → IRenderEngine                                 │
 └────────┬─────────────────────────┬───────────────────────────┬────────────────────┘
          │                         │                           │
@@ -94,19 +94,15 @@ SmkDoc.Domain ← SmkDoc.Application ← SmkDoc.Infrastructure ← SmkDoc.Api
 
 **Depends only on Domain.** ห้ามอ้างอิง Infrastructure หรือ ASP.NET Core.
 
-| โฟลเดอร์ | ไฟล์สำคัญ | หน้าที่ |
+| โฟลเดอร์ | ส่วนประกอบสำคัญ | หน้าที่ |
 |---|---|---|
 | `Common/Interfaces/` | `IRepository<T>`, `IStorageService`, `IPdfRenderer`, `IRenderEngine`, `IExecutionContext`, `IUnitOfWork`, `ICompiledTemplateCache`, `IUserWorkspaceQueryService` | Ports — Abstractions ที่ Infrastructure จะ Implement |
 | `Common/Exceptions/` | `NotFoundException.cs`, `ValidationException.cs`, `UnauthorizedException.cs`, `ConflictException.cs`, `DraftExpiredException.cs`, `RenderException.cs`, `SchemaValidationException.cs` | Application-level exceptions ที่ map ไปเป็น RFC 9457 Problem Details |
-| `UseCases/Documents/` | `GenerateDocumentUseCase`, `PreviewDocumentUseCase`, `ValidatePayloadUseCase`, `DocumentVersionUseCase`, `RenderStatelessDocumentUseCase`, `HtmlToPdfUseCase` | Document generation pipeline |
-| `UseCases/Schemas/` | `ValidateStandaloneSchemaUseCase` | Standalone zero-DB Draft-07 schema validation (Monaco Studio & M2M) |
-| `UseCases/Templates/` | `TemplateManagementUseCase`, `HtmlStudioUseCase`, `HtmlPersistenceUseCase`, `TemplateValidateUseCase`, `ValidateTemplatePayloadUseCase`, `TemplateDraftUseCase` | Template CRUD, HTML Studio, และ Payload Validation |
-| `UseCases/FieldMappings/` | `FieldMappingUseCase`, `PreviewMappingUseCase` | Field Mapping และ Preview |
-| `UseCases/Security/` | `ApiKeyUseCase`, `LoginUseCase`, `UserManagementUseCase` | Auth & User management |
-| `UseCases/Datasets/` | `DatasetUseCase`, `DataConnectionUseCase`, `TemplateDatasetUseCase` | External data sources |
-| `DTOs/` | `Documents/`, `Templates/`, `Schemas/`, `FieldMappings/`, `Datasets/`, `DataConnections/`, `Security/`, `Users/`, `Projects/`, `Logs/` | **Application DTOs & Commands** (100% Immutable records — ห้ามใส่ API Models ที่นี่) |
-| `Validators/` | `Documents/`, `Templates/`, `Security/` | **FluentValidation Command Validators** (ตรวจ format, types, lengths, regex slugs) |
-| `Engines/` | `IRenderEngineResolver` | Strategy Pattern resolver |
+| `Common/Helpers/` | `ThaiDataTransformer.cs` | SSoT สำหรับ Thai Formatting & Localization |
+| `Modules/Rendering/` | `Documents/`, `Logs/` | High-Throughput & Stateless Document Generation (`Commands/`, `Queries/`, `DTOs/`, `Validators/`) |
+| `Modules/Authoring/` | `Templates/`, `FieldMappings/`, `Fonts/`, `Schemas/` | Template Studio, Version Lifecycle, Editor & Schema Validation (`Commands/`, `Queries/`, `DTOs/`, `Validators/`) |
+| `Modules/Integration/` | `DataConnections/`, `Datasets/` | External Data Sources & Dynamic Data Pipeline (`Commands/`, `Queries/`, `DTOs/`, `Validators/`) |
+| `Modules/IdentityAccess/` | `Users/`, `Projects/`, `Security/` | IAM, Multi-tenancy Isolation & Scoped Security (`Commands/`, `Queries/`, `DTOs/`, `Validators/`) |
 
 **Use Case Rule:** Use Cases ต้องรับ Commands/Queries และคืนค่าเป็น **Application DTOs เท่านั้น** (ห้ามคืน Domain Entities ออกไปสู่ Controller หรือ Middleware)
 
@@ -139,7 +135,8 @@ SmkDoc.Domain ← SmkDoc.Application ← SmkDoc.Infrastructure ← SmkDoc.Api
 | โฟลเดอร์ | ไฟล์สำคัญ | หน้าที่ |
 |---|---|---|
 | `Controllers/` | `DocumentController`, `TemplateController`, `TemplateVersionController`, `TemplateHtmlController`, `TemplateMappingController`, `TemplateScanController`, `TemplateDraftController`, `ApiKeyController`, `ApiKeyManagementController`, `AuthController`, `UserManagementController`, `ProjectManagementController`, `AuditLogController`, `DataConnectionsController`, `DatasetController`, `FontManagementController` | Thin Controllers — รับ Request, เรียก UseCase, return `ApiResponse<T>` |
-| `Filters/` | `ValidateCommandFilter.cs`, `GlobalExceptionFilter.cs` | Automatic FluentValidation execution & RFC 9457 Exception Mapping |
+| `ExceptionHandlers/` | `GlobalExceptionHandler.cs` | Centralized .NET 8/10 `IExceptionHandler` mapping all pipeline errors to RFC 9457 Problem Details |
+| `Filters/` | `ValidateCommandFilter.cs` | Automatic FluentValidation execution on Command DTOs (Fail-Fast Action Filter) |
 | `Contracts/` | `Contracts/IdentityAccess/`, `Contracts/Authoring/` | Feature-based HTTP Request & Response contracts (Decoupled positional records) |
 | `Common/` | `Common/Context/ExecutionContextImpl.cs`, `Common/Responses/ApiResponse.cs` | Presentation Context Provider & Global Response Envelopes (`ApiResponse<T>`, `PagedApiResponse<T>`) |
 | `Program.cs` | — | DI Container, Middleware pipeline, Swagger, Rate Limiting |
@@ -152,6 +149,7 @@ SmkDoc.Domain ← SmkDoc.Application ← SmkDoc.Infrastructure ← SmkDoc.Api
 
 ```
 HTTP Request
+  → UseExceptionHandler Middleware (IExceptionHandler: ดักจับ Error ทั้งระบบ → RFC 9457 Problem Details)
   → SecurityHeadersMiddleware   (HSTS, X-Frame-Options ฯลฯ)
   → Dual-Channel Auth:
       ├─ M2M Channel & Portal Auth Gateway:
@@ -161,11 +159,11 @@ HTTP Request
            JwtBearer Auth       (Validate Bearer JWT → Extract SystemRole, UserId, Role & ProjectId)
            ApiKey Bypass        (Authenticated Bearer sessions bypass X-API-Key check automatically)
   → Idempotency Filter          (Idempotency-Key validation for safe retries)
-  → Controller Action           (Thin — no business logic)
-  → GlobalExceptionFilter       (Catch Domain Exceptions → RFC 9457)
-  → UseCase                    (Business Logic, returns DTO)
+  → ValidateCommandFilter       (Action Filter: Fail-fast FluentValidation on incoming Command)
+  → Controller Action           (Thin — no business logic, dispatches Command/Query to UseCase)
+  → UseCase                     (Business Logic, returns DTO or throws DomainException)
   → Infrastructure Port         (IRepository / IStorageService / IRenderEngine)
-  → ApiResponse<T>             (Wraps DTO as HTTP 200)
+  → ApiResponse<T>              (Wraps DTO as HTTP 200/201, Binary streams returned raw)
 ```
 
 ---

@@ -4,7 +4,7 @@ namespace SmkDoc.Application.Common.Exceptions;
 
 /// <summary>
 /// Thrown when authentication or permission authorization fails for an action.
-/// Maps to HTTP 401 Unauthorized in GlobalExceptionFilter.
+/// Maps to HTTP 401 Unauthorized in GlobalExceptionHandler.
 /// </summary>
 public class UnauthorizedException : DomainException
 {

@@ -323,12 +323,15 @@ public class TemplateConfiguration : IEntityTypeConfiguration<Template>
     }
 }
 
-public async Task<Template?> GetTemplateDataForDisplayAsync(Guid id, CancellationToken ct)
+public sealed class TemplateRepository(AppDbContext dbContext) : ITemplateRepository
 {
-    // 2. AsNoTracking() vastly improves performance for Read-Only operations
-    return await _dbContext.Templates
-        .AsNoTracking()
-        .FirstOrDefaultAsync(t => t.Id == id, ct);
+    public async Task<Template?> GetTemplateDataForDisplayAsync(Guid id, CancellationToken ct)
+    {
+        // 2. AsNoTracking() vastly improves performance for Read-Only operations
+        return await dbContext.Templates
+            .AsNoTracking()
+            .FirstOrDefaultAsync(t => t.Id == id, ct);
+    }
 }
 ```
 
@@ -336,13 +339,13 @@ public async Task<Template?> GetTemplateDataForDisplayAsync(Guid id, Cancellatio
 
 **Core Architectural Rules:**
 - **Thin Controllers (No Business Logic):** Controllers solely exist to receive HTTP requests, map them to CQRS Commands/Queries, and return standard HTTP responses. MUST NEVER contain `if/else` business rules, database calls, or complex logic.
-- **Orchestrator of Cross-Cutting Concerns:** Handles API security via Middleware, global exception trapping via .NET 8 `IExceptionHandler`, and readiness via Health Checks.
+- **Orchestrator of Cross-Cutting Concerns:** Handles API security via Middleware, global pipeline-wide exception trapping via .NET 8/10 `IExceptionHandler` (`GlobalExceptionHandler`), and readiness via Health Checks.
 - **Deterministic HTTP Status Codes:**
   - `201 Created`: Resource creation (Must return `ApiResponse<T>`).
   - `200 OK`: Reads, queries, or idempotent updates returning data.
   - `204 NoContent`: Deletions or state changes returning no body.
 - **RFC 9457 Compliance:** All HTTP error responses MUST conform to `ProblemDetails`. NEVER return anonymous types (e.g., `new { error = ... }`).
-- **Domain Exception Mapping:** Throw strongly-typed exceptions from UseCases, letting the Global Filter map them:
+- **Domain Exception Mapping:** Throw strongly-typed exceptions from UseCases, letting `GlobalExceptionHandler` map them:
   - `DomainValidationException` / `BusinessRuleViolationException` -> `400 BadRequest`
   - `NotFoundException` -> `404 NotFound`
   - `ConflictException` -> `409 Conflict`
@@ -355,8 +358,8 @@ src/SmkDoc.Api/
 │   ├── DocumentController.cs
 │   └── TemplateController.cs
 ├── Contracts/           # Request/Response DTOs specific to HTTP APIs (Not Domain/App layer)
-├── ExceptionHandlers/   # .NET 8 IExceptionHandler implementations
-│   └── GlobalExceptionHandler.cs
+├── ExceptionHandlers/   # .NET 8/10 IExceptionHandler implementations (GlobalExceptionHandler.cs)
+├── Filters/             # Action filters for validation only (ValidateCommandFilter.cs)
 ├── Middleware/          # Low-level request pipeline interception
 │   ├── ApiKeyMiddleware.cs
 │   └── SecurityHeadersMiddleware.cs
@@ -404,24 +407,27 @@ public class TemplateController(IUseCase<CreateTemplateCommand, TemplateResultDt
     }
 }
 
-// ✅ Good: Middleware RFC 9457 enforcement
-public async Task InvokeAsync(HttpContext context)
+// ✅ Good: Middleware RFC 9457 enforcement with Primary Constructor
+public sealed class ApiKeyMiddleware(RequestDelegate next)
 {
-    if (!IsValidKey(context))
+    public async Task InvokeAsync(HttpContext context)
     {
-        context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-        
-        // Enforces RFC 9457 standard format
-        var problem = new ProblemDetails 
-        { 
-            Title = "Unauthorized", 
-            Status = 401, 
-            Detail = "Invalid API Key" 
-        };
-        await context.Response.WriteAsJsonAsync(problem); 
-        return;
+        if (!IsValidKey(context))
+        {
+            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            
+            // Enforces RFC 9457 standard format
+            var problem = new ProblemDetails 
+            { 
+                Title = "Unauthorized", 
+                Status = 401, 
+                Detail = "Invalid API Key" 
+            };
+            await context.Response.WriteAsJsonAsync(problem); 
+            return;
+        }
+        await next(context);
     }
-    await _next(context);
 }
 ```
 
@@ -431,7 +437,7 @@ public async Task InvokeAsync(HttpContext context)
 - **The 3-Part Naming Rule:** All test methods MUST follow the pattern: `MethodName_StateUnderTest_ExpectedBehavior` (e.g., `Create_WithEmptyProjectId_ThrowsDomainValidationException`).
 - **Deterministic Time:** Tests MUST be 100% deterministic. NEVER use `DateTime.UtcNow` or `DateTime.Now`. Always inject a static time via `TimeProvider` or a hardcoded `DateTimeOffset` variable.
 - **Strict Mocking Rules:** ONLY mock Infrastructure interfaces (e.g., `IRepository`, `IStorageService`). NEVER mock Domain Entities or Data Transfer Objects (DTOs); instantiate them directly.
-- **Side-Effect Verification:** On exception/guard paths, always explicitly verify that mutations NEVER occurred: `_uowMock.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Never);`
+- **Side-Effect Verification:** On exception/guard paths, always explicitly verify that mutations NEVER occurred: `unitOfWorkMock.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Never);`
 - **Clear AAA Anatomy:** Visually separate **Arrange**, **Act**, and **Assert** phases using blank lines.
 - **Fluent Assertions:** Always use `FluentAssertions` (e.g., `.Should().Be()`) instead of standard xUnit `Assert`.
 
@@ -472,7 +478,7 @@ public async Task ExecuteAsync_WhenValidHtmlTemplate_ShouldPersistAndReturnTempl
 {
     // Arrange
     var projectId = Guid.NewGuid();
-    _fixture.TemplateRepo
+    fixture.TemplateRepo
         .Setup(r => r.SlugExistsAsync("tax-invoice", projectId, It.IsAny<CancellationToken>()))
         .ReturnsAsync(false);
     
@@ -485,7 +491,7 @@ public async Task ExecuteAsync_WhenValidHtmlTemplate_ShouldPersistAndReturnTempl
     response.Should().NotBeNull();
     response.Name.Should().Be("Tax Invoice");
     
-    _fixture.TemplateRepo.Verify(r => r.AddAsync(It.IsAny<Template>(), It.IsAny<CancellationToken>()), Times.Once);
+    fixture.TemplateRepo.Verify(r => r.AddAsync(It.IsAny<Template>(), It.IsAny<CancellationToken>()), Times.Once);
 }
 ```
 
