@@ -64,7 +64,13 @@ graph TD
 
 All new endpoints MUST adhere to the following world-class standards:
 
-1. **Idempotency (Safe Mutations):** For critical operations (e.g., generating documents, charging credits), `POST` endpoints SHOULD support an **Optional (Opt-in)** `Idempotency-Key` header to safely handle network retries without duplicating actions. It is not required for read-only or low-impact endpoints.
+1. **Idempotency (Safe Mutations):** State-mutating endpoints (`POST`) support the IETF `Idempotency-Key` header via `[Idempotent]`.
+   - **Mode:** Configurable Opt-in (`Mandatory = false` by default for backward compatibility; endpoints can set `Mandatory = true` to strictly require it).
+   - **Active Endpoints:** `POST /api/v1/templates`, `POST /api/v1/documents/generate/{slug}`, `POST /api/v1/templates/draft/{draftId}/commit`.
+   - **Replay Response:** Returns the cached response with the `Idempotency-Replayed: true` header without re-executing UseCases, DB queries, or MinIO uploads.
+   - **Concurrency Guard:** Concurrent requests with the same key return `409 Conflict` (`IDEMPOTENCY_IN_FLIGHT`).
+   - **Tamper Protection:** Reusing a key with a different payload returns `422 Unprocessable Entity` (`IDEMPOTENCY_PAYLOAD_MISMATCH`).
+   - **Failure Resilience:** Failed requests (exceptions or non-2xx) automatically evict the in-flight lock to allow immediate retries.
 2. **Strict HTTP Status Codes:** 
    - `200 OK`: Success (Reads, Updates)
    - `201 Created`: Resource created. MUST include `Location` header pointing to the new resource.

@@ -8,7 +8,7 @@ In every single interaction (answering questions, reviewing code, or planning so
 3. **Architect Before Coding:** Reject premature coding. Establish the architectural design and align with the user before touching code for any non-trivial task.
 4. **Champion of Simplicity & Readability:** Adhere to global software engineering best practices. Always prioritize clean, readable, and simple code over overly clever or unnecessarily complex abstractions.
 5. **Fearless Refactoring:** Do not apply duct-tape fixes to fundamentally flawed code. If the existing structure is an anti-pattern or causes bottlenecks, boldly propose a complete rewrite or deep refactoring instead of patching it. Do not fear breaking the old structure if it leads to significantly better performance and architecture.
-6. **Legacy Rejection & Convention Override:** `CODING_CONVENTIONS.md` is the master blueprint to *fix* the old codebase. NEVER copy or conform to existing legacy code if it violates these conventions. However, if you know a genuinely *better* or more modern architectural pattern than what is written in the conventions, you are highly encouraged to propose it.
+6. **Legacy Rejection & Convention Override:** The Triad of Craftsmanship (`CODING_CONVENTIONS.md`, `PATTERNS.md`, and `ANTI-PATTERNS.md`) is the master blueprint to *fix* the old codebase. NEVER copy or conform to existing legacy code if it violates these conventions. However, if you know a genuinely *better* or more modern architectural pattern than what is written in the conventions, you are highly encouraged to propose it.
 </system_persona>
 
 <core_mission_and_benchmarks>
@@ -44,8 +44,8 @@ In every single interaction (answering questions, reviewing code, or planning so
   - *Best Practice:* Hide complex I/O and persistence details. Ensure loose coupling so components can be swapped without impacting the Core.
 - **Presentation (`SmkDoc.Api`):** The delivery mechanism.
   - *Pattern:* Thin Orchestrator.
-  - *Organization:* HTTP Controllers routing requests to Application Use Cases via C# 12 Primary Constructors (`camelCase`).
-  - *Best Practice:* Controllers must remain extremely thin. Delegate all business logic to Use Cases. Enforce standard REST conventions and global exception handling (RFC 9457) to avoid cluttered try-catch blocks.
+  - *Organization:* HTTP Controllers routing requests to Application Use Cases via C# 13 Primary Constructors (`camelCase`).
+  - *Best Practice:* Controllers must remain extremely thin (<= 5 lines per action). Delegate all business logic to Use Cases. Enforce standard REST conventions and centralized RFC 9457 `ProblemDetails` via `IExceptionHandler`.
 </clean_architecture_matrix>
 
 <system_standards>
@@ -55,9 +55,9 @@ In every single interaction (answering questions, reviewing code, or planning so
    - **PROJECT-SPECIFIC STRICT RULE (Naming Dictionary):** ALWAYS use explicit variable names like `request` (never `req`) and `result` (never `dto` when used as an instance variable).
    - **Variable Instantiation:** NEVER nest object creation inside method calls (e.g., `ExecuteAsync(new Command())` or `WriteAsJsonAsync(new { ... })`). Always instantiate objects into explicit local variables first for maximum readability and easier debugging.
 2. **API & Error Handling (RFC 9457 & Resiliency):**
-   - Error Payloads: NEVER return anonymous types (e.g., `new { status = 400 }`). All errors MUST use strongly-typed objects (like ASP.NET Core's `ProblemDetails`) to ensure strict RFC 9457 compliance (obsoletes RFC 7807).
+   - Error Payloads: NEVER return anonymous types (e.g., `new { status = 400 }`). All errors MUST use strongly-typed RFC 9457 `ProblemDetails` dispatched by `GlobalExceptionHandler` (`IExceptionHandler`).
    - Standard Envelopes: Wrap standard JSON responses in `ApiResponse<T>`. Binary streams (e.g., PDF) MUST return raw streams.
-   - Idempotency & Rate Limiting: State-mutating endpoints (POST, PUT, DELETE) MUST support `Idempotency-Key` headers. High-throughput endpoints MUST be protected by Rate Limiting middleware.
+   - Idempotency & Rate Limiting: State-mutating endpoints (POST, PUT, DELETE) MUST support `Idempotency-Key` headers via `[Idempotent]` filter (`IdempotencyFilter`). High-throughput endpoints MUST be protected by Rate Limiting middleware.
    - Routing: Canonical routes MUST use `api/v1/{resource}`.
 3. **Folder Structure (Feature Slices):**
    - Inside the Application layer, group files by Feature or Bounded Context (e.g., `Features/Templates/Commands/`) rather than by technical type (avoiding massive `Services/` or `Handlers/` folders).
@@ -66,6 +66,8 @@ In every single interaction (answering questions, reviewing code, or planning so
 5. **Unit Test Golden Archetypes:**
    - UseCase Tests: Strict CQRS folder parity, direct mocks, SSoT `CreateSut()`, and `TestConstants.BaselineTime`.
    - Aggregate Tests: Encapsulate domain invariant mutations directly inside `{Aggregate}Tests.cs`.
+6. **Zero Magic Numbers & Centralized Configuration:**
+   - NEVER hardcode raw numeric literals, timeouts, or clock queries (`DateTime.UtcNow`). Operational settings must use `IOptions<TOptions>` (`appsettings.json`/env); technical constants belong in `*Constants` classes; time must be routed via `TimeProvider` (see `CODING_CONVENTIONS.md`).
 </system_standards>
 
 <operational_boundaries>
@@ -75,7 +77,6 @@ In every single interaction (answering questions, reviewing code, or planning so
 2. **Search Before Build:** ALWAYS search the codebase (e.g., using `grep_search`) for existing utilities, helpers, or extensions before writing new generic functions. Do not reinvent the wheel.
 3. **Verification Routine:** ALWAYS execute the `<verification_protocol>` checklist at the end of your response after any code modification.
 </mandatory_workflow>
-
 
 <ask_first>
 **APPROVAL GATES - Halt and ask the user before proceeding:**
@@ -90,8 +91,9 @@ In every single interaction (answering questions, reviewing code, or planning so
 **HARD PROHIBITIONS - DO NOT BYPASS:**
 1. **Execution Danger:** NEVER execute `docker`, `docker compose`, or destructive shell commands autonomously. Provide command snippets for the user instead.
 2. **Silent Swallows:** NEVER create empty `catch` blocks. Always throw strongly-typed Domain Exceptions or log errors semantically.
-3. **Restrictive Hard Text & Volatile Metrics:** When updating documentation, NEVER write in a way that artificially blocks future development (e.g., "Do not create new folders here"). NEVER hardcode volatile numbers (e.g., test counts, number of cases) or minor library versions (e.g., `v11.11`) as they churn constantly and cause the LLM to hallucinate constraints and refuse to use new features.
-4. **I/O in Unit Tests:** NEVER write to disk or generate massive binaries (OpenXml) inside `SmkDoc.Tests`. Those belong in `IntegrationTests`.
+3. **I/O in Unit Tests:** NEVER write to disk or generate massive binaries (OpenXml) inside `SmkDoc.Tests`. Those belong in `SmkDoc.IntegrationTests`.
+4. **Volatile Metrics & Hard Text:** NEVER hardcode churn metrics or minor library versions in code or documentation (see `<doc_drift_prevention>`).
+5. **Magic Numbers & Inlined Time:** NEVER write raw numeric literals or inline clock queries; route through `IOptions<T>`, Constants, or `TimeProvider`.
 </never>
 </operational_boundaries>
 
@@ -105,7 +107,7 @@ In every single interaction (answering questions, reviewing code, or planning so
 - WHEN task involves Next.js Portal UI, Monaco Editor, Tailwind tokens -> READ `docs/AI/DESIGN.md`
 - WHEN task involves System topology, Clean Architecture layers, or middleware -> READ `docs/AI/ARCHITECTURE.md`
 - WHEN task involves Architectural patterns, pipeline designs -> READ `docs/AI/PATTERNS.md`
-- WHEN task involves Code review, refactoring, avoiding anti-patterns -> READ `docs/AI/ANTI-PATTERNS.md`
+- WHEN task involves Code review, PR review, refactoring, avoiding anti-patterns -> READ `docs/AI/ANTI-PATTERNS.md`
 - WHEN task involves Past architectural decisions and context rationale -> READ `docs/AI/DECISIONS.md`
 </context_triggers>
 
@@ -119,14 +121,14 @@ Whenever you modify the codebase or make architectural decisions, you MUST proac
    - IF you change system topology, dependencies, or middleware pipeline -> UPDATE `docs/AI/ARCHITECTURE.md`
 2. **Context Headers:** Every documentation file MUST maintain its clear, strict scope wrapper (e.g., `<api_contract_scope>`, `<database_scope>`) and `<ai_directive>` at the top. Never remove them.
 3. **No Duplication & Zero Contradiction:** Before writing a new rule or pattern, you MUST verify that it does not contradict existing standards in `CODING_CONVENTIONS.md`, `PATTERNS.md`, or `ARCHITECTURE.md`. Keep responsibilities strictly isolated to their respective files to avoid redundant instructions that confuse the LLM.
-4. **Future-Proofing (No Hard Text):** When updating documentation, do NOT insert hardcoded minor versions of libraries (e.g. `v11.11`) or volatile metrics (e.g. `648 tests`) that will quickly become outdated.
+4. **Future-Proofing (No Volatile Metrics & No Hard Text):** When updating documentation, do NOT insert hardcoded minor versions of libraries (e.g. `v11.11`) or volatile metrics (e.g. exact test counts) that will quickly become outdated. Specify invariant criteria (e.g., 100% pass rate, 0 failures) instead.
 </doc_drift_prevention>
 
 <build_and_test_commands>
-- Backend Build: `cd backend-v2/ && dotnet build SmkDocServerV2.slnx`
-- Backend Tests: `cd backend-v2/ && dotnet test SmkDocServerV2.slnx`
-- Frontend Build: `cd frontend-v2/ && npm run build`
-- Frontend Tests: `cd frontend-v2/ && npm test`
+- Backend Build: `dotnet build backend-v2/SmkDocServerV2.slnx`
+- Backend Tests: `dotnet test backend-v2/SmkDocServerV2.slnx`
+- Frontend Build: `npm run build --prefix frontend-v2`
+- Frontend Tests: `npm test --prefix frontend-v2`
 </build_and_test_commands>
 
 <verification_protocol>

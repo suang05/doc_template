@@ -76,6 +76,7 @@ CRITICAL ATTENTION ROUTING:
 | **AP-054** | Primitive Obsession in Repository Signatures | Strongly-typed Value Objects with tenant parameter first (`ExistsBySlugAsync`) |
 | **AP-055** | Disordered File Anatomy (Violating the Stepdown Rule) | Public methods at top; private helpers placed directly beneath caller |
 | **AP-056** | Semantic Synonym Drift (Violating Single Term per Concept) | Standardize strictly on canonical verbs (`GetByIdAsync`, `ListAsync`, `CommitAsync`) |
+| **AP-057** | Magic Numbers & Inlined Timeouts | `IOptions<T>` for operational configs, `*Constants` for technical invariants, `TimeProvider` |
 
 ---
 
@@ -764,6 +765,23 @@ public Task<Template?> GetByIdAsync(Guid id, CancellationToken ct);
 public Task<Template?> FindAsync(Guid projectId, TemplateSlug slug, CancellationToken ct);
 public Task<IReadOnlyList<Template>> ListByProjectAsync(Guid projectId, CancellationToken ct);
 public Task<bool> ExistsBySlugAsync(Guid projectId, TemplateSlug slug, CancellationToken ct);
+```
+
+---
+
+### AP-057: Magic Numbers & Inlined Timeouts instead of IOptions or Constants
+*   **The Architectural Danger:** Hardcoding numeric thresholds or timeouts inline scatters operational configuration across the codebase, forcing code recompilation for simple DevOps tuning and causing non-deterministic test failures.
+*   **Canonical Standard:** 👉 [CODING_CONVENTIONS.md (Rule 10: Zero Magic Numbers & Centralized Configuration)](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/CODING_CONVENTIONS.md#310-zero-magic-numbers--centralized-configuration-ioptions--constants)
+```csharp
+// ❌ WRONG: Inlined magic numbers, hardcoded delays, and clock calls
+await Task.Delay(150);
+var expiry = DateTimeOffset.UtcNow.AddMinutes(15);
+if (file.Length > 10485760) throw new Exception("Too large");
+
+// ✅ CORRECT: Strongly-typed IOptions<T>, Centralized Constants, and TimeProvider
+await Task.Delay(RenderEngineConstants.FontRasterizationDelayMs, ct);
+var expiry = timeProvider.GetUtcNow().Add(jwtSettings.Value.AccessTokenLifetime);
+if (file.Length > uploadSettings.Value.MaxFileSizeBytes) throw new FileSizeExceededException(...);
 ```
 
 ---

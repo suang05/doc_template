@@ -98,6 +98,7 @@ backend-v2/
 │   │   │   │   ├── IUseCase.cs             # Standard Single-Responsibility Use Case contract
 │   │   │   │   ├── IRepository<T>.cs
 │   │   │   │   ├── IStorageService.cs
+│   │   │   │   ├── IIdempotencyStore.cs    # IETF Idempotency contract & records (IdempotencyRecord, AcquisitionResult)
 │   │   │   │   └── ...
 │   │   │   └── Helpers/
 │   │   │       ├── ThaiDataTransformer.cs  # SSoT สำหรับ Thai formatting
@@ -123,6 +124,10 @@ backend-v2/
 │   ├── SmkDoc.Infrastructure/      # 🟡 Adapters — Implements Application Ports
 │   │   ├── Contexts/
 │   │   │   └── ExecutionContextImpl.cs  # Scoped: CallerApp, ApiKeyId, ClientIp
+│   │   ├── Cache/
+│   │   │   ├── InMemoryTemplateDraftCache.cs
+│   │   │   ├── MemoryCompiledTemplateCache.cs
+│   │   │   └── MemoryIdempotencyStore.cs    # Thread-safe in-memory IIdempotencyStore (IMemoryCache)
 │   │   ├── Persistence/
 │   │   │   ├── AppDbContext.cs     # EF Core + Fluent API mappings
 │   │   │   ├── EfRepository<T>.cs  # Generic Repository
@@ -159,8 +164,11 @@ backend-v2/
 │       │   └── SecurityHeadersMiddleware.cs
 │       ├── ExceptionHandlers/      # ✅ MODERN .NET 8+ PIPELINE-WIDE ERROR HANDLING
 │       │   └── GlobalExceptionHandler.cs # Implements IExceptionHandler, Maps to RFC 9457 ProblemDetails
-│       ├── Filters/                # MVC Action Filters (Fail-fast validation only)
-│       │   └── ValidateCommandFilter.cs  # Intercepts commands & executes FluentValidation automatically
+│       ├── Filters/                # MVC Action Filters (Fail-fast validation & Idempotency)
+│       │   ├── ValidateCommandFilter.cs       # Intercepts commands & executes FluentValidation automatically
+│       │   ├── IdempotencyFilter.cs           # IETF Idempotency-Key handler (lock, replay, rollback)
+│       │   ├── IdempotentAttribute.cs         # Decorator for mutation endpoints (Opt-in/Mandatory, TTL)
+│       │   └── RequestFingerprintCalculator.cs# Deterministic SHA-256 fingerprint for payload verification
 │       ├── HealthChecks/           # Postgres, MinIO, Gotenberg health checks
 │       └── Program.cs              # DI, Middleware pipeline, Swagger, Rate Limiting
 │

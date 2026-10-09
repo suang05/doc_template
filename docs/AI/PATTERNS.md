@@ -276,7 +276,15 @@ public sealed class GlobalExceptionHandler(
 
 #### Archetype 3: IETF Idempotency-Key Pipeline Pattern (Safe Mutations)
 
-*   **Intent & Scope:** Implements the IETF Draft specification for the `Idempotency-Key` header on state-mutating endpoints (`POST`, `PUT`, `DELETE`). Guarantees that if a client retries a network request due to timeout or disconnect, the operation is executed exactly once on the server, returning the identical cached HTTP response with zero duplicate database mutations.
+*   **Intent & Scope:** Implements the IETF Draft specification for the `Idempotency-Key` header on state-mutating endpoints (`POST`, `PUT`, `DELETE`). Guarantees that network retries execute business operations exactly once, returning the cached HTTP response while eliminating duplicate database writes, render workloads, or storage uploads.
+*   **Architectural Rationale & Invariants:**
+    1. **Atomic Concurrency Control:** In-flight lease acquisition uses atomic check-and-set (`TryAcquireOrGetAsync`) to prevent race conditions when concurrent requests arrive simultaneously.
+    2. **Request Fingerprinting (SHA-256):** Compares incoming `SHA256(Method + Path + SerializedArguments)` with the cached fingerprint. If keys match but payloads differ, returns `422 Unprocessable Entity` (`IDEMPOTENCY_PAYLOAD_MISMATCH`).
+    3. **Failure Rollback:** If the downstream UseCase throws an exception or returns non-2xx status, the in-flight lock is evicted (`RemoveAsync`) immediately, allowing the client to retry rather than being locked out for the entire TTL.
+    4. **Tenant Scoping:** Cache keys are isolated by caller (`$"idempotency:{callerId}:{idempotencyKey}"`) via `IExecutionContext`.
+    5. **Configurable Opt-In / Mandatory:** Default is Opt-in (`Mandatory = false`) for backward compatibility, with `[Idempotent(Mandatory = true)]` available for critical financial/contract endpoints.
+    6. **Transparency Header:** Replayed responses attach `Idempotency-Replayed: true`.
+
 *   **Data Flow:**
     ```text
     Client ──(POST with Idempotency-Key)──► [ IdempotencyFilter : IAsyncActionFilter ]
@@ -285,19 +293,25 @@ public sealed class GlobalExceptionHandler(
                                          ▼                                 ▼
                              Cache: Completed?                   Cache: In-Flight?
                                          │                                 │
-                         Yes ────────────┴──────────── No                  ▼
-                          │                            │             Return 409 Conflict
-                          ▼                            ▼
-                 Return Cached Response       Mark In-Flight (TTL 24h)
-                 (201 Created + Payload)               │
-                                                       ▼
-                                            Execute UseCase & Pipeline
-                                                       │
-                                                       ▼
-                                            Save Response in Cache (24h)
-                                                       │
-                                                       ▼
-                                            Return Fresh Response (201)
+                         ┌───────────────┴───────────────┐                 ▼
+                         ▼                               ▼           Return 409 Conflict
+                  Fingerprint Match?              Fingerprint Mismatch?
+                         │                               │
+                Yes ─────┴───── No                       ▼
+                 │              │                Return 422 Unprocessable Entity
+                 ▼              ▼
+        Return Cached (201)   Acquire In-Flight Lock (Atomic)
+        + Idempotency-Replayed           │
+                                         ▼
+                             Execute UseCase (try/catch)
+                                         │
+                         ┌───────────────┴───────────────┐
+                         ▼                               ▼
+                 Success (2xx)                   Failure / Exception
+                         │                               │
+                         ▼                               ▼
+             Save Response in Cache (24h)     Rollback Lock (RemoveAsync)
+             Return Fresh Response (201)      Rethrow / Return ProblemDetails
     ```
 
 ```csharp
@@ -306,87 +320,172 @@ public sealed class GlobalExceptionHandler(
 // =========================================================================
 namespace SmkDoc.Api.Filters;
 
+using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using SmkDoc.Application.Common.Interfaces;
 
 [AttributeUsage(AttributeTargets.Method | AttributeTargets.Class)]
 public sealed class IdempotentAttribute : Attribute, IFilterFactory
 {
-    public bool IsReusable => true;
-    public IFilterMetadata CreateInstance(IServiceProvider serviceProvider) =>
-        serviceProvider.GetRequiredService<IdempotencyFilter>();
+    public int TtlHours { get; set; } = 24;
+    public bool Mandatory { get; set; } = false;
+    public bool IsReusable => false;
+
+    public IFilterMetadata CreateInstance(IServiceProvider serviceProvider)
+    {
+        var idempotencyStore = serviceProvider.GetRequiredService<IIdempotencyStore>();
+        var executionContext = serviceProvider.GetRequiredService<IExecutionContext>();
+        var logger = serviceProvider.GetRequiredService<ILogger<IdempotencyFilter>>();
+        var jsonOptions = serviceProvider.GetService<IOptions<JsonOptions>>()?.Value.JsonSerializerOptions
+            ?? new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+
+        return new IdempotencyFilter(
+            idempotencyStore,
+            executionContext,
+            logger,
+            jsonOptions,
+            TimeSpan.FromHours(TtlHours),
+            Mandatory);
+    }
 }
 
 public sealed class IdempotencyFilter(
     IIdempotencyStore idempotencyStore,
-    IExecutionContext executionContext) : IAsyncActionFilter
+    IExecutionContext executionContext,
+    ILogger<IdempotencyFilter> logger,
+    JsonSerializerOptions jsonSerializerOptions,
+    TimeSpan completedTtl,
+    bool mandatory) : IAsyncActionFilter
 {
-    private const string HeaderName = "Idempotency-Key";
-    private static readonly TimeSpan CacheTtl = TimeSpan.FromHours(24);
+    public const string HeaderName = "Idempotency-Key";
+    public const string HeaderReplayed = "Idempotency-Replayed";
+    private static readonly TimeSpan InFlightTtl = TimeSpan.FromMinutes(2);
 
     public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
     {
-        // 1. Read header; if absent on optional endpoints, pass through
+        // 1. Inspect Header (Opt-in vs Mandatory)
         if (!context.HttpContext.Request.Headers.TryGetValue(HeaderName, out var rawKey) || string.IsNullOrWhiteSpace(rawKey))
         {
+            if (mandatory)
+            {
+                var problem = new ProblemDetails
+                {
+                    Status = StatusCodes.Status400BadRequest,
+                    Title = "Missing Idempotency-Key",
+                    Detail = "The 'Idempotency-Key' request header is required for this operation.",
+                    Instance = context.HttpContext.Request.Path
+                };
+                problem.Extensions["errorCode"] = "MISSING_IDEMPOTENCY_KEY";
+                context.Result = new BadRequestObjectResult(problem);
+                return;
+            }
+
             await next();
             return;
         }
 
         var idempotencyKey = rawKey.ToString().Trim();
-        var callerId = executionContext.CallerApp ?? "anonymous";
+        var callerId = executionContext.CallerApp ?? executionContext.ProjectId?.ToString("N") ?? "anonymous";
         var cacheKey = $"idempotency:{callerId}:{idempotencyKey}";
+        var fingerprint = RequestFingerprintCalculator.ComputeFingerprint(context, jsonSerializerOptions);
 
-        // 2. Inspect Cache State
-        var entry = await idempotencyStore.GetAsync(cacheKey, context.HttpContext.RequestAborted);
-        if (entry is not null)
+        // 2. Atomic Acquisition & State Inspection
+        var acquisitionResult = await idempotencyStore.TryAcquireOrGetAsync(
+            cacheKey, fingerprint, InFlightTtl, context.HttpContext.RequestAborted);
+
+        if (!acquisitionResult.IsAcquired && acquisitionResult.ExistingRecord is not null)
         {
-            if (entry.IsInFlight)
+            var existing = acquisitionResult.ExistingRecord;
+
+            if (existing.Status == IdempotencyStatus.InFlight)
             {
-                // Another request with the same key is currently running
-                context.Result = new ConflictObjectResult(new ProblemDetails
+                var conflict = new ProblemDetails
                 {
                     Status = StatusCodes.Status409Conflict,
-                    Title = "Request Conflict",
-                    Detail = "A mutation request with this Idempotency-Key is currently being processed."
-                });
+                    Title = "Request In-Flight",
+                    Detail = "A mutation request with this Idempotency-Key is currently being processed.",
+                    Instance = context.HttpContext.Request.Path
+                };
+                conflict.Extensions["errorCode"] = "IDEMPOTENCY_IN_FLIGHT";
+                context.Result = new ConflictObjectResult(conflict);
                 return;
             }
 
-            // Return cached result immediately (Zero UseCase re-execution)
-            context.Result = new ObjectResult(entry.CachedPayload)
+            if (existing.Status == IdempotencyStatus.Completed)
             {
-                StatusCode = entry.StatusCode
-            };
+                if (!string.Equals(existing.RequestFingerprint, fingerprint, StringComparison.Ordinal))
+                {
+                    var mismatch = new ProblemDetails
+                    {
+                        Status = StatusCodes.Status422UnprocessableEntity,
+                        Title = "Idempotency-Key Payload Mismatch",
+                        Detail = "This Idempotency-Key was previously used with a different request payload.",
+                        Instance = context.HttpContext.Request.Path
+                    };
+                    mismatch.Extensions["errorCode"] = "IDEMPOTENCY_PAYLOAD_MISMATCH";
+                    context.Result = new ObjectResult(mismatch) { StatusCode = StatusCodes.Status422UnprocessableEntity };
+                    return;
+                }
+
+                // Replay cached response with IETF transparency header
+                context.HttpContext.Response.Headers[HeaderReplayed] = "true";
+                if (existing.Headers is not null)
+                {
+                    foreach (var (k, v) in existing.Headers) context.HttpContext.Response.Headers[k] = v;
+                }
+
+                var cachedStatus = existing.StatusCode ?? StatusCodes.Status200OK;
+                context.Result = !string.IsNullOrWhiteSpace(existing.ResponseJson)
+                    ? new ContentResult { Content = existing.ResponseJson, ContentType = "application/json; charset=utf-8", StatusCode = cachedStatus }
+                    : new StatusCodeResult(cachedStatus);
+                return;
+            }
+        }
+
+        // 3. Execution with Failure Rollback
+        ActionExecutedContext executedContext;
+        try
+        {
+            executedContext = await next();
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Execution failed for key {IdempotencyKey}. Rolling back in-flight lock.", idempotencyKey);
+            await idempotencyStore.RemoveAsync(cacheKey, context.HttpContext.RequestAborted);
+            throw;
+        }
+
+        if (executedContext.Exception is not null)
+        {
+            await idempotencyStore.RemoveAsync(cacheKey, context.HttpContext.RequestAborted);
             return;
         }
 
-        // 3. Mark Key as In-Flight
-        await idempotencyStore.MarkInFlightAsync(cacheKey, CacheTtl, context.HttpContext.RequestAborted);
-
-        // 4. Execute the pipeline
-        var executedContext = await next();
-
-        // 5. Cache the completed successful response
+        // 4. Save Completed Successful Response
         if (executedContext.Result is ObjectResult objectResult && objectResult.StatusCode is >= 200 and < 300)
         {
+            Dictionary<string, string>? headersToCache = null;
+            if (context.HttpContext.Response.Headers.TryGetValue("Location", out var loc))
+            {
+                headersToCache = new Dictionary<string, string> { ["Location"] = loc.ToString() };
+            }
+
+            var serialized = JsonSerializer.Serialize(objectResult.Value, jsonSerializerOptions);
             await idempotencyStore.SaveCompletedAsync(
-                cacheKey, 
-                objectResult.StatusCode.Value, 
-                objectResult.Value, 
-                CacheTtl, 
-                context.HttpContext.RequestAborted);
+                cacheKey, fingerprint, objectResult.StatusCode.Value, serialized, headersToCache, completedTtl, context.HttpContext.RequestAborted);
+        }
+        else
+        {
+            // Non-2xx response: evict in-flight lock so client can retry
+            await idempotencyStore.RemoveAsync(cacheKey, context.HttpContext.RequestAborted);
         }
     }
 }
 ```
-
-*   **Architectural Invariants & Hard Rules:**
-    1. **Mandatory 24-Hour TTL:** Idempotency records MUST be cached for a minimum of 24 hours.
-    2. **Tenant & Caller Scoping:** Idempotency cache keys MUST always incorporate the authenticated client/app identity (`callerAppId:key`) to eliminate cross-tenant key hijacking.
-    3. **Zero Read-Only Interference:** NEVER apply `[Idempotent]` to idempotent HTTP verbs (`GET`, `HEAD`, `OPTIONS`).
 
 ---
 

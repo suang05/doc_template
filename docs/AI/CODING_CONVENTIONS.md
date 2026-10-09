@@ -16,7 +16,7 @@ CRITICAL ATTENTION ROUTING:
 ## 📑 Table of Contents
 1. **[Core Philosophy: Clean Architecture & SOLID Design](#1-🏛️-core-philosophy-clean-architecture--solid-design)**
 2. **[System Tech Stack (Ground Truth)](#2-🏗️-system-tech-stack-ground-truth)**
-3. **[Readability, Simplicity & Code Craftsmanship (The 9 Golden Rules)](#3-💎-readability-simplicity--code-craftsmanship-the-9-golden-rules)**
+3. **[Readability, Simplicity & Code Craftsmanship (The 10 Golden Rules)](#3-💎-readability-simplicity--code-craftsmanship-the-10-golden-rules)**
    - 3.1 The Stepdown Rule (The Newspaper Metaphor)
    - 3.2 Vertical Proximity & Visual Formatting
    - 3.3 Linear Storytelling & Guard Clauses (Max Cyclomatic Depth = 2)
@@ -26,6 +26,7 @@ CRITICAL ATTENTION ROUTING:
    - 3.7 Explicit Intermediate Variables & Breaking Long Chains
    - 3.8 Trust Nullable Reference Types (No Paranoid Defensive Guarding in Core)
    - 3.9 Expressive Domain Verbs over Anemic Property Dumping
+   - 3.10 Zero Magic Numbers & Centralized Configuration (IOptions & Constants)
 4. **[Backend Standards: C# 13 / .NET 10 (`backend-v2/`)](#4-🔵-backend-standards-c-13--net-10-backend-v2)**
    - 4.1 Primary Constructors (camelCase Invariant, Zero Field Re-declaration)
    - 4.2 Immutability & Record Types ('record' vs 'class' Decision Matrix)
@@ -367,6 +368,34 @@ template.UpdatedAt = now;
 
 // ✅ Good: Expressive domain verb encapsulates state invariants atomically
 template.Deactivate(reason: "Superseded", now: now);
+```
+
+---
+
+### 3.10 Zero Magic Numbers & Centralized Configuration (IOptions & Constants)
+LLMs frequently hardcode raw numbers, magic delays, and system clock calls directly inside business methods. This creates brittle tests, scatters DevOps configuration, and forces code recompilation for simple operational tuning.
+
+*   **Rule 1 (Deployable & Operational Parameters via `IOptions<TOptions>`):**
+    - Parameters that vary by deployment environment, infrastructure capacity, or business policy (e.g., HTTP timeouts, MinIO bucket names, cache TTLs, rate limits, batch sizes, maximum upload bytes, token lifetimes) MUST NEVER be hardcoded as literals.
+    - Bind them via ASP.NET Core strongly-typed `IOptions<TOptions>` loaded from `appsettings.json` or Environment Variables (`.env`).
+*   **Rule 2 (Technical & Protocol Invariants in `*Constants.cs`):**
+    - Technical or domain-fixed constants (e.g., Chromium font stabilization delay `150ms`, slug regex pattern, DrawingML positive ID offsets, default pagination bounds) MUST be encapsulated in centralized strongly-typed `*Constants.cs` classes (e.g., `RenderEngineConstants`, `PaginationConstants`, `PlaceholderHelper`).
+*   **Rule 3 (Deterministic Time SSoT via `TimeProvider`):**
+    - NEVER call `DateTime.UtcNow` or `DateTimeOffset.UtcNow` directly in domain entities or use cases.
+    - Always inject and query .NET standard `TimeProvider` (`timeProvider.GetUtcNow()`) or pass explicit `DateTimeOffset now` down through domain verbs to ensure 100% deterministic, clock-skew-free unit testing.
+
+```csharp
+// ❌ Bad: Inlined magic numbers, hardcoded timeouts, and system clock calls
+await Task.Delay(150); // Magic delay
+var expiry = DateTimeOffset.UtcNow.AddMinutes(15); // Hardcoded lifetime + nondeterministic clock
+if (file.Length > 10485760) // Magic byte threshold
+    throw new Exception("File too large");
+
+// ✅ Good: Centralized Constants, IOptions<T> configuration, and TimeProvider
+await Task.Delay(RenderEngineConstants.FontRasterizationDelayMs, ct);
+var expiry = timeProvider.GetUtcNow().Add(jwtSettings.Value.AccessTokenLifetime);
+if (file.Length > uploadSettings.Value.MaxFileSizeBytes)
+    throw new FileSizeExceededException($"File exceeds maximum allowed size of {uploadSettings.Value.MaxFileSizeMb}MB.");
 ```
 
 ---
