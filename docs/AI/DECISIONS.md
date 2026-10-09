@@ -24,7 +24,7 @@
 - `ApiKeyMiddleware.cs` — validate ทุก request (ยกเว้น `/`, `/health`, `/swagger`)
 - `MASTER_API_KEY` env var — bypass สำหรับ bootstrapping (ก่อนมี DB record)
 - `ApiKeyUseCase.ValidateKeyAsync()` — hash comparison กับ `api_keys.key_hash`
-- Unauthorized responses ใช้ RFC 7807 Problem Details format
+- Unauthorized responses ใช้ RFC 9457 Problem Details format
 
 **Consequence:** ระบบ `[Authorize]` attribute มาตรฐานของ ASP.NET ไม่ได้ใช้ — ใช้ Middleware-based validation แทน
 
@@ -150,7 +150,7 @@
 **Config:**
 - 60 requests / minute / API Key
 - Queue limit: 0 (ปฏิเสธทันทีถ้าเกิน)
-- 429 Response: RFC 7807-inspired JSON body
+- 429 Response: RFC 9457-inspired JSON body
 - Fallback: partition ตาม IP ถ้าไม่มี X-API-Key
 
 ---
@@ -277,14 +277,14 @@
 
 **Decision:**
 1. **Dual-Engine Architecture (Static vs. Dynamic Concerns):**
-   - **Static Engine (FluentValidation v11.11):** ตรวจสอบโครงสร้าง C# Command/Request DTOs ใน `SmkDoc.Application/Validators/` (เช่น Data Type, Format, Mandatory fields, Length, Regex slugs)
+   - **Static Engine (FluentValidation):** ตรวจสอบโครงสร้าง C# Command/Request DTOs ใน `SmkDoc.Application/Validators/` (เช่น Data Type, Format, Mandatory fields, Length, Regex slugs)
    - **Dynamic Engine (JsonSchema.Net Draft-07):** ตรวจสอบ Document Data Payload เทียบกับ JSON Schema ประจำแต่ละ Template Version ใน `SmkDoc.Infrastructure/Schema/`
 2. **Domain Exception Mapping:**
    - สร้าง `ValidationException : DomainException` ใน `SmkDoc.Domain.Exceptions` (HTTP 400, ErrorCode: `"VALIDATION_FAILED"`, เก็บ `IDictionary<string, string[]> Errors`)
 3. **Automatic Action Filter Execution:**
    - สร้าง `ValidateCommandFilter` ใน `SmkDoc.Api/Filters/` ดักจับทุก Command Arguments ก่อนเข้า Controller Actions และเรียก `IValidator<T>` จาก DI Container อัตโนมัติ (ขจัด Boilerplate `if (!ModelState.IsValid)` หรือการเขียน manual validation ใน Controller)
-4. **Unified RFC 7807 Error Presentation:**
-   - ปรับปรุง `GlobalExceptionFilter` ให้แปลง `ValidationException` เป็น RFC 7807 Problem Details พร้อม `errors` dictionary อย่างเป็นมาตรฐาน
+4. **Unified RFC 9457 Error Presentation:**
+   - ปรับปรุง `GlobalExceptionFilter` ให้แปลง `ValidationException` เป็น RFC 9457 Problem Details พร้อม `errors` dictionary อย่างเป็นมาตรฐาน
 5. **KISS & Clean Architecture Adherence:**
    - ไม่ใช้ MediatR/CQRS Pipeline Behavior ที่ซับซ้อนตามข้อกำหนดใน `AGENTS.md`
    - Validators ใน `SmkDoc.Application` เป็น Pure C# ไม่มี dependency ต่องาน HTTP/ASP.NET Core ใดๆ
@@ -362,7 +362,7 @@
    - มี Alias `POST /api/v1/templates/{slug}/validate-payload`
    - รันแบบ Zero Side-Effects (ไม่เรียก Gotenberg/Chromium, ไม่อัปโหลด MinIO, ไม่บันทึก DB audit logs)
 2. **Multi-Tenant Scoping (`IMustHaveProject`):**
-   - Use Case บังคับตรวจสอบ `t.ProjectId == _executionContext.ProjectId` (หากมี Project Context ในคำขอ) ป้องกันการเข้าถึง Template ข้าม Tenant โดยเด็ดขาด
+   - Use Case บังคับตรวจสอบ `t.ProjectId == executionContext.ProjectId` (หากมี Project Context ในคำขอ) ป้องกันการเข้าถึง Template ข้าม Tenant โดยเด็ดขาด
 3. **Domain Reuse:**
    - ใช้งาน `ValidationErrorItem` และ `SchemaValidationResult` จาก `SmkDoc.Domain.ValueObjects.Validation` ร่วมกัน ไม่สร้าง Domain Model ซ้ำซ้อน
 4. **Direct JsonElement Pipeline:**
@@ -578,7 +578,7 @@
    - ใน `CreateProjectUseCase` ระบบจะสร้าง Company (ถ้ายังไม่มี), สร้าง Project, ผูกสิทธิ์ Admin ให้ผู้สร้าง และออก API Key พร้อมกัน 2 ดอกทันที (`ReadOnly` และ `ReadWrite`) ภายใต้ **Single Atomic Transaction (`CommitAsync`)** เดียว
 3. **Perimeter-Gated Portal Authentication (Approach A):**
    - ถอด `/api/v1/auth/*` ออกจาก Public Whitelist ใน `ApiKeyMiddleware`
-   - การเรียก `POST /api/v1/auth/login` และ `POST /api/v1/auth/refresh` ต้องแนบ `X-API-Key` (Master / SuperAdmin Key) ใน Header เสมอ หากไม่มีจะถูกตัดตอนที่ Middleware ทันทีด้วย `401 Unauthorized` (RFC 7807)
+   - การเรียก `POST /api/v1/auth/login` และ `POST /api/v1/auth/refresh` ต้องแนบ `X-API-Key` (Master / SuperAdmin Key) ใน Header เสมอ หากไม่มีจะถูกตัดตอนที่ Middleware ทันทีด้วย `401 Unauthorized` (RFC 9457)
 4. **Smart Dual-Channel Auth Bypass:**
    - ใน `ApiKeyMiddleware` หาก Request ใดมี Bearer JWT ที่ยืนยันตัวตนสำเร็จแล้ว (`context.User.Identity?.IsAuthenticated == true`) Middleware จะดึง `UserId` และ `ProjectId` จาก Claims มาใส่ใน `IExecutionContext` และ bypass การตรวจ `X-API-Key` ให้อัตโนมัติ ทำให้ผู้ใช้บน Web Portal / Swagger ใช้งานได้อย่างราบรื่น
 5. **Zero-Input Project ID on Login:**
@@ -621,6 +621,6 @@
 - ขจัดปัญหา N+1 และ In-memory Join ใน RAM ถาวร
 - ลด Database chatter เหลือ 1 Single SQL Query สำหรับการดึงสิทธิ์ Workspace
 - รักษา Clean Architecture DIP: Application Layer ปราศจาก EF Core/Database Leaks
-- Unit Test Mock ง่ายขึ้นอย่างมีนัยสำคัญผ่าน `_workspaceQueryServiceMock` เพียงตัวเดียว
-- 100% Pass Rate ทั้ง Unit Tests (648 tests) และ Integration Tests (11 tests)
+- Unit Test Mock ง่ายขึ้นอย่างมีนัยสำคัญผ่าน `workspaceQueryServiceMock` เพียงตัวเดียว
+- 100% Pass Rate ทั้ง Unit Tests และ Integration Tests
 

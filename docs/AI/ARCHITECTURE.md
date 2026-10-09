@@ -3,6 +3,14 @@
 > **Purpose:** Authoritative system topology, Clean Architecture layering rules, and dual-channel authentication flow.  
 > **Related Docs:** [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) (Folder map), [DB_SCHEMA.md](DB_SCHEMA.md) (Data models).
 
+<ai_directive>
+CRITICAL ATTENTION ROUTING: 
+This document defines the strict Clean Architecture Boundaries, Layer Dependencies, and System Topology.
+When generating architecture, adding new projects, or writing cross-layer integrations, you MUST strictly apply the dependency rules outlined here.
+</ai_directive>
+
+<architecture_scope>
+
 ### ⚡ Quick-Lookup: Layer Responsibilities & Dependencies
 
 | Layer | Project | Allowed References | Prohibited Elements | Return Type |
@@ -89,7 +97,7 @@ SmkDoc.Domain ← SmkDoc.Application ← SmkDoc.Infrastructure ← SmkDoc.Api
 | โฟลเดอร์ | ไฟล์สำคัญ | หน้าที่ |
 |---|---|---|
 | `Common/Interfaces/` | `IRepository<T>`, `IStorageService`, `IPdfRenderer`, `IRenderEngine`, `IExecutionContext`, `IUnitOfWork`, `ICompiledTemplateCache`, `IUserWorkspaceQueryService` | Ports — Abstractions ที่ Infrastructure จะ Implement |
-| `Common/Exceptions/` | `NotFoundException.cs`, `ValidationException.cs`, `UnauthorizedException.cs`, `ConflictException.cs`, `DraftExpiredException.cs`, `RenderException.cs`, `SchemaValidationException.cs` | Application-level exceptions ที่ map ไปเป็น RFC 7807 Problem Details |
+| `Common/Exceptions/` | `NotFoundException.cs`, `ValidationException.cs`, `UnauthorizedException.cs`, `ConflictException.cs`, `DraftExpiredException.cs`, `RenderException.cs`, `SchemaValidationException.cs` | Application-level exceptions ที่ map ไปเป็น RFC 9457 Problem Details |
 | `UseCases/Documents/` | `GenerateDocumentUseCase`, `PreviewDocumentUseCase`, `ValidatePayloadUseCase`, `DocumentVersionUseCase`, `RenderStatelessDocumentUseCase`, `HtmlToPdfUseCase` | Document generation pipeline |
 | `UseCases/Schemas/` | `ValidateStandaloneSchemaUseCase` | Standalone zero-DB Draft-07 schema validation (Monaco Studio & M2M) |
 | `UseCases/Templates/` | `TemplateManagementUseCase`, `HtmlStudioUseCase`, `HtmlPersistenceUseCase`, `TemplateValidateUseCase`, `ValidateTemplatePayloadUseCase`, `TemplateDraftUseCase` | Template CRUD, HTML Studio, และ Payload Validation |
@@ -131,7 +139,7 @@ SmkDoc.Domain ← SmkDoc.Application ← SmkDoc.Infrastructure ← SmkDoc.Api
 | โฟลเดอร์ | ไฟล์สำคัญ | หน้าที่ |
 |---|---|---|
 | `Controllers/` | `DocumentController`, `TemplateController`, `TemplateVersionController`, `TemplateHtmlController`, `TemplateMappingController`, `TemplateScanController`, `TemplateDraftController`, `ApiKeyController`, `ApiKeyManagementController`, `AuthController`, `UserManagementController`, `ProjectManagementController`, `AuditLogController`, `DataConnectionsController`, `DatasetController`, `FontManagementController` | Thin Controllers — รับ Request, เรียก UseCase, return `ApiResponse<T>` |
-| `Filters/` | `ValidateCommandFilter.cs`, `GlobalExceptionFilter.cs` | Automatic FluentValidation execution & RFC 7807 Exception Mapping |
+| `Filters/` | `ValidateCommandFilter.cs`, `GlobalExceptionFilter.cs` | Automatic FluentValidation execution & RFC 9457 Exception Mapping |
 | `Contracts/` | `Contracts/IdentityAccess/`, `Contracts/Authoring/` | Feature-based HTTP Request & Response contracts (Decoupled positional records) |
 | `Common/` | `Common/Context/ExecutionContextImpl.cs`, `Common/Responses/ApiResponse.cs` | Presentation Context Provider & Global Response Envelopes (`ApiResponse<T>`, `PagedApiResponse<T>`) |
 | `Program.cs` | — | DI Container, Middleware pipeline, Swagger, Rate Limiting |
@@ -152,8 +160,9 @@ HTTP Request
       └─ Portal Authenticated Session (Post-Login):
            JwtBearer Auth       (Validate Bearer JWT → Extract SystemRole, UserId, Role & ProjectId)
            ApiKey Bypass        (Authenticated Bearer sessions bypass X-API-Key check automatically)
+  → Idempotency Filter          (Idempotency-Key validation for safe retries)
   → Controller Action           (Thin — no business logic)
-  → GlobalExceptionFilter       (Catch Domain Exceptions → RFC 7807)
+  → GlobalExceptionFilter       (Catch Domain Exceptions → RFC 9457)
   → UseCase                    (Business Logic, returns DTO)
   → Infrastructure Port         (IRepository / IStorageService / IRenderEngine)
   → ApiResponse<T>             (Wraps DTO as HTTP 200)
@@ -202,7 +211,8 @@ RenderEngineType (Html / Docx / Excel)
 **Guarantees:**
 - ✅ Word Engine: `DrawingML Id > 0` (prevents Word Desktop crash)
 - ✅ Preview: Zero side-effects (no MinIO write, no DB log)
-- ✅ Thai Baht Text: Negative amounts, zero, สตางค์ — ทดสอบ 7 cases
+- ✅ Thai Baht Text: Negative amounts, zero, สตางค์ — ทดสอบครอบคลุมทุก edge cases
 - ✅ Phone formatting: 9-digit (`02-xxx-xxxx`) and 10-digit (`081-xxx-xxxx`) coverage
 - ✅ Handlebars Cache: Zero redundant AST compilation on repeated template runs
 - ✅ Sequential UUIDv7: 100% timestamp-ordered indexing without B-tree page splits
+</architecture_scope>

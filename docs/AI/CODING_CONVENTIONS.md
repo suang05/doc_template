@@ -341,7 +341,7 @@ public async Task<Template?> GetTemplateDataForDisplayAsync(Guid id, Cancellatio
   - `201 Created`: Resource creation (Must return `ApiResponse<T>`).
   - `200 OK`: Reads, queries, or idempotent updates returning data.
   - `204 NoContent`: Deletions or state changes returning no body.
-- **RFC 7807 Compliance:** All HTTP error responses MUST conform to `ProblemDetails`. NEVER return anonymous types (e.g., `new { error = ... }`).
+- **RFC 9457 Compliance:** All HTTP error responses MUST conform to `ProblemDetails`. NEVER return anonymous types (e.g., `new { error = ... }`).
 - **Domain Exception Mapping:** Throw strongly-typed exceptions from UseCases, letting the Global Filter map them:
   - `DomainValidationException` / `BusinessRuleViolationException` -> `400 BadRequest`
   - `NotFoundException` -> `404 NotFound`
@@ -375,7 +375,7 @@ public class TemplateController(ITemplateRepository _repo) // Violation: Undersc
     {
         // Violation: Business logic inside Controller
         if (string.IsNullOrEmpty(req.Name)) 
-            return BadRequest(new { error = "Name needed" }); // Violation: Anonymous type breaks RFC 7807
+            return BadRequest(new { error = "Name needed" }); // Violation: Anonymous type breaks RFC 9457
 
         var entity = new Template(req.Name);
         await _repo.AddAsync(entity); // Violation: Bypassing Application layer UseCases
@@ -383,7 +383,7 @@ public class TemplateController(ITemplateRepository _repo) // Violation: Undersc
     }
 }
 
-// ✅ Good: Thin Controller & RFC 7807 Compliance
+// ✅ Good: Thin Controller & RFC 9457 Compliance
 [ApiController]
 [Route("api/v1/templates")]
 public class TemplateController(IUseCase<CreateTemplateCommand, TemplateResultDto> createUseCase) : ControllerBase
@@ -404,14 +404,14 @@ public class TemplateController(IUseCase<CreateTemplateCommand, TemplateResultDt
     }
 }
 
-// ✅ Good: Middleware RFC 7807 enforcement
+// ✅ Good: Middleware RFC 9457 enforcement
 public async Task InvokeAsync(HttpContext context)
 {
     if (!IsValidKey(context))
     {
         context.Response.StatusCode = StatusCodes.Status401Unauthorized;
         
-        // Enforces RFC 7807 standard format
+        // Enforces RFC 9457 standard format
         var problem = new ProblemDetails 
         { 
             Title = "Unauthorized", 
@@ -617,16 +617,16 @@ LLMs and developers frequently use inconsistent variable names (e.g., swapping b
 public async Task<ActionResult<ApiResponse<TemplateResultDto>>> Create([FromBody] CreateTemplateRequest request, CancellationToken ct)
 {
     var command = new CreateTemplateCommand(request.Name); // Map request -> command
-    var result = await _useCase.ExecuteAsync(command, ct); // Execute command -> result
+    var result = await useCase.ExecuteAsync(command, ct); // Execute command -> result
     return Ok(new ApiResponse<TemplateResultDto>(result));
 }
 
 // Application Layer
 public async Task<TemplateResultDto> ExecuteAsync(CreateTemplateCommand command, CancellationToken ct = default)
 {
-    var now = _timeProvider.GetUtcNow(); // Get time as 'now'
+    var now = timeProvider.GetUtcNow(); // Get time as 'now'
     var template = Template.Create(command.Name, now); // Create entity as 'template'
-    await _repo.AddAsync(template, ct);
+    await repo.AddAsync(template, ct);
     return new TemplateResultDto(template.Id); // Return 'result' mapping
 }
 ```

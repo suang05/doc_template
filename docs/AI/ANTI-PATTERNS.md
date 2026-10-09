@@ -3,14 +3,22 @@
 > **Purpose:** Explicit inventory of prohibited code patterns in `backend-v2/` and `frontend-v2/` with correct alternatives.  
 > **Related Docs:** [CODING_CONVENTIONS.md](CODING_CONVENTIONS.md) (Syntax & Standards), [PATTERNS.md](PATTERNS.md) (Canonical Patterns).
 
-### ⚡ Quick-Lookup: Prohibited Patterns (What NOT to Do)
+<ai_directive>
+CRITICAL ATTENTION ROUTING: 
+- If you are writing C# / .NET code, you MUST STRICTLY scope your attention to the `<backend_scope>` block.
+- If you are writing TypeScript / Next.js code, you MUST STRICTLY scope your attention to the `<frontend_scope>` block.
+Do not cross-contaminate architectures.
+</ai_directive>
+
+<backend_scope>
+### ⚡ Backend Quick-Lookup: Prohibited Patterns (What NOT to Do)
 
 | Code | Prohibited Pattern | Correct Alternative |
 |---|---|---|
 | **AP-001** | `IRepository<T>` in Controller | Inject specific Single-Responsibility UseCase into Controller |
 | **AP-002** | Return Domain Entity from UseCase | Map to Application DTO record |
 | **AP-003** | Anonymous objects in API Response | Wrap in `ApiResponse<T>` / `ApiPagedResponse<T>` |
-| **AP-004** | `try-catch` blocks in Controllers | Throw DomainException; let `GlobalExceptionFilter` map to RFC 7807 |
+| **AP-004** | `try-catch` blocks in Controllers | Throw DomainException; let `IExceptionHandler` map to RFC 9457 |
 | **AP-005** | Import `AppDbContext` in Application | Depend strictly on `IRepository<T>` and `IUnitOfWork` |
 | **AP-006** | `switch` or `if/else` on `RenderEngineType` | Strategy Pattern via DI (`IEnumerable<IRenderEngine>`) |
 | **AP-007** | `IFormFile` or `HttpContext` in UseCase | Pass pure C# primitives (`Stream`, `string`, `Guid`) |
@@ -41,7 +49,7 @@
 | **AP-032** | Incorrect HTTP status codes | 201 Created for creation, 204 NoContent for delete/empty mutation, 200 OK for reads |
 | **AP-033** | Direct service injection in Controller | Inject single-responsibility UseCases only |
 | **AP-034** | Dual routing attributes on Controller | Single canonical route prefix per controller |
-| **AP-035** | Ad-hoc error payloads in Controller | Throw domain exceptions; RFC 7807 via `GlobalExceptionFilter` |
+| **AP-035** | Ad-hoc error payloads in Controller | Throw domain exceptions; RFC 9457 via `IExceptionHandler` |
 | **AP-036** | Nested inline instantiation in `ExecuteAsync` | Declare explicit local variable (`var command = ...`) before calling `ExecuteAsync` |
 | **AP-037** | Inline fully-qualified namespaces | Clean top-level usings only (Zero inline namespaces) |
 | **AP-038** | Underscore prefix or generic names in Primary Ctor | Standardized `camelCase` 1:1 mirroring dependency class/interface |
@@ -53,10 +61,6 @@
 | **AP-044** | Ad-hoc entity instantiation or nondeterministic `UtcNow` in tests | Use `*Builder` / `*TestFactory` with `TestConstants.BaselineTime` |
 | **AP-045** | Artificial dumping grounds for invariant tests (`DomainInvariantTests`) | Test invariants directly in Aggregate Root unit tests (`{Aggregate}Tests.cs`) |
 | **AP-046** | Mocking dependencies in Validator Tests | Test validators as pure functions with `[Theory]` + `[InlineData]` |
-| **AP-F001** | Hardcoded colors/styles in components | Use system design tokens (`bg-surface`, `text-textPrimary`) |
-| **AP-F002** | Raw `fetch()` in components | Custom hooks wrapping `apiClient<T>` |
-| **AP-F003** | `any` types in TypeScript | Zod schema validation + inferred types |
-| **AP-F004** | Legacy `.eslintrc.json` | Modern Flat Config `eslint.config.mjs` |
 
 ---
 
@@ -81,7 +85,7 @@ public IActionResult Get() { return Ok(template); }
 // ✅ CORRECT — Map เป็น Application DTO ก่อนคืนเสมอ
 public async Task<TemplateDto> GetAsync(Guid id) { ... return new TemplateDto(...); }
 public async Task<ValidatedApiKeyDto?> ValidateKeyAsync(string key) { ... return new ValidatedApiKeyDto(key.Id, key.CallerApp, key.ProjectId); }
-public IActionResult Get() { return Ok(new ApiResponse<TemplateDto>(dto)); }
+public IActionResult Get() { return Ok(new ApiResponse<TemplateDto>(result)); }
 ```
 
 ### AP-003: ห้ามใช้ Anonymous Objects ใน API Response
@@ -91,20 +95,20 @@ return Ok(new { success = true, data = template });
 return Ok(new { error = "Not found" });
 
 // ✅ CORRECT
-return Ok(new ApiResponse<TemplateDto>(dto));
+return Ok(new ApiResponse<TemplateDto>(result));
 return NoContent();
-// (Exceptions ให้ GlobalExceptionFilter จัดการ)
+// (Exceptions ให้ IExceptionHandler จัดการ)
 ```
 
 ### AP-004: ห้ามใช้ try-catch ใน Controllers
 ```csharp
 // ❌ WRONG
-try { var dto = await _useCase.GetAsync(id, ct); return Ok(...); }
+try { var result = await useCase.GetAsync(id, ct); return Ok(...); }
 catch (NotFoundException) { return NotFound(); }
 
-// ✅ CORRECT — throw Domain Exception ใน UseCase แล้วให้ GlobalExceptionFilter จัดการ
-var dto = await _useCase.GetAsync(id, ct); // UseCase throws NotFoundException internally
-return Ok(new ApiResponse<TemplateDto>(dto));
+// ✅ CORRECT — throw Domain Exception ใน UseCase แล้วให้ IExceptionHandler (ProblemDetails) จัดการ
+var result = await useCase.GetAsync(id, ct); // UseCase throws NotFoundException internally
+return Ok(new ApiResponse<TemplateDto>(result));
 ```
 
 ### AP-005: ห้าม import `AppDbContext` ใน Application Layer
@@ -125,7 +129,7 @@ if (format == "html") engine = new HtmlTemplateEngine(...);
 else if (format == "docx") engine = new DocxTemplateEngine(...);
 
 // ✅ CORRECT — Strategy Pattern via DI
-var engine = _engines.First(e => e.EngineType == format.RenderEngineType);
+var engine = engines.First(e => e.EngineType == format.RenderEngineType);
 ```
 
 ### AP-007: ห้าม pass `IFormFile` หรือ `HttpContext` เข้า UseCase
@@ -183,7 +187,7 @@ new Pic.NonVisualDrawingProperties { Id = (uint)imageCounter + 1, ... }
 var url = presignedUrl.Replace("minio:9000", "localhost:9000");
 
 // ✅ CORRECT — ใช้ PublicEndpoint สำหรับ Signing (config ใน MinioSettings)
-_options.PublicEndpoint = "http://localhost:9000";
+options.PublicEndpoint = "http://localhost:9000";
 ```
 
 ### AP-013: ห้ามรัน Docker Commands โดยอัตโนมัติ
@@ -253,7 +257,7 @@ public sealed class ListApiKeysUseCase(
 
 ### AP-019: ห้ามโยน System Exceptions ใน Application Layer
 ```csharp
-// ❌ WRONG — โยน System Exception ทำให้ Presentation แปลงเป็น RFC 7807 ไม่ตรงมาตรฐาน
+// ❌ WRONG — โยน System Exception ทำให้ Presentation แปลงเป็น RFC 9457 ไม่ตรงมาตรฐาน
 throw new UnauthorizedAccessException("Invalid password");
 throw new InvalidOperationException("Project slug already exists");
 
@@ -316,7 +320,7 @@ public record CreateProjectRequest(string Name, string Slug);
 
 // ✅ Controller ทำหน้าที่เป็น Translation Adapter (Explicit Mapping)
 var userId = User.GetUserId();
-var command = new CreateProjectCommand(userId, req.Name, req.Slug);
+var command = new CreateProjectCommand(userId, request.Name, request.Slug);
 var project = await createProjectUseCase.ExecuteAsync(command, ct);
 
 // ✅ Return Application DTO เข้า ApiResponse<T> โดยตรง ไม่ต้องสร้าง wrapper DTO ซ้ำซ้อน
@@ -349,18 +353,18 @@ public async Task<IActionResult> SetStatus([FromBody] bool isActive) { ... }
 public record SetUserStatusRequest(bool IsActive);
 
 [HttpPatch("{userId:guid}/status")]
-public async Task<IActionResult> SetStatus([FromBody] SetUserStatusRequest req) { ... }
+public async Task<IActionResult> SetStatus([FromBody] SetUserStatusRequest request) { ... }
 ```
 
 ### AP-029: ห้ามใช้ `CreatedAtAction` ชี้ไปยัง Collection/List Endpoint
 ```csharp
 // ❌ WRONG — Location Header กลายเป็น `/projects?id=...` ซึ่งชี้ไปที่ List แทน Single Resource
-return CreatedAtAction(nameof(ListProjects), new { id = project.Id }, new ApiResponse<ProjectDto>(dto));
+return CreatedAtAction(nameof(ListProjects), new { id = project.Id }, new ApiResponse<ProjectDto>(result));
 
 // ✅ CORRECT — ชี้ไปยัง GetById ของ Resource นั้น หรือตอบ StatusCode 201 หากไม่มี Single GET Endpoint
-return CreatedAtAction(nameof(GetProjectById), new { projectId = project.Id }, new ApiResponse<ProjectDto>(dto));
+return CreatedAtAction(nameof(GetProjectById), new { projectId = project.Id }, new ApiResponse<ProjectDto>(result));
 // หรือ (กรณี API Key ซึ่งไม่มี GetById เพื่อความปลอดภัย):
-return StatusCode(StatusCodes.Status201Created, new ApiResponse<ApiKeyResponseDto>(dto));
+return StatusCode(StatusCodes.Status201Created, new ApiResponse<ApiKeyResponseDto>(result));
 ```
 
 ### AP-030: ห้ามแก้ไขหรือลบ Resource ใน Tenant Scope โดยไม่ระบุ `projectId` (IDOR Risk)
@@ -368,13 +372,13 @@ return StatusCode(StatusCodes.Status201Created, new ApiResponse<ApiKeyResponseDt
 // ❌ WRONG — ส่งแค่ keyId แต่ไม่ตรวจสอบ projectId (เสี่ยงโดนยิงลบข้าม Tenant)
 public async Task<IActionResult> RevokeKey([FromRoute] Guid projectId, [FromRoute] Guid keyId)
 {
-    await _useCase.ExecuteAsync(new RevokeApiKeyCommand(keyId));
+    await useCase.ExecuteAsync(new RevokeApiKeyCommand(keyId));
 }
 
 // ✅ CORRECT — ส่งทั้ง projectId และ entity ID เข้า Command เสมอ
 public async Task<IActionResult> RevokeKey([FromRoute] Guid projectId, [FromRoute] Guid keyId)
 {
-    await _useCase.ExecuteAsync(new RevokeApiKeyCommand(keyId, projectId));
+    await useCase.ExecuteAsync(new RevokeApiKeyCommand(keyId, projectId));
 }
 ```
 
@@ -457,11 +461,11 @@ public class TemplateController : ControllerBase { ... }
 
 ### AP-035: ห้ามสร้าง Ad-hoc Error Payloads ใน Controller (`BadRequest(new { error = ... })`)
 ```csharp
-// ❌ WRONG — Controller ผลิต error schema เอง ทำให้ caller ได้ format ไม่ตรงกับ GlobalExceptionFilter
+// ❌ WRONG — Controller ผลิต error schema เอง ทำให้ caller ได้ format ไม่ตรงกับ IExceptionHandler
 if (file is not { Length: > 0 })
     return BadRequest(new ApiResponse<object>(new { error = "File is required." }));
 
-// ✅ CORRECT — โยน Domain Exception หรือใช้ FluentValidation / Model Validation ปล่อยให้ GlobalExceptionFilter จัดการเป็น RFC 7807 Problem Details
+// ✅ CORRECT — โยน Domain Exception หรือใช้ FluentValidation / Model Validation ปล่อยให้ IExceptionHandler จัดการเป็น RFC 9457 Problem Details
 if (file is not { Length: > 0 })
     throw new DomainValidationException("File must not be null or empty."); // errorCode มีค่า default เป็น "DOMAIN_VALIDATION_ERROR"
 // หรือหากต้องการระบุ error code อิสระ:
@@ -711,26 +715,42 @@ public async Task ExecuteAsync_WhenSlugAlreadyExists_ThrowsConflictException()
 | **AP-048** | Assert แค่ Exception Type โดยไม่เช็ค Commit | ใช้ Semantic Wildcard + `_uowMock.Verify(Times.Never)` |
 
 ---
+</backend_scope>
 
+<frontend_scope>
 ## 🟡 Frontend Anti-Patterns
 
-### AP-F001: ห้าม Hardcode สีหรือขนาดใน Component
-```tsx
-// ❌ WRONG
-<div style={{ color: '#1a73e8', borderRadius: '8px' }}>
+### ⚡ Frontend Quick-Lookup
+| Code | Prohibited Pattern | Correct Alternative |
+|---|---|---|
+| **AP-F001** | Inline styles or hardcoded colors | Strictly use Tailwind utility classes (`text-primary`, `bg-surface`) |
+| **AP-F002** | Client-side `useEffect` for data fetching | Use Next.js Server Components (`await fetch()`) for data retrieval |
+| **AP-F003** | `any` types in TypeScript | Zod schema validation + inferred types |
+| **AP-F004** | Legacy `.eslintrc.json` | Modern Flat Config `eslint.config.mjs` |
 
-// ✅ CORRECT
-<div style={{ color: 'var(--color-primary)', borderRadius: 'var(--radius-md)' }}>
+---
+
+### AP-F001: ห้ามใช้ Inline Styles หรือ Hardcode สี
+```tsx
+// ❌ WRONG — Inline styles ล้าสมัยและควบคุม design system ยาก
+<div style={{ color: '#1a73e8', borderRadius: '8px' }}>
+<div style={{ color: 'var(--color-primary)' }}>
+
+// ✅ CORRECT — ใช้ Tailwind Utility Classes เสมอ
+<div className="text-primary-500 bg-surface rounded-md">
 ```
 
-### AP-F002: ห้าม fetch ข้อมูลตรงๆ ใน Component
+### AP-F002: ห้าม Fetch ข้อมูลแบบ Client-side ด้วย useEffect
 ```tsx
-// ❌ WRONG
+// ❌ WRONG — ดึงข้อมูลฝั่ง Client ทำให้เกิด Waterfall และโหลดช้า
 const [templates, setTemplates] = useState([]);
 useEffect(() => { fetch('/api/templates').then(...) }, []);
 
-// ✅ CORRECT — ผ่าน Hook
-const { templates, isLoading } = useTemplates();
+// ✅ CORRECT — ใช้ Next.js Server Components (RSC) ดึงข้อมูลโดยตรง
+export default async function Page() {
+  const templates = await fetchTemplates(); // Server-side fetch
+  return <TemplateList data={templates} />;
+}
 ```
 
 ### AP-F003: ห้ามใช้ `any` type ใน TypeScript
@@ -750,3 +770,4 @@ const data = TemplateSchema.array().parse(rawData);
 // ✅ CORRECT — Flat Config
 eslint.config.mjs
 ```
+</frontend_scope>

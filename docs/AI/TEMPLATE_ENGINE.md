@@ -3,6 +3,14 @@
 > **Purpose:** Authoritative rendering engine pipelines, Handlebars helpers, Gotenberg Chromium/LibreOffice, and Thai typography.  
 > **Related Docs:** [ARCHITECTURE.md](ARCHITECTURE.md) (Gotenberg integration), [PATTERNS.md](PATTERNS.md) (Strategy pattern).
 
+<ai_directive>
+CRITICAL ATTENTION ROUTING: 
+This document defines the strict rules for Template Engines, Document Rendering, and Output generation.
+When generating or modifying code related to rendering (Handlebars, OpenXML, ClosedXML, Gotenberg), you MUST strictly apply the rules outlined here.
+</ai_directive>
+
+<template_engine_scope>
+
 ### ⚡ Quick-Lookup: Rendering Engines & Capabilities
 
 | Format | Engine | Key Pipeline Steps | PDF Renderer |
@@ -179,7 +187,7 @@ await fileStream.CopyToAsync(scanCopy, ct);
 scanCopy.Position = 0;
 fileStream.Position = 0; // Reset สำหรับ upload ต่อ
 
-var scanResult = _securityScanner.Scan(scanCopy);
+var scanResult = securityScanner.Scan(scanCopy);
 if (!scanResult.IsSafe)
     throw new InvalidOperationException($"DOCX failed security scan: {string.Join("; ", scanResult.Threats)}");
 ```
@@ -197,3 +205,5 @@ if (!scanResult.IsSafe)
 | `fonts` | Custom fonts สำหรับ HTML engine | `fonts/Sarabun-Regular.woff2` |
 
 **Presigned URLs:** 24 ชั่วโมง expiry — สร้างจาก `PublicEndpoint` config เสมอ (ห้าม string-replace หลัง sign)
+
+</template_engine_scope>

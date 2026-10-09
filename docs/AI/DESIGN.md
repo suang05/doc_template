@@ -3,6 +3,13 @@
 > **Purpose:** Authoritative design tokens, Ice-White theme rules, geometry standards, and HyperUI component layout patterns.  
 > **Related Docs:** [CODING_CONVENTIONS.md](CODING_CONVENTIONS.md) (Frontend TypeScript standards), [ANTI-PATTERNS.md](ANTI-PATTERNS.md) (Frontend anti-patterns).
 
+<ai_directive>
+CRITICAL ATTENTION ROUTING: 
+This document defines the strict UI/UX and Frontend Architecture rules for the Next.js (`frontend-v2/`) application.
+When generating or modifying frontend code (React components, Tailwind classes, layouts), you MUST strictly apply the rules in this document.
+</ai_directive>
+
+<frontend_scope>
 ### ⚡ Quick-Lookup: Frontend Design Tokens & Geometry
 
 | Token / Concept | Standard Value | Rule |
@@ -11,7 +18,7 @@
 | **Border Radius** | `2px` to `4px` (`rounded-sm`) | Compact enterprise geometry; no bubble/pill shapes |
 | **Icons** | Lucide Icons (`lucide-react`) | Strictly Lucide only; no emoji or mixed icon sets |
 | **Validation** | Zod Schemas (`src/schemas/`) | Runtime type safety; **zero `any`** types |
-| **HTTP Client** | `apiClient<T>`, `apiClientBlob`, `apiClientStream` | SSoT fetch wrappers พร้อม RFC 7807 Problem Details & AbortSignal |
+| **HTTP Client** | `apiClient<T>`, `apiClientBlob`, `apiClientStream` | SSoT fetch wrappers พร้อม RFC 9457 Problem Details & AbortSignal |
 
 ---
 
@@ -48,6 +55,7 @@ All developments in `frontend-v2/` MUST strictly adhere to the following standar
 - **KISS:** Keep React state simple, predictable, and clean.
 
 ### 5. Navigation & Layout Architecture (SPA Tab Switcher)
+**[AI_RULE]: Do NOT use standard Next.js navigation (`useRouter()` or `<Link href="...">`) for the main dashboard views.**
 The frontend implements a Single Page Application (SPA) architecture for layout navigation. Instead of using native Next.js App Router navigation (`/app/[route]`), the main page (`app/page.tsx`) uses an `<AppShell>` that manages an `activeTab` state and renders views using a `switch` statement.
 - **Topbar (`Topbar.tsx`):**
   - Left: Toggle Sidebar (`PanelLeftClose`), Navigation history back/forward (`ChevronLeft`, `ChevronRight`), Home (`Home`).
@@ -85,3 +93,4 @@ Eliminate legacy duplication (`Badge` + `StatusBadge` + `Pill` -> `Badge.tsx`; `
 
 ---
 
+</frontend_scope>
