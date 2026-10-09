@@ -1,6 +1,11 @@
 # DECISIONS.md — Architecture Decision Records (ADRs)
 > SMK Document Server v2 • Updated September 2026
 
+> **[AI_DIRECTIVE] Purpose & Usage:** 
+> This file is a historical log of Architecture Decision Records (ADRs). It explains **WHY** certain technologies or patterns were chosen or rejected.
+> - **DO NOT** read or reference this file for day-to-day coding, bug fixing, or feature implementation. (Use `CODING_CONVENTIONS.md` for active rules).
+> - **ONLY** read this file when the user explicitly asks for architectural advice, tech stack changes, or historical design rationale to avoid suggesting rejected solutions.
+
 ---
 
 ## ADR-001: X-API-Key Authentication แทน JWT Bearer

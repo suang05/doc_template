@@ -1,678 +1,460 @@
 # CODING_CONVENTIONS.md — SMK Document Server
 
-> **Canonical Engineering Standards & Conventions**  
-> Applicable across all backend (`backend-v2/`) and frontend (`frontend-v2/`) codebases.  
-> Updated September 2026.
+> **Purpose:** This document is the Single Source of Truth (SSoT) for engineering standards across the SMK Document Server (`backend-v2/` and `frontend-v2/`). 
+> AI Assistants (LLMs) and developers MUST treat these guidelines as absolute laws to guarantee a clean, readable, and predictable codebase.
 
 ---
 
-## 1. 🏛️ Core Philosophy: Clean Code & Simplicity
+## 1. 🏛️ Core Philosophy: Clean Architecture & SOLID Design
 
-1. **Readability First:** Code must read like clean prose. Choose clear, intention-revealing names over cryptic abbreviations. Code is read far more often than it is written.
-2. **Small & Focused Units (SRP):** Functions, methods, and components must remain short, doing exactly one thing well with clear boundaries. If a method exceeds ~30–40 lines, investigate if private helper methods or specialized services should be extracted.
-3. **KISS (Keep It Simple, Stupid):** Simple and explicit beats clever and convoluted. Never introduce premature abstractions, design patterns, or layers unless business requirements or scalability targets genuinely warrant them.
-4. **DRY & Single Source of Truth (SSoT):** Never duplicate logic, regex patterns, or types. Always import from authoritative SSoT modules:
-   - Placeholder Regex: `PlaceholderHelper.Pattern`
-   - Thai Formatting: `ThaiDataTransformer`
-   - Frontend API Client: `apiClient<T>` & `apiClientBlob`
-   - Frontend Types: `types/api.ts` (re-exported from Zod `schemas/`)
-5. **Zero Dead Code & High Hygiene:** Never leave commented-out code blocks, unused imports, redundant whitespace, or debug artifacts (`Console.WriteLine`, `console.log`) in submitted code. Maintain pristine namespace and formatting consistency.
-6. **Invariant-Driven Documentation (Zero High-Churn Drift):** Documentation, PR descriptions, and guidelines must describe system capabilities using **Invariant-Driven Quality Gates** (e.g. 100% test pass rate with 0 errors/failures, Bounded Context architectural boundaries) rather than volatile frozen metrics (e.g. "614 tests", "17 controllers"). Business and domain constants (such as 1 Canonical Factory per Entity, SHA-256 = 64 characters, MaxChangeNoteLength = 500) must remain strictly exact (❌ AP-041).
+All code written for the SMK Document Server MUST strictly adhere to global software engineering best practices. We prioritize **Readability & Simplicity** over premature optimization.
+
+1. **Clean Architecture & Clean Design:** The system is strictly decoupled. Inner layers (Domain/Application) know nothing about outer layers (Infrastructure/Presentation).
+2. **SOLID Principles:** Every class and method must have a single responsibility (SRP). The system is closed for modification but open for extension (OCP) via polymorphic dispatch or pipeline behaviors.
+3. **Readability First:** Code must read like clean prose. Choose clear, intention-revealing names over cryptic abbreviations. Code is read far more often than it is written.
+4. **KISS (Keep It Simple, Stupid):** Simple and explicit beats clever and convoluted. Introduce abstractions or patterns only when business requirements or scalability genuinely demand them.
+5. **DRY & Single Source of Truth (SSoT):** Consolidate duplicated logic, regex patterns, and types into authoritative modules (e.g., `PlaceholderHelper`, `Zod schemas`).
+6. **Zero Dead Code:** Maintain pristine hygiene. Remove unused imports, commented-out code blocks, and debug artifacts before committing.
 
 ---
 
-## 2. 🔷 Backend Standards: C# 13 / .NET 10 (`backend-v2/`)
+## 2. 🏗️ System Tech Stack
 
-### 2.1 Solution-Wide Code Hygiene & Modern C# Standards
+> **[AI_DIRECTIVE]** The following exact versions MUST be strictly enforced during all code generation and package installation. Do not use newer or older versions unless explicitly commanded.
 
-These three hygiene pillars apply universally across **ALL C# layers** (Domain, Application, Infrastructure, Presentation, Tests) without exception:
+| Layer | Technology | Version | Notes |
+|---|---|---|---|
+| Backend API | ASP.NET Core | .NET 10 | Clean Architecture (4 core projects + 2 test projects) |
+| Frontend Portal | Next.js | 15 + React 19 | App Router, TypeScript |
+| ORM | Entity Framework Core + Npgsql | 10 | Code-first, Migrations |
+| Database | PostgreSQL | 15-alpine | `smkdoc` database |
+| PDF Conversion | Gotenberg | 8 | Chromium & LibreOffice |
+| Object Storage | MinIO | self-host | S3-compatible (`templates/`, `outputs/`) |
+| Styling | Tailwind CSS | 3 | CSS Custom Properties (Tokens SSoT) |
 
-#### 2.1.1 Namespace & Usings Hygiene
-- **File-Scoped Namespaces:** Always use file-scoped namespaces to reduce unnecessary indentation:
-  ```csharp
-  namespace SmkDoc.Application.Modules.Authoring.Templates.Commands.CreateTemplate;
-  ```
-- **Clean Usings (Zero Inline Namespaces):** All external types, exceptions, and DTOs MUST be imported at the top of the file via `using` directives. **NEVER** write inline fully-qualified namespaces in method bodies, signatures, or attributes (❌ AP-037).
-  ```csharp
-  // ❌ WRONG — Inline namespace clutter and risk of layer leaking
-  throw new SmkDoc.Domain.Exceptions.DomainValidationException("Invalid input.");
+---
 
-  // ✅ CORRECT — Clean top-level using + concise symbol
-  using SmkDoc.Domain.Exceptions;
-  ...
-  throw new DomainValidationException("Invalid input.");
-  ```
-- **Zero Unused Usings:** Remove all redundant `using` directives before committing code.
+## 3. 🔵 Backend Standards: C# 12 / .NET 10 (`backend-v2/`)
 
-#### 2.1.2 Standardized Primary Constructor Parameter Naming
-Primary constructors are standard for Dependency Injection across UseCases, Controllers, Repositories, and Services. Parameter names must strictly follow these rules:
-- **1:1 camelCase Mapping:** Parameter names MUST directly mirror the class or interface name in `camelCase`:
-  - *Interface dependencies:* Drop the `I` prefix and convert to `camelCase` (e.g., `ITemplateRepository` → `templateRepo` or `templateRepository`, `IUnitOfWork` → `unitOfWork`, `IValidator<T>` → `validator`, `ILogger<T>` → `logger`).
-  - *UseCase dependencies (in Controllers):* Use `camelCase` matching the UseCase class name (e.g., `CreateTemplateUseCase` → `createTemplateUseCase` or `createUseCase`, `ValidateTemplatePayloadUseCase` → `validatePayloadUseCase`).
-- **BAN Underscore Prefix (`_`):** Primary constructor parameters are NOT private fields; **NEVER** prefix them with `_` (❌ `_templateRepo`, ❌ `_unitOfWork`) (❌ AP-038).
-- **BAN Ambiguous Generic Names:** Never use generic or vague names like `service`, `repo`, `helper`, or `handler` without context.
+**Core Stack:** C# 12, ASP.NET Core 10 Web API, Entity Framework Core 10 (PostgreSQL).  
+**Architecture:** The backend strictly follows a 4-Layer Clean Architecture. All development must respect these boundaries:
 
-#### 2.1.3 Whitespace Consistency & Clean Layout Rhythm
-- **Single Blank Line Between Members:** Maintain a consistent 1-blank-line rhythm between methods, properties, and constructors. **NEVER** leave two or more consecutive blank lines (`\n\n\n`).
-- **Zero Blank Lines at Boundaries:** Do NOT leave blank lines immediately after opening braces `{` or immediately before closing braces `}` of classes, records, or methods.
-- **Zero Trailing Whitespace:** Lines must not contain trailing spaces or tabs.
-- **Zero Dead Code:** Never leave commented-out code blocks, unused local variables, or debug artifacts (`Console.WriteLine`).
+### 2.1 The 4-Layer Clean Architecture Responsibilities
+1. **Domain Layer (`SmkDoc.Domain`):** 
+   - **The Business Core:** Contains Entities, Value Objects, and Domain Exceptions.
+   - **Zero Dependencies:** Must NEVER depend on external NuGet packages, database frameworks, or outer layers.
+   - **Invariant Protection:** Responsible for safeguarding business rules and data integrity at all times.
+2. **Application Layer (`SmkDoc.Application`):** 
+   - **The Orchestrator:** Controls the system flow via UseCases.
+   - **CQRS Segregation:** Strictly divides state-mutating operations (Commands) from read-only display operations (Queries).
+   - **Dependency Inversion:** Defines the interface contracts (e.g., `IRepository`) that the Infrastructure layer must fulfill.
+3. **Infrastructure Layer (`SmkDoc.Infrastructure`):** 
+   - **The Technology Hub:** Houses all external concerns like EF Core, PostgreSQL (Npgsql), MinIO, and Gotenberg.
+   - **Fluent API Mapping:** Maps database tables and columns exclusively via `IEntityTypeConfiguration<T>`. NEVER pollute Domain Entities with EF Core Data Annotations.
+4. **Presentation Layer (`SmkDoc.Api`):** 
+   - **The Delivery Mechanism:** Acts solely as the HTTP entry point.
+   - **Thin Controllers:** Routes parameters to Application UseCases and returns results. MUST NEVER contain any business logic.
 
-#### 2.1.4 Language Idioms & Safety
-- **Primary Constructors for DI:** Use primary constructors for dependency injection across UseCases, Controllers, and Services to eliminate boilerplate fields:
-  ```csharp
-  public sealed class CreateTemplateUseCase(
-      ITemplateRepository templateRepo,
-      IUnitOfWork unitOfWork,
-      IValidator<CreateTemplateCommand> validator) : IUseCase<CreateTemplateCommand, TemplateResponse>
-  {
-      // Dependencies are immediately accessible without field declarations
-  }
-  ```
-- **Sealed Classes:** Mark UseCases, DTO records, validators, and service implementations as `sealed` by default unless specifically designed for inheritance.
-- **Nullable Reference Types (NRT):** NRT is enabled across the solution. Treat warnings as errors:
-  - Do NOT use the null-forgiving operator (`!`) blindly.
-  - Explicitly handle nullability with guards, pattern matching, or null-coalescing expressions:
-    ```csharp
-    var template = await templateRepo.GetByIdAsync(id, ct)
-        ?? throw new NotFoundException($"Template '{id}' not found.");
-    ```
-#### 2.1.5 Strict Pure DDD Domain Entity Standards (ADR-023 — Reference: Template.cs)
-Domain Entities in `SmkDoc.Domain/Entities/` must strictly adhere to pure DDD principles:
-1. **Single Canonical Factory Method (SSoT):**
-   - Entities must define exactly **one public `Create` factory method**.
-   - Parameters must be strongly-typed **Value Objects only** (e.g., `TemplateName`, `TemplateSlug`).
-   - Requires explicit, deterministic timestamp (`DateTimeOffset now`).
-   - **Zero Primitive Overloads:** Never declare `Create(string name, string slug)` in the Entity. Application UseCases are responsible for converting DTO primitives to Value Objects.
-2. **Zero Test-Specific Backdoors in Domain:**
-   - **Never declare `CreateForTest`** inside `SmkDoc.Domain.dll`.
-   - Test instantiations with custom `Id` or pre-populated state belong in `SmkDoc.Tests/Common/Builders/` (`*Builder`) or `Factories/` (`*TestFactory`).
-3. **Internal Parameterized Constructor:**
-   - The parameterized constructor is `internal`, granting instantiation access exclusively to `SmkDoc.Domain` and `SmkDoc.Tests` via `[assembly: InternalsVisibleTo("SmkDoc.Tests")]`.
-   - The parameterless constructor is `private` for EF Core materialization only.
-4. **Canonical Entity Template (`Template.cs` Reference):**
-   ```csharp
-   public sealed class Template : BaseEntity, IMustHaveProject
-   {
-       public Guid ProjectId { get; private set; }
-       public TemplateName Name { get; private set; } = null!;
-       public TemplateSlug Slug { get; private set; } = null!;
-       public string? Category { get; private set; }
-       public bool IsActive { get; private set; }
+### 2.2 CQRS Data Flow & Object Mapping
+Strictly adhere to this object lifecycle. Never leak inner objects to outer layers.
 
-       // Private EF Core ctor
-       private Template() { }
-
-       // Internal ctor accessible to Test Builders via InternalsVisibleTo
-       internal Template(Guid? id, Guid projectId, TemplateName name, TemplateSlug slug, string? category, DateTimeOffset now)
-           : base(id, createdAt: now)
-       {
-           ProjectId = Guard.NotEmpty(projectId, nameof(ProjectId));
-           Name = Guard.NotNull(name, nameof(Name));
-           Slug = Guard.NotNull(slug, nameof(Slug));
-           Category = string.IsNullOrWhiteSpace(category) ? null : category.Trim();
-           IsActive = true;
-       }
-
-       // Single Canonical Factory Method
-       public static Template Create(Guid projectId, TemplateName name, TemplateSlug slug, string? category, DateTimeOffset now) =>
-           new(null, projectId, name, slug, category, now);
-   }
-   ```
-
-### 2.2 DTOs & Positional Records
-- All DTOs in `SmkDoc.Application/DTOs/` MUST be **immutable positional records**:
-  ```csharp
-  // ✅ CORRECT — Immutable Positional Record
-  public sealed record TemplateResponse(
-      Guid Id,
-      Guid ProjectId,
-      string Name,
-      string Slug,
-      string? Category,
-      bool IsActive,
-      Guid? CurrentVersionId,
-      string? FileFormat,
-      DateTimeOffset CreatedAt,
-      DateTimeOffset? UpdatedAt);
-
-  // ❌ WRONG — Mutable class with getters/setters
-  public class TemplateDto { public Guid Id { get; set; } }
-  ```
-- **Command vs Query vs Result Naming:**
-  - Mutation inputs: Suffix with `*Command` (e.g., `CreateTemplateCommand`, `GenerateDocumentCommand`)
-  - Read/Filter inputs: Suffix with `*Query` (e.g., `GetTemplateByIdQuery`, `ListTemplatesQuery`)
-  - Outputs: Suffix with `*Response`, `*Dto`, or `*ResultDto` (e.g., `TemplateResponse`, `DocumentVersionDto`, `LoginResultDto`)
-- **Presentation Layer Contracts (`SmkDoc.Api/Contracts/{BoundedContext}/`):**
-  - HTTP Request and Response models MUST be decoupled positional `record` types located in feature folders (e.g., `Contracts/IdentityAccess/Projects/CreateProjectRequest.cs`).
-  - **Zero Inheritance from Commands:** Request records MUST NOT inherit from Application Commands (`Request : Command`). Controllers explicitly map HTTP Request inputs into UseCase Commands (e.g., combining route params/claims with request body).
-  - **Direct DTO Returns:** Controllers return Application DTOs directly wrapped in `ApiResponse<T>` / `PagedApiResponse<T>`. Never create shallow empty subclasses (e.g., `ProjectListItemDto : ProjectResultDto`).
-
-### 2.3 Async/Await & Cancellation Safety
-- **Non-blocking Async All the Way:** Every method performing I/O (Database, MinIO, Gotenberg HTTP) MUST return `Task` or `Task<T>`.
-- **NEVER use `.Result` or `.Wait()`:** Blocking async calls causes Thread Pool starvation and deadlocks under enterprise loads.
-- **Mandatory `CancellationToken` Propagation:** Always accept and pass `CancellationToken ct` down the entire call chain (Controller → UseCase → Repository/Service → SDK call):
-  ```csharp
-  public async Task<DocumentResultDto> HandleAsync(GenerateDocumentCommand command, CancellationToken ct)
-  {
-      var template = await _templateRepo.GetByIdAsync(command.TemplateId, ct);
-      var stream = await _storageService.GetAsync(template.Path, ct);
-      return await _engine.RenderAsync(stream, command.Payload, ct);
-  }
-  ```
-
-### 2.4 Error Handling & Domain Exceptions
-- **Thin Controllers with Zero try-catch:** Controllers MUST NOT contain `try-catch` blocks for business logic. Throw strongly-typed Domain Exceptions from UseCases and let `GlobalExceptionFilter` map them to RFC 7807 Problem Details:
-  ```csharp
-  // ✅ Throw in UseCase:
-  if (slugExists)
-      throw new ConflictException($"Slug '{command.Slug}' is already in use.");
-
-  // ✅ In Controller:
-  [HttpPost]
-  public async Task<IActionResult> Create([FromBody] CreateTemplateCommand command, [FromServices] CreateTemplateUseCase useCase, CancellationToken ct)
-  {
-      var result = await useCase.ExecuteAsync(command, ct);
-      return CreatedAtAction(nameof(GetById), new { id = result.Id }, new ApiResponse<TemplateResponse>(result));
-  }
-  ```
-- **Standard Domain Exceptions Hierarchy** (ทั้งหมดสืบทอด `abstract DomainException` + `ErrorCode`):
-  - *Entity / Value Object invariants (โยนจาก Domain Layer):*
-    - `DomainValidationException` → HTTP 400 (`DOMAIN_VALIDATION_ERROR`) — input ของ ctor/method ผิด
-    - `BusinessRuleViolationException` → HTTP 400 (ErrorCode เฉพาะกฎ, `UPPER_SNAKE_CASE`) — ผิดกฎ/ผิด state transition
-  - *Use-case outcomes (โยนจาก Application Layer):*
-    - `NotFoundException` → HTTP 404 (`RESOURCE_NOT_FOUND`)
-    - `ConflictException` → HTTP 409 (`RESOURCE_CONFLICT`)
-    - `DraftExpiredException` → HTTP 410 (`DRAFT_EXPIRED`)
-    - `SchemaValidationException` → HTTP 400 (`SCHEMA_VALIDATION_FAILED`)
-    - `RenderException` → HTTP 500 (`DOCUMENT_RENDER_FAILED`)
-- **Domain Layer ห้ามโยน `ArgumentException` / `InvalidOperationException`** — ใช้ 2 ตัวแรกข้างบน (`DomainValidationException` / `BusinessRuleViolationException`) 100% ครบทุก Entity และ Value Object (รวม `Sha256Hash`, `DataSourceType` และ `TemplateSlug`)
-
-### 2.5 🎯 Strict Action-Centric Use Cases (Clean Architecture Invariant)
-
-1. **Single Responsibility (1 Intent = 1 Use Case):**
-   - **Zero God Services:** Never group unrelated CRUD actions in a single class (e.g. ❌ `TemplateManagementUseCase`, ❌ `ApiKeyUseCase` containing both create, list, and validate).
-   - Each Use Case represents exactly ONE business intent (e.g. ✅ `CreateTemplateUseCase`, `UpdateTemplateDetailsUseCase`, `ActivateTemplateVersionUseCase`, `GetTemplateByIdUseCase`).
-2. **Vertical Slice Folder Layout:**
-   - Group Command/Query, Validator, and UseCase together in dedicated action folders:
-     ```text
-     Modules/{BoundedContext}/{SubModule}/
-     ├── Commands/
-     │   └── CreateTemplate/
-     │       ├── CreateTemplateCommand.cs            # Immutable positional record
-     │       ├── CreateTemplateCommandValidator.cs   # FluentValidation rule
-     │       └── CreateTemplateUseCase.cs            # IUseCase<CreateTemplateCommand, TemplateResponse>
-     └── Queries/
-         └── GetTemplateById/
-             ├── GetTemplateByIdQuery.cs
-             └── GetTemplateByIdUseCase.cs
-     ```
-3. **Standard Contract & Entry Point:**
-   - Every Use Case MUST implement `IUseCase<TRequest, TResponse>` or `IUseCase<TRequest>` with a single entry point:
-     ```csharp
-     public Task<TResponse> ExecuteAsync(TRequest request, CancellationToken ct = default);
-     ```
-4. **The Golden Use Case Template:**
-   ```csharp
-   namespace SmkDoc.Application.Modules.{BoundedContext}.{SubModule}.Commands.{Action}{Entity};
-
-   public sealed class {Action}{Entity}UseCase(
-       I{Entity}Repository entityRepo,
-       IValidator<{Action}{Entity}Command> validator,
-       IUnitOfWork uow) : IUseCase<{Action}{Entity}Command, {Entity}ResponseDto>
-   {
-       public async Task<{Entity}ResponseDto> ExecuteAsync(
-           {Action}{Entity}Command command, 
-           CancellationToken ct = default)
-       {
-           // 1. Fail-Fast Input Validation
-           var validationResult = await validator.ValidateAsync(command, ct);
-           if (!validationResult.IsValid)
-           {
-               throw new ValidationException(validationResult.ToDictionary());
-           }
-
-           // 2. Domain Rule & Invariant Verification
-           var existing = await entityRepo.GetBySlugAsync(command.Slug, ct);
-           if (existing != null)
-           {
-               throw new ConflictException($"Entity with slug '{command.Slug}' already exists.");
-           }
-
-           // 3. Domain Entity Creation via Rich Constructor
-           var entity = new {Entity}(command.Name, command.Slug);
-
-           // 4. Persistence & Atomic Unit of Work
-           await entityRepo.AddAsync(entity, ct);
-           await uow.CommitAsync(ct);
-
-           // 5. Return Application DTO ONLY (Never leak Domain Entity)
-           return new {Entity}ResponseDto(entity.Id, entity.Name, entity.Slug, entity.CreatedAt);
-       }
-   }
-   ```
-5. **Collaborator Services for Complex Workflows:**
-   - If a Use Case exceeds ~40 lines or requires more than 5 dependencies (e.g. `GenerateDocumentUseCase`), decompose the orchestration into focused Domain Collaborator Services (e.g., `IDocumentDataPreparationService`, `IDocumentVersioningService`, `IDocumentAuditService`).
-   - The Use Case remains a high-level conductor; it does not perform low-level mapping, checksum hashing, or multi-step entity mutation directly.
-6. **Minimal Dependencies & Domain Interface for I/O (DIP Enforcement):**
-   - Constructor injection MUST contain ONLY the dependencies strictly required for that action.
-   - Use Cases MUST interact with persistence solely through explicit Domain Interfaces (`ITemplateRepository`, `IUserRepository`, `IUnitOfWork`) defined in `SmkDoc.Domain.Interfaces`.
-   - **Zero ORM / EF Core leaks:** `Microsoft.EntityFrameworkCore`, `DbContext`, or `DbSet` MUST NEVER be imported into Use Cases.
-7. **Encapsulated Invariants & DTO Boundaries:**
-   - Use Case orchestrates; business rules are executed inside Domain Entities (`template.UpdateDetails()`, `template.Activate()`). Never bypass entity constructors with object initializers.
-   - Input MUST be an immutable `*Command` or `*Query` record.
-   - Output MUST be a safe Application DTO (`*Response` or `*Dto`). Domain Entities MUST NEVER be returned to Presentation Layer.
-8. **Controller Primary Constructor Injection & Declarative RBAC:**
-   - Controllers MUST inject specific Use Cases directly via **C# 12 Primary Constructor** by default. Use `[FromServices]` ONLY for rarely called, computationally heavy scoped services.
-   - Controllers MUST use Declarative Authorization (`[Authorize(Roles = "Admin")]` or policies) rather than imperative in-method checks (`User.RequireAdmin()`).
-   - Mutation endpoints that create resources MUST return `201 Created` with `ApiResponse<T>` and a valid `Location` header pointing to the single-resource endpoint.
-
-### 2.6 🎮 Presentation Layer & Controller Standards (`SmkDoc.Api`)
-
-Controllers in `SmkDoc.Api/Controllers` are thin HTTP facades that bridge HTTP requests to Application UseCases. All controllers MUST strictly adhere to the **8 Controller Golden Rules**:
-
-```
-                                  HTTP Request
-                                       │
-                      ┌────────────────┴────────────────┐
-                      ▼                                 ▼
-             Channel A: M2M                     Channel B: Portal
-          Header: X-API-Key                  Header: Bearer <JWT>
-         (ApiKeyMiddleware)                 ([Authorize] / RBAC)
-                      │                                 │
-                      └────────────────┬────────────────┘
-                                       ▼
-                   ┌─────────────────────────────────────────┐
-                   │        ApiController (Thin Facade)      │
-                   │  - C# 12 Primary Constructor DI ONLY    │
-                   │  - Injects IUseCase<TReq, TRes> Only    │
-                   │  - Route: api/v1/[management/]resource  │
-                   │  - Validates [ProducesResponseType]     │
-                   └───────────────────┬─────────────────────┘
-                                       │
-                    Executes Command / Query via UseCase
-                                       │
-                                       ▼
-                   ┌─────────────────────────────────────────┐
-                   │             Response Formats            │
-                   │  • JSON Data: ApiResponse<T> (200 / 201)│
-                   │  • Mutations without body: 204 NoContent│
-                   │  • Binary/Stream: File / Content (Raw)  │
-                   │  • Errors: Handled by ExceptionFilter   │
-                   └─────────────────────────────────────────┘
+```text
+  [ Client / Browser ]
+          │  (HTTP Body / JSON)
+          ▼
+     [ Request ]  ──► Presentation Layer (API / Controller)
+          │
+  (Mapped into Application Layer)
+          ▼
+     [ Command ]  (Write: Mutates state in DB)
+        - OR -
+     [ Query ]    (Read: Retrieves data without side-effects)
+          │
+          ▼
+  ┌───────────────────────────────────────────────┐
+  │ Use Case / Handler (Application Core)         │
+  │  - Executes Business Rules with Domain logic  │
+  └───────────────────────┬───────────────────────┘
+                          │
+                          ▼
+               [ Result / Result DTO ]  ──► Wrapped inside Application
+                          │
+  (Mapped into Presentation Envelope)
+                          ▼
+     [ ApiResponse<T> ]  ──► HTTP 200/201 (Controller Response)
 ```
 
-#### 1. Thin Orchestrator Only (Zero Business Logic)
-- Controllers translate HTTP requests (headers, route parameters, query strings, body) into Application Commands/Queries, pass them to a **single dedicated UseCase**, and translate the result into HTTP responses.
-- **NEVER** inject `AppDbContext`, repositories (`IRepository`), domain entities, or domain/infrastructure services (e.g. `ITemplateScannerService`) directly into controllers. Inject only UseCases (`*UseCase`).
-- **Parameter Naming in Primary Constructors:** Name injected UseCases using `camelCase` matching their UseCase class name (e.g. `CreateTemplateUseCase createTemplateUseCase`, `ValidateTemplatePayloadUseCase validatePayloadUseCase`, `GenerateDocumentUseCase generateUseCase`). **NEVER** prefix with underscore (`_`) in primary constructors, and **NEVER** use ambiguous names like `service` or `handler`.
-- **Clean Usings (No Inline Namespaces):** Always place imports at top of file (e.g. `using SmkDoc.Domain.Exceptions;`). **NEVER** inline fully-qualified namespaces in method bodies or signatures (e.g. ❌ `throw new SmkDoc.Domain.Exceptions.DomainValidationException(...)`).
-- **Explicit Command/Query Instantiation (No Inline Nested Objects):** Always instantiate `Command` or `Query` into an explicit local variable (`var command = new ...;` or `var query = new ...;`) before passing to `ExecuteAsync(command, ct)`. **NEVER** instantiate objects inline nested directly inside `ExecuteAsync(new DoSomethingCommand(...), ct)` (❌ AP-036). This ensures clean 3-phase readability (1. Input/Preparation → 2. Execution → 3. Response) and trivial debugging.
+### 2.3 Code Hygiene & Instantiation
+- **Explicit Variable Instantiation:** ALWAYS assign newly created objects (e.g., `new Command(...)`) to explicit local variables before passing them into methods. Do not nest object creation inside method arguments.
+  ```csharp
+  // ❌ Bad: Nested instantiation is hard to read and debug
+  var result = await useCase.ExecuteAsync(new CreateTemplateCommand(req.Name, req.Slug));
 
-#### 2. Strict Route Versioning & Prefixes
-- **External / M2M Routes:** MUST use `api/v1/{resource}` (e.g. `api/v1/documents`, `api/v1/templates`).
-- **Portal Management Routes:** MUST use `api/v1/management/projects/{projectId:guid}/{resource}` or `api/v1/management/settings/...`.
-- **Canonical vs. Legacy Routes:** All new canonical controllers and endpoints MUST be prefixed exclusively with `api/v1/...`. Pre-existing dual routes (`[Route("api/...")]`) exist strictly as temporary legacy fallbacks for backward compatibility with frontend clients. **NEVER** add unversioned routes to new controllers or endpoints.
-- **Ban Dual-Routing on Canonical Endpoints:** Never decorate new controllers with both `[Route("api/v1/x")]` and `[Route("api/x")]`. Legacy compatibility routes must be placed in explicit backward-compatibility redirect middleware or deprecated legacy adapters.
+  // ✅ Good: Explicit variables
+  var command = new CreateTemplateCommand(req.Name, req.Slug);
+  var result = await useCase.ExecuteAsync(command);
+  ```
+- **Fail Fast (Early Returns):** Avoid the "Arrow Anti-Pattern" (deeply nested `if` statements). Return or throw exceptions as early as possible to keep the "happy path" linear.
+- **No Magic Strings or Numbers:** NEVER hardcode status codes, roles, or configuration keys directly in logic. Always use `const`, `Smart Enums`, or read from `appsettings.json`.
+- **Primary Constructors (Zero Boilerplate):** Standardize on C# 12 `camelCase` for all injected dependencies. **NEVER re-declare them as `private readonly` fields.** Use the injected parameter directly in your methods.
+  ```csharp
+  // ❌ Bad: Re-declaring fields defeats the purpose of Primary Constructors
+  public class TemplateController(ITemplateRepository repo) 
+  {
+      private readonly ITemplateRepository _repo = repo; 
+  }
 
-#### 3. Canonical Response Envelope Policy
-- **JSON Data:** MUST always be wrapped in `ApiResponse<T>(T Data)` or `PagedApiResponse<T>(IEnumerable<T> Data, int Total, int Page, int Limit)`.
-- **Binary & Media Streams:** Raw PDF, DOCX, XLSX, or HTML streams (`FileResult`, `ContentResult`) MUST return the direct binary stream with proper MIME headers (`application/pdf`, `Content-Disposition: inline`) and **NEVER** be wrapped in JSON envelopes.
-- **Strictly BAN Anonymous Return Objects:** Never return anonymous objects (`return Ok(new { success = true });`, `return Ok(new { id = result.Id });`). Always return strongly-typed DTOs wrapped in `ApiResponse<T>` or `204 NoContent`.
+  // ✅ Good: Use the injected parameter directly
+  public class TemplateController(ITemplateRepository templateRepo) 
+  {
+      public async Task Get() => await templateRepo.GetAllAsync();
+  }
+  ```
 
-#### 4. Deterministic HTTP Status Codes for Mutations
-| Action Type | HTTP Status | Response Payload |
-|---|---|---|
-| **Resource Creation** | `201 Created` / `CreatedAtAction(...)` | `ApiResponse<TDto>` |
-| **Idempotent Update (Data returned)** | `200 OK` | `ApiResponse<TDto>` |
-| **Idempotent Update / State Change (No body)** | `204 NoContent` | *None* |
-| **Deletion / Revocation** | `204 NoContent` | *None* |
-| **Read / Query / RPC Execution** | `200 OK` | `ApiResponse<TResultDto>` |
-| **Stateless Stream Render / Preview** | `200 OK` | Stream (`application/pdf`) |
+### 2.4 Domain Layer Standards (`SmkDoc.Domain`)
 
-#### 5. Declarative Security & Dual-Channel Authorization
-- All Portal endpoints MUST be guarded by declarative attributes:
-  - `[Authorize]` at controller level for authenticated users.
-  - `[Authorize(Roles = "Admin")]` for administrative actions.
-- Machine-to-Machine (M2M) controllers (e.g., `DocumentController`, `TemplateController`) must be clearly documented with XML doc comments specifying authentication channel (`X-API-Key via ApiKeyMiddleware`), and tenant isolation verified from `IExecutionContext`.
+**The Golden Rules:**
+- **Persistence Ignorance:** Zero external dependencies. MUST NEVER use `using` statements for external frameworks like EF Core, Npgsql, or FluentValidation.
+- **Pure POCO:** Everything must be Plain Old CLR Objects (POCO).
+- **Always-Valid State (Encapsulation):** Domain objects must be valid from the moment of creation and throughout their lifecycle. Encapsulate state using `private set;` and mutate only via descriptive business verbs (e.g., `Publish`, `Archive`). Expose a canonical Factory Method (e.g., `Create`) and keep constructors `internal`.
+- **Domain Events (Decoupling Side-Effects):** Use `IDomainEvent` to signal when significant business state changes occur (e.g. `TemplateCreatedEvent`). Raise events from within the entity and handle them in separate `INotificationHandler` classes. Never mix core business logic with side-effects (like sending emails) inside a single UseCase.
 
-#### 6. Zero try-catch & RFC 7807 Error Delegation
-- Controllers MUST NOT contain `try-catch` blocks.
-- Controllers MUST NOT return ad-hoc error shapes like `BadRequest(new { error = "..." })`.
-- All errors must be thrown as strongly-typed `DomainException` or validated by FluentValidation/ModelBinding, allowing `GlobalExceptionFilter` to emit uniform RFC 7807 Problem Details.
+**Directory Layout & Responsibilities:**
+```text
+src/SmkDoc.Domain/
+├── Common/            # Base classes and abstract types (e.g., Entity, AggregateRoot)
+├── Entities/          # Business models with unique Identity (ID)
+├── ValueObjects/      # Immutable objects measured by their internal values, lacking Identity
+├── Enums/             # Business state constants and Smart Enums
+├── Exceptions/        # Domain-specific exceptions (Business Rule Violations)
+└── Interfaces/        # Contracts (e.g., IRepository) enabling Dependency Inversion
+```
 
-#### 7. Complete OpenAPI & Swagger Documentation
-- Every endpoint MUST define XML doc `<summary>` explaining the business intent.
-- Every endpoint MUST declare explicit `[ProducesResponseType]` for all expected status codes (e.g. 200/201, 204, 400, 401, 403, 404, 409).
-
-#### 8. Canonical Controller Reference Example
+**Code Comparison: Anemic vs Rich Domain Models**
 ```csharp
-namespace SmkDoc.Api.Controllers.IdentityAccess;
+// ❌ Bad: Anemic Model & Framework Pollution
+using System.ComponentModel.DataAnnotations; // Violation: External Dependency
 
-/// <summary>
-/// Project user lifecycle management within a tenant project.
-/// Auth: Channel B (Bearer JWT) — Admin role required for mutations.
-/// </summary>
-[ApiController]
-[Route("api/v1/management/projects/{projectId:guid}/users")]
-[Authorize]
-[ProducesResponseType(StatusCodes.Status401Unauthorized)]
-public class UserManagementController(
-    ListProjectUsersUseCase listUsersUseCase,
-    InviteUserUseCase inviteUserUseCase,
-    RemoveUserUseCase removeUserUseCase) : ControllerBase
+public class Template 
 {
-    /// <summary>List all users belonging to the specified project.</summary>
-    [HttpGet]
-    [ProducesResponseType(typeof(ApiResponse<IEnumerable<UserResultDto>>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> List([FromRoute] Guid projectId, CancellationToken ct)
+    [Required] // Violation: Data Annotation inside Domain
+    public string Name { get; set; } // Violation: Public setter (No Encapsulation)
+    public bool IsActive { get; set; }
+    
+    public Template() { } // Violation: Public empty constructor allows invalid state
+}
+
+// ✅ Good: Rich Model, Pure POCO, Always-Valid State
+public sealed class Template : BaseEntity
+{
+    public TemplateName Name { get; private set; } = null!;
+    public bool IsActive { get; private set; }
+
+    // 1. Private parameterless constructor strictly for EF Core materialization
+    private Template() { }
+
+    // 2. Internal constructor enforces invariants at creation
+    internal Template(Guid? id, TemplateName name, DateTimeOffset now) 
+        : base(id, createdAt: now)
     {
-        var query = new ListProjectUsersQuery(projectId);
-        var users = await listUsersUseCase.ExecuteAsync(query, ct);
-        return Ok(new ApiResponse<IEnumerable<UserResultDto>>(users));
+        Name = Guard.NotNull(name, nameof(Name));
+        IsActive = true;
     }
 
-    /// <summary>Invite a new user to the project. Admin only.</summary>
+    // 3. Canonical Factory is the only public way to create the entity
+    public static Template Create(TemplateName name, DateTimeOffset now) => 
+        new(null, name, now); 
+
+    // 4. Mutate via business verbs & always track time
+    public void Deactivate(DateTimeOffset now) 
+    {
+        if (!IsActive) return;
+        IsActive = false;
+        SetUpdated(now);
+    }
+}
+```
+
+### 2.5 Application Layer Standards (`SmkDoc.Application`)
+
+**Core Principles:**
+- **Zero Framework Dependency:** MUST NEVER reference `Microsoft.EntityFrameworkCore`, `Npgsql`, or `Microsoft.AspNetCore.Mvc`. The Application layer orchestrates business rules, not database queries or HTTP responses.
+- **Dependency Inversion (DIP):** All interactions with the outside world (Database, Disk, JWT, Storage) MUST be executed through Abstraction Interfaces (e.g., `IStorageService`, `ITemplateRepository`).
+- **DTOs as Data Containers:** Never accept raw HTTP Request objects. Never leak Domain Entities out of the UseCase. Always map to and from DTOs or Result Objects. **You MUST use C# 9+ `record` types (Positional Records) for all DTOs and Requests** to ensure immutability and conciseness (e.g. `public record CreateTemplateRequest(string Name);`).
+
+**Directory Layout (Vertical Slicing):**
+```text
+src/SmkDoc.Application/
+├── Common/
+│   ├── Interfaces/        # Application contracts (IStorageService, IRenderEngine, IUseCase)
+│   ├── Exceptions/        # Application-level exceptions (e.g., NotFoundException)
+│   └── Helpers/           # Shared utility logic (e.g., ThaiDataTransformer)
+└── Modules/               # Feature Slices organized by Business Capability
+    ├── Authoring/         # e.g., CreateTemplateUseCase, ManageFieldMappingUseCase
+    ├── Rendering/         # e.g., GenerateDocumentUseCase, PreviewDocumentUseCase
+    ├── IdentityAccess/    # e.g., LoginUseCase, RefreshTokenUseCase
+    └── Integration/       # e.g., SyncExternalDataUseCase
+```
+
+- **Strict Action-Centric Use Cases:** Organize UseCases inside their respective `Modules/`, implementing `IUseCase<TRequest, TResponse>`.
+- **Validation Offloading (DRY Boundary):** Use `FluentValidation` strictly for **Input/Format Validation** (e.g., string length, regex matching) and abstract it into pipeline behaviors. Use Domain Entities strictly for **Business Invariant Validation** (e.g., state transitions, relationship logic). NEVER validate the same rule twice across both layers.
+
+**Code Comparison: CQRS UseCase Patterns**
+```csharp
+// ❌ Bad: Framework Leaks, No DTOs, Missing Cancellation Tokens
+public class CreateTemplateUseCase
+{
+    private readonly ApplicationDbContext _db; // Violation: EF Core leaked into Application
+
+    public CreateTemplateUseCase(ApplicationDbContext db) => _db = db;
+
+    public async Task<Template> ExecuteAsync(CreateTemplateCommand cmd) // Violation: Returning Domain Entity
+    {
+        if (string.IsNullOrEmpty(cmd.Name)) throw new Exception("400"); // Violation: HTTP status leaked
+        
+        var template = new Template { Name = cmd.Name }; 
+        _db.Templates.Add(template);
+        await _db.SaveChangesAsync(); // Violation: Missing CancellationToken (ct)
+
+        return template; // Violation: Exposing Entity directly to Presentation
+    }
+}
+
+// ✅ Good: Strict Abstractions, DTOs, Deterministic Time, and Cancellation Tokens
+public sealed class CreateTemplateUseCase(
+    ITemplateRepository templateRepo, // Dependency Inversion
+    IUnitOfWork unitOfWork,
+    TimeProvider timeProvider) : IUseCase<CreateTemplateCommand, TemplateResultDto>
+{
+    public async Task<TemplateResultDto> ExecuteAsync(CreateTemplateCommand cmd, CancellationToken ct = default)
+    {
+        // 1. Domain Object Creation (Encapsulated)
+        var now = timeProvider.GetUtcNow();
+        var template = Template.Create(cmd.ProjectId, TemplateName.Create(cmd.Name), now);
+
+        // 2. IO Operations via Abstractions
+        await templateRepo.AddAsync(template, ct);
+        await unitOfWork.CommitAsync(ct);
+
+        // 3. Map to DTO before returning
+        return new TemplateResultDto(template.Id, template.Name.Value, template.CreatedAt);
+    }
+}
+```
+
+### 2.6 Infrastructure Layer Standards (`SmkDoc.Infrastructure`)
+
+**Core Architectural Rules:**
+- **Dependency Inversion Principle (DIP):** Infrastructure services MUST implement interfaces defined in the Application or Domain layers. The Infrastructure layer never creates its own public interfaces for outer layers to consume.
+- **Isolation of External Tech:** Hide the complexity of external SDKs (e.g., MinIO, Gotenberg, QRCoder, EF Core). Do not leak provider-specific exception types (e.g., `SqlException`, `NpgsqlException`) back to the Application layer.
+- **Technical Mapping Boundary:** Map database schemas to Domain Entities exclusively via the Fluent API (`IEntityTypeConfiguration<T>` or `OnModelCreating`). NEVER pollute Domain Entities with `[Table]`, `[Column]`, or other EF Core Data Annotations.
+- **Async/Await Integrity:** End all asynchronous methods with the `Async` suffix (e.g., `ExecuteAsync`). Always pass `CancellationToken ct` to every I/O-bound operation. Await operations explicitly; never use `.Result` or `.Wait()`.
+
+**Directory Layout & Responsibilities:**
+```text
+src/SmkDoc.Infrastructure/
+├── Persistence/           # EF Core (PostgreSQL) operations
+│   ├── AppDbContext.cs    # EF Core context (Fluent API Mapping)
+│   ├── Repositories/      # Implementations of Domain/Application IRepository contracts
+│   ├── Queries/           # Fast, read-only queries (CQRS Read Models)
+│   └── Migrations/        # EF Core Code-First migration history
+├── Storage/               # Implementations of IStorageService (e.g., MinIO)
+├── Engines/               # Implementations of IRenderEngine (Html, Word, Excel)
+├── Pdf/                   # HTTP client integrating with Gotenberg
+├── Imaging/               # QR Code / Barcode generators (QRCoder, SkiaSharp)
+├── Schema/                # JSON Schema inference and validation logic
+└── Security/              # Bcrypt, JWT token generation, DataProtection
+```
+
+**Code Comparison: Database Mapping & Tracking**
+```csharp
+// ❌ Bad: Polluting Domain with DB logic & Missing AsNoTracking
+using System.ComponentModel.DataAnnotations.Schema;
+
+[Table("templates")] // Violation: Data Annotation inside Domain layer
+public class Template { ... }
+
+public async Task<Template> GetTemplateDataAsync(Guid id)
+{
+    // Violation: Missing AsNoTracking for a read-only query
+    return await _dbContext.Templates.FirstOrDefaultAsync(t => t.Id == id);
+}
+
+// ✅ Good: Clean Domain, Fluent API Mapping, and AsNoTracking for Reads
+public class TemplateConfiguration : IEntityTypeConfiguration<Template>
+{
+    public void Configure(EntityTypeBuilder<Template> builder)
+    {
+        // 1. Fluent API keeps the Domain class completely clean of DB metadata
+        builder.ToTable("templates");
+        builder.HasIndex(e => e.Slug).IsUnique();
+        builder.Property(e => e.Name).HasMaxLength(100);
+    }
+}
+
+public async Task<Template?> GetTemplateDataForDisplayAsync(Guid id, CancellationToken ct)
+{
+    // 2. AsNoTracking() vastly improves performance for Read-Only operations
+    return await _dbContext.Templates
+        .AsNoTracking()
+        .FirstOrDefaultAsync(t => t.Id == id, ct);
+}
+```
+
+### 2.7 Presentation Layer & Error Handling (`SmkDoc.Api`)
+
+**Core Architectural Rules:**
+- **Thin Controllers (No Business Logic):** Controllers solely exist to receive HTTP requests, map them to CQRS Commands/Queries, and return standard HTTP responses. MUST NEVER contain `if/else` business rules, database calls, or complex logic.
+- **Orchestrator of Cross-Cutting Concerns:** Handles API security via Middleware, global exception trapping via .NET 8 `IExceptionHandler`, and readiness via Health Checks.
+- **Deterministic HTTP Status Codes:**
+  - `201 Created`: Resource creation (Must return `ApiResponse<T>`).
+  - `200 OK`: Reads, queries, or idempotent updates returning data.
+  - `204 NoContent`: Deletions or state changes returning no body.
+- **RFC 7807 Compliance:** All HTTP error responses MUST conform to `ProblemDetails`. NEVER return anonymous types (e.g., `new { error = ... }`).
+- **Domain Exception Mapping:** Throw strongly-typed exceptions from UseCases, letting the Global Filter map them:
+  - `DomainValidationException` / `BusinessRuleViolationException` -> `400 BadRequest`
+  - `NotFoundException` -> `404 NotFound`
+  - `ConflictException` -> `409 Conflict`
+- **Composition Root (`Program.cs`):** The central hub for assembling the application, registering cross-layer Dependency Injection (DI), and configuring the HTTP pipeline.
+
+**Directory Layout & Responsibilities:**
+```text
+src/SmkDoc.Api/
+├── Controllers/         # Thin endpoints divided by bounded context
+│   ├── DocumentController.cs
+│   └── TemplateController.cs
+├── Contracts/           # Request/Response DTOs specific to HTTP APIs (Not Domain/App layer)
+├── ExceptionHandlers/   # .NET 8 IExceptionHandler implementations
+│   └── GlobalExceptionHandler.cs
+├── Middleware/          # Low-level request pipeline interception
+│   ├── ApiKeyMiddleware.cs
+│   └── SecurityHeadersMiddleware.cs
+├── HealthChecks/        # Infrastructure readiness probes (Postgres, MinIO, Gotenberg)
+├── appsettings.json     # Environment configurations
+└── Program.cs           # WebApplication builder and DI setup
+```
+
+**Code Comparison: Controller & Middleware Standards**
+```csharp
+// ❌ Bad: Fat Controller & Bad Error Handling
+public class TemplateController(ITemplateRepository _repo) // Violation: Underscore in primary constructor
+{
     [HttpPost]
-    [Authorize(Roles = "Admin")]
-    [ProducesResponseType(typeof(ApiResponse<UserResultDto>), StatusCodes.Status201Created)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    [ProducesResponseType(StatusCodes.Status409Conflict)]
-    public async Task<IActionResult> AddUser(
-        [FromRoute] Guid projectId,
-        [FromBody] InviteUserRequest req,
+    public async Task<IActionResult> Create(CreateRequest req)
+    {
+        // Violation: Business logic inside Controller
+        if (string.IsNullOrEmpty(req.Name)) 
+            return BadRequest(new { error = "Name needed" }); // Violation: Anonymous type breaks RFC 7807
+
+        var entity = new Template(req.Name);
+        await _repo.AddAsync(entity); // Violation: Bypassing Application layer UseCases
+        return Ok(entity); // Violation: Returning Domain Entity directly
+    }
+}
+
+// ✅ Good: Thin Controller & RFC 7807 Compliance
+[ApiController]
+[Route("api/v1/templates")]
+public class TemplateController(IUseCase<CreateTemplateCommand, TemplateResultDto> createUseCase) : ControllerBase
+{
+    [HttpPost]
+    public async Task<ActionResult<ApiResponse<TemplateResultDto>>> Create(
+        [FromBody] CreateTemplateRequest request, 
         CancellationToken ct)
     {
-        var command = new InviteUserCommand(projectId, req.Email, req.Password, req.FirstName, req.LastName, req.Role);
-        var user = await inviteUserUseCase.ExecuteAsync(command, ct);
-        return StatusCode(StatusCodes.Status201Created, new ApiResponse<UserResultDto>(user));
+        // 1. Map to Application Command
+        var command = new CreateTemplateCommand(request.Name, request.ProjectId);
+        
+        // 2. Delegate to Application Layer
+        var result = await createUseCase.ExecuteAsync(command, ct);
+        
+        // 3. Return Standard Envelope
+        return CreatedAtAction(nameof(Get), new { id = result.Id }, new ApiResponse<TemplateResultDto>(result));
     }
+}
 
-    /// <summary>Remove a user from the project. Admin only.</summary>
-    [HttpDelete("{userId:guid}")]
-    [Authorize(Roles = "Admin")]
-    [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> Remove(
-        [FromRoute] Guid projectId,
-        [FromRoute] Guid userId,
-        CancellationToken ct)
+// ✅ Good: Middleware RFC 7807 enforcement
+public async Task InvokeAsync(HttpContext context)
+{
+    if (!IsValidKey(context))
     {
-        var currentUserId = User.GetUserId();
-        var command = new RemoveUserCommand(projectId, userId, currentUserId);
-        await removeUserUseCase.ExecuteAsync(command, ct);
-        return NoContent();
+        context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+        
+        // Enforces RFC 7807 standard format
+        var problem = new ProblemDetails 
+        { 
+            Title = "Unauthorized", 
+            Status = 401, 
+            Detail = "Invalid API Key" 
+        };
+        await context.Response.WriteAsJsonAsync(problem); 
+        return;
     }
+    await _next(context);
 }
 ```
 
----
+### 2.8 Unit Testing Standards (The Golden Archetypes)
 
-### 2.7 🧪 Unit Testing Standards & The Golden Archetypes
+**Core Testing Philosophy:**
+- **The 3-Part Naming Rule:** All test methods MUST follow the pattern: `MethodName_StateUnderTest_ExpectedBehavior` (e.g., `Create_WithEmptyProjectId_ThrowsDomainValidationException`).
+- **Deterministic Time:** Tests MUST be 100% deterministic. NEVER use `DateTime.UtcNow` or `DateTime.Now`. Always inject a static time via `TimeProvider` or a hardcoded `DateTimeOffset` variable.
+- **Strict Mocking Rules:** ONLY mock Infrastructure interfaces (e.g., `IRepository`, `IStorageService`). NEVER mock Domain Entities or Data Transfer Objects (DTOs); instantiate them directly.
+- **Side-Effect Verification:** On exception/guard paths, always explicitly verify that mutations NEVER occurred: `_uowMock.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Never);`
+- **Clear AAA Anatomy:** Visually separate **Arrange**, **Act**, and **Assert** phases using blank lines.
+- **Fluent Assertions:** Always use `FluentAssertions` (e.g., `.Should().Be()`) instead of standard xUnit `Assert`.
 
-To ensure absolute consistency, zero test rot, and effortless pattern replication, all unit tests MUST mirror the **3 Golden Archetypes**. These archetypes natively embody all testing requirements (1:1 CQRS folder parity, Single SUT isolation, `TestConstants.BaselineTime`, `*Builder`, `*TestFixture`, Roy Osherove naming, pure `[Theory]` validation, and Aggregate Root invariant testing).
+**The 3 Golden Archetypes:**
 
-```
-┌────────────────────────────────────────────────────────────────────────┐
-│                   THE 3x3 CLEAN TESTING FRAMEWORK                      │
-├────────────────────┬────────────────────┬──────────────────────────────┤
-│  1. 🏗️ STRUCTURE   │   2. ⏳ STATE       │   3. ✍️ CONVENTION           │
-│     (จัดวางให้ถูกที่)  │      (ข้อมูลต้องนิ่ง)  │      (เขียนให้อ่านง่าย)         │
-├────────────────────┼────────────────────┼──────────────────────────────┤
-│ 1.1 Solution Split │ 2.1 Builder &      │ 3.1 Roy Osherove             │
-│     (Unit vs Integ)│     Factory SSoT   │     Naming Standard          │
-│ 1.2 1:1 CQRS Parity│ 2.2 BaselineTime   │ 3.2 Pure Parameterization    │
-│     (Folder mirror)│     (Ban UtcNow)   │     ([Theory] vs loop)       │
-│ 1.3 Single SUT     │ 2.3 Semantic       │ 3.3 Modern C# &              │
-│     (1 Intent = 1) │     Fixtures (Given) Clean Usings Hygiene       │
-└────────────────────┴────────────────────┴──────────────────────────────┘
-```
+#### 🌟 Archetype A: UseCase Orchestration Test
+- **Location:** `Application/Modules/{Feature}/Commands/{Action}/{Action}UseCaseTests.cs`
+- **Focus:** Verifying workflow, mapping, and side-effects.
+- **Rules:** Use a shared `TestFixture` to encapsulate Moq setups. Use a unified `CreateSut()` factory. Verify exact method invocations using `Times.Once` or `Times.Never`.
 
----
+#### 🌟 Archetype B: Input Validator Test
+- **Location:** Colocated alongside Command/Query tests.
+- **Focus:** Exhaustive validation of input boundaries.
+- **Rules:** Must be pure parameterized tests using `[Theory]` and `[InlineData]`. Zero mocks allowed. 
 
-#### 🌟 Archetype A: Use Case Test (Single SUT Isolation)
-- **Placement:** Mirror Application 1:1 (e.g. `SmkDoc.Tests/Application/Modules/{Context}/{SubModule}/Commands/{Action}/{Action}UseCaseTests.cs`)
-- **Standard Anatomy (90% of Solution):** Exactly 1 Use Case tested per file, direct `Mock<T>` fields, SSoT `CreateSut()` factory, domain data via `*Builder` / `*TestFactory`, deterministic time via `TestConstants.BaselineTime` or `FakeTimeProvider`.
-*(Note: สำหรับ Authoring Templates ที่มีกราฟข้อมูลร่วมซับซ้อน สามารถใช้ `TemplateTestFixture` เป็น variant ขั้นสูงได้ แต่ UseCase ทั่วไปให้ยึด Direct Mocks เป็นหลัก)*
+#### 🌟 Archetype C: Domain Aggregate Root Test
+- **Location:** `Domain/Entities/{Aggregate}Tests.cs`
+- **Focus:** Testing business invariants, exceptions, and internal state mutations.
+- **Rules:** Instantiate the entity directly. Verify that properties change as expected and that audit fields (`UpdatedAt`) are accurately stamped with the injected time.
 
+**Code Comparison: Testing Standards**
 ```csharp
-using FluentValidation;
-using ValidationException = SmkDoc.Application.Common.Exceptions.ValidationException; // 🛡️ Disambiguate with FluentValidation
-using SmkDoc.Tests.Common;
-using SmkDoc.Tests.Common.Builders;
-
-namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Security.Commands.CreateApiKey;
-
-/// <summary>
-/// 📌 GOLDEN ARCHETYPE: Use Case Test (Canonical 5-Part Anatomy)
-/// สะท้อน Application 1:1, ใช้ Direct Mocks, SSoT CreateSut, *Builder, และ Zero var sut redundancy
-/// </summary>
-public sealed class CreateApiKeyUseCaseTests
+// ❌ Bad: Non-Deterministic, Poor Naming, Cluttered AAA
+[Fact]
+public async Task Test_CreateTemplate()
 {
-    // 1. Direct Mock Dependencies (Blank mocks by default)
-    private readonly Mock<IApiKeyRepository> _apiKeyRepoMock = new();
-    private readonly Mock<IProjectRepository> _projectRepoMock = new();
-    private readonly Mock<IUnitOfWork> _uowMock = new();
-    private readonly CreateApiKeyCommandValidator _realValidator = new();
-
-    // 2. SSoT SUT Factory: จุดเดียวเท่านั้นที่ instantiate SUT (รองรับ mock override)
-    private CreateApiKeyUseCase CreateSut(IValidator<CreateApiKeyCommand>? validator = null) =>
-        new(_apiKeyRepoMock.Object, _projectRepoMock.Object, _uowMock.Object, validator ?? _realValidator);
-
-    // 3. Happy Path (Max 8-12 lines, Clean 3-A flow)
-    [Fact]
-    public async Task ExecuteAsync_WhenValidCommand_ReturnsPlainTextKeyAndPersistsHashedKey()
-    {
-        // Arrange
-        ApiKey? capturedKey = null;
-        _apiKeyRepoMock.Setup(r => r.AddAsync(It.IsAny<ApiKey>(), It.IsAny<CancellationToken>()))
-            .Callback<ApiKey, CancellationToken>((k, _) => capturedKey = k)
-            .Returns(Task.CompletedTask);
-
-        var projectId = Guid.NewGuid();
-        var project = ProjectBuilder.AProject().WithId(projectId).Build();
-        _projectRepoMock.Setup(r => r.GetByIdAsync(projectId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(project);
-
-        var command = new CreateApiKeyCommand("Sales App", "sales", projectId);
-
-        // Act (Direct SUT execution, zero 'var sut' temporary variable)
-        var result = await CreateSut().ExecuteAsync(command);
-
-        // Assert
-        result.Should().NotBeNull();
-        result.PlainTextKey.Should().StartWith("smk_sales_");
-        _uowMock.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
-    }
-
-    // 4. Business Guard / NotFound Path (Precise Exception + Times.Never)
-    [Fact]
-    public async Task ExecuteAsync_WhenProjectNotFound_ThrowsNotFoundException()
-    {
-        // Arrange
-        var command = new CreateApiKeyCommand("Sales App", "sales", Guid.NewGuid());
-
-        // Act & Assert (Exception path via direct lambda)
-        var act = () => CreateSut().ExecuteAsync(command);
-        await act.Should().ThrowAsync<NotFoundException>()
-            .WithMessage($"*{command.ProjectId}*");
-
-        _uowMock.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Never);
-    }
-
-    // 5. Input Validation Fail-Fast Path (Using Mocked Failing Validator)
-    [Fact]
-    public async Task ExecuteAsync_WhenValidationFails_ThrowsValidationExceptionWithoutCommit()
-    {
-        // Arrange
-        var failingValidator = TestMockHelpers.CreateFailingValidator<CreateApiKeyCommand>("Name", "Name is required");
-        var command = new CreateApiKeyCommand("", "sales", Guid.NewGuid());
-
-        // Act & Assert
-        var act = () => CreateSut(validator: failingValidator.Object).ExecuteAsync(command);
-        await act.Should().ThrowAsync<ValidationException>();
-
-        _uowMock.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Never);
-    }
+    var useCase = new CreateTemplateUseCase(new MockRepo().Object); // Bad setup
+    var cmd = new CreateTemplateCommand(Guid.NewGuid(), "Test", "slug", null);
+    
+    var result = await useCase.ExecuteAsync(cmd); // No separation
+    Assert.NotNull(result); // Legacy assert
+    Assert.Equal("Test", result.Name);
 }
-```
 
-##### 🏷️ Strict Test Naming Standards (The 3 Layers)
-เพื่อให้โค้ดอ่านเหมือน prose เดียวกันทั้งระบบ และป้องกันไม่ให้ LLM สับสนหรือสุ่มตั้งชื่อ ให้ยึดมาตรฐาน 3 ระดับ:
-
-###### 1. Test Class Naming (ระดับชื่อคลาส)
-- **Archetype A (UseCase SUT):** `{UseCaseName}Tests` เสมอ (เช่น `CreateApiKeyUseCaseTests`, `CreateTemplateUseCaseTests`)
-- **Archetype B (Validator):** `{CommandOrQuery}ValidatorTests` (เช่น `CreateTemplateCommandValidatorTests`)
-- **Archetype C (Domain Entity):** `{EntityName}Tests` (เช่น `TemplateTests`, `UserTests`)
-- **Infrastructure Services:** `{ServiceName}Tests` (เช่น `GotenbergPdfRendererTests`)
-
-###### 2. Test Method Naming (Roy Osherove Canonical Formula)
-สูตรมาตรฐานเดียว: `MethodUnderedTest_When{ConditionOrState}_{ExpectedOutcome}`
-- **Method Under Test:** 
-  - UseCase ต้องขึ้นต้นด้วย `ExecuteAsync` เสมอ
-  - Validator ต้องขึ้นต้นด้วย `Validate` (หรือ `ValidateAsync`)
-  - Domain Entity ต้องขึ้นต้นด้วยชื่อ Business Method เช่น `Activate`, `Publish`
-- **Condition (`When...`):** ใช้ `When` เสมอ (**ห้ามใช้ `With...`**) เช่น `WhenValidCommand`, `WhenProjectNotFound`, `WhenSlugAlreadyExists`
-- **Expected Outcome (Active Verbs):** ระบุสิ่งที่เกิดขึ้นจริง (**ห้ามใช้คำว่า `Should`**):
-  - สำเร็จ $\rightarrow$ `Returns{Type/Behavior}` (เช่น `ReturnsSuccessResult`, `ReturnsPlainTextKeyAndPersistsHashedKey`)
-  - ข้อผิดพลาด $\rightarrow$ `Throws{ExceptionType}` (เช่น `ThrowsNotFoundException`, `ThrowsConflictException`)
-  - Validation ไม่ผ่าน $\rightarrow$ `HasValidationError` หรือ `ThrowsValidationExceptionWithoutCommit`
-
-| Category | Example Method Name | Expected Behavior |
-|---|---|---|
-| **Happy Path** | `ExecuteAsync_WhenValidInput_ReturnsSuccessResult` | สำเร็จ + `uow.CommitAsync` 1 ครั้ง |
-| **Not Found Guard** | `ExecuteAsync_WhenEntityNotFound_ThrowsNotFoundException` | โยน 404 + `Times.Never` commit |
-| **Conflict Guard** | `ExecuteAsync_WhenSlugAlreadyExists_ThrowsConflictException` | โยน 409 + `Times.Never` commit |
-| **Business Rule** | `ExecuteAsync_WhenInactive_ThrowsBusinessRuleViolationException` | โยน 400 + `Times.Never` commit |
-| **Validation Fail** | `ExecuteAsync_WhenValidationFails_ThrowsValidationExceptionWithoutCommit` | โยน 400 + `Times.Never` commit |
-| **Short-Circuit** | `ExecuteAsync_WhenEmptyList_ReturnsEmptyWithoutQueryingRepo` | คืนผลลัพธ์ทันที ไม่แตะ I/O |
-
-###### 3. Local Variables & Mocks Naming (ระดับตัวแปร)
-- **Mock Fields:** `_{dependencyName}Mock` (เช่น `_templateRepoMock`, `_uowMock`)
-- **Real Validator:** `_realValidator` หรือ `_validator`
-- **SUT Factory:** `CreateSut` เท่านั้น (ห้าม `BuildSut`, `CreateUseCase`)
-- **Input Payload:** `command` หรือ `query`
-- **Result:** `result` หรือ `response`
-- **Exception Delegate:** `act` (ห้าม `action` หรือ `invoking`)
-
-
-##### 🎯 The Canonical SUT Factory Standard (`CreateSut`)
-เพื่อรักษา Clean Code, Readability, และ Simplicity ให้ทุกคลาสทดสอบ UseCase ในระบบเหมือนกัน 100% ให้ปฏิบัติตาม **5 เสาหลัก (The 5 Pillars)**:
-1. **SSoT Factory:** ทุกคลาสทดสอบ UseCase ต้องมี `private {UseCase} CreateSut(...)` เมธอดเดียวเท่านั้น **ห้าม** เขียน `new {UseCase}` ภายใน Test Method เด็ดขาด
-2. **Standardized Signature & Placement:**
-   - วางไว้ใต้ mock fields / fixture (ก่อน test method แรกเสมอ)
-   - ใช้ Expression-bodied (`=> new(...)` หรือ `=> _fixture.Build...()`)
-   - ตั้งชื่อ `CreateSut` เสมอ (ห้ามใช้ `BuildSut`, `CreateUseCase`, `BuildUseCase`)
-3. **Optional Parameter Overrides:** หาก test method ใดต้องการ mock พิเศษ (เช่น validator ล้มเหลว) ให้ส่งผ่าน optional parameter (`CreateSut(validator: customValidator.Object)`) โดย `CreateSut` จะ fallback กลับไปหา default mock หากส่ง `null`
-4. **Pure Factory (Zero Side-Effects):** `CreateSut()` ต้องคืน fresh instance เสมอ และปราศจาก mock setup หรือ state mutation ภายใน factory
-5. **Unified 3-A Invocation Flow:**
-   - **Happy Path:** `var result = await CreateSut().ExecuteAsync(command);` (ไม่มีตัวแปรซ้ำซ้อน `var sut = ...`)
-   - **Exception Path:** `var act = () => CreateSut().ExecuteAsync(command); await act.Should().ThrowAsync<...>();`
-
-##### 🎯 The Assertion & Mock Verification Matrix (Precision Testing)
-เพื่อยกระดับ Unit Test สู่ระดับ Enterprise-Grade และป้องกัน False Positives รวมถึงหลีกเลี่ยง Brittle Tests:
-1. **Deep Semantic Assertions (Not Just Exception Type):**
-   - ❌ **Anti-Pattern (Shallow Type Only):** `await act.Should().ThrowAsync<ConflictException>();` (เสี่ยง False Positive เมื่อเกิด Exception ชนิดเดียวกันจากคนละสาเหตุ)
-   - ❌ **Anti-Pattern (Brittle Exact Match):** `.WithMessage("Exact long hardcoded string...");` (เปราะบางต่อการแก้ wording/punctuation)
-   - ✅ **Best Practice (Semantic Wildcard Match):** ตรวจสอบ Business Identifier หรือ Keyword สำคัญด้วย Wildcard `*`:
-     ```csharp
-     await act.Should().ThrowAsync<ConflictException>()
-         .WithMessage($"*'{command.Slug}'*");
-     ```
-   - ✅ **Best Practice (Structured Properties):** หากเป็น Exception ที่มี Property เฉพาะ (เช่น `SchemaValidationException`) ให้ assert ที่ property โดยตรง:
-     ```csharp
-     var ex = await act.Should().ThrowAsync<SchemaValidationException>();
-     ex.Which.TemplateSlug.Should().Be("invoice");
-     ```
-2. **Zero Mock State Pollution:**
-   - ใน xUnit ทุก Test Method ถูกสร้างคลาสใหม่เสมอ (`new TestClass()`) ดังนั้น class-level mocks จึงแยกขาดจากกันโดยธรรมชาติ
-   - **ห้าม** ตั้งค่า mock พร่ำเพรื่อใน Constructor ให้ mock fields เป็น Blank Mocks เสมอ และทำ Setup เฉพาะสิ่งที่ Test Method นั้นสนใจ
-   - **ห้าม** นำ Mock ที่ไม่ได้เป็น Dependency ของ UseCase นั้นเข้ามาใน Test Class (รักษา 1:1 CQRS Parity)
-3. **The Golden Side-Effect Verification Matrix:**
-   - ใน Clean Architecture "การไม่เกิด Side-effect เมื่อเกิดข้อผิดพลาด" สำคัญเท่ากับ "การเกิด Side-effect เมื่อสำเร็จ":
-
-   | Scenario / Path | Target Method | Expectation | Rationale |
-   |---|---|:---:|---|
-   | **Happy Path (Success)** | Mutation Repo (`Add`, `Update`, `Remove`) | `Times.Once()` | ยืนยันการเปลี่ยนแปลง State |
-   | **Happy Path (Success)** | `IUnitOfWork.CommitAsync` | `Times.Once()` | ยืนยันการ Commit Transaction |
-   | **Guard/Exception Path** | Mutation Repo (`Add`, `Update`, `Remove`) | `Times.Never()` | ป้องกัน Data Mutation ขณะเกิดข้อผิดพลาด |
-   | **Guard/Exception Path** | `IUnitOfWork.CommitAsync` | `Times.Never()` | ป้องกัน Data Corruption เด็ดขาด |
-   | **Guard/Exception Path** | Downstream I/O (`IStorageService`, `IRenderEngine`) | `Times.Never()` | ป้องกัน Resource Leak / Side-effect |
-
-##### 🎯 Test Data Management, Deterministic Clock (`FakeTimeProvider`), & Role-Based Testing
-เพื่อป้องกัน Test Cascade Breakages, ขจัดปัญหา Non-deterministic Flakiness, และรักษาความกระชับของ Test Suite:
-1. **Mandatory Builders & Factories (Zero Ad-hoc Entity Instantiation):**
-   - ใน `SmkDoc.Tests/Application/` **ห้าม** เรียก `new Entity(...)` หรือ `Entity.Create(...)` แบบ Hardcode เองเด็ดขาด
-   - **`*Builder` (สำหรับ Aggregate Roots ซับซ้อน):** ใช้ `new ProjectBuilder().WithSlug("...").Build()` เมื่อต้องการ override ค่าเฉพาะบางตัว โดยที่ค่าอื่นๆ เป็น default baseline ที่สมบูรณ์
-   - **`*TestFactory` (สำหรับ Child Entities หรือ POCO ง่ายๆ):** ใช้ `DataConnectionTestFactory.Create(...)` เมื่อต้องการสร้าง entity ที่มี parameter พื้นฐานครบในบรรทัดเดียว
-2. **Deterministic Time with `FakeTimeProvider` (`Microsoft.Extensions.TimeProvider.Testing`):**
-   - **ห้าม** เรียก `DateTimeOffset.UtcNow` ใน Unit Tests เด็ดขาด (ใช้ `TestConstants.BaselineTime` เสมอ)
-   - สำหรับ UseCase ที่รับ `TimeProvider? timeProvider = null` ให้ `CreateSut` inject `timeProvider ?? TestConstants.CreateFakeClock()` เพื่อรับประกันว่า timestamp ทุกตัวที่ UseCase สร้างจะตรงกับ BaselineTime 100%
-   - ทดสอบ TTL / Expiry ด้วย `fakeClock.Advance(TimeSpan.FromHours(24))` แทนการ sleep จริง
-3. **Role-Based Testing: `[Fact]` vs `[Theory]` (Pragmatic Selection):**
-   - **`[Fact]` = "One Unique Behavior / Complex Story":** ใช้สำหรับ UseCase Workflows, State Transitions, Happy Paths หลัก, หรือเคสที่มี Arrange และ Mock Setup เฉพาะเจาะจง (ห้ามฝืนทำเป็น Theory จนต้องมี if-else ในเทสต์)
-   - **`[Theory]` + `[InlineData]` = "One Rule, Multiple Inputs":** ใช้สำหรับ Input Validators (`*ValidatorTests`), Converters, Formatters, และ Boundary Value Analysis (Null, Empty, Whitespace, Min/Max Length) เพื่อเห็นตารางความถูกต้องในจุดเดียวและลดโค้ดซ้ำซ้อน
-
----
-
-#### 🌟 Archetype B: Input Validator Test (Pure Parameterized Testing)
-- **Placement:** Colocated alongside Command/Query in the same folder (`*ValidatorTests.cs`).
-- **Key Traits:** Pure function testing without mocks, exhaustive constraint verification using `[Theory]` + `[InlineData]`.
-
-```csharp
-namespace SmkDoc.Tests.Application.Modules.Authoring.Templates.Commands.CreateTemplate;
-
-/// <summary>
-/// 📌 GOLDEN ARCHETYPE: Input Validator Test (Pure Function Parameterized Testing)
-/// วางประกบคู่กับ Command ในโฟลเดอร์เดียวกัน, ทดสอบ constraints ด้วย [Theory], ปราศจาก mock 100%
-/// </summary>
-public sealed class CreateTemplateCommandValidatorTests
+// ✅ Good: Deterministic, 3-Part Naming, Clear AAA, Fluent Assertions
+[Fact]
+public async Task ExecuteAsync_WhenValidHtmlTemplate_ShouldPersistAndReturnTemplateResultDto()
 {
-    private readonly CreateTemplateCommandValidator _sut = new();
+    // Arrange
+    var projectId = Guid.NewGuid();
+    _fixture.TemplateRepo
+        .Setup(r => r.SlugExistsAsync("tax-invoice", projectId, It.IsAny<CancellationToken>()))
+        .ReturnsAsync(false);
+    
+    var command = new CreateTemplateCommand(projectId, "Tax Invoice", "tax-invoice", "Finance");
 
-    [Theory]
-    [InlineData("")]
-    [InlineData(" ")]
-    [InlineData(null)]
-    public void Validate_WhenNameIsInvalid_HasValidationError(string? invalidName)
-    {
-        var command = new CreateTemplateCommand(Guid.NewGuid(), invalidName!, "valid-slug", null);
+    // Act
+    var response = await CreateSut().ExecuteAsync(command);
 
-        var result = _sut.Validate(command);
-
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.PropertyName == nameof(CreateTemplateCommand.Name));
-    }
-}
-```
-
----
-
-#### 🌟 Archetype C: Domain Aggregate Root Test (Business Invariants & Mutations)
-- **Placement:** `SmkDoc.Tests/Domain/Entities/{Aggregate}Tests.cs` (e.g. `TemplateTests.cs`, `UserTests.cs`).
-- **Key Traits:** All invariants, encapsulation, and state mutations tested directly inside the aggregate test file. Strictly ban separate generic dumping grounds (`DomainInvariantTests`).
-
-```csharp
-namespace SmkDoc.Tests.Domain.Entities;
-
-/// <summary>
-/// 📌 GOLDEN ARCHETYPE: Aggregate Root Invariant Test
-/// รวมการทดสอบกฎธุรกิจและการกลายสภาพ (Mutation) ไว้ที่ Entity โดยตรง ห้ามแยกไฟล์ dumping ground
-/// </summary>
-public sealed class TemplateTests
-{
-    [Fact]
-    public void Activate_WhenAlreadyActive_ThrowsBusinessRuleViolationException()
-    {
-        // Arrange: ใช้ BaselineTime จาก Builder
-        var template = new TemplateBuilder().AsActive().Build();
-
-        // Act & Assert: ทุก mutation ต้องส่ง BaselineTime
-        var act = () => template.Activate(TestConstants.BaselineTime);
-        act.Should().Throw<BusinessRuleViolationException>();
-    }
+    // Assert
+    response.Should().NotBeNull();
+    response.Name.Should().Be("Tax Invoice");
+    
+    _fixture.TemplateRepo.Verify(r => r.AddAsync(It.IsAny<Template>(), It.IsAny<CancellationToken>()), Times.Once);
 }
 ```
 
@@ -680,108 +462,125 @@ public sealed class TemplateTests
 
 ## 3. 🔶 Frontend Standards: TypeScript / Next.js 15 (`frontend-v2/`)
 
-### 3.1 Strict TypeScript & Zod-First Validation
-- **Zero `any` Policy:** The `any` type is strictly forbidden. Use `unknown` with type narrowing if the type is truly dynamic.
-- **Zod as Single Source of Truth:**
-  - Define schemas in `src/schemas/` (e.g., `template.schema.ts`, `document.schema.ts`).
-  - Derive TypeScript types via `z.infer<typeof ...>` and re-export them from `src/types/api.ts`.
-  - Always validate form inputs and external API responses through Zod schemas.
+### 3.1 Strict TypeScript & Zod-First Validation (SSoT)
+- **Zero `any` Policy:** Avoid the `any` type entirely. If a type is truly unknown, use `unknown` and apply type narrowing.
+- **Zod as the Single Source of Truth:** Place all validation rules in `src/schemas/`. 
+  - Derive TypeScript types automatically via `export type MyType = z.infer<typeof MySchema>;`. 
+  - NEVER manually create interfaces in `src/types/` if a Zod schema represents the same data structure.
+  - All external API responses and form submissions MUST be validated through Zod before usage.
 
-### 3.2 Data Fetching & API Client
-- **Route all HTTP calls through `apiClient`:** Never use raw `fetch()` or `axios`.
-  - Standard JSON: `apiClient<T>(endpoint, options)`
-  - Binary/PDF Downloads: `apiClientBlob(endpoint, options)`
-  - Automatic Auth: `apiClient` automatically injects the active `X-API-Key` or Bearer JWT token from storage.
+### 3.2 Component Architecture & Organization
+Strictly divide UI components into three categories to prevent tangled dependencies:
+```text
+src/components/
+├── ui/         # "Dumb" primitives (Button, Input, Modal). Highly reusable. Zero business logic.
+├── layout/     # "Shells" (Sidebar, Navbar, PageHeader). Dictates page structure.
+└── features/   # "Smart" components organized by domain (e.g., /templates, /users). 
+                # These can fetch data, use contexts, and contain business logic.
+```
+- **Tailwind Safing:** Always use the `cn()` utility (`clsx` + `tailwind-merge`) when composing Tailwind class names dynamically to prevent CSS collision.
 
-### 3.3 Component Architecture & Design Tokens
-- **Composable Primitives:** Always check `src/components/ui/` (Button, Input, Modal, Table, Badge, CardBlock) before creating new UI elements.
-- **HyperUI Design Patterns:** When building new complex views (Stats, Filter Bars, Data Tables), reference [HyperUI](https://www.hyperui.dev) structures.
-- **Design Tokens Discipline:** Strictly use tailwind token classes (`bg-surface`, `text-textPrimary`, `text-textSecondary`, `border-border`, `text-primary`, `rounded-sm` / 2–4px radius, Ice-White theme palette). Never introduce arbitrary hardcoded hex codes.
+### 3.3 Next.js 15 App Router Paradigms
+- **Server Components by Default:** `page.tsx` and `layout.tsx` MUST remain Server Components (no `"use client"`). Use them to fetch initial data directly from the API/Database securely and quickly.
+- **Isolate Client Components:** Place the `"use client"` directive ONLY at the leaves of the component tree (e.g., an interactive form, a chart, or a toggle button). Never wrap an entire page in `"use client"`.
+- **Avoid `useEffect` for Fetching:** NEVER use `useEffect` for data fetching. Use React Server Components for initial loads, and React Query/SWR for client-side mutations or polling.
+
+**Code Comparison: App Router Data Fetching**
+```tsx
+// ❌ Bad: Legacy React 18 style (Entire page is client-side, bloated bundle, slow SEO)
+"use client"; 
+import { useEffect, useState } from "react";
+
+export default function TemplatePage({ params }: { params: { id: string } }) {
+    const [data, setData] = useState<Template | null>(null);
+
+    useEffect(() => {
+        // Violation: Fetching initial data in a useEffect
+        fetch(`/api/v1/templates/${params.id}`).then(res => res.json()).then(setData);
+    }, [params.id]);
+
+    if (!data) return <Loading />;
+    return <TemplateEditor data={data} />;
+}
+
+// ✅ Good: Next.js 15 Server Component (Fast, secure, SEO-friendly)
+import { notFound } from "next/navigation";
+import { fetchTemplateById } from "@/lib/api/templates"; // Server-side fetcher
+import { TemplateEditorClient } from "@/components/features/templates/TemplateEditorClient";
+
+// 1. NO "use client" here. This runs securely on the server.
+export default async function TemplatePage({ params }: { params: { id: string } }) {
+    // 2. Direct async/await data fetching
+    const data = await fetchTemplateById(params.id);
+    
+    if (!data) return notFound();
+
+    // 3. Pass data down to the isolated Client Component that needs interactivity
+    return (
+        <main className="container mx-auto">
+            <h1 className="text-2xl font-bold">{data.name}</h1>
+            <TemplateEditorClient initialData={data} />
+        </main>
+    );
+}
+```
 
 ---
 
 ## 4. 🏷️ System-Wide Naming Standards & Matrix (The 6 Pillars)
 
-To ensure universal consistency, clean readability, and seamless LLM context adherence, all code MUST strictly follow the 6 Naming Pillars:
-
-### 4.1 The 6 Pillars Breakdown
-
-1. **Flow & Contract Suffixes (Presentation vs. Application Separation):**
-   - **HTTP Requests (`SmkDoc.Api/Contracts/{BoundedContext}/`):** Suffix with `*Request` (e.g., `CreateTemplateRequest`, `InviteUserRequest`). Positional record representing external JSON payload.
-   - **Application Commands (`SmkDoc.Application/Modules/`):** Suffix with `*Command` (e.g., `CreateTemplateCommand`, `GenerateDocumentCommand`). Represents an internal state mutation request.
-   - **Application Queries (`SmkDoc.Application/Modules/`):** Suffix with `*Query` (e.g., `GetTemplateByIdQuery`, `ListTemplatesQuery`). Represents an internal data read/filter request.
-   - **Application Outputs:** Suffix with `*Response` or `*ResultDto` (e.g., `TemplateResponse`, `UserResultDto`).
-   - **API Presentation Response:** Always wrapped in `ApiResponse<T>` or `PagedApiResponse<T>`. Never return raw domain entities or ad-hoc anonymous objects (`new { id }`).
-
-2. **Domain Ubiquitous Language & Rich Modeling (`SmkDoc.Domain`):**
-   - **Entities:** Singular `PascalCase` nouns (e.g., `Template`, `DocumentVersion`, `GenerationLog`, `User`).
-   - **Value Objects:** Semantic `PascalCase` nouns describing specific domain concepts (e.g., `TemplateName`, `TemplateSlug`, `Sha256Hash`, `EmailAddress`).
-   - **Canonical Factory Methods (SSoT):** Canonical verb (`Create`, `Register`, `Draft`, `Issue` or specialized `CreateSuccess`/`CreateFailure`).
-   - **Business Mutation Methods:** Domain intention verbs in `PascalCase` (`Activate`, `Deactivate`, `Publish`, `Archive`, `AssignRole`, `Revoke`, `SetUpdated`). **NEVER** use generic JavaBean-style setters (`SetCategory`, `SetName`).
-
-3. **Primary Constructor Parameter Naming (Universal C#):**
-   - MUST be `camelCase` mirroring the dependency class or interface name directly (e.g., `templateRepo`, `unitOfWork`, `createTemplateUseCase`, `logger`).
-   - **Strictly BAN Underscore (`_`) prefix:** Parameters in primary constructors are NOT private fields (❌ `_templateRepo`).
-   - **Strictly BAN Generic names:** Never use `repo`, `service`, `helper`, or `handler` without descriptive context.
-
-4. **Unit & Integration Test Standards (The Golden Archetypes):**
-   - **Pure In-Memory (Zero I/O):** `SmkDoc.Tests` MUST be 100% in-memory unit tests (Zero Disk/Network/DB I/O). Benchmarks, generators, and container fixtures belong in `SmkDoc.IntegrationTests`.
-   - **1:1 CQRS Single SUT:** Exactly 1 Use Case tested per class file, mirroring Application 1:1 under `Commands/{Action}/` or `Queries/{Action}/` (Strictly BAN monolithic test classes).
-   - **Deterministic SSoT:** Always instantiate domain data via `*Builder` / `*TestFactory` with `TestConstants.BaselineTime` (Strictly BAN `DateTimeOffset.UtcNow` inside unit tests).
-   - **Mirror the 3 Golden Blueprints:** Refer to [§2.7](#27--unit-testing-standards--the-golden-archetypes) for Archetype A (UseCase SUT), Archetype B (Pure Validator `[Theory]`), and Archetype C (Domain Aggregate Root).
-
-5. **Frontend File & Component Standards (`frontend-v2/`):**
-   - **React Components:** `PascalCase.tsx` (e.g., `TemplateCard.tsx`, `AppShell.tsx`, `StudioWorkspace.tsx`).
-   - **Custom Hooks:** `camelCase.ts` prefixed with `use` (e.g., `useTemplates.ts`, `useDebounce.ts`).
-   - **Zod Schemas:** `camelCase` + `Schema` inside `*.schema.ts` (e.g., `templateSchema`, `createTemplateSchema` in `template.schema.ts`).
-   - **API Modules:** `*.api.ts` (e.g., `templates.api.ts`, `documents.api.ts`).
-   - **Type Definitions:** `src/types/api.ts` re-exported from Zod schemas (never import schemas directly in UI components).
-
-6. **Database Persistence Standards (PostgreSQL):**
-   - **Table Names:** `plural_snake_case` (e.g., `templates`, `template_versions`, `generation_logs`, `user_project_roles`).
-   - **Primary Key:** `id` (UUIDv7 string or uuid).
-   - **Foreign Keys:** `{singular_entity}_id` (e.g., `project_id`, `template_id`, `company_id`).
-   - **Timestamp Columns:** `created_at`, `updated_at`, `revoked_at`, `generated_at`.
-   - **Boolean Columns:** `is_*` (e.g., `is_active`, `is_success`, `is_system`).
-
----
-
-### 4.2 Comprehensive Naming Conventions Matrix
+Adhere strictly to these naming structures to guarantee context continuity:
 
 | Element / Artifact | Layer / Scope | Convention | Example |
 |---|---|---|---|
-| **C# Domain Entities** | Domain | Singular `PascalCase` | `Template`, `DocumentVersion`, `User` |
-| **C# Value Objects** | Domain | Semantic `PascalCase` | `TemplateName`, `TemplateSlug`, `Sha256Hash` |
-| **C# Smart Enums** | Domain | `PascalCase` (Class & Items) | `TemplateFormat.Html`, `RoleType.Admin` |
-| **C# Domain Exceptions** | Domain | `*Exception` | `NotFoundException`, `ConflictException` |
-| **C# Canonical Factory** | Domain | Canonical Verb | `Create()`, `Register()`, `Draft()` |
-| **C# Business Mutations** | Domain | Domain Verb | `Publish()`, `Archive()`, `AssignRole()` |
-| **C# Primary Ctor Param** | All C# | `camelCase` (no `_`) | `templateRepo`, `createTemplateUseCase` |
-| **C# Mutation Inputs** | Application | `*Command` | `CreateTemplateCommand`, `PublishVersionCommand` |
-| **C# Query Inputs** | Application | `*Query` | `GetTemplateByIdQuery`, `ListTemplatesQuery` |
-| **C# Output DTOs** | Application | `*Response` / `*ResultDto` | `TemplateResponse`, `UserResultDto` |
-| **C# HTTP Requests** | Presentation | `*Request` | `CreateTemplateRequest`, `InviteUserRequest` |
-| **C# Controllers** | Presentation | `*Controller` (Bounded Context) | `TemplateController`, `UserManagementController` |
-| **C# Test Classes** | Tests | `*Tests` | `CreateTemplateUseCaseTests`, `TemplateTests` |
-| **C# Test Methods** | Tests | `Method_Scenario_Result` | `Create_WhenSlugEmpty_ThrowsValidationException` |
-| **C# Test Factories** | Tests | `*TestFactory` | `TemplateTestFactory`, `DocumentTestFactory` |
-| **C# Test Builders** | Tests | `*Builder` | `TemplateBuilder`, `UserBuilder` |
-| **C# Test Fixtures** | Tests | `*TestFixture` | `GenerateDocumentTestFixture` |
-| **TypeScript Types** | Frontend | `PascalCase` | `TemplateItem`, `UserSession` |
-| **TypeScript Zod Schemas** | Frontend | `camelCase` + `Schema` | `createTemplateSchema`, `loginRequestSchema` |
-| **React Components** | Frontend | `PascalCase.tsx` | `TemplateCard.tsx`, `AppShell.tsx` |
-| **React Custom Hooks** | Frontend | `use` + `PascalCase.ts` | `useTemplates.ts`, `useDebounce.ts` |
-| **REST Route URLs** | Presentation | `kebab-case` / lower plural | `/api/v1/management/projects/{id}/templates` |
-| **Database Tables** | Persistence | `plural_snake_case` | `templates`, `template_versions` |
-| **Database Columns** | Persistence | `snake_case` / `is_*` | `project_id`, `is_active`, `created_at` |
+| **Domain Entities** | Domain | Singular `PascalCase` | `Template`, `User` |
+| **Value Objects** | Domain | Semantic `PascalCase` | `TemplateSlug`, `Sha256Hash` |
+| **Domain Factory** | Domain | Canonical Verb | `Create()`, `Register()` |
+| **Business Mutations** | Domain | Domain Verb | `Publish()`, `Archive()` |
+| **Primary Ctor Param** | All C# | C# 12 `camelCase` | `templateRepo`, `unitOfWork` |
+| **Mutation Inputs** | Application | `*Command` | `CreateTemplateCommand` |
+| **Query Inputs** | Application | `record *Query` | `record GetTemplateByIdQuery(Guid Id);` |
+| **Output DTOs** | Application | `record *ResultDto` | `record TemplateResultDto(Guid Id);` |
+| **HTTP Requests** | Presentation | `record *Request` | `record CreateTemplateRequest(string Name);` |
+| **Controllers** | Presentation | `*Controller` | `TemplateController` |
+| **Test Classes** | Tests | `*Tests` | `CreateTemplateUseCaseTests` |
+| **Zod Schemas** | Frontend | `camelCase` + `Schema` | `createTemplateSchema` |
+| **React Components** | Frontend | `PascalCase.tsx` | `TemplateCard.tsx` |
+| **Custom Hooks** | Frontend | `use` + `PascalCase.ts` | `useTemplates.ts` |
+| **REST Route URLs** | Presentation | `kebab-case` plural | `/api/v1/projects/{id}` |
+| **Database Tables** | Persistence | `plural_snake_case` | `templates`, `generation_logs` |
+| **Database Columns** | Persistence | `snake_case` / `is_*` | `project_id`, `is_active` |
 
----
+### 4.1 Variable & Parameter Naming Dictionary (The Anti-Hallucination Matrix)
+LLMs and developers frequently use inconsistent variable names (e.g., swapping between `req`, `request`, `cmd`, and `command`). **You MUST strictly use the exact variable names listed below based on their context/type.**
 
-## 5. 🧼 Code Review & Pre-Commit Quality Gate
+| Context / Type | STRICT Variable Name | Forbidden / Banned Names | Reason |
+|---|---|---|---|
+| **CQRS Commands** (`*Command`) | `command` | `req`, `request`, `cmd`, `payload` | Separates Application Commands from HTTP Requests. |
+| **CQRS Queries** (`*Query`) | `query` | `req`, `request`, `qry` | Explicitly identifies read operations. |
+| **HTTP Requests** (`*Request`) | `request` | `req`, `body`, `payload` | Standardizes Controller API endpoints. |
+| **Domain Entities** (`Template`) | The class name (`template`, `user`) | `entity`, `model`, `data`, `obj` | Avoids generic terms. Use the actual domain name. |
+| **UseCase Results** (`*ResultDto`) | `result` | `res`, `response`, `dto` | Denotes the output of an Application layer operation. |
+| **CancellationToken** | `ct` | `cancellationToken`, `cancelToken` | Short, ubiquitous convention across modern .NET. |
+| **Current Time** (`DateTimeOffset`) | `now` | `date`, `dt`, `currentTime` | Short and contextually clear for auditing fields. |
+| **Primary Keys** (`Guid`) | `id` or `{Entity}Id` | `guid`, `uuid`, `key` | E.g., `id` (if context is obvious) or `projectId`. |
 
-Before submitting any code changes, verify:
-- [ ] **No Warnings:** Zero compiler warnings (`dotnet build` and `npx tsc --noEmit` pass with 0 errors).
-- [ ] **Deterministic Async:** All I/O operations have `await` and receive `CancellationToken`.
-- [ ] **No Leaked Entities:** Domain entities remain within Domain and Application; never exposed via Controller responses.
-- [ ] **Resource Disposal:** All OpenXml, ClosedXML, and MemoryStream instances are enclosed in `using` declarations.
-- [ ] **Clean Git Diff:** No debug logs (`Console.WriteLine`, `console.log`), unused usings, or commented-out scratch code.
+**Example of PERFECT Naming Enforcement:**
+```csharp
+// Controller Layer
+public async Task<ActionResult<ApiResponse<TemplateResultDto>>> Create([FromBody] CreateTemplateRequest request, CancellationToken ct)
+{
+    var command = new CreateTemplateCommand(request.Name); // Map request -> command
+    var result = await _useCase.ExecuteAsync(command, ct); // Execute command -> result
+    return Ok(new ApiResponse<TemplateResultDto>(result));
+}
+
+// Application Layer
+public async Task<TemplateResultDto> ExecuteAsync(CreateTemplateCommand command, CancellationToken ct = default)
+{
+    var now = _timeProvider.GetUtcNow(); // Get time as 'now'
+    var template = Template.Create(command.Name, now); // Create entity as 'template'
+    await _repo.AddAsync(template, ct);
+    return new TemplateResultDto(template.Id); // Return 'result' mapping
+}
+```
