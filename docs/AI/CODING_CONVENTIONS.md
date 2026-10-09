@@ -160,20 +160,22 @@ public async Task<TemplateResultDto> ExecuteAsync(CreateTemplateCommand command,
 {
     var now = timeProvider.GetUtcNow(); // Declared at line 1
     var templateName = TemplateName.Create(command.Name); // Declared at line 2
-    if (await templateRepo.SlugExistsAsync(command.Slug, ct)) throw new ConflictException("Slug exists");
+    var slug = TemplateSlug.Create(command.Slug);
+    if (await templateRepo.ExistsBySlugAsync(command.ProjectId, slug, ct)) throw new ConflictException("Slug exists");
     var existingProject = await projectRepo.GetByIdAsync(command.ProjectId, ct);
     if (existingProject is null) throw new NotFoundException("Project not found");
-    var template = Template.Create(command.ProjectId, templateName, now); // Used at line 6
+    var template = Template.Create(command.ProjectId, templateName, slug, command.Category, now); // Used at line 7
     await templateRepo.AddAsync(template, ct);
     await unitOfWork.CommitAsync(ct);
-    return new TemplateResultDto(template.Id, template.Name.Value);
+    return new TemplateResultDto(template.Id, template.Name.Value, template.CreatedAt);
 }
 
 // ✅ Good: Vertical Proximity and paragraph-style blank lines
 public async Task<TemplateResultDto> ExecuteAsync(CreateTemplateCommand command, CancellationToken ct)
 {
     // Step 1: Pre-condition checks
-    if (await templateRepo.SlugExistsAsync(command.Slug, ct))
+    var slug = TemplateSlug.Create(command.Slug);
+    if (await templateRepo.ExistsBySlugAsync(command.ProjectId, slug, ct))
     {
         throw new ConflictException("Slug already in use");
     }
@@ -187,13 +189,13 @@ public async Task<TemplateResultDto> ExecuteAsync(CreateTemplateCommand command,
     // Step 2: Domain creation (variables declared directly at point of use)
     var now = timeProvider.GetUtcNow();
     var templateName = TemplateName.Create(command.Name);
-    var template = Template.Create(command.ProjectId, templateName, now);
+    var template = Template.Create(command.ProjectId, templateName, slug, command.Category, now);
 
     // Step 3: Persistence
     await templateRepo.AddAsync(template, ct);
     await unitOfWork.CommitAsync(ct);
 
-    return new TemplateResultDto(template.Id, template.Name.Value);
+    return new TemplateResultDto(template.Id, template.Name.Value, template.CreatedAt);
 }
 ```
 
@@ -403,7 +405,8 @@ public sealed class CreateTemplateUseCase(
     {
         // Use injected parameters directly
         var now = timeProvider.GetUtcNow();
-        var template = Template.Create(command.ProjectId, TemplateName.Create(command.Name), now);
+        var slug = TemplateSlug.Create(command.Slug);
+        var template = Template.Create(command.ProjectId, TemplateName.Create(command.Name), slug, command.Category, now);
 
         await templateRepo.AddAsync(template, ct);
         await unitOfWork.CommitAsync(ct);
@@ -429,11 +432,11 @@ Understanding when to use `record` versus `class` is critical to preventing subt
 
 ```csharp
 // ✅ Positional records guarantee conciseness and immutability for contracts
-public sealed record CreateTemplateCommand(Guid ProjectId, string Name, string Slug);
+public sealed record CreateTemplateCommand(Guid ProjectId, string Name, string Slug, string? Category);
 public sealed record TemplateResultDto(Guid Id, string Name, DateTimeOffset CreatedAt);
 
-// ✅ Domain Value Object as a record
-public sealed record TemplateSlug(string Value);
+// ✅ Domain Value Object as a self-validating record
+public sealed partial record TemplateSlug(string Value);
 ```
 
 ---
@@ -488,7 +491,7 @@ Harness the full power of C# 13 to eliminate verbose legacy syntax.
 #### 1. Domain Layer (`SmkDoc.Domain`)
 *   **Persistence Ignorance:** Zero references to EF Core, Npgsql, or external packages. Pure POCOs.
 *   **Encapsulation:** Constructors are `internal` or `private`. Expose exactly one canonical factory method (e.g., `Create`) as the SSoT for entity instantiation.
-*   *Full Architecture Archetype:* 👉 **See Pattern 1 in `docs/AI/PATTERNS.md`**.
+*   *Full Architecture Archetype:* 👉 **See Archetype 4 (Pure Rich Domain Entity & Value Object Pattern) in `docs/AI/PATTERNS.md`**.
 
 #### 2. Application Layer (`SmkDoc.Application`)
 *   **Orchestration Only:** UseCases implement `IUseCase<TCommand, TResult>`.
@@ -496,17 +499,18 @@ Harness the full power of C# 13 to eliminate verbose legacy syntax.
     - Input structure/format validation belongs to `FluentValidation` (runs before UseCase).
     - Business rule/state invariant validation belongs inside the Domain Entity.
     - NEVER validate the same rule twice across both layers.
-*   *Full Architecture Archetype:* 👉 **See Pattern 2 in `docs/AI/PATTERNS.md`**.
+*   *Full Architecture Archetype:* 👉 **See Archetype 6 (Action-Centric CQRS UseCase Pattern) and Archetype 7 (Dual-Engine Validation Pipeline) in `docs/AI/PATTERNS.md`**.
 
 #### 3. Infrastructure Layer (`SmkDoc.Infrastructure`)
 *   **Dependency Inversion:** Implement interfaces defined by Application or Domain.
 *   **Fluent API Configuration:** Map EF Core entities exclusively using `IEntityTypeConfiguration<T>`. Never annotate Domain Entities with EF attributes (`[Table]`, `[Key]`).
-*   *Full Architecture Archetype:* 👉 **See Pattern 4 in `docs/AI/PATTERNS.md`**.
+*   *Full Architecture Archetype:* 👉 **See Archetype 5 (Atomic Unit of Work), Archetype 8 (Zero-LOH Stream-over-RAM), and Archetype 9 (Render Strategy Engine) in `docs/AI/PATTERNS.md`**.
 
 #### 4. Presentation Layer (`SmkDoc.Api`)
 *   **Thin Controllers:** Receive HTTP requests, map directly to Application Commands/Queries, and return standard `ApiResponse<T>`. No business logic.
 *   **RFC 9457 ProblemDetails:** All HTTP error responses MUST conform to RFC 9457 via `IExceptionHandler` (`GlobalExceptionHandler`). Anonymous error objects (`new { error = ... }`) are STRICTLY BANNED.
-*   *Full Architecture Archetype:* 👉 **See Pattern 3 in `docs/AI/PATTERNS.md`**.
+*   **Idempotency & Mutation Safety:** State-mutating endpoints (`POST`, `PUT`, `DELETE`) MUST support the `Idempotency-Key` header.
+*   *Full Architecture Archetype:* 👉 **See Archetype 1 (Thin Controller), Archetype 2 (RFC 9457 Global Exception Pipeline), and Archetype 3 (IETF Idempotency-Key Pipeline) in `docs/AI/PATTERNS.md`**.
 
 ---
 
@@ -525,10 +529,10 @@ public async Task ExecuteAsync_WhenValidCommand_ShouldPersistAndReturnResultDto(
 {
     // Arrange
     var projectId = Guid.NewGuid();
-    var command = new CreateTemplateCommand(projectId, "Tax Invoice", "tax-invoice");
+    var command = new CreateTemplateCommand(projectId, "Tax Invoice", "tax-invoice", "Finance");
     
     fixture.TemplateRepo
-        .Setup(repo => repo.SlugExistsAsync("tax-invoice", It.IsAny<CancellationToken>()))
+        .Setup(repo => repo.ExistsBySlugAsync(projectId, It.IsAny<TemplateSlug>(), It.IsAny<CancellationToken>()))
         .ReturnsAsync(false);
 
     var sut = CreateSut();
@@ -717,10 +721,11 @@ public sealed class TemplateController(
     [HttpPost]
     public async Task<ActionResult<ApiResponse<TemplateResultDto>>> Create(
         [FromBody] CreateTemplateRequest request, 
+        [FromHeader(Name = "Idempotency-Key")] string? idempotencyKey,
         CancellationToken ct)
     {
         // Parameter is 'request' -> Mapped to 'command'
-        var command = new CreateTemplateCommand(request.ProjectId, request.Name, request.Slug);
+        var command = new CreateTemplateCommand(request.ProjectId, request.Name, request.Slug, request.Category);
         
         // Output from UseCase is 'result'
         var result = await createTemplateUseCase.ExecuteAsync(command, ct);
@@ -742,10 +747,11 @@ public sealed class CreateTemplateUseCase(
 {
     public async Task<TemplateResultDto> ExecuteAsync(CreateTemplateCommand command, CancellationToken ct)
     {
-        // 1. Guard check using canonical verb 'ExistsAsync'
-        if (await templateRepo.SlugExistsAsync(command.Slug, ct))
+        // 1. Guard check using canonical verb 'ExistsBySlugAsync' with strongly-typed Value Object
+        var slug = TemplateSlug.Create(command.Slug);
+        if (await templateRepo.ExistsBySlugAsync(command.ProjectId, slug, ct))
         {
-            throw new ConflictException($"Template with slug '{command.Slug}' already exists");
+            throw new ConflictException($"Template with slug '{command.Slug}' already exists in this project");
         }
 
         // 2. Obtain time as 'now'
@@ -755,7 +761,8 @@ public sealed class CreateTemplateUseCase(
         var template = Template.Create(
             command.ProjectId, 
             TemplateName.Create(command.Name), 
-            TemplateSlug.Create(command.Slug), 
+            slug, 
+            command.Category,
             now);
 
         // 4. Persistence using canonical verbs 'AddAsync' and 'CommitAsync'

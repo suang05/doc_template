@@ -13,47 +13,49 @@ CRITICAL ARCHITECTURAL ROUTING:
 ---
 
 ## 📑 Table of Contents
-1. **[Quick-Lookup: The Canonical Golden Archetypes](#1-⚡-quick-lookup-the-canonical-golden-archetypes)**
+1. **[Quick-Lookup: The 12 Canonical Golden Archetypes](#1-⚡-quick-lookup-the-12-canonical-golden-archetypes)**
 2. **[Part 1: Backend Lifecycle Archetypes (C# 13 / .NET 10)](#2-🔵-part-1-backend-lifecycle-archetypes-c-13--net-10)**
-   - **Phase 1: Transport Boundary (HTTP Ingress & Error Egress)**
+   - **Phase 1: Transport Boundary (HTTP Ingress, Idempotency & Error Egress)**
      - Archetype 1: Thin Controller & API Envelope Pattern
      - Archetype 2: RFC 9457 Global Exception Pipeline (`IExceptionHandler` SSoT)
+     - Archetype 3: IETF Idempotency-Key Pipeline Pattern (Safe Mutations)
    - **Phase 2: Domain Boundary (Core Business Invariants & Persistence)**
-     - Archetype 3: Pure Rich Domain Entity & Value Object Pattern
-     - Archetype 4: Atomic Unit of Work & Transaction Boundary
+     - Archetype 4: Pure Rich Domain Entity & Value Object Pattern
+     - Archetype 5: Atomic Unit of Work & Transaction Boundary
      - Specialized Utilities: High-Performance Smart Enums & UUIDv7 Entity Model
    - **Phase 3: Application & Payload Boundary (CQRS Orchestration)**
-     - Archetype 5: Action-Centric CQRS UseCase Pattern
-     - Archetype 6: Dual-Engine Validation Pipeline (Static Command + Dynamic Schema)
+     - Archetype 6: Action-Centric CQRS UseCase Pattern
+     - Archetype 7: Dual-Engine Validation Pipeline (Static Command + Dynamic Schema)
      - Centralized Localization: `ThaiDataTransformer` SSoT
    - **Phase 4: Binary & Stream Boundary (High-Throughput Rendering)**
-     - Archetype 7: Zero-LOH Stream-over-RAM Direct Pipeline
-     - Archetype 8: Polymorphic Render Strategy Engine
+     - Archetype 8: Zero-LOH Stream-over-RAM Direct Pipeline
+     - Archetype 9: Polymorphic Render Strategy Engine
      - High-Throughput Caching: Compiled Handlebars AST Cache
      - Resilience & Observability: Polly v8 Pipeline & Native .NET 10 OpenTelemetry APM
 3. **[Part 2: Frontend Lifecycle Archetypes (Next.js 15.2 / React 19)](#3-🟡-part-2-frontend-lifecycle-archetypes-nextjs-152--react-19)**
-   - Archetype 9: Server-First RSC Data Fetching & Leaf Client Component
-   - Archetype 10: Race-Condition-Free Live Preview (`AbortController` + Telemetry)
-   - Archetype 11: Type-Safe RFC 9457 Client Diagnostic Adapter
+   - Archetype 10: Server-First RSC Data Fetching & Leaf Client Component
+   - Archetype 11: Race-Condition-Free Live Preview (`AbortController` + Telemetry)
+   - Archetype 12: Type-Safe RFC 9457 Client Diagnostic Adapter
 4. **[Part 3: Cross-Document Integration](#4-🏛️-part-3-cross-document-integration)**
 
 ---
 
-## 1. ⚡ Quick-Lookup: The Canonical Golden Archetypes
+## 1. ⚡ Quick-Lookup: The 12 Canonical Golden Archetypes
 
 | Archetype | Lifecycle Phase | Architectural Location | Key Invariant / Standard |
 |---|---|---|---|
 | **Archetype 1: Thin Controller** | Phase 1 (Transport) | `SmkDoc.Api/Controllers/` | Receive request, delegate to UseCase, wrap in `ApiResponse<T>`, $\le 5$ lines |
 | **Archetype 2: RFC 9457 Exception Handler** | Phase 1 (Transport) | `SmkDoc.Api/ExceptionHandlers/` | `IExceptionHandler` SSoT, maps Domain Exceptions to RFC 9457 ProblemDetails |
-| **Archetype 3: Rich Domain Entity** | Phase 2 (Domain) | `SmkDoc.Domain/Entities/` | Pure POCO, `private set`, SSoT factory `Create()`, business verbs, UUIDv7 |
-| **Archetype 4: Atomic Unit of Work** | Phase 2 (Domain) | `SmkDoc.Domain/Interfaces/` | `IUnitOfWork.CommitAsync(ct)` guarantees atomic multi-aggregate commits |
-| **Archetype 5: Action-Centric UseCase** | Phase 3 (Payload) | `SmkDoc.Application/Modules/` | `sealed class`, C# 13 Primary Ctor, `IUseCase<TCommand, TResult>`, DTOs only |
-| **Archetype 6: Dual-Engine Validation** | Phase 3 (Payload) | Application & Presentation | Static FluentValidation Filter + Cached dynamic `JsonSchema.Net` |
-| **Archetype 7: Zero-LOH Stream-over-RAM** | Phase 4 (Binary) | Engines, Storage, Controllers | 100% Streaming from Gotenberg to MinIO/HTTP; zero multi-MB `byte[]` in RAM |
-| **Archetype 8: Render Strategy Engine** | Phase 4 (Binary) | `SmkDoc.Infrastructure/Engines/` | `IEnumerable<IRenderEngine>` dispatch via Smart Enum; zero `switch`/`if-else` |
-| **Archetype 9: Server-First RSC Data Flow**| Frontend | `frontend-v2/src/app/` | RSC async page fetcher, `notFound()` guard, leaf interactive client component |
-| **Archetype 10: Live Preview Telemetry** | Frontend | `frontend-v2/src/hooks/` | In-flight `AbortController.abort()`, silent catch, round-trip latency metric badge |
-| **Archetype 11: RFC 9457 Diagnostic Adapter**| Frontend | `frontend-v2/src/lib/api/` | Strongly-typed `ApiError` parser, error badge, field diagnostic drawer |
+| **Archetype 3: IETF Idempotency Pipeline** | Phase 1 (Transport) | `SmkDoc.Api/Filters/` | Intercepts `Idempotency-Key`, caches 24h, prevents mutation re-execution & 409 conflict |
+| **Archetype 4: Rich Domain Entity** | Phase 2 (Domain) | `SmkDoc.Domain/Entities/` | Pure POCO, `private set`, SSoT factory `Create()`, business verbs, UUIDv7 |
+| **Archetype 5: Atomic Unit of Work** | Phase 2 (Domain) | `SmkDoc.Domain/Interfaces/` | `IUnitOfWork.CommitAsync(ct)` guarantees atomic multi-aggregate commits |
+| **Archetype 6: Action-Centric UseCase** | Phase 3 (Payload) | `SmkDoc.Application/Modules/` | `sealed class`, C# 13 Primary Ctor, `IUseCase<TCommand, TResult>`, DTOs only |
+| **Archetype 7: Dual-Engine Validation** | Phase 3 (Payload) | Application & Presentation | Static FluentValidation Filter + Cached dynamic `JsonSchema.Net` Draft-07 |
+| **Archetype 8: Zero-LOH Stream-over-RAM** | Phase 4 (Binary) | Engines, Storage, Controllers | 100% Streaming from Gotenberg to MinIO/HTTP; zero multi-MB `byte[]` in RAM |
+| **Archetype 9: Render Strategy Engine** | Phase 4 (Binary) | `SmkDoc.Infrastructure/Engines/` | `IEnumerable<IRenderEngine>` dispatch via Smart Enum; zero `switch`/`if-else` |
+| **Archetype 10: Server-First RSC Data Flow**| Frontend | `frontend-v2/src/app/` | RSC async page fetcher, `notFound()` guard, leaf interactive client component |
+| **Archetype 11: Live Preview Telemetry** | Frontend | `frontend-v2/src/hooks/` | In-flight `AbortController.abort()`, silent catch, round-trip latency metric badge |
+| **Archetype 12: RFC 9457 Diagnostic Adapter**| Frontend | `frontend-v2/src/lib/api/` | Strongly-typed `ApiError` parser, error badge, field diagnostic drawer |
 
 ---
 
@@ -63,35 +65,36 @@ CRITICAL ARCHITECTURAL ROUTING:
 graph LR
     subgraph Phase1["Phase 1: Transport Data"]
         direction TB
-        Client["HTTP Client / Browser"] -->|"JSON / HTTP Request"| Ctrl["Archetype 1: Thin Controller"]
+        Client["HTTP Client / Browser"] -->|"POST with Idempotency-Key"| Idemp["Archetype 3: IdempotencyFilter"]
+        Idemp -->|"Unique Mutation"| Ctrl["Archetype 1: Thin Controller"]
         Ctrl -.->|"Throws DomainException"| ExHandler["Archetype 2: GlobalExceptionHandler"]
         ExHandler -->|"RFC 9457 ProblemDetails"| Client
     end
 
     subgraph Phase3["Phase 3: Payload & Orchestration"]
         direction TB
-        Ctrl -->|"Command / Query"| UseCase["Archetype 5: CQRS UseCase"]
-        UseCase -->|"Command Validator"| DualVal["Archetype 6: Dual Validation"]
+        Ctrl -->|"Command / Query"| UseCase["Archetype 6: CQRS UseCase"]
+        UseCase -->|"Command Validator"| DualVal["Archetype 7: Dual Validation"]
         UseCase -->|"Transform"| Thai["ThaiDataTransformer"]
     end
 
     subgraph Phase2["Phase 2: Domain Invariants"]
         direction TB
-        UseCase -->|"Factory Create / Mutate"| Entity["Archetype 3: Rich Domain Entity"]
-        UseCase -->|"Commit Transaction"| UoW["Archetype 4: Unit of Work"]
+        UseCase -->|"Factory Create / Mutate"| Entity["Archetype 4: Rich Domain Entity"]
+        UseCase -->|"Commit Transaction"| UoW["Archetype 5: Unit of Work"]
     end
 
     subgraph Phase4["Phase 4: Binary & Stream Data"]
         direction TB
-        UseCase -->|"Stream Pipe"| Engine["Archetype 8: Render Strategy"]
-        Engine -->|"Zero-LOH Stream"| StreamPipe["Archetype 7: Stream-over-RAM"]
+        UseCase -->|"Stream Pipe"| Engine["Archetype 9: Render Strategy"]
+        Engine -->|"Zero-LOH Stream"| StreamPipe["Archetype 8: Stream-over-RAM"]
         StreamPipe -->|"Upload / Delivery"| Storage["MinIO / HTTP Response"]
     end
 ```
 
 ---
 
-### Phase 1: Transport Boundary (HTTP Ingress & Error Egress)
+### Phase 1: Transport Boundary (HTTP Ingress, Idempotency & Error Egress)
 
 #### Archetype 1: Thin Controller & API Envelope Pattern
 
@@ -111,7 +114,7 @@ namespace SmkDoc.Api.Controllers;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.Modules.Authoring.Commands.CreateTemplate;
+using SmkDoc.Application.Modules.Authoring.Templates.Commands.CreateTemplate;
 using SmkDoc.Application.Modules.Authoring.DTOs;
 using SmkDoc.Application.Modules.Authoring.Queries.GetTemplateById;
 using SmkDoc.Api.Contracts.Common;
@@ -138,13 +141,14 @@ public sealed class TemplateController(
         return Ok(new ApiResponse<TemplateResultDto>(result));
     }
 
-    // 2. POST Creation: Explicit 201 Created with CreatedAtAction
+    // 2. POST Creation: Explicit 201 Created with CreatedAtAction and Idempotency Support
     [HttpPost]
     [ProducesResponseType(typeof(ApiResponse<TemplateResultDto>), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<ActionResult<ApiResponse<TemplateResultDto>>> Create(
         [FromBody] CreateTemplateRequest request, 
+        [FromHeader(Name = "Idempotency-Key")] string? idempotencyKey,
         CancellationToken ct)
     {
         var command = new CreateTemplateCommand(request.ProjectId, request.Name, request.Slug, request.Category);
@@ -154,25 +158,6 @@ public sealed class TemplateController(
             nameof(GetById), 
             new { templateId = result.Id }, 
             new ApiResponse<TemplateResultDto>(result));
-    }
-}
-
-// 3. Binary Stream Delivery Example (DocumentController.cs): Raw file stream bypasses envelope
-[ApiController]
-[Route("api/v1/documents")]
-public sealed class DocumentController(
-    IUseCase<RenderDocumentCommand, DocumentStreamResult> renderDocumentUseCase) : ControllerBase
-{
-    [HttpPost("render")]
-    [Produces("application/pdf")]
-    [ProducesResponseType(typeof(FileStreamResult), StatusCodes.Status200OK)]
-    public async Task<IActionResult> Render([FromBody] RenderDocumentRequest request, CancellationToken ct)
-    {
-        var command = new RenderDocumentCommand(request.TemplateId, request.PayloadJson);
-        var result = await renderDocumentUseCase.ExecuteAsync(command, ct);
-
-        Response.Headers.ContentDisposition = "inline; filename=\"document.pdf\"";
-        return File(result.Stream, "application/pdf");
     }
 }
 ```
@@ -188,24 +173,6 @@ public sealed class DocumentController(
 #### Archetype 2: RFC 9457 Global Exception Pipeline (`IExceptionHandler` SSoT)
 
 *   **Intent & Scope:** Intercepts all unhandled exceptions across the entire ASP.NET Core HTTP pipeline (including Middlewares, Routing, Filters, and UseCases) and maps them into strongly-typed RFC 9457 `ProblemDetails` responses. This guarantees that API consumers never receive raw 500 stack traces or non-standard error envelopes.
-*   **Data Flow:**
-    ```text
-    Middleware / UseCase / Domain
-            │ (Throws DomainException / NotFoundException / ConflictException)
-            ▼
-    [ app.UseExceptionHandler() ]
-            │ (Catches unhandled exception in HTTP pipeline)
-            ▼
-    [ GlobalExceptionHandler : IExceptionHandler ]
-            │ 1. Resolves (Status, Title, ErrorCode) via Pattern Matching
-            │ 2. Emits Semantic Structured Log (logger.LogWarning / logger.LogError)
-            │ 3. Assembles RFC 9457 ProblemDetails with extensions["errorCode"]
-            ▼
-    [ IProblemDetailsService.TryWriteAsync(...) ]
-            │
-            ▼
-    Client receives HTTP 4xx/5xx conforming to RFC 9457 (application/problem+json)
-    ```
 
 ```csharp
 // =========================================================================
@@ -303,14 +270,129 @@ public sealed class GlobalExceptionHandler(
 
 *   **Architectural Invariants & Hard Rules:**
     1. **Zero `try-catch` in Controllers:** NEVER wrap Controller actions in `try-catch` blocks. Throw strongly-typed Domain Exceptions from UseCases and let `GlobalExceptionHandler` handle mapping.
-    2. **Single Source of Truth:** `GlobalExceptionHandler` is the SOLE authority for HTTP error response generation. Never build ad-hoc error responses in custom middlewares or filters.
-    3. **RFC 9457 Strict Compliance:** All error bodies MUST be formatted as RFC 9457 `ProblemDetails` (`application/problem+json`). Anonymous error objects (e.g., `return BadRequest(new { error = "invalid" })`) are STRICTLY BANNED.
+    2. **RFC 9457 Strict Compliance:** All error bodies MUST be formatted as RFC 9457 `ProblemDetails` (`application/problem+json`). Anonymous error objects (e.g., `return BadRequest(new { error = "invalid" })`) are STRICTLY BANNED.
+
+---
+
+#### Archetype 3: IETF Idempotency-Key Pipeline Pattern (Safe Mutations)
+
+*   **Intent & Scope:** Implements the IETF Draft specification for the `Idempotency-Key` header on state-mutating endpoints (`POST`, `PUT`, `DELETE`). Guarantees that if a client retries a network request due to timeout or disconnect, the operation is executed exactly once on the server, returning the identical cached HTTP response with zero duplicate database mutations.
+*   **Data Flow:**
+    ```text
+    Client ──(POST with Idempotency-Key)──► [ IdempotencyFilter : IAsyncActionFilter ]
+                                                          │
+                                         ┌────────────────┴────────────────┐
+                                         ▼                                 ▼
+                             Cache: Completed?                   Cache: In-Flight?
+                                         │                                 │
+                         Yes ────────────┴──────────── No                  ▼
+                          │                            │             Return 409 Conflict
+                          ▼                            ▼
+                 Return Cached Response       Mark In-Flight (TTL 24h)
+                 (201 Created + Payload)               │
+                                                       ▼
+                                            Execute UseCase & Pipeline
+                                                       │
+                                                       ▼
+                                            Save Response in Cache (24h)
+                                                       │
+                                                       ▼
+                                            Return Fresh Response (201)
+    ```
+
+```csharp
+// =========================================================================
+// THE CANONICAL GOLDEN IMPLEMENTATION: Archetype 3
+// =========================================================================
+namespace SmkDoc.Api.Filters;
+
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Filters;
+using SmkDoc.Application.Common.Interfaces;
+
+[AttributeUsage(AttributeTargets.Method | AttributeTargets.Class)]
+public sealed class IdempotentAttribute : Attribute, IFilterFactory
+{
+    public bool IsReusable => true;
+    public IFilterMetadata CreateInstance(IServiceProvider serviceProvider) =>
+        serviceProvider.GetRequiredService<IdempotencyFilter>();
+}
+
+public sealed class IdempotencyFilter(
+    IIdempotencyStore idempotencyStore,
+    IExecutionContext executionContext) : IAsyncActionFilter
+{
+    private const string HeaderName = "Idempotency-Key";
+    private static readonly TimeSpan CacheTtl = TimeSpan.FromHours(24);
+
+    public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
+    {
+        // 1. Read header; if absent on optional endpoints, pass through
+        if (!context.HttpContext.Request.Headers.TryGetValue(HeaderName, out var rawKey) || string.IsNullOrWhiteSpace(rawKey))
+        {
+            await next();
+            return;
+        }
+
+        var idempotencyKey = rawKey.ToString().Trim();
+        var callerId = executionContext.CallerApp ?? "anonymous";
+        var cacheKey = $"idempotency:{callerId}:{idempotencyKey}";
+
+        // 2. Inspect Cache State
+        var entry = await idempotencyStore.GetAsync(cacheKey, context.HttpContext.RequestAborted);
+        if (entry is not null)
+        {
+            if (entry.IsInFlight)
+            {
+                // Another request with the same key is currently running
+                context.Result = new ConflictObjectResult(new ProblemDetails
+                {
+                    Status = StatusCodes.Status409Conflict,
+                    Title = "Request Conflict",
+                    Detail = "A mutation request with this Idempotency-Key is currently being processed."
+                });
+                return;
+            }
+
+            // Return cached result immediately (Zero UseCase re-execution)
+            context.Result = new ObjectResult(entry.CachedPayload)
+            {
+                StatusCode = entry.StatusCode
+            };
+            return;
+        }
+
+        // 3. Mark Key as In-Flight
+        await idempotencyStore.MarkInFlightAsync(cacheKey, CacheTtl, context.HttpContext.RequestAborted);
+
+        // 4. Execute the pipeline
+        var executedContext = await next();
+
+        // 5. Cache the completed successful response
+        if (executedContext.Result is ObjectResult objectResult && objectResult.StatusCode is >= 200 and < 300)
+        {
+            await idempotencyStore.SaveCompletedAsync(
+                cacheKey, 
+                objectResult.StatusCode.Value, 
+                objectResult.Value, 
+                CacheTtl, 
+                context.HttpContext.RequestAborted);
+        }
+    }
+}
+```
+
+*   **Architectural Invariants & Hard Rules:**
+    1. **Mandatory 24-Hour TTL:** Idempotency records MUST be cached for a minimum of 24 hours.
+    2. **Tenant & Caller Scoping:** Idempotency cache keys MUST always incorporate the authenticated client/app identity (`callerAppId:key`) to eliminate cross-tenant key hijacking.
+    3. **Zero Read-Only Interference:** NEVER apply `[Idempotent]` to idempotent HTTP verbs (`GET`, `HEAD`, `OPTIONS`).
 
 ---
 
 ### Phase 2: Domain Boundary (Core Business Invariants & Persistence)
 
-#### Archetype 3: Pure Rich Domain Entity & Value Object Pattern
+#### Archetype 4: Pure Rich Domain Entity & Value Object Pattern
 
 *   **Intent & Scope:** Houses the core business rules and enterprise data invariants. Domain Entities are Plain Old CLR Objects (POCOs) completely isolated from frameworks, databases, and serialization concerns.
 *   **Formula:** `public sealed class [Entity] : BaseEntity` with canonical factory `public static [Entity] Create(...)`, `internal` constructor for test fixtures, and domain mutation verbs.
@@ -321,7 +403,7 @@ public sealed class GlobalExceptionHandler(
 
 ```csharp
 // =========================================================================
-// THE CANONICAL GOLDEN IMPLEMENTATION: Archetype 3
+// THE CANONICAL GOLDEN IMPLEMENTATION: Archetype 4
 // =========================================================================
 namespace SmkDoc.Domain.Entities;
 
@@ -434,16 +516,29 @@ public sealed partial record TemplateSlug
 
 ---
 
-#### Archetype 4: Atomic Unit of Work & Transaction Boundary
+#### Archetype 5: Atomic Unit of Work & Transaction Boundary
 
 *   **Intent & Scope:** Coordinates operations across multiple domain repositories to ensure that state mutations are committed atomically within a single PostgreSQL database transaction.
 *   **Formula:** Repositories mutate in-memory state; `IUnitOfWork.CommitAsync(ct)` finalizes the database transaction.
 
 ```csharp
 // =========================================================================
-// THE CANONICAL GOLDEN IMPLEMENTATION: Archetype 4
+// THE CANONICAL GOLDEN IMPLEMENTATION: Archetype 5
 // =========================================================================
 namespace SmkDoc.Domain.Interfaces;
+
+using SmkDoc.Domain.Entities;
+using SmkDoc.Domain.ValueObjects;
+
+public interface ITemplateRepository
+{
+    Task<Template?> GetByIdAsync(Guid id, CancellationToken ct = default);
+    Task<Template?> GetBySlugAsync(Guid projectId, TemplateSlug slug, CancellationToken ct = default);
+    Task<bool> ExistsBySlugAsync(Guid projectId, TemplateSlug slug, CancellationToken ct = default);
+    Task<IReadOnlyList<Template>> ListByProjectAsync(Guid projectId, CancellationToken ct = default);
+    Task AddAsync(Template template, CancellationToken ct = default);
+    void Remove(Template template);
+}
 
 public interface IUnitOfWork
 {
@@ -454,7 +549,8 @@ public interface IUnitOfWork
 public async Task<TemplateResultDto> ExecuteAsync(CreateTemplateWithVersionCommand command, CancellationToken ct)
 {
     var now = timeProvider.GetUtcNow();
-    var template = Template.Create(command.ProjectId, TemplateName.Create(command.Name), TemplateSlug.Create(command.Slug), null, now);
+    var slug = TemplateSlug.Create(command.Slug);
+    var template = Template.Create(command.ProjectId, TemplateName.Create(command.Name), slug, command.Category, now);
     var version = TemplateVersion.Create(template.Id, 1, command.HtmlContent, now);
 
     // Enqueue mutations across distinct repositories
@@ -470,13 +566,13 @@ public async Task<TemplateResultDto> ExecuteAsync(CreateTemplateWithVersionComma
 
 *   **Architectural Invariants & Hard Rules:**
     1. **Atomic Boundaries:** Repositories MUST NOT call `SaveChangesAsync()` internally. Persistence is strictly finalized via `IUnitOfWork.CommitAsync(ct)`.
-    2. **Tenant Scoping:** Repository methods MUST require tenant/project keys for data partition isolation (e.g., `GetBySlugAsync(Guid projectId, TemplateSlug slug, CancellationToken ct)`).
+    2. **Pure DDD Repository Method Signatures:** Always use strongly-typed Value Objects (`TemplateSlug`) rather than primitive strings, and require tenant/project identifiers first (e.g., `ExistsBySlugAsync(Guid projectId, TemplateSlug slug, CancellationToken ct)`).
 
 ---
 
 ### Phase 3: Application & Payload Boundary (CQRS Orchestration)
 
-#### Archetype 5: Action-Centric CQRS UseCase Pattern
+#### Archetype 6: Action-Centric CQRS UseCase Pattern
 
 *   **Intent & Scope:** Orchestrates business operations by loading aggregates via repositories, executing domain mutations, saving changes via the Unit of Work, and returning strictly mapped Application DTOs.
 *   **Formula:** `public sealed class [Action][Entity]UseCase(...) : IUseCase<[Action][Entity]Command, [Context]ResultDto>`.
@@ -487,9 +583,9 @@ public async Task<TemplateResultDto> ExecuteAsync(CreateTemplateWithVersionComma
 
 ```csharp
 // =========================================================================
-// THE CANONICAL GOLDEN IMPLEMENTATION: Archetype 5
+// THE CANONICAL GOLDEN IMPLEMENTATION: Archetype 6
 // =========================================================================
-namespace SmkDoc.Application.Modules.Authoring.Commands.CreateTemplate;
+namespace SmkDoc.Application.Modules.Authoring.Templates.Commands.CreateTemplate;
 
 using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
@@ -541,31 +637,15 @@ public sealed class CreateTemplateUseCase(
 
 ---
 
-#### Archetype 6: Dual-Engine Validation Pipeline (Static Command + Dynamic Schema)
+#### Archetype 7: Dual-Engine Validation Pipeline (Static Command + Dynamic Schema)
 
 *   **Intent & Scope:** Implements a two-tier fail-fast validation architecture:
     1. **Tier 1 (Static Input Format):** Validates incoming C# Commands at the HTTP edge using `FluentValidation` before reaching the UseCase.
     2. **Tier 2 (Dynamic Document Payload):** Validates arbitrary JSON data payloads against the template's JSON Schema (Draft-07) using cached `JsonSchema.Net` in Application/Infrastructure.
-*   **Data Flow:**
-    ```text
-    HTTP Request 
-         │
-         ▼
-    [ ValidateCommandFilter ] ──(FluentValidation)──► Fails? ──► Throws ValidationException (HTTP 400)
-         │ (Passes)
-         ▼
-    [ UseCase.ExecuteAsync ]
-         │
-         ▼
-    [ IJsonSchemaValidationService ] ──(Draft-07)──► Fails? ──► Throws SchemaValidationException (HTTP 400)
-         │ (Passes)
-         ▼
-    [ Render Engine Pipeline ]
-    ```
 
 ```csharp
 // =========================================================================
-// THE CANONICAL GOLDEN IMPLEMENTATION: Archetype 6
+// THE CANONICAL GOLDEN IMPLEMENTATION: Archetype 7
 // =========================================================================
 
 // 1. Tier 1 Static Command Validator (Colocated with Command in Application)
@@ -612,7 +692,7 @@ public async Task<DocumentResultDto> ExecuteAsync(GenerateDocumentCommand comman
 
 ### Phase 4: Binary & Stream Boundary (High-Throughput Rendering)
 
-#### Archetype 7: Zero-LOH Stream-over-RAM Direct Pipeline
+#### Archetype 8: Zero-LOH Stream-over-RAM Direct Pipeline
 
 *   **Intent & Scope:** Ingests HTML or Office templates, renders them through Gotenberg (Chromium/LibreOffice), and streams output PDFs directly to MinIO or HTTP responses without buffering multi-megabyte `byte[]` arrays into RAM. Prevents Large Object Heap (LOH) fragmentation and Out-of-Memory (OOM) crashes under high concurrency.
 *   **Data Flow:**
@@ -633,7 +713,7 @@ public async Task<DocumentResultDto> ExecuteAsync(GenerateDocumentCommand comman
 
 ```csharp
 // =========================================================================
-// THE CANONICAL GOLDEN IMPLEMENTATION: Archetype 7
+// THE CANONICAL GOLDEN IMPLEMENTATION: Archetype 8
 // =========================================================================
 public sealed class GenerateDocumentUseCase(
     ITemplateRepository templateRepo,
@@ -679,14 +759,14 @@ public sealed class GenerateDocumentUseCase(
 
 ---
 
-#### Archetype 8: Polymorphic Render Strategy Engine
+#### Archetype 9: Polymorphic Render Strategy Engine
 
 *   **Intent & Scope:** Provides an extensible rendering pipeline (Open/Closed Principle) that dynamically selects the correct document renderer (HTML/Chromium, DOCX/OpenXml, XLSX/ClosedXML) at runtime without using hardcoded `switch` or `if/else` statements.
 *   **Formula:** Inject `IEnumerable<IRenderEngine>` into Application UseCases and resolve via `engines.FirstOrDefault(e => e.EngineType == requestedType)`.
 
 ```csharp
 // =========================================================================
-// THE CANONICAL GOLDEN IMPLEMENTATION: Archetype 8
+// THE CANONICAL GOLDEN IMPLEMENTATION: Archetype 9
 // =========================================================================
 namespace SmkDoc.Infrastructure.Engines;
 
@@ -723,13 +803,13 @@ public sealed class RenderDocumentUseCase(
 
 ---
 
-### Archetype 9: Server-First RSC Data Fetching & Leaf Client Component
+### Archetype 10: Server-First RSC Data Fetching & Leaf Client Component
 
 *   **Intent & Scope:** Enforces Next.js 15 App Router architecture. Pages execute securely on the server as React Server Components (RSC) to fetch initial data directly, stream HTML for maximum SEO and performance, and isolate interactive JavaScript to leaf components via `"use client"`.
 
 ```tsx
 // =========================================================================
-// THE CANONICAL GOLDEN IMPLEMENTATION: Archetype 9
+// THE CANONICAL GOLDEN IMPLEMENTATION: Archetype 10
 // File: src/app/templates/[templateId]/page.tsx (React Server Component)
 // =========================================================================
 import { notFound } from "next/navigation";
@@ -762,19 +842,15 @@ export default async function TemplatePage({ params }: TemplatePageProps) {
 }
 ```
 
-*   **Architectural Invariants & Hard Rules:**
-    1. **Server by Default:** `page.tsx` and `layout.tsx` MUST NEVER include `"use client"`.
-    2. **Zero `useEffect` Data Fetching:** NEVER use `useEffect` to fetch initial page data. Fetch data in the Server Component and pass it down as props.
-
 ---
 
-### Archetype 10: Race-Condition-Free Live Preview (`AbortController` + Telemetry)
+### Archetype 11: Race-Condition-Free Live Preview (`AbortController` + Telemetry)
 
 *   **Intent & Scope:** Ensures that rapid typing in the Monaco Editor or form fields does not spawn overlapping HTTP requests that resolve out of order. Automatically aborts stale in-flight requests and measures round-trip rendering latency.
 
 ```tsx
 // =========================================================================
-// THE CANONICAL GOLDEN IMPLEMENTATION: Archetype 10
+// THE CANONICAL GOLDEN IMPLEMENTATION: Archetype 11
 // File: src/hooks/useLivePreview.ts
 // =========================================================================
 "use client";
@@ -829,13 +905,13 @@ export function useLivePreview() {
 
 ---
 
-### Archetype 11: Type-Safe RFC 9457 Client Diagnostic Adapter
+### Archetype 12: Type-Safe RFC 9457 Client Diagnostic Adapter
 
 *   **Intent & Scope:** Intercepts HTTP error responses from the backend, detects RFC 9457 `application/problem+json` payloads, and unpacks them into strongly-typed `ApiError` instances for visual display in error banners and diagnostic field drawers.
 
 ```typescript
 // =========================================================================
-// THE CANONICAL GOLDEN IMPLEMENTATION: Archetype 11
+// THE CANONICAL GOLDEN IMPLEMENTATION: Archetype 12
 // File: src/lib/api/client.ts
 // =========================================================================
 export interface ProblemDetailsError {
@@ -896,9 +972,9 @@ To preserve the Single Source of Truth (SSoT) across the entire documentation su
 ┌──────────────────────────────────┐  ┌──────────────────────────────────┐
 │ docs/AI/CODING_CONVENTIONS.md    │  │ docs/AI/PATTERNS.md              │
 │ (The Craftsmanship & Style Bible)│  │ (The Architectural Cookbook)     │
-│  - The 9 Golden Craftsmanship    │  │  - The 11 Golden Archetypes      │
+│  - The 9 Golden Craftsmanship    │  │  - The 12 Golden Archetypes.     │
 │    Rules (Stepdown, Proximity).  │  │  - Data Flow Lifecycles.         │
-│  - Modern C# 13 / Next.js 15     │  │  - Zero-LOH Stream-over-RAM.     │
+│  - Modern C# 13 / Next.js 15     │  │  - Idempotency & Stream-over-RAM.│
 │    Language Idioms.              │  │  - Dual Validation Pipeline.     │
 │  - Naming Matrix & Variable Dict │  │  - End-to-End Code Blueprints.   │
 └──────────────────────────────────┘  └──────────────────────────────────┘

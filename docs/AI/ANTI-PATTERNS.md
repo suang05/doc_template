@@ -1,792 +1,1375 @@
-# ANTI-PATTERNS.md — Prohibited Patterns & Pitfalls
+# ANTI-PATTERNS.md — Prohibited Patterns & Pitfalls (The PR Review Shield)
 
-> **Purpose:** Explicit inventory of prohibited code patterns in `backend-v2/` and `frontend-v2/` with correct alternatives.  
-> **Related Docs:** [CODING_CONVENTIONS.md](CODING_CONVENTIONS.md) (Syntax & Standards), [PATTERNS.md](PATTERNS.md) (Canonical Patterns).
+> **Purpose:** This document is the definitive negative-constraint inventory of strictly prohibited code patterns, anti-patterns, and architectural regressions across the SMK Document Server (`backend-v2/` and `frontend-v2/`).
+> **[AI_DIRECTIVE]:** AI Assistants (LLMs) and human code reviewers MUST treat these rules as non-negotiable blocking constraints. If any code matches a prohibited pattern in this document, it MUST be immediately rejected during PR review and refactored to the corresponding golden standard.
 
 <ai_directive>
-CRITICAL ATTENTION ROUTING: 
-- If you are writing C# / .NET code, you MUST STRICTLY scope your attention to the `<backend_scope>` block.
-- If you are writing TypeScript / Next.js code, you MUST STRICTLY scope your attention to the `<frontend_scope>` block.
-Do not cross-contaminate architectures.
+CRITICAL ATTENTION ROUTING:
+- For Backend (C# 13 / .NET 10), STRICTLY enforce Categories 1 through 6 (`<backend_scope>`).
+- For Frontend (TypeScript 5.7 / Next.js 15.2), STRICTLY enforce Category 7 (`<frontend_scope>`).
+- For Golden Architectural Archetypes, refer directly to `docs/AI/PATTERNS.md`.
+- For Style, Formatting, and Craftsmanship Rules, refer to `docs/AI/CODING_CONVENTIONS.md`.
 </ai_directive>
 
-<backend_scope>
-### ⚡ Backend Quick-Lookup: Prohibited Patterns (Categorized by Domain)
+---
 
-#### 🏛️ 1. Clean Architecture & Layer Boundaries
-| Code | Prohibited Pattern | Correct Alternative |
-|---|---|---|
-| **AP-001** | `IRepository<T>` in Controller | Inject specific Single-Responsibility UseCase into Controller |
-| **AP-002** | Return Domain Entity from UseCase | Map to Application DTO record |
-| **AP-005** | Import `AppDbContext` in Application | Depend strictly on `IRepository<T>` and `IUnitOfWork` |
-| **AP-007** | `IFormFile` or `HttpContext` in UseCase | Pass pure C# primitives (`Stream`, `string`, `Guid`) |
-| **AP-014** | Modify legacy v1 directories | Edit exclusively in `backend-v2/` and `frontend-v2/` |
-| **AP-018** | Multi-Method Fat Use Case class | 1 Intent = 1 Class implementing `IUseCase<TRequest, TResponse>` |
-| **AP-020** | Generic `IRepository<T>` when Aggregate Repository exists | Use explicit domain repository (`IUserRepository`, `ITemplateRepository`) |
-| **AP-026** | Request inherits from Command / Shallow empty DTO subclasses | Decouple Presentation Request records; explicit mapping in Controller |
-| **AP-033** | Direct service injection in Controller | Inject single-responsibility UseCases only |
+## 📑 Master Quick-Lookup Index
 
-#### 💎 2. Domain-Driven Design & Aggregate Roots
-| Code | Prohibited Pattern | Correct Alternative |
-|---|---|---|
-| **AP-008** | Object initializers `{ get; set; }` for Entities | Parameterized constructor + business methods (Rich Domain Model) |
-| **AP-009** | String comparison for Smart Enums | Compare typed Smart Enum instances (e.g., `TemplateFormat.Html`) |
-| **AP-021** | Override identity `new X(...) { Id = ... }` | Let `BaseEntity` generate UUIDv7; pass Id via ctor/factory only if domain requires |
-| **AP-022** | Public mutable collections `ICollection<T>` on entities | `private readonly List<T>` + `IReadOnlyCollection<T>` + Aggregate Root methods |
-| **AP-023** | Weakening an invariant to make tests/UseCases pass | Fix the caller (UseCase/test builder); invariants are non-negotiable |
-| **AP-024** | `ArgumentException`/`InvalidOperationException` in Domain | `DomainValidationException` / `BusinessRuleViolationException` |
-| **AP-039** | Primitive overloads & optional timestamp fallback in Domain | Single Canonical Factory taking strongly-typed Value Objects + mandatory deterministic `DateTimeOffset now` |
-| **AP-040** | `CreateForTest` or test backdoors in `SmkDoc.Domain.dll` | Factory/Builder strictly in `SmkDoc.Tests/Common/Factories/` via `internal` constructor |
+### 🔵 Backend Prohibited Patterns (C# 13 / .NET 10)
 
-#### 🌐 3. Presentation, Routing & RFC 9457 API Standards
-| Code | Prohibited Pattern | Correct Alternative |
+| Code | Prohibited Anti-Pattern | Correct Golden Standard |
 |---|---|---|
-| **AP-003** | Anonymous objects in API Response | Wrap in `ApiResponse<T>` / `PagedApiResponse<T>` |
-| **AP-004** | `try-catch` blocks in Controllers / Legacy IExceptionFilter | Throw DomainException; let `IExceptionHandler` map to RFC 9457 |
-| **AP-015** | Throw `KeyNotFoundException` or generic `Exception` | Throw strongly-typed `NotFoundException`, `ConflictException`, etc. |
-| **AP-016** | Mutable classes or DataAnnotations in DTOs | 100% immutable positional `record` types |
-| **AP-017** | Inline DTOs inside UseCase files | Place DTOs in `SmkDoc.Application/Modules/{Module}/.../DTOs/` |
-| **AP-019** | Throwing System Exceptions in UseCase | Throw strongly-typed Domain Exceptions (`UnauthorizedException`, etc.) |
-| **AP-027** | Imperative Role check in Controller Action (`User.RequireAdmin()`) | Declarative `[Authorize(Roles = "Admin")]` on Controller/Action |
-| **AP-028** | Raw primitive scalar in Request Body (`[FromBody] bool isActive`) | Positional Record Request DTO (`[FromBody] SetUserStatusRequest request`) |
-| **AP-029** | `CreatedAtAction` pointing to collection endpoint (`ListProjects`) | Point to single-item `GetById` with entity route param, or return `StatusCode(201, ...)` |
-| **AP-030** | Unscoped Tenant Mutation (IDOR Vulnerability) | Always pass and validate tenant context (`projectId`) along with entity ID |
-| **AP-031** | Unversioned or duplicated routes | Strict canonical routes `api/v1/{resource}` |
-| **AP-032** | Incorrect HTTP status codes | 201 Created for creation, 204 NoContent for delete/empty mutation, 200 OK for reads |
-| **AP-034** | Dual routing attributes on Controller | Single canonical route prefix per controller |
-| **AP-035** | Ad-hoc error payloads in Controller | Throw domain exceptions; RFC 9457 via `IExceptionHandler` |
-| **AP-036** | Nested inline instantiation in `ExecuteAsync` | Declare explicit local variable (`var command = ...`) before calling `ExecuteAsync` |
-| **AP-037** | Inline fully-qualified namespaces | Clean top-level usings only (Zero inline namespaces) |
-| **AP-038** | Underscore prefix or generic names in Primary Ctor | Standardized `camelCase` 1:1 mirroring dependency class/interface |
-
-#### ⚡ 4. Infrastructure, Engines & Performance
-| Code | Prohibited Pattern | Correct Alternative |
-|---|---|---|
+| **AP-001** | `IRepository<T>` in Controller | Inject specific Single-Responsibility UseCase (`IUseCase<TCommand, TResult>`) |
+| **AP-002** | Return Domain Entity from UseCase | Map to Application DTO record (`*ResultDto`) |
+| **AP-003** | Anonymous objects in API Response | Wrap in strongly-typed `ApiResponse<T>` or `PagedApiResponse<T>` |
+| **AP-004** | `try-catch` in Controllers / Legacy `IExceptionFilter` | Throw DomainException; let `IExceptionHandler` map to RFC 9457 |
+| **AP-005** | Import `AppDbContext` in Application | Depend strictly on `IRepository` abstraction and `IUnitOfWork` |
 | **AP-006** | `switch` or `if/else` on `RenderEngineType` | Strategy Pattern via DI (`IEnumerable<IRenderEngine>`) |
+| **AP-007** | `IFormFile` or `HttpContext` in UseCase | Pass pure C# primitives/abstractions (`Stream`, `string`, `Guid`) |
+| **AP-008** | Object initializers `{ get; set; }` for Entities | Encapsulated constructor + business verbs (Rich Domain Model) |
+| **AP-009** | String comparison for Smart Enums | Compare typed Smart Enum instances (e.g., `TemplateFormat.Html`) |
 | **AP-010** | Hardcoded `{{}}` regex | `PlaceholderHelper.Pattern` (SSoT) |
 | **AP-011** | DrawingML Id = 0 | Use positive integer `(uint)counter + 1` |
 | **AP-012** | String-replace on MinIO Presigned URLs | Set `PublicEndpoint` in `MinioSettings` |
 | **AP-013** | Auto-execute Docker commands | Print command snippet for user to execute |
-| **AP-025** | Repository returning `IQueryable`, DTO, or mutable `List<T>`; unscoped tenant queries | Return Entity / `IReadOnlyList<T>`; require `projectId` on tenant-owned lookups |
-
-#### 🧪 5. Testing Architecture & Golden Archetypes
-| Code | Prohibited Pattern | Correct Alternative |
-|---|---|---|
+| **AP-014** | Modify legacy v1 directories | Edit exclusively in `backend-v2/` and `frontend-v2/` |
+| **AP-015** | Throw generic `Exception` or `KeyNotFoundException` | Throw strongly-typed `NotFoundException`, `ConflictException`, etc. |
+| **AP-016** | Mutable classes or DataAnnotations in DTOs | 100% immutable positional `record` types |
+| **AP-017** | Inline DTOs inside UseCase files | Place DTOs in dedicated `DTOs/` folders |
+| **AP-018** | Multi-Method Fat Use Case class | 1 Intent = 1 Class implementing `IUseCase<TCommand, TResult>` |
+| **AP-019** | Throwing System Exceptions in UseCase | Throw strongly-typed Domain Exceptions (`UnauthorizedException`, etc.) |
+| **AP-020** | Generic `IRepository<T>` when Aggregate Repository exists | Use explicit domain repository (`ITemplateRepository`, `IProjectRepository`) |
+| **AP-021** | Override identity `new X(...) { Id = ... }` | Let `BaseEntity` generate UUIDv7; pass Id via factory only if required |
+| **AP-022** | Public mutable collections `ICollection<T>` on entities | `private readonly List<T>` + `IReadOnlyCollection<T>` + Aggregate Root methods |
+| **AP-023** | Weakening an invariant to make tests/UseCases pass | Fix the caller; domain invariants are strictly non-negotiable |
+| **AP-024** | `ArgumentException`/`InvalidOperationException` in Domain | Throw `DomainValidationException` / `BusinessRuleViolationException` |
+| **AP-025** | Repository returning `IQueryable` or mutable `List<T>` | Return Entity or `IReadOnlyList<T>`; require tenant ID on queries |
+| **AP-026** | Request inherits from Command / Shallow DTO subclasses | Decouple Presentation Request records; explicit mapping in Controller |
+| **AP-027** | Imperative Role check in Controller Action | Declarative `[Authorize(Roles = "Admin")]` on Controller/Action |
+| **AP-028** | Raw primitive scalar in Request Body | Positional Record Request DTO (`[FromBody] SetUserStatusRequest request`) |
+| **AP-029** | `CreatedAtAction` pointing to collection endpoint | Point to single-item `GetById` with entity route parameter |
+| **AP-030** | Unscoped Tenant Mutation (IDOR Vulnerability) | Always pass and validate tenant context (`projectId`) alongside entity ID |
+| **AP-031** | Unversioned or duplicated routes | Strict canonical routes `api/v1/{resource}` |
+| **AP-032** | Incorrect HTTP status codes | 201 Created for creation, 204 NoContent for delete, 200 OK for reads |
+| **AP-033** | Direct service injection in Controller | Inject single-responsibility UseCases only |
+| **AP-034** | Dual routing attributes on Controller | Single canonical route prefix per controller |
+| **AP-035** | Ad-hoc error payloads in Controller | Throw domain exceptions; RFC 9457 via `IExceptionHandler` |
+| **AP-036** | Nested inline instantiation in `ExecuteAsync` | Declare explicit local variable (`var command = ...`) before invocation |
+| **AP-037** | Inline fully-qualified namespaces | Clean top-level usings only (Zero inline namespaces) |
+| **AP-038** | Underscore prefix or field re-declaration in Primary Ctor | Standardized `camelCase` parameters consumed directly (Zero `_`) |
+| **AP-039** | Primitive overloads & optional timestamp fallback in Domain | Single Canonical Factory taking strongly-typed Value Objects + mandatory `now` |
+| **AP-040** | Test backdoors in `SmkDoc.Domain.dll` | Factory/Builder strictly in `SmkDoc.Tests` via `internal` constructor |
 | **AP-041** | Hardcoding high-churn execution metrics in docs | Use invariant-driven quality gates (100% pass rate, 0 failures) |
-| **AP-042** | Monolithic UseCase test classes or flat CQRS placement | 1:1 CQRS Folder Parity (`Commands/{Command}/` & `Queries/{Query}/`), single SUT per file |
-| **AP-043** | Heavy I/O, Generators, or Benchmarks in Unit Tests (`SmkDoc.Tests`) | Pure in-memory unit tests in `SmkDoc.Tests`; I/O in `SmkDoc.IntegrationTests` |
-| **AP-044** | Ad-hoc entity instantiation or nondeterministic `UtcNow` in tests | Use `*Builder` / `*TestFactory` with `TestConstants.BaselineTime` |
-| **AP-045** | Artificial dumping grounds for invariant tests (`DomainInvariantTests`) | Test invariants directly in Aggregate Root unit tests (`{Aggregate}Tests.cs`) |
+| **AP-042** | Monolithic UseCase test classes or flat CQRS placement | 1:1 CQRS Folder Parity (`Commands/{Command}/` & `Queries/{Query}/`), single SUT |
+| **AP-043** | Heavy I/O, Generators, or Benchmarks in Unit Tests | Pure in-memory unit tests in `SmkDoc.Tests`; I/O in `SmkDoc.IntegrationTests` |
+| **AP-044** | Ad-hoc entity instantiation or nondeterministic `UtcNow` | Use `*Builder` / `*TestFactory` with `TestConstants.BaselineTime` |
+| **AP-045** | Artificial dumping grounds for invariant tests | Test invariants directly in Aggregate Root unit tests (`{Aggregate}Tests.cs`) |
 | **AP-046** | Mocking dependencies in Validator Tests | Test validators as pure functions with `[Theory]` + `[InlineData]` |
 | **AP-047** | `var sut = new ...` in every test method | Call via SSoT `CreateSut().ExecuteAsync(...)` |
 | **AP-048** | Asserting only Exception Type without checking DB side-effects | Use Semantic Wildcard + `unitOfWorkMock.Verify(Times.Never)` |
+| **AP-049** | Arrow Anti-Pattern & Cyclomatic Indentation > 2 | Flatten execution using Guard Clauses / Early Exits |
+| **AP-050** | Echo / Robot Comments | Comments explain WHY (business rule, RFC); code explains WHAT |
+| **AP-051** | Unbounded Fluent LINQ / Chaining (> 3 operations) | Split into intermediate, descriptively named local variables |
+| **AP-052** | Memory Buffering in Document Rendering (LOH Fragmentation) | 100% Stream-over-RAM piping directly from Gotenberg to MinIO/HTTP |
+| **AP-053** | Missing or Un-scoped Idempotency on State Mutations | Support `Idempotency-Key` header with 24h cache and 409 in-flight check |
+| **AP-054** | Primitive Obsession in Repository Signatures | Strongly-typed Value Objects with tenant parameter first (`ExistsBySlugAsync`) |
+| **AP-055** | Disordered File Anatomy (Violating the Stepdown Rule) | Public methods at top; private helpers placed directly beneath caller |
+| **AP-056** | Semantic Synonym Drift (Violating Single Term per Concept) | Standardize strictly on canonical verbs (`GetByIdAsync`, `ListAsync`, `CommitAsync`) |
 
 ---
 
-## 🔴 Backend Anti-Patterns
+### 🟡 Frontend Prohibited Patterns (TypeScript 5.7 / Next.js 15.2)
 
-### AP-001: ห้าม Inject `IRepository<T>` ลงใน Controller โดยตรง
+| Code | Prohibited Anti-Pattern | Correct Golden Standard |
+|---|---|---|
+| **AP-F001** | Inline styles or hardcoded colors | Strictly use Tailwind utility classes (`text-primary`, `bg-surface`) |
+| **AP-F002** | Client-side `useEffect` for initial data fetching | Next.js Server Components (`await fetch()`) for initial data load |
+| **AP-F003** | `any` types in TypeScript | Zod schema validation + inferred types (`z.infer`) |
+| **AP-F004** | Legacy `.eslintrc.json` config | Modern Flat Config `eslint.config.mjs` |
+| **AP-F005** | Root-Level `"use client"` Pollution | Server Component by default; isolate `"use client"` to interactive leaf controls |
+| **AP-F006** | In-Flight Preview Race Conditions | Abort pending requests via `AbortController.abort()` on rapid keystrokes |
+| **AP-F007** | Manual Type Duplication (Bypassing Zod SSoT) | Derive TypeScript types automatically via `z.infer<typeof schema>` |
+| **AP-F008** | Swallowing or Toasting Intentional `AbortError` | Inspect `error.name === "AbortError"` and exit silently |
+
+---
+
+<backend_scope>
+## 🏛️ Category 1: Clean Architecture & Layer Boundaries
+
+### AP-001: Direct Repository Injection in Controllers
+*   **The Architectural Danger:** Violates Clean Architecture boundaries by turning Controllers into fat orchestrators and bypassing Application business workflows, validation filters, and security pipelines.
 ```csharp
-// ❌ WRONG
-public class TemplateController(IRepository<Template> repo) : ControllerBase { }
+// ❌ WRONG: Controller directly depends on data persistence
+public sealed class TemplateController(ITemplateRepository templateRepo) : ControllerBase 
+{
+    [HttpGet("{id}")]
+    public async Task<IActionResult> Get(Guid id) => Ok(await templateRepo.GetByIdAsync(id));
+}
 
-// ✅ CORRECT — Inject Single-Responsibility UseCase
-public class TemplateController(CreateTemplateUseCase createUseCase, GetTemplateByIdUseCase getUseCase) : ControllerBase { }
+// ✅ CORRECT: Controller delegates to Single-Responsibility UseCase
+public sealed class TemplateController(
+    IUseCase<GetTemplateByIdQuery, TemplateResultDto> getTemplateByIdUseCase) : ControllerBase 
+{
+    [HttpGet("{templateId:guid}")]
+    public async Task<ActionResult<ApiResponse<TemplateResultDto>>> GetById(Guid templateId, CancellationToken ct)
+    {
+        var query = new GetTemplateByIdQuery(templateId);
+        var result = await getTemplateByIdUseCase.ExecuteAsync(query, ct);
+        return Ok(new ApiResponse<TemplateResultDto>(result));
+    }
+}
 ```
 
-### AP-002: ห้าม return Domain Entity จาก UseCase สู่ Controller หรือ Middleware
-```csharp
-// ❌ WRONG — คืน Entity ออกไปสู่ชั้น Presentation
-public async Task<Template> GetAsync(Guid id) { ... return template; }
-public async Task<ApiKey?> ValidateKeyAsync(string key) { ... return apiKey; } // Middleware ห้ามจับ Entity
-public IActionResult Get() { return Ok(template); }
+---
 
-// ✅ CORRECT — Map เป็น Application DTO ก่อนคืนเสมอ
-public async Task<TemplateDto> GetAsync(Guid id) { ... return new TemplateDto(...); }
-public async Task<ValidatedApiKeyDto?> ValidateKeyAsync(string key) { ... return new ValidatedApiKeyDto(key.Id, key.CallerApp, key.ProjectId); }
-public IActionResult Get() { return Ok(new ApiResponse<TemplateDto>(result)); }
+### AP-002: Leaking Domain Entities Across Boundaries
+*   **The Architectural Danger:** Exposing Domain Entities to outer layers (Presentation or Middleware) leads to unintended state mutations, circular dependencies, and mass-assignment vulnerabilities.
+```csharp
+// ❌ WRONG: Returning Domain Entity to Presentation or Middleware
+public async Task<Template> ExecuteAsync(CreateTemplateCommand command, CancellationToken ct)
+{
+    var template = Template.Create(command.ProjectId, command.Name, command.Slug, command.Category, timeProvider.GetUtcNow());
+    await templateRepo.AddAsync(template, ct);
+    return template; // LEAK! Domain Entity exposed to outer layers
+}
+
+// ✅ CORRECT: Map to immutable Positional Record DTO before returning
+public async Task<TemplateResultDto> ExecuteAsync(CreateTemplateCommand command, CancellationToken ct)
+{
+    var template = Template.Create(command.ProjectId, command.Name, command.Slug, command.Category, timeProvider.GetUtcNow());
+    await templateRepo.AddAsync(template, ct);
+    await unitOfWork.CommitAsync(ct);
+    return new TemplateResultDto(template.Id, template.ProjectId, template.Name.Value, template.Slug.Value, template.Category, template.CreatedAt);
+}
 ```
 
-### AP-003: ห้ามใช้ Anonymous Objects ใน API Response
+---
+
+### AP-005: Importing Infrastructure Details into Application Layer
+*   **The Architectural Danger:** Direct dependencies on `AppDbContext`, Npgsql, or MinIO SDK in the Application layer break Dependency Inversion and couple business orchestration to relational database implementations.
 ```csharp
-// ❌ WRONG
-return Ok(new { success = true, data = template });
-return Ok(new { error = "Not found" });
-
-// ✅ CORRECT
-return Ok(new ApiResponse<TemplateDto>(result));
-return NoContent();
-// (Exceptions ให้ IExceptionHandler จัดการ)
-```
-
-### AP-004: ห้ามใช้ try-catch ใน Controllers หรือใช้ Legacy MVC IExceptionFilter
-```csharp
-// ❌ WRONG
-try { var result = await useCase.GetAsync(id, ct); return Ok(...); }
-catch (NotFoundException) { return NotFound(); }
-
-// ✅ CORRECT — throw Domain Exception ใน UseCase แล้วให้ IExceptionHandler (ProblemDetails) จัดการ
-var result = await useCase.GetAsync(id, ct); // UseCase throws NotFoundException internally
-return Ok(new ApiResponse<TemplateDto>(result));
-```
-
-### AP-005: ห้าม import `AppDbContext` ใน Application Layer
-```csharp
-// ❌ WRONG — Application layer พึ่งพา Infrastructure (Dependency Inversion violation)
+// ❌ WRONG: Application layer references Infrastructure persistence directly
 using SmkDoc.Infrastructure.Persistence;
-public class MyUseCase(AppDbContext db) { }
 
-// ✅ CORRECT — พึ่งพา Interface เท่านั้น
-public class MyUseCase(IRepository<Template> templateRepo, IUnitOfWork unitOfWork) { }
-```
-
-### AP-006: ห้ามใช้ if-else / switch บน Engine Type
-```csharp
-// ❌ WRONG — Strategy Pattern violation
-IRenderEngine engine;
-if (format == "html") engine = new HtmlTemplateEngine(...);
-else if (format == "docx") engine = new DocxTemplateEngine(...);
-
-// ✅ CORRECT — Strategy Pattern via DI
-var engine = engines.First(e => e.EngineType == format.RenderEngineType);
-```
-
-### AP-007: ห้าม pass `IFormFile` หรือ `HttpContext` เข้า UseCase
-```csharp
-// ❌ WRONG — Web framework leaks into Application layer
-public class TemplateManagementUseCase(IHttpContextAccessor httpContext) { }
-public async Task CreateAsync(IFormFile file) { }
-
-// ✅ CORRECT — pass pure types
-public async Task CreateAsync(Stream fileStream, string fileName, CancellationToken ct) { }
-```
-
-### AP-008: ห้ามใช้ Object Initializer สร้าง Domain Entity
-```csharp
-// ❌ WRONG — Anemic Domain Model, bypasses business rules
-var version = new TemplateVersion { TemplateId = id, Status = "Published" };
-
-// ✅ CORRECT — Parameterized Constructor + Business Method
-var version = new TemplateVersion(templateId, 1, storageKey, TemplateFormat.Html, "author", "Initial");
-version.Publish();
-```
-
-### AP-009: ห้ามใช้ string สำหรับ Smart Enum comparison
-```csharp
-// ❌ WRONG
-if (version.FileFormat == "html") { }
-if (version.Status == "Published") { }
-
-// ✅ CORRECT
-if (version.FileFormat == TemplateFormat.Html) { }
-if (version.Status == TemplateVersionStatus.Published) { }
-```
-
-### AP-010: ห้ามใช้ Magic String สำหรับ Placeholder Regex
-```csharp
-// ❌ WRONG — Duplicate regex, DRY violation
-var matches = Regex.Matches(content, @"\{\{(\w+)\}\}");
-
-// ✅ CORRECT — SSoT
-var matches = PlaceholderHelper.Pattern.Matches(content);
-```
-
-### AP-011: ห้ามตั้งค่า DrawingML Id = 0
-```csharp
-// ❌ WRONG — Microsoft Word Desktop จะปฏิเสธ node นี้
-new Pic.NonVisualDrawingProperties { Id = 0, ... }
-
-// ✅ CORRECT — Id ต้องเป็น positive integer เสมอ
-new Pic.NonVisualDrawingProperties { Id = (uint)imageCounter + 1, ... }
-```
-
-### AP-012: ห้ามแก้ไขหรือ string-replace Presigned URLs
-```csharp
-// ❌ WRONG — Signature ของ MinIO จะ invalid ทันที
-var url = presignedUrl.Replace("minio:9000", "localhost:9000");
-
-// ✅ CORRECT — ใช้ PublicEndpoint สำหรับ Signing (config ใน MinioSettings)
-options.PublicEndpoint = "http://localhost:9000";
-```
-
-### AP-013: ห้ามรัน Docker Commands โดยอัตโนมัติ
-Docker operations ทั้งหมด (เช่น `docker compose up`) ต้องแสดง command แล้วให้ User รันเอง ห้าม AI รันแทน
-
-### AP-014: ห้ามแตะไฟล์ใน `frontend/` หรือ `backend/` (V1 Legacy)
-การพัฒนาทั้งหมดต้องอยู่ใน `frontend-v2/` และ `backend-v2/` เท่านั้น
-
-### AP-015: ห้าม throw `KeyNotFoundException` หรือ Generic Exception ใน Use Cases
-```csharp
-// ❌ WRONG — KeyNotFoundException ไม่ใช่ DomainException จะทำให้หลุดไปเป็น HTTP 500
-?? throw new KeyNotFoundException($"Template '{id}' not found.");
-throw new InvalidOperationException("Template slug is already in use.");
-
-// ✅ CORRECT — throw Domain Exception ที่มี StatusCode & ErrorCode ตรงตัว
-?? throw new NotFoundException($"Template '{id}' not found.");
-throw ConflictException.DuplicateSlug(request.Slug);
-```
-
-### AP-016: ห้ามใช้ Mutable Class หรือ DataAnnotations ใน Application DTOs
-```csharp
-// ❌ WRONG — ใช้ mutable class และใส่ DataAnnotations ของ HTTP ในชั้น Application
-using System.ComponentModel.DataAnnotations;
-public class HtmlToPdfRequest 
+public sealed class CreateTemplateUseCase(AppDbContext dbContext) 
 {
-    [Required] public string Html { get; set; }
+    public async Task ExecuteAsync(...) => await dbContext.Templates.AddAsync(...);
 }
 
-// ✅ CORRECT — 100% Immutable record, validation จัดการใน Presentation หรือ Domain
-public record HtmlToPdfCommand(string Html, string? HeaderHtml = null, string? FooterHtml = null);
-```
-
-### AP-017: ห้ามประกาศ DTOs ฝังอยู่ในไฟล์ UseCase (Inline Declarations)
-```csharp
-// ❌ WRONG — ประกาศ DTO ในไฟล์ UseCase ทำให้กระจัดกระจายและเกิด namespace clashing
-public record ApiKeyDto(...);
-public class ApiKeyUseCase { ... }
-
-// ✅ CORRECT — จัดกลุ่มไว้ใน SmkDoc.Application/Modules/{Module}/.../DTOs/
-// เช่น Modules/IdentityAccess/Security/DTOs/SecurityDtos.cs
-```
-
-### AP-018: ห้ามสร้าง Multi-Method Use Case (Fat Service Class)
-```csharp
-// ❌ WRONG — รวม Create, List, Revoke ไว้ในคลาสเดียว ละเมิด SRP
-public class ApiKeyUseCase 
+// ✅ CORRECT: Depend exclusively on Domain/Application abstractions
+public sealed class CreateTemplateUseCase(
+    ITemplateRepository templateRepo, 
+    IUnitOfWork unitOfWork) : IUseCase<CreateTemplateCommand, TemplateResultDto> 
 {
-    public Task<ApiKeyDto> CreateAsync(...) { ... }
-    public Task<List<ApiKeyDto>> ListAsync(...) { ... }
-    public Task RevokeAsync(...) { ... }
-}
-
-// ✅ CORRECT — แยก 1 Action = 1 Class implementing IUseCase<TRequest, TResponse>
-public sealed class CreateApiKeyUseCase(
-    IRepository<ApiKey> apiKeyRepo,
-    IUnitOfWork uow) : IUseCase<CreateApiKeyCommand, CreateApiKeyResult>
-{
-    public async Task<CreateApiKeyResult> ExecuteAsync(CreateApiKeyCommand command, CancellationToken ct) { ... }
-}
-
-public sealed class ListApiKeysUseCase(
-    IRepository<ApiKey> apiKeyRepo) : IUseCase<ListApiKeysQuery, List<ApiKeyDto>>
-{
-    public async Task<List<ApiKeyDto>> ExecuteAsync(ListApiKeysQuery query, CancellationToken ct) { ... }
+    // Implementation uses pure interfaces
 }
 ```
 
-### AP-019: ห้ามโยน System Exceptions ใน Application Layer
-```csharp
-// ❌ WRONG — โยน System Exception ทำให้ Presentation แปลงเป็น RFC 9457 ไม่ตรงมาตรฐาน
-throw new UnauthorizedAccessException("Invalid password");
-throw new InvalidOperationException("Project slug already exists");
+---
 
-// ✅ CORRECT — โยน Strongly-Typed Domain Exception
-throw new UnauthorizedException("Invalid password");
-throw new ConflictException("Project slug already exists");
+### AP-007: Framework Types in UseCases
+*   **The Architectural Danger:** Injecting `IFormFile`, `HttpContext`, or `HttpRequest` into UseCases couples the Application layer to ASP.NET Core hosting environments, preventing usage in background workers, CLI tools, or event consumers.
+```csharp
+// ❌ WRONG: Passing ASP.NET Core HTTP types into UseCase
+public sealed record UploadTemplateCommand(IFormFile File, HttpContext Context);
+
+// ✅ CORRECT: Pass pure C# primitives and streams
+public sealed record UploadTemplateCommand(Stream FileStream, string FileName, string ContentType);
 ```
 
-### AP-020: ห้ามใช้ Generic IRepository<T> ข้าม Aggregates ที่มี Domain Repository เฉพาะทาง
-```csharp
-// ❌ WRONG — พึ่งพา Generic Repository ทำให้ Business Query กระจัดกระจาย
-public class LoginUseCase(
-    IRepository<User> userRepo, 
-    IRepository<UserProjectRole> roleRepo) { }
+---
 
-// ✅ CORRECT — พึ่งพา Aggregate Domain Repository ใน SmkDoc.Domain.Interfaces
-public class LoginUseCase(
-    IUserRepository userRepo, 
-    IUserProjectRoleRepository roleRepo) { }
+### AP-014: Modifying Legacy v1 Directories
+*   **The Architectural Danger:** Editing legacy v1 folders (`src/`, `backend/`, `frontend/`) re-introduces deprecated architectural anti-patterns and creates merge conflicts. Active development is strictly isolated to `backend-v2/` and `frontend-v2/`.
+```text
+// ❌ WRONG: Modifying legacy codebase files
+src/SmkDocServer/Services/TemplateService.cs
+backend/SmkDoc.Api/Controllers/OldController.cs
+
+// ✅ CORRECT: Implement exclusively inside modern v2 architecture
+backend-v2/src/SmkDoc.Application/Features/Templates/Commands/CreateTemplate/CreateTemplateUseCase.cs
+frontend-v2/src/components/templates/TemplateEditor.tsx
 ```
 
-### AP-021 – AP-025: Domain Layer Integrity
+---
+
+### AP-018: Multi-Method Fat Use Case Classes
+*   **The Architectural Danger:** Consolidating multiple actions into a single service class (e.g., `TemplateService`) violates the Single Responsibility Principle and creates monolithic merge conflicts.
 ```csharp
-// ❌ AP-021 — เขียนทับ identity จากภายนอก
-var template = new Template(projectId, name, slug) { Id = templateId };
+// ❌ WRONG: Service with multiple operational intents
+public class TemplateService 
+{
+    public Task Create(...) { }
+    public Task Update(...) { }
+    public Task Delete(...) { }
+    public Task Render(...) { }
+}
 
-// ❌ AP-022 — ข้าม Aggregate Root
-template.Versions.Add(new TemplateVersion(...));
-// ✅
-template.AddVersion(storageKey, format, createdBy);
-
-// ❌ AP-023 — ผ่อน invariant เพราะ UseCase ส่ง Guid.Empty มา
-// if (projectId == Guid.Empty) throw ...   <- ลบทิ้ง
-// ✅ แก้ที่ UseCase: บังคับ ProjectId จาก command/execution context
-
-// ❌ AP-024
-throw new ArgumentException("Hash must be 64 hex chars.");
-// ✅
-throw new DomainValidationException("Hash must be 64 hex chars.");
-
-// ❌ AP-025
-Task<List<Template>> ListAsync();                       // mutable + ไม่ scope tenant
-// ✅
-Task<IReadOnlyList<Template>> ListByProjectAsync(Guid projectId, CancellationToken ct);
+// ✅ CORRECT: 1 Business Intent = 1 Action-Centric UseCase Class
+public sealed class CreateTemplateUseCase : IUseCase<CreateTemplateCommand, TemplateResultDto> { ... }
+public sealed class UpdateTemplateDetailsUseCase : IUseCase<UpdateTemplateDetailsCommand, TemplateResultDto> { ... }
+public sealed class RenderDocumentUseCase : IUseCase<RenderDocumentCommand, DocumentStreamResult> { ... }
 ```
 
-### AP-026: ห้ามให้ HTTP Request สืบทอด (Inherit) จาก Application Command หรือสร้าง Shallow DTO Subclass กลวงเปล่า
+---
+
+### AP-020: Generic `IRepository<T>` when Aggregate Domain Repository Exists
+*   **The Architectural Danger:** Using a generic repository abstraction (`IRepository<Template>`) bypasses domain-specific Aggregate Root invariants, specialized queries, and tenant-scoped security checks.
 ```csharp
-// ❌ WRONG — Request ผูกติดกับ UseCase Command ข้าม Layer (Leaky Abstraction & Cascading Breaking Changes)
-public record CreateProjectRequest(string Name, string Slug) : CreateProjectCommand(Name, Slug);
-public record LoginRequest(string Email, string Password) : LoginCommand(Email, Password);
+// ❌ WRONG: Bare generic repository bypasses Aggregate Root domain methods
+public sealed class GetTemplateUseCase(IRepository<Template> genericRepo) { ... }
 
-// ❌ WRONG — Empty Subclass ที่ไม่ได้เพิ่ม field หรือ behavior ใดๆ (Fake Abstraction)
-public record ProjectListItemDto(Guid Id, string Name, string Slug, bool IsActive, DateTimeOffset CreatedAt) 
-    : ProjectResultDto(Id, Name, Slug, IsActive, CreatedAt);
-
-// ✅ CORRECT — Decoupled Request Record ใน Presentation Layer (SmkDoc.Api.Contracts)
-namespace SmkDoc.Api.Contracts.IdentityAccess.Projects;
-public record CreateProjectRequest(string Name, string Slug);
-
-// ✅ Controller ทำหน้าที่เป็น Translation Adapter (Explicit Mapping)
-var userId = User.GetUserId();
-var command = new CreateProjectCommand(userId, request.Name, request.Slug);
-var project = await createProjectUseCase.ExecuteAsync(command, ct);
-
-// ✅ Return Application DTO เข้า ApiResponse<T> โดยตรง ไม่ต้องสร้าง wrapper DTO ซ้ำซ้อน
-return Ok(new ApiResponse<ProjectResultDto>(project));
+// ✅ CORRECT: Explicit domain repository enforcing tenant-scoped invariants
+public sealed class GetTemplateUseCase(ITemplateRepository templateRepo) { ... }
 ```
 
-### AP-027: ห้ามใช้ Imperative Role Check (`User.RequireAdmin()`) ใน Controller Action
+---
+
+### AP-026: Request DTO Inheriting from Command DTO / Shallow Subclassing
+*   **The Architectural Danger:** Having Presentation Request records inherit from Application Command records couples the HTTP transport schema to internal application pipelines, preventing independent versioning.
 ```csharp
-// ❌ WRONG — Imperative check โยน 401 Unauthorized (แทนที่จะเป็น 403 Forbidden) และเสี่ยงลืมเช็คใน Action ใหม่
+// ❌ WRONG: Presentation Request inherits from Application Command
+public sealed record CreateTemplateRequest(Guid ProjectId, string Name, string Slug, string? Category) 
+    : CreateTemplateCommand(ProjectId, Name, Slug, Category);
+
+// ✅ CORRECT: Fully decoupled records with explicit mapping in Controller
+public sealed record CreateTemplateRequest(Guid ProjectId, string Name, string Slug, string? Category);
+public sealed record CreateTemplateCommand(Guid ProjectId, string Name, string Slug, string? Category);
+
+// In Controller:
+var command = new CreateTemplateCommand(request.ProjectId, request.Name, request.Slug, request.Category);
+```
+
+---
+
+### AP-033: Direct Infrastructure / External Service Injection in Controller
+*   **The Architectural Danger:** Injecting infrastructure services (`IMinioStorageService`, `IGotenbergClient`) directly into Controllers bypasses application business rules, transaction boundaries, and audit logging.
+```csharp
+// ❌ WRONG: Controller directly calls external cloud storage
+public sealed class DocumentController(IMinioStorageService storageService) : ControllerBase 
+{
+    [HttpPost("upload")]
+    public async Task<IActionResult> Upload(IFormFile file) 
+    {
+        await storageService.UploadAsync("bucket", file.FileName, file.OpenReadStream());
+        return Ok();
+    }
+}
+
+// ✅ CORRECT: Controller delegates to Single-Responsibility UseCase
+public sealed class DocumentController(
+    IUseCase<UploadDocumentCommand, DocumentResultDto> uploadDocumentUseCase) : ControllerBase 
+{
+    [HttpPost("upload")]
+    public async Task<ActionResult<ApiResponse<DocumentResultDto>>> Upload(IFormFile file, CancellationToken ct) 
+    {
+        await using var stream = file.OpenReadStream();
+        var command = new UploadDocumentCommand(stream, file.FileName, file.ContentType);
+        var result = await uploadDocumentUseCase.ExecuteAsync(command, ct);
+        return Ok(new ApiResponse<DocumentResultDto>(result));
+    }
+}
+```
+
+---
+
+## 💎 Category 2: Domain-Driven Design & Invariant Protection
+
+### AP-008: Anemic Entities with Public Property Setters
+*   **The Architectural Danger:** Public setters allow external callers to mutate entity properties into invalid, unverified states, bypassing domain invariants.
+```csharp
+// ❌ WRONG: Anemic Entity with public setters and object initializer
+public class Template 
+{
+    public string Name { get; set; }
+    public bool IsActive { get; set; }
+}
+var template = new Template { Name = "Invoice", IsActive = true };
+
+// ✅ CORRECT: Rich Domain Entity with private setters and Canonical Factory
+public sealed class Template : BaseEntity 
+{
+    public TemplateName Name { get; private set; } = null!;
+    public bool IsActive { get; private set; }
+
+    private Template() { } // EF Core only
+
+    public static Template Create(Guid projectId, TemplateName name, TemplateSlug slug, string? category, DateTimeOffset now) =>
+        new(null, projectId, name, slug, category, now);
+
+    public void Deactivate(DateTimeOffset now)
+    {
+        IsActive = false;
+        SetUpdated(now);
+    }
+}
+```
+
+---
+
+### AP-009: String Comparisons for Smart Enums
+*   **The Architectural Danger:** Comparing Smart Enums using string literals bypasses compiler type checking and introduces silent runtime defects from case mismatches or typos.
+```csharp
+// ❌ WRONG: String comparison against Smart Enum name
+if (template.Format.Name == "Html") { ... }
+if (engineType == "gotenberg") { ... }
+
+// ✅ CORRECT: Type-safe instance comparison using Smart Enum SSoT
+if (template.Format == TemplateFormat.Html) { ... }
+if (engineType == RenderEngineType.Gotenberg) { ... }
+```
+
+---
+
+### AP-021: Manual Identity Override on UUIDv7 Entities
+*   **The Architectural Danger:** Overriding entity primary keys manually defeats chronological UUIDv7 sorting in PostgreSQL B-Tree indexes, causing page splits and database fragmentation.
+```csharp
+// ❌ WRONG: Overriding Id manually with random GUID
+var template = new Template { Id = Guid.NewGuid() };
+
+// ✅ CORRECT: BaseEntity automatically assigns Guid.CreateVersion7()
+public abstract class BaseEntity 
+{
+    public Guid Id { get; protected set; }
+    public DateTimeOffset CreatedAt { get; protected set; }
+
+    protected BaseEntity(Guid? id, DateTimeOffset createdAt) 
+    {
+        Id = id ?? Guid.CreateVersion7();
+        CreatedAt = createdAt;
+    }
+}
+```
+
+---
+
+### AP-022: Public Mutable Collections on Entities
+*   **The Architectural Danger:** Exposing mutable collections (`List<T>`, `ICollection<T>`) allows external code to add or remove children without enforcing Aggregate Root boundary validation.
+```csharp
+// ❌ WRONG: Public mutable collection allows direct modification
+public class Project : BaseEntity 
+{
+    public List<ApiKey> ApiKeys { get; set; } = []; // External callers can invoke .Clear() or .Add()
+}
+
+// ✅ CORRECT: Encapsulated backing list exposed as IReadOnlyCollection
+public sealed class Project : BaseEntity 
+{
+    private readonly List<ApiKey> apiKeys = [];
+    public IReadOnlyCollection<ApiKey> ApiKeys => apiKeys.AsReadOnly();
+
+    public ApiKey GenerateApiKey(string name, DateTimeOffset now) 
+    {
+        var key = ApiKey.Create(Id, name, now);
+        apiKeys.Add(key);
+        SetUpdated(now);
+        return key;
+    }
+}
+```
+
+---
+
+### AP-023: Weakening Domain Invariants to Make Tests or UseCases Pass
+*   **The Architectural Danger:** Relaxing entity or Value Object validation rules to bypass test setup issues compromises data integrity across the entire application and allows corrupted state in production.
+```csharp
+// ❌ WRONG: Weakening domain invariant rule to appease failing test
+public sealed class TemplateSlug : ValueObject 
+{
+    public static TemplateSlug Create(string value) 
+    {
+        // Weakened rule: Allowing empty strings or spaces just to satisfy a test
+        if (string.IsNullOrEmpty(value)) return new TemplateSlug("default-slug"); 
+        ...
+    }
+}
+
+// ✅ CORRECT: Enforce strict invariant; update test fixture to provide valid data
+public sealed class TemplateSlug : ValueObject 
+{
+    public static TemplateSlug Create(string value) 
+    {
+        if (string.IsNullOrWhiteSpace(value) || !SlugRegex().IsMatch(value))
+        {
+            throw new DomainValidationException("Slug must contain lowercase alphanumeric characters and hyphens.");
+        }
+        return new TemplateSlug(value);
+    }
+}
+```
+
+---
+
+### AP-024: Throwing Generic System Exceptions in Domain Layer
+*   **The Architectural Danger:** Throwing `ArgumentException` or `InvalidOperationException` prevents centralized exception middleware from categorizing errors, converting client validation bugs into 500 Internal Server Errors.
+```csharp
+// ❌ WRONG: Throwing generic runtime exceptions from Domain entities
+public void UpdateName(string name) 
+{
+    if (string.IsNullOrWhiteSpace(name))
+        throw new ArgumentException("Name cannot be empty");
+}
+
+// ✅ CORRECT: Throw strongly-typed Domain Validation or Business Rule exceptions
+public void UpdateName(TemplateName name, DateTimeOffset now) 
+{
+    ArgumentNullException.ThrowIfNull(name);
+    Name = name;
+    SetUpdated(now);
+}
+```
+
+---
+
+### AP-039: Primitive Overloads & Optional Timestamp Fallbacks in Domain Factories
+*   **The Architectural Danger:** Providing factory overloads taking raw primitives or defaulting `DateTimeOffset? now = null` to `DateTimeOffset.UtcNow` introduces non-determinism, bypasses Value Objects, and complicates time-sensitive testing.
+```csharp
+// ❌ WRONG: Factory overload with primitives and optional timestamp fallback
+public static Template Create(string name, string slug, DateTimeOffset? now = null) 
+{
+    var timestamp = now ?? DateTimeOffset.UtcNow; // NON-DETERMINISTIC
+    return new Template(Guid.NewGuid(), name, slug, timestamp);
+}
+
+// ✅ CORRECT: Exactly 1 Canonical Factory with strongly-typed Value Objects + mandatory now
+public static Template Create(
+    Guid projectId, 
+    TemplateName name, 
+    TemplateSlug slug, 
+    string? category, 
+    DateTimeOffset now) 
+{
+    return new Template(null, projectId, name, slug, category, now);
+}
+```
+
+---
+
+### AP-040: Test Backdoors in `SmkDoc.Domain.dll`
+*   **The Architectural Danger:** Adding test-only methods, `#if DEBUG` public setters, or bypass parameters to production domain classes pollutes the domain binary and compromises encapsulation.
+```csharp
+// ❌ WRONG: Test backdoor inside production domain class
+public sealed class Template : BaseEntity 
+{
+    #if DEBUG
+    public void SetIdForTesting(Guid id) => Id = id; // PROHIBITED
+    #endif
+}
+
+// ✅ CORRECT: Internal constructor visible strictly to test assemblies
+public sealed class Template : BaseEntity 
+{
+    // InternalsVisibleTo("SmkDoc.Tests")
+    internal Template(Guid? id, Guid projectId, TemplateName name, TemplateSlug slug, string? category, DateTimeOffset now)
+        : base(id, now) { ... }
+}
+```
+
+---
+
+### AP-054: Primitive Obsession in Repository Signatures
+*   **The Architectural Danger:** Accepting raw `string` parameters instead of strongly-typed Value Objects bypasses domain regex validation and frequently leads to missing tenant isolation (IDOR vulnerabilities).
+```csharp
+// ❌ WRONG: Raw string slug without tenant scope
+public interface ITemplateRepository 
+{
+    Task<bool> SlugExistsAsync(string slug, CancellationToken ct);
+}
+
+// ✅ CORRECT: Strongly-typed Value Object with tenant parameter first
+public interface ITemplateRepository 
+{
+    Task<bool> ExistsBySlugAsync(Guid projectId, TemplateSlug slug, CancellationToken ct = default);
+}
+```
+
+---
+
+## 🌐 Category 3: Presentation, Routing, RFC 9457 & Idempotency
+
+### AP-003: Anonymous Error Objects in API Responses
+*   **The Architectural Danger:** Returning anonymous objects (`new { error = ... }`) violates RFC 9457 standards, breaks automated API client generation, and fragments error handling.
+```csharp
+// ❌ WRONG: Anonymous error object violates RFC 9457
+return BadRequest(new { success = false, message = "Name is required" });
+
+// ✅ CORRECT: Throw DomainException; GlobalExceptionHandler emits RFC 9457 ProblemDetails
+throw new DomainValidationException("Template name is required.");
+```
+
+---
+
+### AP-004: Catching Domain Exceptions Inside Controllers
+*   **The Architectural Danger:** Embedding `try-catch` blocks in Controller actions produces boilerplate duplication and bypasses centralized logging and RFC 9457 formatting.
+```csharp
+// ❌ WRONG: Catching exceptions manually in Controller
 [HttpPost]
-public async Task<IActionResult> CreateKey(...)
+public async Task<IActionResult> Create(CreateTemplateRequest request) 
 {
-    User.RequireAdmin(); // ❌ ขัดแย้งกับ ASP.NET Core Authorization Pipeline
+    try {
+        var result = await useCase.ExecuteAsync(command);
+        return Ok(result);
+    } catch (ConflictException ex) {
+        return Conflict(new { error = ex.Message });
+    }
+}
+
+// ✅ CORRECT: Let exceptions bubble up to GlobalExceptionHandler (IExceptionHandler)
+[HttpPost]
+public async Task<ActionResult<ApiResponse<TemplateResultDto>>> Create(
+    [FromBody] CreateTemplateRequest request, 
+    CancellationToken ct) 
+{
+    var command = new CreateTemplateCommand(request.ProjectId, request.Name, request.Slug, request.Category);
+    var result = await createTemplateUseCase.ExecuteAsync(command, ct);
+    return CreatedAtAction(nameof(GetById), new { templateId = result.Id }, new ApiResponse<TemplateResultDto>(result));
+}
+```
+
+---
+
+### AP-015: Throwing Generic System Exceptions in Application / Presentation
+*   **The Architectural Danger:** Throwing `System.Exception` or `KeyNotFoundException` instead of strongly-typed Domain Exceptions prevents RFC 9457 `ProblemDetails` middleware from distinguishing client errors from unhandled infrastructure crashes.
+```csharp
+// ❌ WRONG: Throwing generic system exceptions
+throw new KeyNotFoundException($"Template {id} not found");
+throw new Exception("Something failed during generation");
+
+// ✅ CORRECT: Throw explicit Domain Exceptions mapped to RFC 9457 status codes
+throw new NotFoundException($"Template '{id}' was not found.");
+throw new RenderFailedException("Chromium render timed out after 30 seconds.");
+```
+
+---
+
+### AP-016: Mutable Classes or DataAnnotations in DTO Records
+*   **The Architectural Danger:** Using mutable classes with `{ get; set; }` or decorating DTOs with `[Required]`, `[MaxLength]` scatters validation logic between controllers and validators, violating FluentValidation SSoT.
+```csharp
+// ❌ WRONG: Mutable class with DataAnnotations attributes
+public class CreateTemplateRequest 
+{
+    [Required]
+    [MaxLength(100)]
+    public string Name { get; set; } = string.Empty;
+}
+
+// ✅ CORRECT: Immutable positional record validated by FluentValidation
+public sealed record CreateTemplateRequest(Guid ProjectId, string Name, string Slug, string? Category);
+```
+
+---
+
+### AP-017: Inline DTOs Inside UseCase Files
+*   **The Architectural Danger:** Declaring DTOs inside `CreateTemplateUseCase.cs` bloats the file, obscures usecase logic, and prevents clean reuse across queries, commands, and tests.
+```csharp
+// ❌ WRONG: Declaring DTOs at the bottom of UseCase file
+public sealed class CreateTemplateUseCase : IUseCase<...> { ... }
+public sealed record TemplateResultDto(Guid Id, string Name); // Hidden in UseCase file
+
+// ✅ CORRECT: Dedicated file in Feature DTOs folder
+// File: src/SmkDoc.Application/Features/Templates/DTOs/TemplateResultDto.cs
+namespace SmkDoc.Application.Features.Templates.DTOs;
+
+public sealed record TemplateResultDto(Guid Id, Guid ProjectId, string Name, string Slug, string? Category, DateTimeOffset CreatedAt);
+```
+
+---
+
+### AP-019: Throwing System Exceptions in UseCase Workflows
+*   **The Architectural Danger:** Throwing `UnauthorizedAccessException` or `InvalidOperationException` leaks low-level runtime types; domain workflows must throw expressive domain exceptions (`ForbiddenException`, `ConflictException`, `NotFoundException`).
+```csharp
+// ❌ WRONG: Throwing runtime system exceptions for authorization
+if (project.OwnerId != currentUserId)
+    throw new UnauthorizedAccessException("Forbidden access");
+
+// ✅ CORRECT: Throw strongly-typed ForbiddenException
+if (project.OwnerId != currentUserId)
+    throw new ForbiddenException($"User '{currentUserId}' is not authorized to modify Project '{project.Id}'.");
+```
+
+---
+
+### AP-027: Imperative Role Checks Inside Controller Actions
+*   **The Architectural Danger:** Writing imperative `User.IsInRole("Admin")` checks inside action methods duplicates authorization checks and is vulnerable to missing checks during refactoring.
+```csharp
+// ❌ WRONG: Imperative role check inside action body
+[HttpPost]
+public async Task<IActionResult> CreateTemplate(...) 
+{
+    if (!User.IsInRole("Admin")) return Forbid();
     ...
 }
 
-// ✅ CORRECT — ใช้ Declarative Role/Policy Authorization ที่ระดับ Controller หรือ Action
+// ✅ CORRECT: Declarative [Authorize] attribute on Controller or Action
 [HttpPost]
-[Authorize(Roles = "Admin")] // คืน 403 Forbidden อัตโนมัติเมื่อ User ล็อกอินแล้วแต่ไม่มีสิทธิ์
-public async Task<IActionResult> CreateKey(...) { ... }
+[Authorize(Roles = "Admin")]
+public async Task<ActionResult<ApiResponse<TemplateResultDto>>> CreateTemplate(...) { ... }
 ```
 
-### AP-028: ห้ามรับ Raw Primitive Scalar ใน `[FromBody]`
+---
+
+### AP-028: Raw Primitive Scalars in HTTP Request Bodies
+*   **The Architectural Danger:** Binding `[FromBody] string status` or `[FromBody] int version` causes JSON deserialization issues, prevents schema expansion without breaking changes, and complicates OpenAPI contract generation.
 ```csharp
-// ❌ WRONG — ส่ง payload ดิบๆ เป็น `true` หรือ `false` (ขาด JSON Schema Object, แตกหักง่ายกับ Client SDK)
-[HttpPatch("{userId:guid}/status")]
-public async Task<IActionResult> SetStatus([FromBody] bool isActive) { ... }
+// ❌ WRONG: Binding raw scalar string from request body
+[HttpPatch("{templateId:guid}/status")]
+public async Task<IActionResult> SetStatus(Guid templateId, [FromBody] string status) { ... }
 
-// ✅ CORRECT — ห่อด้วย Positional Record เสมอ
-public record SetUserStatusRequest(bool IsActive);
+// ✅ CORRECT: Positional Record Request DTO with explicit schema
+public sealed record SetTemplateStatusRequest(string Status);
 
-[HttpPatch("{userId:guid}/status")]
-public async Task<IActionResult> SetStatus([FromBody] SetUserStatusRequest request) { ... }
+[HttpPatch("{templateId:guid}/status")]
+public async Task<ActionResult<ApiResponse<TemplateResultDto>>> SetStatus(
+    Guid templateId, 
+    [FromBody] SetTemplateStatusRequest request, 
+    CancellationToken ct) { ... }
 ```
 
-### AP-029: ห้ามใช้ `CreatedAtAction` ชี้ไปยัง Collection/List Endpoint
-```csharp
-// ❌ WRONG — Location Header กลายเป็น `/projects?id=...` ซึ่งชี้ไปที่ List แทน Single Resource
-return CreatedAtAction(nameof(ListProjects), new { id = project.Id }, new ApiResponse<ProjectDto>(result));
+---
 
-// ✅ CORRECT — ชี้ไปยัง GetById ของ Resource นั้น หรือตอบ StatusCode 201 หากไม่มี Single GET Endpoint
-return CreatedAtAction(nameof(GetProjectById), new { projectId = project.Id }, new ApiResponse<ProjectDto>(result));
-// หรือ (กรณี API Key ซึ่งไม่มี GetById เพื่อความปลอดภัย):
-return StatusCode(StatusCodes.Status201Created, new ApiResponse<ApiKeyResponseDto>(result));
+### AP-029: `CreatedAtAction` Pointing to Collection Endpoints
+*   **The Architectural Danger:** Returning `CreatedAtAction(nameof(List), ...)` after entity creation violates RFC 9110 / REST standards. The `Location` header must point directly to the individual created resource URI.
+```csharp
+// ❌ WRONG: CreatedAtAction pointing to list endpoint
+return CreatedAtAction(nameof(ListTemplates), new ApiResponse<TemplateResultDto>(result));
+
+// ✅ CORRECT: CreatedAtAction points to GetById with entity route parameter
+return CreatedAtAction(
+    nameof(GetById), 
+    new { templateId = result.Id }, 
+    new ApiResponse<TemplateResultDto>(result));
 ```
 
-### AP-030: ห้ามแก้ไขหรือลบ Resource ใน Tenant Scope โดยไม่ระบุ `projectId` (IDOR Risk)
+---
+
+### AP-030: Unscoped Tenant Mutations (IDOR Vulnerability)
+*   **The Architectural Danger:** Mutating or reading entities by primary key alone (`templateId`) without scoping to tenant context (`projectId`) creates critical IDOR security holes allowing cross-tenant data tampering.
 ```csharp
-// ❌ WRONG — ส่งแค่ keyId แต่ไม่ตรวจสอบ projectId (เสี่ยงโดนยิงลบข้าม Tenant)
-public async Task<IActionResult> RevokeKey([FromRoute] Guid projectId, [FromRoute] Guid keyId)
+// ❌ WRONG: Mutating entity without tenant scope validation
+var template = await templateRepo.GetByIdAsync(command.TemplateId, ct);
+template.UpdateDetails(...); // Vulnerable to IDOR if template belongs to another project!
+
+// ✅ CORRECT: Enforce tenant ownership verification on all operations
+var template = await templateRepo.GetByIdAsync(command.TemplateId, ct)
+    ?? throw new NotFoundException($"Template '{command.TemplateId}' was not found.");
+
+if (template.ProjectId != command.ProjectId)
 {
-    await useCase.ExecuteAsync(new RevokeApiKeyCommand(keyId));
-}
-
-// ✅ CORRECT — ส่งทั้ง projectId และ entity ID เข้า Command เสมอ
-public async Task<IActionResult> RevokeKey([FromRoute] Guid projectId, [FromRoute] Guid keyId)
-{
-    await useCase.ExecuteAsync(new RevokeApiKeyCommand(keyId, projectId));
+    throw new ForbiddenException($"Template '{command.TemplateId}' does not belong to Project '{command.ProjectId}'.");
 }
 ```
 
-### AP-031: ห้ามคืน Anonymous Objects หรือ Un-enveloped JSON จาก Controller (`new { success = true }`, `new { id }`)
-```csharp
-// ❌ WRONG — ทำลาย Contract schema ของ Client, Swagger ไม่รู้ type, ขาด Envelope มาตรฐาน
-return Ok(new { success = true });
-return Ok(new { keys });
-return Ok(new ApiResponse<object>(new { id = created.Id }));
+---
 
-// ✅ CORRECT — ใช้ strongly-typed DTO ห่อด้วย ApiResponse<T> หรือตอบ 204 NoContent
-return Ok(new ApiResponse<TemplateResultDto>(result));
-// หรือหากไม่มี body ตอบกลับ:
-return NoContent();
+### AP-031: Unversioned or Duplicated Route Prefixes
+*   **The Architectural Danger:** Using unversioned routes (e.g., `api/templates`) or inconsistent casing (`api/v1/Template`) breaks API gateway routing and client SDK contracts.
+```csharp
+// ❌ WRONG: Missing API versioning or using controller token
+[Route("api/[controller]")]
+public sealed class TemplatesController : ControllerBase { ... }
+
+// ✅ CORRECT: Strict canonical versioned route api/v1/{resource}
+[Route("api/v1/templates")]
+public sealed class TemplatesController : ControllerBase { ... }
 ```
 
-### AP-032: ห้ามใช้ HTTP Status Code ผิดความหมาย (`200 OK` ในการสร้างหรือลบ Resource)
+---
+
+### AP-032: Incorrect HTTP Status Codes for REST Operations
+*   **The Architectural Danger:** Returning `200 OK` on entity creation or `200 OK` with null on missing items violates HTTP semantics and causes confusion in client HTTP libraries.
 ```csharp
-// ❌ WRONG — POST สร้าง entity หรือ DELETE ลบ entity แต่ตอบ 200 OK
+// ❌ WRONG: Returning 200 OK on creation or deletion
 [HttpPost]
-public async Task<IActionResult> Create(...) { return Ok(result); }
+public async Task<IActionResult> Create(...) => Ok(result); // Should be 201 Created
 
-[HttpDelete("{id:guid}")]
-public async Task<IActionResult> Delete(...) { return Ok(new { success = true }); }
+[HttpDelete("{id}")]
+public async Task<IActionResult> Delete(...) => Ok(); // Should be 204 NoContent
 
-// ✅ CORRECT — ยึดตาม RFC 7231 REST Semantics
+// ✅ CORRECT: Explicit RESTful HTTP Status Codes
 [HttpPost]
-public async Task<IActionResult> Create(...)
-{
-    var result = await createUseCase.ExecuteAsync(command, ct);
-    return StatusCode(StatusCodes.Status201Created, new ApiResponse<TemplateResponseDto>(result));
-    // หรือ CreatedAtAction(...)
-}
+public async Task<ActionResult<ApiResponse<TemplateResultDto>>> Create(...) =>
+    CreatedAtAction(nameof(GetById), new { templateId = result.Id }, new ApiResponse<TemplateResultDto>(result));
 
-[HttpDelete("{id:guid}")]
-public async Task<IActionResult> Delete(...)
+[HttpDelete("{id}")]
+public async Task<IActionResult> Delete(...) 
 {
     await deleteUseCase.ExecuteAsync(command, ct);
-    return NoContent(); // 204 NoContent
+    return NoContent();
 }
 ```
 
-### AP-033: ห้ามฉีด Domain/Infrastructure Services เข้า Controller โดยตรง (Bypassing UseCases)
+---
+
+### AP-034: Dual Routing Attributes on Controller Classes
+*   **The Architectural Danger:** Combining multiple routing attributes on a single controller creates ambiguous route matches and duplicates OpenAPI path operations.
 ```csharp
-// ❌ WRONG — Controller ทำงานข้าม Layer ไปเรียก Service ตรงๆ ฝ่าฝืน Clean Architecture DIP
-public class TemplateScanController(ITemplateScannerService scanner) : ControllerBase
+// ❌ WRONG: Multiple route attributes on single controller
+[Route("api/v1/templates")]
+[Route("api/templates")]
+public sealed class TemplatesController : ControllerBase { ... }
+
+// ✅ CORRECT: Exactly one canonical route attribute
+[Route("api/v1/templates")]
+public sealed class TemplatesController : ControllerBase { ... }
+```
+
+---
+
+### AP-035: Ad-Hoc Error Payloads in Controller Actions
+*   **The Architectural Danger:** Constructing custom error objects (`return StatusCode(500, new { err = "crash" })`) bypasses RFC 9457 `ProblemDetails` compliance and breaks frontend error adapters.
+```csharp
+// ❌ WRONG: Manually constructed error dictionary
+return StatusCode(500, new { status = "error", error_message = "Rendering failed" });
+
+// ✅ CORRECT: Throw domain exception; GlobalExceptionHandler maps to ProblemDetails
+throw new RenderFailedException("Rendering engine failed to process template.");
+```
+
+---
+
+### AP-036: Nested Inline Object Instantiation Inside Method Calls
+*   **The Architectural Danger:** Writing `await useCase.ExecuteAsync(new CreateTemplateCommand(...))` nests instantiation inside execution calls, violating Craftsmanship Rule 7 and impairing breakpoint debugging.
+```csharp
+// ❌ WRONG: Inline object instantiation inside execution parameter
+var result = await createTemplateUseCase.ExecuteAsync(
+    new CreateTemplateCommand(request.ProjectId, request.Name, request.Slug, request.Category), ct);
+
+// ✅ CORRECT: Instantiate explicit local variable first for clear debugging
+var command = new CreateTemplateCommand(request.ProjectId, request.Name, request.Slug, request.Category);
+var result = await createTemplateUseCase.ExecuteAsync(command, ct);
+```
+
+---
+
+### AP-037: Inline Fully-Qualified Namespace Clutter
+*   **The Architectural Danger:** Writing `System.Threading.CancellationToken` or `SmkDoc.Domain.Entities.Template` inside method signatures creates cognitive clutter and reduces scanning speed.
+```csharp
+// ❌ WRONG: Inline fully-qualified namespaces in method signatures
+public async System.Threading.Tasks.Task<SmkDoc.Application.Features.Templates.DTOs.TemplateResultDto> Execute(
+    SmkDoc.Application.Features.Templates.Commands.CreateTemplateCommand command,
+    System.Threading.CancellationToken ct) { ... }
+
+// ✅ CORRECT: Clean top-level usings with clean unqualified type names
+using SmkDoc.Application.Features.Templates.Commands;
+using SmkDoc.Application.Features.Templates.DTOs;
+
+public async Task<TemplateResultDto> ExecuteAsync(CreateTemplateCommand command, CancellationToken ct) { ... }
+```
+
+---
+
+### AP-038: Underscore Prefixes or Field Re-declarations in Primary Constructors
+*   **The Architectural Danger:** Re-declaring `private readonly` fields defeats the entire purpose of C# 13 Primary Constructors, introducing unnecessary visual clutter and boilerplate.
+```csharp
+// ❌ WRONG: Illegal underscore prefix and redundant backing field
+public sealed class TemplateController(ITemplateRepository _repo) : ControllerBase 
 {
-    [HttpPost("scan-fields")]
-    public async Task<IActionResult> Scan(IFormFile file, CancellationToken ct)
+    private readonly ITemplateRepository repo = _repo; // PROHIBITED
+}
+
+// ✅ CORRECT: Pure camelCase parameter consumed directly
+public sealed class TemplateController(
+    IUseCase<CreateTemplateCommand, TemplateResultDto> createTemplateUseCase) : ControllerBase 
+{
+    [HttpPost]
+    public async Task<IActionResult> Create(...) => await createTemplateUseCase.ExecuteAsync(...);
+}
+```
+
+---
+
+### AP-053: Missing Idempotency Support on State-Mutating Endpoints
+*   **The Architectural Danger:** State-mutating HTTP methods (`POST`, `PUT`, `DELETE`) without idempotency safety cause duplicate database records and duplicate billing when clients retry network timeouts.
+```csharp
+// ❌ WRONG: State mutation without Idempotency-Key support
+[HttpPost]
+public async Task<IActionResult> ChargeOrMutate([FromBody] CreateInvoiceRequest request) { ... }
+
+// ✅ CORRECT: Supports Idempotency-Key header and [Idempotent] filter
+[HttpPost]
+[Idempotent]
+public async Task<ActionResult<ApiResponse<TemplateResultDto>>> Create(
+    [FromBody] CreateTemplateRequest request,
+    [FromHeader(Name = "Idempotency-Key")] string? idempotencyKey,
+    CancellationToken ct) 
+{
+    var command = new CreateTemplateCommand(request.ProjectId, request.Name, request.Slug, request.Category);
+    var result = await createTemplateUseCase.ExecuteAsync(command, ct);
+    return CreatedAtAction(nameof(GetById), new { templateId = result.Id }, new ApiResponse<TemplateResultDto>(result));
+}
+```
+
+---
+
+## ⚡ Category 4: Infrastructure, Streaming & High-Throughput
+
+### AP-006: Hardcoded `switch` or `if/else` on Render Engine Types
+*   **The Architectural Danger:** Hardcoding engine types violates the Open/Closed Principle. Adding a new engine (e.g., Markdown or Typst) requires modifying core UseCase classes.
+```csharp
+// ❌ WRONG: Hardcoded switch/if-else ladders
+IRenderEngine engine = format switch 
+{
+    "html" => new HtmlTemplateEngine(),
+    "docx" => new DocxTemplateEngine(),
+    _ => throw new NotSupportedException()
+};
+
+// ✅ CORRECT: Polymorphic Strategy Pattern via DI
+public sealed class RenderDocumentUseCase(
+    IEnumerable<IRenderEngine> engines) : IUseCase<RenderDocumentCommand, DocumentStreamResult> 
+{
+    public async Task<DocumentStreamResult> ExecuteAsync(RenderDocumentCommand command, CancellationToken ct) 
     {
-        var result = await scanner.ScanPlaceholdersAsync(stream, ext, ct);
+        var engine = engines.FirstOrDefault(e => e.EngineType == command.EngineType)
+            ?? throw new InvalidOperationException($"No engine registered for {command.EngineType}");
+        var stream = await engine.RenderStreamAsync(...);
+        return new DocumentStreamResult(stream, command.OutputFormat.MimeType);
+    }
+}
+```
+
+---
+
+### AP-010: Hardcoded `{{}}` Regex in Parsing Engines
+*   **The Architectural Danger:** Hardcoding ad-hoc regex expressions across template engines causes inconsistent placeholder parsing and edge-case rendering bugs.
+```csharp
+// ❌ WRONG: Ad-hoc regex declared inside local methods
+var matches = Regex.Matches(templateText, @"\{\{\s*([a-zA-Z0-9_]+)\s*\}\}");
+
+// ✅ CORRECT: Use centralized compiled SSoT regex
+using SmkDoc.Domain.Common;
+
+var matches = PlaceholderHelper.Pattern.Matches(templateText);
+```
+
+---
+
+### AP-011: DrawingML Image Non-Visual Drawing Properties Id = 0
+*   **The Architectural Danger:** Generating DrawingML non-visual properties (`cNvPr`) with ID 0 in OpenXml Word/Excel documents causes Microsoft Office / Word to flag the document as corrupt upon opening.
+```csharp
+// ❌ WRONG: Using ID = 0 for DrawingML properties corrupts Word/Excel documents
+var docPr = new NonVisualDrawingProperties { Id = 0, Name = "Picture 1" };
+
+// ✅ CORRECT: Use positive integer (1-based counter) for OpenXml DrawingML IDs
+var docPr = new NonVisualDrawingProperties { Id = (uint)imageIndex + 1, Name = $"Picture_{imageIndex + 1}" };
+```
+
+---
+
+### AP-012: String-Replacement on MinIO Presigned URLs
+*   **The Architectural Danger:** Using `.Replace("http://minio:9000", "http://localhost:9000")` on S3 presigned URLs invalidates the cryptographic HMAC signature, producing 403 Access Denied.
+```csharp
+// ❌ WRONG: String replacement breaks AWS SigV4 HMAC signature
+var internalUrl = await minioClient.PresignedGetObjectAsync(args);
+var publicUrl = internalUrl.Replace("http://minio:9000", "http://localhost:9000"); // 403 SignatureDoesNotMatch!
+
+// ✅ CORRECT: Configure PublicEndpoint in MinioSettings for correct signature generation
+var minioClient = new MinioClient()
+    .WithEndpoint(settings.PublicEndpoint)
+    .WithCredentials(settings.AccessKey, settings.SecretKey)
+    .Build();
+var presignedUrl = await minioClient.PresignedGetObjectAsync(args);
+```
+
+---
+
+### AP-013: Auto-Executing Destructive Docker Commands Autonomously
+*   **The Architectural Danger:** Executing `docker run` or `docker compose down -v` via automated agent commands can destroy local development databases or crash container networks.
+```bash
+# ❌ WRONG: Agent executing destructive shell command autonomously
+docker compose down -v
+
+# ✅ CORRECT: Agent provides command snippet for human user review and execution
+# "To reset local development containers, please run:"
+# docker compose down
+```
+
+---
+
+### AP-025: Repository Methods Returning `IQueryable` or Mutable `List<T>`
+*   **The Architectural Danger:** Returning `IQueryable<T>` leaks EF Core query composition into the Application layer (causing N+1 queries outside transaction boundaries); returning mutable `List<T>` allows callers to mutate the internal repository cache.
+```csharp
+// ❌ WRONG: Leaking IQueryable outside Infrastructure layer
+public interface ITemplateRepository 
+{
+    IQueryable<Template> GetQueryable(); // LEAK! Application can compose arbitrary SQL
+}
+
+// ✅ CORRECT: Return Domain Entity or IReadOnlyList<T> with tenant context
+public interface ITemplateRepository 
+{
+    Task<Template?> GetByIdAsync(Guid id, CancellationToken ct);
+    Task<IReadOnlyList<Template>> ListByProjectAsync(Guid projectId, CancellationToken ct);
+}
+```
+
+---
+
+### AP-052: Memory Buffering in Document Rendering (LOH Fragmentation)
+*   **The Architectural Danger:** Calling `MemoryStream.ToArray()` or holding multi-megabyte PDF byte arrays in memory allocates into the Large Object Heap (LOH), leading to severe garbage collection pauses and Out-Of-Memory (OOM) crashes under concurrency.
+```csharp
+// ❌ WRONG: Buffering multi-MB document into RAM
+byte[] pdfBytes = await engine.RenderAsync(template, data);
+using var memoryStream = new MemoryStream(pdfBytes);
+await storageService.UploadAsync("outputs", key, memoryStream, "application/pdf", ct);
+
+// ✅ CORRECT: Zero-LOH Stream-over-RAM piping directly from network to storage
+await using var pdfStream = await engine.RenderStreamAsync(templateStream, dataJson, OutputFormat.Pdf, ct);
+await storageService.UploadAsync("outputs", key, pdfStream, "application/pdf", ct);
+```
+
+---
+
+## 💎 Category 5: Code Craftsmanship, Readability & Simplicity
+
+### AP-049: The Arrow Anti-Pattern & Cyclomatic Indentation > 2
+*   **The Architectural Danger:** Deeply nested `if`, `foreach`, and `try` blocks bury the "happy path" of execution and drastically increase cognitive load during debugging and code review.
+```csharp
+// ❌ WRONG: Deeply nested indentation (Depth = 4)
+public async Task ProcessItems(BatchPayload payload) 
+{
+    if (payload != null) 
+    {
+        if (payload.Items.Count > 0) 
+        {
+            foreach (var item in payload.Items) 
+            {
+                if (item.IsActive) 
+                {
+                    await SaveItem(item);
+                }
+            }
+        }
     }
 }
 
-// ✅ CORRECT — Controller ต้องคุยผ่าน UseCase เท่านั้น (1 Use Case = 1 Action)
-public class TemplateScanController(ScanUploadedTemplateUseCase scanUseCase) : ControllerBase
+// ✅ CORRECT: Guard Clauses keep happy path linear and left-aligned (Max depth = 2)
+public async Task ProcessItems(BatchPayload payload) 
 {
-    [HttpPost("scan-fields")]
-    public async Task<IActionResult> Scan(IFormFile file, CancellationToken ct)
+    if (payload is null || payload.Items.Count == 0) return;
+
+    foreach (var item in payload.Items) 
     {
-        var result = await scanUseCase.ExecuteAsync(new ScanUploadedTemplateCommand(stream, ext), ct);
-        return Ok(new ApiResponse<ScanFieldsResponseDto>(result));
+        if (!item.IsActive) continue;
+        await SaveItem(item);
     }
 }
 ```
 
-### AP-034: ห้ามทำ Dual-Routing หรือ Route ที่ไม่มี Version บน Canonical Controller
-```csharp
-// ❌ WRONG — ติด attribute 2 เส้นทางบน Controller เดียวกัน ทำให้เกิด ambiguity และยากต่อการทำ API Governance
-[ApiController]
-[Route("api/v1/templates")]
-[Route("api/templates")] // ❌ Route เก่าปะปนกับ Route ใหม่
-public class TemplateController : ControllerBase { ... }
+---
 
-// ✅ CORRECT — ใช้ Route มาตรฐานเวอร์ชันเดียวชัดเจน
-[ApiController]
-[Route("api/v1/templates")]
-public class TemplateController : ControllerBase { ... }
+### AP-050: Echo / Robot Comments
+*   **The Architectural Danger:** Comments that merely restate what the code clearly expresses clutter the source file, produce cognitive fatigue, and quickly rot when logic is updated.
+```csharp
+// ❌ WRONG: Echo comments state the obvious
+// Get the template by id
+var template = await templateRepo.GetByIdAsync(templateId, ct);
+// If template is null, throw exception
+if (template is null) throw new NotFoundException("Not found");
+// Commit changes to database
+await unitOfWork.CommitAsync(ct);
+
+// ✅ CORRECT: Code explains WHAT; comments explain WHY
+var template = await templateRepo.GetByIdAsync(templateId, ct)
+    ?? throw new NotFoundException($"Template '{templateId}' was not found.");
+
+// Chromium rasterizer requires a 150ms font stabilization delay
+// to avoid missing glyphs in Thai complex font rendering.
+await Task.Delay(RenderEngineConstants.FontRasterizationDelayMs, ct);
+
+await unitOfWork.CommitAsync(ct);
 ```
 
-### AP-035: ห้ามสร้าง Ad-hoc Error Payloads ใน Controller (`BadRequest(new { error = ... })`)
-```csharp
-// ❌ WRONG — Controller ผลิต error schema เอง ทำให้ caller ได้ format ไม่ตรงกับ IExceptionHandler
-if (file is not { Length: > 0 })
-    return BadRequest(new ApiResponse<object>(new { error = "File is required." }));
+---
 
-// ✅ CORRECT — โยน Domain Exception หรือใช้ FluentValidation / Model Validation ปล่อยให้ IExceptionHandler จัดการเป็น RFC 9457 Problem Details
-if (file is not { Length: > 0 })
-    throw new DomainValidationException("File must not be null or empty."); // errorCode มีค่า default เป็น "DOMAIN_VALIDATION_ERROR"
-// หรือหากต้องการระบุ error code อิสระ:
-// throw new BusinessRuleViolationException("File must not be null or empty.", "FILE_REQUIRED");
+### AP-051: Unbounded Fluent LINQ Chaining (> 3 Operations)
+*   **The Architectural Danger:** Chaining multiple operations into a single uninterrupted statement impairs readability and prevents developers from inspecting intermediate results in debuggers.
+```csharp
+// ❌ WRONG: Unreadable long fluent chain
+var activeNames = projects.SelectMany(p => p.Templates).Where(t => t.IsActive && t.Category == "Tax").OrderBy(t => t.Name.Value).Select(t => t.Name.Value).Distinct().ToList();
+
+// ✅ CORRECT: Split into explicit intermediate variables with descriptive names
+var allTemplates = projects.SelectMany(project => project.Templates);
+var taxTemplates = allTemplates.Where(t => t.IsActive && t.Category == "Tax");
+
+var activeNames = taxTemplates
+    .Select(t => t.Name.Value)
+    .Distinct()
+    .Order()
+    .ToList();
 ```
 
-### AP-036: ห้ามสร้าง Command/Query Object ซ้อนข้างใน `ExecuteAsync` โดยตรง (Nested Inline Instantiation)
+---
+
+### AP-055: Disordered File Anatomy (Violating the Stepdown Rule)
+*   **The Architectural Danger:** Scattering private helper methods randomly above public entry points or dumping them at the very bottom of a 400-line class forces readers to scroll chaotically.
 ```csharp
-// ❌ WRONG — ประกาศ new Command/Query ซ้อนข้างใน ExecuteAsync(...) ทำให้อ่านยาก และ Debug ตรวจสอบค่าก่อนยิงได้ยาก
-await removeUserUseCase.ExecuteAsync(new RemoveUserCommand(projectId, userId, currentUserId), ct);
-var result = await listUsersUseCase.ExecuteAsync(new ListProjectUsersQuery(projectId), ct);
-
-// ✅ CORRECT — แยกตัวแปร local variable (var command = ... หรือ var query = ...) ก่อนส่งเข้า ExecuteAsync เสมอ
-var query = new ListProjectUsersQuery(projectId);
-var result = await listUsersUseCase.ExecuteAsync(query, ct);
-
-var command = new RemoveUserCommand(projectId, userId, currentUserId);
-await removeUserUseCase.ExecuteAsync(command, ct);
-```
-
-### AP-037: ห้ามเขียน Inline Fully-Qualified Namespace ในโค้ด (ฝ่าฝืน Clean Usings)
-```csharp
-// ❌ WRONG — เขียน inline namespace รกใน method body / signature ขัดต่อ Clean Architecture และเสี่ยงซ่อน Layer Leaks
-public async Task<IActionResult> Parse(IFormFile file)
+// ❌ WRONG: Private helper above public entry point; chaotic order
+public sealed class DocumentService 
 {
-    if (file == null)
-        throw new SmkDoc.Domain.Exceptions.DomainValidationException("File required.");
-        
-    var command = new SmkDoc.Application.Modules.Authoring.Templates.Commands.ParseTemplateDraft.ParseTemplateDraftCommand(...);
+    private byte[] FormatHtml(...) => ...; // Helper at top
+    public async Task<DocumentResult> Render(...) => FormatHtml(...); // Entry point below
 }
 
-// ✅ CORRECT — ประกาศ using ที่ระดับหัวไฟล์ 100% แล้วเรียกใช้เฉพาะชื่อ Type สั้นๆ
-using SmkDoc.Domain.Exceptions;
-using SmkDoc.Application.Modules.Authoring.Templates.Commands.ParseTemplateDraft;
-
-public async Task<IActionResult> Parse(IFormFile file)
+// ✅ CORRECT: The Stepdown Rule (Public entry point first; helpers directly below)
+public sealed class DocumentService 
 {
-    if (file == null)
-        throw new DomainValidationException("File required.");
-        
-    var command = new ParseTemplateDraftCommand(...);
+    // 1. Primary entry point at top
+    public async Task<DocumentResult> Render(RenderCommand command, CancellationToken ct) 
+    {
+        var html = FormatHtml(command);
+        return await ExecuteRender(html, ct);
+    }
+
+    // 2. Private helper placed immediately below its invocation
+    private string FormatHtml(RenderCommand command) => ...;
+
+    // 3. Second helper placed directly below
+    private async Task<DocumentResult> ExecuteRender(string html, CancellationToken ct) => ...;
 }
 ```
 
-### AP-038: ห้ามใช้ Underscore Prefix (`_`) หรือชื่อ Generic คลุมเครือใน Primary Constructor
-```csharp
-// ❌ WRONG — Primary constructor parameter ไม่ใช่ private field และห้ามใช้ชื่อคลุมเครือ (service, repo)
-public class DocumentController(
-    GenerateDocumentUseCase _generateUseCase,
-    ITemplateRepository repo,
-    IStorageService service) : ControllerBase
+---
 
-// ✅ CORRECT — ใช้ camelCase 1:1 ตรงตามชื่อ Class หรือ Interface เสมอ
-public class DocumentController(
-    GenerateDocumentUseCase generateUseCase,
-    ITemplateRepository templateRepo,
-    IStorageService storageService) : ControllerBase
+### AP-056: Semantic Synonym Drift (Violating Single Term per Concept)
+*   **The Architectural Danger:** Alternating between `Get`, `Fetch`, `Retrieve`, `FindById`, and `Load` for the same operation fractures developer muscle memory and leads to accidental duplicate helper methods.
+```csharp
+// ❌ WRONG: Inventing arbitrary synonyms across classes
+public Task<Template> FetchTemplate(Guid id);
+public Task<Template> RetrieveById(Guid id);
+public Task<Template> LoadSingle(Guid id);
+
+// ✅ CORRECT: Canonical Verbs across all interfaces
+public Task<Template?> GetByIdAsync(Guid id, CancellationToken ct);
+public Task<Template?> FindAsync(Guid projectId, TemplateSlug slug, CancellationToken ct);
+public Task<IReadOnlyList<Template>> ListByProjectAsync(Guid projectId, CancellationToken ct);
+public Task<bool> ExistsBySlugAsync(Guid projectId, TemplateSlug slug, CancellationToken ct);
 ```
 
-### AP-039: ห้ามสร้าง Primitive Convenience Overloads หรือ Default Timestamp Fallback ใน Domain Entities
-```csharp
-// ❌ WRONG — Entity สร้าง overload รับ string เพื่อความสะดวกของ caller หรือ default now เป็น null ทำให้ domain ไม่ deterministic
-public static Template Create(Guid projectId, string name, string slug, DateTimeOffset? now = null)
-{
-    var timestamp = now ?? DateTimeOffset.UtcNow; // ❌ ซ่อน Side-effect ภายใน Domain
-    return new Template(projectId, name, slug, timestamp);
-}
+---
 
-// ✅ CORRECT — Exactly 1 Canonical Factory รับเฉพาะ Value Objects และบังคับ deterministic now จาก Application UseCase
-public static Template Create(Guid projectId, TemplateName name, TemplateSlug slug, string? category, DateTimeOffset now) =>
-    new(null, projectId, name, slug, category, now);
+## 🧪 Category 6: Unit & Integration Testing Standards
+
+### AP-041: Hardcoding Volatile Execution Metrics in Documentation / Tests
+*   **The Architectural Danger:** Writing exact volatile numbers (e.g., "assert 648 tests pass" or "we have 28 templates") in documentation or tests causes constant churn, false negatives, and doc drift.
+```csharp
+// ❌ WRONG: Asserting exact brittle counts in tests or docs
+templates.Count.Should().Be(28); // Breaks the moment a 29th template is added!
+
+// ✅ CORRECT: Assert invariant properties and non-empty bounds
+templates.Should().NotBeEmpty();
+templates.Should().AllSatisfy(t => t.ProjectId.Should().Be(projectId));
 ```
 
-### AP-040: ห้ามสร้าง `CreateForTest` หรือ Test Backdoors ใน Production Assembly `SmkDoc.Domain.dll`
-```csharp
-// ❌ WRONG — มี Test Method หรือ backdoor ใน Domain Entity ของ Production Code
-public sealed class Template : BaseEntity
-{
-    public static Template CreateForTest(Guid id, string name, ...) // ❌ ปนเปื้อน production DLL
-}
+---
 
-// ✅ CORRECT — Constructor พิเศษสำหรับ Test ต้องเป็น internal และตัวสร้างทั้งหมดต้องอยู่ใน SmkDoc.Tests
-// ใน SmkDoc.Domain:
-internal Template(Guid? id, Guid projectId, TemplateName name, TemplateSlug slug, string? category, DateTimeOffset now)
-    : base(id, createdAt: now) { ... }
+### AP-042: Monolithic Test Classes or Flat CQRS Placement
+*   **The Architectural Danger:** Bundling tests for multiple commands and queries into a single 1000-line `TemplateTests.cs` violates CQRS folder parity and obscures which test covers which use case.
+```text
+// ❌ WRONG: Monolithic test dumping ground
+tests/SmkDoc.Tests/Services/TemplateTests.cs (contains 150 tests covering all CRUD operations)
 
-// ใน SmkDoc.Tests/Common/Factories/TemplateTestFactory.cs:
-public static class TemplateTestFactory
-{
-    public static Template Create(Guid? id = null, ...) => new Template(...);
-}
+// ✅ CORRECT: 1:1 CQRS Folder Parity with single SUT per test class
+tests/SmkDoc.Tests/Features/Templates/Commands/CreateTemplate/CreateTemplateUseCaseTests.cs
+tests/SmkDoc.Tests/Features/Templates/Commands/UpdateTemplate/UpdateTemplateUseCaseTests.cs
+tests/SmkDoc.Tests/Features/Templates/Queries/GetTemplateById/GetTemplateByIdUseCaseTests.cs
 ```
 
-### AP-041: ห้าม Hardcode ตัวเลขผันผวน (High-Churn Execution Metrics) ลงในเอกสารคู่มือระบบและ Agent Guidelines
-```markdown
-// ❌ WRONG — เอกสารระบุตัวเลขผันผวนแบบ Snapshot ทำให้ล้าสมัยทันทีที่มีการเพิ่มโค้ด และสร้าง Cognitive Bias / ความสับสนให้ LLM
-- Test Suite: 614 tests passing / 244 tests passing
-- API Controllers: 17 controllers
-- Data Entities: 14 domain entities
+---
 
-// ✅ CORRECT — ใช้ Invariant-Driven Quality Gates และเกณฑ์เชิงสถาปัตยกรรมที่ไม่ขึ้นกับกาลเวลา
-- Test Suite: Unit & Integration test suite — 100% Passing (0 errors, 0 failures, zero tolerated regressions)
-- API Controllers: Thin HTTP Controllers organized by Bounded Context (Tenant, Authoring, Rendering, Integration)
-- Data Entities: Sealed Rich Domain Models enforcing SSoT Canonical Factory & Zero Test Backdoors
-```
-
-> **หมายเหตุข้อแตกต่างที่สำคัญ:** ค่าคงที่ทางธุรกิจและสถาปัตยกรรม (Domain Invariant Constants) เช่น *1 Canonical Factory method ต่อ Entity*, *SHA-256 = 64 ตัวอักษร*, *MaxChangeNoteLength = 500* **ต้องคงตัวเลขที่แน่นอนไว้เสมอ** เพราะเป็นกฎทางธุรกิจที่ไม่ใช่ตัวเลขผันผวนจากการรันโค้ด
-
-### AP-042: ห้ามสร้าง Monolithic UseCase Test Class หรือวางไฟล์เทสแบนราบ (Flat) นอก CQRS Folders
+### AP-043: Heavy I/O, Generators, or Benchmarks in Unit Tests
+*   **The Architectural Danger:** Running disk I/O, real network calls, or OpenXml generation in `SmkDoc.Tests` slows down local test loops and CI pull-request validation pipelines.
 ```csharp
-// ❌ WRONG — รวม Use Case หลายตัวไว้ในคลาสเดียว หรือวางไฟล์แบนราบ
-// SmkDoc.Tests/Application/Modules/Tenant/Projects/ProjectUseCaseTests.cs
-public class ProjectUseCaseTests {
-    [Fact] public async Task CreateProject_Works() { ... }
-    [Fact] public async Task UpdateProject_Works() { ... }
-    [Fact] public async Task DeleteProject_Works() { ... }
-}
-
-// ✅ CORRECT — 1:1 CQRS Folder Parity แยก 1 Use Case ต่อ 1 โฟลเดอร์และ 1 ไฟล์ SUT
-// SmkDoc.Tests/Application/Modules/Tenant/Projects/Commands/CreateProject/CreateProjectUseCaseTests.cs
-public class CreateProjectUseCaseTests { ... }
-
-// SmkDoc.Tests/Application/Modules/Tenant/Projects/Commands/UpdateProject/UpdateProjectUseCaseTests.cs
-public class UpdateProjectUseCaseTests { ... }
-```
-
-### AP-043: ห้ามใส่ Heavy I/O, Generators หรือ Benchmarks ใน Unit Test Project (`SmkDoc.Tests`)
-```csharp
-// ❌ WRONG — รัน OpenXml/ClosedXML disk writers หรือ benchmark วัด performance ใน SmkDoc.Tests
-// ทำให้ PR unit test ช้า มี I/O artifact ค้างใน disk และไม่เป็น pure in-memory
+// ❌ WRONG: Disk file I/O inside SmkDoc.Tests
 [Fact]
-public async Task GenerateLargeExcel_WriteToDisk_Benchmark() {
-    using var fs = File.Create("test.xlsx");
-    ...
+public void GenerateExcel_WritesToDisk() 
+{
+    File.WriteAllBytes("C:/temp/test.xlsx", bytes); // PROHIBITED in Unit Tests
 }
 
-// ✅ CORRECT — แยก solution-level ชัดเจน: ย้ายไป SmkDoc.IntegrationTests
-// SmkDoc.Tests = 100% Pure in-memory (0 disk, 0 network, 0 DB) รันจบในระดับวินาที
-// SmkDoc.IntegrationTests = Benchmarks, Generators, Container Fixtures
+// ✅ CORRECT: SmkDoc.Tests is 100% In-Memory. Move heavy I/O to SmkDoc.IntegrationTests
+// In tests/SmkDoc.IntegrationTests/Generators/ExcelGeneratorTests.cs
+[Fact]
+public async Task GenerateExcel_Integration_PipesToStorage() 
+{
+    await testContainerFixture.UploadFileAsync(...);
+}
 ```
 
-### AP-044: ห้าม New Entity สดๆ แบบ Ad-hoc หรือใช้ `DateTimeOffset.UtcNow` ใน Unit Test
-```csharp
-// ❌ WRONG — bypass builders, ค่า mock ไม่สม่ำเสมอ และเวลาเลื่อนไหล (flaky test)
-var template = new Template(Guid.NewGuid(), "Name", "slug", null, DateTimeOffset.UtcNow);
+---
 
-// ✅ CORRECT — ใช้ *Builder / *TestFactory ร่วมกับ TestConstants.BaselineTime
-var template = new TemplateBuilder()
-    .WithName("Invoice")
-    .WithSlug("invoice-01")
-    .Build(); // ภายในใช้ TestConstants.BaselineTime เป็น SSoT
+### AP-044: Ad-Hoc Entity Instantiation with Nondeterministic `DateTimeOffset.UtcNow`
+*   **The Architectural Danger:** Using `DateTimeOffset.UtcNow` directly in test assertions causes flakiness due to clock skew and milliseconds rounding differences.
+```csharp
+// ❌ WRONG: Nondeterministic clock causes intermittent CI assertion failures
+var now = DateTimeOffset.UtcNow; // Skew risk!
+var template = Template.Create(projectId, name, slug, "Invoice", now);
+template.CreatedAt.Should().Be(DateTimeOffset.UtcNow); // Flaky!
+
+// ✅ CORRECT: Use deterministic baseline timestamps from TestConstants
+var baseline = TestConstants.BaselineTime;
+var template = Template.Create(projectId, name, slug, "Invoice", baseline);
+template.CreatedAt.Should().Be(baseline);
 ```
 
-### AP-045: ห้ามสร้างไฟล์รวมกลางทดสอบ Invariant ข้าม Aggregate (`DomainInvariantTests`)
-```csharp
-// ❌ WRONG — นำ invariant ของหลาย Aggregate มารวมในไฟล์เดียว กลายเป็น Dumping Ground
-// SmkDoc.Tests/Domain/DomainInvariantTests.cs
-// SmkDoc.Tests/Domain/EntityEncapsulationTests.cs
+---
 
-// ✅ CORRECT — รวม Invariant และ Encapsulation เข้ากับ Aggregate Root Unit Test โดยตรง (SSoT)
-// SmkDoc.Tests/Domain/Entities/TemplateTests.cs
-// SmkDoc.Tests/Domain/Entities/UserTests.cs
+### AP-045: Artificial Dumping Grounds for Domain Invariant Tests
+*   **The Architectural Danger:** Creating artificial test classes like `InvariantValidationTests.cs` separates invariant tests from their aggregate roots and clutters the test suite.
+```text
+// ❌ WRONG: Artificial dumping ground for domain invariants
+tests/SmkDoc.Tests/Domain/Common/AllEntityInvariantsTests.cs
+
+// ✅ CORRECT: Domain invariants tested directly in Aggregate Root unit tests
+tests/SmkDoc.Tests/Domain/Entities/TemplateTests.cs
+tests/SmkDoc.Tests/Domain/Entities/ProjectTests.cs
+tests/SmkDoc.Tests/Domain/Entities/ApiKeyTests.cs
 ```
 
-### AP-046: ห้าม Mock Dependencies ใน Command/Query Validator Tests
+---
+
+### AP-046: Mocking Dependencies in Validator Tests
+*   **The Architectural Danger:** Injecting mocks into Command Validator tests adds setup overhead and slows down validation suites. Validators are pure deterministic functions.
 ```csharp
-// ❌ WRONG — นำ Mock<IRepository> เข้าไปใน Validator test ทำให้หนักและช้า
+// ❌ WRONG: Mocking repositories inside Validator tests
 var repoMock = new Mock<ITemplateRepository>();
 var validator = new CreateTemplateCommandValidator(repoMock.Object);
 
-// ✅ CORRECT — Validator เป็น Pure Function; ทดสอบ constraints ด้วย [Theory] + [InlineData]
-public class CreateTemplateCommandValidatorTests
+// ✅ CORRECT: Validators tested as pure functions with [Theory] + [InlineData]
+public class CreateTemplateCommandValidatorTests 
 {
-    private readonly CreateTemplateCommandValidator _sut = new();
+    private readonly CreateTemplateCommandValidator sut = new();
 
     [Theory]
     [InlineData("")]
     [InlineData(" ")]
-    public void Validate_WhenNameIsEmpty_HasValidationError(string name)
+    public void Validate_WhenNameIsEmpty_HasValidationError(string name) 
     {
-        var command = new CreateTemplateCommand(Guid.NewGuid(), name, "slug");
-        var result = _sut.Validate(command);
+        var command = new CreateTemplateCommand(Guid.NewGuid(), name, "tax-invoice", "Finance");
+        var result = sut.Validate(command);
         result.IsValid.Should().BeFalse();
     }
 }
 ```
 
-### AP-047: ห้ามเรียก `new UseCase(...)` สดๆ หรือประกาศตัวแปร `var sut = ...` ภายใน Test Method
+---
+
+### AP-047: Calling `new UseCase(...)` in Every Individual Test Method
+*   **The Architectural Danger:** Instantiating the SUT (`new CreateTemplateUseCase(...)`) in every test method creates massive test maintenance overhead whenever constructor dependencies change.
 ```csharp
-// ❌ WRONG — New UseCase เองในทุกเทสต์ ทำให้เกิด Constructor Coupling และมีตัวแปร sut ซ้ำซ้อน
+// ❌ WRONG: Re-instantiating SUT manually across 20 test methods
 [Fact]
-public async Task ExecuteAsync_HappyPath()
+public async Task Test1() 
 {
-    var sut = new CreateApiKeyUseCase(_apiKeyRepoMock.Object, _projectRepoMock.Object, _uowMock.Object, _validator);
-    var result = await sut.ExecuteAsync(command);
+    var sut = new CreateTemplateUseCase(repoMock.Object, uowMock.Object, timeProviderMock.Object);
     ...
 }
 
-// ✅ CORRECT — SSoT SUT Factory (`CreateSut`) + Direct 3-A Invocation
-private CreateApiKeyUseCase CreateSut(IValidator<CreateApiKeyCommand>? customValidator = null) =>
-    new(apiKeyRepoMock.Object, projectRepoMock.Object, unitOfWorkMock.Object, customValidator ?? validator);
-
-[Fact]
-public async Task ExecuteAsync_WhenValidCommand_ReturnsSuccessResult()
+// ✅ CORRECT: Single Source of Truth CreateSut() helper method
+public class CreateTemplateUseCaseTests 
 {
-    var result = await CreateSut().ExecuteAsync(command);
-    ...
+    private readonly Mock<ITemplateRepository> templateRepoMock = new();
+    private readonly Mock<IUnitOfWork> unitOfWorkMock = new();
+
+    private CreateTemplateUseCase CreateSut() =>
+        new(templateRepoMock.Object, unitOfWorkMock.Object, TimeProvider.System);
 }
 ```
 
-### AP-048: ห้าม Shallow Exception Assertions และห้ามละเลยการ Verify `Times.Never` บน Mutation Repositories / Unit of Work
+---
+
+### AP-048: Shallow Exception Assertions Without Checking Negative Side-Effects
+*   **The Architectural Danger:** Asserting only that an exception was thrown without verifying that database transactions were aborted risks undetected data corruption bugs.
 ```csharp
-// ❌ WRONG — เช็คแค่ประเภท Exception (เสี่ยง False Positive) และไม่ตรวจสอบ Side-effect (เสี่ยง Bug แอบเซฟข้อมูล)
+// ❌ WRONG: Shallow assertion ignores database mutation verification
 [Fact]
-public async Task ExecuteAsync_WhenConflict_Throws()
+public async Task ExecuteAsync_WhenConflict_Throws() 
 {
     var act = () => CreateSut().ExecuteAsync(command);
-    await act.Should().ThrowAsync<ConflictException>(); // ขาดการตรวจ Identifier
-    // ขาดการ Verify ว่าไม่ได้ Commit ข้อมูลลง DB
+    await act.Should().ThrowAsync<ConflictException>();
+    // Missing verification that Commit was NEVER invoked!
 }
 
-// ✅ CORRECT — Deep Semantic Assertions ด้วย Wildcard Keyword + ตรวจสอบ Negative Side-effects ครบถ้วน
+// ✅ CORRECT: Deep Semantic Assertion + Verify CommitAsync(Times.Never)
 [Fact]
-public async Task ExecuteAsync_WhenSlugAlreadyExists_ThrowsConflictException()
+public async Task ExecuteAsync_WhenSlugAlreadyExists_ThrowsConflictException() 
 {
     var act = () => CreateSut().ExecuteAsync(command);
     await act.Should().ThrowAsync<ConflictException>()
         .WithMessage($"*'{command.Slug}'*");
 
-    unitOfWorkMock.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Never);
-    apiKeyRepoMock.Verify(r => r.AddAsync(It.IsAny<ApiKey>(), It.IsAny<CancellationToken>()), Times.Never);
+    unitOfWorkMock.Verify(uow => uow.CommitAsync(It.IsAny<CancellationToken>()), Times.Never);
+    templateRepoMock.Verify(repo => repo.AddAsync(It.IsAny<Template>(), It.IsAny<CancellationToken>()), Times.Never);
 }
 ```
 
 ---
 
-### 🚦 Unit Testing Anti-Patterns Quick Matrix
-
-| Anti-Pattern | ❌ Do NOT Do This | ✅ Always Do This Instead |
-|---|---|---|
-| **AP-042** | รวมหลาย UseCase ในไฟล์เดียว | 1 UseCase = 1 Test Class ในโฟลเดอร์ CQRS เฉพาะ |
-| **AP-043** | รัน OpenXml / Disk I/O ใน `SmkDoc.Tests` | ย้าย I/O หนักไปที่ `SmkDoc.IntegrationTests` |
-| **AP-044** | `new Entity(...)` สดๆ / `DateTimeOffset.UtcNow` | ใช้ `*Builder` / `*TestFactory` + `TestConstants.BaselineTime` |
-| **AP-045** | สร้างไฟล์รวม invariant `DomainInvariantTests` | ยึด SSoT ใน `{Aggregate}Tests.cs` โดยตรง |
-| **AP-046** | Mock dependencies ใน Validator Tests | ใช้ `[Theory]` + `[InlineData]` เพียวๆ 0 Mocks |
-| **AP-047** | `var sut = new ...` ในทุก test method | เรียกผ่าน `CreateSut().ExecuteAsync(...)` เสมอ |
-| **AP-048** | Assert แค่ Exception Type โดยไม่เช็ค Commit | ใช้ Semantic Wildcard + `unitOfWorkMock.Verify(Times.Never)` |
-
----
 </backend_scope>
 
 <frontend_scope>
-## 🟡 Frontend Anti-Patterns
+## 🟡 Category 7: Frontend Standards (TypeScript 5.7 / Next.js 15.2)
 
-### ⚡ Frontend Quick-Lookup
-| Code | Prohibited Pattern | Correct Alternative |
-|---|---|---|
-| **AP-F001** | Inline styles or hardcoded colors | Strictly use Tailwind utility classes (`text-primary`, `bg-surface`) |
-| **AP-F002** | Client-side `useEffect` for data fetching | Use Next.js Server Components (`await fetch()`) for data retrieval |
-| **AP-F003** | `any` types in TypeScript | Zod schema validation + inferred types |
-| **AP-F004** | Legacy `.eslintrc.json` | Modern Flat Config `eslint.config.mjs` |
+### AP-F001: Inline Styles or Hardcoded Color Codes
+*   **The Architectural Danger:** Hardcoding hex codes (`#3b82f6`) or inline CSS styles bypasses Tailwind CSS token layers, breaks dark mode, and fragments theme customization.
+```typescript
+// ❌ WRONG: Hardcoded hex codes and inline styles
+<div style={{ backgroundColor: "#1e293b", color: "#ffffff" }}>Preview</div>
+
+// ✅ CORRECT: Standard Tailwind CSS semantic utility classes
+<div className="bg-surface text-foreground dark:bg-surface-dark">Preview</div>
+```
 
 ---
 
-### AP-F001: ห้ามใช้ Inline Styles หรือ Hardcode สี
-```tsx
-// ❌ WRONG — Inline styles ล้าสมัยและควบคุม design system ยาก
-<div style={{ color: '#1a73e8', borderRadius: '8px' }}>
-<div style={{ color: 'var(--color-primary)' }}>
+### AP-F002: Client-Side `useEffect` for Initial Data Fetching
+*   **The Architectural Danger:** Fetching initial page data inside `useEffect` creates network waterfalls, causes cumulative layout shift (CLS), and breaks server-side rendering (SSR).
+```typescript
+// ❌ WRONG: Client-side useEffect fetching creates waterfall
+"use client";
+export default function TemplatesPage() {
+  const [data, setData] = useState([]);
+  useEffect(() => {
+    fetch("/api/v1/templates").then(res => res.json()).then(setData);
+  }, []);
+  return <TemplateList items={data} />;
+}
 
-// ✅ CORRECT — ใช้ Tailwind Utility Classes เสมอ
-<div className="text-primary-500 bg-surface rounded-md">
-```
-
-### AP-F002: ห้าม Fetch ข้อมูลแบบ Client-side ด้วย useEffect
-```tsx
-// ❌ WRONG — ดึงข้อมูลฝั่ง Client ทำให้เกิด Waterfall และโหลดช้า
-const [templates, setTemplates] = useState([]);
-useEffect(() => { fetch('/api/templates').then(...) }, []);
-
-// ✅ CORRECT — ใช้ Next.js Server Components (RSC) ดึงข้อมูลโดยตรง
-export default async function Page() {
-  const templates = await fetchTemplates(); // Server-side fetch
-  return <TemplateList data={templates} />;
+// ✅ CORRECT: React Server Component fetches on the server directly
+// app/templates/page.tsx (Server Component by default)
+export default async function TemplatesPage() {
+  const templates = await getTemplates(); // Direct async fetch on server
+  return <TemplateList items={templates} />;
 }
 ```
 
-### AP-F003: ห้ามใช้ `any` type ใน TypeScript
-```tsx
-// ❌ WRONG
-const data: any = await fetchTemplates();
+---
 
-// ✅ CORRECT — ใช้ Zod schema + inferred types
-const data = TemplateSchema.array().parse(rawData);
+### AP-F003: Using `any` in TypeScript
+*   **The Architectural Danger:** Disabling the TypeScript compiler via `any` causes runtime type exceptions and breaks compile-time schema validation guarantees.
+```typescript
+// ❌ WRONG: Bypassing type safety with 'any'
+function handlePayload(data: any) {
+  console.log(data.nonExistentField.toUpperCase()); // Runtime TypeError!
+}
+
+// ✅ CORRECT: Strict schema parsing with Zod and unknown
+function handlePayload(rawData: unknown) {
+  const parsed = templatePayloadSchema.parse(rawData);
+  console.log(parsed.name.toUpperCase());
+}
 ```
 
-### AP-F004: ห้ามสร้าง `eslintrc.json` (ใช้ ESLint 9 Flat Config)
-```
-// ❌ WRONG — legacy format
-.eslintrc.json
+---
 
-// ✅ CORRECT — Flat Config
-eslint.config.mjs
+### AP-F004: Legacy `.eslintrc.json` Configuration Files
+*   **The Architectural Danger:** Using deprecated `.eslintrc.json` or `.eslintrc.js` in Next.js 15 projects breaks ESLint 9 Flat Config resolution and creates plugin conflicts.
+```javascript
+// ❌ WRONG: Deprecated legacy config .eslintrc.json
+{
+  "extends": ["next/core-web-vitals"]
+}
+
+// ✅ CORRECT: Modern Flat Config eslint.config.mjs
+import { dirname } from "path";
+import { fileURLToPath } from "url";
+import { FlatCompat } from "@eslint/eslintrc";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+const compat = new FlatCompat({ baseDirectory: __dirname });
+const eslintConfig = [...compat.extends("next/core-web-vitals", "next/typescript")];
+
+export default eslintConfig;
 ```
+
+---
+
+### AP-F005: Root-Level `"use client"` Pollution
+*   **The Architectural Danger:** Marking `page.tsx` or `layout.tsx` with `"use client"` converts the entire component subtree into Client Components, disabling streaming SSR and bundling unnecessary JavaScript.
+```typescript
+// ❌ WRONG: Entire page turned into Client Component
+// app/templates/[id]/page.tsx
+"use client";
+export default function Page({ params }: { params: { id: string } }) { ... }
+
+// ✅ CORRECT: Server Component page wrapping interactive client leaf component
+// app/templates/[id]/page.tsx (Server Component)
+import { TemplateEditorClient } from "@/components/templates/TemplateEditorClient";
+
+export default async function Page({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const initialData = await getTemplateById(id);
+  return <TemplateEditorClient initialData={initialData} />;
+}
+```
+
+---
+
+### AP-F006: In-Flight Preview Race Conditions (Missing `AbortController`)
+*   **The Architectural Danger:** Triggering HTTP preview generation requests on rapid keystrokes without canceling pending requests causes out-of-order response arrivals that overwrite newer state.
+```typescript
+// ❌ WRONG: Rapid keystrokes trigger overlapping requests; slow request overwrites new preview
+async function onCodeChange(newContent: string) {
+  const blob = await fetchPreview(newContent);
+  setPreviewUrl(URL.createObjectURL(blob));
+}
+
+// ✅ CORRECT: AbortController cancels pending request on each keystroke
+let activeController: AbortController | null = null;
+
+async function onCodeChange(content: string) {
+  activeController?.abort();
+  activeController = new AbortController();
+
+  try {
+    const blob = await fetchPreview(content, activeController.signal);
+    setPreviewUrl(URL.createObjectURL(blob));
+  } catch (err: unknown) {
+    if (err instanceof DOMException && err.name === "AbortError") return;
+    console.error(err);
+  }
+}
+```
+
+---
+
+### AP-F007: Manual Type Duplication (Bypassing Zod SSoT)
+*   **The Architectural Danger:** Manually writing TypeScript interfaces when a Zod schema exists creates schema drift when validation rules are updated.
+```typescript
+// ❌ WRONG: Redundant manual interface diverges from schema
+export const createTemplateSchema = z.object({ name: z.string().min(2) });
+export interface CreateTemplateInput { name: string; } // DRIFT RISK!
+
+// ✅ CORRECT: Derive types directly from Zod Schema as SSoT
+export const createTemplateSchema = z.object({ name: z.string().min(2) });
+export type CreateTemplateInput = z.infer<typeof createTemplateSchema>;
+```
+
+---
+
+### AP-F008: Toasting or Swallowing Intentional `AbortError` Exceptions
+*   **The Architectural Danger:** Treating intentional request cancellations as server errors displays confusing error banners to users when they simply typed quickly.
+```typescript
+// ❌ WRONG: Showing error alerts on intentional aborts
+try {
+  await fetchPreview(content, signal);
+} catch (err) {
+  showErrorToast("Failed to generate preview"); // Annoying false alarm on typing!
+}
+
+// ✅ CORRECT: Inspect error name and silently exit on AbortError
+try {
+  await fetchPreview(content, signal);
+} catch (err: unknown) {
+  if (err instanceof DOMException && err.name === "AbortError") {
+    return; // Silent intentional cancellation
+  }
+  showErrorToast("An unexpected preview generation error occurred.");
+}
+```
+
+---
+
 </frontend_scope>
