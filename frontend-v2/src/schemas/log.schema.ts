@@ -16,10 +16,22 @@ export const GenerationLogDtoSchema = z.object({
 });
 export type GenerationLogDto = z.infer<typeof GenerationLogDtoSchema>;
 
-export const PagedLogsResponseSchema = z.object({
-  logs: z.array(GenerationLogDtoSchema),
-  total: z.number().int(),
+export const PaginationMetadataSchema = z.object({
   page: z.number().int(),
   limit: z.number().int(),
+  totalCount: z.number().int(),
+  totalPages: z.number().int(),
+});
+export type PaginationMetadata = z.infer<typeof PaginationMetadataSchema>;
+
+export const PagedApiResponseSchema = <T extends z.ZodTypeAny>(itemSchema: T) =>
+  z.object({
+    data: z.array(itemSchema),
+    pagination: PaginationMetadataSchema,
+  });
+
+export const PagedLogsResponseSchema = z.object({
+  data: z.array(GenerationLogDtoSchema),
+  pagination: PaginationMetadataSchema,
 });
 export type PagedLogsResponse = z.infer<typeof PagedLogsResponseSchema>;

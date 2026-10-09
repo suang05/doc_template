@@ -35,7 +35,8 @@ public class ProjectManagementController(
         var query = new ListProjectsQuery(userId, search, page, pageSize);
         var result = await listProjectsUseCase.ExecuteAsync(query, ct);
 
-        return Ok(new PagedApiResponse<ProjectResultDto>(result.Items, result.TotalCount, result.Page, result.PageSize));
+        var response = new PagedApiResponse<ProjectResultDto>(result.Items, result.TotalCount, result.Page, result.PageSize);
+        return Ok(response);
     }
 
     /// <summary>Get a specific project by its ID.</summary>

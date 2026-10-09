@@ -22,7 +22,7 @@ public class AuditLogController(
 {
     /// <summary>List paginated document generation audit logs.</summary>
     [HttpGet]
-    [ProducesResponseType(typeof(ApiResponse<GenerationLogPagedResultDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(PagedApiResponse<GenerationLogDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> ListLogs(
         [FromQuery] int page = 1,
         [FromQuery] int limit = 50,
@@ -31,7 +31,8 @@ public class AuditLogController(
     {
         var query = new ListGenerationLogsQuery(page, limit, app);
         var result = await listUseCase.ExecuteAsync(query, ct);
-        return Ok(new ApiResponse<GenerationLogPagedResultDto>(result));
+        var response = new PagedApiResponse<GenerationLogDto>(result.Logs, result.Total, result.Page, result.Limit);
+        return Ok(response);
     }
 
     /// <summary>Get document generation aggregate performance metrics.</summary>

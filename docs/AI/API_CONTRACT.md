@@ -165,22 +165,30 @@ When quota is exhausted, the server returns `429 Too Many Requests` with a `Retr
 
 To guarantee predictable latency and prevent memory exhaustion across list queries:
 *   **Query Parameters:** `?page=1&limit=20` (Default `limit=20`, Hard cap `maxLimit=100`).
-*   **Wire Envelope:** Wrapped in `PagedApiResponse<T>` with flattened pagination attributes for $O(1)$ client destructuring:
+*   **Wire Envelope:** Wrapped in `PagedApiResponse<T>` with standard encapsulated `pagination` metadata decoupling domain payloads from navigation telemetry:
     ```json
     {
       "data": [ ... ],
-      "total": 42,
-      "page": 1,
-      "limit": 20
+      "pagination": {
+        "page": 1,
+        "limit": 20,
+        "totalCount": 42,
+        "totalPages": 3
+      }
     }
     ```
-*   **Single Source of Truth:** Backed strictly by `SmkDoc.Api.Common.Responses.PagedApiResponse<T>`:
+*   **Single Source of Truth:** Backed strictly by `SmkDoc.Api.Common.Responses.PagedApiResponse<T>` and `PaginationMetadata`:
     ```csharp
+    public record PaginationMetadata(
+        int Page,
+        int Limit,
+        int TotalCount,
+        int TotalPages
+    );
+
     public record PagedApiResponse<T>(
         IEnumerable<T> Data,
-        int Total,
-        int Page,
-        int Limit
+        PaginationMetadata Pagination
     ) : ApiResponse<IEnumerable<T>>(Data);
     ```
 
@@ -208,7 +216,7 @@ Used for single entity reads, mutations, and status confirmations.
 ```
 
 ### 3.2 Paged Collection Envelope (`PagedApiResponse<T>`)
-Used for standard paginated queries. Flattens pagination fields directly on the root envelope for seamless client unboxing:
+Used for standard paginated queries. Encapsulates resource items in `data` and navigation telemetry in `pagination`:
 ```json
 {
   "data": [
@@ -218,9 +226,12 @@ Used for standard paginated queries. Flattens pagination fields directly on the 
       "slug": "tax-invoice-th"
     }
   ],
-  "total": 42,
-  "page": 1,
-  "limit": 20
+  "pagination": {
+    "page": 1,
+    "limit": 20,
+    "totalCount": 42,
+    "totalPages": 3
+  }
 }
 ```
 

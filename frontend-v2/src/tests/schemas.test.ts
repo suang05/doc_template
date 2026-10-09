@@ -7,6 +7,8 @@ import {
   TemplateSchemaDtoSchema,
   SaveFieldMappingItemSchema,
   CreateApiKeyRequestSchema,
+  PagedLogsResponseSchema,
+  PaginationMetadataSchema,
 } from '../types/api';
 
 describe('Zod Schemas Validation Integrity', () => {
@@ -102,6 +104,31 @@ describe('Zod Schemas Validation Integrity', () => {
     const parsedSchema = TemplateSchemaDtoSchema.parse(schema);
     expect(parsedSchema.slug).toBe('contract-test');
     expect(parsedSchema.format).toBe('html');
+  });
+
+  it('should validate PagedLogsResponseSchema conforming to global pagination standard', () => {
+    const valid = {
+      data: [
+        {
+          id: '01926b42-7c3a-7000-8000-123456789abc',
+          status: 'success',
+          createdAt: '2026-10-10T00:00:00Z',
+        },
+      ],
+      pagination: {
+        page: 1,
+        limit: 20,
+        totalCount: 42,
+        totalPages: 3,
+      },
+    };
+    const parsed = PagedLogsResponseSchema.parse(valid);
+    expect(parsed.data).toHaveLength(1);
+    expect(parsed.pagination.totalCount).toBe(42);
+    expect(parsed.pagination.totalPages).toBe(3);
+    expect(parsed.pagination.limit).toBe(20);
+    expect(parsed.pagination.page).toBe(1);
+    expect(() => PaginationMetadataSchema.parse(valid.pagination)).not.toThrow();
   });
 });
 

@@ -14,8 +14,8 @@ export const logsApi = {
       params.set('app', app.trim());
     }
 
-    return apiClient<any>(`/api/logs?${params.toString()}`, {
+    return apiClient<PagedLogsResponse>(`/api/logs?${params.toString()}`, {
       method: 'GET',
-    }).then(res => (res?.data ?? res) as PagedLogsResponse);
+    });
   },
 };
