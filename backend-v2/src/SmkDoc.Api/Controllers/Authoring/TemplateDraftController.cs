@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.Contracts.Authoring.Templates;
+using SmkDoc.Api.Filters;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.CommitTemplateDraft;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.ParseTemplateDraft;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.PreviewTemplateDraft;
@@ -63,6 +64,7 @@ public class TemplateDraftController(
     /// Returns HTTP 410 if draft has expired from cache.
     /// </summary>
     [HttpPost("{draftId}/commit")]
+    [Idempotent]
     [ProducesResponseType(typeof(ApiResponse<CommitDraftResponse>), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]

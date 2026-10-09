@@ -164,6 +164,7 @@ public static class DependencyInjection
         services.AddSingleton<IJsonSchemaValidationService, JsonSchemaValidationService>();
         services.AddSingleton<ITemplateDraftCache, InMemoryTemplateDraftCache>();
         services.AddSingleton<ICompiledTemplateCache, MemoryCompiledTemplateCache>();
+        services.AddSingleton<IIdempotencyStore, MemoryIdempotencyStore>();
         services.AddSingleton<IDocumentMetrics, DocumentMetrics>();
 
         // 6b. Render Engines

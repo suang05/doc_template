@@ -50,6 +50,8 @@ builder.Services.AddControllers(options =>
     options.JsonSerializerOptions.Converters.Add(
         new System.Text.Json.Serialization.JsonStringEnumConverter(JsonNamingPolicy.CamelCase));
 });
+
+builder.Services.AddScoped<SmkDoc.Api.Filters.IdempotencyFilter>();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddCors(options =>
 {

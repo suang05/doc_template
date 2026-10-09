@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.Contracts.Rendering.Documents;
+using SmkDoc.Api.Filters;
 using SmkDoc.Application.Modules.Rendering.Documents;
 using SmkDoc.Application.Modules.Rendering.Documents.Commands.GenerateDocument;
 using SmkDoc.Application.Modules.Rendering.Documents.DTOs;
@@ -36,6 +37,7 @@ public class DocumentController(
     /// Generate a document from template slug and input JSON data
     /// </summary>
     [HttpPost("generate/{slug}")]
+    [Idempotent]
     [ProducesResponseType(typeof(ApiResponse<GenerateDocumentResultDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Generate([FromRoute] string slug, [FromBody] GenerateDocumentRequest request, CancellationToken ct)
