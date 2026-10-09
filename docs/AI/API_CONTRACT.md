@@ -418,15 +418,24 @@ High-throughput document generation pipeline. Merges JSON payload into template 
 
 #### `POST /api/v1/documents/validate/{slug}`
 Pre-flight JSON payload validation against the template's compiled JSON Schema Draft-07.
-*   **Auth Channel:** Channel A (`X-API-Key`)
-*   **Request Body (`application/json`):** `{ "payload": { ... } }`
-*   **Response (200 OK):**
+*   **Auth Channel:** Channel A (`X-API-Key`) or Channel B (`Bearer JWT`)
+*   **Request Body (`application/json`):** Direct JSON payload (e.g., `{ "customer": { ... } }`)
+*   **Response (200 OK / 400 Bad Request):** Returns `ApiResponse<ValidateTemplatePayloadResult>`
+    *   `200 OK` when payload passes validation (`valid: true`)
+    *   `400 Bad Request` when schema violations are found (`valid: false`)
     ```json
     {
       "data": {
-        "isValid": false,
+        "valid": false,
+        "templateSlug": "commercial-invoice",
+        "version": 1,
+        "message": "Validation failed: 1 schema error(s) found.",
         "errors": [
-          { "path": "/customer/taxId", "message": "Expected string of length 13." }
+          {
+            "field": "/customer/taxId",
+            "rule": "minLength",
+            "message": "Expected string of length 13."
+          }
         ]
       }
     }
@@ -600,24 +609,31 @@ Stateless JSON Schema Draft-07 engine.
 Lists paginated document generation audit logs with server-side filtering.
 *   **Auth Channel:** Channel B (`Bearer JWT`)
 *   **Query Parameters:** `?page=1&limit=50&app=crm`
-*   **Response (200 OK):**
+*   **Response (200 OK):** `PagedApiResponse<GenerationLogDto>`
     ```json
     {
-      "data": {
-        "items": [
-          {
-            "id": "01926b42-7c3a-7000-8000-123456789abc",
-            "templateSlug": "commercial-invoice",
-            "callerApp": "crm",
-            "renderEngine": "Gotenberg",
-            "durationMs": 350,
-            "status": "Success",
-            "createdAt": "2026-10-10T12:00:00.000Z"
-          }
-        ],
-        "totalCount": 128,
+      "data": [
+        {
+          "id": "01926b42-7c3a-7000-8000-123456789abc",
+          "templateId": "01926b40-1111-7000-8000-000000000001",
+          "templateVersionId": "01926b40-2222-7000-8000-000000000002",
+          "apiKeyId": "01926b40-3333-7000-8000-000000000003",
+          "callerApp": "crm",
+          "triggerSource": "Api",
+          "outputFormat": "Pdf",
+          "fileSizeBytes": 45120,
+          "pageCount": 1,
+          "durationMs": 350,
+          "status": "Success",
+          "errorMsg": null,
+          "createdAt": "2026-10-10T12:00:00.000Z"
+        }
+      ],
+      "pagination": {
         "page": 1,
-        "pageSize": 50
+        "limit": 50,
+        "totalCount": 128,
+        "totalPages": 3
       }
     }
     ```
@@ -626,7 +642,7 @@ Lists paginated document generation audit logs with server-side filtering.
 Retrieves document generation aggregate performance metrics.
 *   **Auth Channel:** Channel B (`Bearer JWT`)
 *   **Query Parameters:** `?startDate=2026-10-01T00:00:00Z&endDate=2026-10-10T23:59:59Z`
-*   **Response (200 OK):**
+*   **Response (200 OK):** `ApiResponse<LogMetricsDto>`
     ```json
     {
       "data": {
@@ -634,8 +650,17 @@ Retrieves document generation aggregate performance metrics.
         "successfulGenerations": 14185,
         "failedGenerations": 15,
         "averageDurationMs": 284.5,
-        "p95DurationMs": 620.0,
-        "p99DurationMs": 950.0
+        "totalFileSizeBytes": 640825344,
+        "topCallerApps": [
+          {
+            "callerApp": "crm",
+            "generationCount": 8500
+          },
+          {
+            "callerApp": "billing-service",
+            "generationCount": 5700
+          }
+        ]
       }
     }
     ```

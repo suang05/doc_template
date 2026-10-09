@@ -287,7 +287,7 @@ graph TD
     StrategyRouter{"IEnumerable<IRenderEngine> DI Resolution"}
 
     HtmlEngine["HtmlTemplateEngine (RenderEngineType.Html)"]
-    WordEngine["DocxTemplateEngine (RenderEngineType.Word)"]
+    WordEngine["DocxTemplateEngine (RenderEngineType.Docx)"]
     ExcelEngine["ExcelTemplateEngine (RenderEngineType.Excel)"]
 
     TemplateFormat --> StrategyRouter
