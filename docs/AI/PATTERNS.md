@@ -222,19 +222,19 @@ public sealed class GlobalExceptionHandler(
 
         problemDetails.Extensions["errorCode"] = errorCode;
 
-        // 3. Attach rich validation errors if available
+        // 3. Attach rich validation errors conforming to Strict RFC 9457 (invalidParams)
         if (exception is SchemaValidationException schemaEx)
         {
-            problemDetails.Extensions["errors"] = schemaEx.Errors.Select(e => new
+            problemDetails.Extensions["invalidParams"] = schemaEx.Errors.Select(e => new
             {
-                path = e.Field,
-                message = e.Message,
-                rule = e.Rule
+                name = e.Field,
+                reason = e.Message
             }).ToArray();
         }
         else if (exception is ValidationException validationEx)
         {
-            problemDetails.Extensions["errors"] = validationEx.Errors;
+            problemDetails.Extensions["invalidParams"] = validationEx.Errors.SelectMany(kv =>
+                kv.Value.Select(msg => new { name = kv.Key, reason = msg })).ToArray();
         }
 
         // 4. Stream response via ASP.NET Core IProblemDetailsService
@@ -1020,6 +1020,7 @@ export interface ProblemDetailsError {
   detail?: string;
   instance?: string;
   errorCode?: string;
+  invalidParams?: Array<{ name: string; reason: string }>;
   errors?: Array<{ path: string; message: string; rule?: string }>;
 }
 

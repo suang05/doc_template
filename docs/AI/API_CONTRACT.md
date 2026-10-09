@@ -163,14 +163,26 @@ When quota is exhausted, the server returns `429 Too Many Requests` with a `Retr
 
 ### 2.4 Pagination Standards
 
-To guarantee predictable latency and prevent memory exhaustion:
-*   **Offset Pagination (Admin / Slow-moving collections):**
-    *   Query parameters: `?page=1&limit=20` (Default `limit=20`, Hard cap `maxLimit=100`).
-    *   Envelope: `PagedApiResponse<T>` with `total`, `page`, `limit`.
-*   **Cursor Pagination (High-velocity logs / Event streams):**
-    *   Query parameters: `?cursor=eyJpZCI6MTIzfQ==&limit=20`.
-    *   Envelope: `CursorApiResponse<T>` with opaque base64 `nextCursor` and boolean `hasNextPage`.
-    *   Prevents missing or duplicated records when items are inserted during pagination.
+To guarantee predictable latency and prevent memory exhaustion across list queries:
+*   **Query Parameters:** `?page=1&limit=20` (Default `limit=20`, Hard cap `maxLimit=100`).
+*   **Wire Envelope:** Wrapped in `PagedApiResponse<T>` with flattened pagination attributes for $O(1)$ client destructuring:
+    ```json
+    {
+      "data": [ ... ],
+      "total": 42,
+      "page": 1,
+      "limit": 20
+    }
+    ```
+*   **Single Source of Truth:** Backed strictly by `SmkDoc.Api.Common.Responses.PagedApiResponse<T>`:
+    ```csharp
+    public record PagedApiResponse<T>(
+        IEnumerable<T> Data,
+        int Total,
+        int Page,
+        int Limit
+    ) : ApiResponse<IEnumerable<T>>(Data);
+    ```
 
 ---
 
@@ -178,13 +190,12 @@ To guarantee predictable latency and prevent memory exhaustion:
 
 ## 3. 📦 Standard API Response Envelopes & RFC 9457 Problem Details
 
-Every JSON API response emitted by the SMK Document Server MUST conform strictly to one of the canonical envelopes below. **Anonymous objects (`new { }`) are STRICTLY FORBIDDEN.**
+Every JSON API response emitted by the SMK Document Server MUST conform strictly to one of the canonical envelopes below. **Anonymous objects (`new { }`) and legacy boolean success flags (`"success": true`) are STRICTLY FORBIDDEN.** The HTTP Status Code and standard HTTP headers (`Date`, `traceparent`) serve as the authoritative transport contract.
 
 ### 3.1 Single Resource Envelope (`ApiResponse<T>`)
 Used for single entity reads, mutations, and status confirmations.
 ```json
 {
-  "success": true,
   "data": {
     "id": "01926b42-7c3a-7000-8000-123456789abc",
     "projectId": "01926b40-1111-7000-8000-000000000001",
@@ -192,19 +203,14 @@ Used for single entity reads, mutations, and status confirmations.
     "slug": "tax-invoice-th",
     "category": "Finance",
     "createdAt": "2026-10-10T12:00:00.000Z"
-  },
-  "meta": {
-    "timestamp": "2026-10-10T12:00:00.050Z",
-    "requestId": "01926b42-7c50-7000-8000-999999999999"
   }
 }
 ```
 
 ### 3.2 Paged Collection Envelope (`PagedApiResponse<T>`)
-Used for standard paginated queries.
+Used for standard paginated queries. Flattens pagination fields directly on the root envelope for seamless client unboxing:
 ```json
 {
-  "success": true,
   "data": [
     {
       "id": "01926b42-7c3a-7000-8000-123456789abc",
@@ -212,56 +218,59 @@ Used for standard paginated queries.
       "slug": "tax-invoice-th"
     }
   ],
-  "pagination": {
-    "page": 1,
-    "limit": 20,
-    "totalCount": 42,
-    "totalPages": 3
-  },
-  "meta": {
-    "timestamp": "2026-10-10T12:00:00.050Z",
-    "requestId": "01926b42-7c50-7000-8000-999999999999"
-  }
+  "total": 42,
+  "page": 1,
+  "limit": 20
 }
 ```
 
-### 3.3 Cursor-based Collection Envelope (`CursorApiResponse<T>`)
-Used for infinite-scroll or high-throughput query streams.
-```json
-{
-  "success": true,
-  "data": [
-    {
-      "id": "01926b42-8888-7000-8000-123456789abc",
-      "action": "DocumentGenerated",
-      "templateSlug": "tax-invoice-th",
-      "durationMs": 420
-    }
-  ],
-  "nextCursor": "MDEwMjZiNDItODg4OC03MDAwLTgwMDAtMTIzNDU2Nzg5YWJj",
-  "hasNextPage": true,
-  "meta": {
-    "timestamp": "2026-10-10T12:00:00.050Z",
-    "requestId": "01926b42-7c50-7000-8000-999999999999"
-  }
-}
-```
-
-### 3.4 Raw Binary Media Streams (Zero Envelope)
+### 3.3 Raw Binary Media Streams (Zero Envelope)
 Endpoints returning rendered documents (`application/pdf`, `application/vnd.openxmlformats-...`) bypass JSON wrappers entirely, streaming raw bytes directly to the HTTP response:
 *   **Live Preview (In-Memory):** `Content-Disposition: inline`
 *   **File Download:** `Content-Disposition: attachment; filename="document-01926b42.pdf"`
 
 ---
 
-### 3.5 RFC 9457 Problem Details Schema & Global Error Code Taxonomy
+### 3.4 RFC 9457 Problem Details Schema & Semantic Error Standards
 
-All error responses emitted by `GlobalExceptionHandler` (`IExceptionHandler`) MUST return `Content-Type: application/problem+json` formatted according to **RFC 9457**:
+All error responses emitted by `GlobalExceptionHandler` (`IExceptionHandler`) MUST return `Content-Type: application/problem+json` formatted according to **RFC 9457 (Problem Details for HTTP APIs)**. Generic, ambiguous, or un-actionable error messages are strictly prohibited across the SMK Document Server.
+
+#### 1. The 4 Golden Laws of Error Semantics
+
+To ensure error payloads can be consumed seamlessly by both machines (M2M automation) and humans (portal users and developers), all errors must obey:
+
+1. **Law 1: Domain-Centric `errorCode` (Machine-Readable Token)**
+   * MUST be formatted in `SCREAMING_SNAKE_CASE`.
+   * MUST express the exact **Domain Cause** rather than generic HTTP statuses.
+   * ❌ **Prohibited:** `BAD_REQUEST`, `VALIDATION_ERROR`, `ERROR_400`, `INVALID_DATA` (Meaningless noise).
+   * ✅ **Required:** `SLUG_ALREADY_EXISTS`, `TEMPLATE_PAYLOAD_SCHEMA_MISMATCH`, `IDEMPOTENCY_IN_FLIGHT`, `STORAGE_SERVICE_UNAVAILABLE`.
+   * *Rationale:* Enables programmatic handling (client-side switch statements, i18n translation lookup, and telemetry aggregation).
+
+2. **Law 2: Context-Rich `detail` (Instance-Specific Narrative)**
+   * MUST contain the specific, human-readable context of the current occurrence.
+   * NEVER blindly echo the generic HTTP status `title`.
+   * ❌ **Prohibited:** `"Conflict"`, `"Validation failed"`, `"Operation could not be completed"`.
+   * ✅ **Required:** `"Template with slug 'tax-invoice-th' already exists in Project '01926b40-1111-7000-8000-000000000001'."`.
+
+3. **Law 3: Actionable Field Validation (`invalidParams`)**
+   * Validation errors MUST specify the exact field name matching the JSON payload (`camelCase` with dot-notation for nested objects, e.g., `"customer.taxId"`).
+   * The `reason` MUST articulate **"Expected vs Actual"** so the client knows precisely how to fix it.
+   * ❌ **Prohibited:** `"slug is invalid"`, `"taxId length error"`.
+   * ✅ **Required:** `"Slug 'Tax_Invoice#1' contains invalid characters. Must be lowercase alphanumeric with hyphens only (pattern: ^[a-z0-9-]+$)."`.
+   * ✅ **Required:** `"Tax ID must be exactly 13 numeric digits (received 10 digits)."`.
+
+4. **Law 4: Zero Information Leakage (Zero-Trust Security)**
+   * On unhandled server failures (`500 Internal Server Error`), the server MUST emit a generic, sanitized `detail` (`"An unexpected internal error occurred."`) to external consumers.
+   * Internal exception type names, stack traces, database connection strings, and raw SQL queries MUST NEVER leak over HTTP. Full telemetry MUST be sent exclusively to internal structured logs (`logger.LogError`).
+
+---
+
+#### 2. Canonical RFC 9457 Wire Schema
 
 ```json
 {
-  "type": "https://docs.smk.co.th/errors/resource-conflict",
-  "title": "Resource Conflict",
+  "type": "https://api.sammakorn.co.th/errors/slug-already-exists",
+  "title": "Conflict",
   "status": 409,
   "detail": "Template with slug 'tax-invoice-th' already exists in Project '01926b40-1111-7000-8000-000000000001'.",
   "instance": "/api/v1/templates",
@@ -270,30 +279,33 @@ All error responses emitted by `GlobalExceptionHandler` (`IExceptionHandler`) MU
   "invalidParams": [
     {
       "name": "slug",
-      "reason": "Slug must be unique within the project."
+      "reason": "Slug 'tax-invoice-th' is already registered within Project '01926b40-1111-7000-8000-000000000001'."
     }
   ]
 }
 ```
 
-#### Global Error Code Taxonomy
+---
 
-| HTTP Status | Error Code (`errorCode`) | Canonical Rationale & Description |
+#### 3. Global Error Code Taxonomy
+
+| HTTP Status | Error Code (`errorCode`) | Canonical Rationale & Semantic Description |
 |---|---|---|
-| **400 Bad Request** | `VALIDATION_FAILED` | FluentValidation caught invalid input fields (detailed in `invalidParams`). |
+| **400 Bad Request** | `VALIDATION_FAILED` | Input payload failed static FluentValidation rules; broken fields enumerated in `invalidParams`. |
 | **400 Bad Request** | `MISSING_IDEMPOTENCY_KEY` | Mutation endpoint requires `Idempotency-Key` header (`Mandatory = true`). |
-| **401 Unauthorized** | `INVALID_CREDENTIALS` | Incorrect username/password or invalid API key. |
-| **401 Unauthorized** | `TOKEN_EXPIRED` | Bearer JWT expired; requires refresh via `/api/v1/auth/refresh`. |
-| **403 Forbidden** | `FORBIDDEN_TENANT_ACCESS` | Authenticated client attempted to access an entity belonging to another `ProjectId`. |
-| **403 Forbidden** | `INSUFFICIENT_ROLE` | User lacks required `SystemRole` (e.g., Member accessing Admin endpoint). |
+| **401 Unauthorized** | `INVALID_CREDENTIALS` | Incorrect email/password or revoked/non-existent API key. |
+| **401 Unauthorized** | `TOKEN_EXPIRED` | Bearer JWT access token expired; client must refresh via `/api/v1/auth/refresh`. |
+| **403 Forbidden** | `FORBIDDEN_TENANT_ACCESS` | Authenticated client attempted to access or mutate an entity outside its `ProjectId` boundary. |
+| **403 Forbidden** | `INSUFFICIENT_ROLE` | Caller lacks the requisite `SystemRole` (e.g., Member attempting Admin action). |
 | **404 Not Found** | `RESOURCE_NOT_FOUND` | Target entity does not exist within the caller's tenant boundary. |
-| **409 Conflict** | `SLUG_ALREADY_EXISTS` | Unique constraint violation on entity slug within project. |
-| **409 Conflict** | `IDEMPOTENCY_IN_FLIGHT` | Another request with the same `Idempotency-Key` is currently executing. |
-| **422 Unprocessable** | `IDEMPOTENCY_PAYLOAD_MISMATCH` | `Idempotency-Key` was previously used with a different request payload. |
-| **422 Unprocessable** | `SCHEMA_VALIDATION_FAILED` | JSON payload failed against the template's Draft-07 JSON Schema. |
-| **429 Too Many Req** | `RATE_LIMIT_EXCEEDED` | Request quota exhausted; check `Retry-After` header. |
-| **500 Internal Error** | `RENDER_FAILED` | Chromium Gotenberg engine timed out or crashed during rendering. |
-| **502 Bad Gateway** | `STORAGE_SERVICE_UNAVAILABLE` | MinIO S3 storage is unreachable or failed to store rendered artifact. |
+| **409 Conflict** | `SLUG_ALREADY_EXISTS` | Unique constraint violation on entity slug within the project. |
+| **409 Conflict** | `IDEMPOTENCY_IN_FLIGHT` | An in-flight request with the identical `Idempotency-Key` is currently executing. |
+| **410 Gone** | `DRAFT_EXPIRED` | In-memory template draft has expired beyond its 2-hour TTL and was evicted. |
+| **422 Unprocessable** | `IDEMPOTENCY_PAYLOAD_MISMATCH` | `Idempotency-Key` was previously completed with a different request payload fingerprint. |
+| **422 Unprocessable** | `SCHEMA_VALIDATION_FAILED` | Runtime JSON payload failed validation against template's compiled Draft-07 schema. |
+| **429 Too Many Req** | `RATE_LIMIT_EXCEEDED` | Request rate exceeded tier quota; client must back off until `Retry-After` seconds. |
+| **500 Internal Error** | `RENDER_FAILED` | Gotenberg Chromium or LibreOffice crashed, timed out, or threw an unhandled engine error. |
+| **502 Bad Gateway** | `STORAGE_SERVICE_UNAVAILABLE` | MinIO S3 object storage is unreachable or refused connection during artifact upload. |
 
 </envelopes>
 
@@ -319,7 +331,6 @@ Authenticates a portal user and issues access/refresh tokens.
 *   **Response (200 OK):**
     ```json
     {
-      "success": true,
       "data": {
         "accessToken": "eyJhbGciOiJIUzI1NiIsIn...",
         "refreshToken": "7c3a70008000123456789abc...",
@@ -401,7 +412,6 @@ Pre-flight JSON payload validation against the template's compiled JSON Schema D
 *   **Response (200 OK):**
     ```json
     {
-      "success": true,
       "data": {
         "isValid": false,
         "errors": [
@@ -494,7 +504,6 @@ Manages machine-to-machine API keys for external systems.
 *   **Response (201 Created):**
     ```json
     {
-      "success": true,
       "data": {
         "id": "01926b42-9999-7000-8000-123456789abc",
         "name": "SAP-ERP-Production",
@@ -522,7 +531,6 @@ Validates connection strings and latency against external databases.
 *   **Response (200 OK):**
     ```json
     {
-      "success": true,
       "data": {
         "isReachable": true,
         "latencyMs": 14,
@@ -561,7 +569,6 @@ Stateless JSON Schema Draft-07 engine.
 *   **Response (200 OK):**
     ```json
     {
-      "success": true,
       "data": {
         "isValid": false,
         "errors": [
@@ -571,6 +578,56 @@ Stateless JSON Schema Draft-07 engine.
     }
     ```
 *   **Status Code Note:** Always returns `200 OK` (wrapped in `ApiResponse<T>`) even when validation fails. The purpose of this endpoint is to diagnosticly answer "Is this valid?" without triggering global exception middleware.
+
+---
+
+### 4.7 Audit Logging & Telemetry Gateway (`/api/v1/logs`)
+
+*(Protected by Channel B `Authorization: Bearer <jwt>`, consumes `SmkDoc.Api.Controllers.Rendering.AuditLogController`)*
+
+#### `GET /api/v1/logs`
+Lists paginated document generation audit logs with server-side filtering.
+*   **Auth Channel:** Channel B (`Bearer JWT`)
+*   **Query Parameters:** `?page=1&limit=50&app=crm`
+*   **Response (200 OK):**
+    ```json
+    {
+      "data": {
+        "items": [
+          {
+            "id": "01926b42-7c3a-7000-8000-123456789abc",
+            "templateSlug": "commercial-invoice",
+            "callerApp": "crm",
+            "renderEngine": "Gotenberg",
+            "durationMs": 350,
+            "status": "Success",
+            "createdAt": "2026-10-10T12:00:00.000Z"
+          }
+        ],
+        "totalCount": 128,
+        "page": 1,
+        "pageSize": 50
+      }
+    }
+    ```
+
+#### `GET /api/v1/logs/metrics`
+Retrieves document generation aggregate performance metrics.
+*   **Auth Channel:** Channel B (`Bearer JWT`)
+*   **Query Parameters:** `?startDate=2026-10-01T00:00:00Z&endDate=2026-10-10T23:59:59Z`
+*   **Response (200 OK):**
+    ```json
+    {
+      "data": {
+        "totalGenerations": 14200,
+        "successfulGenerations": 14185,
+        "failedGenerations": 15,
+        "averageDurationMs": 284.5,
+        "p95DurationMs": 620.0,
+        "p99DurationMs": 950.0
+      }
+    }
+    ```
 
 ---
 
