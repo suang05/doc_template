@@ -43,6 +43,7 @@ CRITICAL ATTENTION ROUTING:
    - 6.2 The Canonical Verb Dictionary (One Word per Concept across Layers)
    - 6.3 The Anti-Hallucination Variable Dictionary (STRICT vs Banned Names)
    - 6.4 Canonical End-to-End Naming Flow Example
+   - 6.5 Architectural Mentorship Handbook: Expressive Contract Property Naming & Cross-Layer Symmetry
 
 ---
 
@@ -803,6 +804,55 @@ public sealed class CreateTemplateUseCase(
     }
 }
 ```
+
+---
+
+### 6.5 Architectural Mentorship Handbook: Expressive Contract Property Naming & Cross-Layer Symmetry
+
+> [!NOTE]
+> **Handbook Scope & Intent for AI Agents and Human Engineers:**
+> This section is formulated as an architectural mentorship guide. When designing or refactoring API request payloads, CQRS commands, and data contracts, prioritize semantic clarity and cross-layer symmetry. Code and schemas are read far more often than they are written—both by developers integrating external services and by LLM agents maintaining the codebase.
+
+#### 1. Why Expressive Names Transcend Generic Placeholders
+Generic placeholders like `data` or `output` introduce semantic ambiguity and cognitive friction:
+- **`data` vs. `payload`:** In modern web and enterprise architectures, the word `data` is heavily overloaded. It can refer to an HTTP response envelope (`{ "data": { ... } }`), a database row, an in-memory collection, or raw binary buffers. Using **`payload`** explicitly communicates intent: *"This is the structured business domain payload to be interpolated into the template document."*
+- **`output` vs. `outputFormat`:** The word `output` is ambiguous—is it the rendered binary file, a stream handle, a MinIO storage URL, or a format type? Using **`outputFormat`** immediately clarifies the property's purpose: *"This is the targeted document format specifier (`pdf`, `docx`, `xlsx`)."*
+
+#### 2. The Cross-Layer Symmetry Principle (Zero Semantic Drift)
+Clean Architecture and CQRS patterns reach maximum elegance when domain concepts retain identical names across every layer of the solution stack. When a property is named `outputFormat` at the HTTP boundary, it should remain `outputFormat` in the CQRS Command, the Domain Validator, and the Response DTO.
+
+```text
+[Client Request JSON]          { "payload": { ... }, "outputFormat": "pdf" }
+         │
+         ▼
+[Presentation / API]           GenerateDocumentRequest(JsonElement Payload, string OutputFormat)
+         │
+         ▼
+[Application / CQRS]           GenerateDocumentCommand(JsonElement Payload, string OutputFormat)
+         │
+         ▼
+[Validation Gate]              RuleFor(x => x.Payload)... RuleFor(x => x.OutputFormat)...
+         │
+         ▼
+[UseCase Execution]            outputFormat = request.OutputFormat switch { ... }
+         │
+         ▼
+[Response DTO]                 GenerateDocumentResultDto(..., OutputFormat: ext, ...)
+```
+
+**Concrete Architectural Advantages:**
+1. **Zero Translation Glue:** Eliminates artificial parameter remapping in UI components and client SDKs (e.g., eliminates awkward translation glue like `{ output: outputFormat }`).
+2. **Deterministic Telemetry & Error Handling:** When validation fails, the error property path matches the exact request property name (e.g., `OutputFormat` in FluentValidation directly mirrors client input).
+3. **AI Agent Reasoning & Zero Hallucination:** LLM agents synthesizing commands, writing unit tests, or authoring clients reason with 100% precision when property names remain uniform across the stack, avoiding hallucinated synonyms.
+
+#### 3. Core Guidelines for Contract Properties
+
+| Architectural Principle | Best Practice Guideline | Positive Canonical Example (`✅`) | Anti-Pattern to Avoid (`❌`) |
+|---|---|---|---|
+| **Domain Specificity** | Choose identifiers that express domain role over generic data containers. | `payload`, `credentials`, `filterCriteria` | `data`, `info`, `obj`, `stuff` |
+| **Type Disambiguation** | When a string specifies a format, type, or mode, append the clarifying suffix. | `outputFormat`, `fileFormat`, `authScheme` | `output`, `type`, `format` (unqualified) |
+| **Cross-Layer Parity** | Keep property names identical between Frontend Schemas, Backend DTOs, and Commands. | `request.outputFormat` ➔ `command.OutputFormat` | `request.output` ➔ `command.format` |
+| **Idempotent Identifiers** | Standardize unique keys and reference codes across all representations. | `documentRef`, `correlationId`, `generationId` | `ref`, `docNumber`, `doc_id`, `id2` |
 
 ---
 

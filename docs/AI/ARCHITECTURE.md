@@ -309,11 +309,29 @@ graph TD
 
 ---
 
-## 7. 🛡️ Fault Tolerance & Resilience Engineering (Polly v8)
+## 7. 🔌 External Datasources & Dynamic Datasets Subsystem
+
+To support automated batch document generation without requiring external callers to pre-fetch large datasets, the platform provides an integrated data ingestion subsystem:
+
+```mermaid
+graph LR
+    Template["Template (Authoring)"] --> TD["template_datasets (Alias: 'orders')"]
+    TD --> Dataset["datasets (SQL Query + CacheSeconds)"]
+    Dataset --> DC["data_connections (PostgreSQL / SqlServer / Oracle)"]
+    DC --> Sec["AES-256 Encrypted Connection Strings"]
+```
+
+1. **Data Connections (`data_connections`):** Multi-provider database gateway supporting PostgreSQL, Microsoft SQL Server, and Oracle. All connection strings are strictly encrypted at rest via AES-256 (`EncryptedConnectionString`).
+2. **Datasets (`datasets`):** Encapsulates parameterized SQL queries with configurable TTL caching (`CacheSeconds`) to prevent database thrashing on high-throughput generation bursts.
+3. **Template Datasets (`template_datasets`):** Binds external query results into specific template contexts using isolated aliases (e.g., `orders`, `line_items`), making external datasets seamlessly accessible inside Handlebars loops (`{{#each orders}}`).
+
+---
+
+## 8. 🛡️ Fault Tolerance & Resilience Engineering (Polly v8)
 
 Interactions with external I/O dependencies are encapsulated within resilient **Polly v8 Resilience Pipelines** to absorb transient network failures and prevent cascading system outages:
 
-### 7.1 Gotenberg HTTP Resilience Pipeline
+### 8.1 Gotenberg HTTP Resilience Pipeline
 *   **Total Timeout:** Configured at 60 seconds (`TotalTimeout = 60s`).
 *   **Transient Retry with Exponential Backoff & Jitter:**
     *   Retries on HTTP `503 Service Unavailable`, `504 Gateway Timeout`, and network socket drops.
@@ -321,12 +339,12 @@ Interactions with external I/O dependencies are encapsulated within resilient **
     *   Backoff schedule: $2^n \times 500\text{ ms} + \text{Random Jitter}$ (prevents thundering herd on Gotenberg cluster).
 *   **Circuit Breaker:** Opens circuit after 5 consecutive failures within a 30-second window, failing fast for 15 seconds to allow the Gotenberg Chromium runtime to restart.
 
-### 7.2 MinIO Storage Resilience Pipeline
+### 8.2 MinIO Storage Resilience Pipeline
 *   **Network Resiliency:** Automatic retry on transient S3 connection drops with an exponential backoff schedule ($100\text{ ms}, 200\text{ ms}, 400\text{ ms}$).
 
 ---
 
-## 8. 🧠 Caching Topology & Memory Management
+## 9. 🧠 Caching Topology & Memory Management
 
 The document server employs a tiered caching strategy optimized for low CPU overhead and high read throughput:
 
@@ -360,7 +378,7 @@ graph LR
 
 ---
 
-## 9. 🧪 Testing Architecture & Quality Guarantees
+## 10. 🧪 Testing Architecture & Quality Guarantees
 
 **Quality Baseline: 100% Pass Rate on All Test Suites (Zero Tolerated Failures)**
 

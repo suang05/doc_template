@@ -39,6 +39,6 @@ public class GenerateDocumentCommandValidatorTests
 
         // Assert
         result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.PropertyName == nameof(GenerateDocumentCommand.Output));
+        result.Errors.Should().Contain(e => e.PropertyName == nameof(GenerateDocumentCommand.OutputFormat));
     }
 }

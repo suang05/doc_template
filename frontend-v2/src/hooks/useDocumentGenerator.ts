@@ -11,9 +11,9 @@ export function useDocumentGenerator() {
 
   const generate = useCallback(async (
     slug: string,
-    payload: {
-      data: Record<string, any>;
-      output: OutputFormat;
+    params: {
+      payload: Record<string, any>;
+      outputFormat: OutputFormat;
       documentRef?: string;
       changeNote?: string;
     }
@@ -23,10 +23,10 @@ export function useDocumentGenerator() {
     setResult(null);
     try {
       const response = await documentsApi.generateDocument(slug, {
-        data: payload.data,
-        output: payload.output,
-        documentRef: payload.documentRef || null,
-        changeNote: payload.changeNote || null,
+        payload: params.payload,
+        outputFormat: params.outputFormat,
+        documentRef: params.documentRef || null,
+        changeNote: params.changeNote || null,
       });
       setResult(response);
       return response;

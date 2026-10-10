@@ -36,7 +36,7 @@ public class PreviewDocumentUseCaseTests
 
         using var jsonDoc = JsonDocument.Parse("{\"buyer\": \"สมศรี\"}");
         var request = new PreviewDocumentQuery(
-            Data: jsonDoc.RootElement,
+            Payload: jsonDoc.RootElement,
             Html: "<html><body><Field name=\"buyer\" /><h2>Preview: {{buyer}}</h2></body></html>"
         );
 
@@ -61,7 +61,7 @@ public class PreviewDocumentUseCaseTests
 
         using var jsonDoc = JsonDocument.Parse("{\"key\": \"val\"}");
         var request = new PreviewDocumentQuery(
-            Data: jsonDoc.RootElement,
+            Payload: jsonDoc.RootElement,
             Html: "<html><body>Hello Unsaved</body></html>"
         );
 
@@ -83,7 +83,7 @@ public class PreviewDocumentUseCaseTests
 
         using var jsonDoc = JsonDocument.Parse("{\"key\": \"val\"}");
         var request = new PreviewDocumentQuery(
-            Data: jsonDoc.RootElement,
+            Payload: jsonDoc.RootElement,
             Html: "<html><body>Stream Test</body></html>"
         );
 

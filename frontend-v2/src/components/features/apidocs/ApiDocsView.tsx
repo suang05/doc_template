@@ -88,14 +88,14 @@ export const ApiDocsView: React.FC = () => {
                 <span className="text-xs font-semibold text-textPrimary">Request Payload (JSON):</span>
                 <CodeBlock
                   code={`{
-  "data": {
+  "payload": {
     "contractNo": "SMK-CONDO-2026-001",
     "customerName": "นายสมชาย ใจดี",
     "unitNo": "A-1204",
     "price": 3500000,
     "effectiveDate": "2026-09-15"
   },
-  "output": "pdf",
+  "outputFormat": "pdf",
   "documentRef": "CONDO-2026-001",
   "changeNote": "ฉบับลงนามจริง"
 }`}
@@ -107,10 +107,13 @@ export const ApiDocsView: React.FC = () => {
                 <span className="text-xs font-semibold text-textPrimary">Response 200 OK:</span>
                 <CodeBlock
                   code={`{
-  "url": "http://localhost:9000/outputs/condo-sales-agreement-20260915.pdf?X-Amz-Signature=...",
-  "expiresAt": "2026-09-16T19:30:00Z",
   "generationId": "c4d92a18-912f-4a0b-8f3e-0294b3917462",
-  "outputFormat": "pdf"
+  "documentRef": "CONDO-2026-001",
+  "outputFormat": "pdf",
+  "fileSizeBytes": 245100,
+  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "url": "https://storage.sammakorn.co.th/outputs/11111111111111111111111111111111/2026/09/15/condo-sales-agreement_c4d92a18912f4a0b8f3e0294b3917462.pdf?token=...",
+  "expiresAt": "2026-09-16T19:30:00Z"
 }`}
                   language="json"
                 />
@@ -122,7 +125,7 @@ export const ApiDocsView: React.FC = () => {
                   code={`curl -X POST "${API_BASE}/api/documents/generate/condo-sales-agreement" \\
   -H "X-API-Key: YOUR_API_KEY" \\
   -H "Content-Type: application/json" \\
-  -d '{"data":{"contractNo":"001","customerName":"สมชาย"},"output":"pdf"}'`}
+  -d '{"payload":{"contractNo":"001","customerName":"สมชาย"},"outputFormat":"pdf"}'`}
                   language="bash"
                 />
               </div>
@@ -149,7 +152,7 @@ export const ApiDocsView: React.FC = () => {
                 <span className="text-xs font-semibold text-textPrimary">Request Payload (JSON):</span>
                 <CodeBlock
                   code={`{
-  "data": {
+  "payload": {
     "contractNo": "SMK-PREVIEW-01",
     "customerName": "นายทดสอบ จำลอง"
   },

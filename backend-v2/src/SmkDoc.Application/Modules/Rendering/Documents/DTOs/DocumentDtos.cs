@@ -9,10 +9,13 @@ namespace SmkDoc.Application.Modules.Rendering.Documents.DTOs;
 /// Result returned after document generation and MinIO persistence.
 /// </summary>
 public record GenerateDocumentResultDto(
-    string Url,
-    DateTimeOffset ExpiresAt,
     Guid GenerationId,
-    string OutputFormat
+    string? DocumentRef,
+    string OutputFormat,
+    long FileSizeBytes,
+    string Sha256,
+    string Url,
+    DateTimeOffset ExpiresAt
 );
 
 /// <summary>

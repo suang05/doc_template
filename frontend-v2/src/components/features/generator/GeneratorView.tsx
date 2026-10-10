@@ -94,8 +94,8 @@ export const GeneratorView: React.FC<GeneratorViewProps> = ({ initialSlug }) => 
 
     try {
       await generate(selectedSlug, {
-        data: assembledData as Record<string, any>,
-        output: outputFormat,
+        payload: assembledData as Record<string, any>,
+        outputFormat: outputFormat,
         documentRef: documentRef || undefined,
         changeNote: changeNote || undefined,
       });

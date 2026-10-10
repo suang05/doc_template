@@ -91,9 +91,9 @@ public class GlobalExceptionHandlerTests
 
         // Assert
         handled.Should().BeTrue();
-        httpContext.Response.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
+        httpContext.Response.StatusCode.Should().Be(StatusCodes.Status422UnprocessableEntity);
         capturedProblemDetails.Should().NotBeNull();
-        capturedProblemDetails!.Status.Should().Be(StatusCodes.Status400BadRequest);
+        capturedProblemDetails!.Status.Should().Be(StatusCodes.Status422UnprocessableEntity);
         capturedProblemDetails.Title.Should().Be("Schema Validation Failed");
         capturedProblemDetails.Extensions.Should().ContainKey("errorCode");
         capturedProblemDetails.Extensions["errorCode"].Should().Be("SCHEMA_VALIDATION_FAILED");

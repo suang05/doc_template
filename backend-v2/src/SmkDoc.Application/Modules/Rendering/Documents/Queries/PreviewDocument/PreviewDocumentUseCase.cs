@@ -56,7 +56,7 @@ public sealed class PreviewDocumentUseCase(
             var engine = engines.FirstOrDefault(e => e.EngineType == engineType)
                 ?? throw new InvalidOperationException($"No render engine registered for '{engineType}'.");
 
-            string dataJson = request.Data.ValueKind != JsonValueKind.Undefined ? request.Data.GetRawText() : "{}";
+            string dataJson = request.Payload.ValueKind != JsonValueKind.Undefined ? request.Payload.GetRawText() : "{}";
 
             // Always render to PDF for preview
             return await engine.RenderStreamAsync(templateStream, dataJson, OutputFormat.Pdf, ct);

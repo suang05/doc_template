@@ -3,7 +3,7 @@ CRITICAL ATTENTION ROUTING:
 This file (`API_CONTRACT.md`) is the AUTHORITATIVE SINGLE SOURCE OF TRUTH (SSoT) for all REST API endpoints, Request/Response DTO wire schemas, Authentication channels, and Edge middleware protocols across the SMK Document Server.
 - NEVER invent new response envelopes. Always use the envelopes defined in Section 3.
 - ALWAYS emit RFC 9457 Problem Details (`application/problem+json`) for all error responses.
-- State-mutating endpoints (`POST`) MUST support the IETF `Idempotency-Key` protocol specified in Section 2.3.
+- State-mutating endpoints (`POST`) MUST support the IETF `Idempotency-Key` protocol specified in Section 2.2.
 - Every endpoint MUST adhere strictly to the global design principles, typed contracts, and tenant-scoped authorization boundaries.
 </ai_directive>
 
@@ -379,9 +379,9 @@ Retrieves claims and profile information of currently authenticated user.
 ### 4.2 Document Operations & Rendering Gateway (`/api/v1/documents`)
 
 #### `POST /api/v1/documents/generate/{slug}`
-High-throughput document generation pipeline. Merges JSON payload into template and renders binary output (PDF/DOCX/XLSX).
+High-throughput document generation pipeline. Merges JSON payload into template, persists rendered binary to MinIO, records audit log/legal version, and returns enriched metadata with a 24-hour pre-signed download URL.
 *   **Auth Channel:** Channel A (`X-API-Key`) or Channel B (`Bearer JWT`)
-*   **Idempotency:** 🛡️ **Supported** (`[Idempotent(Mandatory = false)]`, 24h TTL)
+*   **Idempotency:** 🛡️ **Supported** (`[Idempotent(Mandatory = false)]`, 24h TTL — Opt-in)
 *   **Route Parameter:** `slug` (string, e.g., `commercial-invoice`)
 *   **Request Body (`application/json`):**
     ```json
@@ -398,31 +398,77 @@ High-throughput document generation pipeline. Merges JSON payload into template 
         ],
         "totalAmount": 50000
       },
-      "outputFormat": "Pdf",
-      "options": {
-        "saveToStorage": true,
-        "printBackground": true
+      "outputFormat": "pdf",
+      "documentRef": "INV-2026-0001",
+      "changeNote": "Initial generation",
+      "skipValidation": false
+    }
+    ```
+*   **Response (200 OK):** `ApiResponse<GenerateDocumentResultDto>`
+    *   Header: `Idempotency-Replayed: true` (if served from cache)
+    ```json
+    {
+      "data": {
+        "generationId": "019275a2-3b0c-7839-a9a8-e4b2d8ff98a1",
+        "documentRef": "INV-2026-0001",
+        "outputFormat": "pdf",
+        "fileSizeBytes": 245100,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "url": "https://storage.sammakorn.co.th/outputs/.../inv.pdf?token=...",
+        "expiresAt": "2026-10-11T15:40:00Z"
       }
     }
     ```
-*   **Response (200 OK):** Direct Binary Stream (`application/pdf`)
-    *   Header: `Content-Disposition: attachment; filename="commercial-invoice-INV-2026-001.pdf"`
-    *   Header: `Idempotency-Replayed: true` (if served from cache)
+*   **Error Response (422 Unprocessable Entity):** When payload violates template's Draft-07 JSON Schema:
+    ```json
+    {
+      "type": "https://api.sammakorn.co.th/errors/schema-validation-failed",
+      "title": "Schema Validation Failed",
+      "status": 422,
+      "errorCode": "SCHEMA_VALIDATION_FAILED",
+      "instance": "/api/v1/documents/generate/commercial-invoice",
+      "errors": [
+        {
+          "path": "/customer/taxId",
+          "rule": "minLength",
+          "message": "Expected string of length 13."
+        }
+      ]
+    }
+    ```
+
+#### `GET /api/v1/documents/download/{logId}`
+Dual-mode download endpoint for generated documents. Retrieves pre-signed URL or redirects directly to Object Storage.
+*   **Auth Channel:** Channel A (`X-API-Key`) or Channel B (`Bearer JWT`)
+*   **Route Parameter:** `logId` (UUIDv7)
+*   **Content Negotiation:**
+    *   `Accept: application/json` ➔ **200 OK** returning `ApiResponse<DownloadUrlResponseDto>` (`{ "data": { "url": "...", "expiresInSeconds": 3600 } }`).
+    *   Default / Browser / cURL ➔ **307 Temporary Redirect** pointing directly to MinIO Pre-signed URL (offloading Gateway bandwidth).
+
+#### `GET /api/v1/documents/{documentRef}/versions`
+Retrieves legal audit history and immutable version list for a given document reference.
+*   **Auth Channel:** Channel A (`X-API-Key`) or Channel B (`Bearer JWT`)
+*   **Response (200 OK):** `ApiResponse<IEnumerable<DocumentVersionDto>>`.
+
+#### `GET /api/v1/documents/{documentRef}/versions/{version}/download`
+Downloads a historical version directly as a binary stream.
+*   **Auth Channel:** Channel A (`X-API-Key`) or Channel B (`Bearer JWT`)
+*   **Response (200 OK):** Direct Binary Stream (`application/pdf`, `.docx`, `.xlsx`) with `Content-Disposition: attachment`.
 
 #### `POST /api/v1/documents/preview/{slug}`
 100% Stateless in-memory rendering preview for Portal UI live editors. **Zero database mutations, zero MinIO uploads.**
 *   **Auth Channel:** Channel A (`X-API-Key`) or Channel B (`Bearer JWT`)
 *   **Idempotency:** Bypassed (Real-time keystroke rendering)
-*   **Request Body:** Same shape as `/generate/{slug}`.
-*   **Response (200 OK):** Direct Binary Stream with `Content-Disposition: inline`.
+*   **Request Body (`application/json`):** `{ "payload": { ... }, "html": "<html>...</html>" }`
+*   **Response (200 OK):** Direct Binary Stream (`application/pdf`) with `Content-Disposition: inline`.
 
 #### `POST /api/v1/documents/validate/{slug}`
 Pre-flight JSON payload validation against the template's compiled JSON Schema Draft-07.
 *   **Auth Channel:** Channel A (`X-API-Key`) or Channel B (`Bearer JWT`)
 *   **Request Body (`application/json`):** Direct JSON payload (e.g., `{ "customer": { ... } }`)
-*   **Response (200 OK / 400 Bad Request):** Returns `ApiResponse<ValidateTemplatePayloadResult>`
-    *   `200 OK` when payload passes validation (`valid: true`)
-    *   `400 Bad Request` when schema violations are found (`valid: false`)
+*   **Response (200 OK):** Returns `ApiResponse<ValidateTemplatePayloadResult>` (Pre-flight inspection probe query always returns `200 OK` regardless of `valid` outcome).
+    *   Payload valid: `valid: true`, `errors: []`
+    *   Payload invalid: `valid: false`, `errors: [...]`
     ```json
     {
       "data": {
@@ -476,7 +522,7 @@ Retrieves metadata and status of a single template.
 #### `POST /api/v1/templates`
 Uploads and compiles a new document template.
 *   **Auth Channel:** Channel A (`X-API-Key`) or Channel B (`Bearer JWT`)
-*   **Idempotency:** 🛡️ **Supported** (`[Idempotent]`, 24h TTL)
+*   **Idempotency:** 🛡️ **Supported** (`[Idempotent(Mandatory = false)]`, 24h TTL — Opt-in)
 *   **Request Content-Type:** `multipart/form-data`
 *   **Form Fields:**
     *   `projectId` (uuid, required)
@@ -504,7 +550,7 @@ Manages field mapping definitions (Variable name ➔ Data source column).
 
 #### `POST /api/v1/templates/draft/{draftId}/commit`
 Publishes an in-memory editor draft to production.
-*   **Idempotency:** 🛡️ **Supported** (`[Idempotent]`)
+*   **Idempotency:** 🛡️ **Supported** (`[Idempotent(Mandatory = false)]`, 24h TTL — Opt-in)
 *   **Response (200 OK):** `ApiResponse<TemplateResultDto>`.
 
 ---

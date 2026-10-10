@@ -14,19 +14,19 @@ import {
 describe('Zod Schemas Validation Integrity', () => {
   it('should accept valid GenerateDocumentRequest', () => {
     const valid = {
-      data: { contractNo: 'SMK-001', amount: 1000 },
-      output: 'pdf',
+      payload: { contractNo: 'SMK-001', amount: 1000 },
+      outputFormat: 'pdf',
       documentRef: 'DOC-001',
     };
     const parsed = GenerateDocumentRequestSchema.parse(valid);
-    expect(parsed.output).toBe('pdf');
-    expect(parsed.data.amount).toBe(1000);
+    expect(parsed.outputFormat).toBe('pdf');
+    expect(parsed.payload.amount).toBe(1000);
   });
 
   it('should reject invalid output format in GenerateDocumentRequest', () => {
     const invalid = {
-      data: {},
-      output: 'bmp', // invalid
+      payload: {},
+      outputFormat: 'bmp', // invalid
     };
     expect(() => GenerateDocumentRequestSchema.parse(invalid)).toThrow();
   });

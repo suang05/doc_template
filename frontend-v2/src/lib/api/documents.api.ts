@@ -24,7 +24,7 @@ export const documentsApi = {
    */
   async previewDocument(
     slug?: string,
-    request: PreviewDocumentRequest = { data: {} },
+    request: PreviewDocumentRequest = { payload: {} },
     options?: { signal?: AbortSignal }
   ): Promise<Blob> {
     const endpoint = slug ? `/api/documents/preview/${slug}` : `/api/documents/preview`;

@@ -51,7 +51,7 @@ export function useLivePreview(slug?: string, html?: string, sampleDataJson?: st
       const blob = await documentsApi.previewDocument(
         slug,
         {
-          data: parsedData,
+          payload: parsedData,
           html: html || undefined,
         },
         { signal: controller.signal }

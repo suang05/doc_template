@@ -87,7 +87,7 @@ public sealed class GlobalExceptionHandler(
             UnauthorizedException unauthorized   => (StatusCodes.Status401Unauthorized, "Unauthorized", unauthorized.ErrorCode),
             DomainValidationException domainVal  => (StatusCodes.Status400BadRequest, "Domain Validation Error", domainVal.ErrorCode),
             BusinessRuleViolationException rule  => (StatusCodes.Status400BadRequest, "Business Rule Violation", rule.ErrorCode),
-            SchemaValidationException schema     => (StatusCodes.Status400BadRequest, "Schema Validation Failed", schema.ErrorCode),
+            SchemaValidationException schema     => (StatusCodes.Status422UnprocessableEntity, "Schema Validation Failed", schema.ErrorCode),
             ValidationException validation       => (StatusCodes.Status400BadRequest, "Validation Failed", validation.ErrorCode),
             DomainException domain               => (StatusCodes.Status400BadRequest, "Domain Error", domain.ErrorCode),
             UnauthorizedAccessException          => (StatusCodes.Status401Unauthorized, "Unauthorized", "UNAUTHORIZED"),

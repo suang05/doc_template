@@ -42,7 +42,7 @@ public class DocumentController(
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Generate([FromRoute] string slug, [FromBody] GenerateDocumentRequest request, CancellationToken ct)
     {
-        var command = new GenerateDocumentCommand(request.Data, request.Output, request.DocumentRef, request.ChangeNote, request.SkipValidation);
+        var command = new GenerateDocumentCommand(request.Payload, request.OutputFormat, request.DocumentRef, request.ChangeNote, request.SkipValidation);
         var response = await generateUseCase.ExecuteAsync(slug, command, ct);
         return Ok(new ApiResponse<GenerateDocumentResultDto>(response));
     }
@@ -53,17 +53,21 @@ public class DocumentController(
     /// </summary>
     [HttpPost("validate/{slug}")]
     [ProducesResponseType(typeof(ApiResponse<ValidateTemplatePayloadResult>), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(ApiResponse<ValidateTemplatePayloadResult>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> ValidatePayload(
         [FromRoute] string slug,
         [FromBody] JsonElement data,
         CancellationToken ct)
     {
+        if (data.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null)
+        {
+            throw new DomainValidationException("Request payload body cannot be null or empty.");
+        }
+
         var query = new ValidateTemplatePayloadQuery(slug, data);
         var result = await validatePayloadUseCase.ExecuteAsync(query, ct);
-        return result.Valid 
-            ? Ok(new ApiResponse<ValidateTemplatePayloadResult>(result)) 
-            : BadRequest(new ApiResponse<ValidateTemplatePayloadResult>(result));
+        return Ok(new ApiResponse<ValidateTemplatePayloadResult>(result));
     }
 
     /// <summary>
@@ -74,7 +78,7 @@ public class DocumentController(
     [Produces("application/pdf")]
     public async Task<IActionResult> Preview([FromRoute] string? slug, [FromBody] PreviewDocumentRequest request, CancellationToken ct)
     {
-        var query = new PreviewDocumentQuery(request.Data, request.Html);
+        var query = new PreviewDocumentQuery(request.Payload, request.Html);
         var pdfStream = await previewUseCase.ExecuteStreamAsync(slug, query, ct);
         Response.Headers.ContentDisposition = "inline";
         return File(pdfStream, "application/pdf");
@@ -103,15 +107,26 @@ public class DocumentController(
         return File(result.Stream, result.ContentType, result.FileName);
     }
 
-    /// <summary>Get pre-signed download URL for a generated document.</summary>
+    /// <summary>
+    /// Download or get pre-signed URL for a generated document.
+    /// Dual-mode: returns JSON when Accept contains application/json, or HTTP 307 Redirect for direct download.
+    /// </summary>
     [HttpGet("download/{logId:guid}")]
     [ProducesResponseType(typeof(ApiResponse<DownloadUrlResponseDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status307TemporaryRedirect)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> DownloadByLogId([FromRoute] Guid logId, CancellationToken ct)
     {
         var query = new GetLogDownloadUrlQuery(logId);
         var url = await getLogDownloadUrlUseCase.ExecuteAsync(query, ct);
-        return Ok(new ApiResponse<DownloadUrlResponseDto>(new DownloadUrlResponseDto(url, 3600)));
+
+        var acceptHeader = Request.Headers.Accept.ToString();
+        if (acceptHeader.Contains("application/json", StringComparison.OrdinalIgnoreCase))
+        {
+            return Ok(new ApiResponse<DownloadUrlResponseDto>(new DownloadUrlResponseDto(url, 3600)));
+        }
+
+        return Redirect(url);
     }
 
     /// <summary>

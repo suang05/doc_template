@@ -56,7 +56,7 @@ public class GenerateDocumentUseCaseTests
         _fixture.Context.Setup(c => c.CallerApp).Returns("sales-app");
 
         using var jsonDoc = JsonDocument.Parse("{\"name\": \"สมชาย ใจดี\"}");
-        var request = new GenerateDocumentCommand(jsonDoc.RootElement, Output: "pdf", DocumentRef: "SC-2026-0001");
+        var request = new GenerateDocumentCommand(jsonDoc.RootElement, OutputFormat: "pdf", DocumentRef: "SC-2026-0001");
 
         // Act
         var result = await CreateSut().ExecuteAsync("sale-contract", request);
@@ -178,6 +178,8 @@ public class GenerateDocumentUseCaseTests
 
         // Assert
         result.Should().NotBeNull();
+        result.Sha256.Should().NotBeNullOrEmpty();
+        result.FileSizeBytes.Should().BeGreaterThan(0);
         capturedDataJson.Should().Contain("สองล้านห้าแสนบาทถ้วน");
         capturedDataJson.Should().Contain("amount_baht");
     }
@@ -228,12 +230,14 @@ public class GenerateDocumentUseCaseTests
             .ReturnsAsync(2);
 
         using var jsonDoc = JsonDocument.Parse("{}");
-        var request = new GenerateDocumentCommand(jsonDoc.RootElement, Output: "pdf", DocumentRef: "SC-2026-0001");
+        var request = new GenerateDocumentCommand(jsonDoc.RootElement, OutputFormat: "pdf", DocumentRef: "SC-2026-0001");
 
         // Act
-        await CreateSut().ExecuteAsync("sale-contract", request);
+        var result = await CreateSut().ExecuteAsync("sale-contract", request);
 
         // Assert — Document NOT created again
+        result.DocumentRef.Should().Be("SC-2026-0001");
+        result.Sha256.Should().NotBeNullOrEmpty();
         _fixture.DocumentRepo.Verify(r => r.AddAsync(It.IsAny<Document>(), It.IsAny<CancellationToken>()), Times.Never);
 
         _fixture.DocVersionRepo.Verify(r => r.AddAsync(
@@ -300,7 +304,7 @@ public class GenerateDocumentUseCaseTests
             .ReturnsAsync(1);
 
         using var jsonDoc = JsonDocument.Parse("""{"customer":"ACME"}"""); // missing doc_no
-        var request = new GenerateDocumentCommand(jsonDoc.RootElement, Output: "pdf");
+        var request = new GenerateDocumentCommand(jsonDoc.RootElement, OutputFormat: "pdf");
 
         // Act
         var act = () => CreateSut().ExecuteAsync("invoice", request);
@@ -372,7 +376,7 @@ public class GenerateDocumentUseCaseTests
         _fixture.Uow.Setup(u => u.CommitAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
 
         using var jsonDoc = JsonDocument.Parse("""{"customer":"ACME"}"""); // missing doc_no — but SkipValidation
-        var request = new GenerateDocumentCommand(jsonDoc.RootElement, Output: "pdf", SkipValidation: true);
+        var request = new GenerateDocumentCommand(jsonDoc.RootElement, OutputFormat: "pdf", SkipValidation: true);
 
         // Act
         var result = await CreateSut().ExecuteAsync("invoice", request);
@@ -410,7 +414,7 @@ public class GenerateDocumentUseCaseTests
         _fixture.GivenPresignedUrl("https://example.com/download/fallback.pdf");
 
         using var jsonDoc = JsonDocument.Parse("{}");
-        var request = new GenerateDocumentCommand(jsonDoc.RootElement, Output: "unknown_format", SkipValidation: true);
+        var request = new GenerateDocumentCommand(jsonDoc.RootElement, OutputFormat: "unknown_format", SkipValidation: true);
 
         // Act
         var result = await CreateSut().ExecuteAsync("fallback-contract", request);

@@ -136,7 +136,7 @@ public class HtmlDirectGenerationTests
             ""totalAmount"": 5525000.50
         }").RootElement;
 
-        var request = new GenerateDocumentCommand(payload, Output: "pdf", DocumentRef: "INV-2026-0001");
+        var request = new GenerateDocumentCommand(payload, OutputFormat: "pdf", DocumentRef: "INV-2026-0001");
 
         // Act
         var response = await useCase.ExecuteAsync("invoice-direct-html", request, CancellationToken.None);

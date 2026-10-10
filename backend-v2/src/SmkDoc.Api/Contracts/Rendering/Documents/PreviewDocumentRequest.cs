@@ -6,6 +6,6 @@ namespace SmkDoc.Api.Contracts.Rendering.Documents;
 /// HTTP request contract for ephemeral document preview.
 /// </summary>
 public record PreviewDocumentRequest(
-    JsonElement Data,
+    JsonElement Payload,
     string? Html = null
 );

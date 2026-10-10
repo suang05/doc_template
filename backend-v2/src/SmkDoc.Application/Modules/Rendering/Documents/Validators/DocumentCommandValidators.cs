@@ -18,11 +18,11 @@ public sealed class GenerateDocumentCommandValidator : AbstractValidator<Generat
 
     public GenerateDocumentCommandValidator()
     {
-        RuleFor(x => x.Data)
+        RuleFor(x => x.Payload)
             .Must(BeValidJsonObject)
             .WithMessage("Data payload must be a valid non-empty JSON object.");
 
-        RuleFor(x => x.Output)
+        RuleFor(x => x.OutputFormat)
             .NotEmpty().WithMessage("Output format is required.")
             .Must(x => AllowedFormats.Contains(x))
             .WithMessage("Output format must be one of: 'pdf', 'docx', 'xlsx'.");

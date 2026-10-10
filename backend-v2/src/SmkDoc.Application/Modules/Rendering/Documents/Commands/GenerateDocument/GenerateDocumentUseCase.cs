@@ -49,7 +49,7 @@ public sealed class GenerateDocumentUseCase(
         var currentVersion = await _versionRepo.GetByIdAsync(template.CurrentVersionId.Value, ct)
             ?? throw new InvalidOperationException($"Current version for template '{slug}' not found.");
 
-        var outputFormat = request.Output.Trim().ToLowerInvariant() switch
+        var outputFormat = request.OutputFormat.Trim().ToLowerInvariant() switch
         {
             "docx" => OutputFormat.Docx,
             "xlsx" => OutputFormat.Xlsx,
@@ -63,7 +63,7 @@ public sealed class GenerateDocumentUseCase(
 
         // --- Step 1: Fail-Fast Data Preparation & Schema Validation Gate ---
         var preparedData = await _dataPreparationService.PrepareDataAsync(
-            template, currentVersion, request.Data, request.SkipValidation, ct);
+            template, currentVersion, request.Payload, request.SkipValidation, ct);
 
         if (preparedData.ValidationResult is { IsValid: false })
         {
@@ -90,9 +90,21 @@ public sealed class GenerateDocumentUseCase(
         string contentType = outputFormat.MimeType;
 
         var generationId = Guid.CreateVersion7();
-        string outputKey = $"outputs/{DateTime.UtcNow:yyyy/MM/dd}/{slug}_{generationId:N}.{ext}";
+        var tenantId = _executionContext.ProjectId.HasValue && _executionContext.ProjectId.Value != Guid.Empty
+            ? _executionContext.ProjectId.Value
+            : template.ProjectId;
+        string outputKey = $"outputs/{tenantId:N}/{DateTime.UtcNow:yyyy/MM/dd}/{slug}_{generationId:N}.{ext}";
 
-        long fileSizeBytes = outputStream.CanSeek ? outputStream.Length : 0;
+        long fileSizeBytes = 0;
+        string sha256 = string.Empty;
+        if (outputStream.CanSeek)
+        {
+            fileSizeBytes = outputStream.Length;
+            outputStream.Position = 0;
+            byte[] hashBytes = await System.Security.Cryptography.SHA256.HashDataAsync(outputStream, ct);
+            sha256 = Convert.ToHexString(hashBytes).ToLowerInvariant();
+            outputStream.Position = 0;
+        }
 
         await _storageService.UploadAsync(StorageBuckets.Outputs, outputKey, outputStream, contentType, ct);
 
@@ -129,10 +141,13 @@ public sealed class GenerateDocumentUseCase(
         }
 
         return new GenerateDocumentResultDto(
-            Url: downloadUrl,
-            ExpiresAt: DateTimeOffset.UtcNow.Add(expiry),
             GenerationId: generationId,
-            OutputFormat: ext
+            DocumentRef: request.DocumentRef,
+            OutputFormat: ext,
+            FileSizeBytes: fileSizeBytes,
+            Sha256: sha256,
+            Url: downloadUrl,
+            ExpiresAt: DateTimeOffset.UtcNow.Add(expiry)
         );
     }
 }

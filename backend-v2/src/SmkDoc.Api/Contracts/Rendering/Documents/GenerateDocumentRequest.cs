@@ -6,8 +6,8 @@ namespace SmkDoc.Api.Contracts.Rendering.Documents;
 /// HTTP request contract for document generation.
 /// </summary>
 public record GenerateDocumentRequest(
-    JsonElement Data,
-    string Output = "pdf",
+    JsonElement Payload,
+    string OutputFormat = "pdf",
     string? DocumentRef = null,
     string? ChangeNote = null,
     bool SkipValidation = false
