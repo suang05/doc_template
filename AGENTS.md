@@ -105,6 +105,7 @@ In every single interaction (answering questions, reviewing code, or planning so
 - WHEN task involves Solution layout, namespaces, folder structure -> READ `docs/AI/PROJECT_STRUCTURE.md`
 - WHEN task involves Handlebars helpers, Thai fonts, Word/Excel engines -> READ `docs/AI/TEMPLATE_ENGINE.md`
 - WHEN task involves Next.js Portal UI, Monaco Editor, Tailwind tokens -> READ `docs/AI/DESIGN.md`
+- WHEN task involves Screen layouts, ASCII wireframes, UI stitching recipes, or Page flows -> READ `docs/AI/FRONTEND_SPEC.md`
 - WHEN task involves System topology, Clean Architecture layers, or middleware -> READ `docs/AI/ARCHITECTURE.md`
 - WHEN task involves Architectural patterns, pipeline designs -> READ `docs/AI/PATTERNS.md`
 - WHEN task involves Code review, PR review, refactoring, avoiding anti-patterns -> READ `docs/AI/ANTI-PATTERNS.md`

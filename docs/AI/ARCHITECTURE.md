@@ -130,7 +130,7 @@ SmkDoc.Domain ← SmkDoc.Application ← SmkDoc.Infrastructure ← SmkDoc.Api
 
 ### 2.1 Layer 1 — `SmkDoc.Domain` (The Core)
 *   **Zero Dependencies:** 100% pure C# POCOs. Prohibits all NuGet packages, EF Core references, and ASP.NET Core dependencies.
-*   **Sealed Rich Domain Entities (ADR-022 & ADR-023):**
+*   **Sealed Rich Domain Entities (ADR-DOM-06 [Legacy: ADR-022] & ADR-DOM-07 [Legacy: ADR-023]):**
     *   State encapsulation: Properties are strictly `{ get; private set; }` or `{ get; protected set; }`.
     *   No public setters; no external object initializers (`new Template { ... }`).
     *   Single Canonical Factory Method (`Create`) as Single Source of Truth (SSoT), receiving strongly-typed Value Objects and mandatory `DateTimeOffset now`.

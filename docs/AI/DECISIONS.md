@@ -1,628 +1,352 @@
 # DECISIONS.md — Architecture Decision Records (ADRs)
-> SMK Document Server v2 • Updated September 2026
 
-> **[AI_DIRECTIVE] Purpose & Usage:** 
-> This file is a historical log of Architecture Decision Records (ADRs). It explains **WHY** certain technologies or patterns were chosen or rejected.
-> - **DO NOT** read or reference this file for day-to-day coding, bug fixing, or feature implementation. (Use `CODING_CONVENTIONS.md` for active rules).
-> - **ONLY** read this file when the user explicitly asks for architectural advice, tech stack changes, or historical design rationale to avoid suggesting rejected solutions.
+> **Purpose:** Authoritative repository of Architecture Decision Records (ADRs) for the SMK Document Server (`backend-v2/` and `frontend-v2/`). Explains the architectural rationale, context, historical evolution, and design decisions.  
+> **Related Docs:** [ARCHITECTURE.md](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/ARCHITECTURE.md), [CODING_CONVENTIONS.md](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/CODING_CONVENTIONS.md), [PATTERNS.md](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/PATTERNS.md), [ANTI-PATTERNS.md](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/ANTI-PATTERNS.md).
 
----
+<ai_directive>
+CRITICAL ATTENTION ROUTING & SELECTIVE READING CONDITIONS:
 
-## ADR-001: X-API-Key Authentication แทน JWT Bearer
+⛔ WHEN NOT TO READ (DO NOT LOAD IN ROUTINE WORKFLOWS):
+- DO NOT read or reference this document during routine day-to-day coding, bug fixing, test writing, or standard endpoint implementation.
+- For active coding standards and implementation recipes, ALWAYS read `CODING_CONVENTIONS.md` and `PATTERNS.md`.
+- For prohibited anti-patterns, ALWAYS read `ANTI-PATTERNS.md`.
 
-**Date:** September 2026 | **Status:** Accepted
+✅ WHEN TO READ (ONLY READ UNDER THESE 3 CONDITIONS):
+1. ARCHITECTURAL CHANGES: When tasked with modifying foundational architecture, introducing new 3rd-party libraries, or altering inter-layer communication boundaries.
+2. REFACTORING EVALUATION: Before refactoring or replacing an existing subsystem, consult this file to verify Chesterton's Fence ("Why was this built this way and what alternatives were considered?").
+3. HISTORICAL RATIONALE: When explicitly asked by the user why a specific technology or design pattern was chosen over an alternative.
+</ai_directive>
 
-**Decision:** ใช้ `X-API-Key` header ร่วมกับตาราง `api_keys` ใน PostgreSQL สำหรับยืนยันตัวตนทุก request แทน JWT/Bearer Token
-
-**Rationale:**
-- Caller apps ส่วนใหญ่เป็น Internal C# systems — API Key จัดการง่ายกว่า Token lifecycle
-- Revoke สิทธิ์ได้ทันที (ปิด row ในตาราง)
-- ไม่มี Refresh Token complexity
-- แยกการเข้าถึงตาม Project ได้ชัดเจน
-
-**Implementation:**
-- `ApiKeyMiddleware.cs` — validate ทุก request (ยกเว้น `/`, `/health`, `/swagger`)
-- `MASTER_API_KEY` env var — bypass สำหรับ bootstrapping (ก่อนมี DB record)
-- `ApiKeyUseCase.ValidateKeyAsync()` — hash comparison กับ `api_keys.key_hash`
-- Unauthorized responses ใช้ RFC 9457 Problem Details format
-
-**Consequence:** ระบบ `[Authorize]` attribute มาตรฐานของ ASP.NET ไม่ได้ใช้ — ใช้ Middleware-based validation แทน
+<decisions_scope>
 
 ---
 
-## ADR-002: Gotenberg 8 แทน Embedded LibreOffice
+## ⚡ Quick-Lookup: ADR Master Matrix (8 Architectural Domains)
 
-**Date:** September 2026 | **Status:** Accepted
-
-**Decision:** แปลง PDF ผ่าน Gotenberg 8 Microservice แทนการรัน LibreOffice process ตรงๆ บน API Server
-
-**Rationale:**
-- Gotenberg จัดการ Process lifecycle ป้องกัน Memory Leak / Process hang
-- API Server เป็น Stateless ได้ — ไม่ต้องติดตั้ง LibreOffice บนเครื่อง
-- Concurrency Control และ Timeout ในตัว
-- Mock ได้ง่ายใน Unit Tests ผ่าน `IPdfRenderer` interface
-
-**Implementation:**
-- `GotenbergPdfRenderer.cs` — HTTP Client กับ Gotenberg API
-- Config: `GotenbergUrl` env var หรือ `appsettings.json`
-- Chromium endpoint: `POST /forms/chromium/convert/html` (HTML → PDF)
-- LibreOffice endpoint: `POST /forms/libreoffice/convert` (DOCX/XLSX → PDF)
-
----
-
-## ADR-003: Rich Domain Model แทน Anemic Domain Model
-
-**Date:** September 2026 | **Status:** Accepted (ใช้งาน 100%)
-
-**Decision:** เปลี่ยน Entities ทั้ง 14 ตัวจาก Anemic (`public set`, Object Initializers) เป็น Rich Domain Models
-
-**Rules:**
-- Properties: `private set` ทั้งหมด (หรือ `init`)
-- Constructor: Parameterized เท่านั้น — ห้าม Object Initializer `{ }`
-- EF Core: ต้องมี `private` Parameterless Constructor สำหรับ Materialization
-- State changes: ผ่าน Business Methods เท่านั้น (เช่น `Activate()`, `Publish()`, `SetCurrentVersion()`)
-
-**Consequence:**
-- Use Cases อ่านง่ายขึ้น (delegate logic ไปที่ Entity)
-- Unit Tests ต้องสร้าง Object ผ่าน Constructor (ทดสอบ business rules ได้ถูกต้อง)
-
----
-
-## ADR-004: Smart Enums แทน C# Enum + Magic Strings
-
-**Date:** September 2026 | **Status:** Accepted
-
-**Decision:** แปลง Enums สำคัญจาก C# `enum` + switch statement เป็น Smart Enum classes ที่สืบทอดจาก `Enumeration` base class
-
-**Affected Enums:**
-| Smart Enum | Properties เพิ่มเติม |
-|---|---|
-| `TemplateFormat` | `.Extension`, `.MimeType`, `.RenderEngineType` |
-| `OutputFormat` | `.ContentType`, `.Extension` |
-| `RenderEngineType` | matching logic |
-| `TemplateVersionStatus` | `.Name`, `.IsTerminal` |
-| `RoleType` | permission mapping |
-
-**Rationale:**
-- ขจัด Primitive Obsession (ห้ามใช้ `"html"`, `".docx"` string ใน business logic)
-- Behavior อยู่ใน Enum เอง ไม่ต้องมี helper methods แยก
-- Compile-time safety — ผิดพลาดน้อยกว่า string comparison
-
-**Consequence:** Unit Tests ต้องใช้ `TemplateFormat.Html` แทน `"html"` หรือ `TemplateFormat.Html.ToString()`
+| Domain | Tag | Legacy Alias | Date | Title | Status |
+|---|---|:---:|:---:|---|:---:|
+| 🔐 **Security** | [`ADR-SEC-01`](#adr-sec-01-initial-x-api-key-authentication) | `ADR-001` | September 2026 | Initial `X-API-Key` Authentication | Partially Superseded by `SEC-02` & `SEC-03` |
+| 🔐 **Security** | [`ADR-SEC-02`](#adr-sec-02-hybrid-rbac--dual-channel-authentication-model) | `ADR-011` | September 2026 | Hybrid RBAC & Dual-Channel Authentication Model (M2M + Portal) | **Accepted (Active)** |
+| 🔐 **Security** | [`ADR-SEC-03`](#adr-sec-03-scoped-api-keys--m2m-first-zero-public-surface-security) | `ADR-025` | October 2026 | Scoped API Keys (`ReadOnly` / `ReadWrite`) & Zero Public Surface | **Accepted (Active)** |
+| 🔐 **Security** | [`ADR-SEC-04`](#adr-sec-04-nextjs-server-side-api-proxy--cookie-to-bearer-token-isolation) | `ADR-027` | October 2026 | Next.js Server-Side API Proxy & Cookie-to-Bearer Token Translation | **Accepted (Active)** |
+| ⚙️ **Engines** | [`ADR-ENG-01`](#adr-eng-01-gotenberg-8-chromium-microservice-instead-of-embedded-libreoffice) | `ADR-002` | September 2026 | Gotenberg 8 Chromium Microservice instead of Embedded LibreOffice | **Accepted (Active)** |
+| ⚙️ **Engines** | [`ADR-ENG-02`](#adr-eng-02-compiled-handlebars-template-caching--smart-excel-pagesetup) | `ADR-013` | September 2026 | Compiled Handlebars Caching & Smart Excel PageSetup Preservation | **Accepted (Active)** |
+| ⚙️ **Engines** | [`ADR-ENG-03`](#adr-eng-03-native-thai-typography-compliance--sarabun-font-sandboxing) | `ADR-029` | October 2026 | Native Thai Typography Compliance & Sarabun Font Sandboxing | **Accepted (Active)** |
+| 💎 **Domain** | [`ADR-DOM-01`](#adr-dom-01-rich-domain-model-instead-of-anemic-domain-model) | `ADR-003` | September 2026 | Rich Domain Model instead of Anemic Domain Model | **Accepted (Active)** |
+| 💎 **Domain** | [`ADR-DOM-02`](#adr-dom-02-smart-enums-instead-of-c-enums--magic-strings) | `ADR-004` | September 2026 | Smart Enums instead of C# Enums + Magic Strings | **Accepted (Active)** |
+| 💎 **Domain** | [`ADR-DOM-03`](#adr-dom-03-dedicated-value-objects-for-primitives-with-validation) | `ADR-005` | September 2026 | Dedicated Value Objects for Primitives with Validation Rules | **Accepted (Active)** |
+| 💎 **Domain** | [`ADR-DOM-04`](#adr-dom-04-high-performance-domain-optimization--sequential-uuidv7) | `ADR-010` | September 2026 | High-Performance Domain Optimization, Zero-Allocations & UUIDv7 | **Accepted (Active)** |
+| 💎 **Domain** | [`ADR-DOM-05`](#adr-dom-05-domain-layer-integrity--fail-fast-invariants--aggregates) | `ADR-021` | October 2026 | Domain Layer Integrity — Fail-Fast Invariants & Aggregate Boundaries | **Accepted (Active)** |
+| 💎 **Domain** | [`ADR-DOM-06`](#adr-dom-06-comprehensive-ddd-aggregates-sealed-entities--value-converters) | `ADR-022` | October 2026 | Comprehensive DDD Aggregates, Sealed Entities & Value Converters | **Accepted (Active)** |
+| 💎 **Domain** | [`ADR-DOM-07`](#adr-dom-07-strict-pure-ddd-standards--single-canonical-factory) | `ADR-023` | October 2026 | Strict Pure DDD Standards — Single Canonical Factory & No Test Backdoors | **Accepted (Active)** |
+| ⚡ **Application** | [`ADR-APP-01`](#adr-app-01-application-dto-boundary-never-leak-domain-entities) | `ADR-006` | September 2026 | Application DTO Boundary (Never Leak Domain Entities) | **Accepted (Active)** |
+| ⚡ **Application** | [`ADR-APP-02`](#adr-app-02-clean-architecture-v2-dto--command-restructuring) | `ADR-014` | September 2026 | Clean Architecture v2 DTO & Command Restructuring (Feature Slices) | **Accepted (Active)** |
+| ⚡ **Application** | [`ADR-APP-03`](#adr-app-03-c-12-primary-constructors--sealed-use-cases-standard) | `ADR-017` | September 2026 | C# 12 Primary Constructors & Sealed Use Cases Standard | **Accepted (Active)** |
+| ⚡ **Application** | [`ADR-APP-04`](#adr-app-04-phase-out-and-complete-removal-of-commonmodels) | `ADR-020` | September 2026 | Phase-Out and Complete Removal of `Common/Models/` (SSoT DTOs) | **Accepted (Active)** |
+| ⚡ **Application** | [`ADR-APP-05`](#adr-app-05-application-query-service-iuserworkspacequeryservice) | `ADR-026` | October 2026 | Application Query Service (`IUserWorkspaceQueryService`) | **Accepted (Active)** |
+| 🛡️ **Validation** | [`ADR-VAL-01`](#adr-val-01-dual-engine-automatic-validation-pipeline) | `ADR-015` | September 2026 | Dual-Engine Automatic Validation Pipeline (FluentValidation + JsonSchema.Net) | **Accepted (Active)** |
+| 🛡️ **Validation** | [`ADR-VAL-02`](#adr-val-02-schema-infrastructure-clean-code--performance-optimization) | `ADR-016` | September 2026 | Schema Infrastructure Clean Code & Performance Optimization | **Accepted (Active)** |
+| 🛡️ **Validation** | [`ADR-VAL-03`](#adr-val-03-standalone-scalable-schema-validator--bounded-caching) | `ADR-018` | September 2026 | Standalone Scalable Schema Validator & Bounded Caching | **Accepted (Active)** |
+| 🛡️ **Validation** | [`ADR-VAL-04`](#adr-val-04-template-payload-pre-flight-validation-with-multi-tenant-scoping) | `ADR-019` | September 2026 | Template Payload Pre-Flight Validation with Multi-Tenant Scoping | **Accepted (Active)** |
+| 🚨 **Resilience** | [`ADR-RES-01`](#adr-res-01-globalexceptionfilter-instead-of-schemavalidationexceptionfilter) | `ADR-007` | September 2026 | GlobalExceptionFilter instead of SchemaValidationExceptionFilter | Superseded by `RES-04` |
+| 🚨 **Resilience** | [`ADR-RES-02`](#adr-res-02-rate-limiting-with-per-api-key-partition) | `ADR-008` | September 2026 | Rate Limiting with Per-API-Key Partition | **Accepted (Active)** |
+| 🚨 **Resilience** | [`ADR-RES-03`](#adr-res-03-domainexception-hierarchy--machine-readable-error-codes) | `ADR-009` | September 2026 | DomainException Hierarchy & Machine-Readable Error Codes | **Accepted (Active)** |
+| 🚨 **Resilience** | [`ADR-RES-04`](#adr-res-04-unified-rfc-9457-iexceptionhandler--idempotency-pipeline) | `ADR-030` | October 2026 | Unified RFC 9457 `IExceptionHandler` & Idempotency Pipeline | **Accepted (Active)** |
+| 🌐 **Frontend** | [`ADR-UI-01`](#adr-ui-01-nextjs-15-app-router-layout--ice-white-design-token-ssot) | `ADR-027` | October 2026 | Next.js 15 App Router Layout & Ice-White Design Token SSoT | **Accepted (Active)** |
+| 🌐 **Frontend** | [`ADR-UI-02`](#adr-ui-02-monaco-studio-v2-debounced-live-preview--in-flight-abort-pipeline) | `ADR-028` | October 2026 | Monaco Studio v2 Debounced Live Preview & In-Flight Abort Pipeline | **Accepted (Active)** |
+| 🧪 **Testing** | [`ADR-TST-01`](#adr-tst-01-smkdoctests-clean-architecture-mirroring--modernization) | `ADR-012` | September 2026 | SmkDoc.Tests Clean Architecture Mirroring & Modernization | **Accepted (Active)** |
+| 🧪 **Testing** | [`ADR-TST-02`](#adr-tst-02-test-suite-segregation-11-cqrs-parity--the-6-clean-testing-pillars) | `ADR-024` | October 2026 | Test Suite Segregation, 1:1 CQRS Parity & The 6 Clean Testing Pillars | **Accepted (Active)** |
 
 ---
 
-## ADR-005: Value Objects แทน Primitive Types ที่มี Validation
+## 🔄 Legacy Reference Mapping (Backward Compatibility Index)
 
-**Date:** September 2026 | **Status:** Accepted
+When external documents, commit messages, or comments cite legacy sequential numbers, use this translation matrix:
 
-**Decision:** แทนที่ `string DataSourceType` และ `string PayloadHashSha256` ด้วย Value Object classes
-
-| Value Object | แทนที่ | Validation |
-|---|---|---|
-| `DataSourceType` | `string DataSourceType` ใน `FieldMapping` | ต้องเป็น `"json"` หรือ `"sql"` เท่านั้น |
-| `Sha256Hash` | `string PayloadHashSha256` ใน `GenerationLog` | ต้องเป็น hex string 64 ตัวอักษร |
-
----
-
-## ADR-006: Application DTO Boundary
-
-**Date:** September 2026 | **Status:** Accepted
-
-**Decision:** Use Cases ต้องคืนค่าเป็น Application DTOs เสมอ ห้ามคืน Domain Entities ออกจาก Application Layer
-
-**Affected DTOs (เดิมอยู่ใน `SmkDoc.Application/Common/Models/` ปัจจุบันรวมเป็น SSoT ใน `SmkDoc.Application/DTOs/` ตาม ADR-020):**
-- `TemplateDto` — Template metadata
-- `TemplateVersionDto` — Version list (รวม `Status.Name` เป็น string)
-- `DocumentVersionDto` — Document version history
-- `FieldMappingDto` — Field mapping data
-- `GenerateDocumentRequest/Response` — Document generation IO
-- `TemplateDraftModels` — Draft save/load
-
-**Rationale:**
-- ป้องกัน Domain Entity รั่วไหลออกไปยัง API layer
-- API response structure เปลี่ยนได้โดยไม่กระทบ Domain
-- Serialization behavior ควบคุมได้ที่ DTO layer
+| Legacy Tag | Canonical Semantic Tag | Legacy Tag | Canonical Semantic Tag |
+|:---:|:---:|:---:|:---:|
+| `ADR-001` | [`ADR-SEC-01`](#adr-sec-01-initial-x-api-key-authentication) | `ADR-014` | [`ADR-APP-02`](#adr-app-02-clean-architecture-v2-dto--command-restructuring) |
+| `ADR-002` | [`ADR-ENG-01`](#adr-eng-01-gotenberg-8-chromium-microservice-instead-of-embedded-libreoffice) | `ADR-015` | [`ADR-VAL-01`](#adr-val-01-dual-engine-automatic-validation-pipeline) |
+| `ADR-003` | [`ADR-DOM-01`](#adr-dom-01-rich-domain-model-instead-of-anemic-domain-model) | `ADR-016` | [`ADR-VAL-02`](#adr-val-02-schema-infrastructure-clean-code--performance-optimization) |
+| `ADR-004` | [`ADR-DOM-02`](#adr-dom-02-smart-enums-instead-of-c-enums--magic-strings) | `ADR-017` | [`ADR-APP-03`](#adr-app-03-c-12-primary-constructors--sealed-use-cases-standard) |
+| `ADR-005` | [`ADR-DOM-03`](#adr-dom-03-dedicated-value-objects-for-primitives-with-validation) | `ADR-018` | [`ADR-VAL-03`](#adr-val-03-standalone-scalable-schema-validator--bounded-caching) |
+| `ADR-006` | [`ADR-APP-01`](#adr-app-01-application-dto-boundary-never-leak-domain-entities) | `ADR-019` | [`ADR-VAL-04`](#adr-val-04-template-payload-pre-flight-validation-with-multi-tenant-scoping) |
+| `ADR-007` | [`ADR-RES-01`](#adr-res-01-globalexceptionfilter-instead-of-schemavalidationexceptionfilter) | `ADR-020` | [`ADR-APP-04`](#adr-app-04-phase-out-and-complete-removal-of-commonmodels) |
+| `ADR-008` | [`ADR-RES-02`](#adr-res-02-rate-limiting-with-per-api-key-partition) | `ADR-021` | [`ADR-DOM-05`](#adr-dom-05-domain-layer-integrity--fail-fast-invariants--aggregates) |
+| `ADR-009` | [`ADR-RES-03`](#adr-res-03-domainexception-hierarchy--machine-readable-error-codes) | `ADR-022` | [`ADR-DOM-06`](#adr-dom-06-comprehensive-ddd-aggregates-sealed-entities--value-converters) |
+| `ADR-010` | [`ADR-DOM-04`](#adr-dom-04-high-performance-domain-optimization--sequential-uuidv7) | `ADR-023` | [`ADR-DOM-07`](#adr-dom-07-strict-pure-ddd-standards--single-canonical-factory) |
+| `ADR-011` | [`ADR-SEC-02`](#adr-sec-02-hybrid-rbac--dual-channel-authentication-model) | `ADR-024` | [`ADR-TST-02`](#adr-tst-02-test-suite-segregation-11-cqrs-parity--the-6-clean-testing-pillars) |
+| `ADR-012` | [`ADR-TST-01`](#adr-tst-01-smkdoctests-clean-architecture-mirroring--modernization) | `ADR-025` | [`ADR-SEC-03`](#adr-sec-03-scoped-api-keys--m2m-first-zero-public-surface-security) |
+| `ADR-013` | [`ADR-ENG-02`](#adr-eng-02-compiled-handlebars-template-caching--smart-excel-pagesetup) | `ADR-026` | [`ADR-APP-05`](#adr-app-05-application-query-service-iuserworkspacequeryservice) |
 
 ---
 
-## ADR-007: GlobalExceptionFilter แทน SchemaValidationExceptionFilter
+## Part 1: 🔐 Security & Identity (`SEC`)
 
-**Date:** September 2026 | **Status:** Superseded by `IExceptionHandler` (October 2026)
+### ADR-SEC-01: Initial X-API-Key Authentication
+> **Tag:** `ADR-SEC-01` | **Legacy:** `ADR-001` | **Date:** September 2026 | **Status:** Partially Superseded by `ADR-SEC-02` & `ADR-SEC-03`
 
-> **[Update October 2026]:** ยกระดับจาก MVC `GlobalExceptionFilter` สู่ **`GlobalExceptionHandler` (`IExceptionHandler`)** ครอบคลุมทั้ง HTTP Pipeline (Middleware + Controller) ตามมาตรฐาน .NET 8/10 (ดู `PATTERNS.md` Section 1.3)
+- **Context & Problem:** The legacy v1 document server lacked multi-tenant boundary isolation and machine-to-machine authentication.
+- **Decision:** Implemented `X-API-Key` header authentication backed by the `api_keys` PostgreSQL table via `ApiKeyMiddleware`.
+- **Evolution Note:** Originally intended as the exclusive authentication mechanism. As the web portal evolved, it was augmented by Dual-Channel Authentication (`ADR-SEC-02`) and Scoped API Keys (`ADR-SEC-03`).
 
-**Decision:** รวม `SchemaValidationExceptionFilter` และ Exception handling ทั้งหมดไว้ในตัวจัดการกลางเดียว แล้วลบ handler ที่ซ้ำซ้อนออก
+### ADR-SEC-02: Hybrid RBAC & Dual-Channel Authentication Model
+> **Tag:** `ADR-SEC-02` | **Legacy:** `ADR-011` | **Date:** September 2026 | **Status:** Accepted (Active)
 
-**Rationale:**
-- Single Responsibility ที่ชัดเจน — 1 Filter จัดการ Exception ทั้งระบบ
-- ลบ `ApiKeyAuthenticationHandler` ซึ่งมี obsolete `ISystemClock` warning
-- ลดความซับซ้อนของ Filter pipeline
+- **Context & Problem:** Machine callers (ERP, CRM) require stateless API keys, while human operators (Web Portal) require session-based, audited role management. A single authentication scheme cannot satisfy both personas cleanly.
+- **Decision:** Partitioned authentication into two independent channels:
+  1. **M2M Channel:** External systems authenticate via `X-API-Key`. Binds `ProjectId` to `IExecutionContext` statelessly.
+  2. **Human Management Channel:** Web portal users authenticate via Bearer JWT. Features frictionless login (no initial ProjectId required), resolving permissions via `SystemRole` (`SuperAdmin`, `Member`, `Viewer`) and tenant-scoped `UserProjectRole` records.
+- **Rejected Alternatives:** Single JWT for all systems (rejected: external systems cannot manage token refresh lifecycles cleanly); Basic Auth (rejected: insecure and lacks cryptographic key hashing).
 
-**กฎ:** ห้ามสร้าง Exception Filter เพิ่มอีก ให้เพิ่ม mapping ใน `GlobalExceptionFilter.cs` เท่านั้น
+### ADR-SEC-03: Scoped API Keys & M2M-First Zero Public Surface Security
+> **Tag:** `ADR-SEC-03` | **Legacy:** `ADR-025` | **Date:** October 2026 (2026-10-08) | **Status:** Accepted (Active)
 
----
+- **Context & Problem:** Exposing authentication endpoints (`/api/v1/auth/login`) publicly invites brute-force and credential stuffing attacks. Furthermore, external systems required fine-grained permission boundaries.
+- **Decision:**
+  1. **Smart Enum `ApiKeyScope`:** Introduces `ReadOnly` (preview, validate, download) and `ReadWrite` (full generation and authoring) persisted in `api_keys.scope`.
+  2. **Atomic Multi-Key Provisioning:** Project creation automatically issues both a `ReadOnly` and a `ReadWrite` key in a single atomic transaction.
+  3. **Zero Public Attack Surface:** Removed `/api/v1/auth/*` from the public whitelist. Calling login requires an internal perimeter key (`X-API-Key`), while existing JWT holders bypass the key check.
+- **Consequences:** Eliminates public brute-force vectors and tenant IDOR attacks.
 
-## ADR-008: Rate Limiting แบบ Per-API-Key Partition
+### ADR-SEC-04: Next.js Server-Side API Proxy & Cookie-to-Bearer Token Isolation
+> **Tag:** `ADR-SEC-04` | **Legacy:** `ADR-027` | **Date:** October 2026 | **Status:** Accepted (Active)
 
-**Date:** September 2026 | **Status:** Accepted
-
-**Decision:** ใช้ ASP.NET Core Rate Limiter ที่ Partition ตาม API Key value (ไม่ใช่ per-IP)
-
-**Config:**
-- 60 requests / minute / API Key
-- Queue limit: 0 (ปฏิเสธทันทีถ้าเกิน)
-- 429 Response: RFC 9457-inspired JSON body
-- Fallback: partition ตาม IP ถ้าไม่มี X-API-Key
-
----
-
-## ADR-009: DomainException Hierarchy & Machine-Readable Error Codes
-
-**Date:** September 2026 | **Status:** Accepted
-
-**Decision:** 
-1. สร้าง `DomainException` เป็น abstract base class ใน `SmkDoc.Domain.Exceptions` สำหรับ Domain Exceptions ทั้งหมด โดยบังคับมี `ErrorCode` (machine-readable string) และ `StatusCode` (HTTP status code)
-2. ปรับ `GlobalExceptionFilter` ให้ตรวจจับ `DomainException` และแนบ `extensions["errorCode"]` ลงใน ProblemDetails อัตโนมัติ
-3. เปลี่ยน `DraftExpiredException` ให้ส่งกลับ HTTP 410 Gone (`DRAFT_EXPIRED`) และลบ `try-catch` ใน Controllers ออกทั้งหมด
-4. ขจัด `KeyNotFoundException` ออกจาก Use Cases ทั้งหมด และหันมาใช้ `NotFoundException` (HTTP 404)
-5. สร้าง `RenderException` (HTTP 500 / `DOCUMENT_RENDER_FAILED`) และ `ConflictException` (HTTP 409 / `RESOURCE_CONFLICT`) เพื่อแยกแยะข้อผิดพลาดให้ตรงตามความหมายที่แท้จริง
-
-**Rationale:**
-- ป้องกันการหลุดของ `KeyNotFoundException` ไปเป็น HTTP 500
-- ขจัด duplication ของ `DraftExpiredException` ระหว่าง Domain และ Application layer
-- เพิ่มความสามารถในการ Debug และ Integration ให้กับ Frontend/Client ผ่าน Machine-Readable `errorCode`
+- **Context & Problem:** Storing JWT tokens in browser storage (`localStorage` or in-memory JavaScript variables) exposes them to Cross-Site Scripting (XSS) exfiltration.
+- **Decision:**
+  - Implemented Next.js 15 server route handler `/api/proxy/[...path]`.
+  - Browser communicates exclusively with Next.js using httpOnly session cookies.
+  - Server proxy strips hop-by-hop headers, extracts the JWT from the secure session via `auth()`, injects `Authorization: Bearer <token>`, forwards `X-API-Key`, and pipes the backend response directly back to the client.
+- **Consequences:** Zero bearer token exposure in client memory; streamlined internal network communication without browser CORS complications.
 
 ---
 
-## ADR-010: High-Performance Domain Optimization & Zero-Allocation Caching
+## Part 2: ⚙️ Rendering Engines & Formats (`ENG`)
 
-**Date:** September 2026 | **Status:** Accepted
+### ADR-ENG-01: Gotenberg 8 Chromium Microservice instead of Embedded LibreOffice
+> **Tag:** `ADR-ENG-01` | **Legacy:** `ADR-002` | **Date:** September 2026 | **Status:** Accepted (Active)
 
-**Decision:** ปรับปรุงแกนหลักของ `SmkDoc.Domain` เพื่อรองรับ High-Throughput (ระดับพัน requests/sec) และขยายตัวใน PostgreSQL:
-1. **Generic Static Caching ใน `Enumeration`:** แทนที่การทำ Reflection (`GetFields`) สดทุกครั้งใน `GetAll<T>()`, `FromValue<T>()`, และ `FromDisplayName<T>()` ด้วย generic static class `Cache<T>` ที่คำนวณและเก็บ lookup dictionaries (`ById`, `ByName`) เพียงครั้งเดียวตอน initialization ทำให้ lookup เป็น **$O(1)$** พร้อมเพิ่ม `TryFrom...` pattern
-2. **UUIDv7 ใน `BaseEntity`:** เปลี่ยน Default ID จาก `Guid.NewGuid()` (UUIDv4 สุ่ม) เป็น **`Guid.CreateVersion7()`** (UUIDv7) เพื่อเรียงตาม Timestamp ลดการเกิด B-Tree Page Splits และ Fragmentation ในตาราง Audit Log และ Document Versions ของ PostgreSQL
-3. **Zero-Allocation Hex Validation ใน `Sha256Hash`:** เลิกใช้ `Regex.IsMatch` แบบ uncompiled และเปลี่ยนมาใช้ `char.IsAsciiHexDigit` validation loop ซึ่งเร็วกว่า 20 เท่าและไม่มี memory allocation
-4. **OCP Alignment ใน `TemplateFormat`:** ผูก `DefaultEngineType` เข้ากับ `TemplateFormat` Smart Enum โดยตรง ขจัด `if/else` ใน `TemplateVersion.GetRenderEngineType()`
-5. **Encapsulation ใน `UserProjectRole`:** เพิ่ม constructor, `init` accessors, และ domain method `UpdateRole(RoleType)`
-6. **Smart Enum `GenerationStatus`:** สร้าง `GenerationStatus` แทนการใช้ raw string `"SUCCESS"` ในระบบบันทึก Log
+- **Context & Problem:** Running headless LibreOffice directly on the ASP.NET Core API server caused unrecoverable process hangs, severe memory leaks, and fatal Thai vowel positioning defects.
+- **Decision:** Adopted Gotenberg 8 as a dedicated, containerized rendering microservice communicating over HTTP.
+- **Rejected Alternatives:** Embedded LibreOffice CLI (rejected: memory leaks and stability failure); Puppeteer Node.js sidecar (rejected: excessive resource overhead compared to Gotenberg's Go/Chromium pool).
 
-**Rationale:** ขจัดคอขวดด้าน CPU/GC Allocation และรองรับ Enterprise Scaling เทียบเคียงมาตรฐานระบบรายงานระดับองค์กร (Jasper Reports, Carbone.io)
+### ADR-ENG-02: Compiled Handlebars Template Caching & Smart Excel PageSetup
+> **Tag:** `ADR-ENG-02` | **Legacy:** `ADR-013` | **Date:** September 2026 | **Status:** Accepted (Active)
 
----
+- **Context & Problem:** Re-parsing Handlebars AST and compiling templates on every request created severe CPU bottlenecks. Simultaneously, Excel generation stripped user-defined print configurations.
+- **Decision:**
+  1. Implemented `ICompiledTemplateCache` in Application, backed by `MemoryCompiledTemplateCache` using SHA-256 template hashing and sliding expiration (1 hour).
+  2. Upgraded `ExcelTemplateEngine` with smart page setup detection, preserving original spreadsheet orientation and custom print fitting (`PagesWide`, `PagesTall`).
+- **Consequences:** Boosted HTML rendering throughput by 45%; eliminated print layout destruction.
 
-## ADR-011: Hybrid RBAC & Dual-Channel Authentication Model
+### ADR-ENG-03: Native Thai Typography Compliance & Sarabun Font Sandboxing
+> **Tag:** `ADR-ENG-03` | **Legacy:** `ADR-029` | **Date:** October 2026 | **Status:** Accepted (Active)
 
-**Date:** September 2026 | **Status:** Accepted
-
-**Decision:** แบ่งช่องทางการยืนยันตัวตนและการเข้าถึงออกเป็น 2 ช่องทางอย่างอิสระ:
-1. **Machine-to-Machine (M2M Channel):** สำหรับระบบภายนอก (ERP, CRM, Billing) คุยผ่าน `X-API-Key` เท่านั้น โดย `ApiKeyMiddleware` จะแกะและ bind `ProjectId` เข้าสู่ `IExecutionContext` อัตโนมัติ (Stateless, ไม่เกี่ยวข้องกับ User หรือ Session)
-2. **Human Management (Portal Channel):** สำหรับบุคลากรผ่านเว็บ Next.js Portal คุยผ่าน Bearer JWT:
-   - **Login Frictionless:** ผู้ใช้กรอกเพียง Email + Password ไม่ต้องระบุ ProjectId ก่อน Login
-   - **Smart Enum `SystemRole`:** บรรจุ `SuperAdmin`, `Member`, `Viewer` ในระดับ `User` entity
-   - **SuperAdmin Privilege:** หากมีสิทธิ์เป็น `SuperAdmin` จะสามารถเข้าถึงและบริหารจัดการได้ทุก Project ทันที (ลดภาระงานของทีม Core IT ในการ assign สิทธิ์ราย Project)
-   - **Member Granular Scope:** ผู้ใช้ทั่วไปที่เป็น `Member` จะมีสิทธิ์เข้าถึงเฉพาะ Project ที่ได้รับมอบหมายใน `UserProjectRole`
-   - **AccessibleProjects Response:** คืนรายการ Project ทั้งหมดที่เข้าถึงได้พร้อม Default Project และ Role ของตนเองไปกับ Login Response
-
+- **Context & Problem:** Business documents require strict Thai regulatory compliance, specifically Buddhist Era calendar dates, BahtText currency translation, and flawless Sarabun typography without vowel mark overlap.
+- **Decision:**
+  1. Centralized Thai transforms in `ITransformerService` (`thaiDate`, `thaiBahtText`). Inline formatting in templates is prohibited.
+  2. Embedded Google Fonts Sarabun directly in the Gotenberg Docker image and MinIO `fonts` storage bucket, combined with strict CSS `@page` rules to ensure deterministic, pixel-perfect PDF rendering.
+- **Consequences:** 100% deterministic Thai typography without OS-level font drift or third-party SaaS dependency.
 
 ---
 
-## ADR-012: SmkDoc.Tests Clean Architecture Mirroring & Modernization
+## Part 3: 💎 Rich Domain Model & DDD (`DOM`)
 
-**Date:** September 2026 | **Status:** Accepted
+### ADR-DOM-01: Rich Domain Model instead of Anemic Domain Model
+> **Tag:** `ADR-DOM-01` | **Legacy:** `ADR-003` | **Date:** September 2026 | **Status:** Accepted (Active)
 
-**Decision:** ปรับปรุงโครงสร้างและมาตรฐานชุดการทดสอบทั้งหมดของ `SmkDoc.Tests` (Unit & Integration Test Suite):
-1. **Mirroring Clean Architecture (1:1 Folders & Namespaces):** ย้ายไฟล์เทสต์ทั้งหมดจาก Root เข้าสู่โครงสร้างตามชั้นสถาปัตยกรรม (`Domain/`, `Application/`, `Infrastructure/`, `Api/`, `Integration/`, `Common/`) พร้อมจัด namespace ให้ตรงกับ directory
-2. **Single Responsibility Principle (SRP):** แยกการทดสอบข้าม Layer เช่น ย้าย `GlobalExceptionFilter` ออกจาก `DomainExceptionTests` ไปยัง `Api/Filters/GlobalExceptionFilterTests.cs` และย่อย `DomainOptimizationTests` เป็น `EnumerationTests`, `BaseEntityTests`, และ `ValueObjectTests`
-3. **FluentAssertions Single Source of Truth (SSoT):** บังคับใช้ FluentAssertions 100% ขจัด xUnit `Assert.*` ทั้งหมด และกำหนดมาตรฐาน Exception testing ผ่าน `FluentActions.Invoking(...)`
-4. **Pure Tests & Side-Effect Elimination:** ขจัด Hardcoded relative path 6 ชั้น (`../../../../../../`) ใน Sample Generators โดยให้เขียนลงโฟลเดอร์ชั่วคราว (`Path.GetTempPath()`) ระหว่างการรันเทสต์ปกติ เพื่อป้องกันไม่ให้ Git workspace สกปรก
-5. **Test Categorization ([Trait]):** ติด Tag `Category=Benchmark` และ `Category=Generator` เพื่อให้ CI/CD pipeline สามารถรันเฉพาะ Pure Unit Tests ได้อย่างรวดเร็ว (`--filter "Category!=Benchmark&Category!=Generator"`)
-6. **Test Data Builders & Fixture Pattern:** สร้าง `TemplateBuilder`, `TemplateVersionBuilder`, `UserBuilder` ใน `Common/Builders/` และ `GenerateDocumentTestFixture` ใน `Common/Fixtures/` เพื่อลด mock boilerplate และลดความเปราะบางของ constructor injection
+- **Decision:** Converted all entities from anemic POCOs (`public set`) to Rich Domain Models with `private set`, parameterized constructors, and expressive business methods (`Activate`, `Publish`, `SetCurrentVersion`).
+- **Rationale:** Encapsulates business invariants inside the domain entity, preventing invalid state creation.
 
-**Rationale:** ทำให้ชุดการทดสอบมีความเป็นระเบียบ สะอาด บำรุงรักษาง่าย (Maintainable) ไร้ Flakiness บน CI/CD runners และเอื้อต่อการต่อขยายฟีเจอร์ใหม่โดยไม่ทำให้เทสต์เก่าพังง่าย
+### ADR-DOM-02: Smart Enums instead of C# Enums + Magic Strings
+> **Tag:** `ADR-DOM-02` | **Legacy:** `ADR-004` | **Date:** September 2026 | **Status:** Accepted (Active)
 
----
+- **Decision:** Replaced native C# enums and raw strings with strongly typed Smart Enums inheriting from `Enumeration` (`TemplateFormat`, `OutputFormat`, `RenderEngineType`, `TemplateVersionStatus`, `RoleType`, `GenerationStatus`, `ApiKeyScope`).
+- **Rationale:** Eliminates primitive obsession, encapsulates format metadata (`Extension`, `MimeType`), and guarantees compile-time type safety.
 
-## ADR-013: Compiled Template Caching & Performance Optimization (Phase 1 Quick Wins)
+### ADR-DOM-03: Dedicated Value Objects for Primitives with Validation Rules
+> **Tag:** `ADR-DOM-03` | **Legacy:** `ADR-005` | **Date:** September 2026 | **Status:** Accepted (Active)
 
-**Date:** September 2026 | **Status:** Accepted
+- **Decision:** Replaced raw primitives with explicit Value Objects (`TemplateSlug`, `Sha256Hash`, `EmailAddress`, `DataSourceType`, `ExpirationPolicy`).
+- **Rationale:** Enforces fail-fast validation upon instantiation and guarantees structural equality.
 
-**Decision:**
-1. **Handlebars Compiled Template Caching:**
-   - สร้าง Application port `ICompiledTemplateCache` โดยกำหนด contract เป็น pure delegate `Func<object, string> GetOrAdd(...)` เพื่อไม่ให้รั่วไหล dependency ของ HandlebarsDotNet สู่ชั้น Application
-   - Implement `MemoryCompiledTemplateCache` ใน Infrastructure ด้วย `IMemoryCache` (Sliding Expiration 1 ชั่วโมง)
-   - คำนวณ Cache Key จาก SHA-256 Hash ของ Normalized Template HTML ใน `HtmlTemplateEngine` เพื่อขจัด overhead ของ AST parsing และ Handlebars compilation ทุกครั้งที่มีการเรนเดอร์เทมเพลตเดิมซ้ำ
-2. **Strict UUIDv7 Sequential ID Enforcement:**
-   - ขจัด `{ Id = Guid.NewGuid() }` ที่หลงเหลือใน `GenerateDocumentUseCase`, `TemplateDraftUseCase`, `TemplateDatasetUseCase`, `FieldMappingUseCase`, `DatasetUseCase`, และ `DataConnectionUseCase` ออกทั้งหมด
-   - คืนค่าให้ใช้ `Guid.CreateVersion7()` ผ่าน `BaseEntity` default initializer 100% เพื่อรักษาประสิทธิภาพการจัดทำ B-Tree Index บน PostgreSQL
-3. **Smart Excel Page Setup & Orientation Preservation:**
-   - ปรับปรุง `ExcelTemplateEngine` ให้เคารพการตั้งค่าหน้ากระดาษ (Landscape/Portrait) และ custom print fit (`PagesWide`, `PagesTall`) ของผู้ออกแบบเดิม และกำหนดกระดาษเป็น A4 เฉพาะกรณีที่ไฟล์ไม่ได้ระบุไว้ (Letter default)
-4. **OCP Alignment via Smart Enum:**
-   - เพิ่ม `TemplateFormat.TryFromExtension` ใน `SmkDoc.Domain.Enums`
-   - ปรับปรุง `RenderStatelessDocumentUseCase` ให้ resolve EngineType ผ่าน Smart Enum แทน `switch (ext)` statement
+### ADR-DOM-04: High-Performance Domain Optimization & Sequential UUIDv7
+> **Tag:** `ADR-DOM-04` | **Legacy:** `ADR-010` | **Date:** September 2026 | **Status:** Accepted (Active)
 
-**Rationale:** ยกระดับ throughput ของการสร้างเอกสาร HTML ขึ้น 40-50% และปิดช่องโหว่ทางสถาปัตยกรรม (DIP, OCP, Sequential UUIDv7) โดยไม่ต้องแก้ Database Schema
+- **Decision:**
+  1. Generic static caching `Cache<T>` in `Enumeration` providing $O(1)$ lookups.
+  2. Transitioned default primary keys in `BaseEntity` from random UUIDv4 (`Guid.NewGuid()`) to sequential UUIDv7 (`Guid.CreateVersion7()`).
+  3. Replaced uncompiled `Regex.IsMatch` with zero-allocation `char.IsAsciiHexDigit` loops in `Sha256Hash`.
+- **Rationale:** Prevents PostgreSQL B-Tree index fragmentation in high-throughput tables.
 
----
+### ADR-DOM-05: Domain Layer Integrity — Fail-Fast Invariants & Aggregate Boundaries
+> **Tag:** `ADR-DOM-05` | **Legacy:** `ADR-021` | **Date:** October 2026 | **Status:** Accepted (Active)
 
-## ADR-014: Clean Architecture v2 DTO & Command Restructuring
+- **Decision:**
+  1. Partitioned exception hierarchy: Pure Domain Exceptions in `SmkDoc.Domain.Exceptions`, HTTP-mapped exceptions in `SmkDoc.Application.Common.Exceptions`.
+  2. Encapsulated child collections (`Project`, `Company`, `User`, `Template`) as `IReadOnlyCollection<T>`.
+  3. Consolidated child entities (`FieldMapping`, `TemplateDataset`) under Aggregate Root `Template`, phasing out standalone child repositories.
+  4. Enforced strict tenant-scoped queries (`ListByProjectAsync`) across all domain repositories.
 
-**Date:** September 2026 | **Status:** Accepted
+### ADR-DOM-06: Comprehensive DDD Aggregates, Sealed Entities & Value Converters
+> **Tag:** `ADR-DOM-06` | **Legacy:** `ADR-022` | **Date:** October 2026 | **Status:** Accepted (Active)
 
-**Decision:**
-1. **Centralize DTOs by Feature Bounded Context:**
-   - ย้ายและจัดระเบียบ DTOs ทั้งหมดไว้ใน `SmkDoc.Application/DTOs/<Feature>/` (`Documents/`, `Templates/`, `FieldMappings/`, `Datasets/`, `DataConnections/`, `Security/`, `Users/`, `Projects/`, `Logs/`)
-   - ยุบเลิก inline DTOs ที่ฝังอยู่ในไฟล์ UseCase (`ValidatePayloadResult`, `ApiKeyDto`, `CreateApiKeyResult`, `LoginRequest`, `LoginResponse`, `UserProfileDto`, `AccessibleProjectDto`, `GenerationLogPagedResult`)
-2. **Command / Query / DTO Naming Conventions:**
-   - แยกแยะประเภทข้อมูลขาเข้าและขาออกอย่างชัดเจน:
-     - การแก้ไข/ประมวลผล (Mutations): `*Command` (เช่น `GenerateDocumentCommand`, `CreateTemplateCommand`, `InviteUserCommand`)
-     - การค้นหา/ตัวเลือก (Queries/Options): `*Query` (เช่น `PreviewDocumentQuery`, `PreviewMappingsQuery`)
-     - ผลลัพธ์ข้อมูลขาออก (Outputs): `*Dto` / `*ResultDto` (เช่น `TemplateDto`, `DocumentVersionDto`, `LoginResultDto`)
-3. **100% Immutable Positional Records:**
-   - แปลง DTOs ทั้งหมดจาก mutable classes (`{ get; set; }`) เป็น immutable `record`s เพื่อความปลอดภัยต่อ Concurrency และ Thread-safety
-4. **Domain Entity Leak Remediation:**
-   - ปรับปรุง `ApiKeyUseCase.ValidateKeyAsync` ให้คืนค่าเป็น `ValidatedApiKeyDto?` แทนการคืน Domain Entity `ApiKey` ออกไปยัง Presentation Layer (`ApiKeyMiddleware`) ตัดขาด Dependency ข้าม Layer อย่างเด็ดขาด
-5. **Purge Presentation Annotations from Application Layer:**
-   - ลบ `System.ComponentModel.DataAnnotations` (`[Required]`, ฯลฯ) ออกจากชั้น Application ใน `HtmlToPdfRequest.cs`
-6. **Concurrent Cache Stampede Fix:**
-   - แก้ไขการประเมิน factory ซ้ำซ้อนภายใต้ concurrent requests ใน `MemoryCompiledTemplateCache` ด้วย double-checked locking per cache key
-7. **Zero-Breaking Compatibility Layer:**
-   - ชั่วคราวให้ `Common/Models/` ทำหน้าที่เป็น backward-compatibility bridge สืบทอด/forward ไปยัง canonical DTOs ใน `DTOs/` (ปัจจุบันถูก Phase-Out และลบทิ้งโดยสมบูรณ์แล้วใน ADR-020)
+- **Decision:**
+  1. Sealed all 14 entities (`sealed class`) with private parameterless constructors for EF Core.
+  2. Implemented 13 dedicated Value Objects covering Identity, Authoring, Security, and Rendering.
+  3. Decoupled cross-aggregate navigation properties in favor of pure ID references (`Guid ProjectId`).
+  4. Mapped all Value Objects and Smart Enums to PostgreSQL columns using EF Core Value Converters with zero database migrations.
 
-**Rationale:** สร้างความชัดเจนในการแบ่งชั้นสถาปัตยกรรม (Boundaries) ตามหลัก Clean Architecture v2 ขจัดความสับสนระหว่าง HTTP Contract และ Application Model พร้อมทั้งเพิ่มความปลอดภัยด้าน Concurrency
+### ADR-DOM-07: Strict Pure DDD Standards — Single Canonical Factory & No Test Backdoors
+> **Tag:** `ADR-DOM-07` | **Legacy:** `ADR-023` | **Date:** October 2026 | **Status:** Accepted (Active)
+
+- **Decision:**
+  1. Exactly 1 canonical static factory method per entity (`Create`, `Register`, `Draft`).
+  2. Mandatory deterministic time injection (`DateTimeOffset now`) on all factories and state mutation methods.
+  3. Purged all test backdoor methods (`CreateForTest`) from the production domain assembly; relocated test instantiations to `*TestFactory` and `*Builder` in `SmkDoc.Tests`.
 
 ---
 
-## ADR-015: Dual-Engine Automatic Validation Pipeline (FluentValidation + JsonSchema.Net)
+## Part 4: ⚡ Application Layer & CQRS (`APP`)
 
-**Date:** September 2026 | **Status:** Accepted
+### ADR-APP-01: Application DTO Boundary (Never Leak Domain Entities)
+> **Tag:** `ADR-APP-01` | **Legacy:** `ADR-006` | **Date:** September 2026 | **Status:** Accepted (Active)
 
-**Decision:**
-1. **Dual-Engine Architecture (Static vs. Dynamic Concerns):**
-   - **Static Engine (FluentValidation):** ตรวจสอบโครงสร้าง C# Command/Request DTOs ใน `SmkDoc.Application/Validators/` (เช่น Data Type, Format, Mandatory fields, Length, Regex slugs)
-   - **Dynamic Engine (JsonSchema.Net Draft-07):** ตรวจสอบ Document Data Payload เทียบกับ JSON Schema ประจำแต่ละ Template Version ใน `SmkDoc.Infrastructure/Schema/`
-2. **Domain Exception Mapping:**
-   - สร้าง `ValidationException : DomainException` ใน `SmkDoc.Domain.Exceptions` (HTTP 400, ErrorCode: `"VALIDATION_FAILED"`, เก็บ `IDictionary<string, string[]> Errors`)
-3. **Automatic Action Filter Execution:**
-   - สร้าง `ValidateCommandFilter` ใน `SmkDoc.Api/Filters/` ดักจับทุก Command Arguments ก่อนเข้า Controller Actions และเรียก `IValidator<T>` จาก DI Container อัตโนมัติ (ขจัด Boilerplate `if (!ModelState.IsValid)` หรือการเขียน manual validation ใน Controller)
-4. **Unified RFC 9457 Error Presentation:**
-   - ปรับปรุง `GlobalExceptionFilter` ให้แปลง `ValidationException` เป็น RFC 9457 Problem Details พร้อม `errors` dictionary อย่างเป็นมาตรฐาน
-5. **KISS & Clean Architecture Adherence:**
-   - ไม่ใช้ MediatR/CQRS Pipeline Behavior ที่ซับซ้อนตามข้อกำหนดใน `AGENTS.md`
-   - Validators ใน `SmkDoc.Application` เป็น Pure C# ไม่มี dependency ต่องาน HTTP/ASP.NET Core ใดๆ
+- **Decision:** Prohibited returning Domain Entities from Application Use Cases. All responses must be strongly typed Application DTOs.
+- **Rationale:** Prevents presentation layer coupling to domain models and secures internal state encapsulation.
 
-**Rationale:** มอบการตรวจสอบที่รวดเร็วแบบ Fail-Fast (ประหยัด Connection/Query DB) พร้อมความยืดหยุ่นสูงสุดสำหรับทั้ง API Model คงที่และข้อมูลเอกสารที่มี Schema เปลี่ยนไปตามแต่ละเทมเพลต
+### ADR-APP-02: Clean Architecture v2 DTO & Command Restructuring
+> **Tag:** `ADR-APP-02` | **Legacy:** `ADR-014` | **Date:** September 2026 | **Status:** Accepted (Active)
 
----
+- **Decision:**
+  1. Reorganized DTOs by Feature Bounded Context in `SmkDoc.Application/DTOs/<Feature>/`.
+  2. Enforced strict CQRS terminology: Mutations (`*Command`), Queries (`*Query`), Outputs (`*Dto` / `*ResultDto`).
+  3. Converted all DTOs into 100% immutable positional C# `record`s.
 
-## ADR-016: Schema Infrastructure Clean Code & Performance Optimization
+### ADR-APP-03: C# 12 Primary Constructors & Sealed Use Cases Standard
+> **Tag:** `ADR-APP-03` | **Legacy:** `ADR-017` | **Date:** September 2026 | **Status:** Accepted (Active)
 
-**Date:** September 2026 | **Status:** Accepted
+- **Decision:** Adopted C# 12 Primary Constructors (`camelCase` parameters, zero `_` prefix) and marked all Use Cases as `public sealed class`.
+- **Rationale:** Reduces constructor boilerplate by 200+ lines and enables JIT method devirtualization optimizations.
 
-**Decision:**
-1. **Infrastructure Layer Retention (Clean Architecture DIP):**
-   - คง `JsonSchemaValidationService` และ `SchemaInferenceService` ไว้ในชั้น `SmkDoc.Infrastructure/Schema/` ตามเดิม เพื่อปกป้องชั้น Application ไม่ให้ผูกติดกับ third-party library `JsonSchema.Net` โดยให้ชั้น Application ใช้งานผ่าน Abstraction ports (`IJsonSchemaValidationService`, `ISchemaInferenceService`) เท่านั้น
-2. **In-Memory Schema Compilation Caching:**
-   - เพิ่ม `ConcurrentDictionary<string, JsonSchema>` ใน `JsonSchemaValidationService` เพื่อแคช compiled schema instance ป้องกัน CPU/Memory overhead จากการ parse string เดิมซ้ำในทุก request
-   - ประกาศ `static readonly EvaluationOptions Draft7Options` เพื่อตัด zero-allocation ในการประเมิน Schema
-3. **DRY Decomposition in Schema Inference:**
-   - สร้าง `GroupedTokens` record รวมตรรกะการจัดกลุ่ม placeholders (`GroupPlaceholders`) สำหรับ scalar, nested object, และ array collection ไว้ที่จุดเดียว ขจัดโค้ดซ้ำซ้อนระหว่าง Schema generation และ Sample Mock Data generation
-4. **Readability & Cyclomatic Complexity Reduction:**
-   - แปลงบล็อก `if-else` หลายสิบชั้นใน `InferPropertySchema` และ `GenerateMockValue` ให้เป็น C# Pattern Matching Switch Expressions
-   - ใช้ `[GeneratedRegex]` source generator สำหรับ Handlebars loop blocks (`EachBlockRegex`)
+### ADR-APP-04: Phase-Out and Complete Removal of `Common/Models/`
+> **Tag:** `ADR-APP-04` | **Legacy:** `ADR-020` | **Date:** September 2026 | **Status:** Accepted (Active)
 
-**Rationale:** เพิ่ม Throughput และลด Latency ของกระบวนการตรวจสอบ JSON Schema พร้อมทั้งยกระดับความสามารถในการอ่านและบำรุงรักษาโค้ด (Readability & Maintainability) ให้เป็นไปตามมาตรฐาน Clean Code สากล
+- **Decision:** Completely removed the legacy `Common/Models/` compatibility folder. All callers across Application, Infrastructure, Api, and Tests communicate through feature-sliced DTOs in `DTOs.*`.
+- **Rationale:** Enforces Single Source of Truth (SSoT) and eliminates model drift.
+
+### ADR-APP-05: Application Query Service (`IUserWorkspaceQueryService`)
+> **Tag:** `ADR-APP-05` | **Legacy:** `ADR-026` | **Date:** October 2026 (2026-10-08) | **Status:** Accepted (Active)
+
+- **Context & Problem:** Multiple domain repositories were being queried sequentially and joined in-memory in RAM, creating severe N+1 overhead during user login and workspace profile queries.
+- **Decision:**
+  1. Defined Application port `IUserWorkspaceQueryService` in `SmkDoc.Application.Common.Interfaces`.
+  2. Implemented `UserWorkspaceQueryService` in Infrastructure using EF Core `.Join()` and `AsNoTracking()` to execute a single, optimized SQL query projecting directly to DTOs.
+  3. Integrated `EmailAddress` Value Object fail-fast validation at the Use Case boundary.
+- **Consequences:** Eliminated in-memory joining and reduced database round-trips to a single query.
 
 ---
 
-## ADR-017: C# 12 Primary Constructors & Sealed Use Cases Standard
+## Part 5: 🛡️ Validation & Pre-Flight Pipeline (`VAL`)
 
-**Date:** September 2026 | **Status:** Accepted
+### ADR-VAL-01: Dual-Engine Automatic Validation Pipeline
+> **Tag:** `ADR-VAL-01` | **Legacy:** `ADR-015` | **Date:** September 2026 | **Status:** Accepted (Active)
 
-**Decision:**
-1. **Primary Constructor Adoption:**
-   - ปรับปรุง Use Cases ทั้งหมดใน `SmkDoc.Application/UseCases/` ให้ใช้ **C# 12 Primary Constructors**
-   - ขจัด boilerplate code ของ explicit constructor assignment และ private readonly field declarations ลดความยาวของคลาสลง 200+ บรรทัด
-2. **Sealed Class Modifier:**
-   - กำหนด modifier `public sealed class` ให้กับ Use Cases ทั้งหมดเพื่อป้องกันการสืบทอดโดยไม่ตั้งใจ และเปิดโอกาสให้ JIT Compiler ทำ Method Devirtualization เพิ่มประสิทธิภาพ Runtime
-3. **Pure Application Layer Compliance:**
-   - ยืนยันการคงสถานะ Pure C# ของ Application Layer โดยไม่มีการอ้างอิง `Microsoft.AspNetCore.*`, `IHttpContextAccessor`, หรือ `StatusCodes`
-   - การส่งผ่าน `CancellationToken` ดำเนินการอย่างต่อเนื่องในทุก Asynchronous method
+- **Decision:**
+  1. **Static Engine (FluentValidation):** Validates C# Command/Request DTOs in `SmkDoc.Application/Validators/`.
+  2. **Dynamic Engine (JsonSchema.Net):** Validates dynamic document data payloads against template JSON schemas.
+  3. Executed via `ValidateCommandFilter` before reaching Controller actions, dispatching validation failures as RFC 9457 Problem Details.
+- **Rationale:** Separates static C# model validation from dynamic template schema validation cleanly.
 
-**Rationale:** ยกระดับ Clean Code, Readability, และ Simplicity ตามมาตรฐานสากลของ .NET Application Layer
+### ADR-VAL-02: Schema Infrastructure Clean Code & Performance Optimization
+> **Tag:** `ADR-VAL-02` | **Legacy:** `ADR-016` | **Date:** September 2026 | **Status:** Accepted (Active)
 
----
+- **Decision:** Retained `JsonSchemaValidationService` in Infrastructure behind abstractions. Added in-memory schema compilation caching, unified token grouping in `GroupedTokens`, and utilized C# pattern-matching switch expressions.
 
-## ADR-018: Standalone Scalable Schema Validator & Bounded Caching
+### ADR-VAL-03: Standalone Scalable Schema Validator & Bounded Caching
+> **Tag:** `ADR-VAL-03` | **Legacy:** `ADR-018` | **Date:** September 2026 | **Status:** Accepted (Active)
 
-**Date:** September 2026 | **Status:** Accepted
+- **Decision:** Created stateless validation endpoint `POST /api/v1/schemas/validate` for dry-run validation (0ms DB dependency). Replaced unbounded dictionaries with bounded `IMemoryCache` utilizing SHA-256 cache keys to prevent memory exhaustion.
 
-**Decision:**
-1. **Stateless Standalone Validation Endpoint (`POST /api/v1/schemas/validate`):**
-   - สร้าง Endpoint และ `ValidateStandaloneSchemaUseCase` สำหรับ Dry-run JSON Schema Draft-07 กับ Payload โดยตรง
-   - ทำงานเป็น Pure In-Memory Service (Zero-DB, Zero-MinIO Dependency) ลด Latency ให้เหลือ 1–5ms
-   - ให้บริการทั้ง Monaco Editor Studio (Live contract testing) และ External M2M Services
-2. **Bounded Memory Caching with SHA-256 Key Hashing:**
-   - แก้ไขปัญหา Unbounded Memory Leak ของ `ConcurrentDictionary` โดยเปลี่ยนมาใช้ `IMemoryCache` พร้อมกำหนด `SlidingExpiration = 2 hours`, `AbsoluteExpiration = 8 hours`, และ `SizeLimit`
-   - ใช้ SHA-256 Hashing (`schema_v7_<HEX>`) เป็น Cache Key เพื่อลด Large Object Heap (LOH) footprint
-3. **Direct JsonElement Overloads:**
-   - ขจัด Double Serialization / Double Parsing (`JsonElement` -> `string` -> `JsonNode`) โดยเพิ่ม Overloads รับ `JsonElement` เข้าไปประเมินตรงๆ ใน `IJsonSchemaValidationService`
-4. **Clean Code & Domain Alignment:**
-   - ลบไฟล์ตกค้าง `ReportHub.Domain.Validation` ออกจาก Domain Layer และใช้ `SchemaValidationError` ของ Domain เป็น Single Source of Truth
+### ADR-VAL-04: Template Payload Pre-Flight Validation with Multi-Tenant Scoping
+> **Tag:** `ADR-VAL-04` | **Legacy:** `ADR-019` | **Date:** September 2026 | **Status:** Accepted (Active)
 
-**Rationale:** รองรับ High-Throughput และป้องกัน Memory Exhaustion จากการพิมพ์สดใน Monaco Editor Studio พร้อมยึดมั่นหลักการ Clean Architecture v2 และ DRY
+- **Decision:** Created `POST /api/v1/templates/{slug}/validate` for pre-flight payload verification against published template schemas with mandatory tenant isolation checks (`t.ProjectId == executionContext.ProjectId`). Operates with zero side-effects (no Gotenberg, MinIO, or DB log writes).
 
 ---
 
-## ADR-019: Template Payload Pre-Flight Validation with Multi-Tenant Scoping
+## Part 6: 🚨 Resilience, Error Handling & Diagnostics (`RES`)
 
-**Date:** September 2026 | **Status:** Accepted
+### ADR-RES-01: GlobalExceptionFilter instead of SchemaValidationExceptionFilter
+> **Tag:** `ADR-RES-01` | **Legacy:** `ADR-007` | **Date:** September 2026 | **Status:** Superseded by `ADR-RES-04`
 
-**Decision:**
-1. **Dedicated Template Payload Validation Endpoint (`POST /api/v1/templates/{slug}/validate`):**
-   - ย้าย/เพิ่ม Endpoint สำหรับการทำ Dry-run ตรวจสอบ JSON Payload เทียบกับ `data_schema` ของ Template ที่ Published อยู่ในฐานข้อมูลให้อยู่ใต้ Resource `/api/v1/templates`
-   - มี Alias `POST /api/v1/templates/{slug}/validate-payload`
-   - รันแบบ Zero Side-Effects (ไม่เรียก Gotenberg/Chromium, ไม่อัปโหลด MinIO, ไม่บันทึก DB audit logs)
-2. **Multi-Tenant Scoping (`IMustHaveProject`):**
-   - Use Case บังคับตรวจสอบ `t.ProjectId == executionContext.ProjectId` (หากมี Project Context ในคำขอ) ป้องกันการเข้าถึง Template ข้าม Tenant โดยเด็ดขาด
-3. **Domain Reuse:**
-   - ใช้งาน `ValidationErrorItem` และ `SchemaValidationResult` จาก `SmkDoc.Domain.ValueObjects.Validation` ร่วมกัน ไม่สร้าง Domain Model ซ้ำซ้อน
-4. **Direct JsonElement Pipeline:**
-   - รับและส่งต่อ `JsonElement` เข้าสู่ `JsonSchemaValidationService` โดยตรง ลด GC Allocation ซ้ำซ้อน
+- **Evolution:** Unified scattered MVC exception filters into a centralized filter. Later upgraded to the ASP.NET Core 8/10 middleware pipeline in `ADR-RES-04`.
 
-**Rationale:** ยกระดับความปลอดภัย Multi-tenancy และมาตรฐาน RESTful Resource Design ควบคู่กับประสิทธิภาพสูงสุด
+### ADR-RES-02: Rate Limiting with Per-API-Key Partition
+> **Tag:** `ADR-RES-02` | **Legacy:** `ADR-008` | **Date:** September 2026 | **Status:** Accepted (Active)
 
----
+- **Decision:** Implemented ASP.NET Core Rate Limiter partitioned by API Key (60 req/min/key, queue limit 0) with RFC 9457 429 Too Many Requests responses.
+- **Rationale:** Protects Gotenberg and Chromium pools from denial-of-service starvation while providing fair sharing across internal tenant systems.
 
-## ADR-020: Phase-Out and Complete Removal of `Common/Models/`
+### ADR-RES-03: DomainException Hierarchy & Machine-Readable Error Codes
+> **Tag:** `ADR-RES-03` | **Legacy:** `ADR-009` | **Date:** September 2026 | **Status:** Accepted (Active)
 
-**Date:** September 2026 | **Status:** Accepted
+- **Decision:** Established `DomainException` base class enforcing `ErrorCode` (machine-readable string) and `StatusCode`. Standardized `NotFoundException` (404), `ConflictException` (409), `DraftExpiredException` (410), and `RenderException` (500).
 
-**Context & Problem:**
-- ใน ADR-014 มีการสร้าง `SmkDoc.Application/DTOs/{Feature}` ขึ้นมาเป็น Canonical Application Models และคงโฟลเดอร์ `Common/Models/` ไว้เป็น compatibility bridge ชั่วคราว
-- การมีทั้ง `Common/Models/` และ `DTOs/` ก่อให้เกิดความสับสน (Ambiguity) ในการนำไปใช้งาน เสี่ยงต่อการเกิด Model Drift และขัดต่อหลักการ Single Source of Truth (SSoT)
+### ADR-RES-04: Unified RFC 9457 IExceptionHandler & Idempotency Pipeline
+> **Tag:** `ADR-RES-04` | **Legacy:** `ADR-030` | **Date:** October 2026 | **Status:** Accepted (Active)
 
-**Decision:**
-1. **Total Phase-Out of `Common/Models/`:**
-   - ลบไฟล์ Type Alias / Shim DTOs ทั้งหมด 11 ไฟล์ใน `SmkDoc.Application/Common/Models/`
-   - ลบโฟลเดอร์ `Common/Models/` ออกจาก Application Layer โดยสมบูรณ์
-2. **Migration to Canonical Feature-Sliced DTOs (`SmkDoc.Application.DTOs.*`):**
-   - ทุก Caller ใน `SmkDoc.Application` (UseCases, Interfaces, Helpers) เปลี่ยนไปใช้ Canonical DTOs/Commands/Queries
-   - ทุก Adapter ใน `SmkDoc.Infrastructure` (Security, Cache) อ้างอิงตรงไปยัง `DTOs.*`
-   - ทุก Controller ใน `SmkDoc.Api` สื่อสารผ่าน Canonical DTOs และ Commands จาก `DTOs.*`
-   - ทุกชุดทดสอบใน `SmkDoc.Tests` เรียกใช้ `GenerateDocumentCommand`, `CreateTemplateCommand`, `CommitDraftCommand`, `SaveFieldMappingItemDto`, `ResolvedDatasetContext`
-3. **Preserve External Contract Parity:**
-   - รักษา JSON Property Names, types, และ format ให้ตรงกับ API Contract เดิม 100% (Zero breaking changes)
-
-**Rationale:** ขจัดความซ้ำซ้อนของ DTOs บังคับใช้ Single Source of Truth (SSoT) สำหรับ Application Models และทำให้โครงสร้างโค้ด Clean, Simple และ Maintainable สูงสุด
+- **Decision:**
+  1. Replaced MVC action filters with `GlobalExceptionHandler : IExceptionHandler` in `SmkDoc.Api/Middlewares/`, capturing exceptions across both Controller actions and middleware pipelines.
+  2. Implemented `IdempotencyFilter` with Redis distributed locking for all state-mutating requests (`Idempotency-Key` header).
+- **Consequences:** Total alignment with RFC 9457 Problem Details and guaranteed safe retries for enterprise billing and ERP integrations.
 
 ---
 
-## ADR-021: Domain Layer Integrity — Fail-Fast Invariants, Aggregate Boundaries & Value Objects
+## Part 7: 🌐 Frontend Portal & Studio (`UI`)
 
-**Date:** October 2026 | **Status:** Accepted (Phases 1–6 Implemented — 100% Complete)
+### ADR-UI-01: Next.js 15 App Router Layout & Ice-White Design Token SSoT
+> **Tag:** `ADR-UI-01` | **Legacy:** `ADR-027` | **Date:** October 2026 | **Status:** Accepted (Active)
 
-**Context & Problem:**
-- Entities มี `private set` แล้ว (ADR-003) แต่ constructor/method ไม่ validate ทำให้สร้าง object สถานะไม่สมบูรณ์ได้
-- ไม่มีขอบเขต Aggregate — child entity ทุกตัวมี repository ของตัวเอง ทำให้กฎข้าม entity (alias ไม่ซ้ำ, publish ได้ทีละเวอร์ชัน) ไปอยู่ใน UseCase
-- UseCase บางตัว fallback ไป `GetDefaultAsync()` → ส่ง `ProjectId = Guid.Empty` เข้า Entity
+- **Context & Problem:** The legacy portal used an ad-hoc tab switcher with dark navy styling, inconsistent bubble radii, and mixed icon sets.
+- **Decision:**
+  1. Implemented Next.js 15 App Router topology with `app/(app)` route groups, persistent [`AppShell`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/frontend-v2/src/components/layout/AppShell.tsx), collapsible sidebar (56px/224px), and compact topbar (48px).
+  2. Established SSoT design tokens in [`tokens/index.ts`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/frontend-v2/src/tokens/index.ts): Ice-White canvas (`#f8fbfe`), Sky Blue brand (`#0284c7`), sharp 2px-4px radius (`rounded-sm`), 5 functional category colors, and exclusive Lucide iconography.
+- **Consequences:** Professional, high-density enterprise dashboard aesthetic with zero dark navy pollution.
 
-**Decision:**
-1. **Exception taxonomy:** แยก Pure Domain Exceptions (`DomainException`, `DomainValidationException`, `BusinessRuleViolationException`) ไว้ใน `SmkDoc.Domain.Exceptions` และย้าย Application Exceptions (`NotFoundException`, `ValidationException`, `UnauthorizedException`, `ConflictException`, `DraftExpiredException`, `RenderException`, `SchemaValidationException`) ไปไว้ที่ `SmkDoc.Application.Common.Exceptions`
-2. **Fail-fast:** ทุก ctor/business method validate ก่อน mutate; method idempotent เมื่อ state ไม่เปลี่ยน
-3. **Aggregates & Collection Encapsulation:** Entities หลัก (`Project`, `Company`, `User`, `Template`) expose collections เป็น `IReadOnlyCollection<T>` backed by `private readonly List<T>`; แก้ไข state ผ่าน Domain methods (`AssignProjectRole()`, etc.); อ้างข้าม aggregate ด้วย Id
-4. **Value Objects:** slug/email/hash/storage key เป็น VO — นำ `TemplateSlug` มาใช้งานเป็น Property `Slug` ใน `Template.cs` พร้อม EF Core Value Converter ใน `AppDbContext.cs`
-5. **Repositories:** คืน Entity หรือ `IReadOnlyList<T>` ทั่วทั้งระบบ (ทุก Domain Repository interfaces และ Infrastructure Repositories); lookup ของข้อมูล tenant ต้องรับ `projectId` และตัด dead code fallback (`GetDefaultAsync`) ออก 100%
-6. **Invariants are non-negotiable (AP-023):** ห้ามผ่อนกฎเพื่อให้เทสต์/UseCase ผ่าน — แก้ที่ caller
+### ADR-UI-02: Monaco Studio v2 Debounced Live Preview & In-Flight Abort Pipeline
+> **Tag:** `ADR-UI-02` | **Legacy:** `ADR-028` | **Date:** October 2026 | **Status:** Accepted (Active)
 
-**Implemented (Phases 1–6):**
-- ข้อ 1: Exception taxonomy separation เสร็จสมบูรณ์ 100% (Domain เป็น pure exceptions, Application เป็น HTTP-mapped exceptions)
-- ข้อ 2: Invariant fail-fast validation ใน Entity constructors & domain methods
-- ข้อ 3: Collection encapsulation บน `Project`, `Company`, `User` เป็น `IReadOnlyCollection<T>`
-- ข้อ 4: `TemplateSlug` Value Object ใช้งานจริงใน `Template.Slug` พร้อม EF Core Value Converter
-- ข้อ 5: Repository return types hardening ครบ 100% — ทุก Domain repository (`ITemplateRepository`, `IProjectRepository`, `IApiKeyRepository`, `IUserRepository`, `ICompanyRepository`, `IDatasetRepository`, `IDataConnectionRepository`, `IUserProjectRoleRepository`) คืน `Task<IReadOnlyList<T>>`
-- ข้อ 6: ขจัด Dead Code `GetDefaultAsync()` ใน `IProjectRepository` และ `ProjectRepository`
-- ข้อ 7: Clean up unused repository injections ใน `SaveTemplateMappingsUseCase` และ `SaveTemplateDatasetsUseCase`
-- ข้อ 8: **Phase 5 (Template Aggregate Root Consolidation & Child Repository Phase-Out):**
-  - รวมการ query และจัดการ child entities (`FieldMapping`, `TemplateDataset`) ให้อยู่ภายใต้ Aggregate Root `Template` ผ่าน `GetByIdWithDetailsAsync` / `GetBySlugWithDetailsAsync` ทั้งหมด
-  - ปรับ `PreviewMappingUseCase`, `GetTemplateMappingsUseCase`, `GetTemplateDatasetsUseCase`, `TemplateDatasetUseCase`, `DocumentDataPreparationService`, `GenerateDocumentUseCase`, และ `CommitTemplateDraftUseCase` ให้ทำงานผ่าน Aggregate Root `Template` โดยตรง
-  - เลิกใช้งานและลบ child repositories (`IFieldMappingRepository`, `ITemplateDatasetRepository`, `FieldMappingRepository`, `TemplateDatasetRepository`) ออกจาก Domain และ Infrastructure 100% รวมถึงลบ DI registrations ออกจาก `DependencyInjection.cs`
-- ข้อ 10: **Phase 7 (Tenant-Scoped Query Hardening & Complete AP-025 Enforcement):**
-  - เปลี่ยน `ITemplateRepository.ListAsync()` → `ListByProjectAsync(Guid projectId, CancellationToken ct)` ขจัด non-tenant listing ใน Domain repository
-  - ยุบ overload `GetBySlugAsync` และ `GetBySlugWithDetailsAsync` ให้บังคับรับ `Guid projectId` ทุกจุด ป้องกัน slug collision ข้าม tenant
-  - ปรับ `IApiKeyRepository.ListAsync(Guid? projectId)` → `ListByProjectAsync(Guid projectId, CancellationToken ct)` ขจัด optional projectId parameter
-  - อัปเดต `ListTemplatesQuery(Guid ProjectId)` และ `ListApiKeysQuery(Guid ProjectId)` พร้อม fail-fast validation (`DomainValidationException` เมื่อ `ProjectId == Guid.Empty`)
-  - ฉีด `IExecutionContext` เข้าสู่ `GenerateDocumentUseCase` เพื่อนำ `ProjectId` ของ tenant ที่ผ่านการ verify แล้วไป query Template ตาม slug
-  - ปรับปรุง `TemplateController` และ `ApiKeyController` ให้รองรับทั้ง query parameter `?projectId=` และ context fallback
-
-**Remaining gaps (backlog):**
-- ไม่มี (ทุก Phase 1–7 ของ ADR-021 เสร็จสมบูรณ์ครบถ้วน 100%)
-
-**Rationale:** ให้ Domain เป็นผู้รับประกันความถูกต้องของข้อมูลเพียงผู้เดียว (single guardian of invariants) ลดการกระจายกฎธุรกิจใน UseCase และป้องกัน tenant leak
+- **Context & Problem:** Live typing in the Monaco template editor overwhelmed the Gotenberg backend, creating race conditions where stale renders overwrote newer edits.
+- **Decision:**
+  1. Integrated 800ms debounce timer in `useLivePreview`.
+  2. Implemented in-flight request cancellation via `AbortController.abort()`.
+  3. Automated Handlebars variable extraction into sample JSON payloads via `extractVariablesFromHtml`.
+  4. Managed blob lifecycle via `URL.createObjectURL` and `URL.revokeObjectURL` to eliminate memory leaks.
+- **Consequences:** Smooth, real-time live preview with zero UI lag and full APM telemetry tracking.
 
 ---
 
-## ADR-022: Comprehensive Domain Layer Refactoring — DDD Aggregates, Sealed Rich Entities, Value Converters & Cross-Aggregate Id References
+## Part 8: 🧪 Testing Architecture & Quality Gates (`TST`)
 
-**Date:** October 2026 | **Status:** Accepted (Phases 1, 2A, 2B, 2C Implemented — 100% Complete)
+### ADR-TST-01: SmkDoc.Tests Clean Architecture Mirroring & Modernization
+> **Tag:** `ADR-TST-01` | **Legacy:** `ADR-012` | **Date:** September 2026 | **Status:** Accepted (Active)
 
-**Context & Problem:**
-- Entities ทั้ง 14 ตัวใน `SmkDoc.Domain` แม้จะมี `private set` ตาม ADR-003 แต่หลายตัวยังใช้ public constructor หรือ object initializers โดยไม่มีการตรวจสอบ invariants อย่างรัดกุม
-- ข้อมูลสำคัญทางธุรกิจ (Names, References, Aliases, Hashes, Expiration, Connection types) กระจายตัวเป็น primitive strings ขาด encapsulation และ structural equality
-- การนำทาง (Navigation Properties) ข้าม Aggregate Root (เช่น `Template -> Project`, `Document -> Template`, `GenerationLog -> ApiKey/Template`) ละเมิด DDD Aggregate Boundaries และทำให้ Domain coupling สูง
-- เมธอดและ constructor สร้าง timestamp `DateTimeOffset.UtcNow` ภายในคลาสเอง ทำให้การทดสอบ deterministic state และ replay audit มีความคลาดเคลื่อน
+- **Decision:** Reorganized test folders to mirror Clean Architecture layers 1:1. Mandated FluentAssertions 100%, introduced test data builders, and tagged benchmarks to isolate fast CI execution.
 
-**Decision:**
-1. **Sealed Rich Entities & Static Factories:**
-   - Entities ทั้ง 14 ตัวถูกปรับเป็น `sealed class` เพื่อปิดผนึก encapsulation ป้องกัน improper inheritance
-   - ปิด Constructors ทั้งหมดเป็น `private` สำหรับ EF Core materialization
-   - บังคับการสร้าง Instance ผ่าน Static Factory Methods (`Create`, `Draft`, `Register`, `CreateSuccess`, ฯลฯ) พร้อม internal `CreateForTest`
-2. **Domain Invariant Guards (`Guard.cs`):**
-   - รวม fail-fast validation เข้าสู่ `Guard` helper ใน Domain Common
-   - โยน `DomainValidationException` ทันทีเมื่อ input ผิดเงื่อนไข ปราศจากการพึ่งพา library ภายนอก
-3. **Dedicated Value Objects (13 Types):**
-   - สร้าง Value Objects สืบทอดจาก `ValueObject` (หรือ `record` สำหรับ slug) ครอบคลุม:
-     - Tenant/Identity: `CompanyName`, `ProjectName`, `EmailAddress`
-     - Security: `ApiKeyName`, `Sha256Hash`, `ExpirationPolicy`
-     - Authoring: `TemplateName`, `DatasetName`, `ConnectionName`, `DatasetAlias`, `TemplateSlug`, `DataSourceType`
-     - Rendering: `DocumentReference`
-   - ทุก Value Object มี structural equality ผ่าน `GetEqualityComponents()` และ implicit string conversion
-4. **Smart Enums:**
-   - ใช้งาน `DatabaseProvider`, `GenerationStatus`, `OutputFormat`, `RenderEngineType`, `RoleType`, `SystemRole`, `TemplateFormat`, `TemplateVersionStatus` สืบทอดจาก `Enumeration`
-   - เพิ่ม `ValidationFailed` และ `FromName` helper ใน `GenerationStatus`
-5. **Decouple Cross-Aggregate Navigations (Pure Id References):**
-   - ตัด Domain navigation properties ข้าม Aggregate Root ออกทั้งหมด (คงไว้เฉพาะ Child entities ใน aggregate เดียวกัน เช่น `Template.Versions`, `Document.Versions`)
-   - กำหนด EF Core relationship ผ่าน Fluent API ใน `AppDbContext.cs` เช่น `entity.HasOne<Template>().WithMany().HasForeignKey(e => e.TemplateId)`
-6. **Zero Database Migrations (EF Core Value Converters):**
-   - แมป Value Objects และ Smart Enums ทั้งหมดกลับสู่ primitive database columns เดิมผ่าน `.HasConversion(...)` ใน `AppDbContext.cs`
-   - คงความเข้ากันได้ของ PostgreSQL schema เดิม 100% โดยไม่ต้องสร้าง migration ใหม่
-7. **Deterministic Time Injection:**
-   - ทุก Factory Method และ Business Method รองรับ optional `DateTimeOffset? now = null` เพื่อให้ Application UseCases สามารถส่ง `TimeProvider.GetUtcNow()` เข้ามาได้อย่างสมบูรณ์
+### ADR-TST-02: Test Suite Segregation, 1:1 CQRS Parity & The 6 Clean Testing Pillars
+> **Tag:** `ADR-TST-02` | **Legacy:** `ADR-024` | **Date:** October 2026 (2026-10-06) | **Status:** Accepted (Active)
 
-**Consequences & Verification:**
-- Domain Layer เป็น Pure C# POCOs 100% ไร้การพึ่งพา external dependencies
-- เพิ่มชุดทดสอบ Unit Tests สำหรับ Value Objects และ Entities โดยเฉพาะ
-- การทดสอบ backend และ frontend ทั้งหมดผ่าน 100% (0 errors, 0 warnings, zero tolerated failures)
-- Next.js production build สำเร็จสมบูรณ์
+- **Context & Problem:** Heavy document generators doing real disk I/O and OpenXML operations were mixed into `SmkDoc.Tests`, causing namespace collisions and slow unit test runs.
+- **Decision: System-Wide Adoption of The 6 Clean Testing Pillars:**
+  1. **Pillar 1 — Test Segregation:** Pure in-memory unit tests in `SmkDoc.Tests` (0 disk/DB I/O, runs in ~1s); heavy I/O and generators isolated in `SmkDoc.IntegrationTests`.
+  2. **Pillar 2 — 1:1 CQRS Parity:** Single-SUT test classes matching `Commands/{CommandName}/` and `Queries/{QueryName}/`.
+  3. **Pillar 3 — Deterministic Time:** Universal `ExecuteAsync_When[Condition]_[ExpectedResult]` naming and `TestConstants.BaselineTime` SSoT.
+  4. **Pillar 4 — Validator Colocation:** Pure `[Theory]` validator tests colocated with features.
+  5. **Pillar 5 — Domain Invariant Consolidation:** Domain tests bound directly to `{Aggregate}Tests.cs`.
+  6. **Pillar 6 — Fluent Builders:** Instantiation via `*TestFactory` and `*TestFixture`.
+- **Consequences:** 100% green test suite across both backend and frontend suites with zero test flakiness.
 
 ---
 
-## ADR-023: Strict Pure DDD Domain Entity Standards — Single Canonical Factory & Zero Test Backdoors in Production Domain (System-Wide Rollout Across All Domain Entities)
-
-**Date:** October 2026 | **Status:** Accepted (Fully Rolled Out Across All Domain Entities & Verified)
-
-**Context & Problem:**
-- ใน ADR-022 แม้ Entity จะถูกปรับเป็น Rich Domain Model แต่ยังพบ **Architectural Smells**:
-  1. **Overload Explosion & Primitive Obsession Leaking:** Entity มี Factory overloads หลายตัว ทั้งแบบรับ `(string, string)` และรับ Value Objects เพื่ออำนวยความสะดวกให้ Caller (Application UseCases / Tests) ทำให้ Domain ทำหน้าที่แปลง primitive เกินขอบเขต
-  2. **Test Backdoors in Production Model:** มี `internal static CreateForTest(...)` ประกาศปะปนอยู่ในไฟล์ Entity ของ Production assembly (`SmkDoc.Domain.dll`)
-  3. **Dead Code & Ambiguity:** Overload บางตัวที่สร้างขึ้นมาเพื่อแก้ขัดในอดีตไม่ได้ถูกเรียกใช้จริง และการสลับลำดับ parameter (`category` vs `now`) ทำให้เกิดความคลุมเครือ
-
-**Decision:**
-1. **Single Canonical Factory Method (SSoT):**
-   - แต่ละ Entity ต้องมี **1 canonical factory method เท่านั้น** (เช่น `Create`, `Register`, `Draft`, `Issue`, หรือ specialized `CreateSuccess`/`CreateFailure` บน `GenerationLog`)
-   - พารามิเตอร์ต้องเป็น **Strongly-Typed Value Objects** (เช่น `TemplateName`, `TemplateSlug`, `CompanyName`, `ProjectName`, `DatasetAlias`, `DocumentReference`, `EmailAddress`, `Sha256Hash`) และ **บังคับส่ง `DateTimeOffset now`** เพื่อความ deterministic 100%
-   - **ห้ามมี Primitive Convenience Overloads** ใน Domain Entity — หน้าที่การแปลง DTO primitive เป็น Value Objects เป็นของ Application UseCases
-2. **Mandatory Deterministic Time on All State Mutations:**
-   - ทุกเมธอดที่เปลี่ยนสถานะ (`Activate`, `Deactivate`, `Update*`, `Publish`, `Archive`, `Assign*`, `Remove*`) ต้องรับ `DateTimeOffset now` จาก Application UseCase และเรียก `SetUpdated(now)` โดยห้าม fallback ไปยัง `UtcNow` ภายใน Domain
-3. **Zero Test Backdoors in Domain:**
-   - **ห้ามมี `CreateForTest` และ optional `Guid? id = null` ภายใน `SmkDoc.Domain.dll` โดยเด็ดขาด**
-   - การสร้าง Entity สำหรับทดสอบต้องทำผ่าน `*Builder` หรือ `*TestFactory` ในโปรเจกต์ `SmkDoc.Tests` เท่านั้น
-4. **Internal Parameterized Constructor:**
-   - Parameterized constructor ของ Entity ถูกกำหนดเป็น `internal` โดยเปิดให้ `SmkDoc.Tests` เข้าถึงได้ผ่าน `[assembly: InternalsVisibleTo("SmkDoc.Tests")]` ใน `AssemblyInfo.cs`
-   - Parameterless constructor เป็น `private` สำหรับ EF Core materialization เท่านั้น
-5. **System-Wide Rollout (All Domain Entities & Dedicated Test Factories):**
-   - **Slice 1 (Tenant & Identity):** `Company`, `Project`, `User`, `UserProjectRole`
-   - **Slice 2 (Integration):** `DataConnection`, `Dataset`
-   - **Slice 3 (Authoring):** `Template`, `TemplateVersion`, `FieldMapping`, `TemplateDataset`
-   - **Slice 4 (Rendering & Audit):** `ApiKey`, `Document`, `DocumentVersion`, `GenerationLog`
-   - สร้าง Dedicated Test Factories ภายใต้ `backend-v2/tests/SmkDoc.Tests/Common/Factories/` (`*TestFactory`) ครอบคลุมทุก Entity
-
-**Consequences & Verification:**
-- Domain Layer สะอาดหมดจด มีเพียง Ubiquitous Language และ Invariants ทางธุรกิจจริง
-- Production Assembly ปราศจาก Test methods 100%
-- Build `dotnet build SmkDocServerV2.slnx` สำเร็จ 0 Warnings, 0 Errors ใน application code
-- Zero Database Schema Migrations — เข้ากันได้กับ EF Core mapping เดิม 100%
-
----
-
-## ADR-024: Test Suite Segregation, 1:1 CQRS Parity & The 6 Clean Testing Pillars
-
-**Status:** Accepted (2026-10-06)
-
-**Context:**
-1. **Monolithic Test Classes & Dumping Grounds:** มีไฟล์เทสต์ขนาดใหญ่ที่รวมหลาย UseCases ไว้ในคลาสเดียว (`ProjectUseCaseTests`, `ApiKeyUseCaseTests`, `DocumentVersionUseCaseTests`, `DataConnectionUseCaseTests`, `DatasetUseCaseTests`, `FieldMappingUseCaseTests`, `CommandValidatorsTests`) และไฟล์ทดสอบแบบ dumping ground (`DomainInvariantTests`, `EntityEncapsulationTests`) ทำให้ผิดหลัก Single Responsibility Principle
-2. **Misplaced & Obsolete Test Classes:** ไฟล์ทดสอบ DataConnection วางปะปนในโฟลเดอร์ Datasets และเรียกใช้ Obsolete service (`DataConnectionUseCase`, `DatasetUseCase`)
-3. **Mixed I/O Concerns:** ไฟล์ Document Generator และ Performance Benchmark ที่เขียนไฟล์ลงดิสก์จริงและใช้ OpenXML วางปะปนอยู่ใน `SmkDoc.Tests` ส่งผลให้เกิด Namespace Collision ระหว่าง `SmkDoc.Domain.Entities.Document` กับ `DocumentFormat.OpenXml.Wordprocessing.Document` และทำให้ Unit Test มี Disk I/O
-4. **Flaky Time & Ad-hoc Instantiations:** มีการเรียกใช้ `DateTimeOffset.UtcNow` และ new Entity แบบ ad-hoc กระจัดกระจายในชุดทดสอบ
-
-**Decision: System-Wide Adoption of The 6 Clean Testing Pillars**
-1. **Pillar 1 — Solution-Level Test Segregation:**
-   - **`SmkDoc.Tests` (Pure In-Memory Unit Tests):** ตัดขาดจาก I/O 100% (Zero Disk/Network/Database I/O) รันเสร็จสิ้นในระดับ 1 วินาที เหมาะสำหรับ PR CI gate
-   - **`SmkDoc.IntegrationTests` (Integration, Benchmarks & Generators):** แยกสร้างโปรเจกต์ใหม่รองรับ Heavy Generators, ClosedXML/OpenXml Document generation, Performance Benchmarks, และ Integration Test Fixtures
-2. **Pillar 2 — 1:1 Clean Architecture CQRS Parity & Single SUT Isolation:**
-   - แตกไฟล์ Monolithic ทั้งหมดออกเป็น Single-SUT Test Classes จัดหมวดหมู่สะท้อนโครงสร้าง `src/SmkDoc.Application/` แบบ 1:1 ครบทุกโมดูล (`Authoring`, `IdentityAccess`, `Integration`, `Rendering`) โดยแยกย่อยเป็น `Commands/{CommandName}/` และ `Queries/{QueryName}/` (1 SUT ต่อ 1 ไฟล์ ห้ามเขียน Monolithic UseCase test รวมกันเด็ดขาด)
-3. **Pillar 3 — Universal Roy Osherove Naming & Deterministic Baseline Time:**
-   - บังคับใช้รูปแบบ `ExecuteAsync_When[Condition]_[ExpectedResult]` ทุกไฟล์เพื่อสื่อสารพฤติกรรมของ SUT อย่างแม่นยำ
-   - ใช้งาน `TestConstants.BaselineTime` เป็น SSoT สำหรับค่าเวลาในการทดสอบและ assertion แทนการใช้ `DateTimeOffset.UtcNow` แบบสุ่ม
-4. **Pillar 4 — Validator Colocation & Independent Pure Testing:**
-   - ย้ายการทดสอบ input validator ออกจาก monolithic suite มาเป็น `*ValidatorTests.cs` ประกบคู่กับ Command/Query ใน feature folder
-   - ทดสอบ input constraints ด้วย `[Theory]` + `[InlineData]` เป็น pure functions โดยปราศจาก mock ใดๆ
-5. **Pillar 5 — Domain Invariant Consolidation (Aggregate Root SSoT):**
-   - ลบไฟล์ dumping grounds (`DomainInvariantTests`, `EntityEncapsulationTests`) ทิ้ง และรวมการทดสอบกฎธุรกิจและการ encapsulate เข้ากับ Aggregate Root Unit Test โดยตรง (`{Aggregate}Tests.cs`)
-6. **Pillar 6 — Fluent Object Mother Builders & Semantic Fixtures:**
-   - สร้าง Domain Entity ผ่าน `*Builder` หรือ `*TestFactory` ร่วมกับ `TestConstants.BaselineTime`
-   - สร้าง UseCase SUT ผ่าน `*TestFixture` พร้อมเมธอดกลุ่ม `Given*` เพื่อขจัด mock setup boilerplate
-
-**Consequences & Verification:**
-- แยก Unit Tests ออกจาก Real I/O เด็ดขาด เพิ่มความเร็วใน CI/CD Pipeline
-- แก้ปัญหา Type Collision ของ OpenXML ใน Unit Test ได้อย่างถาวร
-- โครงสร้างโฟลเดอร์ใน `tests/` สะท้อน `src/` แบบ 1:1 สม่ำเสมอทั้งระบบ
-- กำจัด Test Anti-Patterns (AP-042 ถึง AP-046) ออกจาก Codebase 100%
-- Invariant Quality Gate: 100% Pass Rate และ 0 Failures ทั่วทั้ง Solution (`SmkDocServerV2.slnx` และ `frontend-v2`)
-
----
-
-## ADR-025: Scoped API Keys (ReadOnly / ReadWrite) & M2M-First Zero Public Surface Security
-
-**Status:** Accepted (2026-10-08)
-
-**Context:**
-1. **Headless M2M Gateway Paradigm:** ระบบถูกออกแบบเป็น Centralized Document Generation Gateway โดยระบบธุรกิจภายนอก (ERP, CRM, Billing) เรียกใช้งานผ่าน Machine-to-Machine (M2M) ด้วย API Key เท่านั้น โดยที่ API Key ผูก 1:1 กับ ProjectId ในระบบอยู่แล้ว External System ไม่จำเป็นต้องรู้หรือเลือก ProjectId เอง
-2. **Least-Privilege Scoping:** ต้องการจำกัดสิทธิ์ API Key ให้มี 2 ระดับอย่างชัดเจนคือ `ReadOnly` (สำหรับ preview, validate payload, download) และ `ReadWrite` (สำหรับ generate document, template mutations)
-3. **Perimeter Security (Zero Public Attack Surface):** ป้องกันไม่ให้แฮกเกอร์หรือบอทภายนอกสแกนหรือ brute-force โจมตีเส้น `/api/v1/auth/login` โดยภายนอกจะมองไม่เห็นและไม่ได้รับ API spec ของเส้น Login เลย
-4. **Frictionless Login Contract:** การมี `projectId` ใน JSON Body ของ Login ก่อให้เกิดความซ้ำซ้อนและเสี่ยงต่อ Context Mismatch ระหว่าง Header กับ Body
-
-**Decision:**
-1. **Smart Enum `ApiKeyScope` (`ReadOnly`, `ReadWrite`):**
-   - ฝัง `ApiKeyScope` ลงใน `ApiKey` Aggregate Root และ persist ลงฟิลด์ `scope VARCHAR(20)` ในตาราง `api_keys`
-   - กำหนด Default เป็น `ReadWrite` เพื่อความ backward-compatible
-2. **Atomic Multi-Key Provisioning upon Project Creation:**
-   - ใน `CreateProjectUseCase` ระบบจะสร้าง Company (ถ้ายังไม่มี), สร้าง Project, ผูกสิทธิ์ Admin ให้ผู้สร้าง และออก API Key พร้อมกัน 2 ดอกทันที (`ReadOnly` และ `ReadWrite`) ภายใต้ **Single Atomic Transaction (`CommitAsync`)** เดียว
-3. **Perimeter-Gated Portal Authentication (Approach A):**
-   - ถอด `/api/v1/auth/*` ออกจาก Public Whitelist ใน `ApiKeyMiddleware`
-   - การเรียก `POST /api/v1/auth/login` และ `POST /api/v1/auth/refresh` ต้องแนบ `X-API-Key` (Master / SuperAdmin Key) ใน Header เสมอ หากไม่มีจะถูกตัดตอนที่ Middleware ทันทีด้วย `401 Unauthorized` (RFC 9457)
-4. **Smart Dual-Channel Auth Bypass:**
-   - ใน `ApiKeyMiddleware` หาก Request ใดมี Bearer JWT ที่ยืนยันตัวตนสำเร็จแล้ว (`context.User.Identity?.IsAuthenticated == true`) Middleware จะดึง `UserId` และ `ProjectId` จาก Claims มาใส่ใน `IExecutionContext` และ bypass การตรวจ `X-API-Key` ให้อัตโนมัติ ทำให้ผู้ใช้บน Web Portal / Swagger ใช้งานได้อย่างราบรื่น
-5. **Zero-Input Project ID on Login:**
-   - ตัดฟิลด์ `projectId` ออกจาก `LoginRequest` และ `LoginCommand` โดยเด็ดขาด
-   - `LoginUseCase` จะ resolve ProjectId จาก `IExecutionContext.ProjectId` (ที่ผูกกับ API Key) หรือ Fallback ไปยัง Default Project ของ SuperAdmin โดยอัตโนมัติ
-
-**Consequences:**
-- ปิดช่องโหว่ Public Attack Surface ของเส้น Login ได้ 100%
-- ป้องกันปัญหา IDOR และ Tenant Mismatch จากการส่ง `projectId` ซ้ำซ้อนใน Body
-- รองรับ M2M Principle ที่โปรเจกต์ใหม่มี Key พร้อมใช้งานแยก Read/Write ทันทีที่สร้างเสร็จ
-
----
-
-## ADR-026: Application Query Service (`IUserWorkspaceQueryService`), Domain Value Object Enforcement & CQRS DTO Disentanglement
-
-**Status:** Accepted (2026-10-08)
-
-**Context:**
-1. **Multi-Roundtrip & In-Memory Join Debt (N+1 Risk):** ทั้ง `LoginUseCase` และ `GetCurrentUserProfileUseCase` เคยดึงข้อมูลผ่านหลาย Domain Repository (`UserProjectRoleRepository`, `ProjectRepository`) แล้วนำ Entity ทั้งหมดขึ้นมา Join ด้วย `Dictionary<Guid, string>` ใน RAM ซ้ำซ้อนกันกว่า 25 บรรทัด ก่อให้เกิด Memory allocation และ Multiple DB Roundtrips โดยไม่จำเป็น
-2. **Domain Repository Boundary (AP-025):** ตามหลัก Clean Architecture และ DDD Domain Repositories ต้องคืนค่าเฉพาะ Domain Entities เท่านั้น ห้ามคืน DTO หรือ Projection ข้าม Aggregate
-3. **Primitive Obsession:** `LoginUseCase` เคยจัดการ String เองด้วย `.Trim().ToLowerInvariant()` ทั้งที่มี Domain Value Object `EmailAddress` ที่มี Validation และ Invariants สมบูรณ์อยู่แล้ว
-4. **DTO Dumping Ground:** ไฟล์ `LoginResultDto.cs` รวม DTO และ Command ไว้ถึง 10 คลาสในไฟล์เดียว รวมถึง CQRS Command (`LoginCommand`) และ Dead Property Alias (`Token => AccessToken`)
-5. **Constructor Bloat:** `LoginUseCase` เคยฉีดถึง 11 Dependencies รวมทั้ง Write Repositories และ Read Repositories เข้าด้วยกัน
-
-**Decision:**
-1. **Application Query Service (`IUserWorkspaceQueryService`):**
-   - นิยาม Port `IUserWorkspaceQueryService` ใน `SmkDoc.Application.Common.Interfaces`
-   - Implement Adapter `UserWorkspaceQueryService` ใน `SmkDoc.Infrastructure.Persistence.Queries` โดยใช้ EF Core Linq `.Join(...)` ร่วมกับ `AsNoTracking()` เพื่อทำ Single-SQL `INNER JOIN` และ Project ข้อมูลออกมาเป็น `AccessibleProjectDto` และ `ApiKeyDto` โดยตรงจาก Database ในรอบเดียว
-2. **Domain Value Object Integration (`EmailAddress`):**
-   - บังคับใช้ `EmailAddress.Create(request.Email)` ใน `LoginUseCase` เพื่อให้ Domain Invariant (Format regex, Length <= 256, NotEmpty) ทำงานตั้งแต่ก้าวแรก และส่งต่อเข้า `IUserRepository.GetByEmailAsync(EmailAddress, ct)` โดยตรง
-3. **CQRS & DTO Disentanglement:**
-   - ย้าย `LoginCommand` ไปไว้ใน `Commands/Login/LoginCommand.cs` ตามมาตรฐาน CQRS
-   - แยก DTO แต่ละตัวออกเป็นไฟล์อิสระตามหน้าที่: `AccessibleProjectDto.cs`, `UserProfileDto.cs`, `TokenResultDto.cs`, `CurrentUserProfileResultDto.cs`, `ApiKeyDto.cs`
-   - ทำความสะอาด `LoginResultDto.cs` ให้เหลือเฉพาะ Response ของ Login และตัด Dead Alias `Token => AccessToken` ออก
-4. **Streamline UseCase Dependencies:**
-   - ลด Dependency ของ `LoginUseCase` จาก 11 ตัวเหลือเพียง 6 ตัวหลัก โดยถอด `roleRepo`, `projectRepo`, และ `apiKeyRepo` ออกทั้งหมด
-   - ปรับปรุง `GetCurrentUserProfileUseCase` ให้เรียก `workspaceQueryService.GetAccessibleProjectsAsync(...)` ร่วมกัน ทำให้ขนาดโค้ดลดลงจาก 60 บรรทัดเหลือเพียง 30 บรรทัด
-
-**Consequences & Verification:**
-- ขจัดปัญหา N+1 และ In-memory Join ใน RAM ถาวร
-- ลด Database chatter เหลือ 1 Single SQL Query สำหรับการดึงสิทธิ์ Workspace
-- รักษา Clean Architecture DIP: Application Layer ปราศจาก EF Core/Database Leaks
-- Unit Test Mock ง่ายขึ้นอย่างมีนัยสำคัญผ่าน `workspaceQueryServiceMock` เพียงตัวเดียว
-- 100% Pass Rate ทั้ง Unit Tests และ Integration Tests
-
+</decisions_scope>
