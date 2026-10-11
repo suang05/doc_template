@@ -537,9 +537,15 @@ Harness the full power of C# 13 to eliminate verbose legacy syntax.
 *   *Full Architecture Archetype:* 👉 **See Archetype 5 (Atomic Unit of Work), Archetype 8 (Zero-LOH Stream-over-RAM), and Archetype 9 (Render Strategy Engine) in `docs/AI/PATTERNS.md`**.
 
 #### 4. Presentation Layer (`SmkDoc.Api`)
-*   **Thin Controllers:** Receive HTTP requests, map directly to Application Commands/Queries, and return standard `ApiResponse<T>`. No business logic.
-*   **RFC 9457 ProblemDetails:** All HTTP error responses MUST conform to RFC 9457 via `IExceptionHandler` (`GlobalExceptionHandler`). Anonymous error objects (`new { error = ... }`) are STRICTLY BANNED.
-*   **Idempotency & Mutation Safety:** State-mutating endpoints (`POST`, `PUT`, `DELETE`) MUST support the `Idempotency-Key` header.
+*   **Thin Controllers (SRP):** Controllers must remain extremely thin (<= 5 lines per action). Receive HTTP requests, map directly to Application Commands/Queries, and return standardized envelopes. Business workflows belong strictly in UseCases.
+*   **RFC 9110 HTTP Verb & Representation Semantics:**
+    - `GET`: Must return `200 OK` wrapping the requested resource in `ApiResponse<T>` or `PagedApiResponse<T>`.
+    - `POST` (Creation): Must return `201 Created` using `CreatedAtAction` pointing to the canonical `GetById` route, attaching a `Location` header.
+    - `PUT` / `PATCH` (State Mutation): Must return `200 OK` wrapping the freshly updated resource state in `ApiResponse<T>`. Returning empty `204 NoContent` for state-mutating updates is STRICTLY PROHIBITED whenever the resulting representation is meaningful to clients.
+    - `DELETE`: Must return `204 NoContent` with zero response body.
+*   **OWASP JSON Array Encapsulation:** All incoming HTTP request DTOs representing a collection MUST be wrapped inside a top-level record object (e.g. `public record SaveTemplateMappingsRequest(IReadOnlyList<SaveFieldMappingItemRequest> Mappings)`). Raw root JSON arrays (`[FromBody] List<T> items`) are STRICTLY FORBIDDEN.
+*   **RFC 9457 ProblemDetails (Zero Custom Error Shapes):** All HTTP error responses MUST conform to RFC 9457 via `IExceptionHandler` (`GlobalExceptionHandler`). Controllers must NEVER catch exceptions to return ad-hoc objects (`new { error = ... }`). Instead, throw strongly-typed `DomainValidationException` or let domain errors bubble to the centralized pipeline.
+*   **IETF Idempotency & Mutation Safety:** State-mutating endpoints (`POST`, `PUT`, `DELETE`) MUST support the `Idempotency-Key` header via the `[Idempotent]` filter attribute.
 *   *Full Architecture Archetype:* 👉 **See Archetype 1 (Thin Controller), Archetype 2 (RFC 9457 Global Exception Pipeline), and Archetype 3 (IETF Idempotency-Key Pipeline) in `docs/AI/PATTERNS.md`**.
 
 ---
