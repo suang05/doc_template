@@ -43,7 +43,7 @@ When ADDING, MODIFYING, or EXTENDING endpoints in this document, you MUST strict
 
 <endpoint_manifest>
   <!-- 4.1 Document Generation & Rendering Gateway -->
-  <route id="doc-generate" method="POST" path="/api/v1/documents/generate/{slug}" auth="channel_a" desc="Durable document generation" />
+  <route id="doc-generate" method="POST" path="/api/v1/documents/generate/{slug}" auth="channel_a,channel_b" desc="Durable document generation" />
   <route id="doc-preview" method="POST" path="/api/v1/documents/preview" auth="channel_a,channel_b" desc="Ephemeral in-memory preview (ad-hoc HTML)" />
   <route id="doc-preview-slug" method="POST" path="/api/v1/documents/preview/{slug}" auth="channel_a,channel_b" desc="Ephemeral in-memory preview (template slug)" />
   <route id="doc-validate-slug" method="POST" path="/api/v1/documents/validate/{slug}" auth="channel_a,channel_b" desc="Pre-flight JSON schema validation probe" />
@@ -100,9 +100,9 @@ When ADDING, MODIFYING, or EXTENDING endpoints in this document, you MUST strict
   <route id="project-keys-list" method="GET" path="/api/v1/management/projects/{projectId}/api-keys" auth="channel_b_admin" desc="List project API keys" />
   <route id="project-keys-create" method="POST" path="/api/v1/management/projects/{projectId}/api-keys" auth="channel_b_admin" desc="Issue project API key" />
   <route id="project-keys-revoke" method="DELETE" path="/api/v1/management/projects/{projectId}/api-keys/{keyId}" auth="channel_b_admin" desc="Revoke project API key" />
-  <route id="api-keys-list-legacy" method="GET" path="/api/api-keys" auth="channel_b" desc="List API keys (legacy compat)" />
-  <route id="api-keys-create-legacy" method="POST" path="/api/api-keys" auth="channel_b" desc="Create API key (legacy compat)" />
-  <route id="api-keys-revoke-legacy" method="DELETE" path="/api/api-keys/{id}" auth="channel_b" desc="Revoke API key (legacy compat)" />
+  <route id="api-keys-list-legacy" method="GET" path="/api/api-keys" auth="channel_b" desc="List API keys (legacy compat)" status="deprecated" />
+  <route id="api-keys-create-legacy" method="POST" path="/api/api-keys" auth="channel_b" desc="Create API key (legacy compat)" status="deprecated" />
+  <route id="api-keys-revoke-legacy" method="DELETE" path="/api/api-keys/{id}" auth="channel_b" desc="Revoke API key (legacy compat)" status="deprecated" />
 
   <!-- 4.7 Integration: Data Connections & Datasets -->
   <route id="conn-list" method="GET" path="/api/v1/data-connections" auth="channel_b" desc="List database connections" />
@@ -132,10 +132,11 @@ When ADDING, MODIFYING, or EXTENDING endpoints in this document, you MUST strict
 
 ### 1.0 Global Invariants Baseline (System-Wide RFC Standard)
 Every endpoint in this document automatically inherits these universal architectural invariants:
-* **RFC 9110 HTTP Verb & Representation Standard:**
+* **RFC 9110 HTTP Verb Semantics & Representation Standard:**
   - `GET`: Returns `200 OK` with representation.
-  - `POST` (Creation): Returns `201 Created` with `Location` header pointing to created resource.
-  - `PUT` / `PATCH` (State Mutation): Returns `200 OK` with freshly updated state wrapped in `ApiResponse<T>`. Never return empty `204 NoContent` when updated state is meaningful.
+  - `POST (Resource Creation)`: Returns `201 Created` with `Location` header pointing to canonical resource URI (e.g. `/api/v1/templates`, `/api/v1/management/projects`).
+  - `POST (Action / Execution / Render)`: Returns `200 OK` with execution result DTO or raw media stream (e.g. `/api/v1/documents/generate/{slug}`, `/api/v1/templates/draft/parse`, `/api/v1/schemas/validate`).
+  - `PUT` / `PATCH` (State Mutation): Returns `200 OK` with freshly updated state or mutation summary wrapped in `ApiResponse<T>`. Never return empty `204 NoContent` when updated state is meaningful to client.
   - `DELETE`: Returns `204 NoContent` with zero response body.
 * **RFC 9457 Error Standard:** All client and server errors return `application/problem+json` conforming to RFC 9457 with a strongly-typed `errorCode`.
 * **OWASP JSON Top-Level Array Safety:** All incoming request bodies containing lists MUST wrap items in a top-level record object (e.g. `{ "mappings": [...] }`), never a raw JSON array `[...]`.
@@ -247,7 +248,7 @@ interface ProblemDetails {
 
 ## 2. 🔐 Authentication & Edge Headers Matrix
 
-> 📌 **Architectural Reference:** สำหรับภาพไดอะแกรม C4 Topology, Edge Security, และ Middleware Pipeline ดูได้ที่ [`ARCHITECTURE.md#1--enterprise-system-topology--c4-container-architecture`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/ARCHITECTURE.md#1--enterprise-system-topology--c4-container-architecture) และ [`ARCHITECTURE.md#4--end-to-end-request-pipeline--middleware-topology`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/ARCHITECTURE.md#4--end-to-end-request-pipeline--middleware-topology)
+> 📌 **Architectural Reference:** Refer to [`ARCHITECTURE.md#1--enterprise-system-topology--c4-container-architecture`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/ARCHITECTURE.md#1--enterprise-system-topology--c4-container-architecture) and [`ARCHITECTURE.md#4--end-to-end-request-pipeline--middleware-topology`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/ARCHITECTURE.md#4--end-to-end-request-pipeline--middleware-topology) for C4 Topology, Edge Security, and Middleware Pipeline diagrams.
 
 | Channel | Auth Header | Intended Consumer | Scope & Behavior |
 |---|---|---|---|
@@ -300,7 +301,7 @@ interface ProblemDetails {
 Merges JSON payload into template, stores binary in MinIO, records audit log, and returns pre-signed URL.
 * **Auth:** Channel A (`X-API-Key`) or Channel B (`Bearer JWT`)
 * **Headers:** `Idempotency-Key: <uuid>` (Optional, 24h cache TTL)
-* **Route Param:** `slug: string` (e.g. `"commercial-invoice"`)
+* **Route Params:** `slug: string` (e.g. `"commercial-invoice"`)
 * **Request Body (`application/json`):**
 ```typescript
 interface GenerateDocumentRequest {
@@ -433,11 +434,8 @@ Pre-flight JSON payload validation against template's compiled Draft-07 JSON Sch
 * **Query Params:** *None*
 * **Request Body (`application/json`):**
 ```typescript
-interface ValidateTemplatePayloadRequest {
-  customer?: {
-    taxId?: string;
-  };
-}
+/** Dynamic business JSON payload validated against the template's compiled Draft-07 JSON Schema. */
+type ValidateTemplatePayloadRequest = Record<string, unknown>;
 ```
 ```json
 {
@@ -515,7 +513,7 @@ Canonical alias route for stateless document rendering from uploaded template st
 #### `GET /api/v1/documents/download/{logId}`
 Downloads document by Generation Log ID.
 * **Auth:** Channel A or Channel B
-* **Route Param:** `logId: uuid`
+* **Route Params:** `logId: uuid`
 
 <invariants>
 - RFC 9110 (Content Negotiation Dual-Mode): If Accept contains application/json, return 200 OK with pre-signed URL payload. Otherwise, return HTTP 307 Temporary Redirect directly to MinIO storage.
@@ -535,7 +533,7 @@ Downloads document by Generation Log ID.
 #### `GET /api/v1/documents/{documentRef}/versions`
 Retrieves legal audit history of generated versions for a document reference.
 * **Auth:** Channel A or Channel B
-* **Route Param:** `documentRef: string`
+* **Route Params:** `documentRef: string`
 * **Response (200 OK):** `ApiResponse<DocumentVersionDto[]>`
 ```json
 {
@@ -614,7 +612,7 @@ Lists all templates belonging to the scoped project.
 Retrieves template metadata by ID.
 * **Auth:** Channel A (`X-API-Key`) | Channel B (`Bearer JWT`)
 * **Headers:** *None*
-* **Route Param:** `id: uuid`
+* **Route Params:** `id: uuid`
 * **Query Params:** *None*
 * **Request Body:** *None*
 * **Response (200 OK):** `ApiResponse<TemplateResultDto>`
@@ -684,7 +682,7 @@ Creates a new template with optional initial file upload.
 Updates template name and category. Returns updated template resource.
 * **Auth:** Channel B (`Bearer JWT`) with Admin or SuperAdmin role
 * **Headers:** `Idempotency-Key: <uuid>` (Optional)
-* **Route Param:** `id: uuid`
+* **Route Params:** `id: uuid`
 * **Query Params:** *None*
 * **Request Body (`application/json`):**
 ```typescript
@@ -728,7 +726,7 @@ interface UpdateTemplateRequest {
 Deactivates (soft deletes) a template.
 * **Auth:** Channel B (`Bearer JWT`) with Admin or SuperAdmin role
 * **Headers:** *None*
-* **Route Param:** `id: uuid`
+* **Route Params:** `id: uuid`
 * **Query Params:** *None*
 * **Request Body:** *None*
 * **Response (204 NoContent):** Zero response body.
@@ -744,7 +742,7 @@ Deactivates (soft deletes) a template.
 Downloads the published template source file.
 * **Auth:** Channel A (`X-API-Key`) | Channel B (`Bearer JWT`)
 * **Headers:** *None*
-* **Route Param:** `id: uuid`
+* **Route Params:** `id: uuid`
 * **Query Params:** *None*
 * **Request Body:** *None*
 * **Response (200 OK):** Raw Binary Stream (`application/octet-stream` or MIME type).
@@ -761,7 +759,7 @@ Downloads the published template source file.
 Streams raw HTML template source markup directly for Monaco Editor (RFC 9110 media stream).
 * **Auth:** Channel A (`X-API-Key`) | Channel B (`Bearer JWT`)
 * **Headers:** *None*
-* **Route Param:** `id: uuid`
+* **Route Params:** `id: uuid`
 * **Query Params:** *None*
 * **Request Body:** *None*
 * **Response (200 OK):** Raw Text Stream (`Content-Type: text/html; charset=utf-8`)
@@ -780,7 +778,7 @@ Streams raw HTML template source markup directly for Monaco Editor (RFC 9110 med
 Saves modified HTML source markup from the Monaco Editor and creates an incremental version revision.
 * **Auth:** Channel A (`X-API-Key`) | Channel B (`Bearer JWT`)
 * **Headers:** *None*
-* **Route Param:** `id: uuid`
+* **Route Params:** `id: uuid`
 * **Query Params:** *None*
 * **Request Body (`application/json`):**
 ```typescript
@@ -817,7 +815,7 @@ interface SaveHtmlRequest {
 Retrieves the complete Studio bundle including HTML source, sample JSON payload, inferred JSON schema, and version number.
 * **Auth:** Channel A (`X-API-Key`) | Channel B (`Bearer JWT`)
 * **Headers:** *None*
-* **Route Param:** `id: uuid`
+* **Route Params:** `id: uuid`
 * **Query Params:** *None*
 * **Request Body:** *None*
 * **Response (200 OK):** `ApiResponse<TemplateStudioDto>`
@@ -843,7 +841,7 @@ Retrieves the complete Studio bundle including HTML source, sample JSON payload,
 Retrieves compiled JSON Schema Draft-07 for a template.
 * **Auth:** Channel A (`X-API-Key`) | Channel B (`Bearer JWT`)
 * **Headers:** *None*
-* **Route Param:** `id: uuid`
+* **Route Params:** `id: uuid`
 * **Query Params:** *None*
 * **Request Body:** *None*
 * **Response (200 OK):** `ApiResponse<TemplateSchemaDto>`
@@ -868,7 +866,7 @@ Retrieves compiled JSON Schema Draft-07 for a template.
 Validates HTML template markup syntax and extracts detected placeholders.
 * **Auth:** Channel A (`X-API-Key`) | Channel B (`Bearer JWT`)
 * **Headers:** *None*
-* **Route Param:** `id: uuid`
+* **Route Params:** `id: uuid`
 * **Query Params:** *None*
 * **Request Body (`application/json`):**
 ```typescript
@@ -906,7 +904,7 @@ interface ValidateHtmlRequest {
 Lists all historical version revisions for a template.
 * **Auth:** Channel A (`X-API-Key`) | Channel B (`Bearer JWT`)
 * **Headers:** *None*
-* **Route Param:** `id: uuid`
+* **Route Params:** `id: uuid`
 * **Query Params:** *None*
 * **Request Body:** *None*
 * **Response (200 OK):** `ApiResponse<TemplateVersionDto[]>`
@@ -965,7 +963,7 @@ Reverts template source content to a historical version and increments new revis
 Lists external SQL datasets currently bound to a template.
 * **Auth:** Channel A (`X-API-Key`) | Channel B (`Bearer JWT`)
 * **Headers:** *None*
-* **Route Param:** `id: uuid`
+* **Route Params:** `id: uuid`
 * **Query Params:** *None*
 * **Request Body:** *None*
 * **Response (200 OK):** `ApiResponse<TemplateDatasetDto[]>`
@@ -995,7 +993,7 @@ Lists external SQL datasets currently bound to a template.
 Atomically replaces all external dataset bindings for a template (wrapped in `{ datasets }` root object).
 * **Auth:** Channel A (`X-API-Key`) | Channel B (`Bearer JWT`)
 * **Headers:** *None*
-* **Route Param:** `id: uuid`
+* **Route Params:** `id: uuid`
 * **Query Params:** *None*
 * **Request Body (`application/json`):**
 ```typescript
@@ -1047,7 +1045,7 @@ interface SaveTemplateDatasetItemRequest {
 Lists all field mappings and Thai transformer configurations for a template.
 * **Auth:** Channel A (`X-API-Key`) | Channel B (`Bearer JWT`)
 * **Headers:** *None*
-* **Route Param:** `id: uuid`
+* **Route Params:** `id: uuid`
 * **Query Params:** *None*
 * **Request Body:** *None*
 * **Response (200 OK):** `ApiResponse<FieldMappingDto[]>`
@@ -1084,7 +1082,7 @@ Lists all field mappings and Thai transformer configurations for a template.
 Atomically replaces all field mappings for a template (wrapped in `{ mappings }` root object).
 * **Auth:** Channel A (`X-API-Key`) | Channel B (`Bearer JWT`)
 * **Headers:** *None*
-* **Route Param:** `id: uuid`
+* **Route Params:** `id: uuid`
 * **Query Params:** *None*
 * **Request Body (`application/json`):**
 ```typescript
@@ -1159,7 +1157,7 @@ interface SaveFieldMappingItemRequest {
 Merges provided sample data with current field mappings and returns in-memory rendered PDF preview stream.
 * **Auth:** Channel A (`X-API-Key`) | Channel B (`Bearer JWT`)
 * **Headers:** *None*
-* **Route Param:** `id: uuid`
+* **Route Params:** `id: uuid`
 * **Query Params:** *None*
 * **Request Body (`application/json`):**
 ```typescript
@@ -1547,9 +1545,9 @@ Lists all tenant projects accessible to the authenticated user with server-side 
 * **Headers:** *None*
 * **Route Params:** *None*
 * **Query Params:**
-  * `search: string` (Optional search filter by project name or slug)
   * `page: int` (Default: 1, Min: 1)
-  * `pageSize: int` (Default: 20, Min: 1, Max: 100)
+  * `limit: int` (Default: 20, Min: 1, Max: 100)
+  * `search: string` (Optional search filter by project name or slug)
 * **Request Body:** *None*
 * **Response (200 OK):** `PagedApiResponse<ProjectResultDto>`
 ```json
@@ -1565,7 +1563,7 @@ Lists all tenant projects accessible to the authenticated user with server-side 
   ],
   "pagination": {
     "page": 1,
-    "pageSize": 20,
+    "limit": 20,
     "totalCount": 1,
     "totalPages": 1
   }
@@ -1650,7 +1648,7 @@ interface CreateProjectRequest {
 Lists all project member user accounts and their assigned project roles.
 * **Auth:** Channel B (`Bearer JWT`) with Admin or SuperAdmin role
 * **Headers:** *None*
-* **Route Param:** `projectId: uuid`
+* **Route Params:** `projectId: uuid`
 * **Query Params:** *None*
 * **Request Body:** *None*
 * **Response (200 OK):** `ApiResponse<UserResultDto[]>`
@@ -1681,7 +1679,7 @@ Lists all project member user accounts and their assigned project roles.
 Invites a new or existing user into the project membership with an assigned role.
 * **Auth:** Channel B (`Bearer JWT`) with Admin role
 * **Headers:** *None*
-* **Route Param:** `projectId: uuid`
+* **Route Params:** `projectId: uuid`
 * **Query Params:** *None*
 * **Request Body (`application/json`):**
 ```typescript
@@ -1907,10 +1905,14 @@ Permanently revokes an API key, immediately disabling its ability to invoke Chan
 
 ---
 
-<endpoint id="api-keys-list-legacy" method="GET" route="/api/api-keys" auth="channel_b">
+<endpoint id="api-keys-list-legacy" method="GET" route="/api/api-keys" auth="channel_b" status="deprecated">
 
 #### `GET /api/api-keys`
 Legacy Portal UI compatible endpoint for listing project API keys.
+
+> [!WARNING]
+> **DEPRECATED COMPATIBILITY ROUTE:** AI agents MUST prioritize canonical route `/api/v1/management/projects/{projectId}/api-keys` for new feature development.
+
 * **Auth:** Channel B (`Bearer JWT`)
 * **Headers:** *None*
 * **Route Params:** *None*
@@ -1937,10 +1939,14 @@ Legacy Portal UI compatible endpoint for listing project API keys.
 
 ---
 
-<endpoint id="api-keys-create-legacy" method="POST" route="/api/api-keys" auth="channel_b">
+<endpoint id="api-keys-create-legacy" method="POST" route="/api/api-keys" auth="channel_b" status="deprecated">
 
 #### `POST /api/api-keys`
 Legacy Portal UI compatible endpoint for issuing an API key.
+
+> [!WARNING]
+> **DEPRECATED COMPATIBILITY ROUTE:** AI agents MUST prioritize canonical route `POST /api/v1/management/projects/{projectId}/api-keys` for new feature development.
+
 * **Auth:** Channel B (`Bearer JWT`)
 * **Headers:** *None*
 * **Route Params:** *None*
@@ -1978,10 +1984,14 @@ interface CreateLegacyApiKeyRequest {
 
 ---
 
-<endpoint id="api-keys-revoke-legacy" method="DELETE" route="/api/api-keys/{id}" auth="channel_b">
+<endpoint id="api-keys-revoke-legacy" method="DELETE" route="/api/api-keys/{id}" auth="channel_b" status="deprecated">
 
 #### `DELETE /api/api-keys/{id}`
 Legacy Portal UI compatible endpoint for revoking an API key.
+
+> [!WARNING]
+> **DEPRECATED COMPATIBILITY ROUTE:** AI agents MUST prioritize canonical route `DELETE /api/v1/management/projects/{projectId}/api-keys/{keyId}` for new feature development.
+
 * **Auth:** Channel B (`Bearer JWT`)
 * **Headers:** *None*
 * **Route Params:** `id: uuid`
@@ -2031,7 +2041,7 @@ Lists all external database connection profiles configured for SQL dataset bindi
 Retrieves a specific database connection profile by ID (credentials masked).
 * **Auth:** Channel B (`Bearer JWT`)
 * **Headers:** *None*
-* **Route Param:** `id: uuid`
+* **Route Params:** `id: uuid`
 * **Query Params:** *None*
 * **Request Body:** *None*
 * **Response (200 OK):** `ApiResponse<DataConnectionDto>`
@@ -2098,7 +2108,7 @@ interface CreateDataConnectionRequest {
 Updates an existing database connection definition.
 * **Auth:** Channel B (`Bearer JWT`)
 * **Headers:** *None*
-* **Route Param:** `id: uuid`
+* **Route Params:** `id: uuid`
 * **Query Params:** *None*
 * **Request Body (`application/json`):**
 ```typescript
@@ -2138,7 +2148,7 @@ interface UpdateDataConnectionRequest {
 Deletes a database connection definition. Fails if active datasets reference this connection.
 * **Auth:** Channel B (`Bearer JWT`)
 * **Headers:** *None*
-* **Route Param:** `id: uuid`
+* **Route Params:** `id: uuid`
 * **Query Params:** *None*
 * **Request Body:** *None*
 * **Response (204 NoContent):** Zero response body.
@@ -2221,7 +2231,7 @@ Lists all configured SQL extraction query datasets.
 Retrieves a specific SQL dataset definition by ID.
 * **Auth:** Channel B (`Bearer JWT`)
 * **Headers:** *None*
-* **Route Param:** `id: uuid`
+* **Route Params:** `id: uuid`
 * **Query Params:** *None*
 * **Request Body:** *None*
 * **Response (200 OK):** `ApiResponse<DatasetDto>`
@@ -2298,7 +2308,7 @@ interface CreateDatasetRequest {
 Updates an existing SQL dataset query or cache policy.
 * **Auth:** Channel B (`Bearer JWT`)
 * **Headers:** *None*
-* **Route Param:** `id: uuid`
+* **Route Params:** `id: uuid`
 * **Query Params:** *None*
 * **Request Body (`application/json`):**
 ```typescript
@@ -2345,7 +2355,7 @@ interface UpdateDatasetRequest {
 Deletes a SQL dataset definition.
 * **Auth:** Channel B (`Bearer JWT`)
 * **Headers:** *None*
-* **Route Param:** `id: uuid`
+* **Route Params:** `id: uuid`
 * **Query Params:** *None*
 * **Request Body:** *None*
 * **Response (204 NoContent):** Zero response body.
