@@ -3,7 +3,8 @@ using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
+using Scalar.AspNetCore;
 using SmkDoc.Api.HealthChecks;
 using SmkDoc.Api.Middleware;
 using SmkDoc.Api.Common.Context;
@@ -82,40 +83,48 @@ builder.Services.AddAuthentication(Microsoft.AspNetCore.Authentication.JwtBearer
         };
     });
 
-builder.Services.AddSwaggerGen(c =>
+builder.Services.AddOpenApi("v1", options =>
 {
-    c.SwaggerDoc("v1", new OpenApiInfo
+    options.AddDocumentTransformer((document, context, cancellationToken) =>
     {
-        Title = "SAMMAKORN Document Generation Service API",
-        Version = "v2",
-        Description =
-            "Enterprise document generation microservice accepting JSON payloads and generating pixel-perfect PDF, DOCX, or XLSX output based on SDD v1.3."
-    });
-    c.AddSecurityDefinition("ApiKey", new OpenApiSecurityScheme
-    {
-        Description = "Enter API Key in header: X-API-Key",
-        Name = "X-API-Key",
-        In = ParameterLocation.Header,
-        Type = SecuritySchemeType.ApiKey,
-        Scheme = "ApiKeyScheme"
-    });
-    c.AddSecurityRequirement(new OpenApiSecurityRequirement
-    {
+        document.Info = new OpenApiInfo
         {
-            new OpenApiSecurityScheme
-            {
-                Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "ApiKey" }
-            },
-            Array.Empty<string>()
-        }
-    });
+            Title = "SAMMAKORN Document Generation Service API",
+            Version = "v2",
+            Description = "Enterprise document generation microservice accepting JSON payloads and generating pixel-perfect PDF, DOCX, or XLSX output based on SDD v1.3."
+        };
 
-    var xmlFilename = $"{System.Reflection.Assembly.GetExecutingAssembly().GetName().Name}.xml";
-    var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFilename);
-    if (File.Exists(xmlPath))
-    {
-        c.IncludeXmlComments(xmlPath);
-    }
+        document.Components ??= new OpenApiComponents();
+        var apiKeyScheme = new OpenApiSecurityScheme
+        {
+            Description = "Enter API Key in header: X-API-Key",
+            Name = "X-API-Key",
+            In = ParameterLocation.Header,
+            Type = SecuritySchemeType.ApiKey
+        };
+        var bearerScheme = new OpenApiSecurityScheme
+        {
+            Description = "Enter JWT Bearer token: Authorization: Bearer <token>",
+            Name = "Authorization",
+            In = ParameterLocation.Header,
+            Type = SecuritySchemeType.Http,
+            Scheme = "bearer",
+            BearerFormat = "JWT"
+        };
+
+        var components = document.Components ??= new OpenApiComponents();
+        components.SecuritySchemes ??= new Dictionary<string, IOpenApiSecurityScheme>();
+        components.SecuritySchemes["ApiKey"] = apiKeyScheme;
+        components.SecuritySchemes["Bearer"] = bearerScheme;
+
+        document.Security ??= [];
+        document.Security.Add(new OpenApiSecurityRequirement
+        {
+            [new OpenApiSecuritySchemeReference("ApiKey")] = []
+        });
+
+        return Task.CompletedTask;
+    });
 });
 
 // --- 2. Execution Context ---
@@ -323,11 +332,13 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
-if (app.Environment.IsDevelopment())
+app.MapOpenApi();
+app.MapScalarApiReference(options =>
 {
-    app.UseSwagger();
-    app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "SMK Document Server v2"));
-}
+    options.WithTitle("SMK Document Server API")
+           .WithTheme(ScalarTheme.Moon);
+});
+app.MapGet("/swagger", () => Results.Redirect("/scalar/v1"));
 
 // Support reverse proxy (Traefik/Nginx/Coolify) — must be first
 app.UseForwardedHeaders(new ForwardedHeadersOptions
@@ -376,7 +387,8 @@ app.MapGet("/", () => Results.Ok(new
     architecture = "Clean Architecture (SDD v1.3)",
     status = "Operational",
     version = "2.0.0",
-    docs = "/swagger"
+    docs = "/scalar/v1",
+    openapi = "/openapi/v1.json"
 }));
 
 app.Run();

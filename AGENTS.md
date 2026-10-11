@@ -116,11 +116,16 @@ In every single interaction (answering questions, reviewing code, or planning so
 **LIVING DOCUMENTATION PROTOCOL (Zero-Drift & Consistency):**
 Whenever you modify the codebase or make architectural decisions, you MUST proactively update the corresponding documentation to prevent doc drift and ensure LLM consistency:
 1. **Mandatory Updates:**
-   - IF you create/modify an API endpoint, Auth flow, or DTO -> UPDATE `docs/AI/API_CONTRACT.md`
+   - IF you create/modify an API endpoint, Auth flow, or DTO -> UPDATE `docs/AI/API_CONTRACT.md` following its `<doc_maintenance_rules>` tag (API Contract Authoring Invariant):
+     * **CANONICAL SKELETON:** Every endpoint must strictly follow:
+       `#### [VERB] /api/v1/[path]` -> 1-line summary -> `* **Auth:**` -> `* **Headers:**` -> `* **Params:**` -> `* **Request Body:**` (TypeScript interface + concrete full JSON) -> `* **Response:**` (Status + concrete JSON) -> `* **Errors:**` (Status + `errorCode`).
+     * **ZERO NOISE & NO ELLIPSIS:** NEVER use ellipses (`...`) in JSON examples. NEVER write generic HTTP 101 tutorials, marketing prose, or abstract Mermaid architecture boxes.
+     * **SINGLE VERB:** NEVER group verbs (e.g. `GET|POST`). Each method must have its own block.
+     * **ERROR TAXONOMY:** Every new business `errorCode` MUST be registered in Section 3 Taxonomy.
    - IF you add/modify a Database Table, Entity, or EF Core Migration -> UPDATE `docs/AI/DB_SCHEMA.md`
    - IF you create a new UseCase, Interface, or architectural file -> UPDATE `docs/AI/PROJECT_STRUCTURE.md`
    - IF you change system topology, dependencies, or middleware pipeline -> UPDATE `docs/AI/ARCHITECTURE.md`
-2. **Context Headers:** Every documentation file MUST maintain its clear, strict scope wrapper (e.g., `<api_contract_scope>`, `<database_scope>`) and `<ai_directive>` at the top. Never remove them.
+2. **Context Headers:** Every documentation file MUST maintain its clear, strict scope wrapper (e.g., `<api_contract_scope>`, `<database_scope>`), `<ai_directive>`, and maintenance tags (e.g. `<doc_maintenance_rules>`) at the top. Never remove them.
 3. **No Duplication & Zero Contradiction:** Before writing a new rule or pattern, you MUST verify that it does not contradict existing standards in `CODING_CONVENTIONS.md`, `PATTERNS.md`, or `ARCHITECTURE.md`. Keep responsibilities strictly isolated to their respective files to avoid redundant instructions that confuse the LLM.
 4. **Future-Proofing (No Volatile Metrics & No Hard Text):** When updating documentation, do NOT insert hardcoded minor versions of libraries (e.g. `v11.11`) or volatile metrics (e.g. exact test counts) that will quickly become outdated. Specify invariant criteria (e.g., 100% pass rate, 0 failures) instead.
 </doc_drift_prevention>

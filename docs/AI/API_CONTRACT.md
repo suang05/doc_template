@@ -1,23 +1,147 @@
 <ai_directive>
-CRITICAL ATTENTION ROUTING: 
-This file (`API_CONTRACT.md`) is the AUTHORITATIVE SINGLE SOURCE OF TRUTH (SSoT) for all REST API endpoints, Request/Response DTO wire schemas, Authentication channels, and Edge middleware protocols across the SMK Document Server.
-- NEVER invent new response envelopes. Always use the envelopes defined in Section 3.
-- ALWAYS emit RFC 9457 Problem Details (`application/problem+json`) for all error responses.
-- State-mutating endpoints (`POST`) MUST support the IETF `Idempotency-Key` protocol specified in Section 2.2.
-- Every endpoint MUST adhere strictly to the global design principles, typed contracts, and tenant-scoped authorization boundaries.
+CRITICAL IMPLEMENTATION RULES (SSoT):
+This document is the authoritative Single Source of Truth (SSoT) for all REST wire contracts, DTO payloads, and HTTP protocols across `smk-doc-server`.
+1. WIRE FORMAT: All JSON keys MUST be strictly `camelCase`. Dates MUST be ISO-8601 UTC.
+2. ENVELOPES: Wrap single responses in `ApiResponse<T>`, list responses in `PagedApiResponse<T>`. Binary outputs MUST stream raw bytes with `Content-Disposition`.
+3. ERRORS: Errors MUST return `application/problem+json` conforming to RFC 9457 with a strongly-typed `errorCode`.
+4. STRICT NEGATIVE RULES: NEVER return anonymous objects (`new { }`). NEVER return `{ "success": true }`. NEVER return HTTP 200 on errors. NEVER leak stack traces or SQL in `detail`.
+5. HUMAN-ONLY SECTIONS: Content enclosed in `<human_only>` tags is intended exclusively for human visual understanding and architectural reference. AI agents MUST deprioritize/ignore these blocks during code synthesis and DTO validation.
 </ai_directive>
+
+<doc_maintenance_rules>
+MANDATORY AUTHORING SPECIFICATION (Zero-Drift Invariant):
+When ADDING, MODIFYING, or EXTENDING endpoints in this document, you MUST strictly adhere to:
+1. CANONICAL SKELETON (Slot-filling template):
+   #### `[HTTP_VERB] /api/v1/[resource]/[sub-path]`
+   Short 1-line business description.
+   * **Auth:** Channel A (`X-API-Key`) | Channel B (`Bearer JWT`)
+   * **Headers:** Edge headers (e.g. `Idempotency-Key`) or *None*
+   * **Params:** Route/Query params with type and constraints
+   * **Request Body (`application/json`):** TypeScript interface + concrete full JSON payload
+   * **Response ([STATUS] [PHRASE]):** Envelope + concrete JSON payload
+   * **Errors:** Explicit status code and domain `errorCode` mapping (e.g. `404 (RESOURCE_NOT_FOUND)`)
+2. PROHIBITIONS:
+   - ZERO ELLIPSIS: NEVER use ellipses `...` in JSON payloads.
+   - SINGLE VERB: NEVER group verbs (e.g. `GET|POST`). Each route/verb must have its own dedicated block.
+   - ZERO PROSE: NEVER add HTTP 101 tutorials, marketing words, or abstract flowcharts.
+3. ERROR TAXONOMY: Every new `errorCode` MUST be registered in Section 3 Taxonomy table.
+</doc_maintenance_rules>
 
 <api_contract_scope>
 
-# 📡 API Contract & Authentication Specification
-
-> **Target Standard:** RESTful HTTP Gateway, RFC 9457 (Problem Details), IETF `Idempotency-Key` (draft-ietf-httpapi-idempotency-key), IETF `RateLimit-*` Headers, OpenAPI 3.1, OWASP API Security Top 10 (2023).
+# 📡 API Contract Specification (SSoT)
 
 ---
 
-## 1. 🔐 Dual-Channel Authentication & Security Architecture
+## 1. 📦 Global Wire Protocols & Response Envelopes
 
-The SMK Document Server operates as a high-throughput enterprise document gateway enforcing strict **Dual-Channel Authentication** based on the caller context and operational intent.
+Every JSON API response emitted by `smk-doc-server` conforms to one of the canonical envelopes below.
+
+### 1.1 Single Resource Envelope (`ApiResponse<T>`)
+Used for single entity reads, mutations, and status responses (`200 OK`, `201 Created`).
+```typescript
+interface ApiResponse<T> {
+  data: T;
+}
+```
+```json
+{
+  "data": {
+    "id": "01926b42-7c3a-7000-8000-123456789abc",
+    "projectId": "01926b40-1111-7000-8000-000000000001",
+    "name": "Commercial Tax Invoice",
+    "slug": "tax-invoice-th",
+    "category": "Finance",
+    "isActive": true,
+    "createdAt": "2026-10-10T12:00:00.000Z",
+    "updatedAt": null
+  }
+}
+```
+
+### 1.2 Paged Collection Envelope (`PagedApiResponse<T>`)
+Used for paginated queries. Query params default to `?page=1&limit=20` (capped at `maxLimit=100`).
+```typescript
+interface PaginationMetadata {
+  page: number;
+  limit: number;
+  totalCount: number;
+  totalPages: number;
+}
+
+interface PagedApiResponse<T> {
+  data: T[];
+  pagination: PaginationMetadata;
+}
+```
+```json
+{
+  "data": [
+    {
+      "id": "01926b42-7c3a-7000-8000-123456789abc",
+      "name": "Commercial Tax Invoice",
+      "slug": "tax-invoice-th",
+      "category": "Finance",
+      "isActive": true
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "limit": 20,
+    "totalCount": 42,
+    "totalPages": 3
+  }
+}
+```
+
+### 1.3 Raw Binary Media Streams (Zero Envelope)
+Endpoints returning rendered documents (`application/pdf`, `.docx`, `.xlsx`) bypass JSON wrappers and stream bytes directly:
+* **In-Memory Preview:** `Content-Type: application/pdf`, `Content-Disposition: inline`
+* **File Download:** `Content-Type: application/pdf`, `Content-Disposition: attachment; filename="{filename}"`
+
+### 1.4 RFC 9457 Problem Details Schema (Error Envelope)
+All error responses return `Content-Type: application/problem+json`.
+```typescript
+interface InvalidParam {
+  name: string;    // JSON path in camelCase, e.g. "customer.taxId"
+  reason: string;  // Explicit "Expected vs Actual" message
+}
+
+interface ProblemDetails {
+  type: string;                  // e.g. "https://api.sammakorn.co.th/errors/slug-already-exists"
+  title: string;                 // HTTP Status phrase, e.g. "Conflict"
+  status: number;                // HTTP Status Code, e.g. 409
+  detail: string;                // Specific instance explanation (zero internal leaks)
+  instance: string;              // Request path, e.g. "/api/v1/templates"
+  errorCode: string;             // SCREAMING_SNAKE_CASE domain token
+  traceId: string;               // Distributed W3C trace ID
+  invalidParams?: InvalidParam[]; // Validation failures
+}
+```
+```json
+{
+  "type": "https://api.sammakorn.co.th/errors/slug-already-exists",
+  "title": "Conflict",
+  "status": 409,
+  "detail": "Template with slug 'tax-invoice-th' already exists in Project '01926b40-1111-7000-8000-000000000001'.",
+  "instance": "/api/v1/templates",
+  "errorCode": "SLUG_ALREADY_EXISTS",
+  "traceId": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+  "invalidParams": [
+    {
+      "name": "slug",
+      "reason": "Slug 'tax-invoice-th' is already registered within Project '01926b40-1111-7000-8000-000000000001'."
+    }
+  ]
+}
+```
+
+---
+
+## 2. 🔐 Authentication & Edge Headers Matrix
+
+<human_only>
+### 🗺️ Visual Architecture & Edge Security Pipeline (For Human Reference)
 
 ```mermaid
 graph TD
@@ -48,8 +172,9 @@ graph TD
         DocCtrl["DocumentController"]
         TempCtrl["TemplateController"]
         AuthCtrl["AuthController"]
-        MgmtCtrl["ManagementController"]
-        DataCtrl["DatasourceController"]
+        MgmtCtrl["ProjectManagementController"]
+        DataCtrl["DataConnectionsController"]
+        DatasetCtrl["DatasetController"]
         SchemaCtrl["SchemaController"]
     end
 
@@ -58,239 +183,190 @@ graph TD
     Idempotency --> AuthCtrl
     Idempotency --> MgmtCtrl
     Idempotency --> DataCtrl
+    Idempotency --> DatasetCtrl
     Idempotency --> SchemaCtrl
 ```
+</human_only>
 
-### 1.1 Authentication Channel Matrix
+| Channel | Auth Header | Intended Consumer | Scope & Behavior |
+|---|---|---|---|
+| **Channel A** | `X-API-Key: <key>` | M2M (ERP / CRM / Billing) | Validated via SHA-256 hash in DB. Hydrates `ProjectId` and `CallerApp`. |
+| **Channel B** | `Authorization: Bearer <jwt>` | Portal UI (Next.js) | HMAC-SHA256 JWT (15-min TTL) with RTR refresh token (7-day TTL). |
+| **Channel A Gated** | `X-API-Key: <key>` | Portal Login Gateway | `/api/v1/auth/login` and `/api/v1/auth/refresh` require API key header. |
+| **Public** | *None* | Health & Monitoring | `/health`, `/swagger` |
 
-| Channel | Authentication Type | Required Header | Intended Audience | Security Characteristics | Target Controllers |
-|---|---|---|---|---|---|
-| **Channel A** | **API Key (M2M)** | `X-API-Key: <key>` | External Backend Systems (ERP/CRM) | Secret stored as SHA-256 hash in DB; mapped to specific `ProjectId`; stateless; no session overhead. | `DocumentController`, `TemplateController`, `DatasourceController` |
-| **Channel B** | **Bearer JWT** | `Authorization: Bearer <jwt>` | Web Portal Users (Next.js 15) | Signed via HMAC-SHA256 (`Jwt:Secret`); contains `sub` (UserId), `email`, `SystemRole`, and `ProjectId`; issued with Refresh Token Rotation (RTR). | `ManagementController`, `AuthController`, `TemplateController` (editor mode) |
-| **Channel A Gated** | **M2M Gated Portal Auth** | `X-API-Key: <key>` | Portal Identity Gateway | Portal authentication endpoints gated by project API Key to prevent public brute-force attacks. | `POST /api/v1/auth/login`, `POST /api/v1/auth/refresh` |
-| **Public** | **Anonymous** | *None* | Health Check & Monitoring | Unauthenticated endpoints for container liveness and telemetry. | `GET /health`, `GET /swagger` |
-
-### 1.2 Channel Specifications
-
-*   **Channel A (Machine-to-Machine API Keys):**
-    *   Header: `X-API-Key: smk_live_xxxxxxxxxxxxxxxxxxxxxxxx`
-    *   Verification: The raw key is hashed using SHA-256 and compared in constant-time against `ApiKeys.KeyHash` in PostgreSQL.
-    *   Context Resolution: Automatically hydrates `IExecutionContext.ProjectId` and `IExecutionContext.CallerApp`, ensuring zero cross-tenant access (OWASP BOLA/IDOR protection).
-*   **Channel B (Portal Identity & Refresh Token Rotation):**
-    *   Access Token: Short-lived JWT (15 minutes).
-    *   Refresh Token: Single-use opaque string (7 days TTL). Each `/refresh` call invalidates the old token and issues a new pair. Reuse of an invalidated token triggers an immediate tenant-wide session revocation.
-*   **Standard Edge Security Headers:**
-    *   `X-Content-Type-Options: nosniff`
-    *   `X-Frame-Options: DENY`
-    *   `Strict-Transport-Security: max-age=31536000; includeSubDomains`
-    *   `Content-Security-Policy: default-src 'none'; frame-ancestors 'none';`
+### Edge Protocols
+* **Idempotency Header:** `Idempotency-Key: <uuid>` on state-mutating endpoints (`POST`, `PUT`).
+  * Request Fingerprint: deterministic SHA-256 hash of `Method + NormalizedPath + SerializedPayloadJson`.
+  * Response Header on replay: `Idempotency-Replayed: true`.
+  * Status: `409 Conflict` (`IDEMPOTENCY_IN_FLIGHT`) on concurrent duplicate; `422 Unprocessable Entity` (`IDEMPOTENCY_PAYLOAD_MISMATCH`) on payload tampering.
+* **Rate Limiting Headers:** `RateLimit-Limit`, `RateLimit-Remaining`, `RateLimit-Reset`. Status `429 Too Many Requests` (`Retry-After: <sec>`).
 
 ---
 
-## 2. 🌍 Global API Design Principles & Wire Protocols
+## 3. 🛑 Global Domain Error Code Taxonomy
 
-All public endpoints across `backend-v2/` MUST conform to the following international REST and HTTP standards:
-
-### 2.1 Canonical Resource Routing & HTTP Verbs
-
-*   **Prefix Standard:** All business routes MUST use `api/v1/{resource}`.
-*   **Plural Nouns:** Resources are plural lowercase nouns (e.g., `/api/v1/templates`, `/api/v1/documents`).
-*   **Verb Semantics & Status Codes:**
-    *   `GET`: Safe and idempotent read. Returns `200 OK` with payload.
-    *   `POST`: Resource creation or action dispatch. Returns `201 Created` with `Location` header pointing to the created resource URI, or `200 OK` for calculations/stateless transformations.
-    *   `PUT`: Full replacement or idempotent update. Returns `200 OK` with updated resource.
-    *   `PATCH`: Partial update. Returns `200 OK` with updated resource.
-    *   `DELETE`: Resource deletion. Returns `204 NoContent` (Zero response body).
-    *   `400 Bad Request`: Client syntax error or FluentValidation failure (RFC 9457).
-    *   `401 Unauthorized`: Missing or invalid credentials.
-    *   `403 Forbidden`: Authenticated identity lacks permission or violates tenant boundary.
-    *   `404 Not Found`: Target resource does not exist in the tenant scope.
-    *   `409 Conflict`: Business invariant collision (e.g., duplicate slug) or in-flight idempotency lease.
-    *   `422 Unprocessable Entity`: Request payload violates semantic rules or idempotency fingerprint mismatch.
-    *   `429 Too Many Requests`: Rate limit quota exhausted.
-    *   `500 Internal Server Error`: Unhandled infrastructure failure (ProblemDetails without stack trace leaks).
-
----
-
-### 2.2 🛡️ IETF Idempotency-Key Protocol Specification
-
-State-mutating HTTP endpoints (`POST`, `PUT`, `DELETE`) implement the **IETF Draft Specification** (`draft-ietf-httpapi-idempotency-key`) via `[Idempotent]` (`IdempotencyFilter.cs`). This guarantees that client network retries execute business operations exactly once, returning identical cached responses with zero duplicate database writes or storage uploads.
-
-#### 1. Header Specification
-*   **Request Header:** `Idempotency-Key: <opaque-string-max-128-chars>` (UUIDv7 or UUIDv4 strongly recommended).
-*   **Response Header (Transparency):** `Idempotency-Replayed: true` (attached exclusively when the response is served from the idempotency cache).
-*   **Preserved Headers:** Response headers critical to resource location (e.g., `Location`) are cached and replayed alongside the payload.
-
-#### 2. Cryptographic Request Fingerprinting (SHA-256)
-To prevent key tampering or accidental key collisions between different operations, `RequestFingerprintCalculator` computes a deterministic SHA-256 signature:
-$$\text{Fingerprint} = \text{SHA256}(\text{Method} + \text{NormalizedPath} + \text{SerializedPayloadJson})$$
-
-#### 3. The 6-State Lifecycle & Status Code Matrix
-
-| Scenario | Incoming Request State | Idempotency Store State | Server Action | HTTP Status Code | Response Payload & Headers |
-|---|---|---|---|---|---|
-| **1. Fresh Execution (Cache Miss)** | Valid key + payload | Key not found | Acquire atomic in-flight lock (2 min TTL), execute UseCase, commit DB/MinIO, cache completed response (24h TTL). | `200 OK` / `201 Created` | Fresh response body. `Idempotency-Replayed` header is **absent**. |
-| **2. Idempotent Replay (Cache Hit)** | Identical key + matching fingerprint | Status: `Completed` | Skip UseCase and DB entirely. Immediately stream cached response JSON. | Original Status (`200` / `201`) | Cached response body + `Idempotency-Replayed: true` + cached `Location` header. |
-| **3. Concurrent Race (In-Flight)** | Identical key while 1st request still processing | Status: `InFlight` | Reject overlapping concurrent request to prevent race conditions. | `409 Conflict` | RFC 9457 ProblemDetails (`errorCode: IDEMPOTENCY_IN_FLIGHT`). |
-| **4. Payload Mismatch (Tampering)** | Identical key + DIFFERENT fingerprint | Key exists | Detect key reuse with altered payload. Reject execution immediately. | `422 Unprocessable Entity` | RFC 9457 ProblemDetails (`errorCode: IDEMPOTENCY_PAYLOAD_MISMATCH`). |
-| **5. Failure Rollback (Auto-Eviction)** | Downstream throws exception or returns $\ge 400$ | Status: `InFlight` | Catch failure, immediately evict in-flight lock (`RemoveAsync`), rethrow exception to GlobalExceptionHandler. | Error Status (`400` / `500`) | Standard RFC 9457 response. Key is unlocked, allowing immediate client retry. |
-| **6. Missing Mandatory Key** | Header absent or empty on endpoint with `Mandatory = true` | N/A | Intercept before execution; reject missing required header. | `400 Bad Request` | RFC 9457 ProblemDetails (`errorCode: MISSING_IDEMPOTENCY_KEY`). |
-
-#### 4. Cache Scoping & TTL Rules
-*   **Tenant Isolation:** Cache keys are scoped to the caller identity: `$"idempotency:{callerId}:{idempotencyKey}"` (where `callerId` is `CallerApp` or `ProjectId`).
-*   **Completed Response TTL:** Default **24 Hours** (`TtlHours = 24`).
-*   **In-Flight Lock TTL:** Default **2 Minutes** (prevents permanent deadlocks in case of unexpected process termination).
+| HTTP Status | Error Code (`errorCode`) | Trigger Cause |
+|---|---|---|
+| **400** | `VALIDATION_FAILED` | FluentValidation input validation failed; fields listed in `invalidParams`. |
+| **400** | `MISSING_IDEMPOTENCY_KEY` | Endpoint requires `Idempotency-Key` header (`Mandatory = true`). |
+| **400** | `INVALID_PAYLOAD_STRUCTURE` | Request JSON payload is null, malformed, or missing required root object. |
+| **401** | `INVALID_CREDENTIALS` | Incorrect username/password or invalid/revoked API key. |
+| **401** | `TOKEN_EXPIRED` | Bearer JWT access token expired. Refresh required via `/api/v1/auth/refresh`. |
+| **403** | `FORBIDDEN_TENANT_ACCESS` | Caller attempted cross-tenant access outside its `ProjectId` scope. |
+| **403** | `INSUFFICIENT_ROLE` | Caller lacks requisite `SystemRole` (e.g. Member attempting Admin operation). |
+| **404** | `RESOURCE_NOT_FOUND` | Target entity does not exist within the caller tenant scope. |
+| **404** | `TEMPLATE_NOT_FOUND` | Specified template slug or ID does not exist in the active project. |
+| **409** | `SLUG_ALREADY_EXISTS` | Unique constraint collision on template or project slug. |
+| **409** | `IDEMPOTENCY_IN_FLIGHT` | An identical request is currently executing; lock is active. |
+| **410** | `DRAFT_EXPIRED` | RAM template draft has expired beyond its TTL (2 hours) and was evicted. |
+| **422** | `IDEMPOTENCY_PAYLOAD_MISMATCH` | Reused `Idempotency-Key` with a different request payload body. |
+| **422** | `SCHEMA_VALIDATION_FAILED` | Business data payload violates template's compiled Draft-07 JSON Schema. |
+| **429** | `RATE_LIMIT_EXCEEDED` | Request quota exhausted; backoff indicated by `Retry-After` header. |
+| **500** | `RENDER_FAILED` | Gotenberg Chromium or OpenXml engine crashed or timed out. |
+| **502** | `STORAGE_SERVICE_UNAVAILABLE` | MinIO S3 object storage connection failed during upload/download. |
 
 ---
 
-### 2.3 IETF RateLimit Headers Specification
+## 4. 📡 Exhaustive Endpoint Catalog
 
-High-throughput M2M endpoints are protected by token-bucket rate limiters. Responses emit both modern IETF Draft and legacy headers:
+### 4.1 Document Operations & Rendering (`/api/v1/documents`)
 
-```http
-RateLimit-Limit: 100
-RateLimit-Remaining: 84
-RateLimit-Reset: 12
-RateLimit-Policy: 100;w=60
-X-RateLimit-Limit: 100
-X-RateLimit-Remaining: 84
-X-RateLimit-Reset: 1730000012
+#### `POST /api/v1/documents/generate/{slug}`
+Merges JSON payload into template, stores binary in MinIO, records audit log, and returns pre-signed URL.
+* **Auth:** Channel A (`X-API-Key`) or Channel B (`Bearer JWT`)
+* **Headers:** `Idempotency-Key: <uuid>` (Optional, 24h cache TTL)
+* **Route Param:** `slug: string` (e.g. `"commercial-invoice"`)
+* **Request Body (`application/json`):**
+```typescript
+interface GenerateDocumentRequest {
+  payload: Record<string, unknown>; // Business JSON data
+  outputFormat?: "pdf" | "docx" | "xlsx"; // Default: "pdf"
+  documentRef?: string;             // External reference, e.g. "INV-2026-0001"
+  changeNote?: string;              // Optional audit trail note
+  skipValidation?: boolean;         // Default: false
+}
 ```
-
-When quota is exhausted, the server returns `429 Too Many Requests` with a `Retry-After: <seconds>` header and RFC 9457 body (`errorCode: RATE_LIMIT_EXCEEDED`).
-
----
-
-### 2.4 Pagination Standards
-
-To guarantee predictable latency and prevent memory exhaustion across list queries:
-*   **Query Parameters:** `?page=1&limit=20` (Default `limit=20`, Hard cap `maxLimit=100`).
-*   **Wire Envelope:** Wrapped in `PagedApiResponse<T>` with standard encapsulated `pagination` metadata decoupling domain payloads from navigation telemetry:
-    ```json
-    {
-      "data": [ ... ],
-      "pagination": {
-        "page": 1,
-        "limit": 20,
-        "totalCount": 42,
-        "totalPages": 3
-      }
-    }
-    ```
-*   **Single Source of Truth:** Backed strictly by `SmkDoc.Api.Common.Responses.PagedApiResponse<T>` and `PaginationMetadata`:
-    ```csharp
-    public record PaginationMetadata(
-        int Page,
-        int Limit,
-        int TotalCount,
-        int TotalPages
-    );
-
-    public record PagedApiResponse<T>(
-        IEnumerable<T> Data,
-        PaginationMetadata Pagination
-    ) : ApiResponse<IEnumerable<T>>(Data);
-    ```
-
----
-
-<envelopes>
-
-## 3. 📦 Standard API Response Envelopes & RFC 9457 Problem Details
-
-Every JSON API response emitted by the SMK Document Server MUST conform strictly to one of the canonical envelopes below. **Anonymous objects (`new { }`) and legacy boolean success flags (`"success": true`) are STRICTLY FORBIDDEN.** The HTTP Status Code and standard HTTP headers (`Date`, `traceparent`) serve as the authoritative transport contract.
-
-### 3.1 Single Resource Envelope (`ApiResponse<T>`)
-Used for single entity reads, mutations, and status confirmations.
+```json
+{
+  "payload": {
+    "invoiceNo": "INV-2026-001",
+    "customer": { "name": "Acme Corp", "taxId": "0105558000000" },
+    "totalAmount": 50000
+  },
+  "outputFormat": "pdf",
+  "documentRef": "INV-2026-0001",
+  "changeNote": "Initial billing",
+  "skipValidation": false
+}
+```
+* **Response (200 OK):** `ApiResponse<GenerateDocumentResultDto>`
 ```json
 {
   "data": {
-    "id": "01926b42-7c3a-7000-8000-123456789abc",
-    "projectId": "01926b40-1111-7000-8000-000000000001",
-    "name": "Commercial Tax Invoice",
-    "slug": "tax-invoice-th",
-    "category": "Finance",
-    "createdAt": "2026-10-10T12:00:00.000Z"
+    "generationId": "019275a2-3b0c-7839-a9a8-e4b2d8ff98a1",
+    "documentRef": "INV-2026-0001",
+    "outputFormat": "pdf",
+    "fileSizeBytes": 245100,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "url": "https://storage.sammakorn.co.th/outputs/inv.pdf?token=...",
+    "expiresAt": "2026-10-11T15:40:00.000Z"
+  }
+}
+```
+* **Errors:** `400 (VALIDATION_FAILED)`, `404 (TEMPLATE_NOT_FOUND)`, `422 (SCHEMA_VALIDATION_FAILED)`
+
+---
+
+#### `POST /api/v1/documents/preview` or `POST /api/v1/documents/preview/{slug}`
+100% in-memory rendering preview. Zero DB writes, zero MinIO uploads.
+* **Auth:** Channel A or Channel B
+* **Route Param:** `slug?: string` (Optional)
+* **Request Body (`application/json`):**
+```typescript
+interface PreviewDocumentRequest {
+  payload: Record<string, unknown>; // Sample JSON data
+  html?: string;                    // Raw HTML template if slug is not provided
+}
+```
+```json
+{
+  "payload": { "customer": { "name": "Acme Corp" } },
+  "html": "<html><body><h1>Hello {{customer.name}}</h1></body></html>"
+}
+```
+* **Response (200 OK):** Raw Binary Stream (`application/pdf`)
+  * `Content-Disposition: inline`
+* **Errors:** `400 (VALIDATION_FAILED)`, `500 (RENDER_FAILED)`
+
+---
+
+#### `POST /api/v1/documents/validate/{slug}`
+Pre-flight JSON payload validation against template's compiled Draft-07 JSON Schema. Pure inspection probe; always returns `200 OK`.
+* **Auth:** Channel A or Channel B
+* **Request Body (`application/json`):** Any JSON payload object.
+* **Response (200 OK):** `ApiResponse<ValidateTemplatePayloadResult>`
+```json
+{
+  "data": {
+    "valid": false,
+    "templateSlug": "commercial-invoice",
+    "version": 1,
+    "message": "Validation failed: 1 schema error(s) found.",
+    "errors": [
+      {
+        "field": "/customer/taxId",
+        "rule": "minLength",
+        "message": "Expected string of length 13."
+      }
+    ]
   }
 }
 ```
 
-### 3.2 Paged Collection Envelope (`PagedApiResponse<T>`)
-Used for standard paginated queries. Encapsulates resource items in `data` and navigation telemetry in `pagination`:
+---
+
+#### `POST /api/v1/documents/render` or `POST /api/v1/documents/render/stateless`
+Stateless document rendering from ad-hoc uploaded template file stream and JSON payload.
+* **Auth:** Channel A (`X-API-Key`)
+* **Content-Type:** `multipart/form-data`
+* **Form Fields:**
+  * `file`: Binary file (`.html`, `.docx`, `.xlsx`) — Required
+  * `jsonData`: JSON string payload — Optional
+* **Response (200 OK):** Raw Binary Stream (`application/pdf`)
+  * `Content-Disposition: inline`
+
+---
+
+#### `GET /api/v1/documents/download/{logId}`
+Downloads document by Generation Log ID.
+* **Auth:** Channel A or Channel B
+* **Route Param:** `logId: uuid`
+* **Content Negotiation:**
+  * `Accept: application/json` ➔ **200 OK** returning `ApiResponse<{ url: string; expiresInSeconds: number }>`
+  * Default / Browser ➔ **307 Temporary Redirect** directly to pre-signed MinIO URL.
+* **Errors:** `404 (RESOURCE_NOT_FOUND)`
+
+---
+
+#### `GET /api/v1/documents/{documentRef}/versions`
+Retrieves legal audit history of generated versions for a document reference.
+* **Auth:** Channel A or Channel B
+* **Route Param:** `documentRef: string`
+* **Response (200 OK):** `ApiResponse<DocumentVersionDto[]>`
 ```json
 {
   "data": [
     {
-      "id": "01926b42-7c3a-7000-8000-123456789abc",
-      "name": "Commercial Tax Invoice",
-      "slug": "tax-invoice-th"
-    }
-  ],
-  "pagination": {
-    "page": 1,
-    "limit": 20,
-    "totalCount": 42,
-    "totalPages": 3
-  }
-}
-```
-
-### 3.3 Raw Binary Media Streams (Zero Envelope)
-Endpoints returning rendered documents (`application/pdf`, `application/vnd.openxmlformats-...`) bypass JSON wrappers entirely, streaming raw bytes directly to the HTTP response:
-*   **Live Preview (In-Memory):** `Content-Disposition: inline`
-*   **File Download:** `Content-Disposition: attachment; filename="document-01926b42.pdf"`
-
----
-
-### 3.4 RFC 9457 Problem Details Schema & Semantic Error Standards
-
-All error responses emitted by `GlobalExceptionHandler` (`IExceptionHandler`) MUST return `Content-Type: application/problem+json` formatted according to **RFC 9457 (Problem Details for HTTP APIs)**. Generic, ambiguous, or un-actionable error messages are strictly prohibited across the SMK Document Server.
-
-#### 1. The 4 Golden Laws of Error Semantics
-
-To ensure error payloads can be consumed seamlessly by both machines (M2M automation) and humans (portal users and developers), all errors must obey:
-
-1. **Law 1: Domain-Centric `errorCode` (Machine-Readable Token)**
-   * MUST be formatted in `SCREAMING_SNAKE_CASE`.
-   * MUST express the exact **Domain Cause** rather than generic HTTP statuses.
-   * ❌ **Prohibited:** `BAD_REQUEST`, `VALIDATION_ERROR`, `ERROR_400`, `INVALID_DATA` (Meaningless noise).
-   * ✅ **Required:** `SLUG_ALREADY_EXISTS`, `TEMPLATE_PAYLOAD_SCHEMA_MISMATCH`, `IDEMPOTENCY_IN_FLIGHT`, `STORAGE_SERVICE_UNAVAILABLE`.
-   * *Rationale:* Enables programmatic handling (client-side switch statements, i18n translation lookup, and telemetry aggregation).
-
-2. **Law 2: Context-Rich `detail` (Instance-Specific Narrative)**
-   * MUST contain the specific, human-readable context of the current occurrence.
-   * NEVER blindly echo the generic HTTP status `title`.
-   * ❌ **Prohibited:** `"Conflict"`, `"Validation failed"`, `"Operation could not be completed"`.
-   * ✅ **Required:** `"Template with slug 'tax-invoice-th' already exists in Project '01926b40-1111-7000-8000-000000000001'."`.
-
-3. **Law 3: Actionable Field Validation (`invalidParams`)**
-   * Validation errors MUST specify the exact field name matching the JSON payload (`camelCase` with dot-notation for nested objects, e.g., `"customer.taxId"`).
-   * The `reason` MUST articulate **"Expected vs Actual"** so the client knows precisely how to fix it.
-   * ❌ **Prohibited:** `"slug is invalid"`, `"taxId length error"`.
-   * ✅ **Required:** `"Slug 'Tax_Invoice#1' contains invalid characters. Must be lowercase alphanumeric with hyphens only (pattern: ^[a-z0-9-]+$)."`.
-   * ✅ **Required:** `"Tax ID must be exactly 13 numeric digits (received 10 digits)."`.
-
-4. **Law 4: Zero Information Leakage (Zero-Trust Security)**
-   * On unhandled server failures (`500 Internal Server Error`), the server MUST emit a generic, sanitized `detail` (`"An unexpected internal error occurred."`) to external consumers.
-   * Internal exception type names, stack traces, database connection strings, and raw SQL queries MUST NEVER leak over HTTP. Full telemetry MUST be sent exclusively to internal structured logs (`logger.LogError`).
-
----
-
-#### 2. Canonical RFC 9457 Wire Schema
-
-```json
-{
-  "type": "https://api.sammakorn.co.th/errors/slug-already-exists",
-  "title": "Conflict",
-  "status": 409,
-  "detail": "Template with slug 'tax-invoice-th' already exists in Project '01926b40-1111-7000-8000-000000000001'.",
-  "instance": "/api/v1/templates",
-  "errorCode": "SLUG_ALREADY_EXISTS",
-  "traceId": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
-  "invalidParams": [
-    {
-      "name": "slug",
-      "reason": "Slug 'tax-invoice-th' is already registered within Project '01926b40-1111-7000-8000-000000000001'."
+      "id": "019275a2-1111-7000-8000-123456789abc",
+      "documentId": "019275a2-0000-7000-8000-123456789abc",
+      "documentRef": "INV-2026-0001",
+      "version": 1,
+      "templateVersionId": "01926b40-2222-7000-8000-000000000002",
+      "generationLogId": "019275a2-3b0c-7839-a9a8-e4b2d8ff98a1",
+      "changeNote": "Initial generation",
+      "createdBy": "crm-service",
+      "createdAt": "2026-10-10T12:00:00.000Z"
     }
   ]
 }
@@ -298,418 +374,463 @@ To ensure error payloads can be consumed seamlessly by both machines (M2M automa
 
 ---
 
-#### 3. Global Error Code Taxonomy
-
-| HTTP Status | Error Code (`errorCode`) | Canonical Rationale & Semantic Description |
-|---|---|---|
-| **400 Bad Request** | `VALIDATION_FAILED` | Input payload failed static FluentValidation rules; broken fields enumerated in `invalidParams`. |
-| **400 Bad Request** | `MISSING_IDEMPOTENCY_KEY` | Mutation endpoint requires `Idempotency-Key` header (`Mandatory = true`). |
-| **401 Unauthorized** | `INVALID_CREDENTIALS` | Incorrect email/password or revoked/non-existent API key. |
-| **401 Unauthorized** | `TOKEN_EXPIRED` | Bearer JWT access token expired; client must refresh via `/api/v1/auth/refresh`. |
-| **403 Forbidden** | `FORBIDDEN_TENANT_ACCESS` | Authenticated client attempted to access or mutate an entity outside its `ProjectId` boundary. |
-| **403 Forbidden** | `INSUFFICIENT_ROLE` | Caller lacks the requisite `SystemRole` (e.g., Member attempting Admin action). |
-| **404 Not Found** | `RESOURCE_NOT_FOUND` | Target entity does not exist within the caller's tenant boundary. |
-| **409 Conflict** | `SLUG_ALREADY_EXISTS` | Unique constraint violation on entity slug within the project. |
-| **409 Conflict** | `IDEMPOTENCY_IN_FLIGHT` | An in-flight request with the identical `Idempotency-Key` is currently executing. |
-| **410 Gone** | `DRAFT_EXPIRED` | In-memory template draft has expired beyond its 2-hour TTL and was evicted. |
-| **422 Unprocessable** | `IDEMPOTENCY_PAYLOAD_MISMATCH` | `Idempotency-Key` was previously completed with a different request payload fingerprint. |
-| **422 Unprocessable** | `SCHEMA_VALIDATION_FAILED` | Runtime JSON payload failed validation against template's compiled Draft-07 schema. |
-| **429 Too Many Req** | `RATE_LIMIT_EXCEEDED` | Request rate exceeded tier quota; client must back off until `Retry-After` seconds. |
-| **500 Internal Error** | `RENDER_FAILED` | Gotenberg Chromium or LibreOffice crashed, timed out, or threw an unhandled engine error. |
-| **502 Bad Gateway** | `STORAGE_SERVICE_UNAVAILABLE` | MinIO S3 object storage is unreachable or refused connection during artifact upload. |
-
-</envelopes>
-
----
-
-## 4. 📡 Comprehensive Endpoint Catalog
-
-All public endpoints are categorized below with explicit request/response DTO contracts.
-
-### 4.1 Authentication & Identity Gateway (`/api/v1/auth`)
-
-#### `POST /api/v1/auth/login`
-Authenticates a portal user and issues access/refresh tokens.
-*   **Auth Channel:** Channel A Gated (`X-API-Key: <key>`)
-*   **Idempotency:** N/A (Standard Login)
-*   **Request Body (`application/json`):**
-    ```json
-    {
-      "email": "architect@sammakorn.co.th",
-      "password": "StrongPassword123!"
-    }
-    ```
-*   **Response (200 OK):**
-    ```json
-    {
-      "data": {
-        "accessToken": "eyJhbGciOiJIUzI1NiIsIn...",
-        "refreshToken": "7c3a70008000123456789abc...",
-        "expiresInSeconds": 900,
-        "tokenType": "Bearer",
-        "user": {
-          "id": "01926b42-1111-7000-8000-123456789abc",
-          "email": "architect@sammakorn.co.th",
-          "fullName": "Senior Architect",
-          "systemRole": "SuperAdmin",
-          "projectId": "01926b40-1111-7000-8000-000000000001"
-        }
-      }
-    }
-    ```
-
-#### `POST /api/v1/auth/refresh`
-Performs Refresh Token Rotation (RTR). Invalidate old refresh token, issue fresh pair.
-*   **Auth Channel:** Channel A Gated (`X-API-Key: <key>`)
-*   **Request Body (`application/json`):**
-    ```json
-    {
-      "refreshToken": "7c3a70008000123456789abc..."
-    }
-    ```
-*   **Response (200 OK):** `ApiResponse<AuthTokenResultDto>` (Same shape as login).
-
-#### `GET /api/v1/auth/me`
-Retrieves claims and profile information of currently authenticated user.
-*   **Auth Channel:** Channel B (`Authorization: Bearer <jwt>`)
-*   **Response (200 OK):** `ApiResponse<UserProfileDto>`.
-
----
-
-### 4.2 Document Operations & Rendering Gateway (`/api/v1/documents`)
-
-#### `POST /api/v1/documents/generate/{slug}`
-High-throughput document generation pipeline. Merges JSON payload into template, persists rendered binary to MinIO, records audit log/legal version, and returns enriched metadata with a 24-hour pre-signed download URL.
-*   **Auth Channel:** Channel A (`X-API-Key`) or Channel B (`Bearer JWT`)
-*   **Idempotency:** 🛡️ **Supported** (`[Idempotent(Mandatory = false)]`, 24h TTL — Opt-in)
-*   **Route Parameter:** `slug` (string, e.g., `commercial-invoice`)
-*   **Request Body (`application/json`):**
-    ```json
-    {
-      "payload": {
-        "invoiceNo": "INV-2026-001",
-        "issueDate": "2026-10-10",
-        "customer": {
-          "name": "Acme Corp",
-          "taxId": "0105558000000"
-        },
-        "items": [
-          { "description": "Cloud Gateway License", "qty": 1, "unitPrice": 50000 }
-        ],
-        "totalAmount": 50000
-      },
-      "outputFormat": "pdf",
-      "documentRef": "INV-2026-0001",
-      "changeNote": "Initial generation",
-      "skipValidation": false
-    }
-    ```
-*   **Response (200 OK):** `ApiResponse<GenerateDocumentResultDto>`
-    *   Header: `Idempotency-Replayed: true` (if served from cache)
-    ```json
-    {
-      "data": {
-        "generationId": "019275a2-3b0c-7839-a9a8-e4b2d8ff98a1",
-        "documentRef": "INV-2026-0001",
-        "outputFormat": "pdf",
-        "fileSizeBytes": 245100,
-        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "url": "https://storage.sammakorn.co.th/outputs/.../inv.pdf?token=...",
-        "expiresAt": "2026-10-11T15:40:00Z"
-      }
-    }
-    ```
-*   **Error Response (422 Unprocessable Entity):** When payload violates template's Draft-07 JSON Schema:
-    ```json
-    {
-      "type": "https://api.sammakorn.co.th/errors/schema-validation-failed",
-      "title": "Schema Validation Failed",
-      "status": 422,
-      "errorCode": "SCHEMA_VALIDATION_FAILED",
-      "instance": "/api/v1/documents/generate/commercial-invoice",
-      "errors": [
-        {
-          "path": "/customer/taxId",
-          "rule": "minLength",
-          "message": "Expected string of length 13."
-        }
-      ]
-    }
-    ```
-
-#### `GET /api/v1/documents/download/{logId}`
-Dual-mode download endpoint for generated documents. Retrieves pre-signed URL or redirects directly to Object Storage.
-*   **Auth Channel:** Channel A (`X-API-Key`) or Channel B (`Bearer JWT`)
-*   **Route Parameter:** `logId` (UUIDv7)
-*   **Content Negotiation:**
-    *   `Accept: application/json` ➔ **200 OK** returning `ApiResponse<DownloadUrlResponseDto>` (`{ "data": { "url": "...", "expiresInSeconds": 3600 } }`).
-    *   Default / Browser / cURL ➔ **307 Temporary Redirect** pointing directly to MinIO Pre-signed URL (offloading Gateway bandwidth).
-
-#### `GET /api/v1/documents/{documentRef}/versions`
-Retrieves legal audit history and immutable version list for a given document reference.
-*   **Auth Channel:** Channel A (`X-API-Key`) or Channel B (`Bearer JWT`)
-*   **Response (200 OK):** `ApiResponse<IEnumerable<DocumentVersionDto>>`.
-
 #### `GET /api/v1/documents/{documentRef}/versions/{version}/download`
-Downloads a historical version directly as a binary stream.
-*   **Auth Channel:** Channel A (`X-API-Key`) or Channel B (`Bearer JWT`)
-*   **Response (200 OK):** Direct Binary Stream (`application/pdf`, `.docx`, `.xlsx`) with `Content-Disposition: attachment`.
-
-#### `POST /api/v1/documents/preview/{slug}`
-100% Stateless in-memory rendering preview for Portal UI live editors. **Zero database mutations, zero MinIO uploads.**
-*   **Auth Channel:** Channel A (`X-API-Key`) or Channel B (`Bearer JWT`)
-*   **Idempotency:** Bypassed (Real-time keystroke rendering)
-*   **Request Body (`application/json`):** `{ "payload": { ... }, "html": "<html>...</html>" }`
-*   **Response (200 OK):** Direct Binary Stream (`application/pdf`) with `Content-Disposition: inline`.
-
-#### `POST /api/v1/documents/validate/{slug}`
-Pre-flight JSON payload validation against the template's compiled JSON Schema Draft-07.
-*   **Auth Channel:** Channel A (`X-API-Key`) or Channel B (`Bearer JWT`)
-*   **Request Body (`application/json`):** Direct JSON payload (e.g., `{ "customer": { ... } }`)
-*   **Response (200 OK):** Returns `ApiResponse<ValidateTemplatePayloadResult>` (Pre-flight inspection probe query always returns `200 OK` regardless of `valid` outcome).
-    *   Payload valid: `valid: true`, `errors: []`
-    *   Payload invalid: `valid: false`, `errors: [...]`
-    ```json
-    {
-      "data": {
-        "valid": false,
-        "templateSlug": "commercial-invoice",
-        "version": 1,
-        "message": "Validation failed: 1 schema error(s) found.",
-        "errors": [
-          {
-            "field": "/customer/taxId",
-            "rule": "minLength",
-            "message": "Expected string of length 13."
-          }
-        ]
-      }
-    }
-    ```
-
-#### `POST /api/v1/documents/html-to-pdf`
-Raw ad-hoc HTML-to-PDF compilation via Chromium Gotenberg.
-*   **Auth Channel:** Channel A (`X-API-Key`)
-*   **Request Body (`application/json`):**
-    ```json
-    {
-      "html": "<html><body><h1>Hello World</h1></body></html>",
-      "options": {
-        "landscape": false,
-        "paperWidth": 8.27,
-        "paperHeight": 11.69
-      }
-    }
-    ```
-*   **Response (200 OK):** Direct Binary Stream (`application/pdf`).
+Downloads specific historical version of a document.
+* **Auth:** Channel A or Channel B
+* **Route Params:** `documentRef: string`, `version: int`
+* **Response (200 OK):** Raw Binary Stream (`application/pdf`, `.docx`, `.xlsx`)
+  * `Content-Disposition: attachment; filename="{filename}"`
 
 ---
 
-### 4.3 Template Lifecycle Operations (`/api/v1/templates`)
+### 4.2 Template Lifecycle & Studio Operations (`/api/v1/templates`)
 
 #### `GET /api/v1/templates`
-Lists all templates available in the caller's scoped project.
-*   **Auth Channel:** Channel A (`X-API-Key`) or Channel B (`Bearer JWT`)
-*   **Query Parameters:** `?category=Finance&page=1&limit=20`
-*   **Response (200 OK):** `PagedApiResponse<TemplateSummaryDto>`.
+Lists all templates belonging to the scoped project.
+* **Auth:** Channel A or Channel B
+* **Query Params:** `?projectId={uuid}` (Optional, defaults to caller context)
+* **Response (200 OK):** `ApiResponse<TemplateResultDto[]>`
+```json
+{
+  "data": [
+    {
+      "id": "01926b42-7c3a-7000-8000-123456789abc",
+      "projectId": "01926b40-1111-7000-8000-000000000001",
+      "name": "Tax Invoice",
+      "slug": "tax-invoice-th",
+      "category": "Finance",
+      "isActive": true,
+      "currentVersionId": "01926b42-8888-7000-8000-123456789abc",
+      "fileFormat": "Html",
+      "createdAt": "2026-10-10T12:00:00.000Z",
+      "updatedAt": null
+    }
+  ]
+}
+```
 
-#### `GET /api/v1/templates/{templateId}`
-Retrieves metadata and status of a single template.
-*   **Auth Channel:** Channel A (`X-API-Key`) or Channel B (`Bearer JWT`)
-*   **Route Parameter:** `templateId` (UUIDv7)
-*   **Response (200 OK):** `ApiResponse<TemplateResultDto>`.
+---
+
+#### `GET /api/v1/templates/{id}`
+Retrieves template metadata by ID.
+* **Auth:** Channel A or Channel B
+* **Route Param:** `id: uuid`
+* **Response (200 OK):** `ApiResponse<TemplateResultDto>`
+
+---
 
 #### `POST /api/v1/templates`
-Uploads and compiles a new document template.
-*   **Auth Channel:** Channel A (`X-API-Key`) or Channel B (`Bearer JWT`)
-*   **Idempotency:** 🛡️ **Supported** (`[Idempotent(Mandatory = false)]`, 24h TTL — Opt-in)
-*   **Request Content-Type:** `multipart/form-data`
-*   **Form Fields:**
-    *   `projectId` (uuid, required)
-    *   `name` (string, 2..100 chars, required)
-    *   `slug` (string, regex `^[a-z0-9-]+$`, required)
-    *   `category` (string, optional)
-    *   `engineType` (string: `"Gotenberg"` | `"OpenXmlWord"` | `"OpenXmlExcel"`, required)
-    *   `file` (binary file: `.html`, `.docx`, `.xlsx`, max 10MB, required)
-*   **Response (201 Created):**
-    *   Header: `Location: /api/v1/templates/01926b42-7c3a-7000-8000-123456789abc`
-    *   Body: `ApiResponse<TemplateResultDto>`
-
-#### `GET /api/v1/templates/{templateId}/html`
-Fetches raw HTML/Handlebars source code for Monaco Editor.
-*   **Response (200 OK):** `ApiResponse<TemplateHtmlResultDto>`.
-
-#### `PUT /api/v1/templates/{templateId}/html`
-Saves updated HTML/Handlebars source code.
-*   **Request Body (`application/json`):** `{ "htmlContent": "...", "changeNotes": "Updated footer layout" }`
-*   **Response (200 OK):** `ApiResponse<TemplateResultDto>`.
-
-#### `GET|PUT /api/v1/templates/{templateId}/mappings`
-Manages field mapping definitions (Variable name ➔ Data source column).
-*   **Response (200 OK):** `ApiResponse<FieldMappingDto>`.
-
-#### `POST /api/v1/templates/draft/{draftId}/commit`
-Publishes an in-memory editor draft to production.
-*   **Idempotency:** 🛡️ **Supported** (`[Idempotent(Mandatory = false)]`, 24h TTL — Opt-in)
-*   **Response (200 OK):** `ApiResponse<TemplateResultDto>`.
+Creates a new template with optional initial file upload.
+* **Auth:** Channel A or Channel B
+* **Headers:** `Idempotency-Key: <uuid>` (Optional)
+* **Content-Type:** `multipart/form-data`
+* **Form Fields:**
+  * `name: string` (2..100 chars) — Required
+  * `slug: string` (pattern: `^[a-z0-9-]+$`) — Required
+  * `category?: string` — Optional
+  * `file?: binary` (`.html`, `.docx`, `.xlsx`, max 10MB) — Optional
+* **Response (201 Created):** `ApiResponse<TemplateResultDto>`
+  * Header: `Location: /api/v1/templates/{id}`
+* **Errors:** `400 (VALIDATION_FAILED)`, `409 (SLUG_ALREADY_EXISTS)`
 
 ---
 
-### 4.4 Management & Administration (`/api/v1/management`)
+#### `PUT /api/v1/templates/{id}`
+Updates template name and category.
+* **Auth:** Channel A or Channel B
+* **Route Param:** `id: uuid`
+* **Request Body (`application/json`):**
+```json
+{
+  "name": "Updated Tax Invoice",
+  "category": "Billing"
+}
+```
+* **Response (200 OK):** `ApiResponse<TemplateResultDto>`
 
-*(Restricted strictly to Portal Users with `SystemRole: SuperAdmin` or `Admin` via Channel B)*
+---
 
-#### `GET|POST /api/v1/management/projects`
-Creates and lists tenant projects.
-*   **POST Request Body:** `{ "name": "Accounting Dept", "description": "Finance templates" }`
-*   **Response (201 Created):** `ApiResponse<ProjectDto>`.
+#### `DELETE /api/v1/templates/{id}`
+Deactivates (soft deletes) a template.
+* **Auth:** Channel A or Channel B
+* **Route Param:** `id: uuid`
+* **Response (204 NoContent):** Zero response body.
 
-#### `GET|POST|DELETE /api/v1/management/projects/{projectId}/api-keys`
-Manages machine-to-machine API keys for external systems.
-*   **POST Request Body:** `{ "name": "SAP-ERP-Production", "expiresAt": "2027-12-31T23:59:59Z" }`
-*   **Response (201 Created):**
-    ```json
-    {
-      "data": {
-        "id": "01926b42-9999-7000-8000-123456789abc",
-        "name": "SAP-ERP-Production",
-        "rawApiKey": "smk_live_3f8a92b...",
-        "warning": "Copy this key immediately. It is never displayed again."
-      }
+---
+
+#### `GET /api/v1/templates/{id}/download`
+Downloads the published template source file.
+* **Auth:** Channel A or Channel B
+* **Route Param:** `id: uuid`
+* **Response (200 OK):** Raw Binary Stream (`application/octet-stream` or MIME type).
+
+---
+
+#### Monaco Editor / Studio Endpoints (`/api/v1/templates/{id}`)
+
+* **`GET /api/v1/templates/{id}/html`**
+  * **Response (200 OK):** `ApiResponse<{ htmlContent: string }>`
+* **`PUT /api/v1/templates/{id}/html`**
+  * **Request Body:** `{ "html": "<html>...</html>", "changeNotes": "Updated header" }`
+  * **Response (200 OK):** `ApiResponse<TemplateResultDto>`
+* **`GET /api/v1/templates/{id}/studio`**
+  * **Response (200 OK):** `ApiResponse<TemplateStudioDto>`
+  ```json
+  {
+    "data": {
+      "html": "<html><body>{{title}}</body></html>",
+      "samplePayload": "{\"title\":\"Sample Invoice\"}",
+      "dataSchema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",...}",
+      "version": 2
     }
-    ```
-
-#### `GET|POST|PUT|DELETE /api/v1/management/projects/{projectId}/users`
-Administers user memberships and RBAC roles within a project.
-
-#### `GET|POST /api/v1/management/settings/fonts`
-Manages centralized TrueType/OpenType Thai fonts loaded into the Gotenberg Chromium runtime.
-
----
-
-### 4.5 Datasources & Connection Integrations (`/api/v1/datasources`)
-
-#### `GET|POST|PUT|DELETE /api/v1/datasources/connections`
-Configures external enterprise SQL/REST connections (PostgreSQL, MS SQL, REST API endpoints).
-
-#### `POST /api/v1/datasources/connections/test`
-Validates connection strings and latency against external databases.
-*   **Response (200 OK):**
-    ```json
-    {
-      "data": {
-        "isReachable": true,
-        "latencyMs": 14,
-        "serverVersion": "PostgreSQL 16.2"
-      }
-    }
-    ```
-
-#### `GET|POST|PUT|DELETE /api/v1/datasources/datasets`
-Defines dynamic parameterized SQL queries or REST extraction scripts linked to templates.
+  }
+  ```
+* **`GET /api/v1/templates/{id}/schema`**
+  * **Response (200 OK):** `ApiResponse<TemplateSchemaDto>`
+* **`POST /api/v1/templates/{id}/validate`**
+  * **Request Body:** `{ "html": "<html>...</html>" }`
+  * **Response (200 OK):** `ApiResponse<TemplateValidationResultDto>` (`{ valid: bool, fields: string[], errors: string[] }`)
 
 ---
 
-### 4.6 Standalone Schema Validation (`/api/v1/schemas`)
+#### Template Version History & Datasets (`/api/v1/templates/{id}`)
+
+* **`GET /api/v1/templates/{id}/versions`**
+  * **Response (200 OK):** `ApiResponse<TemplateVersionDto[]>`
+* **`POST /api/v1/templates/{id}/rollback/{version}`**
+  * **Response (200 OK):** `ApiResponse<TemplateResultDto>`
+* **`GET /api/v1/templates/{id}/datasets`**
+  * **Response (200 OK):** `ApiResponse<TemplateDatasetDto[]>`
+* **`PUT /api/v1/templates/{id}/datasets`**
+  * **Request Body:** `{ "items": [ { "datasetId": "{uuid}", "alias": "invoiceItems" } ] }`
+  * **Response (200 OK):** `ApiResponse<TemplateDatasetDto[]>`
+
+---
+
+#### Template Field Mappings (`/api/v1/templates/{id}/mappings`)
+
+* **`GET /api/v1/templates/{id}/mappings`**
+  * **Response (200 OK):** `ApiResponse<FieldMappingItemDto[]>`
+* **`PUT /api/v1/templates/{id}/mappings`**
+  * **Request Body:** `{ "items": [ { "fieldKey": "invoice_total", "sourceColumn": "total_amt", "dataType": "number" } ] }`
+  * **Response (200 OK):** `ApiResponse<FieldMappingItemDto[]>`
+* **`POST /api/v1/templates/{id}/mappings/preview`**
+  * **Request Body:** `{ "sampleDataJson": "{ ... }" }`
+  * **Response (200 OK):** `ApiResponse<Record<string, unknown>>`
+
+---
+
+#### RAM Draft Upload Pipeline (`/api/v1/templates/draft`)
+Three-step RAM-only upload workflow. Steps 1 & 2 are side-effect free. Step 3 atomically persists to MinIO and DB.
+
+1. **`POST /api/v1/templates/draft/parse`**
+   * **Content-Type:** `multipart/form-data` (`file: binary`)
+   * **Response (200 OK):** `ApiResponse<{ draftId: string, placeholders: string[] }>`
+2. **`POST /api/v1/templates/draft/{draftId}/preview`**
+   * **Request Body:** `{ "dataJson": "{\"amount\": 100}" }`
+   * **Response (200 OK):** Raw Binary Stream (`application/pdf`, `Content-Disposition: inline`)
+   * **Errors:** `410 (DRAFT_EXPIRED)`
+3. **`POST /api/v1/templates/draft/{draftId}/commit`**
+   * **Headers:** `Idempotency-Key: <uuid>` (Optional)
+   * **Request Body:**
+   ```json
+   {
+     "name": "Invoice 2026",
+     "slug": "invoice-2026",
+     "category": "Finance",
+     "projectId": "01926b40-1111-7000-8000-000000000001",
+     "mappings": []
+   }
+   ```
+   * **Response (201 Created):** `ApiResponse<{ templateId: string }>`
+   * **Errors:** `409 (SLUG_ALREADY_EXISTS)`, `410 (DRAFT_EXPIRED)`
+
+---
+
+### 4.3 Schemas & Field Scanning
 
 #### `POST /api/v1/schemas/validate`
-Stateless JSON Schema Draft-07 engine.
-*   **Auth Channel:** Channel A (`X-API-Key`) or Anonymous
-*   **Operational Invariant:** Pure stateless, zero DB queries, zero disk I/O.
-*   **Request Body (`application/json`):**
-    ```json
-    {
-      "schema": {
-        "$schema": "http://json-schema.org/draft-07/schema#",
-        "type": "object",
-        "required": ["amount"],
-        "properties": {
-          "amount": { "type": "number", "minimum": 0 }
-        }
-      },
-      "payload": {
-        "amount": -50
-      }
+Stateless JSON Schema Draft-07 engine. Zero DB queries, zero disk I/O.
+* **Auth:** Channel A or Public
+* **Request Body (`application/json`):**
+```json
+{
+  "schema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "required": ["amount"],
+    "properties": {
+      "amount": { "type": "number", "minimum": 0 }
     }
-    ```
-*   **Response (200 OK):**
-    ```json
-    {
-      "data": {
-        "isValid": false,
-        "errors": [
-          "Value -50 is less than minimum 0."
-        ]
-      }
-    }
-    ```
-*   **Status Code Note:** Always returns `200 OK` (wrapped in `ApiResponse<T>`) even when validation fails. The purpose of this endpoint is to diagnosticly answer "Is this valid?" without triggering global exception middleware.
+  },
+  "payload": { "amount": -50 }
+}
+```
+* **Response (200 OK):** `ApiResponse<{ isValid: boolean, errors: string[] }>`
+```json
+{
+  "data": {
+    "isValid": false,
+    "errors": ["Value -50 is less than minimum 0."]
+  }
+}
+```
 
 ---
 
-### 4.7 Audit Logging & Telemetry Gateway (`/api/v1/logs`)
+#### `POST /api/v1/templates/scan-fields`
+Stateless scanning: extracts placeholders from uploaded file stream without creating a template.
+* **Content-Type:** `multipart/form-data` (`file: binary`)
+* **Response (200 OK):** `ApiResponse<{ placeholders: string[] }>`
 
-*(Protected by Channel B `Authorization: Bearer <jwt>`, consumes `SmkDoc.Api.Controllers.Rendering.AuditLogController`)*
+#### `GET /api/v1/templates/{id}/scan-fields`
+Extracts placeholders from an existing template stored in MinIO.
+* **Response (200 OK):** `ApiResponse<{ placeholders: string[] }>`
+
+---
+
+### 4.4 Identity & Authentication (`/api/v1/auth`)
+
+#### `POST /api/v1/auth/login`
+Authenticates portal user and issues access/refresh tokens.
+* **Auth:** Channel A Gated (`X-API-Key: <key>`)
+* **Request Body (`application/json`):**
+```json
+{
+  "email": "architect@sammakorn.co.th",
+  "password": "Password123!"
+}
+```
+* **Response (200 OK):** `ApiResponse<LoginResultDto>`
+```json
+{
+  "data": {
+    "accessToken": "eyJhbGciOiJIUzI1NiIsIn...",
+    "refreshToken": "7c3a70008000123456789abc...",
+    "tokenType": "Bearer",
+    "expiresIn": 86400,
+    "defaultProjectId": "01926b40-1111-7000-8000-000000000001",
+    "user": {
+      "id": "01926b42-1111-7000-8000-123456789abc",
+      "email": "architect@sammakorn.co.th",
+      "firstName": "Senior",
+      "lastName": "Architect",
+      "systemRole": "SuperAdmin"
+    },
+    "accessibleProjects": [
+      {
+        "id": "01926b40-1111-7000-8000-000000000001",
+        "name": "Finance",
+        "role": "Admin"
+      }
+    ],
+    "activeApiKeys": []
+  }
+}
+```
+* **Errors:** `401 (INVALID_CREDENTIALS)`
+
+---
+
+#### `POST /api/v1/auth/refresh`
+Performs Refresh Token Rotation (RTR). Invalidates old token and returns fresh pair.
+* **Auth:** Channel A Gated (`X-API-Key: <key>`)
+* **Request Body:** `{ "refreshToken": "7c3a70008000123456789abc..." }`
+* **Response (200 OK):** `ApiResponse<TokenResultDto>`
+```json
+{
+  "data": {
+    "accessToken": "eyJhbGciOiJIUzI1NiIsIn...",
+    "refreshToken": "fresh_token_here...",
+    "expiresIn": 86400,
+    "tokenType": "Bearer"
+  }
+}
+```
+
+---
+
+#### `GET /api/v1/auth/me`
+Retrieves claims and profile information of the authenticated user.
+* **Auth:** Channel B (`Authorization: Bearer <jwt>`)
+* **Response (200 OK):** `ApiResponse<CurrentUserProfileResultDto>`
+
+---
+
+### 4.5 Project & User Administration (`/api/v1/management`)
+
+*(Restricted to Channel B users with `SuperAdmin` or `Admin` role)*
+
+#### Projects (`/api/v1/management/projects`)
+* **`GET /api/v1/management/projects`**
+  * **Query Params:** `?page=1&pageSize=20&search=Finance`
+  * **Response (200 OK):** `ApiResponse<ProjectPagedResultDto>`
+* **`GET /api/v1/management/projects/{projectId}`**
+  * **Response (200 OK):** `ApiResponse<ProjectResultDto>`
+* **`POST /api/v1/management/projects`**
+  * **Request Body:** `{ "name": "Marketing", "slug": "marketing" }`
+  * **Response (201 Created):** `ApiResponse<ProjectResultDto>`
+
+#### Project Members (`/api/v1/management/projects/{projectId}/users`)
+* **`GET /api/v1/management/projects/{projectId}/users`**
+  * **Response (200 OK):** `ApiResponse<UserResultDto[]>`
+* **`POST /api/v1/management/projects/{projectId}/users`**
+  * **Request Body:** `{ "email": "user@sammakorn.co.th", "role": "Member" }`
+  * **Response (201 Created):** `ApiResponse<UserResultDto>`
+* **`PUT /api/v1/management/projects/{projectId}/users/{userId}/role`**
+  * **Request Body:** `{ "role": "Admin" }`
+  * **Response (200 OK):** `ApiResponse<UserResultDto>`
+* **`PATCH /api/v1/management/projects/{projectId}/users/{userId}/status`**
+  * **Request Body:** `{ "isActive": false }`
+  * **Response (200 OK):** `ApiResponse<UserResultDto>`
+* **`DELETE /api/v1/management/projects/{projectId}/users/{userId}`**
+  * **Response (204 NoContent):** Zero response body.
+
+---
+
+### 4.6 API Key Provisioning
+
+#### M2M Self-Service API Keys (`/api/api-keys`)
+* **`GET /api/api-keys`**
+  * **Response (200 OK):** `ApiResponse<ApiKeyDto[]>`
+* **`POST /api/api-keys`**
+  * **Request Body:** `{ "name": "ERP-Integration", "callerApp": "SAP" }`
+  * **Response (201 Created):** `ApiResponse<CreateApiKeyResultDto>`
+  ```json
+  {
+    "data": {
+      "id": "01926b42-9999-7000-8000-123456789abc",
+      "name": "ERP-Integration",
+      "callerApp": "SAP",
+      "plainTextKey": "smk_live_xxxxxxxxxxxxxxxxxxxxxxxx"
+    }
+  }
+  ```
+* **`DELETE /api/api-keys/{id}`**
+  * **Response (204 NoContent):** Zero response body.
+
+#### Project-Scoped API Keys (`/api/v1/management/projects/{projectId}/api-keys`)
+* **`GET /api/v1/management/projects/{projectId}/api-keys`**
+  * **Response (200 OK):** `ApiResponse<ApiKeyDto[]>`
+* **`POST /api/v1/management/projects/{projectId}/api-keys`**
+  * **Request Body:** `{ "name": "Billing-Key", "callerApp": "BillingEngine" }`
+  * **Response (201 Created):** `ApiResponse<CreateApiKeyResultDto>`
+* **`DELETE /api/v1/management/projects/{projectId}/api-keys/{keyId}`**
+  * **Response (204 NoContent):** Zero response body.
+
+---
+
+### 4.7 Integration: Data Connections & Datasets
+
+#### Data Connections (`/api/v1/data-connections`)
+Configures external databases (PostgreSQL, MSSQL).
+* **`GET /api/v1/data-connections`** ➔ `200 OK` `ApiResponse<DataConnectionDto[]>`
+* **`GET /api/v1/data-connections/{id}`** ➔ `200 OK` `ApiResponse<DataConnectionDto>`
+* **`POST /api/v1/data-connections`**
+  * **Request Body:**
+  ```json
+  {
+    "name": "AccountingDB",
+    "provider": "PostgreSQL",
+    "connectionString": "Host=db.internal;Database=acc;Username=app;Password=secret"
+  }
+  ```
+  * **Response (201 Created):** `ApiResponse<DataConnectionDto>`
+* **`PUT /api/v1/data-connections/{id}`** ➔ `200 OK` `ApiResponse<DataConnectionDto>`
+* **`DELETE /api/v1/data-connections/{id}`** ➔ `204 NoContent`
+* **`POST /api/v1/data-connections/test`**
+  * **Request Body:** `{ "provider": "PostgreSQL", "connectionString": "..." }`
+  * **Response (200 OK):** `ApiResponse<{ isReachable: boolean, latencyMs: number, serverVersion: string }>`
+
+#### Datasets (`/api/v1/datasets`)
+SQL extraction queries linked to templates.
+* **`GET /api/v1/datasets`** ➔ `200 OK` `ApiResponse<DatasetDto[]>`
+* **`GET /api/v1/datasets/{id}`** ➔ `200 OK` `ApiResponse<DatasetDto>`
+* **`POST /api/v1/datasets`**
+  * **Request Body:**
+  ```json
+  {
+    "name": "InvoiceLineItems",
+    "description": "Extracts billable items for invoice",
+    "dataConnectionId": "01926b40-1111-7000-8000-000000000001",
+    "sqlQuery": "SELECT * FROM items WHERE invoice_id = @invoiceId",
+    "cacheSeconds": 300
+  }
+  ```
+  * **Response (201 Created):** `ApiResponse<DatasetDto>`
+* **`PUT /api/v1/datasets/{id}`** ➔ `200 OK` `ApiResponse<DatasetDto>`
+* **`DELETE /api/v1/datasets/{id}`** ➔ `204 NoContent`
+
+---
+
+### 4.8 Font Assets Management (`/api/v1/management/settings/fonts`)
+
+Manages TrueType/OpenType Thai fonts loaded into Chromium Gotenberg.
+* **`GET /api/v1/management/settings/fonts`**
+  * **Response (200 OK):** `ApiResponse<FontInfoDto[]>`
+* **`POST /api/v1/management/settings/fonts`**
+  * **Content-Type:** `multipart/form-data` (`file: binary` `.ttf`, `.otf`)
+  * **Response (200 OK):** `ApiResponse<{ fontName: string, family: string, fileSize: number }>`
+
+---
+
+### 4.9 Audit Logs & Metrics (`/api/v1/logs`)
 
 #### `GET /api/v1/logs`
-Lists paginated document generation audit logs with server-side filtering.
-*   **Auth Channel:** Channel B (`Bearer JWT`)
-*   **Query Parameters:** `?page=1&limit=50&app=crm`
-*   **Response (200 OK):** `PagedApiResponse<GenerationLogDto>`
-    ```json
+Lists paginated document generation audit entries.
+* **Auth:** Channel B (`Bearer JWT`)
+* **Query Params:** `?page=1&limit=50&app=crm`
+* **Response (200 OK):** `PagedApiResponse<GenerationLogDto>`
+```json
+{
+  "data": [
     {
-      "data": [
-        {
-          "id": "01926b42-7c3a-7000-8000-123456789abc",
-          "templateId": "01926b40-1111-7000-8000-000000000001",
-          "templateVersionId": "01926b40-2222-7000-8000-000000000002",
-          "apiKeyId": "01926b40-3333-7000-8000-000000000003",
-          "callerApp": "crm",
-          "triggerSource": "Api",
-          "outputFormat": "Pdf",
-          "fileSizeBytes": 45120,
-          "pageCount": 1,
-          "durationMs": 350,
-          "status": "Success",
-          "errorMsg": null,
-          "createdAt": "2026-10-10T12:00:00.000Z"
-        }
-      ],
-      "pagination": {
-        "page": 1,
-        "limit": 50,
-        "totalCount": 128,
-        "totalPages": 3
-      }
+      "id": "01926b42-7c3a-7000-8000-123456789abc",
+      "templateId": "01926b40-1111-7000-8000-000000000001",
+      "templateVersionId": "01926b40-2222-7000-8000-000000000002",
+      "apiKeyId": "01926b40-3333-7000-8000-000000000003",
+      "callerApp": "crm",
+      "triggerSource": "Api",
+      "outputFormat": "Pdf",
+      "fileSizeBytes": 45120,
+      "pageCount": 1,
+      "durationMs": 350,
+      "status": "Success",
+      "errorMsg": null,
+      "createdAt": "2026-10-10T12:00:00.000Z"
     }
-    ```
+  ],
+  "pagination": {
+    "page": 1,
+    "limit": 50,
+    "totalCount": 128,
+    "totalPages": 3
+  }
+}
+```
+
+---
 
 #### `GET /api/v1/logs/metrics`
-Retrieves document generation aggregate performance metrics.
-*   **Auth Channel:** Channel B (`Bearer JWT`)
-*   **Query Parameters:** `?startDate=2026-10-01T00:00:00Z&endDate=2026-10-10T23:59:59Z`
-*   **Response (200 OK):** `ApiResponse<LogMetricsDto>`
-    ```json
-    {
-      "data": {
-        "totalGenerations": 14200,
-        "successfulGenerations": 14185,
-        "failedGenerations": 15,
-        "averageDurationMs": 284.5,
-        "totalFileSizeBytes": 640825344,
-        "topCallerApps": [
-          {
-            "callerApp": "crm",
-            "generationCount": 8500
-          },
-          {
-            "callerApp": "billing-service",
-            "generationCount": 5700
-          }
-        ]
-      }
-    }
-    ```
+Retrieves aggregated throughput and duration telemetry.
+* **Auth:** Channel B (`Bearer JWT`)
+* **Query Params:** `?startDate=2026-10-01T00:00:00Z&endDate=2026-10-10T23:59:59Z`
+* **Response (200 OK):** `ApiResponse<LogMetricsDto>`
+```json
+{
+  "data": {
+    "totalGenerations": 14200,
+    "successfulGenerations": 14185,
+    "failedGenerations": 15,
+    "averageDurationMs": 284.5,
+    "totalFileSizeBytes": 640825344,
+    "topCallerApps": [
+      { "callerApp": "crm", "generationCount": 8500 },
+      { "callerApp": "billing-service", "generationCount": 5700 }
+    ]
+  }
+}
+```
 
 ---
 

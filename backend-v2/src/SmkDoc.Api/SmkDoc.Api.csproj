@@ -4,6 +4,7 @@
     <RootNamespace>SmkDoc.Api</RootNamespace>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);1591</NoWarn>
+    <OpenApiDocumentsDirectory>$(MSBuildProjectDirectory)\..\..\..\docs</OpenApiDocumentsDirectory>
   </PropertyGroup>
 
   <ItemGroup>
@@ -12,13 +13,23 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.Extensions.ApiDescription.Server">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
-    <PackageReference Include="Swashbuckle.AspNetCore" />
+    <PackageReference Include="Scalar.AspNetCore" />
   </ItemGroup>
+
+  <Target Name="CopyOpenApiToRoot" AfterTargets="GenerateOpenApiDocuments" Condition="Exists('$(OpenApiDocumentsDirectory)\SmkDoc.Api.json')">
+    <Copy SourceFiles="$(OpenApiDocumentsDirectory)\SmkDoc.Api.json" DestinationFiles="$(OpenApiDocumentsDirectory)\openapi.json" OverwriteReadOnlyFiles="true" />
+    <Delete Files="$(OpenApiDocumentsDirectory)\SmkDoc.Api.json" />
+  </Target>
 
 </Project>

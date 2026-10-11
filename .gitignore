@@ -70,6 +70,7 @@ COOLIFY.md
 !docs/
 docs/*
 !docs/AI/
+!docs/openapi.json
 scratch/
 tools/
 *.zip
