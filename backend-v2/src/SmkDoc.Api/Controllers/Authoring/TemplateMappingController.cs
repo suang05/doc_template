@@ -32,20 +32,23 @@ public class TemplateMappingController(
 
     /// <summary>Save (replace-all) field mappings for a template.</summary>
     [HttpPut]
-    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ApiResponse<IEnumerable<FieldMappingDto>>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> SaveMappings(
         [FromRoute] Guid id,
-        [FromBody] List<SaveFieldMappingItemRequest> mappings,
+        [FromBody] SaveTemplateMappingsRequest request,
         CancellationToken ct)
     {
+        var mappings = request.Mappings ?? [];
         var dtos = mappings.Select(m => new SaveFieldMappingItemDto(
             m.Placeholder, m.SourcePath, m.Label, m.Required, m.DefaultValue, m.Transform,
             m.SortOrder, m.DataSourceType, m.DatasetAlias, m.ResultPath, m.MathExpression)).ToList();
         var command = new SaveTemplateMappingsCommand(id, dtos);
         await saveMappingsUseCase.ExecuteAsync(command, ct);
-        return NoContent();
+
+        var updatedMappings = await getMappingsUseCase.ExecuteAsync(new GetTemplateMappingsQuery(id), ct);
+        return Ok(new ApiResponse<IEnumerable<FieldMappingDto>>(updatedMappings));
     }
 
     /// <summary>

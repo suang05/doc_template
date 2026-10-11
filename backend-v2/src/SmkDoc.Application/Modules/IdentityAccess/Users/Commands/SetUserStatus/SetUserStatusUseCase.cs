@@ -1,5 +1,6 @@
 using FluentValidation;
 using SmkDoc.Application.Common.Interfaces;
+using SmkDoc.Application.Modules.IdentityAccess.Users.DTOs;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 
@@ -10,7 +11,7 @@ public sealed class SetUserStatusUseCase(
     IUserProjectRoleRepository roleRepo,
     IUnitOfWork uow,
     IValidator<SetUserStatusCommand> validator,
-    TimeProvider? timeProvider = null) : IUseCase<SetUserStatusCommand>
+    TimeProvider? timeProvider = null) : IUseCase<SetUserStatusCommand, UserResultDto>
 {
     private readonly IUserRepository _userRepo = userRepo;
     private readonly IUserProjectRoleRepository _roleRepo = roleRepo;
@@ -18,7 +19,7 @@ public sealed class SetUserStatusUseCase(
     private readonly IValidator<SetUserStatusCommand> _validator = validator;
     private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
 
-    public async Task ExecuteAsync(SetUserStatusCommand command, CancellationToken ct = default)
+    public async Task<UserResultDto> ExecuteAsync(SetUserStatusCommand command, CancellationToken ct = default)
     {
         var validationResult = await _validator.ValidateAsync(command, ct);
         if (!validationResult.IsValid)
@@ -47,5 +48,15 @@ public sealed class SetUserStatusUseCase(
 
         _userRepo.Update(user);
         await _uow.CommitAsync(ct);
+
+        return new UserResultDto(
+            user.Id,
+            user.Email.Value,
+            user.FirstName,
+            user.LastName,
+            hasRole.Role.Name,
+            user.IsActive,
+            user.CreatedAt
+        );
     }
 }

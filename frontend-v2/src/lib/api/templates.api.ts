@@ -97,11 +97,14 @@ export const templatesApi = {
   /**
    * Save field mappings for a template
    */
-  async saveTemplateMappings(id: string, mappings: SaveFieldMappingItem[]): Promise<{ success: boolean }> {
-    return apiClient<{ success: boolean }>(`/api/templates/${id}/mappings`, {
+  async saveTemplateMappings(id: string, mappings: SaveFieldMappingItem[]): Promise<FieldMappingDto[]> {
+    const res = await apiClient<{ data?: FieldMappingDto[] } | FieldMappingDto[]>(`/api/templates/${id}/mappings`, {
       method: 'PUT',
-      body: JSON.stringify(mappings),
+      body: JSON.stringify({ mappings }),
     });
+    if (Array.isArray(res)) return res;
+    if (res && typeof res === 'object' && 'data' in res && Array.isArray(res.data)) return res.data;
+    return [];
   },
 
   /**

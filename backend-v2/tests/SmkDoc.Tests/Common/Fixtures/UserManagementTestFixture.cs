@@ -24,6 +24,7 @@ public class UserManagementTestFixture
 
     public UpdateUserRoleUseCase BuildUpdateUserRoleUseCase() => new(
         RoleRepo.Object,
+        UserRepo.Object,
         Uow.Object,
         new UpdateUserRoleCommandValidator()
     );

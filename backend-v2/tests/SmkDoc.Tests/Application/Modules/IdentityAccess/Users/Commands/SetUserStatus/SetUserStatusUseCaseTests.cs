@@ -30,9 +30,12 @@ public class SetUserStatusUseCaseTests
             .ReturnsAsync(user);
 
         var command = new SetUserStatusCommand(projectId, userId, false);
-        await CreateSut().ExecuteAsync(command);
+        var result = await CreateSut().ExecuteAsync(command);
 
         user.IsActive.Should().BeFalse();
+        result.Should().NotBeNull();
+        result.IsActive.Should().BeFalse();
+        result.Role.Should().Be("Developer");
         _fixture.UserRepo.Verify(r => r.Update(user), Times.Once);
         _fixture.Uow.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
     }

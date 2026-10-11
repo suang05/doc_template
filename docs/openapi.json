@@ -4550,8 +4550,25 @@
               }
             }
           },
-          "204": {
-            "description": "No Content"
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfUserResultDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfUserResultDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfUserResultDto"
+                }
+              }
+            }
           },
           "400": {
             "description": "Bad Request",
@@ -4836,8 +4853,25 @@
               }
             }
           },
-          "204": {
-            "description": "No Content"
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfUserResultDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfUserResultDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfUserResultDto"
+                }
+              }
+            }
           },
           "400": {
             "description": "Bad Request",
@@ -7333,34 +7367,42 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/SaveFieldMappingItemRequest"
-                }
+                "$ref": "#/components/schemas/SaveTemplateMappingsRequest"
               }
             },
             "text/json": {
               "schema": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/SaveFieldMappingItemRequest"
-                }
+                "$ref": "#/components/schemas/SaveTemplateMappingsRequest"
               }
             },
             "application/*+json": {
               "schema": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/SaveFieldMappingItemRequest"
-                }
+                "$ref": "#/components/schemas/SaveTemplateMappingsRequest"
               }
             }
           },
           "required": true
         },
         "responses": {
-          "204": {
-            "description": "No Content"
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfFieldMappingDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfFieldMappingDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfFieldMappingDto"
+                }
+              }
+            }
           },
           "400": {
             "description": "Bad Request",
@@ -7465,34 +7507,42 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/SaveFieldMappingItemRequest"
-                }
+                "$ref": "#/components/schemas/SaveTemplateMappingsRequest"
               }
             },
             "text/json": {
               "schema": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/SaveFieldMappingItemRequest"
-                }
+                "$ref": "#/components/schemas/SaveTemplateMappingsRequest"
               }
             },
             "application/*+json": {
               "schema": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/SaveFieldMappingItemRequest"
-                }
+                "$ref": "#/components/schemas/SaveTemplateMappingsRequest"
               }
             }
           },
           "required": true
         },
         "responses": {
-          "204": {
-            "description": "No Content"
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfFieldMappingDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfFieldMappingDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfFieldMappingDto"
+                }
+              }
+            }
           },
           "400": {
             "description": "Bad Request",
@@ -8127,34 +8177,42 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/SaveTemplateDatasetItemRequest"
-                }
+                "$ref": "#/components/schemas/SaveTemplateDatasetsRequest"
               }
             },
             "text/json": {
               "schema": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/SaveTemplateDatasetItemRequest"
-                }
+                "$ref": "#/components/schemas/SaveTemplateDatasetsRequest"
               }
             },
             "application/*+json": {
               "schema": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/SaveTemplateDatasetItemRequest"
-                }
+                "$ref": "#/components/schemas/SaveTemplateDatasetsRequest"
               }
             }
           },
           "required": true
         },
         "responses": {
-          "204": {
-            "description": "No Content"
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfTemplateDatasetDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfTemplateDatasetDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfTemplateDatasetDto"
+                }
+              }
+            }
           },
           "400": {
             "description": "Bad Request",
@@ -8259,34 +8317,42 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/SaveTemplateDatasetItemRequest"
-                }
+                "$ref": "#/components/schemas/SaveTemplateDatasetsRequest"
               }
             },
             "text/json": {
               "schema": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/SaveTemplateDatasetItemRequest"
-                }
+                "$ref": "#/components/schemas/SaveTemplateDatasetsRequest"
               }
             },
             "application/*+json": {
               "schema": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/SaveTemplateDatasetItemRequest"
-                }
+                "$ref": "#/components/schemas/SaveTemplateDatasetsRequest"
               }
             }
           },
           "required": true
         },
         "responses": {
-          "204": {
-            "description": "No Content"
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfTemplateDatasetDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfTemplateDatasetDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfTemplateDatasetDto"
+                }
+              }
+            }
           },
           "400": {
             "description": "Bad Request",
@@ -10346,6 +10412,36 @@
             "format": "int32"
           }
         }
+      },
+      "SaveTemplateDatasetsRequest": {
+        "required": [
+          "datasets"
+        ],
+        "type": "object",
+        "properties": {
+          "datasets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SaveTemplateDatasetItemRequest"
+            }
+          }
+        },
+        "description": "HTTP request contract for linking datasets to a template.\r\nWraps collection items in a top-level object to conform to OWASP and REST standards."
+      },
+      "SaveTemplateMappingsRequest": {
+        "required": [
+          "mappings"
+        ],
+        "type": "object",
+        "properties": {
+          "mappings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SaveFieldMappingItemRequest"
+            }
+          }
+        },
+        "description": "HTTP request contract for saving (replacing) all field mappings of a template.\r\nConforms to OWASP and REST standards by wrapping collection items in a top-level object."
       },
       "ScanFieldsResponse": {
         "required": [

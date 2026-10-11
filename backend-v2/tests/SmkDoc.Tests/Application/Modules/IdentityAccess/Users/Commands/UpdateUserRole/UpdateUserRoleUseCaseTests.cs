@@ -18,6 +18,7 @@ public class UpdateUserRoleUseCaseTests
     {
         var projectId = Guid.NewGuid();
         var userId = Guid.NewGuid();
+        var user = new UserBuilder().WithId(userId).Build();
         var roleEntry = new UserProjectRoleBuilder()
             .InProject(projectId)
             .ForUser(userId)
@@ -26,11 +27,16 @@ public class UpdateUserRoleUseCaseTests
 
         _fixture.RoleRepo.Setup(r => r.GetAsync(projectId, userId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(roleEntry);
+        _fixture.UserRepo.Setup(u => u.GetByIdAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(user);
 
         var command = new UpdateUserRoleCommand(projectId, userId, "Developer");
-        await CreateSut().ExecuteAsync(command);
+        var result = await CreateSut().ExecuteAsync(command);
 
         roleEntry.Role.Should().Be(RoleType.Developer);
+        result.Should().NotBeNull();
+        result.Role.Should().Be("Developer");
+        result.Id.Should().Be(userId);
         _fixture.RoleRepo.Verify(r => r.Update(roleEntry), Times.Once);
         _fixture.Uow.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
     }

@@ -64,17 +64,20 @@ public class TemplateVersionController(
 
     /// <summary>Save (replace-all) dataset links for a template.</summary>
     [HttpPut("datasets")]
-    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ApiResponse<IEnumerable<TemplateDatasetDto>>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> SaveDatasets(
         [FromRoute] Guid id,
-        [FromBody] List<SaveTemplateDatasetItemRequest> items,
+        [FromBody] SaveTemplateDatasetsRequest request,
         CancellationToken ct)
     {
+        var items = request.Datasets ?? [];
         var dtos = items.Select(i => new SaveTemplateDatasetItemDto(i.DatasetId, i.Alias, i.SortOrder)).ToList();
         var command = new SaveTemplateDatasetsCommand(id, dtos);
         await saveDatasetsUseCase.ExecuteAsync(command, ct);
-        return NoContent();
+
+        var updatedDatasets = await getDatasetsUseCase.ExecuteAsync(new GetTemplateDatasetsQuery(id), ct);
+        return Ok(new ApiResponse<IEnumerable<TemplateDatasetDto>>(updatedDatasets));
     }
 }

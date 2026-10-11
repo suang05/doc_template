@@ -57,7 +57,7 @@ public class UserManagementController(
     /// <summary>Update a user's role within the project. Admin only.</summary>
     [HttpPut("{userId:guid}/role")]
     [Authorize(Roles = "Admin")]
-    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ApiResponse<UserResultDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -69,8 +69,8 @@ public class UserManagementController(
         CancellationToken ct)
     {
         var command = new UpdateUserRoleCommand(projectId, userId, req.Role);
-        await updateUserRoleUseCase.ExecuteAsync(command, ct);
-        return NoContent();
+        var user = await updateUserRoleUseCase.ExecuteAsync(command, ct);
+        return Ok(new ApiResponse<UserResultDto>(user));
     }
 
     /// <summary>Remove a user from the project. Admin only.</summary>
@@ -95,7 +95,7 @@ public class UserManagementController(
     /// <summary>Activate or deactivate a user account. Admin only.</summary>
     [HttpPatch("{userId:guid}/status")]
     [Authorize(Roles = "Admin")]
-    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ApiResponse<UserResultDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -106,7 +106,7 @@ public class UserManagementController(
         CancellationToken ct)
     {
         var command = new SetUserStatusCommand(projectId, userId, req.IsActive);
-        await setUserStatusUseCase.ExecuteAsync(command, ct);
-        return NoContent();
+        var user = await setUserStatusUseCase.ExecuteAsync(command, ct);
+        return Ok(new ApiResponse<UserResultDto>(user));
     }
 }

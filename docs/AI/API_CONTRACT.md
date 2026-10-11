@@ -466,57 +466,365 @@ Downloads the published template source file.
 
 ---
 
-#### Monaco Editor / Studio Endpoints (`/api/v1/templates/{id}`)
+#### `GET /api/v1/templates/{id}/html`
+Streams raw HTML template source markup directly for Monaco Editor (RFC 9110 media stream).
+* **Auth:** Channel A or Channel B
+* **Headers:** *None*
+* **Route Param:** `id: uuid`
+* **Response (200 OK):** Raw Text Stream (`Content-Type: text/html; charset=utf-8`)
+```html
+<!DOCTYPE html><html><head><meta charset="utf-8"><title>Tax Invoice</title></head><body><h1>Tax Invoice</h1><p>{{customer.name}}</p></body></html>
+```
+* **Errors:** `404 (TEMPLATE_NOT_FOUND)`
 
-* **`GET /api/v1/templates/{id}/html`**
-  * **Response (200 OK):** `ApiResponse<{ htmlContent: string }>`
-* **`PUT /api/v1/templates/{id}/html`**
-  * **Request Body:** `{ "html": "<html>...</html>", "changeNotes": "Updated header" }`
-  * **Response (200 OK):** `ApiResponse<TemplateResultDto>`
-* **`GET /api/v1/templates/{id}/studio`**
-  * **Response (200 OK):** `ApiResponse<TemplateStudioDto>`
-  ```json
-  {
-    "data": {
-      "html": "<html><body>{{title}}</body></html>",
-      "samplePayload": "{\"title\":\"Sample Invoice\"}",
-      "dataSchema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",...}",
-      "version": 2
+---
+
+#### `PUT /api/v1/templates/{id}/html`
+Saves modified HTML source markup from the Monaco Editor and creates an incremental version revision.
+* **Auth:** Channel A or Channel B
+* **Headers:** *None*
+* **Route Param:** `id: uuid`
+* **Request Body (`application/json`):**
+```typescript
+interface SaveHtmlRequest {
+  html: string;
+  samplePayload?: string;
+  changeNote?: string;
+}
+```
+```json
+{
+  "html": "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>Tax Invoice</title></head><body><h1>Tax Invoice</h1><p>{{customer.name}}</p></body></html>",
+  "samplePayload": "{\"customer\":{\"name\":\"Acme Corp\"}}",
+  "changeNote": "Updated company header"
+}
+```
+* **Response (200 OK):** `ApiResponse<SaveHtmlResponse>`
+```json
+{
+  "data": {
+    "newVersion": 3
+  }
+}
+```
+* **Errors:** `400 (VALIDATION_FAILED)`, `404 (TEMPLATE_NOT_FOUND)`
+
+---
+
+#### `GET /api/v1/templates/{id}/studio`
+Retrieves the complete Studio bundle including HTML source, sample JSON payload, inferred JSON schema, and version number.
+* **Auth:** Channel A or Channel B
+* **Headers:** *None*
+* **Route Param:** `id: uuid`
+* **Response (200 OK):** `ApiResponse<TemplateStudioDto>`
+```json
+{
+  "data": {
+    "html": "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>Tax Invoice</title></head><body><h1>Tax Invoice</h1><p>{{customer.name}}</p></body></html>",
+    "samplePayload": "{\"customer\":{\"name\":\"Acme Corp\"}}",
+    "dataSchema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"properties\":{\"customer\":{\"type\":\"object\"}}}",
+    "version": 2
+  }
+}
+```
+* **Errors:** `404 (TEMPLATE_NOT_FOUND)`
+
+---
+
+#### `GET /api/v1/templates/{id}/schema`
+Retrieves compiled JSON Schema Draft-07 for a template.
+* **Auth:** Channel A or Channel B
+* **Headers:** *None*
+* **Route Param:** `id: uuid`
+* **Response (200 OK):** `ApiResponse<TemplateSchemaDto>`
+```json
+{
+  "data": {
+    "templateId": "01926b42-7c3a-7000-8000-123456789abc",
+    "schemaContent": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"properties\":{\"invoiceNo\":{\"type\":\"string\"}}}",
+    "version": 2
+  }
+}
+```
+* **Errors:** `404 (TEMPLATE_NOT_FOUND)`
+
+---
+
+#### `POST /api/v1/templates/{id}/validate`
+Validates HTML template markup syntax and extracts detected placeholders.
+* **Auth:** Channel A or Channel B
+* **Headers:** *None*
+* **Route Param:** `id: uuid`
+* **Request Body (`application/json`):**
+```typescript
+interface ValidateHtmlRequest {
+  html: string;
+}
+```
+```json
+{
+  "html": "<html><body><h1>{{invoiceNo}}</h1><p>{{customer.name}}</p></body></html>"
+}
+```
+* **Response (200 OK):** `ApiResponse<TemplateValidationResultDto>`
+```json
+{
+  "data": {
+    "isValid": true,
+    "placeholders": [
+      "invoiceNo",
+      "customer.name"
+    ],
+    "errors": []
+  }
+}
+```
+* **Errors:** `400 (VALIDATION_FAILED)`
+
+---
+
+#### `GET /api/v1/templates/{id}/versions`
+Lists all historical version revisions for a template.
+* **Auth:** Channel A or Channel B
+* **Headers:** *None*
+* **Route Param:** `id: uuid`
+* **Response (200 OK):** `ApiResponse<TemplateVersionDto[]>`
+```json
+{
+  "data": [
+    {
+      "id": "01926b42-8888-7000-8000-123456789abc",
+      "templateId": "01926b42-7c3a-7000-8000-123456789abc",
+      "versionNumber": 2,
+      "changeNote": "Updated footer layout",
+      "createdAt": "2026-10-10T14:30:00.000Z"
+    },
+    {
+      "id": "01926b40-2222-7000-8000-000000000002",
+      "templateId": "01926b42-7c3a-7000-8000-123456789abc",
+      "versionNumber": 1,
+      "changeNote": "Initial version",
+      "createdAt": "2026-10-10T12:00:00.000Z"
+    }
+  ]
+}
+```
+* **Errors:** `404 (TEMPLATE_NOT_FOUND)`
+
+---
+
+#### `POST /api/v1/templates/{id}/rollback/{version}`
+Reverts template source content to a historical version and increments new revision.
+* **Auth:** Channel A or Channel B
+* **Headers:** *None*
+* **Route Params:** `id: uuid`, `version: int`
+* **Response (200 OK):** `ApiResponse<RollbackVersionResponse>`
+```json
+{
+  "data": {
+    "version": 3
+  }
+}
+```
+* **Errors:** `400 (VALIDATION_FAILED)`, `404 (RESOURCE_NOT_FOUND)`
+
+---
+
+#### `GET /api/v1/templates/{id}/datasets`
+Lists external SQL datasets currently bound to a template.
+* **Auth:** Channel A or Channel B
+* **Headers:** *None*
+* **Route Param:** `id: uuid`
+* **Response (200 OK):** `ApiResponse<TemplateDatasetDto[]>`
+```json
+{
+  "data": [
+    {
+      "id": "01926b42-aaaa-7000-8000-123456789abc",
+      "templateId": "01926b42-7c3a-7000-8000-123456789abc",
+      "datasetId": "01926b40-1111-7000-8000-000000000001",
+      "datasetName": "InvoiceLineItems",
+      "alias": "items",
+      "sortOrder": 1
+    }
+  ]
+}
+```
+* **Errors:** `404 (TEMPLATE_NOT_FOUND)`
+
+---
+
+#### `PUT /api/v1/templates/{id}/datasets`
+Atomically replaces all external dataset bindings for a template (wrapped in `{ datasets }` root object).
+* **Auth:** Channel A or Channel B
+* **Headers:** *None*
+* **Route Param:** `id: uuid`
+* **Request Body (`application/json`):**
+```typescript
+interface SaveTemplateDatasetsRequest {
+  datasets: SaveTemplateDatasetItemRequest[];
+}
+
+interface SaveTemplateDatasetItemRequest {
+  datasetId: string;
+  alias: string;
+  sortOrder?: number;
+}
+```
+```json
+{
+  "datasets": [
+    {
+      "datasetId": "01926b40-1111-7000-8000-000000000001",
+      "alias": "items",
+      "sortOrder": 1
+    }
+  ]
+}
+```
+* **Response (200 OK):** `ApiResponse<TemplateDatasetDto[]>`
+```json
+{
+  "data": [
+    {
+      "id": "01926b42-aaaa-7000-8000-123456789abc",
+      "templateId": "01926b42-7c3a-7000-8000-123456789abc",
+      "datasetId": "01926b40-1111-7000-8000-000000000001",
+      "datasetName": "InvoiceLineItems",
+      "alias": "items",
+      "sortOrder": 1
+    }
+  ]
+}
+```
+* **Errors:** `400 (VALIDATION_FAILED)`, `404 (TEMPLATE_NOT_FOUND)`
+
+---
+
+#### `GET /api/v1/templates/{id}/mappings`
+Lists all field mappings and Thai transformer configurations for a template.
+* **Auth:** Channel A or Channel B
+* **Headers:** *None*
+* **Route Param:** `id: uuid`
+* **Response (200 OK):** `ApiResponse<FieldMappingDto[]>`
+```json
+{
+  "data": [
+    {
+      "id": "01926b42-cccc-7000-8000-123456789abc",
+      "templateId": "01926b42-7c3a-7000-8000-123456789abc",
+      "placeholder": "totalAmount",
+      "sourcePath": "invoice.total",
+      "label": "Total Billing Amount",
+      "required": true,
+      "defaultValue": "0.00",
+      "transform": "thai_baht_text",
+      "sortOrder": 1,
+      "dataSourceType": "json",
+      "datasetAlias": null,
+      "resultPath": null,
+      "mathExpression": null
+    }
+  ]
+}
+```
+* **Errors:** `404 (TEMPLATE_NOT_FOUND)`
+
+---
+
+#### `PUT /api/v1/templates/{id}/mappings`
+Atomically replaces all field mappings for a template (wrapped in `{ mappings }` root object).
+* **Auth:** Channel A or Channel B
+* **Headers:** *None*
+* **Route Param:** `id: uuid`
+* **Request Body (`application/json`):**
+```typescript
+interface SaveTemplateMappingsRequest {
+  mappings: SaveFieldMappingItemRequest[];
+}
+
+interface SaveFieldMappingItemRequest {
+  placeholder: string;
+  sourcePath: string;
+  label: string;
+  required?: boolean;
+  defaultValue?: string | null;
+  transform?: string | null;
+  sortOrder?: number;
+  dataSourceType?: "json" | "sql";
+  datasetAlias?: string | null;
+  resultPath?: string | null;
+  mathExpression?: string | null;
+}
+```
+```json
+{
+  "mappings": [
+    {
+      "placeholder": "totalAmount",
+      "sourcePath": "invoice.total",
+      "label": "Total Billing Amount",
+      "required": true,
+      "defaultValue": "0.00",
+      "transform": "thai_baht_text",
+      "sortOrder": 1,
+      "dataSourceType": "json",
+      "datasetAlias": null,
+      "resultPath": null,
+      "mathExpression": null
+    }
+  ]
+}
+```
+* **Response (200 OK):** `ApiResponse<FieldMappingDto[]>`
+```json
+{
+  "data": [
+    {
+      "id": "01926b42-cccc-7000-8000-123456789abc",
+      "templateId": "01926b42-7c3a-7000-8000-123456789abc",
+      "placeholder": "totalAmount",
+      "sourcePath": "invoice.total",
+      "label": "Total Billing Amount",
+      "required": true,
+      "defaultValue": "0.00",
+      "transform": "thai_baht_text",
+      "sortOrder": 1,
+      "dataSourceType": "json",
+      "datasetAlias": null,
+      "resultPath": null,
+      "mathExpression": null
+    }
+  ]
+}
+```
+* **Errors:** `400 (VALIDATION_FAILED)`, `404 (TEMPLATE_NOT_FOUND)`
+
+---
+
+#### `POST /api/v1/templates/{id}/mappings/preview`
+Merges provided sample data with current field mappings and returns in-memory rendered PDF preview stream.
+* **Auth:** Channel A or Channel B
+* **Headers:** *None*
+* **Route Param:** `id: uuid`
+* **Request Body (`application/json`):**
+```typescript
+interface PreviewMappingRequest {
+  sampleData: Record<string, unknown>;
+}
+```
+```json
+{
+  "sampleData": {
+    "invoice": {
+      "total": 500000
     }
   }
-  ```
-* **`GET /api/v1/templates/{id}/schema`**
-  * **Response (200 OK):** `ApiResponse<TemplateSchemaDto>`
-* **`POST /api/v1/templates/{id}/validate`**
-  * **Request Body:** `{ "html": "<html>...</html>" }`
-  * **Response (200 OK):** `ApiResponse<TemplateValidationResultDto>` (`{ valid: bool, fields: string[], errors: string[] }`)
-
----
-
-#### Template Version History & Datasets (`/api/v1/templates/{id}`)
-
-* **`GET /api/v1/templates/{id}/versions`**
-  * **Response (200 OK):** `ApiResponse<TemplateVersionDto[]>`
-* **`POST /api/v1/templates/{id}/rollback/{version}`**
-  * **Response (200 OK):** `ApiResponse<TemplateResultDto>`
-* **`GET /api/v1/templates/{id}/datasets`**
-  * **Response (200 OK):** `ApiResponse<TemplateDatasetDto[]>`
-* **`PUT /api/v1/templates/{id}/datasets`**
-  * **Request Body:** `{ "items": [ { "datasetId": "{uuid}", "alias": "invoiceItems" } ] }`
-  * **Response (200 OK):** `ApiResponse<TemplateDatasetDto[]>`
-
----
-
-#### Template Field Mappings (`/api/v1/templates/{id}/mappings`)
-
-* **`GET /api/v1/templates/{id}/mappings`**
-  * **Response (200 OK):** `ApiResponse<FieldMappingItemDto[]>`
-* **`PUT /api/v1/templates/{id}/mappings`**
-  * **Request Body:** `{ "items": [ { "fieldKey": "invoice_total", "sourceColumn": "total_amt", "dataType": "number" } ] }`
-  * **Response (200 OK):** `ApiResponse<FieldMappingItemDto[]>`
-* **`POST /api/v1/templates/{id}/mappings/preview`**
-  * **Request Body:** `{ "sampleDataJson": "{ ... }" }`
-  * **Response (200 OK):** `ApiResponse<Record<string, unknown>>`
+}
+```
+* **Response (200 OK):** Raw Binary Stream (`application/pdf`)
+  * `Content-Disposition: inline`
+* **Errors:** `400 (VALIDATION_FAILED)`, `404 (TEMPLATE_NOT_FOUND)`, `500 (RENDER_FAILED)`
 
 ---
 
@@ -671,20 +979,149 @@ Retrieves claims and profile information of the authenticated user.
   * **Request Body:** `{ "name": "Marketing", "slug": "marketing" }`
   * **Response (201 Created):** `ApiResponse<ProjectResultDto>`
 
-#### Project Members (`/api/v1/management/projects/{projectId}/users`)
-* **`GET /api/v1/management/projects/{projectId}/users`**
-  * **Response (200 OK):** `ApiResponse<UserResultDto[]>`
-* **`POST /api/v1/management/projects/{projectId}/users`**
-  * **Request Body:** `{ "email": "user@sammakorn.co.th", "role": "Member" }`
-  * **Response (201 Created):** `ApiResponse<UserResultDto>`
-* **`PUT /api/v1/management/projects/{projectId}/users/{userId}/role`**
-  * **Request Body:** `{ "role": "Admin" }`
-  * **Response (200 OK):** `ApiResponse<UserResultDto>`
-* **`PATCH /api/v1/management/projects/{projectId}/users/{userId}/status`**
-  * **Request Body:** `{ "isActive": false }`
-  * **Response (200 OK):** `ApiResponse<UserResultDto>`
-* **`DELETE /api/v1/management/projects/{projectId}/users/{userId}`**
-  * **Response (204 NoContent):** Zero response body.
+#### `GET /api/v1/management/projects/{projectId}/users`
+Lists all project member user accounts and their assigned project roles.
+* **Auth:** Channel B (`Bearer JWT`) with Admin or SuperAdmin role
+* **Headers:** *None*
+* **Route Param:** `projectId: uuid`
+* **Response (200 OK):** `ApiResponse<UserResultDto[]>`
+```json
+{
+  "data": [
+    {
+      "id": "01926b42-1111-7000-8000-123456789abc",
+      "email": "architect@sammakorn.co.th",
+      "firstName": "Senior",
+      "lastName": "Architect",
+      "role": "Admin",
+      "isActive": true,
+      "createdAt": "2026-10-10T12:00:00.000Z"
+    }
+  ]
+}
+```
+* **Errors:** `401 (INVALID_CREDENTIALS)`, `403 (INSUFFICIENT_ROLE)`
+
+---
+
+#### `POST /api/v1/management/projects/{projectId}/users`
+Invites a new or existing user into the project membership with an assigned role.
+* **Auth:** Channel B (`Bearer JWT`) with Admin role
+* **Headers:** *None*
+* **Route Param:** `projectId: uuid`
+* **Request Body (`application/json`):**
+```typescript
+interface InviteUserRequest {
+  email: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+  role?: string;
+}
+```
+```json
+{
+  "email": "user@sammakorn.co.th",
+  "password": "Password123!",
+  "firstName": "Somsak",
+  "lastName": "Rattanakul",
+  "role": "Viewer"
+}
+```
+* **Response (201 Created):** `ApiResponse<UserResultDto>`
+  * Header: `Location: /api/v1/management/projects/{projectId}/users/{id}`
+```json
+{
+  "data": {
+    "id": "01926b42-5555-7000-8000-123456789abc",
+    "email": "user@sammakorn.co.th",
+    "firstName": "Somsak",
+    "lastName": "Rattanakul",
+    "role": "Viewer",
+    "isActive": true,
+    "createdAt": "2026-10-11T18:00:00.000Z"
+  }
+}
+```
+* **Errors:** `400 (VALIDATION_FAILED)`, `403 (INSUFFICIENT_ROLE)`, `409 (CONFLICT)`
+
+---
+
+#### `PUT /api/v1/management/projects/{projectId}/users/{userId}/role`
+Updates a member's role assignment within the project. Returns the updated user membership resource (RFC 9110 representation).
+* **Auth:** Channel B (`Bearer JWT`) with Admin role
+* **Headers:** *None*
+* **Route Params:** `projectId: uuid`, `userId: uuid`
+* **Request Body (`application/json`):**
+```typescript
+interface UpdateUserRoleRequest {
+  role: "Admin" | "Developer" | "Viewer";
+}
+```
+```json
+{
+  "role": "Developer"
+}
+```
+* **Response (200 OK):** `ApiResponse<UserResultDto>`
+```json
+{
+  "data": {
+    "id": "01926b42-5555-7000-8000-123456789abc",
+    "email": "user@sammakorn.co.th",
+    "firstName": "Somsak",
+    "lastName": "Rattanakul",
+    "role": "Developer",
+    "isActive": true,
+    "createdAt": "2026-10-11T18:00:00.000Z"
+  }
+}
+```
+* **Errors:** `400 (VALIDATION_FAILED)`, `403 (INSUFFICIENT_ROLE)`, `404 (RESOURCE_NOT_FOUND)`, `409 (CONFLICT)`
+
+---
+
+#### `PATCH /api/v1/management/projects/{projectId}/users/{userId}/status`
+Activates or deactivates a member user account. Returns the updated user membership resource (RFC 9110 representation).
+* **Auth:** Channel B (`Bearer JWT`) with Admin role
+* **Headers:** *None*
+* **Route Params:** `projectId: uuid`, `userId: uuid`
+* **Request Body (`application/json`):**
+```typescript
+interface SetUserStatusRequest {
+  isActive: boolean;
+}
+```
+```json
+{
+  "isActive": false
+}
+```
+* **Response (200 OK):** `ApiResponse<UserResultDto>`
+```json
+{
+  "data": {
+    "id": "01926b42-5555-7000-8000-123456789abc",
+    "email": "user@sammakorn.co.th",
+    "firstName": "Somsak",
+    "lastName": "Rattanakul",
+    "role": "Developer",
+    "isActive": false,
+    "createdAt": "2026-10-11T18:00:00.000Z"
+  }
+}
+```
+* **Errors:** `400 (VALIDATION_FAILED)`, `403 (INSUFFICIENT_ROLE)`, `404 (RESOURCE_NOT_FOUND)`
+
+---
+
+#### `DELETE /api/v1/management/projects/{projectId}/users/{userId}`
+Removes a user from the project membership.
+* **Auth:** Channel B (`Bearer JWT`) with Admin role
+* **Headers:** *None*
+* **Route Params:** `projectId: uuid`, `userId: uuid`
+* **Response (204 NoContent):** Zero response body.
+* **Errors:** `400 (VALIDATION_FAILED)`, `403 (INSUFFICIENT_ROLE)`, `404 (RESOURCE_NOT_FOUND)`, `409 (CONFLICT)`
 
 ---
 
@@ -765,12 +1202,43 @@ SQL extraction queries linked to templates.
 
 ### 4.8 Font Assets Management (`/api/v1/management/settings/fonts`)
 
-Manages TrueType/OpenType Thai fonts loaded into Chromium Gotenberg.
-* **`GET /api/v1/management/settings/fonts`**
-  * **Response (200 OK):** `ApiResponse<FontInfoDto[]>`
-* **`POST /api/v1/management/settings/fonts`**
-  * **Content-Type:** `multipart/form-data` (`file: binary` `.ttf`, `.otf`)
-  * **Response (200 OK):** `ApiResponse<{ fontName: string, family: string, fileSize: number }>`
+Manages custom TrueType/OpenType Thai fonts loaded into Chromium Gotenberg rendering engine.
+
+#### `GET /api/v1/management/settings/fonts`
+Lists all uploaded custom font filenames available for document styling.
+* **Auth:** Channel B (`Bearer JWT`)
+* **Headers:** *None*
+* **Response (200 OK):** `ApiResponse<string[]>`
+```json
+{
+  "data": [
+    "THSarabunNew-Regular.ttf",
+    "THSarabunNew-Bold.ttf",
+    "AngsanaNew.ttf"
+  ]
+}
+```
+* **Errors:** `401 (INVALID_CREDENTIALS)`
+
+---
+
+#### `POST /api/v1/management/settings/fonts`
+Uploads a new TrueType or OpenType font file (.ttf, .otf) into the shared font storage. Max 10 MB.
+* **Auth:** Channel B (`Bearer JWT`)
+* **Headers:** *None*
+* **Content-Type:** `multipart/form-data`
+* **Form Fields:**
+  * `file`: Binary font file (`.ttf`, `.otf`) — Required
+* **Response (201 Created):** `ApiResponse<UploadFontResponse>`
+```json
+{
+  "data": {
+    "message": "Font uploaded successfully.",
+    "fontName": "THSarabunNew-Regular.ttf"
+  }
+}
+```
+* **Errors:** `400 (VALIDATION_FAILED)`, `401 (INVALID_CREDENTIALS)`
 
 ---
 
