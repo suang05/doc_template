@@ -118,9 +118,11 @@ Whenever you modify the codebase or make architectural decisions, you MUST proac
 1. **Mandatory Updates:**
    - IF you create/modify an API endpoint, Auth flow, or DTO -> UPDATE `docs/AI/API_CONTRACT.md` following its `<doc_maintenance_rules>` tag (API Contract Authoring Invariant):
      * **CANONICAL SKELETON:** Every endpoint must strictly follow:
-       `#### [VERB] /api/v1/[path]` -> 1-line summary -> `* **Auth:**` -> `* **Headers:**` -> `* **Params:**` -> `* **Request Body:**` (TypeScript interface + concrete full JSON) -> `* **Response:**` (Status + concrete JSON) -> `* **Errors:**` (Status + `errorCode`).
-     * **ZERO NOISE & NO ELLIPSIS:** NEVER use ellipses (`...`) in JSON examples. NEVER write generic HTTP 101 tutorials, marketing prose, or abstract Mermaid architecture boxes.
-     * **SINGLE VERB:** NEVER group verbs (e.g. `GET|POST`). Each method must have its own block.
+       `#### [VERB] /api/v1/[path]` -> 1-line summary -> `* **Auth:**` -> `* **Headers:**` -> `* **Route Params:**` / `* **Query Params:**` -> `* **Request Body:**` (TypeScript interface + concrete full JSON) -> `* **Response:**` (Status + concrete JSON) -> `* **Errors:**` (Status + `errorCode`).
+     * **POSITIVE DATA VALUES & ZERO NOISE:** Every JSON property in examples MUST contain realistic, production-like mock values (e.g., `"Host=db.internal;Database=app"`). NEVER use ellipses (`...`) or placeholder dots. NEVER write generic HTTP 101 tutorials, marketing prose, or abstract Mermaid architecture boxes.
+     * **SINGLE VERB:** NEVER group verbs or paths (e.g. `GET|POST` or `POST /a or POST /b`). Each distinct method and route must have its own dedicated block.
+     * **SECTION CLEANUP INVARIANT:** If modifying or adding an endpoint inside a section that still contains legacy bullets or shorthand, you MUST migrate all sister endpoints in that section to the Canonical Skeleton in the same turn.
+     * **OPENAPI SYNC:** Trigger a backend build (`dotnet build`) so `docs/openapi.json` is automatically re-emitted and synchronized with C# controller attributes.
      * **ERROR TAXONOMY:** Every new business `errorCode` MUST be registered in Section 3 Taxonomy.
    - IF you add/modify a Database Table, Entity, or EF Core Migration -> UPDATE `docs/AI/DB_SCHEMA.md`
    - IF you create a new UseCase, Interface, or architectural file -> UPDATE `docs/AI/PROJECT_STRUCTURE.md`
@@ -139,8 +141,12 @@ Whenever you modify the codebase or make architectural decisions, you MUST proac
 
 <verification_protocol>
 **DEFINITION OF DONE (Active Verification):**
-Before declaring any coding task complete and ending your turn, you MUST actively verify your work:
-1. **Actual Test Execution:** You MUST explicitly use the terminal tool to run `dotnet test` or `npm test`. NEVER claim that tests passed if you haven't actually executed the command and verified the output.
-2. **Self-Correction Review:** Double-check your own code edits against `<system_standards>`. **Crucially, trace all newly added variables, parameters, or injected dependencies to ensure they are actually used.** (e.g., Are variables explicitly instantiated? Did you map all new DTO properties?)
-3. **Meaningful Handoff & Summary:** When you end your turn, provide a clear, professional summary of the architectural decisions you made, what was actually tested, and proactively highlight any key open questions, potential risks, or next steps for the user. Do not output meaningless, robotic generic sentences.
+Before declaring any coding task complete and ending your turn, you MUST actively execute these 4 verification gates in order:
+1. **Actual Test Execution:** You MUST explicitly use the terminal tool to run `dotnet test` and/or `npm test`. NEVER claim that tests passed if you haven't actually executed the command and verified the output.
+2. **Self-Correction Review:** Double-check your own code edits against `<system_standards>`. Trace all newly added variables, parameters, or injected dependencies to ensure they are actually used.
+3. **Documentation & Contract Gate:** If any API endpoint, DTO, or Controller changed during your task, verify:
+   - [ ] Is `docs/AI/API_CONTRACT.md` updated with the 7-slot Canonical Skeleton?
+   - [ ] Are all sister endpoints in the affected section free of legacy shorthand and free of ellipses (`...`)?
+   - [ ] Is `docs/openapi.json` re-emitted and synchronized with the latest code changes?
+4. **Meaningful Handoff & Summary:** When you end your turn, provide a clear, professional summary of the architectural decisions you made, what was actually tested, and proactively highlight any key open questions, potential risks, or next steps for the user. Do not output meaningless, robotic generic sentences.
 </verification_protocol>

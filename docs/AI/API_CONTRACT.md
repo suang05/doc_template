@@ -11,20 +11,21 @@ This document is the authoritative Single Source of Truth (SSoT) for all REST wi
 <doc_maintenance_rules>
 MANDATORY AUTHORING SPECIFICATION (Zero-Drift Invariant):
 When ADDING, MODIFYING, or EXTENDING endpoints in this document, you MUST strictly adhere to:
-1. CANONICAL SKELETON (Slot-filling template):
+1. CANONICAL SKELETON (All slots are MANDATORY):
    #### `[HTTP_VERB] /api/v1/[resource]/[sub-path]`
    Short 1-line business description.
-   * **Auth:** Channel A (`X-API-Key`) | Channel B (`Bearer JWT`)
+   * **Auth:** Channel A (`X-API-Key`) | Channel B (`Bearer JWT`) | Public
    * **Headers:** Edge headers (e.g. `Idempotency-Key`) or *None*
-   * **Params:** Route/Query params with type and constraints
+   * **Route Params:** Named route parameters with type and constraints, or *None*
+   * **Query Params:** Query parameters with type, defaults, and constraints, or *None*
    * **Request Body (`application/json`):** TypeScript interface + concrete full JSON payload
    * **Response ([STATUS] [PHRASE]):** Envelope + concrete JSON payload
-   * **Errors:** Explicit status code and domain `errorCode` mapping (e.g. `404 (RESOURCE_NOT_FOUND)`)
-2. PROHIBITIONS:
-   - ZERO ELLIPSIS: NEVER use ellipses `...` in JSON payloads.
-   - SINGLE VERB: NEVER group verbs (e.g. `GET|POST`). Each route/verb must have its own dedicated block.
-   - ZERO PROSE: NEVER add HTTP 101 tutorials, marketing words, or abstract flowcharts.
-3. ERROR TAXONOMY: Every new `errorCode` MUST be registered in Section 3 Taxonomy table.
+   * **Errors:** Explicit status code and domain `errorCode` mapping (e.g. `400 (VALIDATION_FAILED)`, `404 (RESOURCE_NOT_FOUND)`)
+2. POSITIVE DATA VALUES & ZERO TOLERANCE:
+   - ZERO ELLIPSIS: Every property MUST contain realistic, production-like mock values (e.g. `"Host=db.internal;Database=app"`). NEVER write `...` or leave empty mock objects.
+   - SINGLE VERB: NEVER group verbs or paths (e.g. `GET|POST` or `POST /preview or POST /preview/{slug}`). Each route and method MUST have its own individual block.
+   - ZERO NOISE: NEVER add generic HTTP 101 tutorials, marketing words, or conversational prose.
+3. ERROR TAXONOMY: Every new business `errorCode` MUST be registered in Section 3 Taxonomy table.
 </doc_maintenance_rules>
 
 <api_contract_scope>
@@ -269,7 +270,7 @@ interface GenerateDocumentRequest {
     "outputFormat": "pdf",
     "fileSizeBytes": 245100,
     "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "url": "https://storage.sammakorn.co.th/outputs/inv.pdf?token=...",
+    "url": "https://storage.sammakorn.co.th/outputs/inv.pdf?token=exp1760000000_sig8f9a2b3c4d5e",
     "expiresAt": "2026-10-11T15:40:00.000Z"
   }
 }
@@ -278,33 +279,86 @@ interface GenerateDocumentRequest {
 
 ---
 
-#### `POST /api/v1/documents/preview` or `POST /api/v1/documents/preview/{slug}`
-100% in-memory rendering preview. Zero DB writes, zero MinIO uploads.
-* **Auth:** Channel A or Channel B
-* **Route Param:** `slug?: string` (Optional)
+#### `POST /api/v1/documents/preview`
+Ephemeral in-memory preview using ad-hoc HTML and payload. Zero DB writes, zero MinIO uploads.
+* **Auth:** Channel A (`X-API-Key`) | Channel B (`Bearer JWT`)
+* **Headers:** *None*
+* **Route Params:** *None*
+* **Query Params:** *None*
 * **Request Body (`application/json`):**
 ```typescript
 interface PreviewDocumentRequest {
-  payload: Record<string, unknown>; // Sample JSON data
-  html?: string;                    // Raw HTML template if slug is not provided
+  payload: Record<string, unknown>;
+  html?: string;
 }
 ```
 ```json
 {
-  "payload": { "customer": { "name": "Acme Corp" } },
-  "html": "<html><body><h1>Hello {{customer.name}}</h1></body></html>"
+  "payload": {
+    "customer": {
+      "name": "Acme Corp",
+      "taxId": "0105551234567"
+    }
+  },
+  "html": "<html><body><h1>Invoice Preview</h1><p>{{customer.name}}</p></body></html>"
 }
 ```
 * **Response (200 OK):** Raw Binary Stream (`application/pdf`)
-  * `Content-Disposition: inline`
+  * Header: `Content-Disposition: inline`
 * **Errors:** `400 (VALIDATION_FAILED)`, `500 (RENDER_FAILED)`
+
+---
+
+#### `POST /api/v1/documents/preview/{slug}`
+Ephemeral in-memory preview against a published template slug. Merges payload with saved template without persisting.
+* **Auth:** Channel A (`X-API-Key`) | Channel B (`Bearer JWT`)
+* **Headers:** *None*
+* **Route Params:** `slug: string` (e.g. `commercial-invoice`)
+* **Query Params:** *None*
+* **Request Body (`application/json`):**
+```typescript
+interface PreviewDocumentBySlugRequest {
+  payload: Record<string, unknown>;
+}
+```
+```json
+{
+  "payload": {
+    "customer": {
+      "name": "Acme Corp",
+      "taxId": "0105551234567"
+    },
+    "amount": 250000.50
+  }
+}
+```
+* **Response (200 OK):** Raw Binary Stream (`application/pdf`)
+  * Header: `Content-Disposition: inline`
+* **Errors:** `400 (VALIDATION_FAILED)`, `404 (TEMPLATE_NOT_FOUND)`, `500 (RENDER_FAILED)`
 
 ---
 
 #### `POST /api/v1/documents/validate/{slug}`
 Pre-flight JSON payload validation against template's compiled Draft-07 JSON Schema. Pure inspection probe; always returns `200 OK`.
-* **Auth:** Channel A or Channel B
-* **Request Body (`application/json`):** Any JSON payload object.
+* **Auth:** Channel A (`X-API-Key`) | Channel B (`Bearer JWT`)
+* **Headers:** *None*
+* **Route Params:** `slug: string`
+* **Query Params:** *None*
+* **Request Body (`application/json`):**
+```typescript
+interface ValidateTemplatePayloadRequest {
+  customer?: {
+    taxId?: string;
+  };
+}
+```
+```json
+{
+  "customer": {
+    "taxId": "123"
+  }
+}
+```
 * **Response (200 OK):** `ApiResponse<ValidateTemplatePayloadResult>`
 ```json
 {
@@ -323,18 +377,39 @@ Pre-flight JSON payload validation against template's compiled Draft-07 JSON Sch
   }
 }
 ```
+* **Errors:** `404 (TEMPLATE_NOT_FOUND)`
 
 ---
 
-#### `POST /api/v1/documents/render` or `POST /api/v1/documents/render/stateless`
-Stateless document rendering from ad-hoc uploaded template file stream and JSON payload.
+#### `POST /api/v1/documents/render`
+Stateless document rendering directly from an uploaded template file stream (.html, .docx, .xlsx) and optional JSON payload.
 * **Auth:** Channel A (`X-API-Key`)
+* **Headers:** *None*
+* **Route Params:** *None*
+* **Query Params:** *None*
 * **Content-Type:** `multipart/form-data`
 * **Form Fields:**
-  * `file`: Binary file (`.html`, `.docx`, `.xlsx`) — Required
+  * `file`: Binary template file (`.html`, `.docx`, `.xlsx`) — Required
   * `jsonData`: JSON string payload — Optional
 * **Response (200 OK):** Raw Binary Stream (`application/pdf`)
-  * `Content-Disposition: inline`
+  * Header: `Content-Disposition: inline`
+* **Errors:** `400 (VALIDATION_FAILED)`, `500 (RENDER_FAILED)`
+
+---
+
+#### `POST /api/v1/documents/render/stateless`
+Canonical alias route for stateless document rendering from uploaded template stream and JSON payload.
+* **Auth:** Channel A (`X-API-Key`)
+* **Headers:** *None*
+* **Route Params:** *None*
+* **Query Params:** *None*
+* **Content-Type:** `multipart/form-data`
+* **Form Fields:**
+  * `file`: Binary template file (`.html`, `.docx`, `.xlsx`) — Required
+  * `jsonData`: JSON string payload — Optional
+* **Response (200 OK):** Raw Binary Stream (`application/pdf`)
+  * Header: `Content-Disposition: inline`
+* **Errors:** `400 (VALIDATION_FAILED)`, `500 (RENDER_FAILED)`
 
 ---
 
@@ -828,30 +903,101 @@ interface PreviewMappingRequest {
 
 ---
 
-#### RAM Draft Upload Pipeline (`/api/v1/templates/draft`)
-Three-step RAM-only upload workflow. Steps 1 & 2 are side-effect free. Step 3 atomically persists to MinIO and DB.
+#### `POST /api/v1/templates/draft/parse`
+Uploads template file to RAM cache and extracts detected variable placeholders (Step 1: pure, zero DB/MinIO writes).
+* **Auth:** Channel A (`X-API-Key`) | Channel B (`Bearer JWT`)
+* **Headers:** *None*
+* **Route Params:** *None*
+* **Query Params:** *None*
+* **Content-Type:** `multipart/form-data`
+* **Form Fields:**
+  * `file`: Binary template file (`.html`, `.docx`, `.xlsx`) — Required
+* **Response (200 OK):** `ApiResponse<ParseDraftResponse>`
+```json
+{
+  "data": {
+    "draftId": "draft_01926b42-7c3a-7000-8000-123456789abc",
+    "placeholders": [
+      "invoiceNumber",
+      "customerName",
+      "totalAmount"
+    ]
+  }
+}
+```
+* **Errors:** `400 (VALIDATION_FAILED)`
 
-1. **`POST /api/v1/templates/draft/parse`**
-   * **Content-Type:** `multipart/form-data` (`file: binary`)
-   * **Response (200 OK):** `ApiResponse<{ draftId: string, placeholders: string[] }>`
-2. **`POST /api/v1/templates/draft/{draftId}/preview`**
-   * **Request Body:** `{ "dataJson": "{\"amount\": 100}" }`
-   * **Response (200 OK):** Raw Binary Stream (`application/pdf`, `Content-Disposition: inline`)
-   * **Errors:** `410 (DRAFT_EXPIRED)`
-3. **`POST /api/v1/templates/draft/{draftId}/commit`**
-   * **Headers:** `Idempotency-Key: <uuid>` (Optional)
-   * **Request Body:**
-   ```json
-   {
-     "name": "Invoice 2026",
-     "slug": "invoice-2026",
-     "category": "Finance",
-     "projectId": "01926b40-1111-7000-8000-000000000001",
-     "mappings": []
-   }
-   ```
-   * **Response (201 Created):** `ApiResponse<{ templateId: string }>`
-   * **Errors:** `409 (SLUG_ALREADY_EXISTS)`, `410 (DRAFT_EXPIRED)`
+---
+
+#### `POST /api/v1/templates/draft/{draftId}/preview`
+Renders an in-memory PDF preview from cached draft and sample payload (Step 2: pure, zero side-effects).
+* **Auth:** Channel A (`X-API-Key`) | Channel B (`Bearer JWT`)
+* **Headers:** *None*
+* **Route Params:** `draftId: string`
+* **Query Params:** *None*
+* **Request Body (`application/json`):**
+```typescript
+interface PreviewDraftRequest {
+  dataJson?: string;
+}
+```
+```json
+{
+  "dataJson": "{\"invoiceNumber\":\"INV-2026-001\",\"customerName\":\"Sammakorn PLC\",\"totalAmount\":1500000}"
+}
+```
+* **Response (200 OK):** Raw Binary Stream (`application/pdf`)
+  * Header: `Content-Disposition: inline`
+* **Errors:** `400 (VALIDATION_FAILED)`, `410 (DRAFT_EXPIRED)`
+
+---
+
+#### `POST /api/v1/templates/draft/{draftId}/commit`
+Persists verified draft to MinIO and writes database record atomically (Step 3: durable commitment).
+* **Auth:** Channel A (`X-API-Key`) | Channel B (`Bearer JWT`)
+* **Headers:** `Idempotency-Key: <uuid>` (Optional)
+* **Route Params:** `draftId: string`
+* **Query Params:** *None*
+* **Request Body (`application/json`):**
+```typescript
+interface CommitDraftRequest {
+  name: string;
+  slug: string;
+  category: string;
+  projectId?: string;
+  mappings?: CommitDraftMappingItem[];
+}
+
+interface CommitDraftMappingItem {
+  placeholder: string;
+  sourcePath: string;
+  transform?: string;
+}
+```
+```json
+{
+  "name": "Tax Invoice 2026",
+  "slug": "tax-invoice-2026",
+  "category": "Finance",
+  "projectId": "01926b40-1111-7000-8000-000000000001",
+  "mappings": [
+    {
+      "placeholder": "invoiceNumber",
+      "sourcePath": "invoice.no",
+      "transform": null
+    }
+  ]
+}
+```
+* **Response (201 Created):** `ApiResponse<CommitDraftResponse>`
+```json
+{
+  "data": {
+    "templateId": "01926b42-7c3a-7000-8000-123456789abc"
+  }
+}
+```
+* **Errors:** `400 (VALIDATION_FAILED)`, `409 (SLUG_ALREADY_EXISTS)`, `410 (DRAFT_EXPIRED)`
 
 ---
 
@@ -887,13 +1033,51 @@ Stateless JSON Schema Draft-07 engine. Zero DB queries, zero disk I/O.
 ---
 
 #### `POST /api/v1/templates/scan-fields`
-Stateless scanning: extracts placeholders from uploaded file stream without creating a template.
-* **Content-Type:** `multipart/form-data` (`file: binary`)
-* **Response (200 OK):** `ApiResponse<{ placeholders: string[] }>`
+Stateless scanning probe that extracts detected variable placeholders directly from an uploaded file stream without persistence.
+* **Auth:** Channel A (`X-API-Key`) | Channel B (`Bearer JWT`)
+* **Headers:** *None*
+* **Route Params:** *None*
+* **Query Params:** *None*
+* **Content-Type:** `multipart/form-data`
+* **Form Fields:**
+  * `file`: Binary template file (`.html`, `.docx`, `.xlsx`) — Required
+* **Response (200 OK):** `ApiResponse<ScanFieldsResponse>`
+```json
+{
+  "data": {
+    "placeholders": [
+      "invoiceNumber",
+      "customerName",
+      "billingAddress",
+      "totalAmount"
+    ]
+  }
+}
+```
+* **Errors:** `400 (VALIDATION_FAILED)`
+
+---
 
 #### `GET /api/v1/templates/{id}/scan-fields`
-Extracts placeholders from an existing template stored in MinIO.
-* **Response (200 OK):** `ApiResponse<{ placeholders: string[] }>`
+Extracts and analyzes detected variable placeholders from an existing template stored in MinIO.
+* **Auth:** Channel A (`X-API-Key`) | Channel B (`Bearer JWT`)
+* **Headers:** *None*
+* **Route Params:** `id: uuid`
+* **Query Params:** *None*
+* **Response (200 OK):** `ApiResponse<ScanFieldsResponse>`
+```json
+{
+  "data": {
+    "placeholders": [
+      "invoiceNumber",
+      "customerName",
+      "billingAddress",
+      "totalAmount"
+    ]
+  }
+}
+```
+* **Errors:** `404 (TEMPLATE_NOT_FOUND)`
 
 ---
 
@@ -902,7 +1086,16 @@ Extracts placeholders from an existing template stored in MinIO.
 #### `POST /api/v1/auth/login`
 Authenticates portal user and issues access/refresh tokens.
 * **Auth:** Channel A Gated (`X-API-Key: <key>`)
+* **Headers:** `X-API-Key: <key>`
+* **Route Params:** *None*
+* **Query Params:** *None*
 * **Request Body (`application/json`):**
+```typescript
+interface LoginRequest {
+  email: string;
+  password: string;
+}
+```
 ```json
 {
   "email": "architect@sammakorn.co.th",
@@ -913,8 +1106,8 @@ Authenticates portal user and issues access/refresh tokens.
 ```json
 {
   "data": {
-    "accessToken": "eyJhbGciOiJIUzI1NiIsIn...",
-    "refreshToken": "7c3a70008000123456789abc...",
+    "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIwMTkyNmI0Mi0xMTExLTcwMDAtODAwMC0xMjM0NTY3ODlhYmMiLCJlbWFpbCI6ImFyY2hpdGVjdEBzYW1tYWtvcm4uY28udGgiLCJyb2xlIjoiU3VwZXJBZG1pbiJ9.dGhpcy1pcy1hLXZhbGlkLXNpZ25hdHVyZS1leGFtcGxl",
+    "refreshToken": "7c3a70008000123456789abcdef0123456789abcdef0123456789abcdef01234567",
     "tokenType": "Bearer",
     "expiresIn": 86400,
     "defaultProjectId": "01926b40-1111-7000-8000-000000000001",
@@ -941,20 +1134,34 @@ Authenticates portal user and issues access/refresh tokens.
 ---
 
 #### `POST /api/v1/auth/refresh`
-Performs Refresh Token Rotation (RTR). Invalidates old token and returns fresh pair.
+Performs Refresh Token Rotation (RTR). Invalidates old token and returns fresh access/refresh token pair.
 * **Auth:** Channel A Gated (`X-API-Key: <key>`)
-* **Request Body:** `{ "refreshToken": "7c3a70008000123456789abc..." }`
+* **Headers:** `X-API-Key: <key>`
+* **Route Params:** *None*
+* **Query Params:** *None*
+* **Request Body (`application/json`):**
+```typescript
+interface RefreshTokenRequest {
+  refreshToken: string;
+}
+```
+```json
+{
+  "refreshToken": "7c3a70008000123456789abcdef0123456789abcdef0123456789abcdef01234567"
+}
+```
 * **Response (200 OK):** `ApiResponse<TokenResultDto>`
 ```json
 {
   "data": {
-    "accessToken": "eyJhbGciOiJIUzI1NiIsIn...",
-    "refreshToken": "fresh_token_here...",
+    "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIwMTkyNmI0Mi0xMTExLTcwMDAtODAwMC0xMjM0NTY3ODlhYmMiLCJlbWFpbCI6ImFyY2hpdGVjdEBzYW1tYWtvcm4uY28udGgiLCJyb2xlIjoiU3VwZXJBZG1pbiJ9.dGhpcy1pcy1hLXZhbGlkLXNpZ25hdHVyZS1leGFtcGxl",
+    "refreshToken": "8d4b8111911123456789bcdef0123456789bcdef0123456789bcdef012345678",
     "expiresIn": 86400,
     "tokenType": "Bearer"
   }
 }
 ```
+* **Errors:** `401 (INVALID_CREDENTIALS)`
 
 ---
 
@@ -969,15 +1176,96 @@ Retrieves claims and profile information of the authenticated user.
 
 *(Restricted to Channel B users with `SuperAdmin` or `Admin` role)*
 
-#### Projects (`/api/v1/management/projects`)
-* **`GET /api/v1/management/projects`**
-  * **Query Params:** `?page=1&pageSize=20&search=Finance`
-  * **Response (200 OK):** `ApiResponse<ProjectPagedResultDto>`
-* **`GET /api/v1/management/projects/{projectId}`**
-  * **Response (200 OK):** `ApiResponse<ProjectResultDto>`
-* **`POST /api/v1/management/projects`**
-  * **Request Body:** `{ "name": "Marketing", "slug": "marketing" }`
-  * **Response (201 Created):** `ApiResponse<ProjectResultDto>`
+#### `GET /api/v1/management/projects`
+Lists all tenant projects accessible to the authenticated user with server-side pagination and search.
+* **Auth:** Channel B (`Bearer JWT`)
+* **Headers:** *None*
+* **Route Params:** *None*
+* **Query Params:**
+  * `search: string` (Optional search filter by project name or slug)
+  * `page: int` (Default: 1, Min: 1)
+  * `pageSize: int` (Default: 20, Min: 1, Max: 100)
+* **Response (200 OK):** `PagedApiResponse<ProjectResultDto>`
+```json
+{
+  "data": [
+    {
+      "id": "01926b40-1111-7000-8000-000000000001",
+      "name": "Finance & Accounting",
+      "slug": "finance",
+      "isActive": true,
+      "createdAt": "2026-10-10T12:00:00.000Z"
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "pageSize": 20,
+    "totalCount": 1,
+    "totalPages": 1
+  }
+}
+```
+* **Errors:** `401 (INVALID_CREDENTIALS)`
+
+---
+
+#### `GET /api/v1/management/projects/{projectId}`
+Retrieves detailed profile of a specific project by its ID.
+* **Auth:** Channel B (`Bearer JWT`)
+* **Headers:** *None*
+* **Route Params:** `projectId: uuid`
+* **Query Params:** *None*
+* **Response (200 OK):** `ApiResponse<ProjectResultDto>`
+```json
+{
+  "data": {
+    "id": "01926b40-1111-7000-8000-000000000001",
+    "name": "Finance & Accounting",
+    "slug": "finance",
+    "isActive": true,
+    "createdAt": "2026-10-10T12:00:00.000Z"
+  }
+}
+```
+* **Errors:** `401 (INVALID_CREDENTIALS)`, `404 (RESOURCE_NOT_FOUND)`
+
+---
+
+#### `POST /api/v1/management/projects`
+Creates a new tenant project. Restricted to administrators.
+* **Auth:** Channel B (`Bearer JWT`) with Admin or SuperAdmin role
+* **Headers:** *None*
+* **Route Params:** *None*
+* **Query Params:** *None*
+* **Request Body (`application/json`):**
+```typescript
+interface CreateProjectRequest {
+  name: string;
+  slug: string;
+}
+```
+```json
+{
+  "name": "Marketing & Communications",
+  "slug": "marketing"
+}
+```
+* **Response (201 Created):** `ApiResponse<ProjectResultDto>`
+  * Header: `Location: /api/v1/management/projects/01926b42-9999-7000-8000-123456789abc`
+```json
+{
+  "data": {
+    "id": "01926b42-9999-7000-8000-123456789abc",
+    "name": "Marketing & Communications",
+    "slug": "marketing",
+    "isActive": true,
+    "createdAt": "2026-10-11T19:00:00.000Z"
+  }
+}
+```
+* **Errors:** `400 (VALIDATION_FAILED)`, `401 (INVALID_CREDENTIALS)`, `403 (INSUFFICIENT_ROLE)`, `409 (CONFLICT)`
+
+---
 
 #### `GET /api/v1/management/projects/{projectId}/users`
 Lists all project member user accounts and their assigned project roles.
@@ -1127,76 +1415,461 @@ Removes a user from the project membership.
 
 ### 4.6 API Key Provisioning
 
-#### M2M Self-Service API Keys (`/api/api-keys`)
-* **`GET /api/api-keys`**
-  * **Response (200 OK):** `ApiResponse<ApiKeyDto[]>`
-* **`POST /api/api-keys`**
-  * **Request Body:** `{ "name": "ERP-Integration", "callerApp": "SAP" }`
-  * **Response (201 Created):** `ApiResponse<CreateApiKeyResultDto>`
-  ```json
-  {
-    "data": {
+#### `GET /api/v1/management/projects/{projectId}/api-keys`
+Lists all active and revoked API keys issued within a project. Admin only.
+* **Auth:** Channel B (`Bearer JWT`) with Admin or SuperAdmin role
+* **Headers:** *None*
+* **Route Params:** `projectId: uuid`
+* **Query Params:** *None*
+* **Response (200 OK):** `ApiResponse<ApiKeyDto[]>`
+```json
+{
+  "data": [
+    {
       "id": "01926b42-9999-7000-8000-123456789abc",
       "name": "ERP-Integration",
-      "callerApp": "SAP",
-      "plainTextKey": "smk_live_xxxxxxxxxxxxxxxxxxxxxxxx"
+      "callerApp": "SAP-Gateway",
+      "maskedKey": "smk_live_a1b2c3d4****9z8y",
+      "expiresAt": "2027-10-11T00:00:00.000Z",
+      "createdAt": "2026-10-10T12:00:00.000Z"
     }
-  }
-  ```
-* **`DELETE /api/api-keys/{id}`**
-  * **Response (204 NoContent):** Zero response body.
+  ]
+}
+```
+* **Errors:** `401 (INVALID_CREDENTIALS)`, `403 (INSUFFICIENT_ROLE)`
 
-#### Project-Scoped API Keys (`/api/v1/management/projects/{projectId}/api-keys`)
-* **`GET /api/v1/management/projects/{projectId}/api-keys`**
-  * **Response (200 OK):** `ApiResponse<ApiKeyDto[]>`
-* **`POST /api/v1/management/projects/{projectId}/api-keys`**
-  * **Request Body:** `{ "name": "Billing-Key", "callerApp": "BillingEngine" }`
-  * **Response (201 Created):** `ApiResponse<CreateApiKeyResultDto>`
-* **`DELETE /api/v1/management/projects/{projectId}/api-keys/{keyId}`**
-  * **Response (204 NoContent):** Zero response body.
+---
+
+#### `POST /api/v1/management/projects/{projectId}/api-keys`
+Creates and issues a new Channel A API key for machine-to-machine integrations. The plain-text key is returned only once upon creation.
+* **Auth:** Channel B (`Bearer JWT`) with Admin or SuperAdmin role
+* **Headers:** *None*
+* **Route Params:** `projectId: uuid`
+* **Query Params:** *None*
+* **Request Body (`application/json`):**
+```typescript
+interface CreateApiKeyRequest {
+  name: string;
+  callerApp: string;
+  expiresAt?: string | null;
+}
+```
+```json
+{
+  "name": "Billing-Key",
+  "callerApp": "BillingEngine",
+  "expiresAt": "2027-12-31T23:59:59.000Z"
+}
+```
+* **Response (201 Created):** `ApiResponse<ApiKeyResponseDto>`
+```json
+{
+  "data": {
+    "id": "01926b42-9999-7000-8000-123456789abc",
+    "name": "Billing-Key",
+    "callerApp": "BillingEngine",
+    "plainTextKey": "smk_live_d7a8f9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6",
+    "expiresAt": "2027-12-31T23:59:59.000Z"
+  }
+}
+```
+* **Errors:** `400 (VALIDATION_FAILED)`, `401 (INVALID_CREDENTIALS)`, `403 (INSUFFICIENT_ROLE)`
+
+---
+
+#### `DELETE /api/v1/management/projects/{projectId}/api-keys/{keyId}`
+Permanently revokes an API key, immediately disabling its ability to invoke Channel A endpoints. Admin only.
+* **Auth:** Channel B (`Bearer JWT`) with Admin or SuperAdmin role
+* **Headers:** *None*
+* **Route Params:** `projectId: uuid`, `keyId: uuid`
+* **Query Params:** *None*
+* **Response (204 NoContent):** Zero response body.
+* **Errors:** `401 (INVALID_CREDENTIALS)`, `403 (INSUFFICIENT_ROLE)`, `404 (RESOURCE_NOT_FOUND)`
+
+---
+
+#### `GET /api/api-keys`
+Legacy Portal UI compatible endpoint for listing project API keys.
+* **Auth:** Channel B (`Bearer JWT`)
+* **Headers:** *None*
+* **Route Params:** *None*
+* **Query Params:**
+  * `projectId: uuid` (Optional if scoped via user token)
+* **Response (200 OK):** `ApiResponse<ApiKeyDto[]>`
+```json
+{
+  "data": [
+    {
+      "id": "01926b42-9999-7000-8000-123456789abc",
+      "name": "ERP-Integration",
+      "callerApp": "SAP-Gateway",
+      "maskedKey": "smk_live_a1b2c3d4****9z8y",
+      "createdAt": "2026-10-10T12:00:00.000Z"
+    }
+  ]
+}
+```
+* **Errors:** `400 (VALIDATION_FAILED)`, `401 (INVALID_CREDENTIALS)`
+
+---
+
+#### `POST /api/api-keys`
+Legacy Portal UI compatible endpoint for issuing an API key.
+* **Auth:** Channel B (`Bearer JWT`)
+* **Headers:** *None*
+* **Route Params:** *None*
+* **Query Params:** *None*
+* **Request Body (`application/json`):**
+```typescript
+interface CreateLegacyApiKeyRequest {
+  name: string;
+  callerApp: string;
+  projectId?: string;
+}
+```
+```json
+{
+  "name": "ERP-Integration",
+  "callerApp": "SAP-Gateway",
+  "projectId": "01926b40-1111-7000-8000-000000000001"
+}
+```
+* **Response (201 Created):** `ApiResponse<ApiKeyResponseDto>`
+```json
+{
+  "data": {
+    "id": "01926b42-9999-7000-8000-123456789abc",
+    "name": "ERP-Integration",
+    "callerApp": "SAP-Gateway",
+    "plainTextKey": "smk_live_d7a8f9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6"
+  }
+}
+```
+* **Errors:** `400 (VALIDATION_FAILED)`, `401 (INVALID_CREDENTIALS)`
+
+---
+
+#### `DELETE /api/api-keys/{id}`
+Legacy Portal UI compatible endpoint for revoking an API key.
+* **Auth:** Channel B (`Bearer JWT`)
+* **Headers:** *None*
+* **Route Params:** `id: uuid`
+* **Query Params:**
+  * `projectId: uuid` (Optional if scoped via user token)
+* **Response (204 NoContent):** Zero response body.
+* **Errors:** `400 (VALIDATION_FAILED)`, `401 (INVALID_CREDENTIALS)`, `404 (RESOURCE_NOT_FOUND)`
 
 ---
 
 ### 4.7 Integration: Data Connections & Datasets
 
-#### Data Connections (`/api/v1/data-connections`)
-Configures external databases (PostgreSQL, MSSQL).
-* **`GET /api/v1/data-connections`** ➔ `200 OK` `ApiResponse<DataConnectionDto[]>`
-* **`GET /api/v1/data-connections/{id}`** ➔ `200 OK` `ApiResponse<DataConnectionDto>`
-* **`POST /api/v1/data-connections`**
-  * **Request Body:**
-  ```json
-  {
+#### `GET /api/v1/data-connections`
+Lists all external database connection profiles configured for SQL dataset binding.
+* **Auth:** Channel B (`Bearer JWT`)
+* **Headers:** *None*
+* **Route Params:** *None*
+* **Query Params:** *None*
+* **Response (200 OK):** `ApiResponse<DataConnectionDto[]>`
+```json
+{
+  "data": [
+    {
+      "id": "01926b40-1111-7000-8000-000000000001",
+      "name": "AccountingDB",
+      "provider": "PostgreSQL",
+      "createdAt": "2026-10-10T12:00:00.000Z"
+    }
+  ]
+}
+```
+* **Errors:** `401 (INVALID_CREDENTIALS)`
+
+---
+
+#### `GET /api/v1/data-connections/{id}`
+Retrieves a specific database connection profile by ID (credentials masked).
+* **Auth:** Channel B (`Bearer JWT`)
+* **Headers:** *None*
+* **Route Params:** `id: uuid`
+* **Query Params:** *None*
+* **Response (200 OK):** `ApiResponse<DataConnectionDto>`
+```json
+{
+  "data": {
+    "id": "01926b40-1111-7000-8000-000000000001",
     "name": "AccountingDB",
     "provider": "PostgreSQL",
-    "connectionString": "Host=db.internal;Database=acc;Username=app;Password=secret"
+    "createdAt": "2026-10-10T12:00:00.000Z"
   }
-  ```
-  * **Response (201 Created):** `ApiResponse<DataConnectionDto>`
-* **`PUT /api/v1/data-connections/{id}`** ➔ `200 OK` `ApiResponse<DataConnectionDto>`
-* **`DELETE /api/v1/data-connections/{id}`** ➔ `204 NoContent`
-* **`POST /api/v1/data-connections/test`**
-  * **Request Body:** `{ "provider": "PostgreSQL", "connectionString": "..." }`
-  * **Response (200 OK):** `ApiResponse<{ isReachable: boolean, latencyMs: number, serverVersion: string }>`
+}
+```
+* **Errors:** `401 (INVALID_CREDENTIALS)`, `404 (RESOURCE_NOT_FOUND)`
 
-#### Datasets (`/api/v1/datasets`)
-SQL extraction queries linked to templates.
-* **`GET /api/v1/datasets`** ➔ `200 OK` `ApiResponse<DatasetDto[]>`
-* **`GET /api/v1/datasets/{id}`** ➔ `200 OK` `ApiResponse<DatasetDto>`
-* **`POST /api/v1/datasets`**
-  * **Request Body:**
-  ```json
-  {
-    "name": "InvoiceLineItems",
-    "description": "Extracts billable items for invoice",
-    "dataConnectionId": "01926b40-1111-7000-8000-000000000001",
-    "sqlQuery": "SELECT * FROM items WHERE invoice_id = @invoiceId",
-    "cacheSeconds": 300
+---
+
+#### `POST /api/v1/data-connections`
+Registers a new database connection definition with encrypted connection string.
+* **Auth:** Channel B (`Bearer JWT`)
+* **Headers:** *None*
+* **Route Params:** *None*
+* **Query Params:** *None*
+* **Request Body (`application/json`):**
+```typescript
+interface CreateDataConnectionRequest {
+  name: string;
+  provider: "PostgreSQL" | "SqlServer";
+  connectionString: string;
+}
+```
+```json
+{
+  "name": "AccountingDB",
+  "provider": "PostgreSQL",
+  "connectionString": "Host=postgres.internal;Port=5432;Database=smk_acc;Username=smk_app;Password=SecretAppPassword123"
+}
+```
+* **Response (201 Created):** `ApiResponse<DataConnectionDto>`
+  * Header: `Location: /api/v1/data-connections/01926b40-1111-7000-8000-000000000001`
+```json
+{
+  "data": {
+    "id": "01926b40-1111-7000-8000-000000000001",
+    "name": "AccountingDB",
+    "provider": "PostgreSQL",
+    "createdAt": "2026-10-11T19:30:00.000Z"
   }
-  ```
-  * **Response (201 Created):** `ApiResponse<DatasetDto>`
-* **`PUT /api/v1/datasets/{id}`** ➔ `200 OK` `ApiResponse<DatasetDto>`
-* **`DELETE /api/v1/datasets/{id}`** ➔ `204 NoContent`
+}
+```
+* **Errors:** `400 (VALIDATION_FAILED)`, `401 (INVALID_CREDENTIALS)`
+
+---
+
+#### `PUT /api/v1/data-connections/{id}`
+Updates an existing database connection definition.
+* **Auth:** Channel B (`Bearer JWT`)
+* **Headers:** *None*
+* **Route Params:** `id: uuid`
+* **Query Params:** *None*
+* **Request Body (`application/json`):**
+```typescript
+interface UpdateDataConnectionRequest {
+  name: string;
+  provider: "PostgreSQL" | "SqlServer";
+  connectionString: string;
+}
+```
+```json
+{
+  "name": "AccountingDB-Primary",
+  "provider": "PostgreSQL",
+  "connectionString": "Host=postgres-primary.internal;Port=5432;Database=smk_acc;Username=smk_app;Password=UpdatedSecretPassword456"
+}
+```
+* **Response (200 OK):** `ApiResponse<DataConnectionDto>`
+```json
+{
+  "data": {
+    "id": "01926b40-1111-7000-8000-000000000001",
+    "name": "AccountingDB-Primary",
+    "provider": "PostgreSQL",
+    "createdAt": "2026-10-10T12:00:00.000Z"
+  }
+}
+```
+* **Errors:** `400 (VALIDATION_FAILED)`, `401 (INVALID_CREDENTIALS)`, `404 (RESOURCE_NOT_FOUND)`
+
+---
+
+#### `DELETE /api/v1/data-connections/{id}`
+Deletes a database connection definition. Fails if active datasets reference this connection.
+* **Auth:** Channel B (`Bearer JWT`)
+* **Headers:** *None*
+* **Route Params:** `id: uuid`
+* **Query Params:** *None*
+* **Response (204 NoContent):** Zero response body.
+* **Errors:** `401 (INVALID_CREDENTIALS)`, `404 (RESOURCE_NOT_FOUND)`, `409 (CONFLICT)`
+
+---
+
+#### `POST /api/v1/data-connections/test`
+Tests connectivity and credential validity against target database server without persisting credentials.
+* **Auth:** Channel B (`Bearer JWT`)
+* **Headers:** *None*
+* **Route Params:** *None*
+* **Query Params:** *None*
+* **Request Body (`application/json`):**
+```typescript
+interface TestDataConnectionRequest {
+  provider: "PostgreSQL" | "SqlServer";
+  connectionString: string;
+}
+```
+```json
+{
+  "provider": "PostgreSQL",
+  "connectionString": "Host=postgres.internal;Port=5432;Database=smk_acc;Username=smk_app;Password=SecretAppPassword123"
+}
+```
+* **Response (200 OK):** `ApiResponse<TestDataConnectionResponseDto>`
+```json
+{
+  "data": {
+    "isSuccess": true,
+    "message": "Connection successful."
+  }
+}
+```
+* **Errors:** `400 (VALIDATION_FAILED)`, `401 (INVALID_CREDENTIALS)`
+
+---
+
+#### `GET /api/v1/datasets`
+Lists all configured SQL extraction query datasets.
+* **Auth:** Channel B (`Bearer JWT`)
+* **Headers:** *None*
+* **Route Params:** *None*
+* **Query Params:** *None*
+* **Response (200 OK):** `ApiResponse<DatasetDto[]>`
+```json
+{
+  "data": [
+    {
+      "id": "01926b40-2222-7000-8000-000000000001",
+      "name": "InvoiceLineItems",
+      "description": "Extracts billable line items for invoice generation",
+      "dataConnectionId": "01926b40-1111-7000-8000-000000000001",
+      "sqlQuery": "SELECT item_id, item_name, quantity, unit_price, total_amount FROM invoice_items WHERE invoice_id = @invoiceId ORDER BY sort_order ASC",
+      "cacheSeconds": 300,
+      "createdAt": "2026-10-10T12:00:00.000Z"
+    }
+  ]
+}
+```
+* **Errors:** `401 (INVALID_CREDENTIALS)`
+
+---
+
+#### `GET /api/v1/datasets/{id}`
+Retrieves a specific SQL dataset definition by ID.
+* **Auth:** Channel B (`Bearer JWT`)
+* **Headers:** *None*
+* **Route Params:** `id: uuid`
+* **Query Params:** *None*
+* **Response (200 OK):** `ApiResponse<DatasetDto>`
+```json
+{
+  "data": {
+    "id": "01926b40-2222-7000-8000-000000000001",
+    "name": "InvoiceLineItems",
+    "description": "Extracts billable line items for invoice generation",
+    "dataConnectionId": "01926b40-1111-7000-8000-000000000001",
+    "sqlQuery": "SELECT item_id, item_name, quantity, unit_price, total_amount FROM invoice_items WHERE invoice_id = @invoiceId ORDER BY sort_order ASC",
+    "cacheSeconds": 300,
+    "createdAt": "2026-10-10T12:00:00.000Z"
+  }
+}
+```
+* **Errors:** `401 (INVALID_CREDENTIALS)`, `404 (RESOURCE_NOT_FOUND)`
+
+---
+
+#### `POST /api/v1/datasets`
+Creates a new parameterized SQL extraction dataset linked to an existing database connection.
+* **Auth:** Channel B (`Bearer JWT`)
+* **Headers:** *None*
+* **Route Params:** *None*
+* **Query Params:** *None*
+* **Request Body (`application/json`):**
+```typescript
+interface CreateDatasetRequest {
+  name: string;
+  description?: string;
+  dataConnectionId: string;
+  sqlQuery: string;
+  cacheSeconds?: number;
+}
+```
+```json
+{
+  "name": "InvoiceLineItems",
+  "description": "Extracts billable line items for invoice generation",
+  "dataConnectionId": "01926b40-1111-7000-8000-000000000001",
+  "sqlQuery": "SELECT item_id, item_name, quantity, unit_price, total_amount FROM invoice_items WHERE invoice_id = @invoiceId ORDER BY sort_order ASC",
+  "cacheSeconds": 300
+}
+```
+* **Response (201 Created):** `ApiResponse<DatasetDto>`
+  * Header: `Location: /api/v1/datasets/01926b40-2222-7000-8000-000000000001`
+```json
+{
+  "data": {
+    "id": "01926b40-2222-7000-8000-000000000001",
+    "name": "InvoiceLineItems",
+    "description": "Extracts billable line items for invoice generation",
+    "dataConnectionId": "01926b40-1111-7000-8000-000000000001",
+    "sqlQuery": "SELECT item_id, item_name, quantity, unit_price, total_amount FROM invoice_items WHERE invoice_id = @invoiceId ORDER BY sort_order ASC",
+    "cacheSeconds": 300,
+    "createdAt": "2026-10-11T19:30:00.000Z"
+  }
+}
+```
+* **Errors:** `400 (VALIDATION_FAILED)`, `401 (INVALID_CREDENTIALS)`, `404 (RESOURCE_NOT_FOUND)`
+
+---
+
+#### `PUT /api/v1/datasets/{id}`
+Updates an existing SQL dataset query or cache policy.
+* **Auth:** Channel B (`Bearer JWT`)
+* **Headers:** *None*
+* **Route Params:** `id: uuid`
+* **Query Params:** *None*
+* **Request Body (`application/json`):**
+```typescript
+interface UpdateDatasetRequest {
+  name: string;
+  description?: string;
+  dataConnectionId: string;
+  sqlQuery: string;
+  cacheSeconds?: number;
+}
+```
+```json
+{
+  "name": "InvoiceLineItems",
+  "description": "Updated query with discount calculation",
+  "dataConnectionId": "01926b40-1111-7000-8000-000000000001",
+  "sqlQuery": "SELECT item_id, item_name, quantity, unit_price, discount, total_amount FROM invoice_items WHERE invoice_id = @invoiceId ORDER BY sort_order ASC",
+  "cacheSeconds": 600
+}
+```
+* **Response (200 OK):** `ApiResponse<DatasetDto>`
+```json
+{
+  "data": {
+    "id": "01926b40-2222-7000-8000-000000000001",
+    "name": "InvoiceLineItems",
+    "description": "Updated query with discount calculation",
+    "dataConnectionId": "01926b40-1111-7000-8000-000000000001",
+    "sqlQuery": "SELECT item_id, item_name, quantity, unit_price, discount, total_amount FROM invoice_items WHERE invoice_id = @invoiceId ORDER BY sort_order ASC",
+    "cacheSeconds": 600,
+    "createdAt": "2026-10-10T12:00:00.000Z"
+  }
+}
+```
+* **Errors:** `400 (VALIDATION_FAILED)`, `401 (INVALID_CREDENTIALS)`, `404 (RESOURCE_NOT_FOUND)`
+
+---
+
+#### `DELETE /api/v1/datasets/{id}`
+Deletes a SQL dataset definition.
+* **Auth:** Channel B (`Bearer JWT`)
+* **Headers:** *None*
+* **Route Params:** `id: uuid`
+* **Query Params:** *None*
+* **Response (204 NoContent):** Zero response body.
+* **Errors:** `401 (INVALID_CREDENTIALS)`, `404 (RESOURCE_NOT_FOUND)`
+
+---
 
 ---
 
