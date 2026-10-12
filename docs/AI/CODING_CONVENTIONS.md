@@ -46,6 +46,14 @@ The LLM MUST intercept and flag execution immediately upon detecting any of the 
 | **Thread Blocking** | Synchronous blocking via `.Result`, `.Wait()`, `.GetAwaiter().GetResult()` | Asynchronous non-blocking `await` across all I/O boundaries | `[RULE-CRAFT-005]` |
 | **Memory / LOH** | In-memory document buffering via `new MemoryStream()`, `byte[]` | Direct stream piping from Gotenberg/MinIO via `Stream` or `ArrayPool` | `[RULE-MEM-001]` |
 | **DbContext Concurrency**| Concurrent tasks (`Task.WhenAll`) executed on single `DbContext` instance | Sequential execution or independent DI scopes per concurrent worker | `[RULE-CONC-001]` |
+| **Token Dropping** | Omitting `ct` in downstream LINQ (`ToListAsync()`) or nested async calls | Propagate `CancellationToken ct` to all terminal async operations | `[RULE-CONC-003]` |
+| **Fire-and-Forget Scope**| `_ = Task.Run(...)` capturing Scoped DI dependencies (`DbContext`) | Dispatch via `Channel<T>` to `BackgroundService` or create explicit scope | `[RULE-CONC-004]` |
+| **Query Tracking / Eval**| Querying without `.AsNoTracking()` or client-side LINQ evaluation | Mandatory `.AsNoTracking()` and SQL-translatable expressions | `[RULE-INFRA-005]` |
+| **Transaction Boundary** | Invoking `unitOfWork.CommitAsync()` multiple times in one UseCase | Exactly 1 atomic `CommitAsync(ct)` per UseCase execution | `[RULE-UOW-002]` |
+| **Mass Assignment** | Binding request/command DTOs directly to mutate entity properties | Expressive domain verbs with explicit permitted parameters | `[RULE-SEC-003]` |
+| **Aggregate Boundary** | Cross-aggregate navigation properties or child entity repositories | ID-only references (`Guid ProjectId`) and aggregate root mediation | `[RULE-DOM-009]` |
+| **Parameter Swapping** | Passing positional parameters of identical primitive type out-of-order | Mandatory C# Named Arguments (`projectId: command.ProjectId`) | `[RULE-CRAFT-012]` |
+| **Ghost Utilities** | Invoking hallucinated extension methods or static helpers | Use verified framework APIs or declared codebase utilities exclusively | `[RULE-CRAFT-013]` |
 | **Variable Identifiers** | Truncated abbreviations (`req`, `dto`, `res`, `cancellationToken`) | Standard identifiers: `request`, `result`, `CancellationToken ct` | `[RULE-NAME-002]` |
 | **Object Instantiation** | Inlined nested object instantiation inside method call invocations | Instantiate into explicit, strongly-typed local variables first | `[RULE-CRAFT-002]` |
 | **Error Contracts** | Empty `catch { }` blocks or anonymous JSON error payloads | Throw Domain Exceptions; map to RFC 9457 `ProblemDetails` | `[RULE-API-002]` |
@@ -228,6 +236,8 @@ All implementations within `smk-doc-server` MUST align with these 5 canonical De
 * `[RULE-DOM-005] [MUST]`: State mutations MUST be executed via expressive domain verbs (e.g., `Publish`, `Archive`, `Deactivate`) receiving explicit dependencies (e.g., `DateTimeOffset now`).
 * `[RULE-DOM-006] [MUST]`: Value Objects MUST be implemented as `readonly record struct` or `record` with invariant validation on instantiation.
 * `[RULE-DOM-007] [MUST]`: Primary keys MUST use UUIDv7 (`Guid.CreateVersion7()`) for sequential, high-performance B-tree indexing.
+* `[RULE-DOM-008] [MUST NOT]`: NEVER import `Microsoft.AspNetCore.Http` into Domain or Application layers. NEVER throw raw `Exception` or HTTP exceptions (`BadHttpRequestException`). Throw strongly-typed domain exceptions exclusively (`DomainValidationException`, `NotFoundException`, `ConflictException`).
+* `[RULE-DOM-009] [MUST]`: Cross-aggregate relationships MUST use foreign key identifiers exclusively (`Guid ProjectId`), never navigation properties (`Project Project`). Child entities (e.g. `TemplateMapping`) exist strictly within aggregate boundary; mutate them through the Aggregate Root (`template.AddMapping(...)`). Repositories for child entities are STRICTLY FORBIDDEN.
 
 ```csharp
 // ✅ Good: Rich Domain Entity conforming to RULE-DOM-001 through RULE-DOM-007
@@ -279,6 +289,11 @@ public sealed class Template
   - NEVER validate the same rule twice across both layers.
 * `[RULE-APP-005] [MUST]`: Time queries MUST use .NET standard `TimeProvider` (`timeProvider.GetUtcNow()`). Direct calls to `DateTime.UtcNow` or `DateTimeOffset.UtcNow` are STRICTLY FORBIDDEN.
 * `[RULE-APP-006] [MUST]`: Every asynchronous method MUST accept `CancellationToken ct = default` as its final parameter and propagate it to all downstream calls.
+* `[RULE-FLOW-001] [MUST]`: External side-effects (MinIO storage, Gotenberg rendering) MUST follow the **DB Intent ➔ Storage Upload ➔ DB Finalize** execution order:
+  1. Record creation in DB with `Pending` status and a pre-computed deterministic storage path.
+  2. Commit initial state (`await unitOfWork.CommitAsync(ct)`).
+  3. Upload binary stream to MinIO (`await storageService.UploadAsync(..., ct)`).
+  4. Update entity status to `Completed` (or `Failed`) and commit finalized state (`await unitOfWork.CommitAsync(ct)`).
 
 ```csharp
 // ✅ Good: Application UseCase conforming to RULE-APP-001 through RULE-APP-006
@@ -314,6 +329,10 @@ public sealed class CreateTemplateUseCase(
 * `[RULE-INFRA-002] [MUST]`: Map EF Core entities exclusively using `IEntityTypeConfiguration<T>` via the Fluent API. Data annotations (`[Table]`, `[Key]`, `[Column]`) on Domain Entities are STRICTLY FORBIDDEN.
 * `[RULE-INFRA-003] [MUST]`: Persistence transaction boundaries MUST be committed via `IUnitOfWork.CommitAsync(ct)`. Repositories MUST NOT call `SaveChangesAsync()` independently.
 * `[RULE-INFRA-004] [MUST]`: Rendering engines and storage adapters MUST stream payloads directly (`Stream over RAM`). Buffering multi-MB documents into memory (`byte[]`) is STRICTLY FORBIDDEN.
+* `[RULE-INFRA-005] [MUST]`: All read queries MUST append `.AsNoTracking()`. Non-translatable C# methods, in-memory delegates, or dynamic RegEx inside LINQ expressions that force client-side memory evaluation are STRICTLY FORBIDDEN.
+* `[RULE-INFRA-006] [MUST]`: Domain Value Objects MUST be mapped via strongly-typed EF Core Value Converters (`builder.Property(t => t.Slug).HasConversion(slug => slug.Value, val => TemplateSlug.Create(val))`) in `IEntityTypeConfiguration<T>`. Primitive obsession in domain entities or arbitrary `.OwnsOne()` table splitting is STRICTLY FORBIDDEN.
+* `[RULE-INFRA-007] [MUST]`: Entities subject to concurrent mutations MUST configure the PostgreSQL `xmin` concurrency token (`builder.UseXminAsConcurrencyToken()`). Catch `DbUpdateConcurrencyException` and translate to HTTP 409 Conflict (`CONCURRENCY_CONFLICT`).
+* `[RULE-UOW-002] [MUST]`: A standard UseCase execution MUST contain at most ONE single invocation of `await unitOfWork.CommitAsync(ct);` at the end of the transaction boundary. Multiple intermediate commits within a single business transaction are STRICTLY FORBIDDEN (except when orchestrating two-phase external storage workflows under `RULE-FLOW-001`).
 
 ---
 
@@ -377,6 +396,8 @@ Document payloads routinely exceed the 85,000-byte threshold, placing them on th
 
 * `[RULE-CONC-001] [MUST NOT]`: EF Core `DbContext` is NOT thread-safe. Concurrent asynchronous execution using the same scoped `DbContext` instance (e.g. `Task.WhenAll` with repository calls) is STRICTLY PROHIBITED.
 * `[RULE-CONC-002] [MUST]`: Execute queries on a scoped `DbContext` sequentially, OR inject `IDbContextFactory<SmkDocDbContext>` to spawn isolated short-lived contexts for concurrent workers.
+* `[RULE-CONC-003] [MUST]`: Pass `CancellationToken ct` down continuously to every terminal async operation (`ToListAsync(ct)`, `FirstOrDefaultAsync(ct)`, `CopyToAsync(..., ct)`). Calling overloads that omit `ct` or passing `CancellationToken.None` in production code is STRICTLY FORBIDDEN.
+* `[RULE-CONC-004] [MUST NOT]`: NEVER invoke `_ = Task.Run(...)` or unawaited background tasks that capture scoped DI dependencies (`DbContext`, UseCases, Repositories). When background execution is required, dispatch tasks through `Channel<T>` to a `BackgroundService` or instantiate a dedicated scope via `IServiceScopeFactory.CreateAsyncScope()`.
 
 ---
 
@@ -392,12 +413,13 @@ Document payloads routinely exceed the 85,000-byte threshold, placing them on th
 
 * `[RULE-SEC-001] [MUST]`: All regular expressions for slug, token, or template parsing MUST use .NET Source Generators (`[GeneratedRegex]`) with `RegexOptions.NonBacktracking` to eliminate ReDoS vulnerabilities.
 * `[RULE-SEC-002] [MUST NOT]`: Production error responses MUST NEVER leak CLR stack traces, database connection strings, or SQL queries inside RFC 9457 `detail`. Dispatched exclusively via `IExceptionHandler` (`GlobalExceptionHandler`).
+* `[RULE-SEC-003] [MUST NOT]`: Mass assignment and over-posting are STRICTLY FORBIDDEN. Incoming request/command DTOs MUST NEVER be assigned wholesale onto domain entities. Entity state changes MUST occur through explicit domain methods with explicitly typed parameters (e.g., `template.UpdateMetadata(name, slug, now)`).
 
 ---
 
-### 4.10 The 10 Invariants of Code Craftsmanship & Simplicity (`RULE-CRAFT`)
+### 4.10 The 15 Invariants of Code Craftsmanship & AI-Native Ergonomics (`RULE-CRAFT`)
 
-Every LLM-generated method and class MUST conform to all 10 craftsmanship invariants without exception:
+Every LLM-generated method and class MUST conform to all 15 craftsmanship and AI-native ergonomics invariants without exception:
 
 * `[RULE-CRAFT-001] [MUST]`: **Stepdown Rule:** Public entry points (`ExecuteAsync`) MUST appear first in class body. Private helper methods MUST follow immediately beneath their caller in top-down invocation order. Never group private helpers at file bottom.
 * `[RULE-CRAFT-002] [MUST]`: **Vertical Proximity & Visual Formatting:** Declare local variables immediately before their first usage. Never declare variables at top of method if consumed lines later. Separate distinct logical steps using exactly 1 blank line.
@@ -409,6 +431,18 @@ Every LLM-generated method and class MUST conform to all 10 craftsmanship invari
 * `[RULE-CRAFT-008] [MUST]`: **Trust Nullable Reference Types:** Validate inputs exhaustively at the Presentation and Application boundaries. Do NOT scatter redundant defensive `if (arg is null)` checks across protected internal private methods.
 * `[RULE-CRAFT-009] [MUST]`: **Expressive Domain Verbs:** Mutate entity state exclusively via expressive business verbs (`Publish`, `Archive`, `Deactivate`). Individual public property assignments outside the entity are STRICTLY PROHIBITED.
 * `[RULE-CRAFT-010] [MUST NOT]`: **Zero Magic Numbers:** Operational and environmental parameters MUST use `IOptions<TOptions>` (`appsettings.json` / env); technical constants MUST be in `*Constants.cs`; clock queries MUST route through `TimeProvider`.
+* `[RULE-CRAFT-011] [MUST]`: **The P-E-M-R Method Execution Cadence:** Every UseCase `ExecuteAsync` MUST strictly sequence logic in 4 distinct chronological steps:
+  1. **P (Preconditions):** Fail-fast guard clauses, argument verification.
+  2. **E (External Retrieval):** Retrieve required external state with `.AsNoTracking()`, query `timeProvider`.
+  3. **M (Mutation):** Mutate state exclusively through Domain Factory or Domain Verbs.
+  4. **R (Result & Persistence):** Execute single `unitOfWork.CommitAsync(ct)` and return immutable `*ResultDto`.
+* `[RULE-CRAFT-012] [MUST]`: **Named Arguments Defense against Parameter Swapping:** When calling any method or constructor with 2 or more parameters of the same primitive type (e.g. multiple `Guid` or `string`), you MUST use explicit C# named arguments (`projectId: command.ProjectId, name: templateName, slug: slug`).
+* `[RULE-CRAFT-013] [MUST NOT]`: **No Ghost Utilities / Phantom Extensions:** NEVER invent or invoke non-existent extension methods, static helpers, or phantom utility classes. Use only verified framework APIs or utilities explicitly declared in the codebase.
+* `[RULE-CRAFT-014] [MUST]`: **Diff-Friendly & Patch-Safe Syntax:**
+  - Trailing commas are MANDATORY on the final element of multi-line lists, arguments, collections, and anonymous objects.
+  - Exactly 1 Parameter or Property per line when $\ge 3$ items.
+  - Mandatory curly braces `{ }` on ALL control flow statements, including single-line `if`.
+* `[RULE-CRAFT-015] [MUST]`: **Single Responsibility per File (1 Type = 1 File):** Exactly ONE top-level C# type (class, record, interface, enum) per source file. The file name MUST match the type name 1:1. Bundling enums, DTOs, or child classes in the same file as an aggregate is STRICTLY FORBIDDEN.
 
 ---
 
@@ -519,16 +553,25 @@ public sealed class CreateTemplateUseCase(
 {
     public async Task<TemplateResultDto> ExecuteAsync(CreateTemplateCommand command, CancellationToken ct)
     {
+        // Step 1: P - Preconditions (Fail-fast guards)
         var slug = TemplateSlug.Create(command.Slug);
         if (await templateRepo.ExistsBySlugAsync(command.ProjectId, slug, ct))
         {
             throw new ConflictException($"Template with slug '{command.Slug}' already exists.");
         }
 
+        // Step 2: E - External Retrieval (Deterministic clock & state)
         var now = timeProvider.GetUtcNow();
-        var templateName = TemplateName.Create(command.Name);
-        var template = Template.Create(command.ProjectId, templateName, slug, now);
 
+        // Step 3: M - Mutation (Domain Factory with Named Arguments)
+        var templateName = TemplateName.Create(command.Name);
+        var template = Template.Create(
+            projectId: command.ProjectId,
+            name: templateName,
+            slug: slug,
+            now: now);
+
+        // Step 4: R - Result & Persistence (Single Atomic CommitAsync)
         await templateRepo.AddAsync(template, ct);
         await unitOfWork.CommitAsync(ct);
 
