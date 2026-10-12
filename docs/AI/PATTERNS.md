@@ -1,17 +1,17 @@
 # PATTERNS.md — Canonical Architectural Patterns & Implementation Archetypes
 
 > **[PURPOSE_SCOPE_SSOT]:** Authoritative Pure Backend Architectural Cookbook and Master Generative Blueprint for the SMK Document Server (`backend-v2/`). All frontend Next.js 15.2 / React 19 UI archetypes reside exclusively in [`FRONTEND_SPEC.md`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/FRONTEND_SPEC.md).
-> **[AI_DIRECTIVE]:** AI Assistants (LLMs) and software engineers MUST treat these patterns as immutable golden archetypes. When creating new endpoints, use cases, domain entities, or infrastructure services, you MUST mirror the structural anatomy, naming conventions, and data flows defined here. Never invent alternative architectural patterns.
-> **[UNIVERSAL_SCOPE_DIRECTIVE]:** All patterns, formulas, and archetypes in this document are **UNIVERSAL BLUEPRINTS** that apply across **ALL bounded contexts and domain entities** (including `Template`, `Project`, `Document`, `User`, `ApiKey`, and `AuditLog`). Never assume that an archetype or naming rule is exclusive to the specific entity shown in the example.
+> **[AI_DIRECTIVE]:** AI Assistants (LLMs) and software engineers MUST treat these patterns as immutable golden archetypes. When creating new endpoints, use cases, domain entities, or infrastructure services, mirror the structural anatomy, naming conventions, and data flows defined here.
+> **[UNIVERSAL_SCOPE_DIRECTIVE]:** All patterns, formulas, and archetypes in this document are **UNIVERSAL BLUEPRINTS** that apply across **ALL bounded contexts and domain entities** (including `Template`, `Project`, `Document`, `User`, `ApiKey`, and `AuditLog`).
 > **[ORTHOGONAL_ROLE]:** This document functions as the **Macro-Assembler & Generative Feature-Slice Factory** (multi-file slice assembly, layer contracts, and testing blueprints). For single-line AST grammar rules and syntax tokens, consult [`CODING_CONVENTIONS.md`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/CODING_CONVENTIONS.md).
 
 ---
 
-<patterns_cognitive_framing>
+<system_topology_and_inward_flow>
 ## 1. 🏛️ Level 1: System Topology & Inward Dependency Flow
 
 ### Clean Architecture Inward Flow Invariant
-The SMK Document Server strictly implements Clean Architecture with Dependency Inversion. Domain Core remains 100% isolated POCOs with ZERO external dependencies:
+The SMK Document Server implements Clean Architecture with Dependency Inversion. Domain Core remains isolated framework-free POCOs:
 
 ```mermaid
 graph TD
@@ -51,45 +51,37 @@ graph TD
 ```
 
 ### Architectural Invariants Checklist
-1. **Inward Dependency Invariant:** Dependencies flow strictly inward. `SmkDoc.Domain` references ZERO external assemblies, NuGet packages, or infrastructure libraries.
-2. **Stateless Rendering:** Preview endpoints (`PreviewDocumentUseCase`) MUST remain 100% in-memory. NEVER write to PostgreSQL or MinIO during preview.
-3. **Centralized Localization:** All Thai formatting (Buddhist Era dates, Baht text, phone formatting) MUST route through `ThaiDataTransformer`. NEVER implement inline formatting logic inside templates.
-4. **Engine Extensibility (OCP):** Engine selection is resolved dynamically via `IEnumerable<IRenderEngine>`. NEVER use hardcoded `switch` or `if-else` chains.
-5. **Stream over RAM:** Gotenberg and MinIO payloads MUST be streamed directly to HTTP responses. Buffering multi-MB documents into memory (`byte[]`) is STRICTLY PROHIBITED.
-6. **Non-Blocking Asynchronous I/O:** All network and disk operations MUST be asynchronous and accept `CancellationToken ct = default`. NEVER block threads with `.Result` or `.Wait()`.
+1. **Inward Dependency Invariant:** Dependencies flow strictly inward. `SmkDoc.Domain` references zero external assemblies, NuGet packages, or infrastructure libraries.
+2. **Stateless Rendering:** Execute preview workflows (`PreviewDocumentUseCase`) 100% in-memory without persisting to PostgreSQL or MinIO.
+3. **Centralized Localization:** Route all Thai formatting (Buddhist Era dates, Baht text, phone formatting) through `ThaiDataTransformer`.
+4. **Engine Extensibility (OCP):** Resolve engine selection dynamically via `IEnumerable<IRenderEngine>`.
+5. **Stream over RAM:** Stream Gotenberg and MinIO payloads directly to HTTP responses via `Stream.CopyToAsync(response.Body, ct)`.
+6. **Non-Blocking Asynchronous I/O:** Execute all network and disk operations asynchronously accepting `CancellationToken ct = default`.
 
 ### Pattern Severity Tiers (Cognitive Constraint Hierarchy)
 * **`[TIER-1-FATAL]` (Process & Memory Safety):** Zero LOH memory buffering (`RULE-MEM-001`), atomic Unit of Work commit (`RULE-UOW-002`), rich domain encapsulation (`RULE-DOM-002`), compile-time typed API responses (`RULE-API-002`).
 * **`[TIER-2-ARCH]` (Layer & Boundary Integrity):** Strict 5-file slice separation (Presentation ➔ Application ➔ Domain ➔ Infrastructure), inward dependency flow, polymorphic strategy resolution.
 * **`[TIER-3-WIRING]` (Syntactic & Property Symmetry):** 1:1 property names across layer boundaries, C# 13 primary constructor formatting with pure `camelCase`, explicit local variable instantiation.
-</patterns_cognitive_framing>
+</system_topology_and_inward_flow>
 
 ---
 
-<master_feature_slice_blueprint>
-## 2. 💎 Level 2: Master 5-File Feature Slice Trace (Wiring Blueprint)
+<master_feature_slice_pipeline>
+## 2. 💎 Level 2: Master 5-File Feature Slice Pipeline
 
-> **[ARCHITECTURAL_BLUEPRINT]:** A standard business feature slice in `smk-doc-server` consists of exactly 5 interconnected files across Clean Architecture layers. When generating a feature slice, preserve 1:1 property symmetry without inventing intermediary translation glue:
+> **[ARCHITECTURAL_BLUEPRINT]:** A standard business feature slice in `smk-doc-server` consists of exactly 5 interconnected files across Clean Architecture layers. Preserve 1:1 property symmetry without inventing intermediary translation glue:
 
-```text
-[1. Wire HTTP Request] ──(Map in Controller)──► [2. CQRS Command & Validator] ──(Pass to UseCase)──► [3. UseCase Orchestrator]
-SmkDoc.Api/Contracts                            SmkDoc.Application/Commands                           SmkDoc.Application/UseCases
-CreateTemplateRequest                           CreateTemplateCommand                                 CreateTemplateUseCase.ExecuteAsync
-  ├─ projectId: Guid ─────────────────────────────├─ ProjectId: Guid ───────────────────────────────────├─ P: Preconditions (Guards)
-  ├─ name: string ────────────────────────────────├─ Name: string ──────────────────────────────────────├─ E: External Retrieval
-  ├─ slug: string ────────────────────────────────├─ Slug: string ──────────────────────────────────────├─ M: Domain Mutation ──┐
-  └─ category: string? ───────────────────────────└─ Category: string? ─────────────────────────────────└─ R: Persistence/Result│
-                                                                                                                                 │
-[5. Thin Controller] ◄──(Wrap in Envelope)───── [4. Output Result DTO] ◄────────(Project Domain State)── [Domain Aggregate Root] ◄──┘
-SmkDoc.Api/Controllers                          SmkDoc.Application/DTOs                               SmkDoc.Domain/Entities
-TemplateController.Create                       TemplateResultDto                                     Template.Create(...)
-  └─ TypedResults.Created(location, response)     ├─ Id: Guid ◄─────────────────────────────────────────├─ Id: Guid (UUIDv7)
-       └─ response: ApiResponse<ResultDto>        ├─ Name: string ◄─────────────────────────────────────├─ Name.Value: string
-                                                  └─ CreatedAt: DateTimeOffset ◄────────────────────────└─ CreatedAt: DateTimeOffset
+```mermaid
+flowchart LR
+    Req["1. CreateTemplateRequest<br/>(Presentation Contract)"] -->|"Map in Controller"| Cmd["2. CreateTemplateCommand<br/>(Application Contract)"]
+    Cmd -->|"ExecuteAsync"| UC["3. CreateTemplateUseCase<br/>(PEMR Cadence)"]
+    UC -->|"Template.Create()"| Ent["Domain Aggregate Root<br/>(Template.cs)"]
+    Ent -->|"Project State"| Dto["4. TemplateResultDto<br/>(Application DTO)"]
+    Dto -->|"Wrap in Envelope"| Res["5. TypedResults.Created<br/>(Presentation Egress)"]
 ```
 
 ### PEMR Orchestration Lifecycle Formula
-Every UseCase in `SmkDoc.Application` MUST execute business logic in strict **PEMR** sequence:
+Every UseCase in `SmkDoc.Application` executes business logic in strict **PEMR** sequence:
 1. **P (Preconditions):** Fail-fast parameter inspection, tenant boundary verification, existence checks.
 2. **E (External Retrieval):** Fetch required aggregates via repositories using `.AsNoTracking()` (or tracked only if intended for mutation). Query `timeProvider`.
 3. **M (Domain Mutation):** Instantiate or mutate Domain Aggregates via canonical factory methods (`Create(...)`) or domain verbs (`Publish(...)`).
@@ -104,12 +96,12 @@ Every UseCase in `SmkDoc.Application` MUST execute business logic in strict **PE
 | **Business Payload** | `request.Payload` | `command.Payload` | `payload: command.Payload` | `result.Payload` | `response.Data.Payload` |
 | **Document Format** | `request.OutputFormat` | `command.OutputFormat` | `outputFormat: command.OutputFormat` | `result.OutputFormat` | `response.Data.OutputFormat` |
 | **Audit Timestamp** | *(Client omits)* | *(System stamps)* | `now: timeProvider.GetUtcNow()` | `result.CreatedAt` | `response.Data.CreatedAt` |
-</master_feature_slice_blueprint>
+</master_feature_slice_pipeline>
 
 ---
 
-<backend_lifecycle_archetypes>
-## 3. 🔵 Level 3: The 10 Canonical Backend Lifecycle Archetypes
+<generative_feature_archetypes>
+## 3. 🔵 Level 3: The 10 Canonical Backend Generative Archetypes
 
 ```mermaid
 graph LR
@@ -217,8 +209,8 @@ public sealed class TemplateController(
 <archetype_2_rfc_9457_global_exception_pipeline>
 #### Archetype 2: RFC 9457 Global Exception Pipeline (`IExceptionHandler` SSoT)
 
-*   **Intent & Scope:** Centralized exception egress translating strongly-typed Domain Exceptions directly into RFC 9457 `ProblemDetails`. Catching exceptions inside controllers to return anonymous JSON is STRICTLY PROHIBITED.
-*   **Formula:** Throw strongly-typed Domain Exceptions from Domain or Application layers. `GlobalExceptionHandler` interceptor automatically formats the HTTP payload.
+*   **Intent & Scope:** Centralized exception egress translating strongly-typed Domain Exceptions directly into RFC 9457 `ProblemDetails`. Dispatched automatically by `GlobalExceptionHandler`.
+*   **Formula:** Throw strongly-typed Domain Exceptions from Domain or Application layers.
 
 ##### SSoT Domain Exception Taxonomy & HTTP Mapping:
 | Domain Exception Class | Target HTTP Status | Canonical `errorCode` Token | Trigger Scenario |
@@ -281,7 +273,7 @@ public async Task<Created<ApiResponse<TemplateResultDto>>> Create(
 <archetype_4_pure_rich_domain_entity>
 #### Archetype 4: Pure Rich Domain Entity & Value Object Pattern
 
-*   **Intent & Scope:** The heart of the system. Pure C# POCO with ZERO dependencies on EF Core, ASP.NET Core, or 3rd-party packages. State is strictly encapsulated (`private set;`). State creation occurs exclusively through exactly ONE canonical `Create(...)` factory method; state mutation occurs exclusively through expressive domain verbs receiving explicit dependencies (`DateTimeOffset now`).
+*   **Intent & Scope:** Pure C# POCO with zero external dependencies. State is strictly encapsulated (`private set;`). State creation occurs exclusively through exactly ONE canonical `Create(...)` factory method; state mutation occurs exclusively through expressive domain verbs receiving explicit dependencies (`DateTimeOffset now`).
 *   **Formula:** `public sealed class {Entity}` with `Guid.CreateVersion7()` and `readonly record struct` Value Objects.
 
 ```csharp
@@ -576,7 +568,7 @@ public sealed class CreateTemplateValidator : AbstractValidator<CreateTemplateCo
 <archetype_8_zero_loh_stream_over_ram_direct_pipeline>
 #### Archetype 8: Zero-LOH Stream-over-RAM Direct Pipeline
 
-*   **Intent & Scope:** High-throughput document streaming. Document generation payloads routinely exceed the 85,000-byte Large Object Heap (LOH) threshold. Buffering multi-MB documents into memory (`byte[]`, `new MemoryStream()`, `stream.ToArray()`) is STRICTLY PROHIBITED. Payloads MUST be streamed directly to HTTP responses.
+*   **Intent & Scope:** High-throughput document streaming. Stream payloads directly to HTTP responses to preserve Large Object Heap (LOH) health without buffering in memory.
 *   **Formula:** Gotenberg / MinIO ➔ `Stream` ➔ `Stream.CopyToAsync(response.Body, ct)`.
 
 ```csharp
@@ -728,9 +720,11 @@ public sealed class CreateTemplateUseCaseTests
 }
 ```
 </archetype_10_gold_standard_cqrs_unit_testing_pattern>
+</generative_feature_archetypes>
 
 ---
 
+<specialized_production_recipes>
 ## 4. 🚀 Level 4: Specialized Production Recipes
 
 ### Recipe 1: Type-Safe Smart Enums & Polymorphic Dispatch
@@ -837,10 +831,12 @@ public static class ResilienceConfiguration
     }
 }
 ```
+</specialized_production_recipes>
 
 ---
 
-## 5. 🔄 Level 5: Cross-Document Living Integration Matrix
+<cross_document_integration_matrix>
+## 5. 🔄 Level 5: Cross-Document Integration Matrix
 
 | Document Path | Governed SSoT Layer | Synchronization Trigger |
 |---|---|---|
@@ -848,3 +844,4 @@ public static class ResilienceConfiguration
 | [`API_CONTRACT.md`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/API_CONTRACT.md) | Wire HTTP Endpoints, DTO Schemas, RFC 9457 Codes | Adding or mutating Controller actions or Request DTOs |
 | [`DB_SCHEMA.md`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/DB_SCHEMA.md) | Relational Tables, Indexes, Migrations, Postgres Types | Adding or mutating Entity fields or EF Core Configurations |
 | [`ANTI-PATTERNS.md`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/ANTI-PATTERNS.md) | Negative Quality Guardrails (PR Review Shield) | Identifying recurring defects or anti-patterns |
+</cross_document_integration_matrix>
