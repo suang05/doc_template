@@ -5,86 +5,26 @@
 > **[EXCLUSION]:** Frontend conventions (Next.js 15, TypeScript 5.7, Zod schemas) are strictly isolated in `docs/AI/FRONTEND_SPEC.md`. Do NOT consult this file for frontend UI code.
 > **[ENFORCEMENT]:** LLMs and engineers MUST obey all RFC 2119 keywords (`[MUST]`, `[MUST NOT]`). Every rule carries a machine-traceable token `RULE-[CATEGORY]-[ID]`.
 
-<ai_directive>
-CRITICAL ATTENTION ROUTING FOR LLM:
-1. Treat `<llm_gatekeeper_directive>`, `<tech_stack>`, `<clean_architecture_invariants>`, `<solid_craftsmanship_matrix>`, `<backend_rules>`, and `<naming_ssot>` as immutable system constraints.
-2. Every generated C# file MUST satisfy all `[MUST]` rules and NEVER violate any `[MUST NOT]` rules or Forbidden Anti-Patterns (❌).
-3. For architectural wiring templates and multi-file interaction recipes, refer to `docs/AI/PATTERNS.md`.
-4. For API routes, DTO contracts, and error taxonomies, refer to `docs/AI/API_CONTRACT.md`.
-</ai_directive>
+---
+
+<ai_cognitive_framing>
+## 🧠 AI Cognitive Framing & Attention Routing
+
+### Operational Modes & Attention Budget
+When processing this specification, the LLM MUST determine its active operational mode:
+1. **`[MODE: CODE_GENERATION]`**: Focus attention strictly on `<tech_stack_invariants>`, `<syntax_substitution_map>`, `<clean_architecture_invariants>`, `<backend_engineering_rules>`, `<naming_and_identifier_ssot>`, and `<golden_spec>`. Suppress auditor output templates.
+2. **`[MODE: CODE_AUDIT_LINT]`**: Activate `<llm_auditor_protocol>` to halt, intercept, and emit structured `🚨 [ARCHITECTURAL_VIOLATION_DETECTED]` remediation blocks.
+
+### Rule Severity Tiers (Cognitive Constraint Hierarchy)
+To prevent constraint collapse during complex generation tasks, resolve priority collisions using this hierarchy:
+* **`[TIER-1-FATAL]` (Process & Memory Integrity):** Zero LOH allocations (`RULE-MEM`), DbContext thread isolation (`RULE-CONC-001`), non-blocking async (`RULE-CRAFT-005`), rich domain encapsulation (`RULE-DOM-002`), single atomic commit (`RULE-UOW-002`).
+* **`[TIER-2-ARCH]` (Clean Architecture Boundaries):** Inward dependency flow (`RULE-ARCH`), DTO layer isolation (`RULE-DTO`), action-centric UseCases (`RULE-SOLID-001`), strategy rendering (`RULE-PAT-001`).
+* **`[TIER-3-CRAFT]` (Syntactic & AI Ergonomics):** Named arguments on primitives (`RULE-CRAFT-012`), Stepdown method order (`RULE-CRAFT-001`), trailing commas & curly braces (`RULE-CRAFT-014`), pure `camelCase` DI parameters (`RULE-APP-002`).
+</ai_cognitive_framing>
 
 ---
 
-<llm_gatekeeper_directive>
-## 0. 🛡️ LLM Gatekeeper & Interception Protocol (Zero-Tolerance Architectural Linter)
-
-> **[SOVEREIGN_SSOT_STATUS]:** This document is the absolute Single Source of Truth (SSoT) for `backend-v2/`. Any existing code in the repository that contradicts this specification is an **Architectural Defect**. Conforming to defective legacy code is strictly forbidden.
-
-### 0.1 Anti-Conformity Invariant & Proactive Elevation (`RULE-GATE`)
-When inspecting, reviewing, or generating code, the LLM MUST act as the Senior Architect and strictly obey these operational rules:
-
-* `[RULE-GATE-001] [ANTI_CONFORMITY] [MUST NOT]`: NEVER conform to defective legacy patterns. NEVER ask or suggest: *"Should I keep this consistent with the existing code?"*. Existing code that violates this document MUST be treated as an architectural violation.
-* `[RULE-GATE-002] [PROACTIVE_ELEVATION] [MUST]`: ALWAYS proactively advocate for and recommend elevating non-compliant code to adhere to this SSoT or an objectively superior modern architectural standard.
-* `[RULE-GATE-003] [INTERCEPTION_SEQUENCE] [MUST]`: Upon detecting any architectural defect, execute this deterministic 4-step sequence:
-  1. **Halt & Flag:** Stop immediate execution. State exact file, line number, and rule violation ID (`[RULE-...]`).
-  2. **Technical Impact Explanation:** Explain root-cause architectural hazards (e.g. LOH fragmentation, thread pool starvation, leaky abstraction, broken testability).
-  3. **Elevated Remediation:** Provide complete compilable code comparing `❌ Defective Legacy Pattern (Forbidden)` against `✅ SSoT Canonical Standard (Mandatory)`.
-  4. **Architectural Rationale:** Articulate why the elevated approach is superior to conforming to legacy code.
-* `[RULE-GATE-004] [FEARLESS_REFACTORING] [MUST]`: Boldly propose refactoring or rewriting fundamentally flawed structures (e.g. Anemic Domain Models, God classes, public setters) instead of applying band-aid patches.
-
----
-
-### 0.2 High-Priority Interception Trigger Matrix
-The LLM MUST intercept and flag execution immediately upon detecting any of the following anti-patterns:
-
-| Architectural Concern | Defective Pattern (❌ Forbidden) | SSoT Canonical Standard (✅ Mandatory) | Rule ID |
-|---|---|---|---|
-| **Domain State** | Entity with `public set;` or parameterless constructor (Anemic Model) | Rich Domain Model, `private/protected set`, factory method `Create(...)` | `[RULE-DOM-001]` |
-| **Layer Boundary** | Exposing Domain Entity to Presentation or returning from UseCase | Return immutable Application DTO (`TemplateResultDto`) exclusively | `[RULE-ARCH-002]` |
-| **Constructor DI** | Prefixing parameters with underscore `_` (e.g. `_repo`, `_logger`) | Pure `camelCase` parameters (e.g. `templateRepo`, `logger`) | `[RULE-NAME-003]` |
-| **Clock Queries** | Direct calls to `DateTime.UtcNow` or `DateTimeOffset.UtcNow` | Inject `TimeProvider` or pass explicit `DateTimeOffset now` dependency | `[RULE-DOM-003]` |
-| **Thread Blocking** | Synchronous blocking via `.Result`, `.Wait()`, `.GetAwaiter().GetResult()` | Asynchronous non-blocking `await` across all I/O boundaries | `[RULE-CRAFT-005]` |
-| **Memory / LOH** | In-memory document buffering via `new MemoryStream()`, `byte[]` | Direct stream piping from Gotenberg/MinIO via `Stream` or `ArrayPool` | `[RULE-MEM-001]` |
-| **DbContext Concurrency**| Concurrent tasks (`Task.WhenAll`) executed on single `DbContext` instance | Sequential execution or independent DI scopes per concurrent worker | `[RULE-CONC-001]` |
-| **Token Dropping** | Omitting `ct` in downstream LINQ (`ToListAsync()`) or nested async calls | Propagate `CancellationToken ct` to all terminal async operations | `[RULE-CONC-003]` |
-| **Fire-and-Forget Scope**| `_ = Task.Run(...)` capturing Scoped DI dependencies (`DbContext`) | Dispatch via `Channel<T>` to `BackgroundService` or create explicit scope | `[RULE-CONC-004]` |
-| **Query Tracking / Eval**| Querying without `.AsNoTracking()` or client-side LINQ evaluation | Mandatory `.AsNoTracking()` and SQL-translatable expressions | `[RULE-INFRA-005]` |
-| **Transaction Boundary** | Invoking `unitOfWork.CommitAsync()` multiple times in one UseCase | Exactly 1 atomic `CommitAsync(ct)` per UseCase execution | `[RULE-UOW-002]` |
-| **Mass Assignment** | Binding request/command DTOs directly to mutate entity properties | Expressive domain verbs with explicit permitted parameters | `[RULE-SEC-003]` |
-| **Aggregate Boundary** | Cross-aggregate navigation properties or child entity repositories | ID-only references (`Guid ProjectId`) and aggregate root mediation | `[RULE-DOM-009]` |
-| **Parameter Swapping** | Passing positional parameters of identical primitive type out-of-order | Mandatory C# Named Arguments (`projectId: command.ProjectId`) | `[RULE-CRAFT-012]` |
-| **Ghost Utilities** | Invoking hallucinated extension methods or static helpers | Use verified framework APIs or declared codebase utilities exclusively | `[RULE-CRAFT-013]` |
-| **Variable Identifiers** | Truncated abbreviations (`req`, `dto`, `res`, `cancellationToken`) | Standard identifiers: `request`, `result`, `CancellationToken ct` | `[RULE-NAME-002]` |
-| **Object Instantiation** | Inlined nested object instantiation inside method call invocations | Instantiate into explicit, strongly-typed local variables first | `[RULE-CRAFT-002]` |
-| **Error Contracts** | Empty `catch { }` blocks or anonymous JSON error payloads | Throw Domain Exceptions; map to RFC 9457 `ProblemDetails` | `[RULE-API-002]` |
-| **Regex Safety (ReDoS)** | Dynamic `new Regex(pattern)` in hot paths or omitting timeouts | Source-generated `[GeneratedRegex]` with explicit evaluation timeout | `[RULE-SEC-002]` |
-
----
-
-### 0.3 Standardized Remediation Response Template
-When intercepting non-compliant code, the LLM MUST use this exact output structure:
-
-```markdown
-🚨 **[ARCHITECTURAL_VIOLATION_DETECTED]:** Defect identified in `{FilePath}:{LineNumber}`
-- **Violated Rule:** `[RULE-CATEGORY-ID]` ({Rule Title})
-- **Technical Impact:** {Detailed explanation: e.g. LOH allocation, thread starvation, leaky abstraction}
-- **Elevated Remediation:**
-  ❌ **Before (Defective Legacy Pattern - Do Not Conform):**
-  ```csharp
-  // Non-compliant code
-  ```
-  ✅ **After (SSoT Canonical Standard):**
-  ```csharp
-  // Elevated compliant code
-  ```
-- **Rationale for Elevation:** {Why conforming to existing code is rejected and how this standard improves system metrics}
-- **Proactive Refactoring Proposal:** {Slice-level refactoring advice if structural rewrites are warranted}
-```
-</llm_gatekeeper_directive>
-
----
-
-<tech_stack>
+<tech_stack_invariants>
 ## 1. 🏗️ System Tech Stack & Language Capabilities (Ground Truth)
 
 All C# code generated by LLMs MUST strictly adhere to the following target runtimes and compiler capabilities.
@@ -101,8 +41,36 @@ All C# code generated by LLMs MUST strictly adhere to the following target runti
 * `[RULE-TECH-001] [MUST]`: Use C# 13 language features: Collection expressions `[]`, Primary Constructors on classes, `Lock` object for synchronization.
 * `[RULE-TECH-002] [MUST]`: Use .NET 10 APIs: `TimeProvider` for time queries, `Guid.CreateVersion7()` for UUIDv7 sequential entity keys.
 * `[RULE-TECH-003] [MUST NOT]`: NEVER use deprecated syntax: `new List<T>()`, `new T[] { }`, `DateTime.UtcNow`, `lock (new object())`.
+</tech_stack_invariants>
 
-</tech_stack>
+---
+
+<syntax_substitution_map>
+## ⚡ High-Salience AST Syntax Substitution Map (Pre-Training Override)
+
+> **[COGNITIVE_PURPOSE]:** Direct hash-lookup table designed to immediately override pre-training priors across all Transformer attention heads. Whenever the model contemplates generating a token from the left column, it MUST instantly substitute it with the canonical token from the right column.
+
+| AST Node / Concern | Defective Prior (❌ Trigger Drop) | Canonical Token (✅ Mandatory Target) | Governing Invariant |
+|---|---|---|---|
+| **Primary Ctor DI** | `_repo`, `_logger`, `_unitOfWork` | `templateRepo`, `logger`, `unitOfWork` | Pure `camelCase` parameters. Zero `_` prefix (`RULE-APP-002`) |
+| **Time Query** | `DateTime.UtcNow`, `DateTimeOffset.UtcNow` | `timeProvider.GetUtcNow()`, `DateTimeOffset now` | Zero direct system clock queries (`RULE-APP-005`, `RULE-DOM-005`) |
+| **Collection Init** | `new List<T>()`, `new T[] { }` | `[]` | C# 13 Collection Expressions (`RULE-TECH-001`) |
+| **Memory Buffers** | `new MemoryStream()`, `stream.ToArray()`, `byte[]` | `Stream.CopyToAsync(response.Body, ct)`, `ArrayPool<byte>` | Zero LOH buffer allocations (`RULE-MEM-001`, `RULE-MEM-002`) |
+| **Threading** | `.Result`, `.Wait()`, `.GetAwaiter().GetResult()` | `await` | Non-blocking async execution exclusively (`RULE-CRAFT-005`) |
+| **Cancellation** | `cancellationToken`, `cancelToken`, `None` | `CancellationToken ct` | Mandatory downstream propagation (`RULE-CONC-003`) |
+| **Entity Key** | `Guid.NewGuid()`, auto-increment `int` | `Guid.CreateVersion7()` | Sequential B-tree indexing UUIDv7 (`RULE-DOM-007`) |
+| **Domain State** | `public string Name { get; set; }` | `public TemplateName Name { get; private set; }` | Encapsulated Rich Domain Model (`RULE-DOM-002`) |
+| **Domain Factory** | `new Template(...)` (caller instantiation) | `Template.Create(...)` | Single canonical factory method SSoT (`RULE-DOM-003`) |
+| **Domain Mutation** | Direct property setter outside entity | `template.Archive(now)`, `template.Publish(now)` | Expressive business domain verbs (`RULE-DOM-005`) |
+| **Aggregate Ref** | Navigation property `public Project Project { get; set; }` | Foreign key identifier `public Guid ProjectId { get; private set; }` | Cross-aggregate boundary isolation (`RULE-DOM-009`) |
+| **Read Queries** | `dbContext.Templates.ToList()` | `templateRepo.ListAsync(ct)` with `.AsNoTracking()` | Zero untracked or client-eval LINQ (`RULE-INFRA-005`) |
+| **Transaction** | Multiple `CommitAsync()` in one UseCase | Exactly 1 `await unitOfWork.CommitAsync(ct);` | Single atomic transaction boundary (`RULE-UOW-002`) |
+| **Inlined Calls** | `ExecuteAsync(new CreateTemplateCommand(...))` | `var command = new CreateTemplateCommand(...);` | Explicit local variable instantiation (`RULE-CRAFT-007`) |
+| **Positional Args**| `Method(id1, id2, str1, str2)` | `Method(sourceId: id1, targetId: id2)` | Mandatory Named Arguments on same types (`RULE-CRAFT-012`) |
+| **Regex Parsing** | `new Regex(pattern)` in execution path | `[GeneratedRegex]` with `RegexOptions.NonBacktracking` | ReDoS defense and source-generation (`RULE-SEC-001`) |
+| **Error Egress** | `new { error = "Not found" }`, empty `catch {}` | RFC 9457 `ProblemDetails` via `GlobalExceptionHandler` | Strongly-typed error responses (`RULE-API-003`) |
+| **HTTP Result** | `return Ok(dto);`, empty `204 NoContent` on PUT | `TypedResults.Ok(new ApiResponse<T>(result))` | Strongly-typed RFC 9110 responses (`RULE-API-002`) |
+</syntax_substitution_map>
 
 ---
 
@@ -172,14 +140,9 @@ To eliminate "Mapping Mania" while preventing leaky boundaries, every DTO MUST b
 * `[RULE-DTO-002] [MUST NOT]`: Domain Entities MUST NEVER cross the Application boundary into Presentation. UseCases MUST project entities into `*ResultDto` before returning.
 * `[RULE-DTO-003] [MUST]`: Presentation maps `Request` to `Command` using explicit constructor instantiation or `.ToCommand()` extension method. Zero intermediary boilerplate mapping classes.
 
-</clean_architecture_invariants>
-
 ---
 
-<solid_craftsmanship_matrix>
-## 3. ⚔️ Architectural Craftsmanship Matrix: SOLID, KISS & DRY
-
-### 3.1 SOLID Principles & Defensive Invariants (`RULE-SOLID`)
+### 2.3 SOLID Principles & Defensive Invariants (`RULE-SOLID`)
 
 | Principle | Forbidden Anti-Pattern ❌ | Mandatory Clean Standard ✅ | Rule ID |
 |---|---|---|---|
@@ -191,7 +154,7 @@ To eliminate "Mapping Mania" while preventing leaky boundaries, every DTO MUST b
 
 ---
 
-### 3.2 KISS & Pragmatic Simplicity Invariants (`RULE-KISS`)
+### 2.4 KISS & Pragmatic Simplicity Invariants (`RULE-KISS`)
 
 | Area | Forbidden Over-Engineering ❌ | Mandatory KISS Standard ✅ | Rule ID |
 |---|---|---|---|
@@ -201,7 +164,7 @@ To eliminate "Mapping Mania" while preventing leaky boundaries, every DTO MUST b
 
 ---
 
-### 3.3 DRY & Single Source of Truth Invariants (`RULE-DRY`)
+### 2.5 DRY & Single Source of Truth Invariants (`RULE-DRY`)
 
 | Concern | Forbidden Duplication ❌ | Mandatory SSoT Standard ✅ | Rule ID |
 |---|---|---|---|
@@ -211,7 +174,7 @@ To eliminate "Mapping Mania" while preventing leaky boundaries, every DTO MUST b
 
 ---
 
-### 3.4 Approved Design Patterns Catalog (`RULE-PAT`)
+### 2.6 Approved Design Patterns Catalog (`RULE-PAT`)
 
 All implementations within `smk-doc-server` MUST align with these 5 canonical Design Patterns:
 
@@ -220,15 +183,14 @@ All implementations within `smk-doc-server` MUST align with these 5 canonical De
 * `[RULE-PAT-003] [MUST]`: **Unit of Work Pattern:** Used for database transaction boundaries (`IUnitOfWork.CommitAsync(ct)`). Repositories track changes; UnitOfWork commits atomically.
 * `[RULE-PAT-004] [MUST]`: **Smart Enum Pattern:** Used instead of native C# enums when types possess metadata, behavioral logic, or MIME mappings (e.g. `RenderEngineType`, `TemplateCategory`).
 * `[RULE-PAT-005] [MUST]`: **Result & Envelope Pattern:** Used for all HTTP egress responses (`TypedResults` wrapping `ApiResponse<T>` for success representations; RFC 9457 `ProblemDetails` for errors).
-
-</solid_craftsmanship_matrix>
+</clean_architecture_invariants>
 
 ---
 
-<backend_rules>
-## 4. 🔵 Backend Engineering Rules by Layer (C# 13 / .NET 10)
+<backend_engineering_rules>
+## 3. 🔵 Backend Engineering Rules by Layer (C# 13 / .NET 10)
 
-### 4.1 Domain Layer (`RULE-DOM`)
+### 3.1 Domain Layer (`RULE-DOM`)
 * `[RULE-DOM-001] [MUST]`: Entities MUST be implemented as `public sealed class`. NEVER use `record` for EF Core entities (preserves Change Tracker reference identity).
 * `[RULE-DOM-002] [MUST]`: Encapsulate state strictly. All entity properties MUST have `private set;` or `protected set;`. Public property setters are STRICTLY PROHIBITED.
 * `[RULE-DOM-003] [MUST]`: Expose exactly 1 canonical factory method (`Create`) as the SSoT for entity instantiation. Constructors MUST be `private` or `internal`.
@@ -255,7 +217,7 @@ public sealed class Template
 
     public static Template Create(Guid projectId, TemplateName name, TemplateSlug slug, DateTimeOffset now)
     {
-        if (projectId == Guid.Empty) throw new DomainValidationException("ProjectId cannot be empty");
+        if (projectId == Guid.Empty) throw new DomainValidationException("ProjectId cannot be empty.");
         
         return new Template
         {
@@ -279,7 +241,7 @@ public sealed class Template
 
 ---
 
-### 4.2 Application Layer (`RULE-APP`)
+### 3.2 Application Layer (`RULE-APP`)
 * `[RULE-APP-001] [MUST]`: Every UseCase MUST be a `public sealed class` implementing `IUseCase<TCommand, TResult>`.
 * `[RULE-APP-002] [MUST]`: UseCases MUST use C# 13 Primary Constructors with pure `camelCase` parameters. Backing fields and underscore prefixes (`_`) are STRICTLY FORBIDDEN.
 * `[RULE-APP-003] [MUST]`: Commands, Queries, and Output DTOs MUST be implemented as positional records (`public sealed record`).
@@ -312,7 +274,11 @@ public sealed class CreateTemplateUseCase(
 
         var now = timeProvider.GetUtcNow();
         var templateName = TemplateName.Create(command.Name);
-        var template = Template.Create(command.ProjectId, templateName, slug, now);
+        var template = Template.Create(
+            projectId: command.ProjectId,
+            name: templateName,
+            slug: slug,
+            now: now);
 
         await templateRepo.AddAsync(template, ct);
         await unitOfWork.CommitAsync(ct);
@@ -324,7 +290,7 @@ public sealed class CreateTemplateUseCase(
 
 ---
 
-### 4.3 Infrastructure Layer (`RULE-INFRA`)
+### 3.3 Infrastructure Layer (`RULE-INFRA`)
 * `[RULE-INFRA-001] [MUST]`: Infrastructure services MUST implement interfaces defined by Domain or Application (Repository, UnitOfWork, RenderEngine, StorageService).
 * `[RULE-INFRA-002] [MUST]`: Map EF Core entities exclusively using `IEntityTypeConfiguration<T>` via the Fluent API. Data annotations (`[Table]`, `[Key]`, `[Column]`) on Domain Entities are STRICTLY FORBIDDEN.
 * `[RULE-INFRA-003] [MUST]`: Persistence transaction boundaries MUST be committed via `IUnitOfWork.CommitAsync(ct)`. Repositories MUST NOT call `SaveChangesAsync()` independently.
@@ -336,7 +302,7 @@ public sealed class CreateTemplateUseCase(
 
 ---
 
-### 4.4 Presentation Layer (`RULE-API`)
+### 3.4 Presentation Layer (`RULE-API`)
 * `[RULE-API-001] [MUST]`: Controllers MUST remain ultra-thin ($\le 5$ lines per action body). All workflow logic MUST be delegated to UseCases.
 * `[RULE-API-002] [MUST]`: RFC 9110 HTTP Status & Representation Semantics using `TypedResults`:
   - `GET`: Return `Task<Ok<ApiResponse<T>>>` or `Task<Ok<PagedApiResponse<T>>>` via `TypedResults.Ok(...)`.
@@ -371,7 +337,7 @@ public sealed class TemplateController(
 
 ---
 
-### 4.5 3-Tier Validation Hierarchy & Thai Compliance (`RULE-VAL`)
+### 3.5 3-Tier Validation Hierarchy & Thai Compliance (`RULE-VAL`)
 
 * `[RULE-VAL-001] [MUST]`: Enforce 3-Tier Validation Pipeline:
   - **Tier 1 (Syntax & Shape):** `FluentValidation` at Presentation boundary (null checks, string lengths, ranges, regex). Failures return HTTP 400 with `errorCode: "VALIDATION_FAILED"`.
@@ -382,7 +348,7 @@ public sealed class TemplateController(
 
 ---
 
-### 4.6 High-Performance Memory & LOH Hygiene (`RULE-MEM`)
+### 3.6 High-Performance Memory & LOH Hygiene (`RULE-MEM`)
 
 Document payloads routinely exceed the 85,000-byte threshold, placing them on the Large Object Heap (LOH). Memory leaks here cause process-freezing Gen 2 GC pauses.
 
@@ -392,7 +358,7 @@ Document payloads routinely exceed the 85,000-byte threshold, placing them on th
 
 ---
 
-### 4.7 Concurrency & DbContext Thread-Safety (`RULE-CONC`)
+### 3.7 Concurrency & DbContext Thread-Safety (`RULE-CONC`)
 
 * `[RULE-CONC-001] [MUST NOT]`: EF Core `DbContext` is NOT thread-safe. Concurrent asynchronous execution using the same scoped `DbContext` instance (e.g. `Task.WhenAll` with repository calls) is STRICTLY PROHIBITED.
 * `[RULE-CONC-002] [MUST]`: Execute queries on a scoped `DbContext` sequentially, OR inject `IDbContextFactory<SmkDocDbContext>` to spawn isolated short-lived contexts for concurrent workers.
@@ -401,7 +367,7 @@ Document payloads routinely exceed the 85,000-byte threshold, placing them on th
 
 ---
 
-### 4.8 Structured Logging & Observability (`RULE-LOG`)
+### 3.8 Structured Logging & Observability (`RULE-LOG`)
 
 * `[RULE-LOG-001] [MUST]`: All logging MUST use semantic structured message templates with named property tokens (e.g., `logger.LogInformation("Rendered template {TemplateId} in {ElapsedMs}ms", templateId, sw.ElapsedMilliseconds)`).
 * `[RULE-LOG-002] [MUST NOT]`: String interpolation (`$"..."`) inside `ILogger` calls is STRICTLY PROHIBITED (destroys telemetry indexability).
@@ -409,7 +375,7 @@ Document payloads routinely exceed the 85,000-byte threshold, placing them on th
 
 ---
 
-### 4.9 Code-Level Security & ReDoS Defense (`RULE-SEC`)
+### 3.9 Code-Level Security & ReDoS Defense (`RULE-SEC`)
 
 * `[RULE-SEC-001] [MUST]`: All regular expressions for slug, token, or template parsing MUST use .NET Source Generators (`[GeneratedRegex]`) with `RegexOptions.NonBacktracking` to eliminate ReDoS vulnerabilities.
 * `[RULE-SEC-002] [MUST NOT]`: Production error responses MUST NEVER leak CLR stack traces, database connection strings, or SQL queries inside RFC 9457 `detail`. Dispatched exclusively via `IExceptionHandler` (`GlobalExceptionHandler`).
@@ -417,7 +383,7 @@ Document payloads routinely exceed the 85,000-byte threshold, placing them on th
 
 ---
 
-### 4.10 The 15 Invariants of Code Craftsmanship & AI-Native Ergonomics (`RULE-CRAFT`)
+### 3.10 The 15 Invariants of Code Craftsmanship & AI-Native Ergonomics (`RULE-CRAFT`)
 
 Every LLM-generated method and class MUST conform to all 15 craftsmanship and AI-native ergonomics invariants without exception:
 
@@ -446,20 +412,19 @@ Every LLM-generated method and class MUST conform to all 15 craftsmanship and AI
 
 ---
 
-### 4.11 Unit Testing Craftsmanship (`RULE-TEST`)
+### 3.11 Unit Testing Craftsmanship (`RULE-TEST`)
 * `[RULE-TEST-001] [MUST]`: Test names MUST follow the 3-part structure: `MethodUnderTest_StateUnderTest_ExpectedBehavior`.
 * `[RULE-TEST-002] [MUST]`: Visually divide every test using explicit AAA comments (`// Arrange`, `// Act`, `// Assert`) separated by blank lines.
 * `[RULE-TEST-003] [MUST]`: Assertions MUST use `FluentAssertions` exclusively (e.g. `result.Should().NotBeNull()`). Legacy `Assert.Equal()` is BANNED.
 * `[RULE-TEST-004] [MUST NOT]`: Zero I/O in unit tests. Mock all infrastructure interfaces; instantiate Domain Entities and DTOs directly.
-
-</backend_rules>
+</backend_engineering_rules>
 
 ---
 
-<naming_ssot>
-## 5. 🏷️ Unified Anti-Hallucination Naming Matrix (SSoT)
+<naming_and_identifier_ssot>
+## 4. 🏷️ Unified Anti-Hallucination Naming Matrix (SSoT)
 
-### 5.1 The 6 Pillars Naming Matrix
+### 4.1 The 6 Pillars Naming Matrix
 | Element / Artifact | Layer / Scope | Convention | Canonical Example |
 |---|---|---|---|
 | **Domain Entities** | Domain | Singular `PascalCase` | `Template`, `DocumentLog` |
@@ -478,7 +443,7 @@ Every LLM-generated method and class MUST conform to all 15 craftsmanship and AI
 
 ---
 
-### 5.2 Canonical Operations & Verbs Dictionary
+### 4.2 Canonical Operations & Verbs Dictionary
 | Operation Intent | STRICT Canonical Verb | Forbidden Synonyms ❌ | Scope |
 |---|---|---|---|
 | Retrieve single entity by ID | **`GetByIdAsync`** | `Fetch`, `Retrieve`, `FindById`, `Load`, `GetSingle` | Repositories, Queries |
@@ -491,7 +456,7 @@ Every LLM-generated method and class MUST conform to all 15 craftsmanship and AI
 
 ---
 
-### 5.3 Strict Variable Identifier Dictionary
+### 4.3 Strict Variable Identifier Dictionary
 | Type / Context | STRICT Variable Name | Forbidden / Banned Names ❌ | Rationale |
 |---|---|---|---|
 | **CQRS Command** (`*Command`) | `command` | `cmd`, `req`, `request`, `payload`, `c` | Disambiguates Command from HTTP Request |
@@ -505,7 +470,7 @@ Every LLM-generated method and class MUST conform to all 15 craftsmanship and AI
 
 ---
 
-### 5.4 Contract Property Symmetry (Zero Translation Glue)
+### 4.4 Contract Property Symmetry (Zero Translation Glue)
 Concept names MUST retain identical identifiers across every layer boundary:
 $$\text{HTTP Request: } \texttt{payload} \longrightarrow \text{Command: } \texttt{Payload} \longrightarrow \text{Domain: } \texttt{Payload} \longrightarrow \text{Result: } \texttt{Payload}$$
 $$\text{HTTP Request: } \texttt{outputFormat} \longrightarrow \text{Command: } \texttt{OutputFormat} \longrightarrow \text{Domain: } \texttt{OutputFormat} \longrightarrow \text{Result: } \texttt{OutputFormat}$$
@@ -515,13 +480,12 @@ $$\text{HTTP Request: } \texttt{outputFormat} \longrightarrow \text{Command: } \
 | `data`, `info`, `obj`, `stuff` | `payload` | All Layers | Business domain JSON payload interpolated into template |
 | `output`, `type`, `format` | `outputFormat` | All Layers | Target document format specifier (`pdf`, `docx`, `xlsx`) |
 | `ref`, `docNumber`, `doc_id` | `documentRef` / `correlationId` | All Layers | Idempotent generation tracking reference |
-
-</naming_ssot>
+</naming_and_identifier_ssot>
 
 ---
 
 <golden_spec>
-## 6. 💎 Canonical End-to-End Implementation Spec
+## 5. 💎 Canonical End-to-End Implementation Spec
 
 This end-to-end trace illustrates how an operation satisfies all Clean Architecture invariants and naming rules from HTTP ingress down to persistence:
 
@@ -610,6 +574,75 @@ public sealed class Template
 
 ---
 
+<llm_auditor_protocol>
+## 6. 🛡️ LLM Gatekeeper & Interception Protocol (Zero-Tolerance Architectural Linter)
+
+> **[ACTIVATION_TRIGGER]:** This section applies when the LLM operates under `[MODE: CODE_AUDIT_LINT]` or when evaluating legacy codebase files.
+
+### 6.1 Anti-Conformity Invariant & Proactive Elevation (`RULE-GATE`)
+When inspecting, reviewing, or refactoring code, the LLM MUST act as the Senior Architect and strictly obey these operational rules:
+
+* `[RULE-GATE-001] [ANTI_CONFORMITY] [MUST NOT]`: NEVER conform to defective legacy patterns. NEVER ask or suggest: *"Should I keep this consistent with the existing code?"*. Existing code that violates this document MUST be treated as an architectural violation.
+* `[RULE-GATE-002] [PROACTIVE_ELEVATION] [MUST]`: ALWAYS proactively advocate for and recommend elevating non-compliant code to adhere to this SSoT or an objectively superior modern architectural standard.
+* `[RULE-GATE-003] [INTERCEPTION_SEQUENCE] [MUST]`: Upon detecting any architectural defect, execute this deterministic 4-step sequence:
+  1. **Halt & Flag:** Stop immediate execution. State exact file, line number, and rule violation ID (`[RULE-...]`).
+  2. **Technical Impact Explanation:** Explain root-cause architectural hazards (e.g. LOH fragmentation, thread pool starvation, leaky abstraction, broken testability).
+  3. **Elevated Remediation:** Provide complete compilable code comparing `❌ Defective Legacy Pattern (Forbidden)` against `✅ SSoT Canonical Standard (Mandatory)`.
+  4. **Architectural Rationale:** Articulate why the elevated approach is superior to conforming to legacy code.
+* `[RULE-GATE-004] [FEARLESS_REFACTORING] [MUST]`: Boldly propose refactoring or rewriting fundamentally flawed structures (e.g. Anemic Domain Models, God classes, public setters) instead of applying band-aid patches.
+
+---
+
+### 6.2 High-Priority Interception Trigger Matrix
+The LLM MUST intercept and flag execution immediately upon detecting any of the following anti-patterns:
+
+| Architectural Concern | Defective Pattern (❌ Forbidden) | SSoT Canonical Standard (✅ Mandatory) | Rule ID |
+|---|---|---|---|
+| **Domain State** | Entity with `public set;` or parameterless constructor (Anemic Model) | Rich Domain Model, `private/protected set`, factory method `Create(...)` | `[RULE-DOM-001]` |
+| **Layer Boundary** | Exposing Domain Entity to Presentation or returning from UseCase | Return immutable Application DTO (`TemplateResultDto`) exclusively | `[RULE-ARCH-002]` |
+| **Constructor DI** | Prefixing parameters with underscore `_` (e.g. `_repo`, `_logger`) | Pure `camelCase` parameters (e.g. `templateRepo`, `logger`) | `[RULE-NAME-003]` |
+| **Clock Queries** | Direct calls to `DateTime.UtcNow` or `DateTimeOffset.UtcNow` | Inject `TimeProvider` or pass explicit `DateTimeOffset now` dependency | `[RULE-DOM-003]` |
+| **Thread Blocking** | Synchronous blocking via `.Result`, `.Wait()`, `.GetAwaiter().GetResult()` | Asynchronous non-blocking `await` across all I/O boundaries | `[RULE-CRAFT-005]` |
+| **Memory / LOH** | In-memory document buffering via `new MemoryStream()`, `byte[]` | Direct stream piping from Gotenberg/MinIO via `Stream` or `ArrayPool` | `[RULE-MEM-001]` |
+| **DbContext Concurrency**| Concurrent tasks (`Task.WhenAll`) executed on single `DbContext` instance | Sequential execution or independent DI scopes per concurrent worker | `[RULE-CONC-001]` |
+| **Token Dropping** | Omitting `ct` in downstream LINQ (`ToListAsync()`) or nested async calls | Propagate `CancellationToken ct` to all terminal async operations | `[RULE-CONC-003]` |
+| **Fire-and-Forget Scope**| `_ = Task.Run(...)` capturing Scoped DI dependencies (`DbContext`) | Dispatch via `Channel<T>` to `BackgroundService` or create explicit scope | `[RULE-CONC-004]` |
+| **Query Tracking / Eval**| Querying without `.AsNoTracking()` or client-side LINQ evaluation | Mandatory `.AsNoTracking()` and SQL-translatable expressions | `[RULE-INFRA-005]` |
+| **Transaction Boundary** | Invoking `unitOfWork.CommitAsync()` multiple times in one UseCase | Exactly 1 atomic `CommitAsync(ct)` per UseCase execution | `[RULE-UOW-002]` |
+| **Mass Assignment** | Binding request/command DTOs directly to mutate entity properties | Expressive domain verbs with explicit permitted parameters | `[RULE-SEC-003]` |
+| **Aggregate Boundary** | Cross-aggregate navigation properties or child entity repositories | ID-only references (`Guid ProjectId`) and aggregate root mediation | `[RULE-DOM-009]` |
+| **Parameter Swapping** | Passing positional parameters of identical primitive type out-of-order | Mandatory C# Named Arguments (`projectId: command.ProjectId`) | `[RULE-CRAFT-012]` |
+| **Ghost Utilities** | Invoking hallucinated extension methods or static helpers | Use verified framework APIs or declared codebase utilities exclusively | `[RULE-CRAFT-013]` |
+| **Variable Identifiers** | Truncated abbreviations (`req`, `dto`, `res`, `cancellationToken`) | Standard identifiers: `request`, `result`, `CancellationToken ct` | `[RULE-NAME-002]` |
+| **Object Instantiation** | Inlined nested object instantiation inside method call invocations | Instantiate into explicit, strongly-typed local variables first | `[RULE-CRAFT-002]` |
+| **Error Contracts** | Empty `catch { }` blocks or anonymous JSON error payloads | Throw Domain Exceptions; map to RFC 9457 `ProblemDetails` | `[RULE-API-002]` |
+| **Regex Safety (ReDoS)** | Dynamic `new Regex(pattern)` in hot paths or omitting timeouts | Source-generated `[GeneratedRegex]` with explicit evaluation timeout | `[RULE-SEC-002]` |
+
+---
+
+### 6.3 Standardized Remediation Response Template
+When intercepting non-compliant code under `[MODE: CODE_AUDIT_LINT]`, the LLM MUST use this exact output structure:
+
+```markdown
+🚨 **[ARCHITECTURAL_VIOLATION_DETECTED]:** Defect identified in `{FilePath}:{LineNumber}`
+- **Violated Rule:** `[RULE-CATEGORY-ID]` ({Rule Title})
+- **Technical Impact:** {Detailed explanation: e.g. LOH allocation, thread starvation, leaky abstraction}
+- **Elevated Remediation:**
+  ❌ **Before (Defective Legacy Pattern - Do Not Conform):**
+  ```csharp
+  // Non-compliant code
+  ```
+  ✅ **After (SSoT Canonical Standard):**
+  ```csharp
+  // Elevated compliant code
+  ```
+- **Rationale for Elevation:** {Why conforming to existing code is rejected and how this standard improves system metrics}
+- **Proactive Refactoring Proposal:** {Slice-level refactoring advice if structural rewrites are warranted}
+```
+</llm_auditor_protocol>
+
+---
+
 <doc_maintenance_rules>
 ## 7. 🔄 Living SSoT Protocol & AI Document Maintenance Rules (`RULE-DOC`)
 
@@ -620,7 +653,7 @@ public sealed class Template
 ### 7.1 AI Context-Engineering Invariants (`RULE-DOC-ENG`)
 When modifying or adding rules to `docs/AI/`, all agents MUST adhere to these 6 structural invariants:
 
-* `[RULE-DOC-001] [SEMANTIC_XML_BOUNDS] [MUST]`: Preserve all semantic XML tags (`<tech_stack>`, `<clean_architecture_invariants>`, `<backend_rules>`, `<naming_ssot>`, `<golden_spec>`). These tags establish explicit attention boundaries in the model's context window.
+* `[RULE-DOC-001] [SEMANTIC_XML_BOUNDS] [MUST]`: Preserve all semantic XML tags (`<ai_cognitive_framing>`, `<tech_stack_invariants>`, `<syntax_substitution_map>`, `<clean_architecture_invariants>`, `<backend_engineering_rules>`, `<naming_and_identifier_ssot>`, `<golden_spec>`, `<llm_auditor_protocol>`, `<doc_maintenance_rules>`). These tags establish explicit attention boundaries in the model's context window.
 * `[RULE-DOC-002] [RFC_MACHINE_TOKENS] [MUST]`: Every rule statement MUST carry an atomic RFC 2119 token in the format `[RULE-[CATEGORY]-[ID]] [MUST / MUST NOT]`.
 * `[RULE-DOC-003] [NEGATIVE_DUALITY] [MUST]`: Every technical constraint MUST provide contrastive examples: explicitly declare the forbidden defect (❌ Forbidden) alongside the mandatory canonical pattern (✅ Mandatory).
 * `[RULE-DOC-004] [ZERO_TOKEN_NOISE] [MUST NOT]`: NEVER introduce metaphors, pedagogical tutorials, conversational prose, or ASCII flowchart art. All content MUST be concise technical directives.
@@ -646,7 +679,7 @@ When updating `CODING_CONVENTIONS.md`, follow this 5-step sequence:
 
 ### 7.3 Bi-Directional Drift Detection & Alerting Trigger (`RULE-DOC-DRIFT`)
 The LLM MUST trigger an immediate drift notification whenever encountering:
-1. **New Dependency / Library:** Inclusion of a NuGet package or runtime tool not registered in `<tech_stack>`.
+1. **New Dependency / Library:** Inclusion of a NuGet package or runtime tool not registered in `<tech_stack_invariants>`.
 2. **New Architectural Pattern:** Introduction of a pipeline or design pattern not documented in SSoT (e.g. `Channel<T>`, `HybridCache`, Outbox Pattern).
 3. **Missing Invariant:** An unhandled edge case or technical decision lacking an established rule in this document.
 4. **Superior Language Idiom:** A newly released or superior .NET 10 / C# 13 capability that improves upon an existing rule.
