@@ -1,42 +1,91 @@
 # DB_SCHEMA.md — PostgreSQL Relational Schema & Tables
 
-> **Purpose:** Authoritative PostgreSQL relational schema definition, UUIDv7 PK types, foreign keys, index strategy, Domain Value Object mappings, and JSONB contracts for `smk-doc-server`.  
-> **Related Docs:** [ARCHITECTURE.md](ARCHITECTURE.md) (Persistence layer & system topology), [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) (Domain entities), [PATTERNS.md](PATTERNS.md) (Clean Architecture archetypes), [CODING_CONVENTIONS.md](CODING_CONVENTIONS.md) (Naming standards), [ANTI-PATTERNS.md](ANTI-PATTERNS.md) (Persistence pitfalls).
-
-<ai_directive>
-CRITICAL ATTENTION ROUTING & PERSISTENCE CONSTRAINTS:
-1. **The Inward Dependency Rule:** The Database schema serves the Domain Core (`SmkDoc.Domain`). Domain Entities NEVER adapt to database quirks; EF Core Fluent API mappings adapt the database to the rich domain model.
-2. **Strict Sequential UUIDv7 Identity:** Primary keys MUST be generated in the C# Application/Domain layer using `BaseEntity` / `Guid.CreateVersion7()`. Database columns are standard `UUID` without DB-side `gen_random_uuid()` to prevent B-Tree index page-splitting fragmentation.
-3. **Mandatory Foreign Key Indexes:** PostgreSQL does NOT index foreign keys automatically. Every foreign key column MUST have an explicit `CREATE INDEX` to prevent sequential scans on JOINs and cascading deletes.
-4. **Value Object Persistence via HasConversion:** Domain Value Objects (e.g., `TemplateName`, `Sha256Hash`, `EmailAddress`) MUST be persisted via EF Core Fluent `.HasConversion()` to native SQL primitives.
-5. **Soft Deletes via is_active:** Soft deletion uses `is_active BOOLEAN DEFAULT true` (not `deleted_at`). Queries are scoped via EF Core Global Query Filters (`builder.HasQueryFilter(e => e.IsActive)`).
-</ai_directive>
-
-<database_scope>
-
-### ⚡ Quick-Lookup: Authoritative 15-Table Catalog
-
-| # | Table Name | Entity Class | Primary Key | Foreign Keys & Targets | Soft Delete | Performance Indexes & Constraints |
-|---|---|---|---|---|---|---|
-| 1 | `companies` | `Company` | UUIDv7 | None | `is_active` | PK |
-| 2 | `projects` | `Project` | UUIDv7 | `company_id` → `companies(id)` [CASCADE] | `is_active` | `(slug)` UNIQUE, `(company_id)` FK |
-| 3 | `users` | `User` | UUIDv7 | None | `is_active` | `(email)` UNIQUE |
-| 4 | `user_project_roles` | `UserProjectRole` | `(user_id, project_id)` | `user_id` → `users(id)` [CASCADE]<br>`project_id` → `projects(id)` [CASCADE] | None | PK composite, `(project_id)` FK |
-| 5 | `refresh_tokens` | `RefreshToken` | UUIDv7 | `user_id` → `users(id)` [CASCADE] | None | `(token_hash)` UNIQUE, `(user_id, expires_at)` PARTIAL INDEX `WHERE revoked_at IS NULL` |
-| 6 | `templates` | `Template` | UUIDv7 | `project_id` → `projects(id)` [CASCADE]<br>`current_version_id` → `template_versions(id)` [SET NULL] | `is_active` | `(slug)` UNIQUE, `(project_id)` FK |
-| 7 | `template_versions` | `TemplateVersion` | UUIDv7 | `template_id` → `templates(id)` [CASCADE] | None | `(template_id, version)` UNIQUE, `(template_id)` FK |
-| 8 | `field_mappings` | `FieldMapping` | UUIDv7 | `template_id` → `templates(id)` [CASCADE] | None | `(template_id, placeholder)` UNIQUE, `(template_id)` FK |
-| 9 | `data_connections` | `DataConnection` | UUIDv7 | None | None | PK |
-| 10 | `datasets` | `Dataset` | UUIDv7 | `data_connection_id` → `data_connections(id)` [RESTRICT] | None | `(data_connection_id)` FK |
-| 11 | `template_datasets` | `TemplateDataset` | UUIDv7 | `template_id` → `templates(id)` [CASCADE]<br>`dataset_id` → `datasets(id)` [RESTRICT] | None | `(template_id, alias)` UNIQUE, `(template_id)` FK, `(dataset_id)` FK |
-| 12 | `api_keys` | `ApiKey` | UUIDv7 | `project_id` → `projects(id)` [CASCADE] | `is_active` | `(project_id)` FK, `(key_hash)` INDEX |
-| 13 | `generation_logs` | `GenerationLog` | UUIDv7 | `template_id` → `templates(id)` [SET NULL]<br>`template_version_id` → `template_versions(id)` [SET NULL]<br>`api_key_id` → `api_keys(id)` [SET NULL] | None | `(created_at DESC)` INDEX, FK indexes |
-| 14 | `documents` | `Document` | UUIDv7 | `template_id` → `templates(id)` [SET NULL] | None | `(document_ref)` UNIQUE, `(template_id)` FK |
-| 15 | `document_versions` | `DocumentVersion` | UUIDv7 | `document_id` → `documents(id)` [CASCADE]<br>`template_version_id` → `template_versions(id)` [SET NULL]<br>`generation_log_id` → `generation_logs(id)` [SET NULL] | None | `(document_id, version)` UNIQUE, FK indexes |
+> **[PURPOSE_SCOPE_SSOT]:** Authoritative Single Source of Truth (SSoT) for PostgreSQL relational schema definition, UUIDv7 PK types, foreign keys, index strategy, Domain Value Object mappings, and JSONB contracts for `smk-doc-server`.
+> **[CORE_MISSION]:** Eliminate persistence-layer LLM hallucinations, enforce enterprise PostgreSQL 16+ best practices, guarantee 100% Clean Architecture domain decoupling, and maintain high-throughput indexing hygiene.
+> **[RELATED_DOCS]:** [ARCHITECTURE.md](ARCHITECTURE.md) (Persistence layer & system topology), [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) (Domain entities), [PATTERNS.md](PATTERNS.md) (Clean Architecture archetypes), [CODING_CONVENTIONS.md](CODING_CONVENTIONS.md) (Naming standards), [ANTI-PATTERNS.md](ANTI-PATTERNS.md) (Persistence pitfalls).
 
 ---
 
-## 1. 📊 Enterprise Entity-Relationship Diagram (Mermaid ERD)
+<db_cognitive_framing>
+## 🧠 AI Cognitive Framing & Attention Routing
+
+### Operational Modes & Attention Budget
+When processing this database specification, the LLM MUST determine its active operational mode:
+1. **`[MODE: SCHEMA_DESIGN_CODEGEN]`**: Focus attention strictly on `<db_syntax_substitution_map>`, `<db_design_invariants>`, `<authoritative_table_catalog>`, `<domain_persistence_matrix>`, `<indexing_and_concurrency_strategy>`, and `<authoritative_ddl_spec>`.
+2. **`[MODE: DB_MIGRATION_AUDIT]`**: Focus on `<db_design_invariants>`, `<authoritative_ddl_spec>`, and `<db_maintenance_and_migration_rules>` to verify referential integrity, explicit FK indexes, and zero-loss migrations.
+
+### Persistence Severity Tiers (Cognitive Constraint Hierarchy)
+To prevent constraint collapse during schema design and migration authoring, resolve priority collisions using this hierarchy:
+* **`[TIER-1-FATAL]` (Data & Process Integrity):** Application-generated UUIDv7 PKs, mandatory indexes on ALL Foreign Keys, non-destructive referential actions on audit logs (`RESTRICT` / `SET NULL`), Clean Architecture domain isolation (`.HasConversion()`).
+* **`[TIER-2-INTEGRITY]` (Schema & Concurrency):** Correct soft-delete convention (`is_active` boolean), PostgreSQL `xmin` optimistic concurrency tokens, strict unique constraints (`slug`, `document_ref`).
+* **`[TIER-3-INDEX-OPT]` (Storage & RAM Optimization):** Partial/filtered indexes (`WHERE revoked_at IS NULL`), chronological log sorting indexes (`created_at DESC`), JSONB Draft-07 schema validation.
+</db_cognitive_framing>
+
+---
+
+<db_syntax_substitution_map>
+## ⚡ High-Salience Database Syntax Substitution Map (Pre-Training Override)
+
+> **[COGNITIVE_PURPOSE]:** Direct hash-lookup table designed to immediately override pre-training priors across all Transformer attention heads. Whenever the model contemplates generating a pattern from the left column, it MUST instantly substitute it with the canonical pattern from the right column.
+
+| Database / Persistence Context | Defective Prior (❌ Banned) | Canonical Standard (✅ Mandatory Target) | Governing Invariant |
+|---|---|---|---|
+| **Primary Key Generation** | `id UUID DEFAULT gen_random_uuid()`, `SERIAL` | `id UUID PRIMARY KEY` (Populated via C# `Guid.CreateVersion7()`) | Monotonic B-Tree append locality |
+| **Foreign Key Indexing** | Omitting index on FK column | Explicit `CREATE INDEX idx_{table}_{fk}` on every FK column | Zero sequential scan on JOIN/Cascades |
+| **Soft Delete Pattern** | `deleted_at TIMESTAMPTZ` | `is_active BOOLEAN NOT NULL DEFAULT true` | EF Core Global Query Filter parity |
+| **Audit Log Referential Action** | `template_id UUID REFERENCES ... ON DELETE CASCADE` | `ON DELETE SET NULL` or `RESTRICT` | Non-destructive legal audit trail |
+| **Token Session Indexing** | Indexing entire `refresh_tokens(user_id)` | Partial index `WHERE revoked_at IS NULL` | RAM-efficient filtered indexing |
+| **Smart Enum Persistence** | Native C# integer enum or raw int | String representation via `.FromDisplayName<T>()` (Except VersionStatus=int) | Human-readable & schema-resilient storage |
+| **Value Object Persistence** | Exposing primitive strings on Domain POCO | `.HasConversion(vo => vo.Value, v => VO.Create(v))` | Clean Architecture POCO isolation |
+| **Concurrency Defense** | Ignoring concurrency or using client locks | `builder.UseXminAsConcurrencyToken()` in EF Core | PostgreSQL system-level optimistic lock |
+| **String Constraints** | Unbounded `TEXT` for all string properties | Bounded `VARCHAR(N)` matching domain invariants | Storage efficiency & schema documentation |
+</db_syntax_substitution_map>
+
+---
+
+<db_design_invariants>
+## 1. 🏛️ The 6 Enterprise Database Design Pillars
+
+All database tables, migrations, and EF Core configurations across `smk-doc-server` MUST strictly conform to these 6 foundational design pillars:
+
+```
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                   ENTERPRISE POSTGRESQL DESIGN PILLARS (SMK-DOC-SERVER)                │
+├────────────────────────┬────────────────────────┬──────────────────────────────────────┤
+│ 1. Identity & Locality │ UUIDv7 App-Generated   │ Monotonic B-Tree append locality     │
+├────────────────────────┼────────────────────────┼──────────────────────────────────────┤
+│ 2. Relationship Safety │ FK Indexing & RESTRICT │ Index all FKs; Zero cascade on logs  │
+├────────────────────────┼────────────────────────┼──────────────────────────────────────┤
+│ 3. State & Soft Delete │ is_active + Filters    │ Clean boolean query filter mapping   │
+├────────────────────────┼────────────────────────┼──────────────────────────────────────┤
+│ 4. Partial Indexing    │ Filtered Indexes       │ WHERE revoked_at IS NULL (Small RAM) │
+├────────────────────────┼────────────────────────┼──────────────────────────────────────┤
+│ 5. Concurrency Defense │ PostgreSQL xmin Token  │ System-level optimistic lock defense │
+├────────────────────────┼────────────────────────┼──────────────────────────────────────┤
+│ 6. Audit Immutability  │ Snapshots over JOINS   │ JSONB snapshots for legal audit      │
+└────────────────────────┴────────────────────────┴──────────────────────────────────────┘
+```
+
+1. **Monotonic Primary Key Locality (UUIDv7 Invariant):**
+   - Primary keys MUST be generated in the C# Application/Domain layer using `BaseEntity` / `Guid.CreateVersion7()`.
+   - Database columns are standard `UUID` without DB-side `gen_random_uuid()` to prevent B-Tree index page-splitting fragmentation. UUIDv7 provides natural time-ordered index locality.
+2. **Defensive Referential Integrity (Non-Destructive Audit Trails):**
+   - Master entity hierarchies (`companies` ➔ `projects` ➔ `templates`) use `ON DELETE CASCADE` for parent lifecycle cleanup.
+   - Financial, operational, and regulatory audit tables (`generation_logs`, `document_versions`, `datasets`) **MUST use `ON DELETE SET NULL` or `RESTRICT`**. Accidental cascading deletion of legal audit records is strictly prohibited.
+3. **Mandatory Foreign Key Indexing (Zero Sequential Scans):**
+   - PostgreSQL does NOT index foreign keys automatically. Every foreign key column MUST have an explicit `CREATE INDEX` to eliminate full table sequential scans on `JOIN` queries and cascading deletes.
+4. **High-Performance Filtered/Partial Indexing:**
+   - Use partial indexes with `WHERE` clauses for hot-path queries over filtered subsets of rows (e.g. `WHERE revoked_at IS NULL` on `refresh_tokens`), saving disk space and memory buffers.
+5. **Optimistic Concurrency via PostgreSQL `xmin`:**
+   - Entities subject to concurrent multi-user editing (e.g., `templates`, `template_versions`) MUST configure PostgreSQL `xmin` system column tokens via `builder.UseXminAsConcurrencyToken()` in EF Core to defend against Lost Updates.
+6. **Audit Trail Immutability (Snapshot Pattern):**
+   - Generated document records (`generation_logs.input_data`, `template_versions.mappings_snapshot`) MUST store complete structured snapshots at execution time rather than relying on mutable relational joins.
+</db_design_invariants>
+
+---
+
+<relational_clusters_and_erd>
+## 2. 📊 Enterprise Entity-Relationship Topology (Mermaid ERD)
 
 The database schema is organized into 4 cohesive bounded clusters:
 
@@ -67,183 +116,41 @@ erDiagram
     documents ||--o{ document_versions : "revises"
     template_versions ||--o{ document_versions : "renders with"
     generation_logs ||--o{ document_versions : "generated by"
-
-    companies {
-        uuid id PK
-        varchar_200 name
-        boolean is_active
-        timestamptz created_at
-        timestamptz updated_at
-    }
-
-    projects {
-        uuid id PK
-        uuid company_id FK
-        varchar_200 name
-        varchar_100 slug UK
-        boolean is_active
-        timestamptz created_at
-        timestamptz updated_at
-    }
-
-    users {
-        uuid id PK
-        varchar_255 email UK
-        varchar_255 password_hash
-        varchar_100 first_name
-        varchar_100 last_name
-        varchar_30 system_role
-        boolean is_active
-        timestamptz created_at
-        timestamptz updated_at
-    }
-
-    user_project_roles {
-        uuid user_id PK,FK
-        uuid project_id PK,FK
-        varchar_20 role
-        timestamptz created_at
-    }
-
-    refresh_tokens {
-        uuid id PK
-        uuid user_id FK
-        varchar_64 token_hash UK
-        varchar_64 replaced_by_token_hash
-        timestamptz expires_at
-        timestamptz created_at
-        timestamptz revoked_at
-    }
-
-    templates {
-        uuid id PK
-        uuid project_id FK
-        varchar_100 name
-        varchar_100 slug UK
-        varchar_50 category
-        boolean is_active
-        uuid current_version_id FK
-        timestamptz created_at
-        timestamptz updated_at
-    }
-
-    template_versions {
-        uuid id PK
-        uuid template_id FK
-        integer version
-        varchar_500 storage_key
-        integer status
-        varchar_10 file_format
-        jsonb data_schema
-        jsonb sample_payload
-        text mappings_snapshot
-        varchar_500 commit_message
-        varchar_100 created_by
-        timestamptz created_at
-    }
-
-    field_mappings {
-        uuid id PK
-        uuid template_id FK
-        varchar_100 placeholder
-        varchar_20 data_source_type
-        varchar_200 source_path
-        varchar_50 dataset_alias
-        varchar_300 result_path
-        varchar_500 math_expression
-        varchar_200 label
-        boolean required
-        text default_value
-        varchar_50 transform
-        integer sort_order
-    }
-
-    data_connections {
-        uuid id PK
-        varchar_100 name
-        varchar_50 provider
-        text encrypted_connection_string
-        timestamptz created_at
-        timestamptz updated_at
-    }
-
-    datasets {
-        uuid id PK
-        varchar_200 name
-        varchar_500 description
-        uuid data_connection_id FK
-        text sql_query
-        integer cache_seconds
-        timestamptz created_at
-        timestamptz updated_at
-    }
-
-    template_datasets {
-        uuid id PK
-        uuid template_id FK
-        uuid dataset_id FK
-        varchar_50 alias
-        integer sort_order
-    }
-
-    api_keys {
-        uuid id PK
-        uuid project_id FK
-        varchar_100 name
-        varchar_50 caller_app
-        varchar_255 key_hash
-        varchar_20 scope
-        boolean is_active
-        timestamptz expires_at
-        timestamptz last_used_at
-        timestamptz created_at
-    }
-
-    generation_logs {
-        uuid id PK
-        uuid template_id FK
-        uuid template_version_id FK
-        uuid api_key_id FK
-        varchar_50 caller_app
-        varchar_20 trigger_source
-        jsonb input_data
-        varchar_64 payload_hash_sha256
-        varchar_500 output_key
-        varchar_10 output_format
-        bigint file_size_bytes
-        integer page_count
-        integer duration_ms
-        varchar_20 status
-        text error_msg
-        timestamptz created_at
-    }
-
-    documents {
-        uuid id PK
-        varchar_100 document_ref UK
-        uuid template_id FK
-        timestamptz created_at
-    }
-
-    document_versions {
-        uuid id PK
-        uuid document_id FK
-        integer version
-        uuid template_version_id FK
-        uuid generation_log_id FK
-        varchar_500 change_note
-        varchar_100 created_by
-        timestamptz created_at
-    }
 ```
+</relational_clusters_and_erd>
 
 ---
 
-## 2. 🛡️ Clean Architecture Persistence Matrix (Domain POCO → PostgreSQL Column)
+<authoritative_table_catalog>
+## 3. ⚡ Quick-Lookup: Authoritative 15-Table Catalog (SSoT)
+
+| # | Table Name | Entity Class | Primary Key | Foreign Keys & Targets | Soft Delete | Performance Indexes & Constraints |
+|---|---|---|---|---|---|---|
+| 1 | `companies` | `Company` | UUIDv7 | None | `is_active` | PK |
+| 2 | `projects` | `Project` | UUIDv7 | `company_id` → `companies(id)` [CASCADE] | `is_active` | `(slug)` UNIQUE, `(company_id)` FK |
+| 3 | `users` | `User` | UUIDv7 | None | `is_active` | `(email)` UNIQUE |
+| 4 | `user_project_roles` | `UserProjectRole` | `(user_id, project_id)` | `user_id` → `users(id)` [CASCADE]<br>`project_id` → `projects(id)` [CASCADE] | None | PK composite, `(project_id)` FK |
+| 5 | `refresh_tokens` | `RefreshToken` | UUIDv7 | `user_id` → `users(id)` [CASCADE] | None | `(token_hash)` UNIQUE, `(user_id, expires_at)` PARTIAL INDEX `WHERE revoked_at IS NULL` |
+| 6 | `templates` | `Template` | UUIDv7 | `project_id` → `projects(id)` [CASCADE]<br>`current_version_id` → `template_versions(id)` [SET NULL] | `is_active` | `(slug)` UNIQUE, `(project_id)` FK |
+| 7 | `template_versions` | `TemplateVersion` | UUIDv7 | `template_id` → `templates(id)` [CASCADE] | None | `(template_id, version)` UNIQUE, `(template_id)` FK |
+| 8 | `field_mappings` | `FieldMapping` | UUIDv7 | `template_id` → `templates(id)` [CASCADE] | None | `(template_id, placeholder)` UNIQUE, `(template_id)` FK |
+| 9 | `data_connections` | `DataConnection` | UUIDv7 | None | None | PK |
+| 10 | `datasets` | `Dataset` | UUIDv7 | `data_connection_id` → `data_connections(id)` [RESTRICT] | None | `(data_connection_id)` FK |
+| 11 | `template_datasets` | `TemplateDataset` | UUIDv7 | `template_id` → `templates(id)` [CASCADE]<br>`dataset_id` → `datasets(id)` [RESTRICT] | None | `(template_id, alias)` UNIQUE, `(template_id)` FK, `(dataset_id)` FK |
+| 12 | `api_keys` | `ApiKey` | UUIDv7 | `project_id` → `projects(id)` [CASCADE] | `is_active` | `(project_id)` FK, `(key_hash)` INDEX |
+| 13 | `generation_logs` | `GenerationLog` | UUIDv7 | `template_id` → `templates(id)` [SET NULL]<br>`template_version_id` → `template_versions(id)` [SET NULL]<br>`api_key_id` → `api_keys(id)` [SET NULL] | None | `(created_at DESC)` INDEX, FK indexes |
+| 14 | `documents` | `Document` | UUIDv7 | `template_id` → `templates(id)` [SET NULL] | None | `(document_ref)` UNIQUE, `(template_id)` FK |
+| 15 | `document_versions` | `DocumentVersion` | UUIDv7 | `document_id` → `documents(id)` [CASCADE]<br>`template_version_id` → `template_versions(id)` [SET NULL]<br>`generation_log_id` → `generation_logs(id)` [SET NULL] | None | `(document_id, version)` UNIQUE, FK indexes |
+</authoritative_table_catalog>
+
+---
+
+<domain_persistence_matrix>
+## 4. 🛡️ Clean Architecture Persistence Matrix (Domain POCO → PostgreSQL Column)
 
 The Persistence Layer (`SmkDoc.Infrastructure`) bridges the pure domain model (`SmkDoc.Domain`) to PostgreSQL via EF Core 10 Fluent API configurations. No domain classes leak database or EF Core dependencies.
 
-### 2.1 Domain Value Object Persistence Mappings
+### 4.1 Domain Value Object Persistence Mappings
 
 | Domain Value Object | Target Table & Column | SQL Primitive Column Type | EF Core Conversion (`.HasConversion()`) |
 |---|---|---|---|
@@ -260,7 +167,7 @@ The Persistence Layer (`SmkDoc.Infrastructure`) bridges the pure domain model (`
 | `DatasetName` | `datasets.name` | `VARCHAR(200)` | `v => v.Value, v => DatasetName.Create(v)` |
 | `DatasetAlias` | `field_mappings.dataset_alias`<br>`template_datasets.alias` | `VARCHAR(50)` | `a => a.Value, v => DatasetAlias.Create(v)` |
 
-### 2.2 Smart Enum Persistence Mappings
+### 4.2 Smart Enum Persistence Mappings
 
 All Smart Enums derive from `Enumeration` with O(1) static dictionary lookup:
 
@@ -277,16 +184,18 @@ All Smart Enums derive from `Enumeration` with O(1) static dictionary lookup:
 | `DatabaseProvider` | `data_connections.provider` | `VARCHAR(50)` | `p => p.Name, v => Enumeration.FromDisplayName<DatabaseProvider>(v)` | None (Required) |
 
 > **Note on `TemplateVersionStatus` Storage:** Unlike general string-based Smart Enums, `TemplateVersionStatus` is stored as `INTEGER` (`0 = Draft`, `1 = Published`, `2 = Archived`) in accordance with active EF Core database migration `WaveTwo_FullSchemaRebuild` and `AppDbContext.cs`.
+</domain_persistence_matrix>
 
 ---
 
-## 3. 🚀 High-Throughput Indexing & Multi-Tenant Strategy
+<indexing_and_concurrency_strategy>
+## 5. 🚀 High-Throughput Indexing & Concurrency Strategy
 
-### 3.1 Sequential UUIDv7 Identity vs UUIDv4 B-Tree Fragmentation
+### 5.1 Sequential UUIDv7 Identity vs UUIDv4 B-Tree Fragmentation
 *   **The Invariant:** Primary keys are strictly generated as time-ordered **UUIDv7** by `BaseEntity` (`Guid.CreateVersion7()`).
 *   **PostgreSQL B-Tree Benefit:** Standard random UUIDv4 causes continuous page-splitting across the entire depth of the B-Tree index, leading to index bloat and high disk I/O. UUIDv7 contains a 48-bit millisecond unix timestamp prefix, guaranteeing monotonic index append locality, reducing cache thrashing, and keeping index write operations fast.
 
-### 3.2 High-Performance Partial (Filtered) Indexes
+### 5.2 High-Performance Partial (Filtered) Indexes
 PostgreSQL partial indexes index only relevant subsets of rows, saving substantial disk space and accelerating hot-path queries:
 *   **Active Refresh Tokens Index:**
     ```sql
@@ -296,7 +205,7 @@ PostgreSQL partial indexes index only relevant subsets of rows, saving substanti
     ```
     Allows token validation queries (`WHERE user_id = @id AND revoked_at IS NULL`) to completely bypass revoked token historical rows.
 
-### 3.3 Multi-Tenant Isolation Composite Indexes
+### 5.3 Multi-Tenant Isolation Composite Indexes
 *   **Tenant Scoping Invariant:** Every query in the application filters by tenant context (`ProjectId`).
 *   **Critical Composite Keys:**
     *   `projects`: `(slug)` UNIQUE
@@ -306,9 +215,18 @@ PostgreSQL partial indexes index only relevant subsets of rows, saving substanti
     *   `template_datasets`: `(template_id, alias)` UNIQUE
     *   `generation_logs`: `(created_at DESC)` Index for chronological log paging
 
+### 5.4 Optimistic Concurrency Token Configuration
+*   **PostgreSQL `xmin` Token:** Configured in EF Core Fluent API for state-mutating aggregates:
+    ```csharp
+    builder.UseXminAsConcurrencyToken();
+    ```
+    EF Core automatically includes `WHERE xmin = @concurrencyToken` during updates and throws `DbUpdateConcurrencyException` upon collisions, mapped directly to HTTP 409 Conflict.
+</indexing_and_concurrency_strategy>
+
 ---
 
-## 4. 🗄️ Authoritative DDL Specification (PostgreSQL 16+)
+<authoritative_ddl_spec>
+## 6. 🗄️ Authoritative DDL Specification (PostgreSQL 16+)
 
 ```sql
 -- ============================================================================
@@ -535,14 +453,16 @@ CREATE INDEX idx_document_versions_document_id ON document_versions(document_id)
 CREATE INDEX idx_document_versions_template_version_id ON document_versions(template_version_id);
 CREATE INDEX idx_document_versions_generation_log_id ON document_versions(generation_log_id);
 ```
+</authoritative_ddl_spec>
 
 ---
 
-## 5. 📋 JSONB Schema Contracts & Strict Payloads
+<jsonb_schema_contracts>
+## 7. 📋 JSONB Schema Contracts & Strict Payloads
 
 PostgreSQL `JSONB` columns store structured documents with binary indexing and validation capabilities:
 
-### 5.1 `template_versions.data_schema` (JSON Schema Draft-07)
+### 7.1 `template_versions.data_schema` (JSON Schema Draft-07)
 Stores the authoritative structural schema against which incoming generation payloads are strictly validated before rendering:
 
 ```json
@@ -579,7 +499,7 @@ Stores the authoritative structural schema against which incoming generation pay
 }
 ```
 
-### 5.2 `generation_logs.input_data` (Sanitized Request Payload Snapshot)
+### 7.2 `generation_logs.input_data` (Sanitized Request Payload Snapshot)
 Stores a complete, sanitized snapshot of the generation parameters used to produce the document for regulatory auditing:
 
 ```json
@@ -599,5 +519,19 @@ Stores a complete, sanitized snapshot of the generation parameters used to produ
   }
 }
 ```
+</jsonb_schema_contracts>
 
-</database_scope>
+---
+
+<db_maintenance_and_migration_rules>
+## 8. 🔄 Living SSoT & Database Migration Governance
+
+> **[DATABASE_MAINTENANCE_MANDATE]:** When altering schema, adding tables, or mutating column mappings:
+> 1. **Code-First SSoT:** All schema alterations MUST originate in `SmkDoc.Domain` entities and `SmkDoc.Infrastructure` Fluent API configurations (`IEntityTypeConfiguration<T>`).
+> 2. **Migration Generation:** Execute:
+>    ```bash
+>    dotnet ef migrations add <DescriptiveMigrationName> --project backend-v2/src/SmkDoc.Infrastructure --startup-project backend-v2/src/SmkDoc.Api
+>    ```
+> 3. **Non-Destructive Migrations:** Never execute destructive table drops in active production branches. Deprecated columns must be staged via soft-retire cycles.
+> 4. **Synchronize Documentation:** Whenever an entity or relation is added, update Section 3 Table Catalog, Section 4 Value Object Matrix, and Section 6 DDL in this document.
+</db_maintenance_and_migration_rules>

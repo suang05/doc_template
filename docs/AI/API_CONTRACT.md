@@ -182,7 +182,8 @@ public async Task<Ok<ApiResponse<TemplateDetailsDto>>> GetById(
 {
     var query = new GetTemplateByIdQuery(id);
     var result = await getTemplateByIdUseCase.ExecuteAsync(query, ct);
-    return TypedResults.Ok(new ApiResponse<TemplateDetailsDto>(result));
+    var response = new ApiResponse<TemplateDetailsDto>(result);
+    return TypedResults.Ok(response);
 }
 ```
 
@@ -200,7 +201,8 @@ public async Task<Ok<PagedApiResponse<TemplateListItemDto>>> List(
 {
     var query = new ListTemplatesQuery(page, limit, search);
     var result = await listTemplatesUseCase.ExecuteAsync(query, ct);
-    return TypedResults.Ok(result);
+    var response = new PagedApiResponse<TemplateListItemDto>(result.Items, result.TotalCount, result.Page, result.Limit);
+    return TypedResults.Ok(response);
 }
 ```
 
@@ -218,7 +220,8 @@ public async Task<Created<ApiResponse<TemplateCreatedDto>>> Create(
 {
     var command = new CreateTemplateCommand(request.Name, request.Slug);
     var result = await createTemplateUseCase.ExecuteAsync(command, ct);
-    return TypedResults.Created($"/api/v1/templates/{result.Id}", new ApiResponse<TemplateCreatedDto>(result));
+    var response = new ApiResponse<TemplateCreatedDto>(result);
+    return TypedResults.Created($"/api/v1/templates/{result.Id}", response);
 }
 ```
 
@@ -236,7 +239,8 @@ public async Task<Ok<ApiResponse<TemplateUpdatedDto>>> Update(
 {
     var command = new UpdateTemplateCommand(id, request.Name, request.Category);
     var result = await updateTemplateUseCase.ExecuteAsync(command, ct);
-    return TypedResults.Ok(new ApiResponse<TemplateUpdatedDto>(result));
+    var response = new ApiResponse<TemplateUpdatedDto>(result);
+    return TypedResults.Ok(response);
 }
 ```
 
@@ -254,7 +258,8 @@ public async Task<Ok<ApiResponse<GenerateDocumentResultDto>>> Generate(
 {
     var command = new GenerateDocumentCommand(slug, request.Payload, request.OutputFormat);
     var result = await generateDocumentUseCase.ExecuteAsync(command, ct);
-    return TypedResults.Ok(new ApiResponse<GenerateDocumentResultDto>(result));
+    var response = new ApiResponse<GenerateDocumentResultDto>(result);
+    return TypedResults.Ok(response);
 }
 ```
 
