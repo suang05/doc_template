@@ -376,4 +376,169 @@ All React / Next.js code generated for `frontend-v2/` MUST strictly satisfy thes
 
 ---
 
+<frontend_lifecycle_archetypes>
+## 🧩 Frontend Lifecycle Implementation Archetypes (Next.js 15.2 / React 19)
+
+<archetype_10_rsc_data_flow>
+### Archetype 10: Server-First RSC Data Fetching & Leaf Client Component
+
+*   **Intent & Scope:** Enforces Next.js 15 App Router architecture. Pages execute securely on the server as React Server Components (RSC) to fetch initial data directly, stream HTML for maximum SEO and performance, and isolate interactive JavaScript to leaf components via `"use client"`.
+
+```tsx
+// =========================================================================
+// THE CANONICAL GOLDEN IMPLEMENTATION: Archetype 10
+// File: src/app/templates/[templateId]/page.tsx (React Server Component)
+// =========================================================================
+import { notFound } from "next/navigation";
+import { fetchTemplateById } from "@/lib/api/templates";
+import { TemplateEditorClient } from "@/components/features/templates/TemplateEditorClient";
+
+interface TemplatePageProps {
+  params: Promise<{ templateId: string }>;
+}
+
+// 1. Server Component by default: Direct async data fetching on the server
+export default async function TemplatePage({ params }: TemplatePageProps) {
+  const { templateId } = await params;
+  const template = await fetchTemplateById(templateId);
+
+  // 2. Early Guard Clause: Standard Next.js notFound handler
+  if (!template) {
+    notFound();
+  }
+
+  // 3. Isolated interactive client component at the leaf
+  return (
+    <main className="container mx-auto px-4 py-6">
+      <div className="mb-6 flex items-center justify-between">
+        <h1 className="text-2xl font-bold tracking-tight text-neutral-900">{template.name}</h1>
+      </div>
+      <TemplateEditorClient initialTemplate={template} />
+    </main>
+  );
+}
+```
+</archetype_10_rsc_data_flow>
+
+---
+
+<archetype_11_live_preview_telemetry>
+### Archetype 11: Race-Condition-Free Live Preview (`AbortController` + Telemetry)
+
+*   **Intent & Scope:** Ensures that rapid typing in the Monaco Editor or form fields does not spawn overlapping HTTP requests that resolve out of order. Automatically aborts stale in-flight requests and measures round-trip rendering latency.
+
+```tsx
+// =========================================================================
+// THE CANONICAL GOLDEN IMPLEMENTATION: Archetype 11
+// File: src/hooks/useLivePreview.ts
+// =========================================================================
+"use client";
+
+import { useRef, useState, useCallback } from "react";
+import { renderPreviewApi } from "@/lib/api/documents";
+
+export function useLivePreview() {
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const [previewBlobUrl, setPreviewBlobUrl] = useState<string | null>(null);
+  const [latencyMs, setLatencyMs] = useState<number | null>(null);
+  const [isRendering, setIsRendering] = useState(false);
+
+  const triggerPreview = useCallback(async (templateId: string, payload: Record<string, unknown>) => {
+    // 1. Abort any previous pending preview request immediately
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+
+    setIsRendering(true);
+    const startTime = performance.now();
+
+    try {
+      const blob = await renderPreviewApi(templateId, payload, abortController.signal);
+      
+      const endTime = performance.now();
+      setLatencyMs(Math.round(endTime - startTime));
+      
+      // Revoke previous URL to prevent client memory leaks
+      if (previewBlobUrl) {
+        URL.revokeObjectURL(previewBlobUrl);
+      }
+      
+      setPreviewBlobUrl(URL.createObjectURL(blob));
+    } catch (error: unknown) {
+      // 2. Silently ignore intentional abort exceptions
+      if (error instanceof DOMException && error.name === "AbortError") {
+        return;
+      }
+      console.error("Live preview generation failed:", error);
+    } finally {
+      setIsRendering(false);
+    }
+  }, [previewBlobUrl]);
+
+  return { previewBlobUrl, latencyMs, isRendering, triggerPreview };
+}
+```
+</archetype_11_live_preview_telemetry>
+
+---
+
+<archetype_12_rfc9457_client_adapter>
+### Archetype 12: Type-Safe RFC 9457 Client Diagnostic Adapter
+
+*   **Intent & Scope:** Intercepts HTTP error responses from the backend, detects RFC 9457 `application/problem+json` payloads, and unpacks them into strongly-typed `ApiError` instances for visual display in error banners and diagnostic field drawers.
+
+```typescript
+// =========================================================================
+// THE CANONICAL GOLDEN IMPLEMENTATION: Archetype 12
+// File: src/lib/api/client.ts
+// =========================================================================
+export interface ProblemDetailsError {
+  type?: string;
+  title?: string;
+  status: number;
+  detail?: string;
+  instance?: string;
+  errorCode?: string;
+  invalidParams?: Array<{ name: string; reason: string }>;
+  errors?: Array<{ path: string; message: string; rule?: string }>;
+}
+
+export class ApiError extends Error {
+  constructor(
+    public readonly status: number,
+    public readonly problemDetails: ProblemDetailsError
+  ) {
+    super(problemDetails.detail ?? problemDetails.title ?? "An API error occurred");
+    this.name = "ApiError";
+  }
+}
+
+export async function parseResponse<T>(response: Response): Promise<T> {
+  if (response.ok) {
+    if (response.status === 204) return {} as T;
+    return (await response.json()) as T;
+  }
+
+  const contentType = response.headers.get("content-type");
+  if (contentType?.includes("application/problem+json") || contentType?.includes("application/json")) {
+    const errorJson = (await response.json()) as ProblemDetailsError;
+    throw new ApiError(response.status, errorJson);
+  }
+
+  throw new ApiError(response.status, {
+    status: response.status,
+    title: response.statusText,
+    detail: await response.text()
+  });
+}
+```
+</archetype_12_rfc9457_client_adapter>
+
+</frontend_lifecycle_archetypes>
+
+---
+
 </frontend_spec_scope>
