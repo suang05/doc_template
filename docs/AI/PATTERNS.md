@@ -156,7 +156,7 @@ namespace SmkDoc.Api.Controllers;
 public sealed class TemplateController(
     IUseCase<CreateTemplateCommand, TemplateResultDto> createUseCase,
     IUseCase<GetTemplateByIdQuery, TemplateResultDto> getByIdUseCase,
-    IUseCase<ListTemplatesQuery, PagedApiResponse<TemplateResultDto>> listUseCase) : ControllerBase
+    IUseCase<ListTemplatesQuery, PagedResultDto<TemplateResultDto>> listUseCase) : ControllerBase
 {
     [HttpPost]
     [Idempotent]
@@ -196,7 +196,12 @@ public sealed class TemplateController(
         CancellationToken ct = default)
     {
         var query = new ListTemplatesQuery(page, pageSize);
-        var response = await listUseCase.ExecuteAsync(query, ct);
+        var result = await listUseCase.ExecuteAsync(query, ct);
+        var response = new PagedApiResponse<TemplateResultDto>(
+            data: result.Items,
+            totalCount: result.TotalCount,
+            page: result.Page,
+            limit: result.PageSize);
 
         return TypedResults.Ok(response);
     }
@@ -388,6 +393,7 @@ public interface ITemplateRepository
 {
     Task<Template?> GetByIdAsync(Guid id, CancellationToken ct = default);
     Task<bool> ExistsBySlugAsync(Guid projectId, TemplateSlug slug, CancellationToken ct = default);
+    Task<int> CountAsync(CancellationToken ct = default);
     Task<IReadOnlyList<Template>> ListAsync(int page, int pageSize, CancellationToken ct = default);
     Task AddAsync(Template template, CancellationToken ct = default);
 }
@@ -495,10 +501,16 @@ public sealed class CreateTemplateUseCase(
 // [GENERATIVE_SLOT_FORMULA: ARCHETYPE-6-READ-USECASE]
 namespace SmkDoc.Application.Features.Templates.Queries.ListTemplates;
 
+public sealed record PagedResultDto<T>(
+    IReadOnlyList<T> Items,
+    int TotalCount,
+    int Page,
+    int PageSize);
+
 public sealed class ListTemplatesUseCase(
-    ITemplateRepository templateRepo) : IUseCase<ListTemplatesQuery, PagedApiResponse<TemplateResultDto>>
+    ITemplateRepository templateRepo) : IUseCase<ListTemplatesQuery, PagedResultDto<TemplateResultDto>>
 {
-    public async Task<PagedApiResponse<TemplateResultDto>> ExecuteAsync(
+    public async Task<PagedResultDto<TemplateResultDto>> ExecuteAsync(
         ListTemplatesQuery query,
         CancellationToken ct = default)
     {
@@ -506,7 +518,9 @@ public sealed class ListTemplatesUseCase(
         var page = Math.Max(1, query.Page);
         var pageSize = Math.Clamp(query.PageSize, 1, 100);
 
-        // 2. E: Read-Only Evaluation via Repository with .AsNoTracking()
+        // 2. E: Read-Only Evaluation via Repository with .AsNoTracking() and Database-Side Pagination
+        // NOTE: ITemplateRepository.ListAsync MUST execute .Skip((page - 1) * pageSize).Take(pageSize) at the Database Level
+        var totalCount = await templateRepo.CountAsync(ct);
         var templates = await templateRepo.ListAsync(page, pageSize, ct);
 
         // 3. R: Project Domain State directly into Immutable Positional Records
@@ -516,11 +530,11 @@ public sealed class ListTemplatesUseCase(
             Slug: t.Slug.Value,
             CreatedAt: t.CreatedAt)).ToList();
 
-        return new PagedApiResponse<TemplateResultDto>(
-            Data: dtos,
+        return new PagedResultDto<TemplateResultDto>(
+            Items: dtos,
+            TotalCount: totalCount,
             Page: page,
-            PageSize: pageSize,
-            TotalCount: dtos.Count);
+            PageSize: pageSize);
     }
 }
 ```
@@ -653,17 +667,17 @@ namespace SmkDoc.Tests.Features.Templates.Commands;
 
 public sealed class CreateTemplateUseCaseTests
 {
-    private readonly Mock<ITemplateRepository> _templateRepoMock = new();
-    private readonly Mock<IUnitOfWork> _unitOfWorkMock = new();
-    private readonly Mock<TimeProvider> _timeProviderMock = new();
+    private readonly Mock<ITemplateRepository> templateRepoMock = new();
+    private readonly Mock<IUnitOfWork> unitOfWorkMock = new();
+    private readonly Mock<TimeProvider> timeProviderMock = new();
 
     private CreateTemplateUseCase CreateSut()
     {
-        _timeProviderMock.Setup(t => t.GetUtcNow()).Returns(TestConstants.BaselineTime);
+        timeProviderMock.Setup(t => t.GetUtcNow()).Returns(TestConstants.BaselineTime);
         return new CreateTemplateUseCase(
-            templateRepo: _templateRepoMock.Object,
-            unitOfWork: _unitOfWorkMock.Object,
-            timeProvider: _timeProviderMock.Object);
+            templateRepo: templateRepoMock.Object,
+            unitOfWork: unitOfWorkMock.Object,
+            timeProvider: timeProviderMock.Object);
     }
 
     [Fact]
@@ -675,7 +689,7 @@ public sealed class CreateTemplateUseCaseTests
             Name: "Invoice Template",
             Slug: "invoice-standard");
 
-        _templateRepoMock
+        templateRepoMock
             .Setup(r => r.ExistsBySlugAsync(command.ProjectId, It.IsAny<TemplateSlug>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(false);
 
@@ -689,8 +703,8 @@ public sealed class CreateTemplateUseCaseTests
         result.Name.Should().Be("Invoice Template");
         result.Slug.Should().Be("invoice-standard");
 
-        _templateRepoMock.Verify(r => r.AddAsync(It.IsAny<Template>(), It.IsAny<CancellationToken>()), Times.Once);
-        _unitOfWorkMock.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
+        templateRepoMock.Verify(r => r.AddAsync(It.IsAny<Template>(), It.IsAny<CancellationToken>()), Times.Once);
+        unitOfWorkMock.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -702,7 +716,7 @@ public sealed class CreateTemplateUseCaseTests
             Name: "Invoice Template",
             Slug: "invoice-duplicate");
 
-        _templateRepoMock
+        templateRepoMock
             .Setup(r => r.ExistsBySlugAsync(command.ProjectId, It.IsAny<TemplateSlug>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
 
@@ -715,7 +729,7 @@ public sealed class CreateTemplateUseCaseTests
         await act.Should().ThrowAsync<ConflictException>()
             .WithMessage("*already exists*");
 
-        _unitOfWorkMock.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Never);
+        unitOfWorkMock.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 }
 ```
@@ -755,11 +769,15 @@ namespace SmkDoc.Infrastructure.Localization;
 
 public static class ThaiDataTransformer
 {
+    public const string ThaiDateBe = "thai_date_be";
+    public const string ThaiBahtText = "thai_baht_text";
+    public const string ThaiPhone = "thai_phone";
+
     public static string Transform(object? value, string transformType) => transformType switch
     {
-        "thai_date_be" => FormatBuddhistEra(value),
-        "thai_baht_text" => ConvertToBahtText(Convert.ToDecimal(value)),
-        "thai_phone" => FormatPhoneNumber(value?.ToString()),
+        ThaiDateBe => FormatBuddhistEra(value),
+        ThaiBahtText => ConvertToBahtText(Convert.ToDecimal(value)),
+        ThaiPhone => FormatPhoneNumber(value?.ToString()),
         _ => value?.ToString() ?? string.Empty
     };
 
