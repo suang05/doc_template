@@ -154,7 +154,7 @@ interface ProblemDetails {
 
 ## 3. 🏛️ The 6 Canonical Endpoint Archetypes (Golden Patterns)
 
-Every endpoint in `smk-doc-server` MUST strictly map to one of these 6 archetypes. Do NOT invent ad-hoc patterns.
+Every endpoint in `smk-doc-server` MUST strictly map to one of these 6 archetypes. Do NOT invent ad-hoc patterns. All controllers MUST use C# 13 Primary Constructors with pure `camelCase` parameters, delegate workflows to `IUseCase<TCommand, TResult>`, accept `CancellationToken ct`, and return strongly-typed `TypedResults` for compile-time safety and automatic OpenAPI metadata generation.
 
 ### Archetype 1: Single Resource Query (Read-One)
 * **Verb & Route:** `GET /api/v1/{resources}/{id}`
@@ -166,11 +166,10 @@ Every endpoint in `smk-doc-server` MUST strictly map to one of these 6 archetype
 [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
 public async Task<Ok<ApiResponse<TemplateDetailsDto>>> GetById(
     Guid id,
-    [FromServices] GetTemplateByIdHandler handler,
-    CancellationToken cancellationToken)
+    CancellationToken ct)
 {
     var query = new GetTemplateByIdQuery(id);
-    var result = await handler.ExecuteAsync(query, cancellationToken);
+    var result = await getTemplateByIdUseCase.ExecuteAsync(query, ct);
     return TypedResults.Ok(new ApiResponse<TemplateDetailsDto>(result));
 }
 ```
@@ -185,11 +184,10 @@ public async Task<Ok<PagedApiResponse<TemplateListItemDto>>> List(
     [FromQuery] int page = 1,
     [FromQuery] int limit = 20,
     [FromQuery] string? search = null,
-    [FromServices] ListTemplatesHandler handler,
-    CancellationToken cancellationToken = default)
+    CancellationToken ct = default)
 {
     var query = new ListTemplatesQuery(page, limit, search);
-    var result = await handler.ExecuteAsync(query, cancellationToken);
+    var result = await listTemplatesUseCase.ExecuteAsync(query, ct);
     return TypedResults.Ok(result);
 }
 ```
@@ -204,11 +202,10 @@ public async Task<Ok<PagedApiResponse<TemplateListItemDto>>> List(
 [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
 public async Task<Created<ApiResponse<TemplateCreatedDto>>> Create(
     [FromBody] CreateTemplateRequest request,
-    [FromServices] CreateTemplateHandler handler,
-    CancellationToken cancellationToken)
+    CancellationToken ct)
 {
     var command = new CreateTemplateCommand(request.Name, request.Slug);
-    var result = await handler.ExecuteAsync(command, cancellationToken);
+    var result = await createTemplateUseCase.ExecuteAsync(command, ct);
     return TypedResults.Created($"/api/v1/templates/{result.Id}", new ApiResponse<TemplateCreatedDto>(result));
 }
 ```
@@ -223,11 +220,10 @@ public async Task<Created<ApiResponse<TemplateCreatedDto>>> Create(
 public async Task<Ok<ApiResponse<TemplateUpdatedDto>>> Update(
     Guid id,
     [FromBody] UpdateTemplateRequest request,
-    [FromServices] UpdateTemplateHandler handler,
-    CancellationToken cancellationToken)
+    CancellationToken ct)
 {
     var command = new UpdateTemplateCommand(id, request.Name, request.Category);
-    var result = await handler.ExecuteAsync(command, cancellationToken);
+    var result = await updateTemplateUseCase.ExecuteAsync(command, ct);
     return TypedResults.Ok(new ApiResponse<TemplateUpdatedDto>(result));
 }
 ```
@@ -242,11 +238,10 @@ public async Task<Ok<ApiResponse<TemplateUpdatedDto>>> Update(
 public async Task<Ok<ApiResponse<GenerateDocumentResultDto>>> Generate(
     string slug,
     [FromBody] GenerateDocumentRequest request,
-    [FromServices] GenerateDocumentHandler handler,
-    CancellationToken cancellationToken)
+    CancellationToken ct)
 {
     var command = new GenerateDocumentCommand(slug, request.Payload, request.OutputFormat);
-    var result = await handler.ExecuteAsync(command, cancellationToken);
+    var result = await generateDocumentUseCase.ExecuteAsync(command, ct);
     return TypedResults.Ok(new ApiResponse<GenerateDocumentResultDto>(result));
 }
 ```
@@ -261,11 +256,10 @@ public async Task<Ok<ApiResponse<GenerateDocumentResultDto>>> Generate(
 [ProducesResponseType(typeof(FileStreamHttpResult), StatusCodes.Status200OK)]
 public async Task<FileStreamHttpResult> Preview(
     [FromBody] PreviewDocumentRequest request,
-    [FromServices] PreviewDocumentHandler handler,
-    CancellationToken cancellationToken)
+    CancellationToken ct)
 {
     var command = new PreviewDocumentCommand(request.Payload, request.Html);
-    var streamResult = await handler.ExecuteAsync(command, cancellationToken);
+    var streamResult = await previewDocumentUseCase.ExecuteAsync(command, ct);
     return TypedResults.Stream(streamResult.Stream, "application/pdf", enableRangeProcessing: true);
 }
 ```

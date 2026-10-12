@@ -348,4 +348,32 @@ When receiving mockups or exported JSX/HTML from AI design tools (**Google Stitc
 
 ---
 
+<frontend_coding_standards>
+## ⚡ Frontend Engineering Standards (TypeScript 5.7, Next.js 15 & Zod SSoT)
+
+All React / Next.js code generated for `frontend-v2/` MUST strictly satisfy these operational constraints:
+
+### 1. Architectural Component Hierarchy (`RULE-FE-ARCH`)
+* `[RULE-FE-ARCH-001] [MUST]`: Default to React Server Components (RSC). Use Server Components for layout scaffolding, data fetching, and static UI trees.
+* `[RULE-FE-ARCH-002] [MUST]`: Restrict `"use client"` directive strictly to leaf components requiring interactive state (`useState`, `useReducer`), browser event handlers (`onClick`, `onChange`), or lifecycle hooks (`useEffect`).
+* `[RULE-FE-ARCH-003] [MUST NOT]`: NEVER mark entire page layouts or parent container modules with `"use client"`. Push interactivity down to the leaves of the render tree.
+
+### 2. TypeScript 5.7 Strictness & Zero-`any` Invariant (`RULE-FE-TS`)
+* `[RULE-FE-TS-001] [MUST]`: Strict typing is mandatory. The `any` type is STRICTLY FORBIDDEN. Use `unknown` with type guards or discriminated unions for dynamic data.
+* `[RULE-FE-TS-002] [MUST]`: Derive TypeScript types directly from Zod validation schemas using `z.infer<typeof Schema>` (SSoT). Avoid declaring manual parallel interface definitions.
+* `[RULE-FE-TS-003] [MUST]`: Use immutable Readonly types for component props and state slices where mutation is not required (`Readonly<{ ... }>`).
+
+### 3. Zod Runtime Validation & Form Contracts (`RULE-FE-ZOD`)
+* `[RULE-FE-ZOD-001] [MUST]`: All form payloads and incoming API JSON responses MUST be validated at runtime via Zod schemas located in `@/schemas/`.
+* `[RULE-FE-ZOD-002] [MUST]`: Enforce fail-fast schema parsing. Parse API responses using `Schema.parse(response)` or `Schema.safeParse(response)` before passing data to presentation components.
+* `[RULE-FE-ZOD-003] [MUST]`: Error messages returned to the user MUST map RFC 9457 `ProblemDetails.errors` or Zod issues to specific field states via `<Input error={...} />`.
+
+### 4. HTTP Client & Streaming Hygiene (`RULE-FE-HTTP`)
+* `[RULE-FE-HTTP-001] [MUST]`: All network requests MUST use centralized fetch wrappers (`apiClient<T>`, `apiClientBlob`, `apiClientStream`). Raw `fetch()` invocations inside components are PROHIBITED.
+* `[RULE-FE-HTTP-002] [MUST]`: Always pass `AbortSignal` (`ct.signal`) to cancel inflight requests upon component unmount or search query debounce.
+* `[RULE-FE-HTTP-003] [MUST]`: Document previews (PDF, DOCX) MUST stream via `apiClientBlob` or `ReadableStream` directly into `URL.createObjectURL(blob)` and revoke URL objects upon teardown to prevent client memory leaks.
+</frontend_coding_standards>
+
+---
+
 </frontend_spec_scope>

@@ -1,431 +1,287 @@
 # CODING_CONVENTIONS.md — SMK Document Server
 
-> **Purpose:** This document is the Ultimate Single Source of Truth (SSoT) for engineering standards, language idioms, code craftsmanship, and naming conventions across the SMK Document Server (`backend-v2/` and `frontend-v2/`).
-> **[AI_DIRECTIVE]:** AI Assistants (LLMs) and human engineers MUST treat these guidelines as absolute laws. You must read the specific section relevant to your task to guarantee an uncompromised, clean, readable, SOLID, and deterministic codebase. Never deviate from these structures or invent alternative conventions.
+> **[PURPOSE_SCOPE_SSOT]:** Authoritative Single Source of Truth for Backend C# 13 / .NET 10 Clean Architecture, CQRS, and cross-layer naming invariants (`backend-v2/`).
+> **[CORE_MISSION]:** Eliminate LLM code generation inconsistency, suppress hallucinated legacy anti-patterns, and enforce deterministic Clean Architecture best practices across all model invocations.
+> **[EXCLUSION]:** Frontend conventions (Next.js 15, TypeScript 5.7, Zod schemas) are strictly isolated in `docs/AI/FRONTEND_SPEC.md`. Do NOT consult this file for frontend UI code.
+> **[ENFORCEMENT]:** LLMs and engineers MUST obey all RFC 2119 keywords (`[MUST]`, `[MUST NOT]`). Every rule carries a machine-traceable token `RULE-[CATEGORY]-[ID]`.
 
 <ai_directive>
-CRITICAL ATTENTION ROUTING:
-- For Backend (C# 13 / .NET 10), STRICTLY focus on `<backend_scope>`, `<craftsmanship_rules>`, and `<global_standards>`.
-- For Frontend (TypeScript / Next.js 15), STRICTLY focus on `<frontend_scope>`, `<craftsmanship_rules>`, and `<global_standards>`.
-- ALWAYS obey `<core_philosophy>` and `<tech_stack>`.
-- For complete end-to-end architectural implementation templates (Golden Archetypes), refer directly to `docs/AI/PATTERNS.md`.
+CRITICAL ATTENTION ROUTING FOR LLM:
+1. Treat `<llm_gatekeeper_directive>`, `<tech_stack>`, `<clean_architecture_invariants>`, `<solid_craftsmanship_matrix>`, `<backend_rules>`, and `<naming_ssot>` as immutable system constraints.
+2. Every generated C# file MUST satisfy all `[MUST]` rules and NEVER violate any `[MUST NOT]` rules or Forbidden Anti-Patterns (❌).
+3. For architectural wiring templates and multi-file interaction recipes, refer to `docs/AI/PATTERNS.md`.
+4. For API routes, DTO contracts, and error taxonomies, refer to `docs/AI/API_CONTRACT.md`.
 </ai_directive>
 
 ---
 
-## 📑 Table of Contents
-1. **[Core Philosophy: Clean Architecture & SOLID Design](#1-🏛️-core-philosophy-clean-architecture--solid-design)**
-2. **[System Tech Stack (Ground Truth)](#2-🏗️-system-tech-stack-ground-truth)**
-3. **[Readability, Simplicity & Code Craftsmanship (The 10 Golden Rules)](#3-💎-readability-simplicity--code-craftsmanship-the-10-golden-rules)**
-   - 3.1 The Stepdown Rule (The Newspaper Metaphor)
-   - 3.2 Vertical Proximity & Visual Formatting
-   - 3.3 Linear Storytelling & Guard Clauses (Max Cyclomatic Depth = 2)
-   - 3.4 Meaningful & Intention-Revealing Names (No Mental Mapping)
-   - 3.5 Single Term per Concept (Cross-Layer Ubiquitous Consistency)
-   - 3.6 Zero Echo/Robot Comments (Code explains WHAT, Comment explains WHY)
-   - 3.7 Explicit Intermediate Variables & Breaking Long Chains
-   - 3.8 Trust Nullable Reference Types (No Paranoid Defensive Guarding in Core)
-   - 3.9 Expressive Domain Verbs over Anemic Property Dumping
-   - 3.10 Zero Magic Numbers & Centralized Configuration (IOptions & Constants)
-4. **[Backend Standards: C# 13 / .NET 10 (`backend-v2/`)](#4-🔵-backend-standards-c-13--net-10-backend-v2)**
-   - 4.1 Primary Constructors (camelCase Invariant, Zero Field Re-declaration)
-   - 4.2 Immutability & Record Types ('record' vs 'class' Decision Matrix)
-   - 4.3 Modern C# 13 Language Idioms (Collection Expressions, Pattern Matching, Locks)
-   - 4.4 Deterministic Time (TimeProvider) & Async Cancellation (ct)
-   - 4.5 Clean Architecture Layer Syntactic Rules
-   - 4.6 Testing Craftsmanship (Strict AAA Anatomy & 3-Part Naming)
-5. **[Frontend Standards: TypeScript 5.7 / Next.js 15.2 (`frontend-v2/`)](#5-🟡-frontend-standards-typescript-57--nextjs-152-frontend-v2)**
-   - 5.1 Strict TypeScript & Zod SSoT
-   - 5.2 Next.js 15 App Router Paradigms (Server Components by Default)
-   - 5.3 Component Architecture & Category Isolation
-6. **[System-Wide Naming Standards & The Anti-Hallucination Matrix](#6-🏷️-system-wide-naming-standards--the-anti-hallucination-matrix)**
-   - 6.1 The 6 Pillars Naming Matrix
-   - 6.2 The Canonical Verb Dictionary (One Word per Concept across Layers)
-   - 6.3 The Anti-Hallucination Variable Dictionary (STRICT vs Banned Names)
-   - 6.4 Canonical End-to-End Naming Flow Example
-   - 6.5 Architectural Mentorship Handbook: Expressive Contract Property Naming & Cross-Layer Symmetry
+<llm_gatekeeper_directive>
+## 0. 🛡️ LLM Gatekeeper & Interception Protocol (Zero-Tolerance Architectural Linter)
+
+> **[SOVEREIGN_SSOT_STATUS]:** This document is the absolute Single Source of Truth (SSoT) for `backend-v2/`. Any existing code in the repository that contradicts this specification is an **Architectural Defect**. Conforming to defective legacy code is strictly forbidden.
+
+### 0.1 Anti-Conformity Invariant & Proactive Elevation (`RULE-GATE`)
+When inspecting, reviewing, or generating code, the LLM MUST act as the Senior Architect and strictly obey these operational rules:
+
+* `[RULE-GATE-001] [ANTI_CONFORMITY] [MUST NOT]`: NEVER conform to defective legacy patterns. NEVER ask or suggest: *"Should I keep this consistent with the existing code?"*. Existing code that violates this document MUST be treated as an architectural violation.
+* `[RULE-GATE-002] [PROACTIVE_ELEVATION] [MUST]`: ALWAYS proactively advocate for and recommend elevating non-compliant code to adhere to this SSoT or an objectively superior modern architectural standard.
+* `[RULE-GATE-003] [INTERCEPTION_SEQUENCE] [MUST]`: Upon detecting any architectural defect, execute this deterministic 4-step sequence:
+  1. **Halt & Flag:** Stop immediate execution. State exact file, line number, and rule violation ID (`[RULE-...]`).
+  2. **Technical Impact Explanation:** Explain root-cause architectural hazards (e.g. LOH fragmentation, thread pool starvation, leaky abstraction, broken testability).
+  3. **Elevated Remediation:** Provide complete compilable code comparing `❌ Defective Legacy Pattern (Forbidden)` against `✅ SSoT Canonical Standard (Mandatory)`.
+  4. **Architectural Rationale:** Articulate why the elevated approach is superior to conforming to legacy code.
+* `[RULE-GATE-004] [FEARLESS_REFACTORING] [MUST]`: Boldly propose refactoring or rewriting fundamentally flawed structures (e.g. Anemic Domain Models, God classes, public setters) instead of applying band-aid patches.
 
 ---
 
-<core_philosophy>
-## 1. 🏛️ Core Philosophy: Clean Architecture & SOLID Design
+### 0.2 High-Priority Interception Trigger Matrix
+The LLM MUST intercept and flag execution immediately upon detecting any of the following anti-patterns:
 
-All code written for the SMK Document Server MUST strictly adhere to global software engineering best practices. We prioritize **Readability & Simplicity** above premature optimization.
-
-1. **Clean Architecture & Strict Decoupling:** Inner layers (Domain, Application) know nothing about outer layers (Infrastructure, Presentation). Dependencies flow inwards only.
-2. **SOLID Principles:**
-   - **SRP (Single Responsibility):** Each class and method has exactly one reason to change.
-   - **OCP (Open/Closed):** Open for extension via polymorphic dispatch, pipeline behaviors, or Strategy patterns; closed for modification.
-   - **LSP (Liskov Substitution):** Derived types or interface implementations must be fully substitutable for their abstractions without unexpected side-effects.
-   - **ISP (Interface Segregation):** Small, focused client-specific interfaces (e.g., `IUseCase<TCommand, TResult>`, `ITemplateRepository`) rather than bloated fat interfaces.
-   - **DIP (Dependency Inversion):** High-level business modules depend on abstractions, never on low-level infrastructure details.
-3. **Readability & Simplicity First:** Code must read like clean, unambiguous prose. Code is read ten times more often than it is written. If code requires mental gymnastics to understand, it is defective.
-4. **KISS (Keep It Simple, Stupid):** The simplest solution that completely satisfies requirements and preserves architectural boundaries is always superior to an overly clever abstraction.
-5. **DRY & Single Source of Truth (SSoT):** Every piece of knowledge, business logic, validation rule, or database mapping must have an authoritative, unambiguous representation within the system.
-6. **Zero Dead Code:** Maintain pristine hygiene. Eliminate unused imports, commented-out logic, and obsolete scaffolding prior to verification.
+| Architectural Concern | Defective Pattern (❌ Forbidden) | SSoT Canonical Standard (✅ Mandatory) | Rule ID |
+|---|---|---|---|
+| **Domain State** | Entity with `public set;` or parameterless constructor (Anemic Model) | Rich Domain Model, `private/protected set`, factory method `Create(...)` | `[RULE-DOM-001]` |
+| **Layer Boundary** | Exposing Domain Entity to Presentation or returning from UseCase | Return immutable Application DTO (`TemplateResultDto`) exclusively | `[RULE-ARCH-002]` |
+| **Constructor DI** | Prefixing parameters with underscore `_` (e.g. `_repo`, `_logger`) | Pure `camelCase` parameters (e.g. `templateRepo`, `logger`) | `[RULE-NAME-003]` |
+| **Clock Queries** | Direct calls to `DateTime.UtcNow` or `DateTimeOffset.UtcNow` | Inject `TimeProvider` or pass explicit `DateTimeOffset now` dependency | `[RULE-DOM-003]` |
+| **Thread Blocking** | Synchronous blocking via `.Result`, `.Wait()`, `.GetAwaiter().GetResult()` | Asynchronous non-blocking `await` across all I/O boundaries | `[RULE-CRAFT-005]` |
+| **Memory / LOH** | In-memory document buffering via `new MemoryStream()`, `byte[]` | Direct stream piping from Gotenberg/MinIO via `Stream` or `ArrayPool` | `[RULE-MEM-001]` |
+| **DbContext Concurrency**| Concurrent tasks (`Task.WhenAll`) executed on single `DbContext` instance | Sequential execution or independent DI scopes per concurrent worker | `[RULE-CONC-001]` |
+| **Variable Identifiers** | Truncated abbreviations (`req`, `dto`, `res`, `cancellationToken`) | Standard identifiers: `request`, `result`, `CancellationToken ct` | `[RULE-NAME-002]` |
+| **Object Instantiation** | Inlined nested object instantiation inside method call invocations | Instantiate into explicit, strongly-typed local variables first | `[RULE-CRAFT-002]` |
+| **Error Contracts** | Empty `catch { }` blocks or anonymous JSON error payloads | Throw Domain Exceptions; map to RFC 9457 `ProblemDetails` | `[RULE-API-002]` |
+| **Regex Safety (ReDoS)** | Dynamic `new Regex(pattern)` in hot paths or omitting timeouts | Source-generated `[GeneratedRegex]` with explicit evaluation timeout | `[RULE-SEC-002]` |
 
 ---
 
-</core_philosophy>
+### 0.3 Standardized Remediation Response Template
+When intercepting non-compliant code, the LLM MUST use this exact output structure:
+
+```markdown
+🚨 **[ARCHITECTURAL_VIOLATION_DETECTED]:** Defect identified in `{FilePath}:{LineNumber}`
+- **Violated Rule:** `[RULE-CATEGORY-ID]` ({Rule Title})
+- **Technical Impact:** {Detailed explanation: e.g. LOH allocation, thread starvation, leaky abstraction}
+- **Elevated Remediation:**
+  ❌ **Before (Defective Legacy Pattern - Do Not Conform):**
+  ```csharp
+  // Non-compliant code
+  ```
+  ✅ **After (SSoT Canonical Standard):**
+  ```csharp
+  // Elevated compliant code
+  ```
+- **Rationale for Elevation:** {Why conforming to existing code is rejected and how this standard improves system metrics}
+- **Proactive Refactoring Proposal:** {Slice-level refactoring advice if structural rewrites are warranted}
+```
+</llm_gatekeeper_directive>
+
+---
 
 <tech_stack>
-## 2. 🏗️ System Tech Stack (Ground Truth)
+## 1. 🏗️ System Tech Stack & Language Capabilities (Ground Truth)
 
-> **[AI_DIRECTIVE]** The following exact technologies and versions are actively configured in the workspace (`Directory.Build.props` and `package.json`). All generated code, dependencies, and syntax MUST align strictly with these versions.
+All C# code generated by LLMs MUST strictly adhere to the following target runtimes and compiler capabilities.
 
-| Layer / Concern | Technology | Version | Key Directives & Capabilities |
+| Layer / Concern | Technology | Target Version | Active Language Capabilities & Invariants |
 |---|---|---|---|
-| **Backend Framework** | ASP.NET Core | .NET 10 (`net10.0`) | Modern Web API, Minimal Hosting, RFC 9457 ProblemDetails |
-| **Language** | C# | 13.0 (`<LangVersion>13.0</LangVersion>`) | Primary Constructors, Collection Expressions `[]`, Positional Records |
-| **Persistence / ORM** | Entity Framework Core + Npgsql | 10.x | Code-First, Fluent API Mapping, PostgreSQL Provider |
+| **Backend Runtime** | .NET | 10 (`net10.0`) | `TimeProvider`, `Guid.CreateVersion7()`, RFC 9457 `ProblemDetails` |
+| **Language** | C# | 13 (`<LangVersion>13.0</LangVersion>`) | Primary Constructors, Collection Expressions `[]`, `System.Threading.Lock` |
+| **ORM / Data** | EF Core + Npgsql | 10.x | Code-First, Fluent API Mapping, PostgreSQL Provider |
 | **Database** | PostgreSQL | 15-alpine | Relational storage, UTF-8 Thai Collation, `smkdoc` database |
-| **Document Rendering** | Gotenberg | 8.x | High-throughput Chromium (HTML to PDF) and LibreOffice engine |
-| **Object Storage** | MinIO | S3-Compatible | Multi-bucket asset and output storage (`templates/`, `outputs/`) |
-| **Frontend Framework** | Next.js App Router | 15.2.0 | React 19.0.0, Server Components by default, Leaf Client Components |
-| **Frontend Language** | TypeScript | 5.7.3 | Strict Mode (`strict: true`), zero `any` allowance |
-| **Validation (Frontend)**| Zod | 3.24.2 | Runtime schema validation and SSoT TypeScript type derivation (`z.infer`) |
-| **UI Styling** | Tailwind CSS | 3.4.17 | CSS Custom Properties design tokens, `clsx` + `tailwind-merge` (`cn()`) |
-| **Frontend Testing** | Vitest | 5.0.1 | Fast unit and component test runner |
-| **Backend Testing** | xUnit + FluentAssertions + Moq | Latest stable | AAA anatomy, Testcontainers for real PostgreSQL/MinIO integration tests |
+| **Rendering Gateway**| Gotenberg | 8.x | Chromium headless (HTML to PDF) and LibreOffice engine |
+| **Object Storage** | MinIO | S3-Compatible | Multi-bucket asset & output storage (`templates/`, `outputs/`) |
 
----
+* `[RULE-TECH-001] [MUST]`: Use C# 13 language features: Collection expressions `[]`, Primary Constructors on classes, `Lock` object for synchronization.
+* `[RULE-TECH-002] [MUST]`: Use .NET 10 APIs: `TimeProvider` for time queries, `Guid.CreateVersion7()` for UUIDv7 sequential entity keys.
+* `[RULE-TECH-003] [MUST NOT]`: NEVER use deprecated syntax: `new List<T>()`, `new T[] { }`, `DateTime.UtcNow`, `lock (new object())`.
 
 </tech_stack>
 
-<craftsmanship_rules>
-## 3. 💎 Readability, Simplicity & Code Craftsmanship (The 9 Golden Rules)
-
-These 9 concrete rules convert abstract concepts like "Clean Code" into strictly verifiable constraints. Every pull request and LLM-generated code snippet must pass these criteria.
-
 ---
 
-### 3.1 The Stepdown Rule (The Newspaper Metaphor)
-A source file must read like a well-edited newspaper article. The highest-level, most important concepts appear first, followed by progressively lower-level details as the reader scrolls downward.
+<clean_architecture_invariants>
+## 2. 🏛️ Clean Architecture Boundary & DTO Taxonomy
 
-*   **Rule 1 (Public First):** The primary public entry point (e.g., `ExecuteAsync` in a UseCase, or HTTP action methods in a Controller) MUST be placed at the very top of the class body, directly following constructors.
-*   **Rule 2 (Top-Down Sequence):** Private helper methods called by a public method MUST be placed **immediately beneath the caller method** in the exact order they are invoked.
-*   **Rule 3 (No Random Dumps):** NEVER dump private methods into a random cluster at the very bottom of a 300-line class. The reader must never be forced to jump frantically across a file to trace the execution flow.
+### 2.1 Boundary Invariants (`RULE-ARCH`)
 
-```csharp
-// ❌ Bad: Disorganized method order forces chaotic scrolling
-public sealed class GenerateDocumentUseCase(IRenderEngine engine)
-{
-    private byte[] ApplyWatermark(byte[] pdf) => ... // Helper at top
-    
-    public async Task<DocumentResult> ExecuteAsync(...) // Main entry point buried in the middle
-    {
-        var html = FormatHtml(...);
-        var pdf = await engine.RenderAsync(html);
-        return ApplyWatermark(pdf);
-    }
+Dependencies flow inwards exclusively.
 
-    private string FormatHtml(...) => ... // Another helper at bottom
-}
+```mermaid
+graph TD
+    subgraph Presentation ["Presentation Layer (SmkDoc.Api) [RULE-API]"]
+        CTL["Thin Controllers (<= 5 Lines)"]
+        EXC["GlobalExceptionHandler (RFC 9457)"]
+        IDEM["IdempotencyFilter (IETF Header)"]
+    end
 
-// ✅ Good: The Stepdown Rule (Reads naturally from top to bottom)
-public sealed class GenerateDocumentUseCase(IRenderEngine engine)
-{
-    // 1. Primary entry point at the top
-    public async Task<DocumentResult> ExecuteAsync(GenerateDocumentCommand command, CancellationToken ct)
-    {
-        var formattedHtml = PrepareHtmlPayload(command);
-        var rawPdf = await engine.RenderAsync(formattedHtml, ct);
-        return ApplyWatermark(rawPdf);
-    }
+    subgraph Application ["Application Layer (SmkDoc.Application) [RULE-APP]"]
+        UC["Action-Centric UseCase (IUseCase<TCommand, TResult>)"]
+        VAL["Dual-Engine Validation (FluentValidation)"]
+        DTO["Immutable Positional Records (ResultDto)"]
+    end
 
-    // 2. First helper placed directly beneath its invocation point
-    private string PrepareHtmlPayload(GenerateDocumentCommand command)
-    {
-        return $"<html><body>{command.Content}</body></html>";
-    }
+    subgraph Domain ["Domain Layer (SmkDoc.Domain) [RULE-DOM] - Heart of System"]
+        ENT["Rich Domain Entities (private set, UUIDv7)"]
+        VO["Value Objects (readonly record struct)"]
+        FACT["Single Factory Method: Create() SSoT"]
+        VERB["Domain State Mutation Verbs (Publish, Archive)"]
+    end
 
-    // 3. Second helper follows immediately
-    private DocumentResult ApplyWatermark(byte[] rawPdf)
-    {
-        var finalizedBytes = WatermarkProcessor.Stamp(rawPdf);
-        return new DocumentResult(finalizedBytes);
-    }
-}
+    subgraph Infrastructure ["Infrastructure Layer (SmkDoc.Infrastructure) [RULE-INFRA]"]
+        REPO["EF Core Repositories & UnitOfWork (CommitAsync)"]
+        CFG["Fluent API Configurations (IEntityTypeConfiguration)"]
+        STR["Zero-LOH Streaming (Gotenberg / MinIO Client)"]
+    end
+
+    CTL --> UC
+    UC --> ENT
+    UC --> REPO
+    REPO -.-> ENT
+    Infrastructure -.-> Application
 ```
 
----
-
-### 3.2 Vertical Proximity & Visual Formatting
-Concepts and variables that are closely related conceptually must be kept vertically close visually.
-
-*   **Rule 1 (Declare at Point of Use):** Declare local variables immediately before their first usage. NEVER declare all variables at the top of a method if they are consumed 15 lines later.
-*   **Rule 2 (Blank Lines as Paragraphs):** Use exactly one blank line to separate distinct logical operations (e.g., between fetching data, validating business state, mutating domain models, and persisting results). Never bunch 30 lines into an unformatted wall of code.
-
-```csharp
-// ❌ Bad: Variable declared far away from usage; no visual breathing room
-public async Task<TemplateResultDto> ExecuteAsync(CreateTemplateCommand command, CancellationToken ct)
-{
-    var now = timeProvider.GetUtcNow(); // Declared at line 1
-    var templateName = TemplateName.Create(command.Name); // Declared at line 2
-    var slug = TemplateSlug.Create(command.Slug);
-    if (await templateRepo.ExistsBySlugAsync(command.ProjectId, slug, ct)) throw new ConflictException("Slug exists");
-    var existingProject = await projectRepo.GetByIdAsync(command.ProjectId, ct);
-    if (existingProject is null) throw new NotFoundException("Project not found");
-    var template = Template.Create(command.ProjectId, templateName, slug, command.Category, now); // Used at line 7
-    await templateRepo.AddAsync(template, ct);
-    await unitOfWork.CommitAsync(ct);
-    return new TemplateResultDto(template.Id, template.Name.Value, template.CreatedAt);
-}
-
-// ✅ Good: Vertical Proximity and paragraph-style blank lines
-public async Task<TemplateResultDto> ExecuteAsync(CreateTemplateCommand command, CancellationToken ct)
-{
-    // Step 1: Pre-condition checks
-    var slug = TemplateSlug.Create(command.Slug);
-    if (await templateRepo.ExistsBySlugAsync(command.ProjectId, slug, ct))
-    {
-        throw new ConflictException("Slug already in use");
-    }
-
-    var project = await projectRepo.GetByIdAsync(command.ProjectId, ct);
-    if (project is null)
-    {
-        throw new NotFoundException($"Project '{command.ProjectId}' does not exist");
-    }
-
-    // Step 2: Domain creation (variables declared directly at point of use)
-    var now = timeProvider.GetUtcNow();
-    var templateName = TemplateName.Create(command.Name);
-    var template = Template.Create(command.ProjectId, templateName, slug, command.Category, now);
-
-    // Step 3: Persistence
-    await templateRepo.AddAsync(template, ct);
-    await unitOfWork.CommitAsync(ct);
-
-    return new TemplateResultDto(template.Id, template.Name.Value, template.CreatedAt);
-}
-```
+* `[RULE-ARCH-001] [MUST]`: Dependencies flow INWARDS ONLY (`Api` ➔ `Application` ➔ `Domain` 🠔 `Infrastructure`). Inner layers MUST NOT reference outer layers.
+* `[RULE-ARCH-002] [MUST]`: Domain is pure C# POCOs. Zero dependencies on EF Core, ASP.NET Core, or 3rd-party libraries.
+* `[RULE-ARCH-003] [MUST]`: Application orchestrates workflows via CQRS UseCases. Never expose Domain Entities outside the Application boundary; return Application DTOs only.
+* `[RULE-ARCH-004] [MUST]`: Infrastructure implements interfaces declared by Application or Domain (Dependency Inversion Principle).
+* `[RULE-ARCH-005] [MUST]`: Presentation is a thin HTTP transport boundary. All business logic MUST be delegated to UseCases.
 
 ---
 
-### 3.3 Linear Storytelling & Guard Clauses (Max Cyclomatic Depth = 2)
-The "happy path" of execution must flow smoothly along the left margin of the editor.
+### 2.2 DTO Layering & Ownership Matrix (`RULE-DTO`)
 
-*   **Rule 1 (Fail Fast via Guard Clauses):** Inspect arguments, preconditions, and failure scenarios at the top of the function. Exit immediately via `return` or throw a strongly-typed domain exception.
-*   **Rule 2 (Maximum Indentation Depth = 2):** Cyclomatic nesting depth MUST NEVER exceed 2 levels (e.g., an `if` block inside a method is depth 1; a loop inside that `if` is depth 2). If a third level of nesting is needed, you MUST extract the nested logic into a descriptive private helper method or domain verb.
+To eliminate "Mapping Mania" while preventing leaky boundaries, every DTO MUST belong strictly to its designated layer:
+
+| DTO Type | Owner Layer | Target C# Construct | Purpose | Forbidden Leakage ❌ |
+|---|---|---|---|---|
+| **`*Request`** | **Presentation** (`SmkDoc.Api`) | `public sealed record` | Represents incoming HTTP payload (JSON body / Form data) | MUST NOT enter Application or Domain |
+| **`*Command`** | **Application** (`SmkDoc.Application`) | `public sealed record` | Represents business intent to mutate state (CQRS Write) | No HTTP attributes (`[FromBody]`) |
+| **`*Query`** | **Application** (`SmkDoc.Application`) | `public sealed record` | Represents criteria to query data (CQRS Read) | No business logic or state mutations |
+| **`*ResultDto`** | **Application** (`SmkDoc.Application`) | `public sealed record` | Immutable data carrier snapshot returned by UseCase | MUST NOT expose Entity instances |
+| **`ApiResponse<T>`** | **Presentation** (`SmkDoc.Api`) | Generic record envelope | Standardized REST JSON wrapper for wire transport | MUST NOT be referenced by Application |
+| **Domain Entity** | **Domain** (`SmkDoc.Domain`) | `public sealed class` | Core business model encapsulating state and rules | **NEVER expose as Request or Response** |
+
+* `[RULE-DTO-001] [MUST]`: All DTOs (`*Request`, `*Command`, `*Query`, `*ResultDto`) MUST be immutable positional records (`public sealed record`).
+* `[RULE-DTO-002] [MUST NOT]`: Domain Entities MUST NEVER cross the Application boundary into Presentation. UseCases MUST project entities into `*ResultDto` before returning.
+* `[RULE-DTO-003] [MUST]`: Presentation maps `Request` to `Command` using explicit constructor instantiation or `.ToCommand()` extension method. Zero intermediary boilerplate mapping classes.
+
+</clean_architecture_invariants>
+
+---
+
+<solid_craftsmanship_matrix>
+## 3. ⚔️ Architectural Craftsmanship Matrix: SOLID, KISS & DRY
+
+### 3.1 SOLID Principles & Defensive Invariants (`RULE-SOLID`)
+
+| Principle | Forbidden Anti-Pattern ❌ | Mandatory Clean Standard ✅ | Rule ID |
+|---|---|---|---|
+| **SRP**<br>*(Single Responsibility)* | **Mega-Service Anti-Pattern:** Creating monolithic `TemplateService` containing 20+ methods handling CRUD, Gotenberg rendering, email, and logging. | **Action-Centric UseCases:** 1 Business Action = 1 UseCase class (`CreateTemplateUseCase`, `PublishTemplateUseCase`). Implements `IUseCase<TCommand, TResult>` with single focused responsibility. | `[RULE-SOLID-001] [MUST]` |
+| **OCP**<br>*(Open/Closed)* | **Hardcoded Engine Switch:** Using `switch(type)` or `if-else` ladders inside Controllers/UseCases to branch between Gotenberg, OpenXml, or FastExcel. | **Polymorphic Strategy Pattern:** Inject `IEnumerable<IRenderEngine>` via DI container; resolve active engine polymorphically via Smart Enum without mutating caller code. | `[RULE-SOLID-002] [MUST]` |
+| **LSP**<br>*(Liskov Substitution)* | **Unsupported Subtype Mutation:** Interface implementation throwing `NotImplementedException` or `NotSupportedException` for certain subtypes, breaking caller guarantees. | **Strict Behavioral Substitutability:** Every subtype MUST fulfill 100% of the interface contract without unexpected exceptions or behavioral contract deviations. | `[RULE-SOLID-003] [MUST]` |
+| **ISP**<br>*(Interface Segregation)* | **Fat Repository & Leaking IQueryable:** Exposing bloated `IRepository<T>` with 30 methods, or leaking `IQueryable<T>` outside Infrastructure (coupling Application to EF Core). | **Cohesive Aggregate Interfaces:** Specific interfaces (`ITemplateRepository`). Return strictly evaluated types (`Task<IReadOnlyList<T>>` or `Task<T?>`), never uncommitted `IQueryable`. | `[RULE-SOLID-004] [MUST]` |
+| **DIP**<br>*(Dependency Inversion)* | **Direct Concrete Coupling:** UseCase directly instantiating `MinioClient`, invoking `HttpClient`, or injecting EF Core `SmkDocDbContext`. | **Abstraction Inversion:** High-level UseCases depend strictly on Domain/Application abstractions (`IStorageService`, `ITemplateRepository`, `IUnitOfWork`). Implementations reside in Infrastructure. | `[RULE-SOLID-005] [MUST]` |
+
+---
+
+### 3.2 KISS & Pragmatic Simplicity Invariants (`RULE-KISS`)
+
+| Area | Forbidden Over-Engineering ❌ | Mandatory KISS Standard ✅ | Rule ID |
+|---|---|---|---|
+| **Pipeline Abstraction** | Introducing MediatR with 5 nested pipeline behaviors for simple synchronous CRUD operations, obfuscating stack traces. | Use explicit, flat `IUseCase<TCommand, TResult>` calls. 1 Controller action calls 1 UseCase directly. Clear stack traces and zero reflection overhead. | `[RULE-KISS-001] [MUST]` |
+| **Nesting Depth** | Arrow Anti-Pattern: Nesting `if`, `foreach`, and callbacks $\ge 3$ levels deep, burying the happy path inside brackets. | Maximum cyclomatic nesting depth MUST NOT exceed 2 (`Depth <= 2`). Use top-level fail-fast Guard Clauses to keep execution linear and left-aligned. | `[RULE-KISS-002] [MUST]` |
+| **Dynamic Query Builders** | Generating complex dynamic Expression Trees or generic Specification Builders for standard queries. | Write explicit, readable repository methods (e.g. `GetByIdWithMappingsAsync`) using standard EF Core LINQ. Readable, testable, and maintainable. | `[RULE-KISS-003] [MUST]` |
+
+---
+
+### 3.3 DRY & Single Source of Truth Invariants (`RULE-DRY`)
+
+| Concern | Forbidden Duplication ❌ | Mandatory SSoT Standard ✅ | Rule ID |
+|---|---|---|---|
+| **Validation Redundancy** | Triple validation: Validating payload format in Controller, checking again in FluentValidation, and re-checking regex in Entity. | **Dual Validation Gate:** External transport shape validated via `FluentValidation` (Boundary); domain state invariants validated in Entity (Core). Zero duplicated rules. | `[RULE-DRY-001] [MUST]` |
+| **Contract Types** | Duplicating identical DTO structures across layers (`CreateTemplateApiRequest` mirroring `CreateTemplateAppDto`). | Use single `CreateTemplateRequest` at HTTP boundary, mapped directly into `CreateTemplateCommand` positional record. Zero intermediary boilerplate classes. | `[RULE-DRY-002] [MUST]` |
+| **Clock Queries** | Calling `DateTime.UtcNow` or `DateTimeOffset.UtcNow` directly across random classes, causing nondeterministic unit tests. | Centralize clock queries via .NET standard `TimeProvider` (`timeProvider.GetUtcNow()`) or pass explicit `DateTimeOffset now` down from UseCase. | `[RULE-DRY-003] [MUST]` |
+
+---
+
+### 3.4 Approved Design Patterns Catalog (`RULE-PAT`)
+
+All implementations within `smk-doc-server` MUST align with these 5 canonical Design Patterns:
+
+* `[RULE-PAT-001] [MUST]`: **Strategy Pattern:** Used for document rendering engines (`IRenderEngine` for Gotenberg Chromium, OpenXml DOCX, and FastExcel XLSX) registered into DI as `IEnumerable<IRenderEngine>`.
+* `[RULE-PAT-002] [MUST]`: **Factory Method Pattern:** Used for Domain Aggregate creation (`Template.Create(...)`) acting as the immutable SSoT for invariant validation and entity lifecycle.
+* `[RULE-PAT-003] [MUST]`: **Unit of Work Pattern:** Used for database transaction boundaries (`IUnitOfWork.CommitAsync(ct)`). Repositories track changes; UnitOfWork commits atomically.
+* `[RULE-PAT-004] [MUST]`: **Smart Enum Pattern:** Used instead of native C# enums when types possess metadata, behavioral logic, or MIME mappings (e.g. `RenderEngineType`, `TemplateCategory`).
+* `[RULE-PAT-005] [MUST]`: **Result & Envelope Pattern:** Used for all HTTP egress responses (`TypedResults` wrapping `ApiResponse<T>` for success representations; RFC 9457 `ProblemDetails` for errors).
+
+</solid_craftsmanship_matrix>
+
+---
+
+<backend_rules>
+## 4. 🔵 Backend Engineering Rules by Layer (C# 13 / .NET 10)
+
+### 4.1 Domain Layer (`RULE-DOM`)
+* `[RULE-DOM-001] [MUST]`: Entities MUST be implemented as `public sealed class`. NEVER use `record` for EF Core entities (preserves Change Tracker reference identity).
+* `[RULE-DOM-002] [MUST]`: Encapsulate state strictly. All entity properties MUST have `private set;` or `protected set;`. Public property setters are STRICTLY PROHIBITED.
+* `[RULE-DOM-003] [MUST]`: Expose exactly 1 canonical factory method (`Create`) as the SSoT for entity instantiation. Constructors MUST be `private` or `internal`.
+* `[RULE-DOM-004] [MUST]`: Validate business state invariants fail-fast inside the factory method (e.g. `ArgumentException.ThrowIfNullOrWhiteSpace(name)`).
+* `[RULE-DOM-005] [MUST]`: State mutations MUST be executed via expressive domain verbs (e.g., `Publish`, `Archive`, `Deactivate`) receiving explicit dependencies (e.g., `DateTimeOffset now`).
+* `[RULE-DOM-006] [MUST]`: Value Objects MUST be implemented as `readonly record struct` or `record` with invariant validation on instantiation.
+* `[RULE-DOM-007] [MUST]`: Primary keys MUST use UUIDv7 (`Guid.CreateVersion7()`) for sequential, high-performance B-tree indexing.
 
 ```csharp
-// ❌ Bad: Arrow Anti-Pattern (Deep nesting, happy path buried inside brackets)
-public async Task ProcessPayload(Payload payload)
+// ✅ Good: Rich Domain Entity conforming to RULE-DOM-001 through RULE-DOM-007
+public sealed class Template
 {
-    if (payload is not null)
+    public Guid Id { get; private set; }
+    public Guid ProjectId { get; private set; }
+    public TemplateName Name { get; private set; }
+    public TemplateSlug Slug { get; private set; }
+    public bool IsActive { get; private set; }
+    public DateTimeOffset CreatedAt { get; private set; }
+    public DateTimeOffset? UpdatedAt { get; private set; }
+
+    private Template() { } // EF Core constructor
+
+    public static Template Create(Guid projectId, TemplateName name, TemplateSlug slug, DateTimeOffset now)
     {
-        if (payload.IsValid)
+        if (projectId == Guid.Empty) throw new DomainValidationException("ProjectId cannot be empty");
+        
+        return new Template
         {
-            foreach (var item in payload.Items)
-            {
-                if (item.IsActive) // Depth 4! Unreadable and hard to test.
-                {
-                    await SaveItem(item);
-                }
-            }
-        }
+            Id = Guid.CreateVersion7(),
+            ProjectId = projectId,
+            Name = name,
+            Slug = slug,
+            IsActive = true,
+            CreatedAt = now
+        };
     }
-}
 
-// ✅ Good: Guard Clauses keep the happy path linear and left-aligned (Max depth = 2)
-public async Task ProcessPayload(Payload payload)
-{
-    if (payload is null || !payload.IsValid)
+    public void Archive(DateTimeOffset now)
     {
-        throw new DomainValidationException("Payload is invalid");
-    }
-
-    foreach (var item in payload.Items)
-    {
-        if (!item.IsActive)
-        {
-            continue; // Guard inside loop maintains depth at 2
-        }
-
-        await SaveItem(item);
+        if (!IsActive) return;
+        IsActive = false;
+        UpdatedAt = now;
     }
 }
 ```
 
 ---
 
-### 3.4 Meaningful & Intention-Revealing Names (No Mental Mapping)
-Names must answer three questions without inspecting comments: *Why does this exist? What does it do? How is it consumed?*
-
-*   **Rule 1 (Zero Cryptic Abbreviations):** NEVER use single-letter or meaningless variable names like `t`, `p`, `temp`, `data`, `obj`, `item`, `val`.
-*   **Rule 2 (Eliminate Mental Mapping):** The reader should never be forced to mentally translate `p` to `project` or `dt` to `documentTemplate`.
-*   **Rule 3 (Searchable & Pronounceable):** Use names that can be searched globally across a codebase without yielding thousands of unrelated matches.
-
-```csharp
-// ❌ Bad: Requires mental mapping; single-letter variables
-var t = await repo.Get(id);
-var res = await s.Transform(t, p);
-
-// ✅ Good: Intention-revealing, searchable, and explicit
-var template = await templateRepository.GetByIdAsync(templateId, ct);
-var transformedPayload = await templateTransformer.TransformAsync(template, projectContext, ct);
-```
-
----
-
-### 3.5 Single Term per Concept (Cross-Layer Ubiquitous Consistency)
-Pick one word for one abstract concept and adhere to it strictly across all projects, layers, interfaces, and methods.
-
-*   **Retrieving a single entity by ID:** ALWAYS use **`GetByIdAsync`** (NEVER mix with `Fetch`, `Retrieve`, `FindById`, `Load`).
-*   **Conditional lookup returning nullable:** ALWAYS use **`FindAsync`** (returns `T?` if missing, does not throw).
-*   **Retrieving multiple entities:** ALWAYS use **`ListAsync`** (NEVER mix with `GetAll`, `FetchMany`, `SelectAll`).
-*   **Checking existence:** ALWAYS use **`ExistsAsync`** (NEVER mix with `CheckExists`, `HasEntity`, `IsPresent`).
-*   **Parameter Name Invariance:** If an identifier represents a Template's ID, it MUST be named **`templateId`** at every boundary:
-    - Route parameter: `/api/v1/templates/{templateId}`
-    - Controller parameter: `Guid templateId`
-    - Application Command: `Guid TemplateId`
-    - Domain Method: `Template.Update(Guid templateId, ...)`
-    - Repository Contract: `GetByIdAsync(Guid templateId, ...)`
-    - *NEVER shorten to `id` in some layers and expand to `templateId` or `entityId` in others.*
-
----
-
-### 3.6 Zero Echo/Robot Comments
-Code must explain **WHAT** is happening; comments are strictly reserved for explaining **WHY**.
-
-*   **Rule 1 (Banned Echo Comments):** NEVER write comments that merely rephrase the method call or variable assignment. They create visual noise and rot over time.
-*   **Rule 2 (Legitimate Comments):** Comments are ONLY permitted to explain:
-    - Non-obvious business domain rules or legal mandates (e.g., Thai Tax Revenue Department requirements).
-    - Workarounds for known external SDK quirks or hardware limits.
-    - Citations of external standards or specifications (e.g., `// Conforms to RFC 9457 Section 3.1`).
+### 4.2 Application Layer (`RULE-APP`)
+* `[RULE-APP-001] [MUST]`: Every UseCase MUST be a `public sealed class` implementing `IUseCase<TCommand, TResult>`.
+* `[RULE-APP-002] [MUST]`: UseCases MUST use C# 13 Primary Constructors with pure `camelCase` parameters. Backing fields and underscore prefixes (`_`) are STRICTLY FORBIDDEN.
+* `[RULE-APP-003] [MUST]`: Commands, Queries, and Output DTOs MUST be implemented as positional records (`public sealed record`).
+* `[RULE-APP-004] [MUST]`: Enforce Dual Validation Boundary:
+  - Input structural/format validation belongs to `FluentValidation` (runs automatically at Presentation/Application boundary).
+  - Business state invariants belong inside Domain Entities.
+  - NEVER validate the same rule twice across both layers.
+* `[RULE-APP-005] [MUST]`: Time queries MUST use .NET standard `TimeProvider` (`timeProvider.GetUtcNow()`). Direct calls to `DateTime.UtcNow` or `DateTimeOffset.UtcNow` are STRICTLY FORBIDDEN.
+* `[RULE-APP-006] [MUST]`: Every asynchronous method MUST accept `CancellationToken ct = default` as its final parameter and propagate it to all downstream calls.
 
 ```csharp
-// ❌ Bad: Useless echo comments pollute the code
-// Check if template is null
-if (template is null) 
-{
-    // Throw not found exception
-    throw new NotFoundException("Not found");
-}
-
-// Add template to database
-await templateRepo.AddAsync(template, ct);
-
-// ✅ Good: Self-documenting code with comments explaining only the non-obvious "WHY"
-if (template is null)
-{
-    throw new NotFoundException($"Template '{templateId}' was not found");
-}
-
-// Gotenberg Chromium engine requires a 150ms rendering grace period 
-// to complete CSS webfont glyph rasterization before emitting PDF stream.
-await Task.Delay(RenderEngineConstants.ChromiumFontRasterizationDelayMs, ct);
-
-await templateRepo.AddAsync(template, ct);
-```
-
----
-
-### 3.7 Explicit Intermediate Variables & Breaking Long Chains
-While fluent builders and LINQ are expressive, chaining 6 operations in a single uninterrupted statement degrades readability and obscures stack traces during exceptions.
-
-*   **Rule 1 (Maximum Fluent Chain Length = 3):** If a transformation requires more than 3 operations, break it into intermediate variables with descriptive names.
-*   **Rule 2 (Debuggability):** Breaking expressions into local variables allows developers and debuggers to inspect intermediate state at breakpoints and provides exact line numbers in stack traces.
-
-```csharp
-// ❌ Bad: Long chained expression hides intermediate errors and is hard to debug
-var names = projects.SelectMany(p => p.Templates).Where(t => t.IsActive && t.Type == TemplateType.Html).OrderBy(t => t.Name).Select(t => t.Name.Value).ToList();
-
-// ✅ Good: Explicit intermediate steps with intention-revealing names
-var allTemplates = projects
-    .SelectMany(project => project.Templates);
-
-var activeHtmlTemplates = allTemplates
-    .Where(template => template.IsActive && template.Type == TemplateType.Html);
-
-var templateNames = activeHtmlTemplates
-    .OrderBy(template => template.Name.Value)
-    .Select(template => template.Name.Value)
-    .ToList();
-```
-
----
-
-### 3.8 Trust Nullable Reference Types
-With `<Nullable>enable</Nullable>` enforced across the solution, trust your boundary validation and language guarantees.
-
-*   **Rule 1 (Validate at the Perimeter Only):** Validate inputs exhaustively at the Presentation and Application boundaries using FluentValidation and Zod.
-*   **Rule 2 (No Paranoid Defensive Checks in Core):** Once an object passes through boundary validation and enters the protected Application/Domain core, do NOT scatter defensive `if (arg is null)` checks across every single internal method. Trust non-nullable type annotations.
-
----
-
-### 3.9 Expressive Domain Verbs over Anemic Property Dumping
-Domain Entities are living representations of business rules, not passive data bags.
-
-*   **Rule 1 (No Public Property Setters):** Properties on Domain Entities must have `private set;` or `protected set;`.
-*   **Rule 2 (Expressive Domain Verbs):** Mutate state exclusively through domain methods named with ubiquitous business verbs (e.g., `Publish`, `Archive`, `Deactivate`). NEVER assign properties individually from outside the entity.
-
-```csharp
-// ❌ Bad: Anemic property dumping outside the entity violates encapsulation
-template.IsActive = false;
-template.DeactivatedReason = "Superseded";
-template.UpdatedAt = now;
-
-// ✅ Good: Expressive domain verb encapsulates state invariants atomically
-template.Deactivate(reason: "Superseded", now: now);
-```
-
----
-
-### 3.10 Zero Magic Numbers & Centralized Configuration (IOptions & Constants)
-LLMs frequently hardcode raw numbers, magic delays, and system clock calls directly inside business methods. This creates brittle tests, scatters DevOps configuration, and forces code recompilation for simple operational tuning.
-
-*   **Rule 1 (Deployable & Operational Parameters via `IOptions<TOptions>`):**
-    - Parameters that vary by deployment environment, infrastructure capacity, or business policy (e.g., HTTP timeouts, MinIO bucket names, cache TTLs, rate limits, batch sizes, maximum upload bytes, token lifetimes) MUST NEVER be hardcoded as literals.
-    - Bind them via ASP.NET Core strongly-typed `IOptions<TOptions>` loaded from `appsettings.json` or Environment Variables (`.env`).
-*   **Rule 2 (Technical & Protocol Invariants in `*Constants.cs`):**
-    - Technical or domain-fixed constants (e.g., Chromium font stabilization delay `150ms`, slug regex pattern, DrawingML positive ID offsets, default pagination bounds) MUST be encapsulated in centralized strongly-typed `*Constants.cs` classes (e.g., `RenderEngineConstants`, `PaginationConstants`, `PlaceholderHelper`).
-*   **Rule 3 (Deterministic Time SSoT via `TimeProvider`):**
-    - NEVER call `DateTime.UtcNow` or `DateTimeOffset.UtcNow` directly in domain entities or use cases.
-    - Always inject and query .NET standard `TimeProvider` (`timeProvider.GetUtcNow()`) or pass explicit `DateTimeOffset now` down through domain verbs to ensure 100% deterministic, clock-skew-free unit testing.
-
-```csharp
-// ❌ Bad: Inlined magic numbers, hardcoded timeouts, and system clock calls
-await Task.Delay(150); // Magic delay
-var expiry = DateTimeOffset.UtcNow.AddMinutes(15); // Hardcoded lifetime + nondeterministic clock
-if (file.Length > 10485760) // Magic byte threshold
-    throw new Exception("File too large");
-
-// ✅ Good: Centralized Constants, IOptions<T> configuration, and TimeProvider
-await Task.Delay(RenderEngineConstants.FontRasterizationDelayMs, ct);
-var expiry = timeProvider.GetUtcNow().Add(jwtSettings.Value.AccessTokenLifetime);
-if (file.Length > uploadSettings.Value.MaxFileSizeBytes)
-    throw new FileSizeExceededException($"File exceeds maximum allowed size of {uploadSettings.Value.MaxFileSizeMb}MB.");
-```
-
----
-
-</craftsmanship_rules>
-
-<backend_scope>
-## 4. 🔵 Backend Standards: C# 13 / .NET 10 (`backend-v2/`)
-
-**Core Target:** C# 13 (`<LangVersion>13.0</LangVersion>`), ASP.NET Core 10 (`net10.0`), Entity Framework Core 10.
-
----
-
-### 4.1 Primary Constructors (camelCase Invariant, Zero Field Re-declaration)
-Primary Constructors are mandatory across all injected services, UseCases, Repositories, Controllers, and Middleware.
-
-*   **Mandatory Rule 1 (Pure `camelCase` Parameters):** Primary constructor parameters MUST use pure `camelCase` (e.g., `templateRepo`, `unitOfWork`, `timeProvider`). The underscore prefix (`_`) is **STRICTLY FORBIDDEN**.
-*   **Mandatory Rule 2 (Zero Field Re-declaration):** NEVER declare backing fields (such as `private readonly ITemplateRepository repo = templateRepo;`). Consume the constructor parameter directly within class methods.
-*   **Mandatory Rule 3 (Formatting Multi-Line Constructors):** When a class has 3 or more dependencies, format the primary constructor with each parameter on its own indented line.
-
-```csharp
-// ❌ Bad: Re-declaring fields defeats Primary Constructors; illegal underscore prefix
-public sealed class TemplateController(ITemplateRepository _repo, IUnitOfWork _uow) : ControllerBase
-{
-    private readonly ITemplateRepository repo = _repo; // VIOLATION
-    private readonly IUnitOfWork uow = _uow; // VIOLATION
-}
-
-// ✅ Good: Clean, idiomatic C# 13 Primary Constructor
+// ✅ Good: Application UseCase conforming to RULE-APP-001 through RULE-APP-006
 public sealed class CreateTemplateUseCase(
     ITemplateRepository templateRepo,
     IUnitOfWork unitOfWork,
@@ -433,10 +289,15 @@ public sealed class CreateTemplateUseCase(
 {
     public async Task<TemplateResultDto> ExecuteAsync(CreateTemplateCommand command, CancellationToken ct)
     {
-        // Use injected parameters directly
-        var now = timeProvider.GetUtcNow();
         var slug = TemplateSlug.Create(command.Slug);
-        var template = Template.Create(command.ProjectId, TemplateName.Create(command.Name), slug, command.Category, now);
+        if (await templateRepo.ExistsBySlugAsync(command.ProjectId, slug, ct))
+        {
+            throw new ConflictException($"Template with slug '{command.Slug}' already exists.");
+        }
+
+        var now = timeProvider.GetUtcNow();
+        var templateName = TemplateName.Create(command.Name);
+        var template = Template.Create(command.ProjectId, templateName, slug, now);
 
         await templateRepo.AddAsync(template, ct);
         await unitOfWork.CommitAsync(ct);
@@ -448,273 +309,143 @@ public sealed class CreateTemplateUseCase(
 
 ---
 
-### 4.2 Immutability & Record Types ('record' vs 'class' Decision Matrix)
-Understanding when to use `record` versus `class` is critical to preventing subtle bugs in Clean Architecture.
+### 4.3 Infrastructure Layer (`RULE-INFRA`)
+* `[RULE-INFRA-001] [MUST]`: Infrastructure services MUST implement interfaces defined by Domain or Application (Repository, UnitOfWork, RenderEngine, StorageService).
+* `[RULE-INFRA-002] [MUST]`: Map EF Core entities exclusively using `IEntityTypeConfiguration<T>` via the Fluent API. Data annotations (`[Table]`, `[Key]`, `[Column]`) on Domain Entities are STRICTLY FORBIDDEN.
+* `[RULE-INFRA-003] [MUST]`: Persistence transaction boundaries MUST be committed via `IUnitOfWork.CommitAsync(ct)`. Repositories MUST NOT call `SaveChangesAsync()` independently.
+* `[RULE-INFRA-004] [MUST]`: Rendering engines and storage adapters MUST stream payloads directly (`Stream over RAM`). Buffering multi-MB documents into memory (`byte[]`) is STRICTLY FORBIDDEN.
 
-| Artifact Type | Recommended C# Construct | Rationale & Architectural Rule |
-|---|---|---|
-| **CQRS Commands** | `public sealed record` | Immutable data carrier. Structural equality guarantees safe hashing and caching. |
-| **CQRS Queries** | `public sealed record` | Read-only input criteria. Value equality allows query deduplication. |
-| **Output DTOs** | `public sealed record` | Data Transfer Objects should be immutable snapshots of domain state. |
-| **Value Objects** | `public sealed record` or `readonly record struct` | Domain Value Objects are identified solely by their constituent values (e.g., `TemplateSlug`). |
-| **Domain Entities** | `public sealed class` | **NEVER use records for EF Core Entities.** EF Core's Change Tracker relies on reference identity and in-place state mutation. |
-| **DI Services / UseCases**| `public sealed class` | Stateful operations requiring behavior, encapsulation, and dependency injection. |
+---
+
+### 4.4 Presentation Layer (`RULE-API`)
+* `[RULE-API-001] [MUST]`: Controllers MUST remain ultra-thin ($\le 5$ lines per action body). All workflow logic MUST be delegated to UseCases.
+* `[RULE-API-002] [MUST]`: RFC 9110 HTTP Status & Representation Semantics using `TypedResults`:
+  - `GET`: Return `Task<Ok<ApiResponse<T>>>` or `Task<Ok<PagedApiResponse<T>>>` via `TypedResults.Ok(...)`.
+  - `POST` (Creation): Return `Task<Created<ApiResponse<T>>>` via `TypedResults.Created($"/api/v1/{resource}/{id}", ...)`.
+  - `PUT` / `PATCH` (State Mutation): Return `Task<Ok<ApiResponse<T>>>` via `TypedResults.Ok(...)`. Returning empty `204 NoContent` for state mutations is STRICTLY FORBIDDEN.
+  - `DELETE`: Return `Task<NoContent>` via `TypedResults.NoContent()`.
+* `[RULE-API-003] [MUST]`: Centralized RFC 9457 `ProblemDetails` via `IExceptionHandler` (`GlobalExceptionHandler`). Catching exceptions inside controllers to return anonymous JSON (`new { error = ... }`) is STRICTLY FORBIDDEN.
+* `[RULE-API-004] [MUST NOT]`: Controllers MUST NOT accept raw top-level JSON arrays (`[FromBody] List<T>`). All collections MUST be wrapped inside a top-level request record (OWASP array injection defense).
+* `[RULE-API-005] [MUST]`: State-mutating endpoints (`POST`, `PUT`, `DELETE`) MUST support the `Idempotency-Key` header via the `[Idempotent]` action filter.
+* `[RULE-API-006] [MUST]`: Canonical REST URL routing MUST use `api/v1/{resource}` with lowercase plural `kebab-case` resource names.
 
 ```csharp
-// ✅ Positional records guarantee conciseness and immutability for contracts
-public sealed record CreateTemplateCommand(Guid ProjectId, string Name, string Slug, string? Category);
-public sealed record TemplateResultDto(Guid Id, string Name, DateTimeOffset CreatedAt);
-
-// ✅ Domain Value Object as a self-validating record
-public sealed partial record TemplateSlug(string Value);
-```
-
----
-
-### 4.3 Modern C# 13 Language Idioms
-Harness the full power of C# 13 to eliminate verbose legacy syntax.
-
-*   **Collection Expressions `[]`:** Use `[]` for arrays, lists, spans, and empty collections. NEVER use `new List<T>()` or `new T[] { ... }`.
-    ```csharp
-    // ❌ Bad: Verbose instantiation
-    List<string> tags = new List<string> { "invoice", "receipt" };
-    string[] empty = new string[0];
-
-    // ✅ Good: Modern C# 13 collection expressions
-    List<string> tags = ["invoice", "receipt"];
-    string[] empty = [];
-    ```
-*   **Pattern Matching Expressions:** Use `switch` expressions and pattern matching over legacy `if/else` ladders.
-    ```csharp
-    // ✅ Good: Clean pattern matching
-    var mimeType = extension switch
-    {
-        ".pdf" => "application/pdf",
-        ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        ".xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        _ => "application/octet-stream"
-    };
-    ```
-*   **C# 13 `System.Threading.Lock`:** Use the dedicated .NET 10 / C# 13 `Lock` object instead of arbitrary `object` instances for synchronization.
-    ```csharp
-    // ✅ Good: C# 13 lock object
-    private readonly Lock syncLock = new();
-    public void SafeOperation()
-    {
-        lock (syncLock) { ... }
-    }
-    ```
-
----
-
-### 4.4 Deterministic Time (TimeProvider) & Async Cancellation (ct)
-*   **Deterministic Time:** NEVER call `DateTime.UtcNow` or `DateTime.Now` directly in Application or Domain logic. Always inject .NET's standard `TimeProvider` and call `timeProvider.GetUtcNow()`. This allows unit tests to freeze or advance time deterministically.
-*   **Strict Asynchronous Integrity:**
-    - Every I/O-bound method MUST accept a `CancellationToken ct = default` as its final parameter.
-    - Propagate `ct` to every async call (EF Core, HTTP clients, MinIO).
-    - NEVER block threads using `.Result`, `.Wait()`, or `.GetAwaiter().GetResult()`.
-
----
-
-### 4.5 Clean Architecture Layer Syntactic Rules
-
-#### 1. Domain Layer (`SmkDoc.Domain`)
-*   **Persistence Ignorance:** Zero references to EF Core, Npgsql, or external packages. Pure POCOs.
-*   **Encapsulation:** Constructors are `internal` or `private`. Expose exactly one canonical factory method (e.g., `Create`) as the SSoT for entity instantiation.
-*   *Full Architecture Archetype:* 👉 **See Archetype 4 (Pure Rich Domain Entity & Value Object Pattern) in `docs/AI/PATTERNS.md`**.
-
-#### 2. Application Layer (`SmkDoc.Application`)
-*   **Orchestration Only:** UseCases implement `IUseCase<TCommand, TResult>`.
-*   **Dual Validation Boundary (DRY):**
-    - Input structure/format validation belongs to `FluentValidation` (runs before UseCase).
-    - Business rule/state invariant validation belongs inside the Domain Entity.
-    - NEVER validate the same rule twice across both layers.
-*   *Full Architecture Archetype:* 👉 **See Archetype 6 (Action-Centric CQRS UseCase Pattern) and Archetype 7 (Dual-Engine Validation Pipeline) in `docs/AI/PATTERNS.md`**.
-
-#### 3. Infrastructure Layer (`SmkDoc.Infrastructure`)
-*   **Dependency Inversion:** Implement interfaces defined by Application or Domain.
-*   **Fluent API Configuration:** Map EF Core entities exclusively using `IEntityTypeConfiguration<T>`. Never annotate Domain Entities with EF attributes (`[Table]`, `[Key]`).
-*   *Full Architecture Archetype:* 👉 **See Archetype 5 (Atomic Unit of Work), Archetype 8 (Zero-LOH Stream-over-RAM), and Archetype 9 (Render Strategy Engine) in `docs/AI/PATTERNS.md`**.
-
-#### 4. Presentation Layer (`SmkDoc.Api`)
-*   **Thin Controllers (SRP):** Controllers must remain extremely thin (<= 5 lines per action). Receive HTTP requests, map directly to Application Commands/Queries, and return standardized envelopes. Business workflows belong strictly in UseCases.
-*   **RFC 9110 HTTP Verb & Representation Semantics:**
-    - `GET`: Must return `200 OK` wrapping the requested resource in `ApiResponse<T>` or `PagedApiResponse<T>`.
-    - `POST` (Creation): Must return `201 Created` using `CreatedAtAction` pointing to the canonical `GetById` route, attaching a `Location` header.
-    - `PUT` / `PATCH` (State Mutation): Must return `200 OK` wrapping the freshly updated resource state in `ApiResponse<T>`. Returning empty `204 NoContent` for state-mutating updates is STRICTLY PROHIBITED whenever the resulting representation is meaningful to clients.
-    - `DELETE`: Must return `204 NoContent` with zero response body.
-*   **OWASP JSON Array Encapsulation:** All incoming HTTP request DTOs representing a collection MUST be wrapped inside a top-level record object (e.g. `public record SaveTemplateMappingsRequest(IReadOnlyList<SaveFieldMappingItemRequest> Mappings)`). Raw root JSON arrays (`[FromBody] List<T> items`) are STRICTLY FORBIDDEN.
-*   **RFC 9457 ProblemDetails (Zero Custom Error Shapes):** All HTTP error responses MUST conform to RFC 9457 via `IExceptionHandler` (`GlobalExceptionHandler`). Controllers must NEVER catch exceptions to return ad-hoc objects (`new { error = ... }`). Instead, throw strongly-typed `DomainValidationException` or let domain errors bubble to the centralized pipeline.
-*   **IETF Idempotency & Mutation Safety:** State-mutating endpoints (`POST`, `PUT`, `DELETE`) MUST support the `Idempotency-Key` header via the `[Idempotent]` filter attribute.
-*   *Full Architecture Archetype:* 👉 **See Archetype 1 (Thin Controller), Archetype 2 (RFC 9457 Global Exception Pipeline), and Archetype 3 (IETF Idempotency-Key Pipeline) in `docs/AI/PATTERNS.md`**.
-
----
-
-### 4.6 Testing Craftsmanship (Strict AAA Anatomy & 3-Part Naming)
-
-Every unit test must follow a rigorous, standardized anatomy to ensure maintainability:
-
-*   **The 3-Part Naming Rule:** `MethodUnderTest_StateUnderTest_ExpectedBehavior` (e.g., `ExecuteAsync_WhenSlugAlreadyExists_ThrowsConflictException`).
-*   **Explicit AAA Separation:** Visually separate the test into three distinct sections using comments (`// Arrange`, `// Act`, `// Assert`) and blank lines.
-*   **FluentAssertions Only:** Use `FluentAssertions` (e.g., `result.Should().NotBeNull()`). Avoid legacy xUnit `Assert.Equal()`.
-*   **Zero I/O in Unit Tests:** Mock all Infrastructure dependencies (`IRepository`, `IStorageService`). Instantiate Domain Entities and DTOs directly.
-
-```csharp
-[Fact]
-public async Task ExecuteAsync_WhenValidCommand_ShouldPersistAndReturnResultDto()
+// ✅ Good: Thin Controller conforming to RULE-API-001 through RULE-API-006
+[ApiController]
+[Route("api/v1/templates")]
+public sealed class TemplateController(
+    IUseCase<CreateTemplateCommand, TemplateResultDto> createTemplateUseCase) : ControllerBase
 {
-    // Arrange
-    var projectId = Guid.NewGuid();
-    var command = new CreateTemplateCommand(projectId, "Tax Invoice", "tax-invoice", "Finance");
-    
-    fixture.TemplateRepo
-        .Setup(repo => repo.ExistsBySlugAsync(projectId, It.IsAny<TemplateSlug>(), It.IsAny<CancellationToken>()))
-        .ReturnsAsync(false);
-
-    var sut = CreateSut();
-
-    // Act
-    var result = await sut.ExecuteAsync(command, CancellationToken.None);
-
-    // Assert
-    result.Should().NotBeNull();
-    result.Name.Should().Be("Tax Invoice");
-
-    fixture.TemplateRepo.Verify(
-        repo => repo.AddAsync(It.IsAny<Template>(), It.IsAny<CancellationToken>()), 
-        Times.Once);
+    [HttpPost]
+    [Idempotent]
+    public async Task<Created<ApiResponse<TemplateResultDto>>> Create(
+        [FromBody] CreateTemplateRequest request,
+        CancellationToken ct)
+    {
+        var command = new CreateTemplateCommand(request.ProjectId, request.Name, request.Slug);
+        var result = await createTemplateUseCase.ExecuteAsync(command, ct);
         
-    fixture.UnitOfWork.Verify(
-        uow => uow.CommitAsync(It.IsAny<CancellationToken>()), 
-        Times.Once);
-}
-```
-
----
-
-</backend_scope>
-
-<frontend_scope>
-## 5. 🟡 Frontend Standards: TypeScript 5.7 / Next.js 15.2 (`frontend-v2/`)
-
----
-
-### 5.1 Strict TypeScript & Zod SSoT
-*   **Zero `any` Policy:** The `any` keyword is banned. Use `unknown` with type narrowing functions or Zod validation.
-*   **Zod as Single Source of Truth:**
-    - Place all validation schemas in `src/schemas/`.
-    - Automatically infer TypeScript types using `export type CreateTemplateInput = z.infer<typeof createTemplateSchema>;`.
-    - NEVER duplicate interfaces in `src/types/` if a Zod schema represents the same structure.
-
----
-
-### 5.2 Next.js 15 App Router Paradigms (Server Components by Default)
-*   **RSC by Default:** `page.tsx` and `layout.tsx` must remain Server Components (no `"use client"`). Fetch data directly on the server using async/await.
-*   **Leaf Client Components:** Place `"use client"` exclusively at the interactive leaves of the DOM tree (e.g., a specific interactive modal or form). Never mark an entire page as a Client Component.
-*   **Zero `useEffect` for Data Fetching:** NEVER use `useEffect` to fetch data on component mount. Use Server Components for initial data and React Query/SWR for client-side polling or mutation.
-
-```tsx
-// ❌ Bad: Entire page client-side with useEffect fetching
-"use client";
-import { useEffect, useState } from "react";
-
-export default function TemplatePage({ params }: { params: { id: string } }) {
-    const [template, setTemplate] = useState<Template | null>(null);
-    useEffect(() => {
-        fetch(`/api/v1/templates/${params.id}`).then(r => r.json()).then(setTemplate);
-    }, [params.id]);
-
-    if (!template) return <div>Loading...</div>;
-    return <div>{template.name}</div>;
-}
-
-// ✅ Good: Next.js 15 Server Component with isolated interactive client leaf
-import { notFound } from "next/navigation";
-import { fetchTemplateById } from "@/lib/api/templates";
-import { TemplateEditorClient } from "@/components/features/templates/TemplateEditorClient";
-
-export default async function TemplatePage({ params }: { params: Promise<{ id: string }> }) {
-    const { id } = await params;
-    const template = await fetchTemplateById(id);
-
-    if (!template) {
-        notFound();
+        return TypedResults.Created($"/api/v1/templates/{result.Id}", new ApiResponse<TemplateResultDto>(result));
     }
-
-    return (
-        <main className="container mx-auto py-6">
-            <h1 className="text-2xl font-bold">{template.name}</h1>
-            <TemplateEditorClient initialData={template} />
-        </main>
-    );
 }
 ```
 
 ---
 
-### 5.3 Component Architecture & Category Isolation
-Structure frontend components into three strict folders to prevent circular dependencies:
-```text
-src/components/
-├── ui/         # Primitives (Button, Modal, Input). Highly reusable, zero domain logic.
-├── layout/     # Shells (Sidebar, Navbar, PageHeader). Dictates page layout.
-└── features/   # Domain-specific components (e.g., /templates/TemplateCard.tsx).
-                # May interact with API and maintain local feature state.
-```
+### 4.5 3-Tier Validation Hierarchy & Thai Compliance (`RULE-VAL`)
 
-Always use `cn()` (`clsx` + `tailwind-merge`) when conditionally merging Tailwind classes:
-```tsx
-import { cn } from "@/lib/utils";
-
-export function Button({ className, variant, ...props }: ButtonProps) {
-    return (
-        <button 
-            className={cn("px-4 py-2 rounded-md font-medium transition-colors", className)} 
-            {...props} 
-        />
-    );
-}
-```
+* `[RULE-VAL-001] [MUST]`: Enforce 3-Tier Validation Pipeline:
+  - **Tier 1 (Syntax & Shape):** `FluentValidation` at Presentation boundary (null checks, string lengths, ranges, regex). Failures return HTTP 400 with `errorCode: "VALIDATION_FAILED"`.
+  - **Tier 2 (Dynamic Payload):** Validated against JSON Schema Draft-07 via `JsonSchema.Net` (cached in L1 AST cache). Failures return HTTP 422 with `errorCode: "SCHEMA_VALIDATION_FAILED"`.
+  - **Tier 3 (Domain Invariants):** Enforced inside Domain Entity Factory Method and domain verbs. Failures throw `DomainValidationException` (RFC 9457).
+* `[RULE-VAL-002] [MUST]`: Thai Localization formatting (Buddhist Era years, Thai Baht text, phone numbers) MUST be routed through centralized `ThaiDataTransformer`. Inlined or ad-hoc `+ 543` calculations in templates or controllers are STRICTLY FORBIDDEN.
+* `[RULE-VAL-003] [MUST]`: Thai 13-digit National ID and Tax ID validation MUST implement the official Modulo 11 checksum algorithm.
 
 ---
 
-</frontend_scope>
+### 4.6 High-Performance Memory & LOH Hygiene (`RULE-MEM`)
 
-<global_standards>
-## 6. 🏷️ System-Wide Naming Standards & The Anti-Hallucination Matrix
+Document payloads routinely exceed the 85,000-byte threshold, placing them on the Large Object Heap (LOH). Memory leaks here cause process-freezing Gen 2 GC pauses.
 
-To ensure seamless coordination across human developers, code reviewers, and AI agents, all symbols, variables, and parameters MUST adhere to the following deterministic matrices.
+* `[RULE-MEM-001] [MUST NOT]`: NEVER allocate large byte arrays (`byte[]`, `new MemoryStream()`, `stream.ToArray()`) for document rendering streams. Banned on LOH.
+* `[RULE-MEM-002] [MUST]`: Stream Gotenberg and MinIO payloads directly to HTTP responses via `Stream.CopyToAsync(response.Body, ct)` or `PipeWriter`.
+* `[RULE-MEM-003] [MUST]`: When an in-memory buffer is technically unavoidable, use `ArrayPool<byte>.Shared` or `RecyclableMemoryStreamManager` (Microsoft). Always return rented buffers in a `finally` block.
 
 ---
 
-### 6.1 The 6 Pillars Naming Matrix
+### 4.7 Concurrency & DbContext Thread-Safety (`RULE-CONC`)
 
+* `[RULE-CONC-001] [MUST NOT]`: EF Core `DbContext` is NOT thread-safe. Concurrent asynchronous execution using the same scoped `DbContext` instance (e.g. `Task.WhenAll` with repository calls) is STRICTLY PROHIBITED.
+* `[RULE-CONC-002] [MUST]`: Execute queries on a scoped `DbContext` sequentially, OR inject `IDbContextFactory<SmkDocDbContext>` to spawn isolated short-lived contexts for concurrent workers.
+
+---
+
+### 4.8 Structured Logging & Observability (`RULE-LOG`)
+
+* `[RULE-LOG-001] [MUST]`: All logging MUST use semantic structured message templates with named property tokens (e.g., `logger.LogInformation("Rendered template {TemplateId} in {ElapsedMs}ms", templateId, sw.ElapsedMilliseconds)`).
+* `[RULE-LOG-002] [MUST NOT]`: String interpolation (`$"..."`) inside `ILogger` calls is STRICTLY PROHIBITED (destroys telemetry indexability).
+* `[RULE-LOG-003] [MUST NOT]`: NEVER log Personally Identifiable Information (PII: National IDs, passwords, API keys, raw financial payloads).
+
+---
+
+### 4.9 Code-Level Security & ReDoS Defense (`RULE-SEC`)
+
+* `[RULE-SEC-001] [MUST]`: All regular expressions for slug, token, or template parsing MUST use .NET Source Generators (`[GeneratedRegex]`) with `RegexOptions.NonBacktracking` to eliminate ReDoS vulnerabilities.
+* `[RULE-SEC-002] [MUST NOT]`: Production error responses MUST NEVER leak CLR stack traces, database connection strings, or SQL queries inside RFC 9457 `detail`. Dispatched exclusively via `IExceptionHandler` (`GlobalExceptionHandler`).
+
+---
+
+### 4.10 The 10 Invariants of Code Craftsmanship & Simplicity (`RULE-CRAFT`)
+
+Every LLM-generated method and class MUST conform to all 10 craftsmanship invariants without exception:
+
+* `[RULE-CRAFT-001] [MUST]`: **Stepdown Rule:** Public entry points (`ExecuteAsync`) MUST appear first in class body. Private helper methods MUST follow immediately beneath their caller in top-down invocation order. Never group private helpers at file bottom.
+* `[RULE-CRAFT-002] [MUST]`: **Vertical Proximity & Visual Formatting:** Declare local variables immediately before their first usage. Never declare variables at top of method if consumed lines later. Separate distinct logical steps using exactly 1 blank line.
+* `[RULE-CRAFT-003] [MUST]`: **Linear Guard Clauses:** Inspect preconditions and fail-fast at method start. Cyclomatic indentation depth MUST NOT exceed 2 levels (`Depth <= 2`). Extract nested logic into private helper methods or domain verbs.
+* `[RULE-CRAFT-004] [MUST NOT]`: **Zero Cryptic Abbreviations:** Banned identifiers: `t`, `p`, `temp`, `data`, `obj`, `item`, `val`, `dt`. Identifiers MUST reveal intent without requiring mental translation.
+* `[RULE-CRAFT-005] [MUST]`: **Route Token & Concept Invariance:** Root resources MUST use `{id:guid}` (matching action parameter `Guid id` and `CreatedAtAction(..., new { id = result.Id })`). Nested resources MUST use disambiguated `{entityId:guid}` (e.g. `{projectId}`, `{userId}`). Application Commands/Queries MUST always use full self-describing `{Entity}Id` (e.g. `TemplateId`).
+* `[RULE-CRAFT-006] [MUST NOT]`: **Zero Echo/Robot Comments:** Banned: Comments merely rephrasing code syntax (e.g. `// Add template to database`). Comments are STRICTLY RESERVED for non-obvious business domain rules, Thai legal/tax mandates, or RFC citations.
+* `[RULE-CRAFT-007] [MUST]`: **Explicit Intermediate Variables & Chain Limits:** Fluent and LINQ transformation chains MUST NOT exceed 3 consecutive operations without breaking into named local variables. NEVER nest object creation inside method arguments (e.g., `ExecuteAsync(new Command())` is BANNED; instantiate local variable first).
+* `[RULE-CRAFT-008] [MUST]`: **Trust Nullable Reference Types:** Validate inputs exhaustively at the Presentation and Application boundaries. Do NOT scatter redundant defensive `if (arg is null)` checks across protected internal private methods.
+* `[RULE-CRAFT-009] [MUST]`: **Expressive Domain Verbs:** Mutate entity state exclusively via expressive business verbs (`Publish`, `Archive`, `Deactivate`). Individual public property assignments outside the entity are STRICTLY PROHIBITED.
+* `[RULE-CRAFT-010] [MUST NOT]`: **Zero Magic Numbers:** Operational and environmental parameters MUST use `IOptions<TOptions>` (`appsettings.json` / env); technical constants MUST be in `*Constants.cs`; clock queries MUST route through `TimeProvider`.
+
+---
+
+### 4.11 Unit Testing Craftsmanship (`RULE-TEST`)
+* `[RULE-TEST-001] [MUST]`: Test names MUST follow the 3-part structure: `MethodUnderTest_StateUnderTest_ExpectedBehavior`.
+* `[RULE-TEST-002] [MUST]`: Visually divide every test using explicit AAA comments (`// Arrange`, `// Act`, `// Assert`) separated by blank lines.
+* `[RULE-TEST-003] [MUST]`: Assertions MUST use `FluentAssertions` exclusively (e.g. `result.Should().NotBeNull()`). Legacy `Assert.Equal()` is BANNED.
+* `[RULE-TEST-004] [MUST NOT]`: Zero I/O in unit tests. Mock all infrastructure interfaces; instantiate Domain Entities and DTOs directly.
+
+</backend_rules>
+
+---
+
+<naming_ssot>
+## 5. 🏷️ Unified Anti-Hallucination Naming Matrix (SSoT)
+
+### 5.1 The 6 Pillars Naming Matrix
 | Element / Artifact | Layer / Scope | Convention | Canonical Example |
 |---|---|---|---|
 | **Domain Entities** | Domain | Singular `PascalCase` | `Template`, `DocumentLog` |
 | **Value Objects** | Domain | Descriptive `PascalCase` | `TemplateSlug`, `Sha256Checksum` |
-| **Domain Factory** | Domain | Canonical Verb | `Create()`, `BuildDefault()` |
+| **Domain Factory** | Domain | Canonical Verb | `Create()` |
 | **Domain Mutations** | Domain | Ubiquitous Business Verb | `Publish()`, `Archive()`, `Deactivate()` |
-| **Primary Ctor Parameters**| All C# Classes | Pure `camelCase` (Zero `_`) | `templateRepo`, `unitOfWork`, `timeProvider` |
-| **CQRS Commands** | Application | `[Action][Entity]Command` | `CreateTemplateCommand`, `PublishTemplateCommand` |
+| **Primary Ctor Parameters** | All Classes | Pure `camelCase` (Zero `_`) | `templateRepo`, `unitOfWork`, `timeProvider` |
+| **CQRS Commands** | Application | `[Action][Entity]Command` | `CreateTemplateCommand`, `ArchiveTemplateCommand` |
 | **CQRS Queries** | Application | `[Get/List][Entity]Query` | `GetTemplateByIdQuery`, `ListTemplatesQuery` |
-| **Output DTOs** | Application | `[Context]ResultDto` | `TemplateResultDto`, `DocumentGenerationResultDto` |
-| **HTTP Request Payloads** | Presentation | `[Action][Entity]Request` | `CreateTemplateRequest`, `RenderPreviewRequest` |
+| **Output DTOs** | Application | `[Context]ResultDto` | `TemplateResultDto`, `RenderResultDto` |
+| **HTTP Request Payloads** | Presentation | `[Action][Entity]Request` | `CreateTemplateRequest`, `RenderDocumentRequest` |
 | **Controllers** | Presentation | `[Entity]Controller` | `TemplateController`, `DocumentController` |
-| **Test Classes** | Test Projects | `[TargetClass]Tests` | `CreateTemplateUseCaseTests`, `TemplateTests` |
-| **Zod Schemas** | Frontend | `[action][Entity]Schema` | `createTemplateSchema`, `updateConfigSchema` |
-| **React Components** | Frontend | `PascalCase.tsx` | `TemplateCard.tsx`, `DocumentPreview.tsx` |
-| **Custom Hooks** | Frontend | `use[Feature].ts` | `useTemplateEditor.ts`, `useDocumentStream.ts` |
-| **REST Route URLs** | Presentation | `kebab-case` plural | `/api/v1/templates`, `/api/v1/projects/{projectId}` |
+| **Test Classes** | Tests | `[TargetClass]Tests` | `CreateTemplateUseCaseTests`, `TemplateTests` |
 | **Database Tables** | Infrastructure | `plural_snake_case` | `templates`, `document_generation_logs` |
 | **Database Columns** | Infrastructure | `snake_case` / `is_*` | `project_id`, `created_at`, `is_active` |
 
 ---
 
-### 6.2 The Canonical Verb Dictionary (One Word per Concept across Layers)
-Engineers and LLMs frequently invent synonyms that fracture system consistency. You MUST use the exact canonical verbs defined below:
-
-| Operation Intent | STRICT Canonical Verb | Forbidden Synonyms | Scope |
+### 5.2 Canonical Operations & Verbs Dictionary
+| Operation Intent | STRICT Canonical Verb | Forbidden Synonyms ❌ | Scope |
 |---|---|---|---|
 | Retrieve single entity by ID | **`GetByIdAsync`** | `Fetch`, `Retrieve`, `FindById`, `Load`, `GetSingle` | Repositories, Queries |
 | Query entity by condition (nullable) | **`FindAsync`** | `Search`, `Lookup`, `Detect`, `Check` | Repositories, UseCases |
@@ -726,56 +457,61 @@ Engineers and LLMs frequently invent synonyms that fracture system consistency. 
 
 ---
 
-### 6.3 The Anti-Hallucination Variable Dictionary (STRICT vs Banned Names)
-When instantiating local variables or defining method parameters, you MUST use the exact identifier specified below for its corresponding type.
-
-| Type / Context | STRICT Variable Name | Forbidden / Banned Names | Rationale |
+### 5.3 Strict Variable Identifier Dictionary
+| Type / Context | STRICT Variable Name | Forbidden / Banned Names ❌ | Rationale |
 |---|---|---|---|
-| **CQRS Command** (`*Command`) | `command` | `cmd`, `req`, `request`, `payload`, `c` | Disambiguates Application Commands from HTTP Requests. |
-| **CQRS Query** (`*Query`) | `query` | `qry`, `req`, `request`, `q` | Explicitly identifies read operations. |
-| **HTTP Request** (`*Request`) | `request` | `req`, `body`, `payload`, `dto`, `r` | Standardizes Controller API signatures. |
-| **Domain Entity** (`Template`) | The entity name (`template`) | `entity`, `model`, `data`, `obj`, `t` | Always use the ubiquitous domain noun. |
-| **UseCase Output** (`*ResultDto`) | `result` | `res`, `response`, `dto`, `output` | Standard output container of an Application UseCase. |
-| **Cancellation Token** | `ct` | `cancellationToken`, `cancelToken`, `token` | Ubiquitous modern .NET convention. |
-| **Deterministic Time** (`DateTimeOffset`)| `now` | `date`, `dt`, `currentTime`, `timestamp` | Clean, universal stamp for auditing and invariant logic. |
-| **Entity Primary Key** (`Guid`) | `id` or `{entity}Id` | `guid`, `uuid`, `key`, `identifier` | Clear, standard key naming. |
+| **CQRS Command** (`*Command`) | `command` | `cmd`, `req`, `request`, `payload`, `c` | Disambiguates Command from HTTP Request |
+| **CQRS Query** (`*Query`) | `query` | `qry`, `req`, `request`, `q` | Identifies read operations |
+| **HTTP Request** (`*Request`) | `request` | `req`, `body`, `payload`, `dto`, `r` | Standardizes Controller signatures |
+| **Domain Entity** (`Template`) | The entity noun (`template`) | `entity`, `model`, `data`, `obj`, `t` | Ubiquitous domain noun |
+| **UseCase Output** (`*ResultDto`) | `result` | `res`, `response`, `dto`, `output` | Standard UseCase output container |
+| **Cancellation Token** | `ct` | `cancellationToken`, `cancelToken`, `token` | Ubiquitous modern .NET convention |
+| **Deterministic Time** (`DateTimeOffset`) | `now` | `date`, `dt`, `currentTime`, `timestamp` | Universal stamp for auditing |
+| **Entity Primary Key** (`Guid`) | `id` or `{entity}Id` | `guid`, `uuid`, `key`, `identifier` | Standard identifier naming |
 
 ---
 
-### 6.4 Canonical End-to-End Naming Flow Example
-Trace how an operation maintains absolute naming consistency from the HTTP boundary down to persistence:
+### 5.4 Contract Property Symmetry (Zero Translation Glue)
+Concept names MUST retain identical identifiers across every layer boundary:
+$$\text{HTTP Request: } \texttt{payload} \longrightarrow \text{Command: } \texttt{Payload} \longrightarrow \text{Domain: } \texttt{Payload} \longrightarrow \text{Result: } \texttt{Payload}$$
+$$\text{HTTP Request: } \texttt{outputFormat} \longrightarrow \text{Command: } \texttt{OutputFormat} \longrightarrow \text{Domain: } \texttt{OutputFormat} \longrightarrow \text{Result: } \texttt{OutputFormat}$$
+
+| Forbidden Identifier ❌ | Mandatory Identifier ✅ | Scope | Semantic Invariant |
+|---|---|---|---|
+| `data`, `info`, `obj`, `stuff` | `payload` | All Layers | Business domain JSON payload interpolated into template |
+| `output`, `type`, `format` | `outputFormat` | All Layers | Target document format specifier (`pdf`, `docx`, `xlsx`) |
+| `ref`, `docNumber`, `doc_id` | `documentRef` / `correlationId` | All Layers | Idempotent generation tracking reference |
+
+</naming_ssot>
+
+---
+
+<golden_spec>
+## 6. 💎 Canonical End-to-End Implementation Spec
+
+This end-to-end trace illustrates how an operation satisfies all Clean Architecture invariants and naming rules from HTTP ingress down to persistence:
 
 ```csharp
-// =========================================================================
-// 1. PRESENTATION LAYER: TemplateController.cs
-// =========================================================================
+// 1. PRESENTATION: TemplateController.cs
 [ApiController]
 [Route("api/v1/templates")]
 public sealed class TemplateController(
     IUseCase<CreateTemplateCommand, TemplateResultDto> createTemplateUseCase) : ControllerBase
 {
     [HttpPost]
-    public async Task<ActionResult<ApiResponse<TemplateResultDto>>> Create(
-        [FromBody] CreateTemplateRequest request, 
-        [FromHeader(Name = "Idempotency-Key")] string? idempotencyKey,
+    [Idempotent]
+    public async Task<Created<ApiResponse<TemplateResultDto>>> Create(
+        [FromBody] CreateTemplateRequest request,
         CancellationToken ct)
     {
-        // Parameter is 'request' -> Mapped to 'command'
-        var command = new CreateTemplateCommand(request.ProjectId, request.Name, request.Slug, request.Category);
-        
-        // Output from UseCase is 'result'
+        var command = new CreateTemplateCommand(request.ProjectId, request.Name, request.Slug);
         var result = await createTemplateUseCase.ExecuteAsync(command, ct);
-        
-        return CreatedAtAction(
-            nameof(GetById), 
-            new { templateId = result.Id }, 
-            new ApiResponse<TemplateResultDto>(result));
+
+        return TypedResults.Created($"/api/v1/templates/{result.Id}", new ApiResponse<TemplateResultDto>(result));
     }
 }
 
-// =========================================================================
-// 2. APPLICATION LAYER: CreateTemplateUseCase.cs
-// =========================================================================
+// 2. APPLICATION: CreateTemplateUseCase.cs
 public sealed class CreateTemplateUseCase(
     ITemplateRepository templateRepo,
     IUnitOfWork unitOfWork,
@@ -783,83 +519,102 @@ public sealed class CreateTemplateUseCase(
 {
     public async Task<TemplateResultDto> ExecuteAsync(CreateTemplateCommand command, CancellationToken ct)
     {
-        // 1. Guard check using canonical verb 'ExistsBySlugAsync' with strongly-typed Value Object
         var slug = TemplateSlug.Create(command.Slug);
         if (await templateRepo.ExistsBySlugAsync(command.ProjectId, slug, ct))
         {
-            throw new ConflictException($"Template with slug '{command.Slug}' already exists in this project");
+            throw new ConflictException($"Template with slug '{command.Slug}' already exists.");
         }
 
-        // 2. Obtain time as 'now'
         var now = timeProvider.GetUtcNow();
+        var templateName = TemplateName.Create(command.Name);
+        var template = Template.Create(command.ProjectId, templateName, slug, now);
 
-        // 3. Create domain entity named 'template' via canonical factory 'Create'
-        var template = Template.Create(
-            command.ProjectId, 
-            TemplateName.Create(command.Name), 
-            slug, 
-            command.Category,
-            now);
-
-        // 4. Persistence using canonical verbs 'AddAsync' and 'CommitAsync'
         await templateRepo.AddAsync(template, ct);
         await unitOfWork.CommitAsync(ct);
 
-        // 5. Return mapped Result DTO
         return new TemplateResultDto(template.Id, template.Name.Value, template.CreatedAt);
     }
 }
+
+// 3. DOMAIN: Template.cs
+public sealed class Template
+{
+    public Guid Id { get; private set; }
+    public Guid ProjectId { get; private set; }
+    public TemplateName Name { get; private set; }
+    public TemplateSlug Slug { get; private set; }
+    public bool IsActive { get; private set; }
+    public DateTimeOffset CreatedAt { get; private set; }
+
+    private Template() { }
+
+    public static Template Create(Guid projectId, TemplateName name, TemplateSlug slug, DateTimeOffset now)
+    {
+        if (projectId == Guid.Empty) throw new DomainValidationException("ProjectId cannot be empty.");
+        return new Template
+        {
+            Id = Guid.CreateVersion7(),
+            ProjectId = projectId,
+            Name = name,
+            Slug = slug,
+            IsActive = true,
+            CreatedAt = now
+        };
+    }
+}
 ```
+</golden_spec>
 
 ---
 
-### 6.5 Architectural Mentorship Handbook: Expressive Contract Property Naming & Cross-Layer Symmetry
+<doc_maintenance_rules>
+## 7. 🔄 Living SSoT Protocol & AI Document Maintenance Rules (`RULE-DOC`)
 
-> [!NOTE]
-> **Handbook Scope & Intent for AI Agents and Human Engineers:**
-> This section is formulated as an architectural mentorship guide. When designing or refactoring API request payloads, CQRS commands, and data contracts, prioritize semantic clarity and cross-layer symmetry. Code and schemas are read far more often than they are written—both by developers integrating external services and by LLM agents maintaining the codebase.
-
-#### 1. Why Expressive Names Transcend Generic Placeholders
-Generic placeholders like `data` or `output` introduce semantic ambiguity and cognitive friction:
-- **`data` vs. `payload`:** In modern web and enterprise architectures, the word `data` is heavily overloaded. It can refer to an HTTP response envelope (`{ "data": { ... } }`), a database row, an in-memory collection, or raw binary buffers. Using **`payload`** explicitly communicates intent: *"This is the structured business domain payload to be interpolated into the template document."*
-- **`output` vs. `outputFormat`:** The word `output` is ambiguous—is it the rendered binary file, a stream handle, a MinIO storage URL, or a format type? Using **`outputFormat`** immediately clarifies the property's purpose: *"This is the targeted document format specifier (`pdf`, `docx`, `xlsx`)."*
-
-#### 2. The Cross-Layer Symmetry Principle (Zero Semantic Drift)
-Clean Architecture and CQRS patterns reach maximum elegance when domain concepts retain identical names across every layer of the solution stack. When a property is named `outputFormat` at the HTTP boundary, it should remain `outputFormat` in the CQRS Command, the Domain Validator, and the Response DTO.
-
-```text
-[Client Request JSON]          { "payload": { ... }, "outputFormat": "pdf" }
-         │
-         ▼
-[Presentation / API]           GenerateDocumentRequest(JsonElement Payload, string OutputFormat)
-         │
-         ▼
-[Application / CQRS]           GenerateDocumentCommand(JsonElement Payload, string OutputFormat)
-         │
-         ▼
-[Validation Gate]              RuleFor(x => x.Payload)... RuleFor(x => x.OutputFormat)...
-         │
-         ▼
-[UseCase Execution]            outputFormat = request.OutputFormat switch { ... }
-         │
-         ▼
-[Response DTO]                 GenerateDocumentResultDto(..., OutputFormat: ext, ...)
-```
-
-**Concrete Architectural Advantages:**
-1. **Zero Translation Glue:** Eliminates artificial parameter remapping in UI components and client SDKs (e.g., eliminates awkward translation glue like `{ output: outputFormat }`).
-2. **Deterministic Telemetry & Error Handling:** When validation fails, the error property path matches the exact request property name (e.g., `OutputFormat` in FluentValidation directly mirrors client input).
-3. **AI Agent Reasoning & Zero Hallucination:** LLM agents synthesizing commands, writing unit tests, or authoring clients reason with 100% precision when property names remain uniform across the stack, avoiding hallucinated synonyms.
-
-#### 3. Core Guidelines for Contract Properties
-
-| Architectural Principle | Best Practice Guideline | Positive Canonical Example (`✅`) | Anti-Pattern to Avoid (`❌`) |
-|---|---|---|---|
-| **Domain Specificity** | Choose identifiers that express domain role over generic data containers. | `payload`, `credentials`, `filterCriteria` | `data`, `info`, `obj`, `stuff` |
-| **Type Disambiguation** | When a string specifies a format, type, or mode, append the clarifying suffix. | `outputFormat`, `fileFormat`, `authScheme` | `output`, `type`, `format` (unqualified) |
-| **Cross-Layer Parity** | Keep property names identical between Frontend Schemas, Backend DTOs, and Commands. | `request.outputFormat` ➔ `command.OutputFormat` | `request.output` ➔ `command.format` |
-| **Idempotent Identifiers** | Standardize unique keys and reference codes across all representations. | `documentRef`, `correlationId`, `generationId` | `ref`, `docNumber`, `doc_id`, `id2` |
+> **[LIVING_SSOT_MANDATE]:** This document enforces architectural determinism across AI agents. All updates MUST preserve high token density, machine-actionable precision, and cross-document symmetry.
 
 ---
 
-</global_standards>
+### 7.1 AI Context-Engineering Invariants (`RULE-DOC-ENG`)
+When modifying or adding rules to `docs/AI/`, all agents MUST adhere to these 6 structural invariants:
+
+* `[RULE-DOC-001] [SEMANTIC_XML_BOUNDS] [MUST]`: Preserve all semantic XML tags (`<tech_stack>`, `<clean_architecture_invariants>`, `<backend_rules>`, `<naming_ssot>`, `<golden_spec>`). These tags establish explicit attention boundaries in the model's context window.
+* `[RULE-DOC-002] [RFC_MACHINE_TOKENS] [MUST]`: Every rule statement MUST carry an atomic RFC 2119 token in the format `[RULE-[CATEGORY]-[ID]] [MUST / MUST NOT]`.
+* `[RULE-DOC-003] [NEGATIVE_DUALITY] [MUST]`: Every technical constraint MUST provide contrastive examples: explicitly declare the forbidden defect (❌ Forbidden) alongside the mandatory canonical pattern (✅ Mandatory).
+* `[RULE-DOC-004] [ZERO_TOKEN_NOISE] [MUST NOT]`: NEVER introduce metaphors, pedagogical tutorials, conversational prose, or ASCII flowchart art. All content MUST be concise technical directives.
+* `[RULE-DOC-005] [COMPILABLE_EXAMPLES] [MUST]`: All C# code snippets MUST be fully-typed, syntactically valid C# 13, and compile with 0 errors against `dotnet build backend-v2/SmkDocServerV2.slnx`.
+* `[RULE-DOC-006] [CROSS_DOC_SYMMETRY] [MUST]`: Maintain strict boundary isolation across `docs/AI/`:
+  - Wire Protocols & REST DTOs ➔ Refer exclusively to `docs/AI/API_CONTRACT.md`.
+  - Database Tables & Migrations ➔ Refer exclusively to `docs/AI/DB_SCHEMA.md`.
+  - Multi-File Pipeline Wiring ➔ Refer exclusively to `docs/AI/PATTERNS.md`.
+  - Frontend UI & TypeScript ➔ Refer exclusively to `docs/AI/FRONTEND_SPEC.md` (Strictly banned in this file).
+
+---
+
+### 7.2 Standard Operating Procedure for Document Updates (`RULE-DOC-SOP`)
+When updating `CODING_CONVENTIONS.md`, follow this 5-step sequence:
+
+1. **Scope Routing:** Verify the concept pertains strictly to backend C# 13 / .NET 10 code standards. Route wire/DB/pipeline concerns to their respective SSoT files.
+2. **First-Principles Elevation Benchmark:** Ensure the proposed standard equals or exceeds current standards in safety, throughput, and simplicity. Never dilute architectural standards.
+3. **Format Specification:** Draft rules using the canonical `[RULE-CAT-ID] [MUST/MUST NOT]` token with explicit `❌ Forbidden vs ✅ Mandatory` code blocks.
+4. **Active Compilation Verification:** Execute `dotnet build backend-v2/SmkDocServerV2.slnx` to verify that any code changes compile cleanly with `0 Warning(s)` and `0 Error(s)`.
+5. **Change Proposal Gate:** Present a structured diff and architectural rationale for user confirmation before overwriting the file.
+
+---
+
+### 7.3 Bi-Directional Drift Detection & Alerting Trigger (`RULE-DOC-DRIFT`)
+The LLM MUST trigger an immediate drift notification whenever encountering:
+1. **New Dependency / Library:** Inclusion of a NuGet package or runtime tool not registered in `<tech_stack>`.
+2. **New Architectural Pattern:** Introduction of a pipeline or design pattern not documented in SSoT (e.g. `Channel<T>`, `HybridCache`, Outbox Pattern).
+3. **Missing Invariant:** An unhandled edge case or technical decision lacking an established rule in this document.
+4. **Superior Language Idiom:** A newly released or superior .NET 10 / C# 13 capability that improves upon an existing rule.
+
+**Mandatory Drift Notification Format:**
+```markdown
+> ⚠️ **[SSOT_DRIFT_DETECTED]:** Unregistered architectural pattern or capability detected: `{TopicName}`
+> - **Technical Context:** `{Rationale and target integration layer}`
+> - **Architectural Evaluation:** `{Why this pattern is necessary or superior to current rules}`
+> - **Action Required:** Should `docs/AI/CODING_CONVENTIONS.md` be updated with new rule `{RULE-NEW-ID}`?
+```
+
+* `[RULE-DOC-007] [MUST NOT]`: NEVER silently integrate new architectural patterns or idioms into code without firing this drift notification.
+</doc_maintenance_rules>
