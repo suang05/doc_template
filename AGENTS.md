@@ -124,6 +124,7 @@ Whenever you modify the codebase or make architectural decisions, you MUST proac
    - IF you add/modify a Database Table, Entity, or EF Core Migration -> UPDATE `docs/AI/DB_SCHEMA.md`
    - IF you create a new UseCase, Interface, or architectural file -> UPDATE `docs/AI/PROJECT_STRUCTURE.md`
    - IF you change system topology, dependencies, or middleware pipeline -> UPDATE `docs/AI/ARCHITECTURE.md`
+   - IF you discover a deceptive production trap, concurrency deadlock, or resolve a recurrent architectural correction -> PROPOSE a new rule for `docs/AI/ANTI-PATTERNS.md` following its `<doc_maintenance_rules>` tag.
 2. **Context Headers:** Every documentation file MUST maintain its clear, strict scope wrapper (e.g., `<api_contract_scope>`, `<database_scope>`), `<ai_directive>`, and maintenance tags (e.g. `<doc_maintenance_rules>`) at the top. Never remove them.
 3. **No Duplication & Zero Contradiction:** Before writing a new rule or pattern, you MUST verify that it does not contradict existing standards in `CODING_CONVENTIONS.md`, `PATTERNS.md`, or `ARCHITECTURE.md`. Keep responsibilities strictly isolated to their respective files to avoid redundant instructions that confuse the LLM.
 4. **Future-Proofing (No Volatile Metrics & No Hard Text):** When updating documentation, do NOT insert hardcoded minor versions of libraries (e.g. `v11.11`) or volatile metrics (e.g. exact test counts) that will quickly become outdated. Specify invariant criteria (e.g., 100% pass rate, 0 failures) instead.
