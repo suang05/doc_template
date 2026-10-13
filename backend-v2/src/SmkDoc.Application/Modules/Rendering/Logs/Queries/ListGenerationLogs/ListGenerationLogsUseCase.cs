@@ -7,14 +7,12 @@ namespace SmkDoc.Application.Modules.Rendering.Logs.Queries.ListGenerationLogs;
 public sealed class ListGenerationLogsUseCase(IRepository<GenerationLog> repo)
     : IUseCase<ListGenerationLogsQuery, GenerationLogPagedResult>
 {
-    private readonly IRepository<GenerationLog> _repo = repo;
-
     public async Task<GenerationLogPagedResult> ExecuteAsync(ListGenerationLogsQuery query, CancellationToken ct = default)
     {
         int page = Math.Max(1, query.Page);
         int limit = Math.Clamp(query.Limit, 1, 200);
 
-        var (logs, total) = await _repo.PagedListAsync(
+        var (logs, total) = await repo.PagedListAsync(
             predicate: string.IsNullOrWhiteSpace(query.CallerApp)
                 ? null
                 : l => l.CallerApp == query.CallerApp,

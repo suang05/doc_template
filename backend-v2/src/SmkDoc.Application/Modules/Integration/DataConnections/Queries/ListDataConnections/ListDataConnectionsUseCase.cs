@@ -9,11 +9,9 @@ public record ListDataConnectionsQuery;
 public sealed class ListDataConnectionsUseCase(
     IDataConnectionRepository repository) : IUseCase<ListDataConnectionsQuery, List<DataConnectionDto>>
 {
-    private readonly IDataConnectionRepository _repository = repository;
-
     public async Task<List<DataConnectionDto>> ExecuteAsync(ListDataConnectionsQuery query, CancellationToken ct = default)
     {
-        var connections = await _repository.ListAsync(ct);
+        var connections = await repository.ListAsync(ct);
         return connections.Select(c => new DataConnectionDto
         {
             Id = c.Id,

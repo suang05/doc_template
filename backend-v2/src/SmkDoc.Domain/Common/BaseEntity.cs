@@ -1,24 +1,21 @@
 namespace SmkDoc.Domain.Common;
 
 /// <summary>
-/// Abstract base class for all Domain Entities.
-/// Provides UUIDv7 primary identity, audit timestamps, and entity equality based on identity.
+/// Generic abstract base class for Domain Entities with strongly-typed identity.
+/// Provides primary identity, audit timestamps, and entity equality based on identity.
 /// </summary>
-public abstract class BaseEntity : IEquatable<BaseEntity>
+public abstract class BaseEntity<TId> : IEquatable<BaseEntity<TId>>
+    where TId : struct, IComparable<TId>, IEquatable<TId>
 {
-    public Guid Id { get; protected set; } = Guid.CreateVersion7();
+    public TId Id { get; protected set; }
     public DateTimeOffset CreatedAt { get; protected set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset? UpdatedAt { get; protected set; }
 
     protected BaseEntity() { }
 
-    protected BaseEntity(Guid? id, DateTimeOffset? createdAt = null)
+    protected BaseEntity(TId id, DateTimeOffset? createdAt = null)
     {
-        if (id.HasValue && id.Value != Guid.Empty)
-        {
-            Id = id.Value;
-        }
-
+        Id = id;
         if (createdAt.HasValue)
         {
             CreatedAt = createdAt.Value;
@@ -29,26 +26,27 @@ public abstract class BaseEntity : IEquatable<BaseEntity>
         UpdatedAt = updatedAt ?? DateTimeOffset.UtcNow;
 
     public override bool Equals(object? obj) =>
-        obj is BaseEntity other && Equals(other);
+        obj is BaseEntity<TId> other && Equals(other);
 
-    public bool Equals(BaseEntity? other)
+    public bool Equals(BaseEntity<TId>? other)
     {
         if (other is null || other.GetType() != GetType())
         {
             return false;
         }
 
-        if (Id == Guid.Empty || other.Id == Guid.Empty)
+        if (EqualityComparer<TId>.Default.Equals(Id, default) ||
+            EqualityComparer<TId>.Default.Equals(other.Id, default))
         {
             return false;
         }
 
-        return Id == other.Id;
+        return EqualityComparer<TId>.Default.Equals(Id, other.Id);
     }
 
     public override int GetHashCode() => HashCode.Combine(GetType(), Id);
 
-    public static bool operator ==(BaseEntity? left, BaseEntity? right)
+    public static bool operator ==(BaseEntity<TId>? left, BaseEntity<TId>? right)
     {
         if (left is null ^ right is null)
         {
@@ -58,5 +56,22 @@ public abstract class BaseEntity : IEquatable<BaseEntity>
         return left is null || left.Equals(right);
     }
 
-    public static bool operator !=(BaseEntity? left, BaseEntity? right) => !(left == right);
+    public static bool operator !=(BaseEntity<TId>? left, BaseEntity<TId>? right) => !(left == right);
+}
+
+/// <summary>
+/// Abstract base class for child Domain Entities with Guid primary identity.
+/// Provides UUIDv7 primary identity, audit timestamps, and entity equality based on identity.
+/// </summary>
+public abstract class BaseEntity : BaseEntity<Guid>
+{
+    protected BaseEntity()
+    {
+        Id = Guid.CreateVersion7();
+    }
+
+    protected BaseEntity(Guid? id, DateTimeOffset? createdAt = null)
+        : base(id.HasValue && id.Value != Guid.Empty ? id.Value : Guid.CreateVersion7(), createdAt)
+    {
+    }
 }

@@ -2,13 +2,14 @@ using SmkDoc.Domain.Common;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Domain.Entities;
 
 /// <summary>
 /// Aggregate root representing an authenticated system user.
 /// </summary>
-public sealed class User : BaseEntity
+public sealed class User : BaseEntity<UserId>
 {
     public EmailAddress Email { get; private set; } = null!;
     public string PasswordHash { get; private set; } = string.Empty;
@@ -25,9 +26,9 @@ public sealed class User : BaseEntity
     // For EF Core materialization only
     private User() { }
 
-    internal User(Guid? id, EmailAddress email, string passwordHash, string firstName, string? lastName,
+    internal User(UserId? id, EmailAddress email, string passwordHash, string firstName, string? lastName,
         SystemRole? systemRole, DateTimeOffset now)
-        : base(id, createdAt: now)
+        : base(id.HasValue && !id.Value.IsEmpty ? id.Value : UserId.New(), createdAt: now)
     {
         Email = Guard.NotNull(email, nameof(Email));
         PasswordHash = Guard.NotBlank(passwordHash, nameof(PasswordHash), 500);
@@ -47,7 +48,7 @@ public sealed class User : BaseEntity
         SetUpdated(now);
     }
 
-    public bool CanAccessProject(Guid projectId)
+    public bool CanAccessProject(ProjectId projectId)
     {
         if (SystemRole == SystemRole.SuperAdmin)
         {
@@ -105,7 +106,7 @@ public sealed class User : BaseEntity
         SetUpdated(now);
     }
 
-    public void AssignProjectRole(Guid projectId, RoleType role, DateTimeOffset now)
+    public void AssignProjectRole(ProjectId projectId, RoleType role, DateTimeOffset now)
     {
         Guard.NotEmpty(projectId, nameof(projectId));
         var existing = _projectRoles.FirstOrDefault(r => r.ProjectId == projectId);
@@ -115,13 +116,13 @@ public sealed class User : BaseEntity
         }
         else
         {
-            _projectRoles.Add(UserProjectRole.Create(Id, projectId, role, now));
+            _projectRoles.Add(UserProjectRole.Create((UserId)Id, projectId, role, now));
         }
 
         SetUpdated(now);
     }
 
-    public void RemoveProjectRole(Guid projectId, DateTimeOffset now)
+    public void RemoveProjectRole(ProjectId projectId, DateTimeOffset now)
     {
         var existing = _projectRoles.FirstOrDefault(r => r.ProjectId == projectId);
         if (existing != null)

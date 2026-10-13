@@ -1,6 +1,7 @@
 using SmkDoc.Domain.Common;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Domain.Entities;
 
@@ -9,8 +10,8 @@ namespace SmkDoc.Domain.Entities;
 /// </summary>
 public sealed class TemplateDataset : BaseEntity
 {
-    public Guid TemplateId { get; private set; }
-    public Guid DatasetId { get; private set; }
+    public TemplateId TemplateId { get; private set; }
+    public DatasetId DatasetId { get; private set; }
     public DatasetAlias Alias { get; private set; } = null!;
     public int SortOrder { get; private set; }
 
@@ -22,8 +23,8 @@ public sealed class TemplateDataset : BaseEntity
 
     internal TemplateDataset(
         Guid? id,
-        Guid templateId,
-        Guid datasetId,
+        TemplateId templateId,
+        DatasetId datasetId,
         DatasetAlias alias,
         int sortOrder,
         DateTimeOffset now)
@@ -36,8 +37,8 @@ public sealed class TemplateDataset : BaseEntity
     }
 
     public static TemplateDataset Create(
-        Guid templateId,
-        Guid datasetId,
+        TemplateId templateId,
+        DatasetId datasetId,
         DatasetAlias alias,
         int sortOrder,
         DateTimeOffset now) =>

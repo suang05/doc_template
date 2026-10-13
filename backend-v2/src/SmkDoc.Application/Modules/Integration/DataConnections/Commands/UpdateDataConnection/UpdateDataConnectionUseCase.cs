@@ -19,29 +19,26 @@ public sealed class UpdateDataConnectionUseCase(
     IDataProtectionService dataProtection,
     TimeProvider? timeProvider = null) : IUseCase<UpdateDataConnectionCommand, DataConnectionDto?>
 {
-    private readonly IDataConnectionRepository _repository = repository;
-    private readonly IUnitOfWork _unitOfWork = unitOfWork;
-    private readonly IDataProtectionService _dataProtection = dataProtection;
-    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
+    private readonly TimeProvider timeProvider = timeProvider ?? TimeProvider.System;
 
     public async Task<DataConnectionDto?> ExecuteAsync(UpdateDataConnectionCommand command, CancellationToken ct = default)
     {
-        var entity = await _repository.GetByIdAsync(command.Id, ct);
+        var entity = await repository.GetByIdAsync(command.Id, ct);
         if (entity == null) return null;
 
         var encryptedCs = string.IsNullOrEmpty(command.ConnectionString)
             ? entity.EncryptedConnectionString
-            : _dataProtection.Encrypt(command.ConnectionString);
+            : dataProtection.Encrypt(command.ConnectionString);
 
-        var now = _timeProvider.GetUtcNow();
+        var now = this.timeProvider.GetUtcNow();
         entity.UpdateConnection(
             ConnectionName.Create(command.Name),
             Enumeration.FromDisplayName<DatabaseProvider>(command.Provider),
             encryptedCs,
             now);
 
-        _repository.Update(entity);
-        await _unitOfWork.CommitAsync(ct);
+        repository.Update(entity);
+        await unitOfWork.CommitAsync(ct);
 
         return new DataConnectionDto
         {

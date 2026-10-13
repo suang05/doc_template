@@ -4,6 +4,7 @@ using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Modules.Integration.Datasets;
 
@@ -14,16 +15,13 @@ public sealed class DatasetUseCase(
     IUnitOfWork unitOfWork,
     TimeProvider? timeProvider = null)
 {
-    private readonly IDatasetRepository _datasetRepo = datasetRepo;
-    private readonly IDataConnectionRepository _connectionRepo = connectionRepo;
-    private readonly IUnitOfWork _unitOfWork = unitOfWork;
-    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
+    private readonly TimeProvider timeProvider = timeProvider ?? TimeProvider.System;
 
     public async Task<List<DatasetDto>> GetAllAsync(CancellationToken ct = default)
     {
-        var datasets     = await _datasetRepo.ListAsync(ct);
-        var connectionIds = datasets.Select(d => d.DataConnectionId).Distinct().ToList();
-        var connections  = await _connectionRepo.GetByIdsAsync(connectionIds, ct);
+        var datasets     = await datasetRepo.ListAsync(ct);
+        var connectionIds = datasets.Select(d => (Guid)d.DataConnectionId).Distinct().ToList();
+        var connections  = await connectionRepo.GetByIdsAsync(connectionIds, ct);
         var connMap      = connections.ToDictionary(c => c.Id);
 
         return datasets.Select(d => ToDto(d, connMap)).ToList();
@@ -31,57 +29,57 @@ public sealed class DatasetUseCase(
 
     public async Task<DatasetDto?> GetByIdAsync(Guid id, CancellationToken ct = default)
     {
-        var dataset = await _datasetRepo.GetByIdAsync(id, ct);
+        var dataset = await datasetRepo.GetByIdAsync(id, ct);
         if (dataset == null) return null;
 
-        var connection = await _connectionRepo.GetByIdAsync(dataset.DataConnectionId, ct);
+        var connection = await connectionRepo.GetByIdAsync(dataset.DataConnectionId, ct);
         return ToDto(dataset, connection == null
-            ? new Dictionary<Guid, DataConnection>()
-            : new Dictionary<Guid, DataConnection> { [connection.Id] = connection });
+            ? new Dictionary<DataConnectionId, DataConnection>()
+            : new Dictionary<DataConnectionId, DataConnection> { [connection.Id] = connection });
     }
 
     public async Task<DatasetDto> CreateAsync(CreateDatasetDto dto, CancellationToken ct = default)
     {
-        var connection = await _connectionRepo.GetByIdAsync(dto.DataConnectionId, ct)
+        var connection = await connectionRepo.GetByIdAsync(dto.DataConnectionId, ct)
             ?? throw new NotFoundException($"DataConnection '{dto.DataConnectionId}' not found.");
 
-        var now = _timeProvider.GetUtcNow();
+        var now = this.timeProvider.GetUtcNow();
         var entity = Dataset.Create(DatasetName.Create(dto.Name), dto.Description, dto.DataConnectionId, dto.SqlQuery, dto.CacheSeconds, now);
 
-        await _datasetRepo.AddAsync(entity, ct);
-        await _unitOfWork.CommitAsync(ct);
+        await datasetRepo.AddAsync(entity, ct);
+        await unitOfWork.CommitAsync(ct);
 
-        return ToDto(entity, new Dictionary<Guid, DataConnection> { [connection.Id] = connection });
+        return ToDto(entity, new Dictionary<DataConnectionId, DataConnection> { [connection.Id] = connection });
     }
 
     public async Task<DatasetDto?> UpdateAsync(Guid id, UpdateDatasetDto dto, CancellationToken ct = default)
     {
-        var entity = await _datasetRepo.GetByIdAsync(id, ct);
+        var entity = await datasetRepo.GetByIdAsync(id, ct);
         if (entity == null) return null;
 
-        var connection = await _connectionRepo.GetByIdAsync(dto.DataConnectionId, ct)
+        var connection = await connectionRepo.GetByIdAsync(dto.DataConnectionId, ct)
             ?? throw new NotFoundException($"DataConnection '{dto.DataConnectionId}' not found.");
 
-        var now = _timeProvider.GetUtcNow();
+        var now = this.timeProvider.GetUtcNow();
         entity.UpdateDetails(DatasetName.Create(dto.Name), dto.Description, dto.DataConnectionId, dto.SqlQuery, dto.CacheSeconds, now);
 
-        _datasetRepo.Update(entity);
-        await _unitOfWork.CommitAsync(ct);
+        datasetRepo.Update(entity);
+        await unitOfWork.CommitAsync(ct);
 
-        return ToDto(entity, new Dictionary<Guid, DataConnection> { [connection.Id] = connection });
+        return ToDto(entity, new Dictionary<DataConnectionId, DataConnection> { [connection.Id] = connection });
     }
 
     public async Task<bool> DeleteAsync(Guid id, CancellationToken ct = default)
     {
-        var entity = await _datasetRepo.GetByIdAsync(id, ct);
+        var entity = await datasetRepo.GetByIdAsync(id, ct);
         if (entity == null) return false;
 
-        _datasetRepo.Remove(entity);
-        await _unitOfWork.CommitAsync(ct);
+        datasetRepo.Remove(entity);
+        await unitOfWork.CommitAsync(ct);
         return true;
     }
 
-    private static DatasetDto ToDto(Dataset d, Dictionary<Guid, DataConnection> connMap) => new()
+    private static DatasetDto ToDto(Dataset d, Dictionary<DataConnectionId, DataConnection> connMap) => new()
     {
         Id                 = d.Id,
         Name               = d.Name.Value,

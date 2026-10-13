@@ -1,6 +1,7 @@
 using SmkDoc.Domain.Common;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
+using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Domain.Entities;
 
@@ -9,7 +10,7 @@ namespace SmkDoc.Domain.Entities;
 /// </summary>
 public sealed class TemplateVersion : BaseEntity
 {
-    public Guid TemplateId { get; private set; }
+    public TemplateId TemplateId { get; private set; }
     public int Version { get; private set; }
     public string StorageKey { get; private set; } = string.Empty;
     public TemplateVersionStatus Status { get; private set; } = TemplateVersionStatus.Draft;
@@ -28,7 +29,7 @@ public sealed class TemplateVersion : BaseEntity
 
     internal TemplateVersion(
         Guid? id,
-        Guid templateId,
+        TemplateId templateId,
         int version,
         string storageKey,
         TemplateFormat? fileFormat,
@@ -47,7 +48,7 @@ public sealed class TemplateVersion : BaseEntity
     }
 
     public static TemplateVersion Draft(
-        Guid templateId,
+        TemplateId templateId,
         int version,
         string storageKey,
         TemplateFormat? fileFormat,

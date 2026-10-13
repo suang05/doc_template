@@ -9,16 +9,13 @@ public sealed class DeleteDataConnectionUseCase(
     IDataConnectionRepository repository,
     IUnitOfWork unitOfWork) : IUseCase<DeleteDataConnectionCommand, bool>
 {
-    private readonly IDataConnectionRepository _repository = repository;
-    private readonly IUnitOfWork _unitOfWork = unitOfWork;
-
     public async Task<bool> ExecuteAsync(DeleteDataConnectionCommand command, CancellationToken ct = default)
     {
-        var entity = await _repository.GetByIdAsync(command.Id, ct);
+        var entity = await repository.GetByIdAsync(command.Id, ct);
         if (entity == null) return false;
 
-        _repository.Remove(entity);
-        await _unitOfWork.CommitAsync(ct);
+        repository.Remove(entity);
+        await unitOfWork.CommitAsync(ct);
         return true;
     }
 }

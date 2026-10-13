@@ -6,7 +6,7 @@ namespace SmkDoc.Domain.ValueObjects;
 /// <summary>
 /// Value Object representing a validated 64-character lowercase SHA-256 hexadecimal hash.
 /// </summary>
-public sealed class Sha256Hash : ValueObject
+public sealed record class Sha256Hash
 {
     public const int HashLength = 64;
 
@@ -40,11 +40,6 @@ public sealed class Sha256Hash : ValueObject
         }
 
         return true;
-    }
-
-    protected override IEnumerable<object?> GetEqualityComponents()
-    {
-        yield return Value;
     }
 
     public override string ToString() => Value;

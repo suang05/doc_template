@@ -6,7 +6,7 @@ namespace SmkDoc.Domain.ValueObjects;
 /// <summary>
 /// Validity window for a credential or policy; encapsulates expiration invariants.
 /// </summary>
-public sealed class ExpirationPolicy : ValueObject
+public sealed record class ExpirationPolicy
 {
     public DateTimeOffset? ExpiresAt { get; }
 
@@ -33,11 +33,6 @@ public sealed class ExpirationPolicy : ValueObject
     public static ExpirationPolicy FromExisting(DateTimeOffset? expiresAt) => new(expiresAt);
 
     public bool IsExpiredAt(DateTimeOffset now) => ExpiresAt.HasValue && ExpiresAt.Value <= now;
-
-    protected override IEnumerable<object?> GetEqualityComponents()
-    {
-        yield return ExpiresAt;
-    }
 
     public override string ToString() =>
         ExpiresAt.HasValue ? ExpiresAt.Value.ToString("O") : "Never";

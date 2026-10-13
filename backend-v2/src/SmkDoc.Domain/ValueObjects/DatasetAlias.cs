@@ -7,7 +7,7 @@ namespace SmkDoc.Domain.ValueObjects;
 /// <summary>
 /// Value Object representing a normalized dataset alias (used in {{alias.field}} placeholders).
 /// </summary>
-public sealed partial class DatasetAlias : ValueObject
+public sealed partial record class DatasetAlias
 {
     public const int MaxLength = 50;
     private static readonly Regex AliasRegex = GeneratedAliasRegex();
@@ -37,11 +37,6 @@ public sealed partial class DatasetAlias : ValueObject
         }
 
         return new DatasetAlias(normalized);
-    }
-
-    protected override IEnumerable<object?> GetEqualityComponents()
-    {
-        yield return Value;
     }
 
     public override string ToString() => Value;

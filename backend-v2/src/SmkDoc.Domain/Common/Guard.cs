@@ -1,4 +1,5 @@
 using SmkDoc.Domain.Exceptions;
+using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Domain.Common;
 
@@ -10,6 +11,46 @@ internal static class Guard
 {
     public static Guid NotEmpty(Guid value, string name) =>
         value == Guid.Empty
+            ? throw new DomainValidationException($"{name} cannot be empty.")
+            : value;
+
+    public static ProjectId NotEmpty(ProjectId value, string name) =>
+        value.IsEmpty
+            ? throw new DomainValidationException($"{name} cannot be empty.")
+            : value;
+
+    public static CompanyId NotEmpty(CompanyId value, string name) =>
+        value.IsEmpty
+            ? throw new DomainValidationException($"{name} cannot be empty.")
+            : value;
+
+    public static TemplateId NotEmpty(TemplateId value, string name) =>
+        value.IsEmpty
+            ? throw new DomainValidationException($"{name} cannot be empty.")
+            : value;
+
+    public static DataConnectionId NotEmpty(DataConnectionId value, string name) =>
+        value.IsEmpty
+            ? throw new DomainValidationException($"{name} cannot be empty.")
+            : value;
+
+    public static UserId NotEmpty(UserId value, string name) =>
+        value.IsEmpty
+            ? throw new DomainValidationException($"{name} cannot be empty.")
+            : value;
+
+    public static DocumentId NotEmpty(DocumentId value, string name) =>
+        value.IsEmpty
+            ? throw new DomainValidationException($"{name} cannot be empty.")
+            : value;
+
+    public static ApiKeyId NotEmpty(ApiKeyId value, string name) =>
+        value.IsEmpty
+            ? throw new DomainValidationException($"{name} cannot be empty.")
+            : value;
+
+    public static DatasetId NotEmpty(DatasetId value, string name) =>
+        value.IsEmpty
             ? throw new DomainValidationException($"{name} cannot be empty.")
             : value;
 

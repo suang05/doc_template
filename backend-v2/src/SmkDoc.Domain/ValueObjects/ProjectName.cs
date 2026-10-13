@@ -5,7 +5,7 @@ namespace SmkDoc.Domain.ValueObjects;
 /// <summary>
 /// Value Object representing a project / tenant name.
 /// </summary>
-public sealed class ProjectName : ValueObject
+public sealed record class ProjectName
 {
     public const int MaxLength = 100;
 
@@ -15,11 +15,6 @@ public sealed class ProjectName : ValueObject
 
     public static ProjectName Create(string? value) =>
         new(Guard.NotBlank(value, "Project name", MaxLength));
-
-    protected override IEnumerable<object?> GetEqualityComponents()
-    {
-        yield return Value;
-    }
 
     public override string ToString() => Value;
 

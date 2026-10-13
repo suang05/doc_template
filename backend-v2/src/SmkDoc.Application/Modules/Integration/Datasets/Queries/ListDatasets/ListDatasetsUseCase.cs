@@ -2,6 +2,7 @@ using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Integration.Datasets.DTOs;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Modules.Integration.Datasets.Queries.ListDatasets;
 
@@ -11,22 +12,19 @@ public sealed class ListDatasetsUseCase(
     IDatasetRepository datasetRepo,
     IDataConnectionRepository connectionRepo) : IUseCase<ListDatasetsQuery, List<DatasetDto>>
 {
-    private readonly IDatasetRepository _datasetRepo = datasetRepo;
-    private readonly IDataConnectionRepository _connectionRepo = connectionRepo;
-
     public async Task<List<DatasetDto>> ExecuteAsync(ListDatasetsQuery query, CancellationToken ct = default)
     {
-        var datasets = await _datasetRepo.ListAsync(ct);
+        var datasets = await datasetRepo.ListAsync(ct);
         var missingConnectionIds = datasets
             .Where(d => d.DataConnection == null)
-            .Select(d => d.DataConnectionId)
+            .Select(d => (Guid)d.DataConnectionId)
             .Distinct()
             .ToList();
 
-        Dictionary<Guid, DataConnection> fallbackConns = [];
+        Dictionary<DataConnectionId, DataConnection> fallbackConns = [];
         if (missingConnectionIds.Count > 0)
         {
-            var loaded = await _connectionRepo.GetByIdsAsync(missingConnectionIds, ct);
+            var loaded = await connectionRepo.GetByIdsAsync(missingConnectionIds, ct);
             fallbackConns = loaded.ToDictionary(c => c.Id);
         }
 

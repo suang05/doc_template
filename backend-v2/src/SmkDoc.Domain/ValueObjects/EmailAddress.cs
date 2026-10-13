@@ -7,7 +7,7 @@ namespace SmkDoc.Domain.ValueObjects;
 /// <summary>
 /// Value Object representing a validated, normalized email address.
 /// </summary>
-public sealed partial class EmailAddress : ValueObject
+public sealed partial record class EmailAddress
 {
     public const int MaxLength = 256;
     private static readonly Regex EmailRegex = GeneratedEmailRegex();
@@ -36,11 +36,6 @@ public sealed partial class EmailAddress : ValueObject
         }
 
         return new EmailAddress(normalized);
-    }
-
-    protected override IEnumerable<object?> GetEqualityComponents()
-    {
-        yield return Value;
     }
 
     public override string ToString() => Value;

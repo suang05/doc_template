@@ -92,7 +92,7 @@ public sealed class GenerateDocumentUseCase(
         var generationId = Guid.CreateVersion7();
         var tenantId = _executionContext.ProjectId.HasValue && _executionContext.ProjectId.Value != Guid.Empty
             ? _executionContext.ProjectId.Value
-            : template.ProjectId;
+            : template.ProjectId.Value;
         string outputKey = $"outputs/{tenantId:N}/{DateTime.UtcNow:yyyy/MM/dd}/{slug}_{generationId:N}.{ext}";
 
         long fileSizeBytes = 0;

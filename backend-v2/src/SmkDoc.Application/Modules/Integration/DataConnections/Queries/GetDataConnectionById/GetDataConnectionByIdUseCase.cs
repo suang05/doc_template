@@ -9,11 +9,9 @@ public record GetDataConnectionByIdQuery(Guid Id);
 public sealed class GetDataConnectionByIdUseCase(
     IDataConnectionRepository repository) : IUseCase<GetDataConnectionByIdQuery, DataConnectionDto?>
 {
-    private readonly IDataConnectionRepository _repository = repository;
-
     public async Task<DataConnectionDto?> ExecuteAsync(GetDataConnectionByIdQuery query, CancellationToken ct = default)
     {
-        var c = await _repository.GetByIdAsync(query.Id, ct);
+        var c = await repository.GetByIdAsync(query.Id, ct);
         if (c == null) return null;
 
         return new DataConnectionDto

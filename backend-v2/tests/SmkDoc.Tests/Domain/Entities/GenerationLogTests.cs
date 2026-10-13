@@ -3,6 +3,7 @@ using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Domain.ValueObjects.Ids;
 using Xunit;
 
 namespace SmkDoc.Tests.Domain.Entities;
@@ -33,9 +34,9 @@ public class GenerationLogTests
             now);
 
         log.Id.Should().Be(generationId);
-        log.TemplateId.Should().Be(templateId);
+        log.TemplateId.Should().Be((TemplateId)templateId);
         log.TemplateVersionId.Should().Be(templateVersionId);
-        log.ApiKeyId.Should().Be(apiKeyId);
+        log.ApiKeyId.Should().Be((ApiKeyId)apiKeyId);
         log.CallerApp.Should().Be("crm-service");
         log.TriggerSource.Should().Be("api");
         log.InputData.Should().Be("{\"invoiceNo\":\"INV-001\"}");

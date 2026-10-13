@@ -3,6 +3,7 @@ using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Domain.Entities;
 
@@ -10,11 +11,11 @@ namespace SmkDoc.Domain.Entities;
 /// Aggregate root representing a cryptographic API key credential for machine-to-machine access.
 /// References its owning <see cref="Project"/> by Id only (no cross-aggregate navigation).
 /// </summary>
-public sealed class ApiKey : BaseEntity, IMustHaveProject
+public sealed class ApiKey : BaseEntity<ApiKeyId>, IMustHaveProject
 {
     public const int CallerAppMaxLength = 50;
 
-    public Guid ProjectId { get; private set; }
+    public ProjectId ProjectId { get; private set; }
     public ApiKeyName Name { get; private set; } = null!;
     public string CallerApp { get; private set; } = string.Empty;
     public Sha256Hash KeyHash { get; private set; } = null!;
@@ -36,15 +37,15 @@ public sealed class ApiKey : BaseEntity, IMustHaveProject
     }
 
     internal ApiKey(
-        Guid? id,
-        Guid projectId,
+        ApiKeyId? id,
+        ProjectId projectId,
         ApiKeyName name,
         string? callerApp,
         Sha256Hash keyHash,
         ExpirationPolicy? expiration,
         DateTimeOffset now,
         ApiKeyScope? scope = null)
-        : base(id, createdAt: now)
+        : base(id.HasValue && !id.Value.IsEmpty ? id.Value : ApiKeyId.New(), createdAt: now)
     {
         ProjectId = Guard.NotEmpty(projectId, nameof(ProjectId));
         Name = Guard.NotNull(name, nameof(Name));
@@ -58,7 +59,7 @@ public sealed class ApiKey : BaseEntity, IMustHaveProject
     /// <summary>
     /// Factory: the only way to create a valid API key with an explicit ExpirationPolicy.
     /// </summary>
-    public static ApiKey Issue(Guid projectId, ApiKeyName name, string? callerApp, Sha256Hash keyHash,
+    public static ApiKey Issue(ProjectId projectId, ApiKeyName name, string? callerApp, Sha256Hash keyHash,
         ExpirationPolicy expiration, DateTimeOffset now, ApiKeyScope? scope = null) =>
         new(null, projectId, name, callerApp, keyHash, expiration ?? ExpirationPolicy.Never, now, scope);
 

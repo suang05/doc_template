@@ -2,13 +2,14 @@ using SmkDoc.Domain.Common;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Domain.Entities;
 
 /// <summary>
 /// Domain entity representing an encrypted database connection configuration.
 /// </summary>
-public sealed class DataConnection : BaseEntity
+public sealed class DataConnection : BaseEntity<DataConnectionId>
 {
     public ConnectionName Name { get; private set; } = null!;
     public DatabaseProvider Provider { get; private set; } = DatabaseProvider.PostgreSQL;
@@ -18,12 +19,12 @@ public sealed class DataConnection : BaseEntity
     private DataConnection() { }
 
     internal DataConnection(
-        Guid? id,
+        DataConnectionId? id,
         ConnectionName name,
         DatabaseProvider provider,
         string encryptedConnectionString,
         DateTimeOffset now)
-        : base(id, createdAt: now)
+        : base(id ?? DataConnectionId.New(), createdAt: now)
     {
         Name = Guard.NotNull(name, nameof(Name));
         Provider = provider ?? DatabaseProvider.PostgreSQL;

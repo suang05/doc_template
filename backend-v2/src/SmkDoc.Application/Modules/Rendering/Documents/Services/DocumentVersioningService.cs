@@ -12,11 +12,7 @@ public sealed class DocumentVersioningService(
     IUnitOfWork unitOfWork,
     TimeProvider? timeProvider = null) : IDocumentVersioningService
 {
-    private readonly IRepository<Document> _documentRepo = documentRepo;
-    private readonly IRepository<DocumentVersion> _docVersionRepo = docVersionRepo;
-    private readonly IExecutionContext _executionContext = executionContext;
-    private readonly IUnitOfWork _unitOfWork = unitOfWork;
-    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
+    private readonly TimeProvider timeProvider = timeProvider ?? TimeProvider.System;
 
     public async Task RecordVersionAsync(
         string documentRef,
@@ -26,19 +22,19 @@ public sealed class DocumentVersioningService(
         string? changeNote,
         CancellationToken ct = default)
     {
-        var document = await _documentRepo.FirstOrDefaultAsync(
+        var document = await documentRepo.FirstOrDefaultAsync(
             d => d.DocumentRef == documentRef, ct);
 
         if (document is null)
         {
-            document = Document.Create(DocumentReference.Create(documentRef), templateId, _timeProvider.GetUtcNow());
-            await _documentRepo.AddAsync(document, ct);
+            document = Document.Create(DocumentReference.Create(documentRef), templateId, this.timeProvider.GetUtcNow());
+            await documentRepo.AddAsync(document, ct);
         }
 
         const int maxRetries = 3;
         for (int retry = 0; retry < maxRetries; retry++)
         {
-            int currentMax = await _docVersionRepo.MaxOrDefaultAsync(
+            int currentMax = await docVersionRepo.MaxOrDefaultAsync(
                 v => v.DocumentId == document.Id, v => v.Version, 0, ct);
 
             var docVersion = DocumentVersion.Create(
@@ -47,18 +43,18 @@ public sealed class DocumentVersioningService(
                 currentVersionId,
                 generationId,
                 changeNote,
-                _executionContext.CallerApp,
-                _timeProvider.GetUtcNow());
+                executionContext.CallerApp,
+                this.timeProvider.GetUtcNow());
 
             try
             {
-                await _docVersionRepo.AddAsync(docVersion, ct);
-                await _unitOfWork.CommitAsync(ct);
+                await docVersionRepo.AddAsync(docVersion, ct);
+                await unitOfWork.CommitAsync(ct);
                 break;
             }
             catch (Exception) when (retry < maxRetries - 1)
             {
-                _docVersionRepo.Remove(docVersion);
+                docVersionRepo.Remove(docVersion);
             }
         }
     }

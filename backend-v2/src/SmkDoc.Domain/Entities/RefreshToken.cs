@@ -1,6 +1,7 @@
 using SmkDoc.Domain.Common;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Domain.Entities;
 
@@ -10,7 +11,7 @@ namespace SmkDoc.Domain.Entities;
 /// </summary>
 public sealed class RefreshToken : BaseEntity
 {
-    public Guid UserId { get; private set; }
+    public UserId UserId { get; private set; }
     public Sha256Hash TokenHash { get; private set; } = null!;
     public DateTimeOffset ExpiresAt { get; private set; }
     public DateTimeOffset? RevokedAt { get; private set; }
@@ -25,7 +26,7 @@ public sealed class RefreshToken : BaseEntity
 
     internal RefreshToken(
         Guid? id,
-        Guid userId,
+        UserId userId,
         Sha256Hash tokenHash,
         DateTimeOffset expiresAt,
         DateTimeOffset now,
@@ -50,7 +51,7 @@ public sealed class RefreshToken : BaseEntity
     /// Canonical factory method: creates a new active RefreshToken.
     /// </summary>
     public static RefreshToken Create(
-        Guid userId,
+        UserId userId,
         Sha256Hash tokenHash,
         DateTimeOffset expiresAt,
         DateTimeOffset now) =>

@@ -1,13 +1,14 @@
 using SmkDoc.Domain.Common;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Domain.Entities;
 
 /// <summary>
 /// Domain entity representing a company / root tenant organization.
 /// </summary>
-public sealed class Company : BaseEntity
+public sealed class Company : BaseEntity<CompanyId>
 {
     public CompanyName Name { get; private set; } = null!;
     public bool IsActive { get; private set; }
@@ -20,8 +21,8 @@ public sealed class Company : BaseEntity
     // For EF Core materialization only
     private Company() { }
 
-    internal Company(Guid? id, CompanyName name, DateTimeOffset now)
-        : base(id, createdAt: now)
+    internal Company(CompanyId? id, CompanyName name, DateTimeOffset now)
+        : base(id ?? CompanyId.New(), createdAt: now)
     {
         Name = Guard.NotNull(name, nameof(Name));
         IsActive = true;

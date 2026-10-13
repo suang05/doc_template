@@ -20,19 +20,11 @@ public sealed class CommitTemplateDraftUseCase(
     IExecutionContext? executionContext = null,
     TimeProvider? timeProvider = null) : IUseCase<CommitTemplateDraftCommand, string>
 {
-    private readonly ITemplateDraftCache _draftCache = draftCache;
-    private readonly IStorageService _storageService = storageService;
-    private readonly ITemplateRepository _templateRepo = templateRepo;
-    private readonly IRepository<TemplateVersion> _versionRepo = versionRepo;
-    private readonly IUnitOfWork _unitOfWork = unitOfWork;
-    private readonly IProjectRepository? _projectRepo = projectRepo;
-    private readonly ISchemaInferenceService? _schemaInferenceService = schemaInferenceService;
-    private readonly IExecutionContext? _executionContext = executionContext;
-    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
+    private readonly TimeProvider timeProvider = timeProvider ?? TimeProvider.System;
 
     public async Task<string> ExecuteAsync(CommitTemplateDraftCommand command, CancellationToken ct = default)
     {
-        var draft = await _draftCache.GetAsync(command.DraftId, ct)
+        var draft = await draftCache.GetAsync(command.DraftId, ct)
             ?? throw new DraftExpiredException(command.DraftId);
 
         var format      = FormatFromExt(draft.FileExtension);
@@ -43,18 +35,24 @@ public sealed class CommitTemplateDraftUseCase(
         string uploadedKey;
         using (var ms = new MemoryStream(draft.FileBytes))
         {
-            uploadedKey = await _storageService.UploadAsync(StorageBuckets.Templates, storageKey, ms, contentType, ct);
+            uploadedKey = await storageService.UploadAsync(StorageBuckets.Templates, storageKey, ms, contentType, ct);
         }
 
         Guid targetProjectId = command.Request.ProjectId 
-            ?? (_executionContext?.ProjectId.HasValue == true ? _executionContext.ProjectId.Value : Guid.Empty);
+            ?? (executionContext?.ProjectId.HasValue == true ? executionContext.ProjectId.Value : Guid.Empty);
 
         if (targetProjectId == Guid.Empty)
         {
             throw new ValidationException("ProjectId", "ProjectId is required to commit template.");
         }
 
-        var now = _timeProvider.GetUtcNow();
+        if (projectRepo != null)
+        {
+            var project = await projectRepo.GetByIdAsync(targetProjectId, ct)
+                ?? throw new NotFoundException($"Project '{targetProjectId}' not found.");
+        }
+
+        var now = this.timeProvider.GetUtcNow();
         Guid committedTemplateId;
 
         try
@@ -68,8 +66,8 @@ public sealed class CommitTemplateDraftUseCase(
             committedTemplateId = template.Id;
 
             var placeholderList = command.Request.Mappings?.Select(m => m.Placeholder).ToList() ?? new List<string>();
-            string? inferredSchema = _schemaInferenceService?.InferSchemaFromPlaceholders(placeholderList, templateSlug: command.Request.Slug);
-            string? samplePayload = _schemaInferenceService?.GenerateDefaultSamplePayload(placeholderList);
+            string? inferredSchema = schemaInferenceService?.InferSchemaFromPlaceholders(placeholderList, templateSlug: command.Request.Slug);
+            string? samplePayload = schemaInferenceService?.GenerateDefaultSamplePayload(placeholderList);
 
             var version = TemplateVersion.Draft(
                 template.Id,
@@ -111,22 +109,22 @@ public sealed class CommitTemplateDraftUseCase(
                 template.ReplaceFieldMappings(mappings, now);
             }
 
-            await _templateRepo.AddAsync(template, ct);
-            await _versionRepo.AddAsync(version, ct);
-            await _unitOfWork.CommitAsync(ct);
+            await templateRepo.AddAsync(template, ct);
+            await versionRepo.AddAsync(version, ct);
+            await unitOfWork.CommitAsync(ct);
 
             template.SetCurrentVersion(version.Id, now);
-            _templateRepo.Update(template);
-            await _unitOfWork.CommitAsync(ct);
+            templateRepo.Update(template);
+            await unitOfWork.CommitAsync(ct);
         }
         catch
         {
-            try { await _storageService.DeleteAsync(StorageBuckets.Templates, uploadedKey, CancellationToken.None); }
+            try { await storageService.DeleteAsync(StorageBuckets.Templates, uploadedKey, CancellationToken.None); }
             catch { /* swallow rollback errors */ }
             throw;
         }
 
-        await _draftCache.RemoveAsync(command.DraftId, ct);
+        await draftCache.RemoveAsync(command.DraftId, ct);
         return committedTemplateId.ToString();
     }
 

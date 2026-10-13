@@ -5,7 +5,7 @@ namespace SmkDoc.Domain.ValueObjects;
 /// <summary>
 /// Human-readable label of an API key. Identity-less; two names are equal when their trimmed values are equal.
 /// </summary>
-public sealed class ApiKeyName : ValueObject
+public sealed record class ApiKeyName
 {
     public const int MaxLength = 100;
 
@@ -15,11 +15,6 @@ public sealed class ApiKeyName : ValueObject
 
     public static ApiKeyName Create(string? value) =>
         new(Guard.NotBlank(value, "API key name", MaxLength));
-
-    protected override IEnumerable<object?> GetEqualityComponents()
-    {
-        yield return Value;
-    }
 
     public override string ToString() => Value;
 

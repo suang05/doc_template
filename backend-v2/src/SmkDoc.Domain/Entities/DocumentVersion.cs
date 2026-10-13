@@ -1,5 +1,6 @@
 using SmkDoc.Domain.Common;
 using SmkDoc.Domain.Exceptions;
+using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Domain.Entities;
 
@@ -11,7 +12,7 @@ public sealed class DocumentVersion : BaseEntity
     public const int MaxChangeNoteLength = 500;
     public const int MaxCreatedByLength = 100;
 
-    public Guid DocumentId { get; private set; }
+    public DocumentId DocumentId { get; private set; }
     public int Version { get; private set; } = 1;
     public Guid? TemplateVersionId { get; private set; }
     public Guid? GenerationLogId { get; private set; }
@@ -23,7 +24,7 @@ public sealed class DocumentVersion : BaseEntity
 
     internal DocumentVersion(
         Guid? id,
-        Guid documentId,
+        DocumentId documentId,
         int version,
         Guid? templateVersionId,
         Guid? generationLogId,
@@ -52,7 +53,7 @@ public sealed class DocumentVersion : BaseEntity
     }
 
     public static DocumentVersion Create(
-        Guid documentId,
+        DocumentId documentId,
         int version,
         Guid? templateVersionId,
         Guid? generationLogId,

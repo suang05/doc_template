@@ -2,6 +2,7 @@ using FluentAssertions;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Domain.ValueObjects.Ids;
 using Xunit;
 
 namespace SmkDoc.Tests.Domain.Entities;
@@ -16,9 +17,9 @@ public class DocumentTests
 
         var document = Document.Create(DocumentReference.Create("DOC-2026-001"), templateId, now);
 
-        document.Id.Should().NotBeEmpty();
+        document.Id.Value.Should().NotBeEmpty();
         document.DocumentRef.Value.Should().Be("DOC-2026-001");
-        document.TemplateId.Should().Be(templateId);
+        document.TemplateId.Should().Be((TemplateId)templateId);
         document.CreatedAt.Should().Be(now);
         document.UpdatedAt.Should().BeNull();
         document.Versions.Should().BeEmpty();

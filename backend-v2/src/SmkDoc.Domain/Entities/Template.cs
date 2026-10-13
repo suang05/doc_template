@@ -3,6 +3,7 @@ using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Domain.Entities;
 
@@ -10,9 +11,9 @@ namespace SmkDoc.Domain.Entities;
 /// Domain aggregate root representing a document template.
 /// Owns TemplateVersion, FieldMapping, and TemplateDataset child entities.
 /// </summary>
-public sealed class Template : BaseEntity, IMustHaveProject
+public sealed class Template : BaseEntity<TemplateId>, IMustHaveProject
 {
-    public Guid ProjectId { get; private set; }
+    public ProjectId ProjectId { get; private set; }
     public TemplateName Name { get; private set; } = null!;
     public TemplateSlug Slug { get; private set; } = null!;
     public string? Category { get; private set; }
@@ -35,13 +36,13 @@ public sealed class Template : BaseEntity, IMustHaveProject
     private Template() { }
 
     internal Template(
-        Guid? id,
-        Guid projectId,
+        TemplateId? id,
+        ProjectId projectId,
         TemplateName name,
         TemplateSlug slug,
         string? category,
         DateTimeOffset now)
-        : base(id, createdAt: now)
+        : base(id.HasValue && !id.Value.IsEmpty ? id.Value : TemplateId.New(), createdAt: now)
     {
         ProjectId = Guard.NotEmpty(projectId, nameof(ProjectId));
         Name = Guard.NotNull(name, nameof(Name));
@@ -55,7 +56,7 @@ public sealed class Template : BaseEntity, IMustHaveProject
     /// Requires strongly-typed Value Objects and deterministic timestamp.
     /// </summary>
     public static Template Create(
-        Guid projectId,
+        ProjectId projectId,
         TemplateName name,
         TemplateSlug slug,
         string? category,
@@ -168,7 +169,7 @@ public sealed class Template : BaseEntity, IMustHaveProject
         SetUpdated(now);
     }
 
-    public void AttachDataset(Guid datasetId, DatasetAlias alias, int sortOrder, DateTimeOffset now)
+    public void AttachDataset(DatasetId datasetId, DatasetAlias alias, int sortOrder, DateTimeOffset now)
     {
         Guard.NotEmpty(datasetId, nameof(datasetId));
         Guard.NotNull(alias, nameof(alias));
@@ -178,11 +179,11 @@ public sealed class Template : BaseEntity, IMustHaveProject
             throw new DuplicateDatasetAliasException(Id, alias.Value);
         }
 
-        _templateDatasets.Add(TemplateDataset.Create(Id, datasetId, alias, sortOrder, now));
+        _templateDatasets.Add(TemplateDataset.Create((TemplateId)Id, datasetId, alias, sortOrder, now));
         SetUpdated(now);
     }
 
-    public void DetachDataset(Guid datasetId, DateTimeOffset now)
+    public void DetachDataset(DatasetId datasetId, DateTimeOffset now)
     {
         var existing = _templateDatasets.FirstOrDefault(d => d.DatasetId == datasetId);
         if (existing != null)

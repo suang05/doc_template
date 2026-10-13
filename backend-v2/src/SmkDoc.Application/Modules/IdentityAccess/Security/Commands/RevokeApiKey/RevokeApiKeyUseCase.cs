@@ -10,9 +10,7 @@ public sealed class RevokeApiKeyUseCase(
     IUnitOfWork unitOfWork,
     TimeProvider? timeProvider = null) : IUseCase<RevokeApiKeyCommand>
 {
-    private readonly IApiKeyRepository _apiKeyRepo = apiKeyRepo;
-    private readonly IUnitOfWork _unitOfWork = unitOfWork;
-    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
+    private readonly TimeProvider timeProvider = timeProvider ?? TimeProvider.System;
 
     public async Task ExecuteAsync(RevokeApiKeyCommand command, CancellationToken ct = default)
     {
@@ -21,11 +19,11 @@ public sealed class RevokeApiKeyUseCase(
             throw new DomainValidationException("ProjectId cannot be empty.");
         }
 
-        var key = await _apiKeyRepo.GetByIdAsync(command.Id, command.ProjectId, ct)
+        var key = await apiKeyRepo.GetByIdAsync(command.Id, command.ProjectId, ct)
             ?? throw new NotFoundException($"API Key '{command.Id}' not found.");
 
-        key.Revoke(_timeProvider.GetUtcNow());
-        _apiKeyRepo.Update(key);
-        await _unitOfWork.CommitAsync(ct);
+        key.Revoke(this.timeProvider.GetUtcNow());
+        apiKeyRepo.Update(key);
+        await unitOfWork.CommitAsync(ct);
     }
 }

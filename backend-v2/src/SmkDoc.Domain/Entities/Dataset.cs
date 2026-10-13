@@ -1,17 +1,18 @@
 using SmkDoc.Domain.Common;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Domain.Entities;
 
 /// <summary>
 /// Domain entity representing a dataset query definition associated with a data connection.
 /// </summary>
-public sealed class Dataset : BaseEntity
+public sealed class Dataset : BaseEntity<DatasetId>
 {
     public DatasetName Name { get; private set; } = null!;
     public string? Description { get; private set; }
-    public Guid DataConnectionId { get; private set; }
+    public DataConnectionId DataConnectionId { get; private set; }
     public string SqlQuery { get; private set; } = string.Empty;
     public int CacheSeconds { get; private set; }
 
@@ -22,14 +23,14 @@ public sealed class Dataset : BaseEntity
     private Dataset() { }
 
     internal Dataset(
-        Guid? id,
+        DatasetId? id,
         DatasetName name,
         string? description,
-        Guid dataConnectionId,
+        DataConnectionId dataConnectionId,
         string sqlQuery,
         int cacheSeconds,
         DateTimeOffset now)
-        : base(id, createdAt: now)
+        : base(id.HasValue && !id.Value.IsEmpty ? id.Value : DatasetId.New(), createdAt: now)
     {
         Name = Guard.NotNull(name, nameof(Name));
         Description = string.IsNullOrWhiteSpace(description) ? null : description.Trim();
@@ -45,7 +46,7 @@ public sealed class Dataset : BaseEntity
     public static Dataset Create(
         DatasetName name,
         string? description,
-        Guid dataConnectionId,
+        DataConnectionId dataConnectionId,
         string sqlQuery,
         int cacheSeconds,
         DateTimeOffset now) =>
@@ -54,7 +55,7 @@ public sealed class Dataset : BaseEntity
     public void UpdateDetails(
         DatasetName name,
         string? description,
-        Guid dataConnectionId,
+        DataConnectionId dataConnectionId,
         string sqlQuery,
         int cacheSeconds,
         DateTimeOffset now)

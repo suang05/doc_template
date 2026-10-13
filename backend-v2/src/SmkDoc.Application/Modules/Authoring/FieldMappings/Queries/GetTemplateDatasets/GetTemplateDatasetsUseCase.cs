@@ -10,17 +10,14 @@ public sealed class GetTemplateDatasetsUseCase(
     ITemplateRepository templateRepo,
     IDatasetRepository datasetRepo) : IUseCase<GetTemplateDatasetsQuery, List<TemplateDatasetDto>>
 {
-    private readonly ITemplateRepository _templateRepo = templateRepo;
-    private readonly IDatasetRepository _datasetRepo = datasetRepo;
-
     public async Task<List<TemplateDatasetDto>> ExecuteAsync(GetTemplateDatasetsQuery query, CancellationToken ct = default)
     {
-        var template = await _templateRepo.GetByIdWithDetailsAsync(query.TemplateId, ct);
+        var template = await templateRepo.GetByIdWithDetailsAsync(query.TemplateId, ct);
         if (template == null) return [];
 
         var rows = template.TemplateDatasets;
-        var datasetIds = rows.Select(r => r.DatasetId).Distinct().ToList();
-        var datasets = await _datasetRepo.GetByIdsAsync(datasetIds, ct);
+        var datasetIds = rows.Select(r => (Guid)r.DatasetId).Distinct().ToList();
+        var datasets = await datasetRepo.GetByIdsAsync(datasetIds, ct);
         var dsMap = datasets.ToDictionary(d => d.Id, d => d.Name.Value);
 
         return rows
@@ -29,7 +26,7 @@ public sealed class GetTemplateDatasetsUseCase(
                 r.Id,
                 r.TemplateId,
                 r.DatasetId,
-                dsMap.GetValueOrDefault(r.DatasetId, "(unknown)"),
+                dsMap.GetValueOrDefault((Guid)r.DatasetId, "(unknown)"),
                 r.Alias.Value,
                 r.SortOrder))
             .ToList();

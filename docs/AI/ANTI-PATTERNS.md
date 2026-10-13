@@ -354,6 +354,93 @@ None. Dependency flow is strictly inward: `Presentation ➔ Application ➔ Doma
 </ssot_ref>
 </firewall_rule>
 
+<firewall_rule id="FIREWALL-DOM-001" name="DEFAULT_STRUCT_INVARIANT_BYPASS">
+<trigger_ast>
+["struct EmailAddress", "record struct EmailAddress", "record struct *Name", "record struct *Slug", "record struct *Hash"]
+</trigger_ast>
+<thinking_guard>
+IF type_wraps_string_or_has_validation_invariants AND declared_as([struct, readonly_record_struct]) THEN
+    ASSERT_FORBIDDEN("C# struct default parameterless ctor (default(T)) bypasses factory validation and injects null domain state");
+    ENFORCE_SUBSTITUTION("Sealed Record Class Value Object");
+END IF
+</thinking_guard>
+<mandatory_substitution>
+// Class-based record protects invariants: private constructor forces execution through canonical Create(...) factory
+public sealed record class EmailAddress
+{
+    public string Value { get; }
+    private EmailAddress(string value) => Value = value;
+    public static EmailAddress Create(string? value) =>
+        new(Guard.ValidEmail(value, "Email address"));
+    public static implicit operator string(EmailAddress email) => email.Value;
+}
+</mandatory_substitution>
+<fatal_blast_radius>
+Default-null invariant breach: `default(T)` or uninitialized array allocations bypass Guard clauses, injecting corrupt null or unvalidated strings into the domain core without throwing exceptions.
+</fatal_blast_radius>
+<exemptions>
+Strongly-typed IDs (`ProjectId(Guid Value)`) and numeric/range measurements (`DateRange`, `PageMargin`) &lt;= 16 bytes where zero/empty is an explicitly handled valid state.
+</exemptions>
+<ssot_ref>
+[`Conventions §4.1`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/CODING_CONVENTIONS.md#41-domain-layer-rule-dom)
+</ssot_ref>
+</firewall_rule>
+
+<firewall_rule id="FIREWALL-DOM-002" name="ENTITY_STRUCT_IDENTITY_COLLAPSE">
+<trigger_ast>
+["public struct Template : BaseEntity", "public record struct Template", "public struct Project", "public record struct Document"]
+</trigger_ast>
+<thinking_guard>
+IF type_is_domain_entity_or_aggregate_root AND declared_as([struct, record_struct]) THEN
+    ASSERT_FORBIDDEN("Entity declared as struct collapses EF Core change tracking and causes massive stack copy bloat");
+    ENFORCE_SUBSTITUTION("Sealed Class BaseEntity");
+END IF
+</thinking_guard>
+<mandatory_substitution>
+// Entities must always be sealed classes inheriting BaseEntity to preserve reference identity and EF Core ChangeTracker snapshots
+public sealed class Template : BaseEntity
+{
+    public ProjectId ProjectId { get; private set; }
+    public TemplateName Name { get; private set; } = null!;
+    public bool IsActive { get; private set; }
+}
+</mandatory_substitution>
+<fatal_blast_radius>
+EF Core change tracking collapse: Mutations to a struct entity mutate a stack copy rather than the tracked instance in DbContext, causing silent data persistence failure.
+</fatal_blast_radius>
+<exemptions>
+None. Domain entities and aggregate roots MUST strictly remain reference types (`class`).
+</exemptions>
+<ssot_ref>
+[`Conventions §4.1`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/CODING_CONVENTIONS.md#41-domain-layer-rule-dom)
+</ssot_ref>
+</firewall_rule>
+
+<firewall_rule id="FIREWALL-DOM-003" name="MUTABLE_OR_OVERSIZED_STRUCT">
+<trigger_ast>
+["public struct " without readonly, "record struct" with size > 16 bytes, "struct" with > 3 reference fields]
+</trigger_ast>
+<thinking_guard>
+IF struct_declaration_is_mutable OR struct_memory_footprint > 16 THEN
+    ASSERT_FORBIDDEN("Mutable or oversized struct causes defensive copy memory thrashing and ghost mutations");
+    ENFORCE_SUBSTITUTION("Readonly Record Struct (<= 16B) or Sealed Record Class (> 16B)");
+END IF
+</thinking_guard>
+<mandatory_substitution>
+// Structs must be strictly immutable (readonly) and &lt;= 16 bytes (e.g. 1 Guid or 2 ints/floats)
+public readonly record struct ProjectId(Guid Value);
+</mandatory_substitution>
+<fatal_blast_radius>
+Non-readonly structs cause the C# compiler to emit hidden defensive copies on every method or property invocation, destroying CPU cache locality and throughput. Mutable structs cause silent ghost mutations on copies.
+</fatal_blast_radius>
+<exemptions>
+Specialized low-level high-performance SIMD vectors or `ref struct` Spans in zero-allocation image parsing.
+</exemptions>
+<ssot_ref>
+[`Conventions §4.1`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/CODING_CONVENTIONS.md#41-domain-layer-rule-dom)
+</ssot_ref>
+</firewall_rule>
+
 ---
 
 ### Phase 4: Operational Resilience & Systemic Governance

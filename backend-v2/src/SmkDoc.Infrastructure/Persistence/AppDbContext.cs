@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Application.Common.Interfaces;
 
 namespace SmkDoc.Infrastructure.Persistence;
@@ -42,6 +43,8 @@ public class AppDbContext : DbContext
         {
             entity.ToTable("companies");
             entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id)
+                .HasConversion(id => id.Value, v => new CompanyId(v));
             entity.Property(e => e.Name).IsRequired().HasMaxLength(200)
                 .HasConversion(n => n.Value, v => CompanyName.Create(v));
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("NOW()");
@@ -51,7 +54,11 @@ public class AppDbContext : DbContext
         {
             entity.ToTable("projects");
             entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id)
+                .HasConversion(id => id.Value, v => new ProjectId(v));
             entity.HasIndex(e => e.Slug).IsUnique();
+            entity.Property(e => e.CompanyId)
+                .HasConversion(id => id.Value, v => new CompanyId(v));
             entity.Property(e => e.Name).IsRequired().HasMaxLength(200)
                 .HasConversion(n => n.Value, v => ProjectName.Create(v));
             entity.Property(e => e.Slug).IsRequired().HasMaxLength(100)
@@ -68,6 +75,8 @@ public class AppDbContext : DbContext
         {
             entity.ToTable("users");
             entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id)
+                .HasConversion(id => id.Value, v => new UserId(v));
             entity.HasIndex(e => e.Email).IsUnique();
             entity.Property(e => e.Email).IsRequired().HasMaxLength(255)
                 .HasConversion(m => m.Value, v => EmailAddress.Create(v));
@@ -86,6 +95,10 @@ public class AppDbContext : DbContext
         {
             entity.ToTable("user_project_roles");
             entity.HasKey(e => new { e.UserId, e.ProjectId });
+            entity.Property(e => e.UserId)
+                .HasConversion(id => id.Value, v => new UserId(v));
+            entity.Property(e => e.ProjectId)
+                .HasConversion(id => id.Value, v => new ProjectId(v));
             entity.Property(e => e.Role)
                 .HasConversion(r => r.Name, v => RoleType.FromDisplayName<RoleType>(v))
                 .HasMaxLength(20);
@@ -107,6 +120,8 @@ public class AppDbContext : DbContext
             entity.ToTable("refresh_tokens");
             entity.HasKey(e => e.Id);
             entity.HasIndex(e => e.TokenHash).IsUnique();
+            entity.Property(e => e.UserId)
+                .HasConversion(id => id.Value, v => new UserId(v));
             entity.Property(e => e.TokenHash).IsRequired().HasMaxLength(64)
                 .HasConversion(h => h.Value, v => new Sha256Hash(v));
             entity.Property(e => e.ReplacedByTokenHash).HasMaxLength(64)
@@ -128,6 +143,10 @@ public class AppDbContext : DbContext
         {
             entity.ToTable("templates");
             entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id)
+                .HasConversion(id => id.Value, v => new TemplateId(v));
+            entity.Property(e => e.ProjectId)
+                .HasConversion(id => id.Value, v => new ProjectId(v));
             entity.Property(e => e.Name).IsRequired().HasMaxLength(100)
                 .HasConversion(v => v.Value, v => TemplateName.Create(v));
             entity.HasIndex(e => new { e.ProjectId, e.Slug }).IsUnique();
@@ -142,7 +161,7 @@ public class AppDbContext : DbContext
             // Global Query Filter for Data Isolation (Multi-Tenancy)
             if (_currentUserService != null)
             {
-                entity.HasQueryFilter(e => e.ProjectId == _currentUserService.ProjectId);
+                entity.HasQueryFilter(e => e.ProjectId == (ProjectId)_currentUserService.ProjectId!);
             }
 
             entity.HasOne(e => e.CurrentVersion)
@@ -161,6 +180,8 @@ public class AppDbContext : DbContext
         {
             entity.ToTable("field_mappings");
             entity.HasKey(e => e.Id);
+            entity.Property(e => e.TemplateId)
+                .HasConversion(id => id.Value, v => new TemplateId(v));
             entity.HasIndex(e => new { e.TemplateId, e.Placeholder }).IsUnique();
             entity.Property(e => e.Placeholder).IsRequired().HasMaxLength(100);
             entity.Property(e => e.SourcePath).IsRequired().HasMaxLength(200);
@@ -185,6 +206,8 @@ public class AppDbContext : DbContext
         {
             entity.ToTable("template_versions");
             entity.HasKey(e => e.Id);
+            entity.Property(e => e.TemplateId)
+                .HasConversion(id => id.Value, v => new TemplateId(v));
             entity.HasIndex(e => new { e.TemplateId, e.Version }).IsUnique();
             entity.Property(e => e.StorageKey).IsRequired().HasMaxLength(500);
             entity.Property(e => e.Status)
@@ -211,6 +234,10 @@ public class AppDbContext : DbContext
         {
             entity.ToTable("api_keys");
             entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id)
+                .HasConversion(id => id.Value, v => new ApiKeyId(v));
+            entity.Property(e => e.ProjectId)
+                .HasConversion(id => id.Value, v => new ProjectId(v));
             entity.Property(e => e.Name).IsRequired().HasMaxLength(100)
                 .HasConversion(v => v.Value, v => ApiKeyName.Create(v));
             entity.Property(e => e.CallerApp).IsRequired().HasMaxLength(50);
@@ -234,6 +261,10 @@ public class AppDbContext : DbContext
             entity.ToTable("generation_logs");
             entity.HasKey(e => e.Id);
             entity.HasIndex(e => e.CreatedAt);
+            entity.Property(e => e.TemplateId)
+                .HasConversion(id => id.HasValue ? id.Value.Value : (Guid?)null, v => v.HasValue ? new TemplateId(v.Value) : null);
+            entity.Property(e => e.ApiKeyId)
+                .HasConversion(id => id.HasValue ? id.Value.Value : (Guid?)null, v => v.HasValue ? new ApiKeyId(v.Value) : null);
             entity.Property(e => e.CallerApp).HasMaxLength(50);
             entity.Property(e => e.TriggerSource).HasMaxLength(20);
             entity.Property(e => e.OutputKey).HasMaxLength(500);
@@ -272,7 +303,11 @@ public class AppDbContext : DbContext
         {
             entity.ToTable("documents");
             entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id)
+                .HasConversion(id => id.Value, v => new DocumentId(v));
             entity.HasIndex(e => e.DocumentRef).IsUnique();
+            entity.Property(e => e.TemplateId)
+                .HasConversion(id => id.HasValue ? id.Value.Value : (Guid?)null, v => v.HasValue ? new TemplateId(v.Value) : null);
             entity.Property(e => e.DocumentRef)
                 .HasConversion(d => d.Value, v => DocumentReference.Create(v))
                 .IsRequired()
@@ -291,6 +326,8 @@ public class AppDbContext : DbContext
             entity.ToTable("document_versions");
             entity.HasKey(e => e.Id);
             entity.HasIndex(e => new { e.DocumentId, e.Version }).IsUnique();
+            entity.Property(e => e.DocumentId)
+                .HasConversion(id => id.Value, v => new DocumentId(v));
             entity.Property(e => e.ChangeNote).HasMaxLength(500);
             entity.Property(e => e.CreatedBy).HasMaxLength(100);
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("NOW()");
@@ -316,6 +353,8 @@ public class AppDbContext : DbContext
         {
             entity.ToTable("data_connections");
             entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id)
+                .HasConversion(id => id.Value, v => new DataConnectionId(v));
             entity.Property(e => e.Name).IsRequired().HasMaxLength(100)
                 .HasConversion(v => v.Value, v => ConnectionName.Create(v));
             entity.Property(e => e.Provider).IsRequired().HasMaxLength(50)
@@ -329,6 +368,10 @@ public class AppDbContext : DbContext
         {
             entity.ToTable("datasets");
             entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id)
+                .HasConversion(id => id.Value, v => new DatasetId(v));
+            entity.Property(e => e.DataConnectionId)
+                .HasConversion(id => id.Value, v => new DataConnectionId(v));
             entity.Property(e => e.Name).IsRequired().HasMaxLength(200)
                 .HasConversion(v => v.Value, v => DatasetName.Create(v));
             entity.Property(e => e.Description).HasMaxLength(500);
@@ -348,6 +391,10 @@ public class AppDbContext : DbContext
             entity.ToTable("template_datasets");
             entity.HasKey(e => e.Id);
             entity.HasIndex(e => new { e.TemplateId, e.Alias }).IsUnique();
+            entity.Property(e => e.TemplateId)
+                .HasConversion(id => id.Value, v => new TemplateId(v));
+            entity.Property(e => e.DatasetId)
+                .HasConversion(id => id.Value, v => new DatasetId(v));
             entity.Property(e => e.Alias).IsRequired().HasMaxLength(50)
                 .HasConversion(a => a.Value, v => DatasetAlias.Create(v));
 

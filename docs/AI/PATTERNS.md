@@ -279,35 +279,83 @@ public async Task<Created<ApiResponse<TemplateResultDto>>> Create(
 #### Archetype 4: Pure Rich Domain Entity & Value Object Pattern
 
 *   **Intent & Scope:** Pure C# POCO with zero external dependencies. State is strictly encapsulated (`private set;`). State creation occurs exclusively through exactly ONE canonical `Create(...)` factory method; state mutation occurs exclusively through expressive domain verbs receiving explicit dependencies (`DateTimeOffset now`).
-*   **Formula:** `public sealed class {Entity}` with `Guid.CreateVersion7()` and `readonly record struct` Value Objects.
+*   **Formula:**
+    *   **Entity / Aggregate Root:** `public sealed class {Entity} : BaseEntity` preserving EF Core Change Tracking and identity equality.
+    *   **Strongly-Typed ID:** `public readonly record struct {Entity}Id(Guid Value)` ($\le 16$ bytes, stack-allocated, zero GC pressure).
+    *   **Validated String Value Object:** `public sealed record class {Concept}` with private constructor and `Create(...)` SSoT to eliminate the `default(T)` zero-initialization trap (👉 [`FIREWALL-DOM-001`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/ANTI-PATTERNS.md#firewall-dom-001)).
 
 ```csharp
 // [GENERATIVE_SLOT_FORMULA: ARCHETYPE-4-DOMAIN-ENTITY]
+namespace SmkDoc.Domain.ValueObjects;
+
+// 1. Strongly-Typed ID: Stack-allocated readonly record struct (16 bytes, Zero Heap Alloc)
+public readonly record struct ProjectId(Guid Value)
+{
+    public static ProjectId New() => new(Guid.CreateVersion7());
+    public static ProjectId Empty => new(Guid.Empty);
+    public override string ToString() => Value.ToString();
+    public static implicit operator Guid(ProjectId id) => id.Value;
+}
+
+// 2. Validated String Value Object: Class-based record to prevent default(T) null bypass
+public sealed record class TemplateSlug
+{
+    public string Value { get; }
+
+    private TemplateSlug(string value) => Value = value;
+
+    public static TemplateSlug Create(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            throw new DomainValidationException("Template slug cannot be null or empty.");
+        }
+
+        var normalized = value.Trim().ToLowerInvariant();
+        if (normalized.Length > 100)
+        {
+            throw new DomainValidationException("Template slug cannot exceed 100 characters.");
+        }
+
+        return new TemplateSlug(normalized);
+    }
+
+    public override string ToString() => Value;
+    public static implicit operator string(TemplateSlug slug) => slug.Value;
+}
+
+namespace SmkDoc.Domain.ValueObjects.Layout;
+
+// 3. High-Throughput Layout Struct: 8-16 bytes stack-allocated struct (Zero Heap Allocation)
+public readonly record struct PageDimension(float WidthMm, float HeightMm)
+{
+    public static PageDimension A4 => new(210f, 297f);
+    public bool IsPortrait => HeightMm >= WidthMm;
+}
+
 namespace SmkDoc.Domain.Entities;
 
-public sealed class Template
+// 4. Aggregate Root: Sealed class inheriting BaseEntity
+public sealed class Template : BaseEntity
 {
-    public Guid Id { get; private set; }
-    public Guid ProjectId { get; private set; }
-    public TemplateName Name { get; private set; }
-    public TemplateSlug Slug { get; private set; }
+    public ProjectId ProjectId { get; private set; }
+    public TemplateName Name { get; private set; } = null!;
+    public TemplateSlug Slug { get; private set; } = null!;
     public string? Category { get; private set; }
     public bool IsActive { get; private set; }
-    public DateTimeOffset CreatedAt { get; private set; }
-    public DateTimeOffset? UpdatedAt { get; private set; }
 
-    // Required by EF Core Change Tracking
+    // Required by EF Core Change Tracking materialization
     private Template() { }
 
     // SSoT Canonical Factory Method
     public static Template Create(
-        Guid projectId,
+        ProjectId projectId,
         TemplateName name,
         TemplateSlug slug,
         string? category,
         DateTimeOffset now)
     {
-        if (projectId == Guid.Empty)
+        if (projectId.Value == Guid.Empty)
         {
             throw new DomainValidationException("ProjectId cannot be empty.");
         }
@@ -331,43 +379,15 @@ public sealed class Template
         Name = name;
         Slug = slug;
         Category = category;
-        UpdatedAt = now;
+        SetUpdated(now);
     }
 
     public void Archive(DateTimeOffset now)
     {
         if (!IsActive) return;
         IsActive = false;
-        UpdatedAt = now;
+        SetUpdated(now);
     }
-}
-
-// Value Object: Immutable readonly record struct with invariant validation
-namespace SmkDoc.Domain.ValueObjects;
-
-public readonly record struct TemplateSlug
-{
-    public string Value { get; }
-
-    private TemplateSlug(string value) => Value = value;
-
-    public static TemplateSlug Create(string value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            throw new DomainValidationException("Template slug cannot be null or empty.");
-        }
-
-        var normalized = value.Trim().ToLowerInvariant();
-        if (normalized.Length > 100)
-        {
-            throw new DomainValidationException("Template slug cannot exceed 100 characters.");
-        }
-
-        return new TemplateSlug(normalized);
-    }
-
-    public override string ToString() => Value;
 }
 ```
 </archetype_4_pure_rich_domain_entity>

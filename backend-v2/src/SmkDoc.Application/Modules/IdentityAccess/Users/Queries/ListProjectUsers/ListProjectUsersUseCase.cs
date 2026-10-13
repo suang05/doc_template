@@ -22,15 +22,15 @@ public sealed class ListProjectUsersUseCase(
         }
 
         var roles = await roleRepo.ListByProjectAsync(query.ProjectId, ct);
-        var userIds = roles.Select(r => r.UserId).ToHashSet();
+        var userIds = roles.Select(r => (Guid)r.UserId).ToHashSet();
         var users = await userRepo.GetByIdsAsync(userIds, ct);
 
         var userMap = users.ToDictionary(u => u.Id);
         return roles
-            .Where(r => userMap.ContainsKey(r.UserId))
+            .Where(r => userMap.ContainsKey((Guid)r.UserId))
             .Select(r =>
             {
-                var u = userMap[r.UserId];
+                var u = userMap[(Guid)r.UserId];
                 return new UserResultDto(
                     u.Id,
                     u.Email,

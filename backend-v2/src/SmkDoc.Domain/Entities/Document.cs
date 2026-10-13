@@ -1,16 +1,17 @@
 using SmkDoc.Domain.Common;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Domain.Entities;
 
 /// <summary>
 /// Domain aggregate root representing a tracked business document across versions.
 /// </summary>
-public sealed class Document : BaseEntity
+public sealed class Document : BaseEntity<DocumentId>
 {
     public DocumentReference DocumentRef { get; private set; } = null!;
-    public Guid? TemplateId { get; private set; }
+    public TemplateId? TemplateId { get; private set; }
 
     private readonly List<DocumentVersion> _versions = new();
 
@@ -20,11 +21,11 @@ public sealed class Document : BaseEntity
     private Document() { }
 
     internal Document(
-        Guid? id,
+        DocumentId? id,
         DocumentReference documentRef,
-        Guid? templateId,
+        TemplateId? templateId,
         DateTimeOffset now)
-        : base(id, createdAt: now)
+        : base(id.HasValue && !id.Value.IsEmpty ? id.Value : DocumentId.New(), createdAt: now)
     {
         DocumentRef = Guard.NotNull(documentRef, nameof(DocumentRef));
         TemplateId = templateId;
@@ -32,7 +33,7 @@ public sealed class Document : BaseEntity
 
     public static Document Create(
         DocumentReference documentRef,
-        Guid? templateId,
+        TemplateId? templateId,
         DateTimeOffset now) =>
         new(null, documentRef, templateId, now);
 

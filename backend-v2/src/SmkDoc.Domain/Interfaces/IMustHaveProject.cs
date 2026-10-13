@@ -1,6 +1,8 @@
+using SmkDoc.Domain.ValueObjects.Ids;
+
 namespace SmkDoc.Domain.Interfaces;
 
 public interface IMustHaveProject
 {
-    Guid ProjectId { get; }
+    ProjectId ProjectId { get; }
 }

@@ -49,7 +49,7 @@ backend-v2/
 │   │   ├── Common/
 │   │   │   ├── BaseEntity.cs       # Entity base class (UUIDv7, CreatedAt, UpdatedAt)
 │   │   │   ├── Enumeration.cs      # Smart Enum base class (Id + Name + behavior)
-│   │   │   └── ValueObject.cs      # Value Object base class (structural equality)
+│   │   │   └── Guard.cs            # Precondition guard clauses
 │   │   ├── Entities/               # 15 Rich Domain Models (private set + business methods)
 │   │   │   ├── Template.cs
 │   │   │   ├── TemplateVersion.cs
@@ -75,9 +75,11 @@ backend-v2/
 │   │   │   ├── RoleType.cs
 │   │   │   ├── SystemRole.cs
 │   │   │   └── GenerationStatus.cs
-│   │   ├── ValueObjects/           # Immutable types with structural equality (13 Value Objects)
+│   │   ├── ValueObjects/           # Immutable types with structural equality
+│   │   │   ├── Ids/                # Strongly-typed 16B stack-allocated identifiers (ProjectId, etc.)
+│   │   │   ├── Layout/             # High-throughput layout structs (PageDimension, PageMargin, DateRange)
 │   │   │   ├── Validation/         # SchemaValidationResult, ValidationErrorItem
-│   │   │   └── ...                 # ApiKeyName, Sha256Hash, TemplateSlug, etc.
+│   │   │   └── ...                 # Sealed record classes (ProjectName, TemplateSlug, Sha256Hash, etc.)
 │   │   ├── Exceptions/             # Domain Exceptions (Pure POCO — mapped by GlobalExceptionHandler to RFC 9457)
 │   │   │   ├── DomainException.cs           # Abstract base class (ErrorCode)
 │   │   │   ├── DomainValidationException.cs # Invariant violation (format, required, range)

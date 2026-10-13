@@ -2,6 +2,7 @@ using SmkDoc.Domain.Common;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Domain.Entities;
 
@@ -14,9 +15,9 @@ public sealed class GenerationLog : BaseEntity
     public const int MaxTriggerSourceLength = 20;
     public const int MaxOutputKeyLength = 500;
 
-    public Guid? TemplateId { get; private set; }
+    public TemplateId? TemplateId { get; private set; }
     public Guid? TemplateVersionId { get; private set; }
-    public Guid? ApiKeyId { get; private set; }
+    public ApiKeyId? ApiKeyId { get; private set; }
     public string? CallerApp { get; private set; }
     public string? TriggerSource { get; private set; }
     public string? InputData { get; private set; }
@@ -34,9 +35,9 @@ public sealed class GenerationLog : BaseEntity
 
     internal GenerationLog(
         Guid? id,
-        Guid? templateId,
+        TemplateId? templateId,
         Guid? templateVersionId,
-        Guid? apiKeyId,
+        ApiKeyId? apiKeyId,
         string? callerApp,
         string? triggerSource,
         string? inputData,
@@ -99,9 +100,9 @@ public sealed class GenerationLog : BaseEntity
     }
 
     public static GenerationLog Create(
-        Guid? templateId,
+        TemplateId? templateId,
         Guid? templateVersionId,
-        Guid? apiKeyId,
+        ApiKeyId? apiKeyId,
         string? callerApp,
         string? triggerSource,
         string? inputData,
@@ -134,9 +135,9 @@ public sealed class GenerationLog : BaseEntity
 
     public static GenerationLog CreateSuccess(
         Guid generationId,
-        Guid templateId,
+        TemplateId templateId,
         Guid templateVersionId,
-        Guid? apiKeyId,
+        ApiKeyId? apiKeyId,
         string? callerApp,
         string triggerSource,
         string inputData,
@@ -164,9 +165,9 @@ public sealed class GenerationLog : BaseEntity
             now);
 
     public static GenerationLog CreateValidationFailure(
-        Guid templateId,
+        TemplateId templateId,
         Guid templateVersionId,
-        Guid? apiKeyId,
+        ApiKeyId? apiKeyId,
         string? callerApp,
         string triggerSource,
         string inputData,
@@ -193,9 +194,9 @@ public sealed class GenerationLog : BaseEntity
             now);
 
     public static GenerationLog CreateFailure(
-        Guid templateId,
+        TemplateId templateId,
         Guid templateVersionId,
-        Guid? apiKeyId,
+        ApiKeyId? apiKeyId,
         string? callerApp,
         string triggerSource,
         string inputData,

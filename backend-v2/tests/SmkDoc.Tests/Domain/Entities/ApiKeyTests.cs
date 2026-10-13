@@ -21,7 +21,7 @@ public class ApiKeyTests
 
         var key = ApiKey.Issue(projectId, name, "worker-service", ValidHash, expiration, FixedNow);
 
-        key.Id.Should().NotBeEmpty();
+        key.Id.Value.Should().NotBeEmpty();
         key.ProjectId.Should().Be(projectId);
         key.Name.Should().Be(name);
         key.CallerApp.Should().Be("worker-service");

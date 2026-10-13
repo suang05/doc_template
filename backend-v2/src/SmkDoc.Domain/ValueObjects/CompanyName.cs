@@ -5,7 +5,7 @@ namespace SmkDoc.Domain.ValueObjects;
 /// <summary>
 /// Value Object representing an organization / company name.
 /// </summary>
-public sealed class CompanyName : ValueObject
+public sealed record class CompanyName
 {
     public const int MaxLength = 100;
 
@@ -15,11 +15,6 @@ public sealed class CompanyName : ValueObject
 
     public static CompanyName Create(string? value) =>
         new(Guard.NotBlank(value, "Company name", MaxLength));
-
-    protected override IEnumerable<object?> GetEqualityComponents()
-    {
-        yield return Value;
-    }
 
     public override string ToString() => Value;
 

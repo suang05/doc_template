@@ -3,7 +3,7 @@ using SmkDoc.Domain.Exceptions;
 
 namespace SmkDoc.Domain.ValueObjects;
 
-public class DataSourceType : ValueObject
+public sealed record class DataSourceType
 {
     public static readonly DataSourceType Json = new("json");
     public static readonly DataSourceType Sql = new("sql");
@@ -27,11 +27,6 @@ public class DataSourceType : ValueObject
             "sql" => Sql,
             _ => throw new DomainValidationException($"Invalid DataSourceType: {type}. Allowed values are 'json' and 'sql'.")
         };
-    }
-
-    protected override IEnumerable<object> GetEqualityComponents()
-    {
-        yield return Value;
     }
 
     public override string ToString() => Value;

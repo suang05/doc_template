@@ -12,11 +12,7 @@ public sealed class DocumentAuditService(
     IDocumentMetrics? metrics = null,
     TimeProvider? timeProvider = null) : IDocumentAuditService
 {
-    private readonly IRepository<GenerationLog> _logRepo = logRepo;
-    private readonly IExecutionContext _executionContext = executionContext;
-    private readonly IUnitOfWork _unitOfWork = unitOfWork;
-    private readonly IDocumentMetrics? _metrics = metrics;
-    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
+    private readonly TimeProvider timeProvider = timeProvider ?? TimeProvider.System;
 
     public async Task LogValidationFailureAsync(
         Guid templateId,
@@ -30,19 +26,19 @@ public sealed class DocumentAuditService(
         var failLog = GenerationLog.CreateValidationFailure(
             templateId,
             templateVersionId,
-            _executionContext.ApiKeyId,
-            _executionContext.CallerApp,
+            executionContext.ApiKeyId,
+            executionContext.CallerApp,
             "api",
             dataJson,
             outputFormat,
             elapsedMs,
             errorMessage,
-            _timeProvider.GetUtcNow());
+            this.timeProvider.GetUtcNow());
 
-        await _logRepo.AddAsync(failLog, ct);
-        await _unitOfWork.CommitAsync(ct);
+        await logRepo.AddAsync(failLog, ct);
+        await unitOfWork.CommitAsync(ct);
 
-        _metrics?.RecordGenerationFailure("Unknown", outputFormat.Extension, elapsedMs, "VALIDATION_FAILED");
+        metrics?.RecordGenerationFailure("Unknown", outputFormat.Extension, elapsedMs, "VALIDATION_FAILED");
     }
 
     public async Task LogSuccessAsync(
@@ -60,18 +56,18 @@ public sealed class DocumentAuditService(
             generationId,
             templateId,
             templateVersionId,
-            _executionContext.ApiKeyId,
-            _executionContext.CallerApp,
+            executionContext.ApiKeyId,
+            executionContext.CallerApp,
             "api",
             dataJson,
             outputKey,
             outputFormat,
             fileSizeBytes,
             elapsedMs,
-            _timeProvider.GetUtcNow());
+            this.timeProvider.GetUtcNow());
 
-        await _logRepo.AddAsync(log, ct);
+        await logRepo.AddAsync(log, ct);
 
-        _metrics?.RecordGenerationSuccess("Engine", outputFormat.Extension, elapsedMs, fileSizeBytes);
+        metrics?.RecordGenerationSuccess("Engine", outputFormat.Extension, elapsedMs, fileSizeBytes);
     }
 }

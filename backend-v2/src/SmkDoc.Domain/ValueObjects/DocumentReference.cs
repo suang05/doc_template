@@ -5,7 +5,7 @@ namespace SmkDoc.Domain.ValueObjects;
 /// <summary>
 /// Value Object representing a unique business document reference identifier (e.g. "INV-2026-0001", "SC-001").
 /// </summary>
-public sealed class DocumentReference : ValueObject
+public sealed record class DocumentReference
 {
     public const int MaxLength = 100;
 
@@ -15,11 +15,6 @@ public sealed class DocumentReference : ValueObject
 
     public static DocumentReference Create(string? value) =>
         new(Guard.NotBlank(value, "Document reference", MaxLength));
-
-    protected override IEnumerable<object?> GetEqualityComponents()
-    {
-        yield return Value;
-    }
 
     public override string ToString() => Value;
 

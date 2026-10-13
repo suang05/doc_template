@@ -1,6 +1,7 @@
 using SmkDoc.Domain.Common;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
+using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Domain.Entities;
 
@@ -10,15 +11,15 @@ namespace SmkDoc.Domain.Entities;
 /// </summary>
 public sealed class UserProjectRole : IEquatable<UserProjectRole>
 {
-    public Guid UserId { get; private set; }
-    public Guid ProjectId { get; private set; }
+    public UserId UserId { get; private set; }
+    public ProjectId ProjectId { get; private set; }
     public RoleType Role { get; private set; } = RoleType.Viewer;
     public DateTimeOffset CreatedAt { get; private set; }
 
     // For EF Core materialization only
     private UserProjectRole() { }
 
-    internal UserProjectRole(Guid userId, Guid projectId, RoleType role, DateTimeOffset now)
+    internal UserProjectRole(UserId userId, ProjectId projectId, RoleType role, DateTimeOffset now)
     {
         UserId = Guard.NotEmpty(userId, nameof(UserId));
         ProjectId = Guard.NotEmpty(projectId, nameof(ProjectId));
@@ -26,7 +27,7 @@ public sealed class UserProjectRole : IEquatable<UserProjectRole>
         CreatedAt = now;
     }
 
-    public static UserProjectRole Create(Guid userId, Guid projectId, RoleType role, DateTimeOffset now) =>
+    public static UserProjectRole Create(UserId userId, ProjectId projectId, RoleType role, DateTimeOffset now) =>
         new(userId, projectId, role, now);
 
     public void UpdateRole(RoleType newRole)

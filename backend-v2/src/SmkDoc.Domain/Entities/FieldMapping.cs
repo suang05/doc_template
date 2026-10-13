@@ -1,6 +1,7 @@
 using SmkDoc.Domain.Common;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Domain.Entities;
 
@@ -9,7 +10,7 @@ namespace SmkDoc.Domain.Entities;
 /// </summary>
 public sealed class FieldMapping : BaseEntity
 {
-    public Guid TemplateId { get; private set; }
+    public TemplateId TemplateId { get; private set; }
     public string Placeholder { get; private set; } = string.Empty;
     public string SourcePath { get; private set; } = string.Empty;
     public string Label { get; private set; } = string.Empty;
@@ -31,7 +32,7 @@ public sealed class FieldMapping : BaseEntity
 
     internal FieldMapping(
         Guid? id,
-        Guid templateId,
+        TemplateId templateId,
         string placeholder,
         string sourcePath,
         string label,
@@ -55,7 +56,7 @@ public sealed class FieldMapping : BaseEntity
     }
 
     public static FieldMapping Create(
-        Guid templateId,
+        TemplateId templateId,
         string placeholder,
         string sourcePath,
         string label,
