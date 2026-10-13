@@ -10,8 +10,9 @@ public class AppDbContext : DbContext
 {
     private readonly ICurrentUserService? _currentUserService;
 
-    public AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUserService? currentUserService = null) : base(options) 
-    { 
+    public AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUserService? currentUserService = null) :
+        base(options)
+    {
         _currentUserService = currentUserService;
     }
 
@@ -42,7 +43,7 @@ public class AppDbContext : DbContext
             entity.ToTable("companies");
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Name).IsRequired().HasMaxLength(200)
-                  .HasConversion(n => n.Value, v => CompanyName.Create(v));
+                .HasConversion(n => n.Value, v => CompanyName.Create(v));
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("NOW()");
         });
 
@@ -52,15 +53,15 @@ public class AppDbContext : DbContext
             entity.HasKey(e => e.Id);
             entity.HasIndex(e => e.Slug).IsUnique();
             entity.Property(e => e.Name).IsRequired().HasMaxLength(200)
-                  .HasConversion(n => n.Value, v => ProjectName.Create(v));
+                .HasConversion(n => n.Value, v => ProjectName.Create(v));
             entity.Property(e => e.Slug).IsRequired().HasMaxLength(100)
-                  .HasConversion(s => s.Value, v => new TemplateSlug(v));
+                .HasConversion(s => s.Value, v => new TemplateSlug(v));
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("NOW()");
 
             entity.HasOne<Company>()
-                  .WithMany(c => c.Projects)
-                  .HasForeignKey(e => e.CompanyId)
-                  .OnDelete(DeleteBehavior.Cascade);
+                .WithMany(c => c.Projects)
+                .HasForeignKey(e => e.CompanyId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<User>(entity =>
@@ -69,14 +70,14 @@ public class AppDbContext : DbContext
             entity.HasKey(e => e.Id);
             entity.HasIndex(e => e.Email).IsUnique();
             entity.Property(e => e.Email).IsRequired().HasMaxLength(255)
-                  .HasConversion(m => m.Value, v => EmailAddress.Create(v));
+                .HasConversion(m => m.Value, v => EmailAddress.Create(v));
             entity.Property(e => e.PasswordHash).IsRequired().HasMaxLength(255);
             entity.Property(e => e.FirstName).HasMaxLength(100);
             entity.Property(e => e.LastName).HasMaxLength(100);
             entity.Property(e => e.SystemRole)
-                  .HasConversion(r => r.Name, v => SystemRole.FromDisplayName<SystemRole>(v))
-                  .HasMaxLength(30)
-                  .HasDefaultValue(SystemRole.Member);
+                .HasConversion(r => r.Name, v => SystemRole.FromDisplayName<SystemRole>(v))
+                .HasMaxLength(30)
+                .HasDefaultValue(SystemRole.Member);
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("NOW()");
         });
 
@@ -86,19 +87,19 @@ public class AppDbContext : DbContext
             entity.ToTable("user_project_roles");
             entity.HasKey(e => new { e.UserId, e.ProjectId });
             entity.Property(e => e.Role)
-                  .HasConversion(r => r.Name, v => RoleType.FromDisplayName<RoleType>(v))
-                  .HasMaxLength(20);
+                .HasConversion(r => r.Name, v => RoleType.FromDisplayName<RoleType>(v))
+                .HasMaxLength(20);
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("NOW()");
 
             entity.HasOne<User>()
-                  .WithMany(u => u.ProjectRoles)
-                  .HasForeignKey(e => e.UserId)
-                  .OnDelete(DeleteBehavior.Cascade);
+                .WithMany(u => u.ProjectRoles)
+                .HasForeignKey(e => e.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
 
             entity.HasOne<Project>()
-                  .WithMany(p => p.UserRoles)
-                  .HasForeignKey(e => e.ProjectId)
-                  .OnDelete(DeleteBehavior.Cascade);
+                .WithMany(p => p.UserRoles)
+                .HasForeignKey(e => e.ProjectId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<RefreshToken>(entity =>
@@ -107,19 +108,19 @@ public class AppDbContext : DbContext
             entity.HasKey(e => e.Id);
             entity.HasIndex(e => e.TokenHash).IsUnique();
             entity.Property(e => e.TokenHash).IsRequired().HasMaxLength(64)
-                  .HasConversion(h => h.Value, v => new Sha256Hash(v));
+                .HasConversion(h => h.Value, v => new Sha256Hash(v));
             entity.Property(e => e.ReplacedByTokenHash).HasMaxLength(64)
-                  .HasConversion(h => h == null ? null : h.Value, v => v == null ? null : new Sha256Hash(v));
+                .HasConversion(h => h == null ? null : h.Value, v => v == null ? null : new Sha256Hash(v));
             entity.Property(e => e.ExpiresAt).IsRequired();
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("NOW()");
 
             entity.HasIndex(e => new { e.UserId, e.ExpiresAt })
-                  .HasFilter("\"revoked_at\" IS NULL");
+                .HasFilter("\"revoked_at\" IS NULL");
 
             entity.HasOne<User>()
-                  .WithMany()
-                  .HasForeignKey(e => e.UserId)
-                  .OnDelete(DeleteBehavior.Cascade);
+                .WithMany()
+                .HasForeignKey(e => e.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         // 1. Templates
@@ -128,12 +129,12 @@ public class AppDbContext : DbContext
             entity.ToTable("templates");
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Name).IsRequired().HasMaxLength(100)
-                  .HasConversion(v => v.Value, v => TemplateName.Create(v));
-            entity.HasIndex(e => e.Slug).IsUnique();
+                .HasConversion(v => v.Value, v => TemplateName.Create(v));
+            entity.HasIndex(e => new { e.ProjectId, e.Slug }).IsUnique();
             entity.Property(e => e.Slug)
-                  .HasConversion(s => s.Value, v => new TemplateSlug(v))
-                  .IsRequired()
-                  .HasMaxLength(100);
+                .HasConversion(s => s.Value, v => new TemplateSlug(v))
+                .IsRequired()
+                .HasMaxLength(100);
             entity.Property(e => e.IsActive).HasDefaultValue(true);
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("NOW()");
             entity.Property(e => e.UpdatedAt).HasDefaultValueSql("NOW()");
@@ -145,14 +146,14 @@ public class AppDbContext : DbContext
             }
 
             entity.HasOne(e => e.CurrentVersion)
-                  .WithMany()
-                  .HasForeignKey(e => e.CurrentVersionId)
-                  .OnDelete(DeleteBehavior.SetNull);
+                .WithMany()
+                .HasForeignKey(e => e.CurrentVersionId)
+                .OnDelete(DeleteBehavior.SetNull);
 
             entity.HasOne<Project>()
-                  .WithMany(p => p.Templates)
-                  .HasForeignKey(e => e.ProjectId)
-                  .OnDelete(DeleteBehavior.Cascade);
+                .WithMany(p => p.Templates)
+                .HasForeignKey(e => e.ProjectId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         // 2. Field Mappings
@@ -166,17 +167,17 @@ public class AppDbContext : DbContext
             entity.Property(e => e.Label).IsRequired().HasMaxLength(200);
             entity.Property(e => e.Transform).HasMaxLength(50);
             entity.Property(e => e.DataSourceType)
-                  .HasConversion(d => d.Value, v => DataSourceType.FromString(v))
-                  .HasMaxLength(20).HasDefaultValue(DataSourceType.Json);
+                .HasConversion(d => d.Value, v => DataSourceType.FromString(v))
+                .HasMaxLength(20).HasDefaultValue(DataSourceType.Json);
             entity.Property(e => e.DatasetAlias).HasMaxLength(50)
-                  .HasConversion(a => a == null ? null : a.Value, v => v == null ? null : DatasetAlias.Create(v));
+                .HasConversion(a => a == null ? null : a.Value, v => v == null ? null : DatasetAlias.Create(v));
             entity.Property(e => e.ResultPath).HasMaxLength(300);
             entity.Property(e => e.MathExpression).HasMaxLength(500);
 
             entity.HasOne(e => e.Template)
-                  .WithMany(t => t.FieldMappings)
-                  .HasForeignKey(e => e.TemplateId)
-                  .OnDelete(DeleteBehavior.Cascade);
+                .WithMany(t => t.FieldMappings)
+                .HasForeignKey(e => e.TemplateId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         // 3. Template Versions
@@ -187,11 +188,12 @@ public class AppDbContext : DbContext
             entity.HasIndex(e => new { e.TemplateId, e.Version }).IsUnique();
             entity.Property(e => e.StorageKey).IsRequired().HasMaxLength(500);
             entity.Property(e => e.Status)
-                  .HasConversion(s => s.Id, v => TemplateVersionStatus.FromValue<TemplateVersionStatus>(v))
-                  .HasDefaultValue(TemplateVersionStatus.Draft);
+                .HasConversion(s => s.Id, v => TemplateVersionStatus.FromValue<TemplateVersionStatus>(v))
+                .HasDefaultValue(TemplateVersionStatus.Draft);
             entity.Property(e => e.FileFormat)
-                  .HasConversion(f => f == null ? null : f.Name, v => v == null ? null : TemplateFormat.FromDisplayName<TemplateFormat>(v))
-                  .HasMaxLength(10);
+                .HasConversion(f => f == null ? null : f.Name,
+                    v => v == null ? null : TemplateFormat.FromDisplayName<TemplateFormat>(v))
+                .HasMaxLength(10);
             entity.Property(e => e.DataSchema).HasColumnType("jsonb");
             entity.Property(e => e.SamplePayload).HasColumnType("jsonb");
             entity.Property(e => e.CommitMessage).HasMaxLength(500);
@@ -199,9 +201,9 @@ public class AppDbContext : DbContext
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("NOW()");
 
             entity.HasOne(e => e.Template)
-                  .WithMany(t => t.Versions)
-                  .HasForeignKey(e => e.TemplateId)
-                  .OnDelete(DeleteBehavior.Cascade);
+                .WithMany(t => t.Versions)
+                .HasForeignKey(e => e.TemplateId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         // 4. API Keys
@@ -210,17 +212,17 @@ public class AppDbContext : DbContext
             entity.ToTable("api_keys");
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Name).IsRequired().HasMaxLength(100)
-                  .HasConversion(v => v.Value, v => ApiKeyName.Create(v));
+                .HasConversion(v => v.Value, v => ApiKeyName.Create(v));
             entity.Property(e => e.CallerApp).IsRequired().HasMaxLength(50);
             entity.Property(e => e.KeyHash).IsRequired().HasMaxLength(255)
-                  .HasConversion(v => v.Value, v => new Sha256Hash(v));
+                .HasConversion(v => v.Value, v => new Sha256Hash(v));
             entity.Property(e => e.Expiration)
-                  .HasColumnName("expires_at")
-                  .HasConversion(v => v.ExpiresAt, v => ExpirationPolicy.FromExisting(v));
+                .HasColumnName("expires_at")
+                .HasConversion(v => v.ExpiresAt, v => ExpirationPolicy.FromExisting(v));
             entity.Property(e => e.Scope)
-                  .HasConversion(s => s.Name, v => ApiKeyScope.FromDisplayName<ApiKeyScope>(v))
-                  .HasMaxLength(20)
-                  .HasDefaultValue(ApiKeyScope.ReadWrite);
+                .HasConversion(s => s.Name, v => ApiKeyScope.FromDisplayName<ApiKeyScope>(v))
+                .HasMaxLength(20)
+                .HasDefaultValue(ApiKeyScope.ReadWrite);
             entity.Ignore(e => e.IsRevoked);
             entity.Property(e => e.IsActive).HasDefaultValue(true);
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("NOW()");
@@ -236,32 +238,33 @@ public class AppDbContext : DbContext
             entity.Property(e => e.TriggerSource).HasMaxLength(20);
             entity.Property(e => e.OutputKey).HasMaxLength(500);
             entity.Property(e => e.OutputFormat)
-                  .HasConversion(f => f == null ? null : f.Name, v => v == null ? null : OutputFormat.FromDisplayName<OutputFormat>(v))
-                  .HasMaxLength(10);
+                .HasConversion(f => f == null ? null : f.Name,
+                    v => v == null ? null : OutputFormat.FromDisplayName<OutputFormat>(v))
+                .HasMaxLength(10);
             entity.Property(e => e.PayloadHashSha256)
-                  .HasConversion(h => h == null ? null : h.Value, v => v == null ? null : new Sha256Hash(v))
-                  .HasMaxLength(64);
+                .HasConversion(h => h == null ? null : h.Value, v => v == null ? null : new Sha256Hash(v))
+                .HasMaxLength(64);
             entity.Property(e => e.Status)
-                  .HasConversion(s => s.Name, v => GenerationStatus.FromName(v))
-                  .IsRequired()
-                  .HasMaxLength(20);
+                .HasConversion(s => s.Name, v => GenerationStatus.FromName(v))
+                .IsRequired()
+                .HasMaxLength(20);
             entity.Property(e => e.InputData).HasColumnType("jsonb");
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("NOW()");
 
             entity.HasOne<Template>()
-                  .WithMany()
-                  .HasForeignKey(e => e.TemplateId)
-                  .OnDelete(DeleteBehavior.SetNull);
+                .WithMany()
+                .HasForeignKey(e => e.TemplateId)
+                .OnDelete(DeleteBehavior.SetNull);
 
             entity.HasOne<TemplateVersion>()
-                  .WithMany()
-                  .HasForeignKey(e => e.TemplateVersionId)
-                  .OnDelete(DeleteBehavior.SetNull);
+                .WithMany()
+                .HasForeignKey(e => e.TemplateVersionId)
+                .OnDelete(DeleteBehavior.SetNull);
 
             entity.HasOne<ApiKey>()
-                  .WithMany()
-                  .HasForeignKey(e => e.ApiKeyId)
-                  .OnDelete(DeleteBehavior.SetNull);
+                .WithMany()
+                .HasForeignKey(e => e.ApiKeyId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         // 6. Documents (anchor entity for versioned document references)
@@ -271,15 +274,15 @@ public class AppDbContext : DbContext
             entity.HasKey(e => e.Id);
             entity.HasIndex(e => e.DocumentRef).IsUnique();
             entity.Property(e => e.DocumentRef)
-                  .HasConversion(d => d.Value, v => DocumentReference.Create(v))
-                  .IsRequired()
-                  .HasMaxLength(100);
+                .HasConversion(d => d.Value, v => DocumentReference.Create(v))
+                .IsRequired()
+                .HasMaxLength(100);
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("NOW()");
 
             entity.HasOne<Template>()
-                  .WithMany()
-                  .HasForeignKey(e => e.TemplateId)
-                  .OnDelete(DeleteBehavior.SetNull);
+                .WithMany()
+                .HasForeignKey(e => e.TemplateId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         // 7. Document Versions (audit trail linked to Document entity)
@@ -293,19 +296,19 @@ public class AppDbContext : DbContext
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("NOW()");
 
             entity.HasOne<Document>()
-                  .WithMany(d => d.Versions)
-                  .HasForeignKey(e => e.DocumentId)
-                  .OnDelete(DeleteBehavior.Cascade);
+                .WithMany(d => d.Versions)
+                .HasForeignKey(e => e.DocumentId)
+                .OnDelete(DeleteBehavior.Cascade);
 
             entity.HasOne<TemplateVersion>()
-                  .WithMany()
-                  .HasForeignKey(e => e.TemplateVersionId)
-                  .OnDelete(DeleteBehavior.SetNull);
+                .WithMany()
+                .HasForeignKey(e => e.TemplateVersionId)
+                .OnDelete(DeleteBehavior.SetNull);
 
             entity.HasOne<GenerationLog>()
-                  .WithMany()
-                  .HasForeignKey(e => e.GenerationLogId)
-                  .OnDelete(DeleteBehavior.SetNull);
+                .WithMany()
+                .HasForeignKey(e => e.GenerationLogId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         // 8. Data Connections
@@ -314,9 +317,9 @@ public class AppDbContext : DbContext
             entity.ToTable("data_connections");
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Name).IsRequired().HasMaxLength(100)
-                  .HasConversion(v => v.Value, v => ConnectionName.Create(v));
+                .HasConversion(v => v.Value, v => ConnectionName.Create(v));
             entity.Property(e => e.Provider).IsRequired().HasMaxLength(50)
-                  .HasConversion(p => p.Name, v => SmkDoc.Domain.Common.Enumeration.FromDisplayName<DatabaseProvider>(v));
+                .HasConversion(p => p.Name, v => SmkDoc.Domain.Common.Enumeration.FromDisplayName<DatabaseProvider>(v));
             entity.Property(e => e.EncryptedConnectionString).IsRequired();
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("NOW()");
         });
@@ -327,16 +330,16 @@ public class AppDbContext : DbContext
             entity.ToTable("datasets");
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Name).IsRequired().HasMaxLength(200)
-                  .HasConversion(v => v.Value, v => DatasetName.Create(v));
+                .HasConversion(v => v.Value, v => DatasetName.Create(v));
             entity.Property(e => e.Description).HasMaxLength(500);
             entity.Property(e => e.SqlQuery).IsRequired().HasColumnType("text");
             entity.Property(e => e.CacheSeconds).HasDefaultValue(0);
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("NOW()");
 
             entity.HasOne(e => e.DataConnection)
-                  .WithMany()
-                  .HasForeignKey(e => e.DataConnectionId)
-                  .OnDelete(DeleteBehavior.Restrict);
+                .WithMany()
+                .HasForeignKey(e => e.DataConnectionId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         // 10. Template Datasets (SSRS-style alias assignments)
@@ -346,17 +349,17 @@ public class AppDbContext : DbContext
             entity.HasKey(e => e.Id);
             entity.HasIndex(e => new { e.TemplateId, e.Alias }).IsUnique();
             entity.Property(e => e.Alias).IsRequired().HasMaxLength(50)
-                  .HasConversion(a => a.Value, v => DatasetAlias.Create(v));
+                .HasConversion(a => a.Value, v => DatasetAlias.Create(v));
 
             entity.HasOne(e => e.Template)
-                  .WithMany(t => t.TemplateDatasets)
-                  .HasForeignKey(e => e.TemplateId)
-                  .OnDelete(DeleteBehavior.Cascade);
+                .WithMany(t => t.TemplateDatasets)
+                .HasForeignKey(e => e.TemplateId)
+                .OnDelete(DeleteBehavior.Cascade);
 
             entity.HasOne<Dataset>()
-                  .WithMany()
-                  .HasForeignKey(e => e.DatasetId)
-                  .OnDelete(DeleteBehavior.Restrict);
+                .WithMany()
+                .HasForeignKey(e => e.DatasetId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
     }
 }

@@ -75,6 +75,7 @@ public static class DependencyInjection
         services.AddSingleton<IStorageService, MinioStorageService>();
 
         // 4b. Security & Data
+        services.AddSingleton(TimeProvider.System);
         services.AddSingleton<IDataProtectionService, DataProtectionService>();
         services.AddSingleton<IDocxSecurityScanner, DocxSecurityScannerService>();
         services.AddScoped<ISqlExecutorService, SqlExecutorService>();
