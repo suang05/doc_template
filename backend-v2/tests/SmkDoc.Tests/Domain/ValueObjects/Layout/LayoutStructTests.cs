@@ -98,4 +98,15 @@ public class LayoutStructTests
         act.Should().Throw<DomainValidationException>()
             .WithMessage("*cannot be after end*");
     }
+
+    [Fact]
+    public void DateRange_Empty_HasZeroDaysAndIsEmpty()
+    {
+        var empty = DateRange.Empty;
+
+        empty.IsEmpty.Should().BeTrue();
+        empty.TotalDays.Should().Be(0);
+        empty.Start.Should().Be(default);
+        empty.End.Should().Be(default);
+    }
 }

@@ -14,9 +14,9 @@ public class GenerationLogTests
     public void CreateSuccess_WithValidParameters_InitializesCorrectly()
     {
         var generationId = Guid.NewGuid();
-        var templateId = Guid.NewGuid();
+        var templateId = TemplateId.New();
         var templateVersionId = Guid.NewGuid();
-        var apiKeyId = Guid.NewGuid();
+        var apiKeyId = ApiKeyId.New();
         var now = new DateTimeOffset(2026, 10, 6, 15, 0, 0, TimeSpan.Zero);
 
         var log = GenerationLog.CreateSuccess(
@@ -34,9 +34,9 @@ public class GenerationLogTests
             now);
 
         log.Id.Should().Be(generationId);
-        log.TemplateId.Should().Be((TemplateId)templateId);
+        log.TemplateId.Should().Be(templateId);
         log.TemplateVersionId.Should().Be(templateVersionId);
-        log.ApiKeyId.Should().Be((ApiKeyId)apiKeyId);
+        log.ApiKeyId.Should().Be(apiKeyId);
         log.CallerApp.Should().Be("crm-service");
         log.TriggerSource.Should().Be("api");
         log.InputData.Should().Be("{\"invoiceNo\":\"INV-001\"}");
@@ -53,7 +53,7 @@ public class GenerationLogTests
     [Fact]
     public void CreateValidationFailure_SetsValidationFailedStatusAndErrorMessage()
     {
-        var templateId = Guid.NewGuid();
+        var templateId = TemplateId.New();
         var templateVersionId = Guid.NewGuid();
         var now = TestConstants.BaselineTime;
 
@@ -78,7 +78,7 @@ public class GenerationLogTests
     [Fact]
     public void CreateFailure_SetsFailedStatusAndErrorMessage()
     {
-        var templateId = Guid.NewGuid();
+        var templateId = TemplateId.New();
         var templateVersionId = Guid.NewGuid();
         var now = TestConstants.BaselineTime;
 

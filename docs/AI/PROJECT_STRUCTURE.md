@@ -76,7 +76,7 @@ backend-v2/
 │   │   │   ├── SystemRole.cs
 │   │   │   └── GenerationStatus.cs
 │   │   ├── ValueObjects/           # Immutable types with structural equality
-│   │   │   ├── Ids/                # Strongly-typed 16B stack-allocated identifiers (ProjectId, etc.)
+│   │   │   ├── Ids/                # Strongly-typed 16B IDs (ProjectId, TemplateId, UserId, etc. with Zero-Cast operators)
 │   │   │   ├── Layout/             # High-throughput layout structs (PageDimension, PageMargin, DateRange)
 │   │   │   ├── Validation/         # SchemaValidationResult, ValidationErrorItem
 │   │   │   └── ...                 # Sealed record classes (ProjectName, TemplateSlug, Sha256Hash, etc.)

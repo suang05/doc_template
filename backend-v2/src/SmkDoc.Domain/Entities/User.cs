@@ -116,7 +116,7 @@ public sealed class User : BaseEntity<UserId>
         }
         else
         {
-            _projectRoles.Add(UserProjectRole.Create((UserId)Id, projectId, role, now));
+            _projectRoles.Add(UserProjectRole.Create(Id, projectId, role, now));
         }
 
         SetUpdated(now);

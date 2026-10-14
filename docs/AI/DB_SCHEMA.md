@@ -67,8 +67,9 @@ All database tables, migrations, and EF Core configurations across `smk-doc-serv
 ```
 
 1. **Monotonic Primary Key Locality (UUIDv7 Invariant):**
-   - Primary keys MUST be generated in the C# Application/Domain layer using `BaseEntity` / `Guid.CreateVersion7()`.
+   - Primary keys MUST be generated in the C# Application/Domain layer using `BaseEntity<TId>` / `TId.New()` (`Guid.CreateVersion7()`).
    - Database columns are standard `UUID` without DB-side `gen_random_uuid()` to prevent B-Tree index page-splitting fragmentation. UUIDv7 provides natural time-ordered index locality.
+   - Aggregate Root primary keys and foreign keys use 16-byte stack-allocated Strongly-Typed IDs (`readonly record struct`), mapped transparently to PostgreSQL `uuid` via EF Core Value Converters (`.HasConversion()`).
 2. **Defensive Referential Integrity (Non-Destructive Audit Trails):**
    - Master entity hierarchies (`companies` ➔ `projects` ➔ `templates`) use `ON DELETE CASCADE` for parent lifecycle cleanup.
    - Financial, operational, and regulatory audit tables (`generation_logs`, `document_versions`, `datasets`) **MUST use `ON DELETE SET NULL` or `RESTRICT`**. Accidental cascading deletion of legal audit records is strictly prohibited.
@@ -149,6 +150,21 @@ erDiagram
 ## 4. 🛡️ Clean Architecture Persistence Matrix (Domain POCO → PostgreSQL Column)
 
 The Persistence Layer (`SmkDoc.Infrastructure`) bridges the pure domain model (`SmkDoc.Domain`) to PostgreSQL via EF Core 10 Fluent API configurations. No domain classes leak database or EF Core dependencies.
+
+### 4.0 Strongly-Typed Identifier Persistence Mappings
+
+All Aggregate Root Primary Keys and Foreign Keys use 16-byte stack-allocated Strongly-Typed IDs (`readonly record struct`) mapped transparently to PostgreSQL `uuid` via EF Core Value Converters with zero heap overhead:
+
+| Domain Identifier | Target Table & Columns | SQL Primitive Column Type | EF Core Conversion (`.HasConversion()`) |
+|---|---|---|---|
+| `CompanyId` | `companies.id`, `projects.company_id` | `UUID` | `id => id.Value, v => new CompanyId(v)` |
+| `ProjectId` | `projects.id`, `templates.project_id`, `api_keys.project_id`, `user_project_roles.project_id` | `UUID` | `id => id.Value, v => new ProjectId(v)` |
+| `TemplateId` | `templates.id`, `documents.template_id`, `generation_logs.template_id` (nullable), `template_datasets.template_id` | `UUID` | `id => id.Value, v => new TemplateId(v)` |
+| `UserId` | `users.id`, `refresh_tokens.user_id`, `user_project_roles.user_id` | `UUID` | `id => id.Value, v => new UserId(v)` |
+| `DocumentId` | `documents.id`, `document_versions.document_id` | `UUID` | `id => id.Value, v => new DocumentId(v)` |
+| `ApiKeyId` | `api_keys.id`, `generation_logs.api_key_id` (nullable) | `UUID` | `id => id.Value, v => new ApiKeyId(v)` |
+| `DatasetId` | `datasets.id`, `template_datasets.dataset_id` | `UUID` | `id => id.Value, v => new DatasetId(v)` |
+| `DataConnectionId` | `data_connections.id`, `datasets.data_connection_id` | `UUID` | `id => id.Value, v => new DataConnectionId(v)` |
 
 ### 4.1 Domain Value Object Persistence Mappings
 

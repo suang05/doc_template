@@ -12,14 +12,14 @@ public class DocumentTests
     [Fact]
     public void Create_WithValidParameters_InitializesCorrectly()
     {
-        var templateId = Guid.NewGuid();
+        var templateId = TemplateId.New();
         var now = new DateTimeOffset(2026, 10, 6, 12, 0, 0, TimeSpan.Zero);
 
         var document = Document.Create(DocumentReference.Create("DOC-2026-001"), templateId, now);
 
         document.Id.Value.Should().NotBeEmpty();
         document.DocumentRef.Value.Should().Be("DOC-2026-001");
-        document.TemplateId.Should().Be((TemplateId)templateId);
+        document.TemplateId.Should().Be(templateId);
         document.CreatedAt.Should().Be(now);
         document.UpdatedAt.Should().BeNull();
         document.Versions.Should().BeEmpty();

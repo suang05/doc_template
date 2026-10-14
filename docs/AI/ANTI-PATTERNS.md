@@ -42,7 +42,7 @@ graph TD
 <neural_firewall_matrix>
 ## 2. 🛡️ The Neural Firewall & Interception Engine
 
-The rules are organized sequentially by runtime evaluation priority: **Host Safety ➔ Data Isolation ➔ Architecture Boundaries ➔ Operational Resilience**.
+The rules are organized sequentially by runtime evaluation priority: **Host Safety ➔ Data Isolation ➔ Architecture Boundaries ➔ Operational Resilience ➔ Automated Testing**.
 
 ### Phase 1: Host Process, Memory & Thread Safety (Fatal Production Killers)
 
@@ -397,8 +397,8 @@ IF type_is_domain_entity_or_aggregate_root AND declared_as([struct, record_struc
 END IF
 </thinking_guard>
 <mandatory_substitution>
-// Entities must always be sealed classes inheriting BaseEntity to preserve reference identity and EF Core ChangeTracker snapshots
-public sealed class Template : BaseEntity
+// Entities must always be sealed classes inheriting BaseEntity<TId> to preserve reference identity and EF Core ChangeTracker snapshots
+public sealed class Template : BaseEntity<TemplateId>
 {
     public ProjectId ProjectId { get; private set; }
     public TemplateName Name { get; private set; } = null!;
@@ -435,6 +435,34 @@ Non-readonly structs cause the C# compiler to emit hidden defensive copies on ev
 </fatal_blast_radius>
 <exemptions>
 Specialized low-level high-performance SIMD vectors or `ref struct` Spans in zero-allocation image parsing.
+</exemptions>
+<ssot_ref>
+[`Conventions §4.1`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/CODING_CONVENTIONS.md#41-domain-layer-rule-dom)
+</ssot_ref>
+</firewall_rule>
+
+<firewall_rule id="FIREWALL-DOM-004" name="PRIMITIVE_OBSESSION_AGGREGATE_IDENTIFIERS">
+<trigger_ast>
+["Guid ProjectId", "Guid TemplateId", "Guid UserId", "Guid CompanyId", "Guid DocumentId", "Guid ApiKeyId", "Guid DatasetId"]
+</trigger_ast>
+<thinking_guard>
+IF entity_or_aggregate_property_declares_primitive_guid_identifier THEN
+    ASSERT_FORBIDDEN("Raw Guid identity leads to primitive obsession and cross-aggregate argument transposition bugs");
+    ENFORCE_SUBSTITUTION("Strongly-Typed ID Readonly Record Struct");
+END IF
+</thinking_guard>
+<mandatory_substitution>
+// Aggregate identity and cross-aggregate references must be strongly typed
+public sealed class Template : BaseEntity<TemplateId>
+{
+    public ProjectId ProjectId { get; private set; }
+}
+</mandatory_substitution>
+<fatal_blast_radius>
+Primitive obsession leads to silent argument transposition bugs (e.g. passing a CompanyId into a ProjectId parameter, or TemplateId into DocumentId) that compile without errors and corrupt production multi-tenant data.
+</fatal_blast_radius>
+<exemptions>
+Non-aggregate secondary identifiers (e.g. correlation tokens, transient session IDs, or OAuth state nonces).
 </exemptions>
 <ssot_ref>
 [`Conventions §4.1`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/CODING_CONVENTIONS.md#41-domain-layer-rule-dom)
@@ -573,6 +601,36 @@ Historical reference reading, legacy schema inspection, and migration comparison
 </exemptions>
 <ssot_ref>
 [`Conventions §2.1`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/CODING_CONVENTIONS.md#21-boundary-invariants-rule-arch)
+</ssot_ref>
+</firewall_rule>
+
+---
+
+### Phase 5: Automated Testing & Assertion Craftsmanship
+
+<firewall_rule id="FIREWALL-TEST-001" name="BOXED_FLUENT_ASSERTIONS_ID_EQUALITY">
+<trigger_ast>
+[".Should().Be((TemplateId)", ".Should().Be((ProjectId)", ".Should().Be((UserId)", ".Should().Be((ApiKeyId)", ".Should().Be((DocumentId)"]
+</trigger_ast>
+<thinking_guard>
+IF assertion_performs_explicit_cast_to_strongly_typed_id THEN
+    ASSERT_FORBIDDEN("Explicit (TId) cast in test assertions indicates test fixture primitive obsession and triggers FluentAssertions boxing traps");
+    ENFORCE_SUBSTITUTION("TId.New() Test Fixture Pattern");
+END IF
+</thinking_guard>
+<mandatory_substitution>
+// Declare test fixture IDs directly using strongly-typed ID constructors:
+var templateId = TemplateId.New();
+log.TemplateId.Should().Be(templateId); // Zero-cast assertion
+</mandatory_substitution>
+<fatal_blast_radius>
+FluentAssertions' `Be(object expected)` boxes both sides. When `Guid` is compared with `TemplateId`, `object.Equals` evaluates different CLR types and fails silently or forces anti-pattern duct-tape casts (`(TemplateId)guid`).
+</fatal_blast_radius>
+<exemptions>
+None. Unit and integration tests must always instantiate strongly-typed IDs via `TId.New()` for zero-cast assertions.
+</exemptions>
+<ssot_ref>
+[`Conventions §4.11`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/CODING_CONVENTIONS.md#411-unit-testing-craftsmanship-rule-test)
 </ssot_ref>
 </firewall_rule>
 

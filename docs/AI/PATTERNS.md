@@ -288,13 +288,24 @@ public async Task<Created<ApiResponse<TemplateResultDto>>> Create(
 // [GENERATIVE_SLOT_FORMULA: ARCHETYPE-4-DOMAIN-ENTITY]
 namespace SmkDoc.Domain.ValueObjects;
 
-// 1. Strongly-Typed ID: Stack-allocated readonly record struct (16 bytes, Zero Heap Alloc)
-public readonly record struct ProjectId(Guid Value)
+// 1. Strongly-Typed ID: Stack-allocated readonly record struct (16 bytes, Zero Heap Alloc, Zero-Cast)
+public readonly record struct ProjectId(Guid Value) : IComparable<ProjectId>
 {
     public static ProjectId New() => new(Guid.CreateVersion7());
     public static ProjectId Empty => new(Guid.Empty);
+    public bool IsEmpty => Value == Guid.Empty;
+    public int CompareTo(ProjectId other) => Value.CompareTo(other.Value);
     public override string ToString() => Value.ToString();
+
+    // Bidirectional implicit conversions for zero-cast ergonomics at DTO/CQRS boundaries
     public static implicit operator Guid(ProjectId id) => id.Value;
+    public static implicit operator ProjectId(Guid value) => new(value);
+
+    // Cross-type equality operators for direct Guid comparison without casting
+    public static bool operator ==(ProjectId left, Guid right) => left.Value == right;
+    public static bool operator !=(ProjectId left, Guid right) => left.Value != right;
+    public static bool operator ==(Guid left, ProjectId right) => left == right.Value;
+    public static bool operator !=(Guid left, ProjectId right) => left != right.Value;
 }
 
 // 2. Validated String Value Object: Class-based record to prevent default(T) null bypass
@@ -335,8 +346,8 @@ public readonly record struct PageDimension(float WidthMm, float HeightMm)
 
 namespace SmkDoc.Domain.Entities;
 
-// 4. Aggregate Root: Sealed class inheriting BaseEntity
-public sealed class Template : BaseEntity
+// 4. Aggregate Root: Sealed class inheriting BaseEntity<TId> with strongly-typed Identity
+public sealed class Template : BaseEntity<TemplateId>
 {
     public ProjectId ProjectId { get; private set; }
     public TemplateName Name { get; private set; } = null!;
@@ -355,14 +366,14 @@ public sealed class Template : BaseEntity
         string? category,
         DateTimeOffset now)
     {
-        if (projectId.Value == Guid.Empty)
+        if (projectId.IsEmpty)
         {
             throw new DomainValidationException("ProjectId cannot be empty.");
         }
 
         return new Template
         {
-            Id = Guid.CreateVersion7(),
+            Id = TemplateId.New(),
             ProjectId = projectId,
             Name = name,
             Slug = slug,

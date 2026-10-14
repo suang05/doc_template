@@ -24,7 +24,10 @@ public readonly record struct DateRange
         End = end;
     }
 
-    public int TotalDays => End.DayNumber - Start.DayNumber + 1;
+    public static DateRange Empty => default;
+    public bool IsEmpty => Start == default && End == default;
+
+    public int TotalDays => IsEmpty ? 0 : End.DayNumber - Start.DayNumber + 1;
 
     public bool Contains(DateOnly date) => date >= Start && date <= End;
 
