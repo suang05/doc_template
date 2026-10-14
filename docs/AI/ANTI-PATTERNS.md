@@ -680,6 +680,7 @@ Strictly bounded exceptions (e.g. Unit tests, console CLI entry point) or None.
 1. **APPROVAL GATE (MUST ASK FIRST):** The LLM MUST NEVER modify `ANTI-PATTERNS.md` autonomously. It must output the proposed `<firewall_rule>` block in chat and obtain explicit user approval.
 2. **GATE 1-3 QUALIFICATION:** The proposed rule MUST pass all 3 qualification gates in Section 1 (not a mirror of PATTERNS.md, not micro-styling from CODING_CONVENTIONS.md, and must target a deceptive trap or pre-training bias).
 3. **ZERO DEFECTIVE CODE:** The proposal MUST NOT include multi-line defective code snippets (`- bad code`) to prevent negative token contamination into the model's KV-cache.
+4. **4-POINT RIPPLE SYNC (TIER-0 COMPLIANCE):** Upon approval, immediately execute the Universal 4-Point Synchronization Protocol from `AGENTS.md` (Upstream Phase Breadcrumb Sync, `CODING_CONVENTIONS.md` substitution matrix sync, bidirectional SSoT links, and contradiction sweep).
 </doc_maintenance_rules>
 
 </anti_patterns_scope>

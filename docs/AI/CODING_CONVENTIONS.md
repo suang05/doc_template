@@ -584,4 +584,5 @@ When proposing a new substitution rule, format it strictly using this row struct
 1. **APPROVAL GATE (MUST ASK FIRST):** The LLM MUST NEVER modify `CODING_CONVENTIONS.md` autonomously. It must propose the exact changes in chat and obtain explicit user approval.
 2. **ZERO CONTRADICTION:** The proposed rule MUST NOT contradict `PATTERNS.md` or `ANTI-PATTERNS.md`. Micro-syntactical rules belong here; fatal system traps belong in `ANTI-PATTERNS.md`.
 3. **COMPILER VERIFICATION:** All accompanying code micro-snippets MUST be fully-typed C# 13 and compile with 0 warnings and 0 errors against `dotnet build backend-v2/SmkDocServerV2.slnx`.
+4. **4-POINT RIPPLE SYNC (TIER-0 COMPLIANCE):** Upon approval, immediately execute the Universal 4-Point Synchronization Protocol from `AGENTS.md` (Upstream Section/Category Breadcrumb Sync, substitution matrix sync, bidirectional SSoT links, and contradiction sweep across `docs/AI/`).
 </doc_maintenance_rules>

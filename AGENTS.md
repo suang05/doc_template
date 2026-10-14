@@ -112,22 +112,78 @@ In every single interaction (answering questions, reviewing code, or planning so
 - WHEN task involves Past architectural decisions and context rationale -> READ `docs/AI/DECISIONS.md`
 </context_triggers>
 
+<documentation_cognitive_anatomy_standard>
+# [DOC_AUTHORING_STANDARD] — Strict Token Density & LLM Cognitive Alignment
+When creating or modifying ANY document in `docs/AI/`, you MUST strictly obey these 6 authoring invariants:
+
+1. [ZERO_JARGON_POLLUTION]:
+   - PROHIBITED: Pseudo-cyberpunk or academic metaphors ("NEURAL FIREWALL", "PRE-TRAINING GRAVITATIONAL BIAS", "COGNITIVE HAZARD").
+   - MANDATORY: Use pure compiler/engineering terminology (e.g., "AST Invariant", "LOH Defense", "Thread Isolation").
+
+2. [CANONICAL_SYMBOLIC_DICTIONARY]:
+   - Do NOT invent ad-hoc symbols. Exclusively use this standard logic operator dictionary:
+     * `=>` : Transformation / Direct Substitution (`DefectiveAST => CanonicalAST`)
+     * `!`  : Strict Prohibition (`!byte[]`, `!AppDbContext`, `!RAM_BUFFER`)
+     * `::` : Type / Layer Structural Binding (`Domain.Entity :: { Id: UUIDv7, State: private set }`)
+     * `>>` : Strict Sequence Pipeline / Inward Flow (`Api >> Application >> Domain`)
+     * `&`  : Co-invariant Conjunction (`UUIDv7 & Immutable`)
+     * `|`  : Exclusive Alternative (`Stream | IAsyncEnumerable`)
+     * `>` / `<` : Numeric Bounds (`Payload > 85KB => !RAM_BUFFER`)
+
+3. [DIAGRAM_AND_TOPOLOGY_GOVERNANCE]:
+   - PROHIBITED (HARD BAN): ASCII box-and-arrow art (`+---+`, `|   |`, `----->`).
+   - HIERARCHY & LAYERING: Exclusively use Indented Text Hierarchy (for Clean Architecture, Folder Trees, Namespaces).
+   - LINEAR DATA PIPELINES: Exclusively use Step-by-Step Pipeline Grammar (`Step 1 >> Step 2 >> Step 3`).
+   - COMPLEX ENTERPRISE TOPOLOGY (Fan-in / Fan-out / Multi-Node):
+     * MERMAID IS PERMITTED, but MUST strictly be "Minimal Node-Only":
+     * BANNED in Mermaid: Deeply nested subgraphs (>2 levels), CSS styles, verbose edge labels, or >15 total nodes.
+     * Use short, atomic identifiers with direct arrows: `NodeA -->|ShortLabel| NodeB`.
+
+4. [MICRO_DIFFS_OVER_CODE_BLOCKS]:
+   - Replace standalone defective code snippets with atomic Git diffs (1-3 lines max):
+     ```diff
+     - var buffer = new MemoryStream();
+     + await sourceStream.CopyToAsync(response.Body, ct);
+     ```
+
+5. [LEXICAL_BEACON_INDEXING]:
+   - Every section/rule MUST declare literal search beacons to maximize Dot-Product Attention:
+     `> [BEACONS: PDF Download, Stream Export, Large Payload, Gotenberg]`
+
+6. [SHALLOW_SEMANTIC_SLUGS]:
+   - FORBIDDEN: Deep decimal numbering (e.g., `## 1.2.3.4`).
+   - MANDATORY: Use Semantic Slugs (e.g., `## Storage.Gotenberg.StreamPipeline`). Maximum 3 heading levels (`#`, `##`, `###`).
+
+[MIGRATION_DIRECTIVE]:
+When updating existing docs, DO NOT mimic legacy verbose prose found in the file. Proactively refactor surrounding touched blocks to conform to this [DOC_AUTHORING_STANDARD].
+</documentation_cognitive_anatomy_standard>
+
 <doc_drift_prevention>
-**LIVING DOCUMENTATION PROTOCOL (Zero-Drift & Consistency):**
-Whenever you modify the codebase or make architectural decisions, you MUST proactively update the corresponding documentation to prevent doc drift and ensure LLM consistency:
-1. **Mandatory Updates:**
-   - IF you create/modify an API endpoint, Auth flow, or DTO -> UPDATE `docs/AI/API_CONTRACT.md` following its `<doc_maintenance_rules>` tag (Living SSoT Protocol):
-     * **ARCHETYPE MAPPING:** Map the endpoint to one of the 6 Canonical Archetypes in `docs/AI/API_CONTRACT.md`.
-     * **MANIFEST REGISTRATION:** Register the route inside `<endpoint_manifest>` in `docs/AI/API_CONTRACT.md` with id, method, path, auth, and archetype.
-     * **ERROR TAXONOMY:** Register any new domain business `errorCode` in Section 5 Taxonomy.
-     * **OPENAPI SYNC:** Trigger a backend build (`dotnet build backend-v2/SmkDocServerV2.slnx`) so `docs/openapi.json` is automatically re-emitted from C# controller attributes with zero manual Markdown JSON mock overhead.
-   - IF you add/modify a Database Table, Entity, or EF Core Migration -> UPDATE `docs/AI/DB_SCHEMA.md`
-   - IF you create a new UseCase, Interface, or architectural file -> UPDATE `docs/AI/PROJECT_STRUCTURE.md`
-   - IF you change system topology, dependencies, or middleware pipeline -> UPDATE `docs/AI/ARCHITECTURE.md`
-   - IF you discover a deceptive production trap, concurrency deadlock, or resolve a recurrent architectural correction -> PROPOSE a new rule for `docs/AI/ANTI-PATTERNS.md` following its `<doc_maintenance_rules>` tag.
-2. **Context Headers:** Every documentation file MUST maintain its clear, strict scope wrapper (e.g., `<api_contract_scope>`, `<database_scope>`), `<ai_directive>`, and maintenance tags (e.g. `<doc_maintenance_rules>`) at the top. Never remove them.
-3. **No Duplication & Zero Contradiction:** Before writing a new rule or pattern, you MUST verify that it does not contradict existing standards in `CODING_CONVENTIONS.md`, `PATTERNS.md`, or `ARCHITECTURE.md`. Keep responsibilities strictly isolated to their respective files to avoid redundant instructions that confuse the LLM.
-4. **Future-Proofing (No Volatile Metrics & No Hard Text):** When updating documentation, do NOT insert hardcoded minor versions of libraries (e.g. `v11.11`) or volatile metrics (e.g. exact test counts) that will quickly become outdated. Specify invariant criteria (e.g., 100% pass rate, 0 failures) instead.
+**LIVING DOCUMENTATION PROTOCOL (Zero-Drift & Cognitive Consistency):**
+To maintain 100% deterministic accuracy across stateless sessions, treat documentation as compiled code. Whenever codebase mutations occur, execute this 2-tier protocol:
+
+### Tier 0: Central Mutation Triggers (WHEN to Update):
+| Trigger Signal Token | Source Mutation Event in Codebase | Mandatory Target Document & Canonical Action |
+|---|---|---|
+| **`[SIGNAL_API_MUTATION]`** | Create/modify Controller, Route, Request/Response DTO, or Auth flow | 👉 UPDATE `docs/AI/API_CONTRACT.md` (Register `<endpoint_manifest>`, map archetype, sync openapi.json) |
+| **`[SIGNAL_DOMAIN_MUTATION]`** | Add/modify Entity, BaseEntity, Strongly-Typed ID, Value Object, or Enum | 👉 UPDATE `docs/AI/CODING_CONVENTIONS.md` (§4 Taxonomy & Matrix) and `docs/AI/DB_SCHEMA.md` |
+| **`[SIGNAL_DECEPTIVE_BUG]`** | Encounter runtime traps (LOH, boxing equality, deadlock) or user architecture corrections | 👉 PROPOSE to `docs/AI/ANTI-PATTERNS.md` (Format as `<firewall_rule>`, ask user first) |
+| **`[SIGNAL_SCHEMA_MIGRATION]`**| Add/modify EF Core table, column, index, or migration | 👉 UPDATE `docs/AI/DB_SCHEMA.md` (Entity mapping, ER diagrams, foreign keys) |
+| **`[SIGNAL_STRUCTURE_MUTATION]`**| Create new UseCase, Interface, Service, or layer project | 👉 UPDATE `docs/AI/PROJECT_STRUCTURE.md` |
+| **`[SIGNAL_TOPOLOGY_MUTATION]`** | Change external services (Gotenberg, MinIO, Postgres), pipeline, or middleware | 👉 UPDATE `docs/AI/ARCHITECTURE.md` |
+
+### Tier 0: Universal 4-Point Synchronization Protocol (CENTRAL STANDARD):
+When updating ANY document in `docs/AI/`, you MUST execute these 4 canonical positive actions in order:
+1. **`[UPSTREAM_BREADCRUMB_SYNC]`**: If adding or altering a Phase, Section, or Category, immediately update the high-level roadmap/header at the top of the file to prevent Local Attention Blindness.
+2. **`[MATRIX_AND_CATALOG_SYNC]`**: When updating a rule or code snippet, simultaneously update its summary row in the corresponding matrix (e.g. `ast_token_substitution_matrix` or `<endpoint_manifest>`).
+3. **`[BIDIRECTIONAL_SSOT_LINK]`**: Ensure cross-references are mutually linked (e.g. Rule in Conventions links to Firewall Rule ID, and Firewall Rule references Conventions section).
+4. **`[CONTRADICTION_SWEEP]`**: Use `grep_search` across `docs/AI/` for any legacy terminology or banned syntax that was replaced, eliminating obsolete or conflicting examples.
+
+### Cognitive Hole-Plugging & Governance:
+- **Zero Negative Code Blocks:** Write positive, canonical code exclusively. NEVER write multi-line defective snippets (`- bad code`) in documentation to prevent negative token contamination in the KV-cache.
+- **Approval Gate (Must Ask First):** Always propose new rules or schema alterations in chat and obtain explicit user consent before editing files in `docs/AI/`.
+- **Scope Wrapper Integrity:** Preserve context wrapper tags (e.g., `<api_contract_scope>`, `<doc_maintenance_rules>`) at all times.
+- **Future-Proofing (No Volatile Metrics & No Hard Text):** When updating documentation, do NOT insert hardcoded minor versions of libraries or volatile metrics (e.g. exact test counts) that will quickly become outdated. Specify invariant criteria (e.g., 100% pass rate, 0 failures) instead.
 </doc_drift_prevention>
 
 <build_and_test_commands>
@@ -142,9 +198,9 @@ Whenever you modify the codebase or make architectural decisions, you MUST proac
 Before declaring any coding task complete and ending your turn, you MUST actively execute these 4 verification gates in order:
 1. **Actual Test Execution:** You MUST explicitly use the terminal tool to run `dotnet test` and/or `npm test`. NEVER claim that tests passed if you haven't actually executed the command and verified the output.
 2. **Self-Correction Review:** Double-check your own code edits against `<system_standards>`. Trace all newly added variables, parameters, or injected dependencies to ensure they are actually used.
-3. **Documentation & Contract Gate:** If any API endpoint, DTO, or Controller changed during your task, verify:
-   - [ ] Is `<endpoint_manifest>` in `docs/AI/API_CONTRACT.md` updated with the route and archetype?
-   - [ ] Are any new domain `errorCode` tokens registered in Section 5 Taxonomy?
-   - [ ] Is `docs/openapi.json` re-emitted and synchronized with the latest code changes via `dotnet build`?
+3. **Documentation & Contract Gate:** 
+   - [ ] Did you check codebase changes against the `[SIGNAL_*]` Trigger Registry in `<doc_drift_prevention>`?
+   - [ ] If any document was updated, did you verify the Universal 4-Point Synchronization Protocol (Header ➔ Matrix ➔ SSoT Links ➔ Contradiction Sweep)?
+   - [ ] If API endpoints changed: is `<endpoint_manifest>` in `docs/AI/API_CONTRACT.md` updated and `docs/openapi.json` re-emitted via `dotnet build`?
 4. **Meaningful Handoff & Summary:** When you end your turn, provide a clear, professional summary of the architectural decisions you made, what was actually tested, and proactively highlight any key open questions, potential risks, or next steps for the user. Do not output meaningless, robotic generic sentences.
 </verification_protocol>
