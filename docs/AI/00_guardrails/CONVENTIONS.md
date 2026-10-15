@@ -61,7 +61,7 @@
 ### Category D: Presentation, Wire Envelopes & REST Protocol
 | AST Node / Concern | Defective Prior (❌ Trigger Drop) | Canonical Target Token (✅ Mandatory Target) | Governing Invariant |
 |---|---|---|---|
-| **HTTP Result** | `return Ok(dto);`, empty `204 NoContent` | `TypedResults.Ok(ApiResponse<T>.Success(result))` | Strongly-typed RFC 9110 responses (`RULE-API-002`) |
+| **HTTP Result** | `return Ok(dto);`, empty `204 NoContent` | `TypedResults.Ok(new ApiResponse<TResultDto>(result))` | Strongly-typed RFC 9110 responses (`RULE-API-002`) |
 | **HTTP Created** | `return StatusCode(201, ...)` | `TypedResults.Created($"/api/v1/{res}/{id}", envelope)` | Strongly-typed RFC 9110 responses (`RULE-API-002`) |
 | **Model Binding** | `[FromBody] Template entity` | `[FromBody] CreateTemplateRequest request` | Mass-assignment defense 👉 [`FIREWALL-SEC-002`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/FIREWALL.md#firewall-sec-002) |
 | **Error Egress** | `new { error = "msg" }`, `try-catch` in action | RFC 9457 `ProblemDetails` via `GlobalExceptionHandler` | Centralized error pipeline 👉 [`FIREWALL-OPS-003`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/FIREWALL.md#firewall-ops-003) |
@@ -343,7 +343,8 @@ public sealed class TemplateController(
     {
         var command = new CreateTemplateCommand(request.ProjectId, request.Name, request.Slug);
         var result = await createUseCase.ExecuteAsync(command, ct);
-        return TypedResults.Created($"/api/v1/templates/{result.Id}", ApiResponse<TemplateResultDto>.Success(result));
+        return TypedResults.Created($"/api/v1/templates/{result.Id}", new ApiResponse<TemplateResultDto>(result));
+    }
     }
 }
 ```

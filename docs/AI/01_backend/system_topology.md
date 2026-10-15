@@ -21,7 +21,7 @@
 | **Preview Persistence** | Saving preview to DB or MinIO | 100% in-memory ephemeral RAM stream | `RULE-INVAR-001` |
 | **Memory Management** | Buffering document in `byte[]` / `MemoryStream` | Zero-LOH Stream-over-RAM via `Stream.CopyToAsync` | `FIREWALL-MEM-001` |
 | **Engine Selection** | Hardcoded `switch(format)` or `if-else` | Polymorphic Strategy via `IEnumerable<IRenderEngine>` | `FIREWALL-OPS-001` |
-| **Tenant Access** | Lookup by ID alone: `GetById(id)` | Tenant-scoped: `GetByIdAndProjectIdAsync(id, projectId, ct)` | `FIREWALL-SEC-001` |
+| **Tenant Access** | Bypassing filter via `.IgnoreQueryFilters()` | EF Core Global Query Filter on `IMustHaveProject` (e.g. `repo.GetByIdAsync(id, ct)`) | `FIREWALL-SEC-001` |
 | **External Resilience** | Raw unconstrained `HttpClient` | Polly v8 resilience pipelines (Retry, Circuit Breaker, Timeout) | `ADR-RES-04` |
 | **Concurrency Token** | Unhandled 409 / manual timestamp | PostgreSQL `xmin` concurrency token (`builder.UseXminAsConcurrencyToken()`) | `RULE-INFRA-007` |
 | **Target Codebase** | Modifying root `src/SmkDocServer/` (legacy v1) | Target active modern `backend-v2/src/SmkDoc.*/` | `FIREWALL-OPS-005` |

@@ -19,7 +19,7 @@
 | **Binary/PDF Output** | `new MemoryStream()`, `.ToArray()`, `byte[]` | Direct stream piping: `Stream.CopyToAsync(response.Body, ct)` | `FIREWALL-MEM-001` |
 | **Concurrent DB Access** | `Task.WhenAll` on scoped `DbContext` | Sequential `await` or `IDbContextFactory<T>` | `FIREWALL-CONC-001` |
 | **Async Invocation** | `.Result`, `.Wait()`, `.GetAwaiter().GetResult()` | Pure asynchronous pipeline: `await useCase.ExecuteAsync(...)` | `FIREWALL-ASYNC-001` |
-| **Tenant Entity Lookup** | Unscoped `GetByIdAsync(id)`, `Find(id)` | Tenant-scoped: `GetByIdAndProjectIdAsync(id, projectId, ct)` | `FIREWALL-SEC-001` |
+| **Tenant Entity Lookup** | Bypassing filter via `.IgnoreQueryFilters()` | Active Global Query Filter on `IMustHaveProject` (e.g. `repo.GetByIdAsync(id, ct)`) | `FIREWALL-SEC-001` |
 | **Controller Binding** | `[FromBody] Template entity` | Transport DTO: `[FromBody] CreateTemplateRequest request` | `FIREWALL-SEC-002` |
 | **Regex Compilation** | `new Regex(pattern)`, `Regex.Match(...)` | `[GeneratedRegex(..., RegexOptions.NonBacktracking)]` | `FIREWALL-SEC-003` |
 | **Service Granularity** | God class `TemplateService` with CRUD methods | Action-Centric UseCase: `IUseCase<TCommand, TResult>` | `FIREWALL-ARCH-001` |
@@ -166,29 +166,30 @@ Console CLI application entry point `static async Task Main` or synchronous test
 
 ### Phase 2: Security & Tenant Isolation (Data Invariants)
 
-<firewall_rule id="FIREWALL-SEC-001" name="UNSCOPED_TENANT_MUTATION_IDOR">
+<firewall_rule id="FIREWALL-SEC-001" name="UNSCOPED_TENANT_BYPASS_IDOR">
 <trigger_ast>
-["GetByIdAsync(id)", "Find(id)", "repo.Update(entity)", "FirstOrDefaultAsync(x => x.Id == id)"]
+[".IgnoreQueryFilters()", "AsNoTrackingWithIdentityResolution() without tenant check"]
 </trigger_ast>
 <thinking_guard>
-IF query_or_mutation_targets_entity_with(ProjectId) AND query_lacks(projectId_filter) THEN
-    ASSERT_FORBIDDEN("Missing ProjectId tenant boundary enables Insecure Direct Object Reference (IDOR)");
-    ENFORCE_SUBSTITUTION("Scoped Tenant Key Query");
+IF query_invokes([IgnoreQueryFilters]) AND lacks_explicit_tenant_authorization() THEN
+    ASSERT_FORBIDDEN("Bypassing EF Core Global Query Filter on IMustHaveProject entities exposes cross-tenant data");
+    ENFORCE_SUBSTITUTION("Preserve Global Query Filter or Explicit Tenant Authorization");
 END IF
 </thinking_guard>
 <mandatory_substitution>
-// Always pair Aggregate Id with ProjectId in every query and mutation
-var entity = await repo.GetByIdAndProjectIdAsync(id, projectId, ct)
-    ?? throw new EntityNotFoundException(nameof(Template), id);
+// Global Query Filter (HasQueryFilter) automatically encloses queries within the tenant boundary.
+// For standard aggregate lookup, invoke canonical repository method directly:
+var entity = await repo.GetByIdAsync(id, ct)
+    ?? throw new NotFoundException($"Template with ID '{id}' was not found.");
 </mandatory_substitution>
 <fatal_blast_radius>
-Critical IDOR security vulnerability: Malicious or compromised tenants can guess, brute-force, or leverage UUIDs to view, mutate, or delete templates belonging to other corporate accounts.
+Bypassing Global Query Filter leaks confidential cross-tenant templates and documents to unauthorized callers.
 </fatal_blast_radius>
 <exemptions>
-Global platform maintenance background jobs, database root seeders, or globally unique lookups explicitly scoped across system accounts (e.g. `GetUserByEmailAsync`).
+Global platform maintenance background jobs or database seeders executed under Root/Admin context with verified tenant isolation.
 </exemptions>
 <ssot_ref>
-[`blueprints.md#archetype-6`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/01_backend/blueprints.md#archetype-6-action-centric-cqrs-usecase-pattern)
+[`blueprints.md#archetype-5`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/01_backend/blueprints.md#archetype-5-atomic-unit-of-work--transaction-boundary)
 </ssot_ref>
 </firewall_rule>
 
@@ -291,8 +292,8 @@ END IF
 </thinking_guard>
 <mandatory_substitution>
 // Map entity state strictly to immutable Result DTO before exiting UseCase boundary
-var resultDto = TemplateResultDto.FromEntity(entity);
-return ApiResponse<TemplateResultDto>.Success(resultDto);
+var resultDto = new TemplateResultDto(entity.Id, entity.Name.Value, entity.Slug.Value, entity.CreatedAt);
+return new ApiResponse<TemplateResultDto>(resultDto);
 </mandatory_substitution>
 <fatal_blast_radius>
 Leaks internal entity state and navigation properties across architecture boundaries; triggers JSON serializer circular reference loops and runtime EF Core lazy-loading exceptions.
@@ -552,7 +553,7 @@ END IF
 <mandatory_substitution>
 // Inject TimeProvider in services or pass explicit DateTimeOffset now into domain methods
 var now = timeProvider.GetUtcNow();
-var entity = Template.Create(id, projectId, name, now);
+var entity = Template.Create(projectId, TemplateName.Create(name), TemplateSlug.Create(slug), category: null, now);
 </mandatory_substitution>
 <fatal_blast_radius>
 Non-deterministic code: Business logic verifying token expiration, TTLs, and audit timestamps cannot be simulated or tested deterministically in unit tests.
@@ -578,7 +579,7 @@ END IF
 <mandatory_substitution>
 // Thin controller allows domain exceptions to propagate directly to GlobalExceptionHandler
 var result = await useCase.ExecuteAsync(command, ct);
-var response = ApiResponse<TemplateResultDto>.Success(result);
+var response = new ApiResponse<TemplateResultDto>(result);
 return TypedResults.Ok(response);
 </mandatory_substitution>
 <fatal_blast_radius>

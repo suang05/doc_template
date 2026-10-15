@@ -434,8 +434,9 @@ public interface IUnitOfWork
 
 public interface ITemplateRepository
 {
-    Task<Template?> GetByIdAsync(Guid id, CancellationToken ct = default);
-    Task<bool> ExistsBySlugAsync(Guid projectId, TemplateSlug slug, CancellationToken ct = default);
+    // Strongly-Typed ID SSoT (TemplateId and ProjectId support implicit conversion to/from Guid)
+    Task<Template?> GetByIdAsync(TemplateId id, CancellationToken ct = default);
+    Task<bool> ExistsBySlugAsync(ProjectId projectId, TemplateSlug slug, CancellationToken ct = default);
     Task<int> CountAsync(CancellationToken ct = default);
     Task<IReadOnlyList<Template>> ListAsync(int page, int pageSize, CancellationToken ct = default);
     Task AddAsync(Template template, CancellationToken ct = default);
