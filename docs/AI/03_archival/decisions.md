@@ -1,65 +1,101 @@
-# DECISIONS.md — Architecture Decision Records (ADRs)
+# [ARCH-001]: decisions.md - Architecture Decision Records (ADR) Historical Archive & Rationale SSoT
 
-> **Purpose:** Authoritative repository of Architecture Decision Records (ADRs) for the SMK Document Server (`backend-v2/` and `frontend-v2/`). Explains the architectural rationale, context, historical evolution, and design decisions.  
-> **Related Docs:** [ARCHITECTURE.md](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/ARCHITECTURE.md), [CODING_CONVENTIONS.md](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/CODING_CONVENTIONS.md), [PATTERNS.md](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/PATTERNS.md), [ANTI-PATTERNS.md](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/ANTI-PATTERNS.md).
-
-<ai_directive>
-CRITICAL ATTENTION ROUTING & SELECTIVE READING CONDITIONS:
-
-⛔ WHEN NOT TO READ (DO NOT LOAD IN ROUTINE WORKFLOWS):
-- DO NOT read or reference this document during routine day-to-day coding, bug fixing, test writing, or standard endpoint implementation.
-- For active coding standards and implementation recipes, ALWAYS read `CODING_CONVENTIONS.md` and `PATTERNS.md`.
-- For prohibited anti-patterns, ALWAYS read `ANTI-PATTERNS.md`.
-
-✅ WHEN TO READ (ONLY READ UNDER THESE 3 CONDITIONS):
-1. ARCHITECTURAL CHANGES: When tasked with modifying foundational architecture, introducing new 3rd-party libraries, or altering inter-layer communication boundaries.
-2. REFACTORING EVALUATION: Before refactoring or replacing an existing subsystem, consult this file to verify Chesterton's Fence ("Why was this built this way and what alternatives were considered?").
-3. HISTORICAL RATIONALE: When explicitly asked by the user why a specific technology or design pattern was chosen over an alternative.
-</ai_directive>
-
-<decisions_scope>
+<!-- SLOT 1: COGNITIVE PRIMING & IDENTITY (Primacy Weight: First 10% Context) -->
+<cognitive_priming>
+> **[SSOT_PURPOSE]:** Authoritative historical repository of Architecture Decision Records (ADRs) for the SMK Document Server (`backend-v2/` and `frontend-v2/`). Preserves foundational context, trade-offs, evolution milestones, and design rationale behind architectural choices.
+> **[ORTHOGONAL_BOUNDARY]:** Captures architectural history, decision rationale, and rejected alternatives. Active AST rules and coding conventions belong in `docs/AI/00_guardrails/CONVENTIONS.md`. Negative anti-patterns and memory safety firewalls belong in `docs/AI/00_guardrails/FIREWALL.md`. System topology, domain entities, and generative blueprints belong in `docs/AI/01_backend/`. Frontend design tokens and screen specifications belong in `docs/AI/02_frontend/`.
+> **[NEGATIVE_ROUTING]:** [COLD_STORAGE_INVARIANT] LLMs MUST NOT read, index, or load this file during routine day-to-day coding, feature development, bug fixing, test writing, or standard endpoint implementation. Load ONLY under three strict conditions:
+> 1. ARCHITECTURAL CHANGES: When tasked with modifying foundational architecture, introducing new 3rd-party libraries, or altering inter-layer communication boundaries.
+> 2. REFACTORING EVALUATION: Before refactoring or replacing an existing subsystem, consult this file to verify Chesterton's Fence ("Why was this built this way and what alternatives were considered?").
+> 3. HISTORICAL RATIONALE: When explicitly asked by the user why a specific technology or design pattern was chosen over an alternative.
+> **[OPERATIONAL_MODES]:** `[MODE: RATIONALE_AUDIT]` (evaluating historical decisions and rejected alternatives) vs `[MODE: ARCHITECTURAL_EVOLUTION]` (recording or superseding ADRs).
+</cognitive_priming>
 
 ---
 
-## ⚡ Quick-Lookup: ADR Master Matrix (8 Architectural Domains)
+<!-- SLOT 2: PRE-TRAINING PRIOR INVERSION MAP (Subword-Level Bias Override) -->
+<prior_inversion_map>
+## ⚡ High-Salience Token Inversion Map (Pre-Training Override)
+
+| Intent / Context | Defective Internet Prior (❌ BANNED) | Canonical SSoT Target (✅ MANDATORY) | Rule ID / ADR |
+|---|---|---|---|
+| **Office/PDF Rendering** | Embedded LibreOffice process (`soffice --headless`) | Gotenberg 8 Chromium Microservice HTTP | `ADR-ENG-01` |
+| **Authentication Strategy** | Single monolithic JWT for both M2M and Portal | Hybrid RBAC: Stateless `X-API-Key` (M2M) + Session JWT (Portal) | `ADR-SEC-02` |
+| **API Key Provisioning** | Single shared root key; exposed public login | Scoped Keys (`ReadOnly`/`ReadWrite`) + Zero Public Surface | `ADR-SEC-03` |
+| **Client Token Storage** | Browser `localStorage` / JS memory bearer token | Next.js Server Proxy + httpOnly session cookies | `ADR-SEC-04` |
+| **Handlebars Parsing** | Dynamic AST re-parsing on every request | `ICompiledTemplateCache` + SHA-256 hash caching | `ADR-ENG-02` |
+| **Thai Localization** | Ad-hoc / in-template string manipulation | Centralized `ITransformerService` (`thaiDate`, `thaiBahtText`) | `ADR-ENG-03` |
+| **Domain State Design** | Anemic POCOs (`public { get; set; }`) | Rich Domain Model (`private set`, canonical factory) | `ADR-DOM-01` |
+| **Enum Representation** | Native C# `enum` / raw magic strings | Strongly typed Smart Enums (`Enumeration`) | `ADR-DOM-02` |
+| **Primitive Obsession** | Raw `string` / `Guid` for domain identities | Explicit Value Objects (`TemplateSlug`, `Sha256Hash`, etc.) | `ADR-DOM-03` |
+| **Key Generation** | Random UUIDv4 (`Guid.NewGuid()`) / auto-increment | Sequential UUIDv7 (`Guid.CreateVersion7()`) | `ADR-DOM-04` |
+| **Collection Encapsulation** | Public mutable `List<T>` properties | `IReadOnlyCollection<T>` backing private list | `ADR-DOM-05` |
+| **Aggregate Boundaries** | Navigation properties across aggregates | Pure ID references (`Guid ProjectId`) | `ADR-DOM-06` |
+| **Factory Invariants** | Multiple constructors / test backdoors | Single Canonical Factory (`DateTimeOffset now`) | `ADR-DOM-07` |
+| **Layer Isolation** | Leaking Domain Entities to Controller/API | Strict Application DTOs (`record`) | `ADR-APP-01` |
+| **DTO Organization** | Shared generic `Common/Models/` namespace | Feature-Sliced DTOs (`Features/<Feature>/...`) | `ADR-APP-02`, `ADR-APP-04` |
+| **Query Performance** | Sequential repo calls + in-memory LINQ joins | `IUserWorkspaceQueryService` optimized SQL joins | `ADR-APP-05` |
+| **Validation Architecture** | Ad-hoc controller checks / mixed engines | Dual-Engine: FluentValidation (C#) + JsonSchema.Net (JSON) | `ADR-VAL-01` |
+| **Error Format** | Anonymous objects / inconsistent exceptions | Centralized RFC 9457 `IExceptionHandler` + `ProblemDetails` | `ADR-RES-04` |
+| **Safe Retries** | Unprotected state-mutating HTTP POST/PUT | `IdempotencyFilter` + Redis distributed locking | `ADR-RES-04` |
+| **Unit Test Scope** | Real disk I/O / heavy rendering in unit tests | In-memory `SmkDoc.Tests` (1s) vs `SmkDoc.IntegrationTests` | `ADR-TST-02` |
+</prior_inversion_map>
+
+---
+
+<!-- SLOT 3: CONSTRAINT SEVERITY HIERARCHY (Conflict Resolution Tiers) -->
+<severity_hierarchy>
+## ⚖️ Constraint Resolution Hierarchy
+1. `[TIER-1-FATAL]`: Memory/process integrity, thread safety, audit immutability, zero public attack surface (Never expose credentials, never buffer unconstrained streams into LOH, never run headless LibreOffice in-process).
+2. `[TIER-2-ARCH]`: Domain-driven boundaries, Clean Architecture layer isolation, DTO segregation, strategy rendering (Never leak domain entities to API, respect aggregate boundaries).
+3. `[TIER-3-CRAFT]`: C# 13 primary constructors, record immutability, naming conventions, step-down method order.
+</severity_hierarchy>
+
+---
+
+<!-- SLOT 4: CORE GENERATIVE BLUEPRINTS (High-Density Minimal Complete AST) -->
+<archival_decisions_scope>
+## 📐 Historical Architecture Decision Records (ADRs)
+
+### Quick-Lookup: ADR Master Matrix (8 Architectural Domains)
 
 | Domain | Tag | Legacy Alias | Date | Title | Status |
 |---|---|:---:|:---:|---|:---:|
-| 🔐 **Security** | [`ADR-SEC-01`](#adr-sec-01-initial-x-api-key-authentication) | `ADR-001` | September 2026 | Initial `X-API-Key` Authentication | Partially Superseded by `SEC-02` & `SEC-03` |
-| 🔐 **Security** | [`ADR-SEC-02`](#adr-sec-02-hybrid-rbac--dual-channel-authentication-model) | `ADR-011` | September 2026 | Hybrid RBAC & Dual-Channel Authentication Model (M2M + Portal) | **Accepted (Active)** |
-| 🔐 **Security** | [`ADR-SEC-03`](#adr-sec-03-scoped-api-keys--m2m-first-zero-public-surface-security) | `ADR-025` | October 2026 | Scoped API Keys (`ReadOnly` / `ReadWrite`) & Zero Public Surface | **Accepted (Active)** |
-| 🔐 **Security** | [`ADR-SEC-04`](#adr-sec-04-nextjs-server-side-api-proxy--cookie-to-bearer-token-isolation) | `ADR-027` | October 2026 | Next.js Server-Side API Proxy & Cookie-to-Bearer Token Translation | **Accepted (Active)** |
-| ⚙️ **Engines** | [`ADR-ENG-01`](#adr-eng-01-gotenberg-8-chromium-microservice-instead-of-embedded-libreoffice) | `ADR-002` | September 2026 | Gotenberg 8 Chromium Microservice instead of Embedded LibreOffice | **Accepted (Active)** |
-| ⚙️ **Engines** | [`ADR-ENG-02`](#adr-eng-02-compiled-handlebars-template-caching--smart-excel-pagesetup) | `ADR-013` | September 2026 | Compiled Handlebars Caching & Smart Excel PageSetup Preservation | **Accepted (Active)** |
-| ⚙️ **Engines** | [`ADR-ENG-03`](#adr-eng-03-native-thai-typography-compliance--sarabun-font-sandboxing) | `ADR-029` | October 2026 | Native Thai Typography Compliance & Sarabun Font Sandboxing | **Accepted (Active)** |
-| 💎 **Domain** | [`ADR-DOM-01`](#adr-dom-01-rich-domain-model-instead-of-anemic-domain-model) | `ADR-003` | September 2026 | Rich Domain Model instead of Anemic Domain Model | **Accepted (Active)** |
-| 💎 **Domain** | [`ADR-DOM-02`](#adr-dom-02-smart-enums-instead-of-c-enums--magic-strings) | `ADR-004` | September 2026 | Smart Enums instead of C# Enums + Magic Strings | **Accepted (Active)** |
-| 💎 **Domain** | [`ADR-DOM-03`](#adr-dom-03-dedicated-value-objects-for-primitives-with-validation) | `ADR-005` | September 2026 | Dedicated Value Objects for Primitives with Validation Rules | **Accepted (Active)** |
-| 💎 **Domain** | [`ADR-DOM-04`](#adr-dom-04-high-performance-domain-optimization--sequential-uuidv7) | `ADR-010` | September 2026 | High-Performance Domain Optimization, Zero-Allocations & UUIDv7 | **Accepted (Active)** |
-| 💎 **Domain** | [`ADR-DOM-05`](#adr-dom-05-domain-layer-integrity--fail-fast-invariants--aggregates) | `ADR-021` | October 2026 | Domain Layer Integrity — Fail-Fast Invariants & Aggregate Boundaries | **Accepted (Active)** |
-| 💎 **Domain** | [`ADR-DOM-06`](#adr-dom-06-comprehensive-ddd-aggregates-sealed-entities--value-converters) | `ADR-022` | October 2026 | Comprehensive DDD Aggregates, Sealed Entities & Value Converters | **Accepted (Active)** |
-| 💎 **Domain** | [`ADR-DOM-07`](#adr-dom-07-strict-pure-ddd-standards--single-canonical-factory) | `ADR-023` | October 2026 | Strict Pure DDD Standards — Single Canonical Factory & No Test Backdoors | **Accepted (Active)** |
-| ⚡ **Application** | [`ADR-APP-01`](#adr-app-01-application-dto-boundary-never-leak-domain-entities) | `ADR-006` | September 2026 | Application DTO Boundary (Never Leak Domain Entities) | **Accepted (Active)** |
-| ⚡ **Application** | [`ADR-APP-02`](#adr-app-02-clean-architecture-v2-dto--command-restructuring) | `ADR-014` | September 2026 | Clean Architecture v2 DTO & Command Restructuring (Feature Slices) | **Accepted (Active)** |
-| ⚡ **Application** | [`ADR-APP-03`](#adr-app-03-c-12-primary-constructors--sealed-use-cases-standard) | `ADR-017` | September 2026 | C# 12 Primary Constructors & Sealed Use Cases Standard | **Accepted (Active)** |
-| ⚡ **Application** | [`ADR-APP-04`](#adr-app-04-phase-out-and-complete-removal-of-commonmodels) | `ADR-020` | September 2026 | Phase-Out and Complete Removal of `Common/Models/` (SSoT DTOs) | **Accepted (Active)** |
-| ⚡ **Application** | [`ADR-APP-05`](#adr-app-05-application-query-service-iuserworkspacequeryservice) | `ADR-026` | October 2026 | Application Query Service (`IUserWorkspaceQueryService`) | **Accepted (Active)** |
-| 🛡️ **Validation** | [`ADR-VAL-01`](#adr-val-01-dual-engine-automatic-validation-pipeline) | `ADR-015` | September 2026 | Dual-Engine Automatic Validation Pipeline (FluentValidation + JsonSchema.Net) | **Accepted (Active)** |
-| 🛡️ **Validation** | [`ADR-VAL-02`](#adr-val-02-schema-infrastructure-clean-code--performance-optimization) | `ADR-016` | September 2026 | Schema Infrastructure Clean Code & Performance Optimization | **Accepted (Active)** |
-| 🛡️ **Validation** | [`ADR-VAL-03`](#adr-val-03-standalone-scalable-schema-validator--bounded-caching) | `ADR-018` | September 2026 | Standalone Scalable Schema Validator & Bounded Caching | **Accepted (Active)** |
-| 🛡️ **Validation** | [`ADR-VAL-04`](#adr-val-04-template-payload-pre-flight-validation-with-multi-tenant-scoping) | `ADR-019` | September 2026 | Template Payload Pre-Flight Validation with Multi-Tenant Scoping | **Accepted (Active)** |
-| 🚨 **Resilience** | [`ADR-RES-01`](#adr-res-01-globalexceptionfilter-instead-of-schemavalidationexceptionfilter) | `ADR-007` | September 2026 | GlobalExceptionFilter instead of SchemaValidationExceptionFilter | Superseded by `RES-04` |
-| 🚨 **Resilience** | [`ADR-RES-02`](#adr-res-02-rate-limiting-with-per-api-key-partition) | `ADR-008` | September 2026 | Rate Limiting with Per-API-Key Partition | **Accepted (Active)** |
-| 🚨 **Resilience** | [`ADR-RES-03`](#adr-res-03-domainexception-hierarchy--machine-readable-error-codes) | `ADR-009` | September 2026 | DomainException Hierarchy & Machine-Readable Error Codes | **Accepted (Active)** |
-| 🚨 **Resilience** | [`ADR-RES-04`](#adr-res-04-unified-rfc-9457-iexceptionhandler--idempotency-pipeline) | `ADR-030` | October 2026 | Unified RFC 9457 `IExceptionHandler` & Idempotency Pipeline | **Accepted (Active)** |
-| 🌐 **Frontend** | [`ADR-UI-01`](#adr-ui-01-nextjs-15-app-router-layout--ice-white-design-token-ssot) | `ADR-027` | October 2026 | Next.js 15 App Router Layout & Ice-White Design Token SSoT | **Accepted (Active)** |
-| 🌐 **Frontend** | [`ADR-UI-02`](#adr-ui-02-monaco-studio-v2-debounced-live-preview--in-flight-abort-pipeline) | `ADR-028` | October 2026 | Monaco Studio v2 Debounced Live Preview & In-Flight Abort Pipeline | **Accepted (Active)** |
-| 🧪 **Testing** | [`ADR-TST-01`](#adr-tst-01-smkdoctests-clean-architecture-mirroring--modernization) | `ADR-012` | September 2026 | SmkDoc.Tests Clean Architecture Mirroring & Modernization | **Accepted (Active)** |
-| 🧪 **Testing** | [`ADR-TST-02`](#adr-tst-02-test-suite-segregation-11-cqrs-parity--the-6-clean-testing-pillars) | `ADR-024` | October 2026 | Test Suite Segregation, 1:1 CQRS Parity & The 6 Clean Testing Pillars | **Accepted (Active)** |
+| [SECURITY] | [`ADR-SEC-01`](#adr-sec-01-initial-x-api-key-authentication) | `ADR-001` | September 2026 | Initial `X-API-Key` Authentication | Partially Superseded by `SEC-02` & `SEC-03` |
+| [SECURITY] | [`ADR-SEC-02`](#adr-sec-02-hybrid-rbac--dual-channel-authentication-model) | `ADR-011` | September 2026 | Hybrid RBAC & Dual-Channel Authentication Model (M2M + Portal) | **Accepted (Active)** |
+| [SECURITY] | [`ADR-SEC-03`](#adr-sec-03-scoped-api-keys--m2m-first-zero-public-surface-security) | `ADR-025` | October 2026 | Scoped API Keys (`ReadOnly` / `ReadWrite`) & Zero Public Surface | **Accepted (Active)** |
+| [SECURITY] | [`ADR-SEC-04`](#adr-sec-04-nextjs-server-side-api-proxy--cookie-to-bearer-token-isolation) | `ADR-027` | October 2026 | Next.js Server-Side API Proxy & Cookie-to-Bearer Token Translation | **Accepted (Active)** |
+| [ENGINES] | [`ADR-ENG-01`](#adr-eng-01-gotenberg-8-chromium-microservice-instead-of-embedded-libreoffice) | `ADR-002` | September 2026 | Gotenberg 8 Chromium Microservice instead of Embedded LibreOffice | **Accepted (Active)** |
+| [ENGINES] | [`ADR-ENG-02`](#adr-eng-02-compiled-handlebars-template-caching--smart-excel-pagesetup) | `ADR-013` | September 2026 | Compiled Handlebars Caching & Smart Excel PageSetup Preservation | **Accepted (Active)** |
+| [ENGINES] | [`ADR-ENG-03`](#adr-eng-03-native-thai-typography-compliance--sarabun-font-sandboxing) | `ADR-029` | October 2026 | Native Thai Typography Compliance & Sarabun Font Sandboxing | **Accepted (Active)** |
+| [DOMAIN] | [`ADR-DOM-01`](#adr-dom-01-rich-domain-model-instead-of-anemic-domain-model) | `ADR-003` | September 2026 | Rich Domain Model instead of Anemic Domain Model | **Accepted (Active)** |
+| [DOMAIN] | [`ADR-DOM-02`](#adr-dom-02-smart-enums-instead-of-c-enums--magic-strings) | `ADR-004` | September 2026 | Smart Enums instead of C# Enums + Magic Strings | **Accepted (Active)** |
+| [DOMAIN] | [`ADR-DOM-03`](#adr-dom-03-dedicated-value-objects-for-primitives-with-validation) | `ADR-005` | September 2026 | Dedicated Value Objects for Primitives with Validation Rules | **Accepted (Active)** |
+| [DOMAIN] | [`ADR-DOM-04`](#adr-dom-04-high-performance-domain-optimization--sequential-uuidv7) | `ADR-010` | September 2026 | High-Performance Domain Optimization, Zero-Allocations & UUIDv7 | **Accepted (Active)** |
+| [DOMAIN] | [`ADR-DOM-05`](#adr-dom-05-domain-layer-integrity--fail-fast-invariants--aggregates) | `ADR-021` | October 2026 | Domain Layer Integrity — Fail-Fast Invariants & Aggregate Boundaries | **Accepted (Active)** |
+| [DOMAIN] | [`ADR-DOM-06`](#adr-dom-06-comprehensive-ddd-aggregates-sealed-entities--value-converters) | `ADR-022` | October 2026 | Comprehensive DDD Aggregates, Sealed Entities & Value Converters | **Accepted (Active)** |
+| [DOMAIN] | [`ADR-DOM-07`](#adr-dom-07-strict-pure-ddd-standards--single-canonical-factory) | `ADR-023` | October 2026 | Strict Pure DDD Standards — Single Canonical Factory & No Test Backdoors | **Accepted (Active)** |
+| [APPLICATION] | [`ADR-APP-01`](#adr-app-01-application-dto-boundary-never-leak-domain-entities) | `ADR-006` | September 2026 | Application DTO Boundary (Never Leak Domain Entities) | **Accepted (Active)** |
+| [APPLICATION] | [`ADR-APP-02`](#adr-app-02-clean-architecture-v2-dto--command-restructuring) | `ADR-014` | September 2026 | Clean Architecture v2 DTO & Command Restructuring (Feature Slices) | **Accepted (Active)** |
+| [APPLICATION] | [`ADR-APP-03`](#adr-app-03-c-12-primary-constructors--sealed-use-cases-standard) | `ADR-017` | September 2026 | C# 12 Primary Constructors & Sealed Use Cases Standard | **Accepted (Active)** |
+| [APPLICATION] | [`ADR-APP-04`](#adr-app-04-phase-out-and-complete-removal-of-commonmodels) | `ADR-020` | September 2026 | Phase-Out and Complete Removal of `Common/Models/` (SSoT DTOs) | **Accepted (Active)** |
+| [APPLICATION] | [`ADR-APP-05`](#adr-app-05-application-query-service-iuserworkspacequeryservice) | `ADR-026` | October 2026 | Application Query Service (`IUserWorkspaceQueryService`) | **Accepted (Active)** |
+| [VALIDATION] | [`ADR-VAL-01`](#adr-val-01-dual-engine-automatic-validation-pipeline) | `ADR-015` | September 2026 | Dual-Engine Automatic Validation Pipeline (FluentValidation + JsonSchema.Net) | **Accepted (Active)** |
+| [VALIDATION] | [`ADR-VAL-02`](#adr-val-02-schema-infrastructure-clean-code--performance-optimization) | `ADR-016` | September 2026 | Schema Infrastructure Clean Code & Performance Optimization | **Accepted (Active)** |
+| [VALIDATION] | [`ADR-VAL-03`](#adr-val-03-standalone-scalable-schema-validator--bounded-caching) | `ADR-018` | September 2026 | Standalone Scalable Schema Validator & Bounded Caching | **Accepted (Active)** |
+| [VALIDATION] | [`ADR-VAL-04`](#adr-val-04-template-payload-pre-flight-validation-with-multi-tenant-scoping) | `ADR-019` | September 2026 | Template Payload Pre-Flight Validation with Multi-Tenant Scoping | **Accepted (Active)** |
+| [RESILIENCE] | [`ADR-RES-01`](#adr-res-01-globalexceptionfilter-instead-of-schemavalidationexceptionfilter) | `ADR-007` | September 2026 | GlobalExceptionFilter instead of SchemaValidationExceptionFilter | Superseded by `RES-04` |
+| [RESILIENCE] | [`ADR-RES-02`](#adr-res-02-rate-limiting-with-per-api-key-partition) | `ADR-008` | September 2026 | Rate Limiting with Per-API-Key Partition | **Accepted (Active)** |
+| [RESILIENCE] | [`ADR-RES-03`](#adr-res-03-domainexception-hierarchy--machine-readable-error-codes) | `ADR-009` | September 2026 | DomainException Hierarchy & Machine-Readable Error Codes | **Accepted (Active)** |
+| [RESILIENCE] | [`ADR-RES-04`](#adr-res-04-unified-rfc-9457-iexceptionhandler--idempotency-pipeline) | `ADR-030` | October 2026 | Unified RFC 9457 `IExceptionHandler` & Idempotency Pipeline | **Accepted (Active)** |
+| [FRONTEND] | [`ADR-UI-01`](#adr-ui-01-nextjs-15-app-router-layout--ice-white-design-token-ssot) | `ADR-027` | October 2026 | Next.js 15 App Router Layout & Ice-White Design Token SSoT | **Accepted (Active)** |
+| [FRONTEND] | [`ADR-UI-02`](#adr-ui-02-monaco-studio-v2-debounced-live-preview--in-flight-abort-pipeline) | `ADR-028` | October 2026 | Monaco Studio v2 Debounced Live Preview & In-Flight Abort Pipeline | **Accepted (Active)** |
+| [TESTING] | [`ADR-TST-01`](#adr-tst-01-smkdoctests-clean-architecture-mirroring--modernization) | `ADR-012` | September 2026 | SmkDoc.Tests Clean Architecture Mirroring & Modernization | **Accepted (Active)** |
+| [TESTING] | [`ADR-TST-02`](#adr-tst-02-test-suite-segregation-11-cqrs-parity--the-6-clean-testing-pillars) | `ADR-024` | October 2026 | Test Suite Segregation, 1:1 CQRS Parity & The 6 Clean Testing Pillars | **Accepted (Active)** |
 
 ---
 
-## 🔄 Legacy Reference Mapping (Backward Compatibility Index)
+### Legacy Reference Mapping (Backward Compatibility Index)
 
 When external documents, commit messages, or comments cite legacy sequential numbers, use this translation matrix:
 
@@ -81,16 +117,16 @@ When external documents, commit messages, or comments cite legacy sequential num
 
 ---
 
-## Part 1: 🔐 Security & Identity (`SEC`)
+### Part 1: Security & Identity (`SEC`)
 
-### ADR-SEC-01: Initial X-API-Key Authentication
+#### ADR-SEC-01: Initial X-API-Key Authentication
 > **Tag:** `ADR-SEC-01` | **Legacy:** `ADR-001` | **Date:** September 2026 | **Status:** Partially Superseded by `ADR-SEC-02` & `ADR-SEC-03`
 
 - **Context & Problem:** The legacy v1 document server lacked multi-tenant boundary isolation and machine-to-machine authentication.
 - **Decision:** Implemented `X-API-Key` header authentication backed by the `api_keys` PostgreSQL table via `ApiKeyMiddleware`.
 - **Evolution Note:** Originally intended as the exclusive authentication mechanism. As the web portal evolved, it was augmented by Dual-Channel Authentication (`ADR-SEC-02`) and Scoped API Keys (`ADR-SEC-03`).
 
-### ADR-SEC-02: Hybrid RBAC & Dual-Channel Authentication Model
+#### ADR-SEC-02: Hybrid RBAC & Dual-Channel Authentication Model
 > **Tag:** `ADR-SEC-02` | **Legacy:** `ADR-011` | **Date:** September 2026 | **Status:** Accepted (Active)
 
 - **Context & Problem:** Machine callers (ERP, CRM) require stateless API keys, while human operators (Web Portal) require session-based, audited role management. A single authentication scheme cannot satisfy both personas cleanly.
@@ -99,7 +135,7 @@ When external documents, commit messages, or comments cite legacy sequential num
   2. **Human Management Channel:** Web portal users authenticate via Bearer JWT. Features frictionless login (no initial ProjectId required), resolving permissions via `SystemRole` (`SuperAdmin`, `Member`, `Viewer`) and tenant-scoped `UserProjectRole` records.
 - **Rejected Alternatives:** Single JWT for all systems (rejected: external systems cannot manage token refresh lifecycles cleanly); Basic Auth (rejected: insecure and lacks cryptographic key hashing).
 
-### ADR-SEC-03: Scoped API Keys & M2M-First Zero Public Surface Security
+#### ADR-SEC-03: Scoped API Keys & M2M-First Zero Public Surface Security
 > **Tag:** `ADR-SEC-03` | **Legacy:** `ADR-025` | **Date:** October 2026 (2026-10-08) | **Status:** Accepted (Active)
 
 - **Context & Problem:** Exposing authentication endpoints (`/api/v1/auth/login`) publicly invites brute-force and credential stuffing attacks. Furthermore, external systems required fine-grained permission boundaries.
@@ -109,7 +145,7 @@ When external documents, commit messages, or comments cite legacy sequential num
   3. **Zero Public Attack Surface:** Removed `/api/v1/auth/*` from the public whitelist. Calling login requires an internal perimeter key (`X-API-Key`), while existing JWT holders bypass the key check.
 - **Consequences:** Eliminates public brute-force vectors and tenant IDOR attacks.
 
-### ADR-SEC-04: Next.js Server-Side API Proxy & Cookie-to-Bearer Token Isolation
+#### ADR-SEC-04: Next.js Server-Side API Proxy & Cookie-to-Bearer Token Isolation
 > **Tag:** `ADR-SEC-04` | **Legacy:** `ADR-027` | **Date:** October 2026 | **Status:** Accepted (Active)
 
 - **Context & Problem:** Storing JWT tokens in browser storage (`localStorage` or in-memory JavaScript variables) exposes them to Cross-Site Scripting (XSS) exfiltration.
@@ -121,16 +157,16 @@ When external documents, commit messages, or comments cite legacy sequential num
 
 ---
 
-## Part 2: ⚙️ Rendering Engines & Formats (`ENG`)
+### Part 2: Rendering Engines & Formats (`ENG`)
 
-### ADR-ENG-01: Gotenberg 8 Chromium Microservice instead of Embedded LibreOffice
+#### ADR-ENG-01: Gotenberg 8 Chromium Microservice instead of Embedded LibreOffice
 > **Tag:** `ADR-ENG-01` | **Legacy:** `ADR-002` | **Date:** September 2026 | **Status:** Accepted (Active)
 
 - **Context & Problem:** Running headless LibreOffice directly on the ASP.NET Core API server caused unrecoverable process hangs, severe memory leaks, and fatal Thai vowel positioning defects.
 - **Decision:** Adopted Gotenberg 8 as a dedicated, containerized rendering microservice communicating over HTTP.
 - **Rejected Alternatives:** Embedded LibreOffice CLI (rejected: memory leaks and stability failure); Puppeteer Node.js sidecar (rejected: excessive resource overhead compared to Gotenberg's Go/Chromium pool).
 
-### ADR-ENG-02: Compiled Handlebars Template Caching & Smart Excel PageSetup
+#### ADR-ENG-02: Compiled Handlebars Template Caching & Smart Excel PageSetup
 > **Tag:** `ADR-ENG-02` | **Legacy:** `ADR-013` | **Date:** September 2026 | **Status:** Accepted (Active)
 
 - **Context & Problem:** Re-parsing Handlebars AST and compiling templates on every request created severe CPU bottlenecks. Simultaneously, Excel generation stripped user-defined print configurations.
@@ -139,7 +175,7 @@ When external documents, commit messages, or comments cite legacy sequential num
   2. Upgraded `ExcelTemplateEngine` with smart page setup detection, preserving original spreadsheet orientation and custom print fitting (`PagesWide`, `PagesTall`).
 - **Consequences:** Boosted HTML rendering throughput by 45%; eliminated print layout destruction.
 
-### ADR-ENG-03: Native Thai Typography Compliance & Sarabun Font Sandboxing
+#### ADR-ENG-03: Native Thai Typography Compliance & Sarabun Font Sandboxing
 > **Tag:** `ADR-ENG-03` | **Legacy:** `ADR-029` | **Date:** October 2026 | **Status:** Accepted (Active)
 
 - **Context & Problem:** Business documents require strict Thai regulatory compliance, specifically Buddhist Era calendar dates, BahtText currency translation, and flawless Sarabun typography without vowel mark overlap.
@@ -150,27 +186,27 @@ When external documents, commit messages, or comments cite legacy sequential num
 
 ---
 
-## Part 3: 💎 Rich Domain Model & DDD (`DOM`)
+### Part 3: Rich Domain Model & DDD (`DOM`)
 
-### ADR-DOM-01: Rich Domain Model instead of Anemic Domain Model
+#### ADR-DOM-01: Rich Domain Model instead of Anemic Domain Model
 > **Tag:** `ADR-DOM-01` | **Legacy:** `ADR-003` | **Date:** September 2026 | **Status:** Accepted (Active)
 
 - **Decision:** Converted all entities from anemic POCOs (`public set`) to Rich Domain Models with `private set`, parameterized constructors, and expressive business methods (`Activate`, `Publish`, `SetCurrentVersion`).
 - **Rationale:** Encapsulates business invariants inside the domain entity, preventing invalid state creation.
 
-### ADR-DOM-02: Smart Enums instead of C# Enums + Magic Strings
+#### ADR-DOM-02: Smart Enums instead of C# Enums + Magic Strings
 > **Tag:** `ADR-DOM-02` | **Legacy:** `ADR-004` | **Date:** September 2026 | **Status:** Accepted (Active)
 
 - **Decision:** Replaced native C# enums and raw strings with strongly typed Smart Enums inheriting from `Enumeration` (`TemplateFormat`, `OutputFormat`, `RenderEngineType`, `TemplateVersionStatus`, `RoleType`, `GenerationStatus`, `ApiKeyScope`).
 - **Rationale:** Eliminates primitive obsession, encapsulates format metadata (`Extension`, `MimeType`), and guarantees compile-time type safety.
 
-### ADR-DOM-03: Dedicated Value Objects for Primitives with Validation Rules
+#### ADR-DOM-03: Dedicated Value Objects for Primitives with Validation Rules
 > **Tag:** `ADR-DOM-03` | **Legacy:** `ADR-005` | **Date:** September 2026 | **Status:** Accepted (Active)
 
 - **Decision:** Replaced raw primitives with explicit Value Objects (`TemplateSlug`, `Sha256Hash`, `EmailAddress`, `DataSourceType`, `ExpirationPolicy`).
 - **Rationale:** Enforces fail-fast validation upon instantiation and guarantees structural equality.
 
-### ADR-DOM-04: High-Performance Domain Optimization & Sequential UUIDv7
+#### ADR-DOM-04: High-Performance Domain Optimization & Sequential UUIDv7
 > **Tag:** `ADR-DOM-04` | **Legacy:** `ADR-010` | **Date:** September 2026 | **Status:** Accepted (Active)
 
 - **Decision:**
@@ -179,7 +215,7 @@ When external documents, commit messages, or comments cite legacy sequential num
   3. Replaced uncompiled `Regex.IsMatch` with zero-allocation `char.IsAsciiHexDigit` loops in `Sha256Hash`.
 - **Rationale:** Prevents PostgreSQL B-Tree index fragmentation in high-throughput tables.
 
-### ADR-DOM-05: Domain Layer Integrity — Fail-Fast Invariants & Aggregate Boundaries
+#### ADR-DOM-05: Domain Layer Integrity — Fail-Fast Invariants & Aggregate Boundaries
 > **Tag:** `ADR-DOM-05` | **Legacy:** `ADR-021` | **Date:** October 2026 | **Status:** Accepted (Active)
 
 - **Decision:**
@@ -188,7 +224,7 @@ When external documents, commit messages, or comments cite legacy sequential num
   3. Consolidated child entities (`FieldMapping`, `TemplateDataset`) under Aggregate Root `Template`, phasing out standalone child repositories.
   4. Enforced strict tenant-scoped queries (`ListByProjectAsync`) across all domain repositories.
 
-### ADR-DOM-06: Comprehensive DDD Aggregates, Sealed Entities & Value Converters
+#### ADR-DOM-06: Comprehensive DDD Aggregates, Sealed Entities & Value Converters
 > **Tag:** `ADR-DOM-06` | **Legacy:** `ADR-022` | **Date:** October 2026 | **Status:** Accepted (Active)
 
 - **Decision:**
@@ -197,7 +233,7 @@ When external documents, commit messages, or comments cite legacy sequential num
   3. Decoupled cross-aggregate navigation properties in favor of pure ID references (`Guid ProjectId`).
   4. Mapped all Value Objects and Smart Enums to PostgreSQL columns using EF Core Value Converters with zero database migrations.
 
-### ADR-DOM-07: Strict Pure DDD Standards — Single Canonical Factory & No Test Backdoors
+#### ADR-DOM-07: Strict Pure DDD Standards — Single Canonical Factory & No Test Backdoors
 > **Tag:** `ADR-DOM-07` | **Legacy:** `ADR-023` | **Date:** October 2026 | **Status:** Accepted (Active)
 
 - **Decision:**
@@ -207,15 +243,15 @@ When external documents, commit messages, or comments cite legacy sequential num
 
 ---
 
-## Part 4: ⚡ Application Layer & CQRS (`APP`)
+### Part 4: Application Layer & CQRS (`APP`)
 
-### ADR-APP-01: Application DTO Boundary (Never Leak Domain Entities)
+#### ADR-APP-01: Application DTO Boundary (Never Leak Domain Entities)
 > **Tag:** `ADR-APP-01` | **Legacy:** `ADR-006` | **Date:** September 2026 | **Status:** Accepted (Active)
 
 - **Decision:** Prohibited returning Domain Entities from Application Use Cases. All responses must be strongly typed Application DTOs.
 - **Rationale:** Prevents presentation layer coupling to domain models and secures internal state encapsulation.
 
-### ADR-APP-02: Clean Architecture v2 DTO & Command Restructuring
+#### ADR-APP-02: Clean Architecture v2 DTO & Command Restructuring
 > **Tag:** `ADR-APP-02` | **Legacy:** `ADR-014` | **Date:** September 2026 | **Status:** Accepted (Active)
 
 - **Decision:**
@@ -223,19 +259,19 @@ When external documents, commit messages, or comments cite legacy sequential num
   2. Enforced strict CQRS terminology: Mutations (`*Command`), Queries (`*Query`), Outputs (`*Dto` / `*ResultDto`).
   3. Converted all DTOs into 100% immutable positional C# `record`s.
 
-### ADR-APP-03: C# 12 Primary Constructors & Sealed Use Cases Standard
+#### ADR-APP-03: C# 12 Primary Constructors & Sealed Use Cases Standard
 > **Tag:** `ADR-APP-03` | **Legacy:** `ADR-017` | **Date:** September 2026 | **Status:** Accepted (Active)
 
 - **Decision:** Adopted C# 12 Primary Constructors (`camelCase` parameters, zero `_` prefix) and marked all Use Cases as `public sealed class`.
 - **Rationale:** Reduces constructor boilerplate by 200+ lines and enables JIT method devirtualization optimizations.
 
-### ADR-APP-04: Phase-Out and Complete Removal of `Common/Models/`
+#### ADR-APP-04: Phase-Out and Complete Removal of `Common/Models/`
 > **Tag:** `ADR-APP-04` | **Legacy:** `ADR-020` | **Date:** September 2026 | **Status:** Accepted (Active)
 
 - **Decision:** Completely removed the legacy `Common/Models/` compatibility folder. All callers across Application, Infrastructure, Api, and Tests communicate through feature-sliced DTOs in `DTOs.*`.
 - **Rationale:** Enforces Single Source of Truth (SSoT) and eliminates model drift.
 
-### ADR-APP-05: Application Query Service (`IUserWorkspaceQueryService`)
+#### ADR-APP-05: Application Query Service (`IUserWorkspaceQueryService`)
 > **Tag:** `ADR-APP-05` | **Legacy:** `ADR-026` | **Date:** October 2026 (2026-10-08) | **Status:** Accepted (Active)
 
 - **Context & Problem:** Multiple domain repositories were being queried sequentially and joined in-memory in RAM, creating severe N+1 overhead during user login and workspace profile queries.
@@ -247,9 +283,9 @@ When external documents, commit messages, or comments cite legacy sequential num
 
 ---
 
-## Part 5: 🛡️ Validation & Pre-Flight Pipeline (`VAL`)
+### Part 5: Validation & Pre-Flight Pipeline (`VAL`)
 
-### ADR-VAL-01: Dual-Engine Automatic Validation Pipeline
+#### ADR-VAL-01: Dual-Engine Automatic Validation Pipeline
 > **Tag:** `ADR-VAL-01` | **Legacy:** `ADR-015` | **Date:** September 2026 | **Status:** Accepted (Active)
 
 - **Decision:**
@@ -258,42 +294,42 @@ When external documents, commit messages, or comments cite legacy sequential num
   3. Executed via `ValidateCommandFilter` before reaching Controller actions, dispatching validation failures as RFC 9457 Problem Details.
 - **Rationale:** Separates static C# model validation from dynamic template schema validation cleanly.
 
-### ADR-VAL-02: Schema Infrastructure Clean Code & Performance Optimization
+#### ADR-VAL-02: Schema Infrastructure Clean Code & Performance Optimization
 > **Tag:** `ADR-VAL-02` | **Legacy:** `ADR-016` | **Date:** September 2026 | **Status:** Accepted (Active)
 
 - **Decision:** Retained `JsonSchemaValidationService` in Infrastructure behind abstractions. Added in-memory schema compilation caching, unified token grouping in `GroupedTokens`, and utilized C# pattern-matching switch expressions.
 
-### ADR-VAL-03: Standalone Scalable Schema Validator & Bounded Caching
+#### ADR-VAL-03: Standalone Scalable Schema Validator & Bounded Caching
 > **Tag:** `ADR-VAL-03` | **Legacy:** `ADR-018` | **Date:** September 2026 | **Status:** Accepted (Active)
 
 - **Decision:** Created stateless validation endpoint `POST /api/v1/schemas/validate` for dry-run validation (0ms DB dependency). Replaced unbounded dictionaries with bounded `IMemoryCache` utilizing SHA-256 cache keys to prevent memory exhaustion.
 
-### ADR-VAL-04: Template Payload Pre-Flight Validation with Multi-Tenant Scoping
+#### ADR-VAL-04: Template Payload Pre-Flight Validation with Multi-Tenant Scoping
 > **Tag:** `ADR-VAL-04` | **Legacy:** `ADR-019` | **Date:** September 2026 | **Status:** Accepted (Active)
 
 - **Decision:** Created `POST /api/v1/templates/{slug}/validate` for pre-flight payload verification against published template schemas with mandatory tenant isolation checks (`t.ProjectId == executionContext.ProjectId`). Operates with zero side-effects (no Gotenberg, MinIO, or DB log writes).
 
 ---
 
-## Part 6: 🚨 Resilience, Error Handling & Diagnostics (`RES`)
+### Part 6: Resilience, Error Handling & Diagnostics (`RES`)
 
-### ADR-RES-01: GlobalExceptionFilter instead of SchemaValidationExceptionFilter
+#### ADR-RES-01: GlobalExceptionFilter instead of SchemaValidationExceptionFilter
 > **Tag:** `ADR-RES-01` | **Legacy:** `ADR-007` | **Date:** September 2026 | **Status:** Superseded by `ADR-RES-04`
 
 - **Evolution:** Unified scattered MVC exception filters into a centralized filter. Later upgraded to the ASP.NET Core 8/10 middleware pipeline in `ADR-RES-04`.
 
-### ADR-RES-02: Rate Limiting with Per-API-Key Partition
+#### ADR-RES-02: Rate Limiting with Per-API-Key Partition
 > **Tag:** `ADR-RES-02` | **Legacy:** `ADR-008` | **Date:** September 2026 | **Status:** Accepted (Active)
 
 - **Decision:** Implemented ASP.NET Core Rate Limiter partitioned by API Key (60 req/min/key, queue limit 0) with RFC 9457 429 Too Many Requests responses.
 - **Rationale:** Protects Gotenberg and Chromium pools from denial-of-service starvation while providing fair sharing across internal tenant systems.
 
-### ADR-RES-03: DomainException Hierarchy & Machine-Readable Error Codes
+#### ADR-RES-03: DomainException Hierarchy & Machine-Readable Error Codes
 > **Tag:** `ADR-RES-03` | **Legacy:** `ADR-009` | **Date:** September 2026 | **Status:** Accepted (Active)
 
 - **Decision:** Established `DomainException` base class enforcing `ErrorCode` (machine-readable string) and `StatusCode`. Standardized `NotFoundException` (404), `ConflictException` (409), `DraftExpiredException` (410), and `RenderException` (500).
 
-### ADR-RES-04: Unified RFC 9457 IExceptionHandler & Idempotency Pipeline
+#### ADR-RES-04: Unified RFC 9457 IExceptionHandler & Idempotency Pipeline
 > **Tag:** `ADR-RES-04` | **Legacy:** `ADR-030` | **Date:** October 2026 | **Status:** Accepted (Active)
 
 - **Decision:**
@@ -303,18 +339,18 @@ When external documents, commit messages, or comments cite legacy sequential num
 
 ---
 
-## Part 7: 🌐 Frontend Portal & Studio (`UI`)
+### Part 7: Frontend Portal & Studio (`UI`)
 
-### ADR-UI-01: Next.js 15 App Router Layout & Ice-White Design Token SSoT
+#### ADR-UI-01: Next.js 15 App Router Layout & Ice-White Design Token SSoT
 > **Tag:** `ADR-UI-01` | **Legacy:** `ADR-027` | **Date:** October 2026 | **Status:** Accepted (Active)
 
 - **Context & Problem:** The legacy portal used an ad-hoc tab switcher with dark navy styling, inconsistent bubble radii, and mixed icon sets.
 - **Decision:**
-  1. Implemented Next.js 15 App Router topology with `app/(app)` route groups, persistent [`AppShell`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/frontend-v2/src/components/layout/AppShell.tsx), collapsible sidebar (56px/224px), and compact topbar (48px).
-  2. Established SSoT design tokens in [`tokens/index.ts`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/frontend-v2/src/tokens/index.ts): Ice-White canvas (`#f8fbfe`), Sky Blue brand (`#0284c7`), sharp 2px-4px radius (`rounded-sm`), 5 functional category colors, and exclusive Lucide iconography.
+  1. Implemented Next.js 15 App Router topology with `app/(app)` route groups, persistent `AppShell`, collapsible sidebar (56px/224px), and compact topbar (48px).
+  2. Established SSoT design tokens in `frontend-v2/src/tokens/index.ts`: Ice-White canvas (`#f8fbfe`), Sky Blue brand (`#0284c7`), sharp 2px-4px radius (`rounded-sm`), 5 functional category colors, and exclusive Lucide iconography.
 - **Consequences:** Professional, high-density enterprise dashboard aesthetic with zero dark navy pollution.
 
-### ADR-UI-02: Monaco Studio v2 Debounced Live Preview & In-Flight Abort Pipeline
+#### ADR-UI-02: Monaco Studio v2 Debounced Live Preview & In-Flight Abort Pipeline
 > **Tag:** `ADR-UI-02` | **Legacy:** `ADR-028` | **Date:** October 2026 | **Status:** Accepted (Active)
 
 - **Context & Problem:** Live typing in the Monaco template editor overwhelmed the Gotenberg backend, creating race conditions where stale renders overwrote newer edits.
@@ -327,14 +363,14 @@ When external documents, commit messages, or comments cite legacy sequential num
 
 ---
 
-## Part 8: 🧪 Testing Architecture & Quality Gates (`TST`)
+### Part 8: Testing Architecture & Quality Gates (`TST`)
 
-### ADR-TST-01: SmkDoc.Tests Clean Architecture Mirroring & Modernization
+#### ADR-TST-01: SmkDoc.Tests Clean Architecture Mirroring & Modernization
 > **Tag:** `ADR-TST-01` | **Legacy:** `ADR-012` | **Date:** September 2026 | **Status:** Accepted (Active)
 
 - **Decision:** Reorganized test folders to mirror Clean Architecture layers 1:1. Mandated FluentAssertions 100%, introduced test data builders, and tagged benchmarks to isolate fast CI execution.
 
-### ADR-TST-02: Test Suite Segregation, 1:1 CQRS Parity & The 6 Clean Testing Pillars
+#### ADR-TST-02: Test Suite Segregation, 1:1 CQRS Parity & The 6 Clean Testing Pillars
 > **Tag:** `ADR-TST-02` | **Legacy:** `ADR-024` | **Date:** October 2026 (2026-10-06) | **Status:** Accepted (Active)
 
 - **Context & Problem:** Heavy document generators doing real disk I/O and OpenXML operations were mixed into `SmkDoc.Tests`, causing namespace collisions and slow unit test runs.
@@ -348,5 +384,17 @@ When external documents, commit messages, or comments cite legacy sequential num
 - **Consequences:** 100% green test suite across both backend and frontend suites with zero test flakiness.
 
 ---
+</archival_decisions_scope>
 
-</decisions_scope>
+---
+
+<!-- SLOT 5: DETERMINISTIC VERIFICATION GATEWAY (Recency Weight: Final 10%) -->
+<verification_gateway>
+## ✅ Deterministic Pre-Emission Checklist (Self-Audit Gate)
+- [ ] 1. Prior Inversion Map compliance checked?
+- [ ] 2. All [TIER-1-FATAL] constraints preserved (zero public surface, Gotenberg isolation, UUIDv7)?
+- [ ] 3. Layer boundaries conform to [ORTHOGONAL_BOUNDARY] (Cold storage routing enforced)?
+- [ ] 4. All 28 ADRs across 8 architectural domains preserved with 100% content fidelity?
+- [ ] 5. Zero HTML parser collisions (all `<token>`, `<T>`, `<Feature>` tags wrapped in backticks)?
+- [ ] 6. Zero mojibake or corrupt unicode artifacts present in document?
+</verification_gateway>

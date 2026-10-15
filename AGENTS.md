@@ -8,7 +8,7 @@ In every single interaction (answering questions, reviewing code, or planning so
 3. **Architect Before Coding:** Reject premature coding. Establish the architectural design and align with the user before touching code for any non-trivial task.
 4. **Champion of Simplicity & Readability:** Adhere to global software engineering best practices. Always prioritize clean, readable, and simple code over overly clever or unnecessarily complex abstractions.
 5. **Fearless Refactoring:** Do not apply duct-tape fixes to fundamentally flawed code. If the existing structure is an anti-pattern or causes bottlenecks, boldly propose a complete rewrite or deep refactoring instead of patching it. Do not fear breaking the old structure if it leads to significantly better performance and architecture.
-6. **Legacy Rejection & Convention Override:** The Triad of Craftsmanship (`CODING_CONVENTIONS.md`, `PATTERNS.md`, and `ANTI-PATTERNS.md`) is the master blueprint to *fix* the old codebase. NEVER copy or conform to existing legacy code if it violates these conventions. However, if you know a genuinely *better* or more modern architectural pattern than what is written in the conventions, you are highly encouraged to propose it.
+6. **Legacy Rejection & Convention Override:** The Triad of Craftsmanship (`docs/AI/00_guardrails/CONVENTIONS.md`, `docs/AI/01_backend/blueprints.md`, and `docs/AI/00_guardrails/FIREWALL.md`) is the master blueprint to *fix* the old codebase. NEVER copy or conform to existing legacy code if it violates these conventions. However, if you know a genuinely *better* or more modern architectural pattern than what is written in the conventions, you are highly encouraged to propose it.
 </system_persona>
 
 <core_mission_and_benchmarks>
@@ -67,7 +67,7 @@ In every single interaction (answering questions, reviewing code, or planning so
    - UseCase Tests: Strict CQRS folder parity, direct mocks, SSoT `CreateSut()`, and `TestConstants.BaselineTime`.
    - Aggregate Tests: Encapsulate domain invariant mutations directly inside `{Aggregate}Tests.cs`.
 6. **Zero Magic Numbers & Centralized Configuration:**
-   - NEVER hardcode raw numeric literals, timeouts, or clock queries (`DateTime.UtcNow`). Operational settings must use `IOptions<TOptions>` (`appsettings.json`/env); technical constants belong in `*Constants` classes; time must be routed via `TimeProvider` (see `CODING_CONVENTIONS.md`).
+   - NEVER hardcode raw numeric literals, timeouts, or clock queries (`DateTime.UtcNow`). Operational settings must use `IOptions<TOptions>` (`appsettings.json`/env); technical constants belong in `*Constants` classes; time must be routed via `TimeProvider` (see `docs/AI/00_guardrails/CONVENTIONS.md`).
 </system_standards>
 
 <operational_boundaries>
@@ -99,17 +99,18 @@ In every single interaction (answering questions, reviewing code, or planning so
 
 <context_triggers>
 **TRIGGER RULES FOR DOCUMENTATION DISCLOSURE:**
-- WHEN task involves coding conventions, naming rules, style standards -> READ `docs/AI/CODING_CONVENTIONS.md`
-- WHEN task involves Database tables, EF Core migrations, relations -> READ `docs/AI/DB_SCHEMA.md`
-- WHEN task involves Endpoints, DTOs, API Keys, JWT, Auth flows -> READ `docs/AI/API_CONTRACT.md`
-- WHEN task involves Solution layout, namespaces, folder structure -> READ `docs/AI/PROJECT_STRUCTURE.md`
-- WHEN task involves Handlebars helpers, Thai fonts, Word/Excel engines -> READ `docs/AI/TEMPLATE_ENGINE.md`
-- WHEN task involves Next.js Portal UI, Monaco Editor, Tailwind tokens -> READ `docs/AI/DESIGN.md`
-- WHEN task involves Screen layouts, ASCII wireframes, UI stitching recipes, or Page flows -> READ `docs/AI/FRONTEND_SPEC.md`
-- WHEN task involves System topology, Clean Architecture layers, or middleware -> READ `docs/AI/ARCHITECTURE.md`
-- WHEN task involves Architectural patterns, pipeline designs -> READ `docs/AI/PATTERNS.md`
-- WHEN task involves Code review, PR review, refactoring, avoiding anti-patterns -> READ `docs/AI/ANTI-PATTERNS.md`
-- WHEN task involves Past architectural decisions and context rationale -> READ `docs/AI/DECISIONS.md`
+- Master Switchboard & Global Documentation Router -> READ `docs/AI/INDEX.md`
+- WHEN task involves coding conventions, naming rules, style standards -> READ `docs/AI/00_guardrails/CONVENTIONS.md`
+- WHEN task involves Database tables, EF Core migrations, relations -> READ `docs/AI/01_backend/persistence.md`
+- WHEN task involves Endpoints, DTOs, API Keys, JWT, Auth flows -> READ `docs/AI/01_backend/api_contract.md`
+- WHEN task involves Solution layout, namespaces, folder structure -> READ `docs/AI/01_backend/system_topology.md`
+- WHEN task involves Handlebars helpers, Thai fonts, Word/Excel engines -> READ `docs/AI/01_backend/template_engines.md`
+- WHEN task involves Next.js Portal UI, Monaco Editor, Tailwind tokens -> READ `docs/AI/02_frontend/design_tokens.md`
+- WHEN task involves Screen layouts, ASCII wireframes, UI stitching recipes, or Page flows -> READ `docs/AI/02_frontend/screen_recipes.md`
+- WHEN task involves System topology, Clean Architecture layers, or middleware -> READ `docs/AI/01_backend/system_topology.md`
+- WHEN task involves Architectural patterns, pipeline designs -> READ `docs/AI/01_backend/blueprints.md`
+- WHEN task involves Code review, PR review, refactoring, avoiding anti-patterns -> READ `docs/AI/00_guardrails/FIREWALL.md`
+- WHEN task involves Past architectural decisions and context rationale -> READ `docs/AI/03_archival/decisions.md`
 </context_triggers>
 
 <documentation_cognitive_anatomy_standard>
@@ -170,12 +171,13 @@ To maintain 100% deterministic accuracy across stateless sessions, treat documen
 ### Tier 0: Central Mutation Triggers (WHEN to Update):
 | Trigger Signal Token | Source Mutation Event in Codebase | Mandatory Target Document & Canonical Action |
 |---|---|---|
-| **`[SIGNAL_API_MUTATION]`** | Create/modify Controller, Route, Request/Response DTO, or Auth flow | 👉 UPDATE `docs/AI/API_CONTRACT.md` (Register `<endpoint_manifest>`, map archetype, sync openapi.json) |
-| **`[SIGNAL_DOMAIN_MUTATION]`** | Add/modify Entity, BaseEntity, Strongly-Typed ID, Value Object, or Enum | 👉 UPDATE `docs/AI/CODING_CONVENTIONS.md` (§4 Taxonomy & Matrix) and `docs/AI/DB_SCHEMA.md` |
-| **`[SIGNAL_DECEPTIVE_BUG]`** | Encounter runtime traps (LOH, boxing equality, deadlock) or user architecture corrections | 👉 PROPOSE to `docs/AI/ANTI-PATTERNS.md` (Format as `<firewall_rule>`, ask user first) |
-| **`[SIGNAL_SCHEMA_MIGRATION]`**| Add/modify EF Core table, column, index, or migration | 👉 UPDATE `docs/AI/DB_SCHEMA.md` (Entity mapping, ER diagrams, foreign keys) |
-| **`[SIGNAL_STRUCTURE_MUTATION]`**| Create new UseCase, Interface, Service, or layer project | 👉 UPDATE `docs/AI/PROJECT_STRUCTURE.md` |
-| **`[SIGNAL_TOPOLOGY_MUTATION]`** | Change external services (Gotenberg, MinIO, Postgres), pipeline, or middleware | 👉 UPDATE `docs/AI/ARCHITECTURE.md` |
+| **`[SIGNAL_API_MUTATION]`** | Create/modify Controller, Route, Request/Response DTO, or Auth flow | 👉 UPDATE `docs/AI/01_backend/api_contract.md` (Register `<endpoint_manifest>`, map archetype, sync openapi.json) |
+| **`[SIGNAL_DOMAIN_MUTATION]`** | Add/modify Entity, BaseEntity, Strongly-Typed ID, Value Object, or Enum | 👉 UPDATE `docs/AI/00_guardrails/CONVENTIONS.md` (§4 Taxonomy & Matrix) and `docs/AI/01_backend/persistence.md` |
+| **`[SIGNAL_DECEPTIVE_BUG]`** | Encounter runtime traps (LOH, boxing equality, deadlock) or user architecture corrections | 👉 PROPOSE to `docs/AI/00_guardrails/FIREWALL.md` (Format as `<firewall_rule>`, ask user first) |
+| **`[SIGNAL_SCHEMA_MIGRATION]`**| Add/modify EF Core table, column, index, or migration | 👉 UPDATE `docs/AI/01_backend/persistence.md` (Entity mapping, ER diagrams, foreign keys) |
+| **`[SIGNAL_STRUCTURE_MUTATION]`**| Create new UseCase, Interface, Service, or layer project | 👉 UPDATE `docs/AI/01_backend/system_topology.md` and `docs/AI/01_backend/blueprints.md` |
+| **`[SIGNAL_TOPOLOGY_MUTATION]`** | Change external services (Gotenberg, MinIO, Postgres), pipeline, or middleware | 👉 UPDATE `docs/AI/01_backend/system_topology.md` |
+| **`[SIGNAL_UI_MUTATION]`** | Design tokens, color palette, atomic primitive, screen | 👉 UPDATE `docs/AI/02_frontend/design_tokens.md` and `docs/AI/02_frontend/screen_recipes.md` |
 
 ### Tier 0: Universal 4-Point Synchronization Protocol (CENTRAL STANDARD):
 When updating ANY document in `docs/AI/`, you MUST execute these 4 canonical positive actions in order:
@@ -206,6 +208,6 @@ Before declaring any coding task complete and ending your turn, you MUST activel
 3. **Documentation & Contract Gate:** 
    - [ ] Did you check codebase changes against the `[SIGNAL_*]` Trigger Registry in `<doc_drift_prevention>`?
    - [ ] If any document was updated, did you verify the Universal 4-Point Synchronization Protocol (Header ➔ Matrix ➔ SSoT Links ➔ Contradiction Sweep)?
-   - [ ] If API endpoints changed: is `<endpoint_manifest>` in `docs/AI/API_CONTRACT.md` updated and `docs/openapi.json` re-emitted via `dotnet build`?
+   - [ ] If API endpoints changed: is `<endpoint_manifest>` in `docs/AI/01_backend/api_contract.md` updated and `docs/openapi.json` re-emitted via `dotnet build`?
 4. **Meaningful Handoff & Summary:** When you end your turn, provide a clear, professional summary of the architectural decisions you made, what was actually tested, and proactively highlight any key open questions, potential risks, or next steps for the user. Do not output meaningless, robotic generic sentences.
 </verification_protocol>

@@ -1,45 +1,84 @@
-# ANTI-PATTERNS.md — Neural Interceptor Engine & Pre-Training Bias Firewall
+# [GUARD-001]: FIREWALL.md - Neural Interceptor Engine & Production Safety Firewall SSoT
 
-> **[PURPOSE_SSOT]:** Authoritative Cognitive Firewall for `backend-v2/`. Exclusively intercepts deceptive illusions and deep pre-training gravitational biases where LLMs mistakenly assume code is idiomatic or performant, but triggers runtime crashes, memory fragmentation, or security vulnerabilities in production.
-> **[TRIAD_ORTHOGONAL_ROLE]:**
-> - [`CODING_CONVENTIONS.md`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/CODING_CONVENTIONS.md) ➔ Micro-AST Grammar, Syntax Substitution & Token Naming.
-> - [`PATTERNS.md`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/PATTERNS.md) ➔ Generative Macro-Factory (Positive Feature-Slice Assembly Blueprints).
-> - [`ANTI-PATTERNS.md`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/ANTI-PATTERNS.md) ➔ Cognitive Firewall (Deceptive Traps & Pre-Training Gravitational Biases).
+<!-- SLOT 1: COGNITIVE PRIMING & IDENTITY (Primacy Weight: First 10% Context) -->
+<cognitive_priming>
+> **[SSOT_PURPOSE]:** Authoritative Cognitive Firewall and Deceptive Trap Interceptor for the SMK Document Server (`backend-v2/`). Exclusively intercepts deceptive illusions and deep pre-training gravitational biases where LLMs mistakenly assume code is idiomatic or performant, but triggers runtime crashes, memory fragmentation, or security vulnerabilities in production.
+> **[ORTHOGONAL_BOUNDARY]:** This file houses ALL negative anti-patterns, fatal production traps, and structured `<firewall_rule>` blocks. Positive micro-syntax conventions belong in `docs/AI/00_guardrails/CONVENTIONS.md`. Positive generative macro-assembly blueprints belong in `docs/AI/01_backend/blueprints.md`. System topology belongs in `docs/AI/01_backend/system_topology.md`.
+> **[NEGATIVE_ROUTING]:** DO NOT load or consult this file when seeking positive implementation templates, feature assembly code, or UI design tokens. Consult `docs/AI/00_guardrails/CONVENTIONS.md` or `docs/AI/01_backend/blueprints.md` instead.
+> **[OPERATIONAL_MODES]:** `[MODE: PRE_FLIGHT_INTERCEPT]` (intercepting defective AST tokens before code emission) vs `[MODE: PR_AUDIT]` (evaluating existing code for deceptive traps).
+</cognitive_priming>
 
 ---
 
-<anti_patterns_scope>
+<!-- SLOT 2: PRE-TRAINING PRIOR INVERSION MAP (Subword-Level Bias Override) -->
+<prior_inversion_map>
+## ⚡ High-Salience Token Inversion Map (Pre-Training Override)
 
-<admission_and_update_governance>
+| Intent / Context | Defective Internet Prior (❌ BANNED) | Canonical SSoT Target (✅ MANDATORY) | Rule ID |
+|---|---|---|---|
+| **Binary/PDF Output** | `new MemoryStream()`, `.ToArray()`, `byte[]` | Direct stream piping: `Stream.CopyToAsync(response.Body, ct)` | `FIREWALL-MEM-001` |
+| **Concurrent DB Access** | `Task.WhenAll` on scoped `DbContext` | Sequential `await` or `IDbContextFactory<T>` | `FIREWALL-CONC-001` |
+| **Async Invocation** | `.Result`, `.Wait()`, `.GetAwaiter().GetResult()` | Pure asynchronous pipeline: `await useCase.ExecuteAsync(...)` | `FIREWALL-ASYNC-001` |
+| **Tenant Entity Lookup** | Unscoped `GetByIdAsync(id)`, `Find(id)` | Tenant-scoped: `GetByIdAndProjectIdAsync(id, projectId, ct)` | `FIREWALL-SEC-001` |
+| **Controller Binding** | `[FromBody] Template entity` | Transport DTO: `[FromBody] CreateTemplateRequest request` | `FIREWALL-SEC-002` |
+| **Regex Compilation** | `new Regex(pattern)`, `Regex.Match(...)` | `[GeneratedRegex(..., RegexOptions.NonBacktracking)]` | `FIREWALL-SEC-003` |
+| **Service Granularity** | God class `TemplateService` with CRUD methods | Action-Centric UseCase: `IUseCase<TCommand, TResult>` | `FIREWALL-ARCH-001` |
+| **Entity DTO Egress** | Returning Domain Entity outside UseCase | Mapping to immutable Result DTO: `TemplateResultDto` | `FIREWALL-ARCH-002` |
+| **Transaction Boundary** | Multiple `CommitAsync()` in a single UseCase | Exactly 1 atomic commit: `await unitOfWork.CommitAsync(ct);` | `FIREWALL-ARCH-003` |
+| **Repo Return Type** | Returning `IQueryable<T>` outside Infrastructure | Evaluated immutable collection: `Task<IReadOnlyList<T>>` | `FIREWALL-ARCH-004` |
+| **Core Dependencies** | `using SmkDoc.Infrastructure;`, `IFormFile` in Core | Pure C# streaming primitives in Application commands | `FIREWALL-ARCH-005` |
+| **String Value Object** | `struct EmailAddress`, `record struct Slug` | `public sealed record class` (guards against default-null) | `FIREWALL-DOM-001` |
+| **Entity Declaration** | `public struct Template : BaseEntity` | `public sealed class Template : BaseEntity<TemplateId>` | `FIREWALL-DOM-002` |
+| **Struct Footprint** | Mutable struct or record struct > 16 bytes | `public readonly record struct` (<= 16B) or `sealed record class` | `FIREWALL-DOM-003` |
+| **Identity Types** | Raw primitive `Guid ProjectId` | Strongly-Typed ID: `readonly record struct ProjectId(Guid Value)` | `FIREWALL-DOM-004` |
+| **Render Engine Selection**| `switch (format)`, `if (type == "Gotenberg")` | Polymorphic Strategy: `renderEngines.FirstOrDefault(...)` | `FIREWALL-OPS-001` |
+| **Time Querying** | Inlining `DateTime.UtcNow`, `DateTime.Now` | Injected `TimeProvider` or explicit `DateTimeOffset now` | `FIREWALL-OPS-002` |
+| **Controller Error Flow** | Inlined `try-catch` / `return BadRequest(...)` | Centralized RFC 9457 `GlobalExceptionHandler` | `FIREWALL-OPS-003` |
+| **State Mutations** | `[HttpPost]`, `[HttpPut]` without idempotency | `[HttpPost, Idempotent]` with `Idempotency-Key` header | `FIREWALL-OPS-004` |
+| **Workspace Target** | Editing legacy `src/SmkDocServer/` | Editing active modern `backend-v2/src/SmkDoc.*/` | `FIREWALL-OPS-005` |
+| **Test Assertions** | Cast assertions `.Should().Be((TemplateId)guid)` | Zero-cast assertion: `var id = TemplateId.New(); ...Be(id)` | `FIREWALL-TEST-001` |
+</prior_inversion_map>
+
+---
+
+<!-- SLOT 3: CONSTRAINT SEVERITY HIERARCHY (Conflict Resolution Tiers) -->
+<severity_hierarchy>
+## ⚖️ Constraint Resolution Hierarchy
+1. `[TIER-1-FATAL]`: Host process safety, LOH preservation, DbContext thread safety, async non-blocking, zero IDOR, ReDoS defense (`FIREWALL-MEM-001`, `FIREWALL-CONC-001`, `FIREWALL-ASYNC-001`, `FIREWALL-SEC-001`, `FIREWALL-SEC-002`, `FIREWALL-SEC-003`).
+2. `[TIER-2-ARCH]`: Clean Architecture boundaries, DTO layer isolation, single atomic UoW commit, entity struct identity preservation (`FIREWALL-ARCH-001` to `FIREWALL-ARCH-005`, `FIREWALL-DOM-001` to `FIREWALL-DOM-003`).
+3. `[TIER-3-CRAFT]`: Strongly typed IDs, polymorphic strategy dispatch, RFC 9457 centralized handling, zero-cast test assertions (`FIREWALL-DOM-004`, `FIREWALL-OPS-001` to `FIREWALL-OPS-005`, `FIREWALL-TEST-001`).
+</severity_hierarchy>
+
+---
+
+<!-- SLOT 4: CORE GENERATIVE BLUEPRINTS (High-Density Minimal Complete AST) -->
+<firewall_scope>
 ## 1. ⚖️ Document Admission & Update Governance (`RULE-DOC-AP`)
 
 An anti-pattern is PERMITTED into this document ONLY if it satisfies all 3 qualification gates:
 
 ```mermaid
 graph TD
-    A["Proposed Rule"] --> B{"Gate 1: Is it merely the mirror inverse of PATTERNS.md?<br/>(e.g., Don't put logic in controllers)"}
-    B -- "Yes" --> C["REJECT: Governed by PATTERNS.md"]
+    A["Proposed Rule"] --> B{"Gate 1: Is it merely the mirror inverse of blueprints.md?<br/>(e.g., Don't put logic in controllers)"}
+    B -- "Yes" --> C["REJECT: Governed by blueprints.md"]
     B -- "No" --> D{"Gate 2: Is it a general styling or craftsmanship rule?<br/>(e.g., naming, indentation, magic strings)"}
-    D -- "Yes" --> E["REJECT: Governed by CODING_CONVENTIONS.md"]
+    D -- "Yes" --> E["REJECT: Governed by CONVENTIONS.md"]
     D -- "No" --> F{"Gate 3: Does it target a Deceptive Trap or Pre-Training Bias?<br/>(Looks right to LLM but breaks production / internet muscle memory)"}
     F -- "No" --> G["REJECT: Not an LLM Cognitive Hazard"]
     F -- "Yes" --> H["QUALIFIED: Record in Neural Firewall Engine"]
 ```
 
 ### Mandatory Invariants:
-1. **`[RULE-DOC-AP-001] [GATE_1_MIRROR_REJECTION] [MUST NOT]`**: Do NOT add negative rules that merely restate the absence of a positive pattern in `PATTERNS.md`.
-2. **`[RULE-DOC-AP-002] [GATE_2_STYLE_REJECTION] [MUST NOT]`**: Do NOT add styling, naming, or nesting rules (e.g. arrow anti-pattern, underscore prefixes). Those belong strictly in `CODING_CONVENTIONS.md`.
+1. **`[RULE-DOC-AP-001] [GATE_1_MIRROR_REJECTION] [MUST NOT]`**: Do NOT add negative rules that merely restate the absence of a positive pattern in `blueprints.md`.
+2. **`[RULE-DOC-AP-002] [GATE_2_STYLE_REJECTION] [MUST NOT]`**: Do NOT add styling, naming, or nesting rules. Those belong strictly in `CONVENTIONS.md`.
 3. **`[RULE-DOC-AP-003] [GATE_3_COGNITIVE_BIAS_QUALIFICATION] [MUST]`**: Every entry MUST intercept either:
    - **Deceptive Production Trap:** Code that appears clean and idiomatic on the surface, but triggers silent memory fragmentation (LOH), DbContext concurrency races, or multi-tenant IDOR leaks.
    - **Pre-Training Gravitational Bias:** Pervasive internet habits (>90% GitHub prevalence) that LLMs instinctively reproduce despite seeing positive blueprints (e.g., God `*Service`, exposing Entities directly, inlining `DateTime.UtcNow`).
 4. **`[RULE-DOC-AP-004] [STRUCTURED_NEURAL_SCHEMA] [MUST]`**: Entries MUST use structured `<firewall_rule>` XML blocks containing: `trigger_ast`, `thinking_guard`, `mandatory_substitution`, `fatal_blast_radius`, `exemptions`, and `ssot_ref`. Zero multi-line defective code snippets permitted (to prevent negative token leakage into KV-cache).
-5. **`[RULE-DOC-AP-005] [ACTIVE_SSOT_LINK] [MUST]`**: Every entry MUST provide an active, clickable Markdown link redirecting to the exact canonical archetype in `PATTERNS.md` or `CODING_CONVENTIONS.md`.
-
-</admission_and_update_governance>
+5. **`[RULE-DOC-AP-005] [ACTIVE_SSOT_LINK] [MUST]`**: Every entry MUST provide an active, clickable Markdown link redirecting to the exact canonical archetype in `blueprints.md` or `CONVENTIONS.md`.
 
 ---
 
-<neural_firewall_matrix>
 ## 2. 🛡️ The Neural Firewall & Interception Engine
 
 The rules are organized sequentially by runtime evaluation priority: **Host Safety ➔ Data Isolation ➔ Architecture Boundaries ➔ Operational Resilience ➔ Automated Testing**.
@@ -67,7 +106,7 @@ Buffers > 85KB enter Large Object Heap (LOH) permanently, causing severe memory 
 Payloads mathematically guaranteed < 85KB (e.g., 2D QR barcode generation, SHA-256 hash digests, or Unit Test in-memory mocks).
 </exemptions>
 <ssot_ref>
-[`Patterns Arch 8`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/PATTERNS.md#archetype-8-zero-loh-stream-over-ram-direct-pipeline)
+[`blueprints.md#archetype-8`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/01_backend/blueprints.md#archetype-8-zero-loh-stream-over-ram-direct-pipeline)
 </ssot_ref>
 </firewall_rule>
 
@@ -94,7 +133,7 @@ Throws `InvalidOperationException: A second operation started on this context in
 Tasks executing purely CPU-bound mathematics without shared scoped database resources, or distinct independent context instances instantiated via `IDbContextFactory<T>`.
 </exemptions>
 <ssot_ref>
-[`Conventions §3.7`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/CODING_CONVENTIONS.md#37-concurrency--dbcontext-thread-safety-rule-conc)
+[`CONVENTIONS.md §3.7`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/CONVENTIONS.md#37-concurrency--dbcontext-thread-safety-rule-conc)
 </ssot_ref>
 </firewall_rule>
 
@@ -119,7 +158,7 @@ Locks CLR ThreadPool worker threads waiting on asynchronous I/O completion ports
 Console CLI application entry point `static async Task Main` or synchronous test runner adapters where async harness is unavailable.
 </exemptions>
 <ssot_ref>
-[`Conventions §1`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/CODING_CONVENTIONS.md#1-runtime--compiler-capabilities-ground-truth)
+[`CONVENTIONS.md §1`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/CONVENTIONS.md#1-runtime--compiler-capabilities-ground-truth)
 </ssot_ref>
 </firewall_rule>
 
@@ -149,7 +188,7 @@ Critical IDOR security vulnerability: Malicious or compromised tenants can guess
 Global platform maintenance background jobs, database root seeders, or globally unique lookups explicitly scoped across system accounts (e.g. `GetUserByEmailAsync`).
 </exemptions>
 <ssot_ref>
-[`Patterns Arch 6`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/PATTERNS.md#archetype-6-action-centric-cqrs-usecase-pattern)
+[`blueprints.md#archetype-6`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/01_backend/blueprints.md#archetype-6-action-centric-cqrs-usecase-pattern)
 </ssot_ref>
 </firewall_rule>
 
@@ -177,7 +216,7 @@ Mass-Assignment vulnerability: Untrusted external JSON bodies overwrite critical
 None in HTTP presentation ingress. Domain models must NEVER bind to transport endpoints under any circumstances.
 </exemptions>
 <ssot_ref>
-[`Patterns Arch 1`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/PATTERNS.md#archetype-1-thin-controller--api-envelope-pattern)
+[`blueprints.md#archetype-1`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/01_backend/blueprints.md#archetype-1-thin-controller--api-envelope-pattern)
 </ssot_ref>
 </firewall_rule>
 
@@ -203,7 +242,7 @@ Catastrophic exponential backtracking $O(2^n)$ on crafted input payloads consume
 None for user-supplied string parsing. Static fixed string lookups should use `string.Contains` or `IndexOf` without regular expressions.
 </exemptions>
 <ssot_ref>
-[`Conventions §3.9`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/CODING_CONVENTIONS.md#39-code-level-security--redos-defense-rule-sec)
+[`CONVENTIONS.md §3.9`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/CONVENTIONS.md#39-code-level-security--redos-defense-rule-sec)
 </ssot_ref>
 </firewall_rule>
 
@@ -236,7 +275,7 @@ Violates Single Responsibility Principle, creates massive dependency injection g
 Pure stateless mathematical or localization utilities (e.g. `ThaiDataTransformer`).
 </exemptions>
 <ssot_ref>
-[`Patterns Arch 6`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/PATTERNS.md#archetype-6-action-centric-cqRS-usecase-pattern)
+[`blueprints.md#archetype-6`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/01_backend/blueprints.md#archetype-6-action-centric-cqrs-usecase-pattern)
 </ssot_ref>
 </firewall_rule>
 
@@ -262,7 +301,7 @@ Leaks internal entity state and navigation properties across architecture bounda
 Internal domain services operating strictly within `SmkDoc.Domain.dll`.
 </exemptions>
 <ssot_ref>
-[`Conventions §2.2`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/CODING_CONVENTIONS.md#22-dto-layering--ownership-matrix-rule-dto)
+[`CONVENTIONS.md §2.2`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/CONVENTIONS.md#22-dto-layering--ownership-matrix-rule-dto)
 </ssot_ref>
 </firewall_rule>
 
@@ -289,7 +328,7 @@ Intermediate failure after the first commit leaves partially persisted orphaned 
 Long-running Outbox / Saga orchestrators explicitly managed by distributed background workers.
 </exemptions>
 <ssot_ref>
-[`Patterns Arch 5`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/PATTERNS.md#archetype-5-atomic-unit-of-work--transaction-boundary)
+[`blueprints.md#archetype-5`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/01_backend/blueprints.md#archetype-5-atomic-unit-of-work--transaction-boundary)
 </ssot_ref>
 </firewall_rule>
 
@@ -320,7 +359,7 @@ Leaky abstraction causes SQL queries to execute outside repository boundaries, l
 Specification Pattern queries executed strictly inside `SmkDoc.Infrastructure`.
 </exemptions>
 <ssot_ref>
-[`Conventions §3.3`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/CODING_CONVENTIONS.md#33-infrastructure-layer-rule-infra)
+[`CONVENTIONS.md §3.3`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/CONVENTIONS.md#33-infrastructure-layer-rule-infra)
 </ssot_ref>
 </firewall_rule>
 
@@ -350,7 +389,7 @@ Dependency Inversion violation tightly couples application core to relational da
 None. Dependency flow is strictly inward: `Presentation ➔ Application ➔ Domain` and `Infrastructure ➔ Application ➔ Domain`.
 </exemptions>
 <ssot_ref>
-[`Conventions §3.2`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/CODING_CONVENTIONS.md#32-application-layer-rule-app)
+[`CONVENTIONS.md §3.2`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/CONVENTIONS.md#32-application-layer-rule-app)
 </ssot_ref>
 </firewall_rule>
 
@@ -379,10 +418,10 @@ public sealed record class EmailAddress
 Default-null invariant breach: `default(T)` or uninitialized array allocations bypass Guard clauses, injecting corrupt null or unvalidated strings into the domain core without throwing exceptions.
 </fatal_blast_radius>
 <exemptions>
-Strongly-typed IDs (`ProjectId(Guid Value)`) and numeric/range measurements (`DateRange`, `PageMargin`) &lt;= 16 bytes where zero/empty is an explicitly handled valid state.
+Strongly-typed IDs (`ProjectId(Guid Value)`) and numeric/range measurements (`DateRange`, `PageMargin`) <= 16 bytes where zero/empty is an explicitly handled valid state.
 </exemptions>
 <ssot_ref>
-[`Conventions §4.1`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/CODING_CONVENTIONS.md#41-domain-layer-rule-dom)
+[`CONVENTIONS.md §4.1`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/CONVENTIONS.md#41-domain-layer-rule-dom)
 </ssot_ref>
 </firewall_rule>
 
@@ -412,7 +451,7 @@ EF Core change tracking collapse: Mutations to a struct entity mutate a stack co
 None. Domain entities and aggregate roots MUST strictly remain reference types (`class`).
 </exemptions>
 <ssot_ref>
-[`Conventions §4.1`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/CODING_CONVENTIONS.md#41-domain-layer-rule-dom)
+[`CONVENTIONS.md §4.1`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/CONVENTIONS.md#41-domain-layer-rule-dom)
 </ssot_ref>
 </firewall_rule>
 
@@ -427,7 +466,7 @@ IF struct_declaration_is_mutable OR struct_memory_footprint > 16 THEN
 END IF
 </thinking_guard>
 <mandatory_substitution>
-// Structs must be strictly immutable (readonly) and &lt;= 16 bytes (e.g. 1 Guid or 2 ints/floats)
+// Structs must be strictly immutable (readonly) and <= 16 bytes (e.g. 1 Guid or 2 ints/floats)
 public readonly record struct ProjectId(Guid Value);
 </mandatory_substitution>
 <fatal_blast_radius>
@@ -437,7 +476,7 @@ Non-readonly structs cause the C# compiler to emit hidden defensive copies on ev
 Specialized low-level high-performance SIMD vectors or `ref struct` Spans in zero-allocation image parsing.
 </exemptions>
 <ssot_ref>
-[`Conventions §4.1`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/CODING_CONVENTIONS.md#41-domain-layer-rule-dom)
+[`CONVENTIONS.md §4.1`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/CONVENTIONS.md#41-domain-layer-rule-dom)
 </ssot_ref>
 </firewall_rule>
 
@@ -465,7 +504,7 @@ Primitive obsession leads to silent argument transposition bugs (e.g. passing a 
 Non-aggregate secondary identifiers (e.g. correlation tokens, transient session IDs, or OAuth state nonces).
 </exemptions>
 <ssot_ref>
-[`Conventions §4.1`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/CODING_CONVENTIONS.md#41-domain-layer-rule-dom)
+[`CONVENTIONS.md §4.1`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/CONVENTIONS.md#41-domain-layer-rule-dom)
 </ssot_ref>
 </firewall_rule>
 
@@ -496,7 +535,7 @@ Violates Open-Closed Principle (OCP): Adding or upgrading a render engine requir
 Binary boolean checks strictly isolated within a single strategy engine's internal implementation.
 </exemptions>
 <ssot_ref>
-[`Patterns Arch 9`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/PATTERNS.md#archetype-9-polymorphic-render-strategy-engine)
+[`blueprints.md#archetype-9`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/01_backend/blueprints.md#archetype-9-polymorphic-render-strategy-engine)
 </ssot_ref>
 </firewall_rule>
 
@@ -522,7 +561,7 @@ Non-deterministic code: Business logic verifying token expiration, TTLs, and aud
 Low-level performance benchmarking using `Stopwatch.GetTimestamp()` where elapsed duration only is measured.
 </exemptions>
 <ssot_ref>
-[`Conventions §3.1`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/CODING_CONVENTIONS.md#31-domain-layer-rule-dom)
+[`CONVENTIONS.md §3.1`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/CONVENTIONS.md#31-domain-layer-rule-dom)
 </ssot_ref>
 </firewall_rule>
 
@@ -549,7 +588,7 @@ Bypasses centralized RFC 9457 `ProblemDetails` pipeline, leading to inconsistent
 Global Exception Middleware and Controller Action Filters explicitly engineered for telemetry capture.
 </exemptions>
 <ssot_ref>
-[`Patterns Arch 2`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/PATTERNS.md#archetype-2-rfc-9457-global-exception-pipeline-iexceptionhandler-ssot)
+[`blueprints.md#archetype-2`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/01_backend/blueprints.md#archetype-2-rfc-9457-global-exception-pipeline-iexceptionhandler-ssot)
 </ssot_ref>
 </firewall_rule>
 
@@ -575,7 +614,7 @@ Network glitches and automatic client retries trigger duplicated state mutations
 Safe read-only HTTP queries (`[HttpGet]`, `[HttpHead]`, `[HttpOptions]`) where repetitive calls produce zero side-effects.
 </exemptions>
 <ssot_ref>
-[`Patterns Arch 3`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/PATTERNS.md#archetype-3-ietf-idempotency-key-pipeline-pattern-safe-mutations)
+[`blueprints.md#archetype-3`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/01_backend/blueprints.md#archetype-3-ietf-idempotency-key-pipeline-pattern-safe-mutations)
 </ssot_ref>
 </firewall_rule>
 
@@ -600,7 +639,7 @@ Phantom edits: Root `src/` codebase is legacy v1 disconnected from active runtim
 Historical reference reading, legacy schema inspection, and migration comparison tasks only.
 </exemptions>
 <ssot_ref>
-[`Conventions §2.1`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/CODING_CONVENTIONS.md#21-boundary-invariants-rule-arch)
+[`CONVENTIONS.md §2.1`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/CONVENTIONS.md#21-boundary-invariants-rule-arch)
 </ssot_ref>
 </firewall_rule>
 
@@ -630,21 +669,18 @@ FluentAssertions' `Be(object expected)` boxes both sides. When `Guid` is compare
 None. Unit and integration tests must always instantiate strongly-typed IDs via `TId.New()` for zero-cast assertions.
 </exemptions>
 <ssot_ref>
-[`Conventions §4.11`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/CODING_CONVENTIONS.md#411-unit-testing-craftsmanship-rule-test)
+[`CONVENTIONS.md §4.11`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/CONVENTIONS.md#411-unit-testing-craftsmanship-rule-test)
 </ssot_ref>
 </firewall_rule>
 
-</neural_firewall_matrix>
-
 ---
 
-<doc_maintenance_rules>
 ## 3. 🔄 Document Maintenance & Rule Ingestion Protocol
 
 ### Ingestion Triggers (Conditions when the LLM MUST Halt & Propose a New Rule):
 - **`[EVENT_USER_CORRECTION]`**: The user corrects the LLM for generating code that violates project architecture, indicating a persistent pre-training gravitational bias.
 - **`[EVENT_DECEPTIVE_BUG]`**: Root cause analysis (RCA) or runtime testing reveals a bug caused by code that compiled successfully but failed during execution, concurrency, or memory profiling (LOH/leaks).
-- **`[EVENT_UNINTERCEPTED_CODE]`**: During code review or PR audit, the LLM discovers code that passes compilation but breaks architectural boundaries, not yet intercepted by Phase 1–4 rules.
+- **`[EVENT_UNINTERCEPTED_CODE]`**: During code review or PR audit, the LLM discovers code that passes compilation but breaks architectural boundaries, not yet intercepted by Phase 1–5 rules.
 - **`[EVENT_RUNTIME_UPGRADE_GOTCHA]`**: Upgrading dependencies (.NET 10, EF Core 10, Gotenberg 8, Npgsql) introduces a silent breaking trap or non-obvious pitfall.
 
 ### 1-Shot Ingestion Template:
@@ -671,16 +707,27 @@ One-sentence description of production blast radius (e.g. LOH freeze, IDOR breac
 Strictly bounded exceptions (e.g. Unit tests, console CLI entry point) or None.
 </exemptions>
 <ssot_ref>
-[`Patterns Arch X` or `Conventions §X`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/...)
+[`blueprints.md#archetype-X` or `CONVENTIONS.md §X`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/...)
 </ssot_ref>
 </firewall_rule>
 ```
 
 ### Mutation & Approval Gates:
-1. **APPROVAL GATE (MUST ASK FIRST):** The LLM MUST NEVER modify `ANTI-PATTERNS.md` autonomously. It must output the proposed `<firewall_rule>` block in chat and obtain explicit user approval.
-2. **GATE 1-3 QUALIFICATION:** The proposed rule MUST pass all 3 qualification gates in Section 1 (not a mirror of PATTERNS.md, not micro-styling from CODING_CONVENTIONS.md, and must target a deceptive trap or pre-training bias).
+1. **APPROVAL GATE (MUST ASK FIRST):** The LLM MUST NEVER modify `FIREWALL.md` autonomously. It must output the proposed `<firewall_rule>` block in chat and obtain explicit user approval.
+2. **GATE 1-3 QUALIFICATION:** The proposed rule MUST pass all 3 qualification gates in Section 1 (not a mirror of blueprints, not micro-styling from CONVENTIONS, and must target a deceptive trap or pre-training bias).
 3. **ZERO DEFECTIVE CODE:** The proposal MUST NOT include multi-line defective code snippets (`- bad code`) to prevent negative token contamination into the model's KV-cache.
-4. **4-POINT RIPPLE SYNC (TIER-0 COMPLIANCE):** Upon approval, immediately execute the Universal 4-Point Synchronization Protocol from `AGENTS.md` (Upstream Phase Breadcrumb Sync, `CODING_CONVENTIONS.md` substitution matrix sync, bidirectional SSoT links, and contradiction sweep).
-</doc_maintenance_rules>
+4. **4-POINT RIPPLE SYNC (TIER-0 COMPLIANCE):** Upon approval, immediately execute the Universal 4-Point Synchronization Protocol from `AGENTS.md` (Upstream Phase Breadcrumb Sync, `CONVENTIONS.md` substitution matrix sync, bidirectional SSoT links, and contradiction sweep).
+</firewall_scope>
 
-</anti_patterns_scope>
+---
+
+<!-- SLOT 5: DETERMINISTIC VERIFICATION GATEWAY (Recency Weight: Final 10%) -->
+<verification_gateway>
+## ✅ Deterministic Pre-Emission Checklist (Self-Audit Gate)
+- [ ] 1. Prior Inversion Map compliance checked against all 21 `<firewall_rule>` blocks?
+- [ ] 2. All [TIER-1-FATAL] constraints preserved (Zero LOH buffers, single-thread DbContext, pure async, tenant isolation)?
+- [ ] 3. Layer boundaries conform to [ORTHOGONAL_BOUNDARY] (Clean Architecture dependency flow inward)?
+- [ ] 4. Code emitted represents Minimal Complete AST without placeholders or `// TODO` blocks?
+- [ ] 5. Zero HTML parser collisions (all `<token>`, `<T>`, `<Feature>` tags wrapped in inline backticks)?
+- [ ] 6. Zero defective multi-line code blocks emitted in documentation?
+</verification_gateway>

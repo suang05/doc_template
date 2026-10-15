@@ -1,13 +1,48 @@
-# PATTERNS.md — Canonical Architectural Patterns & Implementation Archetypes
+# [BACK-002]: blueprints.md - Canonical Architectural Patterns & Generative Implementation Archetypes SSoT
 
-> **[PURPOSE_SCOPE_SSOT]:** Authoritative Pure Backend Architectural Cookbook and Master Generative Blueprint for the SMK Document Server (`backend-v2/`). All frontend Next.js 15.2 / React 19 UI archetypes reside exclusively in [`FRONTEND_SPEC.md`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/FRONTEND_SPEC.md).
-> **[AI_DIRECTIVE]:** AI Assistants (LLMs) and software engineers MUST treat these patterns as immutable golden archetypes. When creating new endpoints, use cases, domain entities, or infrastructure services, mirror the structural anatomy, naming conventions, and data flows defined here.
-> **[UNIVERSAL_SCOPE_DIRECTIVE]:** All patterns, formulas, and archetypes in this document are **UNIVERSAL BLUEPRINTS** that apply across **ALL bounded contexts and domain entities** (including `Template`, `Project`, `Document`, `User`, `ApiKey`, and `AuditLog`).
-> **[ORTHOGONAL_ROLE]:** This document functions as the **Macro-Assembler & Generative Feature-Slice Factory** (multi-file slice assembly, layer contracts, and testing blueprints). For single-line AST grammar rules and syntax tokens, consult [`CODING_CONVENTIONS.md`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/CODING_CONVENTIONS.md).
+<!-- SLOT 1: COGNITIVE PRIMING & IDENTITY (Primacy Weight: First 10% Context) -->
+<cognitive_priming>
+> **[SSOT_PURPOSE]:** Authoritative Pure Backend Architectural Cookbook and Master Generative Blueprint for the SMK Document Server (`backend-v2/`). All frontend Next.js 15 / React 19 UI archetypes reside exclusively in `docs/AI/02_frontend/`.
+> **[ORTHOGONAL_BOUNDARY]:** This document functions as the **Macro-Assembler & Generative Feature-Slice Factory** (multi-file slice assembly, layer contracts, and testing blueprints). Single-line micro-AST syntax tokens belong in `docs/AI/00_guardrails/CONVENTIONS.md`. Deceptive traps belong in `docs/AI/00_guardrails/FIREWALL.md`. Wire HTTP contracts belong in `docs/AI/01_backend/api_contract.md`. Frontend specifications belong in `docs/AI/02_frontend/`.
+> **[NEGATIVE_ROUTING]:** DO NOT load this file for frontend Next.js/Tailwind UI code, negative firewall rules, or raw DB schema migrations.
+> **[OPERATIONAL_MODES]:** `[MODE: GENERATION]` (assembling new feature slices, UseCases, entities, or test fixtures) vs `[MODE: AUDIT]` (verifying feature slices conform to the 10 Golden Archetypes).
+</cognitive_priming>
 
 ---
 
-<system_topology_and_inward_flow>
+<!-- SLOT 2: PRE-TRAINING PRIOR INVERSION MAP (Subword-Level Bias Override) -->
+<prior_inversion_map>
+## ⚡ High-Salience Token Inversion Map (Pre-Training Override)
+
+| Intent / Context | Defective Internet Prior (❌ BANNED) | Canonical SSoT Target (✅ MANDATORY) | Rule ID / Archetype |
+|---|---|---|---|
+| **Slice Assembly** | Monolithic God `*Service` with CRUD methods | Master 5-File Feature Slice (`Request ➔ Command ➔ UseCase ➔ Entity ➔ ResultDto`) | Level 2 Slice Pipeline |
+| **Controller Design** | Fat controller with business logic | Thin controller ($\le 5$ lines) delegating to `IUseCase<TCommand, TResult>` | Archetype 1 |
+| **Error Responses** | Ad-hoc `try-catch` / `return BadRequest(...)` | RFC 9457 `ProblemDetails` via `GlobalExceptionHandler` | Archetype 2 |
+| **Mutation Safety** | Unprotected `[HttpPost]` without key | `[HttpPost, Idempotent]` with `Idempotency-Key` header | Archetype 3 |
+| **Entity Modeling** | Anemic POCO with public setters | Rich Domain Entity with `private set` and canonical factory `Create(...)` | Archetype 4 |
+| **Primary Key** | Random UUIDv4 (`Guid.NewGuid()`) | Sequential UUIDv7 (`Guid.CreateVersion7()`) | Archetype 4 |
+| **UoW Commits** | Multiple `SaveChangesAsync` in loop | Exactly ONE atomic commit: `await unitOfWork.CommitAsync(ct);` | Archetype 5 |
+| **Validation Gate** | Controller manual property checks | Dual-Engine: `FluentValidation` (Command) + `JsonSchema.Net` (Payload) | Archetype 7 |
+| **Streaming Output** | Buffering document in `byte[]` | Zero-LOH Stream-over-RAM direct piping via `Stream.CopyToAsync` | Archetype 8 |
+| **Engine Selection** | Hardcoded `switch(format)` or `if-else` | Polymorphic Strategy via `IEnumerable<IRenderEngine>` | Archetype 9 |
+| **Unit Testing** | Real I/O / database in unit test | In-memory CQRS unit test with `CreateSut()` and `TestConstants.BaselineTime` | Archetype 10 |
+</prior_inversion_map>
+
+---
+
+<!-- SLOT 3: CONSTRAINT SEVERITY HIERARCHY (Conflict Resolution Tiers) -->
+<severity_hierarchy>
+## ⚖️ Constraint Resolution Hierarchy
+1. `[TIER-1-FATAL]`: Memory & process safety (Zero LOH memory buffering `RULE-MEM-001`, atomic Unit of Work commit `RULE-UOW-002`, rich domain encapsulation `RULE-DOM-002`, compile-time typed API responses `RULE-API-002`).
+2. `[TIER-2-ARCH]`: Layer boundary integrity (Strict 5-file slice separation `Presentation ➔ Application ➔ Domain ➔ Infrastructure`, inward dependency flow, polymorphic strategy resolution).
+3. `[TIER-3-WIRING]`: Syntactic & property symmetry (1:1 property names across layer boundaries, C# 13 primary constructor formatting with pure `camelCase`, explicit local variable instantiation).
+</severity_hierarchy>
+
+---
+
+<!-- SLOT 4: CORE GENERATIVE BLUEPRINTS (High-Density Minimal Complete AST) -->
+<blueprints_scope>
 ## 1. 🏛️ Level 1: System Topology & Inward Dependency Flow
 
 ### Clean Architecture Inward Flow Invariant
@@ -58,18 +93,11 @@ graph TD
 5. **Stream over RAM:** Stream Gotenberg and MinIO payloads directly to HTTP responses via `Stream.CopyToAsync(response.Body, ct)`.
 6. **Non-Blocking Asynchronous I/O:** Execute all network and disk operations asynchronously accepting `CancellationToken ct = default`.
 
-### Pattern Severity Tiers (Cognitive Constraint Hierarchy)
-* **`[TIER-1-FATAL]` (Process & Memory Safety):** Zero LOH memory buffering (`RULE-MEM-001`), atomic Unit of Work commit (`RULE-UOW-002`), rich domain encapsulation (`RULE-DOM-002`), compile-time typed API responses (`RULE-API-002`).
-* **`[TIER-2-ARCH]` (Layer & Boundary Integrity):** Strict 5-file slice separation (Presentation ➔ Application ➔ Domain ➔ Infrastructure), inward dependency flow, polymorphic strategy resolution.
-* **`[TIER-3-WIRING]` (Syntactic & Property Symmetry):** 1:1 property names across layer boundaries, C# 13 primary constructor formatting with pure `camelCase`, explicit local variable instantiation.
-</system_topology_and_inward_flow>
-
 ---
 
-<master_feature_slice_pipeline>
 ## 2. 💎 Level 2: Master 5-File Feature Slice Pipeline
 
-> **[ARCHITECTURAL_BLUEPRINT]:** A standard business feature slice in `smk-doc-server` consists of exactly 5 interconnected files across Clean Architecture layers. Preserve 1:1 property symmetry without inventing intermediary translation glue:
+A standard business feature slice in `smk-doc-server` consists of exactly 5 interconnected files across Clean Architecture layers. Preserve 1:1 property symmetry without inventing intermediary translation glue:
 
 ```mermaid
 flowchart LR
@@ -96,11 +124,9 @@ Every UseCase in `SmkDoc.Application` executes business logic in strict **PEMR**
 | **Business Payload** | `request.Payload` | `command.Payload` | `payload: command.Payload` | `result.Payload` | `response.Data.Payload` |
 | **Document Format** | `request.OutputFormat` | `command.OutputFormat` | `outputFormat: command.OutputFormat` | `result.OutputFormat` | `response.Data.OutputFormat` |
 | **Audit Timestamp** | *(Client omits)* | *(System stamps)* | `now: timeProvider.GetUtcNow()` | `result.CreatedAt` | `response.Data.CreatedAt` |
-</master_feature_slice_pipeline>
 
 ---
 
-<generative_feature_archetypes>
 ## 3. 🔵 Level 3: The 10 Canonical Backend Generative Archetypes
 
 ```mermaid
@@ -140,11 +166,9 @@ graph LR
 
 ### Phase 1: Transport Boundary (HTTP Ingress, Idempotency & Error Egress)
 
-<archetype_1_thin_controller>
 #### Archetype 1: Thin Controller & API Envelope Pattern
-
-*   **Intent & Scope:** Acts exclusively as the HTTP entry point. Validates routing, maps request DTOs to Commands/Queries, invokes the target UseCase, and wraps successful outputs in `ApiResponse<T>` using compile-time strongly-typed `TypedResults`.
-*   **Formula:** `public sealed class {Entity}Controller : ControllerBase` with actions delegating to `IUseCase<TCommand, TResult>`. Controller action bodies MUST be $\le 5$ lines.
+* **Intent & Scope:** Acts exclusively as the HTTP entry point. Validates routing, maps request DTOs to Commands/Queries, invokes the target UseCase, and wraps successful outputs in `ApiResponse<T>` using compile-time strongly-typed `TypedResults`.
+* **Formula:** `public sealed class {Entity}Controller : ControllerBase` with actions delegating to `IUseCase<TCommand, TResult>`. Controller action bodies MUST be $\le 5$ lines.
 
 ```csharp
 // [GENERATIVE_SLOT_FORMULA: ARCHETYPE-1-CONTROLLER]
@@ -207,15 +231,12 @@ public sealed class TemplateController(
     }
 }
 ```
-</archetype_1_thin_controller>
 
 ---
 
-<archetype_2_rfc_9457_global_exception_pipeline>
 #### Archetype 2: RFC 9457 Global Exception Pipeline (`IExceptionHandler` SSoT)
-
-*   **Intent & Scope:** Centralized exception egress translating strongly-typed Domain Exceptions directly into RFC 9457 `ProblemDetails`. Dispatched automatically by `GlobalExceptionHandler`.
-*   **Formula:** Throw strongly-typed Domain Exceptions from Domain or Application layers.
+* **Intent & Scope:** Centralized exception egress translating strongly-typed Domain Exceptions directly into RFC 9457 `ProblemDetails`. Dispatched automatically by `GlobalExceptionHandler`.
+* **Formula:** Throw strongly-typed Domain Exceptions from Domain or Application layers.
 
 ##### SSoT Domain Exception Taxonomy & HTTP Mapping:
 | Domain Exception Class | Target HTTP Status | Canonical `errorCode` Token | Trigger Scenario |
@@ -240,15 +261,12 @@ if (await templateRepo.ExistsBySlugAsync(command.ProjectId, slug, ct))
 var template = await templateRepo.GetByIdAsync(query.Id, ct)
     ?? throw new NotFoundException($"Template with ID '{query.Id}' was not found.");
 ```
-</archetype_2_rfc_9457_global_exception_pipeline>
 
 ---
 
-<archetype_3_ietf_idempotency_key_pipeline_pattern>
 #### Archetype 3: IETF Idempotency-Key Pipeline Pattern (Safe Mutations)
-
-*   **Intent & Scope:** Guarantees safe retries on state-mutating endpoints (`POST`, `PUT`, `DELETE`). The `[Idempotent]` filter intercepts requests bearing the `Idempotency-Key` header, caches successful responses for 24 hours, and rejects concurrent duplicate requests with HTTP 409.
-*   **Formula:** Decorate controller action with `[Idempotent]`.
+* **Intent & Scope:** Guarantees safe retries on state-mutating endpoints (`POST`, `PUT`, `DELETE`). The `[Idempotent]` filter intercepts requests bearing the `Idempotency-Key` header, caches successful responses for 24 hours, and rejects concurrent duplicate requests with HTTP 409.
+* **Formula:** Decorate controller action with `[Idempotent]`.
 
 ##### Consumer Usage Example (Controller Layer):
 ```csharp
@@ -269,20 +287,17 @@ public async Task<Created<ApiResponse<TemplateResultDto>>> Create(
 1. **Header Name:** `Idempotency-Key` (UUIDv4 or client string, max 128 chars).
 2. **In-Flight Lease (TTL 30s):** Returns `409 Conflict` (`errorCode: "IDEMPOTENCY_IN_FLIGHT"`) if an identical key is currently executing.
 3. **Completed Lease (TTL 24h):** Returns cached status code and payload directly without re-executing the UseCase.
-</archetype_3_ietf_idempotency_key_pipeline_pattern>
 
 ---
 
 ### Phase 2: Domain Boundary (Core Business Invariants & Persistence)
 
-<archetype_4_pure_rich_domain_entity>
 #### Archetype 4: Pure Rich Domain Entity & Value Object Pattern
-
-*   **Intent & Scope:** Pure C# POCO with zero external dependencies. State is strictly encapsulated (`private set;`). State creation occurs exclusively through exactly ONE canonical `Create(...)` factory method; state mutation occurs exclusively through expressive domain verbs receiving explicit dependencies (`DateTimeOffset now`).
-*   **Formula:**
-    *   **Entity / Aggregate Root:** `public sealed class {Entity} : BaseEntity` preserving EF Core Change Tracking and identity equality.
-    *   **Strongly-Typed ID:** `public readonly record struct {Entity}Id(Guid Value)` ($\le 16$ bytes, stack-allocated, zero GC pressure).
-    *   **Validated String Value Object:** `public sealed record class {Concept}` with private constructor and `Create(...)` SSoT to eliminate the `default(T)` zero-initialization trap (👉 [`FIREWALL-DOM-001`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/ANTI-PATTERNS.md#firewall-dom-001)).
+* **Intent & Scope:** Pure C# POCO with zero external dependencies. State is strictly encapsulated (`private set;`). State creation occurs exclusively through exactly ONE canonical `Create(...)` factory method; state mutation occurs exclusively through expressive domain verbs receiving explicit dependencies (`DateTimeOffset now`).
+* **Formula:**
+  * **Entity / Aggregate Root:** `public sealed class {Entity} : BaseEntity` preserving EF Core Change Tracking and identity equality.
+  * **Strongly-Typed ID:** `public readonly record struct {Entity}Id(Guid Value)` ($\le 16$ bytes, stack-allocated, zero GC pressure).
+  * **Validated String Value Object:** `public sealed record class {Concept}` with private constructor and `Create(...)` SSoT to eliminate the `default(T)` zero-initialization trap (👉 [`FIREWALL-DOM-001`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/FIREWALL.md#firewall-dom-001)).
 
 ```csharp
 // [GENERATIVE_SLOT_FORMULA: ARCHETYPE-4-DOMAIN-ENTITY]
@@ -401,15 +416,12 @@ public sealed class Template : BaseEntity<TemplateId>
     }
 }
 ```
-</archetype_4_pure_rich_domain_entity>
 
 ---
 
-<archetype_5_atomic_unit_of_work>
 #### Archetype 5: Atomic Unit of Work & Transaction Boundary
-
-*   **Intent & Scope:** Manages persistence boundaries. Repositories track changes; `IUnitOfWork.CommitAsync(ct)` executes atomic commits. Entities are configured via Fluent API (`IEntityTypeConfiguration<T>`) incorporating PostgreSQL `xmin` concurrency tokens and Value Converters.
-*   **Formula:** `IUnitOfWork` interface in Domain, `SmkDocDbContext` in Infrastructure, plus explicit aggregate repository.
+* **Intent & Scope:** Manages persistence boundaries. Repositories track changes; `IUnitOfWork.CommitAsync(ct)` executes atomic commits. Entities are configured via Fluent API (`IEntityTypeConfiguration<T>`) incorporating PostgreSQL `xmin` concurrency tokens and Value Converters.
+* **Formula:** `IUnitOfWork` interface in Domain, `SmkDocDbContext` in Infrastructure, plus explicit aggregate repository.
 
 ##### Repository & Unit of Work Interfaces (Domain):
 ```csharp
@@ -467,19 +479,16 @@ public sealed class TemplateConfiguration : IEntityTypeConfiguration<Template>
     }
 }
 ```
-</archetype_5_atomic_unit_of_work>
 
 ---
 
 ### Phase 3: Application & Payload Boundary (CQRS Orchestration)
 
-<archetype_6_action_centric_cqrs_usecase>
 #### Archetype 6: Action-Centric CQRS UseCase Pattern
-
-*   **Intent & Scope:** Orchestrates business execution using 1 Intent = 1 Class. Implements `IUseCase<TCommand, TResult>` with C# 13 Primary Constructor (pure `camelCase` parameters).
-*   **Formula:**
-    1. **Write Command UseCase:** Executes strict PEMR sequence and commits atomically.
-    2. **Read / Paged Query UseCase:** Read-only execution with `.AsNoTracking()`, pagination calculation, and projection into `PagedApiResponse<T>`.
+* **Intent & Scope:** Orchestrates business execution using 1 Intent = 1 Class. Implements `IUseCase<TCommand, TResult>` with C# 13 Primary Constructor (pure `camelCase` parameters).
+* **Formula:**
+  1. **Write Command UseCase:** Executes strict PEMR sequence and commits atomically.
+  2. **Read / Paged Query UseCase:** Read-only execution with `.AsNoTracking()`, pagination calculation, and projection into `PagedApiResponse<T>`.
 
 ##### 6.1 Write Command UseCase (PEMR Cadence):
 ```csharp
@@ -569,15 +578,12 @@ public sealed class ListTemplatesUseCase(
     }
 }
 ```
-</archetype_6_action_centric_cqrs_usecase>
 
 ---
 
-<archetype_7_dual_engine_validation_pipeline>
 #### Archetype 7: Dual-Engine Validation Pipeline (Static Command + Dynamic Schema)
-
-*   **Intent & Scope:** Boundary gate keeping invalid payloads out of Application and Domain. Static DTO structure is checked via `FluentValidation`; dynamic document payload JSON is verified against cached JSON Schema Draft-07.
-*   **Formula:** `public sealed class {Action}{Entity}Validator : AbstractValidator<{Action}{Entity}Command>`.
+* **Intent & Scope:** Boundary gate keeping invalid payloads out of Application and Domain. Static DTO structure is checked via `FluentValidation`; dynamic document payload JSON is verified against cached JSON Schema Draft-07.
+* **Formula:** `public sealed class {Action}{Entity}Validator : AbstractValidator<{Action}{Entity}Command>`.
 
 ```csharp
 // [GENERATIVE_SLOT_FORMULA: ARCHETYPE-7-VALIDATOR]
@@ -604,17 +610,14 @@ public sealed class CreateTemplateValidator : AbstractValidator<CreateTemplateCo
     }
 }
 ```
-</archetype_7_dual_engine_validation_pipeline>
 
 ---
 
 ### Phase 4: Binary & Stream Boundary (High-Throughput Rendering)
 
-<archetype_8_zero_loh_stream_over_ram_direct_pipeline>
 #### Archetype 8: Zero-LOH Stream-over-RAM Direct Pipeline
-
-*   **Intent & Scope:** High-throughput document streaming. Stream payloads directly to HTTP responses to preserve Large Object Heap (LOH) health without buffering in memory.
-*   **Formula:** Gotenberg / MinIO ➔ `Stream` ➔ `Stream.CopyToAsync(response.Body, ct)`.
+* **Intent & Scope:** High-throughput document streaming. Stream payloads directly to HTTP responses to preserve Large Object Heap (LOH) health without buffering in memory.
+* **Formula:** Gotenberg / MinIO ➔ `Stream` ➔ `Stream.CopyToAsync(response.Body, ct)`.
 
 ```csharp
 // [GENERATIVE_SLOT_FORMULA: ARCHETYPE-8-STREAMING]
@@ -652,15 +655,12 @@ public sealed class GotenbergPdfRenderEngine(
     }
 }
 ```
-</archetype_8_zero_loh_stream_over_ram_direct_pipeline>
 
 ---
 
-<archetype_9_polymorphic_render_strategy_engine>
 #### Archetype 9: Polymorphic Render Strategy Engine
-
-*   **Intent & Scope:** Adheres to Open/Closed Principle (OCP). Registers rendering engines (`ChromiumHtml`, `OpenXmlDocx`, `FastExcelXlsx`) into DI as `IEnumerable<IRenderEngine>`. Dispatches active engine polymorphically via Smart Enum without `switch` or `if-else` branching.
-*   **Formula:** `IEnumerable<IRenderEngine>` resolved by `RenderEngineType`.
+* **Intent & Scope:** Adheres to Open/Closed Principle (OCP). Registers rendering engines (`ChromiumHtml`, `OpenXmlDocx`, `FastExcelXlsx`) into DI as `IEnumerable<IRenderEngine>`. Dispatches active engine polymorphically via Smart Enum without `switch` or `if-else` branching.
+* **Formula:** `IEnumerable<IRenderEngine>` resolved by `RenderEngineType`.
 
 ```csharp
 // [GENERATIVE_SLOT_FORMULA: ARCHETYPE-9-STRATEGY]
@@ -682,15 +682,14 @@ public sealed class DocumentRenderDispatcher(
     }
 }
 ```
-</archetype_9_polymorphic_render_strategy_engine>
 
 ---
 
-<archetype_10_gold_standard_cqrs_unit_testing_pattern>
-#### Archetype 10: Gold-Standard CQRS Unit Testing Pattern
+### Phase 5: Automated Testing Boundary
 
-*   **Intent & Scope:** Unit test architecture adhering to 1:1 CQRS Folder Parity (`Commands/` vs `Queries/`), direct Moq mocks, `TestConstants.BaselineTime`, and SSoT `CreateSut()`. Zero disk or network I/O in unit tests.
-*   **Formula:** `public sealed class {Action}{Entity}UseCaseTests` using `FluentAssertions`.
+#### Archetype 10: Gold-Standard CQRS Unit Testing Pattern
+* **Intent & Scope:** Unit test architecture adhering to 1:1 CQRS Folder Parity (`Commands/` vs `Queries/`), direct Moq mocks, `TestConstants.BaselineTime`, and SSoT `CreateSut()`. Zero disk or network I/O in unit tests.
+* **Formula:** `public sealed class {Action}{Entity}UseCaseTests` using `FluentAssertions`.
 
 ```csharp
 // [GENERATIVE_SLOT_FORMULA: ARCHETYPE-10-UNIT-TEST]
@@ -764,12 +763,9 @@ public sealed class CreateTemplateUseCaseTests
     }
 }
 ```
-</archetype_10_gold_standard_cqrs_unit_testing_pattern>
-</generative_feature_archetypes>
 
 ---
 
-<specialized_production_recipes>
 ## 4. 🚀 Level 4: Specialized Production Recipes
 
 ### Recipe 1: Type-Safe Smart Enums & Polymorphic Dispatch
@@ -880,17 +876,28 @@ public static class ResilienceConfiguration
     }
 }
 ```
-</specialized_production_recipes>
 
 ---
 
-<cross_document_integration_matrix>
 ## 5. 🔄 Level 5: Cross-Document Integration Matrix
 
 | Document Path | Governed SSoT Layer | Synchronization Trigger |
 |---|---|---|
-| [`CODING_CONVENTIONS.md`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/CODING_CONVENTIONS.md) | Micro-AST Grammar, Syntax Substitution, Naming SSOT | Any C# language version bump or micro syntax change |
-| [`API_CONTRACT.md`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/API_CONTRACT.md) | Wire HTTP Endpoints, DTO Schemas, RFC 9457 Codes | Adding or mutating Controller actions or Request DTOs |
-| [`DB_SCHEMA.md`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/DB_SCHEMA.md) | Relational Tables, Indexes, Migrations, Postgres Types | Adding or mutating Entity fields or EF Core Configurations |
-| [`ANTI-PATTERNS.md`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/ANTI-PATTERNS.md) | Negative Quality Guardrails (PR Review Shield) | Identifying recurring defects or anti-patterns |
-</cross_document_integration_matrix>
+| [`00_guardrails/CONVENTIONS.md`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/CONVENTIONS.md) | Micro-AST Grammar, Syntax Substitution, Naming SSOT | Any C# language version bump or micro syntax change |
+| [`01_backend/api_contract.md`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/01_backend/api_contract.md) | Wire HTTP Endpoints, DTO Schemas, RFC 9457 Codes | Adding or mutating Controller actions or Request DTOs |
+| [`01_backend/persistence.md`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/01_backend/persistence.md) | Relational Tables, Indexes, Migrations, Postgres Types | Adding or mutating Entity fields or EF Core Configurations |
+| [`00_guardrails/FIREWALL.md`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/FIREWALL.md) | Negative Quality Guardrails (PR Review Shield) | Identifying recurring defects or anti-patterns |
+</blueprints_scope>
+
+---
+
+<!-- SLOT 5: DETERMINISTIC VERIFICATION GATEWAY (Recency Weight: Final 10%) -->
+<verification_gateway>
+## ✅ Deterministic Pre-Emission Checklist (Self-Audit Gate)
+- [ ] 1. Prior Inversion Map compliance checked against the 10 Golden Archetypes?
+- [ ] 2. All [TIER-1-FATAL] constraints preserved (Stream-over-RAM, single atomic UoW commit, rich domain encapsulation)?
+- [ ] 3. Layer boundaries conform to [ORTHOGONAL_BOUNDARY] (Dependencies flow inwards: Presentation >> Application >> Domain << Infrastructure)?
+- [ ] 4. Code emitted represents Minimal Complete AST without placeholders or `// TODO` blocks?
+- [ ] 5. Zero HTML parser collisions (all `<token>`, `<T>`, `<Feature>` tags wrapped in inline backticks)?
+- [ ] 6. Zero defective multi-line code blocks emitted in documentation?
+</verification_gateway>
