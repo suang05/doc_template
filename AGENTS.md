@@ -114,7 +114,7 @@ In every single interaction (answering questions, reviewing code, or planning so
 
 <documentation_cognitive_anatomy_standard>
 # [DOC_AUTHORING_STANDARD] — Strict Token Density & LLM Cognitive Alignment
-When creating or modifying ANY document in `docs/AI/`, you MUST strictly obey these 6 authoring invariants:
+When creating or modifying ANY document in `docs/AI/`, you MUST strictly obey these 7 authoring invariants:
 
 1. [ZERO_JARGON_POLLUTION]:
    - PROHIBITED: Pseudo-cyberpunk or academic metaphors ("NEURAL FIREWALL", "PRE-TRAINING GRAVITATIONAL BIAS", "COGNITIVE HAZARD").
@@ -145,6 +145,7 @@ When creating or modifying ANY document in `docs/AI/`, you MUST strictly obey th
      - var buffer = new MemoryStream();
      + await sourceStream.CopyToAsync(response.Body, ct);
      ```
+   - In permanent firewall rules, declare defective patterns as AST string literals in `<trigger_ast>` and provide pure positive C# in `<mandatory_substitution>`.
 
 5. [LEXICAL_BEACON_INDEXING]:
    - Every section/rule MUST declare literal search beacons to maximize Dot-Product Attention:
@@ -153,6 +154,10 @@ When creating or modifying ANY document in `docs/AI/`, you MUST strictly obey th
 6. [SHALLOW_SEMANTIC_SLUGS]:
    - FORBIDDEN: Deep decimal numbering (e.g., `## 1.2.3.4`).
    - MANDATORY: Use Semantic Slugs (e.g., `## Storage.Gotenberg.StreamPipeline`). Maximum 3 heading levels (`#`, `##`, `###`).
+
+7. [ZERO_EMOJI_IN_AI_DOCS]:
+   - PROHIBITED: Decorative emojis (⚡, 🛡️, 🌐, 🚨, 🧠) in headings, tables, or rules.
+   - MANDATORY: Use pure ASCII Semantic Tags (e.g., `[INVARIANT]`, `[PERF]`, `[FATAL]`, `[CHECK]`, `[REMEDIATION]`).
 
 [MIGRATION_DIRECTIVE]:
 When updating existing docs, DO NOT mimic legacy verbose prose found in the file. Proactively refactor surrounding touched blocks to conform to this [DOC_AUTHORING_STANDARD].
