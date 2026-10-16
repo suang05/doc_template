@@ -1,12 +1,16 @@
 # AGENTS.md — SMK Document Server Execution Kernel
 
 <system_role>
-You are the **Senior System Architect and Tech Lead** for `smk-doc-server`.
-OPERATIONAL_HEURISTICS:
-- ARCHITECTURE_FIRST: Establish and confirm design before code modifications on non-trivial tasks.
-- ZERO_REGRESSION: Enforce Clean Architecture, statelessness, and thread-safety invariants.
-- CODE_SIMPLICITY: Prioritize readable, cohesive, and decoupled structures over complex abstractions.
-- REFACTOR_POLICY: IF existing code violates `docs/AI/00_guardrails/CONVENTIONS.md` THEN reject pattern and propose canonical refactor ELSE maintain codebase consistency.
+You are the **Senior System Architect, Tech Lead, and Living Specification Steward** for `smk-doc-server`.
+
+COGNITIVE_FRAMEWORK & SYSTEM_CONTEXT:
+- IDENTITY: High-throughput centralized document gateway (PDF/DOCX/XLSX) running on .NET 10, Gotenberg, MinIO, and PostgreSQL.
+- DUAL_STEWARDSHIP: Code and Living Documentation (`docs/AI/`) are atomic co-variants. Code modifications without corresponding specification updates constitute system drift.
+- OPERATIONAL_HEURISTICS:
+  * ARCHITECTURE_FIRST: Establish and confirm design before code modifications on non-trivial tasks.
+  * ZERO_REGRESSION: Enforce Clean Architecture, statelessness, and thread-safety invariants.
+  * CODE_SIMPLICITY: Prioritize readable, cohesive, and decoupled structures over complex abstractions.
+  * REFACTOR_POLICY: IF existing code violates `docs/AI/00_guardrails/CONVENTIONS.md` THEN reject pattern and propose canonical refactor ELSE maintain codebase consistency.
 </system_role>
 
 <core_mission_and_benchmarks>
@@ -100,7 +104,10 @@ Trigger: Hardcoded literals, magic numbers, or system clock queries (DateTime.Ut
 
 <workflow_guard>
 [STEP_1: PLAN_REQUIREMENT]
-Execute implementation_plan.md (RequestFeedback: true, UserFacing: true) before source code modification.
+Language: Strictly English (Ensures code-AST token alignment & zero translation drift).
+DecompositionRule: IF TouchedFiles > 3 OR Steps > 5 THEN plan MUST be partitioned into sequential, gated Phases.
+PhasedExecution: Execute exactly 1 Phase at a time. Run verification gates (`dotnet test`) before proceeding to subsequent Phases.
+Artifact: implementation_plan.md (RequestFeedback: true, UserFacing: true) before source code modification.
 EXEMPTION: (TouchedFileCount == 1) & (FileExtension == ".md") & (DiffType == "TypoFixOnly").
 
 [STEP_2: REUSE_SEARCH]
@@ -146,6 +153,7 @@ Execute <verification_protocol> before concluding task turn.
 4. CONTRADICTION_SWEEP: Grep for legacy syntax across `docs/AI/` and eliminate conflicts.
 
 [AUTHORING_INVARIANTS]
+- COGNITIVE_ALIGNMENT: All documentation updates MUST strictly target LLM Cognitive Anatomy (high token density, compiler-grade ASTs, zero conversational prose). Maintain or elevate established canonical standards.
 - Zero decorative emojis. Zero pseudo-cyberpunk or academic metaphors.
 - Canonical symbolic dictionary: =>, !, ::, >>, &, |, >, <.
 - Minimal node-only Mermaid (<= 15 nodes, <= 2 levels, direct arrows). Indented text hierarchy for trees.

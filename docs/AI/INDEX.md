@@ -98,12 +98,12 @@ Whenever mutations occur in the codebase, execute this 2-tier protocol:
 
 | Signal Token | Source Mutation Event | Target Document & Mandatory Action |
 |---|---|---|
-| `[SIGNAL_API_MUTATION]` | Controller, Route, Request/Response DTO, or Auth mutation | 👉 `01_backend/api_contract.md` (Update route manifest, archetypes, openapi.json) |
-| `[SIGNAL_DOMAIN_MUTATION]` | Entity, Strongly-Typed ID, Value Object, or Smart Enum | 👉 `00_guardrails/CONVENTIONS.md` and `01_backend/persistence.md` |
-| `[SIGNAL_DECEPTIVE_BUG]` | Runtime trap (LOH, boxing equality, deadlock, crash) | 👉 `00_guardrails/FIREWALL.md` (Append rule to `<firewall_rule>`) |
-| `[SIGNAL_SCHEMA_MIGRATION]`| EF Core migration, table, column, index, constraint | 👉 `01_backend/persistence.md` (Update Table Catalog, DDL, Converters) |
-| `[SIGNAL_STRUCTURE_MUTATION]`| New UseCase, Interface, Service, or Project slice | 👉 `01_backend/system_topology.md` and `01_backend/blueprints.md` |
-| `[SIGNAL_UI_MUTATION]` | Design tokens, color palette, atomic primitive, screen | 👉 `02_frontend/design_tokens.md` and `02_frontend/screen_recipes.md` |
+| `[SIGNAL_API_MUTATION]` | Controller, Route, Request/Response DTO, or Auth mutation | Update `01_backend/api_contract.md` (Update route manifest, archetypes, openapi.json) |
+| `[SIGNAL_DOMAIN_MUTATION]` | Entity, Strongly-Typed ID, Value Object, or Smart Enum | Update `00_guardrails/CONVENTIONS.md` and `01_backend/persistence.md` |
+| `[SIGNAL_DECEPTIVE_BUG]` | Runtime trap (LOH, boxing equality, deadlock, crash) | Update `00_guardrails/FIREWALL.md` (Append rule to `<firewall_rule>`) |
+| `[SIGNAL_SCHEMA_MIGRATION]`| EF Core migration, table, column, index, constraint | Update `01_backend/persistence.md` (Update Table Catalog, DDL, Converters) |
+| `[SIGNAL_STRUCTURE_MUTATION]`| New UseCase, Interface, Service, or Project slice | Update `01_backend/system_topology.md` and `01_backend/blueprints.md` |
+| `[SIGNAL_UI_MUTATION]` | Design tokens, color palette, atomic primitive, screen | Update `02_frontend/design_tokens.md` and `02_frontend/screen_recipes.md` |
 
 ### Tier 0: Universal 4-Point Synchronization Protocol
 
@@ -113,6 +113,12 @@ When updating any document in `docs/AI/`, execute these 4 positive actions in se
 3. `[BIDIRECTIONAL_SSOT_LINK]`: Ensure cross-references are mutually linked between guardrails and implementation slices.
 4. `[CONTRADICTION_SWEEP]`: Scan touched documentation slices with `grep_search` to eliminate legacy or obsolete tokens.
 
+### Authoring Invariants:
+- `[COGNITIVE_ALIGNMENT]`: All documentation updates MUST strictly target LLM Cognitive Anatomy (high token density, compiler-grade ASTs, zero conversational prose). Maintain or elevate established canonical standards.
+- Zero decorative emojis. Zero pseudo-cyberpunk or academic metaphors.
+- Canonical symbolic dictionary: `=>`, `!`, `::`, `>>`, `&`, `|`, `>`, `<`.
+- Minimal node-only Mermaid (<= 15 nodes, <= 2 levels, direct arrows). Indented text hierarchy for trees.
+- Micro-diffs over standalone code blocks. Positive canonical code only.
 </switchboard_scope>
 
 <verification_gateway>
