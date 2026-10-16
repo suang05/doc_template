@@ -4,6 +4,7 @@ using ValidationException = SmkDoc.Application.Common.Exceptions.ValidationExcep
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.Login;
 using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
+using SmkDoc.Domain.Constants;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
@@ -25,9 +26,11 @@ public class LoginUseCaseTests
     private readonly Mock<IExecutionContext> _executionContextMock = new();
     private readonly FakeTimeProvider _timeProvider = new(TestConstants.BaselineTime);
 
+    private readonly Mock<ISecurityAuditService> _auditServiceMock = new();
+    private readonly LoginCommandValidator _defaultValidator = new();
+
     private LoginUseCase CreateSut(
         IValidator<LoginCommand>? validator = null,
-        bool withTokenRepo = false,
         Guid? executionContextProjectId = null)
     {
         _executionContextMock.Setup(x => x.ProjectId).Returns(executionContextProjectId);
@@ -37,11 +40,12 @@ public class LoginUseCaseTests
             _passwordHasherMock.Object,
             _jwtGeneratorMock.Object,
             _workspaceQueryServiceMock.Object,
-            validator,
-            withTokenRepo ? _tokenRepoMock.Object : null,
-            withTokenRepo ? _uowMock.Object : null,
+            validator ?? _defaultValidator,
+            _tokenRepoMock.Object,
+            _uowMock.Object,
             _timeProvider,
-            _executionContextMock.Object);
+            _executionContextMock.Object,
+            _auditServiceMock.Object);
     }
 
     [Fact]
@@ -64,11 +68,13 @@ public class LoginUseCaseTests
             new(projectId, "Project Alpha", "project-alpha", "Viewer")
         };
 
+        var workspaceContext = new UserWorkspaceContextDto(projectId, "Viewer", projectId, accessibleProjects);
+
         _userRepoMock.Setup(r => r.GetByEmailAsync(It.Is<EmailAddress>(e => e.Value == "test@example.com"), It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);
 
-        _workspaceQueryServiceMock.Setup(q => q.GetAccessibleProjectsAsync(user.Id, false, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(accessibleProjects);
+        _workspaceQueryServiceMock.Setup(q => q.ResolveWorkspaceContextAsync(user, projectId, true, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(workspaceContext);
 
         _passwordHasherMock.Setup(p => p.VerifyPassword("password123", "hashed_pw"))
             .Returns(true);
@@ -85,6 +91,9 @@ public class LoginUseCaseTests
         result.User.Email.Should().Be("test@example.com");
         result.AccessibleProjects.Should().HaveCount(1);
         result.AccessibleProjects[0].Name.Should().Be("Project Alpha");
+        result.ActiveProjectId.Should().Be(projectId);
+        result.ActiveRole.Should().Be("Viewer");
+        _auditServiceMock.Verify(a => a.LogLoginSuccess(user.Id, "test@example.com", projectId), Times.Once);
     }
 
     [Fact]
@@ -101,6 +110,8 @@ public class LoginUseCaseTests
         // Assert
         await act.Should().ThrowAsync<UnauthorizedException>()
             .WithMessage("Invalid email or password.");
+        _passwordHasherMock.Verify(p => p.VerifyPassword("password123", SecurityConstants.DummyPasswordHash), Times.Once);
+        _auditServiceMock.Verify(a => a.LogLoginFailure("notfound@example.com", "UserNotFound"), Times.Once);
     }
 
     [Fact]
@@ -127,6 +138,8 @@ public class LoginUseCaseTests
         // Assert
         await act.Should().ThrowAsync<UnauthorizedException>()
             .WithMessage("Invalid email or password.");
+        _passwordHasherMock.Verify(p => p.VerifyPassword("password123", SecurityConstants.DummyPasswordHash), Times.Once);
+        _auditServiceMock.Verify(a => a.LogLoginFailure("inactive@example.com", "UserInactive"), Times.Once);
     }
 
     [Fact]
@@ -153,6 +166,7 @@ public class LoginUseCaseTests
         // Assert
         await act.Should().ThrowAsync<UnauthorizedException>()
             .WithMessage("Invalid email or password.");
+        _auditServiceMock.Verify(a => a.LogLoginFailure("test@example.com", "InvalidPassword"), Times.Once);
     }
 
     [Fact]
@@ -180,8 +194,8 @@ public class LoginUseCaseTests
             .ReturnsAsync(user);
         _passwordHasherMock.Setup(p => p.VerifyPassword("password123", "hashed_pw"))
             .Returns(true);
-        _workspaceQueryServiceMock.Setup(q => q.GetAccessibleProjectsAsync(user.Id, false, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(accessibleProjects);
+        _workspaceQueryServiceMock.Setup(q => q.ResolveWorkspaceContextAsync(user, selectedProjectId, true, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new UnauthorizedException("User does not have access to the specified project."));
 
         // Act
         var act = () => CreateSut(executionContextProjectId: selectedProjectId).ExecuteAsync(command);
@@ -213,7 +227,11 @@ public class LoginUseCaseTests
         var command = new LoginCommand("invalid-email-format", "password123");
 
         // Act
-        var act = () => CreateSut().ExecuteAsync(command);
+        var passValidator = new Mock<IValidator<LoginCommand>>();
+        passValidator.Setup(v => v.ValidateAsync(It.IsAny<LoginCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new FluentValidation.Results.ValidationResult());
+
+        var act = () => CreateSut(validator: passValidator.Object).ExecuteAsync(command);
 
         // Assert
         await act.Should().ThrowAsync<DomainValidationException>();
@@ -232,17 +250,19 @@ public class LoginUseCaseTests
             .WithTime(now)
             .Build();
 
+        var workspaceContext = new UserWorkspaceContextDto(null, "Viewer", null, new List<AccessibleProjectDto>());
+
         _userRepoMock.Setup(r => r.GetByEmailAsync(It.IsAny<EmailAddress>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);
-        _workspaceQueryServiceMock.Setup(q => q.GetAccessibleProjectsAsync(user.Id, false, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new List<AccessibleProjectDto>());
+        _workspaceQueryServiceMock.Setup(q => q.ResolveWorkspaceContextAsync(user, It.IsAny<Guid?>(), true, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(workspaceContext);
         _passwordHasherMock.Setup(p => p.VerifyPassword("password123", "hashed_pw"))
             .Returns(true);
         _jwtGeneratorMock.Setup(j => j.GenerateToken(user, It.IsAny<Guid?>(), It.IsAny<IEnumerable<string>>()))
             .Returns("valid_token");
 
         // Act
-        var result = await CreateSut(withTokenRepo: true).ExecuteAsync(command);
+        var result = await CreateSut().ExecuteAsync(command);
 
         // Assert
         result.RefreshToken.Should().NotBeNullOrWhiteSpace();
@@ -274,10 +294,12 @@ public class LoginUseCaseTests
             new(Guid.NewGuid(), "Read Key", "test-app", true, null, now, "ReadOnly")
         };
 
+        var workspaceContext = new UserWorkspaceContextDto(projectId, "Admin", projectId, accessibleProjects);
+
         _userRepoMock.Setup(r => r.GetByEmailAsync(It.IsAny<EmailAddress>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);
-        _workspaceQueryServiceMock.Setup(q => q.GetAccessibleProjectsAsync(user.Id, true, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(accessibleProjects);
+        _workspaceQueryServiceMock.Setup(q => q.ResolveWorkspaceContextAsync(user, projectId, true, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(workspaceContext);
         _workspaceQueryServiceMock.Setup(q => q.GetActiveApiKeysAsync(projectId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(activeKeys);
         _passwordHasherMock.Setup(p => p.VerifyPassword("password123", "hashed_pw"))

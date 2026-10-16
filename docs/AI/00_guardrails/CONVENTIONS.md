@@ -12,23 +12,27 @@
 
 <!-- SLOT 2: PRE-TRAINING PRIOR INVERSION MAP (Subword-Level Bias Override) -->
 <prior_inversion_map>
-## ⚡ High-Salience Token Inversion Map (Pre-Training Override)
+## High-Salience Token Inversion Map (Pre-Training Override)
 
 ### Category A: Language & Modern C# 13 / .NET 10 Primitives
-| AST Node / Concern | Defective Prior (❌ Trigger Drop) | Canonical Target Token (✅ Mandatory Target) | Governing Invariant |
+| AST Node / Concern | Defective Prior (! BANNED) | Canonical Target Token (>> MANDATORY) | Governing Invariant |
 |---|---|---|---|
 | **Collection Init** | `new List<T>()`, `new T[] { }` | `[]` | C# 13 Collection Expressions (`RULE-TECH-001`) |
 | **Time Query** | `DateTime.UtcNow`, `DateTime.Now` | `timeProvider.GetUtcNow()`, `DateTimeOffset now` | Testable deterministic time (`RULE-APP-005`, `RULE-DOM-005`) |
 | **Entity Key** | `Guid.NewGuid()`, auto-increment `int` | `Guid.CreateVersion7()` | Sequential B-tree indexing UUIDv7 (`RULE-DOM-007`) |
 | **Concurrency Lock** | `lock (new object())`, `Monitor.Enter` | `System.Threading.Lock _gate = new(); lock (_gate)` | C# 13 High-Performance Lock (`RULE-TECH-001`) |
-| **Memory Buffers** | `new MemoryStream()`, `byte[] buffer` | `Stream.CopyToAsync(response.Body, ct)`, `ArrayPool<byte>` | Zero LOH allocation 👉 [`FIREWALL-MEM-001`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/FIREWALL.md#firewall-mem-001) |
-| **Async Blocking** | `.Result`, `.Wait()`, `.GetAwaiter()` | `await` | Non-blocking execution 👉 [`FIREWALL-ASYNC-001`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/FIREWALL.md#firewall-async-001) |
-| **Regex Parsing** | `new Regex(pattern)` in execution path | `[GeneratedRegex]` with `RegexOptions.NonBacktracking` | ReDoS defense 👉 [`FIREWALL-SEC-003`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/FIREWALL.md#firewall-sec-003) |
+| **Memory Buffers** | `new MemoryStream()`, `byte[] buffer` | `Stream.CopyToAsync(response.Body, ct)`, `ArrayPool<byte>` | Zero LOH allocation => [`FIREWALL-MEM-001`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/FIREWALL.md#firewall-mem-001) |
+| **Async Blocking** | `.Result`, `.Wait()`, `.GetAwaiter()` | `await` | Non-blocking execution => [`FIREWALL-ASYNC-001`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/FIREWALL.md#firewall-async-001) |
+| **Regex Parsing** | `new Regex(pattern)` in execution path | `[GeneratedRegex]` with `RegexOptions.NonBacktracking` | ReDoS defense => [`FIREWALL-SEC-003`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/FIREWALL.md#firewall-sec-003) |
+| **Credential Timing**| Early return on `user == null` / inactive | `passwordHasher.VerifyPassword(pwd, DummyPasswordHash)` | Constant-time timing defense => [`FIREWALL-SEC-004`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/FIREWALL.md#firewall-sec-004) |
 
 ### Category B: Dependency Injection, Parameters & Identifier Naming
-| AST Node / Concern | Defective Prior (❌ Trigger Drop) | Canonical Target Token (✅ Mandatory Target) | Governing Invariant |
+| AST Node / Concern | Defective Prior (! BANNED) | Canonical Target Token (>> MANDATORY) | Governing Invariant |
 |---|---|---|---|
 | **Primary Ctor DI** | `_repo`, `_logger`, `_unitOfWork` | `templateRepo`, `logger`, `unitOfWork` | Pure `camelCase` parameters (`RULE-APP-002`) |
+| **Ctor Invariants** | Optional deps `(IService? svc = null)` | Mandatory non-null ctor params `(IService svc)` | Zero test backdoors => [`FIREWALL-ARCH-006`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/FIREWALL.md#firewall-arch-006) |
+| **Security Audit** | Inlining `ILogger<T>` string interpolation | Pure Application port `ISecurityAuditService` | Decoupled semantic audit trail (`RULE-APP-002`) |
+| **Visual Symbols** | Decorative emojis in code/comments/logs/docs | Pure ASCII / UTF-8 technical text (Zero emojis) | Clean AST & token density (`RULE-CRAFT-016`) |
 | **Cancellation Token**| `cancellationToken`, `cancelToken`, `None` | `CancellationToken ct = default` | Downstream token propagation (`RULE-CONC-002`) |
 | **Command Variable** | `cmd`, `c` | `command` | Strict variable dictionary (`RULE-NAME-002`) |
 | **Request Variable** | `req`, `r` | `request` | Strict variable dictionary (`RULE-NAME-002`) |
@@ -38,45 +42,45 @@
 | **Homogeneous Args** | `Method(id1, id2, str1, str2)` | `Method(sourceId: id1, targetId: id2)` | Mandatory named arguments on same types (`RULE-CRAFT-012`) |
 
 ### Category C: Domain Modeling & Layer Boundary Grammar
-| AST Node / Concern | Defective Prior (❌ Trigger Drop) | Canonical Target Token (✅ Mandatory Target) | Governing Invariant |
+| AST Node / Concern | Defective Prior (! BANNED) | Canonical Target Token (>> MANDATORY) | Governing Invariant |
 |---|---|---|---|
 | **Domain State** | `public string Name { get; set; }` | `public TemplateName Name { get; private set; }` | Encapsulated Rich Domain Model (`RULE-DOM-002`) |
 | **Domain Factory** | `new Template(...)` (caller instantiation) | `Template.Create(...)` | Single canonical factory method SSoT (`RULE-DOM-003`) |
 | **Domain Mutation** | Direct property setter outside entity | `template.Archive(now)`, `template.Publish(now)` | Expressive business domain verbs (`RULE-DOM-005`) |
-| **Entity Declaration**| `public struct Entity`, `record struct Entity` | `public sealed class Entity : BaseEntity<TId>` | EF Core change tracking & identity equality 👉 [`FIREWALL-DOM-002`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/FIREWALL.md#firewall-dom-002) |
+| **Entity Declaration**| `public struct Entity`, `record struct Entity` | `public sealed class Entity : BaseEntity<TId>` | EF Core change tracking & identity equality => [`FIREWALL-DOM-002`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/FIREWALL.md#firewall-dom-002) |
 | **String Value Object**| `public class Name : ValueObject` (boilerplate) | `public sealed record class Name` | Modern C# 13 structural equality (`RULE-DOM-006`) |
-| **String Struct Trap** | `public readonly record struct Name(string Value)`| `public sealed record class Name` | Zero default-null bypass defense 👉 [`FIREWALL-DOM-001`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/FIREWALL.md#firewall-dom-001) |
-| **Strongly-Typed ID** | Raw primitive `Guid ProjectId` | `public readonly record struct ProjectId(Guid Value)` | 16-byte stack allocated type-safety 👉 [`FIREWALL-DOM-004`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/FIREWALL.md#firewall-dom-004) |
+| **String Struct Trap** | `public readonly record struct Name(string Value)`| `public sealed record class Name` | Zero default-null bypass defense => [`FIREWALL-DOM-001`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/FIREWALL.md#firewall-dom-001) |
+| **Strongly-Typed ID** | Raw primitive `Guid ProjectId` | `public readonly record struct ProjectId(Guid Value)` | 16-byte stack allocated type-safety => [`FIREWALL-DOM-004`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/FIREWALL.md#firewall-dom-004) |
 | **Numeric/Range Struct**| `public class PageMargin`, `public class DateRange` | `public readonly record struct PageMargin(...)` | Stack-allocated lightweight dimensions (`RULE-DOM-006`) |
 | **Cross-Aggregate Ref**| Navigation property `public Project Project`| Foreign key identifier `public ProjectId ProjectId` | Aggregate boundary isolation (`RULE-DOM-009`) |
-| **Entity DTO Egress**| Returning `Template` outside UseCase | Returning immutable `TemplateResultDto` | Zero entity boundary leakage 👉 [`FIREWALL-ARCH-002`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/FIREWALL.md#firewall-arch-002) |
-| **Transaction Boundary**| Multiple `CommitAsync()` in UseCase | Exactly 1 `await unitOfWork.CommitAsync(ct);` | Atomic ACID transaction 👉 [`FIREWALL-ARCH-003`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/FIREWALL.md#firewall-arch-003) |
+| **Entity DTO Egress**| Returning `Template` outside UseCase | Returning immutable `TemplateResultDto` | Zero entity boundary leakage => [`FIREWALL-ARCH-002`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/FIREWALL.md#firewall-arch-002) |
+| **Transaction Boundary**| Multiple `CommitAsync()` in UseCase | Exactly 1 `await unitOfWork.CommitAsync(ct);` | Atomic ACID transaction => [`FIREWALL-ARCH-003`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/FIREWALL.md#firewall-arch-003) |
 | **Read Queries** | `dbContext.Templates.ToList()` | `templateRepo.ListAsync(ct)` with `.AsNoTracking()` | Zero untracked queries (`RULE-INFRA-005`) |
 | **Query Projection** | Loading full entity then mapping in memory | Project via LINQ `.Select(t => new ResultDto(...))` | High-throughput query performance (`RULE-INFRA-005`) |
-| **Repo Return** | Returning `IQueryable<T>` outside Infra | Return `Task<IReadOnlyList<T>>` or `Task<T?>` | Evaluated collection contracts 👉 [`FIREWALL-ARCH-004`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/FIREWALL.md#firewall-arch-004) |
+| **Repo Return** | Returning `IQueryable<T>` outside Infra | Return `Task<IReadOnlyList<T>>` or `Task<T?>` | Evaluated collection contracts => [`FIREWALL-ARCH-004`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/FIREWALL.md#firewall-arch-004) |
 | **Entity Config** | Data annotations (`[Table]`, `[Key]`) | `IEntityTypeConfiguration<T>` in Infrastructure | Clean Architecture boundary (`RULE-INFRA-002`) |
 | **Concurrency Token**| Timestamp property or unhandled 409 | `builder.UseXminAsConcurrencyToken()` | Optimistic locking via PostgreSQL xmin (`RULE-INFRA-007`) |
-| **Service Size** | God class `TemplateService` with CRUD methods | 1 Intent = 1 Class implementing `IUseCase<TCommand, TResult>` | SRP CQRS UseCase 👉 [`FIREWALL-ARCH-001`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/FIREWALL.md#firewall-arch-001) |
+| **Service Size** | God class `TemplateService` with CRUD methods | 1 Intent = 1 Class implementing `IUseCase<TCommand, TResult>` | SRP CQRS UseCase => [`FIREWALL-ARCH-001`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/FIREWALL.md#firewall-arch-001) |
 
 ### Category D: Presentation, Wire Envelopes & REST Protocol
-| AST Node / Concern | Defective Prior (❌ Trigger Drop) | Canonical Target Token (✅ Mandatory Target) | Governing Invariant |
+| AST Node / Concern | Defective Prior (! BANNED) | Canonical Target Token (>> MANDATORY) | Governing Invariant |
 |---|---|---|---|
 | **HTTP Result** | `return Ok(dto);`, empty `204 NoContent` | `TypedResults.Ok(new ApiResponse<TResultDto>(result))` | Strongly-typed RFC 9110 responses (`RULE-API-002`) |
 | **HTTP Created** | `return StatusCode(201, ...)` | `TypedResults.Created($"/api/v1/{res}/{id}", envelope)` | Strongly-typed RFC 9110 responses (`RULE-API-002`) |
-| **Model Binding** | `[FromBody] Template entity` | `[FromBody] CreateTemplateRequest request` | Mass-assignment defense 👉 [`FIREWALL-SEC-002`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/FIREWALL.md#firewall-sec-002) |
-| **Error Egress** | `new { error = "msg" }`, `try-catch` in action | RFC 9457 `ProblemDetails` via `GlobalExceptionHandler` | Centralized error pipeline 👉 [`FIREWALL-OPS-003`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/FIREWALL.md#firewall-ops-003) |
-| **Safe Mutations** | `[HttpPost]` without idempotency filter | `[HttpPost, Idempotent]` | Safe retry semantics 👉 [`FIREWALL-OPS-004`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/FIREWALL.md#firewall-ops-004) |
+| **Model Binding** | `[FromBody] Template entity` | `[FromBody] CreateTemplateRequest request` | Mass-assignment defense => [`FIREWALL-SEC-002`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/FIREWALL.md#firewall-sec-002) |
+| **Error Egress** | `new { error = "msg" }`, `try-catch` in action | RFC 9457 `ProblemDetails` via `GlobalExceptionHandler` | Centralized error pipeline => [`FIREWALL-OPS-003`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/FIREWALL.md#firewall-ops-003) |
+| **Safe Mutations** | `[HttpPost]` without idempotency filter | `[HttpPost, Idempotent]` | Safe retry semantics => [`FIREWALL-OPS-004`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/FIREWALL.md#firewall-ops-004) |
 | **Thai Localization**| Inlined `+ 543` or ad-hoc BahtText regex | `ThaiDataTransformer.Transform(val, TransformerType)` | Centralized Thai compliance (`RULE-VAL-002`) |
 | **Test Setup** | `var sut = new UseCase(mock1, mock2)` | SSoT `CreateSut().ExecuteAsync(...)` in test class | Single Source of Truth SUT pattern (`RULE-TEST-005`) |
 | **Test Clocks** | Calling `DateTime.UtcNow` inside tests | `timeProviderMock.Setup(t => t.GetUtcNow()).Returns(...)` | Deterministic time testing (`RULE-TEST-006`) |
-| **Test Assertions** | `.Should().Be((TemplateId)guid)` | `var id = TemplateId.New(); ... .Should().Be(id)` | Zero-cast assertion 👉 [`FIREWALL-TEST-001`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/FIREWALL.md#firewall-test-001) |
+| **Test Assertions** | `.Should().Be((TemplateId)guid)` | `var id = TemplateId.New(); ... .Should().Be(id)` | Zero-cast assertion => [`FIREWALL-TEST-001`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/FIREWALL.md#firewall-test-001) |
 </prior_inversion_map>
 
 ---
 
 <!-- SLOT 3: CONSTRAINT SEVERITY HIERARCHY (Conflict Resolution Tiers) -->
 <severity_hierarchy>
-## ⚖️ Constraint Resolution Hierarchy
+## Constraint Resolution Hierarchy
 1. `[TIER-1-FATAL]` (Process & Memory Integrity): Governed by [`FIREWALL.md`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/FIREWALL.md): Zero LOH allocations (`FIREWALL-MEM-001`), DbContext thread isolation (`FIREWALL-CONC-001`), non-blocking async (`FIREWALL-ASYNC-001`), single atomic commit (`FIREWALL-ARCH-003`).
 2. `[TIER-2-ARCH]` (Clean Architecture Boundaries): Inward dependency flow (`RULE-ARCH-001`), DTO layer isolation (`RULE-DTO-001`), action-centric UseCases (`RULE-SOLID-001`), strategy rendering (`RULE-PAT-001`).
 3. `[TIER-3-CRAFT]` (Syntactic & Micro-Ergonomics): Named arguments on same primitives (`RULE-CRAFT-012`), Stepdown method order (`RULE-CRAFT-001`), trailing commas & curly braces (`RULE-CRAFT-014`), pure `camelCase` DI parameters (`RULE-APP-002`).
@@ -86,7 +90,7 @@
 
 <!-- SLOT 4: CORE GENERATIVE BLUEPRINTS (High-Density Minimal Complete AST) -->
 <conventions_scope>
-## 1. 🏗️ Runtime & Compiler Capabilities (Ground Truth)
+## 1. Runtime & Compiler Capabilities (Ground Truth)
 
 All C# code generated by LLMs MUST strictly adhere to the following target runtimes and compiler capabilities:
 
@@ -105,11 +109,11 @@ All C# code generated by LLMs MUST strictly adhere to the following target runti
 
 ---
 
-## 2. 🏛️ Clean Architecture Layer & DTO Matrix
+## 2. Clean Architecture Layer & DTO Matrix
 
 ### 2.1 Boundary Invariants (`RULE-ARCH`)
 
-Dependencies flow inwards exclusively: `Presentation (Api)` ➔ `Application` ➔ `Domain` 🠔 `Infrastructure`.
+Dependencies flow inwards exclusively: `Presentation (Api)` => `Application` => `Domain` <= `Infrastructure`.
 
 * `[RULE-ARCH-001] [MUST]`: Dependencies flow INWARDS ONLY. Domain Core references zero external assemblies or NuGet packages.
 * `[RULE-ARCH-002] [MUST]`: Domain represents pure business logic. Implement core entities and domain logic as framework-free C# POCOs.
@@ -175,16 +179,16 @@ All implementations within `smk-doc-server` align with these canonical patterns:
 
 ---
 
-## 3. 🔵 Layer Architectural Contracts (C# 13 / .NET 10)
+## 3. Layer Architectural Contracts (C# 13 / .NET 10)
 
 ### 3.1 Domain Layer (`RULE-DOM`)
-* `[RULE-DOM-001] [MUST]`: Implement entities and aggregate roots exclusively as `public sealed class` inheriting `BaseEntity` to preserve EF Core Change Tracker reference identity. Prohibited from being a `struct` or `record struct` (👉 [`FIREWALL-DOM-002`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/FIREWALL.md#firewall-dom-002)).
+* `[RULE-DOM-001] [MUST]`: Implement entities and aggregate roots exclusively as `public sealed class` inheriting `BaseEntity` to preserve EF Core Change Tracker reference identity. Prohibited from being a `struct` or `record struct` (=> [`FIREWALL-DOM-002`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/FIREWALL.md#firewall-dom-002)).
 * `[RULE-DOM-002] [MUST]`: Encapsulate state strictly. Declare all entity properties with `private set;` or `protected set;`. Mutate state through expressive domain verbs.
 * `[RULE-DOM-003] [MUST]`: Expose exactly 1 canonical factory method (`Create`) as the SSoT for entity instantiation, keeping constructors `private` or `internal`.
 * `[RULE-DOM-004] [MUST]`: Validate business state invariants fail-fast inside the factory method (e.g. `ArgumentException.ThrowIfNullOrWhiteSpace(name)`).
 * `[RULE-DOM-005] [MUST]`: Mutate state exclusively via expressive domain verbs (e.g., `Publish`, `Archive`, `Deactivate`) receiving explicit dependencies (e.g., `DateTimeOffset now`).
 * `[RULE-DOM-006] [MUST]`: **Value Object Bifurcation Invariant:**
-  - **Class-based (`public sealed record class`):** MUST be used for Value Objects wrapping `string`, enforcing business validations (Regex, NotBlank), or where `default(T)` would represent an invalid state (e.g. `ProjectName`, `EmailAddress`). Constructors MUST be private, instantiated via canonical `Create(...)` factory method (👉 [`FIREWALL-DOM-001`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/FIREWALL.md#firewall-dom-001)).
+  - **Class-based (`public sealed record class`):** MUST be used for Value Objects wrapping `string`, enforcing business validations (Regex, NotBlank), or where `default(T)` would represent an invalid state (e.g. `ProjectName`, `EmailAddress`). Constructors MUST be private, instantiated via canonical `Create(...)` factory method (=> [`FIREWALL-DOM-001`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/FIREWALL.md#firewall-dom-001)).
   - **Struct-based (`public readonly record struct`):** MUST be used for Strongly-Typed IDs, numerical dimensions (Measurements), and date/time ranges with total size <= 16 bytes (e.g. `PageDimension` 8B, `PageMargin` 16B, `DateRange` 8B).
   
 ```mermaid
@@ -270,7 +274,7 @@ public sealed class Template : BaseEntity<TemplateId> // Class-based Entity inhe
 * `[RULE-APP-004] [MUST]`: Verify transport/structural constraints using `FluentValidation`; enforce business invariants inside Domain Entities.
 * `[RULE-APP-005] [MUST]`: Query current time via .NET standard `TimeProvider` (`timeProvider.GetUtcNow()`).
 * `[RULE-APP-006] [MUST]`: Accept `CancellationToken ct = default` as the final parameter on all asynchronous methods and propagate it to downstream calls.
-* `[RULE-FLOW-001] [MUST]`: Sequence external side-effects in the **DB Intent ➔ Storage Upload ➔ DB Finalize** execution order.
+* `[RULE-FLOW-001] [MUST]`: Sequence external side-effects in the **DB Intent => Storage Upload => DB Finalize** execution order.
 
 ```csharp
 // Compliant Application Micro-Snippet (RULE-APP-001 through RULE-APP-006)
@@ -362,13 +366,13 @@ public sealed class TemplateController(
 ---
 
 ### 3.6 High-Performance Memory & LOH Hygiene (`RULE-MEM`)
-* `[RULE-MEM-001] [MUST]`: Stream document payloads directly to HTTP responses via `Stream.CopyToAsync(response.Body, ct)` or `PipeWriter` to preserve Large Object Heap (LOH) health 👉 [`FIREWALL-MEM-001`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/FIREWALL.md#firewall-mem-001).
+* `[RULE-MEM-001] [MUST]`: Stream document payloads directly to HTTP responses via `Stream.CopyToAsync(response.Body, ct)` or `PipeWriter` to preserve Large Object Heap (LOH) health => [`FIREWALL-MEM-001`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/FIREWALL.md#firewall-mem-001).
 * `[RULE-MEM-002] [MUST]`: When intermediate buffering is unavoidable, rent buffers from `ArrayPool<byte>.Shared` or `RecyclableMemoryStreamManager`, returning them in a `finally` block.
 
 ---
 
 ### 3.7 Concurrency & DbContext Thread-Safety (`RULE-CONC`)
-* `[RULE-CONC-001] [MUST]`: Execute scoped DbContext operations sequentially, or spawn isolated short-lived contexts using `IDbContextFactory<SmkDocDbContext>` for concurrent tasks 👉 [`FIREWALL-CONC-001`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/FIREWALL.md#firewall-conc-001).
+* `[RULE-CONC-001] [MUST]`: Execute scoped DbContext operations sequentially, or spawn isolated short-lived contexts using `IDbContextFactory<SmkDocDbContext>` for concurrent tasks => [`FIREWALL-CONC-001`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/FIREWALL.md#firewall-conc-001).
 * `[RULE-CONC-002] [MUST]`: Propagate `CancellationToken ct = default` to every terminal async operation (`ToListAsync(ct)`, `CopyToAsync(..., ct)`).
 * `[RULE-CONC-003] [MUST]`: Dispatch background tasks through `Channel<T>` to a `BackgroundService`, or create an explicit scope using `IServiceScopeFactory.CreateAsyncScope()`.
 
@@ -381,7 +385,7 @@ public sealed class TemplateController(
 ---
 
 ### 3.9 Code-Level Security & ReDoS Defense (`RULE-SEC`)
-* `[RULE-SEC-001] [MUST]`: Declare regular expressions using source generators (`[GeneratedRegex]`) with `RegexOptions.NonBacktracking` to eliminate ReDoS vulnerabilities 👉 [`FIREWALL-SEC-003`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/FIREWALL.md#firewall-sec-003).
+* `[RULE-SEC-001] [MUST]`: Declare regular expressions using source generators (`[GeneratedRegex]`) with `RegexOptions.NonBacktracking` to eliminate ReDoS vulnerabilities => [`FIREWALL-SEC-003`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/FIREWALL.md#firewall-sec-003).
 * `[RULE-SEC-002] [MUST]`: Filter internal stack traces and database connection details from production RFC 9457 responses.
 * `[RULE-SEC-003] [MUST]`: Mutate entity state exclusively through explicit domain methods with strongly-typed parameters.
 
@@ -418,6 +422,7 @@ public sealed class TemplateController(
 * `[RULE-CRAFT-012] [MUST]`: **Named Arguments on Same Types:** Use explicit C# named arguments (`projectId: command.ProjectId, name: templateName, slug: slug`) when calling methods with 2 or more parameters of the same primitive type.
 * `[RULE-CRAFT-013] [MUST]`: **Verified Standard APIs:** Restrict method invocations to framework APIs or utilities explicitly declared in the codebase.
 * `[RULE-CRAFT-014] [MUST]`: **Diff-Friendly & Patch-Safe Syntax:** Add trailing commas on multi-line lists/arguments; declare 1 parameter per line when $\ge 3$ items; enclose all control flow bodies in curly braces `{ }`.
+* `[RULE-CRAFT-016] [MUST]`: **Zero Decorative Emojis:** Prohibit emojis in source code, comments, log messages, exception messages, test method names, and technical documentation. Code and documentation MUST maintain compiler-grade AST cleanliness, zero conversational decoration, and high token density without decorative symbols.
 </craft_cluster>
 
 ---
@@ -433,7 +438,7 @@ public sealed class TemplateController(
 
 ---
 
-## 4. 🏷️ Canonical Naming & Identity Maps (SSoT)
+## 4. Canonical Naming & Identity Maps (SSoT)
 
 ### 4.1 The 6 Pillars Naming Matrix
 | Element / Artifact | Layer / Scope | Convention | Canonical Example |
@@ -494,17 +499,17 @@ $$\text{HTTP Request: } \texttt{outputFormat} \longrightarrow \text{Command: } \
 
 ---
 
-## 5. 🧩 Macro-Assembler Routing Delegation
+## 5. Macro-Assembler Routing Delegation
 
 > **[ORTHOGONAL_SSOT_BOUNDARY]:** This document (`CONVENTIONS.md`) functions exclusively as the **Micro-Linter & Neural AST Constraint Engine**.
 >
 > For complete multi-file Clean Architecture slice wiring, dataflow sequences, and generative archetypes, consult the **Macro-Assembler**:
-> 👉 [`docs/AI/01_backend/blueprints.md`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/01_backend/blueprints.md)
+> => [`docs/AI/01_backend/blueprints.md`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/01_backend/blueprints.md)
 
 ### Canonical Cross-Document Assembly Mapping:
 | Architectural Task | Canonical Authority (SSoT) | Implementation Pattern in `blueprints.md` |
 |---|---|---|
-| **Master 5-File Feature Slice** | `blueprints.md#2--level-2-master-5-file-feature-slice-pipeline` | Request ➔ Command ➔ UseCase ➔ Aggregate ➔ ResultDto |
+| **Master 5-File Feature Slice** | `blueprints.md#2--level-2-master-5-file-feature-slice-pipeline` | Request => Command => UseCase => Aggregate => ResultDto |
 | **Thin Controller & Envelope** | `blueprints.md#archetype-1-thin-controller--api-envelope-pattern` | Archetype 1 (`TypedResults.Ok`, `TypedResults.Created`) |
 | **RFC 9457 Global Exception Pipeline** | `blueprints.md#archetype-2-rfc-9457-global-exception-pipeline-iexceptionhandler-ssot` | Archetype 2 (`IExceptionHandler` mapping SSoT) |
 | **IETF Idempotency-Key Pipeline** | `blueprints.md#archetype-3-ietf-idempotency-key-pipeline-pattern-safe-mutations` | Archetype 3 (`[Idempotent]` Mutation Consumer Contract) |
@@ -519,7 +524,7 @@ $$\text{HTTP Request: } \texttt{outputFormat} \longrightarrow \text{Command: } \
 
 ---
 
-## 6. 🛡️ Architectural Linter Protocol (Zero-Tolerance Gatekeeper)
+## 6. Architectural Linter Protocol (Zero-Tolerance Gatekeeper)
 
 > **[ACTIVATION_TRIGGER]:** This section applies when the LLM operates under `[MODE: CODE_AUDIT_LINT]` or when evaluating legacy codebase files.
 
@@ -528,7 +533,7 @@ $$\text{HTTP Request: } \texttt{outputFormat} \longrightarrow \text{Command: } \
 * `[RULE-GATE-002] [MUST]`: Upon detecting any architectural defect, execute this deterministic 3-step sequence:
   1. **Halt & Flag:** Stop immediate execution. State exact file, line number, and rule violation ID (`[RULE-...]`).
   2. **Technical Impact Explanation:** Explain root-cause architectural hazards (e.g. LOH fragmentation, thread pool starvation, leaky abstraction, broken testability).
-  3. **Elevated Remediation:** Provide complete compilable code presenting the `✅ SSoT Canonical Standard` directly. Zero defective code block re-generation permitted (to prevent negative token contamination into KV-cache).
+  3. **Elevated Remediation:** Provide complete compilable code presenting the `SSoT Canonical Standard` directly. Zero defective code block re-generation permitted (to prevent negative token contamination into KV-cache).
 * `[RULE-GATE-003] [MUST]`: Propose refactoring or rewriting fundamentally flawed structures (e.g. Anemic Domain Models, God classes, public setters) instead of applying band-aid patches.
 
 ---
@@ -537,10 +542,10 @@ $$\text{HTTP Request: } \texttt{outputFormat} \longrightarrow \text{Command: } \
 When intercepting non-compliant code under `[MODE: CODE_AUDIT_LINT]`, the LLM MUST use this exact output structure:
 
 ```markdown
-🚨 **[ARCHITECTURAL_VIOLATION_DETECTED]:** Defect identified in `{FilePath}:{LineNumber}`
+**[ARCHITECTURAL_VIOLATION_DETECTED]:** Defect identified in `{FilePath}:{LineNumber}`
 - **Violated Rule:** `[RULE-CATEGORY-ID]` ({Rule Title})
 - **Technical Impact:** {Detailed explanation: e.g. thread starvation, leaky abstraction, LOH buffer}
-- **Elevated Remediation (✅ SSoT Canonical Standard):**
+- **Elevated Remediation (SSoT Canonical Standard):**
   ```csharp
   // Elevated compliant code exclusively
   ```
@@ -550,7 +555,7 @@ When intercepting non-compliant code under `[MODE: CODE_AUDIT_LINT]`, the LLM MU
 
 ---
 
-## 7. 🔄 Document Maintenance & Micro-AST Ingestion Protocol
+## 7. Document Maintenance & Micro-AST Ingestion Protocol
 
 ### Ingestion Triggers (Conditions when the LLM MUST Halt & Propose a New Rule):
 - **`[EVENT_SYNTAX_VERSION_UPGRADE]`**: A target runtime (.NET 10) or compiler (C# 13) language feature becomes available or deprecated.
@@ -560,7 +565,7 @@ When intercepting non-compliant code under `[MODE: CODE_AUDIT_LINT]`, the LLM MU
 ### 1-Shot Ingestion Template:
 When proposing a new substitution rule, format it strictly using this row structure:
 
-| AST Node / Concern | Defective Prior (❌ Trigger Drop) | Canonical Target Token (✅ Mandatory Target) | Governing Invariant |
+| AST Node / Concern | Defective Prior (! BANNED) | Canonical Target Token (>> MANDATORY) | Governing Invariant |
 |---|---|---|---|
 | **Concern Name** | `defective_token` | `canonical_token` | Rule title and traceable ID (`[RULE-CAT-ID]`) |
 
@@ -575,7 +580,7 @@ When proposing a new substitution rule, format it strictly using this row struct
 
 <!-- SLOT 5: DETERMINISTIC VERIFICATION GATEWAY (Recency Weight: Final 10%) -->
 <verification_gateway>
-## ✅ Deterministic Pre-Emission Checklist (Self-Audit Gate)
+## Deterministic Pre-Emission Checklist (Self-Audit Gate)
 - [ ] 1. Prior Inversion Map compliance checked across Categories A, B, C, D?
 - [ ] 2. All [TIER-1-FATAL] constraints preserved (Zero LOH buffers, single-thread DbContext, pure async, tenant isolation)?
 - [ ] 3. Layer boundaries conform to [ORTHOGONAL_BOUNDARY] (Dependencies flow inwards exclusively: Api >> Application >> Domain << Infrastructure)?

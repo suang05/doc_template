@@ -15,6 +15,8 @@ public record LoginResultDto
     public IReadOnlyList<AccessibleProjectDto> AccessibleProjects { get; init; } = [];
     public IReadOnlyList<ApiKeyDto> ActiveApiKeys { get; init; } = [];
     public Guid? DefaultProjectId { get; init; }
+    public Guid? ActiveProjectId { get; init; }
+    public string? ActiveRole { get; init; }
 
     public LoginResultDto() { }
 
@@ -23,6 +25,8 @@ public record LoginResultDto
         UserProfileDto user,
         IReadOnlyList<AccessibleProjectDto> accessibleProjects,
         Guid? defaultProjectId,
+        Guid? activeProjectId = null,
+        string? activeRole = null,
         string tokenType = SecurityConstants.BearerTokenType,
         int expiresIn = SecurityConstants.AccessTokenLifetimeSeconds,
         string? refreshToken = null,
@@ -34,6 +38,8 @@ public record LoginResultDto
         AccessibleProjects = accessibleProjects;
         ActiveApiKeys = activeApiKeys ?? [];
         DefaultProjectId = defaultProjectId;
+        ActiveProjectId = activeProjectId ?? defaultProjectId;
+        ActiveRole = activeRole;
         TokenType = tokenType;
         ExpiresIn = expiresIn;
     }

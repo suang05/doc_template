@@ -12,9 +12,9 @@
 
 <!-- SLOT 2: PRE-TRAINING PRIOR INVERSION MAP (Subword-Level Bias Override) -->
 <prior_inversion_map>
-## ⚡ High-Salience Token Inversion Map (Pre-Training Override)
+## High-Salience Token Inversion Map (Pre-Training Override)
 
-| Wire / Controller Context | Defective Pattern (❌ Banned) | Canonical Standard (✅ Mandatory Target) | Governing Invariant |
+| Wire / Controller Context | Defective Pattern (! BANNED) | Canonical Standard (>> MANDATORY) | Governing Invariant |
 |---|---|---|---|
 | **Wire Object Egress** | `return Ok(new { id, success = true });` | `TypedResults.Ok(new ApiResponse<TResultDto>(result))` | Strongly-typed DTO envelope (`RULE-ENV-001`, `RULE-ENV-004`) |
 | **State Mutation Egress**| `return NoContent();` on PUT/PATCH | `TypedResults.Ok(new ApiResponse<TResultDto>(result))` | Mutated state returned to caller (`RULE-REST-003`) |
@@ -32,7 +32,7 @@
 
 <!-- SLOT 3: CONSTRAINT SEVERITY HIERARCHY (Conflict Resolution Tiers) -->
 <severity_hierarchy>
-## ⚖️ Constraint Resolution Hierarchy
+## Constraint Resolution Hierarchy
 1. `[TIER-1-FATAL]` (Wire & Security Integrity): Zero un-enveloped JSON (`RULE-ENV-001`), zero top-level JSON arrays (`RULE-WIRE-003`), strictly RFC 9457 `ProblemDetails` (`RULE-ERR-001`), zero HTTP 200 on error (`RULE-ERR-002`), ephemeral stateless preview (`RULE-INVAR-001`), streaming without `byte[]` (`RULE-INVAR-002`).
 2. `[TIER-2-ARCH]` (REST & Protocol Semantics): Exact 6 Archetype mapping, `Location` header on 201 Created (`RULE-REST-002`), 200 OK with mutated DTO on PUT (`RULE-REST-003`), 204 NoContent on DELETE (`RULE-REST-004`), Idempotency-Key handling (`RULE-INVAR-003`).
 3. `[TIER-3-WIRE-CONV]` (Typing & Casing): Strict `camelCase` keys (`RULE-WIRE-001`), ISO-8601 UTC with `Z` (`RULE-WIRE-002`), UUIDv7 format (`RULE-WIRE-004`), `T | null` nullable typing (`RULE-WIRE-005`), plural `kebab-case` routes (`RULE-REST-001`).
@@ -42,7 +42,7 @@
 
 <!-- SLOT 4: CORE GENERATIVE BLUEPRINTS (High-Density Minimal Complete AST) -->
 <api_contract_scope>
-## 1. 📜 Numbered Rule Taxonomy (RFC 2119 Standards)
+## 1. Numbered Rule Taxonomy (RFC 2119 Standards)
 
 All endpoints, DTOs, and controllers across `smk-doc-server` MUST adhere strictly to these numbered invariant rules:
 
@@ -81,7 +81,7 @@ All endpoints, DTOs, and controllers across `smk-doc-server` MUST adhere strictl
 
 ---
 
-## 2. 📦 Universal Wire Envelopes & Schemas
+## 2. Universal Wire Envelopes & Schemas
 
 ### 2.1 Single Resource Envelope (`ApiResponse<T>`)
 ```typescript
@@ -156,7 +156,7 @@ interface ProblemDetails {
 
 ---
 
-## 3. 🏛️ The 6 Canonical Endpoint Archetypes (Golden Patterns)
+## 3. The 6 Canonical Endpoint Archetypes (Golden Patterns)
 
 Every endpoint in `smk-doc-server` MUST strictly map to one of these 6 archetypes. Do NOT invent ad-hoc patterns. All controllers MUST use C# 13 Primary Constructors with pure `camelCase` parameters, delegate workflows to `IUseCase<TCommand, TResult>`, accept `CancellationToken ct`, and return strongly-typed `TypedResults` for compile-time safety and automatic OpenAPI metadata generation.
 
@@ -275,7 +275,7 @@ public async Task<FileStreamHttpResult> Preview(
 
 ---
 
-## 4. 🔤 Unified Field Vocabulary & Full-Stack Typing
+## 4. Unified Field Vocabulary & Full-Stack Typing
 
 To guarantee 100% field consistency across C# backend and TypeScript frontend, strict naming tokens MUST be utilized without synonyms.
 
@@ -302,7 +302,7 @@ To guarantee 100% field consistency across C# backend and TypeScript frontend, s
 
 ---
 
-## 5. 🛑 Algorithmic Error Code Decision Matrix (Deterministic Taxonomy)
+## 5. Algorithmic Error Code Decision Matrix (Deterministic Taxonomy)
 
 When handling errors, LLMs and developers MUST traverse this deterministic lookup matrix to select the HTTP status, domain `errorCode`, and required response structure:
 
@@ -323,14 +323,14 @@ When handling errors, LLMs and developers MUST traverse this deterministic looku
 
 ---
 
-## 6. 🔐 Authentication Channels & Edge Protocols
+## 6. Authentication Channels & Edge Protocols
 
 ### 6.1 Authentication Channels
 | Channel | Header Format | Consumer | Scope & Hydration |
 |---|---|---|---|
 | **Channel A** | `X-API-Key: <key>` | M2M (ERP / CRM / Billing) | Validated via SHA-256 hash in DB. Hydrates `ProjectId` and `CallerApp`. |
 | **Channel B** | `Authorization: Bearer <jwt>` | Portal UI (Next.js) | HMAC-SHA256 JWT (24-hour TTL) with RTR refresh token (7-day TTL). Optional `X-Project-Id: <guid>` header dynamically overrides active workspace context. |
-| **Channel A Gated** | `X-API-Key: <key>` | Portal Login Gateway | `/api/v1/auth/login` and `/api/v1/auth/refresh` require API key header. Optional `X-Project-Id: <guid>` header retains/selects active workspace in JWT claims. |
+| **Channel A Gated** | `X-API-Key: <key>` | Portal Login Gateway | `/api/v1/auth/login` and `/api/v1/auth/refresh` require API key header. Optional `X-Project-Id: <guid>` header retains/selects active workspace in JWT claims. `LoginResultDto` exposes `activeProjectId` and `activeRole`. |
 | **Public** | *None* | Health & Probes | `/health`, `/swagger` |
 
 ### 6.2 Edge Protocols
@@ -342,7 +342,7 @@ When handling errors, LLMs and developers MUST traverse this deterministic looku
 
 ---
 
-## 7. 🗺️ Compact Endpoint Manifest (O(1) Route Index)
+## 7. Compact Endpoint Manifest (O(1) Route Index)
 
 The authoritative index of existing system endpoints categorized by Archetype:
 
@@ -430,7 +430,7 @@ The authoritative index of existing system endpoints categorized by Archetype:
 
 ---
 
-## 8. 🛡️ LLM Gatekeeper & Interception Protocol (Zero-Tolerance Linter)
+## 8. LLM Gatekeeper & Interception Protocol (Zero-Tolerance Linter)
 
 > **[ACTIVATION_TRIGGER]:** This section applies when the LLM operates under `[MODE: API_CONTRACT_AUDIT]` or when evaluating legacy codebase files and PRs.
 
@@ -444,13 +444,13 @@ If the USER, prompt, legacy code, or PR introduces ANY of the following anti-pat
 
 YOU MUST IMMEDIATELY EXECUTE THIS 4-STEP INTERCEPTION:
 1. **`[HALT]`**: Refuse to silently generate or accept the non-compliant code.
-2. **`[FLAG]`**: State the exact Rule ID violated (e.g. "⚠️ Violation: `[RULE-ERR-002]` Non-standard Error Representation").
+2. **`[FLAG]`**: State the exact Rule ID violated (e.g. "[WARNING] Violation: `[RULE-ERR-002]` Non-standard Error Representation").
 3. **`[EXPLAIN]`**: Detail why this breaks system integrity (e.g. breaks RFC 9457 telemetry indexing or OWASP safety).
 4. **`[REMEDIATE]`**: Propose the 100% compliant C# / TypeScript implementation immediately.
 
 ---
 
-## 9. 🔄 Living SSoT & Machine-Readable Discovery Protocol
+## 9. Living SSoT & Machine-Readable Discovery Protocol
 
 > **[MANDATORY_AUTHORING_SPECIFICATION]:** When ADDING, MODIFYING, or EXTENDING endpoints in this system:
 > 1. **ARCHETYPE MAPPING:** Map the endpoint to one of the 6 Canonical Archetypes in Section 3.
@@ -472,7 +472,7 @@ To inspect the concrete payload schemas of existing endpoints, developers and LL
 
 <!-- SLOT 5: DETERMINISTIC VERIFICATION GATEWAY (Recency Weight: Final 10%) -->
 <verification_gateway>
-## ✅ Deterministic Pre-Emission Checklist (Self-Audit Gate)
+## Deterministic Pre-Emission Checklist (Self-Audit Gate)
 - [ ] 1. Prior Inversion Map compliance checked across wire syntax tokens?
 - [ ] 2. All [TIER-1-FATAL] constraints preserved (No un-enveloped JSON, zero top-level arrays, strict RFC 9457, stateless preview)?
 - [ ] 3. Endpoint mapped strictly to one of the 6 Canonical Archetypes?

@@ -17,24 +17,20 @@ public sealed class RefreshTokenUseCase(
     IJwtTokenGenerator jwtTokenGenerator,
     IUserWorkspaceQueryService workspaceQueryService,
     IUnitOfWork unitOfWork,
-    IValidator<RefreshTokenCommand>? validator = null,
-    TimeProvider? timeProvider = null,
-    IExecutionContext? executionContext = null) : IUseCase<RefreshTokenCommand, TokenResultDto>
+    IValidator<RefreshTokenCommand> validator,
+    TimeProvider timeProvider,
+    IExecutionContext executionContext,
+    ISecurityAuditService auditService) : IUseCase<RefreshTokenCommand, TokenResultDto>
 {
-    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
-
     public async Task<TokenResultDto> ExecuteAsync(RefreshTokenCommand request, CancellationToken ct = default)
     {
-        if (validator != null)
+        var validationResult = await validator.ValidateAsync(request, ct);
+        if (!validationResult.IsValid)
         {
-            var validationResult = await validator.ValidateAsync(request, ct);
-            if (!validationResult.IsValid)
-            {
-                throw new ValidationException(validationResult.ToDictionary());
-            }
+            throw new ValidationException(validationResult.ToDictionary());
         }
 
-        var now = _timeProvider.GetUtcNow();
+        var now = timeProvider.GetUtcNow();
         var tokenHash = RefreshTokenHelper.HashToken(request.RefreshToken);
         var token = await tokenRepo.GetByHashAsync(tokenHash, ct);
 
@@ -45,10 +41,14 @@ public sealed class RefreshTokenUseCase(
 
         if (token.IsRevoked)
         {
-            // Reuse Detection: compromise detected, revoke all active sessions for this user
-            await tokenRepo.RevokeAllByUserIdAsync(token.UserId, now, ct);
-            await unitOfWork.CommitAsync(ct);
-            throw new UnauthorizedException("Invalid refresh token (reuse detected).");
+            if (!token.IsWithinReuseLeeway(now, SecurityConstants.RefreshTokenReuseLeewaySeconds))
+            {
+                // Compromise detected beyond grace window: revoke all active sessions for this user
+                auditService.LogTokenReuseDetected(token.UserId);
+                await tokenRepo.RevokeAllByUserIdAsync(token.UserId, now, ct);
+                await unitOfWork.CommitAsync(ct);
+                throw new UnauthorizedException("Invalid refresh token (reuse detected).");
+            }
         }
 
         if (token.IsExpired(now))
@@ -62,45 +62,23 @@ public sealed class RefreshTokenUseCase(
             throw new UnauthorizedException("User account is inactive or not found.");
         }
 
-        var accessibleProjects = await workspaceQueryService.GetAccessibleProjectsAsync(
-            user.Id,
-            user.SystemRole == SystemRole.SuperAdmin,
+        var workspace = await workspaceQueryService.ResolveWorkspaceContextAsync(
+            user,
+            executionContext.ProjectId,
+            throwOnUnauthorized: true,
             ct);
 
-        string activeRole = user.SystemRole == SystemRole.SuperAdmin ? "Admin" : "Viewer";
-        Guid? activeProjectId = executionContext?.ProjectId;
-
-        if (activeProjectId.HasValue && activeProjectId.Value != Guid.Empty)
-        {
-            var target = accessibleProjects.FirstOrDefault(p => p.Id == activeProjectId.Value);
-            if (target == null && user.SystemRole != SystemRole.SuperAdmin)
-            {
-                throw new UnauthorizedException("User does not have access to the specified project.");
-            }
-
-            if (target != null)
-            {
-                activeRole = target.Role;
-            }
-        }
-        else
-        {
-            var defaultProject = accessibleProjects.FirstOrDefault();
-            activeProjectId = defaultProject?.Id;
-            if (defaultProject != null)
-            {
-                activeRole = defaultProject.Role;
-            }
-        }
-
-        var roles = new List<string> { activeRole };
-        var newAccessToken = jwtTokenGenerator.GenerateToken(user, activeProjectId, roles);
+        var roles = new List<string> { workspace.ActiveRole };
+        var newAccessToken = jwtTokenGenerator.GenerateToken(user, workspace.ActiveProjectId, roles);
 
         // Token Rotation (RTR)
         var newRawToken = RefreshTokenHelper.GenerateTokenString();
         var newTokenHash = RefreshTokenHelper.HashToken(newRawToken);
 
-        token.Revoke(now, newTokenHash);
+        if (!token.IsRevoked)
+        {
+            token.Revoke(now, newTokenHash);
+        }
 
         var newRefreshToken = RefreshTokenEntity.Create(
             user.Id,
@@ -112,6 +90,8 @@ public sealed class RefreshTokenUseCase(
 
         // Atomic Unit of Work commit
         await unitOfWork.CommitAsync(ct);
+
+        auditService.LogTokenRotated(user.Id);
 
         return new TokenResultDto(
             newAccessToken,

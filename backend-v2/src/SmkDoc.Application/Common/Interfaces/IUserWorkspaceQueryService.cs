@@ -23,4 +23,14 @@ public interface IUserWorkspaceQueryService
     Task<IReadOnlyList<ApiKeyDto>> GetActiveApiKeysAsync(
         Guid projectId,
         CancellationToken ct = default);
+
+    /// <summary>
+    /// Resolves the active workspace project, role, and default project for an authenticated user.
+    /// Enforces project access rules and optional fallback behavior.
+    /// </summary>
+    Task<UserWorkspaceContextDto> ResolveWorkspaceContextAsync(
+        SmkDoc.Domain.Entities.User user,
+        Guid? requestedProjectId,
+        bool throwOnUnauthorized = true,
+        CancellationToken ct = default);
 }

@@ -12,9 +12,9 @@
 
 <!-- SLOT 2: PRE-TRAINING PRIOR INVERSION MAP (Subword-Level Bias Override) -->
 <prior_inversion_map>
-## ⚡ High-Salience Token Inversion Map (Pre-Training Override)
+## High-Salience Token Inversion Map (Pre-Training Override)
 
-| Intent / Context | Defective Internet Prior (❌ BANNED) | Canonical SSoT Target (✅ MANDATORY) | Rule ID / ADR |
+| Intent / Context | Defective Internet Prior (! BANNED) | Canonical SSoT Target (>> MANDATORY) | Rule ID / ADR |
 |---|---|---|---|
 | **PDF/Office Rendering** | Embedded LibreOffice process (`soffice --headless`) | Gotenberg 8 Chromium Microservice HTTP | `ADR-ENG-01` |
 | **Dependency Direction** | Outer layer referenced by Core (`Domain -> EF`) | Dependencies point INWARDS exclusively (`Api >> App >> Domain`) | `RULE-ARCH-001` |
@@ -31,7 +31,7 @@
 
 <!-- SLOT 3: CONSTRAINT SEVERITY HIERARCHY (Conflict Resolution Tiers) -->
 <severity_hierarchy>
-## ⚖️ Constraint Resolution Hierarchy
+## Constraint Resolution Hierarchy
 1. `[TIER-1-FATAL]`: LOH memory safety (Stream-over-RAM), stateless ephemeral preview, tenant isolation boundary (IDOR defense), thread-safe DbContext.
 2. `[TIER-2-ARCH]`: Clean Architecture inward dependency rule, Open-Closed Principle for render engines, single atomic UoW commit, Polly v8 resilience wrapping.
 3. `[TIER-3-CRAFT]`: Modular Monolith vertical slicing, folder parity, deterministic time testing.
@@ -41,7 +41,7 @@
 
 <!-- SLOT 4: CORE GENERATIVE BLUEPRINTS (High-Density Minimal Complete AST) -->
 <system_topology_scope>
-## 1. 🌐 Enterprise System Topology & C4 Container Architecture
+## 1. Enterprise System Topology & C4 Container Architecture
 
 The SMK Document Server operates as a high-throughput enterprise document generation gateway ingesting structured JSON payloads to produce deterministic outputs (PDF, DOCX, XLSX).
 
@@ -117,7 +117,7 @@ graph TD
 
 ---
 
-## 2. 🏛️ Clean Architecture & Modular Monolith Layering Rules
+## 2. Clean Architecture & Modular Monolith Layering Rules
 
 The system strictly enforces the **Clean Architecture Dependency Rule** via project references in `SmkDocServerV2.slnx`:
 
@@ -167,7 +167,7 @@ SmkDoc.Domain ← SmkDoc.Application ← SmkDoc.Infrastructure ← SmkDoc.Api
 
 ---
 
-## 3. 🌊 Zero-LOH High-Throughput Stream Pipeline (Core Engine Invariant)
+## 3. Zero-LOH High-Throughput Stream Pipeline (Core Engine Invariant)
 
 To achieve high-throughput scaling without Garbage Collection pauses, the rendering engine strictly enforces the **Stream-over-RAM Architectural Paradigm**:
 
@@ -205,7 +205,7 @@ graph TD
 
 ---
 
-## 4. 🔄 End-to-End Request Pipeline & Middleware Topology
+## 4. End-to-End Request Pipeline & Middleware Topology
 
 Every HTTP request traverses a strictly ordered middleware pipeline designed for early-exit and fail-fast processing:
 
@@ -266,7 +266,7 @@ sequenceDiagram
 
 ---
 
-## 5. 🛡️ Multi-Tenant Scoping & Zero-Trust Security Architecture
+## 5. Multi-Tenant Scoping & Zero-Trust Security Architecture
 
 The SMK Document Server implements strict tenant isolation to comply with enterprise data governance and mitigate the **OWASP API Security Top 10 (2023)**:
 
@@ -285,7 +285,7 @@ The SMK Document Server implements strict tenant isolation to comply with enterp
 
 ---
 
-## 6. ⚡ Polymorphic Engine Strategy & Rendering Architecture
+## 6. Polymorphic Engine Strategy & Rendering Architecture
 
 Document rendering delegates dynamically to dedicated engine adapters using the **Strategy Pattern**, completely eliminating hardcoded conditional branches:
 
@@ -317,7 +317,7 @@ graph TD
 
 ---
 
-## 7. 🔌 External Datasources & Dynamic Datasets Subsystem
+## 7. External Datasources & Dynamic Datasets Subsystem
 
 To support automated batch document generation without requiring external callers to pre-fetch large datasets, the platform provides an integrated data ingestion subsystem:
 
@@ -335,7 +335,7 @@ graph LR
 
 ---
 
-## 8. 🛡️ Fault Tolerance & Resilience Engineering (Polly v8)
+## 8. Fault Tolerance & Resilience Engineering (Polly v8)
 
 Interactions with external I/O dependencies are encapsulated within resilient **Polly v8 Resilience Pipelines** to absorb transient network failures and prevent cascading system outages:
 
@@ -352,7 +352,7 @@ Interactions with external I/O dependencies are encapsulated within resilient **
 
 ---
 
-## 9. 🧠 Caching Topology & Memory Management
+## 9. Caching Topology & Memory Management
 
 The document server employs a tiered caching strategy optimized for low CPU overhead and high read throughput:
 
@@ -386,7 +386,7 @@ graph LR
 
 ---
 
-## 10. 📁 Canonical Solution Layout & Directory Map
+## 10. Canonical Solution Layout & Directory Map
 
 ```text
 backend-v2/
@@ -425,7 +425,7 @@ backend-v2/
 
 ---
 
-## 11. 🧪 Testing Architecture & Quality Guarantees
+## 11. Testing Architecture & Quality Guarantees
 
 **Quality Baseline: 100% Pass Rate on All Test Suites (Zero Tolerated Failures)**
 
@@ -437,17 +437,17 @@ backend-v2/
 | **`SmkDoc.IntegrationTests`** | Presentation & Engines | End-to-end rendering pipeline, OpenXML DOM manipulation, ClosedXML A4 layout preservation, MinIO upload contracts. |
 
 ### Architectural Guarantees Verified by Test Suite:
-* ✅ **Word Desktop Compatibility:** Guarantees `DrawingML Id > 0` on all generated DOCX files to prevent Microsoft Word desktop application crashes.
-* ✅ **Stateless Preview Safety:** Guarantees zero side-effects during live preview (no database mutation, no MinIO upload).
-* ✅ **Deterministic Time:** All domain unit tests execute with explicit baseline timestamps (`TestConstants.BaselineTime`), eliminating non-deterministic test flakiness.
-* ✅ **Zero-LOH Streaming:** Verifies non-buffering stream delivery from Gotenberg to HTTP clients.
+* **Word Desktop Compatibility:** Guarantees `DrawingML Id > 0` on all generated DOCX files to prevent Microsoft Word desktop application crashes.
+* **Stateless Preview Safety:** Guarantees zero side-effects during live preview (no database mutation, no MinIO upload).
+* **Deterministic Time:** All domain unit tests execute with explicit baseline timestamps (`TestConstants.BaselineTime`), eliminating non-deterministic test flakiness.
+* **Zero-LOH Streaming:** Verifies non-buffering stream delivery from Gotenberg to HTTP clients.
 </system_topology_scope>
 
 ---
 
 <!-- SLOT 5: DETERMINISTIC VERIFICATION GATEWAY (Recency Weight: Final 10%) -->
 <verification_gateway>
-## ✅ Deterministic Pre-Emission Checklist (Self-Audit Gate)
+## Deterministic Pre-Emission Checklist (Self-Audit Gate)
 - [ ] 1. Prior Inversion Map compliance checked against system topology rules?
 - [ ] 2. All [TIER-1-FATAL] constraints preserved (Stream-over-RAM, stateless preview, tenant scoping)?
 - [ ] 3. Layer boundaries conform to [ORTHOGONAL_BOUNDARY] (Dependencies flow inwards: Api >> Application >> Domain << Infrastructure)?

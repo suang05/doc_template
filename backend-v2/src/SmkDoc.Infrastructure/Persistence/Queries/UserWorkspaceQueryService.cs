@@ -1,6 +1,10 @@
 using Microsoft.EntityFrameworkCore;
+using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
+using SmkDoc.Domain.Entities;
+using SmkDoc.Domain.Enums;
+using SmkDoc.Domain.Exceptions;
 
 namespace SmkDoc.Infrastructure.Persistence.Queries;
 
@@ -61,5 +65,60 @@ public sealed class UserWorkspaceQueryService(AppDbContext context) : IUserWorks
                 k.CreatedAt,
                 k.Scope.Name))
             .ToList();
+    }
+
+    public async Task<UserWorkspaceContextDto> ResolveWorkspaceContextAsync(
+        User user,
+        Guid? requestedProjectId,
+        bool throwOnUnauthorized = true,
+        CancellationToken ct = default)
+    {
+        var isSuperAdmin = user.SystemRole == SystemRole.SuperAdmin;
+        var accessibleProjects = await GetAccessibleProjectsAsync(user.Id, isSuperAdmin, ct);
+
+        var defaultProject = accessibleProjects.FirstOrDefault();
+        var defaultProjectId = defaultProject?.Id;
+        string activeRole = isSuperAdmin ? "Admin" : "Viewer";
+        Guid? activeProjectId = null;
+
+        if (requestedProjectId.HasValue && requestedProjectId.Value != Guid.Empty)
+        {
+            var target = accessibleProjects.FirstOrDefault(p => p.Id == requestedProjectId.Value);
+            if (target == null && !isSuperAdmin)
+            {
+                if (throwOnUnauthorized)
+                {
+                    throw new UnauthorizedException("User does not have access to the specified project.");
+                }
+
+                activeProjectId = defaultProjectId;
+                if (defaultProject != null)
+                {
+                    activeRole = defaultProject.Role;
+                }
+            }
+            else
+            {
+                activeProjectId = requestedProjectId.Value;
+                if (target != null)
+                {
+                    activeRole = target.Role;
+                }
+            }
+        }
+        else
+        {
+            activeProjectId = defaultProjectId;
+            if (defaultProject != null)
+            {
+                activeRole = defaultProject.Role;
+            }
+        }
+
+        return new UserWorkspaceContextDto(
+            activeProjectId,
+            activeRole,
+            defaultProjectId,
+            accessibleProjects);
     }
 }

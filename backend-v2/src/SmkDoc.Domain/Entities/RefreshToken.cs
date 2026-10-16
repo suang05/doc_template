@@ -75,4 +75,13 @@ public sealed class RefreshToken : BaseEntity
         ReplacedByTokenHash = replacedBy;
         SetUpdated(now);
     }
+
+    /// <summary>
+    /// Checks if this revoked token was revoked recently within the allowable concurrency grace period (leeway window).
+    /// </summary>
+    public bool IsWithinReuseLeeway(DateTimeOffset now, int leewaySeconds)
+    {
+        if (!RevokedAt.HasValue) return false;
+        return now >= RevokedAt.Value && (now - RevokedAt.Value).TotalSeconds <= leewaySeconds;
+    }
 }

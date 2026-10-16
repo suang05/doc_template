@@ -190,6 +190,7 @@ public static class DependencyInjection
         // 8. Security Services
         services.AddSingleton<IPasswordHasher, BcryptPasswordHasher>();
         services.AddSingleton<IJwtTokenGenerator, JwtTokenGenerator>();
+        services.AddSingleton<ISecurityAuditService, SecurityAuditService>();
 
         return services;
     }

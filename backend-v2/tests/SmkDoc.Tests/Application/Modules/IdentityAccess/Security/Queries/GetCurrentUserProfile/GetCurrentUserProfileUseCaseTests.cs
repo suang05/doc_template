@@ -40,10 +40,12 @@ public class GetCurrentUserProfileUseCaseTests
             new(projectId, "Alpha", "alpha", "Admin")
         };
 
+        var workspaceContext = new UserWorkspaceContextDto(projectId, "Admin", projectId, projects);
+
         _userRepoMock.Setup(r => r.GetByIdAsync(user.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);
-        _workspaceQueryServiceMock.Setup(q => q.GetAccessibleProjectsAsync(user.Id, false, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(projects);
+        _workspaceQueryServiceMock.Setup(q => q.ResolveWorkspaceContextAsync(user, It.IsAny<Guid?>(), false, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(workspaceContext);
 
         // Act
         var result = await CreateSut().ExecuteAsync(new GetCurrentUserProfileQuery(user.Id));
@@ -80,11 +82,13 @@ public class GetCurrentUserProfileUseCaseTests
             new(proj2, "Project 2", "proj-2", "Admin")
         };
 
+        var workspaceContext = new UserWorkspaceContextDto(proj2, "Admin", proj1, projects);
+
         _userRepoMock.Setup(r => r.GetByIdAsync(user.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);
-        _workspaceQueryServiceMock.Setup(q => q.GetAccessibleProjectsAsync(user.Id, false, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(projects);
         _executionContextMock.Setup(c => c.ProjectId).Returns(proj2);
+        _workspaceQueryServiceMock.Setup(q => q.ResolveWorkspaceContextAsync(user, proj2, false, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(workspaceContext);
 
         // Act
         var result = await CreateSut().ExecuteAsync(new GetCurrentUserProfileQuery(user.Id));
@@ -114,11 +118,14 @@ public class GetCurrentUserProfileUseCaseTests
 
         var unauthorizedProjectId = Guid.NewGuid();
 
+        // Since unauthorizedProjectId is not accessible, workspace context resolves active project to proj1
+        var workspaceContext = new UserWorkspaceContextDto(proj1, "Member", proj1, projects);
+
         _userRepoMock.Setup(r => r.GetByIdAsync(user.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);
-        _workspaceQueryServiceMock.Setup(q => q.GetAccessibleProjectsAsync(user.Id, false, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(projects);
         _executionContextMock.Setup(c => c.ProjectId).Returns(unauthorizedProjectId);
+        _workspaceQueryServiceMock.Setup(q => q.ResolveWorkspaceContextAsync(user, unauthorizedProjectId, false, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(workspaceContext);
 
         // Act
         var result = await CreateSut().ExecuteAsync(new GetCurrentUserProfileQuery(user.Id));
@@ -146,10 +153,12 @@ public class GetCurrentUserProfileUseCaseTests
             new(Guid.NewGuid(), "P2", "p-2", "Admin")
         };
 
+        var workspaceContext = new UserWorkspaceContextDto(projects[0].Id, "Admin", projects[0].Id, projects);
+
         _userRepoMock.Setup(r => r.GetByIdAsync(user.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);
-        _workspaceQueryServiceMock.Setup(q => q.GetAccessibleProjectsAsync(user.Id, true, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(projects);
+        _workspaceQueryServiceMock.Setup(q => q.ResolveWorkspaceContextAsync(user, It.IsAny<Guid?>(), false, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(workspaceContext);
 
         // Act
         var result = await CreateSut().ExecuteAsync(new GetCurrentUserProfileQuery(user.Id));
@@ -180,11 +189,13 @@ public class GetCurrentUserProfileUseCaseTests
             new(Guid.NewGuid(), "P1", "p-1", "Admin")
         };
 
+        var workspaceContext = new UserWorkspaceContextDto(anyProject, "Admin", projects[0].Id, projects);
+
         _userRepoMock.Setup(r => r.GetByIdAsync(user.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);
-        _workspaceQueryServiceMock.Setup(q => q.GetAccessibleProjectsAsync(user.Id, true, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(projects);
         _executionContextMock.Setup(c => c.ProjectId).Returns(anyProject);
+        _workspaceQueryServiceMock.Setup(q => q.ResolveWorkspaceContextAsync(user, anyProject, false, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(workspaceContext);
 
         // Act
         var result = await CreateSut().ExecuteAsync(new GetCurrentUserProfileQuery(user.Id));

@@ -70,6 +70,7 @@ CodeStructures:
   ApiRoutes: api/v1/{resource}
   FeatureSlices: Group Application layer files by Bounded Context (Features/{Feature}/{Commands|Queries}).
   StructuredLogging: logger.LogInformation("Processing {TemplateId}", templateId); # No string interpolation
+  ZeroDecorativeEmojis: Prohibit decorative emojis in chat responses, code comments, tests, and documentation. Use canonical ASCII symbols exclusively (=>, !, >>).
 
 TestingArchetypes:
   UseCaseUnitTests: Direct mocks, Single Source of Truth SutFactory, TestConstants.BaselineTime, CQRS folder parity.

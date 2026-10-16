@@ -12,9 +12,9 @@
 
 <!-- SLOT 2: PRE-TRAINING PRIOR INVERSION MAP (Subword-Level Bias Override) -->
 <prior_inversion_map>
-## ⚡ High-Salience Token Inversion Map (Pre-Training Override)
+## High-Salience Token Inversion Map (Pre-Training Override)
 
-| Intent / Context | Defective Internet Prior (❌ BANNED) | Canonical SSoT Target (✅ MANDATORY) | Rule ID |
+| Intent / Context | Defective Internet Prior (! BANNED) | Canonical SSoT Target (>> MANDATORY) | Rule ID |
 |---|---|---|---|
 | **Binary/PDF Output** | `new MemoryStream()`, `.ToArray()`, `byte[]` | Direct stream piping: `Stream.CopyToAsync(response.Body, ct)` | `FIREWALL-MEM-001` |
 | **Concurrent DB Access** | `Task.WhenAll` on scoped `DbContext` | Sequential `await` or `IDbContextFactory<T>` | `FIREWALL-CONC-001` |
@@ -23,11 +23,13 @@
 | **Manual Tenant Scoping** | Passing `Guid projectId` to repo queries | Ambient scoping via `ICurrentProjectContext` & `repo.GetBySlugAsync(slug)` | `FIREWALL-SEC-001` |
 | **Controller Binding** | `[FromBody] Template entity` | Transport DTO: `[FromBody] CreateTemplateRequest request` | `FIREWALL-SEC-002` |
 | **Regex Compilation** | `new Regex(pattern)`, `Regex.Match(...)` | `[GeneratedRegex(..., RegexOptions.NonBacktracking)]` | `FIREWALL-SEC-003` |
+| **Timing Attack Defense** | Early return on missing/inactive user | Constant-time dummy verification: `passwordHasher.VerifyPassword(...)` | `FIREWALL-SEC-004` |
 | **Service Granularity** | God class `TemplateService` with CRUD methods | Action-Centric UseCase: `IUseCase<TCommand, TResult>` | `FIREWALL-ARCH-001` |
 | **Entity DTO Egress** | Returning Domain Entity outside UseCase | Mapping to immutable Result DTO: `TemplateResultDto` | `FIREWALL-ARCH-002` |
 | **Transaction Boundary** | Multiple `CommitAsync()` in a single UseCase | Exactly 1 atomic commit: `await unitOfWork.CommitAsync(ct);` | `FIREWALL-ARCH-003` |
 | **Repo Return Type** | Returning `IQueryable<T>` outside Infrastructure | Evaluated immutable collection: `Task<IReadOnlyList<T>>` | `FIREWALL-ARCH-004` |
 | **Core Dependencies** | `using SmkDoc.Infrastructure;`, `IFormFile` in Core | Pure C# streaming primitives in Application commands | `FIREWALL-ARCH-005` |
+| **UseCase Dependencies** | Optional constructor parameters `= null` | Mandatory non-null dependencies in primary constructor | `FIREWALL-ARCH-006` |
 | **String Value Object** | `struct EmailAddress`, `record struct Slug` | `public sealed record class` (guards against default-null) | `FIREWALL-DOM-001` |
 | **Entity Declaration** | `public struct Template : BaseEntity` | `public sealed class Template : BaseEntity<TemplateId>` | `FIREWALL-DOM-002` |
 | **Struct Footprint** | Mutable struct or record struct > 16 bytes | `public readonly record struct` (<= 16B) or `sealed record class` | `FIREWALL-DOM-003` |
@@ -44,7 +46,7 @@
 
 <!-- SLOT 3: CONSTRAINT SEVERITY HIERARCHY (Conflict Resolution Tiers) -->
 <severity_hierarchy>
-## ⚖️ Constraint Resolution Hierarchy
+## Constraint Resolution Hierarchy
 1. `[TIER-1-FATAL]`: Host process safety, LOH preservation, DbContext thread safety, async non-blocking, zero IDOR, ReDoS defense (`FIREWALL-MEM-001`, `FIREWALL-CONC-001`, `FIREWALL-ASYNC-001`, `FIREWALL-SEC-001`, `FIREWALL-SEC-002`, `FIREWALL-SEC-003`).
 2. `[TIER-2-ARCH]`: Clean Architecture boundaries, DTO layer isolation, single atomic UoW commit, entity struct identity preservation (`FIREWALL-ARCH-001` to `FIREWALL-ARCH-005`, `FIREWALL-DOM-001` to `FIREWALL-DOM-003`).
 3. `[TIER-3-CRAFT]`: Strongly typed IDs, polymorphic strategy dispatch, RFC 9457 centralized handling, zero-cast test assertions (`FIREWALL-DOM-004`, `FIREWALL-OPS-001` to `FIREWALL-OPS-005`, `FIREWALL-TEST-001`).
@@ -54,7 +56,7 @@
 
 <!-- SLOT 4: CORE GENERATIVE BLUEPRINTS (High-Density Minimal Complete AST) -->
 <firewall_scope>
-## 1. ⚖️ Document Admission & Update Governance (`RULE-DOC-AP`)
+## 1. Document Admission & Update Governance (`RULE-DOC-AP`)
 
 An anti-pattern is PERMITTED into this document ONLY if it satisfies all 3 qualification gates:
 
@@ -80,9 +82,9 @@ graph TD
 
 ---
 
-## 2. 🛡️ The Neural Firewall & Interception Engine
+## 2. The Neural Firewall & Interception Engine
 
-The rules are organized sequentially by runtime evaluation priority: **Host Safety ➔ Data Isolation ➔ Architecture Boundaries ➔ Operational Resilience ➔ Automated Testing**.
+The rules are organized sequentially by runtime evaluation priority: **Host Safety => Data Isolation => Architecture Boundaries => Operational Resilience => Automated Testing**.
 
 ### Phase 1: Host Process, Memory & Thread Safety (Fatal Production Killers)
 
@@ -248,6 +250,36 @@ None for user-supplied string parsing. Static fixed string lookups should use `s
 </ssot_ref>
 </firewall_rule>
 
+<firewall_rule id="FIREWALL-SEC-004" name="AUTH_TIMING_ATTACK_EARLY_RETURN">
+<trigger_ast>
+["if (user == null) return", "if (user == null) throw new InvalidCredentialsException", "if (!user.IsActive) throw"]
+</trigger_ast>
+<thinking_guard>
+IF method_verifies_credentials AND branches_early_on_user_null_without_dummy_hash THEN
+    ASSERT_FORBIDDEN("Early return on missing user creates timing discrepancy allowing username enumeration");
+    ENFORCE_SUBSTITUTION("Constant-Time Dummy Password Verification");
+END IF
+</thinking_guard>
+<mandatory_substitution>
+// Execute constant-time dummy verification when user is not found or inactive
+if (user == null || !user.IsActive)
+{
+    passwordHasher.VerifyPassword(command.Password, SecurityConstants.DummyPasswordHash);
+    securityAudit.LogLoginFailure(command.Email, "Invalid credentials", ct);
+    throw new InvalidCredentialsException();
+}
+</mandatory_substitution>
+<fatal_blast_radius>
+Side-channel response time variations allow external attackers to enumerate valid user accounts via statistical timing analysis.
+</fatal_blast_radius>
+<exemptions>
+None. All authentication and credential verification pipelines MUST execute in constant time.
+</exemptions>
+<ssot_ref>
+[`CONVENTIONS.md §3.9`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/CONVENTIONS.md#39-code-level-security--redos-defense-rule-sec)
+</ssot_ref>
+</firewall_rule>
+
 ---
 
 ### Phase 3: Clean Architecture & Boundaries (CQRS & Transaction Invariants)
@@ -388,7 +420,37 @@ public sealed record UploadTemplateCommand(
 Dependency Inversion violation tightly couples application core to relational databases or HTTP web hosting, completely breaking headless CLI tools and in-memory unit testing.
 </fatal_blast_radius>
 <exemptions>
-None. Dependency flow is strictly inward: `Presentation ➔ Application ➔ Domain` and `Infrastructure ➔ Application ➔ Domain`.
+None. Dependency flow is strictly inward: `Presentation => Application => Domain` and `Infrastructure => Application => Domain`.
+</exemptions>
+<ssot_ref>
+[`CONVENTIONS.md §3.2`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/CONVENTIONS.md#32-application-layer-rule-app)
+</ssot_ref>
+</firewall_rule>
+
+<firewall_rule id="FIREWALL-ARCH-006" name="OPTIONAL_USECASE_DEPENDENCIES_NULL_DEFAULT">
+<trigger_ast>
+["= null)", "= default)"]
+</trigger_ast>
+<thinking_guard>
+IF constructor_parameter_in_usecase HAS_DEFAULT_VALUE([null, default]) THEN
+    ASSERT_FORBIDDEN("Optional dependencies in UseCase constructors create hidden null reference traps and bypass IoC container invariants");
+    ENFORCE_SUBSTITUTION("Mandatory Constructor Injection");
+END IF
+</thinking_guard>
+<mandatory_substitution>
+// All UseCase dependencies MUST be mandatory and explicitly injected via primary constructors
+public sealed class LoginUseCase(
+    IUserRepository userRepo,
+    IPasswordHasher passwordHasher,
+    ITokenService tokenService,
+    IUserWorkspaceQueryService workspaceQueryService,
+    ISecurityAuditService securityAudit) : IUseCase<LoginCommand, LoginResultDto>
+</mandatory_substitution>
+<fatal_blast_radius>
+Default null dependencies mask missing DI service registrations during startup, deferring crashes to runtime and creating backdoor test configurations.
+</fatal_blast_radius>
+<exemptions>
+Optional CancellationToken parameters in method signatures `(CancellationToken ct = default)`.
 </exemptions>
 <ssot_ref>
 [`CONVENTIONS.md §3.2`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/CONVENTIONS.md#32-application-layer-rule-app)
@@ -677,7 +739,7 @@ None. Unit and integration tests must always instantiate strongly-typed IDs via 
 
 ---
 
-## 3. 🔄 Document Maintenance & Rule Ingestion Protocol
+## 3. Document Maintenance & Rule Ingestion Protocol
 
 ### Ingestion Triggers (Conditions when the LLM MUST Halt & Propose a New Rule):
 - **`[EVENT_USER_CORRECTION]`**: The user corrects the LLM for generating code that violates project architecture, indicating a persistent pre-training gravitational bias.
@@ -725,7 +787,7 @@ Strictly bounded exceptions (e.g. Unit tests, console CLI entry point) or None.
 
 <!-- SLOT 5: DETERMINISTIC VERIFICATION GATEWAY (Recency Weight: Final 10%) -->
 <verification_gateway>
-## ✅ Deterministic Pre-Emission Checklist (Self-Audit Gate)
+## Deterministic Pre-Emission Checklist (Self-Audit Gate)
 - [ ] 1. Prior Inversion Map compliance checked against all 21 `<firewall_rule>` blocks?
 - [ ] 2. All [TIER-1-FATAL] constraints preserved (Zero LOH buffers, single-thread DbContext, pure async, tenant isolation)?
 - [ ] 3. Layer boundaries conform to [ORTHOGONAL_BOUNDARY] (Clean Architecture dependency flow inward)?

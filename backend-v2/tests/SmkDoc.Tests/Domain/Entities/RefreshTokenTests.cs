@@ -86,4 +86,36 @@ public class RefreshTokenTests
         act.Should().Throw<BusinessRuleViolationException>()
             .WithMessage("*already been revoked*");
     }
+
+    [Fact]
+    public void IsWithinReuseLeeway_WhenNotRevoked_ReturnsFalse()
+    {
+        var token = RefreshToken.Create(Guid.NewGuid(), ValidHash, FixedNow.AddDays(7), FixedNow);
+
+        token.IsWithinReuseLeeway(FixedNow.AddMinutes(1), 30).Should().BeFalse();
+    }
+
+    [Fact]
+    public void IsWithinReuseLeeway_WhenRevokedWithinLeeway_ReturnsTrue()
+    {
+        var token = RefreshToken.Create(Guid.NewGuid(), ValidHash, FixedNow.AddDays(7), FixedNow);
+        var revokeTime = FixedNow.AddMinutes(5);
+        token.Revoke(revokeTime, ReplacementHash);
+
+        // Evaluation 10 seconds after revocation (<= 30s leeway)
+        token.IsWithinReuseLeeway(revokeTime.AddSeconds(10), 30).Should().BeTrue();
+        // Evaluation exactly at 30 seconds
+        token.IsWithinReuseLeeway(revokeTime.AddSeconds(30), 30).Should().BeTrue();
+    }
+
+    [Fact]
+    public void IsWithinReuseLeeway_WhenRevokedPastLeeway_ReturnsFalse()
+    {
+        var token = RefreshToken.Create(Guid.NewGuid(), ValidHash, FixedNow.AddDays(7), FixedNow);
+        var revokeTime = FixedNow.AddMinutes(5);
+        token.Revoke(revokeTime, ReplacementHash);
+
+        // Evaluation 31 seconds after revocation (> 30s leeway)
+        token.IsWithinReuseLeeway(revokeTime.AddSeconds(31), 30).Should().BeFalse();
+    }
 }

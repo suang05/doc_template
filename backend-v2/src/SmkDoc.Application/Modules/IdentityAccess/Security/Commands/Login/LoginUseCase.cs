@@ -17,90 +17,75 @@ public sealed class LoginUseCase(
     IPasswordHasher passwordHasher,
     IJwtTokenGenerator jwtTokenGenerator,
     IUserWorkspaceQueryService workspaceQueryService,
-    IValidator<LoginCommand>? validator = null,
-    IRefreshTokenRepository? tokenRepo = null,
-    IUnitOfWork? unitOfWork = null,
-    TimeProvider? timeProvider = null,
-    IExecutionContext? executionContext = null) : IUseCase<LoginCommand, LoginResultDto>
+    IValidator<LoginCommand> validator,
+    IRefreshTokenRepository tokenRepo,
+    IUnitOfWork unitOfWork,
+    TimeProvider timeProvider,
+    IExecutionContext executionContext,
+    ISecurityAuditService auditService) : IUseCase<LoginCommand, LoginResultDto>
 {
-    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
-
     public async Task<LoginResultDto> ExecuteAsync(LoginCommand request, CancellationToken ct = default)
     {
-        if (validator != null)
+        var validationResult = await validator.ValidateAsync(request, ct);
+        if (!validationResult.IsValid)
         {
-            var validationResult = await validator.ValidateAsync(request, ct);
-            if (!validationResult.IsValid)
-            {
-                throw new ValidationException(validationResult.ToDictionary());
-            }
+            throw new ValidationException(validationResult.ToDictionary());
         }
 
         var email = EmailAddress.Create(request.Email);
         var user = await userRepo.GetByEmailAsync(email, ct);
 
-        if (user == null || !user.IsActive || !passwordHasher.VerifyPassword(request.Password, user.PasswordHash))
+        // Constant-time execution defense against user enumeration timing attacks (OWASP)
+        if (user == null)
         {
+            passwordHasher.VerifyPassword(request.Password, SecurityConstants.DummyPasswordHash);
+            auditService.LogLoginFailure(request.Email, "UserNotFound");
             throw new UnauthorizedException("Invalid email or password.");
         }
 
-        var accessibleProjects = await workspaceQueryService.GetAccessibleProjectsAsync(
-            user.Id,
-            user.SystemRole == SystemRole.SuperAdmin,
+        if (!user.IsActive)
+        {
+            passwordHasher.VerifyPassword(request.Password, SecurityConstants.DummyPasswordHash);
+            auditService.LogLoginFailure(request.Email, "UserInactive");
+            throw new UnauthorizedException("Invalid email or password.");
+        }
+
+        if (!passwordHasher.VerifyPassword(request.Password, user.PasswordHash))
+        {
+            auditService.LogLoginFailure(request.Email, "InvalidPassword");
+            throw new UnauthorizedException("Invalid email or password.");
+        }
+
+        var workspace = await workspaceQueryService.ResolveWorkspaceContextAsync(
+            user,
+            executionContext.ProjectId,
+            throwOnUnauthorized: true,
             ct);
 
-        string activeRole = user.SystemRole == SystemRole.SuperAdmin ? "Admin" : "Viewer";
-        Guid? activeProjectId = executionContext?.ProjectId;
+        var roles = new List<string> { workspace.ActiveRole };
+        var token = jwtTokenGenerator.GenerateToken(user, workspace.ActiveProjectId, roles);
 
-        if (activeProjectId.HasValue && activeProjectId.Value != Guid.Empty)
-        {
-            var target = accessibleProjects.FirstOrDefault(p => p.Id == activeProjectId.Value);
-            if (target == null && user.SystemRole != SystemRole.SuperAdmin)
-            {
-                throw new UnauthorizedException("User does not have access to the specified project.");
-            }
+        var now = timeProvider.GetUtcNow();
+        var rawRefreshToken = RefreshTokenHelper.GenerateTokenString();
+        var refreshTokenHash = RefreshTokenHelper.HashToken(rawRefreshToken);
+        var refreshToken = RefreshTokenEntity.Create(user.Id, refreshTokenHash, now.AddDays(SecurityConstants.RefreshTokenLifetimeDays), now);
+        await tokenRepo.AddAsync(refreshToken, ct);
+        await unitOfWork.CommitAsync(ct);
 
-            if (target != null)
-            {
-                activeRole = target.Role;
-            }
-        }
-        else
-        {
-            var defaultProject = accessibleProjects.FirstOrDefault();
-            activeProjectId = defaultProject?.Id;
-            if (defaultProject != null)
-            {
-                activeRole = defaultProject.Role;
-            }
-        }
-
-        var roles = new List<string> { activeRole };
-        var token = jwtTokenGenerator.GenerateToken(user, activeProjectId, roles);
-
-        string? rawRefreshToken = null;
-        if (tokenRepo != null && unitOfWork != null)
-        {
-            var now = _timeProvider.GetUtcNow();
-            rawRefreshToken = RefreshTokenHelper.GenerateTokenString();
-            var refreshTokenHash = RefreshTokenHelper.HashToken(rawRefreshToken);
-            var refreshToken = RefreshTokenEntity.Create(user.Id, refreshTokenHash, now.AddDays(SecurityConstants.RefreshTokenLifetimeDays), now);
-            await tokenRepo.AddAsync(refreshToken, ct);
-            await unitOfWork.CommitAsync(ct);
-        }
-
-        var activeApiKeys = activeProjectId.HasValue
-            ? await workspaceQueryService.GetActiveApiKeysAsync(activeProjectId.Value, ct)
+        var activeApiKeys = workspace.ActiveProjectId.HasValue
+            ? await workspaceQueryService.GetActiveApiKeysAsync(workspace.ActiveProjectId.Value, ct)
             : [];
 
-        return new LoginResultDto
-        {
-            AccessToken = token,
-            RefreshToken = rawRefreshToken,
-            User = new UserProfileDto(user.Id, user.Email.Value, user.FirstName, user.LastName, user.SystemRole.Name),
-            AccessibleProjects = accessibleProjects,
-            ActiveApiKeys = activeApiKeys,
-            DefaultProjectId = activeProjectId
-        };
+        auditService.LogLoginSuccess(user.Id, user.Email.Value, workspace.ActiveProjectId);
+
+        return new LoginResultDto(
+            accessToken: token,
+            user: new UserProfileDto(user.Id, user.Email.Value, user.FirstName, user.LastName, user.SystemRole.Name),
+            accessibleProjects: workspace.AccessibleProjects,
+            defaultProjectId: workspace.DefaultProjectId,
+            activeProjectId: workspace.ActiveProjectId,
+            activeRole: workspace.ActiveRole,
+            refreshToken: rawRefreshToken,
+            activeApiKeys: activeApiKeys);
     }
 }

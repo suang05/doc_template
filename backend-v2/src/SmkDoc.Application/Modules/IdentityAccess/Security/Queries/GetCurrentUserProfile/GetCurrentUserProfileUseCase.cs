@@ -19,26 +19,11 @@ public sealed class GetCurrentUserProfileUseCase(
             throw new UnauthorizedException("User account not found or inactive.");
         }
 
-        var isSuperAdmin = user.SystemRole == SystemRole.SuperAdmin;
-        var accessibleProjects = await workspaceQueryService.GetAccessibleProjectsAsync(
-            user.Id,
-            isSuperAdmin,
+        var workspace = await workspaceQueryService.ResolveWorkspaceContextAsync(
+            user,
+            executionContext.ProjectId,
+            throwOnUnauthorized: false,
             ct);
-
-        var defaultProjectId = accessibleProjects.FirstOrDefault()?.Id;
-
-        Guid? activeProjectId = null;
-        if (executionContext.ProjectId.HasValue)
-        {
-            var requestedId = executionContext.ProjectId.Value;
-            var isAccessible = isSuperAdmin || accessibleProjects.Any(p => p.Id == requestedId);
-            if (isAccessible)
-            {
-                activeProjectId = requestedId;
-            }
-        }
-
-        activeProjectId ??= defaultProjectId;
 
         return new CurrentUserProfileResultDto(
             user.Id,
@@ -46,9 +31,9 @@ public sealed class GetCurrentUserProfileUseCase(
             user.FirstName,
             user.LastName,
             user.SystemRole.Name,
-            accessibleProjects,
-            defaultProjectId,
-            activeProjectId
+            workspace.AccessibleProjects,
+            workspace.DefaultProjectId,
+            workspace.ActiveProjectId
         );
     }
 }

@@ -15,9 +15,9 @@
 
 <!-- SLOT 2: PRE-TRAINING PRIOR INVERSION MAP (Subword-Level Bias Override) -->
 <prior_inversion_map>
-## ⚡ High-Salience Token Inversion Map (Pre-Training Override)
+## High-Salience Token Inversion Map (Pre-Training Override)
 
-| Intent / Context | Defective Internet Prior (❌ BANNED) | Canonical SSoT Target (✅ MANDATORY) | Rule ID / ADR |
+| Intent / Context | Defective Internet Prior (! BANNED) | Canonical SSoT Target (>> MANDATORY) | Rule ID / ADR |
 |---|---|---|---|
 | **Office/PDF Rendering** | Embedded LibreOffice process (`soffice --headless`) | Gotenberg 8 Chromium Microservice HTTP | `ADR-ENG-01` |
 | **Authentication Strategy** | Single monolithic JWT for both M2M and Portal | Hybrid RBAC: Stateless `X-API-Key` (M2M) + Session JWT (Portal) | `ADR-SEC-02` |
@@ -45,7 +45,7 @@
 
 <!-- SLOT 3: CONSTRAINT SEVERITY HIERARCHY (Conflict Resolution Tiers) -->
 <severity_hierarchy>
-## ⚖️ Constraint Resolution Hierarchy
+## Constraint Resolution Hierarchy
 1. `[TIER-1-FATAL]`: Memory/process integrity, thread safety, audit immutability, zero public attack surface (Never expose credentials, never buffer unconstrained streams into LOH, never run headless LibreOffice in-process).
 2. `[TIER-2-ARCH]`: Domain-driven boundaries, Clean Architecture layer isolation, DTO segregation, strategy rendering (Never leak domain entities to API, respect aggregate boundaries).
 3. `[TIER-3-CRAFT]`: C# 13 primary constructors, record immutability, naming conventions, step-down method order.
@@ -55,7 +55,7 @@
 
 <!-- SLOT 4: CORE GENERATIVE BLUEPRINTS (High-Density Minimal Complete AST) -->
 <archival_decisions_scope>
-## 📐 Historical Architecture Decision Records (ADRs)
+## Historical Architecture Decision Records (ADRs)
 
 ### Quick-Lookup: ADR Master Matrix (8 Architectural Domains)
 
@@ -66,6 +66,7 @@
 | [SECURITY] | [`ADR-SEC-03`](#adr-sec-03-scoped-api-keys--m2m-first-zero-public-surface-security) | `ADR-025` | October 2026 | Scoped API Keys (`ReadOnly` / `ReadWrite`) & Zero Public Surface | **Accepted (Active)** |
 | [SECURITY] | [`ADR-SEC-04`](#adr-sec-04-nextjs-server-side-api-proxy--cookie-to-bearer-token-isolation) | `ADR-027` | October 2026 | Next.js Server-Side API Proxy & Cookie-to-Bearer Token Translation | **Accepted (Active)** |
 | [SECURITY] | [`ADR-SEC-05`](#adr-sec-05-ambient-project-context--ef-core-global-query-filter-isolation) | N/A | October 2026 | Ambient Project Context & EF Core Global Query Filter Isolation | **Accepted (Active)** |
+| [SECURITY] | [`ADR-SEC-06`](#adr-sec-06-identity-hardening--workspace-retention-rtr-grace-period-constant-time-defense--audit-port) | N/A | October 2026 | Identity Hardening — Workspace Retention, RTR Grace Period, Constant-Time Defense & Audit Port | **Accepted (Active)** |
 | [ENGINES] | [`ADR-ENG-01`](#adr-eng-01-gotenberg-8-chromium-microservice-instead-of-embedded-libreoffice) | `ADR-002` | September 2026 | Gotenberg 8 Chromium Microservice instead of Embedded LibreOffice | **Accepted (Active)** |
 | [ENGINES] | [`ADR-ENG-02`](#adr-eng-02-compiled-handlebars-template-caching--smart-excel-pagesetup) | `ADR-013` | September 2026 | Compiled Handlebars Caching & Smart Excel PageSetup Preservation | **Accepted (Active)** |
 | [ENGINES] | [`ADR-ENG-03`](#adr-eng-03-native-thai-typography-compliance--sarabun-font-sandboxing) | `ADR-029` | October 2026 | Native Thai Typography Compliance & Sarabun Font Sandboxing | **Accepted (Active)** |
@@ -169,19 +170,26 @@ When external documents, commit messages, or comments cite legacy sequential num
   4. **Clean Domain Repositories:** Modernized repository method signatures (`GetByIdAsync(TemplateId id)`, `GetBySlugAsync(TemplateSlug slug)`, `SlugExistsAsync(string slug)`) purging redundant legacy overloads with `Guid projectId` to completely eradicate BOLA/IDOR vulnerabilities.
 - **Consequences:** Eliminates IDOR/BOLA risks at the database engine level (defense-in-depth); simplifies application use case code; ensures testable, isolated domain logic.
 
-#### ADR-SEC-06: Gateway Workspace Context Retention (X-Project-Id) & Unified Refresh Token Rotation
+#### ADR-SEC-06: Identity Hardening — Workspace Retention, RTR Grace Period, Constant-Time Defense & Audit Port
 > **Tag:** `ADR-SEC-06` | **Legacy:** N/A | **Date:** October 2026 | **Status:** Accepted (Active)
 
 - **Context & Problem:**
   1. Frontend portal operators switching active workspaces required re-authentication or had their active workspace context reset upon token refresh, leading to session flips or tenant context loss.
   2. `RefreshTokenUseCase` performed an unoptimized role lookup via `roleRepo` and failed to respect the active workspace header (`X-Project-Id`), diverging from `LoginUseCase`.
   3. Security configuration magic numbers (token lifetimes, bearer type, header keys) were duplicated as string/integer literals across multiple DTOs and use cases.
+  4. Authentication credential verification returned early upon missing or inactive users, introducing side-channel timing attack vectors allowing username enumeration.
+  5. UseCase primary constructors contained optional `= null` fallback defaults, violating Clean Architecture invariants and masking container registration defects.
+  6. Login responses lacked active project context metadata, forcing client applications to parse JWT tokens or execute secondary queries.
 - **Decision:**
   1. **Gateway Ingress Workspace Resolution:** Updated `ApiKeyMiddleware` to intercept `X-Project-Id` from HTTP headers and populate `IExecutionContext.ProjectId` for JWT sessions, enabling dynamic active workspace context signaling without session resets.
   2. **Unified Refresh Token Rotation (RTR):** Integrated `IUserWorkspaceQueryService` into `RefreshTokenUseCase`, replacing naive role joins with single-query workspace loading. Validates requested `X-Project-Id` against user's accessible projects, issuing new JWT bound to the requested active workspace and role.
-  3. **Strict Zero-Trust Reuse Detection:** Preserved refresh token reuse detection: re-presenting an already revoked token triggers instant atomic revocation of all active sessions for the compromised user.
-  4. **Domain Technical Constants SSoT:** Introduced `SecurityConstants` in `SmkDoc.Domain.Constants` as Single Source of Truth for token lifetimes (`AccessTokenLifetimeSeconds = 86400`, `RefreshTokenLifetimeDays = 7`), token type (`Bearer`), and header names (`X-Project-Id`).
-- **Consequences:** Seamless active project switching and token refresh with deterministic RBAC and strict reuse detection across both M2M and Web Portal channels.
+  3. **Zero-Trust Reuse Detection with Concurrency Leeway:** Introduced a deterministic 30-second leeway window (`SecurityConstants.RefreshTokenReuseLeewaySeconds = 30`) via `RefreshToken.IsWithinReuseLeeway` conforming to OAuth 2.0 Security BCP / Auth0 standard. When multi-tab applications concurrently rotate the same refresh token within 30 seconds, rotation succeeds without triggering false-alarm session revocation. Any re-use outside the 30-second leeway triggers immediate atomic revocation of all user sessions.
+  4. **Domain Technical Constants SSoT:** Introduced `SecurityConstants` in `SmkDoc.Domain.Constants` as Single Source of Truth for token lifetimes (`AccessTokenLifetimeSeconds = 86400`, `RefreshTokenLifetimeDays = 7`, `RefreshTokenReuseLeewaySeconds = 30`), token type (`Bearer`), header names (`X-Project-Id`), and dummy password hash.
+  5. **Constant-Time Verification (OWASP ASVS Timing Defense):** Implemented constant-time password calculation via `passwordHasher.VerifyPassword(command.Password, SecurityConstants.DummyPasswordHash)` when users are non-existent or inactive, completely eradicating response latency side-channel leaks.
+  6. **Mandatory Constructor Invariants:** Enforced non-null, mandatory dependencies across all UseCase primary constructors (Zero `= null` defaults).
+  7. **DTO Parity for Client State:** Enriched `LoginResultDto` with `ActiveProjectId` and `ActiveRole` fields alongside backwards-compatible constructor support.
+  8. **Hexagonal Security Audit Port:** Established domain-clean port `ISecurityAuditService` in `SmkDoc.Application.Common.Interfaces` implemented by `SecurityAuditService` in Infrastructure, decoupling Application Core from framework logging primitives.
+- **Consequences:** Seamless active project switching, hardened constant-time authentication, strict OAuth 2.0 BCP rotation resilience, decoupled structured audit logs, and zero constructor backdoors.
 
 ---
 
@@ -307,6 +315,7 @@ When external documents, commit messages, or comments cite legacy sequential num
   1. Defined Application port `IUserWorkspaceQueryService` in `SmkDoc.Application.Common.Interfaces`.
   2. Implemented `UserWorkspaceQueryService` in Infrastructure using EF Core `.Join()` and `AsNoTracking()` to execute a single, optimized SQL query projecting directly to DTOs.
   3. Integrated `EmailAddress` Value Object fail-fast validation at the Use Case boundary.
+  4. **Unified Workspace Context Resolution:** Extended `IUserWorkspaceQueryService` with `ResolveWorkspaceContextAsync(User, Guid? requestedProjectId, bool throwOnUnauthorized)` returning `UserWorkspaceContextDto`. Centralized workspace authorization, SuperAdmin override, and default project resolution as a Single Source of Truth (SSoT), eliminating 75+ lines of duplicated resolution logic across `LoginUseCase`, `RefreshTokenUseCase`, and `GetCurrentUserProfileUseCase`.
 - **Consequences:** Eliminated in-memory joining and reduced database round-trips to a single query.
 
 ---
@@ -418,7 +427,7 @@ When external documents, commit messages, or comments cite legacy sequential num
 
 <!-- SLOT 5: DETERMINISTIC VERIFICATION GATEWAY (Recency Weight: Final 10%) -->
 <verification_gateway>
-## ✅ Deterministic Pre-Emission Checklist (Self-Audit Gate)
+## Deterministic Pre-Emission Checklist (Self-Audit Gate)
 - [ ] 1. Prior Inversion Map compliance checked?
 - [ ] 2. All [TIER-1-FATAL] constraints preserved (zero public surface, Gotenberg isolation, UUIDv7)?
 - [ ] 3. Layer boundaries conform to [ORTHOGONAL_BOUNDARY] (Cold storage routing enforced)?

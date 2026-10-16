@@ -9850,6 +9850,19 @@
               "string"
             ],
             "format": "uuid"
+          },
+          "activeProjectId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "activeRole": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         },
         "description": "Result returned upon successful login authentication."

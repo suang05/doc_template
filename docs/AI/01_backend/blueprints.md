@@ -12,11 +12,11 @@
 
 <!-- SLOT 2: PRE-TRAINING PRIOR INVERSION MAP (Subword-Level Bias Override) -->
 <prior_inversion_map>
-## ⚡ High-Salience Token Inversion Map (Pre-Training Override)
+## High-Salience Token Inversion Map (Pre-Training Override)
 
-| Intent / Context | Defective Internet Prior (❌ BANNED) | Canonical SSoT Target (✅ MANDATORY) | Rule ID / Archetype |
+| Intent / Context | Defective Internet Prior (! BANNED) | Canonical SSoT Target (>> MANDATORY) | Rule ID / Archetype |
 |---|---|---|---|
-| **Slice Assembly** | Monolithic God `*Service` with CRUD methods | Master 5-File Feature Slice (`Request ➔ Command ➔ UseCase ➔ Entity ➔ ResultDto`) | Level 2 Slice Pipeline |
+| **Slice Assembly** | Monolithic God `*Service` with CRUD methods | Master 5-File Feature Slice (`Request => Command => UseCase => Entity => ResultDto`) | Level 2 Slice Pipeline |
 | **Controller Design** | Fat controller with business logic | Thin controller ($\le 5$ lines) delegating to `IUseCase<TCommand, TResult>` | Archetype 1 |
 | **Error Responses** | Ad-hoc `try-catch` / `return BadRequest(...)` | RFC 9457 `ProblemDetails` via `GlobalExceptionHandler` | Archetype 2 |
 | **Mutation Safety** | Unprotected `[HttpPost]` without key | `[HttpPost, Idempotent]` with `Idempotency-Key` header | Archetype 3 |
@@ -33,9 +33,9 @@
 
 <!-- SLOT 3: CONSTRAINT SEVERITY HIERARCHY (Conflict Resolution Tiers) -->
 <severity_hierarchy>
-## ⚖️ Constraint Resolution Hierarchy
+## Constraint Resolution Hierarchy
 1. `[TIER-1-FATAL]`: Memory & process safety (Zero LOH memory buffering `RULE-MEM-001`, atomic Unit of Work commit `RULE-UOW-002`, rich domain encapsulation `RULE-DOM-002`, compile-time typed API responses `RULE-API-002`).
-2. `[TIER-2-ARCH]`: Layer boundary integrity (Strict 5-file slice separation `Presentation ➔ Application ➔ Domain ➔ Infrastructure`, inward dependency flow, polymorphic strategy resolution).
+2. `[TIER-2-ARCH]`: Layer boundary integrity (Strict 5-file slice separation `Presentation => Application => Domain => Infrastructure`, inward dependency flow, polymorphic strategy resolution).
 3. `[TIER-3-WIRING]`: Syntactic & property symmetry (1:1 property names across layer boundaries, C# 13 primary constructor formatting with pure `camelCase`, explicit local variable instantiation).
 </severity_hierarchy>
 
@@ -43,7 +43,7 @@
 
 <!-- SLOT 4: CORE GENERATIVE BLUEPRINTS (High-Density Minimal Complete AST) -->
 <blueprints_scope>
-## 1. 🏛️ Level 1: System Topology & Inward Dependency Flow
+## 1. Level 1: System Topology & Inward Dependency Flow
 
 ### Clean Architecture Inward Flow Invariant
 The SMK Document Server implements Clean Architecture with Dependency Inversion. Domain Core remains isolated framework-free POCOs:
@@ -95,7 +95,7 @@ graph TD
 
 ---
 
-## 2. 💎 Level 2: Master 5-File Feature Slice Pipeline
+## 2. Level 2: Master 5-File Feature Slice Pipeline
 
 A standard business feature slice in `smk-doc-server` consists of exactly 5 interconnected files across Clean Architecture layers. Preserve 1:1 property symmetry without inventing intermediary translation glue:
 
@@ -127,7 +127,7 @@ Every UseCase in `SmkDoc.Application` executes business logic in strict **PEMR**
 
 ---
 
-## 3. 🔵 Level 3: The 10 Canonical Backend Generative Archetypes
+## 3. Level 3: The 10 Canonical Backend Generative Archetypes
 
 ```mermaid
 graph LR
@@ -297,7 +297,7 @@ public async Task<Created<ApiResponse<TemplateResultDto>>> Create(
 * **Formula:**
   * **Entity / Aggregate Root:** `public sealed class {Entity} : BaseEntity` preserving EF Core Change Tracking and identity equality.
   * **Strongly-Typed ID:** `public readonly record struct {Entity}Id(Guid Value)` ($\le 16$ bytes, stack-allocated, zero GC pressure).
-  * **Validated String Value Object:** `public sealed record class {Concept}` with private constructor and `Create(...)` SSoT to eliminate the `default(T)` zero-initialization trap (👉 [`FIREWALL-DOM-001`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/FIREWALL.md#firewall-dom-001)).
+  * **Validated String Value Object:** `public sealed record class {Concept}` with private constructor and `Create(...)` SSoT to eliminate the `default(T)` zero-initialization trap (=> [`FIREWALL-DOM-001`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/FIREWALL.md#firewall-dom-001)).
 
 ```csharp
 // [GENERATIVE_SLOT_FORMULA: ARCHETYPE-4-DOMAIN-ENTITY]
@@ -620,7 +620,7 @@ public sealed class CreateTemplateValidator : AbstractValidator<CreateTemplateCo
 
 #### Archetype 8: Zero-LOH Stream-over-RAM Direct Pipeline
 * **Intent & Scope:** High-throughput document streaming. Stream payloads directly to HTTP responses to preserve Large Object Heap (LOH) health without buffering in memory.
-* **Formula:** Gotenberg / MinIO ➔ `Stream` ➔ `Stream.CopyToAsync(response.Body, ct)`.
+* **Formula:** Gotenberg / MinIO => `Stream` => `Stream.CopyToAsync(response.Body, ct)`.
 
 ```csharp
 // [GENERATIVE_SLOT_FORMULA: ARCHETYPE-8-STREAMING]
@@ -769,7 +769,7 @@ public sealed class CreateTemplateUseCaseTests
 
 ---
 
-## 4. 🚀 Level 4: Specialized Production Recipes
+## 4. Level 4: Specialized Production Recipes
 
 ### Recipe 1: Type-Safe Smart Enums & Polymorphic Dispatch
 ```csharp
@@ -882,7 +882,7 @@ public static class ResilienceConfiguration
 
 ---
 
-## 5. 🔄 Level 5: Cross-Document Integration Matrix
+## 5. Level 5: Cross-Document Integration Matrix
 
 | Document Path | Governed SSoT Layer | Synchronization Trigger |
 |---|---|---|
@@ -896,7 +896,7 @@ public static class ResilienceConfiguration
 
 <!-- SLOT 5: DETERMINISTIC VERIFICATION GATEWAY (Recency Weight: Final 10%) -->
 <verification_gateway>
-## ✅ Deterministic Pre-Emission Checklist (Self-Audit Gate)
+## Deterministic Pre-Emission Checklist (Self-Audit Gate)
 - [ ] 1. Prior Inversion Map compliance checked against the 10 Golden Archetypes?
 - [ ] 2. All [TIER-1-FATAL] constraints preserved (Stream-over-RAM, single atomic UoW commit, rich domain encapsulation)?
 - [ ] 3. Layer boundaries conform to [ORTHOGONAL_BOUNDARY] (Dependencies flow inwards: Presentation >> Application >> Domain << Infrastructure)?
