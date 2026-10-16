@@ -232,7 +232,7 @@ sequenceDiagram
         Ex-->>Client: 401 Unauthorized (ProblemDetails)
     end
     
-    Auth->>Rate: Hydrate IExecutionContext (ProjectId, CallerApp)
+    Auth->>Rate: Hydrate ICurrentProjectContext (ProjectId, CallerIdentity)
     
     alt Quota Exhausted
         Rate-->>Client: 429 Too Many Requests (Retry-After)
@@ -271,10 +271,12 @@ sequenceDiagram
 The SMK Document Server implements strict tenant isolation to comply with enterprise data governance and mitigate the **OWASP API Security Top 10 (2023)**:
 
 ### 5.1 BOLA & IDOR Mitigation (Tenant Boundaries)
-* **`IExecutionContext` Hydration:** Every request automatically resolves its tenant context from the authentication channel:
-  * **Channel A (API Key):** Resolves `ProjectId` from `ApiKeys.KeyHash` in PostgreSQL.
-  * **Channel B (Bearer JWT):** Resolves `ProjectId` and `UserId` from cryptographically signed claims.
-* **Mandatory Scoping:** All Domain entities implementing `IMustHaveProject` MUST be queried and mutated with explicit `ProjectId` filters. Fetching an entity by primary key alone (`templateId`) without validating tenant ownership (`template.ProjectId == executionContext.ProjectId`) is strictly prohibited.
+* **`ICurrentProjectContext` (Scoped SSoT):** Every request automatically resolves its tenant context at the perimeter gate via `ProjectContextMiddleware` into an immutable scoped interface (`ICurrentProjectContext`):
+  * **Channel A (M2M API Key):** Computes SHA-256 hash of `X-API-Key` and resolves `ProjectId` from active `ApiKeys` records. Strictly rejects requests containing `X-Project-Id` headers to prevent cross-tenant spoofing.
+  * **Channel B (Management Portal JWT):** Decodes JWT claims (`UserId`, `SystemRole`) and reads `X-Project-Id` workspace header. Grants immediate access to `SuperAdmin` callers; validates normal users via `user.CanAccessProject(requestedProjectId)` against `user_project_roles`. Dispatches RFC 9457 `403 Forbidden` (`FORBIDDEN_PROJECT_ACCESS`) on unauthorized tenant access.
+* **EF Core Global Query Filter Isolation:** All Domain entities implementing `IMustHaveProject` are automatically scoped at the database engine level via `.HasQueryFilter(e => _projectContext == null || !_projectContext.IsResolved || e.ProjectId == _projectContext.ProjectId)`. Manual tenant predicate propagation is eliminated, guaranteeing zero cross-tenant data leaks.
+* **Auto-Assign on Mutation:** `TenantSecuritySaveChangesInterceptor` intercepts `SavingChanges`/`SavingChangesAsync` to automatically assign `entity.ProjectId = _projectContext.ProjectId` for newly added `IMustHaveProject` entities when empty, and strictly rejects cross-tenant write operations.
+* **Storage & Cache Partitioning:** MinIO object paths (`outputs/{projectId:N}/...`) and Redis/Memory cache keys (`idemp:{projectId:N}:...`) enforce strict tenant partitioning at the infrastructure boundary.
 
 ### 5.2 Server-Side Request Forgery (SSRF) & Code Injection Defense
 * **Chromium Sandbox:** Gotenberg Chromium runs in a restricted container sandbox with dangerous Web APIs disabled.
@@ -400,10 +402,11 @@ backend-v2/
 │   │   ├── Exceptions/             # DomainException, DomainValidationException
 │   │   └── Interfaces/             # IMustHaveProject, IUnitOfWork, ITemplateRepository
 │   ├── SmkDoc.Application/         # CQRS Orchestration & Ports — Depends on Domain only
-│   │   ├── Common/                 # IUseCase, IRepository, IStorageService, ThaiDataTransformer
+│   │   ├── Common/                 # IUseCase, IRepository, IStorageService, ThaiDataTransformer, ICurrentProjectContext
 │   │   └── Modules/                # 4 Bounded Contexts: Rendering, Authoring, Integration, IdentityAccess
 │   ├── SmkDoc.Infrastructure/      # Adapters — Implements Application Ports
-│   │   ├── Persistence/            # AppDbContext, EF Repositories, Migrations, xmin Concurrency
+│   │   ├── Persistence/            # AppDbContext, Interceptors, EF Repositories, Migrations, xmin Concurrency
+│   │   ├── Contexts/               # CurrentProjectContext (Scoped ambient SSoT)
 │   │   ├── Storage/                # MinioStorageService
 │   │   ├── Pdf/                    # GotenbergPdfRenderer (Chromium & LibreOffice endpoints)
 │   │   ├── Engines/                # HtmlTemplateEngine, DocxTemplateEngine, ExcelTemplateEngine
@@ -411,7 +414,7 @@ backend-v2/
 │   └── SmkDoc.Api/                 # Presentation — Thin HTTP Controllers
 │       ├── Controllers/            # Thin HTTP Controllers (<= 5 lines per action)
 │       ├── Contracts/              # Request / Response records organized by module
-│       ├── Middleware/             # ApiKeyMiddleware, SecurityHeadersMiddleware
+│       ├── Middleware/             # ProjectContextMiddleware, SecurityHeadersMiddleware
 │       ├── ExceptionHandlers/      # GlobalExceptionHandler (RFC 9457 ProblemDetails SSoT)
 │       └── Filters/                # ValidateCommandFilter, IdempotencyFilter ([Idempotent])
 └── tests/

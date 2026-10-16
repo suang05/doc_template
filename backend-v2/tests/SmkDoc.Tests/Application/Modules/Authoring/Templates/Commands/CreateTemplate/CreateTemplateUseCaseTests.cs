@@ -32,7 +32,7 @@ public class CreateTemplateUseCaseTests
     {
         var projectId = Guid.NewGuid();
         _fixture.TemplateRepo
-            .Setup(r => r.SlugExistsAsync("tax-invoice", projectId, It.IsAny<CancellationToken>()))
+            .Setup(r => r.SlugExistsAsync("tax-invoice", It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
 
         var command = new CreateTemplateCommand(projectId, "Tax Invoice", "tax-invoice", "Finance");
@@ -48,7 +48,7 @@ public class CreateTemplateUseCaseTests
     {
         var projectId = Guid.NewGuid();
         _fixture.TemplateRepo
-            .Setup(r => r.SlugExistsAsync("tax-invoice", projectId, It.IsAny<CancellationToken>()))
+            .Setup(r => r.SlugExistsAsync("tax-invoice", It.IsAny<CancellationToken>()))
             .ReturnsAsync(false);
         _fixture.Context.Setup(c => c.CallerApp).Returns("erp-system");
 

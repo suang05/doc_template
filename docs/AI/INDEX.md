@@ -21,7 +21,7 @@
 <severity_hierarchy>
 - `[TIER-1-FATAL]`: Never edit code that violates `00_guardrails/FIREWALL.md` (P1-P21). Obey all Tier 1 architectural invariants (UUIDv7, non-blocking async, zero-LOH streaming).
 - `[TIER-2-INTEGRITY]`: Route all coding tasks through canonical archetypes in `01_backend/blueprints.md` and `02_frontend/screen_recipes.md`.
-- `[TIER-3-PERF]`: Consult `03_archival/decisions.md` before attempting to reopen resolved architectural debates (ADR-001 through ADR-028).
+- `[TIER-3-PERF]`: Consult `03_archival/decisions.md` before attempting to reopen resolved architectural debates (ADR-001 through ADR-029 / ADR-SEC-05).
 </severity_hierarchy>
 
 <switchboard_scope>
@@ -44,7 +44,7 @@ docs/AI/
 │   ├── design_tokens.md             [Ice-White Theme, 2px-4px Radius, 19 Primitives]
 │   └── screen_recipes.md            [AppShell, 4 Stitching Recipes, 14 Routes, Archetypes 10-12]
 └── 03_archival/                     [TIER 2: Contextual Rationale & Cold Storage]
-    └── decisions.md                 [28 Authoritative Architecture Decision Records]
+    └── decisions.md                 [29 Authoritative Architecture Decision Records]
 ```
 
 ---
@@ -113,8 +113,20 @@ When updating any document in `docs/AI/`, execute these 4 positive actions in se
 3. `[BIDIRECTIONAL_SSOT_LINK]`: Ensure cross-references are mutually linked between guardrails and implementation slices.
 4. `[CONTRADICTION_SWEEP]`: Scan touched documentation slices with `grep_search` to eliminate legacy or obsolete tokens.
 
+### Living Governance Workflow (The Propose-and-Wait Cycle)
+Whenever a codebase mutation triggers any `[SIGNAL_*]`, the agent MUST execute this 3-stage lifecycle:
+1. **STAGE 1 [DETECT]:** Identify the matching signal token and single authoritative target file.
+2. **STAGE 2 [PROPOSE & HALT]:** In the response handoff, present the proposed micro-diff, explain the architectural impact, and explicitly ask the user for approval. **DO NOT mutate files in `docs/AI/` autonomously.**
+3. **STAGE 3 [APPLY]:** Apply the 4-Point Synchronization Protocol to disk ONLY AFTER the user explicitly confirms (e.g., "Proceed", "Update docs", "Yes").
+
 ### Authoring Invariants:
 - `[COGNITIVE_ALIGNMENT]`: All documentation updates MUST strictly target LLM Cognitive Anatomy (high token density, compiler-grade ASTs, zero conversational prose). Maintain or elevate established canonical standards.
+- `[5_SLOT_CHASSIS_PRESERVATION]`: Every document in `docs/AI/` MUST retain the Universal 5-Slot Cognitive Chassis wrapper tags. Never remove, rename, or collapse them:
+  * Slot 1: `<cognitive_priming>` - Operational mode, attention budget, lexical search beacons
+  * Slot 2: `<prior_inversion_map>` - Prohibited defective prior vs canonical substitution table
+  * Slot 3: `<severity_hierarchy>` - TIER-1-FATAL, TIER-2-INTEGRITY, TIER-3-PERF
+  * Slot 4: `<{domain}_scope>` - Minimal complete positive ASTs and schemas (zero placeholder comments)
+  * Slot 5: `<verification_gateway>` - Active deterministic verification checklist
 - Zero decorative emojis. Zero pseudo-cyberpunk or academic metaphors.
 - Canonical symbolic dictionary: `=>`, `!`, `::`, `>>`, `&`, `|`, `>`, `<`.
 - Minimal node-only Mermaid (<= 15 nodes, <= 2 levels, direct arrows). Indented text hierarchy for trees.

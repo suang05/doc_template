@@ -65,6 +65,7 @@
 | [SECURITY] | [`ADR-SEC-02`](#adr-sec-02-hybrid-rbac--dual-channel-authentication-model) | `ADR-011` | September 2026 | Hybrid RBAC & Dual-Channel Authentication Model (M2M + Portal) | **Accepted (Active)** |
 | [SECURITY] | [`ADR-SEC-03`](#adr-sec-03-scoped-api-keys--m2m-first-zero-public-surface-security) | `ADR-025` | October 2026 | Scoped API Keys (`ReadOnly` / `ReadWrite`) & Zero Public Surface | **Accepted (Active)** |
 | [SECURITY] | [`ADR-SEC-04`](#adr-sec-04-nextjs-server-side-api-proxy--cookie-to-bearer-token-isolation) | `ADR-027` | October 2026 | Next.js Server-Side API Proxy & Cookie-to-Bearer Token Translation | **Accepted (Active)** |
+| [SECURITY] | [`ADR-SEC-05`](#adr-sec-05-ambient-project-context--ef-core-global-query-filter-isolation) | N/A | October 2026 | Ambient Project Context & EF Core Global Query Filter Isolation | **Accepted (Active)** |
 | [ENGINES] | [`ADR-ENG-01`](#adr-eng-01-gotenberg-8-chromium-microservice-instead-of-embedded-libreoffice) | `ADR-002` | September 2026 | Gotenberg 8 Chromium Microservice instead of Embedded LibreOffice | **Accepted (Active)** |
 | [ENGINES] | [`ADR-ENG-02`](#adr-eng-02-compiled-handlebars-template-caching--smart-excel-pagesetup) | `ADR-013` | September 2026 | Compiled Handlebars Caching & Smart Excel PageSetup Preservation | **Accepted (Active)** |
 | [ENGINES] | [`ADR-ENG-03`](#adr-eng-03-native-thai-typography-compliance--sarabun-font-sandboxing) | `ADR-029` | October 2026 | Native Thai Typography Compliance & Sarabun Font Sandboxing | **Accepted (Active)** |
@@ -155,6 +156,19 @@ When external documents, commit messages, or comments cite legacy sequential num
   - Server proxy strips hop-by-hop headers, extracts the JWT from the secure session via `auth()`, injects `Authorization: Bearer <token>`, forwards `X-API-Key`, and pipes the backend response directly back to the client.
 - **Consequences:** Zero bearer token exposure in client memory; streamlined internal network communication without browser CORS complications.
 
+#### ADR-SEC-05: Ambient Project Context & EF Core Global Query Filter Isolation
+> **Tag:** `ADR-SEC-05` | **Legacy:** N/A | **Date:** October 2026 | **Status:** Accepted (Active)
+
+- **Context & Problem:** The existing tenant scoping required explicit `Guid projectId` passing down through application use cases into repositories (`repo.GetBySlugAsync(slug, projectId)`), while some methods (`repo.GetByIdAsync(id)`) lacked tenant boundaries entirely, introducing high risk of Insecure Direct Object References (BOLA/IDOR). Additionally, primitive obsession (`Guid` instead of strongly-typed `ProjectId`) created potential parameter transposition defects.
+- **Decision:**
+  1. **Scoped Ambient SSoT (`ICurrentProjectContext`):** Established `ICurrentProjectContext` in `SmkDoc.Application` (read-only) and `ICurrentProjectContextSetter` in `SmkDoc.Infrastructure` as the Single Source of Truth resolved once per HTTP request lifecycle.
+  2. **EF Core Global Query Filters & Interceptor:** Enforced automatic database-level tenant isolation via `.HasQueryFilter(e => e.ProjectId == _projectContext.ProjectId)` across all entities implementing `IMustHaveProject`. `TenantSecuritySaveChangesInterceptor` automatically assigns `_projectContext.ProjectId` on added entities when empty and aborts cross-tenant writes.
+  3. **Perimeter Security Gate (`ProjectContextMiddleware`):** Dual-channel resolution at the API boundary:
+     - M2M Channel: Resolves `ProjectId` strictly from SHA-256 hashed `X-API-Key` while explicitly rejecting client-supplied `X-Project-Id` headers to prevent spoofing.
+     - Portal Channel: Resolves `UserId` and `SystemRole` from JWT claims and `X-Project-Id` from the active frontend workspace. Grants immediate access to `SuperAdmin` and verifies `user.CanAccessProject(requestedProjectId)` for normal users against `user_project_roles`.
+  4. **Clean Domain Repositories:** Modernized repository method signatures (`GetByIdAsync(TemplateId id)`, `GetBySlugAsync(TemplateSlug slug)`, `SlugExistsAsync(string slug)`) purging redundant legacy overloads with `Guid projectId` to completely eradicate BOLA/IDOR vulnerabilities.
+- **Consequences:** Eliminates IDOR/BOLA risks at the database engine level (defense-in-depth); simplifies application use case code; ensures testable, isolated domain logic.
+
 ---
 
 ### Part 2: Rendering Engines & Formats (`ENG`)
@@ -222,7 +236,7 @@ When external documents, commit messages, or comments cite legacy sequential num
   1. Partitioned exception hierarchy: Pure Domain Exceptions in `SmkDoc.Domain.Exceptions`, HTTP-mapped exceptions in `SmkDoc.Application.Common.Exceptions`.
   2. Encapsulated child collections (`Project`, `Company`, `User`, `Template`) as `IReadOnlyCollection<T>`.
   3. Consolidated child entities (`FieldMapping`, `TemplateDataset`) under Aggregate Root `Template`, phasing out standalone child repositories.
-  4. Enforced strict tenant-scoped queries (`ListByProjectAsync`) across all domain repositories.
+  4. Enforced strict tenant-scoped queries across all domain repositories (superseded by ADR-SEC-05 ambient Global Query Filter on `ListAsync`).
 
 #### ADR-DOM-06: Comprehensive DDD Aggregates, Sealed Entities & Value Converters
 > **Tag:** `ADR-DOM-06` | **Legacy:** `ADR-022` | **Date:** October 2026 | **Status:** Accepted (Active)

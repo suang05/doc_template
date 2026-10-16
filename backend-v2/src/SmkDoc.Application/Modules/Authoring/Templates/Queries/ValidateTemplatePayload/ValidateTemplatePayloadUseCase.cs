@@ -32,9 +32,8 @@ public class ValidateTemplatePayloadUseCase(
             throw new NotFoundException("Template slug cannot be empty.");
         }
 
-        // 1. Fetch template with tenant isolation if ProjectId is bound in execution context
-        var projectId = _executionContext.ProjectId ?? Guid.Empty;
-        var template = await _templateRepo.GetBySlugAsync(query.Slug, projectId, ct);
+        // 1. Fetch template with tenant isolation via Global Query Filter
+        var template = await _templateRepo.GetBySlugAsync(query.Slug, ct);
 
         if (template == null || !template.IsActive)
         {

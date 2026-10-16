@@ -8,6 +8,7 @@ COGNITIVE_FRAMEWORK & SYSTEM_CONTEXT:
 - DUAL_STEWARDSHIP: Code and Living Documentation (`docs/AI/`) are atomic co-variants. Code modifications without corresponding specification updates constitute system drift.
 - OPERATIONAL_HEURISTICS:
   * ARCHITECTURE_FIRST: Establish and confirm design before code modifications on non-trivial tasks.
+  * PROACTIVE_CHALLENGE: Proactively challenge suboptimal designs, architectural flaws, or obsolete patterns (whether proposed by user, existing in code, or documented in `docs/AI/`). Boldly propose superior canonical structures with concrete trade-offs before implementing.
   * ZERO_REGRESSION: Enforce Clean Architecture, statelessness, and thread-safety invariants.
   * CODE_SIMPLICITY: Prioritize readable, cohesive, and decoupled structures over complex abstractions.
   * REFACTOR_POLICY: IF existing code violates `docs/AI/00_guardrails/CONVENTIONS.md` THEN reject pattern and propose canonical refactor ELSE maintain codebase consistency.
@@ -86,7 +87,7 @@ CentralizedConfiguration:
 - Mass file deletions or cross-domain refactoring.
 - Modifying EF Core Database Migrations or breaking public API contracts (DTOs).
 - Installing NuGet or npm packages.
-- Updating `AGENTS.md` or any file in `docs/AI/`.
+- Updating `AGENTS.md` or any file in `docs/AI/` (MUST use Propose-and-Wait: draft the exact diff, ask user for confirmation, DO NOT modify doc files autonomously during coding turns).
 - Unused code/import cleanups detected during unrelated file edits.
 </approval_gates>
 
@@ -154,6 +155,12 @@ Execute <verification_protocol> before concluding task turn.
 
 [AUTHORING_INVARIANTS]
 - COGNITIVE_ALIGNMENT: All documentation updates MUST strictly target LLM Cognitive Anatomy (high token density, compiler-grade ASTs, zero conversational prose). Maintain or elevate established canonical standards.
+- 5_SLOT_CHASSIS_PRESERVATION: Every document in docs/AI/ MUST retain the Universal 5-Slot Cognitive Chassis wrapper tags. Never remove, rename, or collapse them:
+  * Slot 1: <cognitive_priming>    - Operational mode, attention budget, lexical search beacons
+  * Slot 2: <prior_inversion_map>   - Prohibited defective prior vs canonical substitution table
+  * Slot 3: <severity_hierarchy>    - TIER-1-FATAL, TIER-2-INTEGRITY, TIER-3-PERF
+  * Slot 4: <{domain}_scope>        - Minimal complete positive ASTs and schemas (zero placeholder comments)
+  * Slot 5: <verification_gateway>  - Active deterministic verification checklist
 - Zero decorative emojis. Zero pseudo-cyberpunk or academic metaphors.
 - Canonical symbolic dictionary: =>, !, ::, >>, &, |, >, <.
 - Minimal node-only Mermaid (<= 15 nodes, <= 2 levels, direct arrows). Indented text hierarchy for trees.
@@ -172,6 +179,12 @@ Execute <verification_protocol> before concluding task turn.
 Before concluding turn, enforce the following sequence:
 1. TEST_EXECUTION: Run terminal build/test commands. Tests must execute and report 100% pass rate.
 2. CODE_INSPECTION: Verify all newly declared parameters, variables, and dependencies are actively utilized.
-3. CONTRACT_SYNC: Verify codebase mutations against `<doc_drift_protocol>`. Update `<endpoint_manifest>` and re-emit `docs/openapi.json` if endpoints modified.
-4. STRUCTURED_HANDOFF: Conclude with concise architectural summary: Decisions Made, Active Verification Status, and Identified Technical Risks.
+3. DOC_IMPACT_ANALYSIS: Actively cross-reference all code mutations against `<doc_drift_protocol>`. If changes match any `[SIGNAL_*]`, prepare the exact documentation delta (DO NOT write to disk yet).
+4. STRUCTURED_HANDOFF: Conclude with concise architectural summary containing exact fields:
+   - Decisions Made & Technical Trade-offs
+   - Active Verification Status (Tests & Build outputs)
+   - Documentation Impact: 
+     * IF mutation detected: State the `[SIGNAL_*]` token, target `docs/AI/` file, show the exact micro-diff, and EXPLICITLY ASK: "Would you like me to apply this documentation update now?"
+     * IF no mutation: Declare `[NO_DOC_MUTATION_REQUIRED]` with technical rationale.
+   - Identified Technical Risks & Open Questions
 </verification_protocol>

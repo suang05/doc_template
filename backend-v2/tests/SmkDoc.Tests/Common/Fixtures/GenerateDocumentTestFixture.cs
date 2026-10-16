@@ -71,9 +71,9 @@ public class GenerateDocumentTestFixture
 
     public void GivenTemplateWithVersion(Template template, TemplateVersion version, string htmlContent = "<html></html>")
     {
-        TemplateRepo.Setup(r => r.GetBySlugWithDetailsAsync(template.Slug.Value, It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+        TemplateRepo.Setup(r => r.GetBySlugWithDetailsAsync(template.Slug.Value, It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
-        TemplateRepo.Setup(r => r.GetBySlugAsync(template.Slug.Value, It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+        TemplateRepo.Setup(r => r.GetBySlugAsync(template.Slug.Value, It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
         VersionRepo.Setup(r => r.GetByIdAsync(version.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(version);

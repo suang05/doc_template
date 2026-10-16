@@ -77,9 +77,9 @@ public class HtmlDirectGenerationTests
             </html>";
 
         _mockContext.Setup(c => c.ProjectId).Returns(template.ProjectId);
-        _mockTemplateRepo.Setup(r => r.GetBySlugWithDetailsAsync("invoice-direct-html", It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+        _mockTemplateRepo.Setup(r => r.GetBySlugWithDetailsAsync("invoice-direct-html", It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
-        _mockTemplateRepo.Setup(r => r.GetBySlugAsync("invoice-direct-html", It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+        _mockTemplateRepo.Setup(r => r.GetBySlugAsync("invoice-direct-html", It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
         _mockVersionRepo.Setup(r => r.GetByIdAsync(versionId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(version);

@@ -18,6 +18,7 @@ public sealed class CommitTemplateDraftUseCase(
     IProjectRepository? projectRepo = null,
     ISchemaInferenceService? schemaInferenceService = null,
     IExecutionContext? executionContext = null,
+    ICurrentProjectContext? projectContext = null,
     TimeProvider? timeProvider = null) : IUseCase<CommitTemplateDraftCommand, string>
 {
     private readonly TimeProvider timeProvider = timeProvider ?? TimeProvider.System;
@@ -27,19 +28,9 @@ public sealed class CommitTemplateDraftUseCase(
         var draft = await draftCache.GetAsync(command.DraftId, ct)
             ?? throw new DraftExpiredException(command.DraftId);
 
-        var format      = FormatFromExt(draft.FileExtension);
-        var tempId      = Guid.CreateVersion7();
-        var storageKey  = $"{tempId}/{Guid.CreateVersion7()}{draft.FileExtension}";
-        var contentType = ContentTypeFromExt(draft.FileExtension);
-
-        string uploadedKey;
-        using (var ms = new MemoryStream(draft.FileBytes))
-        {
-            uploadedKey = await storageService.UploadAsync(StorageBuckets.Templates, storageKey, ms, contentType, ct);
-        }
-
-        Guid targetProjectId = command.Request.ProjectId 
-            ?? (executionContext?.ProjectId.HasValue == true ? executionContext.ProjectId.Value : Guid.Empty);
+        Guid targetProjectId = (command.Request.ProjectId.HasValue && command.Request.ProjectId.Value != Guid.Empty)
+            ? command.Request.ProjectId.Value
+            : (projectContext?.IsResolved == true ? projectContext.ProjectId.Value : (executionContext?.ProjectId.HasValue == true ? executionContext.ProjectId.Value : Guid.Empty));
 
         if (targetProjectId == Guid.Empty)
         {
@@ -50,6 +41,17 @@ public sealed class CommitTemplateDraftUseCase(
         {
             var project = await projectRepo.GetByIdAsync(targetProjectId, ct)
                 ?? throw new NotFoundException($"Project '{targetProjectId}' not found.");
+        }
+
+        var format      = FormatFromExt(draft.FileExtension);
+        var tempId      = Guid.CreateVersion7();
+        var storageKey  = $"templates/{targetProjectId}/{tempId}/{Guid.CreateVersion7()}{draft.FileExtension}";
+        var contentType = ContentTypeFromExt(draft.FileExtension);
+
+        string uploadedKey;
+        using (var ms = new MemoryStream(draft.FileBytes))
+        {
+            uploadedKey = await storageService.UploadAsync(StorageBuckets.Templates, storageKey, ms, contentType, ct);
         }
 
         var now = this.timeProvider.GetUtcNow();

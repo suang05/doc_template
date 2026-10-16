@@ -23,7 +23,8 @@ public sealed class CreateTemplateUseCase(
     IExecutionContext executionContext,
     IUnitOfWork unitOfWork,
     IValidator<CreateTemplateCommand> validator,
-    TimeProvider? timeProvider = null) : IUseCase<CreateTemplateCommand, TemplateResultDto>
+    TimeProvider? timeProvider = null,
+    ICurrentProjectContext? projectContext = null) : IUseCase<CreateTemplateCommand, TemplateResultDto>
 {
     private readonly ITemplateRepository _templateRepo = templateRepo;
     private readonly IRepository<TemplateVersion> _versionRepo = versionRepo;
@@ -33,6 +34,7 @@ public sealed class CreateTemplateUseCase(
     private readonly IUnitOfWork _unitOfWork = unitOfWork;
     private readonly IValidator<CreateTemplateCommand> _validator = validator;
     private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
+    private readonly ICurrentProjectContext? _projectContext = projectContext;
 
     public async Task<TemplateResultDto> ExecuteAsync(CreateTemplateCommand command, CancellationToken ct = default)
     {
@@ -43,8 +45,12 @@ public sealed class CreateTemplateUseCase(
             throw new ValidationException(validationResult.ToDictionary());
         }
 
+        var effectiveProjectId = command.ProjectId != Guid.Empty
+            ? command.ProjectId
+            : (_projectContext?.IsResolved == true ? _projectContext.ProjectId.Value : _executionContext.ProjectId ?? Guid.Empty);
+
         // 2. Domain Rule Check (Slug uniqueness)
-        var slugExists = await _templateRepo.SlugExistsAsync(command.Slug, command.ProjectId, ct);
+        var slugExists = await _templateRepo.SlugExistsAsync(command.Slug, ct);
         if (slugExists)
         {
             throw ConflictException.DuplicateSlug(command.Slug);
@@ -73,7 +79,7 @@ public sealed class CreateTemplateUseCase(
                 }
             }
 
-            storageKey = $"templates/{command.Slug}{ext}";
+            storageKey = $"templates/{effectiveProjectId}/{command.Slug}{ext}";
             fileFormat = ext switch
             {
                 ".docx" => TemplateFormat.Docx,
@@ -85,7 +91,7 @@ public sealed class CreateTemplateUseCase(
         }
         else
         {
-            storageKey = $"templates/{command.Slug}.html";
+            storageKey = $"templates/{effectiveProjectId}/{command.Slug}.html";
             fileFormat = TemplateFormat.Html;
             string defaultHtml = "<!DOCTYPE html>\n<html lang=\"th\">\n<head>\n  <meta charset=\"UTF-8\" />\n</head>\n<body>\n  <h2>Template</h2>\n</body>\n</html>";
             using var htmlStream = new MemoryStream(Encoding.UTF8.GetBytes(defaultHtml));
@@ -95,7 +101,7 @@ public sealed class CreateTemplateUseCase(
         // 4. Domain Entity Instantiation (Encapsulated invariants)
         var now = _timeProvider.GetUtcNow();
         var template = Template.Create(
-            command.ProjectId,
+            effectiveProjectId,
             TemplateName.Create(command.Name),
             TemplateSlug.Create(command.Slug),
             command.Category?.Trim(),

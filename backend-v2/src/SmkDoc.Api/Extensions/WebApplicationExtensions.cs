@@ -35,13 +35,13 @@ public static class WebApplicationExtensions
         app.UseMiddleware<SecurityHeadersMiddleware>();
         app.UseCors();
 
-        // 4. Authentication & Authorization
+        // 4. Authentication & Perimeter Project Context Gateway
         app.UseAuthentication();
+        app.UseMiddleware<ProjectContextMiddleware>();
         app.UseAuthorization();
 
-        // 5. Rate Limiting & API Key Middleware
+        // 5. Rate Limiting
         app.UseRateLimiter();
-        app.UseMiddleware<ApiKeyMiddleware>();
 
         // 6. Controllers with Rate Limiting Policy
         app.MapControllers().RequireRateLimiting("api");

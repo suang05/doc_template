@@ -19,6 +19,7 @@ using SmkDoc.Infrastructure.Observability;
 using SmkDoc.Infrastructure.Parsing;
 using SmkDoc.Infrastructure.Pdf;
 using SmkDoc.Infrastructure.Persistence;
+using SmkDoc.Infrastructure.Persistence.Interceptors;
 using SmkDoc.Infrastructure.Persistence.Queries;
 using SmkDoc.Infrastructure.Persistence.Repositories;
 using SmkDoc.Infrastructure.Schema;
@@ -35,6 +36,9 @@ public static class DependencyInjection
         // 2. Execution Context
         services.AddScoped<ExecutionContextImpl>();
         services.AddScoped<IExecutionContext>(sp => sp.GetRequiredService<ExecutionContextImpl>());
+        services.AddScoped<CurrentProjectContext>();
+        services.AddScoped<ICurrentProjectContext>(sp => sp.GetRequiredService<CurrentProjectContext>());
+        services.AddScoped<ICurrentProjectContextSetter>(sp => sp.GetRequiredService<CurrentProjectContext>());
 
         // 3. Database
         string connectionString = configuration.GetConnectionString("DefaultConnection")
@@ -42,11 +46,16 @@ public static class DependencyInjection
             ?? throw new InvalidOperationException(
                 "Database connection string is required. Set ConnectionStrings:DefaultConnection or DATABASE_URL.");
 
-        services.AddDbContext<AppDbContext>(options =>
+        services.AddScoped<TenantSecuritySaveChangesInterceptor>();
+
+        services.AddDbContext<AppDbContext>((sp, options) =>
+        {
             options.UseNpgsql(connectionString, sqlOptions => sqlOptions.EnableRetryOnFailure(
                 maxRetryCount: 5,
                 maxRetryDelay: TimeSpan.FromSeconds(10),
-                errorCodesToAdd: null)));
+                errorCodesToAdd: null));
+            options.AddInterceptors(sp.GetRequiredService<TenantSecuritySaveChangesInterceptor>());
+        });
 
         services.AddScoped(typeof(IRepository<>), typeof(EfRepository<>));
         services.AddScoped<ITemplateRepository, TemplateRepository>();

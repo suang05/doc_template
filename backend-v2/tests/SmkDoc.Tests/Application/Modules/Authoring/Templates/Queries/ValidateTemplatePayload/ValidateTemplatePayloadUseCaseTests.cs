@@ -45,7 +45,7 @@ public class ValidateTemplatePayloadUseCaseTests
 
         _mockContext.Setup(c => c.ProjectId).Returns(projectId);
         _mockTemplateRepo
-            .Setup(r => r.GetBySlugAsync(slug, projectId, It.IsAny<CancellationToken>()))
+            .Setup(r => r.GetBySlugAsync(slug, It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
         _mockVersionRepo
             .Setup(r => r.GetByIdAsync(versionId, It.IsAny<CancellationToken>()))
@@ -86,7 +86,7 @@ public class ValidateTemplatePayloadUseCaseTests
 
         _mockContext.Setup(c => c.ProjectId).Returns(projectId);
         _mockTemplateRepo
-            .Setup(r => r.GetBySlugAsync(slug, projectId, It.IsAny<CancellationToken>()))
+            .Setup(r => r.GetBySlugAsync(slug, It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
         _mockVersionRepo
             .Setup(r => r.GetByIdAsync(versionId, It.IsAny<CancellationToken>()))
@@ -129,7 +129,7 @@ public class ValidateTemplatePayloadUseCaseTests
         var version = TemplateVersionTestFactory.Create(Guid.NewGuid(), templateId, 1, "templates/none.html", TemplateFormat.Html, "Published", "init");
         _mockContext.Setup(c => c.ProjectId).Returns(projectId);
         _mockTemplateRepo
-            .Setup(r => r.GetBySlugAsync(slug, projectId, It.IsAny<CancellationToken>()))
+            .Setup(r => r.GetBySlugAsync(slug, It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
         _mockVersionRepo
             .Setup(r => r.GetByIdAsync(versionId, It.IsAny<CancellationToken>()))
@@ -150,7 +150,7 @@ public class ValidateTemplatePayloadUseCaseTests
     public async Task ExecuteAsync_WhenTemplateNotFound_ThrowsNotFoundException()
     {
         _mockTemplateRepo
-            .Setup(r => r.GetBySlugAsync(It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .Setup(r => r.GetBySlugAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((Template?)null);
 
         using var doc = JsonDocument.Parse("{}");

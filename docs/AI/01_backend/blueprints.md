@@ -253,9 +253,9 @@ public sealed class TemplateController(
 ##### Consumer Usage Example (Application Layer):
 ```csharp
 // Application Layer UseCase: Throw strongly-typed Domain Exceptions exclusively
-if (await templateRepo.ExistsBySlugAsync(command.ProjectId, slug, ct))
+if (await templateRepo.SlugExistsAsync(command.Slug, ct))
 {
-    throw new ConflictException($"Template with slug '{command.Slug}' already exists in project '{command.ProjectId}'.");
+    throw ConflictException.DuplicateSlug(command.Slug);
 }
 
 var template = await templateRepo.GetByIdAsync(query.Id, ct)
@@ -435,8 +435,10 @@ public interface IUnitOfWork
 public interface ITemplateRepository
 {
     // Strongly-Typed ID SSoT (TemplateId and ProjectId support implicit conversion to/from Guid)
+    // Ambient Multi-Tenancy: Scoped automatically by EF Core Global Query Filter on IMustHaveProject (ADR-SEC-05)
     Task<Template?> GetByIdAsync(TemplateId id, CancellationToken ct = default);
-    Task<bool> ExistsBySlugAsync(ProjectId projectId, TemplateSlug slug, CancellationToken ct = default);
+    Task<Template?> GetBySlugAsync(TemplateSlug slug, CancellationToken ct = default);
+    Task<bool> SlugExistsAsync(TemplateSlug slug, CancellationToken ct = default);
     Task<int> CountAsync(CancellationToken ct = default);
     Task<IReadOnlyList<Template>> ListAsync(int page, int pageSize, CancellationToken ct = default);
     Task AddAsync(Template template, CancellationToken ct = default);
@@ -507,9 +509,9 @@ public sealed class CreateTemplateUseCase(
         var slug = TemplateSlug.Create(command.Slug);
         var templateName = TemplateName.Create(command.Name);
 
-        if (await templateRepo.ExistsBySlugAsync(command.ProjectId, slug, ct))
+        if (await templateRepo.SlugExistsAsync(command.Slug, ct))
         {
-            throw new ConflictException($"Template with slug '{command.Slug}' already exists.");
+            throw ConflictException.DuplicateSlug(command.Slug);
         }
 
         // 2. E: External Retrieval & Deterministic Clock
@@ -721,7 +723,7 @@ public sealed class CreateTemplateUseCaseTests
             Slug: "invoice-standard");
 
         templateRepoMock
-            .Setup(r => r.ExistsBySlugAsync(command.ProjectId, It.IsAny<TemplateSlug>(), It.IsAny<CancellationToken>()))
+            .Setup(r => r.SlugExistsAsync(command.Slug, It.IsAny<CancellationToken>()))
             .ReturnsAsync(false);
 
         var sut = CreateSut();
@@ -748,7 +750,7 @@ public sealed class CreateTemplateUseCaseTests
             Slug: "invoice-duplicate");
 
         templateRepoMock
-            .Setup(r => r.ExistsBySlugAsync(command.ProjectId, It.IsAny<TemplateSlug>(), It.IsAny<CancellationToken>()))
+            .Setup(r => r.SlugExistsAsync(command.Slug, It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
 
         var sut = CreateSut();

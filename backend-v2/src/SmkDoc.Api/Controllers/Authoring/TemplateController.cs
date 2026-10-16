@@ -71,7 +71,8 @@ public class TemplateController(
         CancellationToken ct)
     {
         var (stream, fileName) = await ReadUploadFileAsync(file, ct);
-        var command = new CreateTemplateCommand(Guid.Empty, name, slug, category, stream, fileName);
+        var targetProjectId = context.ProjectId ?? Guid.Empty;
+        var command = new CreateTemplateCommand(targetProjectId, name, slug, category, stream, fileName);
         var created = await createTemplateUseCase.ExecuteAsync(command, ct);
 
         return CreatedAtAction(nameof(GetById), new { id = created.Id }, new ApiResponse<TemplateResultDto>(created));

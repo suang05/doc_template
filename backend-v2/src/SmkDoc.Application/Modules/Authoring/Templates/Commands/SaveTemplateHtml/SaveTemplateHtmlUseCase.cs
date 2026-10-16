@@ -38,8 +38,8 @@ public class SaveTemplateHtmlUseCase(
         }
 
         int nextVersionNumber = currentVersionNumber + 1;
-        string versionedKey = $"templates/archive/{template.Slug}_v{nextVersionNumber}.html";
-        string activeKey = $"templates/{template.Slug}.html";
+        string versionedKey = $"templates/{template.ProjectId}/archive/{template.Slug}_v{nextVersionNumber}.html";
+        string activeKey = $"templates/{template.ProjectId}/{template.Slug}.html";
 
         byte[] htmlBytes = Encoding.UTF8.GetBytes(request.Html ?? string.Empty);
 

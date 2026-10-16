@@ -1,6 +1,8 @@
+using System.Reflection;
 using Microsoft.EntityFrameworkCore;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
+using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Application.Common.Interfaces;
@@ -9,13 +11,18 @@ namespace SmkDoc.Infrastructure.Persistence;
 
 public class AppDbContext : DbContext
 {
-    private readonly ICurrentUserService? _currentUserService;
+    private readonly ICurrentProjectContext? _projectContext;
 
-    public AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUserService? currentUserService = null) :
+    public AppDbContext(
+        DbContextOptions<AppDbContext> options,
+        ICurrentProjectContext? projectContext = null) :
         base(options)
     {
-        _currentUserService = currentUserService;
+        _projectContext = projectContext;
     }
+
+    public ProjectId CurrentTenantId => _projectContext?.ProjectId ?? ProjectId.Empty;
+    public bool IsTenantResolved => _projectContext?.IsResolved ?? false;
 
     public DbSet<Company> Companies => Set<Company>();
     public DbSet<Project> Projects => Set<Project>();
@@ -157,12 +164,6 @@ public class AppDbContext : DbContext
             entity.Property(e => e.IsActive).HasDefaultValue(true);
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("NOW()");
             entity.Property(e => e.UpdatedAt).HasDefaultValueSql("NOW()");
-
-            // Global Query Filter for Data Isolation (Multi-Tenancy)
-            if (_currentUserService != null)
-            {
-                entity.HasQueryFilter(e => e.ProjectId == (ProjectId)_currentUserService.ProjectId!);
-            }
 
             entity.HasOne(e => e.CurrentVersion)
                 .WithMany()
@@ -408,5 +409,26 @@ public class AppDbContext : DbContext
                 .HasForeignKey(e => e.DatasetId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
+
+        // 11. Multi-Tenant Global Query Filters for IMustHaveProject entities
+        foreach (var entityType in modelBuilder.Model.GetEntityTypes().ToList())
+        {
+            if (entityType.ClrType != null && typeof(IMustHaveProject).IsAssignableFrom(entityType.ClrType))
+            {
+                ConfigureProjectFilterMethod
+                    .MakeGenericMethod(entityType.ClrType)
+                    .Invoke(this, [modelBuilder]);
+            }
+        }
     }
+
+    private static readonly MethodInfo ConfigureProjectFilterMethod = typeof(AppDbContext)
+        .GetMethod(nameof(ConfigureProjectFilter), BindingFlags.NonPublic | BindingFlags.Instance)!;
+
+    private void ConfigureProjectFilter<TEntity>(ModelBuilder modelBuilder) where TEntity : class, IMustHaveProject
+    {
+        modelBuilder.Entity<TEntity>().HasQueryFilter(e => !IsTenantResolved || e.ProjectId == CurrentTenantId);
+    }
+
 }
+

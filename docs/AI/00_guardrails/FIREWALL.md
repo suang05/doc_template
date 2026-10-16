@@ -20,6 +20,7 @@
 | **Concurrent DB Access** | `Task.WhenAll` on scoped `DbContext` | Sequential `await` or `IDbContextFactory<T>` | `FIREWALL-CONC-001` |
 | **Async Invocation** | `.Result`, `.Wait()`, `.GetAwaiter().GetResult()` | Pure asynchronous pipeline: `await useCase.ExecuteAsync(...)` | `FIREWALL-ASYNC-001` |
 | **Tenant Entity Lookup** | Bypassing filter via `.IgnoreQueryFilters()` | Active Global Query Filter on `IMustHaveProject` (e.g. `repo.GetByIdAsync(id, ct)`) | `FIREWALL-SEC-001` |
+| **Manual Tenant Scoping** | Passing `Guid projectId` to repo queries | Ambient scoping via `ICurrentProjectContext` & `repo.GetBySlugAsync(slug)` | `FIREWALL-SEC-001` |
 | **Controller Binding** | `[FromBody] Template entity` | Transport DTO: `[FromBody] CreateTemplateRequest request` | `FIREWALL-SEC-002` |
 | **Regex Compilation** | `new Regex(pattern)`, `Regex.Match(...)` | `[GeneratedRegex(..., RegexOptions.NonBacktracking)]` | `FIREWALL-SEC-003` |
 | **Service Granularity** | God class `TemplateService` with CRUD methods | Action-Centric UseCase: `IUseCase<TCommand, TResult>` | `FIREWALL-ARCH-001` |

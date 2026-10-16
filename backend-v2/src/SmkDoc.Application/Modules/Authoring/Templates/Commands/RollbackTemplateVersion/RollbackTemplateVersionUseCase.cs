@@ -49,7 +49,7 @@ public sealed class RollbackTemplateVersionUseCase(
         int nextVersionNumber = currentVersion.Version + 1;
         string ext = archived.FileFormat?.Extension ?? ".html";
         string contentType = archived.FileFormat?.MimeType ?? "text/html; charset=utf-8";
-        string versionedKey = $"templates/archive/{template.Slug}_v{nextVersionNumber}{ext}";
+        string versionedKey = $"templates/{template.ProjectId}/archive/{template.Slug}_v{nextVersionNumber}{ext}";
 
         await _storageService.UploadAsync(StorageBuckets.Templates, versionedKey, memoryStream, contentType, ct);
 

@@ -36,8 +36,7 @@ public sealed class PreviewDocumentUseCase(
             if (string.IsNullOrWhiteSpace(slug))
                 throw new ArgumentException("Template slug or HTML content is required for preview.");
 
-            var projectId = executionContext?.ProjectId ?? Guid.Empty;
-            var template = await templateRepo.GetBySlugAsync(slug, projectId, ct)
+            var template = await templateRepo.GetBySlugAsync(slug, ct)
                 ?? throw new NotFoundException($"Template '{slug}' not found.");
 
             if (template.CurrentVersionId is null)

@@ -97,7 +97,7 @@ erDiagram
 | 3 | `users` | `User` | UUIDv7 | None | `is_active` | `(email)` UNIQUE |
 | 4 | `user_project_roles` | `UserProjectRole` | `(user_id, project_id)` | `user_id` >> `users(id)` [CASCADE]<br>`project_id` >> `projects(id)` [CASCADE] | None | PK composite, `(project_id)` FK |
 | 5 | `refresh_tokens` | `RefreshToken` | UUIDv7 | `user_id` >> `users(id)` [CASCADE] | None | `(token_hash)` UNIQUE, `(user_id, expires_at)` PARTIAL INDEX `WHERE revoked_at IS NULL` |
-| 6 | `templates` | `Template` | UUIDv7 | `project_id` >> `projects(id)` [CASCADE]<br>`current_version_id` >> `template_versions(id)` [SET NULL] | `is_active` | `(slug)` UNIQUE, `(project_id)` FK |
+| 6 | `templates` | `Template` | UUIDv7 | `project_id` >> `projects(id)` [CASCADE]<br>`current_version_id` >> `template_versions(id)` [SET NULL] | `is_active` | `(project_id, slug)` UNIQUE, `(project_id)` FK |
 | 7 | `template_versions` | `TemplateVersion` | UUIDv7 | `template_id` >> `templates(id)` [CASCADE] | None | `(template_id, version)` UNIQUE, `(template_id)` FK |
 | 8 | `field_mappings` | `FieldMapping` | UUIDv7 | `template_id` >> `templates(id)` [CASCADE] | None | `(template_id, placeholder)` UNIQUE, `(template_id)` FK |
 | 9 | `data_connections` | `DataConnection` | UUIDv7 | None | None | PK |
@@ -228,12 +228,13 @@ CREATE TABLE templates (
     id                 UUID PRIMARY KEY,
     project_id         UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     name               VARCHAR(100) NOT NULL,
-    slug               VARCHAR(100) UNIQUE NOT NULL,
+    slug               VARCHAR(100) NOT NULL,
     category           VARCHAR(50),
     is_active          BOOLEAN NOT NULL DEFAULT true,
     current_version_id UUID,
     created_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at         TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    updated_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_templates_project_id_slug UNIQUE (project_id, slug)
 );
 CREATE INDEX idx_templates_project_id ON templates(project_id);
 

@@ -35,7 +35,8 @@ public class SaveTemplateHtmlUseCaseTests
         var templateId = Guid.NewGuid();
         var currentVersionId = Guid.NewGuid();
 
-        var template = TemplateTestFactory.Create(templateId, Guid.NewGuid(), "official-contract", "official-contract");
+        var projectId = Guid.NewGuid();
+        var template = TemplateTestFactory.Create(templateId, projectId, "official-contract", "official-contract");
         template.SetCurrentVersion(currentVersionId, TestConstants.BaselineTime);
 
         var currentVersion = TemplateVersionTestFactory.Create(currentVersionId, templateId, 3, "", TemplateFormat.Html, createdBy: null);
@@ -67,7 +68,7 @@ public class SaveTemplateHtmlUseCaseTests
         // Verify versioned archive upload
         _mockStorage.Verify(s => s.UploadAsync(
             "templates",
-            "templates/archive/official-contract_v4.html",
+            $"templates/{projectId}/archive/official-contract_v4.html",
             It.IsAny<Stream>(),
             "text/html; charset=utf-8",
             It.IsAny<CancellationToken>()), Times.Once);
@@ -75,7 +76,7 @@ public class SaveTemplateHtmlUseCaseTests
         // Verify active upload
         _mockStorage.Verify(s => s.UploadAsync(
             "templates",
-            "templates/official-contract.html",
+            $"templates/{projectId}/official-contract.html",
             It.IsAny<Stream>(),
             "text/html; charset=utf-8",
             It.IsAny<CancellationToken>()), Times.Once);

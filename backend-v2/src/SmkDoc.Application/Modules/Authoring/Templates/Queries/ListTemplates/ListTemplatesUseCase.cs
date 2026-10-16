@@ -7,20 +7,27 @@ namespace SmkDoc.Application.Modules.Authoring.Templates.Queries.ListTemplates;
 
 /// <summary>
 /// Single-responsibility Query Use Case for listing templates.
-/// Injects only ITemplateRepository (Zero unused dependencies).
+/// Uses ambient ICurrentProjectContext when available with query fallback.
 /// </summary>
-public sealed class ListTemplatesUseCase(ITemplateRepository templateRepo) : IUseCase<ListTemplatesQuery, List<TemplateResultDto>>
+public sealed class ListTemplatesUseCase(
+    ITemplateRepository templateRepo,
+    ICurrentProjectContext? projectContext = null) : IUseCase<ListTemplatesQuery, List<TemplateResultDto>>
 {
     private readonly ITemplateRepository _templateRepo = templateRepo;
+    private readonly ICurrentProjectContext? _projectContext = projectContext;
 
     public async Task<List<TemplateResultDto>> ExecuteAsync(ListTemplatesQuery query, CancellationToken ct = default)
     {
-        if (query.ProjectId == Guid.Empty)
+        var activeProjectId = query.ProjectId != Guid.Empty
+            ? query.ProjectId
+            : (_projectContext?.IsResolved == true ? _projectContext.ProjectId.Value : Guid.Empty);
+
+        if (activeProjectId == Guid.Empty)
         {
             throw new DomainValidationException("ProjectId cannot be empty.");
         }
 
-        var templates = await _templateRepo.ListByProjectAsync(query.ProjectId, ct);
+        var templates = await _templateRepo.ListAsync(ct);
 
         return templates
             .Select(t => new TemplateResultDto(

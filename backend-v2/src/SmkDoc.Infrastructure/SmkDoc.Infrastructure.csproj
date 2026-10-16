@@ -10,6 +10,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="SmkDoc.IntegrationTests" />
+    <InternalsVisibleTo Include="SmkDoc.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="BCrypt.Net-Next" />
     <PackageReference Include="Dapper" />
     <PackageReference Include="Handlebars.Net" />
