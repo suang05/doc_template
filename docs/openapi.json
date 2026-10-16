@@ -3895,26 +3895,6 @@
                 }
               }
             }
-          },
-          "404": {
-            "description": "Not Found",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              },
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
           }
         }
       }
@@ -3948,26 +3928,6 @@
           },
           "401": {
             "description": "Unauthorized",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              },
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not Found",
             "content": {
               "text/plain": {
                 "schema": {
@@ -9363,6 +9323,13 @@
               "string"
             ],
             "format": "uuid"
+          },
+          "activeProjectId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         },
         "description": "Profile result returned by GET /api/v1/auth/me for current authenticated user."
@@ -10851,8 +10818,7 @@
       "TokenResultDto": {
         "required": [
           "accessToken",
-          "refreshToken",
-          "expiresIn"
+          "refreshToken"
         ],
         "type": "object",
         "properties": {
@@ -10868,7 +10834,8 @@
               "integer",
               "string"
             ],
-            "format": "int32"
+            "format": "int32",
+            "default": 86400
           },
           "tokenType": {
             "type": "string",

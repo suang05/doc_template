@@ -21,7 +21,7 @@
 <severity_hierarchy>
 - `[TIER-1-FATAL]`: Never edit code that violates `00_guardrails/FIREWALL.md` (P1-P21). Obey all Tier 1 architectural invariants (UUIDv7, non-blocking async, zero-LOH streaming).
 - `[TIER-2-INTEGRITY]`: Route all coding tasks through canonical archetypes in `01_backend/blueprints.md` and `02_frontend/screen_recipes.md`.
-- `[TIER-3-PERF]`: Consult `03_archival/decisions.md` before attempting to reopen resolved architectural debates (ADR-001 through ADR-029 / ADR-SEC-05).
+- `[TIER-3-PERF]`: Consult `03_archival/decisions.md` before attempting to reopen resolved architectural debates (ADR-001 through ADR-029 / ADR-SEC-06).
 </severity_hierarchy>
 
 <switchboard_scope>
@@ -44,7 +44,7 @@ docs/AI/
 │   ├── design_tokens.md             [Ice-White Theme, 2px-4px Radius, 19 Primitives]
 │   └── screen_recipes.md            [AppShell, 4 Stitching Recipes, 14 Routes, Archetypes 10-12]
 └── 03_archival/                     [TIER 2: Contextual Rationale & Cold Storage]
-    └── decisions.md                 [29 Authoritative Architecture Decision Records]
+    └── decisions.md                 [30 Authoritative Architecture Decision Records]
 ```
 
 ---
@@ -66,7 +66,7 @@ Use this matrix to instantly navigate to the canonical specification matching an
 | **Colors, Radius, Badges, Buttons** | Ice-White, Sky Blue, 2px, 4px, Lucide, Tokens | `02_frontend/design_tokens.md` | Design Tokens & 19 Primitives |
 | **Frontend Screens, Layouts, UI** | AppShell, Stitching Recipe, Wireframe, RSC | `02_frontend/screen_recipes.md` | 4 Master Recipes & 14 Routes |
 | **Live Preview, Monaco, Telemetry** | AbortController, Debounce, Monaco Editor | `02_frontend/screen_recipes.md` | Archetype 11 & Live Preview Pipeline |
-| **Past Architectural Decisions** | ADR, Rationale, Why Gotenberg, Benchmark | `03_archival/decisions.md` | ADR-001 through ADR-028 |
+| **Past Architectural Decisions** | ADR, Rationale, Why Gotenberg, Benchmark | `03_archival/decisions.md` | ADR-001 through ADR-028 / ADR-SEC-06 |
 
 ---
 
@@ -86,7 +86,7 @@ All 11 legacy documentation files in root `docs/AI/` have been refactored into t
 | `docs/AI/TEMPLATE_ENGINE.md` | `docs/AI/01_backend/template_engines.md` | Strategy dispatch; Chromium Gotenberg; OpenXML DrawingML ID invariant; ClosedXML A4 fit. |
 | `docs/AI/DESIGN.md` | `docs/AI/02_frontend/design_tokens.md` | Ice-White palette; 0px-4px radius; category accents; 19 atomic design primitives. |
 | `docs/AI/FRONTEND_SPEC.md` | `docs/AI/02_frontend/screen_recipes.md` | AppShell topology; Next.js server proxy; 4 stitching recipes; 14-screen inventory; archetypes. |
-| `docs/AI/DECISIONS.md` | `docs/AI/03_archival/decisions.md` | 28 ADRs across 8 domains; negative routing cold storage. |
+| `docs/AI/DECISIONS.md` | `docs/AI/03_archival/decisions.md` | 30 ADRs across 8 domains; negative routing cold storage. |
 
 ---
 

@@ -8,7 +8,8 @@ namespace SmkDoc.Application.Modules.IdentityAccess.Security.Queries.GetCurrentU
 
 public sealed class GetCurrentUserProfileUseCase(
     IUserRepository userRepo,
-    IUserWorkspaceQueryService workspaceQueryService) : IUseCase<GetCurrentUserProfileQuery, CurrentUserProfileResultDto>
+    IUserWorkspaceQueryService workspaceQueryService,
+    IExecutionContext executionContext) : IUseCase<GetCurrentUserProfileQuery, CurrentUserProfileResultDto>
 {
     public async Task<CurrentUserProfileResultDto> ExecuteAsync(GetCurrentUserProfileQuery query, CancellationToken ct = default)
     {
@@ -18,12 +19,26 @@ public sealed class GetCurrentUserProfileUseCase(
             throw new UnauthorizedException("User account not found or inactive.");
         }
 
+        var isSuperAdmin = user.SystemRole == SystemRole.SuperAdmin;
         var accessibleProjects = await workspaceQueryService.GetAccessibleProjectsAsync(
             user.Id,
-            user.SystemRole == SystemRole.SuperAdmin,
+            isSuperAdmin,
             ct);
 
         var defaultProjectId = accessibleProjects.FirstOrDefault()?.Id;
+
+        Guid? activeProjectId = null;
+        if (executionContext.ProjectId.HasValue)
+        {
+            var requestedId = executionContext.ProjectId.Value;
+            var isAccessible = isSuperAdmin || accessibleProjects.Any(p => p.Id == requestedId);
+            if (isAccessible)
+            {
+                activeProjectId = requestedId;
+            }
+        }
+
+        activeProjectId ??= defaultProjectId;
 
         return new CurrentUserProfileResultDto(
             user.Id,
@@ -32,7 +47,8 @@ public sealed class GetCurrentUserProfileUseCase(
             user.LastName,
             user.SystemRole.Name,
             accessibleProjects,
-            defaultProjectId
+            defaultProjectId,
+            activeProjectId
         );
     }
 }

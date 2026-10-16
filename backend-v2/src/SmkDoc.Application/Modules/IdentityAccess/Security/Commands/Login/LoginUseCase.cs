@@ -2,6 +2,7 @@ using FluentValidation;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Helpers;
+using SmkDoc.Domain.Constants;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
@@ -83,7 +84,7 @@ public sealed class LoginUseCase(
             var now = _timeProvider.GetUtcNow();
             rawRefreshToken = RefreshTokenHelper.GenerateTokenString();
             var refreshTokenHash = RefreshTokenHelper.HashToken(rawRefreshToken);
-            var refreshToken = RefreshTokenEntity.Create(user.Id, refreshTokenHash, now.AddDays(7), now);
+            var refreshToken = RefreshTokenEntity.Create(user.Id, refreshTokenHash, now.AddDays(SecurityConstants.RefreshTokenLifetimeDays), now);
             await tokenRepo.AddAsync(refreshToken, ct);
             await unitOfWork.CommitAsync(ct);
         }

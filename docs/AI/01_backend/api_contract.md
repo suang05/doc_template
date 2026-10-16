@@ -329,11 +329,12 @@ When handling errors, LLMs and developers MUST traverse this deterministic looku
 | Channel | Header Format | Consumer | Scope & Hydration |
 |---|---|---|---|
 | **Channel A** | `X-API-Key: <key>` | M2M (ERP / CRM / Billing) | Validated via SHA-256 hash in DB. Hydrates `ProjectId` and `CallerApp`. |
-| **Channel B** | `Authorization: Bearer <jwt>` | Portal UI (Next.js) | HMAC-SHA256 JWT (15-min TTL) with RTR refresh token (7-day TTL). |
-| **Channel A Gated** | `X-API-Key: <key>` | Portal Login Gateway | `/api/v1/auth/login` and `/api/v1/auth/refresh` require API key header. |
+| **Channel B** | `Authorization: Bearer <jwt>` | Portal UI (Next.js) | HMAC-SHA256 JWT (24-hour TTL) with RTR refresh token (7-day TTL). Optional `X-Project-Id: <guid>` header dynamically overrides active workspace context. |
+| **Channel A Gated** | `X-API-Key: <key>` | Portal Login Gateway | `/api/v1/auth/login` and `/api/v1/auth/refresh` require API key header. Optional `X-Project-Id: <guid>` header retains/selects active workspace in JWT claims. |
 | **Public** | *None* | Health & Probes | `/health`, `/swagger` |
 
 ### 6.2 Edge Protocols
+* **Workspace Context Header:** `X-Project-Id: <uuid>` on authenticated endpoints and auth gateway (`/login`, `/refresh`) to dynamically retain or select the active workspace context in `IExecutionContext`.
 * **Idempotency Header:** `Idempotency-Key: <uuid>` on state-mutating endpoints (`POST`, `PUT`).
   * Request Fingerprint: deterministic SHA-256 hash of `Method + NormalizedPath + SerializedPayloadJson`.
   * Response Header on replay: `Idempotency-Replayed: true`.

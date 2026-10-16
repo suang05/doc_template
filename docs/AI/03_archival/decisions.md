@@ -169,6 +169,20 @@ When external documents, commit messages, or comments cite legacy sequential num
   4. **Clean Domain Repositories:** Modernized repository method signatures (`GetByIdAsync(TemplateId id)`, `GetBySlugAsync(TemplateSlug slug)`, `SlugExistsAsync(string slug)`) purging redundant legacy overloads with `Guid projectId` to completely eradicate BOLA/IDOR vulnerabilities.
 - **Consequences:** Eliminates IDOR/BOLA risks at the database engine level (defense-in-depth); simplifies application use case code; ensures testable, isolated domain logic.
 
+#### ADR-SEC-06: Gateway Workspace Context Retention (X-Project-Id) & Unified Refresh Token Rotation
+> **Tag:** `ADR-SEC-06` | **Legacy:** N/A | **Date:** October 2026 | **Status:** Accepted (Active)
+
+- **Context & Problem:**
+  1. Frontend portal operators switching active workspaces required re-authentication or had their active workspace context reset upon token refresh, leading to session flips or tenant context loss.
+  2. `RefreshTokenUseCase` performed an unoptimized role lookup via `roleRepo` and failed to respect the active workspace header (`X-Project-Id`), diverging from `LoginUseCase`.
+  3. Security configuration magic numbers (token lifetimes, bearer type, header keys) were duplicated as string/integer literals across multiple DTOs and use cases.
+- **Decision:**
+  1. **Gateway Ingress Workspace Resolution:** Updated `ApiKeyMiddleware` to intercept `X-Project-Id` from HTTP headers and populate `IExecutionContext.ProjectId` for JWT sessions, enabling dynamic active workspace context signaling without session resets.
+  2. **Unified Refresh Token Rotation (RTR):** Integrated `IUserWorkspaceQueryService` into `RefreshTokenUseCase`, replacing naive role joins with single-query workspace loading. Validates requested `X-Project-Id` against user's accessible projects, issuing new JWT bound to the requested active workspace and role.
+  3. **Strict Zero-Trust Reuse Detection:** Preserved refresh token reuse detection: re-presenting an already revoked token triggers instant atomic revocation of all active sessions for the compromised user.
+  4. **Domain Technical Constants SSoT:** Introduced `SecurityConstants` in `SmkDoc.Domain.Constants` as Single Source of Truth for token lifetimes (`AccessTokenLifetimeSeconds = 86400`, `RefreshTokenLifetimeDays = 7`), token type (`Bearer`), and header names (`X-Project-Id`).
+- **Consequences:** Seamless active project switching and token refresh with deterministic RBAC and strict reuse detection across both M2M and Web Portal channels.
+
 ---
 
 ### Part 2: Rendering Engines & Formats (`ENG`)
@@ -408,7 +422,7 @@ When external documents, commit messages, or comments cite legacy sequential num
 - [ ] 1. Prior Inversion Map compliance checked?
 - [ ] 2. All [TIER-1-FATAL] constraints preserved (zero public surface, Gotenberg isolation, UUIDv7)?
 - [ ] 3. Layer boundaries conform to [ORTHOGONAL_BOUNDARY] (Cold storage routing enforced)?
-- [ ] 4. All 28 ADRs across 8 architectural domains preserved with 100% content fidelity?
+- [ ] 4. All 30 ADRs across 8 architectural domains preserved with 100% content fidelity?
 - [ ] 5. Zero HTML parser collisions (all `<token>`, `<T>`, `<Feature>` tags wrapped in backticks)?
 - [ ] 6. Zero mojibake or corrupt unicode artifacts present in document?
 </verification_gateway>

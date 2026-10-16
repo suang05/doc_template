@@ -16,10 +16,12 @@ public class GetCurrentUserProfileUseCaseTests
 {
     private readonly Mock<IUserRepository> _userRepoMock = new();
     private readonly Mock<IUserWorkspaceQueryService> _workspaceQueryServiceMock = new();
+    private readonly Mock<IExecutionContext> _executionContextMock = new();
 
     private GetCurrentUserProfileUseCase CreateSut() => new(
         _userRepoMock.Object,
-        _workspaceQueryServiceMock.Object);
+        _workspaceQueryServiceMock.Object,
+        _executionContextMock.Object);
 
     [Fact]
     public async Task ExecuteAsync_WhenStandardUserWithProjects_ReturnsProfileAndAccessibleProjects()
@@ -56,6 +58,75 @@ public class GetCurrentUserProfileUseCaseTests
         result.AccessibleProjects[0].Id.Should().Be(projectId);
         result.AccessibleProjects[0].Role.Should().Be("Admin");
         result.DefaultProjectId.Should().Be(projectId);
+        result.ActiveProjectId.Should().Be(projectId);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenActiveProjectIdProvidedAndAccessible_ReturnsActiveProjectId()
+    {
+        // Arrange
+        var now = TestConstants.BaselineTime;
+        var user = UserBuilder.AUser()
+            .WithEmail("user@example.com")
+            .WithName("John", "Doe")
+            .WithTime(now)
+            .Build();
+
+        var proj1 = Guid.NewGuid();
+        var proj2 = Guid.NewGuid();
+        var projects = new List<AccessibleProjectDto>
+        {
+            new(proj1, "Project 1", "proj-1", "Member"),
+            new(proj2, "Project 2", "proj-2", "Admin")
+        };
+
+        _userRepoMock.Setup(r => r.GetByIdAsync(user.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(user);
+        _workspaceQueryServiceMock.Setup(q => q.GetAccessibleProjectsAsync(user.Id, false, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(projects);
+        _executionContextMock.Setup(c => c.ProjectId).Returns(proj2);
+
+        // Act
+        var result = await CreateSut().ExecuteAsync(new GetCurrentUserProfileQuery(user.Id));
+
+        // Assert
+        result.Should().NotBeNull();
+        result.DefaultProjectId.Should().Be(proj1);
+        result.ActiveProjectId.Should().Be(proj2);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenActiveProjectIdNotAccessible_FallsBackToDefaultProjectId()
+    {
+        // Arrange
+        var now = TestConstants.BaselineTime;
+        var user = UserBuilder.AUser()
+            .WithEmail("user@example.com")
+            .WithName("John", "Doe")
+            .WithTime(now)
+            .Build();
+
+        var proj1 = Guid.NewGuid();
+        var projects = new List<AccessibleProjectDto>
+        {
+            new(proj1, "Project 1", "proj-1", "Member")
+        };
+
+        var unauthorizedProjectId = Guid.NewGuid();
+
+        _userRepoMock.Setup(r => r.GetByIdAsync(user.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(user);
+        _workspaceQueryServiceMock.Setup(q => q.GetAccessibleProjectsAsync(user.Id, false, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(projects);
+        _executionContextMock.Setup(c => c.ProjectId).Returns(unauthorizedProjectId);
+
+        // Act
+        var result = await CreateSut().ExecuteAsync(new GetCurrentUserProfileQuery(user.Id));
+
+        // Assert
+        result.Should().NotBeNull();
+        result.DefaultProjectId.Should().Be(proj1);
+        result.ActiveProjectId.Should().Be(proj1);
     }
 
     [Fact]
@@ -88,6 +159,39 @@ public class GetCurrentUserProfileUseCaseTests
         result.SystemRole.Should().Be("SuperAdmin");
         result.AccessibleProjects.Should().HaveCount(2);
         result.AccessibleProjects.All(p => p.Role == "Admin").Should().BeTrue();
+        result.DefaultProjectId.Should().Be(projects[0].Id);
+        result.ActiveProjectId.Should().Be(projects[0].Id);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenSuperAdminWithExplicitProject_GrantsActiveProjectDirectly()
+    {
+        // Arrange
+        var now = TestConstants.BaselineTime;
+        var user = UserBuilder.AUser()
+            .WithEmail("admin@example.com")
+            .WithSystemRole(SystemRole.SuperAdmin)
+            .WithTime(now)
+            .Build();
+
+        var anyProject = Guid.NewGuid();
+        var projects = new List<AccessibleProjectDto>
+        {
+            new(Guid.NewGuid(), "P1", "p-1", "Admin")
+        };
+
+        _userRepoMock.Setup(r => r.GetByIdAsync(user.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(user);
+        _workspaceQueryServiceMock.Setup(q => q.GetAccessibleProjectsAsync(user.Id, true, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(projects);
+        _executionContextMock.Setup(c => c.ProjectId).Returns(anyProject);
+
+        // Act
+        var result = await CreateSut().ExecuteAsync(new GetCurrentUserProfileQuery(user.Id));
+
+        // Assert
+        result.Should().NotBeNull();
+        result.ActiveProjectId.Should().Be(anyProject);
     }
 
     [Fact]

@@ -56,7 +56,6 @@ public class AuthController(
     [Authorize]
     [ProducesResponseType(typeof(ApiResponse<CurrentUserProfileResultDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetMe(CancellationToken ct)
     {
         var userId = User.GetUserId();

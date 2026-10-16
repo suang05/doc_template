@@ -26,6 +26,14 @@ public class ApiKeyMiddleware
         executionContext.ClientIp = context.Connection.RemoteIpAddress?.ToString();
         executionContext.UserAgent = context.Request.Headers.UserAgent.ToString();
 
+        // Populate optional X-Project-Id header if provided by caller (UI workspace context)
+        if (context.Request.Headers.TryGetValue("X-Project-Id", out var projectHeader) &&
+            Guid.TryParse(projectHeader, out var headerProjectId) &&
+            headerProjectId != Guid.Empty)
+        {
+            executionContext.ProjectId = headerProjectId;
+        }
+
         // 1. Allow public routes
         if (path == "/" ||
             path == "/health" ||
@@ -50,10 +58,14 @@ public class ApiKeyMiddleware
                 executionContext.UserId = userId;
             }
 
-            var projectIdStr = context.User.FindFirst("ProjectId")?.Value;
-            if (Guid.TryParse(projectIdStr, out var projectId))
+            // Only override with JWT claim if X-Project-Id header was not explicitly supplied
+            if (!executionContext.ProjectId.HasValue)
             {
-                executionContext.ProjectId = projectId;
+                var projectIdStr = context.User.FindFirst("ProjectId")?.Value;
+                if (Guid.TryParse(projectIdStr, out var projectId))
+                {
+                    executionContext.ProjectId = projectId;
+                }
             }
 
             executionContext.CallerApp = "portal";

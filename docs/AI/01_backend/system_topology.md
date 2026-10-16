@@ -396,6 +396,7 @@ backend-v2/
 ├── src/
 │   ├── SmkDoc.Domain/              # Core — Zero external dependencies
 │   │   ├── Common/                 # BaseEntity (UUIDv7), Enumeration, Guard
+│   │   ├── Constants/              # Technical Constants SSoT (SecurityConstants)
 │   │   ├── Entities/               # 15 Rich Domain Models (private set + business verbs)
 │   │   ├── Enums/                  # Smart Enums (TemplateFormat, OutputFormat, RenderEngineType)
 │   │   ├── ValueObjects/           # Strongly-typed IDs (16B), Layout structs, Validated VO classes
@@ -414,7 +415,7 @@ backend-v2/
 │   └── SmkDoc.Api/                 # Presentation — Thin HTTP Controllers
 │       ├── Controllers/            # Thin HTTP Controllers (<= 5 lines per action)
 │       ├── Contracts/              # Request / Response records organized by module
-│       ├── Middleware/             # ProjectContextMiddleware, SecurityHeadersMiddleware
+│       ├── Middleware/             # ProjectContextMiddleware, SecurityHeadersMiddleware, ApiKeyMiddleware
 │       ├── ExceptionHandlers/      # GlobalExceptionHandler (RFC 9457 ProblemDetails SSoT)
 │       └── Filters/                # ValidateCommandFilter, IdempotencyFilter ([Idempotent])
 └── tests/

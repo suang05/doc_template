@@ -10,5 +10,6 @@ public record CurrentUserProfileResultDto(
     string LastName,
     string SystemRole,
     IReadOnlyList<AccessibleProjectDto> AccessibleProjects,
-    Guid? DefaultProjectId
+    Guid? DefaultProjectId,
+    Guid? ActiveProjectId = null
 );

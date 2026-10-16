@@ -2,6 +2,7 @@ using FluentValidation;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Helpers;
+using SmkDoc.Domain.Constants;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
@@ -13,11 +14,12 @@ namespace SmkDoc.Application.Modules.IdentityAccess.Security.Commands.RefreshTok
 public sealed class RefreshTokenUseCase(
     IRefreshTokenRepository tokenRepo,
     IUserRepository userRepo,
-    IUserProjectRoleRepository roleRepo,
     IJwtTokenGenerator jwtTokenGenerator,
+    IUserWorkspaceQueryService workspaceQueryService,
     IUnitOfWork unitOfWork,
     IValidator<RefreshTokenCommand>? validator = null,
-    TimeProvider? timeProvider = null) : IUseCase<RefreshTokenCommand, TokenResultDto>
+    TimeProvider? timeProvider = null,
+    IExecutionContext? executionContext = null) : IUseCase<RefreshTokenCommand, TokenResultDto>
 {
     private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
 
@@ -60,21 +62,34 @@ public sealed class RefreshTokenUseCase(
             throw new UnauthorizedException("User account is inactive or not found.");
         }
 
-        string activeRole = "Viewer";
-        Guid? activeProjectId = null;
+        var accessibleProjects = await workspaceQueryService.GetAccessibleProjectsAsync(
+            user.Id,
+            user.SystemRole == SystemRole.SuperAdmin,
+            ct);
 
-        if (user.SystemRole == SystemRole.SuperAdmin)
+        string activeRole = user.SystemRole == SystemRole.SuperAdmin ? "Admin" : "Viewer";
+        Guid? activeProjectId = executionContext?.ProjectId;
+
+        if (activeProjectId.HasValue && activeProjectId.Value != Guid.Empty)
         {
-            activeRole = "Admin";
+            var target = accessibleProjects.FirstOrDefault(p => p.Id == activeProjectId.Value);
+            if (target == null && user.SystemRole != SystemRole.SuperAdmin)
+            {
+                throw new UnauthorizedException("User does not have access to the specified project.");
+            }
+
+            if (target != null)
+            {
+                activeRole = target.Role;
+            }
         }
         else
         {
-            var userRoles = await roleRepo.ListByUserAsync(user.Id, ct);
-            var firstRole = userRoles.FirstOrDefault();
-            if (firstRole != null)
+            var defaultProject = accessibleProjects.FirstOrDefault();
+            activeProjectId = defaultProject?.Id;
+            if (defaultProject != null)
             {
-                activeProjectId = firstRole.ProjectId;
-                activeRole = firstRole.Role.ToString();
+                activeRole = defaultProject.Role;
             }
         }
 
@@ -87,12 +102,21 @@ public sealed class RefreshTokenUseCase(
 
         token.Revoke(now, newTokenHash);
 
-        var newRefreshToken = RefreshTokenEntity.Create(user.Id, newTokenHash, now.AddDays(7), now);
+        var newRefreshToken = RefreshTokenEntity.Create(
+            user.Id,
+            newTokenHash,
+            now.AddDays(SecurityConstants.RefreshTokenLifetimeDays),
+            now);
+
         await tokenRepo.AddAsync(newRefreshToken, ct);
 
         // Atomic Unit of Work commit
         await unitOfWork.CommitAsync(ct);
 
-        return new TokenResultDto(newAccessToken, newRawToken, 86400, "Bearer");
+        return new TokenResultDto(
+            newAccessToken,
+            newRawToken,
+            SecurityConstants.AccessTokenLifetimeSeconds,
+            SecurityConstants.BearerTokenType);
     }
 }
