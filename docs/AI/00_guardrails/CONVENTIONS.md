@@ -283,12 +283,13 @@ public sealed class Template : BaseEntity<TemplateId> // Class-based Entity inhe
 public sealed class CreateTemplateUseCase(
     ITemplateRepository templateRepo,
     IUnitOfWork unitOfWork,
+    ICurrentProjectContext projectContext,
     TimeProvider timeProvider) : IUseCase<CreateTemplateCommand, TemplateResultDto>
 {
     public async Task<TemplateResultDto> ExecuteAsync(CreateTemplateCommand command, CancellationToken ct = default)
     {
         var now = timeProvider.GetUtcNow();
-        var template = Template.Create(command.ProjectId, TemplateName.Create(command.Name), now);
+        var template = Template.Create(projectContext.ProjectId, TemplateName.Create(command.Name), now);
         await templateRepo.AddAsync(template, ct);
         await unitOfWork.CommitAsync(ct);
         return new TemplateResultDto(template.Id, template.Name.Value, template.CreatedAt);
@@ -347,10 +348,9 @@ public sealed class TemplateController(
     [Idempotent]
     public async Task<Created<ApiResponse<TemplateResultDto>>> Create([FromBody] CreateTemplateRequest request, CancellationToken ct)
     {
-        var command = new CreateTemplateCommand(request.ProjectId, request.Name, request.Slug);
+        var command = new CreateTemplateCommand(request.Name, request.Slug);
         var result = await createUseCase.ExecuteAsync(command, ct);
         return TypedResults.Created($"/api/v1/templates/{result.Id}", new ApiResponse<TemplateResultDto>(result));
-    }
     }
 }
 ```

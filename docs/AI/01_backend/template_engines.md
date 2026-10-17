@@ -47,18 +47,18 @@ public interface IRenderEngine
 {
     RenderEngineType EngineType { get; }
 
-    Task<Stream> RenderStreamAsync(
+    Task RenderAsync(
         Stream templateStream,
-        string inputDataJson,
-        OutputFormat outputFormat,
-        CancellationToken ct = default);
-
-    Task<byte[]> RenderAsync(
-        Stream templateStream,
-        string inputDataJson,
-        OutputFormat outputFormat,
+        JsonElement data,
+        RenderOptions options,
+        Stream outputStream,
         CancellationToken ct = default);
 }
+
+public readonly record struct RenderOptions(
+    OutputFormat OutputFormat,
+    bool EmbedFonts = true,
+    int TimeoutSeconds = 30);
 ```
 
 > [INVARIANT]: Introducing a new engine format (e.g., Markdown, Typst, or PPTX) requires creating a new `IRenderEngine` implementation and registering it in DI. The UseCase orchestration pipeline remains untouched.
@@ -77,7 +77,7 @@ public interface IRenderEngine
 5. Layout Processing >> HtmlLayoutProcessor extracts <template id="header"> and <template id="footer">
 6. Thai Typography >> Inject Sarabun web font link into <head> if font-family missing
 7. Gotenberg Gateway >> POST /forms/chromium/convert/html (index.html, header.html, footer.html)
-8. Output Stream >> Streamed PDF Network Stream directly to caller
+8. Output Stream >> Streamed Gotenberg response piped directly to outputStream via CopyToAsync (zero byte[] / LOH buffering)
 ```
 
 ### 3.2 Authoritative Handlebars Helper Catalog
@@ -136,11 +136,24 @@ Centrally registered in `HtmlHelperRegistry`:
 
 ### 3.5 Thai Typography & Web Font Injection
 
-If Google Fonts or an existing `font-family` declaration is not detected in `<head>`, `HtmlLayoutProcessor` automatically injects:
+If an existing `font-family` declaration or local font reference is not detected in `<head>`, `HtmlLayoutProcessor` automatically injects local `@font-face` definitions from internal container asset storage. External URL injection (such as Google Fonts) is STRICTLY PROHIBITED to preserve Gotenberg SSRF network isolation (`system_topology.md` §5.2):
 
 ```html
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap">
-<style>body { font-family: 'Sarabun', sans-serif; }</style>
+<style>
+@font-face {
+  font-family: 'Sarabun';
+  font-style: normal;
+  font-weight: 400;
+  src: local('Sarabun'), url('/fonts/Sarabun-Regular.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Sarabun';
+  font-style: normal;
+  font-weight: 700;
+  src: local('Sarabun Bold'), url('/fonts/Sarabun-Bold.ttf') format('truetype');
+}
+body { font-family: 'Sarabun', sans-serif; }
+</style>
 ```
 
 ### 3.6 Compiled AST Cache (`ICompiledTemplateCache`)
@@ -193,6 +206,9 @@ new Pic.NonVisualDrawingProperties
 };
 ```
 
+### 4.4 Zero-LOH Streaming Execution Flow
+`DocxTemplateEngine.RenderAsync` executes OpenXML packaging via pooled `RecyclableMemoryStream` or direct stream writing into caller-provided `outputStream`. For PDF conversion, the modified package is streamed directly to Gotenberg LibreOffice endpoint and the HTTP response stream is piped into `outputStream` via `await responseStream.CopyToAsync(outputStream, ct)`. Calling `.ToArray()` or buffering as `byte[]` is strictly prohibited.
+
 ---
 
 ## 5. Excel & ClosedXML Smart-Spreadsheet Pipeline (`ExcelTemplateEngine`)
@@ -222,6 +238,9 @@ new Pic.NonVisualDrawingProperties
    worksheet.PageSetup.PagesTall = 0; // Unbounded vertical flow
    ```
 
+### 5.3 Zero-LOH Streaming Execution Flow
+`ExcelTemplateEngine.RenderAsync` writes directly into caller-provided `outputStream` via `workbook.SaveAs(outputStream)`. For PDF output, the spreadsheet stream is sent to Gotenberg LibreOffice conversion and piped directly into `outputStream` via `await responseStream.CopyToAsync(outputStream, ct)`. Calling `.ToArray()` or returning `byte[]` is strictly prohibited.
+
 ---
 
 ## 6. Security Scanning & Template Ingestion (`DocxSecurityScannerService`)
@@ -245,8 +264,8 @@ Upload Stream >> DocxSecurityScannerService.Scan()
 
 | Bucket Name | Content Type | Retention / Lifecycle Policy | Key Naming Pattern |
 |---|---|---|---|
-| `templates` | Template binaries (HTML, DOCX, XLSX) | Permanent (Soft deleted via `is_active`) | `templates/{slug}/{version}_{format}` |
-| `outputs` | Rendered output documents (PDF, DOCX, XLSX) | 30-Day Lifecycle auto-expiry | `outputs/{year}/{month}/{generationLogId}.{ext}` |
+| `templates` | Template binaries (HTML, DOCX, XLSX) | Permanent (Soft deleted via `is_active`) | `templates/{projectId:N}/{slug}/{version}_{format}` |
+| `outputs` | Rendered output documents (PDF, DOCX, XLSX) | 30-Day Lifecycle auto-expiry | `outputs/{projectId:N}/{year}/{month}/{generationLogId}.{ext}` |
 | `fonts` | Custom corporate & web fonts (WOFF2, WOFF, TTF) | Permanent Asset Storage | `fonts/{fontFileName}` |
 
 - **Presigned URLs:** Delivered to consumers via Presigned GET URLs with standard 24-hour expiration window (`TimeSpan.FromHours(24)`). Signed using the configured `PublicEndpoint` setting.
@@ -270,5 +289,5 @@ Upload Stream >> DocxSecurityScannerService.Scan()
 - [ ] Security scanner rewinds stream position in `finally` block: `docxStream.Position = startPos`
 - [ ] HTML pipeline verifies presence of Sarabun web font in `<head>`
 - [ ] ClosedXML engine enforces `PagesWide = 1` and `PagesTall = 0` for PDF conversions
-- [ ] MinIO output bucket keys adhere to `outputs/{year}/{month}/{generationLogId}.{ext}`
+- [ ] MinIO output bucket keys adhere to `outputs/{projectId:N}/{year}/{month}/{generationLogId}.{ext}`
 </verification_gateway>

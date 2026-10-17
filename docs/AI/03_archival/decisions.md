@@ -33,7 +33,7 @@
 | **Aggregate Boundaries** | Navigation properties across aggregates | Pure ID references (`Guid ProjectId`) | `ADR-DOM-06` |
 | **Factory Invariants** | Multiple constructors / test backdoors | Single Canonical Factory (`DateTimeOffset now`) | `ADR-DOM-07` |
 | **Layer Isolation** | Leaking Domain Entities to Controller/API | Strict Application DTOs (`record`) | `ADR-APP-01` |
-| **DTO Organization** | Shared generic `Common/Models/` namespace | Feature-Sliced DTOs (`Features/<Feature>/...`) | `ADR-APP-02`, `ADR-APP-04` |
+| **DTO Organization** | Shared generic `Common/Models/` namespace | Modular DTOs (`Modules/<Module>/DTOs/...`) | `ADR-APP-02`, `ADR-APP-04` |
 | **Query Performance** | Sequential repo calls + in-memory LINQ joins | `IUserWorkspaceQueryService` optimized SQL joins | `ADR-APP-05` |
 | **Validation Architecture** | Ad-hoc controller checks / mixed engines | Dual-Engine: FluentValidation (C#) + JsonSchema.Net (JSON) | `ADR-VAL-01` |
 | **Error Format** | Anonymous objects / inconsistent exceptions | Centralized RFC 9457 `IExceptionHandler` + `ProblemDetails` | `ADR-RES-04` |
@@ -144,7 +144,7 @@ When external documents, commit messages, or comments cite legacy sequential num
 - **Decision:**
   1. **Smart Enum `ApiKeyScope`:** Introduces `ReadOnly` (preview, validate, download) and `ReadWrite` (full generation and authoring) persisted in `api_keys.scope`.
   2. **Atomic Multi-Key Provisioning:** Project creation automatically issues both a `ReadOnly` and a `ReadWrite` key in a single atomic transaction.
-  3. **Zero Public Attack Surface:** Removed `/api/v1/auth/*` from the public whitelist. Calling login requires an internal perimeter key (`X-API-Key`), while existing JWT holders bypass the key check.
+  3. **Zero Public Attack Surface:** Operational endpoints require Channel A (`X-API-Key`) or Channel B (`Bearer JWT` + `X-Project-Id`), while initial authentication handshake endpoints (`/api/v1/auth/login`, `/api/v1/auth/refresh`) remain `anonymous_public`.
 - **Consequences:** Eliminates public brute-force vectors and tenant IDOR attacks.
 
 #### ADR-SEC-04: Next.js Server-Side API Proxy & Cookie-to-Bearer Token Isolation
@@ -154,7 +154,7 @@ When external documents, commit messages, or comments cite legacy sequential num
 - **Decision:**
   - Implemented Next.js 15 server route handler `/api/proxy/[...path]`.
   - Browser communicates exclusively with Next.js using httpOnly session cookies.
-  - Server proxy strips hop-by-hop headers, extracts the JWT from the secure session via `auth()`, injects `Authorization: Bearer <token>`, forwards `X-API-Key`, and pipes the backend response directly back to the client.
+  - Server proxy strips hop-by-hop headers, extracts the JWT and active workspace from the secure session via `auth()`, injects `Authorization: Bearer <token>` and `X-Project-Id: <activeProjectId>`, and pipes the backend response directly back to the client.
 - **Consequences:** Zero bearer token exposure in client memory; streamlined internal network communication without browser CORS complications.
 
 #### ADR-SEC-05: Ambient Project Context & EF Core Global Query Filter Isolation
@@ -163,11 +163,11 @@ When external documents, commit messages, or comments cite legacy sequential num
 - **Context & Problem:** The existing tenant scoping required explicit `Guid projectId` passing down through application use cases into repositories (`repo.GetBySlugAsync(slug, projectId)`), while some methods (`repo.GetByIdAsync(id)`) lacked tenant boundaries entirely, introducing high risk of Insecure Direct Object References (BOLA/IDOR). Additionally, primitive obsession (`Guid` instead of strongly-typed `ProjectId`) created potential parameter transposition defects.
 - **Decision:**
   1. **Scoped Ambient SSoT (`ICurrentProjectContext`):** Established `ICurrentProjectContext` in `SmkDoc.Application` (read-only) and `ICurrentProjectContextSetter` in `SmkDoc.Infrastructure` as the Single Source of Truth resolved once per HTTP request lifecycle.
-  2. **EF Core Global Query Filters & Interceptor:** Enforced automatic database-level tenant isolation via `.HasQueryFilter(e => e.ProjectId == _projectContext.ProjectId)` across all entities implementing `IMustHaveProject`. `TenantSecuritySaveChangesInterceptor` automatically assigns `_projectContext.ProjectId` on added entities when empty and aborts cross-tenant writes.
+  2. **EF Core Global Query Filters & Interceptor:** Enforced automatic Fail-Closed database-level tenant isolation via `.HasQueryFilter(e => _projectContext != null && _projectContext.IsResolved && e.ProjectId == _projectContext.ProjectId)` across all entities implementing `IMustHaveProject`. `TenantSecuritySaveChangesInterceptor` automatically assigns `_projectContext.ProjectId` on added entities when empty and aborts cross-tenant writes.
   3. **Perimeter Security Gate (`ProjectContextMiddleware`):** Dual-channel resolution at the API boundary:
      - M2M Channel: Resolves `ProjectId` strictly from SHA-256 hashed `X-API-Key` while explicitly rejecting client-supplied `X-Project-Id` headers to prevent spoofing.
      - Portal Channel: Resolves `UserId` and `SystemRole` from JWT claims and `X-Project-Id` from the active frontend workspace. Grants immediate access to `SuperAdmin` and verifies `user.CanAccessProject(requestedProjectId)` for normal users against `user_project_roles`.
-  4. **Clean Domain Repositories:** Modernized repository method signatures (`GetByIdAsync(TemplateId id)`, `GetBySlugAsync(TemplateSlug slug)`, `SlugExistsAsync(string slug)`) purging redundant legacy overloads with `Guid projectId` to completely eradicate BOLA/IDOR vulnerabilities.
+  4. **Clean Domain Repositories:** Modernized repository method signatures (`GetByIdAsync(TemplateId id)`, `GetBySlugAsync(TemplateSlug slug)`, `SlugExistsAsync(TemplateSlug slug)`) purging redundant legacy overloads with `Guid projectId` to completely eradicate BOLA/IDOR vulnerabilities.
 - **Consequences:** Eliminates IDOR/BOLA risks at the database engine level (defense-in-depth); simplifies application use case code; ensures testable, isolated domain logic.
 
 #### ADR-SEC-06: Identity Hardening — Workspace Retention, RTR Grace Period, Constant-Time Defense & Audit Port
@@ -275,7 +275,7 @@ When external documents, commit messages, or comments cite legacy sequential num
 - **Decision:**
   1. Exactly 1 canonical static factory method per entity (`Create`, `Register`, `Draft`).
   2. Mandatory deterministic time injection (`DateTimeOffset now`) on all factories and state mutation methods.
-  3. Purged all test backdoor methods (`CreateForTest`) from the production domain assembly; relocated test instantiations to `*TestFactory` and `*Builder` in `SmkDoc.Tests`.
+  3. Purged all test backdoor methods (`CreateForTest`) from the production domain assembly; relocated test instantiations exclusively to Fluent `*Builder` classes in `SmkDoc.Tests/Common/Builders/` (prohibiting parallel static `*TestFactory` classes).
 
 ---
 
@@ -291,7 +291,7 @@ When external documents, commit messages, or comments cite legacy sequential num
 > **Tag:** `ADR-APP-02` | **Legacy:** `ADR-014` | **Date:** September 2026 | **Status:** Accepted (Active)
 
 - **Decision:**
-  1. Reorganized DTOs by Feature Bounded Context in `SmkDoc.Application/DTOs/<Feature>/`.
+  1. Reorganized DTOs by Module Bounded Context in `SmkDoc.Application/Modules/<Module>/DTOs/`.
   2. Enforced strict CQRS terminology: Mutations (`*Command`), Queries (`*Query`), Outputs (`*Dto` / `*ResultDto`).
   3. Converted all DTOs into 100% immutable positional C# `record`s.
 
@@ -417,7 +417,7 @@ When external documents, commit messages, or comments cite legacy sequential num
   3. **Pillar 3 — Deterministic Time:** Universal `ExecuteAsync_When[Condition]_[ExpectedResult]` naming and `TestConstants.BaselineTime` SSoT.
   4. **Pillar 4 — Validator Colocation:** Pure `[Theory]` validator tests colocated with features.
   5. **Pillar 5 — Domain Invariant Consolidation:** Domain tests bound directly to `{Aggregate}Tests.cs`.
-  6. **Pillar 6 — Fluent Builders:** Instantiation via `*TestFactory` and `*TestFixture`.
+  6. **Pillar 6 — Fluent Builders:** Instantiation exclusively via Fluent `*Builder` classes in `Common/Builders/` (zero `*TestFactory`).
 - **Consequences:** 100% green test suite across both backend and frontend suites with zero test flakiness.
 
 ---

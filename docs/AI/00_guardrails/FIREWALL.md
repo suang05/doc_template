@@ -589,9 +589,9 @@ END IF
 </thinking_guard>
 <mandatory_substitution>
 // Resolve engine dynamically via Polymorphic Strategy Pattern
-var engine = renderEngines.FirstOrDefault(e => e.CanRender(format))
-    ?? throw new UnsupportedRenderFormatException(format);
-return await engine.RenderAsync(context, ct);
+var engine = renderEngines.FirstOrDefault(e => e.EngineType == engineType)
+    ?? throw new ConflictException($"Render engine '{engineType.Name}' is not registered.");
+await engine.RenderAsync(templateStream, data, options, outputStream, ct);
 </mandatory_substitution>
 <fatal_blast_radius>
 Violates Open-Closed Principle (OCP): Adding or upgrading a render engine requires editing core rendering pipelines, risking regressions across existing engines.
@@ -695,7 +695,7 @@ END IF
 </thinking_guard>
 <mandatory_substitution>
 // All active engineering targets backend-v2/ exclusively:
-// Target: backend-v2/src/SmkDoc.Application/Features/...
+// Target: backend-v2/src/SmkDoc.Application/Modules/{Rendering|Authoring|Integration|IdentityAccess}/...
 </mandatory_substitution>
 <fatal_blast_radius>
 Phantom edits: Root `src/` codebase is legacy v1 disconnected from active runtime pipelines; changes produce zero effect and waste compute budget.

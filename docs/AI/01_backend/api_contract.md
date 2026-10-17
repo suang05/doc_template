@@ -328,10 +328,11 @@ When handling errors, LLMs and developers MUST traverse this deterministic looku
 ### 6.1 Authentication Channels
 | Channel | Header Format | Consumer | Scope & Hydration |
 |---|---|---|---|
-| **Channel A** | `X-API-Key: <key>` | M2M (ERP / CRM / Billing) | Validated via SHA-256 hash in DB. Hydrates `ProjectId` and `CallerApp`. |
-| **Channel B** | `Authorization: Bearer <jwt>` | Portal UI (Next.js) | HMAC-SHA256 JWT (24-hour TTL) with RTR refresh token (7-day TTL). Optional `X-Project-Id: <guid>` header dynamically overrides active workspace context. |
-| **Channel A Gated** | `X-API-Key: <key>` | Portal Login Gateway | `/api/v1/auth/login` and `/api/v1/auth/refresh` require API key header. Optional `X-Project-Id: <guid>` header retains/selects active workspace in JWT claims. `LoginResultDto` exposes `activeProjectId` and `activeRole`. |
-| **Public** | *None* | Health & Probes | `/health`, `/swagger` |
+| **Channel A** | `X-API-Key: <key>` | M2M (ERP / CRM / Billing) | Validated via SHA-256 hash in DB. Hydrates `ProjectId` and `CallerApp`. Supports document generation and automated management endpoints. |
+| **Channel B** | `Authorization: Bearer <jwt>` + `X-Project-Id: <uuid>` | Portal UI (Next.js) | HMAC-SHA256 JWT (24-hour TTL) with RTR refresh token (7-day TTL). Header `X-Project-Id: <uuid>` dynamically supplies active workspace context, validated via Project Membership (`user_project_roles`). |
+| **Public / Anonymous** | *None* | Health, Probes & Auth Gateway | `/health`, `/swagger`, `/api/v1/auth/login`, and `/api/v1/auth/refresh`. Zero credentials or API keys required for initial authentication handshake. |
+
+> [INVARIANT]: Management and operational endpoints (`/api/v1/management/...`, `/api/v1/templates`, `/api/v1/data-connections`, `/api/v1/datasets`) support dual-channel ingestion: Channel A (M2M automation with Admin API Key) and Channel B (Portal UI with Bearer JWT + `X-Project-Id` workspace header authorized via Project Membership).
 
 ### 6.2 Edge Protocols
 * **Workspace Context Header:** `X-Project-Id: <uuid>` on authenticated endpoints and auth gateway (`/login`, `/refresh`) to dynamically retain or select the active workspace context in `IExecutionContext`.
@@ -387,41 +388,41 @@ The authoritative index of existing system endpoints categorized by Archetype:
   <route id="scan-fields-template" method="GET" path="/api/v1/templates/{id}/scan-fields" auth="channel_a,channel_b" archetype="read-one" />
 
   <!-- 7.4 Identity & Authentication -->
-  <route id="auth-login" method="POST" path="/api/v1/auth/login" auth="channel_a_gated" archetype="action-rpc" />
-  <route id="auth-refresh" method="POST" path="/api/v1/auth/refresh" auth="channel_a_gated" archetype="action-rpc" />
+  <route id="auth-login" method="POST" path="/api/v1/auth/login" auth="anonymous_public" archetype="action-rpc" />
+  <route id="auth-refresh" method="POST" path="/api/v1/auth/refresh" auth="anonymous_public" archetype="action-rpc" />
   <route id="auth-me" method="GET" path="/api/v1/auth/me" auth="channel_b" archetype="read-one" />
 
   <!-- 7.5 Projects & Member Administration -->
-  <route id="project-list" method="GET" path="/api/v1/management/projects" auth="channel_b" archetype="read-many" />
-  <route id="project-get" method="GET" path="/api/v1/management/projects/{projectId}" auth="channel_b" archetype="read-one" />
-  <route id="project-create" method="POST" path="/api/v1/management/projects" auth="channel_b_admin" archetype="create" />
-  <route id="project-users-list" method="GET" path="/api/v1/management/projects/{projectId}/users" auth="channel_b_admin" archetype="read-many" />
-  <route id="project-users-invite" method="POST" path="/api/v1/management/projects/{projectId}/users" auth="channel_b_admin" archetype="create" />
-  <route id="project-users-role" method="PUT" path="/api/v1/management/projects/{projectId}/users/{userId}/role" auth="channel_b_admin" archetype="update" />
-  <route id="project-users-status" method="PATCH" path="/api/v1/management/projects/{projectId}/users/{userId}/status" auth="channel_b_admin" archetype="update" />
-  <route id="project-users-delete" method="DELETE" path="/api/v1/management/projects/{projectId}/users/{userId}" auth="channel_b_admin" archetype="delete" />
+  <route id="project-list" method="GET" path="/api/v1/management/projects" auth="channel_b,channel_a" archetype="read-many" />
+  <route id="project-get" method="GET" path="/api/v1/management/projects/{projectId}" auth="channel_b,channel_a" archetype="read-one" />
+  <route id="project-create" method="POST" path="/api/v1/management/projects" auth="channel_b_admin,channel_a" archetype="create" />
+  <route id="project-users-list" method="GET" path="/api/v1/management/projects/{projectId}/users" auth="channel_b_admin,channel_a" archetype="read-many" />
+  <route id="project-users-invite" method="POST" path="/api/v1/management/projects/{projectId}/users" auth="channel_b_admin,channel_a" archetype="create" />
+  <route id="project-users-role" method="PUT" path="/api/v1/management/projects/{projectId}/users/{userId}/role" auth="channel_b_admin,channel_a" archetype="update" />
+  <route id="project-users-status" method="PATCH" path="/api/v1/management/projects/{projectId}/users/{userId}/status" auth="channel_b_admin,channel_a" archetype="update" />
+  <route id="project-users-delete" method="DELETE" path="/api/v1/management/projects/{projectId}/users/{userId}" auth="channel_b_admin,channel_a" archetype="delete" />
 
   <!-- 7.6 API Key Provisioning -->
-  <route id="project-keys-list" method="GET" path="/api/v1/management/projects/{projectId}/api-keys" auth="channel_b_admin" archetype="read-many" />
-  <route id="project-keys-create" method="POST" path="/api/v1/management/projects/{projectId}/api-keys" auth="channel_b_admin" archetype="create" />
-  <route id="project-keys-revoke" method="DELETE" path="/api/v1/management/projects/{projectId}/api-keys/{keyId}" auth="channel_b_admin" archetype="delete" />
+  <route id="project-keys-list" method="GET" path="/api/v1/management/projects/{projectId}/api-keys" auth="channel_b_admin,channel_a" archetype="read-many" />
+  <route id="project-keys-create" method="POST" path="/api/v1/management/projects/{projectId}/api-keys" auth="channel_b_admin,channel_a" archetype="create" />
+  <route id="project-keys-revoke" method="DELETE" path="/api/v1/management/projects/{projectId}/api-keys/{keyId}" auth="channel_b_admin,channel_a" archetype="delete" />
 
   <!-- 7.7 Integration: Data Connections & Datasets -->
-  <route id="conn-list" method="GET" path="/api/v1/data-connections" auth="channel_b" archetype="read-many" />
-  <route id="conn-get" method="GET" path="/api/v1/data-connections/{id}" auth="channel_b" archetype="read-one" />
-  <route id="conn-create" method="POST" path="/api/v1/data-connections" auth="channel_b" archetype="create" />
-  <route id="conn-update" method="PUT" path="/api/v1/data-connections/{id}" auth="channel_b" archetype="update" />
-  <route id="conn-delete" method="DELETE" path="/api/v1/data-connections/{id}" auth="channel_b" archetype="delete" />
-  <route id="conn-test" method="POST" path="/api/v1/data-connections/test" auth="channel_b" archetype="action-rpc" />
-  <route id="dataset-list" method="GET" path="/api/v1/datasets" auth="channel_b" archetype="read-many" />
-  <route id="dataset-get" method="GET" path="/api/v1/datasets/{id}" auth="channel_b" archetype="read-one" />
-  <route id="dataset-create" method="POST" path="/api/v1/datasets" auth="channel_b" archetype="create" />
-  <route id="dataset-update" method="PUT" path="/api/v1/datasets/{id}" auth="channel_b" archetype="update" />
-  <route id="dataset-delete" method="DELETE" path="/api/v1/datasets/{id}" auth="channel_b" archetype="delete" />
+  <route id="conn-list" method="GET" path="/api/v1/data-connections" auth="channel_b,channel_a" archetype="read-many" />
+  <route id="conn-get" method="GET" path="/api/v1/data-connections/{id}" auth="channel_b,channel_a" archetype="read-one" />
+  <route id="conn-create" method="POST" path="/api/v1/data-connections" auth="channel_b,channel_a" archetype="create" />
+  <route id="conn-update" method="PUT" path="/api/v1/data-connections/{id}" auth="channel_b,channel_a" archetype="update" />
+  <route id="conn-delete" method="DELETE" path="/api/v1/data-connections/{id}" auth="channel_b,channel_a" archetype="delete" />
+  <route id="conn-test" method="POST" path="/api/v1/data-connections/test" auth="channel_b,channel_a" archetype="action-rpc" />
+  <route id="dataset-list" method="GET" path="/api/v1/datasets" auth="channel_b,channel_a" archetype="read-many" />
+  <route id="dataset-get" method="GET" path="/api/v1/datasets/{id}" auth="channel_b,channel_a" archetype="read-one" />
+  <route id="dataset-create" method="POST" path="/api/v1/datasets" auth="channel_b,channel_a" archetype="create" />
+  <route id="dataset-update" method="PUT" path="/api/v1/datasets/{id}" auth="channel_b,channel_a" archetype="update" />
+  <route id="dataset-delete" method="DELETE" path="/api/v1/datasets/{id}" auth="channel_b,channel_a" archetype="delete" />
 
   <!-- 7.8 Font Assets Management -->
-  <route id="fonts-list" method="GET" path="/api/v1/management/settings/fonts" auth="channel_b" archetype="read-many" />
-  <route id="fonts-upload" method="POST" path="/api/v1/management/settings/fonts" auth="channel_b" archetype="action-rpc" />
+  <route id="fonts-list" method="GET" path="/api/v1/management/settings/fonts" auth="channel_b,channel_a" archetype="read-many" />
+  <route id="fonts-upload" method="POST" path="/api/v1/management/settings/fonts" auth="channel_b,channel_a" archetype="action-rpc" />
 
   <!-- 7.9 Audit Logs & Metrics -->
   <route id="logs-list" method="GET" path="/api/v1/logs" auth="channel_a,channel_b" archetype="read-many" />

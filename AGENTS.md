@@ -39,7 +39,7 @@ Domain (`SmkDoc.Domain`):
 Application (`SmkDoc.Application`):
   Pattern: CQRS & Use Case pattern.
   Contents: Coordinate domain objects and infrastructure services to execute workflows.
-  Rules: Single Responsibility per use case. Return Application DTOs only; never leak Domain Entities to outer layers. Feature slices under `Features/{Feature}/{Commands|Queries}`.
+  Rules: Single Responsibility per use case. Return Application DTOs only; never leak Domain Entities to outer layers. Feature slices under `Modules/{Rendering|Authoring|Integration|IdentityAccess}/{Commands|Queries|DTOs}`.
 
 Infrastructure (`SmkDoc.Infrastructure`):
   Pattern: Repository Pattern, Unit of Work, Adapter Pattern.
@@ -68,7 +68,7 @@ CodeStructures:
   ApiResponses: ApiResponse<T> for JSON envelopes; Stream for binary documents.
   IdempotencyAndRateLimiting: [Idempotent] filter with Idempotency-Key header on mutating endpoints (POST, PUT, DELETE); Rate Limiting middleware on high-throughput routes.
   ApiRoutes: api/v1/{resource}
-  FeatureSlices: Group Application layer files by Bounded Context (Features/{Feature}/{Commands|Queries}).
+  FeatureSlices: Group Application layer files by Bounded Context (Modules/{Rendering|Authoring|Integration|IdentityAccess}/{Commands|Queries|DTOs}).
   StructuredLogging: logger.LogInformation("Processing {TemplateId}", templateId); # No string interpolation
   ZeroDecorativeEmojis: Prohibit decorative emojis in chat responses, code comments, tests, and documentation. Use canonical ASCII symbols exclusively (=>, !, >>).
 

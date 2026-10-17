@@ -118,7 +118,7 @@ Every UseCase in `SmkDoc.Application` executes business logic in strict **PEMR**
 ### Contract Property Symmetry Matrix
 | Business Field Concept | 1. Presentation Request | 2. Application Command | 3. Domain Entity / Value Object | 4. Application ResultDto | 5. Presentation Envelope |
 |---|---|---|---|---|---|
-| **Project Identifier** | `request.ProjectId` | `command.ProjectId` | `projectId: command.ProjectId` | *(Scoped to Route)* | `/api/v1/projects/{projectId}` |
+| **Project Identifier** | *(Scoped via Token/Context)* | *(Resolved via ICurrentProjectContext)* | `projectId: projectContext.ProjectId` | *(Scoped to Route)* | `/api/v1/projects/{projectId}` |
 | **Template Name** | `request.Name` | `command.Name` | `name: TemplateName.Create(command.Name)` | `result.Name` | `response.Data.Name` |
 | **Semantic Slug** | `request.Slug` | `command.Slug` | `slug: TemplateSlug.Create(command.Slug)` | `result.Slug` | `response.Data.Slug` |
 | **Business Payload** | `request.Payload` | `command.Payload` | `payload: command.Payload` | `result.Payload` | `response.Data.Payload` |
@@ -191,7 +191,7 @@ public sealed class TemplateController(
         [FromBody] CreateTemplateRequest request,
         CancellationToken ct = default)
     {
-        var command = new CreateTemplateCommand(request.ProjectId, request.Name, request.Slug);
+        var command = new CreateTemplateCommand(request.Name, request.Slug);
         var result = await createUseCase.ExecuteAsync(command, ct);
         var response = new ApiResponse<TemplateResultDto>(result);
         
@@ -253,7 +253,8 @@ public sealed class TemplateController(
 ##### Consumer Usage Example (Application Layer):
 ```csharp
 // Application Layer UseCase: Throw strongly-typed Domain Exceptions exclusively
-if (await templateRepo.SlugExistsAsync(command.Slug, ct))
+var slug = TemplateSlug.Create(command.Slug);
+if (await templateRepo.SlugExistsAsync(slug, ct))
 {
     throw ConflictException.DuplicateSlug(command.Slug);
 }
@@ -277,7 +278,7 @@ public async Task<Created<ApiResponse<TemplateResultDto>>> Create(
     [FromBody] CreateTemplateRequest request,
     CancellationToken ct = default)
 {
-    var command = new CreateTemplateCommand(request.ProjectId, request.Name, request.Slug);
+    var command = new CreateTemplateCommand(request.Name, request.Slug);
     var result = await createUseCase.ExecuteAsync(command, ct);
     return TypedResults.Created($"/api/v1/templates/{result.Id}", new ApiResponse<TemplateResultDto>(result));
 }
@@ -496,11 +497,12 @@ public sealed class TemplateConfiguration : IEntityTypeConfiguration<Template>
 ##### 6.1 Write Command UseCase (PEMR Cadence):
 ```csharp
 // [GENERATIVE_SLOT_FORMULA: ARCHETYPE-6-WRITE-USECASE]
-namespace SmkDoc.Application.Features.Templates.Commands.CreateTemplate;
+namespace SmkDoc.Application.Modules.Authoring.Templates.Commands.CreateTemplate;
 
 public sealed class CreateTemplateUseCase(
     ITemplateRepository templateRepo,
     IUnitOfWork unitOfWork,
+    ICurrentProjectContext projectContext,
     TimeProvider timeProvider) : IUseCase<CreateTemplateCommand, TemplateResultDto>
 {
     public async Task<TemplateResultDto> ExecuteAsync(CreateTemplateCommand command, CancellationToken ct = default)
@@ -509,7 +511,7 @@ public sealed class CreateTemplateUseCase(
         var slug = TemplateSlug.Create(command.Slug);
         var templateName = TemplateName.Create(command.Name);
 
-        if (await templateRepo.SlugExistsAsync(command.Slug, ct))
+        if (await templateRepo.SlugExistsAsync(slug, ct))
         {
             throw ConflictException.DuplicateSlug(command.Slug);
         }
@@ -517,9 +519,9 @@ public sealed class CreateTemplateUseCase(
         // 2. E: External Retrieval & Deterministic Clock
         var now = timeProvider.GetUtcNow();
 
-        // 3. M: Domain Mutation (Canonical Factory SSoT)
+        // 3. M: Domain Mutation (Canonical Factory SSoT with ambient ProjectContext)
         var template = Template.Create(
-            projectId: command.ProjectId,
+            projectId: projectContext.ProjectId,
             name: templateName,
             slug: slug,
             category: command.Category,
@@ -542,7 +544,7 @@ public sealed class CreateTemplateUseCase(
 ##### 6.2 Read / Paged Query UseCase (Projection & AsNoTracking):
 ```csharp
 // [GENERATIVE_SLOT_FORMULA: ARCHETYPE-6-READ-USECASE]
-namespace SmkDoc.Application.Features.Templates.Queries.ListTemplates;
+namespace SmkDoc.Application.Modules.Authoring.Templates.Queries.ListTemplates;
 
 public sealed record PagedResultDto<T>(
     IReadOnlyList<T> Items,
@@ -590,16 +592,12 @@ public sealed class ListTemplatesUseCase(
 
 ```csharp
 // [GENERATIVE_SLOT_FORMULA: ARCHETYPE-7-VALIDATOR]
-namespace SmkDoc.Application.Features.Templates.Commands.CreateTemplate;
+namespace SmkDoc.Application.Modules.Authoring.Templates.Commands.CreateTemplate;
 
 public sealed class CreateTemplateValidator : AbstractValidator<CreateTemplateCommand>
 {
     public CreateTemplateValidator()
     {
-        RuleFor(c => c.ProjectId)
-            .NotEmpty()
-            .WithMessage("ProjectId is required.");
-
         RuleFor(c => c.Name)
             .NotEmpty()
             .MaximumLength(200)
@@ -626,19 +624,21 @@ public sealed class CreateTemplateValidator : AbstractValidator<CreateTemplateCo
 // [GENERATIVE_SLOT_FORMULA: ARCHETYPE-8-STREAMING]
 namespace SmkDoc.Infrastructure.Rendering;
 
-public sealed class GotenbergPdfRenderEngine(
+public sealed class GotenbergHtmlRenderEngine(
     HttpClient httpClient,
     IOptions<GotenbergOptions> options) : IRenderEngine
 {
-    public RenderEngineType EngineType => RenderEngineType.ChromiumHtml;
+    public RenderEngineType EngineType => RenderEngineType.Html;
 
     public async Task RenderAsync(
-        Stream htmlStream,
-        Stream destinationStream,
+        Stream templateStream,
+        JsonElement data,
+        RenderOptions options,
+        Stream outputStream,
         CancellationToken ct = default)
     {
         using var content = new MultipartFormDataContent();
-        content.Add(new StreamContent(htmlStream), "files", "index.html");
+        content.Add(new StreamContent(templateStream), "files", "index.html");
 
         using var request = new HttpRequestMessage(HttpMethod.Post, "/forms/chromium/convert/html")
         {
@@ -654,34 +654,33 @@ public sealed class GotenbergPdfRenderEngine(
         response.EnsureSuccessStatusCode();
 
         await using var responseStream = await response.Content.ReadAsStreamAsync(ct);
-        await responseStream.CopyToAsync(destinationStream, ct);
+        await responseStream.CopyToAsync(outputStream, ct);
     }
 }
 ```
 
 ---
 
-#### Archetype 9: Polymorphic Render Strategy Engine
-* **Intent & Scope:** Adheres to Open/Closed Principle (OCP). Registers rendering engines (`ChromiumHtml`, `OpenXmlDocx`, `FastExcelXlsx`) into DI as `IEnumerable<IRenderEngine>`. Dispatches active engine polymorphically via Smart Enum without `switch` or `if-else` branching.
-* **Formula:** `IEnumerable<IRenderEngine>` resolved by `RenderEngineType`.
+#### Archetype 9: Polymorphic Render Strategy Factory
+* **Intent & Scope:** Adheres to Open/Closed Principle (OCP). Registers rendering engines (`Html`, `Docx`, `Excel`) into DI as `IEnumerable<IRenderEngine>`. Resolves active engine polymorphically via `IRenderEngineFactory` and `RenderEngineType` without `switch` or `if-else` branching.
+* **Formula:** `IRenderEngineFactory` resolving `IRenderEngine` by `RenderEngineType`.
 
 ```csharp
 // [GENERATIVE_SLOT_FORMULA: ARCHETYPE-9-STRATEGY]
-namespace SmkDoc.Application.Services;
+namespace SmkDoc.Infrastructure.Rendering;
 
-public sealed class DocumentRenderDispatcher(
-    IEnumerable<IRenderEngine> engines) : IDocumentRenderDispatcher
+public interface IRenderEngineFactory
 {
-    public async Task RenderDocumentAsync(
-        RenderEngineType engineType,
-        Stream sourceStream,
-        Stream targetStream,
-        CancellationToken ct = default)
-    {
-        var engine = engines.FirstOrDefault(e => e.EngineType == engineType)
-            ?? throw new ConflictException($"Render engine '{engineType.Name}' is not registered.");
+    IRenderEngine GetEngine(RenderEngineType engineType);
+}
 
-        await engine.RenderAsync(sourceStream, targetStream, ct);
+public sealed class RenderEngineFactory(
+    IEnumerable<IRenderEngine> engines) : IRenderEngineFactory
+{
+    public IRenderEngine GetEngine(RenderEngineType engineType)
+    {
+        return engines.FirstOrDefault(e => e.EngineType == engineType)
+            ?? throw new ConflictException($"Render engine '{engineType.Name}' is not registered.");
     }
 }
 ```
@@ -696,19 +695,22 @@ public sealed class DocumentRenderDispatcher(
 
 ```csharp
 // [GENERATIVE_SLOT_FORMULA: ARCHETYPE-10-UNIT-TEST]
-namespace SmkDoc.Tests.Features.Templates.Commands;
+namespace SmkDoc.Tests.Application.Modules.Authoring.Templates.Commands;
 
 public sealed class CreateTemplateUseCaseTests
 {
     private readonly Mock<ITemplateRepository> templateRepoMock = new();
     private readonly Mock<IUnitOfWork> unitOfWorkMock = new();
+    private readonly Mock<ICurrentProjectContext> projectContextMock = new();
     private readonly FakeTimeProvider clock = TestConstants.CreateFakeClock();
 
     private CreateTemplateUseCase CreateSut()
     {
+        projectContextMock.SetupGet(c => c.ProjectId).Returns(ProjectId.New());
         return new CreateTemplateUseCase(
             templateRepo: templateRepoMock.Object,
             unitOfWork: unitOfWorkMock.Object,
+            projectContext: projectContextMock.Object,
             timeProvider: clock);
     }
 
@@ -717,12 +719,11 @@ public sealed class CreateTemplateUseCaseTests
     {
         // Arrange
         var command = new CreateTemplateCommand(
-            ProjectId: Guid.CreateVersion7(),
             Name: "Invoice Template",
             Slug: "invoice-standard");
 
         templateRepoMock
-            .Setup(r => r.SlugExistsAsync(command.Slug, It.IsAny<CancellationToken>()))
+            .Setup(r => r.SlugExistsAsync(TemplateSlug.Create(command.Slug), It.IsAny<CancellationToken>()))
             .ReturnsAsync(false);
 
         var sut = CreateSut();
@@ -744,12 +745,11 @@ public sealed class CreateTemplateUseCaseTests
     {
         // Arrange
         var command = new CreateTemplateCommand(
-            ProjectId: Guid.CreateVersion7(),
             Name: "Invoice Template",
             Slug: "invoice-duplicate");
 
         templateRepoMock
-            .Setup(r => r.SlugExistsAsync(command.Slug, It.IsAny<CancellationToken>()))
+            .Setup(r => r.SlugExistsAsync(TemplateSlug.Create(command.Slug), It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
 
         var sut = CreateSut();
@@ -770,23 +770,17 @@ public sealed class CreateTemplateUseCaseTests
 
 ## 4. Level 4: Specialized Production Recipes
 
-### Recipe 1: Type-Safe Smart Enums & Polymorphic Dispatch
+### Recipe 1: Type-Safe Enumeration Hierarchy & Polymorphic Dispatch
 ```csharp
 namespace SmkDoc.Domain.Enums;
 
-public abstract class RenderEngineType : SmartEnum<RenderEngineType>
+public class RenderEngineType : Enumeration
 {
-    public static readonly RenderEngineType ChromiumHtml = new ChromiumHtmlEngine();
-    public static readonly RenderEngineType OpenXmlDocx = new OpenXmlDocxEngine();
-    public static readonly RenderEngineType FastExcelXlsx = new FastExcelXlsxEngine();
+    public static readonly RenderEngineType Html = new(1, "Html");
+    public static readonly RenderEngineType Docx = new(2, "Docx");
+    public static readonly RenderEngineType Excel = new(3, "Excel");
 
-    private RenderEngineType(string name, int value, string mimeType) : base(name, value) => MimeType = mimeType;
-
-    public string MimeType { get; }
-
-    private sealed class ChromiumHtmlEngine() : RenderEngineType("ChromiumHtml", 1, "application/pdf");
-    private sealed class OpenXmlDocxEngine() : RenderEngineType("OpenXmlDocx", 2, "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
-    private sealed class FastExcelXlsxEngine() : RenderEngineType("FastExcelXlsx", 3, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    private RenderEngineType(int id, string name) : base(id, name) { }
 }
 ```
 
@@ -794,7 +788,7 @@ public abstract class RenderEngineType : SmartEnum<RenderEngineType>
 
 ### Recipe 2: Centralized Localization & Thai Data Transformer
 ```csharp
-namespace SmkDoc.Infrastructure.Localization;
+namespace SmkDoc.Application.Common;
 
 public static class ThaiDataTransformer
 {

@@ -35,7 +35,7 @@
 Browser Navigation >> Next.js App Router (URL)
   >> AuthContext (User Session & Role)
   >> AppShell Hierarchy:
-     ├── Topbar (h-12 / 48px): Sidebar toggle, history navigation, X-API-Key input, Ctrl+K search, alerts
+     ├── Topbar (h-12 / 48px): Sidebar toggle, history navigation, Project Selector, Ctrl+K search, alerts
      ├── Sidebar (56px collapsed / 224px expanded):
      │   ├── เอกสาร: Templates, Generator, Audit
      │   ├── จัดการ: Studio, Upload, Mapping, Version History, Analytics
@@ -53,9 +53,9 @@ Browser Client (apiClient<T>)
   >> POST /api/proxy/v1/templates (Cookie included, zero Bearer JWT in client JS)
   >> Next.js Route Handler (/api/proxy/[...path]):
      ├── await auth() reads httpOnly cookie
-     ├── Extracts session.backendToken
+     ├── Extracts session.backendToken and session.activeProjectId
      ├── Injects Authorization: Bearer {token}
-     ├── Preserves X-API-Key header
+     ├── Injects X-Project-Id: {activeProjectId}
      └── POST http://localhost:8080/api/v1/templates
   >> Backend Gateway (SmkDoc.Api :8080)
   >> Streams response / RFC 9457 ProblemDetails back to Client
@@ -195,8 +195,8 @@ All views MUST assemble atomic components using one of these four master recipes
 
 | Screen Name | Route Path | Min Role | Stitch Recipe | Key Hooks / Context | Primary User Action |
 |---|---|:---:|---|---|---|
-| **แม่แบบทั้งหมด** | `/templates` | Editor | `DataGridRecipe` | `useTemplates()`, `useStoredApiKey()` | ค้นหา, กรองหมวดหมู่, เปิด Studio |
-| **สร้างเอกสาร** | `/generator` | Viewer | `WizardRecipe` | `useDocuments()`, `useStoredApiKey()` | เลือกเทมเพลต, กรอก JSON, สั่งสร้าง |
+| **แม่แบบทั้งหมด** | `/templates` | Editor | `DataGridRecipe` | `useTemplates()`, `useProjectContext()` | ค้นหา, กรองหมวดหมู่, เปิด Studio |
+| **สร้างเอกสาร** | `/generator` | Viewer | `WizardRecipe` | `useDocuments()`, `useProjectContext()` | เลือกเทมเพลต, กรอก JSON, สั่งสร้าง |
 | **สตูดิโอเทมเพลต** | `/studio/[templateId]`| Editor | `SplitStudioRecipe` | `useTemplateStudio()`, `useLivePreview()`| แก้โค้ด HTML/Handlebars, พรีวิวสด |
 | **ประวัติการสร้าง** | `/audit` | Viewer | `DataGridRecipe` | `useAuditLogs()` | ตรวจสอบผลการสร้าง, ดาวน์โหลดซ้ำ |
 | **ประวัติการใช้งาน** | `/logs` | Admin | `DataGridRecipe` | `useGenerationLogs()` | ตรวจสอบ System Logs, Latency, Errors |
@@ -207,7 +207,7 @@ All views MUST assemble atomic components using one of these four master recipes
 | **Datasources** | `/datasources` | Admin | `DataGridRecipe` | `useDatasources()` | จัดการ Connection SQL/API |
 | **API Keys** | `/projects` | Admin | `DataGridRecipe` | `useProjects()`, `useApiKeys()` | ออกคีย์ ReadOnly / ReadWrite |
 | **จัดการผู้ใช้** | `/users` | Admin | `DataGridRecipe` | `useUsers()` | กำหนดสิทธิ์ Viewer, Editor, Admin |
-| **ตั้งค่าระบบ** | `/settings` | Admin | `DashboardRecipe` | `useSettings()`, `useStoredApiKey()`| จัดการ Master Key, MinIO, Gotenberg |
+| **ตั้งค่าระบบ** | `/settings` | Admin | `DashboardRecipe` | `useSettings()`, `useAuthContext()` | จัดการ Master Settings, MinIO, Gotenberg |
 | **API Docs** | `/apidocs` | Viewer | Custom Doc | `useAuthContext()` | อ่าน OpenAPI Contract & ตัวอย่างโค้ด |
 
 ---
@@ -217,7 +217,7 @@ All views MUST assemble atomic components using one of these four master recipes
 ### Wireframe 1: Template Catalog (`/templates`)
 
 ```text
-[Topbar]  (h-12) [Toggle] [Back] [Forward]  แม่แบบทั้งหมด          [API Key...] [Ctrl+K] [Alert]
+[Topbar]  (h-12) [Toggle] [Back] [Forward]  แม่แบบทั้งหมด          [Project Selector] [Ctrl+K] [Alert]
 -----------------------------------------------------------------------------------------------
 [Sidebar] | Main Content Canvas (Ice-White #f8fbfe)
 (w-56)    | -----------------------------------------------------------------------------------

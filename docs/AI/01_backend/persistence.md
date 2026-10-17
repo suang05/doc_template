@@ -77,6 +77,10 @@ erDiagram
     datasets ||--o{ template_datasets : "referenced by"
 
     projects ||--o{ api_keys : "issues M2M"
+    projects ||--o{ data_connections : "scopes"
+    projects ||--o{ datasets : "scopes"
+    projects ||--o{ generation_logs : "scopes"
+    projects ||--o{ documents : "scopes"
     templates ||--o{ generation_logs : "audits"
     template_versions ||--o{ generation_logs : "snapshot"
     api_keys ||--o{ generation_logs : "triggered by"
@@ -95,17 +99,17 @@ erDiagram
 | 1 | `companies` | `Company` | UUIDv7 | None | `is_active` | PK |
 | 2 | `projects` | `Project` | UUIDv7 | `company_id` >> `companies(id)` [CASCADE] | `is_active` | `(slug)` UNIQUE, `(company_id)` FK |
 | 3 | `users` | `User` | UUIDv7 | None | `is_active` | `(email)` UNIQUE |
-| 4 | `user_project_roles` | `UserProjectRole` | `(user_id, project_id)` | `user_id` >> `users(id)` [CASCADE]<br>`project_id` >> `projects(id)` [CASCADE] | None | PK composite, `(project_id)` FK |
+| 4 | `user_project_roles` (project memberships) | `UserProjectRole` | `(user_id, project_id)` | `user_id` >> `users(id)` [CASCADE]<br>`project_id` >> `projects(id)` [CASCADE] | None | PK composite, `(project_id)` FK (Authorizes Portal Channel B user access) |
 | 5 | `refresh_tokens` | `RefreshToken` | UUIDv7 | `user_id` >> `users(id)` [CASCADE] | None | `(token_hash)` UNIQUE, `(user_id, expires_at)` PARTIAL INDEX `WHERE revoked_at IS NULL` |
 | 6 | `templates` | `Template` | UUIDv7 | `project_id` >> `projects(id)` [CASCADE]<br>`current_version_id` >> `template_versions(id)` [SET NULL] | `is_active` | `(project_id, slug)` UNIQUE, `(project_id)` FK |
 | 7 | `template_versions` | `TemplateVersion` | UUIDv7 | `template_id` >> `templates(id)` [CASCADE] | None | `(template_id, version)` UNIQUE, `(template_id)` FK |
 | 8 | `field_mappings` | `FieldMapping` | UUIDv7 | `template_id` >> `templates(id)` [CASCADE] | None | `(template_id, placeholder)` UNIQUE, `(template_id)` FK |
-| 9 | `data_connections` | `DataConnection` | UUIDv7 | None | None | PK |
-| 10 | `datasets` | `Dataset` | UUIDv7 | `data_connection_id` >> `data_connections(id)` [RESTRICT] | None | `(data_connection_id)` FK |
+| 9 | `data_connections` | `DataConnection` | UUIDv7 | `project_id` >> `projects(id)` [RESTRICT] | None | PK, `(project_id)` FK |
+| 10 | `datasets` | `Dataset` | UUIDv7 | `project_id` >> `projects(id)` [RESTRICT]<br>`data_connection_id` >> `data_connections(id)` [RESTRICT] | None | `(project_id)` FK, `(data_connection_id)` FK |
 | 11 | `template_datasets` | `TemplateDataset` | UUIDv7 | `template_id` >> `templates(id)` [CASCADE]<br>`dataset_id` >> `datasets(id)` [RESTRICT] | None | `(template_id, alias)` UNIQUE, `(template_id)` FK, `(dataset_id)` FK |
 | 12 | `api_keys` | `ApiKey` | UUIDv7 | `project_id` >> `projects(id)` [CASCADE] | `is_active` | `(project_id)` FK, `(key_hash)` INDEX |
-| 13 | `generation_logs` | `GenerationLog` | UUIDv7 | `template_id` >> `templates(id)` [SET NULL]<br>`template_version_id` >> `template_versions(id)` [SET NULL]<br>`api_key_id` >> `api_keys(id)` [SET NULL] | None | `(created_at DESC)` INDEX, FK indexes |
-| 14 | `documents` | `Document` | UUIDv7 | `template_id` >> `templates(id)` [SET NULL] | None | `(document_ref)` UNIQUE, `(template_id)` FK |
+| 13 | `generation_logs` | `GenerationLog` | UUIDv7 | `project_id` >> `projects(id)` [RESTRICT]<br>`template_id` >> `templates(id)` [SET NULL]<br>`template_version_id` >> `template_versions(id)` [SET NULL]<br>`api_key_id` >> `api_keys(id)` [SET NULL] | None | `(project_id)` FK, `(created_at DESC)` INDEX, FK indexes |
+| 14 | `documents` | `Document` | UUIDv7 | `project_id` >> `projects(id)` [RESTRICT]<br>`template_id` >> `templates(id)` [SET NULL] | None | `(project_id, document_ref)` UNIQUE, `(project_id)` FK, `(template_id)` FK |
 | 15 | `document_versions` | `DocumentVersion` | UUIDv7 | `document_id` >> `documents(id)` [CASCADE]<br>`template_version_id` >> `template_versions(id)` [SET NULL]<br>`generation_log_id` >> `generation_logs(id)` [SET NULL] | None | `(document_id, version)` UNIQUE, FK indexes |
 
 ---
@@ -117,7 +121,7 @@ erDiagram
 | Domain Identifier | Target Table & Columns | SQL Column Type | EF Core Conversion (`.HasConversion()`) |
 |---|---|---|---|
 | `CompanyId` | `companies.id`, `projects.company_id` | `UUID` | `id => id.Value, v => new CompanyId(v)` |
-| `ProjectId` | `projects.id`, `templates.project_id`, `api_keys.project_id`, `user_project_roles.project_id` | `UUID` | `id => id.Value, v => new ProjectId(v)` |
+| `ProjectId` | `projects.id`, `templates.project_id`, `api_keys.project_id`, `user_project_roles.project_id`, `data_connections.project_id`, `datasets.project_id`, `generation_logs.project_id`, `documents.project_id` | `UUID` | `id => id.Value, v => new ProjectId(v)` |
 | `TemplateId` | `templates.id`, `documents.template_id`, `generation_logs.template_id`, `template_datasets.template_id` | `UUID` | `id => id.Value, v => new TemplateId(v)` |
 | `UserId` | `users.id`, `refresh_tokens.user_id`, `user_project_roles.user_id` | `UUID` | `id => id.Value, v => new UserId(v)` |
 | `DocumentId` | `documents.id`, `document_versions.document_id` | `UUID` | `id => id.Value, v => new DocumentId(v)` |
@@ -132,9 +136,9 @@ erDiagram
 | `CompanyName` | `companies.name` | `VARCHAR(200)` | `n => n.Value, v => CompanyName.Create(v)` |
 | `ProjectName` | `projects.name` | `VARCHAR(200)` | `n => n.Value, v => ProjectName.Create(v)` |
 | `TemplateName` | `templates.name` | `VARCHAR(100)` | `v => v.Value, v => TemplateName.Create(v)` |
-| `TemplateSlug` | `projects.slug`, `templates.slug` | `VARCHAR(100)` | `s => s.Value, v => new TemplateSlug(v)` |
+| `TemplateSlug` | `projects.slug`, `templates.slug` | `VARCHAR(100)` | `s => s.Value, v => TemplateSlug.Create(v)` |
 | `EmailAddress` | `users.email` | `VARCHAR(255)` | `m => m.Value, v => EmailAddress.Create(v)` |
-| `Sha256Hash` | `refresh_tokens.token_hash`<br>`api_keys.key_hash`<br>`generation_logs.payload_hash_sha256` | `VARCHAR(64)`<br>`VARCHAR(255)`<br>`VARCHAR(64)` | `h => h.Value, v => new Sha256Hash(v)` |
+| `Sha256Hash` | `refresh_tokens.token_hash`<br>`api_keys.key_hash`<br>`generation_logs.payload_hash_sha256` | `VARCHAR(64)`<br>`VARCHAR(255)`<br>`VARCHAR(64)` | `h => h.Value, v => Sha256Hash.Create(v)` |
 | `ApiKeyName` | `api_keys.name` | `VARCHAR(100)` | `v => v.Value, v => ApiKeyName.Create(v)` |
 | `ExpirationPolicy` | `api_keys.expires_at` | `TIMESTAMPTZ` | `v => v.ExpiresAt, v => ExpirationPolicy.FromExisting(v)` |
 | `DocumentReference` | `documents.document_ref` | `VARCHAR(100)` | `d => d.Value, v => DocumentReference.Create(v)` |
@@ -210,6 +214,7 @@ CREATE TABLE refresh_tokens (
 CREATE INDEX idx_refresh_tokens_user_id ON refresh_tokens(user_id);
 CREATE INDEX idx_refresh_tokens_user_expires ON refresh_tokens(user_id, expires_at) WHERE revoked_at IS NULL;
 
+-- project_memberships for Channel B Portal user workspace authorization
 CREATE TABLE user_project_roles (
     user_id    UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
@@ -286,15 +291,18 @@ CREATE INDEX idx_field_mappings_template_id ON field_mappings(template_id);
 
 CREATE TABLE data_connections (
     id                          UUID PRIMARY KEY,
+    project_id                  UUID NOT NULL REFERENCES projects(id) ON DELETE RESTRICT,
     name                        VARCHAR(100) NOT NULL,
     provider                    VARCHAR(50) NOT NULL,
     encrypted_connection_string TEXT NOT NULL,
     created_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at                  TIMESTAMPTZ
 );
+CREATE INDEX idx_data_connections_project_id ON data_connections(project_id);
 
 CREATE TABLE datasets (
     id                 UUID PRIMARY KEY,
+    project_id         UUID NOT NULL REFERENCES projects(id) ON DELETE RESTRICT,
     name               VARCHAR(200) NOT NULL,
     description        VARCHAR(500),
     data_connection_id UUID NOT NULL REFERENCES data_connections(id) ON DELETE RESTRICT,
@@ -303,6 +311,7 @@ CREATE TABLE datasets (
     created_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at         TIMESTAMPTZ
 );
+CREATE INDEX idx_datasets_project_id ON datasets(project_id);
 CREATE INDEX idx_datasets_data_connection_id ON datasets(data_connection_id);
 
 CREATE TABLE template_datasets (
@@ -338,6 +347,7 @@ CREATE INDEX idx_api_keys_key_hash ON api_keys(key_hash);
 
 CREATE TABLE generation_logs (
     id                  UUID PRIMARY KEY,
+    project_id          UUID NOT NULL REFERENCES projects(id) ON DELETE RESTRICT,
     template_id         UUID REFERENCES templates(id) ON DELETE SET NULL,
     template_version_id UUID REFERENCES template_versions(id) ON DELETE SET NULL,
     api_key_id          UUID REFERENCES api_keys(id) ON DELETE SET NULL,
@@ -354,6 +364,7 @@ CREATE TABLE generation_logs (
     error_msg           TEXT,
     created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+CREATE INDEX idx_generation_logs_project_id ON generation_logs(project_id);
 CREATE INDEX idx_generation_logs_template_id ON generation_logs(template_id);
 CREATE INDEX idx_generation_logs_template_version_id ON generation_logs(template_version_id);
 CREATE INDEX idx_generation_logs_api_key_id ON generation_logs(api_key_id);
@@ -366,10 +377,13 @@ CREATE INDEX idx_generation_logs_created_at_desc ON generation_logs(created_at D
 
 CREATE TABLE documents (
     id           UUID PRIMARY KEY,
-    document_ref VARCHAR(100) UNIQUE NOT NULL,
+    project_id   UUID NOT NULL REFERENCES projects(id) ON DELETE RESTRICT,
+    document_ref VARCHAR(100) NOT NULL,
     template_id  UUID REFERENCES templates(id) ON DELETE SET NULL,
-    created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_documents_project_id_ref UNIQUE (project_id, document_ref)
 );
+CREATE INDEX idx_documents_project_id ON documents(project_id);
 CREATE INDEX idx_documents_template_id ON documents(template_id);
 
 CREATE TABLE document_versions (
