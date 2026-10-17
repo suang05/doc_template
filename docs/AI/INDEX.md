@@ -55,7 +55,7 @@ Use this matrix to instantly navigate to the canonical specification matching an
 
 | Incoming Intent / Task Scope | Lexical Search Beacons | Authoritative Document | Target Section |
 |---|---|---|---|
-| **Anti-Patterns & Prohibitions** | Anti-pattern, Banned, Memory leak, Crash, LOH | `00_guardrails/FIREWALL.md` | `<firewall_rule>` catalog (P1-P21) |
+| **Anti-Patterns & Prohibitions** | Anti-pattern, Banned, Memory leak, Crash, LOH, UoW, Tests | `00_guardrails/FIREWALL.md` | `<firewall_rule>` catalog (P1-P22) |
 | **C# Naming, CQRS, Micro-AST** | Primary constructor, camelCase, Record struct | `00_guardrails/CONVENTIONS.md` | Micro-AST Standards & Layer Rules |
 | **System Architecture & Pipeline** | Gotenberg resilience, Zero-LOH, Middleware | `01_backend/system_topology.md` | Clean Architecture & Stream Pipeline |
 | **Directory Tree & Solution** | Namespaces, Project layout, Slingshot | `01_backend/system_topology.md` | Solution Directory Tree |

@@ -15,13 +15,13 @@ public sealed class CommitTemplateDraftUseCase(
     ITemplateRepository templateRepo,
     IRepository<TemplateVersion> versionRepo,
     IUnitOfWork unitOfWork,
-    IProjectRepository? projectRepo = null,
-    ISchemaInferenceService? schemaInferenceService = null,
-    IExecutionContext? executionContext = null,
-    ICurrentProjectContext? projectContext = null,
-    TimeProvider? timeProvider = null) : IUseCase<CommitTemplateDraftCommand, string>
+    IProjectRepository projectRepo,
+    ISchemaInferenceService schemaInferenceService,
+    IExecutionContext executionContext,
+    ICurrentProjectContext projectContext,
+    TimeProvider timeProvider) : IUseCase<CommitTemplateDraftCommand, string>
 {
-    private readonly TimeProvider timeProvider = timeProvider ?? TimeProvider.System;
+    private readonly TimeProvider timeProvider = timeProvider;
 
     public async Task<string> ExecuteAsync(CommitTemplateDraftCommand command, CancellationToken ct = default)
     {
@@ -111,12 +111,10 @@ public sealed class CommitTemplateDraftUseCase(
                 template.ReplaceFieldMappings(mappings, now);
             }
 
+            template.SetCurrentVersion(version.Id, now);
+
             await templateRepo.AddAsync(template, ct);
             await versionRepo.AddAsync(version, ct);
-            await unitOfWork.CommitAsync(ct);
-
-            template.SetCurrentVersion(version.Id, now);
-            templateRepo.Update(template);
             await unitOfWork.CommitAsync(ct);
         }
         catch

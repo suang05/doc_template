@@ -40,6 +40,7 @@
 | **State Mutations** | `[HttpPost]`, `[HttpPut]` without idempotency | `[HttpPost, Idempotent]` with `Idempotency-Key` header | `FIREWALL-OPS-004` |
 | **Workspace Target** | Editing legacy `src/SmkDocServer/` | Editing active modern `backend-v2/src/SmkDoc.*/` | `FIREWALL-OPS-005` |
 | **Test Assertions** | Cast assertions `.Should().Be((TemplateId)guid)` | Zero-cast assertion: `var id = TemplateId.New(); ...Be(id)` | `FIREWALL-TEST-001` |
+| **Test Assertions (UoW / Mocks)** | `Times.Exactly(N)` where `N > 1` | `Times.Once` on atomic unit of work commits | `FIREWALL-TEST-002` |
 </prior_inversion_map>
 
 ---
@@ -49,7 +50,7 @@
 ## Constraint Resolution Hierarchy
 1. `[TIER-1-FATAL]`: Host process safety, LOH preservation, DbContext thread safety, async non-blocking, zero IDOR, ReDoS defense (`FIREWALL-MEM-001`, `FIREWALL-CONC-001`, `FIREWALL-ASYNC-001`, `FIREWALL-SEC-001`, `FIREWALL-SEC-002`, `FIREWALL-SEC-003`).
 2. `[TIER-2-ARCH]`: Clean Architecture boundaries, DTO layer isolation, single atomic UoW commit, entity struct identity preservation (`FIREWALL-ARCH-001` to `FIREWALL-ARCH-005`, `FIREWALL-DOM-001` to `FIREWALL-DOM-003`).
-3. `[TIER-3-CRAFT]`: Strongly typed IDs, polymorphic strategy dispatch, RFC 9457 centralized handling, zero-cast test assertions (`FIREWALL-DOM-004`, `FIREWALL-OPS-001` to `FIREWALL-OPS-005`, `FIREWALL-TEST-001`).
+3. `[TIER-3-CRAFT]`: Strongly typed IDs, polymorphic strategy dispatch, RFC 9457 centralized handling, zero-cast test assertions (`FIREWALL-DOM-004`, `FIREWALL-OPS-001` to `FIREWALL-OPS-005`, `FIREWALL-TEST-001`, `FIREWALL-TEST-002`).
 </severity_hierarchy>
 
 ---
@@ -815,7 +816,7 @@ Strictly bounded exceptions (e.g. Unit tests, console CLI entry point) or None.
 <!-- SLOT 5: DETERMINISTIC VERIFICATION GATEWAY (Recency Weight: Final 10%) -->
 <verification_gateway>
 ## Deterministic Pre-Emission Checklist (Self-Audit Gate)
-- [ ] 1. Prior Inversion Map compliance checked against all 21 `<firewall_rule>` blocks?
+- [ ] 1. Prior Inversion Map compliance checked against all 22 `<firewall_rule>` blocks?
 - [ ] 2. All [TIER-1-FATAL] constraints preserved (Zero LOH buffers, single-thread DbContext, pure async, tenant isolation)?
 - [ ] 3. Layer boundaries conform to [ORTHOGONAL_BOUNDARY] (Clean Architecture dependency flow inward)?
 - [ ] 4. Code emitted represents Minimal Complete AST without placeholders or `// TODO` blocks?

@@ -15,7 +15,7 @@ namespace SmkDoc.Tests.Application.Modules.Rendering.Documents.Commands.Generate
 
 public class GenerateDocumentUseCaseTests
 {
-    private readonly GenerateDocumentTestFixture _fixture = new();
+    private readonly RenderingModuleTestFixture _fixture = new();
 
     private GenerateDocumentUseCase CreateSut() => _fixture.BuildUseCase();
 
@@ -23,25 +23,14 @@ public class GenerateDocumentUseCaseTests
     public async Task ExecuteAsync_WhenTemplateActive_ShouldGenerateAndReturnPresignedUrl()
     {
         // Arrange
-        var templateId = Guid.NewGuid();
-        var versionId = Guid.NewGuid();
+        var (template, currentVersion) = _fixture.GivenActiveHtmlTemplate(
+            slug: "sale-contract",
+            name: "Sale Contract",
+            htmlContent: "<html><body>{{name}}</body></html>",
+            versionNumber: 2);
+        var templateId = template.Id;
+        var versionId = currentVersion.Id;
 
-        var template = new TemplateBuilder()
-            .WithId(templateId)
-            .WithName("Sale Contract")
-            .WithSlug("sale-contract")
-            .WithCurrentVersion(versionId)
-            .Build();
-
-        var currentVersion = new TemplateVersionBuilder()
-            .WithId(versionId)
-            .WithTemplateId(templateId)
-            .WithVersion(2)
-            .WithStorageKey("templates/sale-contract.html")
-            .WithFormat(TemplateFormat.Html)
-            .Build();
-
-        _fixture.GivenTemplateWithVersion(template, currentVersion, "<html><body>{{name}}</body></html>");
         _fixture.GivenRenderEnginePdfOutput("%PDF-1.4 Mock Output");
         _fixture.GivenPresignedUrl("https://minio.sammakorn.co.th/outputs/sample.pdf?signature=valid");
 
@@ -116,28 +105,13 @@ public class GenerateDocumentUseCaseTests
     public async Task ExecuteAsync_WithFieldMappings_ShouldTransformAndMergeData()
     {
         // Arrange
-        var templateId = Guid.NewGuid();
-        var versionId = Guid.NewGuid();
         var now = TestConstants.BaselineTime;
-
-        var template = new TemplateBuilder()
-            .WithId(templateId)
-            .WithName("Contract With Mappings")
-            .WithSlug("contract-mapped")
-            .WithCurrentVersion(versionId)
-            .WithTime(now)
-            .Build();
-
-        var currentVersion = new TemplateVersionBuilder()
-            .WithId(versionId)
-            .WithTemplateId(templateId)
-            .WithVersion(1)
-            .WithStorageKey("templates/contract-mapped.html")
-            .WithFormat(TemplateFormat.Html)
-            .WithTime(now)
-            .Build();
-
-        _fixture.GivenTemplateWithVersion(template, currentVersion, "<html><body>{{amount_baht}}</body></html>");
+        var (template, currentVersion) = _fixture.GivenActiveHtmlTemplate(
+            slug: "contract-mapped",
+            name: "Contract With Mappings",
+            htmlContent: "<html><body>{{amount_baht}}</body></html>",
+            now: now);
+        var templateId = template.Id;
 
         var mappings = new List<FieldMapping>
         {
@@ -179,27 +153,13 @@ public class GenerateDocumentUseCaseTests
     public async Task ExecuteAsync_WithExistingDocumentRef_ShouldReuseDocumentAndIncrementVersion()
     {
         // Arrange
-        var templateId = Guid.NewGuid();
-        var versionId = Guid.NewGuid();
-        var documentId = Guid.NewGuid();
         var now = TestConstants.BaselineTime;
-
-        var template = new TemplateBuilder()
-            .WithId(templateId)
-            .WithName("Contract")
-            .WithSlug("sale-contract")
-            .WithCurrentVersion(versionId)
-            .WithTime(now)
-            .Build();
-
-        var currentVersion = new TemplateVersionBuilder()
-            .WithId(versionId)
-            .WithTemplateId(templateId)
-            .WithVersion(1)
-            .WithStorageKey("templates/sale-contract.html")
-            .WithFormat(TemplateFormat.Html)
-            .WithTime(now)
-            .Build();
+        var (template, currentVersion) = _fixture.GivenActiveHtmlTemplate(
+            slug: "sale-contract",
+            name: "Contract",
+            now: now);
+        var templateId = template.Id;
+        var documentId = Guid.NewGuid();
 
         var existingDocument = new DocumentBuilder()
             .WithId(documentId)
@@ -208,7 +168,6 @@ public class GenerateDocumentUseCaseTests
             .WithTime(now)
             .Build();
 
-        _fixture.GivenTemplateWithVersion(template, currentVersion);
         _fixture.GivenRenderEnginePdfOutput("%PDF-1.4");
         _fixture.GivenPresignedUrl("https://minio.sammakorn.co.th/outputs/sc.pdf");
 
@@ -244,31 +203,17 @@ public class GenerateDocumentUseCaseTests
     public async Task ExecuteAsync_WhenPayloadFailsSchema_ShouldThrowSchemaValidationExceptionAndLogFailed()
     {
         // Arrange
-        var templateId = Guid.NewGuid();
-        var versionId = Guid.NewGuid();
         const string schemaJson = """{"$schema":"http://json-schema.org/draft-07/schema#","type":"object","required":["doc_no"]}""";
         var now = TestConstants.BaselineTime;
 
-        var template = new TemplateBuilder()
-            .WithId(templateId)
-            .WithName("Invoice")
-            .WithSlug("invoice")
-            .WithCurrentVersion(versionId)
-            .WithTime(now)
-            .Build();
-
-        var currentVersion = new TemplateVersionBuilder()
-            .WithId(versionId)
-            .WithTemplateId(templateId)
-            .WithVersion(1)
-            .WithStorageKey("templates/invoice.html")
-            .WithFormat(TemplateFormat.Html)
-            .WithTime(now)
-            .Build();
+        var (template, currentVersion) = _fixture.GivenActiveHtmlTemplate(
+            slug: "invoice",
+            name: "Invoice",
+            now: now);
+        var templateId = template.Id;
+        var versionId = currentVersion.Id;
 
         currentVersion.UpdateDataSchema(schemaJson, null, now);
-
-        _fixture.GivenTemplate(template);
         _fixture.VersionRepo.Setup(r => r.GetByIdAsync(versionId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(currentVersion);
 
@@ -320,32 +265,15 @@ public class GenerateDocumentUseCaseTests
     public async Task ExecuteAsync_WhenSkipValidationTrue_ShouldBypassSchemaAndRender()
     {
         // Arrange
-        var templateId = Guid.NewGuid();
-        var versionId = Guid.NewGuid();
         const string schemaJson = """{"$schema":"http://json-schema.org/draft-07/schema#","type":"object","required":["doc_no"]}""";
         var now = TestConstants.BaselineTime;
 
-        var template = new TemplateBuilder()
-            .WithId(templateId)
-            .WithName("Invoice")
-            .WithSlug("invoice")
-            .WithCurrentVersion(versionId)
-            .WithTime(now)
-            .Build();
-
-        var currentVersion = new TemplateVersionBuilder()
-            .WithId(versionId)
-            .WithTemplateId(templateId)
-            .WithVersion(1)
-            .WithStorageKey("templates/invoice.html")
-            .WithFormat(TemplateFormat.Html)
-            .WithTime(now)
-            .Build();
-
+        var (template, currentVersion) = _fixture.GivenActiveHtmlTemplate(
+            slug: "invoice",
+            name: "Invoice",
+            now: now);
         currentVersion.UpdateDataSchema(schemaJson, null, now);
-
-        _fixture.GivenTemplate(template);
-        _fixture.VersionRepo.Setup(r => r.GetByIdAsync(versionId, It.IsAny<CancellationToken>()))
+        _fixture.VersionRepo.Setup(r => r.GetByIdAsync(currentVersion.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(currentVersion);
 
         _fixture.Engine.Setup(e => e.EngineType).Returns(RenderEngineType.Html);
@@ -376,25 +304,10 @@ public class GenerateDocumentUseCaseTests
     public async Task ExecuteAsync_WhenOutputFormatIsUnrecognized_FallbacksToPdf()
     {
         // Arrange
-        var templateId = Guid.NewGuid();
-        var versionId = Guid.NewGuid();
-
-        var template = new TemplateBuilder()
-            .WithId(templateId)
-            .WithName("Fallback Contract")
-            .WithSlug("fallback-contract")
-            .WithCurrentVersion(versionId)
-            .Build();
-
-        var currentVersion = new TemplateVersionBuilder()
-            .WithId(versionId)
-            .WithTemplateId(templateId)
-            .WithVersion(1)
-            .WithStorageKey("templates/fallback-contract.html")
-            .WithFormat(TemplateFormat.Html)
-            .Build();
-
-        _fixture.GivenTemplateWithVersion(template, currentVersion, "<html><body>Fallback</body></html>");
+        _fixture.GivenActiveHtmlTemplate(
+            slug: "fallback-contract",
+            name: "Fallback Contract",
+            htmlContent: "<html><body>Fallback</body></html>");
         _fixture.GivenRenderEnginePdfOutput("%PDF-1.4 Mock Output");
         _fixture.GivenPresignedUrl("https://example.com/download/fallback.pdf");
 

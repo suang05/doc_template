@@ -88,6 +88,40 @@ public class GenerateDocumentTestFixture
         GivenTemplate(template);
     }
 
+    public (Template Template, TemplateVersion Version) GivenActiveHtmlTemplate(
+        string slug = "sale-contract",
+        string name = "Sale Contract",
+        string htmlContent = "<html><body>{{name}}</body></html>",
+        int versionNumber = 1,
+        Guid? templateId = null,
+        Guid? versionId = null,
+        DateTimeOffset? now = null)
+    {
+        var tId = templateId ?? Guid.NewGuid();
+        var vId = versionId ?? Guid.NewGuid();
+        var timestamp = now ?? TestConstants.BaselineTime;
+
+        var template = TemplateBuilder.ATemplate()
+            .WithId(tId)
+            .WithName(name)
+            .WithSlug(slug)
+            .WithCurrentVersion(vId)
+            .WithTime(timestamp)
+            .Build();
+
+        var version = TemplateVersionBuilder.AVersion()
+            .WithId(vId)
+            .WithTemplateId(tId)
+            .WithVersion(versionNumber)
+            .WithStorageKey($"templates/{slug}.html")
+            .WithFormat(TemplateFormat.Html)
+            .WithTime(timestamp)
+            .Build();
+
+        GivenTemplateWithVersion(template, version, htmlContent);
+        return (template, version);
+    }
+
     public void GivenTemplateWithVersion(Template template, TemplateVersion version, string htmlContent = "<html></html>")
     {
         GivenTemplate(template);

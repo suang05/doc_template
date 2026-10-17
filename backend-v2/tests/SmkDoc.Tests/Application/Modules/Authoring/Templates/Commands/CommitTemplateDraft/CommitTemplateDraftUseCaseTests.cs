@@ -9,6 +9,7 @@ using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects;
 using Xunit;
 
 namespace SmkDoc.Tests.Application.Modules.Authoring.Templates.Commands.CommitTemplateDraft;
@@ -21,8 +22,31 @@ public class CommitTemplateDraftUseCaseTests
     private readonly Mock<IRepository<TemplateVersion>> _versionRepo = new();
     private readonly Mock<IUnitOfWork> _uow = new();
 
+    private readonly Mock<IProjectRepository> _projectRepo = new();
+    private readonly Mock<ISchemaInferenceService> _schemaInference = new();
+    private readonly Mock<IExecutionContext> _context = new();
+    private readonly Mock<ICurrentProjectContext> _projectContext = new();
+    private readonly Microsoft.Extensions.Time.Testing.FakeTimeProvider _clock = TestConstants.CreateFakeClock();
+
+    public CommitTemplateDraftUseCaseTests()
+    {
+        var sampleProject = Project.Create(Guid.NewGuid(), ProjectName.Create("Default Project"), TemplateSlug.Create("default-proj"), _clock.GetUtcNow());
+        _projectRepo.Setup(p => p.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(sampleProject);
+    }
+
     private CommitTemplateDraftUseCase CreateSut() =>
-        new(_cache.Object, _storage.Object, _templateRepo.Object, _versionRepo.Object, _uow.Object);
+        new(
+            _cache.Object,
+            _storage.Object,
+            _templateRepo.Object,
+            _versionRepo.Object,
+            _uow.Object,
+            _projectRepo.Object,
+            _schemaInference.Object,
+            _context.Object,
+            _projectContext.Object,
+            _clock);
 
     [Fact]
     public async Task CommitAsync_HappyPath_UploadsToMinioThenWritesDb()
@@ -51,7 +75,7 @@ public class CommitTemplateDraftUseCaseTests
         _storage.Verify(s => s.UploadAsync(StorageBuckets.Templates, It.Is<string>(k => k.StartsWith($"templates/{request.ProjectId}/")), It.IsAny<Stream>(),
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", It.IsAny<CancellationToken>()),
             Times.Once);
-        _uow.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Exactly(2));
+        _uow.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
         _cache.Verify(c => c.RemoveAsync("draft-commit", It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -159,7 +183,11 @@ public class CommitTemplateDraftUseCaseTests
             _templateRepo.Object,
             _versionRepo.Object,
             _uow.Object,
-            projectContext: mockContext.Object);
+            _projectRepo.Object,
+            _schemaInference.Object,
+            _context.Object,
+            mockContext.Object,
+            _clock);
 
         var fileBytes = Encoding.UTF8.GetBytes("docx-content");
         var entry = new TemplateDraftEntry(fileBytes, "report.docx", ".docx", []);

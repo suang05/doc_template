@@ -18,6 +18,7 @@
 | **API Token Storage** | Storing Bearer JWT in LocalStorage/cookies | Next.js API Proxy (`/api/proxy/[...path]`) + httpOnly cookie | Zero JWT exposure in browser JavaScript |
 | **Type Definitions** | Manual duplicate TypeScript interfaces | Derived from Zod schemas via `z.infer<typeof Schema>` | Runtime & compile-time Single Source of Truth |
 | **Error Handling** | Unhandled fetch catch or generic alerts | RFC 9457 `ProblemDetails` via `ApiError` adapter | Type-safe error diagnostics across fields |
+| **Unit Test Co-location** | Test files in `src/tests/` or using `any` | Strictly in `src/__tests__/`, zero `any` (`RULE-FE-TS-001`) | SSoT Schema Testing & Type Safety |
 </prior_inversion_map>
 
 <severity_hierarchy>

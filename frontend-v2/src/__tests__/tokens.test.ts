@@ -19,7 +19,7 @@ describe('SSoT Design Tokens Integrity', () => {
     const requiredCategories = ['contract', 'financial', 'official', 'hr', 'operations'];
     for (const cat of requiredCategories) {
       expect(tokens.categories).toHaveProperty(cat);
-      const entry = (tokens.categories as any)[cat];
+      const entry = tokens.categories[cat as keyof typeof tokens.categories];
       expect(entry).toHaveProperty('primary');
       expect(entry).toHaveProperty('light');
       expect(entry).toHaveProperty('border');

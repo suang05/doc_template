@@ -17,8 +17,7 @@ public sealed class PreviewDocumentUseCase(
     ITemplateRepository templateRepo,
     IRepository<TemplateVersion> versionRepo,
     IStorageService storageService,
-    IEnumerable<IRenderEngine> engines,
-    IExecutionContext? executionContext = null)
+    IEnumerable<IRenderEngine> engines)
 {
     public async Task<Stream> ExecuteStreamAsync(string? slug, PreviewDocumentQuery request, CancellationToken ct = default)
     {
