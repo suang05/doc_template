@@ -1,2 +1,0 @@
-# SMK Document Server v2
-Static Assets

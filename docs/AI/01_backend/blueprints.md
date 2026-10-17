@@ -702,15 +702,14 @@ public sealed class CreateTemplateUseCaseTests
 {
     private readonly Mock<ITemplateRepository> templateRepoMock = new();
     private readonly Mock<IUnitOfWork> unitOfWorkMock = new();
-    private readonly Mock<TimeProvider> timeProviderMock = new();
+    private readonly FakeTimeProvider clock = TestConstants.CreateFakeClock();
 
     private CreateTemplateUseCase CreateSut()
     {
-        timeProviderMock.Setup(t => t.GetUtcNow()).Returns(TestConstants.BaselineTime);
         return new CreateTemplateUseCase(
             templateRepo: templateRepoMock.Object,
             unitOfWork: unitOfWorkMock.Object,
-            timeProvider: timeProviderMock.Object);
+            timeProvider: clock);
     }
 
     [Fact]

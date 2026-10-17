@@ -324,6 +324,13 @@ When receiving mockups or exported JSX/HTML from AI design tools (**Google Stitc
 * `[RULE-FE-HTTP-002] [MUST]`: Always pass `AbortSignal` (`ct.signal`) to cancel inflight requests upon component unmount or search query debounce.
 * `[RULE-FE-HTTP-003] [MUST]`: Document previews (PDF, DOCX) MUST stream via `apiClientBlob` or `ReadableStream` directly into `URL.createObjectURL(blob)` and revoke URL objects upon teardown to prevent client memory leaks.
 
+### 7.5 Frontend Unit Testing Standards (`RULE-FE-TEST`)
+* `[RULE-FE-TEST-001] [MUST]`: Place all Vitest unit test files exclusively inside `frontend-v2/src/__tests__/` (`*.test.ts`). Creating parallel `src/tests/` directories is strictly prohibited.
+* `[RULE-FE-TEST-002] [MUST]`: Import Zod schemas exclusively from the canonical `@/schemas/*.schema` modules. Never validate against legacy duplicate definitions in `@/types/api`.
+* `[RULE-FE-TEST-003] [MUST]`: Enforce 1:1 validation parity with Backend Domain Value Objects (e.g., `TemplateSlug` regex `^[a-z0-9]+(-[a-z0-9]+)*$` prohibits underscores `_` and uppercase characters).
+* `[RULE-FE-TEST-004] [MUST NOT]`: Never write tautological tests that assert on string literals, static constant arrays, or helper functions defined locally inside the test file. Every test MUST import and invoke a real production function, hook, or schema.
+* `[RULE-FE-TEST-005] [MUST]`: Assert async rejections in a single statement using `await expect(promise).rejects.toMatchObject({ status, errorCode })` instead of redundant `rejects.toThrow()` followed by `try/catch` blocks.
+
 ---
 
 ## 8. Frontend Lifecycle Implementation Archetypes (Next.js 15 / React 19)

@@ -737,6 +737,33 @@ None. Unit and integration tests must always instantiate strongly-typed IDs via 
 </ssot_ref>
 </firewall_rule>
 
+<firewall_rule id="FIREWALL-TEST-002" name="TAUTOLOGICAL_AND_OVERSPECIFIED_TESTS">
+<trigger_ast>
+["Times.Exactly(", "new Mock<TimeProvider>()", ".Reset()", "const get* = (*) =>"]
+</trigger_ast>
+<thinking_guard>
+IF test_asserts_local_helper_without_production_import OR verifies_multiple_uow_commits_in_single_usecase THEN
+    ASSERT_FORBIDDEN("Tautological tests provide zero regression safety; verifying multiple UoW commits masks FIREWALL-ARCH-003 violations");
+    ENFORCE_SUBSTITUTION("Black-Box SUT Behavioral Assertion & Single Atomic Commit");
+END IF
+</thinking_guard>
+<mandatory_substitution>
+// Always invoke the real production SUT and verify atomic boundary side-effects once:
+var result = await CreateSut().ExecuteAsync(command, CancellationToken.None);
+result.Slug.Should().Be("invoice-standard");
+unitOfWorkMock.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
+</mandatory_substitution>
+<fatal_blast_radius>
+False-positive test suite: Tautological tests stay green when production code breaks, while overspecified mock verifications break on every valid internal refactoring.
+</fatal_blast_radius>
+<exemptions>
+Verifying retry count on external HTTP resilience pipelines (e.g. Polly retry tests in Infrastructure).
+</exemptions>
+<ssot_ref>
+[`CONVENTIONS.md §3.11`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/CONVENTIONS.md#311-unit-testing-craftsmanship-rule-test)
+</ssot_ref>
+</firewall_rule>
+
 ---
 
 ## 3. Document Maintenance & Rule Ingestion Protocol

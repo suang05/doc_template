@@ -141,7 +141,7 @@ SmkDoc.Domain ← SmkDoc.Application ← SmkDoc.Infrastructure ← SmkDoc.Api
   * No public setters; no external object initializers (`new Template { ... }`).
   * Single Canonical Factory Method (`Create`) as Single Source of Truth (SSoT), receiving strongly-typed Value Objects and mandatory `DateTimeOffset now`.
   * Zero primitive convenience overloads inside the Domain.
-  * Zero test backdoors in production DLL (test fixtures use `*Builder` / `*TestFactory` in `SmkDoc.Tests` via `internal` constructors).
+ * Zero test backdoors in production DLL (test fixtures use fluent `*Builder` classes in `SmkDoc.Tests/Common/Builders/` exclusively; parallel static `*TestFactory` classes are prohibited).
 * **Sequential UUIDv7 Identity:** All entities derive from `BaseEntity`, generating chronological UUIDv7 primary keys to prevent PostgreSQL B-Tree index fragmentation.
 * **Immutable Value Objects:** Structural equality via `GetEqualityComponents()`. Mapped transparently to native database columns via EF Core Fluent `HasConversion` (Zero Database Migration).
 * **Smart Enums:** Derived from `Enumeration` with O(1) static dictionary lookup and behavior encapsulation.

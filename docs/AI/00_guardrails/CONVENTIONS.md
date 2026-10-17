@@ -72,8 +72,10 @@
 | **Safe Mutations** | `[HttpPost]` without idempotency filter | `[HttpPost, Idempotent]` | Safe retry semantics => [`FIREWALL-OPS-004`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/FIREWALL.md#firewall-ops-004) |
 | **Thai Localization**| Inlined `+ 543` or ad-hoc BahtText regex | `ThaiDataTransformer.Transform(val, TransformerType)` | Centralized Thai compliance (`RULE-VAL-002`) |
 | **Test Setup** | `var sut = new UseCase(mock1, mock2)` | SSoT `CreateSut().ExecuteAsync(...)` in test class | Single Source of Truth SUT pattern (`RULE-TEST-005`) |
-| **Test Clocks** | Calling `DateTime.UtcNow` inside tests | `timeProviderMock.Setup(t => t.GetUtcNow()).Returns(...)` | Deterministic time testing (`RULE-TEST-006`) |
+| **Test Clocks** | `DateTime.UtcNow`, `new Mock<TimeProvider>()` | `TestConstants.CreateFakeClock()` (`FakeTimeProvider`) | Deterministic time testing (`RULE-TEST-006`) |
 | **Test Assertions** | `.Should().Be((TemplateId)guid)` | `var id = TemplateId.New(); ... .Should().Be(id)` | Zero-cast assertion => [`FIREWALL-TEST-001`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/FIREWALL.md#firewall-test-001) |
+| **Test Data Setup** | Static `*TestFactory.Create(...)` or 15-line `.With*()` | Fluent `*Builder` overriding ONLY asserted properties | Signal-over-noise Arrange (`RULE-TEST-008`) |
+| **Test Granularity**| Compound `Act -> Assert -> Act` or `_And_`/`_Or_` names | 1 behavior per `[Fact]`; `[Theory]` for input matrices | Atomic defect localization (`RULE-TEST-009`) |
 </prior_inversion_map>
 
 ---
@@ -428,13 +430,16 @@ public sealed class TemplateController(
 ---
 
 ### 3.11 Unit Testing Craftsmanship (`RULE-TEST`)
-* `[RULE-TEST-001] [MUST]`: Structure test names as: `MethodUnderTest_StateUnderTest_ExpectedBehavior`.
+* `[RULE-TEST-001] [MUST]`: Structure test names as: `MethodUnderTest_StateUnderTest_ExpectedBehavior`. Prohibit conjunctions (`_And_`, `_Or_`) in state or behavior segments.
 * `[RULE-TEST-002] [MUST]`: Organize tests into visual AAA blocks (`// Arrange`, `// Act`, `// Assert`) separated by blank lines.
 * `[RULE-TEST-003] [MUST]`: Formulate assertions using `FluentAssertions` (e.g. `result.Should().NotBeNull()`).
 * `[RULE-TEST-004] [MUST]`: Execute unit tests 100% in-memory using direct mocks. Reserve I/O testing for `SmkDoc.IntegrationTests`.
 * `[RULE-TEST-005] [MUST]`: Centralize test SUT instantiation in a `CreateSut()` helper method within each test class.
-* `[RULE-TEST-006] [MUST]`: Anchor mock clocks to `TestConstants.BaselineTime` for deterministic testing.
+* `[RULE-TEST-006] [MUST]`: Anchor clocks to `TestConstants.BaselineTime` via `TestConstants.CreateFakeClock()` (`FakeTimeProvider`). Prohibit mocking `TimeProvider` via `Moq`.
 * `[RULE-TEST-007] [MUST]`: **Strongly-Typed ID Fixture & Zero-Cast Invariant:** Declare test entity and foreign key identifiers using strongly-typed IDs directly (e.g. `var templateId = TemplateId.New();`) rather than raw `Guid.NewGuid()`. Prohibited from casting `(TId)guid` in test assertions (`log.TemplateId.Should().Be(templateId)`) to avoid the FluentAssertions boxed-equality trap (`object.Equals(boxed TId, boxed Guid)`).
+* `[RULE-TEST-008] [MUST]`: **Single Builder SSoT & Signal-over-Noise Arrange:** Construct test domain entities exclusively via Fluent Builders in `Common/Builders/` with sensible default values. Override only the properties that directly impact the test scenario (`With*`). Prohibit parallel static `*TestFactory` classes.
+* `[RULE-TEST-009] [MUST]`: **Single Behavior & Parameterization:** Test exactly 1 logical behavior per `[Fact]`. Use `[Theory]` with `[InlineData]` for boundary/validation variations instead of compound assertions or multiple `Act` blocks.
+* `[RULE-TEST-010] [MUST]`: **Black-Box Behavioral Verification:** Assert on observable outcomes (return DTO, aggregate state, or single boundary side-effect `Times.Once`). Prohibit white-box coupling (e.g. setting up redundant repository methods defensively or verifying `CommitAsync` with `Times.Exactly(N)` where `N > 1` => [`FIREWALL-TEST-002`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/FIREWALL.md#firewall-test-002)).
 
 ---
 

@@ -73,8 +73,9 @@ CodeStructures:
   ZeroDecorativeEmojis: Prohibit decorative emojis in chat responses, code comments, tests, and documentation. Use canonical ASCII symbols exclusively (=>, !, >>).
 
 TestingArchetypes:
-  UseCaseUnitTests: Direct mocks, Single Source of Truth SutFactory, TestConstants.BaselineTime, CQRS folder parity.
-  AggregateTests: Invariant state mutations tested directly inside {Aggregate}Tests.cs. Zero disk I/O in SmkDoc.Tests.
+  BackendUseCaseTests: Direct mocks, SSoT CreateSut(), FakeTimeProvider (TestConstants.CreateFakeClock()), Fluent *Builder (zero *TestFactory), 1 behavior per test, CQRS folder parity.
+  BackendAggregateTests: Invariant state mutations tested directly inside {Aggregate}Tests.cs. Zero disk I/O in SmkDoc.Tests.
+  FrontendUnitTests: Co-located strictly in frontend-v2/src/__tests__/ (prohibit src/tests/), importing SSoT Zod schemas from @/schemas/ and real production modules (zero test-local tautological functions).
 
 CentralizedConfiguration:
   OperationalSettings: IOptions<TOptions> bound from appsettings.json/environment.
