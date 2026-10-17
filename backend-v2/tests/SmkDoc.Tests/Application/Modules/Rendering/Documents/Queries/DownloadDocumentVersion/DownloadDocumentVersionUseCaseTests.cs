@@ -4,7 +4,7 @@ using SmkDoc.Application.Modules.Rendering.Documents.Queries.DownloadDocumentVer
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
-using SmkDoc.Tests.Common.Factories;
+using SmkDoc.Tests.Common.Builders;
 
 namespace SmkDoc.Tests.Application.Modules.Rendering.Documents.Queries.DownloadDocumentVersion;
 
@@ -24,9 +24,9 @@ public class DownloadDocumentVersionUseCaseTests
         // Arrange
         var documentId = Guid.NewGuid();
         var logId = Guid.NewGuid();
-        var document = DocumentTestFactory.Create(documentId, "SC-001", Guid.NewGuid());
-        var docVersion = DocumentVersionTestFactory.Create(documentId: documentId, version: 1, templateVersionId: Guid.NewGuid(), generationLogId: logId);
-        var log = GenerationLogTestFactory.Create(id: logId, outputKey: "outputs/sc001_v1.pdf", outputFormat: OutputFormat.Pdf, durationMs: 1);
+        var document = DocumentBuilder.Create(documentId, "SC-001", Guid.NewGuid());
+        var docVersion = DocumentVersionBuilder.Create(documentId: documentId, version: 1, templateVersionId: Guid.NewGuid(), generationLogId: logId);
+        var log = GenerationLogBuilder.Create(id: logId, outputKey: "outputs/sc001_v1.pdf", outputFormat: OutputFormat.Pdf, durationMs: 1);
         var pdfBytes = new byte[] { 0x25, 0x50, 0x44, 0x46 };
 
         _documentRepoMock

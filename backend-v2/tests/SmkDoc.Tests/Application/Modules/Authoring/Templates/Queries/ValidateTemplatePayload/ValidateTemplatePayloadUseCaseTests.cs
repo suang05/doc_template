@@ -9,8 +9,7 @@ using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects.Validation;
-using SmkDoc.Tests.Common.Factories;
-using Xunit;
+using SmkDoc.Tests.Common.Builders;
 
 namespace SmkDoc.Tests.Application.Modules.Authoring.Templates.Queries.ValidateTemplatePayload;
 
@@ -37,10 +36,10 @@ public class ValidateTemplatePayloadUseCaseTests
         const string slug = "invoice-th";
         const string schema = """{"type":"object","required":["doc_no"]}""";
 
-        var template = TemplateTestFactory.Create(projectId: projectId, name: "Invoice TH", slug: slug);
+        var template = TemplateBuilder.Create(projectId: projectId, name: "Invoice TH", slug: slug);
         template.SetCurrentVersion(versionId, TestConstants.BaselineTime);
 
-        var version = TemplateVersionTestFactory.Create(Guid.NewGuid(), templateId, 1, "templates/invoice.html", TemplateFormat.Html, "Published", "init");
+        var version = TemplateVersionBuilder.Create(Guid.NewGuid(), templateId, 1, "templates/invoice.html", TemplateFormat.Html, "Published", "init");
         version.UpdateDataSchema(schema, "{}", TestConstants.BaselineTime);
 
         _mockContext.Setup(c => c.ProjectId).Returns(projectId);
@@ -78,10 +77,10 @@ public class ValidateTemplatePayloadUseCaseTests
         const string slug = "invoice-th";
         const string schema = """{"type":"object","required":["doc_no"]}""";
 
-        var template = TemplateTestFactory.Create(projectId: projectId, name: "Invoice TH", slug: slug);
+        var template = TemplateBuilder.Create(projectId: projectId, name: "Invoice TH", slug: slug);
         template.SetCurrentVersion(versionId, TestConstants.BaselineTime);
 
-        var version = TemplateVersionTestFactory.Create(Guid.NewGuid(), templateId, 2, "templates/invoice.html", TemplateFormat.Html, "Published", "v2");
+        var version = TemplateVersionBuilder.Create(Guid.NewGuid(), templateId, 2, "templates/invoice.html", TemplateFormat.Html, "Published", "v2");
         version.UpdateDataSchema(schema, "{}", TestConstants.BaselineTime);
 
         _mockContext.Setup(c => c.ProjectId).Returns(projectId);
@@ -123,10 +122,10 @@ public class ValidateTemplatePayloadUseCaseTests
         var versionId = Guid.NewGuid();
         const string slug = "no-schema-template";
 
-        var template = TemplateTestFactory.Create(projectId: projectId, name: "No Schema", slug: slug);
+        var template = TemplateBuilder.Create(projectId: projectId, name: "No Schema", slug: slug);
         template.SetCurrentVersion(versionId, TestConstants.BaselineTime);
 
-        var version = TemplateVersionTestFactory.Create(Guid.NewGuid(), templateId, 1, "templates/none.html", TemplateFormat.Html, "Published", "init");
+        var version = TemplateVersionBuilder.Create(Guid.NewGuid(), templateId, 1, "templates/none.html", TemplateFormat.Html, "Published", "init");
         _mockContext.Setup(c => c.ProjectId).Returns(projectId);
         _mockTemplateRepo
             .Setup(r => r.GetBySlugAsync(slug, It.IsAny<CancellationToken>()))

@@ -6,7 +6,6 @@ using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Tests.Common.Builders;
-using SmkDoc.Tests.Common.Factories;
 
 namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Projects.Commands.CreateProject;
 
@@ -55,7 +54,7 @@ public class CreateProjectUseCaseTests
         // Arrange
         var now = TestConstants.BaselineTime;
         var userId = Guid.NewGuid();
-        var company = CompanyTestFactory.Create(name: "Test Company", now: now);
+        var company = CompanyBuilder.Create(name: "Test Company", now: now);
         var command = new CreateProjectCommand(userId, "New Project", "new-project");
 
         _projectRepoMock.Setup(r => r.GetBySlugAsync("new-project", It.IsAny<CancellationToken>()))

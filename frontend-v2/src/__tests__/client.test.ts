@@ -69,20 +69,15 @@ describe('apiClient and RFC 7807 Response Handling', () => {
       headers: new Headers({ 'content-type': 'application/problem+json' }),
     } as unknown as Response);
 
-    await expect(apiClient('/api/test')).rejects.toThrow(ApiError);
-
-    try {
-      await apiClient('/api/test');
-    } catch (err: any) {
-      expect(err).toBeInstanceOf(ApiError);
-      expect(err.status).toBe(400);
-      expect(err.errorCode).toBe('TEMPLATE_SYNTAX_ERROR');
-      expect(err.detail).toBe('Handlebars syntax error near line 14: unclosed {{#each}} block');
-      expect(err.errors).toEqual({
+    await expect(apiClient('/api/test')).rejects.toMatchObject({
+      name: 'ApiError',
+      status: 400,
+      errorCode: 'TEMPLATE_SYNTAX_ERROR',
+      detail: 'Handlebars syntax error near line 14: unclosed {{#each}} block',
+      errors: {
         template: ['Missing matching {{/each}} on line 28'],
-      });
-      expect(err.message).toContain('TEMPLATE_SYNTAX_ERROR');
-    }
+      },
+    });
   });
 
   it('apiClientBlob parses response headers correctly', async () => {

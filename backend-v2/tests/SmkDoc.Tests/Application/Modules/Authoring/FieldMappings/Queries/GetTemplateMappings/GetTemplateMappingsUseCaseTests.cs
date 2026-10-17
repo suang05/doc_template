@@ -3,7 +3,7 @@ using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Tests.Common;
-using SmkDoc.Tests.Common.Factories;
+using SmkDoc.Tests.Common.Builders;
 
 namespace SmkDoc.Tests.Application.Modules.Authoring.FieldMappings.Queries.GetTemplateMappings;
 
@@ -19,7 +19,7 @@ public class GetTemplateMappingsUseCaseTests
     {
         // Arrange
         var templateId = Guid.NewGuid();
-        var template = TemplateTestFactory.Create(templateId, Guid.NewGuid(), "Invoice", "invoice");
+        var template = TemplateBuilder.Create(templateId, Guid.NewGuid(), "Invoice", "invoice");
         var m1 = FieldMapping.Create(templateId, "total", "payment.total", "ยอดชำระ", false, 2, TestConstants.BaselineTime, DataSourceType.Json);
         var m2 = FieldMapping.Create(templateId, "name", "customer.name", "ชื่อลูกค้า", false, 1, TestConstants.BaselineTime, DataSourceType.Json);
         var mappings = new List<FieldMapping> { m1, m2 };

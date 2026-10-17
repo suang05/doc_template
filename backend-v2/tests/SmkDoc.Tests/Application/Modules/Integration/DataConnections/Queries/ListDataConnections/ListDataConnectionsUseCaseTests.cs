@@ -1,7 +1,7 @@
 using SmkDoc.Application.Modules.Integration.DataConnections.Queries.ListDataConnections;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
-using SmkDoc.Tests.Common.Factories;
+using SmkDoc.Tests.Common.Builders;
 using SmkDoc.Tests.Common.Fixtures;
 
 namespace SmkDoc.Tests.Application.Modules.Integration.DataConnections.Queries.ListDataConnections;
@@ -17,8 +17,8 @@ public class ListDataConnectionsUseCaseTests
     public async Task ExecuteAsync_WhenConnectionsExist_ReturnsProjectedDtosWithoutSecrets()
     {
         // Arrange
-        var conn1 = DataConnectionTestFactory.Create(name: "Postgres Main", provider: DatabaseProvider.PostgreSQL, encryptedConnectionString: "enc_secret_1");
-        var conn2 = DataConnectionTestFactory.Create(name: "SqlServer Legacy", provider: DatabaseProvider.SqlServer, encryptedConnectionString: "enc_secret_2");
+        var conn1 = DataConnectionBuilder.Create(name: "Postgres Main", provider: DatabaseProvider.PostgreSQL, encryptedConnectionString: "enc_secret_1");
+        var conn2 = DataConnectionBuilder.Create(name: "SqlServer Legacy", provider: DatabaseProvider.SqlServer, encryptedConnectionString: "enc_secret_2");
 
         _fixture.ConnectionRepo
             .Setup(r => r.ListAsync(It.IsAny<CancellationToken>()))

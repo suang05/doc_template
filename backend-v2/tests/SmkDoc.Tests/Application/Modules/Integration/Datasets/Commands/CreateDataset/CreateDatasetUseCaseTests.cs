@@ -2,7 +2,7 @@ using SmkDoc.Application.Modules.Integration.Datasets.Commands.CreateDataset;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
-using SmkDoc.Tests.Common.Factories;
+using SmkDoc.Tests.Common.Builders;
 using SmkDoc.Tests.Common.Fixtures;
 
 namespace SmkDoc.Tests.Application.Modules.Integration.Datasets.Commands.CreateDataset;
@@ -18,7 +18,7 @@ public class CreateDatasetUseCaseTests
     public async Task ExecuteAsync_ShouldPersistDatasetAndReturnDto()
     {
         var connId = Guid.NewGuid();
-        var conn = DataConnectionTestFactory.Create(connId, "DB1", DatabaseProvider.SqlServer, "enc_db1");
+        var conn = DataConnectionBuilder.Create(connId, "DB1", DatabaseProvider.SqlServer, "enc_db1");
         var command = new CreateDatasetCommand("OrdersSet", "desc", connId, "SELECT * FROM orders", 60);
 
         _fixture.ConnectionRepo.Setup(r => r.GetByIdAsync(connId, It.IsAny<CancellationToken>()))

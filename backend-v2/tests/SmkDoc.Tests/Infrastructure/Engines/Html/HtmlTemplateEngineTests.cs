@@ -46,7 +46,7 @@ public class HtmlTemplateEngineTests
     }
 
     [Fact]
-    public async Task RenderAsync_ShouldSupportCustomHelpers_AddOne_And_IfEquals()
+    public async Task RenderAsync_WithAddOneHelper_IncrementsIndex()
     {
         var mockPdf = new Mock<IPdfRenderer>();
         string capturedHtml = string.Empty;
@@ -60,15 +60,9 @@ public class HtmlTemplateEngineTests
         string template = @"
             {{#each items}}
                 <span>Item {{addOne @index}}: {{name}}</span>
-            {{/each}}
-            {{#ifEquals status 'APPROVED'}}
-                <div>STATUS_OK</div>
-            {{else}}
-                <div>STATUS_WAITING</div>
-            {{/ifEquals}}";
+            {{/each}}";
 
         string inputData = @"{
-            ""status"": ""APPROVED"",
             ""items"": [
                 { ""name"": ""บ้านเดี่ยว"" },
                 { ""name"": ""ทาวน์โฮม"" }
@@ -81,6 +75,33 @@ public class HtmlTemplateEngineTests
         result.Should().NotBeNull();
         capturedHtml.Should().Contain("Item 1: บ้านเดี่ยว");
         capturedHtml.Should().Contain("Item 2: ทาวน์โฮม");
+    }
+
+    [Fact]
+    public async Task RenderAsync_WithIfEqualsHelper_EvaluatesCondition()
+    {
+        var mockPdf = new Mock<IPdfRenderer>();
+        string capturedHtml = string.Empty;
+
+        mockPdf.Setup(p => p.RenderHtmlToPdfAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string?, string?, CancellationToken>((h, _1, _2, _3) => capturedHtml = h)
+            .ReturnsAsync(Encoding.UTF8.GetBytes("%PDF-1.4 mock"));
+
+        var engine = CreateEngine(mockPdf.Object);
+
+        string template = @"
+            {{#ifEquals status 'APPROVED'}}
+                <div>STATUS_OK</div>
+            {{else}}
+                <div>STATUS_WAITING</div>
+            {{/ifEquals}}";
+
+        string inputData = @"{ ""status"": ""APPROVED"" }";
+
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(template));
+        var result = await engine.RenderAsync(stream, inputData, OutputFormat.Pdf);
+
+        result.Should().NotBeNull();
         capturedHtml.Should().Contain("STATUS_OK");
         capturedHtml.Should().NotContain("STATUS_WAITING");
     }

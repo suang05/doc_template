@@ -4,6 +4,7 @@ using SmkDoc.Application.Modules.Rendering.Documents;
 using SmkDoc.Application.Modules.Rendering.Documents.Services;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Tests.Common.Builders;
 
 namespace SmkDoc.Tests.Common.Fixtures;
 
@@ -69,12 +70,27 @@ public class GenerateDocumentTestFixture
             Context.Object
         );
 
-    public void GivenTemplateWithVersion(Template template, TemplateVersion version, string htmlContent = "<html></html>")
+    public void GivenTemplate(Template template)
     {
         TemplateRepo.Setup(r => r.GetBySlugWithDetailsAsync(template.Slug.Value, It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
-        TemplateRepo.Setup(r => r.GetBySlugAsync(template.Slug.Value, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(template);
+    }
+
+    public void GivenInactiveTemplate(string slug)
+    {
+        var template = new TemplateBuilder().AsInactive().WithSlug(slug).Build();
+        GivenTemplate(template);
+    }
+
+    public void GivenTemplateWithoutVersion(string slug)
+    {
+        var template = new TemplateBuilder().WithoutCurrentVersion().WithSlug(slug).Build();
+        GivenTemplate(template);
+    }
+
+    public void GivenTemplateWithVersion(Template template, TemplateVersion version, string htmlContent = "<html></html>")
+    {
+        GivenTemplate(template);
         VersionRepo.Setup(r => r.GetByIdAsync(version.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(version);
         Storage.Setup(s => s.DownloadAsync("templates", version.StorageKey, It.IsAny<CancellationToken>()))

@@ -1,6 +1,6 @@
 using SmkDoc.Application.Modules.Integration.Datasets.Commands.DeleteDataset;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Tests.Common.Factories;
+using SmkDoc.Tests.Common.Builders;
 using SmkDoc.Tests.Common.Fixtures;
 
 namespace SmkDoc.Tests.Application.Modules.Integration.Datasets.Commands.DeleteDataset;
@@ -16,7 +16,7 @@ public class DeleteDatasetUseCaseTests
     public async Task ExecuteAsync_WhenFound_RemovesAndReturnsTrue()
     {
         // Arrange
-        var entity = DatasetTestFactory.Create(name: "DS", dataConnectionId: Guid.NewGuid(), sqlQuery: "SELECT 1", cacheSeconds: 0);
+        var entity = DatasetBuilder.Create(name: "DS", dataConnectionId: Guid.NewGuid(), sqlQuery: "SELECT 1", cacheSeconds: 0);
 
         _fixture.DatasetRepo
             .Setup(r => r.GetByIdAsync(entity.Id, It.IsAny<CancellationToken>()))

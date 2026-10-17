@@ -3,7 +3,7 @@ using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
-using SmkDoc.Tests.Common.Factories;
+using SmkDoc.Tests.Common.Builders;
 
 namespace SmkDoc.Tests.Application.Modules.Authoring.FieldMappings.Commands.SaveTemplateMappings;
 
@@ -20,7 +20,7 @@ public class SaveTemplateMappingsUseCaseTests
     {
         // Arrange
         var templateId = Guid.NewGuid();
-        var template = TemplateTestFactory.Create(templateId, Guid.NewGuid(), "Contract", "contract");
+        var template = TemplateBuilder.Create(templateId, Guid.NewGuid(), "Contract", "contract");
 
         _templateRepoMock
             .Setup(r => r.GetByIdAsync(templateId, It.IsAny<CancellationToken>()))

@@ -12,6 +12,8 @@ public class UserProjectRoleBuilder
 
     public static UserProjectRoleBuilder ARole() => new();
 
+    public static UserProjectRole Default() => ARole().Build();
+
     public UserProjectRoleBuilder ForUser(Guid userId)
     {
         _userId = userId;

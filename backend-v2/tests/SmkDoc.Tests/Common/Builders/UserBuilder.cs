@@ -17,6 +17,8 @@ public class UserBuilder
 
     public static UserBuilder AUser() => new();
 
+    public static User Default() => AUser().Build();
+
     public UserBuilder WithId(Guid id)
     {
         _id = id;

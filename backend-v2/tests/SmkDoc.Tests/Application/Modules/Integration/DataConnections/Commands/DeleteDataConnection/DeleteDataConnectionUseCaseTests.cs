@@ -1,7 +1,7 @@
 using SmkDoc.Application.Modules.Integration.DataConnections.Commands.DeleteDataConnection;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
-using SmkDoc.Tests.Common.Factories;
+using SmkDoc.Tests.Common.Builders;
 using SmkDoc.Tests.Common.Fixtures;
 
 namespace SmkDoc.Tests.Application.Modules.Integration.DataConnections.Commands.DeleteDataConnection;
@@ -18,7 +18,7 @@ public class DeleteDataConnectionUseCaseTests
     {
         // Arrange
         var id = Guid.NewGuid();
-        var existing = DataConnectionTestFactory.Create(id, "To Delete", DatabaseProvider.PostgreSQL, "enc_delete");
+        var existing = DataConnectionBuilder.Create(id, "To Delete", DatabaseProvider.PostgreSQL, "enc_delete");
 
         _fixture.ConnectionRepo
             .Setup(r => r.GetByIdAsync(id, It.IsAny<CancellationToken>()))

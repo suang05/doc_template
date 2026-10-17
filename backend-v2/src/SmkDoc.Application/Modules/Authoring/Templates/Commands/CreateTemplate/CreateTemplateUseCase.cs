@@ -106,9 +106,6 @@ public sealed class CreateTemplateUseCase(
             TemplateSlug.Create(command.Slug),
             command.Category?.Trim(),
             now);
-        await _templateRepo.AddAsync(template, ct);
-        await _unitOfWork.CommitAsync(ct);
-
         var initialVersion = TemplateVersion.Draft(
             template.Id,
             1,
@@ -119,11 +116,10 @@ public sealed class CreateTemplateUseCase(
             "Initial version");
 
         initialVersion.Publish(now);
-        await _versionRepo.AddAsync(initialVersion, ct);
-        await _unitOfWork.CommitAsync(ct);
-
         template.SetCurrentVersion(initialVersion.Id, now);
-        _templateRepo.Update(template);
+
+        await _templateRepo.AddAsync(template, ct);
+        await _versionRepo.AddAsync(initialVersion, ct);
         await _unitOfWork.CommitAsync(ct);
 
         // 5. Safe Result DTO Mapping

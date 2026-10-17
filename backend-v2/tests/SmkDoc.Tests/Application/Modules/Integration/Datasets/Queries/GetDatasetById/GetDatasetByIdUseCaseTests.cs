@@ -1,7 +1,7 @@
 using SmkDoc.Application.Modules.Integration.Datasets.Queries.GetDatasetById;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
-using SmkDoc.Tests.Common.Factories;
+using SmkDoc.Tests.Common.Builders;
 using SmkDoc.Tests.Common.Fixtures;
 
 namespace SmkDoc.Tests.Application.Modules.Integration.Datasets.Queries.GetDatasetById;
@@ -19,8 +19,8 @@ public class GetDatasetByIdUseCaseTests
         // Arrange
         var id = Guid.NewGuid();
         var connId = Guid.NewGuid();
-        var conn = DataConnectionTestFactory.Create(connId, "AnalyticsDB", DatabaseProvider.PostgreSQL, "enc_analytics");
-        var dataset = DatasetTestFactory.Create(id, "SalesMetrics", "desc", connId, "SELECT * FROM sales", 300);
+        var conn = DataConnectionBuilder.Create(connId, "AnalyticsDB", DatabaseProvider.PostgreSQL, "enc_analytics");
+        var dataset = DatasetBuilder.Create(id, "SalesMetrics", "desc", connId, "SELECT * FROM sales", 300);
 
         _fixture.DatasetRepo
             .Setup(r => r.GetByIdAsync(id, It.IsAny<CancellationToken>()))

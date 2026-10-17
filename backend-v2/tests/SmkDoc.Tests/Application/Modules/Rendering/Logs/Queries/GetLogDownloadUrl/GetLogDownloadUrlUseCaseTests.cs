@@ -1,7 +1,7 @@
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Rendering.Logs.Queries.GetLogDownloadUrl;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Tests.Common.Factories;
+using SmkDoc.Tests.Common.Builders;
 
 namespace SmkDoc.Tests.Application.Modules.Rendering.Logs.Queries.GetLogDownloadUrl;
 
@@ -18,7 +18,7 @@ public class GetLogDownloadUrlUseCaseTests
     {
         // Arrange
         var logId = Guid.NewGuid();
-        var log = GenerationLogTestFactory.Create(id: logId, outputKey: "outputs/doc.pdf", durationMs: 1);
+        var log = GenerationLogBuilder.Create(id: logId, outputKey: "outputs/doc.pdf", durationMs: 1);
 
         _logRepoMock
             .Setup(r => r.GetByIdAsync(logId, It.IsAny<CancellationToken>()))

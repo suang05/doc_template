@@ -9,7 +9,6 @@ using SmkDoc.Application.Modules.Rendering.Documents.DTOs;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.ValueObjects.Validation;
 using SmkDoc.Tests.Common.Builders;
-using SmkDoc.Tests.Common.Factories;
 using SmkDoc.Tests.Common.Fixtures;
 
 namespace SmkDoc.Tests.Application.Modules.Rendering.Documents.Commands.GenerateDocument;
@@ -89,11 +88,7 @@ public class GenerateDocumentUseCaseTests
     public async Task ExecuteAsync_WhenTemplateInactive_ShouldThrowNotFoundException()
     {
         // Arrange
-        var template = new TemplateBuilder().AsInactive().WithSlug("inactive-tpl").Build();
-        _fixture.TemplateRepo.Setup(r => r.GetBySlugWithDetailsAsync("inactive-tpl", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(template);
-        _fixture.TemplateRepo.Setup(r => r.GetBySlugAsync("inactive-tpl", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(template);
+        _fixture.GivenInactiveTemplate("inactive-tpl");
 
         using var jsonDoc = JsonDocument.Parse("{}");
         var request = new GenerateDocumentCommand(jsonDoc.RootElement);
@@ -107,11 +102,7 @@ public class GenerateDocumentUseCaseTests
     public async Task ExecuteAsync_WhenNoCurrentVersion_ShouldThrowInvalidOperationException()
     {
         // Arrange
-        var template = new TemplateBuilder().WithoutCurrentVersion().WithSlug("no-ver-tpl").Build();
-        _fixture.TemplateRepo.Setup(r => r.GetBySlugWithDetailsAsync("no-ver-tpl", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(template);
-        _fixture.TemplateRepo.Setup(r => r.GetBySlugAsync("no-ver-tpl", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(template);
+        _fixture.GivenTemplateWithoutVersion("no-ver-tpl");
 
         using var jsonDoc = JsonDocument.Parse("{}");
         var request = new GenerateDocumentCommand(jsonDoc.RootElement);
@@ -277,10 +268,7 @@ public class GenerateDocumentUseCaseTests
 
         currentVersion.UpdateDataSchema(schemaJson, null, now);
 
-        _fixture.TemplateRepo.Setup(r => r.GetBySlugWithDetailsAsync("invoice", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(template);
-        _fixture.TemplateRepo.Setup(r => r.GetBySlugAsync("invoice", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(template);
+        _fixture.GivenTemplate(template);
         _fixture.VersionRepo.Setup(r => r.GetByIdAsync(versionId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(currentVersion);
 
@@ -356,10 +344,7 @@ public class GenerateDocumentUseCaseTests
 
         currentVersion.UpdateDataSchema(schemaJson, null, now);
 
-        _fixture.TemplateRepo.Setup(r => r.GetBySlugWithDetailsAsync("invoice", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(template);
-        _fixture.TemplateRepo.Setup(r => r.GetBySlugAsync("invoice", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(template);
+        _fixture.GivenTemplate(template);
         _fixture.VersionRepo.Setup(r => r.GetByIdAsync(versionId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(currentVersion);
 

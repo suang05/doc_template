@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { tokens } from '../tokens';
+import { tokens } from '@/tokens';
 
 describe('SSoT Design Tokens Integrity', () => {
   it('should enforce strict 2px - 4px border radius', () => {

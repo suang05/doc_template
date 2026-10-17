@@ -8,7 +8,7 @@ using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
-using SmkDoc.Tests.Common.Factories;
+using SmkDoc.Tests.Common.Builders;
 
 namespace SmkDoc.Tests.Application.Modules.Authoring.FieldMappings.Queries.PreviewMapping;
 
@@ -47,7 +47,7 @@ public class PreviewMappingUseCaseTests
                      engineType == RenderEngineType.Docx ? TemplateFormat.Docx : TemplateFormat.Html;
 
         var now = TestConstants.BaselineTime;
-        var template = TemplateTestFactory.Create(templateId, Guid.NewGuid(), "T", "sample-template");
+        var template = TemplateBuilder.Create(templateId, Guid.NewGuid(), "T", "sample-template");
         template.SetCurrentVersion(versionId, now);
         if (mappings != null)
         {
@@ -59,7 +59,7 @@ public class PreviewMappingUseCaseTests
         _mockTemplateRepo.Setup(r => r.GetByIdAsync(templateId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
         _mockVersionRepo.Setup(r => r.GetByIdAsync(versionId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(TemplateVersionTestFactory.Create(versionId, templateId, 1, "templates/sample-template.html", format, "Published", "Commit", now));
+            .ReturnsAsync(TemplateVersionBuilder.Create(versionId, templateId, 1, "templates/sample-template.html", format, "Published", "Commit", now));
 
         return template;
     }
@@ -164,7 +164,7 @@ public class PreviewMappingUseCaseTests
     public async Task ExecuteAsync_WhenTemplateHasNoCurrentVersion_ShouldThrowInvalidOperationException()
     {
         var templateId = Guid.NewGuid();
-        var template = TemplateTestFactory.Create(templateId, Guid.NewGuid(), "T", "sample-template");
+        var template = TemplateBuilder.Create(templateId, Guid.NewGuid(), "T", "sample-template");
         _mockTemplateRepo.Setup(r => r.GetByIdWithDetailsAsync(templateId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
         _mockTemplateRepo.Setup(r => r.GetByIdAsync(templateId, It.IsAny<CancellationToken>()))
@@ -181,14 +181,14 @@ public class PreviewMappingUseCaseTests
         var versionId = Guid.NewGuid();
 
         var now = TestConstants.BaselineTime;
-        var template = TemplateTestFactory.Create(templateId, Guid.NewGuid(), "T", "sample-template");
+        var template = TemplateBuilder.Create(templateId, Guid.NewGuid(), "T", "sample-template");
         template.SetCurrentVersion(versionId, now);
         _mockTemplateRepo.Setup(r => r.GetByIdWithDetailsAsync(templateId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
         _mockTemplateRepo.Setup(r => r.GetByIdAsync(templateId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
         _mockVersionRepo.Setup(r => r.GetByIdAsync(versionId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(TemplateVersionTestFactory.Create(versionId, templateId, 1, "templates/t.docx", TemplateFormat.Docx, "Published", "Commit", now));
+            .ReturnsAsync(TemplateVersionBuilder.Create(versionId, templateId, 1, "templates/t.docx", TemplateFormat.Docx, "Published", "Commit", now));
         _mockStorage.Setup(s => s.DownloadAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new MemoryStream());
 

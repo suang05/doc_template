@@ -24,17 +24,4 @@ public class IntegrationModuleTestFixture
         DataProtection.Setup(p => p.Encrypt(It.IsAny<string>())).Returns<string>(s => $"enc:{s}");
         DataProtection.Setup(p => p.Decrypt(It.IsAny<string>())).Returns<string>(s => s.Replace("enc:", ""));
     }
-
-    public void Reset()
-    {
-        DatasetRepo.Reset();
-        ConnectionRepo.Reset();
-        UnitOfWork.Reset();
-        DataProtection.Reset();
-        SqlExecutor.Reset();
-
-        UnitOfWork.Setup(u => u.CommitAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
-        DataProtection.Setup(p => p.Encrypt(It.IsAny<string>())).Returns<string>(s => $"enc:{s}");
-        DataProtection.Setup(p => p.Decrypt(It.IsAny<string>())).Returns<string>(s => s.Replace("enc:", ""));
-    }
 }

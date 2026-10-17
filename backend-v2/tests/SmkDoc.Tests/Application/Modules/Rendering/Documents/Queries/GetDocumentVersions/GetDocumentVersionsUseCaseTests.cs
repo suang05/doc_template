@@ -2,7 +2,7 @@ using System.Linq.Expressions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Rendering.Documents.Queries.GetDocumentVersions;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Tests.Common.Factories;
+using SmkDoc.Tests.Common.Builders;
 
 namespace SmkDoc.Tests.Application.Modules.Rendering.Documents.Queries.GetDocumentVersions;
 
@@ -19,7 +19,7 @@ public class GetDocumentVersionsUseCaseTests
     {
         // Arrange
         var documentId = Guid.NewGuid();
-        var document = DocumentTestFactory.Create(documentId, "SC-001", Guid.NewGuid());
+        var document = DocumentBuilder.Create(documentId, "SC-001", Guid.NewGuid());
 
         _documentRepoMock
             .Setup(r => r.FirstOrDefaultAsync(It.IsAny<Expression<Func<Document, bool>>>(), It.IsAny<CancellationToken>()))
@@ -28,8 +28,8 @@ public class GetDocumentVersionsUseCaseTests
         _versionRepoMock
             .Setup(r => r.ListAsync(It.IsAny<Expression<Func<DocumentVersion, bool>>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([
-                DocumentVersionTestFactory.Create(documentId: documentId, version: 1),
-                DocumentVersionTestFactory.Create(documentId: documentId, version: 2)
+                DocumentVersionBuilder.Create(documentId: documentId, version: 1),
+                DocumentVersionBuilder.Create(documentId: documentId, version: 2)
             ]);
 
         // Act

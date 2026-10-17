@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { registerTemplateCompletion } from '../lib/monaco/templateCompletion';
+import { registerTemplateCompletion } from '@/lib/monaco/templateCompletion';
 
 describe('registerTemplateCompletion', () => {
   it('should register completion provider on monaco.languages for html', () => {

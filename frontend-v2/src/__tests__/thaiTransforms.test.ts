@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ThaiTransformTypes } from '../schemas/mapping.schema';
+import { ThaiTransformTypes } from '@/schemas/mapping.schema';
 
 describe('Thai Data Transform Types Compatibility', () => {
   it('should include all required 7 transformation functions', () => {

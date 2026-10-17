@@ -5,7 +5,7 @@ using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Tests.Common;
-using SmkDoc.Tests.Common.Factories;
+using SmkDoc.Tests.Common.Builders;
 
 namespace SmkDoc.Tests.Application.Common.Helpers;
 
@@ -42,8 +42,8 @@ public class DatasetAliasMapBuilderTests
         var datasetId = Guid.NewGuid();
         var connectionId = Guid.NewGuid();
         var td = TemplateDataset.Create(Guid.NewGuid(), datasetId, DatasetAlias.Create("ds1"), 1, TestConstants.BaselineTime);
-        var dataset = DatasetTestFactory.Create(id: datasetId, dataConnectionId: connectionId, sqlQuery: "SELECT * FROM orders");
-        var connection = DataConnectionTestFactory.Create(id: connectionId, provider: DatabaseProvider.PostgreSQL, encryptedConnectionString: "enc:Host=pg");
+        var dataset = DatasetBuilder.Create(id: datasetId, dataConnectionId: connectionId, sqlQuery: "SELECT * FROM orders");
+        var connection = DataConnectionBuilder.Create(id: connectionId, provider: DatabaseProvider.PostgreSQL, encryptedConnectionString: "enc:Host=pg");
 
         _datasetRepoMock.Setup(r => r.GetByIdAsync(datasetId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(dataset);
@@ -97,7 +97,7 @@ public class DatasetAliasMapBuilderTests
         var datasetId = Guid.NewGuid();
         var connectionId = Guid.NewGuid();
         var td = TemplateDataset.Create(Guid.NewGuid(), datasetId, DatasetAlias.Create("ds1"), 1, TestConstants.BaselineTime);
-        var dataset = DatasetTestFactory.Create(id: datasetId, dataConnectionId: connectionId);
+        var dataset = DatasetBuilder.Create(id: datasetId, dataConnectionId: connectionId);
 
         _datasetRepoMock.Setup(r => r.GetByIdAsync(datasetId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(dataset);
@@ -124,8 +124,8 @@ public class DatasetAliasMapBuilderTests
         var datasetId = Guid.NewGuid();
         var connectionId = Guid.NewGuid();
         var td = TemplateDataset.Create(Guid.NewGuid(), datasetId, DatasetAlias.Create("ds1"), 1, TestConstants.BaselineTime);
-        var dataset = DatasetTestFactory.Create(id: datasetId, dataConnectionId: connectionId);
-        var connection = DataConnectionTestFactory.Create(id: connectionId, encryptedConnectionString: "corrupted_secret");
+        var dataset = DatasetBuilder.Create(id: datasetId, dataConnectionId: connectionId);
+        var connection = DataConnectionBuilder.Create(id: connectionId, encryptedConnectionString: "corrupted_secret");
 
         _datasetRepoMock.Setup(r => r.GetByIdAsync(datasetId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(dataset);

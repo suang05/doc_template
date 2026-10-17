@@ -12,7 +12,7 @@ using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Infrastructure.Engines.Html;
-using SmkDoc.Tests.Common.Factories;
+using SmkDoc.Tests.Common.Builders;
 using Xunit;
 
 namespace SmkDoc.Tests.Infrastructure.Engines.Html;
@@ -44,10 +44,10 @@ public class HtmlDirectGenerationTests
         var versionId  = Guid.NewGuid();
         string capturedHtml = string.Empty;
 
-        var template = TemplateTestFactory.Create(templateId, Guid.NewGuid(), "Direct HTML Invoice", "invoice-direct-html");
+        var template = TemplateBuilder.Create(templateId, Guid.NewGuid(), "Direct HTML Invoice", "invoice-direct-html");
         template.SetCurrentVersion(versionId, TestConstants.BaselineTime);
 
-        var version = TemplateVersionTestFactory.Create(versionId, templateId, 1, "templates/invoice.html", TemplateFormat.Html, "Published", "Initial");
+        var version = TemplateVersionBuilder.Create(versionId, templateId, 1, "templates/invoice.html", TemplateFormat.Html, "Published", "Initial");
 
         string htmlContent = @"
             <html>

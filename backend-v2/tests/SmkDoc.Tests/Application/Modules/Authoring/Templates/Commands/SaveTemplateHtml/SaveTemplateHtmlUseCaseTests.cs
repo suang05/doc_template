@@ -5,7 +5,7 @@ using SmkDoc.Application.Modules.Authoring.Templates.Commands.SaveTemplateHtml;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Interfaces;
-using SmkDoc.Tests.Common.Factories;
+using SmkDoc.Tests.Common.Builders;
 using Xunit;
 
 namespace SmkDoc.Tests.Application.Modules.Authoring.Templates.Commands.SaveTemplateHtml;
@@ -36,10 +36,10 @@ public class SaveTemplateHtmlUseCaseTests
         var currentVersionId = Guid.NewGuid();
 
         var projectId = Guid.NewGuid();
-        var template = TemplateTestFactory.Create(templateId, projectId, "official-contract", "official-contract");
+        var template = TemplateBuilder.Create(templateId, projectId, "official-contract", "official-contract");
         template.SetCurrentVersion(currentVersionId, TestConstants.BaselineTime);
 
-        var currentVersion = TemplateVersionTestFactory.Create(currentVersionId, templateId, 3, "", TemplateFormat.Html, createdBy: null);
+        var currentVersion = TemplateVersionBuilder.Create(currentVersionId, templateId, 3, "", TemplateFormat.Html, createdBy: null);
 
         _mockTemplateRepo.Setup(r => r.GetByIdAsync(templateId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);

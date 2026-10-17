@@ -3,7 +3,7 @@ using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Rendering.Logs.Queries.ListGenerationLogs;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
-using SmkDoc.Tests.Common.Factories;
+using SmkDoc.Tests.Common.Builders;
 
 namespace SmkDoc.Tests.Application.Modules.Rendering.Logs.Queries.ListGenerationLogs;
 
@@ -20,7 +20,7 @@ public class ListGenerationLogsUseCaseTests
         // Arrange
         var logs = new List<GenerationLog>
         {
-            GenerationLogTestFactory.Create(
+            GenerationLogBuilder.Create(
                 templateId: Guid.NewGuid(),
                 templateVersionId: Guid.NewGuid(),
                 apiKeyId: Guid.NewGuid(),

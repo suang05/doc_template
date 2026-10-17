@@ -3,7 +3,7 @@ using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Tests.Common;
-using SmkDoc.Tests.Common.Factories;
+using SmkDoc.Tests.Common.Builders;
 using SmkDoc.Tests.Common.Fixtures;
 
 namespace SmkDoc.Tests.Application.Modules.Integration.Datasets.Commands.UpdateDataset;
@@ -21,8 +21,8 @@ public class UpdateDatasetUseCaseTests
         // Arrange
         var id = Guid.NewGuid();
         var connId = Guid.NewGuid();
-        var conn = DataConnectionTestFactory.Create(connId, "Conn1", DatabaseProvider.PostgreSQL, "enc_conn");
-        var dataset = DatasetTestFactory.Create(id, "OldName", "old desc", connId, "SELECT 1", 0);
+        var conn = DataConnectionBuilder.Create(connId, "Conn1", DatabaseProvider.PostgreSQL, "enc_conn");
+        var dataset = DatasetBuilder.Create(id, "OldName", "old desc", connId, "SELECT 1", 0);
 
         _fixture.DatasetRepo
             .Setup(r => r.GetByIdAsync(id, It.IsAny<CancellationToken>()))
@@ -73,7 +73,7 @@ public class UpdateDatasetUseCaseTests
     {
         // Arrange
         var id = Guid.NewGuid();
-        var dataset = DatasetTestFactory.Create(id, "Name", null, Guid.NewGuid(), "SELECT 1", 0);
+        var dataset = DatasetBuilder.Create(id, "Name", null, Guid.NewGuid(), "SELECT 1", 0);
 
         _fixture.DatasetRepo
             .Setup(r => r.GetByIdAsync(id, It.IsAny<CancellationToken>()))

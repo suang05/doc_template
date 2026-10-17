@@ -5,7 +5,7 @@ using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Tests.Common;
-using SmkDoc.Tests.Common.Factories;
+using SmkDoc.Tests.Common.Builders;
 
 namespace SmkDoc.Tests.Application.Modules.Authoring.FieldMappings.Commands.SaveTemplateDatasets;
 
@@ -22,7 +22,7 @@ public class SaveTemplateDatasetsUseCaseTests
     {
         // Arrange
         var templateId = Guid.NewGuid();
-        var template = TemplateTestFactory.Create(templateId, Guid.NewGuid(), "Receipt", "receipt");
+        var template = TemplateBuilder.Create(templateId, Guid.NewGuid(), "Receipt", "receipt");
         template.AttachDataset(Guid.NewGuid(), DatasetAlias.Create("old_alias"), 1, TestConstants.BaselineTime);
 
         _templateRepoMock
@@ -80,7 +80,7 @@ public class SaveTemplateDatasetsUseCaseTests
         var templateId = Guid.NewGuid();
         _templateRepoMock
             .Setup(r => r.GetByIdWithDetailsAsync(templateId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(TemplateTestFactory.Create(templateId, Guid.NewGuid(), "Contract", "contract"));
+            .ReturnsAsync(TemplateBuilder.Create(templateId, Guid.NewGuid(), "Contract", "contract"));
 
         var items = new List<SaveTemplateDatasetItemDto>
         {

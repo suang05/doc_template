@@ -3,7 +3,7 @@ using SmkDoc.Domain.Common;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.ValueObjects;
-using SmkDoc.Tests.Common.Factories;
+using SmkDoc.Tests.Common.Builders;
 using Xunit;
 
 namespace SmkDoc.Tests.Domain.Entities;
@@ -56,7 +56,7 @@ public class BaseEntityTests
     public void BaseEntity_Constructor_AllowsControlledIdentityPassThrough()
     {
         var customId = Guid.NewGuid();
-        var template = TemplateTestFactory.Create(customId, Guid.NewGuid(), "Sample", "sample");
+        var template = TemplateBuilder.Create(customId, Guid.NewGuid(), "Sample", "sample");
 
         template.Id.Should().Be(customId);
     }
@@ -66,9 +66,9 @@ public class BaseEntityTests
     {
         var id = Guid.NewGuid();
         var projectId = Guid.NewGuid();
-        var t1 = TemplateTestFactory.Create(id, projectId, "T1", "t1");
-        var t2 = TemplateTestFactory.Create(id, projectId, "T2", "t2");
-        var other = TemplateTestFactory.Create(Guid.NewGuid(), projectId, "T3", "t3");
+        var t1 = TemplateBuilder.Create(id, projectId, "T1", "t1");
+        var t2 = TemplateBuilder.Create(id, projectId, "T2", "t2");
+        var other = TemplateBuilder.Create(Guid.NewGuid(), projectId, "T3", "t3");
 
         t1.Should().Be(t2);
         (t1 == t2).Should().BeTrue();

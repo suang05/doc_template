@@ -7,7 +7,7 @@ using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Tests.Common;
-using SmkDoc.Tests.Common.Factories;
+using SmkDoc.Tests.Common.Builders;
 
 namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Security.Queries.ValidateApiKey;
 
@@ -55,7 +55,7 @@ public class ValidateApiKeyUseCaseTests
     public async Task ExecuteAsync_WhenKeyIsExpiredOrInactive_ReturnsNullAndDoesNotRecordUsage()
     {
         // Arrange
-        var key = ApiKeyTestFactory.Create(now: TestConstants.BaselineTime);
+        var key = ApiKeyBuilder.Create(now: TestConstants.BaselineTime);
         key.Revoke(TestConstants.BaselineTime);
 
         _apiKeyRepoMock.Setup(r => r.GetByKeyHashAsync(It.IsAny<Sha256Hash>(), It.IsAny<CancellationToken>()))
@@ -77,7 +77,7 @@ public class ValidateApiKeyUseCaseTests
         const string plainText = "smk_billing_secret123";
         var hash = new Sha256Hash(ApiKeyHelper.ComputeHash(plainText));
         var projectId = Guid.NewGuid();
-        var key = ApiKeyTestFactory.Create(
+        var key = ApiKeyBuilder.Create(
             projectId: projectId,
             callerApp: "billing-service",
             keyHash: hash,

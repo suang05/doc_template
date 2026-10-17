@@ -3,7 +3,7 @@ using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Tests.Common;
-using SmkDoc.Tests.Common.Factories;
+using SmkDoc.Tests.Common.Builders;
 
 namespace SmkDoc.Tests.Application.Modules.Authoring.FieldMappings.Queries.GetTemplateDatasets;
 
@@ -31,11 +31,11 @@ public class GetTemplateDatasetsUseCaseTests
 
         var datasets = new List<Dataset>
         {
-            DatasetTestFactory.Create(dsId1, "Invoice Header", null, Guid.NewGuid(), "sql", 0),
-            DatasetTestFactory.Create(dsId2, "Invoice Items", null, Guid.NewGuid(), "sql", 0)
+            DatasetBuilder.Create(dsId1, "Invoice Header", null, Guid.NewGuid(), "sql", 0),
+            DatasetBuilder.Create(dsId2, "Invoice Items", null, Guid.NewGuid(), "sql", 0)
         };
 
-        var template = TemplateTestFactory.Create(templateId, Guid.NewGuid(), "Invoice", "invoice");
+        var template = TemplateBuilder.Create(templateId, Guid.NewGuid(), "Invoice", "invoice");
         template.ReplaceDatasets(rows, TestConstants.BaselineTime);
 
         _templateRepoMock

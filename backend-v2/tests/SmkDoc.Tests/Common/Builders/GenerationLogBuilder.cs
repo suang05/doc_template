@@ -1,4 +1,6 @@
 using SmkDoc.Domain.Entities;
+using SmkDoc.Domain.Enums;
+using SmkDoc.Domain.ValueObjects;
 
 namespace SmkDoc.Tests.Common.Builders;
 
@@ -21,6 +23,74 @@ public class GenerationLogBuilder
     private string? _errorMsg = null;
     private DateTimeOffset _now = TestConstants.BaselineTime;
 
+    public static GenerationLogBuilder ALog() => new();
+
+    public static GenerationLog Default() => ALog().Build();
+
+    public static GenerationLog Success(
+        Guid? templateId = null,
+        Guid? templateVersionId = null,
+        string outputKey = "outputs/sample.pdf",
+        int durationMs = 150,
+        Guid? id = null) =>
+        new GenerationLogBuilder()
+            .WithId(id ?? Guid.NewGuid())
+            .WithTemplateId(templateId ?? Guid.NewGuid())
+            .WithTemplateVersionId(templateVersionId ?? Guid.NewGuid())
+            .WithOutputKey(outputKey)
+            .WithDurationMs(durationMs)
+            .Build();
+
+    public static GenerationLog Failed(
+        string errorMessage,
+        Guid? templateId = null,
+        Guid? templateVersionId = null,
+        Guid? id = null) =>
+        new GenerationLogBuilder()
+            .WithId(id ?? Guid.NewGuid())
+            .WithTemplateId(templateId ?? Guid.NewGuid())
+            .WithTemplateVersionId(templateVersionId ?? Guid.NewGuid())
+            .AsFailed(errorMessage)
+            .Build();
+
+    public static GenerationLog Create(
+        Guid? id = null,
+        Guid? templateId = null,
+        Guid? templateVersionId = null,
+        Guid? apiKeyId = null,
+        string? callerApp = "TestApp",
+        string? triggerSource = "API",
+        string? inputData = "{}",
+        string? outputKey = "outputs/doc.pdf",
+        OutputFormat? outputFormat = null,
+        long? fileSizeBytes = 1024,
+        int? pageCount = 1,
+        Sha256Hash? payloadHashSha256 = null,
+        int durationMs = 150,
+        GenerationStatus? status = null,
+        string? errorMsg = null,
+        DateTimeOffset? now = null)
+    {
+        var builder = new GenerationLogBuilder();
+        if (id.HasValue) builder.WithId(id.Value);
+        builder.WithTemplateId(templateId);
+        builder.WithTemplateVersionId(templateVersionId);
+        builder.WithApiKeyId(apiKeyId);
+        builder.WithCallerApp(callerApp);
+        builder.WithTriggerSource(triggerSource);
+        builder.WithInputData(inputData);
+        builder.WithOutputKey(outputKey);
+        if (outputFormat != null) builder.WithOutputFormat(outputFormat);
+        builder.WithFileSizeBytes(fileSizeBytes);
+        builder.WithPageCount(pageCount);
+        builder.WithPayloadHashSha256(payloadHashSha256);
+        builder.WithDurationMs(durationMs);
+        if (status != null) builder.WithStatus(status);
+        if (errorMsg != null) builder.AsFailed(errorMsg);
+        if (now.HasValue) builder.WithTime(now.Value);
+        return builder.Build();
+    }
+
     public GenerationLogBuilder WithId(Guid id)
     {
         _id = id;
@@ -39,6 +109,30 @@ public class GenerationLogBuilder
         return this;
     }
 
+    public GenerationLogBuilder WithApiKeyId(Guid? apiKeyId)
+    {
+        _apiKeyId = apiKeyId;
+        return this;
+    }
+
+    public GenerationLogBuilder WithCallerApp(string? callerApp)
+    {
+        _callerApp = callerApp;
+        return this;
+    }
+
+    public GenerationLogBuilder WithTriggerSource(string? triggerSource)
+    {
+        _triggerSource = triggerSource;
+        return this;
+    }
+
+    public GenerationLogBuilder WithInputData(string? inputData)
+    {
+        _inputData = inputData;
+        return this;
+    }
+
     public GenerationLogBuilder WithOutputKey(string? outputKey)
     {
         _outputKey = outputKey;
@@ -48,6 +142,36 @@ public class GenerationLogBuilder
     public GenerationLogBuilder WithOutputFormat(OutputFormat format)
     {
         _outputFormat = format;
+        return this;
+    }
+
+    public GenerationLogBuilder WithFileSizeBytes(long? bytes)
+    {
+        _fileSizeBytes = bytes;
+        return this;
+    }
+
+    public GenerationLogBuilder WithPageCount(int? pages)
+    {
+        _pageCount = pages;
+        return this;
+    }
+
+    public GenerationLogBuilder WithPayloadHashSha256(Sha256Hash? hash)
+    {
+        _payloadHashSha256 = hash;
+        return this;
+    }
+
+    public GenerationLogBuilder WithDurationMs(int ms)
+    {
+        _durationMs = ms;
+        return this;
+    }
+
+    public GenerationLogBuilder WithStatus(GenerationStatus status)
+    {
+        _status = status;
         return this;
     }
 

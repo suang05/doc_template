@@ -2,7 +2,7 @@ using SmkDoc.Application.Modules.Integration.DataConnections.Commands.UpdateData
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Tests.Common;
-using SmkDoc.Tests.Common.Factories;
+using SmkDoc.Tests.Common.Builders;
 using SmkDoc.Tests.Common.Fixtures;
 
 namespace SmkDoc.Tests.Application.Modules.Integration.DataConnections.Commands.UpdateDataConnection;
@@ -19,7 +19,7 @@ public class UpdateDataConnectionUseCaseTests
     {
         // Arrange
         var id = Guid.NewGuid();
-        var existing = DataConnectionTestFactory.Create(id, "Old Name", DatabaseProvider.PostgreSQL, "old_enc");
+        var existing = DataConnectionBuilder.Create(id, "Old Name", DatabaseProvider.PostgreSQL, "old_enc");
 
         _fixture.ConnectionRepo
             .Setup(r => r.GetByIdAsync(id, It.IsAny<CancellationToken>()))
@@ -53,7 +53,7 @@ public class UpdateDataConnectionUseCaseTests
     {
         // Arrange
         var id = Guid.NewGuid();
-        var existing = DataConnectionTestFactory.Create(id, "DB", DatabaseProvider.PostgreSQL, "keep_this_enc");
+        var existing = DataConnectionBuilder.Create(id, "DB", DatabaseProvider.PostgreSQL, "keep_this_enc");
 
         _fixture.ConnectionRepo
             .Setup(r => r.GetByIdAsync(id, It.IsAny<CancellationToken>()))

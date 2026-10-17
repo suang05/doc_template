@@ -5,7 +5,6 @@ using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Tests.Common.Builders;
-using SmkDoc.Tests.Common.Factories;
 using Xunit;
 
 namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Projects.Queries.ListProjects;
@@ -25,7 +24,7 @@ public class ListProjectsUseCaseTests
         var now = TestConstants.BaselineTime;
         var userId = Guid.NewGuid();
         var user = UserBuilder.AUser().WithSystemRole(SystemRole.Member).WithTime(now).Build();
-        var project = ProjectTestFactory.Create(Guid.NewGuid(), Guid.NewGuid(), "Proj 1", "proj-1", now);
+        var project = ProjectBuilder.Create(Guid.NewGuid(), Guid.NewGuid(), "Proj 1", "proj-1", now);
 
         _userRepoMock.Setup(u => u.GetByIdAsync(userId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);
@@ -57,7 +56,7 @@ public class ListProjectsUseCaseTests
         var now = TestConstants.BaselineTime;
         var userId = Guid.NewGuid();
         var user = UserBuilder.AUser().WithSystemRole(SystemRole.SuperAdmin).WithTime(now).Build();
-        var project = ProjectTestFactory.Create(Guid.NewGuid(), Guid.NewGuid(), "Proj 1", "proj-1", now);
+        var project = ProjectBuilder.Create(Guid.NewGuid(), Guid.NewGuid(), "Proj 1", "proj-1", now);
 
         _userRepoMock.Setup(u => u.GetByIdAsync(userId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);

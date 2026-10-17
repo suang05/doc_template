@@ -57,17 +57,26 @@ public class TemplateTests
     }
 
     [Fact]
-    public void Deactivate_And_Activate_MutateStateWithAuditTimestamp()
+    public void Deactivate_WhenActive_SetsIsActiveFalseAndUpdatesTimestamp()
     {
         var template = CreateTemplate("Receipt", "receipt-test", now: _initialTime);
         var deactTime = _initialTime.AddHours(1);
 
         template.Deactivate(deactTime);
+
         template.IsActive.Should().BeFalse();
         template.UpdatedAt.Should().Be(deactTime);
+    }
 
+    [Fact]
+    public void Activate_WhenInactive_SetsIsActiveTrueAndUpdatesTimestamp()
+    {
+        var template = CreateTemplate("Receipt", "receipt-test", now: _initialTime);
+        template.Deactivate(_initialTime.AddHours(1));
         var actTime = _initialTime.AddHours(2);
+
         template.Activate(actTime);
+
         template.IsActive.Should().BeTrue();
         template.UpdatedAt.Should().Be(actTime);
     }

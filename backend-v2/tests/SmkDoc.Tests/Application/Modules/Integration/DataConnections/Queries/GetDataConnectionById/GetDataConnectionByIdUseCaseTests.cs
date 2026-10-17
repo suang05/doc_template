@@ -1,7 +1,7 @@
 using SmkDoc.Application.Modules.Integration.DataConnections.Queries.GetDataConnectionById;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
-using SmkDoc.Tests.Common.Factories;
+using SmkDoc.Tests.Common.Builders;
 using SmkDoc.Tests.Common.Fixtures;
 
 namespace SmkDoc.Tests.Application.Modules.Integration.DataConnections.Queries.GetDataConnectionById;
@@ -18,7 +18,7 @@ public class GetDataConnectionByIdUseCaseTests
     {
         // Arrange
         var id = Guid.NewGuid();
-        var conn = DataConnectionTestFactory.Create(id, "Production DB", DatabaseProvider.PostgreSQL, "enc_secret");
+        var conn = DataConnectionBuilder.Create(id, "Production DB", DatabaseProvider.PostgreSQL, "enc_secret");
 
         _fixture.ConnectionRepo
             .Setup(r => r.GetByIdAsync(id, It.IsAny<CancellationToken>()))

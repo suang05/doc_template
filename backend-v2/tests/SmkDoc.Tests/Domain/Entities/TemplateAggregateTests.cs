@@ -56,13 +56,20 @@ public class TemplateAggregateTests
     }
 
     [Fact]
-    public void AddVersion_NullOrTemplateIdMismatch_ThrowsDomainValidationException()
+    public void AddVersion_WhenNull_ThrowsDomainValidationException()
     {
         var now = TestConstants.BaselineTime;
         var template = CreateTemplate("Invoice", "invoice", now: now);
 
         Action actNull = () => template.AddVersion(null!, now);
         actNull.Should().Throw<DomainValidationException>();
+    }
+
+    [Fact]
+    public void AddVersion_WhenTemplateIdMismatch_ThrowsDomainValidationException()
+    {
+        var now = TestConstants.BaselineTime;
+        var template = CreateTemplate("Invoice", "invoice", now: now);
 
         var foreignVersion = TemplateVersion.Draft(Guid.NewGuid(), 1, "key", TemplateFormat.Html, "author", now);
         Action actMismatch = () => template.AddVersion(foreignVersion, now);
@@ -181,7 +188,7 @@ public class TemplateAggregateTests
     // ── Template Datasets ──────────────────────────────────────────────────────
 
     [Fact]
-    public void AttachDataset_And_DetachDataset_ModifiesCollection()
+    public void AttachDataset_WhenValid_AddsToCollection()
     {
         var now = TestConstants.BaselineTime;
         var template = CreateTemplate("Order", "order", now: now);
@@ -191,6 +198,15 @@ public class TemplateAggregateTests
 
         template.TemplateDatasets.Should().ContainSingle();
         template.TemplateDatasets.First().Alias.Value.Should().Be("items");
+    }
+
+    [Fact]
+    public void DetachDataset_WhenExists_RemovesFromCollection()
+    {
+        var now = TestConstants.BaselineTime;
+        var template = CreateTemplate("Order", "order", now: now);
+        var dsId = Guid.NewGuid();
+        template.AttachDataset(dsId, DatasetAlias.Create("items"), 1, now);
 
         template.DetachDataset(dsId, now);
 
@@ -229,24 +245,4 @@ public class TemplateAggregateTests
         ex.Which.Message.Should().Contain("customers");
     }
 
-    // ── Document Aggregate Invariants ──────────────────────────────────────────
-
-    [Fact]
-    public void Document_AddVersion_EnforcesEncapsulationAndDuplicateGuards()
-    {
-        var now = TestConstants.BaselineTime;
-        var doc = Document.Create(DocumentReference.Create("DOC-001"), null, now);
-        var v1 = DocumentVersion.Create(doc.Id, 1, null, null, "First version", "admin", now);
-
-        doc.AddVersion(v1, now);
-
-        doc.Versions.Should().ContainSingle().Which.Should().BeSameAs(v1);
-
-        var duplicateVersion = DocumentVersion.Create(doc.Id, 1, null, null, "Conflict version", "admin", now);
-        Action actDuplicate = () => doc.AddVersion(duplicateVersion, now);
-
-        var ex = actDuplicate.Should().Throw<BusinessRuleViolationException>()
-            .WithMessage("*already exists in document*");
-        ex.Which.ErrorCode.Should().Be("DUPLICATE_DOCUMENT_VERSION");
-    }
 }

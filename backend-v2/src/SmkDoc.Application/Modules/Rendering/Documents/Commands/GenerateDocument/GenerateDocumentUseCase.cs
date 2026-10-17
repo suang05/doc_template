@@ -37,8 +37,7 @@ public sealed class GenerateDocumentUseCase(
     {
         var sw = Stopwatch.StartNew();
 
-        var template = await _templateRepo.GetBySlugWithDetailsAsync(slug, ct)
-            ?? await _templateRepo.GetBySlugAsync(slug, ct);
+        var template = await _templateRepo.GetBySlugWithDetailsAsync(slug, ct);
         if (template == null || !template.IsActive)
             throw new NotFoundException($"Template '{slug}' not found or inactive.");
 

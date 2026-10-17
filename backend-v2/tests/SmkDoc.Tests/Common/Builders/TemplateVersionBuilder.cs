@@ -1,4 +1,5 @@
 using SmkDoc.Domain.Entities;
+using SmkDoc.Domain.Enums;
 
 namespace SmkDoc.Tests.Common.Builders;
 
@@ -13,6 +14,62 @@ public class TemplateVersionBuilder
     private string? _createdBy = "system";
     private string? _commitMessage = "Initial commit";
     private DateTimeOffset _now = TestConstants.BaselineTime;
+
+    public static TemplateVersionBuilder AVersion() => new();
+
+    public static TemplateVersion Default() => AVersion().Build();
+
+    public static TemplateVersion PublishedHtml(
+        Guid? templateId = null,
+        int version = 1,
+        string storageKey = "templates/sample.html",
+        Guid? id = null) =>
+        new TemplateVersionBuilder()
+            .WithId(id ?? Guid.NewGuid())
+            .WithTemplateId(templateId ?? Guid.NewGuid())
+            .WithVersion(version)
+            .WithStorageKey(storageKey)
+            .WithFormat(TemplateFormat.Html)
+            .WithStatus("Published")
+            .Build();
+
+    public static TemplateVersion DraftHtml(
+        Guid? templateId = null,
+        int version = 1,
+        string storageKey = "templates/sample.html",
+        Guid? id = null) =>
+        new TemplateVersionBuilder()
+            .WithId(id ?? Guid.NewGuid())
+            .WithTemplateId(templateId ?? Guid.NewGuid())
+            .WithVersion(version)
+            .WithStorageKey(storageKey)
+            .WithFormat(TemplateFormat.Html)
+            .WithStatus("Draft")
+            .Build();
+
+    public static TemplateVersion Create(
+        Guid? id = null,
+        Guid? templateId = null,
+        int version = 1,
+        string storageKey = "templates/invoice.html",
+        TemplateFormat? format = null,
+        string status = "Published",
+        string? commitMessage = "Initial commit",
+        DateTimeOffset? now = null,
+        string? createdBy = null)
+    {
+        var builder = new TemplateVersionBuilder();
+        if (id.HasValue) builder.WithId(id.Value);
+        if (templateId.HasValue) builder.WithTemplateId(templateId.Value);
+        builder.WithVersion(version);
+        builder.WithStorageKey(storageKey);
+        if (format != null) builder.WithFormat(format);
+        builder.WithStatus(status);
+        if (commitMessage != null) builder.WithCommitMessage(commitMessage);
+        if (createdBy != null) builder.WithCreatedBy(createdBy);
+        if (now.HasValue) builder.WithTime(now.Value);
+        return builder.Build();
+    }
 
     public TemplateVersionBuilder WithId(Guid id)
     {
