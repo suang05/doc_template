@@ -734,7 +734,7 @@ FluentAssertions' `Be(object expected)` boxes both sides. When `Guid` is compare
 None. Unit and integration tests must always instantiate strongly-typed IDs via `TId.New()` for zero-cast assertions.
 </exemptions>
 <ssot_ref>
-[`CONVENTIONS.md §4.11`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/CONVENTIONS.md#411-unit-testing-craftsmanship-rule-test)
+[`CONVENTIONS.md §3.11`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_guardrails/CONVENTIONS.md#311-unit-testing-craftsmanship-rule-test)
 </ssot_ref>
 </firewall_rule>
 

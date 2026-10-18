@@ -19,7 +19,7 @@
 </prior_inversion_map>
 
 <severity_hierarchy>
-- `[TIER-1-FATAL]`: Never edit code that violates `00_guardrails/FIREWALL.md` (P1-P21). Obey all Tier 1 architectural invariants (UUIDv7, non-blocking async, zero-LOH streaming).
+- `[TIER-1-FATAL]`: Never edit code that violates `00_guardrails/FIREWALL.md` (P1-P22). Obey all Tier 1 architectural invariants (UUIDv7, non-blocking async, zero-LOH streaming).
 - `[TIER-2-INTEGRITY]`: Route all coding tasks through canonical archetypes in `01_backend/blueprints.md` and `02_frontend/screen_recipes.md`.
 - `[TIER-3-PERF]`: Consult `03_archival/decisions.md` before attempting to reopen resolved architectural debates (ADR-001 through ADR-029 / ADR-SEC-06).
 </severity_hierarchy>
@@ -32,7 +32,7 @@
 docs/AI/
 ├── INDEX.md                         [Master Switchboard & Cognitive Router]
 ├── 00_guardrails/                   [TIER 0: Core Invariants & Architectural Firewalls]
-│   ├── FIREWALL.md                  [Anti-Patterns SSoT: 21 Rules (P1-P5) & Fixes]
+│   ├── FIREWALL.md                  [Anti-Patterns SSoT: 22 Rules (P1-P5) & Fixes]
 │   └── CONVENTIONS.md               [C# 13 / .NET 10 Micro-ASTs & Naming Standards]
 ├── 01_backend/                      [TIER 1: Backend Domain Blueprints & Infrastructure]
 │   ├── system_topology.md           [C4 Architecture, Stream Pipeline, Solution Tree]
@@ -76,7 +76,7 @@ All 11 legacy documentation files in root `docs/AI/` have been refactored into t
 
 | Legacy Root Document | Replacement Canonical Document | Structural Transformation Applied |
 |---|---|---|
-| `docs/AI/ANTI-PATTERNS.md` | `docs/AI/00_guardrails/FIREWALL.md` | Consolidated 21 firewall rules across 5 phases; pure positive C# ASTs. |
+| `docs/AI/ANTI-PATTERNS.md` | `docs/AI/00_guardrails/FIREWALL.md` | Consolidated 22 firewall rules across 5 phases; pure positive C# ASTs. |
 | `docs/AI/CODING_CONVENTIONS.md` | `docs/AI/00_guardrails/CONVENTIONS.md` | High-density C# 13/.NET 10 micro-ASTs; layer boundaries; 15 craftsmanship invariants. |
 | `docs/AI/ARCHITECTURE.md` | `docs/AI/01_backend/system_topology.md` | C4 minimal topology; Stream-over-RAM pipeline; Zero-LOH streaming; Polly v8 policies. |
 | `docs/AI/PROJECT_STRUCTURE.md` | `docs/AI/01_backend/system_topology.md` | Clean Architecture solution directory tree; layer dependency inversion rules. |

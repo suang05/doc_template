@@ -481,4 +481,5 @@ export async function parseResponse<T>(response: Response): Promise<T> {
 - [ ] Preview hooks implement `AbortController` cancellation and URL revocation
 - [ ] Client routes enforce RBAC permissions according to the 14-route matrix
 - [ ] API calls utilize `apiClient<T>` with RFC 9457 error adapter
+- [ ] Unit tests (`RULE-FE-TEST`) reside strictly in `src/__tests__/`, import production Zod schemas/functions directly, use `await expect(...).rejects` for async failures, and contain zero `any` types (`RULE-FE-TS-001`)
 </verification_gateway>
