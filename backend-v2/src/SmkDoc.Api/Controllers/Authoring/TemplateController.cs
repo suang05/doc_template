@@ -38,7 +38,12 @@ public class TemplateController(
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<TemplateResultDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> ListTemplates([FromQuery] Guid? projectId, CancellationToken ct)
     {
-        var targetProjectId = projectId ?? context.ProjectId
+        if (projectId.HasValue && context.ProjectId.HasValue && projectId.Value != context.ProjectId.Value)
+        {
+            throw new BadHttpRequestException("Access denied: requested projectId does not match the active project context.");
+        }
+
+        var targetProjectId = context.ProjectId ?? projectId
             ?? throw new BadHttpRequestException("ProjectId is required to list templates.");
 
         var query = new ListTemplatesQuery(targetProjectId);

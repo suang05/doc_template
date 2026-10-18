@@ -45,55 +45,7 @@ public class ProjectContextMiddleware(
             return;
         }
 
-        // 2. Channel A: Machine-to-Machine (M2M) via X-API-Key Header
-        if (context.Request.Headers.TryGetValue("X-API-Key", out var extractedApiKey) &&
-            !string.IsNullOrWhiteSpace(extractedApiKey))
-        {
-            var rawKey = extractedApiKey.ToString();
-
-            // Bootstrap Master Key Support
-            if (!string.IsNullOrEmpty(_masterApiKey) && rawKey == _masterApiKey)
-            {
-                if (context.Request.Headers.TryGetValue("X-Project-Id", out var masterProjectHeader) &&
-                    Guid.TryParse(masterProjectHeader, out var masterProjId) &&
-                    masterProjId != Guid.Empty)
-                {
-                    projectContextSetter.SetProject(new ProjectId(masterProjId), "MasterKey");
-                    executionContext.ProjectId = masterProjId;
-                }
-
-                executionContext.CallerApp = "master";
-                executionContext.Scope = ApiKeyScope.ReadWrite;
-                await next(context);
-                return;
-            }
-
-            var key = await validateApiKeyUseCase.ExecuteAsync(new ValidateApiKeyQuery(rawKey), context.RequestAborted);
-            if (key == null)
-            {
-                logger.LogWarning("Invalid or inactive API Key attempt from {IpAddress} to {Path}", executionContext.ClientIp, path);
-                await WriteProblemDetailsAsync(
-                    context,
-                    StatusCodes.Status401Unauthorized,
-                    "Unauthorized",
-                    "Invalid or inactive API Key.",
-                    "https://tools.ietf.org/html/rfc9457");
-                return;
-            }
-
-            var projectId = new ProjectId(key.ProjectId);
-            projectContextSetter.SetProject(projectId, $"ApiKey:{key.CallerApp}:{key.Id}");
-
-            executionContext.ApiKeyId = key.Id;
-            executionContext.CallerApp = key.CallerApp;
-            executionContext.ProjectId = key.ProjectId;
-            executionContext.Scope = ApiKeyScope.TryFromName(key.Scope, out var scope) ? scope : ApiKeyScope.ReadWrite;
-
-            await next(context);
-            return;
-        }
-
-        // 3. Channel B: Interactive Portal User via Bearer JWT
+        // 2. Channel B: Interactive Portal User via Bearer JWT (Strict precedence over X-API-Key)
         if (context.User.Identity?.IsAuthenticated == true)
         {
             var userIdStr = context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value
@@ -167,6 +119,74 @@ public class ProjectContextMiddleware(
                 projectContextSetter.SetProject(targetProjectId, $"User:{userIdGuid}:{roleName}");
                 executionContext.ProjectId = targetProjectId.Value;
             }
+
+            await next(context);
+            return;
+        }
+
+        // 3. Channel A: Machine-to-Machine (M2M) via X-API-Key Header
+        if (context.Request.Headers.TryGetValue("X-API-Key", out var extractedApiKey) &&
+            !string.IsNullOrWhiteSpace(extractedApiKey))
+        {
+            var rawKey = extractedApiKey.ToString();
+
+            // Bootstrap Master Key Support
+            if (!string.IsNullOrEmpty(_masterApiKey) && rawKey == _masterApiKey)
+            {
+                if (context.Request.Headers.TryGetValue("X-Project-Id", out var masterProjectHeader) &&
+                    Guid.TryParse(masterProjectHeader, out var masterProjId) &&
+                    masterProjId != Guid.Empty)
+                {
+                    projectContextSetter.SetProject(new ProjectId(masterProjId), "MasterKey");
+                    executionContext.ProjectId = masterProjId;
+                }
+
+                executionContext.CallerApp = "master";
+                executionContext.Scope = ApiKeyScope.ReadWrite;
+                await next(context);
+                return;
+            }
+
+            var key = await validateApiKeyUseCase.ExecuteAsync(new ValidateApiKeyQuery(rawKey), context.RequestAborted);
+            if (key == null)
+            {
+                logger.LogWarning("Invalid or inactive API Key attempt from {IpAddress} to {Path}", executionContext.ClientIp, path);
+                await WriteProblemDetailsAsync(
+                    context,
+                    StatusCodes.Status401Unauthorized,
+                    "Unauthorized",
+                    "Invalid or inactive API Key.",
+                    "https://tools.ietf.org/html/rfc9457");
+                return;
+            }
+
+            // Reject cross-tenant project ID spoofing for normal API keys
+            if (context.Request.Headers.TryGetValue("X-Project-Id", out var reqProjHeader) &&
+                Guid.TryParse(reqProjHeader, out var requestedProjectId) &&
+                requestedProjectId != Guid.Empty &&
+                requestedProjectId != key.ProjectId)
+            {
+                logger.LogWarning(
+                    "Tenant spoofing attempt detected: API Key belongs to project {KeyProjectId}, but caller supplied X-Project-Id {RequestedProjectId}",
+                    key.ProjectId,
+                    requestedProjectId);
+
+                await WriteProblemDetailsAsync(
+                    context,
+                    StatusCodes.Status403Forbidden,
+                    "Forbidden",
+                    "Cross-tenant project ID spoofing is strictly prohibited for API key authentication.",
+                    "https://tools.ietf.org/html/rfc9457");
+                return;
+            }
+
+            var projectId = new ProjectId(key.ProjectId);
+            projectContextSetter.SetProject(projectId, $"ApiKey:{key.CallerApp}:{key.Id}");
+
+            executionContext.ApiKeyId = key.Id;
+            executionContext.CallerApp = key.CallerApp;
+            executionContext.ProjectId = key.ProjectId;
+            executionContext.Scope = ApiKeyScope.TryFromName(key.Scope, out var scope) ? scope : ApiKeyScope.ReadWrite;
 
             await next(context);
             return;

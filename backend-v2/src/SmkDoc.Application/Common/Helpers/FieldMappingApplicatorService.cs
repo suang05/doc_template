@@ -14,10 +14,17 @@ public sealed class FieldMappingApplicatorService(
     private static readonly Regex SqlVariablePattern = new(@"@(\w+)", RegexOptions.Compiled);
     private static readonly Regex JsonPathArrayPattern = new(@"^([a-zA-Z0-9_-]+)\[(\d+)\]$", RegexOptions.Compiled);
 
+    public Task<string> ApplyAsync(
+        JsonElement root,
+        IEnumerable<FieldMapping> mappings,
+        IReadOnlyDictionary<string, ResolvedDatasetContext> datasetAliases) =>
+        ApplyAsync(root, mappings, datasetAliases, default);
+
     public async Task<string> ApplyAsync(
         JsonElement root,
         IEnumerable<FieldMapping> mappings,
-        IReadOnlyDictionary<string, ResolvedDatasetContext> datasetAliases)
+        IReadOnlyDictionary<string, ResolvedDatasetContext> datasetAliases,
+        CancellationToken ct)
     {
         var dict = new Dictionary<string, object?>();
 
@@ -50,8 +57,13 @@ public sealed class FieldMappingApplicatorService(
 
             try
             {
-                var query = ReplaceVariables(ds.SqlQuery, dict);
-                var json  = await sqlExecutor.ExecuteQueryAsJsonAsync(ds.Provider, ds.ConnectionString, query);
+                var parameters = ExtractParameters(ds.SqlQuery, dict);
+                var json = await sqlExecutor.ExecuteQueryAsJsonAsync(
+                    provider: ds.Provider,
+                    connectionString: ds.ConnectionString,
+                    sqlQuery: ds.SqlQuery,
+                    parameters: parameters,
+                    ct: ct);
 
                 if (!string.IsNullOrWhiteSpace(json))
                     aliasCache[alias] = JsonDocument.Parse(json).RootElement.Clone();
@@ -129,18 +141,35 @@ public sealed class FieldMappingApplicatorService(
         return result;
     }
 
-    private static string ReplaceVariables(string query, Dictionary<string, object?> dict)
+    private static Dictionary<string, object> ExtractParameters(string query, Dictionary<string, object?> dict)
     {
-        return SqlVariablePattern.Replace(query, m =>
+        var parameters = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+        var matches = SqlVariablePattern.Matches(query);
+
+        foreach (Match match in matches)
         {
-            var key = m.Groups[1].Value;
+            var key = match.Groups[1].Value;
             if (dict.TryGetValue(key, out var val) && val != null)
             {
-                var s = val.ToString();
-                return $"'{s?.Replace("'", "''")}'";
+                object resolvedVal = val switch
+                {
+                    JsonElement je => je.ValueKind switch
+                    {
+                        JsonValueKind.String => je.GetString() ?? string.Empty,
+                        JsonValueKind.Number => je.TryGetInt64(out var l) ? l : je.GetDouble(),
+                        JsonValueKind.True => true,
+                        JsonValueKind.False => false,
+                        JsonValueKind.Null => DBNull.Value,
+                        _ => je.GetRawText()
+                    },
+                    _ => val
+                };
+
+                parameters[key] = resolvedVal;
             }
-            return m.Value;
-        });
+        }
+
+        return parameters;
     }
 
     private static string? ResolveJsonPath(JsonElement root, string path)

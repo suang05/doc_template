@@ -272,16 +272,17 @@ The SMK Document Server implements strict tenant isolation to comply with enterp
 
 ### 5.1 BOLA & IDOR Mitigation (Tenant Boundaries)
 * **`ICurrentProjectContext` (Scoped SSoT):** Every request automatically resolves its tenant context at the perimeter gate via `ProjectContextMiddleware` into an immutable scoped interface (`ICurrentProjectContext`):
-  * **Channel A (M2M API Key):** Computes SHA-256 hash of `X-API-Key` and resolves `ProjectId` from active `ApiKeys` records. Strictly rejects requests containing `X-Project-Id` headers to prevent cross-tenant spoofing.
-  * **Channel B (Management Portal JWT):** Decodes JWT claims (`UserId`, `SystemRole`) and reads `X-Project-Id` workspace header. Grants immediate access to `SuperAdmin` callers; validates normal users via `user.CanAccessProject(requestedProjectId)` against `user_project_roles`. Dispatches RFC 9457 `403 Forbidden` (`FORBIDDEN_PROJECT_ACCESS`) on unauthorized tenant access.
+  * **Channel B (Management Portal JWT - Priority 1):** Evaluated first. Decodes JWT claims (`UserId`, `SystemRole`) and reads `X-Project-Id` workspace header. Grants immediate access to `SuperAdmin` callers; validates normal users via `user.CanAccessProject(requestedProjectId)` against `user_project_roles`. Dispatches RFC 9457 `403 Forbidden` (`FORBIDDEN_PROJECT_ACCESS`) on unauthorized tenant access.
+  * **Channel A (M2M API Key - Priority 2):** Evaluated if no authenticated JWT principal exists. Computes SHA-256 hash of `X-API-Key` and resolves `ProjectId` from active `ApiKeys` records. Rejects requests where an `X-Project-Id` header does not match the key's bound project.
 * **EF Core Global Query Filter Isolation (Fail-Closed):** All Domain entities implementing `IMustHaveProject` are automatically scoped at the database engine level via Fail-Closed predicate: `builder.Entity<T>().HasQueryFilter(e => _projectContext != null && _projectContext.IsResolved && e.ProjectId == _projectContext.ProjectId)`. System Background Jobs or Global Admin queries requiring cross-tenant data access MUST explicitly invoke `.IgnoreQueryFilters()`. Manual tenant predicate propagation is eliminated, guaranteeing zero cross-tenant data leaks.
-* **Auto-Assign on Mutation:** `TenantSecuritySaveChangesInterceptor` intercepts `SavingChanges`/`SavingChangesAsync` to automatically assign `entity.ProjectId = _projectContext.ProjectId` for newly added `IMustHaveProject` entities when empty, and strictly rejects cross-tenant write operations.
+* **Auto-Assign and Interceptor Defense on Mutation:** `TenantSecuritySaveChangesInterceptor` intercepts `SavingChanges`/`SavingChangesAsync` to automatically assign `entity.ProjectId = _projectContext.ProjectId` for newly added `IMustHaveProject` entities when empty. Strictly rejects cross-tenant write, update, and delete operations, and prohibits `ProjectId` mutation (tenant reassignment).
 * **Storage & Cache Partitioning:** MinIO object paths (`outputs/{projectId:N}/...`) and Redis/Memory cache keys (`idemp:{projectId:N}:...`) enforce strict tenant partitioning at the infrastructure boundary.
 
 ### 5.2 Server-Side Request Forgery (SSRF) & Code Injection Defense
 * **Chromium Sandbox:** Gotenberg Chromium runs in a restricted container sandbox with dangerous Web APIs disabled.
 * **Network Isolation:** Gotenberg render requests are barred from accessing internal metadata endpoints (`169.254.169.254`) or local loopback interfaces.
 * **Handlebars Script Isolation:** Template variables are compiled into ASTs without `eval()` or arbitrary JavaScript execution capabilities. External script injection attempts are blocked at template compile time.
+* **SQL Parameterization:** SQL queries in `FieldMappingApplicatorService` extract parameters into Dapper `DynamicParameters` with regex-bound tokens instead of inline string replacement, preventing SQL injection vulnerabilities.
 
 ---
 

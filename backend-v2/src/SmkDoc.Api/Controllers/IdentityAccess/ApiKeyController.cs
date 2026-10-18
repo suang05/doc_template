@@ -28,7 +28,12 @@ public class ApiKeyController(
         [FromQuery] Guid? projectId,
         CancellationToken ct)
     {
-        var targetProjectId = projectId ?? context.ProjectId
+        if (projectId.HasValue && context.ProjectId.HasValue && projectId.Value != context.ProjectId.Value)
+        {
+            throw new BadHttpRequestException("Access denied: requested projectId does not match the active project context.");
+        }
+
+        var targetProjectId = context.ProjectId ?? projectId
             ?? throw new BadHttpRequestException("ProjectId is required to list API keys.");
         var query = new ListApiKeysQuery(targetProjectId);
         var keys = await listApiKeysUseCase.ExecuteAsync(query, ct);
@@ -38,7 +43,13 @@ public class ApiKeyController(
     [HttpPost]
     public async Task<IActionResult> CreateKey([FromBody] CreateApiKeyRequest request, CancellationToken ct)
     {
-        var command = new CreateApiKeyCommand(request.Name, request.CallerApp, request.ProjectId);
+        if (context.ProjectId.HasValue && request.ProjectId != Guid.Empty && request.ProjectId != context.ProjectId.Value)
+        {
+            throw new BadHttpRequestException("Access denied: requested projectId does not match the active project context.");
+        }
+
+        var targetProjectId = context.ProjectId ?? request.ProjectId;
+        var command = new CreateApiKeyCommand(request.Name, request.CallerApp, targetProjectId);
         var result = await createApiKeyUseCase.ExecuteAsync(command, ct);
         return Ok(new
         {
@@ -55,7 +66,12 @@ public class ApiKeyController(
         [FromQuery] Guid? projectId,
         CancellationToken ct)
     {
-        var targetProjectId = projectId ?? context.ProjectId
+        if (projectId.HasValue && context.ProjectId.HasValue && projectId.Value != context.ProjectId.Value)
+        {
+            throw new BadHttpRequestException("Access denied: requested projectId does not match the active project context.");
+        }
+
+        var targetProjectId = context.ProjectId ?? projectId
             ?? throw new BadHttpRequestException("ProjectId is required to revoke an API key.");
         var command = new RevokeApiKeyCommand(id, targetProjectId);
         await revokeApiKeyUseCase.ExecuteAsync(command, ct);

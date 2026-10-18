@@ -8,15 +8,27 @@ namespace SmkDoc.Infrastructure.Data;
 
 public class SqlExecutorService : ISqlExecutorService
 {
-    public async Task<string> ExecuteQueryAsJsonAsync(string provider, string connectionString, string sqlQuery, IDictionary<string, object>? parameters = null)
+    public Task<string> ExecuteQueryAsJsonAsync(
+        string provider,
+        string connectionString,
+        string sqlQuery,
+        IDictionary<string, object>? parameters = null) =>
+        ExecuteQueryAsJsonAsync(provider, connectionString, sqlQuery, parameters, default);
+
+    public async Task<string> ExecuteQueryAsJsonAsync(
+        string provider,
+        string connectionString,
+        string sqlQuery,
+        IDictionary<string, object>? parameters,
+        CancellationToken ct)
     {
         if (provider.ToLowerInvariant() != "postgresql")
         {
             throw new NotSupportedException($"Data connection provider '{provider}' is not currently supported.");
         }
 
-        using IDbConnection dbConnection = new NpgsqlConnection(connectionString);
-        
+        await using var dbConnection = new NpgsqlConnection(connectionString);
+
         var dapperParams = new DynamicParameters();
         if (parameters != null)
         {
@@ -26,7 +38,8 @@ public class SqlExecutorService : ISqlExecutorService
             }
         }
 
-        var results = await dbConnection.QueryAsync(sqlQuery, dapperParams);
+        var command = new CommandDefinition(sqlQuery, dapperParams, cancellationToken: ct);
+        var results = await dbConnection.QueryAsync(command);
         return JsonSerializer.Serialize(results);
     }
 }

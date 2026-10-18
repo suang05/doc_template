@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Infrastructure.Persistence.Interceptors;
 
@@ -54,6 +55,43 @@ public sealed class TenantSecuritySaveChangesInterceptor(ICurrentProjectContext 
                         $"Cross-tenant write operation rejected: Entity belongs to project '{entry.Entity.ProjectId}', but active tenant context is '{currentTenantId}'.");
                 }
             }
+            else if (entry.State == EntityState.Modified)
+            {
+                var originalProjectId = GetOriginalProjectId(entry);
+
+                if (originalProjectId != currentTenantId)
+                {
+                    throw new InvalidOperationException(
+                        $"Cross-tenant update operation rejected: Entity belongs to project '{originalProjectId}', but active tenant context is '{currentTenantId}'.");
+                }
+
+                if (entry.Property(nameof(IMustHaveProject.ProjectId)).IsModified && entry.Entity.ProjectId != originalProjectId)
+                {
+                    throw new InvalidOperationException(
+                        $"Tenant reassignment is strictly prohibited: ProjectId property cannot be modified on entity '{entry.Entity.GetType().Name}'.");
+                }
+            }
+            else if (entry.State == EntityState.Deleted)
+            {
+                var originalProjectId = GetOriginalProjectId(entry);
+
+                if (originalProjectId != currentTenantId)
+                {
+                    throw new InvalidOperationException(
+                        $"Cross-tenant delete operation rejected: Entity belongs to project '{originalProjectId}', but active tenant context is '{currentTenantId}'.");
+                }
+            }
         }
+    }
+
+    private static ProjectId GetOriginalProjectId(Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry<IMustHaveProject> entry)
+    {
+        var raw = entry.Property(nameof(IMustHaveProject.ProjectId)).OriginalValue;
+        return raw switch
+        {
+            ProjectId pid => pid,
+            Guid gid => new ProjectId(gid),
+            _ => entry.Entity.ProjectId
+        };
     }
 }

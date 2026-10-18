@@ -427,7 +427,7 @@ public class AppDbContext : DbContext
 
     private void ConfigureProjectFilter<TEntity>(ModelBuilder modelBuilder) where TEntity : class, IMustHaveProject
     {
-        modelBuilder.Entity<TEntity>().HasQueryFilter(e => !IsTenantResolved || e.ProjectId == CurrentTenantId);
+        modelBuilder.Entity<TEntity>().HasQueryFilter(e => IsTenantResolved && e.ProjectId == CurrentTenantId);
     }
 
 }

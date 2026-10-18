@@ -17,4 +17,10 @@ public interface IFieldMappingApplicatorService
         JsonElement root,
         IEnumerable<FieldMapping> mappings,
         IReadOnlyDictionary<string, ResolvedDatasetContext> datasetAliases);
+
+    Task<string> ApplyAsync(
+        JsonElement root,
+        IEnumerable<FieldMapping> mappings,
+        IReadOnlyDictionary<string, ResolvedDatasetContext> datasetAliases,
+        CancellationToken ct);
 }

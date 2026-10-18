@@ -21,7 +21,7 @@ public sealed class ApiKeyRepository(AppDbContext context) : IApiKeyRepository
 
     public async Task<ApiKey?> GetByKeyHashAsync(Sha256Hash keyHash, CancellationToken ct = default)
     {
-        return await _context.ApiKeys.FirstOrDefaultAsync(k => k.KeyHash == keyHash && k.IsActive, ct);
+        return await _context.ApiKeys.IgnoreQueryFilters().FirstOrDefaultAsync(k => k.KeyHash == keyHash && k.IsActive, ct);
     }
 
     public async Task<IReadOnlyList<ApiKey>> ListByProjectAsync(Guid projectId, CancellationToken ct = default)

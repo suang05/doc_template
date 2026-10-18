@@ -2,6 +2,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Entities;
+using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Infrastructure.Persistence;
@@ -184,4 +185,102 @@ public class TenantIsolationIntegrationTests
         // Assert
         apiKey.ProjectId.Should().Be(activeTenantId, "Empty ProjectId on added entity must be auto-assigned to active tenant");
     }
+
+    [Fact]
+    public void Interceptor_WhenTenantResolved_ModifyingCrossTenantEntity_ThrowsInvalidOperationException()
+    {
+        // Arrange
+        var activeTenantId = ProjectId.New();
+        var foreignTenantId = ProjectId.New();
+
+        var mockContext = new Mock<ICurrentProjectContext>();
+        mockContext.Setup(c => c.IsResolved).Returns(true);
+        mockContext.Setup(c => c.ProjectId).Returns(activeTenantId);
+
+        var interceptor = new TenantSecuritySaveChangesInterceptor(mockContext.Object);
+        using var dbContext = new AppDbContext(CreateOptions(interceptor), mockContext.Object);
+
+        var crossTenantTemplate = Template.Create(
+            foreignTenantId,
+            TemplateName.Create("Cross Tenant Template"),
+            TemplateSlug.Create("cross-tenant-template"),
+            null,
+            DateTimeOffset.UtcNow);
+
+        dbContext.Templates.Attach(crossTenantTemplate);
+        dbContext.Entry(crossTenantTemplate).State = EntityState.Modified;
+
+        // Act
+        var act = () => interceptor.ApplyTenantSecurity(dbContext);
+
+        // Assert
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*Cross-tenant update operation rejected*");
+    }
+
+    [Fact]
+    public void Interceptor_WhenTenantResolved_DeletingCrossTenantEntity_ThrowsInvalidOperationException()
+    {
+        // Arrange
+        var activeTenantId = ProjectId.New();
+        var foreignTenantId = ProjectId.New();
+
+        var mockContext = new Mock<ICurrentProjectContext>();
+        mockContext.Setup(c => c.IsResolved).Returns(true);
+        mockContext.Setup(c => c.ProjectId).Returns(activeTenantId);
+
+        var interceptor = new TenantSecuritySaveChangesInterceptor(mockContext.Object);
+        using var dbContext = new AppDbContext(CreateOptions(interceptor), mockContext.Object);
+
+        var crossTenantTemplate = Template.Create(
+            foreignTenantId,
+            TemplateName.Create("Cross Tenant Template"),
+            TemplateSlug.Create("cross-tenant-template"),
+            null,
+            DateTimeOffset.UtcNow);
+
+        dbContext.Templates.Attach(crossTenantTemplate);
+        dbContext.Entry(crossTenantTemplate).State = EntityState.Deleted;
+
+        // Act
+        var act = () => interceptor.ApplyTenantSecurity(dbContext);
+
+        // Assert
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*Cross-tenant delete operation rejected*");
+    }
+
+    [Fact]
+    public void Interceptor_WhenTenantResolved_AttemptingTenantReassignment_ThrowsInvalidOperationException()
+    {
+        // Arrange
+        var activeTenantId = ProjectId.New();
+        var foreignTenantId = ProjectId.New();
+
+        var mockContext = new Mock<ICurrentProjectContext>();
+        mockContext.Setup(c => c.IsResolved).Returns(true);
+        mockContext.Setup(c => c.ProjectId).Returns(activeTenantId);
+
+        var interceptor = new TenantSecuritySaveChangesInterceptor(mockContext.Object);
+        using var dbContext = new AppDbContext(CreateOptions(interceptor), mockContext.Object);
+
+        var matchingTemplate = Template.Create(
+            activeTenantId,
+            TemplateName.Create("Matching Template"),
+            TemplateSlug.Create("matching-template"),
+            null,
+            DateTimeOffset.UtcNow);
+
+        dbContext.Templates.Attach(matchingTemplate);
+        dbContext.Entry(matchingTemplate).Property(nameof(IMustHaveProject.ProjectId)).CurrentValue = foreignTenantId;
+        dbContext.Entry(matchingTemplate).Property(nameof(IMustHaveProject.ProjectId)).IsModified = true;
+
+        // Act
+        var act = () => interceptor.ApplyTenantSecurity(dbContext);
+
+        // Assert
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*Tenant reassignment is strictly prohibited*");
+    }
 }
+

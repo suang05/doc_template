@@ -93,4 +93,21 @@ public class CurrentProjectContextTests
         reader.ProjectId.Should().Be(projectId);
         reader.CallerIdentity.Should().Be("audit-user");
     }
+
+    [Fact]
+    public void SetProject_WithExecutionContext_SynchronizesProjectIdOnExecutionContext()
+    {
+        // Arrange
+        var executionContext = new ExecutionContextImpl();
+        var sut = new CurrentProjectContext(executionContext);
+        var projectId = ProjectId.New();
+
+        // Act
+        sut.SetProject(projectId, "portal");
+
+        // Assert
+        sut.IsResolved.Should().BeTrue();
+        sut.ProjectId.Should().Be(projectId);
+        executionContext.ProjectId.Should().Be(projectId.Value);
+    }
 }

@@ -23,7 +23,7 @@ public static class ServiceCollectionExtensions
         services.AddExceptionHandler<GlobalExceptionHandler>();
 
         services.AddApiControllers();
-        services.AddApiCors();
+        services.AddApiCors(configuration);
         services.AddApiAuthentication(configuration);
         services.AddApiOpenApi();
         services.AddApiRateLimiting();
@@ -48,15 +48,39 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
-    private static IServiceCollection AddApiCors(this IServiceCollection services)
+    private static IServiceCollection AddApiCors(
+        this IServiceCollection services,
+        IConfiguration configuration)
     {
+        var configuredOrigins = configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+            ?? (string.IsNullOrWhiteSpace(configuration["Cors:AllowedOrigins"])
+                ? []
+                : configuration["Cors:AllowedOrigins"]!.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+
+        var environment = configuration["ASPNETCORE_ENVIRONMENT"] ?? configuration["DOTNET_ENVIRONMENT"] ?? "Production";
+        bool isDevelopment = string.Equals(environment, "Development", StringComparison.OrdinalIgnoreCase);
+
+        var allowedOrigins = configuredOrigins.Length > 0
+            ? configuredOrigins
+            : isDevelopment
+                ? ["http://localhost:3000", "http://localhost:5173", "http://127.0.0.1:3000", "http://127.0.0.1:5173"]
+                : Array.Empty<string>();
+
         services.AddCors(options =>
         {
             options.AddDefaultPolicy(policy =>
             {
-                policy.AllowAnyOrigin()
-                    .AllowAnyHeader()
-                    .AllowAnyMethod();
+                if (allowedOrigins.Length > 0)
+                {
+                    policy.WithOrigins(allowedOrigins)
+                        .AllowAnyHeader()
+                        .AllowAnyMethod()
+                        .AllowCredentials();
+                }
+                else
+                {
+                    policy.WithOrigins();
+                }
             });
         });
 
@@ -67,7 +91,13 @@ public static class ServiceCollectionExtensions
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        var jwtSecret = configuration["Jwt:Secret"] ?? "default_secret_key_for_dev_min_32_chars_long!";
+        var jwtSecret = configuration["Jwt:Secret"];
+        if (string.IsNullOrWhiteSpace(jwtSecret) || System.Text.Encoding.UTF8.GetByteCount(jwtSecret) < 32)
+        {
+            throw new InvalidOperationException(
+                "JWT Secret is required and must be at least 32 characters (256 bits). Set Jwt:Secret in appsettings.json or environment variables.");
+        }
+
         var signingKey = new SymmetricSecurityKey(System.Text.Encoding.UTF8.GetBytes(jwtSecret));
 
         services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)

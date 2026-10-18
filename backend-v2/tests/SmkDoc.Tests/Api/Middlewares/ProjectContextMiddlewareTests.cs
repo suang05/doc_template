@@ -351,4 +351,83 @@ public class ProjectContextMiddlewareTests
         httpContext.Response.StatusCode.Should().Be(StatusCodes.Status401Unauthorized);
         httpContext.Response.ContentType.Should().StartWith("application/problem+json");
     }
+
+    [Fact]
+    public async Task InvokeAsync_DualAuthChannels_BearerTokenTakesPrecedenceOverApiKey()
+    {
+        // Arrange
+        var sut = CreateSut();
+        var (httpContext, projectContext, executionContext) = CreateContexts("/api/v1/templates");
+
+        var userId = Guid.NewGuid();
+        var targetProjectId = ProjectId.New();
+
+        var claims = new[]
+        {
+            new Claim(ClaimTypes.NameIdentifier, userId.ToString()),
+            new Claim("SystemRole", "SuperAdmin")
+        };
+        httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(claims, "Bearer"));
+        httpContext.Request.Headers["X-Project-Id"] = targetProjectId.ToString();
+        httpContext.Request.Headers["X-API-Key"] = "some-m2m-api-key";
+
+        // Act
+        await sut.InvokeAsync(
+            httpContext,
+            projectContext,
+            _validateApiKeyUseCase,
+            _userProjectRoleRepoMock.Object,
+            executionContext);
+
+        // Assert
+        _nextMock.Verify(n => n(httpContext), Times.Once);
+        projectContext.IsResolved.Should().BeTrue();
+        projectContext.ProjectId.Should().Be(targetProjectId);
+        executionContext.CallerApp.Should().Be("portal");
+        executionContext.UserId.Should().Be(userId);
+        _apiKeyRepoMock.Verify(r => r.GetByKeyHashAsync(It.IsAny<Sha256Hash>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_ApiKeyWithMismatchedProjectIdHeader_Returns403Forbidden()
+    {
+        // Arrange
+        var sut = CreateSut();
+        var (httpContext, projectContext, executionContext) = CreateContexts("/api/v1/templates");
+
+        string rawKey = "valid-raw-key";
+        httpContext.Request.Headers["X-API-Key"] = rawKey;
+
+        var keyProjectId = ProjectId.New();
+        var spoofedProjectId = ProjectId.New();
+        httpContext.Request.Headers["X-Project-Id"] = spoofedProjectId.ToString();
+
+        var hash = new Sha256Hash(ApiKeyHelper.ComputeHash(rawKey));
+
+        var apiKey = (ApiKey)Activator.CreateInstance(typeof(ApiKey), nonPublic: true)!;
+        typeof(ApiKey).GetProperty(nameof(ApiKey.ProjectId))!.SetValue(apiKey, keyProjectId);
+        typeof(ApiKey).GetProperty(nameof(ApiKey.CallerApp))!.SetValue(apiKey, "crm-system");
+        typeof(ApiKey).GetProperty(nameof(ApiKey.Scope))!.SetValue(apiKey, ApiKeyScope.ReadWrite);
+        typeof(ApiKey).GetProperty(nameof(ApiKey.IsActive))!.SetValue(apiKey, true);
+        typeof(ApiKey).GetProperty(nameof(ApiKey.Expiration))!.SetValue(apiKey, ExpirationPolicy.Never);
+        typeof(ApiKey).GetProperty(nameof(ApiKey.KeyHash))!.SetValue(apiKey, hash);
+
+        _apiKeyRepoMock.Setup(r => r.GetByKeyHashAsync(hash, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(apiKey);
+
+        // Act
+        await sut.InvokeAsync(
+            httpContext,
+            projectContext,
+            _validateApiKeyUseCase,
+            _userProjectRoleRepoMock.Object,
+            executionContext);
+
+        // Assert
+        _nextMock.Verify(n => n(httpContext), Times.Never);
+        projectContext.IsResolved.Should().BeFalse();
+        httpContext.Response.StatusCode.Should().Be(StatusCodes.Status403Forbidden);
+        httpContext.Response.ContentType.Should().StartWith("application/problem+json");
+    }
 }
+
