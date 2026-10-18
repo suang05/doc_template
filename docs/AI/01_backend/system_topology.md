@@ -415,7 +415,7 @@ backend-v2/
 │   └── SmkDoc.Api/                 # Presentation — Thin HTTP Controllers
 │       ├── Controllers/            # Thin HTTP Controllers (<= 5 lines per action)
 │       ├── Contracts/              # Request / Response records organized by module
-│       ├── Middleware/             # ProjectContextMiddleware, SecurityHeadersMiddleware, ApiKeyMiddleware
+│       ├── Middleware/             # ProjectContextMiddleware, SecurityHeadersMiddleware
 │       ├── ExceptionHandlers/      # GlobalExceptionHandler (RFC 9457 ProblemDetails SSoT)
 │       └── Filters/                # ValidateCommandFilter, IdempotencyFilter ([Idempotent])
 └── tests/
