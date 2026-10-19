@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Infrastructure.Persistence.Repositories;
 
@@ -11,12 +12,15 @@ public sealed class ApiKeyRepository(AppDbContext context) : IApiKeyRepository
 
     public async Task<ApiKey?> GetByIdAsync(Guid id, CancellationToken ct = default)
     {
-        return await _context.ApiKeys.FirstOrDefaultAsync(k => k.Id == id, ct);
+        var keyId = new ApiKeyId(id);
+        return await _context.ApiKeys.FirstOrDefaultAsync(k => k.Id == keyId, ct);
     }
 
     public async Task<ApiKey?> GetByIdAsync(Guid id, Guid projectId, CancellationToken ct = default)
     {
-        return await _context.ApiKeys.FirstOrDefaultAsync(k => k.Id == id && k.ProjectId == projectId, ct);
+        var keyId = new ApiKeyId(id);
+        var pId = new ProjectId(projectId);
+        return await _context.ApiKeys.FirstOrDefaultAsync(k => k.Id == keyId && k.ProjectId == pId, ct);
     }
 
     public async Task<ApiKey?> GetByKeyHashAsync(Sha256Hash keyHash, CancellationToken ct = default)
@@ -26,15 +30,18 @@ public sealed class ApiKeyRepository(AppDbContext context) : IApiKeyRepository
 
     public async Task<IReadOnlyList<ApiKey>> ListByProjectAsync(Guid projectId, CancellationToken ct = default)
     {
+        var pId = new ProjectId(projectId);
         return await _context.ApiKeys
-            .Where(k => k.ProjectId == projectId)
+            .AsNoTracking()
+            .Where(k => k.ProjectId == pId)
             .OrderByDescending(k => k.CreatedAt)
             .ToListAsync(ct);
     }
 
     public async Task<bool> ExistsByNameAsync(Guid projectId, ApiKeyName name, CancellationToken ct = default)
     {
-        return await _context.ApiKeys.AnyAsync(k => k.ProjectId == projectId && k.Name == name, ct);
+        var pId = new ProjectId(projectId);
+        return await _context.ApiKeys.AnyAsync(k => k.ProjectId == pId && k.Name == name, ct);
     }
 
     public async Task AddAsync(ApiKey key, CancellationToken ct = default)

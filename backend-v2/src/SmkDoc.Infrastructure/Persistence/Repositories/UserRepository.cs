@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Infrastructure.Persistence.Repositories;
 
@@ -11,7 +12,8 @@ public sealed class UserRepository(AppDbContext context) : IUserRepository
 
     public async Task<User?> GetByIdAsync(Guid id, CancellationToken ct = default)
     {
-        return await _context.Users.FirstOrDefaultAsync(u => u.Id == id, ct);
+        var userId = new UserId(id);
+        return await _context.Users.FirstOrDefaultAsync(u => u.Id == userId, ct);
     }
 
     public async Task<User?> GetByEmailAsync(string normalizedEmail, CancellationToken ct = default)
@@ -31,7 +33,7 @@ public sealed class UserRepository(AppDbContext context) : IUserRepository
 
     public async Task<IReadOnlyList<User>> GetByIdsAsync(IEnumerable<Guid> ids, CancellationToken ct = default)
     {
-        var idSet = ids.ToHashSet();
+        var idSet = ids.Select(id => new UserId(id)).ToHashSet();
         return await _context.Users.Where(u => idSet.Contains(u.Id)).ToListAsync(ct);
     }
 

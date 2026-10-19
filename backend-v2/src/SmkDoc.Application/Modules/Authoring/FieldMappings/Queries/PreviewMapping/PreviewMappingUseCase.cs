@@ -33,7 +33,31 @@ public class PreviewMappingUseCase(
     private readonly IFieldMappingApplicatorService _fieldMappingApplicator = fieldMappingApplicator;
     private readonly IDataProtectionService _dataProtection = dataProtection;
 
+    public async Task<Stream> ExecuteStreamAsync(Guid templateId, JsonElement sampleData, CancellationToken ct = default)
+    {
+        var (version, dataJson, engine) = await PrepareRenderAsync(templateId, sampleData, ct);
+
+        var templateStream = await _storageService.DownloadAsync(StorageBuckets.Templates, version.StorageKey, ct);
+        try
+        {
+            return await engine.RenderStreamAsync(templateStream, dataJson, OutputFormat.Pdf, ct);
+        }
+        finally
+        {
+            templateStream.Dispose();
+        }
+    }
+
     public async Task<byte[]> ExecuteAsync(Guid templateId, JsonElement sampleData, CancellationToken ct = default)
+    {
+        var (version, dataJson, engine) = await PrepareRenderAsync(templateId, sampleData, ct);
+
+        using var templateStream = await _storageService.DownloadAsync(StorageBuckets.Templates, version.StorageKey, ct);
+        return await engine.RenderAsync(templateStream, dataJson, OutputFormat.Pdf, ct);
+    }
+
+    private async Task<(TemplateVersion Version, string DataJson, IRenderEngine Engine)> PrepareRenderAsync(
+        Guid templateId, JsonElement sampleData, CancellationToken ct)
     {
         var template = await _templateRepo.GetByIdWithDetailsAsync(templateId, ct)
             ?? await _templateRepo.GetByIdAsync(templateId, ct)
@@ -64,7 +88,6 @@ public class PreviewMappingUseCase(
         var engine = _engines.FirstOrDefault(e => e.EngineType == engineType)
             ?? throw new RenderException(templateId.ToString(), engineType.ToString(), $"No render engine registered for '{engineType}'.");
 
-        using var templateStream = await _storageService.DownloadAsync(StorageBuckets.Templates, version.StorageKey, ct);
-        return await engine.RenderAsync(templateStream, dataJson, OutputFormat.Pdf, ct);
+        return (version, dataJson, engine);
     }
 }

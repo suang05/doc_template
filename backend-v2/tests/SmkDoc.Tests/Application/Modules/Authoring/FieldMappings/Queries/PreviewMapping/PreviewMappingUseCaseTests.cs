@@ -237,4 +237,65 @@ public class PreviewMappingUseCaseTests
             It.IsAny<string>(),
             It.IsAny<CancellationToken>()), Times.Once);
     }
+
+    // ── Stream execution tests ──────────────────────────────────────────
+
+    [Fact]
+    public async Task ExecuteStreamAsync_WithNoMappings_ShouldStreamPdfDirectly()
+    {
+        var templateId = Guid.NewGuid();
+        var versionId = Guid.NewGuid();
+        SetupTemplate(templateId, versionId);
+
+        var expectedStream = new MemoryStream([0x25, 0x50, 0x44, 0x46]);
+        _mockStorage.Setup(s => s.DownloadAsync(StorageBuckets.Templates, "templates/sample-template.html", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MemoryStream("<html></html>"u8.ToArray()));
+        _mockHtmlEngine.Setup(e => e.RenderStreamAsync(It.IsAny<Stream>(), It.IsAny<string>(), OutputFormat.Pdf, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(expectedStream);
+
+        var sampleData = JsonDocument.Parse("{\"name\":\"John\"}").RootElement;
+
+        var resultStream = await CreateSut().ExecuteStreamAsync(templateId, sampleData);
+
+        resultStream.Should().BeSameAs(expectedStream);
+        _mockHtmlEngine.Verify(e => e.RenderStreamAsync(
+            It.IsAny<Stream>(),
+            "{\"name\":\"John\"}",
+            OutputFormat.Pdf,
+            It.IsAny<CancellationToken>()), Times.Once);
+        _mockStorage.Verify(s => s.UploadAsync(
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Stream>(),
+            It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ExecuteStreamAsync_WithMappings_ShouldCallApplicatorAndStreamPdf()
+    {
+        var templateId = Guid.NewGuid();
+        var versionId = Guid.NewGuid();
+
+        var mappings = new List<FieldMapping>
+        {
+            FieldMapping.Create(templateId, "fullName", "customer.name", "Full Name", false, 1, TestConstants.BaselineTime, DataSourceType.Json)
+        };
+        SetupTemplate(templateId, versionId, mappings: mappings);
+
+        var expectedStream = new MemoryStream([0x25, 0x50, 0x44, 0x46]);
+        _mockStorage.Setup(s => s.DownloadAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MemoryStream());
+        _mockApplicator.Setup(a => a.ApplyAsync(It.IsAny<JsonElement>(), It.IsAny<IEnumerable<FieldMapping>>(), It.IsAny<IReadOnlyDictionary<string, ResolvedDatasetContext>>()))
+            .ReturnsAsync("{\"fullName\":\"John Doe\"}");
+        _mockHtmlEngine.Setup(e => e.RenderStreamAsync(It.IsAny<Stream>(), "{\"fullName\":\"John Doe\"}", OutputFormat.Pdf, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(expectedStream);
+
+        var sampleData = JsonDocument.Parse("{\"customer\":{\"name\":\"John Doe\"}}").RootElement;
+
+        var resultStream = await CreateSut().ExecuteStreamAsync(templateId, sampleData);
+
+        resultStream.Should().BeSameAs(expectedStream);
+        _mockApplicator.Verify(a => a.ApplyAsync(
+            It.IsAny<JsonElement>(),
+            It.Is<IEnumerable<FieldMapping>>(m => m.Count() == 1),
+            It.IsAny<IReadOnlyDictionary<string, ResolvedDatasetContext>>()), Times.Once);
+    }
 }

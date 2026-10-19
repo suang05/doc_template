@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Infrastructure.Persistence.Repositories;
 
@@ -10,21 +11,24 @@ public sealed class DatasetRepository(AppDbContext context) : IDatasetRepository
 
     public async Task<Dataset?> GetByIdAsync(Guid id, CancellationToken ct = default)
     {
+        var datasetId = new DatasetId(id);
         return await _context.Datasets
             .Include(d => d.DataConnection)
-            .FirstOrDefaultAsync(d => d.Id == id, ct);
+            .FirstOrDefaultAsync(d => d.Id == datasetId, ct);
     }
 
     public async Task<IReadOnlyList<Dataset>> GetByIdsAsync(IEnumerable<Guid> ids, CancellationToken ct = default)
     {
+        var idSet = ids.Select(id => new DatasetId(id)).ToHashSet();
         return await _context.Datasets
-            .Where(d => ids.Contains(d.Id))
+            .Where(d => idSet.Contains(d.Id))
             .ToListAsync(ct);
     }
 
     public async Task<IReadOnlyList<Dataset>> ListAsync(CancellationToken ct = default)
     {
         return await _context.Datasets
+            .AsNoTracking()
             .Include(d => d.DataConnection)
             .OrderByDescending(d => d.UpdatedAt ?? d.CreatedAt)
             .ToListAsync(ct);

@@ -11,20 +11,22 @@ public sealed class TemplateRepository(AppDbContext context) : ITemplateReposito
 
     public async Task<Template?> GetByIdAsync(Guid id, CancellationToken ct = default)
     {
+        var templateId = new TemplateId(id);
         return await _context.Templates
             .Include(t => t.CurrentVersion)
-            .FirstOrDefaultAsync(t => t.Id == id, ct);
+            .FirstOrDefaultAsync(t => t.Id == templateId, ct);
     }
 
     public async Task<Template?> GetByIdWithDetailsAsync(Guid id, CancellationToken ct = default)
     {
+        var templateId = new TemplateId(id);
         return await _context.Templates
             .AsSplitQuery()
             .Include(t => t.CurrentVersion)
             .Include(t => t.Versions)
             .Include(t => t.FieldMappings)
             .Include(t => t.TemplateDatasets)
-            .FirstOrDefaultAsync(t => t.Id == id, ct);
+            .FirstOrDefaultAsync(t => t.Id == templateId, ct);
     }
 
     public async Task<Template?> GetBySlugAsync(string slug, CancellationToken ct = default)
@@ -69,17 +71,19 @@ public sealed class TemplateRepository(AppDbContext context) : ITemplateReposito
 
     public async Task<TemplateVersion?> GetCurrentVersionAsync(Guid templateId, CancellationToken ct = default)
     {
+        var tId = new TemplateId(templateId);
         return await _context.Templates
-            .Where(t => t.Id == (TemplateId)templateId)
+            .Where(t => t.Id == tId)
             .Select(t => t.CurrentVersion)
             .FirstOrDefaultAsync(ct);
     }
 
     public async Task<IReadOnlyList<TemplateVersion>> ListVersionsAsync(Guid templateId, CancellationToken ct = default)
     {
+        var tId = new TemplateId(templateId);
         return await _context.Templates
             .AsNoTracking()
-            .Where(t => t.Id == (TemplateId)templateId)
+            .Where(t => t.Id == tId)
             .SelectMany(t => t.Versions)
             .OrderByDescending(v => v.Version)
             .ToListAsync(ct);
