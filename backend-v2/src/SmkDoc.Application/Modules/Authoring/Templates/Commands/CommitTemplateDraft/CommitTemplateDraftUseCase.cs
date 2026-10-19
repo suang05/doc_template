@@ -13,7 +13,6 @@ public sealed class CommitTemplateDraftUseCase(
     ITemplateDraftCache draftCache,
     IStorageService storageService,
     ITemplateRepository templateRepo,
-    IRepository<TemplateVersion> versionRepo,
     IUnitOfWork unitOfWork,
     IProjectRepository projectRepo,
     ISchemaInferenceService schemaInferenceService,
@@ -114,7 +113,7 @@ public sealed class CommitTemplateDraftUseCase(
             template.SetCurrentVersion(version.Id, now);
 
             await templateRepo.AddAsync(template, ct);
-            await versionRepo.AddAsync(version, ct);
+            await templateRepo.AddVersionAsync(version, ct);
             await unitOfWork.CommitAsync(ct);
         }
         catch

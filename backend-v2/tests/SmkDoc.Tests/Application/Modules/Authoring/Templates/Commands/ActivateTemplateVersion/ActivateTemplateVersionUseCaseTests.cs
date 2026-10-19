@@ -46,8 +46,8 @@ public class ActivateTemplateVersionUseCaseTests
         _fixture.TemplateRepo
             .Setup(r => r.GetByIdAsync(templateId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
-        _fixture.VersionRepo
-            .Setup(r => r.GetByIdAsync(versionId, It.IsAny<CancellationToken>()))
+        _fixture.TemplateRepo
+            .Setup(r => r.GetVersionByIdAsync(versionId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(foreignVersion);
 
         var act = () => CreateSut().ExecuteAsync(new ActivateTemplateVersionCommand(templateId, versionId));
@@ -71,8 +71,8 @@ public class ActivateTemplateVersionUseCaseTests
         _fixture.TemplateRepo
             .Setup(r => r.GetByIdAsync(templateId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
-        _fixture.VersionRepo
-            .Setup(r => r.GetByIdAsync(versionId, It.IsAny<CancellationToken>()))
+        _fixture.TemplateRepo
+            .Setup(r => r.GetVersionByIdAsync(versionId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(version);
 
         var response = await CreateSut().ExecuteAsync(new ActivateTemplateVersionCommand(templateId, versionId));

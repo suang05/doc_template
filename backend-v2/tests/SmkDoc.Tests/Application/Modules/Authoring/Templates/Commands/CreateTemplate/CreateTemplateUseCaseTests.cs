@@ -64,7 +64,7 @@ public class CreateTemplateUseCaseTests
         response.IsActive.Should().BeTrue();
 
         _fixture.TemplateRepo.Verify(r => r.AddAsync(It.IsAny<Template>(), It.IsAny<CancellationToken>()), Times.Once);
-        _fixture.VersionRepo.Verify(r => r.AddAsync(It.IsAny<TemplateVersion>(), It.IsAny<CancellationToken>()), Times.Once);
+        _fixture.TemplateRepo.Verify(r => r.AddVersionAsync(It.IsAny<TemplateVersion>(), It.IsAny<CancellationToken>()), Times.Once);
         _fixture.Uow.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 }

@@ -14,7 +14,6 @@ namespace SmkDoc.Application.Modules.Rendering.Documents;
 
 public sealed class GenerateDocumentUseCase(
     ITemplateRepository templateRepo,
-    IRepository<TemplateVersion> versionRepo,
     IStorageService storageService,
     IEnumerable<IRenderEngine> engines,
     IDocumentDataPreparationService dataPreparationService,
@@ -25,7 +24,6 @@ public sealed class GenerateDocumentUseCase(
     TimeProvider? timeProvider = null) : IUseCase<GenerateDocumentCommand, GenerateDocumentResultDto>
 {
     private readonly ITemplateRepository _templateRepo = templateRepo;
-    private readonly IRepository<TemplateVersion> _versionRepo = versionRepo;
     private readonly IStorageService _storageService = storageService;
     private readonly IEnumerable<IRenderEngine> _engines = engines;
     private readonly IDocumentDataPreparationService _dataPreparationService = dataPreparationService;
@@ -51,7 +49,8 @@ public sealed class GenerateDocumentUseCase(
         if (template.CurrentVersionId is null)
             throw new BusinessRuleViolationException($"Template '{slug}' has no published version.");
 
-        var currentVersion = await _versionRepo.GetByIdAsync(template.CurrentVersionId.Value, ct)
+        var currentVersion = template.CurrentVersion
+            ?? await _templateRepo.GetVersionByIdAsync(template.CurrentVersionId.Value, ct)
             ?? throw new NotFoundException($"Current version for template '{slug}' not found.");
 
         var outputFormat = request.OutputFormat.Trim().ToLowerInvariant() switch

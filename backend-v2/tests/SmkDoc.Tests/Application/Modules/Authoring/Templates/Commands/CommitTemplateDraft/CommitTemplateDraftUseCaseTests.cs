@@ -40,7 +40,6 @@ public class CommitTemplateDraftUseCaseTests
             _cache.Object,
             _storage.Object,
             _templateRepo.Object,
-            _versionRepo.Object,
             _uow.Object,
             _projectRepo.Object,
             _schemaInference.Object,
@@ -61,6 +60,8 @@ public class CommitTemplateDraftUseCaseTests
                 It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("storage-key");
         _templateRepo.Setup(r => r.AddAsync(It.IsAny<Template>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        _templateRepo.Setup(r => r.AddVersionAsync(It.IsAny<TemplateVersion>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
         _versionRepo.Setup(r => r.AddAsync(It.IsAny<TemplateVersion>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
@@ -91,6 +92,8 @@ public class CommitTemplateDraftUseCaseTests
                 It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("storage-key");
         _templateRepo.Setup(r => r.AddAsync(It.IsAny<Template>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        _templateRepo.Setup(r => r.AddVersionAsync(It.IsAny<TemplateVersion>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
         _versionRepo.Setup(r => r.AddAsync(It.IsAny<TemplateVersion>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
@@ -135,6 +138,8 @@ public class CommitTemplateDraftUseCaseTests
                 It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("key");
         _templateRepo.Setup(r => r.AddAsync(It.IsAny<Template>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        _templateRepo.Setup(r => r.AddVersionAsync(It.IsAny<TemplateVersion>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
         _versionRepo.Setup(r => r.AddAsync(It.IsAny<TemplateVersion>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
@@ -181,7 +186,6 @@ public class CommitTemplateDraftUseCaseTests
             _cache.Object,
             _storage.Object,
             _templateRepo.Object,
-            _versionRepo.Object,
             _uow.Object,
             _projectRepo.Object,
             _schemaInference.Object,
@@ -198,6 +202,8 @@ public class CommitTemplateDraftUseCaseTests
                 It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("storage-key");
         _templateRepo.Setup(r => r.AddAsync(It.IsAny<Template>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        _templateRepo.Setup(r => r.AddVersionAsync(It.IsAny<TemplateVersion>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
         _versionRepo.Setup(r => r.AddAsync(It.IsAny<TemplateVersion>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);

@@ -10,7 +10,6 @@ namespace SmkDoc.Application.Modules.Authoring.Templates.Commands.SaveTemplateHt
 
 public class SaveTemplateHtmlUseCase(
     ITemplateRepository templateRepo,
-    IRepository<TemplateVersion> versionRepo,
     IStorageService storageService,
     IUnitOfWork unitOfWork,
     IExecutionContext executionContext,
@@ -18,7 +17,6 @@ public class SaveTemplateHtmlUseCase(
     TimeProvider? timeProvider = null) : IHtmlPersistenceUseCase
 {
     private readonly ITemplateRepository _templateRepo = templateRepo;
-    private readonly IRepository<TemplateVersion> _versionRepo = versionRepo;
     private readonly IStorageService _storageService = storageService;
     private readonly IUnitOfWork _unitOfWork = unitOfWork;
     private readonly IExecutionContext _executionContext = executionContext;
@@ -33,7 +31,8 @@ public class SaveTemplateHtmlUseCase(
         int currentVersionNumber = 0;
         if (template.CurrentVersionId.HasValue)
         {
-            var currentVersion = await _versionRepo.GetByIdAsync(template.CurrentVersionId.Value, ct);
+            var currentVersion = template.CurrentVersion
+                ?? await _templateRepo.GetVersionByIdAsync(template.CurrentVersionId.Value, ct);
             currentVersionNumber = currentVersion?.Version ?? 0;
         }
 
@@ -69,7 +68,7 @@ public class SaveTemplateHtmlUseCase(
             request.ChangeNote);
         newVersion.UpdateDataSchema(inferredSchema, finalSamplePayload, now);
         newVersion.Publish(now);
-        await _versionRepo.AddAsync(newVersion, ct);
+        await _templateRepo.AddVersionAsync(newVersion, ct);
 
         // 4. Update template active pointer and timestamp
         template.SetCurrentVersion(newVersion.Id, now);

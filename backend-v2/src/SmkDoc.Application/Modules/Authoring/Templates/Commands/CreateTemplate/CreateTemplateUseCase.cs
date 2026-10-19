@@ -17,7 +17,6 @@ namespace SmkDoc.Application.Modules.Authoring.Templates.Commands.CreateTemplate
 /// </summary>
 public sealed class CreateTemplateUseCase(
     ITemplateRepository templateRepo,
-    IRepository<TemplateVersion> versionRepo,
     IStorageService storageService,
     IDocxSecurityScanner securityScanner,
     IExecutionContext executionContext,
@@ -27,7 +26,6 @@ public sealed class CreateTemplateUseCase(
     ICurrentProjectContext? projectContext = null) : IUseCase<CreateTemplateCommand, TemplateResultDto>
 {
     private readonly ITemplateRepository _templateRepo = templateRepo;
-    private readonly IRepository<TemplateVersion> _versionRepo = versionRepo;
     private readonly IStorageService _storageService = storageService;
     private readonly IDocxSecurityScanner _securityScanner = securityScanner;
     private readonly IExecutionContext _executionContext = executionContext;
@@ -119,7 +117,7 @@ public sealed class CreateTemplateUseCase(
         template.SetCurrentVersion(initialVersion.Id, now);
 
         await _templateRepo.AddAsync(template, ct);
-        await _versionRepo.AddAsync(initialVersion, ct);
+        await _templateRepo.AddVersionAsync(initialVersion, ct);
         await _unitOfWork.CommitAsync(ct);
 
         // 5. Safe Result DTO Mapping

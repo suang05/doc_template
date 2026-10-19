@@ -59,7 +59,6 @@ public class GenerateDocumentTestFixture
         IDocumentAuditService? audit = null,
         IDocumentVersioningService? versioning = null) => new(
             TemplateRepo.Object,
-            VersionRepo.Object,
             Storage.Object,
             Engines,
             dataPrep ?? BuildDataPreparationService(),
@@ -125,6 +124,8 @@ public class GenerateDocumentTestFixture
     {
         GivenTemplate(template);
         VersionRepo.Setup(r => r.GetByIdAsync(version.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(version);
+        TemplateRepo.Setup(r => r.GetVersionByIdAsync(version.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(version);
         Storage.Setup(s => s.DownloadAsync("templates", version.StorageKey, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new MemoryStream(System.Text.Encoding.UTF8.GetBytes(htmlContent)));

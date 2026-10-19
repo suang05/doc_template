@@ -10,13 +10,11 @@ namespace SmkDoc.Application.Modules.Authoring.Templates;
 
 public sealed class HtmlStudioUseCase(
     ITemplateRepository templateRepo,
-    IRepository<TemplateVersion> versionRepo,
     IStorageService storageService,
     IEnumerable<IRenderEngine> renderEngines,
     ITemplateScannerService scannerService) : IHtmlStudioUseCase
 {
     private readonly ITemplateRepository _templateRepo = templateRepo;
-    private readonly IRepository<TemplateVersion> _versionRepo = versionRepo;
     private readonly IStorageService _storageService = storageService;
     private readonly IRenderEngine _htmlEngine = renderEngines.First(e => e.EngineType == RenderEngineType.Html);
     private readonly ITemplateScannerService _scannerService = scannerService;
@@ -29,7 +27,8 @@ public sealed class HtmlStudioUseCase(
         if (template.CurrentVersionId == null)
             throw new BusinessRuleViolationException($"Template '{templateId}' has no active published version.");
 
-        var version = await _versionRepo.GetByIdAsync(template.CurrentVersionId.Value, ct)
+        var version = template.CurrentVersion
+            ?? await _templateRepo.GetVersionByIdAsync(template.CurrentVersionId.Value, ct)
             ?? throw new NotFoundException($"Active version for template '{templateId}' not found.");
 
         if (version.FileFormat != null && version.FileFormat != TemplateFormat.Html)
@@ -48,7 +47,8 @@ public sealed class HtmlStudioUseCase(
         if (template.CurrentVersionId == null)
             throw new BusinessRuleViolationException($"Template '{templateId}' has no active published version.");
 
-        var version = await _versionRepo.GetByIdAsync(template.CurrentVersionId.Value, ct)
+        var version = template.CurrentVersion
+            ?? await _templateRepo.GetVersionByIdAsync(template.CurrentVersionId.Value, ct)
             ?? throw new NotFoundException($"Active version for template '{templateId}' not found.");
 
         if (version.FileFormat != null && version.FileFormat != TemplateFormat.Html)
@@ -74,7 +74,8 @@ public sealed class HtmlStudioUseCase(
         TemplateVersion? activeVersion = null;
         if (template.CurrentVersionId.HasValue)
         {
-            activeVersion = await _versionRepo.GetByIdAsync(template.CurrentVersionId.Value, ct);
+            activeVersion = template.CurrentVersion
+                ?? await _templateRepo.GetVersionByIdAsync(template.CurrentVersionId.Value, ct);
         }
 
         return new TemplateSchemaDto(

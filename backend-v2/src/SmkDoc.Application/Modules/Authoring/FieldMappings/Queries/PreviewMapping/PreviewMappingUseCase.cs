@@ -16,7 +16,6 @@ namespace SmkDoc.Application.Modules.Authoring.FieldMappings.Queries.PreviewMapp
 /// </summary>
 public class PreviewMappingUseCase(
     ITemplateRepository templateRepo,
-    IRepository<TemplateVersion> versionRepo,
     IDatasetRepository datasetRepo,
     IDataConnectionRepository connectionRepo,
     IStorageService storageService,
@@ -25,7 +24,6 @@ public class PreviewMappingUseCase(
     IDataProtectionService dataProtection)
 {
     private readonly ITemplateRepository _templateRepo = templateRepo;
-    private readonly IRepository<TemplateVersion> _versionRepo = versionRepo;
     private readonly IDatasetRepository _datasetRepo = datasetRepo;
     private readonly IDataConnectionRepository _connectionRepo = connectionRepo;
     private readonly IStorageService _storageService = storageService;
@@ -80,7 +78,8 @@ public class PreviewMappingUseCase(
         if (template.CurrentVersionId is null)
             throw new BusinessRuleViolationException($"Template '{templateId}' has no published version.");
 
-        var version = await _versionRepo.GetByIdAsync(template.CurrentVersionId.Value, ct)
+        var version = template.CurrentVersion
+            ?? await _templateRepo.GetVersionByIdAsync(template.CurrentVersionId.Value, ct)
             ?? throw new NotFoundException($"Current version for template '{templateId}' not found.");
 
         var engineType = version.GetRenderEngineType();

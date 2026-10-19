@@ -26,7 +26,6 @@ public class HtmlStudioUseCaseTests
 
     private HtmlStudioUseCase CreateSut() => new(
         _mockTemplateRepo.Object,
-        _mockVersionRepo.Object,
         _mockStorage.Object,
         [_mockHtmlEngine.Object],
         _mockScanner.Object
@@ -93,6 +92,8 @@ public class HtmlStudioUseCaseTests
 
         _mockTemplateRepo.Setup(r => r.GetByIdAsync(templateId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
+        _mockTemplateRepo.Setup(r => r.GetVersionByIdAsync(versionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(version);
         _mockVersionRepo.Setup(r => r.GetByIdAsync(versionId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(version);
         _mockStorage.Setup(s => s.DownloadAsync("templates", "templates/receipt.html", It.IsAny<CancellationToken>()))

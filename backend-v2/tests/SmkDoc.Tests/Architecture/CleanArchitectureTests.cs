@@ -117,6 +117,35 @@ public class CleanArchitectureTests
         }
     }
 
+    [Fact]
+    public void Application_UseCases_Should_Not_Inject_Child_TemplateVersion_Repository()
+    {
+        // Arrange
+        var appAssembly = typeof(IExecutionContext).Assembly;
+        var useCaseTypes = appAssembly.GetTypes()
+            .Where(t => t.IsClass && !t.IsAbstract && t.Name.EndsWith("UseCase", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        // Assert
+        useCaseTypes.Should().NotBeEmpty();
+
+        var prohibitedType = typeof(IRepository<SmkDoc.Domain.Entities.TemplateVersion>);
+
+        foreach (var useCase in useCaseTypes)
+        {
+            var constructors = useCase.GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+            foreach (var ctor in constructors)
+            {
+                foreach (var parameter in ctor.GetParameters())
+                {
+                    parameter.ParameterType.Should().NotBe(
+                        prohibitedType,
+                        $"UseCase '{useCase.Name}' parameter '{parameter.Name}' must not inject child entity repository '{prohibitedType.Name}'. Access TemplateVersion through ITemplateRepository or Template aggregate root.");
+                }
+            }
+        }
+    }
+
     private static bool IsSubclassOfBaseEntity(Type type)
     {
         var current = type.BaseType;

@@ -13,12 +13,10 @@ namespace SmkDoc.Application.Modules.Authoring.Templates.Queries.ValidateTemplat
 /// </summary>
 public class ValidateTemplatePayloadUseCase(
     ITemplateRepository templateRepo,
-    IRepository<TemplateVersion> versionRepo,
     IJsonSchemaValidationService schemaValidation,
     IExecutionContext executionContext) : IUseCase<ValidateTemplatePayloadQuery, ValidateTemplatePayloadResult>
 {
     private readonly ITemplateRepository _templateRepo = templateRepo;
-    private readonly IRepository<TemplateVersion> _versionRepo = versionRepo;
     private readonly IJsonSchemaValidationService _schemaValidation = schemaValidation;
     private readonly IExecutionContext _executionContext = executionContext;
 
@@ -45,7 +43,8 @@ public class ValidateTemplatePayloadUseCase(
             throw new BusinessRuleViolationException($"Template '{query.Slug}' has no published version.");
         }
 
-        var currentVersion = await _versionRepo.GetByIdAsync(template.CurrentVersionId.Value, ct)
+        var currentVersion = template.CurrentVersion
+            ?? await _templateRepo.GetVersionByIdAsync(template.CurrentVersionId.Value, ct)
             ?? throw new NotFoundException($"Current version for template '{query.Slug}' not found.");
 
         // 2. If no schema is stored, treat as valid pass-through

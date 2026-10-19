@@ -447,6 +447,7 @@ public interface ITemplateRepository
     Task<int> CountAsync(CancellationToken ct = default);
     Task<IReadOnlyList<Template>> ListAsync(int page, int pageSize, CancellationToken ct = default);
     Task AddAsync(Template template, CancellationToken ct = default);
+    Task AddVersionAsync(TemplateVersion version, CancellationToken ct = default);
 }
 ```
 

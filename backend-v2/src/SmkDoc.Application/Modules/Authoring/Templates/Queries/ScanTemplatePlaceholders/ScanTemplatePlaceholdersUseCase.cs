@@ -13,12 +13,10 @@ public sealed record ScanTemplatePlaceholdersQuery(Guid Id);
 /// </summary>
 public sealed class ScanTemplatePlaceholdersUseCase(
     ITemplateRepository templateRepo,
-    IRepository<TemplateVersion> versionRepo,
     IStorageService storageService,
     ITemplateScannerService scanner) : IUseCase<ScanTemplatePlaceholdersQuery, List<string>>
 {
     private readonly ITemplateRepository _templateRepo = templateRepo;
-    private readonly IRepository<TemplateVersion> _versionRepo = versionRepo;
     private readonly IStorageService _storageService = storageService;
     private readonly ITemplateScannerService _scanner = scanner;
 
@@ -30,7 +28,8 @@ public sealed class ScanTemplatePlaceholdersUseCase(
         if (template.CurrentVersionId is null)
             throw new BusinessRuleViolationException($"Template '{template.Id}' has no published version.");
 
-        var version = await _versionRepo.GetByIdAsync(template.CurrentVersionId.Value, ct)
+        var version = template.CurrentVersion
+            ?? await _templateRepo.GetVersionByIdAsync(template.CurrentVersionId.Value, ct)
             ?? throw new NotFoundException($"Current version record for template '{template.Id}' not found.");
 
         using var stream = await _storageService.DownloadAsync(StorageBuckets.Templates, version.StorageKey, ct);

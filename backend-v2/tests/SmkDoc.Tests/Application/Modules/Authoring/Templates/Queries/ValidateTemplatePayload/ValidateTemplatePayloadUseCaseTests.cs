@@ -22,7 +22,6 @@ public class ValidateTemplatePayloadUseCaseTests
 
     private ValidateTemplatePayloadUseCase CreateSut() => new(
         _mockTemplateRepo.Object,
-        _mockVersionRepo.Object,
         _mockSchemaValidation.Object,
         _mockContext.Object);
 
@@ -46,6 +45,9 @@ public class ValidateTemplatePayloadUseCaseTests
         _mockTemplateRepo
             .Setup(r => r.GetBySlugAsync(slug, It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
+        _mockTemplateRepo
+            .Setup(r => r.GetVersionByIdAsync(versionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(version);
         _mockVersionRepo
             .Setup(r => r.GetByIdAsync(versionId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(version);
@@ -87,6 +89,9 @@ public class ValidateTemplatePayloadUseCaseTests
         _mockTemplateRepo
             .Setup(r => r.GetBySlugAsync(slug, It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
+        _mockTemplateRepo
+            .Setup(r => r.GetVersionByIdAsync(versionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(version);
         _mockVersionRepo
             .Setup(r => r.GetByIdAsync(versionId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(version);
@@ -130,6 +135,9 @@ public class ValidateTemplatePayloadUseCaseTests
         _mockTemplateRepo
             .Setup(r => r.GetBySlugAsync(slug, It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
+        _mockTemplateRepo
+            .Setup(r => r.GetVersionByIdAsync(versionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(version);
         _mockVersionRepo
             .Setup(r => r.GetByIdAsync(versionId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(version);

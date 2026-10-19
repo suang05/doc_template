@@ -13,14 +13,12 @@ public sealed record RollbackTemplateVersionCommand(Guid TemplateId, int TargetV
 /// </summary>
 public sealed class RollbackTemplateVersionUseCase(
     ITemplateRepository templateRepo,
-    IRepository<TemplateVersion> versionRepo,
     IStorageService storageService,
     IExecutionContext executionContext,
     IUnitOfWork unitOfWork,
     TimeProvider? timeProvider = null) : IUseCase<RollbackTemplateVersionCommand, int>
 {
     private readonly ITemplateRepository _templateRepo = templateRepo;
-    private readonly IRepository<TemplateVersion> _versionRepo = versionRepo;
     private readonly IStorageService _storageService = storageService;
     private readonly IExecutionContext _executionContext = executionContext;
     private readonly IUnitOfWork _unitOfWork = unitOfWork;
@@ -34,11 +32,12 @@ public sealed class RollbackTemplateVersionUseCase(
         if (template.CurrentVersionId is null)
             throw new BusinessRuleViolationException($"Template '{template.Id}' has no published version.");
 
-        var currentVersion = await _versionRepo.GetByIdAsync(template.CurrentVersionId.Value, ct)
+        var currentVersion = template.CurrentVersion
+            ?? await _templateRepo.GetVersionByIdAsync(template.CurrentVersionId.Value, ct)
             ?? throw new NotFoundException($"Current version record for template '{template.Id}' not found.");
 
-        var archived = await _versionRepo.FirstOrDefaultAsync(
-            v => v.TemplateId == command.TemplateId && v.Version == command.TargetVersion, ct)
+        var versions = await _templateRepo.ListVersionsAsync(command.TemplateId, ct);
+        var archived = versions.FirstOrDefault(v => v.Version == command.TargetVersion)
             ?? throw new NotFoundException($"Version {command.TargetVersion} not found for template '{command.TemplateId}'.");
 
         using var archivedStream = await _storageService.DownloadAsync(StorageBuckets.Templates, archived.StorageKey, ct);
@@ -64,7 +63,7 @@ public sealed class RollbackTemplateVersionUseCase(
             $"Rollback to v{command.TargetVersion}");
 
         newVersion.Publish(now);
-        await _versionRepo.AddAsync(newVersion, ct);
+        await _templateRepo.AddVersionAsync(newVersion, ct);
 
         template.SetCurrentVersion(newVersion.Id, now);
         _templateRepo.Update(template);

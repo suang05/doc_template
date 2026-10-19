@@ -21,7 +21,6 @@ public class SaveTemplateHtmlUseCaseTests
 
     private SaveTemplateHtmlUseCase CreateSut() => new(
         _mockTemplateRepo.Object,
-        _mockVersionRepo.Object,
         _mockStorage.Object,
         _mockUow.Object,
         _mockContext.Object,
@@ -43,6 +42,8 @@ public class SaveTemplateHtmlUseCaseTests
 
         _mockTemplateRepo.Setup(r => r.GetByIdAsync(templateId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
+        _mockTemplateRepo.Setup(r => r.GetVersionByIdAsync(currentVersionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(currentVersion);
         _mockVersionRepo.Setup(r => r.GetByIdAsync(currentVersionId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(currentVersion);
         _mockContext.SetupGet(c => c.CallerApp).Returns("studio-user");
@@ -82,7 +83,7 @@ public class SaveTemplateHtmlUseCaseTests
             It.IsAny<CancellationToken>()), Times.Once);
 
         // Verify database insert of new version with DataSchema and SamplePayload
-        _mockVersionRepo.Verify(r => r.AddAsync(
+        _mockTemplateRepo.Verify(r => r.AddVersionAsync(
             It.Is<TemplateVersion>(v => v.Version == 4 &&
                                         v.CommitMessage == "Updated payment terms" &&
                                         v.DataSchema == dummySchema &&

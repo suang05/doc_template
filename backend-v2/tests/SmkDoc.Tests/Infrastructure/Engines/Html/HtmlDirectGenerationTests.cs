@@ -81,6 +81,8 @@ public class HtmlDirectGenerationTests
             .ReturnsAsync(template);
         _mockTemplateRepo.Setup(r => r.GetBySlugAsync("invoice-direct-html", It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
+        _mockTemplateRepo.Setup(r => r.GetVersionByIdAsync(versionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(version);
         _mockVersionRepo.Setup(r => r.GetByIdAsync(versionId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(version);
 
@@ -113,7 +115,6 @@ public class HtmlDirectGenerationTests
 
         var useCase = new GenerateDocumentUseCase(
             _mockTemplateRepo.Object,
-            _mockVersionRepo.Object,
             _mockStorage.Object,
             new IRenderEngine[] { htmlEngine },
             dataPrep,

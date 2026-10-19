@@ -31,7 +31,6 @@ public class PreviewMappingUseCaseTests
     private PreviewMappingUseCase CreateSut() =>
         new(
             _mockTemplateRepo.Object,
-            _mockVersionRepo.Object,
             _mockDatasetRepo.Object,
             _mockConnectionRepo.Object,
             _mockStorage.Object,
@@ -58,8 +57,11 @@ public class PreviewMappingUseCaseTests
             .ReturnsAsync(template);
         _mockTemplateRepo.Setup(r => r.GetByIdAsync(templateId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
+        var version = TemplateVersionBuilder.Create(versionId, templateId, 1, "templates/sample-template.html", format, "Published", "Commit", now);
+        _mockTemplateRepo.Setup(r => r.GetVersionByIdAsync(versionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(version);
         _mockVersionRepo.Setup(r => r.GetByIdAsync(versionId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(TemplateVersionBuilder.Create(versionId, templateId, 1, "templates/sample-template.html", format, "Published", "Commit", now));
+            .ReturnsAsync(version);
 
         return template;
     }
@@ -187,8 +189,11 @@ public class PreviewMappingUseCaseTests
             .ReturnsAsync(template);
         _mockTemplateRepo.Setup(r => r.GetByIdAsync(templateId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
+        var version = TemplateVersionBuilder.Create(versionId, templateId, 1, "templates/t.docx", TemplateFormat.Docx, "Published", "Commit", now);
+        _mockTemplateRepo.Setup(r => r.GetVersionByIdAsync(versionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(version);
         _mockVersionRepo.Setup(r => r.GetByIdAsync(versionId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(TemplateVersionBuilder.Create(versionId, templateId, 1, "templates/t.docx", TemplateFormat.Docx, "Published", "Commit", now));
+            .ReturnsAsync(version);
         _mockStorage.Setup(s => s.DownloadAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new MemoryStream());
 

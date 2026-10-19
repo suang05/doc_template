@@ -21,7 +21,6 @@ public class PreviewDocumentUseCaseTests
 
     private PreviewDocumentUseCase CreateSut() => new(
         _mockTemplateRepo.Object,
-        _mockVersionRepo.Object,
         _mockStorage.Object,
         [_mockEngine.Object]
     );

@@ -16,7 +16,6 @@ namespace SmkDoc.Application.Modules.Rendering.Documents;
 /// </summary>
 public sealed class PreviewDocumentUseCase(
     ITemplateRepository templateRepo,
-    IRepository<TemplateVersion> versionRepo,
     IStorageService storageService,
     IEnumerable<IRenderEngine> engines) : IUseCase<PreviewDocumentQuery, Stream>
 {
@@ -45,7 +44,8 @@ public sealed class PreviewDocumentUseCase(
             if (template.CurrentVersionId is null)
                 throw new BusinessRuleViolationException($"Template '{slug}' has no published version.");
 
-            var version = await versionRepo.GetByIdAsync(template.CurrentVersionId.Value, ct)
+            var version = template.CurrentVersion
+                ?? await templateRepo.GetVersionByIdAsync(template.CurrentVersionId.Value, ct)
                 ?? throw new NotFoundException($"Current version for template '{slug}' not found.");
 
             engineType = version.GetRenderEngineType();

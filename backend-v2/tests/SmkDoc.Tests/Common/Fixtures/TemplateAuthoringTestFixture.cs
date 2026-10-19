@@ -39,7 +39,6 @@ public class TemplateAuthoringTestFixture
 
     public CreateTemplateUseCase BuildCreateTemplateUseCase() => new(
         TemplateRepo.Object,
-        VersionRepo.Object,
         Storage.Object,
         Security.Object,
         Context.Object,
@@ -52,7 +51,6 @@ public class TemplateAuthoringTestFixture
         ITemplateDraftCache? draftCache = null,
         IStorageService? storage = null,
         ITemplateRepository? templateRepo = null,
-        IRepository<TemplateVersion>? versionRepo = null,
         IUnitOfWork? uow = null,
         IProjectRepository? projectRepo = null,
         ISchemaInferenceService? schemaInference = null,
@@ -62,7 +60,6 @@ public class TemplateAuthoringTestFixture
             draftCache ?? DraftCache.Object,
             storage ?? Storage.Object,
             templateRepo ?? TemplateRepo.Object,
-            versionRepo ?? VersionRepo.Object,
             uow ?? Uow.Object,
             projectRepo ?? ProjectRepo.Object,
             schemaInference ?? SchemaInference.Object,
@@ -73,7 +70,6 @@ public class TemplateAuthoringTestFixture
 
     public ActivateTemplateVersionUseCase BuildActivateTemplateVersionUseCase() => new(
         TemplateRepo.Object,
-        VersionRepo.Object,
         Uow.Object,
         Clock
     );
@@ -91,7 +87,6 @@ public class TemplateAuthoringTestFixture
 
     public RollbackTemplateVersionUseCase BuildRollbackTemplateVersionUseCase() => new(
         TemplateRepo.Object,
-        VersionRepo.Object,
         Storage.Object,
         Context.Object,
         Uow.Object,

@@ -19,11 +19,9 @@ public sealed record DownloadTemplateResult(
 /// </summary>
 public sealed class DownloadTemplateUseCase(
     ITemplateRepository templateRepo,
-    IRepository<TemplateVersion> versionRepo,
     IStorageService storageService) : IUseCase<DownloadTemplateQuery, DownloadTemplateResult>
 {
     private readonly ITemplateRepository _templateRepo = templateRepo;
-    private readonly IRepository<TemplateVersion> _versionRepo = versionRepo;
     private readonly IStorageService _storageService = storageService;
 
     public async Task<DownloadTemplateResult> ExecuteAsync(DownloadTemplateQuery query, CancellationToken ct = default)
@@ -34,7 +32,8 @@ public sealed class DownloadTemplateUseCase(
         if (template.CurrentVersionId is null)
             throw new BusinessRuleViolationException($"Template '{template.Id}' has no published version.");
 
-        var version = await _versionRepo.GetByIdAsync(template.CurrentVersionId.Value, ct)
+        var version = template.CurrentVersion
+            ?? await _templateRepo.GetVersionByIdAsync(template.CurrentVersionId.Value, ct)
             ?? throw new NotFoundException($"Current version record for template '{template.Id}' not found.");
 
         var stream = await _storageService.DownloadAsync(StorageBuckets.Templates, version.StorageKey, ct);

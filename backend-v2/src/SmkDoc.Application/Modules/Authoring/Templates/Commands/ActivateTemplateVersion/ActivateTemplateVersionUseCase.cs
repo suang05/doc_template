@@ -12,12 +12,10 @@ namespace SmkDoc.Application.Modules.Authoring.Templates.Commands.ActivateTempla
 /// </summary>
 public sealed class ActivateTemplateVersionUseCase(
     ITemplateRepository templateRepo,
-    IRepository<TemplateVersion> versionRepo,
     IUnitOfWork unitOfWork,
     TimeProvider? timeProvider = null) : IUseCase<ActivateTemplateVersionCommand, TemplateResultDto>
 {
     private readonly ITemplateRepository _templateRepo = templateRepo;
-    private readonly IRepository<TemplateVersion> _versionRepo = versionRepo;
     private readonly IUnitOfWork _unitOfWork = unitOfWork;
     private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
 
@@ -28,7 +26,7 @@ public sealed class ActivateTemplateVersionUseCase(
             ?? throw new NotFoundException($"Template '{command.TemplateId}' was not found.");
 
         // 2. Fetch & Validate Version
-        var version = await _versionRepo.GetByIdAsync(command.VersionId, ct)
+        var version = await _templateRepo.GetVersionByIdAsync(command.VersionId, ct)
             ?? throw new NotFoundException($"TemplateVersion '{command.VersionId}' was not found.");
 
         if (version.TemplateId != template.Id)
