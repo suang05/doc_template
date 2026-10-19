@@ -12,7 +12,7 @@ public sealed class PreviewTemplateDraftUseCase(
     private readonly ITemplateDraftCache _draftCache = draftCache;
     private readonly IEnumerable<IRenderEngine> _engines = engines;
 
-    public async Task<byte[]> ExecuteAsync(PreviewTemplateDraftQuery query, CancellationToken ct = default)
+    public async Task<Stream> ExecuteStreamAsync(PreviewTemplateDraftQuery query, CancellationToken ct = default)
     {
         var draft = await _draftCache.GetAsync(query.DraftId, ct)
             ?? throw new DraftExpiredException(query.DraftId);
@@ -20,7 +20,15 @@ public sealed class PreviewTemplateDraftUseCase(
         var engine = Engine(draft.FileExtension);
 
         using var ms = new MemoryStream(draft.FileBytes);
-        return await engine.RenderAsync(ms, query.DataJson, OutputFormat.Pdf, ct);
+        return await engine.RenderStreamAsync(ms, query.DataJson, OutputFormat.Pdf, ct);
+    }
+
+    public async Task<byte[]> ExecuteAsync(PreviewTemplateDraftQuery query, CancellationToken ct = default)
+    {
+        await using var stream = await ExecuteStreamAsync(query, ct);
+        using var ms = new MemoryStream();
+        await stream.CopyToAsync(ms, ct);
+        return ms.ToArray();
     }
 
     private IRenderEngine Engine(string ext)

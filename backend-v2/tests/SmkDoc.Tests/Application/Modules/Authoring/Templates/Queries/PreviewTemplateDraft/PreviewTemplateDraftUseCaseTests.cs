@@ -28,14 +28,40 @@ public class PreviewTemplateDraftUseCaseTests
         _cache.Setup(c => c.GetAsync("draft-1", It.IsAny<CancellationToken>())).ReturnsAsync(entry);
         _engine.Setup(e => e.EngineType).Returns(RenderEngineType.Docx);
         _engine.Setup(e =>
-                e.RenderAsync(It.IsAny<Stream>(), It.IsAny<string>(), OutputFormat.Pdf, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(pdfBytes);
+                e.RenderStreamAsync(It.IsAny<Stream>(), It.IsAny<string>(), OutputFormat.Pdf, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() => new MemoryStream(pdfBytes));
 
         // Act
         var result = await CreateSut().ExecuteAsync(new PreviewTemplateDraftQuery("draft-1", "{\"field\":\"val\"}"), CancellationToken.None);
 
         // Assert
         result.Should().BeEquivalentTo(pdfBytes);
+        // Zero side-effects — no cache eviction:
+        _cache.Verify(c => c.RemoveAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task PreviewStreamAsync_ValidDraftId_RendersStreamWithoutSideEffects()
+    {
+        // Arrange
+        var pdfBytes = Encoding.UTF8.GetBytes("%PDF-preview");
+        var entry = new TemplateDraftEntry(Encoding.UTF8.GetBytes("content"), "t.docx", ".docx", ["field"]);
+
+        _cache.Setup(c => c.GetAsync("draft-1", It.IsAny<CancellationToken>())).ReturnsAsync(entry);
+        _engine.Setup(e => e.EngineType).Returns(RenderEngineType.Docx);
+        _engine.Setup(e =>
+                e.RenderStreamAsync(It.IsAny<Stream>(), It.IsAny<string>(), OutputFormat.Pdf, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() => new MemoryStream(pdfBytes));
+
+        // Act
+        await using var resultStream = await CreateSut().ExecuteStreamAsync(new PreviewTemplateDraftQuery("draft-1", "{\"field\":\"val\"}"), CancellationToken.None);
+
+        // Assert
+        resultStream.Should().NotBeNull();
+        using var ms = new MemoryStream();
+        await resultStream.CopyToAsync(ms);
+        ms.ToArray().Should().BeEquivalentTo(pdfBytes);
+
         // Zero side-effects — no cache eviction:
         _cache.Verify(c => c.RemoveAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }

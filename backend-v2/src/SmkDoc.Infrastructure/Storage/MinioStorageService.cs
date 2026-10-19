@@ -55,7 +55,7 @@ public class MinioStorageService : IStorageService
         var args = new GetObjectArgs()
             .WithBucket(bucket)
             .WithObject(objectName)
-            .WithCallbackStream(stream => stream.CopyTo(ms));
+            .WithCallbackStream((stream, cancellationToken) => stream.CopyToAsync(ms, cancellationToken));
 
         await _client.GetObjectAsync(args, ct);
         ms.Position = 0;

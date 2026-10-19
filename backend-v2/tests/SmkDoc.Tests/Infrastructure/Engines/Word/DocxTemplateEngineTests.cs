@@ -191,8 +191,8 @@ public class DocxTemplateEngineTests
     public async Task RenderAsync_WithOutputFormatPdf_ShouldCallPdfRenderer()
     {
         var mockPdf = new Mock<IPdfRenderer>();
-        mockPdf.Setup(p => p.RenderOfficeToPdfAsync(It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-               .ReturnsAsync(new byte[] { 0x25, 0x50, 0x44, 0x46 }); // %PDF header
+        mockPdf.Setup(p => p.RenderOfficeToPdfStreamAsync(It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+               .ReturnsAsync(() => new MemoryStream(new byte[] { 0x25, 0x50, 0x44, 0x46 })); // %PDF header
 
         var engine = CreateEngine(mockPdf);
         using var stream = BuildDocx("{{title}}");
@@ -200,7 +200,7 @@ public class DocxTemplateEngineTests
 
         byte[] result = await engine.RenderAsync(stream, data, OutputFormat.Pdf);
 
-        mockPdf.Verify(p => p.RenderOfficeToPdfAsync(It.IsAny<Stream>(), "document.docx", It.IsAny<CancellationToken>()), Times.Once);
+        mockPdf.Verify(p => p.RenderOfficeToPdfStreamAsync(It.IsAny<Stream>(), "document.docx", It.IsAny<CancellationToken>()), Times.Once);
         result.Should().Equal(0x25, 0x50, 0x44, 0x46);
     }
 

@@ -9,10 +9,12 @@ declare module 'next-auth' {
     lastName: string;
     backendToken: string;
     backendTokenExp: number;
+    refreshToken?: string | null;
   }
 
   interface Session {
     backendToken: string;
+    error?: 'RefreshAccessTokenError' | null;
     user: {
       id: string;
       role: string | null;
@@ -28,6 +30,8 @@ declare module 'next-auth/jwt' {
   interface JWT {
     backendToken: string;
     backendTokenExp: number;
+    refreshToken?: string | null;
+    error?: 'RefreshAccessTokenError' | null;
     role: string | null;
     systemRole?: string | null;
     projectId: string | null;

@@ -28,9 +28,9 @@ public class HtmlTemplateEngineTests
         var mockPdf = new Mock<IPdfRenderer>();
         string capturedHtml = string.Empty;
 
-        mockPdf.Setup(p => p.RenderHtmlToPdfAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+        mockPdf.Setup(p => p.RenderHtmlToPdfStreamAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .Callback<string, string?, string?, CancellationToken>((h, _1, _2, _3) => capturedHtml = h)
-            .ReturnsAsync(Encoding.UTF8.GetBytes("%PDF-1.4 mock"));
+            .ReturnsAsync(() => new MemoryStream(Encoding.UTF8.GetBytes("%PDF-1.4 mock")));
 
         var engine = CreateEngine(mockPdf.Object);
 
@@ -51,9 +51,9 @@ public class HtmlTemplateEngineTests
         var mockPdf = new Mock<IPdfRenderer>();
         string capturedHtml = string.Empty;
 
-        mockPdf.Setup(p => p.RenderHtmlToPdfAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+        mockPdf.Setup(p => p.RenderHtmlToPdfStreamAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .Callback<string, string?, string?, CancellationToken>((h, _1, _2, _3) => capturedHtml = h)
-            .ReturnsAsync(Encoding.UTF8.GetBytes("%PDF-1.4 mock"));
+            .ReturnsAsync(() => new MemoryStream(Encoding.UTF8.GetBytes("%PDF-1.4 mock")));
 
         var engine = CreateEngine(mockPdf.Object);
 
@@ -83,9 +83,9 @@ public class HtmlTemplateEngineTests
         var mockPdf = new Mock<IPdfRenderer>();
         string capturedHtml = string.Empty;
 
-        mockPdf.Setup(p => p.RenderHtmlToPdfAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+        mockPdf.Setup(p => p.RenderHtmlToPdfStreamAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .Callback<string, string?, string?, CancellationToken>((h, _1, _2, _3) => capturedHtml = h)
-            .ReturnsAsync(Encoding.UTF8.GetBytes("%PDF-1.4 mock"));
+            .ReturnsAsync(() => new MemoryStream(Encoding.UTF8.GetBytes("%PDF-1.4 mock")));
 
         var engine = CreateEngine(mockPdf.Object);
 
@@ -110,8 +110,8 @@ public class HtmlTemplateEngineTests
     public async Task RenderAsync_WithTemplateCache_UsesCachedEvaluation()
     {
         var mockPdf = new Mock<IPdfRenderer>();
-        mockPdf.Setup(p => p.RenderHtmlToPdfAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Encoding.UTF8.GetBytes("%PDF-1.4 mock"));
+        mockPdf.Setup(p => p.RenderHtmlToPdfStreamAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() => new MemoryStream(Encoding.UTF8.GetBytes("%PDF-1.4 mock")));
 
         var mockCache = new Mock<ICompiledTemplateCache>();
         mockCache.Setup(c => c.GetOrAdd(It.IsAny<string>(), It.IsAny<Func<Func<object, string>>>()))

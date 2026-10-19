@@ -53,12 +53,7 @@ export function setStoredApiKey(key: string): void {
 // ── Shared helpers ──────────────────────────────────────────────────────────
 
 function buildHeaders(extra: Record<string, string> = {}): Record<string, string> {
-  const headers: Record<string, string> = { ...extra };
-  const apiKey = getStoredApiKey();
-
-  if (apiKey) headers['X-API-Key'] = apiKey;
-
-  return headers;
+  return { ...extra };
 }
 
 function prepareJsonHeaders(options: RequestInit): Record<string, string> {

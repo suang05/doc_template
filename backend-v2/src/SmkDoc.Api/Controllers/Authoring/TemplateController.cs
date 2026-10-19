@@ -75,7 +75,8 @@ public class TemplateController(
         IFormFile? file,
         CancellationToken ct)
     {
-        var (stream, fileName) = await ReadUploadFileAsync(file, ct);
+        await using var stream = file?.Length > 0 ? file.OpenReadStream() : null;
+        var fileName = file?.Length > 0 ? file.FileName : null;
         var targetProjectId = context.ProjectId ?? Guid.Empty;
         var command = new CreateTemplateCommand(targetProjectId, name, slug, category, stream, fileName);
         var created = await createTemplateUseCase.ExecuteAsync(command, ct);
@@ -142,15 +143,5 @@ public class TemplateController(
         var query = new ValidateTemplatePayloadQuery(slug, data);
         var result = await validatePayloadUseCase.ExecuteAsync(query, ct);
         return Ok(new ApiResponse<ValidateTemplatePayloadResult>(result));
-    }
-
-    private static async Task<(Stream? Stream, string? FileName)> ReadUploadFileAsync(IFormFile? file, CancellationToken ct)
-    {
-        if (file is not { Length: > 0 }) return (null, null);
-
-        var ms = new MemoryStream();
-        await file.CopyToAsync(ms, ct);
-        ms.Position = 0;
-        return (ms, file.FileName);
     }
 }

@@ -145,4 +145,51 @@ describe('apiClient and RFC 7807 Response Handling', () => {
     expect(result.fileName).toBe('streamed.pdf');
     expect(result.contentType).toBe('application/pdf');
   });
+
+  it('does not automatically attach X-API-Key from localStorage to request headers', async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      json: async () => ({ success: true }),
+      headers: new Headers({ 'content-type': 'application/json' }),
+    } as unknown as Response);
+
+    global.fetch = mockFetch;
+
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('smk_api_key', 'test-secret-key-123');
+    }
+
+    await apiClient('/api/templates');
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    const headers = mockFetch.mock.calls[0][1].headers;
+    expect(headers['X-API-Key']).toBeUndefined();
+    expect(headers['Content-Type']).toBe('application/json');
+  });
+
+  it('preserves explicitly provided headers in options', async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      json: async () => ({ success: true }),
+      headers: new Headers({ 'content-type': 'application/json' }),
+    } as unknown as Response);
+
+    global.fetch = mockFetch;
+
+    await apiClient('/api/m2m-test', {
+      headers: {
+        'X-API-Key': 'explicit-key-456',
+        'X-Project-Id': 'proj-789',
+      },
+    });
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    const headers = mockFetch.mock.calls[0][1].headers;
+    expect(headers['X-API-Key']).toBe('explicit-key-456');
+    expect(headers['X-Project-Id']).toBe('proj-789');
+  });
 });

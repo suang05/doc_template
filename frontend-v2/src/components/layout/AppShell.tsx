@@ -5,6 +5,7 @@ import { Topbar } from './Topbar';
 import { Sidebar, NavigationItemId, navLabels } from './Sidebar';
 import { CommandPalette } from './CommandPalette';
 import { useStoredApiKey } from '@/hooks/useStoredApiKey';
+import { useAuthContext } from '@/contexts/AuthContext';
 
 export interface AppShellProps {
   children: React.ReactNode;
@@ -22,7 +23,8 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [bannerDismissed, setBannerDismissed] = useState(false);
   const { hasApiKey } = useStoredApiKey();
-  const missingKey = !hasApiKey && !bannerDismissed;
+  const { isAuthenticated } = useAuthContext();
+  const missingKey = !isAuthenticated && !hasApiKey && !bannerDismissed;
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-canvas font-sans antialiased text-textPrimary">

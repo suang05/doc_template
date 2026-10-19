@@ -20,6 +20,12 @@ public interface IHtmlStudioUseCase
     Task<byte[]> PreviewHtmlBufferAsync(string htmlContent, string sampleDataJson, CancellationToken ct = default);
 
     /// <summary>
+    /// Renders an in-memory HTML buffer directly to a PDF Stream without writing to storage,
+    /// generating audit logs, or modifying database records. Zero-LOH streaming pipeline.
+    /// </summary>
+    Task<Stream> PreviewHtmlStreamAsync(string htmlContent, string sampleDataJson, CancellationToken ct = default);
+
+    /// <summary>
     /// Loads the full Monaco studio bundle (HTML, persisted SamplePayload, DataSchema, Version).
     /// </summary>
     Task<TemplateStudioDto> GetStudioBundleAsync(Guid templateId, CancellationToken ct = default);

@@ -7,20 +7,15 @@ using static SmkDoc.Application.Common.Helpers.PlaceholderHelper;
 
 namespace SmkDoc.Infrastructure.Engines.Excel;
 
-public class ExcelTemplateEngine : IRenderEngine
+public class ExcelTemplateEngine(
+    IPdfRenderer pdfRenderer,
+    ExcelMediaInjector mediaInjector,
+    IJsonDataParser? jsonDataParser = null) : IRenderEngine
 {
-    private readonly IPdfRenderer        _pdfRenderer;
-    private readonly ExcelMediaInjector    _mediaInjector;
-    private readonly ExcelTableExpander    _tableExpander;
-    private readonly IJsonDataParser       _jsonDataParser;
-
-    public ExcelTemplateEngine(IPdfRenderer pdfRenderer, ExcelMediaInjector mediaInjector, IJsonDataParser? jsonDataParser = null)
-    {
-        _pdfRenderer    = pdfRenderer;
-        _mediaInjector  = mediaInjector;
-        _tableExpander  = new ExcelTableExpander();
-        _jsonDataParser = jsonDataParser ?? new SmkDoc.Infrastructure.Parsing.JsonDataParser();
-    }
+    private readonly IPdfRenderer _pdfRenderer = pdfRenderer;
+    private readonly ExcelMediaInjector _mediaInjector = mediaInjector;
+    private readonly ExcelTableExpander _tableExpander = new();
+    private readonly IJsonDataParser _jsonDataParser = jsonDataParser ?? new SmkDoc.Infrastructure.Parsing.JsonDataParser();
 
     public RenderEngineType EngineType => RenderEngineType.Excel;
 
@@ -92,13 +87,16 @@ public class ExcelTemplateEngine : IRenderEngine
 
         if (outputFormat == OutputFormat.Pdf)
         {
-            var pdfStream = await _pdfRenderer.RenderOfficeToPdfStreamAsync(outputStream, "spreadsheet.xlsx", ct);
-            if (pdfStream == null)
+            await using (outputStream)
             {
-                var bytes = await _pdfRenderer.RenderOfficeToPdfAsync(outputStream, "spreadsheet.xlsx", ct);
-                return new MemoryStream(bytes);
+                var pdfStream = await _pdfRenderer.RenderOfficeToPdfStreamAsync(outputStream, "spreadsheet.xlsx", ct);
+                if (pdfStream == null)
+                {
+                    var bytes = await _pdfRenderer.RenderOfficeToPdfAsync(outputStream, "spreadsheet.xlsx", ct);
+                    return new MemoryStream(bytes);
+                }
+                return pdfStream;
             }
-            return pdfStream;
         }
 
         return outputStream;

@@ -1,26 +1,21 @@
 using System.Text.Json;
 using DocumentFormat.OpenXml.Packaging;
+using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Enums;
 
 namespace SmkDoc.Infrastructure.Engines.Word;
 
-public class DocxTemplateEngine : IRenderEngine
+public class DocxTemplateEngine(
+    IPdfRenderer pdfRenderer,
+    WordMediaInjector mediaInjector,
+    IJsonDataParser? jsonDataParser = null) : IRenderEngine
 {
-    private readonly IPdfRenderer      _pdfRenderer;
-    private readonly WordTextReplacer  _textReplacer;
-    private readonly WordTableExpander _tableExpander;
-    private readonly WordMediaInjector _mediaInjector;
-    private readonly IJsonDataParser   _jsonDataParser;
-
-    public DocxTemplateEngine(IPdfRenderer pdfRenderer, WordMediaInjector mediaInjector, IJsonDataParser? jsonDataParser = null)
-    {
-        _pdfRenderer    = pdfRenderer;
-        _textReplacer   = new WordTextReplacer();
-        _tableExpander  = new WordTableExpander();
-        _mediaInjector  = mediaInjector;
-        _jsonDataParser = jsonDataParser ?? new SmkDoc.Infrastructure.Parsing.JsonDataParser();
-    }
+    private readonly IPdfRenderer _pdfRenderer = pdfRenderer;
+    private readonly WordTextReplacer _textReplacer = new();
+    private readonly WordTableExpander _tableExpander = new();
+    private readonly WordMediaInjector _mediaInjector = mediaInjector;
+    private readonly IJsonDataParser _jsonDataParser = jsonDataParser ?? new SmkDoc.Infrastructure.Parsing.JsonDataParser();
 
     public RenderEngineType EngineType => RenderEngineType.Docx;
 
@@ -35,7 +30,7 @@ public class DocxTemplateEngine : IRenderEngine
         using (var doc = WordprocessingDocument.Open(memoryStream, true))
         {
             var mainPart = doc.MainDocumentPart
-                ?? throw new InvalidOperationException("Template has no main document part.");
+                ?? throw new RenderException("document.docx", "OpenXml", "Template has no main document part.");
 
             // 1. Inject QR / Barcode images (reads prefix from template, value from data)
             _mediaInjector.InjectMedia(mainPart, replacements);
@@ -53,13 +48,16 @@ public class DocxTemplateEngine : IRenderEngine
 
         if (outputFormat == OutputFormat.Pdf)
         {
-            var pdfStream = await _pdfRenderer.RenderOfficeToPdfStreamAsync(memoryStream, "document.docx", ct);
-            if (pdfStream == null)
+            await using (memoryStream)
             {
-                var bytes = await _pdfRenderer.RenderOfficeToPdfAsync(memoryStream, "document.docx", ct);
-                return new MemoryStream(bytes);
+                var pdfStream = await _pdfRenderer.RenderOfficeToPdfStreamAsync(memoryStream, "document.docx", ct);
+                if (pdfStream == null)
+                {
+                    var bytes = await _pdfRenderer.RenderOfficeToPdfAsync(memoryStream, "document.docx", ct);
+                    return new MemoryStream(bytes);
+                }
+                return pdfStream;
             }
-            return pdfStream;
         }
 
         return memoryStream;

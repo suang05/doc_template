@@ -22,13 +22,13 @@ export interface AuthContextValue {
   sessionExpiring: boolean;
   login: (req: LoginRequest) => Promise<void>;
   logout: () => void;
-  extendSession: () => void;
+  extendSession: () => Promise<void> | void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 function InnerAuthProvider({ children }: { children: React.ReactNode }) {
-  const { data: session, status } = useSession();
+  const { data: session, status, update } = useSession();
   const [sessionExpiring, setSessionExpiring] = useState(false);
   const warnTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const expireTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -43,6 +43,13 @@ function InnerAuthProvider({ children }: { children: React.ReactNode }) {
     setSessionExpiring(false);
     void signOut({ redirect: false });
   }, [clearTimers]);
+
+  // If token refresh fails on the backend, force logout immediately
+  useEffect(() => {
+    if (session?.error === 'RefreshAccessTokenError') {
+      logout();
+    }
+  }, [session?.error, logout]);
 
   // (Re)schedule the expiry warning whenever the session's expiry changes.
   useEffect(() => {
@@ -87,11 +94,15 @@ function InnerAuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // Phase 3: replace with an actual refresh-token call — today this only dismisses the
-  // warning, the underlying backend JWT still expires at its original exp.
-  const extendSession = useCallback(() => {
-    setSessionExpiring(false);
-  }, []);
+  // Real Refresh Token Rotation via NextAuth update()
+  const extendSession = useCallback(async () => {
+    try {
+      await update();
+      setSessionExpiring(false);
+    } catch {
+      logout();
+    }
+  }, [update, logout]);
 
   const user: AuthUser | null = session?.user
     ? {

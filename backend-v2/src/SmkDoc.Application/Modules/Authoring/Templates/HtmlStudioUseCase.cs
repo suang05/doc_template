@@ -87,13 +87,21 @@ public sealed class HtmlStudioUseCase(
         );
     }
 
-    public async Task<byte[]> PreviewHtmlBufferAsync(string htmlContent, string sampleDataJson, CancellationToken ct = default)
+    public async Task<Stream> PreviewHtmlStreamAsync(string htmlContent, string sampleDataJson, CancellationToken ct = default)
     {
         string safeData = string.IsNullOrWhiteSpace(sampleDataJson) ? "{}" : sampleDataJson;
         byte[] htmlBytes = Encoding.UTF8.GetBytes(htmlContent ?? string.Empty);
 
         using var templateStream = new MemoryStream(htmlBytes);
-        return await _htmlEngine.RenderAsync(templateStream, safeData, OutputFormat.Pdf, ct);
+        return await _htmlEngine.RenderStreamAsync(templateStream, safeData, OutputFormat.Pdf, ct);
+    }
+
+    public async Task<byte[]> PreviewHtmlBufferAsync(string htmlContent, string sampleDataJson, CancellationToken ct = default)
+    {
+        await using var stream = await PreviewHtmlStreamAsync(htmlContent, sampleDataJson, ct);
+        using var ms = new MemoryStream();
+        await stream.CopyToAsync(ms, ct);
+        return ms.ToArray();
     }
 
     public async Task<TemplateValidationResultDto> ValidateHtmlAsync(string htmlContent, CancellationToken ct = default)

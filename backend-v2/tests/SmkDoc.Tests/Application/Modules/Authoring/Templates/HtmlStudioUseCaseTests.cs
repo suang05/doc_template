@@ -37,8 +37,8 @@ public class HtmlStudioUseCaseTests
     {
         // Arrange
         byte[] expectedPdf = Encoding.UTF8.GetBytes("%PDF-1.4 Mock Stream");
-        _mockHtmlEngine.Setup(e => e.RenderAsync(It.IsAny<Stream>(), It.IsAny<string>(), OutputFormat.Pdf, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(expectedPdf);
+        _mockHtmlEngine.Setup(e => e.RenderStreamAsync(It.IsAny<Stream>(), It.IsAny<string>(), OutputFormat.Pdf, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() => new MemoryStream(expectedPdf));
 
         string bufferHtml = "<html><body><h1>Direct Editor Buffer</h1></body></html>";
         string sampleJson = "{\"title\": \"Test\"}";
@@ -48,6 +48,31 @@ public class HtmlStudioUseCaseTests
 
         // Assert
         result.Should().BeEquivalentTo(expectedPdf);
+
+        // Verify zero side-effects
+        _mockStorage.Verify(s => s.UploadAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        _mockTemplateRepo.Verify(r => r.AddAsync(It.IsAny<Template>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task PreviewHtmlStreamAsync_ShouldRenderStream_WithoutTouchingStorageOrDatabase()
+    {
+        // Arrange
+        byte[] expectedPdf = Encoding.UTF8.GetBytes("%PDF-1.4 Mock Stream");
+        _mockHtmlEngine.Setup(e => e.RenderStreamAsync(It.IsAny<Stream>(), It.IsAny<string>(), OutputFormat.Pdf, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() => new MemoryStream(expectedPdf));
+
+        string bufferHtml = "<html><body><h1>Direct Editor Buffer</h1></body></html>";
+        string sampleJson = "{\"title\": \"Test\"}";
+
+        // Act
+        await using var stream = await CreateSut().PreviewHtmlStreamAsync(bufferHtml, sampleJson, CancellationToken.None);
+
+        // Assert
+        stream.Should().NotBeNull();
+        using var ms = new MemoryStream();
+        await stream.CopyToAsync(ms);
+        ms.ToArray().Should().BeEquivalentTo(expectedPdf);
 
         // Verify zero side-effects
         _mockStorage.Verify(s => s.UploadAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);

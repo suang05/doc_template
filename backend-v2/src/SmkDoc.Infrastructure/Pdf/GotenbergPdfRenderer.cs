@@ -7,20 +7,14 @@ using SmkDoc.Domain.Exceptions;
 
 namespace SmkDoc.Infrastructure.Pdf;
 
-public class GotenbergPdfRenderer : IPdfRenderer
+public class GotenbergPdfRenderer(HttpClient httpClient, ILogger<GotenbergPdfRenderer> logger) : IPdfRenderer
 {
-    private readonly HttpClient _httpClient;
-    private readonly ILogger<GotenbergPdfRenderer> _logger;
-
-    public GotenbergPdfRenderer(HttpClient httpClient, ILogger<GotenbergPdfRenderer> logger)
-    {
-        _httpClient = httpClient;
-        _logger = logger;
-    }
+    private readonly HttpClient _httpClient = httpClient;
+    private readonly ILogger<GotenbergPdfRenderer> _logger = logger;
 
     public async Task<Stream> RenderHtmlToPdfStreamAsync(string html, string? headerHtml = null, string? footerHtml = null, CancellationToken ct = default)
     {
-        var content = new MultipartFormDataContent();
+        using var content = new MultipartFormDataContent();
         var htmlContent = new ByteArrayContent(Encoding.UTF8.GetBytes(html));
         htmlContent.Headers.ContentType = new MediaTypeHeaderValue("text/html");
         content.Add(htmlContent, "files", "index.html");
@@ -39,12 +33,21 @@ public class GotenbergPdfRenderer : IPdfRenderer
             content.Add(fContent, "files", "footer.html");
         }
 
-        var response = await _httpClient.PostAsync("/forms/chromium/convert/html", content, ct);
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/forms/chromium/convert/html") { Content = content };
+        var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+
         if (!response.IsSuccessStatusCode)
         {
-            string err = await response.Content.ReadAsStringAsync(ct);
-            _logger.LogError("Gotenberg Chromium HTML render failed ({StatusCode}): {Error}", response.StatusCode, err);
-            throw new RenderException("html", "GotenbergChromium", err);
+            try
+            {
+                string err = await response.Content.ReadAsStringAsync(ct);
+                _logger.LogError("Gotenberg Chromium HTML render failed ({StatusCode}): {Error}", response.StatusCode, err);
+                throw new RenderException("html", "GotenbergChromium", err);
+            }
+            finally
+            {
+                response.Dispose();
+            }
         }
 
         return await response.Content.ReadAsStreamAsync(ct);
@@ -60,17 +63,26 @@ public class GotenbergPdfRenderer : IPdfRenderer
 
     public async Task<Stream> RenderOfficeToPdfStreamAsync(Stream officeStream, string fileName, CancellationToken ct = default)
     {
-        var content = new MultipartFormDataContent();
+        using var content = new MultipartFormDataContent();
         var streamContent = new StreamContent(officeStream);
         streamContent.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
         content.Add(streamContent, "files", fileName);
 
-        var response = await _httpClient.PostAsync("/forms/libreoffice/convert", content, ct);
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/forms/libreoffice/convert") { Content = content };
+        var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+
         if (!response.IsSuccessStatusCode)
         {
-            string err = await response.Content.ReadAsStringAsync(ct);
-            _logger.LogError("Gotenberg LibreOffice render failed ({StatusCode}): {Error}", response.StatusCode, err);
-            throw new RenderException(fileName, "GotenbergLibreOffice", err);
+            try
+            {
+                string err = await response.Content.ReadAsStringAsync(ct);
+                _logger.LogError("Gotenberg LibreOffice render failed ({StatusCode}): {Error}", response.StatusCode, err);
+                throw new RenderException(fileName, "GotenbergLibreOffice", err);
+            }
+            finally
+            {
+                response.Dispose();
+            }
         }
 
         return await response.Content.ReadAsStreamAsync(ct);

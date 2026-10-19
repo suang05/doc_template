@@ -19,8 +19,15 @@ async function proxy(req: NextRequest, { params }: { params: Promise<{ path: str
 
   if (session?.backendToken) {
     headers.set('Authorization', `Bearer ${session.backendToken}`);
+    if (req.headers.get('x-m2m-test') !== 'true') {
+      headers.delete('x-api-key');
+    }
   } else {
     headers.delete('authorization');
+  }
+
+  if (!headers.has('x-project-id') && session?.user?.projectId) {
+    headers.set('x-project-id', session.user.projectId);
   }
 
   const hasBody = req.method !== 'GET' && req.method !== 'HEAD';
