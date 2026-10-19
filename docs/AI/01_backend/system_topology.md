@@ -407,7 +407,7 @@ backend-v2/
 │   │   ├── Common/                 # IUseCase, IRepository, IStorageService, ThaiDataTransformer, ICurrentProjectContext
 │   │   └── Modules/                # 4 Bounded Contexts: Rendering, Authoring, Integration, IdentityAccess
 │   ├── SmkDoc.Infrastructure/      # Adapters — Implements Application Ports
-│   │   ├── Persistence/            # AppDbContext, Interceptors, EF Repositories, Migrations, xmin Concurrency
+│   │   ├── Persistence/            # AppDbContext, Configurations (15 IEntityTypeConfiguration), Interceptors, Repositories, Migrations
 │   │   ├── Contexts/               # CurrentProjectContext (Scoped ambient SSoT)
 │   │   ├── Storage/                # MinioStorageService
 │   │   ├── Pdf/                    # GotenbergPdfRenderer (Chromium & LibreOffice endpoints)

@@ -17,6 +17,14 @@ public class EfRepository<T> : IRepository<T> where T : class
 
     public virtual async Task<T?> GetByIdAsync(Guid id, CancellationToken ct = default)
     {
+        var keyProperty = _context.Model.FindEntityType(typeof(T))?.FindPrimaryKey()?.Properties.FirstOrDefault();
+        if (keyProperty?.GetValueConverter() is { } converter)
+        {
+            var stronglyTypedId = converter.ConvertFromProvider(id);
+            if (stronglyTypedId != null)
+                return await _dbSet.FindAsync(new object[] { stronglyTypedId }, ct);
+        }
+
         return await _dbSet.FindAsync(new object[] { id }, ct);
     }
 

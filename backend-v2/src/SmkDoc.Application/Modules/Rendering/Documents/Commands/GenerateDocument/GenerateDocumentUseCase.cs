@@ -20,7 +20,8 @@ public sealed class GenerateDocumentUseCase(
     IDocumentAuditService auditService,
     IDocumentVersioningService versioningService,
     IUnitOfWork unitOfWork,
-    IExecutionContext executionContext)
+    IExecutionContext executionContext,
+    TimeProvider? timeProvider = null)
 {
     private readonly ITemplateRepository _templateRepo = templateRepo;
     private readonly IRepository<TemplateVersion> _versionRepo = versionRepo;
@@ -31,6 +32,7 @@ public sealed class GenerateDocumentUseCase(
     private readonly IDocumentVersioningService _versioningService = versioningService;
     private readonly IUnitOfWork _unitOfWork = unitOfWork;
     private readonly IExecutionContext _executionContext = executionContext;
+    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
 
     public async Task<GenerateDocumentResultDto> ExecuteAsync(
         string slug, GenerateDocumentCommand request, CancellationToken ct = default)
@@ -91,7 +93,7 @@ public sealed class GenerateDocumentUseCase(
         var tenantId = _executionContext.ProjectId.HasValue && _executionContext.ProjectId.Value != Guid.Empty
             ? _executionContext.ProjectId.Value
             : template.ProjectId.Value;
-        string outputKey = $"outputs/{tenantId:N}/{DateTime.UtcNow:yyyy/MM/dd}/{slug}_{generationId:N}.{ext}";
+        string outputKey = $"outputs/{tenantId:N}/{_timeProvider.GetUtcNow():yyyy/MM/dd}/{slug}_{generationId:N}.{ext}";
 
         long fileSizeBytes = 0;
         string sha256 = string.Empty;
@@ -145,7 +147,7 @@ public sealed class GenerateDocumentUseCase(
             FileSizeBytes: fileSizeBytes,
             Sha256: sha256,
             Url: downloadUrl,
-            ExpiresAt: DateTimeOffset.UtcNow.Add(expiry)
+            ExpiresAt: _timeProvider.GetUtcNow().Add(expiry)
         );
     }
 }

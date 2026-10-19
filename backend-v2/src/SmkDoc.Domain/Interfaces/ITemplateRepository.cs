@@ -13,6 +13,9 @@ public interface ITemplateRepository
     Task<Template?> GetBySlugWithDetailsAsync(string slug, CancellationToken ct = default);
     Task<bool> SlugExistsAsync(string slug, CancellationToken ct = default);
     Task<IReadOnlyList<Template>> ListAsync(CancellationToken ct = default);
+    Task<TemplateVersion?> GetVersionByIdAsync(Guid versionId, CancellationToken ct = default);
+    Task<TemplateVersion?> GetCurrentVersionAsync(Guid templateId, CancellationToken ct = default);
+    Task<IReadOnlyList<TemplateVersion>> ListVersionsAsync(Guid templateId, CancellationToken ct = default);
     Task AddAsync(Template template, CancellationToken ct = default);
     void Update(Template template);
     void Remove(Template template);

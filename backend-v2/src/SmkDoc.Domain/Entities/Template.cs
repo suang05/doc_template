@@ -82,6 +82,12 @@ public sealed class Template : BaseEntity<TemplateId>, IMustHaveProject
         return version;
     }
 
+    public TemplateVersion? FindVersion(int versionNumber) =>
+        _versions.FirstOrDefault(v => v.Version == versionNumber);
+
+    public TemplateVersion? FindVersion(Guid versionId) =>
+        _versions.FirstOrDefault(v => v.Id == versionId);
+
     public void AddVersion(TemplateVersion version, DateTimeOffset now)
     {
         Guard.NotNull(version, nameof(version));

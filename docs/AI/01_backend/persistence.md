@@ -466,7 +466,7 @@ CREATE INDEX idx_document_versions_generation_log_id ON document_versions(genera
 
 ## 7. Database Migration Governance
 
-1. **Code-First SSoT:** All schema alterations originate in `SmkDoc.Domain` entities and `SmkDoc.Infrastructure` Fluent API configurations (`IEntityTypeConfiguration<T>`).
+1. **Code-First SSoT:** All schema alterations originate in `SmkDoc.Domain` entities and `SmkDoc.Infrastructure` Fluent API configurations (`IEntityTypeConfiguration<T>` under `Persistence/Configurations/`).
 2. **Migration Generation:**
    ```bash
    dotnet ef migrations add <DescriptiveMigrationName> --project backend-v2/src/SmkDoc.Infrastructure --startup-project backend-v2/src/SmkDoc.Api

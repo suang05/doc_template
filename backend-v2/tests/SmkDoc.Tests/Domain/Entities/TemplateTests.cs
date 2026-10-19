@@ -111,4 +111,26 @@ public class TemplateTests
         var ex = act.Should().Throw<DuplicateVersionException>();
         ex.Which.ErrorCode.Should().Be("DUPLICATE_VERSION");
     }
+
+    [Fact]
+    public void FindVersion_ByVersionNumber_ReturnsMatchingVersionOrNull()
+    {
+        var template = CreateTemplate("Contract", "contract-test", now: _initialTime);
+        var v1 = template.CreateDraftVersion(1, "templates/v1.html", TemplateFormat.Html, "author", _initialTime);
+        var v2 = template.CreateDraftVersion(2, "templates/v2.html", TemplateFormat.Html, "author", _initialTime);
+
+        template.FindVersion(1).Should().BeSameAs(v1);
+        template.FindVersion(2).Should().BeSameAs(v2);
+        template.FindVersion(3).Should().BeNull();
+    }
+
+    [Fact]
+    public void FindVersion_ByVersionId_ReturnsMatchingVersionOrNull()
+    {
+        var template = CreateTemplate("Contract", "contract-test", now: _initialTime);
+        var v1 = template.CreateDraftVersion(1, "templates/v1.html", TemplateFormat.Html, "author", _initialTime);
+
+        template.FindVersion(v1.Id).Should().BeSameAs(v1);
+        template.FindVersion(Guid.NewGuid()).Should().BeNull();
+    }
 }
