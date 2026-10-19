@@ -8,8 +8,6 @@ import {
   Code2,
   GitFork,
   Key,
-  BookOpen,
-  ListOrdered,
   Layers,
   Settings,
   Upload,

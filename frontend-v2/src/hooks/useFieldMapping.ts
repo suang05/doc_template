@@ -5,8 +5,8 @@ import { type DragEndEvent } from '@dnd-kit/core';
 import { arrayMove } from '@dnd-kit/sortable';
 import { templatesApi } from '@/lib/api/templates.api';
 import { getTemplateDatasets } from '@/lib/api/templateDatasets.api';
-import type { TemplateDatasetDto, DataSourceType } from '@/types/api';
-import { type MappingRow, type PlaceholderType, newRow, dtoToRow, rowToSaveItem } from '@/lib/mapping/mappingMapper';
+import type { TemplateDatasetDto } from '@/types/api';
+import { type MappingRow, newRow, dtoToRow, rowToSaveItem } from '@/lib/mapping/mappingMapper';
 import { TOAST_AUTO_DISMISS_MS, BLOB_URL_REVOKE_DELAY_MS } from '@/constants/timeouts';
 
 export type { MappingRow };

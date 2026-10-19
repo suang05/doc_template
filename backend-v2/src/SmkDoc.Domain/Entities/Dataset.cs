@@ -1,5 +1,6 @@
 using SmkDoc.Domain.Common;
 using SmkDoc.Domain.Exceptions;
+using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.ValueObjects.Ids;
 
@@ -8,8 +9,9 @@ namespace SmkDoc.Domain.Entities;
 /// <summary>
 /// Domain entity representing a dataset query definition associated with a data connection.
 /// </summary>
-public sealed class Dataset : BaseEntity<DatasetId>
+public sealed class Dataset : BaseEntity<DatasetId>, IMustHaveProject
 {
+    public ProjectId ProjectId { get; private set; }
     public DatasetName Name { get; private set; } = null!;
     public string? Description { get; private set; }
     public DataConnectionId DataConnectionId { get; private set; }
@@ -29,7 +31,8 @@ public sealed class Dataset : BaseEntity<DatasetId>
         DataConnectionId dataConnectionId,
         string sqlQuery,
         int cacheSeconds,
-        DateTimeOffset now)
+        DateTimeOffset now,
+        ProjectId projectId = default)
         : base(id.HasValue && !id.Value.IsEmpty ? id.Value : DatasetId.New(), createdAt: now)
     {
         Name = Guard.NotNull(name, nameof(Name));
@@ -41,6 +44,7 @@ public sealed class Dataset : BaseEntity<DatasetId>
             throw new DomainValidationException("CacheSeconds cannot be negative.");
         }
         CacheSeconds = cacheSeconds;
+        ProjectId = projectId;
     }
 
     public static Dataset Create(
@@ -49,8 +53,9 @@ public sealed class Dataset : BaseEntity<DatasetId>
         DataConnectionId dataConnectionId,
         string sqlQuery,
         int cacheSeconds,
-        DateTimeOffset now) =>
-        new(null, name, description, dataConnectionId, sqlQuery, cacheSeconds, now);
+        DateTimeOffset now,
+        ProjectId projectId = default) =>
+        new(null, name, description, dataConnectionId, sqlQuery, cacheSeconds, now, projectId);
 
     public void UpdateDetails(
         DatasetName name,

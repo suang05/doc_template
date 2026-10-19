@@ -1,6 +1,7 @@
 using SmkDoc.Domain.Common;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
+using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.ValueObjects.Ids;
 
@@ -9,8 +10,9 @@ namespace SmkDoc.Domain.Entities;
 /// <summary>
 /// Domain entity representing an encrypted database connection configuration.
 /// </summary>
-public sealed class DataConnection : BaseEntity<DataConnectionId>
+public sealed class DataConnection : BaseEntity<DataConnectionId>, IMustHaveProject
 {
+    public ProjectId ProjectId { get; private set; }
     public ConnectionName Name { get; private set; } = null!;
     public DatabaseProvider Provider { get; private set; } = DatabaseProvider.PostgreSQL;
     public string EncryptedConnectionString { get; private set; } = string.Empty;
@@ -23,20 +25,23 @@ public sealed class DataConnection : BaseEntity<DataConnectionId>
         ConnectionName name,
         DatabaseProvider provider,
         string encryptedConnectionString,
-        DateTimeOffset now)
+        DateTimeOffset now,
+        ProjectId projectId = default)
         : base(id ?? DataConnectionId.New(), createdAt: now)
     {
         Name = Guard.NotNull(name, nameof(Name));
         Provider = provider ?? DatabaseProvider.PostgreSQL;
         EncryptedConnectionString = Guard.NotBlank(encryptedConnectionString, nameof(EncryptedConnectionString));
+        ProjectId = projectId;
     }
 
     public static DataConnection Create(
         ConnectionName name,
         DatabaseProvider provider,
         string encryptedConnectionString,
-        DateTimeOffset now) =>
-        new(null, name, provider, encryptedConnectionString, now);
+        DateTimeOffset now,
+        ProjectId projectId = default) =>
+        new(null, name, provider, encryptedConnectionString, now, projectId);
 
     public void UpdateConnection(
         ConnectionName name,

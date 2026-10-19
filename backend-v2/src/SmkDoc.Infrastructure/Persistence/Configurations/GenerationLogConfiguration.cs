@@ -4,6 +4,7 @@ using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.ValueObjects.Ids;
+using SmkDoc.Infrastructure.Persistence.Converters;
 
 namespace SmkDoc.Infrastructure.Persistence.Configurations;
 
@@ -13,6 +14,9 @@ public sealed class GenerationLogConfiguration : IEntityTypeConfiguration<Genera
     {
         builder.ToTable("generation_logs");
         builder.HasKey(e => e.Id);
+        builder.Property(e => e.ProjectId)
+            .HasConversion(DomainValueConverters.ProjectIdConverter);
+        builder.HasIndex(e => e.ProjectId);
         builder.HasIndex(e => e.CreatedAt);
         builder.Property(e => e.TemplateId)
             .HasConversion(id => id.HasValue ? id.Value.Value : (Guid?)null, v => v.HasValue ? new TemplateId(v.Value) : null);
@@ -49,5 +53,10 @@ public sealed class GenerationLogConfiguration : IEntityTypeConfiguration<Genera
             .WithMany()
             .HasForeignKey(e => e.ApiKeyId)
             .OnDelete(DeleteBehavior.SetNull);
+
+        builder.HasOne<Project>()
+            .WithMany()
+            .HasForeignKey(e => e.ProjectId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

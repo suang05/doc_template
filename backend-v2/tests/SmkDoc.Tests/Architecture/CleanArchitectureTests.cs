@@ -146,6 +146,26 @@ public class CleanArchitectureTests
         }
     }
 
+    [Theory]
+    [InlineData(typeof(SmkDoc.Domain.Entities.Template))]
+    [InlineData(typeof(SmkDoc.Domain.Entities.ApiKey))]
+    [InlineData(typeof(SmkDoc.Domain.Entities.DataConnection))]
+    [InlineData(typeof(SmkDoc.Domain.Entities.Dataset))]
+    [InlineData(typeof(SmkDoc.Domain.Entities.Document))]
+    [InlineData(typeof(SmkDoc.Domain.Entities.GenerationLog))]
+    public void Tenant_Entities_Must_Implement_IMustHaveProject(Type entityType)
+    {
+        // Assert
+        typeof(SmkDoc.Domain.Interfaces.IMustHaveProject).IsAssignableFrom(entityType)
+            .Should().BeTrue($"Entity '{entityType.Name}' must implement IMustHaveProject for tenant isolation.");
+
+        var projectIdProp = entityType.GetProperty("ProjectId", BindingFlags.Public | BindingFlags.Instance);
+        projectIdProp.Should().NotBeNull($"Entity '{entityType.Name}' must expose public ProjectId property.");
+        projectIdProp!.PropertyType.Should().Be(typeof(SmkDoc.Domain.ValueObjects.Ids.ProjectId));
+        projectIdProp.GetSetMethod(nonPublic: true).Should().NotBeNull();
+        projectIdProp.GetSetMethod(nonPublic: false).Should().BeNull($"Entity '{entityType.Name}' ProjectId setter must be private.");
+    }
+
     private static bool IsSubclassOfBaseEntity(Type type)
     {
         var current = type.BaseType;

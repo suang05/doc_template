@@ -49,7 +49,6 @@ export function simulatePreview(rows: MappingRow[], jsonText: string): PreviewRe
         if (v != null) expr = expr.replace(new RegExp(`\\b${k}\\b`, 'g'), v);
       }
       try {
-        // eslint-disable-next-line no-new-func
         const res = Function('"use strict";return (' + expr + ')')();
         resolved[r.placeholder] = typeof res === 'number' ? String(+res.toFixed(4)) : String(res);
       } catch {

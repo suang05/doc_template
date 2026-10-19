@@ -102,7 +102,7 @@ public class GenerationLogTests
     public void Create_WithNegativeDurationMs_ThrowsDomainValidationException()
     {
         var now = TestConstants.BaselineTime;
-        var act = () => GenerationLog.Create(null, null, null, null, null, null, null, null, null, null, null, -1, GenerationStatus.Success, null, now);
+        var act = () => GenerationLog.Create(null, null, null, null, "api", null, null, null, null, null, null, -1, GenerationStatus.Success, null, now);
 
         act.Should().Throw<DomainValidationException>()
             .WithMessage("*DurationMs cannot be negative*");
@@ -112,7 +112,7 @@ public class GenerationLogTests
     public void Create_WithNegativeFileSizeBytes_ThrowsDomainValidationException()
     {
         var now = TestConstants.BaselineTime;
-        var act = () => GenerationLog.Create(null, null, null, null, null, null, null, null, -50, null, null, 10, GenerationStatus.Success, null, now);
+        var act = () => GenerationLog.Create(null, null, null, null, "api", null, null, null, -50, null, null, 10, GenerationStatus.Success, null, now);
 
         act.Should().Throw<DomainValidationException>()
             .WithMessage("*FileSizeBytes cannot be negative*");
@@ -122,7 +122,7 @@ public class GenerationLogTests
     public void Create_WithNegativePageCount_ThrowsDomainValidationException()
     {
         var now = TestConstants.BaselineTime;
-        var act = () => GenerationLog.Create(null, null, null, null, null, null, null, null, 100, -1, null, 10, GenerationStatus.Success, null, now);
+        var act = () => GenerationLog.Create(null, null, null, null, "api", null, null, null, 100, -1, null, 10, GenerationStatus.Success, null, now);
 
         act.Should().Throw<DomainValidationException>()
             .WithMessage("*PageCount cannot be negative*");
@@ -133,7 +133,7 @@ public class GenerationLogTests
     {
         var now = TestConstants.BaselineTime;
         var longApp = new string('A', GenerationLog.MaxCallerAppLength + 1);
-        var act = () => GenerationLog.Create(null, null, null, longApp, null, null, null, null, null, null, null, 10, GenerationStatus.Success, null, now);
+        var act = () => GenerationLog.Create(null, null, null, longApp, "api", null, null, null, null, null, null, 10, GenerationStatus.Success, null, now);
 
         act.Should().Throw<DomainValidationException>()
             .WithMessage($"*CallerApp must not exceed {GenerationLog.MaxCallerAppLength} characters*");
@@ -155,7 +155,7 @@ public class GenerationLogTests
     {
         var now = TestConstants.BaselineTime;
         var longKey = new string('K', GenerationLog.MaxOutputKeyLength + 1);
-        var act = () => GenerationLog.Create(null, null, null, null, null, null, longKey, null, null, null, null, 10, GenerationStatus.Success, null, now);
+        var act = () => GenerationLog.Create(null, null, null, null, "api", null, longKey, null, null, null, null, 10, GenerationStatus.Success, null, now);
 
         act.Should().Throw<DomainValidationException>()
             .WithMessage($"*OutputKey must not exceed {GenerationLog.MaxOutputKeyLength} characters*");
@@ -165,7 +165,7 @@ public class GenerationLogTests
     public void Create_WithSmartEnumStatus_InitializesSuccessfully()
     {
         var now = TestConstants.BaselineTime;
-        var log = GenerationLog.Create(null, null, null, null, null, null, null, null, null, null, null, 10, GenerationStatus.Timeout, null, now);
+        var log = GenerationLog.Create(null, null, null, null, "api", null, null, null, null, null, null, 10, GenerationStatus.Timeout, null, now);
 
         log.Status.Should().Be(GenerationStatus.Timeout);
     }

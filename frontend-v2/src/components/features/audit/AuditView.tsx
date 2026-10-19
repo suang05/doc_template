@@ -10,7 +10,6 @@ import {
 import { useLegalAudit } from '@/hooks/useLegalAudit';
 import {
   Button,
-  Badge,
   Input,
   Toolbar,
   Table,

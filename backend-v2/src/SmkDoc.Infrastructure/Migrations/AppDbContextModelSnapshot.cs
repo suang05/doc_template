@@ -116,6 +116,9 @@ namespace SmkDoc.Infrastructure.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Provider")
                         .IsRequired()
                         .HasMaxLength(50)
@@ -125,6 +128,8 @@ namespace SmkDoc.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ProjectId");
 
                     b.ToTable("data_connections", (string)null);
                 });
@@ -157,6 +162,9 @@ namespace SmkDoc.Infrastructure.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("SqlQuery")
                         .IsRequired()
                         .HasColumnType("text");
@@ -167,6 +175,8 @@ namespace SmkDoc.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("DataConnectionId");
+
+                    b.HasIndex("ProjectId");
 
                     b.ToTable("datasets", (string)null);
                 });
@@ -187,15 +197,18 @@ namespace SmkDoc.Infrastructure.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid?>("TemplateId")
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("DocumentRef")
-                        .IsUnique();
-
                     b.HasIndex("TemplateId");
+
+                    b.HasIndex("ProjectId", "DocumentRef")
+                        .IsUnique();
 
                     b.ToTable("documents", (string)null);
                 });
@@ -352,6 +365,9 @@ namespace SmkDoc.Infrastructure.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
 
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -372,6 +388,8 @@ namespace SmkDoc.Infrastructure.Migrations
                     b.HasIndex("ApiKeyId");
 
                     b.HasIndex("CreatedAt");
+
+                    b.HasIndex("ProjectId");
 
                     b.HasIndex("TemplateId");
 
@@ -640,6 +658,15 @@ namespace SmkDoc.Infrastructure.Migrations
                     b.Navigation("Project");
                 });
 
+            modelBuilder.Entity("SmkDoc.Domain.Entities.DataConnection", b =>
+                {
+                    b.HasOne("SmkDoc.Domain.Entities.Project", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("SmkDoc.Domain.Entities.Dataset", b =>
                 {
                     b.HasOne("SmkDoc.Domain.Entities.DataConnection", "DataConnection")
@@ -648,17 +675,27 @@ namespace SmkDoc.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("SmkDoc.Domain.Entities.Project", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.Navigation("DataConnection");
                 });
 
             modelBuilder.Entity("SmkDoc.Domain.Entities.Document", b =>
                 {
-                    b.HasOne("SmkDoc.Domain.Entities.Template", "Template")
+                    b.HasOne("SmkDoc.Domain.Entities.Project", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SmkDoc.Domain.Entities.Template", null)
                         .WithMany()
                         .HasForeignKey("TemplateId")
                         .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("Template");
                 });
 
             modelBuilder.Entity("SmkDoc.Domain.Entities.DocumentVersion", b =>
@@ -713,6 +750,12 @@ namespace SmkDoc.Infrastructure.Migrations
                         .WithMany()
                         .HasForeignKey("TemplateVersionId")
                         .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("SmkDoc.Domain.Entities.Project", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
                     b.Navigation("ApiKey");
 

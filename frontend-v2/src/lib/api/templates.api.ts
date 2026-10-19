@@ -1,7 +1,6 @@
 import { apiClient, apiClientBlob, apiClientText, ApiError } from './client';
 import {
   TemplateDto,
-  CreateTemplateRequest,
   SaveTemplateHtmlRequest,
   UpdateTemplateRequest,
   TemplateVersionDto,

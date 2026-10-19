@@ -12,7 +12,7 @@ import {
   RefreshCw,
   Upload,
 } from 'lucide-react';
-import { useTemplateStudio, parseCombinedHtml, getCombinedHtml } from '@/hooks/useTemplateStudio';
+import { useTemplateStudio, parseCombinedHtml } from '@/hooks/useTemplateStudio';
 import { useLivePreview } from '@/hooks/useLivePreview';
 import { extractVariablesFromHtml } from '@/lib/html/variableExtractor';
 import { Button, Modal } from '@/components/ui';

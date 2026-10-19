@@ -83,7 +83,6 @@ export function useFormPreview(
       return;
     }
     if (timerRef.current) clearTimeout(timerRef.current);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     timerRef.current = setTimeout(() => runPreview(templateId, JSON.parse(dataKey)), 800);
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);

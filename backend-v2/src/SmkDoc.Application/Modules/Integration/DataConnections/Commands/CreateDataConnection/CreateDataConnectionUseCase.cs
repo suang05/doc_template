@@ -17,9 +17,11 @@ public sealed class CreateDataConnectionUseCase(
     IDataConnectionRepository repository,
     IUnitOfWork unitOfWork,
     IDataProtectionService dataProtection,
-    TimeProvider? timeProvider = null) : IUseCase<CreateDataConnectionCommand, DataConnectionDto>
+    TimeProvider? timeProvider = null,
+    ICurrentProjectContext? projectContext = null) : IUseCase<CreateDataConnectionCommand, DataConnectionDto>
 {
     private readonly TimeProvider timeProvider = timeProvider ?? TimeProvider.System;
+    private readonly ICurrentProjectContext? _projectContext = projectContext;
 
     public async Task<DataConnectionDto> ExecuteAsync(CreateDataConnectionCommand command, CancellationToken ct = default)
     {
@@ -28,7 +30,8 @@ public sealed class CreateDataConnectionUseCase(
             ConnectionName.Create(command.Name),
             Enumeration.FromDisplayName<DatabaseProvider>(command.Provider),
             dataProtection.Encrypt(command.ConnectionString),
-            now);
+            now,
+            _projectContext?.ProjectId ?? default);
 
         await repository.AddAsync(entity, ct);
         await unitOfWork.CommitAsync(ct);

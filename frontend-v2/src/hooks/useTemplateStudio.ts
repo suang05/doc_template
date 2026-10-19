@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { templatesApi } from '@/lib/api/templates.api';
 import { TemplateDto, TemplateVersionDto, TemplateValidationResult } from '@/types/api';
-import { FETCH_TIMEOUT_MS, TOAST_AUTO_DISMISS_MS } from '@/constants/timeouts';
+import { FETCH_TIMEOUT_MS } from '@/constants/timeouts';
 
 export const DEFAULT_STARTER_HTML = `<!DOCTYPE html>
 <html lang="th">

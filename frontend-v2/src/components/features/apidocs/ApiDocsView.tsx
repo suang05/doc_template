@@ -3,9 +3,7 @@
 import React, { useState } from 'react';
 import {
   BookOpen,
-  Code2,
   Lock,
-  Layers,
   Sparkles,
 } from 'lucide-react';
 import {

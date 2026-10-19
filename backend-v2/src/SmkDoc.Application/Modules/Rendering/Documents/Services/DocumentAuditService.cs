@@ -33,7 +33,8 @@ public sealed class DocumentAuditService(
             outputFormat,
             elapsedMs,
             errorMessage,
-            this.timeProvider.GetUtcNow());
+            this.timeProvider.GetUtcNow(),
+            executionContext.ProjectId.HasValue ? new SmkDoc.Domain.ValueObjects.Ids.ProjectId(executionContext.ProjectId.Value) : SmkDoc.Domain.ValueObjects.Ids.ProjectId.Empty);
 
         await logRepo.AddAsync(failLog, ct);
         await unitOfWork.CommitAsync(ct);
@@ -64,7 +65,8 @@ public sealed class DocumentAuditService(
             outputFormat,
             fileSizeBytes,
             elapsedMs,
-            this.timeProvider.GetUtcNow());
+            this.timeProvider.GetUtcNow(),
+            executionContext.ProjectId.HasValue ? new SmkDoc.Domain.ValueObjects.Ids.ProjectId(executionContext.ProjectId.Value) : SmkDoc.Domain.ValueObjects.Ids.ProjectId.Empty);
 
         await logRepo.AddAsync(log, ct);
 

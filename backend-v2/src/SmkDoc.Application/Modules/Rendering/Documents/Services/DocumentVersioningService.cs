@@ -26,7 +26,11 @@ public sealed class DocumentVersioningService(
 
         if (document is null)
         {
-            document = Document.Create(DocumentReference.Create(documentRef), templateId, this.timeProvider.GetUtcNow());
+            document = Document.Create(
+                DocumentReference.Create(documentRef),
+                templateId,
+                this.timeProvider.GetUtcNow(),
+                executionContext.ProjectId.HasValue ? new SmkDoc.Domain.ValueObjects.Ids.ProjectId(executionContext.ProjectId.Value) : SmkDoc.Domain.ValueObjects.Ids.ProjectId.Empty);
             await documentRepo.AddAsync(document, ct);
         }
 

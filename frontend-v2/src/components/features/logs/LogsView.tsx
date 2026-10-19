@@ -4,7 +4,6 @@ import React, { useState } from 'react';
 import {
   ListOrdered,
   Search,
-  CheckCircle,
   AlertCircle,
   Eye,
   Clock,

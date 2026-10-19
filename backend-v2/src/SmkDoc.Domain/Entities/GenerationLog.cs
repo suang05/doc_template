@@ -1,6 +1,7 @@
 using SmkDoc.Domain.Common;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
+using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.ValueObjects.Ids;
 
@@ -9,12 +10,13 @@ namespace SmkDoc.Domain.Entities;
 /// <summary>
 /// Domain entity representing an audit log entry of a document generation request.
 /// </summary>
-public sealed class GenerationLog : BaseEntity
+public sealed class GenerationLog : BaseEntity, IMustHaveProject
 {
     public const int MaxCallerAppLength = 50;
     public const int MaxTriggerSourceLength = 20;
     public const int MaxOutputKeyLength = 500;
 
+    public ProjectId ProjectId { get; private set; }
     public TemplateId? TemplateId { get; private set; }
     public Guid? TemplateVersionId { get; private set; }
     public ApiKeyId? ApiKeyId { get; private set; }
@@ -49,7 +51,8 @@ public sealed class GenerationLog : BaseEntity
         int durationMs,
         GenerationStatus status,
         string? errorMsg,
-        DateTimeOffset now)
+        DateTimeOffset now,
+        ProjectId projectId = default)
         : base(id, createdAt: now)
     {
         if (durationMs < 0)
@@ -97,6 +100,7 @@ public sealed class GenerationLog : BaseEntity
         PayloadHashSha256 = payloadHashSha256;
         DurationMs = durationMs;
         ErrorMsg = errorMsg;
+        ProjectId = projectId;
     }
 
     public static GenerationLog Create(
@@ -104,7 +108,7 @@ public sealed class GenerationLog : BaseEntity
         Guid? templateVersionId,
         ApiKeyId? apiKeyId,
         string? callerApp,
-        string? triggerSource,
+        string triggerSource,
         string? inputData,
         string? outputKey,
         OutputFormat? outputFormat,
@@ -114,7 +118,8 @@ public sealed class GenerationLog : BaseEntity
         int durationMs,
         GenerationStatus status,
         string? errorMsg,
-        DateTimeOffset now) =>
+        DateTimeOffset now,
+        ProjectId projectId = default) =>
         new(
             null,
             templateId,
@@ -131,7 +136,8 @@ public sealed class GenerationLog : BaseEntity
             durationMs,
             status,
             errorMsg,
-            now);
+            now,
+            projectId);
 
     public static GenerationLog CreateSuccess(
         Guid generationId,
@@ -145,7 +151,8 @@ public sealed class GenerationLog : BaseEntity
         OutputFormat outputFormat,
         long fileSizeBytes,
         int durationMs,
-        DateTimeOffset now) =>
+        DateTimeOffset now,
+        ProjectId projectId = default) =>
         new(
             generationId,
             templateId,
@@ -162,7 +169,8 @@ public sealed class GenerationLog : BaseEntity
             durationMs,
             GenerationStatus.Success,
             null,
-            now);
+            now,
+            projectId);
 
     public static GenerationLog CreateValidationFailure(
         TemplateId templateId,
@@ -174,7 +182,8 @@ public sealed class GenerationLog : BaseEntity
         OutputFormat outputFormat,
         int durationMs,
         string errorMessage,
-        DateTimeOffset now) =>
+        DateTimeOffset now,
+        ProjectId projectId = default) =>
         new(
             null,
             templateId,
@@ -191,7 +200,8 @@ public sealed class GenerationLog : BaseEntity
             durationMs,
             GenerationStatus.ValidationFailed,
             errorMessage,
-            now);
+            now,
+            projectId);
 
     public static GenerationLog CreateFailure(
         TemplateId templateId,
@@ -203,7 +213,8 @@ public sealed class GenerationLog : BaseEntity
         OutputFormat outputFormat,
         int durationMs,
         string errorMessage,
-        DateTimeOffset now) =>
+        DateTimeOffset now,
+        ProjectId projectId = default) =>
         new(
             null,
             templateId,
@@ -220,5 +231,6 @@ public sealed class GenerationLog : BaseEntity
             durationMs,
             GenerationStatus.Failed,
             errorMessage,
-            now);
+            now,
+            projectId);
 }

@@ -18,12 +18,14 @@ public sealed class CreateDatasetUseCase(
     IDatasetRepository datasetRepo,
     IDataConnectionRepository connectionRepo,
     IUnitOfWork unitOfWork,
-    TimeProvider? timeProvider = null) : IUseCase<CreateDatasetCommand, DatasetDto>
+    TimeProvider? timeProvider = null,
+    ICurrentProjectContext? projectContext = null) : IUseCase<CreateDatasetCommand, DatasetDto>
 {
     private readonly IDatasetRepository _datasetRepo = datasetRepo;
     private readonly IDataConnectionRepository _connectionRepo = connectionRepo;
     private readonly IUnitOfWork _unitOfWork = unitOfWork;
     private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
+    private readonly ICurrentProjectContext? _projectContext = projectContext;
 
     public async Task<DatasetDto> ExecuteAsync(CreateDatasetCommand command, CancellationToken ct = default)
     {
@@ -37,7 +39,8 @@ public sealed class CreateDatasetUseCase(
             command.DataConnectionId,
             command.SqlQuery,
             command.CacheSeconds,
-            now);
+            now,
+            _projectContext?.ProjectId ?? default);
 
         await _datasetRepo.AddAsync(entity, ct);
         await _unitOfWork.CommitAsync(ct);
