@@ -88,7 +88,7 @@ public class GenerateDocumentUseCaseTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_WhenNoCurrentVersion_ShouldThrowInvalidOperationException()
+    public async Task ExecuteAsync_WhenNoCurrentVersion_ShouldThrowBusinessRuleViolationException()
     {
         // Arrange
         _fixture.GivenTemplateWithoutVersion("no-ver-tpl");
@@ -98,7 +98,7 @@ public class GenerateDocumentUseCaseTests
 
         // Act & Assert
         Func<Task> act = () => CreateSut().ExecuteAsync("no-ver-tpl", request);
-        await act.Should().ThrowAsync<InvalidOperationException>();
+        await act.Should().ThrowAsync<BusinessRuleViolationException>();
     }
 
     [Fact]

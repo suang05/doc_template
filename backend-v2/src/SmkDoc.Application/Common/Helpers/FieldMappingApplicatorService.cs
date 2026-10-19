@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 using SmkDoc.Domain.Entities;
+using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects;
 
 namespace SmkDoc.Application.Common.Helpers;
@@ -68,7 +69,10 @@ public sealed class FieldMappingApplicatorService(
                 if (!string.IsNullOrWhiteSpace(json))
                     aliasCache[alias] = JsonDocument.Parse(json).RootElement.Clone();
             }
-            catch { /* leave cache empty for this alias */ }
+            catch (Exception ex) when (ex is not DatasetExecutionException)
+            {
+                throw new DatasetExecutionException(alias, ds.Provider, ex.Message, ex);
+            }
         }
 
         // Resolve per-field ResultPath from cached alias result
@@ -93,7 +97,7 @@ public sealed class FieldMappingApplicatorService(
             if (string.IsNullOrWhiteSpace(val)) val = mapping.DefaultValue ?? string.Empty;
 
             if (mapping.Required && string.IsNullOrWhiteSpace(val))
-                throw new InvalidOperationException(
+                throw new DomainValidationException(
                     $"Required field '{mapping.Label}' ({mapping.Placeholder}) is missing.");
 
             if (!string.IsNullOrWhiteSpace(val) && !string.IsNullOrWhiteSpace(mapping.Transform))
@@ -116,7 +120,7 @@ public sealed class FieldMappingApplicatorService(
         if (string.IsNullOrWhiteSpace(val)) val = mapping.DefaultValue;
 
         if (mapping.Required && string.IsNullOrWhiteSpace(val))
-            throw new InvalidOperationException(
+            throw new DomainValidationException(
                 $"Required field '{mapping.Label}' ({mapping.Placeholder}) is missing.");
 
         if (!string.IsNullOrWhiteSpace(val) && !string.IsNullOrWhiteSpace(mapping.Transform))

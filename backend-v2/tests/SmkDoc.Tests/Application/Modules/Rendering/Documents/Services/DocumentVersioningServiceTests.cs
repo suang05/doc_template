@@ -14,10 +14,9 @@ public class DocumentVersioningServiceTests
     private readonly Mock<IRepository<Document>> _mockDocumentRepo = new();
     private readonly Mock<IRepository<DocumentVersion>> _mockDocVersionRepo = new();
     private readonly Mock<IExecutionContext> _mockContext = new();
-    private readonly Mock<IUnitOfWork> _mockUow = new();
 
     private DocumentVersioningService BuildService() => new(
-        _mockDocumentRepo.Object, _mockDocVersionRepo.Object, _mockContext.Object, _mockUow.Object);
+        _mockDocumentRepo.Object, _mockDocVersionRepo.Object, _mockContext.Object);
 
     [Fact]
     public async Task RecordVersionAsync_WhenNewDocument_ShouldCreateDocumentAndFirstVersion()
@@ -45,7 +44,5 @@ public class DocumentVersioningServiceTests
         _mockDocVersionRepo.Verify(r => r.AddAsync(
             It.Is<DocumentVersion>(v => v.Version == 1 && v.GenerationLogId == genId),
             It.IsAny<CancellationToken>()), Times.Once);
-
-        _mockUow.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 }

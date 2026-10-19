@@ -92,7 +92,6 @@ public sealed class GlobalExceptionHandler(
             DomainException domain               => (StatusCodes.Status400BadRequest, "Domain Error", domain.ErrorCode),
             UnauthorizedAccessException          => (StatusCodes.Status401Unauthorized, "Unauthorized", "UNAUTHORIZED"),
             ArgumentException                    => (StatusCodes.Status400BadRequest, "Bad Request", "BAD_REQUEST"),
-            InvalidOperationException            => (StatusCodes.Status409Conflict, "Conflict", "INVALID_OPERATION"),
             _                                    => (StatusCodes.Status500InternalServerError, "Internal Server Error", "INTERNAL_SERVER_ERROR")
         };
 }

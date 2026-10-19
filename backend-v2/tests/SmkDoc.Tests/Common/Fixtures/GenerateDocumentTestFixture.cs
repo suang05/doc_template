@@ -52,8 +52,7 @@ public class GenerateDocumentTestFixture
         new DocumentVersioningService(
             DocumentRepo.Object,
             DocVersionRepo.Object,
-            Context.Object,
-            Uow.Object);
+            Context.Object);
 
     public GenerateDocumentUseCase BuildUseCase(
         IDocumentDataPreparationService? dataPrep = null,

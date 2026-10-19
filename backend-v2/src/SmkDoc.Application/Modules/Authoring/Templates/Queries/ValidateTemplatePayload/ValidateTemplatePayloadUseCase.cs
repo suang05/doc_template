@@ -15,7 +15,7 @@ public class ValidateTemplatePayloadUseCase(
     ITemplateRepository templateRepo,
     IRepository<TemplateVersion> versionRepo,
     IJsonSchemaValidationService schemaValidation,
-    IExecutionContext executionContext)
+    IExecutionContext executionContext) : IUseCase<ValidateTemplatePayloadQuery, ValidateTemplatePayloadResult>
 {
     private readonly ITemplateRepository _templateRepo = templateRepo;
     private readonly IRepository<TemplateVersion> _versionRepo = versionRepo;
@@ -42,7 +42,7 @@ public class ValidateTemplatePayloadUseCase(
 
         if (template.CurrentVersionId is null)
         {
-            throw new InvalidOperationException($"Template '{query.Slug}' has no published version.");
+            throw new BusinessRuleViolationException($"Template '{query.Slug}' has no published version.");
         }
 
         var currentVersion = await _versionRepo.GetByIdAsync(template.CurrentVersionId.Value, ct)

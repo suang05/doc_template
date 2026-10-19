@@ -98,4 +98,36 @@ public class PreviewDocumentUseCaseTests
 
         _mockStorage.Verify(s => s.UploadAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
+
+    [Fact]
+    public async Task ExecuteStreamAsync_WhenSlugIsNull_AndHtmlIsNull_ThrowsDomainValidationException()
+    {
+        // Arrange
+        using var jsonDoc = JsonDocument.Parse("{}");
+        var request = new PreviewDocumentQuery(Payload: jsonDoc.RootElement, Html: null);
+
+        // Act
+        var act = () => CreateSut().ExecuteStreamAsync(null, request);
+
+        // Assert
+        await act.Should().ThrowAsync<SmkDoc.Domain.Exceptions.DomainValidationException>();
+    }
+
+    [Fact]
+    public async Task ExecuteStreamAsync_WhenTemplateHasNoPublishedVersion_ThrowsBusinessRuleViolationException()
+    {
+        // Arrange
+        var template = SmkDoc.Tests.Common.Builders.TemplateBuilder.ATemplate().WithoutCurrentVersion().Build();
+        _mockTemplateRepo.Setup(r => r.GetBySlugAsync("tpl-no-version", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(template);
+
+        using var jsonDoc = JsonDocument.Parse("{}");
+        var request = new PreviewDocumentQuery(Payload: jsonDoc.RootElement, Html: null);
+
+        // Act
+        var act = () => CreateSut().ExecuteStreamAsync("tpl-no-version", request);
+
+        // Assert
+        await act.Should().ThrowAsync<SmkDoc.Domain.Exceptions.BusinessRuleViolationException>();
+    }
 }

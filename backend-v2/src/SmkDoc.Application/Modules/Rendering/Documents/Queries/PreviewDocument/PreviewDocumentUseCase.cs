@@ -1,5 +1,6 @@
 using System.Text.Json;
 using SmkDoc.Application.Common;
+using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Rendering.Documents.DTOs;
 using SmkDoc.Application.Modules.Rendering.Documents.Queries.PreviewDocument;
@@ -17,8 +18,11 @@ public sealed class PreviewDocumentUseCase(
     ITemplateRepository templateRepo,
     IRepository<TemplateVersion> versionRepo,
     IStorageService storageService,
-    IEnumerable<IRenderEngine> engines)
+    IEnumerable<IRenderEngine> engines) : IUseCase<PreviewDocumentQuery, Stream>
 {
+    public Task<Stream> ExecuteAsync(PreviewDocumentQuery request, CancellationToken ct = default)
+        => ExecuteStreamAsync(request.Slug, request, ct);
+
     public async Task<Stream> ExecuteStreamAsync(string? slug, PreviewDocumentQuery request, CancellationToken ct = default)
     {
         Stream templateStream;
@@ -33,16 +37,16 @@ public sealed class PreviewDocumentUseCase(
         else
         {
             if (string.IsNullOrWhiteSpace(slug))
-                throw new ArgumentException("Template slug or HTML content is required for preview.");
+                throw new DomainValidationException("Template slug or HTML content is required for preview.");
 
             var template = await templateRepo.GetBySlugAsync(slug, ct)
                 ?? throw new NotFoundException($"Template '{slug}' not found.");
 
             if (template.CurrentVersionId is null)
-                throw new InvalidOperationException($"Template '{slug}' has no published version.");
+                throw new BusinessRuleViolationException($"Template '{slug}' has no published version.");
 
             var version = await versionRepo.GetByIdAsync(template.CurrentVersionId.Value, ct)
-                ?? throw new InvalidOperationException($"Current version for template '{slug}' not found.");
+                ?? throw new NotFoundException($"Current version for template '{slug}' not found.");
 
             engineType = version.GetRenderEngineType();
 
@@ -52,7 +56,7 @@ public sealed class PreviewDocumentUseCase(
         try
         {
             var engine = engines.FirstOrDefault(e => e.EngineType == engineType)
-                ?? throw new InvalidOperationException($"No render engine registered for '{engineType}'.");
+                ?? throw new RenderException(slug ?? "ephemeral", engineType.ToString(), $"No render engine registered for '{engineType}'.");
 
             string dataJson = request.Payload.ValueKind != JsonValueKind.Undefined ? request.Payload.GetRawText() : "{}";
 

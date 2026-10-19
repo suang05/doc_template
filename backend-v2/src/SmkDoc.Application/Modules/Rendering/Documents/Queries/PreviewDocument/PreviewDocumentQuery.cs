@@ -7,5 +7,6 @@ namespace SmkDoc.Application.Modules.Rendering.Documents.Queries.PreviewDocument
 /// </summary>
 public record PreviewDocumentQuery(
     JsonElement Payload,
-    string? Html = null
+    string? Html = null,
+    string? Slug = null
 );

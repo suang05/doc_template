@@ -109,7 +109,7 @@ public class HtmlDirectGenerationTests
         var audit = new SmkDoc.Application.Modules.Rendering.Documents.Services.DocumentAuditService(
             _mockLogRepo.Object, _mockContext.Object, _mockUow.Object);
         var versioning = new SmkDoc.Application.Modules.Rendering.Documents.Services.DocumentVersioningService(
-            _mockDocumentRepo.Object, _mockDocVersionRepo.Object, _mockContext.Object, _mockUow.Object);
+            _mockDocumentRepo.Object, _mockDocVersionRepo.Object, _mockContext.Object);
 
         var useCase = new GenerateDocumentUseCase(
             _mockTemplateRepo.Object,

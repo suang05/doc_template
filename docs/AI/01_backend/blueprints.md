@@ -242,6 +242,9 @@ public sealed class TemplateController(
 | Domain Exception Class | Target HTTP Status | Canonical `errorCode` Token | Trigger Scenario |
 |---|---|---|---|
 | `DomainValidationException` | `400 Bad Request` | `VALIDATION_FAILED` | Entity factory or invariant validation failure |
+| `BusinessRuleViolationException` | `400 Bad Request` | `BUSINESS_RULE_VIOLATION` | Business rule invariant violation (e.g., unpublished template) |
+| `DataConnectionDecryptionException` | `400 Bad Request` | `DATA_CONNECTION_DECRYPTION_FAILED` | Failed decryption of external database connection string |
+| `DatasetExecutionException` | `400 Bad Request` | `DATASET_EXECUTION_FAILED` | SQL dataset query execution error during data preparation |
 | `UnauthorizedException` | `401 Unauthorized` | `AUTHENTICATION_REQUIRED` | Missing or invalid API key / JWT bearer |
 | `ForbiddenException` | `403 Forbidden` | `ACCESS_DENIED` | Tenant isolation boundary cross violation |
 | `NotFoundException` | `404 Not Found` | `RESOURCE_NOT_FOUND` | Target entity does not exist for specified ID |
@@ -249,6 +252,7 @@ public sealed class TemplateController(
 | `ConcurrencyConflictException` | `409 Conflict` | `CONCURRENCY_CONFLICT` | PostgreSQL `xmin` concurrency token collision |
 | `SchemaValidationException` | `422 Unprocessable` | `SCHEMA_VALIDATION_FAILED` | Dynamic JSON payload schema violation |
 | `RateLimitExceededException` | `429 Too Many Requests`| `RATE_LIMIT_EXCEEDED` | Request rate bucket exhausted |
+| `RenderException` | `500 Internal Server Error` | `DOCUMENT_RENDER_FAILED` | Engine failure or missing render engine registration |
 
 ##### Consumer Usage Example (Application Layer):
 ```csharp

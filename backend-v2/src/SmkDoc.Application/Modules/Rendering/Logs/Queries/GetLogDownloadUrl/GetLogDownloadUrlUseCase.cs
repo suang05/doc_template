@@ -15,7 +15,7 @@ public sealed class GetLogDownloadUrlUseCase(
             ?? throw new NotFoundException($"Generation log '{query.LogId}' not found.");
 
         if (string.IsNullOrWhiteSpace(log.OutputKey))
-            throw new InvalidOperationException("No output file is associated with this log entry.");
+            throw new NotFoundException("No output file is associated with this log entry.");
 
         return await storageService.GetPresignedUrlAsync(StorageBuckets.Outputs, log.OutputKey, TimeSpan.FromHours(1), ct);
     }

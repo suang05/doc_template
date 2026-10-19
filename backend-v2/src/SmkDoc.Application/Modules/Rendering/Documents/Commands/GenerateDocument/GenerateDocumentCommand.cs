@@ -10,5 +10,6 @@ public record GenerateDocumentCommand(
     string OutputFormat = "pdf",
     string? DocumentRef = null,
     string? ChangeNote = null,
-    bool SkipValidation = false
+    bool SkipValidation = false,
+    string Slug = ""
 );

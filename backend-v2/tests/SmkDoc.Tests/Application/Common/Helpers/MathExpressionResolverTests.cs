@@ -102,4 +102,48 @@ public class MathExpressionResolverTests
         var result = Sut.Resolve("line1Total + line2Total", vars);
         result.Should().Be("4000");
     }
+
+    [Fact]
+    public void Resolve_DivisionByZero_ReturnsEmpty()
+    {
+        var result = Sut.Resolve("total / zero", Vars(("total", "100"), ("zero", "0")));
+        result.Should().BeEmpty();
+
+        var literalResult = Sut.Resolve("100 / 0", Vars());
+        literalResult.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Resolve_Modulo_ReturnsRemainder()
+    {
+        var result = Sut.Resolve("qty % batchSize", Vars(("qty", "10"), ("batchSize", "3")));
+        result.Should().Be("1");
+
+        var zeroModulo = Sut.Resolve("10 % 0", Vars());
+        zeroModulo.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Resolve_UnaryOperators_EvaluatesCorrectly()
+    {
+        var result = Sut.Resolve("-baseVal + +adjVal", Vars(("baseVal", "5"), ("adjVal", "10")));
+        result.Should().Be("5");
+
+        var negatedExpr = Sut.Resolve("-(2 + 3) * 4", Vars());
+        negatedExpr.Should().Be("-20");
+    }
+
+    [Fact]
+    public void Resolve_NestedParentheses_EvaluatesWithCorrectPrecedence()
+    {
+        var result = Sut.Resolve("((2 + 3) * (4 + 1)) / 5", Vars());
+        result.Should().Be("5");
+    }
+
+    [Fact]
+    public void Resolve_MismatchedParentheses_ReturnsEmpty()
+    {
+        var result = Sut.Resolve("((2 + 3) * 4", Vars());
+        result.Should().BeEmpty();
+    }
 }

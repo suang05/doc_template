@@ -1,5 +1,6 @@
 using System.Text.Json;
 using SmkDoc.Application.Common;
+using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Helpers;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Entities;
@@ -53,15 +54,15 @@ public class PreviewMappingUseCase(
         }
 
         if (template.CurrentVersionId is null)
-            throw new InvalidOperationException($"Template '{templateId}' has no published version.");
+            throw new BusinessRuleViolationException($"Template '{templateId}' has no published version.");
 
         var version = await _versionRepo.GetByIdAsync(template.CurrentVersionId.Value, ct)
-            ?? throw new InvalidOperationException($"Current version for template '{templateId}' not found.");
+            ?? throw new NotFoundException($"Current version for template '{templateId}' not found.");
 
         var engineType = version.GetRenderEngineType();
 
         var engine = _engines.FirstOrDefault(e => e.EngineType == engineType)
-            ?? throw new InvalidOperationException($"No render engine registered for '{engineType}'.");
+            ?? throw new RenderException(templateId.ToString(), engineType.ToString(), $"No render engine registered for '{engineType}'.");
 
         using var templateStream = await _storageService.DownloadAsync(StorageBuckets.Templates, version.StorageKey, ct);
         return await engine.RenderAsync(templateStream, dataJson, OutputFormat.Pdf, ct);

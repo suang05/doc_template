@@ -27,13 +27,13 @@ public sealed class HtmlStudioUseCase(
             ?? throw new NotFoundException($"Template '{templateId}' not found.");
 
         if (template.CurrentVersionId == null)
-            throw new InvalidOperationException($"Template '{templateId}' has no active published version.");
+            throw new BusinessRuleViolationException($"Template '{templateId}' has no active published version.");
 
         var version = await _versionRepo.GetByIdAsync(template.CurrentVersionId.Value, ct)
             ?? throw new NotFoundException($"Active version for template '{templateId}' not found.");
 
         if (version.FileFormat != null && version.FileFormat != TemplateFormat.Html)
-            throw new InvalidOperationException("Only HTML templates can be opened in the Monaco editor.");
+            throw new BusinessRuleViolationException("Only HTML templates can be opened in the Monaco editor.");
 
         using var stream = await _storageService.DownloadAsync(StorageBuckets.Templates, version.StorageKey, ct);
         using var reader = new StreamReader(stream, Encoding.UTF8);
@@ -46,13 +46,13 @@ public sealed class HtmlStudioUseCase(
             ?? throw new NotFoundException($"Template '{templateId}' not found.");
 
         if (template.CurrentVersionId == null)
-            throw new InvalidOperationException($"Template '{templateId}' has no active published version.");
+            throw new BusinessRuleViolationException($"Template '{templateId}' has no active published version.");
 
         var version = await _versionRepo.GetByIdAsync(template.CurrentVersionId.Value, ct)
             ?? throw new NotFoundException($"Active version for template '{templateId}' not found.");
 
         if (version.FileFormat != null && version.FileFormat != TemplateFormat.Html)
-            throw new InvalidOperationException("Only HTML templates can be opened in the Monaco editor.");
+            throw new BusinessRuleViolationException("Only HTML templates can be opened in the Monaco editor.");
 
         using var stream = await _storageService.DownloadAsync(StorageBuckets.Templates, version.StorageKey, ct);
         using var reader = new StreamReader(stream, Encoding.UTF8);

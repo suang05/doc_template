@@ -1,6 +1,7 @@
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 using SmkDoc.Domain.Entities;
+using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 
 namespace SmkDoc.Application.Common.Helpers;
@@ -37,7 +38,10 @@ public static class DatasetAliasMapBuilder
                 var cs = dataProtection.Decrypt(connection.EncryptedConnectionString);
                 result[td.Alias.Value] = new ResolvedDatasetContext(connection.Provider.Name, cs, dataset.SqlQuery);
             }
-            catch { /* skip if decryption fails */ }
+            catch (Exception ex) when (ex is not DataConnectionDecryptionException)
+            {
+                throw new DataConnectionDecryptionException(connection.Id, connection.Name.Value, ex);
+            }
         }
 
         return result;

@@ -116,4 +116,58 @@ public class FieldMappingApplicatorServiceTests
         // Assert
         resultJson.Should().Contain("\"recipient_name\":\"John Doe\"");
     }
+
+    [Fact]
+    public async Task ApplyAsync_WhenSqlExecutionThrows_ThrowsDatasetExecutionException()
+    {
+        // Arrange
+        var sut = CreateSut();
+        var rootJson = JsonSerializer.Deserialize<JsonElement>("{\"customerId\": 42}");
+        var now = DateTimeOffset.UtcNow;
+
+        var mapping = FieldMapping.Create(
+            templateId: Guid.NewGuid(),
+            placeholder: "customer_name",
+            sourcePath: string.Empty,
+            label: "Customer Name",
+            required: false,
+            sortOrder: 1,
+            now: now,
+            dataSourceType: DataSourceType.Sql);
+
+        mapping.ConfigureDataSource(
+            type: DataSourceType.Sql,
+            alias: DatasetAlias.Create("customers"),
+            resultPath: "0.name",
+            mathExpression: null,
+            now: now);
+
+        var datasetContext = new ResolvedDatasetContext(
+            Provider: "postgresql",
+            ConnectionString: "Host=localhost;Database=test",
+            SqlQuery: "SELECT name FROM customers WHERE id = @customerId");
+
+        var datasetAliases = new Dictionary<string, ResolvedDatasetContext>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["customers"] = datasetContext
+        };
+
+        _sqlExecutorMock
+            .Setup(s => s.ExecuteQueryAsJsonAsync(
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<IDictionary<string, object>?>(),
+                It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("Connection timeout to PostgreSQL cluster"));
+
+        // Act
+        var act = () => sut.ApplyAsync(rootJson, [mapping], datasetAliases);
+
+        // Assert
+        var exception = await act.Should().ThrowAsync<SmkDoc.Domain.Exceptions.DatasetExecutionException>();
+        exception.Which.Alias.Should().Be("customers");
+        exception.Which.Provider.Should().Be("postgresql");
+        exception.Which.InnerException.Should().BeOfType<InvalidOperationException>();
+    }
 }

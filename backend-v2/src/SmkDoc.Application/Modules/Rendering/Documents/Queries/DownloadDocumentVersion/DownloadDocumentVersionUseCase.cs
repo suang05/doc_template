@@ -26,13 +26,13 @@ public sealed class DownloadDocumentVersionUseCase(
             ?? throw new NotFoundException($"Version {query.Version} not found for document '{query.DocumentRef}'.");
 
         if (docVersion.GenerationLogId is null)
-            throw new InvalidOperationException($"Document version {query.Version} has no linked generation log.");
+            throw new NotFoundException($"Document version {query.Version} has no linked generation log.");
 
         var log = await _logRepo.GetByIdAsync(docVersion.GenerationLogId.Value, ct)
             ?? throw new NotFoundException($"Generation log for document version {query.Version} not found.");
 
         if (string.IsNullOrWhiteSpace(log.OutputKey))
-            throw new InvalidOperationException("No output file is associated with this document version.");
+            throw new NotFoundException("No output file is associated with this document version.");
 
         var stream = await _storageService.DownloadAsync(StorageBuckets.Outputs, log.OutputKey, ct);
         string ext = log.OutputFormat?.Extension ?? "pdf";

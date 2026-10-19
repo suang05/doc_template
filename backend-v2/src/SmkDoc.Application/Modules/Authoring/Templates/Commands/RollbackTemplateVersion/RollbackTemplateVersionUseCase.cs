@@ -32,10 +32,10 @@ public sealed class RollbackTemplateVersionUseCase(
             ?? throw new NotFoundException($"Template '{command.TemplateId}' was not found.");
 
         if (template.CurrentVersionId is null)
-            throw new InvalidOperationException($"Template '{template.Id}' has no published version.");
+            throw new BusinessRuleViolationException($"Template '{template.Id}' has no published version.");
 
         var currentVersion = await _versionRepo.GetByIdAsync(template.CurrentVersionId.Value, ct)
-            ?? throw new InvalidOperationException($"Current version record for template '{template.Id}' not found.");
+            ?? throw new NotFoundException($"Current version record for template '{template.Id}' not found.");
 
         var archived = await _versionRepo.FirstOrDefaultAsync(
             v => v.TemplateId == command.TemplateId && v.Version == command.TargetVersion, ct)

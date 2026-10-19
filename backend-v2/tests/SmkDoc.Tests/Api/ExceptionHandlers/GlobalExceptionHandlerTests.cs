@@ -140,7 +140,7 @@ public class GlobalExceptionHandlerTests
     [Theory]
     [InlineData(typeof(UnauthorizedAccessException), StatusCodes.Status401Unauthorized, "UNAUTHORIZED")]
     [InlineData(typeof(ArgumentException), StatusCodes.Status400BadRequest, "BAD_REQUEST")]
-    [InlineData(typeof(InvalidOperationException), StatusCodes.Status409Conflict, "INVALID_OPERATION")]
+    [InlineData(typeof(InvalidOperationException), StatusCodes.Status500InternalServerError, "INTERNAL_SERVER_ERROR")]
     [InlineData(typeof(InvalidTimeZoneException), StatusCodes.Status500InternalServerError, "INTERNAL_SERVER_ERROR")]
     public async Task TryHandleAsync_ShouldMapFrameworkAndFallbackExceptions(Type exType, int expectedStatus, string expectedErrorCode)
     {

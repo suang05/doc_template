@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using SmkDoc.Application.Common;
+using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Rendering.Documents.Commands.GenerateDocument;
 using SmkDoc.Application.Modules.Rendering.Documents.DTOs;
@@ -21,7 +22,7 @@ public sealed class GenerateDocumentUseCase(
     IDocumentVersioningService versioningService,
     IUnitOfWork unitOfWork,
     IExecutionContext executionContext,
-    TimeProvider? timeProvider = null)
+    TimeProvider? timeProvider = null) : IUseCase<GenerateDocumentCommand, GenerateDocumentResultDto>
 {
     private readonly ITemplateRepository _templateRepo = templateRepo;
     private readonly IRepository<TemplateVersion> _versionRepo = versionRepo;
@@ -34,6 +35,10 @@ public sealed class GenerateDocumentUseCase(
     private readonly IExecutionContext _executionContext = executionContext;
     private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
 
+    public Task<GenerateDocumentResultDto> ExecuteAsync(
+        GenerateDocumentCommand request, CancellationToken ct = default)
+        => ExecuteAsync(request.Slug, request, ct);
+
     public async Task<GenerateDocumentResultDto> ExecuteAsync(
         string slug, GenerateDocumentCommand request, CancellationToken ct = default)
     {
@@ -44,10 +49,10 @@ public sealed class GenerateDocumentUseCase(
             throw new NotFoundException($"Template '{slug}' not found or inactive.");
 
         if (template.CurrentVersionId is null)
-            throw new InvalidOperationException($"Template '{slug}' has no published version.");
+            throw new BusinessRuleViolationException($"Template '{slug}' has no published version.");
 
         var currentVersion = await _versionRepo.GetByIdAsync(template.CurrentVersionId.Value, ct)
-            ?? throw new InvalidOperationException($"Current version for template '{slug}' not found.");
+            ?? throw new NotFoundException($"Current version for template '{slug}' not found.");
 
         var outputFormat = request.OutputFormat.Trim().ToLowerInvariant() switch
         {
@@ -59,7 +64,7 @@ public sealed class GenerateDocumentUseCase(
         var engineType = currentVersion.GetRenderEngineType();
 
         var engine = _engines.FirstOrDefault(e => e.EngineType == engineType)
-            ?? throw new InvalidOperationException($"No render engine registered for engine type '{engineType}'.");
+            ?? throw new RenderException(slug, engineType.ToString(), $"No render engine registered for engine type '{engineType}'.");
 
         // --- Step 1: Fail-Fast Data Preparation & Schema Validation Gate ---
         var preparedData = await _dataPreparationService.PrepareDataAsync(
@@ -135,10 +140,8 @@ public sealed class GenerateDocumentUseCase(
                 request.ChangeNote,
                 ct);
         }
-        else
-        {
-            await _unitOfWork.CommitAsync(ct);
-        }
+
+        await _unitOfWork.CommitAsync(ct);
 
         return new GenerateDocumentResultDto(
             GenerationId: generationId,

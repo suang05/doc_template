@@ -1,3 +1,4 @@
+using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
@@ -31,6 +32,6 @@ public sealed class PreviewTemplateDraftUseCase(
             _       => RenderEngineType.Html,
         };
         return _engines.FirstOrDefault(e => e.EngineType == type)
-            ?? throw new InvalidOperationException($"No render engine registered for '{ext}'.");
+            ?? throw new RenderException("draft", type.ToString(), $"No render engine registered for '{ext}'.");
     }
 }

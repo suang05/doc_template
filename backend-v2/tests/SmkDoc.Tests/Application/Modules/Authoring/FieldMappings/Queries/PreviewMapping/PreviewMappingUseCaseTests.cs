@@ -161,7 +161,7 @@ public class PreviewMappingUseCaseTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_WhenTemplateHasNoCurrentVersion_ShouldThrowInvalidOperationException()
+    public async Task ExecuteAsync_WhenTemplateHasNoCurrentVersion_ShouldThrowBusinessRuleViolationException()
     {
         var templateId = Guid.NewGuid();
         var template = TemplateBuilder.Create(templateId, Guid.NewGuid(), "T", "sample-template");
@@ -171,11 +171,11 @@ public class PreviewMappingUseCaseTests
             .ReturnsAsync(template);
 
         Func<Task> act = () => CreateSut().ExecuteAsync(templateId, default);
-        await act.Should().ThrowAsync<InvalidOperationException>();
+        await act.Should().ThrowAsync<BusinessRuleViolationException>();
     }
 
     [Fact]
-    public async Task ExecuteAsync_WhenNoEngineForType_ShouldThrowInvalidOperationException()
+    public async Task ExecuteAsync_WhenNoEngineForType_ShouldThrowRenderException()
     {
         var templateId = Guid.NewGuid();
         var versionId = Guid.NewGuid();
@@ -194,7 +194,7 @@ public class PreviewMappingUseCaseTests
 
         // Only Html engine registered — Docx engine is missing
         Func<Task> act = () => CreateSut().ExecuteAsync(templateId, default);
-        await act.Should().ThrowAsync<InvalidOperationException>();
+        await act.Should().ThrowAsync<SmkDoc.Application.Common.Exceptions.RenderException>();
     }
 
     // ── Side-effect guarantee ─────────────────────────────────────────────

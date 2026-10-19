@@ -9,7 +9,6 @@ public sealed class DocumentVersioningService(
     IRepository<Document> documentRepo,
     IRepository<DocumentVersion> docVersionRepo,
     IExecutionContext executionContext,
-    IUnitOfWork unitOfWork,
     TimeProvider? timeProvider = null) : IDocumentVersioningService
 {
     private readonly TimeProvider timeProvider = timeProvider ?? TimeProvider.System;
@@ -31,31 +30,18 @@ public sealed class DocumentVersioningService(
             await documentRepo.AddAsync(document, ct);
         }
 
-        const int maxRetries = 3;
-        for (int retry = 0; retry < maxRetries; retry++)
-        {
-            int currentMax = await docVersionRepo.MaxOrDefaultAsync(
-                v => v.DocumentId == document.Id, v => v.Version, 0, ct);
+        int currentMax = await docVersionRepo.MaxOrDefaultAsync(
+            v => v.DocumentId == document.Id, v => v.Version, 0, ct);
 
-            var docVersion = DocumentVersion.Create(
-                document.Id,
-                currentMax + 1,
-                currentVersionId,
-                generationId,
-                changeNote,
-                executionContext.CallerApp,
-                this.timeProvider.GetUtcNow());
+        var docVersion = DocumentVersion.Create(
+            document.Id,
+            currentMax + 1,
+            currentVersionId,
+            generationId,
+            changeNote,
+            executionContext.CallerApp,
+            this.timeProvider.GetUtcNow());
 
-            try
-            {
-                await docVersionRepo.AddAsync(docVersion, ct);
-                await unitOfWork.CommitAsync(ct);
-                break;
-            }
-            catch (Exception) when (retry < maxRetries - 1)
-            {
-                docVersionRepo.Remove(docVersion);
-            }
-        }
+        await docVersionRepo.AddAsync(docVersion, ct);
     }
 }

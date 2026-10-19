@@ -74,7 +74,7 @@ public sealed class CreateTemplateUseCase(
                 var scanResult = _securityScanner.Scan(scanCopy);
                 if (!scanResult.IsSafe)
                 {
-                    throw new InvalidOperationException(
+                    throw new DomainValidationException(
                         $"DOCX file failed security scan: {string.Join("; ", scanResult.Threats)}");
                 }
             }

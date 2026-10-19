@@ -118,7 +118,7 @@ public class DatasetAliasMapBuilderTests
     }
 
     [Fact]
-    public async Task BuildAsync_WhenDecryptionThrows_SkipsGracefully()
+    public async Task BuildAsync_WhenDecryptionThrows_ThrowsDataConnectionDecryptionException()
     {
         // Arrange
         var datasetId = Guid.NewGuid();
@@ -135,7 +135,7 @@ public class DatasetAliasMapBuilderTests
             .Throws(new InvalidOperationException("Decryption error"));
 
         // Act
-        var result = await DatasetAliasMapBuilder.BuildAsync(
+        var act = () => DatasetAliasMapBuilder.BuildAsync(
             new[] { td },
             _datasetRepoMock.Object,
             _connectionRepoMock.Object,
@@ -143,6 +143,8 @@ public class DatasetAliasMapBuilderTests
             CancellationToken.None);
 
         // Assert
-        result.Should().BeEmpty();
+        var ex = await act.Should().ThrowAsync<DataConnectionDecryptionException>();
+        ex.Which.ConnectionId.Should().Be(connectionId);
+        ex.Which.ErrorCode.Should().Be("DATA_CONNECTION_DECRYPTION_FAILED");
     }
 }

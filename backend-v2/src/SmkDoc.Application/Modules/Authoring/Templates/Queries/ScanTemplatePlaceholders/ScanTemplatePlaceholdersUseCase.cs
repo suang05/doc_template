@@ -28,10 +28,10 @@ public sealed class ScanTemplatePlaceholdersUseCase(
             ?? throw new NotFoundException($"Template '{query.Id}' was not found.");
 
         if (template.CurrentVersionId is null)
-            throw new InvalidOperationException($"Template '{template.Id}' has no published version.");
+            throw new BusinessRuleViolationException($"Template '{template.Id}' has no published version.");
 
         var version = await _versionRepo.GetByIdAsync(template.CurrentVersionId.Value, ct)
-            ?? throw new InvalidOperationException($"Current version record for template '{template.Id}' not found.");
+            ?? throw new NotFoundException($"Current version record for template '{template.Id}' not found.");
 
         using var stream = await _storageService.DownloadAsync(StorageBuckets.Templates, version.StorageKey, ct);
         string ext = Path.GetExtension(version.StorageKey).ToLowerInvariant();
