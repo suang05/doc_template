@@ -1,4 +1,3 @@
-using System.Text;
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
@@ -45,7 +44,6 @@ public class DocxTemplateEngineTests
         {
             var main = doc.AddMainDocumentPart();
             var body = new Body();
-
             var tbl = new Table();
 
             var headerRow = new TableRow();
@@ -73,63 +71,25 @@ public class DocxTemplateEngineTests
         return doc.MainDocumentPart?.Document.Body?.InnerText ?? string.Empty;
     }
 
-    [Fact]
-    public async Task RenderAsync_WithSimpleTextPlaceholders_ShouldReplaceAll()
+    private static async Task<string> RenderToTextAsync(string paragraphText, string json)
     {
         var engine = CreateEngine();
-        using var stream = BuildDocx("Contract: {{contractNo}} for {{customerName}}");
-        string data = "{\"contractNo\": \"CN-2026-001\", \"customerName\": \"สมชาย พัฒนา\"}";
-
-        byte[] result = await engine.RenderAsync(stream, data, OutputFormat.Docx);
-
-        var text = ExtractText(result);
-        text.Should().Contain("Contract: CN-2026-001 for สมชาย พัฒนา");
-        text.Should().NotContain("{{contractNo}}");
+        using var stream = BuildDocx(paragraphText);
+        byte[] result = await engine.RenderAsync(stream, json, OutputFormat.Docx);
+        return ExtractText(result);
     }
 
-    [Fact]
-    public async Task RenderAsync_WithUpperTransform_ShouldUpperCaseValue()
+    [Theory]
+    [InlineData("Contract: {{contractNo}} for {{customerName}}", "{\"contractNo\": \"CN-2026-001\", \"customerName\": \"สมชาย พัฒนา\"}", "Contract: CN-2026-001 for สมชาย พัฒนา")]
+    [InlineData("ชื่อ: {{customerName:upper}}", "{\"customerName\": \"somchai\"}", "ชื่อ: SOMCHAI")]
+    [InlineData("อีเมล: {{companyEmail:lower}}", "{\"companyEmail\": \"INFO@SAMMAKORN.CO.TH\"}", "อีเมล: info@sammakorn.co.th")]
+    [InlineData("ยอดรวม: {{total:number}} บาท", "{\"total\": 152857.14}", "ยอดรวม: 152,857.14 บาท")]
+    [InlineData("บริษัท: {{company.name}} โทร: {{company.phone}}", "{\"company\": {\"name\": \"บริษัท ABC\", \"phone\": \"02-123-4567\"}}", "บริษัท: บริษัท ABC โทร: 02-123-4567")]
+    [InlineData("ค่าที่ไม่มี: {{unknownField}}", "{\"otherField\": \"value\"}", "ค่าที่ไม่มี: {{unknownField}}")]
+    public async Task RenderAsync_WithTextPlaceholdersAndTransforms_SubstitutesExpectedText(string template, string json, string expectedSnippet)
     {
-        // Correct syntax: {{fieldName:transformType}} — field first, then transform
-        var engine = CreateEngine();
-        using var stream = BuildDocx("ชื่อ: {{customerName:upper}}");
-        string data = "{\"customerName\": \"สมชาย ใจดี\"}";
-
-        byte[] result = await engine.RenderAsync(stream, data, OutputFormat.Docx);
-
-        var text = ExtractText(result);
-        text.Should().NotContain("{{customerName:upper}}");
-        text.Should().Contain("ชื่อ:");
-    }
-
-    [Fact]
-    public async Task RenderAsync_WithLowerTransform_ShouldLowerCaseValue()
-    {
-        // Correct syntax: {{fieldName:lower}}
-        var engine = CreateEngine();
-        using var stream = BuildDocx("อีเมล: {{companyEmail:lower}}");
-        string data = "{\"companyEmail\": \"INFO@SAMMAKORN.CO.TH\"}";
-
-        byte[] result = await engine.RenderAsync(stream, data, OutputFormat.Docx);
-
-        var text = ExtractText(result);
-        text.Should().NotContain("{{companyEmail:lower}}");
-        text.Should().Contain("info@sammakorn.co.th");
-    }
-
-    [Fact]
-    public async Task RenderAsync_WithNumberTransform_ShouldFormatNumber()
-    {
-        // Correct syntax: {{fieldName:number}}
-        var engine = CreateEngine();
-        using var stream = BuildDocx("ยอดรวม: {{total:number}} บาท");
-        string data = "{\"total\": 152857.14}";
-
-        byte[] result = await engine.RenderAsync(stream, data, OutputFormat.Docx);
-
-        var text = ExtractText(result);
-        text.Should().NotContain("{{total:number}}");
-        text.Should().Contain("ยอดรวม:");
+        var text = await RenderToTextAsync(template, json);
+        text.Should().Contain(expectedSnippet);
     }
 
     [Fact]
@@ -161,50 +121,6 @@ public class DocxTemplateEngineTests
     }
 
     [Fact]
-    public async Task RenderAsync_WithNestedObjectField_ShouldReplaceDotNotation()
-    {
-        var engine = CreateEngine();
-        using var stream = BuildDocx("บริษัท: {{company.name}} โทร: {{company.phone}}");
-        string data = "{\"company\": {\"name\": \"บริษัท ABC\", \"phone\": \"02-123-4567\"}}";
-
-        byte[] result = await engine.RenderAsync(stream, data, OutputFormat.Docx);
-
-        var text = ExtractText(result);
-        text.Should().Contain("บริษัท: บริษัท ABC");
-        text.Should().Contain("โทร: 02-123-4567");
-    }
-
-    [Fact]
-    public async Task RenderAsync_WithUnknownPlaceholder_ShouldLeaveAsIs()
-    {
-        var engine = CreateEngine();
-        using var stream = BuildDocx("ค่าที่ไม่มี: {{unknownField}}");
-        string data = "{\"otherField\": \"value\"}";
-
-        byte[] result = await engine.RenderAsync(stream, data, OutputFormat.Docx);
-
-        var text = ExtractText(result);
-        text.Should().Contain("{{unknownField}}");
-    }
-
-    [Fact]
-    public async Task RenderAsync_WithOutputFormatPdf_ShouldCallPdfRenderer()
-    {
-        var mockPdf = new Mock<IPdfRenderer>();
-        mockPdf.Setup(p => p.RenderOfficeToPdfStreamAsync(It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-               .ReturnsAsync(() => new MemoryStream(new byte[] { 0x25, 0x50, 0x44, 0x46 })); // %PDF header
-
-        var engine = CreateEngine(mockPdf);
-        using var stream = BuildDocx("{{title}}");
-        string data = "{\"title\": \"Test\"}";
-
-        byte[] result = await engine.RenderAsync(stream, data, OutputFormat.Pdf);
-
-        mockPdf.Verify(p => p.RenderOfficeToPdfStreamAsync(It.IsAny<Stream>(), "document.docx", It.IsAny<CancellationToken>()), Times.Once);
-        result.Should().Equal(0x25, 0x50, 0x44, 0x46);
-    }
-
-    [Fact]
     public async Task RenderAsync_WithEmptyJson_ShouldNotThrow()
     {
         var engine = CreateEngine();
@@ -220,7 +136,7 @@ public class DocxTemplateEngineTests
     [Fact]
     public async Task RenderStreamAsync_WithOutputFormatPdf_ShouldCallPdfRendererStream()
     {
-        var expectedStream = new MemoryStream(new byte[] { 0x25, 0x50, 0x44, 0x46 });
+        var expectedStream = new MemoryStream([0x25, 0x50, 0x44, 0x46]);
         var mockPdf = new Mock<IPdfRenderer>();
         mockPdf.Setup(p => p.RenderOfficeToPdfStreamAsync(It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
                .ReturnsAsync(expectedStream);

@@ -10,134 +10,72 @@ public class DocumentMetricsTests
     [Fact]
     public void RecordGenerationSuccess_ShouldEmitExpectedInstrumentsAndTags()
     {
-        // Arrange
-        using var metrics = new DocumentMetrics();
-        using var meterListener = new MeterListener();
+        using var recorder = new MetricRecorder(DocumentMetrics.MeterName);
+        using var sut = new DocumentMetrics();
 
-        bool durationRecorded = false;
-        bool totalRecorded = false;
-        bool bytesRecorded = false;
+        sut.RecordGenerationSuccess("Html", "pdf", 125.5, 1024);
 
-        meterListener.InstrumentPublished = (instrument, listener) =>
-        {
-            if (instrument.Meter.Name == DocumentMetrics.MeterName)
-            {
-                listener.EnableMeasurementEvents(instrument);
-            }
-        };
+        recorder.Measurements.Should().ContainSingle(m => m.Instrument == "document.render.duration" && (double)m.Measurement == 125.5)
+            .Which.Tags.Should().Contain(new KeyValuePair<string, object?>("engine_type", "Html"))
+            .And.Contain(new KeyValuePair<string, object?>("output_format", "pdf"))
+            .And.Contain(new KeyValuePair<string, object?>("status", "SUCCESS"));
 
-        meterListener.SetMeasurementEventCallback<double>((instrument, measurement, tags, state) =>
-        {
-            if (instrument.Name == "document.render.duration")
-            {
-                durationRecorded = true;
-                measurement.Should().Be(125.5);
-                var tagDict = tags.ToArray().ToDictionary(t => t.Key, t => t.Value?.ToString());
-                tagDict["engine_type"].Should().Be("Html");
-                tagDict["output_format"].Should().Be("pdf");
-                tagDict["status"].Should().Be("SUCCESS");
-            }
-        });
-
-        meterListener.SetMeasurementEventCallback<long>((instrument, measurement, tags, state) =>
-        {
-            if (instrument.Name == "document.render.total")
-            {
-                totalRecorded = true;
-                measurement.Should().Be(1);
-            }
-            else if (instrument.Name == "document.render.bytes")
-            {
-                bytesRecorded = true;
-                measurement.Should().Be(1024);
-            }
-        });
-
-        meterListener.Start();
-
-        // Act
-        metrics.RecordGenerationSuccess("Html", "pdf", 125.5, 1024);
-
-        // Assert
-        durationRecorded.Should().BeTrue();
-        totalRecorded.Should().BeTrue();
-        bytesRecorded.Should().BeTrue();
+        recorder.Measurements.Should().ContainSingle(m => m.Instrument == "document.render.total" && (long)m.Measurement == 1);
+        recorder.Measurements.Should().ContainSingle(m => m.Instrument == "document.render.bytes" && (long)m.Measurement == 1024);
     }
 
     [Fact]
     public void RecordGenerationFailure_ShouldEmitFailedStatusAndReason()
     {
-        // Arrange
-        using var metrics = new DocumentMetrics();
-        using var meterListener = new MeterListener();
+        using var recorder = new MetricRecorder(DocumentMetrics.MeterName);
+        using var sut = new DocumentMetrics();
 
-        bool failedEventObserved = false;
+        sut.RecordGenerationFailure("Excel", "xlsx", 45.0, "VALIDATION_FAILED");
 
-        meterListener.InstrumentPublished = (instrument, listener) =>
-        {
-            if (instrument.Meter.Name == DocumentMetrics.MeterName)
-            {
-                listener.EnableMeasurementEvents(instrument);
-            }
-        };
-
-        meterListener.SetMeasurementEventCallback<long>((instrument, measurement, tags, state) =>
-        {
-            if (instrument.Name == "document.render.total")
-            {
-                var tagDict = tags.ToArray().ToDictionary(t => t.Key, t => t.Value?.ToString());
-                if (tagDict.GetValueOrDefault("status") == "FAILED")
-                {
-                    failedEventObserved = true;
-                    tagDict["failure_reason"].Should().Be("VALIDATION_FAILED");
-                    tagDict["engine_type"].Should().Be("Excel");
-                }
-            }
-        });
-
-        meterListener.Start();
-
-        // Act
-        metrics.RecordGenerationFailure("Excel", "xlsx", 45.0, "VALIDATION_FAILED");
-
-        // Assert
-        failedEventObserved.Should().BeTrue();
+        recorder.Measurements.Should().ContainSingle(m => m.Instrument == "document.render.total")
+            .Which.Tags.Should().Contain(new KeyValuePair<string, object?>("status", "FAILED"))
+            .And.Contain(new KeyValuePair<string, object?>("failure_reason", "VALIDATION_FAILED"))
+            .And.Contain(new KeyValuePair<string, object?>("engine_type", "Excel"));
     }
 
     [Fact]
     public void RecordCacheRequest_ShouldEmitCacheHitOrMiss()
     {
-        // Arrange
-        using var metrics = new DocumentMetrics();
-        using var meterListener = new MeterListener();
+        using var recorder = new MetricRecorder(DocumentMetrics.MeterName);
+        using var sut = new DocumentMetrics();
 
-        var observedHits = new List<string?>();
+        sut.RecordCacheRequest(isHit: true);
+        sut.RecordCacheRequest(isHit: false);
 
-        meterListener.InstrumentPublished = (instrument, listener) =>
+        var hits = recorder.Measurements
+            .Where(m => m.Instrument == "template.cache.requests")
+            .Select(m => m.Tags["cache_hit"]?.ToString())
+            .ToList();
+
+        hits.Should().Contain(["true", "false"]);
+    }
+
+    private sealed class MetricRecorder : IDisposable
+    {
+        private readonly MeterListener _listener = new();
+        public List<(string Instrument, object Measurement, Dictionary<string, object?> Tags)> Measurements { get; } = [];
+
+        public MetricRecorder(string meterName)
         {
-            if (instrument.Meter.Name == DocumentMetrics.MeterName)
+            _listener.InstrumentPublished = (inst, l) =>
             {
-                listener.EnableMeasurementEvents(instrument);
-            }
-        };
+                if (inst.Meter.Name == meterName)
+                {
+                    l.EnableMeasurementEvents(inst);
+                }
+            };
+            _listener.SetMeasurementEventCallback<double>((inst, val, tags, _) =>
+                Measurements.Add((inst.Name, val, tags.ToArray().ToDictionary(t => t.Key, t => t.Value))));
+            _listener.SetMeasurementEventCallback<long>((inst, val, tags, _) =>
+                Measurements.Add((inst.Name, val, tags.ToArray().ToDictionary(t => t.Key, t => t.Value))));
+            _listener.Start();
+        }
 
-        meterListener.SetMeasurementEventCallback<long>((instrument, measurement, tags, state) =>
-        {
-            if (instrument.Name == "template.cache.requests")
-            {
-                var tagDict = tags.ToArray().ToDictionary(t => t.Key, t => t.Value?.ToString());
-                observedHits.Add(tagDict.GetValueOrDefault("cache_hit"));
-            }
-        });
-
-        meterListener.Start();
-
-        // Act
-        metrics.RecordCacheRequest(isHit: true);
-        metrics.RecordCacheRequest(isHit: false);
-
-        // Assert
-        observedHits.Should().Contain("true");
-        observedHits.Should().Contain("false");
+        public void Dispose() => _listener.Dispose();
     }
 }
