@@ -1,7 +1,7 @@
 import NextAuth, { type Session } from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
 import type { JWT } from 'next-auth/jwt';
-import { decodeBackendJwt, jwtRole, jwtGivenName, jwtFamilyName } from '@/lib/auth/jwt';
+import { decodeBackendJwt, jwtRole, jwtGivenName, jwtFamilyName, shouldRefreshBackendToken } from '@/lib/auth/jwt';
 
 // Server-only — never exposed to the browser. Falls back to the public URL for local dev
 // where the Next.js server and the backend both resolve `localhost` the same way.
@@ -193,8 +193,8 @@ const nextAuth = NextAuth({
         return token;
       }
 
-      // Refresh if token is expiring within 60 seconds or if update was explicitly triggered
-      const shouldRefresh = trigger === 'update' || Date.now() >= (token.backendTokenExp - 60) * 1000;
+      // Refresh if token is expiring within threshold or if update was explicitly triggered
+      const shouldRefresh = shouldRefreshBackendToken(token.backendTokenExp, trigger);
       if (shouldRefresh && token.refreshToken) {
         return await refreshBackendToken(token);
       }

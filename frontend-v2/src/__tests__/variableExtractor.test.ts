@@ -5,41 +5,62 @@ describe('extractVariablesFromHtml', () => {
   it('returns same reference when html has no variables', () => {
     const data = { name: 'Alice' };
     const result = extractVariablesFromHtml('<p>No placeholders</p>', data);
-    expect(result).toBe(data); // same reference = no change
+    expect(result).toBe(data);
   });
 
-  it('adds missing scalar variable with sample value', () => {
-    const result = extractVariablesFromHtml('<p>{{customerName}}</p>', {});
-    expect(result).toHaveProperty('customerName');
-    expect(typeof result['customerName']).toBe('string');
-  });
-
-  it('does not overwrite existing scalar value', () => {
-    const data = { customerName: 'Alice' };
-    const result = extractVariablesFromHtml('<p>{{customerName}}</p>', data);
-    expect(result['customerName']).toBe('Alice');
-  });
-
-  it('generates numeric sample for amount/price/total fields', () => {
-    const result = extractVariablesFromHtml('<p>{{amount}}</p>', {});
-    expect(typeof result['amount']).toBe('number');
-    const result2 = extractVariablesFromHtml('<p>{{totalPrice}}</p>', {});
-    expect(typeof result2['totalPrice']).toBe('number');
-  });
-
-  it('generates date string for date fields', () => {
-    const result = extractVariablesFromHtml('<p>{{contractDate}}</p>', {});
-    expect(String(result['contractDate'])).toMatch(/\d{4}-\d{2}-\d{2}/);
-  });
-
-  it('generates tax ID string for tax_id fields', () => {
-    const result = extractVariablesFromHtml('<p>{{tax_id}}</p>', {});
-    expect(result['tax_id']).toBe('0107536000123');
-  });
-
-  it('generates email string for email fields', () => {
-    const result = extractVariablesFromHtml('<p>{{contactEmail}}</p>', {});
-    expect(String(result['contactEmail'])).toContain('@');
+  it.each([
+    [
+      'adds missing scalar variable with sample string',
+      '<p>{{customerName}}</p>',
+      {},
+      'customerName',
+      (val: unknown) => typeof val === 'string',
+    ],
+    [
+      'preserves existing scalar value without overwriting',
+      '<p>{{customerName}}</p>',
+      { customerName: 'Alice' },
+      'customerName',
+      (val: unknown) => val === 'Alice',
+    ],
+    [
+      'generates numeric sample for amount field',
+      '<p>{{amount}}</p>',
+      {},
+      'amount',
+      (val: unknown) => typeof val === 'number',
+    ],
+    [
+      'generates numeric sample for total/price field',
+      '<p>{{totalPrice}}</p>',
+      {},
+      'totalPrice',
+      (val: unknown) => typeof val === 'number',
+    ],
+    [
+      'generates date string for date fields (YYYY-MM-DD)',
+      '<p>{{contractDate}}</p>',
+      {},
+      'contractDate',
+      (val: unknown) => typeof val === 'string' && /\d{4}-\d{2}-\d{2}/.test(val),
+    ],
+    [
+      'generates valid tax ID string for tax_id fields',
+      '<p>{{tax_id}}</p>',
+      {},
+      'tax_id',
+      (val: unknown) => val === '0107536000123',
+    ],
+    [
+      'generates email string with @ for email fields',
+      '<p>{{contactEmail}}</p>',
+      {},
+      'contactEmail',
+      (val: unknown) => typeof val === 'string' && val.includes('@'),
+    ],
+  ])('%s', (_, html, initialData, key, predicate) => {
+    const result = extractVariablesFromHtml(html, initialData);
+    expect(predicate(result[key])).toBe(true);
   });
 
   it('extracts array from #each block and generates 2 sample rows', () => {
@@ -53,7 +74,7 @@ describe('extractVariablesFromHtml', () => {
     const existing = { items: [{ no: '1', description: 'Existing' }] };
     const html = `{{#each items}}<td>{{no}}</td>{{/each}}`;
     const result = extractVariablesFromHtml(html, existing);
-    expect(result['items']).toBe(existing['items']); // same reference
+    expect(result['items']).toBe(existing['items']);
   });
 
   it('extracts nested object variable (customer.name)', () => {

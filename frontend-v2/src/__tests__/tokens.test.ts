@@ -10,27 +10,30 @@ describe('SSoT Design Tokens Integrity', () => {
   it('should have ice-white canvas and no dark navy background', () => {
     expect(tokens.colors.canvas).toBe('#f8fbfe');
     expect(tokens.colors.primary).toBe('#0284c7');
-    // Ensure no dark navy #002D62 or similar
     const allColors = Object.values(tokens.colors);
     expect(allColors).not.toContain('#002D62');
   });
 
-  it('should define all 5 functional category accents correctly', () => {
-    const requiredCategories = ['contract', 'financial', 'official', 'hr', 'operations'];
-    for (const cat of requiredCategories) {
-      expect(tokens.categories).toHaveProperty(cat);
-      const entry = tokens.categories[cat as keyof typeof tokens.categories];
-      expect(entry).toHaveProperty('primary');
-      expect(entry).toHaveProperty('light');
-      expect(entry).toHaveProperty('border');
-      expect(entry).toHaveProperty('text');
-    }
-  });
+  it.each(['contract', 'financial', 'official', 'hr', 'operations'] as const)(
+    'defines functional category accents for %s',
+    (category) => {
+      const entry = tokens.categories[category];
+      expect(entry).toEqual({
+        id: category,
+        label: expect.any(String),
+        primary: expect.any(String),
+        light: expect.any(String),
+        border: expect.any(String),
+        text: expect.any(String),
+      });
+    },
+  );
 
-  it('should define 4 document output formats', () => {
-    expect(tokens.formats).toHaveProperty('pdf');
-    expect(tokens.formats).toHaveProperty('docx');
-    expect(tokens.formats).toHaveProperty('xlsx');
-    expect(tokens.formats).toHaveProperty('html');
-  });
+  it.each(['pdf', 'docx', 'xlsx', 'html'] as const)(
+    'defines document output format %s',
+    (format) => {
+      expect(tokens.formats[format]).toBeDefined();
+      expect(tokens.formats[format].primary).toBeDefined();
+    },
+  );
 });

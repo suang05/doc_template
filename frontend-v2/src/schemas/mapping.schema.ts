@@ -13,23 +13,6 @@ export const ThaiTransformTypes = [
 export const DataSourceTypes = ['json', 'sql'] as const;
 export type DataSourceType = (typeof DataSourceTypes)[number];
 
-export const FieldMappingDtoSchema = z.object({
-  id: z.string().uuid(),
-  templateId: z.string().uuid(),
-  placeholder: z.string().min(1, 'ต้องระบุ Placeholder'),
-  sourcePath: z.string(),
-  label: z.string().min(1, 'ต้องระบุ Label คำอธิบาย'),
-  required: z.boolean().default(false),
-  defaultValue: z.string().nullable().optional(),
-  transform: z.string().nullable().optional(),
-  sortOrder: z.number().int().default(0),
-  dataSourceType: z.enum(DataSourceTypes).default('json'),
-  datasetAlias: z.string().max(50).nullable().optional(),
-  resultPath: z.string().nullable().optional(),
-  mathExpression: z.string().nullable().optional(),
-});
-export type FieldMappingDto = z.infer<typeof FieldMappingDtoSchema>;
-
 export const SaveFieldMappingItemSchema = z.object({
   placeholder: z.string().min(1, 'ต้องระบุ Placeholder'),
   sourcePath: z.string(),
@@ -44,3 +27,9 @@ export const SaveFieldMappingItemSchema = z.object({
   mathExpression: z.string().nullable().optional(),
 });
 export type SaveFieldMappingItem = z.infer<typeof SaveFieldMappingItemSchema>;
+
+export const FieldMappingDtoSchema = SaveFieldMappingItemSchema.extend({
+  id: z.string().uuid(),
+  templateId: z.string().uuid(),
+});
+export type FieldMappingDto = z.infer<typeof FieldMappingDtoSchema>;

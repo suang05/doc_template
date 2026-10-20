@@ -41,6 +41,22 @@ describe('ApiError and RFC 7807 Problem Details', () => {
 describe('apiClient and RFC 7807 Response Handling', () => {
   const originalFetch = global.fetch;
 
+  function setupMockFetch(
+    overrides: Record<string, unknown> = {},
+    headersInit: HeadersInit = { 'content-type': 'application/json' },
+  ) {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      json: async () => ({ success: true }),
+      headers: new Headers(headersInit),
+      ...overrides,
+    } as unknown as Response);
+    global.fetch = mockFetch;
+    return mockFetch;
+  }
+
   beforeEach(() => {
     vi.restoreAllMocks();
   });
@@ -61,13 +77,15 @@ describe('apiClient and RFC 7807 Response Handling', () => {
       },
     };
 
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: false,
-      status: 400,
-      statusText: 'Bad Request',
-      text: async () => JSON.stringify(problemPayload),
-      headers: new Headers({ 'content-type': 'application/problem+json' }),
-    } as unknown as Response);
+    setupMockFetch(
+      {
+        ok: false,
+        status: 400,
+        statusText: 'Bad Request',
+        text: async () => JSON.stringify(problemPayload),
+      },
+      { 'content-type': 'application/problem+json' },
+    );
 
     await expect(apiClient('/api/test')).rejects.toMatchObject({
       name: 'ApiError',
@@ -83,17 +101,14 @@ describe('apiClient and RFC 7807 Response Handling', () => {
   it('apiClientBlob parses response headers correctly', async () => {
     const mockBlob = new Blob(['%PDF-1.4 mock content'], { type: 'application/pdf' });
 
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      statusText: 'OK',
-      blob: async () => mockBlob,
-      headers: new Headers({
+    setupMockFetch(
+      { blob: async () => mockBlob },
+      {
         'content-type': 'application/pdf',
         'content-disposition': 'attachment; filename="invoice_2026.pdf"',
         'content-length': '21',
-      }),
-    } as unknown as Response);
+      },
+    );
 
     const result = await apiClientBlob('/api/documents/preview/test');
     expect(result.blob).toBeDefined();
@@ -103,15 +118,7 @@ describe('apiClient and RFC 7807 Response Handling', () => {
   });
 
   it('passes AbortSignal to fetch request options', async () => {
-    const mockFetch = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      statusText: 'OK',
-      json: async () => ({ success: true }),
-      headers: new Headers({ 'content-type': 'application/json' }),
-    } as unknown as Response);
-
-    global.fetch = mockFetch;
+    const mockFetch = setupMockFetch();
 
     const controller = new AbortController();
     await apiClient('/api/test', { signal: controller.signal });
@@ -129,16 +136,13 @@ describe('apiClient and RFC 7807 Response Handling', () => {
       },
     });
 
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      statusText: 'OK',
-      body: mockStream,
-      headers: new Headers({
+    setupMockFetch(
+      { body: mockStream },
+      {
         'content-type': 'application/pdf',
         'content-disposition': 'inline; filename="streamed.pdf"',
-      }),
-    } as unknown as Response);
+      },
+    );
 
     const result = await apiClientStream('/api/documents/preview');
     expect(result.stream).toBe(mockStream);
@@ -147,15 +151,7 @@ describe('apiClient and RFC 7807 Response Handling', () => {
   });
 
   it('does not automatically attach X-API-Key from localStorage to request headers', async () => {
-    const mockFetch = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      statusText: 'OK',
-      json: async () => ({ success: true }),
-      headers: new Headers({ 'content-type': 'application/json' }),
-    } as unknown as Response);
-
-    global.fetch = mockFetch;
+    const mockFetch = setupMockFetch();
 
     if (typeof window !== 'undefined') {
       window.localStorage.setItem('smk_api_key', 'test-secret-key-123');
@@ -170,15 +166,7 @@ describe('apiClient and RFC 7807 Response Handling', () => {
   });
 
   it('preserves explicitly provided headers in options', async () => {
-    const mockFetch = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      statusText: 'OK',
-      json: async () => ({ success: true }),
-      headers: new Headers({ 'content-type': 'application/json' }),
-    } as unknown as Response);
-
-    global.fetch = mockFetch;
+    const mockFetch = setupMockFetch();
 
     await apiClient('/api/m2m-test', {
       headers: {

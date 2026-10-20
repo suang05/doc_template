@@ -1,9 +1,15 @@
 import { z } from 'zod';
 
+export const slugSchema = z
+  .string()
+  .min(2, 'Slug ต้องมีความยาวอย่างน้อย 2 ตัวอักษร')
+  .max(100, 'Slug ต้องมีความยาวไม่เกิน 100 ตัวอักษร')
+  .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, 'Slug ต้องเป็นตัวพิมพ์เล็ก ตัวเลข หรือขีดกลางเท่านั้น');
+
 export const TemplateDtoSchema = z.object({
   id: z.string().uuid(),
   name: z.string().min(1, 'ต้องระบุชื่อแม่แบบ'),
-  slug: z.string().min(2, 'Slug ต้องมีความยาวอย่างน้อย 2 ตัวอักษร').max(100, 'Slug ต้องมีความยาวไม่เกิน 100 ตัวอักษร').regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, 'Slug ต้องเป็นตัวพิมพ์เล็ก ตัวเลข หรือขีดกลางเท่านั้น'),
+  slug: slugSchema,
   category: z.string().nullable().optional(),
   isActive: z.boolean().default(true),
   currentVersionId: z.string().uuid().nullable().optional(),
@@ -15,7 +21,7 @@ export type TemplateDto = z.infer<typeof TemplateDtoSchema>;
 
 export const CreateTemplateRequestSchema = z.object({
   name: z.string().min(1, 'ต้องระบุชื่อแม่แบบ'),
-  slug: z.string().min(2, 'Slug ต้องมีความยาวอย่างน้อย 2 ตัวอักษร').max(100, 'Slug ต้องมีความยาวไม่เกิน 100 ตัวอักษร').regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, 'Slug ต้องเป็นตัวพิมพ์เล็ก ตัวเลข หรือขีดกลางเท่านั้น'),
+  slug: slugSchema,
   category: z.string().optional().nullable(),
   htmlContent: z.string().optional().nullable(),
 });

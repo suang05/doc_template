@@ -23,9 +23,31 @@ import {
   TemplateDatasetDtoSchema,
 } from '@/schemas/templateDataset.schema';
 import { GenerateDocumentRequestSchema } from '@/schemas/document.schema';
-import { SaveFieldMappingItemSchema } from '@/schemas/mapping.schema';
+import {
+  SaveFieldMappingItemSchema,
+  FieldMappingDtoSchema,
+  ThaiTransformTypes,
+} from '@/schemas/mapping.schema';
 import { CreateApiKeyRequestSchema } from '@/schemas/apikey.schema';
 import { PagedLogsResponseSchema, PaginationMetadataSchema } from '@/schemas/log.schema';
+
+// ── ThaiTransformTypes Compatibility ───────────────────────────────────────
+
+describe('ThaiTransformTypes', () => {
+  it('defines 7 required transformation options with Thai label and example', () => {
+    const values = ThaiTransformTypes.map((t) => t.value);
+    expect(values).toEqual([
+      'thai_baht_text',
+      'thai_date',
+      'thai_currency',
+      'thai_id_card',
+      'thai_phone',
+      'uppercase',
+      'lowercase',
+    ]);
+    ThaiTransformTypes.forEach((t) => expect(t.label.length > 0 && t.example.length > 0).toBe(true));
+  });
+});
 
 // ── TemplateDtoSchema ───────────────────────────────────────────────────────
 
@@ -42,86 +64,51 @@ describe('TemplateDtoSchema', () => {
     updatedAt: '2026-09-20T00:00:00Z',
   };
 
-  it('parses a valid TemplateDto', () => {
-    expect(() => TemplateDtoSchema.parse(valid)).not.toThrow();
+  it.each([
+    ['base valid DTO', {}],
+    ['slug with hyphens and numbers', { slug: 'my-template-v2' }],
+    ['null category', { category: null }],
+    ['null currentVersionId', { currentVersionId: null }],
+  ])('accepts valid variation (%s)', (_, override) => {
+    expect(() => TemplateDtoSchema.parse({ ...valid, ...override })).not.toThrow();
   });
 
-  it('rejects invalid UUID for id', () => {
-    expect(() => TemplateDtoSchema.parse({ ...valid, id: 'not-a-uuid' })).toThrow();
-  });
-
-  it('rejects empty name', () => {
-    expect(() => TemplateDtoSchema.parse({ ...valid, name: '' })).toThrow();
-  });
-
-  it('rejects slug with uppercase letters', () => {
-    expect(() => TemplateDtoSchema.parse({ ...valid, slug: 'MyTemplate' })).toThrow();
-  });
-
-  it('rejects slug with spaces', () => {
-    expect(() => TemplateDtoSchema.parse({ ...valid, slug: 'my template' })).toThrow();
-  });
-
-  it('rejects slug with underscores', () => {
-    expect(() => TemplateDtoSchema.parse({ ...valid, slug: 'my-template_v2' })).toThrow();
-  });
-
-  it('accepts slug with hyphens', () => {
-    expect(() => TemplateDtoSchema.parse({ ...valid, slug: 'my-template-v2' })).not.toThrow();
-  });
-
-  it('rejects slug shorter than 2 characters', () => {
-    expect(() => TemplateDtoSchema.parse({ ...valid, slug: 'a' })).toThrow();
-  });
-
-  it('rejects slug with consecutive hyphens', () => {
-    expect(() => TemplateDtoSchema.parse({ ...valid, slug: 'my--template' })).toThrow();
-  });
-
-  it('rejects slug with leading or trailing hyphens', () => {
-    expect(() => TemplateDtoSchema.parse({ ...valid, slug: '-my-template' })).toThrow();
-    expect(() => TemplateDtoSchema.parse({ ...valid, slug: 'my-template-' })).toThrow();
-  });
-
-  it('accepts null category', () => {
-    expect(() => TemplateDtoSchema.parse({ ...valid, category: null })).not.toThrow();
-  });
-
-  it('accepts null currentVersionId', () => {
-    expect(() => TemplateDtoSchema.parse({ ...valid, currentVersionId: null })).not.toThrow();
+  it.each([
+    ['invalid UUID id', { id: 'not-a-uuid' }],
+    ['empty name', { name: '' }],
+    ['slug with uppercase', { slug: 'MyTemplate' }],
+    ['slug with spaces', { slug: 'my template' }],
+    ['slug with underscores', { slug: 'my-template_v2' }],
+    ['slug too short', { slug: 'a' }],
+    ['slug with consecutive hyphens', { slug: 'my--template' }],
+    ['slug with leading hyphen', { slug: '-my-template' }],
+    ['slug with trailing hyphen', { slug: 'my-template-' }],
+  ])('rejects invalid variation (%s)', (_, override) => {
+    expect(() => TemplateDtoSchema.parse({ ...valid, ...override })).toThrow();
   });
 });
 
 // ── CreateTemplateRequestSchema ─────────────────────────────────────────────
 
 describe('CreateTemplateRequestSchema', () => {
-  it('parses valid create request', () => {
-    expect(() => CreateTemplateRequestSchema.parse({ name: 'Test', slug: 'test-template' })).not.toThrow();
+  const valid = { name: 'Test', slug: 'test-template' };
+
+  it.each([
+    ['minimal valid', {}],
+    ['with optional htmlContent', { htmlContent: '<!DOCTYPE html><html></html>' }],
+    ['with null category', { category: null }],
+  ])('accepts valid variation (%s)', (_, override) => {
+    expect(() => CreateTemplateRequestSchema.parse({ ...valid, ...override })).not.toThrow();
   });
 
-  it('rejects empty name', () => {
-    expect(() => CreateTemplateRequestSchema.parse({ name: '', slug: 'test' })).toThrow();
-  });
-
-  it('rejects empty slug', () => {
-    expect(() => CreateTemplateRequestSchema.parse({ name: 'Test', slug: '' })).toThrow();
-  });
-
-  it('rejects slug with invalid characters or underscores', () => {
-    expect(() => CreateTemplateRequestSchema.parse({ name: 'Test', slug: 'Test Template!' })).toThrow();
-    expect(() => CreateTemplateRequestSchema.parse({ name: 'Test', slug: 'test_template' })).toThrow();
-  });
-
-  it('rejects slug shorter than 2 characters', () => {
-    expect(() => CreateTemplateRequestSchema.parse({ name: 'Test', slug: 'a' })).toThrow();
-  });
-
-  it('accepts optional htmlContent', () => {
-    expect(() => CreateTemplateRequestSchema.parse({
-      name: 'Test',
-      slug: 'test',
-      htmlContent: '<!DOCTYPE html><html></html>',
-    })).not.toThrow();
+  it.each([
+    ['empty name', { name: '' }],
+    ['empty slug', { slug: '' }],
+    ['slug with spaces and special chars', { slug: 'Test Template!' }],
+    ['slug with underscores', { slug: 'test_template' }],
+    ['slug shorter than 2 chars', { slug: 'a' }],
+  ])('rejects invalid variation (%s)', (_, override) => {
+    expect(() => CreateTemplateRequestSchema.parse({ ...valid, ...override })).toThrow();
   });
 });
 
@@ -137,11 +124,13 @@ describe('SaveTemplateHtmlRequestSchema', () => {
   });
 
   it('accepts optional samplePayload and changeNote', () => {
-    expect(() => SaveTemplateHtmlRequestSchema.parse({
-      html: '<p>Hello</p>',
-      samplePayload: '{"name":"Alice"}',
-      changeNote: 'Update layout',
-    })).not.toThrow();
+    expect(() =>
+      SaveTemplateHtmlRequestSchema.parse({
+        html: '<p>Hello</p>',
+        samplePayload: '{"name":"Alice"}',
+        changeNote: 'Update layout',
+      }),
+    ).not.toThrow();
   });
 });
 
@@ -169,7 +158,11 @@ describe('TemplateVersionDtoSchema', () => {
 
 describe('TemplateValidationResultSchema', () => {
   it('parses valid result', () => {
-    const result = TemplateValidationResultSchema.parse({ valid: true, errors: [], fields: ['name', 'amount'] });
+    const result = TemplateValidationResultSchema.parse({
+      valid: true,
+      errors: [],
+      fields: ['name', 'amount'],
+    });
     expect(result.valid).toBe(true);
     expect(result.fields).toHaveLength(2);
   });
@@ -227,26 +220,43 @@ describe('GenerateDocumentRequestSchema', () => {
   it('should reject invalid output format in GenerateDocumentRequest', () => {
     const invalid = {
       payload: {},
-      outputFormat: 'bmp', // invalid
+      outputFormat: 'bmp',
     };
     expect(() => GenerateDocumentRequestSchema.parse(invalid)).toThrow();
   });
 });
 
-// ── SaveFieldMappingItemSchema ──────────────────────────────────────────────
+// ── FieldMapping Schemas ────────────────────────────────────────────────────
 
-describe('SaveFieldMappingItemSchema', () => {
-  it('should validate FieldMapping items', () => {
-    const valid = {
-      placeholder: 'totalAmount',
-      sourcePath: 'payment.total',
-      label: 'ยอดชำระสุทธิ',
-      required: true,
-      transform: 'thai_baht_text',
-      sortOrder: 1,
-    };
-    const parsed = SaveFieldMappingItemSchema.parse(valid);
-    expect(parsed.transform).toBe('thai_baht_text');
+describe('FieldMapping Schemas', () => {
+  const validItem = {
+    placeholder: 'totalAmount',
+    sourcePath: 'payment.total',
+    label: 'ยอดชำระสุทธิ',
+    required: true,
+    transform: 'thai_baht_text',
+    sortOrder: 1,
+  };
+
+  it('validates SaveFieldMappingItemSchema and derived FieldMappingDtoSchema', () => {
+    const item = SaveFieldMappingItemSchema.parse(validItem);
+    expect(item.transform).toBe('thai_baht_text');
+
+    const dto = FieldMappingDtoSchema.parse({
+      ...validItem,
+      id: '123e4567-e89b-12d3-a456-426614174000',
+      templateId: '123e4567-e89b-12d3-a456-426614174001',
+    });
+    expect(dto.id).toBe('123e4567-e89b-12d3-a456-426614174000');
+    expect(dto.placeholder).toBe('totalAmount');
+  });
+
+  it.each([
+    ['empty placeholder', { placeholder: '' }],
+    ['empty label', { label: '' }],
+    ['invalid dataSourceType', { dataSourceType: 'unsupported' }],
+  ])('rejects invalid field mapping (%s)', (_, override) => {
+    expect(() => SaveFieldMappingItemSchema.parse({ ...validItem, ...override })).toThrow();
   });
 });
 
@@ -393,15 +403,16 @@ describe('Datasources and Datasets Zod Schemas Integrity', () => {
 
 describe('loginRequestSchema', () => {
   it('parses valid credentials', () => {
-    expect(() => loginRequestSchema.parse({ email: 'user@sammakorn.co.th', password: 'secret123' })).not.toThrow();
+    expect(() =>
+      loginRequestSchema.parse({ email: 'user@sammakorn.co.th', password: 'secret123' }),
+    ).not.toThrow();
   });
 
-  it('rejects invalid email format', () => {
-    expect(() => loginRequestSchema.parse({ email: 'not-an-email', password: 'secret' })).toThrow();
-  });
-
-  it('rejects empty password', () => {
-    expect(() => loginRequestSchema.parse({ email: 'user@example.com', password: '' })).toThrow();
+  it.each([
+    ['invalid email format', { email: 'not-an-email', password: 'secret' }],
+    ['empty password', { email: 'user@example.com', password: '' }],
+  ])('rejects invalid credentials (%s)', (_, payload) => {
+    expect(() => loginRequestSchema.parse(payload)).toThrow();
   });
 });
 

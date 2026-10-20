@@ -43,3 +43,14 @@ export function jwtGivenName(payload: BackendJwtPayload): string {
 export function jwtFamilyName(payload: BackendJwtPayload): string {
   return payload.family_name ?? payload[CLAIMS_FAMILY_NAME] ?? '';
 }
+
+export const TOKEN_REFRESH_THRESHOLD_SEC = 60;
+
+export function shouldRefreshBackendToken(
+  backendTokenExp: number,
+  trigger?: string,
+  nowMs: number = Date.now(),
+): boolean {
+  return trigger === 'update' || nowMs >= (backendTokenExp - TOKEN_REFRESH_THRESHOLD_SEC) * 1000;
+}
+
