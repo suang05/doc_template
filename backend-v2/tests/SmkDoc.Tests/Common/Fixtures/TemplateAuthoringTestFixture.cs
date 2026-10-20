@@ -16,7 +16,6 @@ namespace SmkDoc.Tests.Common.Fixtures;
 public class TemplateAuthoringTestFixture
 {
     public Mock<ITemplateRepository> TemplateRepo { get; } = new();
-    public Mock<IRepository<TemplateVersion>> VersionRepo { get; } = new();
     public Mock<IStorageService> Storage { get; } = new();
     public Mock<IDocxSecurityScanner> Security { get; } = new();
     public Mock<IExecutionContext> Context { get; } = new();
@@ -27,11 +26,12 @@ public class TemplateAuthoringTestFixture
     public Mock<ICurrentProjectContext> ProjectContext { get; } = new();
     public Microsoft.Extensions.Time.Testing.FakeTimeProvider Clock { get; } = TestConstants.CreateFakeClock();
 
-    public static readonly Guid TestUserId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+    public static readonly Guid TestUserId = TestConstants.DefaultUserId;
 
     public TemplateAuthoringTestFixture()
     {
         Context.Setup(c => c.UserId).Returns(TestUserId);
+        Uow.Setup(u => u.CommitAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
         var sampleProject = Project.Create(Guid.NewGuid(), ProjectName.Create("Default Project"), TemplateSlug.Create("default-proj"), Clock.GetUtcNow());
         ProjectRepo.Setup(p => p.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(sampleProject);
@@ -47,26 +47,17 @@ public class TemplateAuthoringTestFixture
         Clock
     );
 
-    public CommitTemplateDraftUseCase BuildCommitTemplateDraftUseCase(
-        ITemplateDraftCache? draftCache = null,
-        IStorageService? storage = null,
-        ITemplateRepository? templateRepo = null,
-        IUnitOfWork? uow = null,
-        IProjectRepository? projectRepo = null,
-        ISchemaInferenceService? schemaInference = null,
-        IExecutionContext? context = null,
-        ICurrentProjectContext? projectContext = null,
-        TimeProvider? clock = null) => new(
-            draftCache ?? DraftCache.Object,
-            storage ?? Storage.Object,
-            templateRepo ?? TemplateRepo.Object,
-            uow ?? Uow.Object,
-            projectRepo ?? ProjectRepo.Object,
-            schemaInference ?? SchemaInference.Object,
-            context ?? Context.Object,
-            projectContext ?? ProjectContext.Object,
-            clock ?? Clock
-        );
+    public CommitTemplateDraftUseCase BuildCommitTemplateDraftUseCase() => new(
+        DraftCache.Object,
+        Storage.Object,
+        TemplateRepo.Object,
+        Uow.Object,
+        ProjectRepo.Object,
+        SchemaInference.Object,
+        Context.Object,
+        ProjectContext.Object,
+        Clock
+    );
 
     public ActivateTemplateVersionUseCase BuildActivateTemplateVersionUseCase() => new(
         TemplateRepo.Object,

@@ -1,10 +1,7 @@
 using System.Text;
-using FluentAssertions;
-using Moq;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.ParseTemplateDraft;
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
-using Xunit;
 
 namespace SmkDoc.Tests.Application.Modules.Authoring.Templates.Commands.ParseTemplateDraft;
 
@@ -16,7 +13,7 @@ public class ParseTemplateDraftUseCaseTests
     private ParseTemplateDraftUseCase CreateSut() => new(_scanner.Object, _cache.Object);
 
     [Fact]
-    public async Task ParseAsync_ValidFile_StoresDraftAndReturnsPlaceholders()
+    public async Task ExecuteAsync_WhenValidFile_ShouldStoreDraftAndReturnPlaceholders()
     {
         // Arrange
         var placeholders = new List<string> { "customer.name", "invoice.total" };
@@ -38,7 +35,7 @@ public class ParseTemplateDraftUseCaseTests
     }
 
     [Fact]
-    public async Task ParseAsync_ScannerReturnsEmpty_StoresEntryWithEmptyPlaceholders()
+    public async Task ExecuteAsync_WhenScannerReturnsEmpty_ShouldStoreEntryWithEmptyPlaceholders()
     {
         // Arrange
         _scanner.Setup(s => s.ScanPlaceholdersAsync(It.IsAny<Stream>(), ".html", It.IsAny<CancellationToken>()))

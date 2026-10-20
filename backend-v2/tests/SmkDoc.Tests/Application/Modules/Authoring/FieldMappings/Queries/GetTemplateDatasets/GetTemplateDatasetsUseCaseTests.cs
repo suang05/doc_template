@@ -25,17 +25,46 @@ public class GetTemplateDatasetsUseCaseTests
 
         var rows = new List<TemplateDataset>
         {
-            TemplateDataset.Create(templateId, dsId2, DatasetAlias.Create("items"), 2, TestConstants.BaselineTime),
-            TemplateDataset.Create(templateId, dsId1, DatasetAlias.Create("header"), 1, TestConstants.BaselineTime)
+            new TemplateDatasetBuilder()
+                .WithTemplateId(templateId)
+                .WithDatasetId(dsId2)
+                .WithAlias("items")
+                .WithSortOrder(2)
+                .WithTime(TestConstants.BaselineTime)
+                .Build(),
+            new TemplateDatasetBuilder()
+                .WithTemplateId(templateId)
+                .WithDatasetId(dsId1)
+                .WithAlias("header")
+                .WithSortOrder(1)
+                .WithTime(TestConstants.BaselineTime)
+                .Build()
         };
 
         var datasets = new List<Dataset>
         {
-            DatasetBuilder.Create(dsId1, "Invoice Header", null, Guid.NewGuid(), "sql", 0),
-            DatasetBuilder.Create(dsId2, "Invoice Items", null, Guid.NewGuid(), "sql", 0)
+            new DatasetBuilder()
+                .WithId(dsId1)
+                .WithName("Invoice Header")
+                .WithDataConnectionId(Guid.NewGuid())
+                .WithSqlQuery("sql")
+                .WithCacheSeconds(0)
+                .Build(),
+            new DatasetBuilder()
+                .WithId(dsId2)
+                .WithName("Invoice Items")
+                .WithDataConnectionId(Guid.NewGuid())
+                .WithSqlQuery("sql")
+                .WithCacheSeconds(0)
+                .Build()
         };
 
-        var template = TemplateBuilder.Create(templateId, Guid.NewGuid(), "Invoice", "invoice");
+        var template = new TemplateBuilder()
+            .WithId(templateId)
+            .WithProjectId(Guid.NewGuid())
+            .WithName("Invoice")
+            .WithSlug("invoice")
+            .Build();
         template.ReplaceDatasets(rows, TestConstants.BaselineTime);
 
         _templateRepoMock

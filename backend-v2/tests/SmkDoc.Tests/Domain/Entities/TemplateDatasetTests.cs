@@ -10,7 +10,7 @@ public class TemplateDatasetTests
 {
     private readonly Guid _templateId = Guid.NewGuid();
     private readonly Guid _datasetId = Guid.NewGuid();
-    private readonly DateTimeOffset _initialTime = new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+    private readonly DateTimeOffset _initialTime = TestConstants.BaselineTime;
 
     [Fact]
     public void Create_WithValidParameters_InitializesCorrectly()

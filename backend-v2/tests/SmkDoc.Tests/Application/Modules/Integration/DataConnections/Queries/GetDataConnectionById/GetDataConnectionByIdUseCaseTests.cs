@@ -10,15 +10,14 @@ public class GetDataConnectionByIdUseCaseTests
 {
     private readonly IntegrationModuleTestFixture _fixture = new();
 
-    private GetDataConnectionByIdUseCase CreateSut() =>
-        new(_fixture.ConnectionRepo.Object);
+    private GetDataConnectionByIdUseCase CreateSut() => _fixture.BuildGetDataConnectionByIdUseCase();
 
     [Fact]
     public async Task ExecuteAsync_WhenConnectionFound_ReturnsDto()
     {
         // Arrange
         var id = Guid.NewGuid();
-        var conn = DataConnectionBuilder.Create(id, "Production DB", DatabaseProvider.PostgreSQL, "enc_secret");
+        var conn = DataConnectionBuilder.Postgres(name: "Production DB", connectionString: "enc_secret", id: id);
 
         _fixture.ConnectionRepo
             .Setup(r => r.GetByIdAsync(id, It.IsAny<CancellationToken>()))

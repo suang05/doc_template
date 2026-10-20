@@ -16,7 +16,6 @@ namespace SmkDoc.Tests.Application.Modules.Authoring.Templates.Queries.ValidateT
 public class ValidateTemplatePayloadUseCaseTests
 {
     private readonly Mock<ITemplateRepository> _mockTemplateRepo = new();
-    private readonly Mock<IRepository<TemplateVersion>> _mockVersionRepo = new();
     private readonly Mock<IJsonSchemaValidationService> _mockSchemaValidation = new();
     private readonly Mock<IExecutionContext> _mockContext = new();
 
@@ -25,21 +24,38 @@ public class ValidateTemplatePayloadUseCaseTests
         _mockSchemaValidation.Object,
         _mockContext.Object);
 
-    [Fact]
-    public async Task ExecuteAsync_WhenPayloadValid_ReturnsSuccess()
+    private (Template Template, TemplateVersion Version) GivenTemplateWithSchema(
+        string slug,
+        int versionNumber,
+        string? schema,
+        string name = "Invoice TH")
     {
-        // Arrange
         var projectId = Guid.NewGuid();
         var templateId = Guid.NewGuid();
         var versionId = Guid.NewGuid();
-        const string slug = "invoice-th";
-        const string schema = """{"type":"object","required":["doc_no"]}""";
 
-        var template = TemplateBuilder.Create(projectId: projectId, name: "Invoice TH", slug: slug);
+        var template = new TemplateBuilder()
+            .WithId(templateId)
+            .WithProjectId(projectId)
+            .WithName(name)
+            .WithSlug(slug)
+            .Build();
         template.SetCurrentVersion(versionId, TestConstants.BaselineTime);
 
-        var version = TemplateVersionBuilder.Create(Guid.NewGuid(), templateId, 1, "templates/invoice.html", TemplateFormat.Html, "Published", "init");
-        version.UpdateDataSchema(schema, "{}", TestConstants.BaselineTime);
+        var version = new TemplateVersionBuilder()
+            .WithId(versionId)
+            .WithTemplateId(templateId)
+            .WithVersion(versionNumber)
+            .WithStorageKey($"templates/{slug}.html")
+            .WithFormat(TemplateFormat.Html)
+            .WithStatus("Published")
+            .WithCommitMessage($"v{versionNumber}")
+            .Build();
+
+        if (schema != null)
+        {
+            version.UpdateDataSchema(schema, "{}", TestConstants.BaselineTime);
+        }
 
         _mockContext.Setup(c => c.ProjectId).Returns(projectId);
         _mockTemplateRepo
@@ -48,9 +64,17 @@ public class ValidateTemplatePayloadUseCaseTests
         _mockTemplateRepo
             .Setup(r => r.GetVersionByIdAsync(versionId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(version);
-        _mockVersionRepo
-            .Setup(r => r.GetByIdAsync(versionId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(version);
+
+        return (template, version);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenPayloadValid_ReturnsSuccess()
+    {
+        // Arrange
+        const string slug = "invoice-th";
+        const string schema = """{"type":"object","required":["doc_no"]}""";
+        GivenTemplateWithSchema(slug, 1, schema);
 
         _mockSchemaValidation
             .Setup(s => s.Validate(schema, It.IsAny<JsonElement>()))
@@ -73,28 +97,9 @@ public class ValidateTemplatePayloadUseCaseTests
     public async Task ExecuteAsync_WhenPayloadInvalid_ReturnsFailureWithErrors()
     {
         // Arrange
-        var projectId = Guid.NewGuid();
-        var templateId = Guid.NewGuid();
-        var versionId = Guid.NewGuid();
         const string slug = "invoice-th";
         const string schema = """{"type":"object","required":["doc_no"]}""";
-
-        var template = TemplateBuilder.Create(projectId: projectId, name: "Invoice TH", slug: slug);
-        template.SetCurrentVersion(versionId, TestConstants.BaselineTime);
-
-        var version = TemplateVersionBuilder.Create(Guid.NewGuid(), templateId, 2, "templates/invoice.html", TemplateFormat.Html, "Published", "v2");
-        version.UpdateDataSchema(schema, "{}", TestConstants.BaselineTime);
-
-        _mockContext.Setup(c => c.ProjectId).Returns(projectId);
-        _mockTemplateRepo
-            .Setup(r => r.GetBySlugAsync(slug, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(template);
-        _mockTemplateRepo
-            .Setup(r => r.GetVersionByIdAsync(versionId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(version);
-        _mockVersionRepo
-            .Setup(r => r.GetByIdAsync(versionId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(version);
+        GivenTemplateWithSchema(slug, 2, schema);
 
         var errors = new List<ValidationErrorItem>
         {
@@ -122,25 +127,8 @@ public class ValidateTemplatePayloadUseCaseTests
     public async Task ExecuteAsync_WhenTemplateHasNoSchema_ReturnsSuccessByDefault()
     {
         // Arrange
-        var projectId = Guid.NewGuid();
-        var templateId = Guid.NewGuid();
-        var versionId = Guid.NewGuid();
         const string slug = "no-schema-template";
-
-        var template = TemplateBuilder.Create(projectId: projectId, name: "No Schema", slug: slug);
-        template.SetCurrentVersion(versionId, TestConstants.BaselineTime);
-
-        var version = TemplateVersionBuilder.Create(Guid.NewGuid(), templateId, 1, "templates/none.html", TemplateFormat.Html, "Published", "init");
-        _mockContext.Setup(c => c.ProjectId).Returns(projectId);
-        _mockTemplateRepo
-            .Setup(r => r.GetBySlugAsync(slug, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(template);
-        _mockTemplateRepo
-            .Setup(r => r.GetVersionByIdAsync(versionId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(version);
-        _mockVersionRepo
-            .Setup(r => r.GetByIdAsync(versionId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(version);
+        GivenTemplateWithSchema(slug, 1, null, "No Schema");
 
         using var doc = JsonDocument.Parse("""{"any":"field"}""");
         var command = new ValidateTemplatePayloadQuery(slug, doc.RootElement);

@@ -24,8 +24,7 @@ public class CreateApiKeyUseCaseTests
         // Arrange
         ApiKey? capturedKey = null;
         _apiKeyRepoMock.Setup(r => r.AddAsync(It.IsAny<ApiKey>(), It.IsAny<CancellationToken>()))
-            .Callback<ApiKey, CancellationToken>((k, _) => capturedKey = k)
-            .Returns(Task.CompletedTask);
+            .Callback<ApiKey, CancellationToken>((k, _) => capturedKey = k);
 
         var projectId = Guid.NewGuid();
         var project = ProjectBuilder.AProject()

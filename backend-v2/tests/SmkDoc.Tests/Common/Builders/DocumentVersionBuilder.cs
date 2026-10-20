@@ -17,27 +17,6 @@ public class DocumentVersionBuilder
 
     public static DocumentVersion Default() => AVersion().Build();
 
-    public static DocumentVersion Create(
-        Guid? id = null,
-        Guid? documentId = null,
-        int version = 1,
-        Guid? templateVersionId = null,
-        Guid? generationLogId = null,
-        string? changeNote = "Initial version",
-        string? createdBy = "system",
-        DateTimeOffset? now = null)
-    {
-        var builder = new DocumentVersionBuilder();
-        if (id.HasValue) builder.WithId(id.Value);
-        if (documentId.HasValue) builder.ForDocument(documentId.Value);
-        builder.WithVersion(version);
-        builder.WithTemplateVersionId(templateVersionId);
-        builder.WithGenerationLogId(generationLogId);
-        if (changeNote != null) builder.WithChangeNote(changeNote);
-        if (createdBy != null) builder.WithCreatedBy(createdBy);
-        if (now.HasValue) builder.WithTime(now.Value);
-        return builder.Build();
-    }
 
     public DocumentVersionBuilder WithId(Guid id)
     {
@@ -51,7 +30,6 @@ public class DocumentVersionBuilder
         return this;
     }
 
-    public DocumentVersionBuilder WithDocumentId(Guid documentId) => ForDocument(documentId);
 
     public DocumentVersionBuilder WithVersion(int version)
     {

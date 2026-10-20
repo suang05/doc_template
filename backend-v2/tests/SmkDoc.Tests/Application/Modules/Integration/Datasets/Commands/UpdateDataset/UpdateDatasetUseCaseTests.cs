@@ -12,8 +12,7 @@ public class UpdateDatasetUseCaseTests
 {
     private readonly IntegrationModuleTestFixture _fixture = new();
 
-    private UpdateDatasetUseCase CreateSut() =>
-        new(_fixture.DatasetRepo.Object, _fixture.ConnectionRepo.Object, _fixture.UnitOfWork.Object);
+    private UpdateDatasetUseCase CreateSut() => _fixture.BuildUpdateDatasetUseCase();
 
     [Fact]
     public async Task ExecuteAsync_WhenFound_UpdatesAndCommits()
@@ -21,8 +20,8 @@ public class UpdateDatasetUseCaseTests
         // Arrange
         var id = Guid.NewGuid();
         var connId = Guid.NewGuid();
-        var conn = DataConnectionBuilder.Create(connId, "Conn1", DatabaseProvider.PostgreSQL, "enc_conn");
-        var dataset = DatasetBuilder.Create(id, "OldName", "old desc", connId, "SELECT 1", 0);
+        var conn = DataConnectionBuilder.Postgres(name: "Conn1", connectionString: "enc_conn", id: connId);
+        var dataset = new DatasetBuilder().WithId(id).WithName("OldName").WithDescription("old desc").WithDataConnectionId(connId).WithSqlQuery("SELECT 1").WithCacheSeconds(0).Build();
 
         _fixture.DatasetRepo
             .Setup(r => r.GetByIdAsync(id, It.IsAny<CancellationToken>()))
@@ -31,10 +30,6 @@ public class UpdateDatasetUseCaseTests
         _fixture.ConnectionRepo
             .Setup(r => r.GetByIdAsync(connId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(conn);
-
-        _fixture.UnitOfWork
-            .Setup(u => u.CommitAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(1);
 
         var command = new UpdateDatasetCommand(id, "NewName", "new desc", connId, "SELECT 2", 60);
 
@@ -47,7 +42,7 @@ public class UpdateDatasetUseCaseTests
         result.DataConnectionName.Should().Be("Conn1");
         result.CacheSeconds.Should().Be(60);
         _fixture.DatasetRepo.Verify(r => r.Update(dataset), Times.Once);
-        _fixture.UnitOfWork.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _fixture.Uow.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -73,7 +68,7 @@ public class UpdateDatasetUseCaseTests
     {
         // Arrange
         var id = Guid.NewGuid();
-        var dataset = DatasetBuilder.Create(id, "Name", null, Guid.NewGuid(), "SELECT 1", 0);
+        var dataset = new DatasetBuilder().WithId(id).WithName("Name").WithDataConnectionId(Guid.NewGuid()).WithSqlQuery("SELECT 1").WithCacheSeconds(0).Build();
 
         _fixture.DatasetRepo
             .Setup(r => r.GetByIdAsync(id, It.IsAny<CancellationToken>()))

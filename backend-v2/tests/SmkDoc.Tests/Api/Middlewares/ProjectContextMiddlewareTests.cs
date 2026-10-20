@@ -210,7 +210,7 @@ public class ProjectContextMiddlewareTests
         httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(claims, "Bearer"));
         httpContext.Request.Headers["X-Project-Id"] = targetProjectId.ToString();
 
-        var roleAssignment = UserProjectRole.Create(new UserId(userId), targetProjectId, RoleType.Developer, DateTimeOffset.UtcNow);
+        var roleAssignment = UserProjectRole.Create(new UserId(userId), targetProjectId, RoleType.Developer, TestConstants.BaselineTime);
         _userProjectRoleRepoMock.Setup(r => r.GetAsync(targetProjectId.Value, userId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(roleAssignment);
 

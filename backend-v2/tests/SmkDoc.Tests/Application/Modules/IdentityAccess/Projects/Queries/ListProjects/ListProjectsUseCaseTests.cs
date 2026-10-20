@@ -24,7 +24,7 @@ public class ListProjectsUseCaseTests
         var now = TestConstants.BaselineTime;
         var userId = Guid.NewGuid();
         var user = UserBuilder.AUser().WithSystemRole(SystemRole.Member).WithTime(now).Build();
-        var project = ProjectBuilder.Create(Guid.NewGuid(), Guid.NewGuid(), "Proj 1", "proj-1", now);
+        var project = new ProjectBuilder().WithName("Proj 1").WithSlug("proj-1").WithTime(now).Build();
 
         _userRepoMock.Setup(u => u.GetByIdAsync(userId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);
@@ -56,7 +56,7 @@ public class ListProjectsUseCaseTests
         var now = TestConstants.BaselineTime;
         var userId = Guid.NewGuid();
         var user = UserBuilder.AUser().WithSystemRole(SystemRole.SuperAdmin).WithTime(now).Build();
-        var project = ProjectBuilder.Create(Guid.NewGuid(), Guid.NewGuid(), "Proj 1", "proj-1", now);
+        var project = new ProjectBuilder().WithName("Proj 1").WithSlug("proj-1").WithTime(now).Build();
 
         _userRepoMock.Setup(u => u.GetByIdAsync(userId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);

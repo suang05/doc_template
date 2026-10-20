@@ -17,25 +17,6 @@ public class ApiKeyBuilder
 
     public static ApiKey Default() => AKey().Build();
 
-    public static ApiKey Create(
-        Guid? id = null,
-        Guid? projectId = null,
-        ApiKeyName? name = null,
-        string? callerApp = "TestApp",
-        Sha256Hash? keyHash = null,
-        ExpirationPolicy? expiration = null,
-        DateTimeOffset? now = null)
-    {
-        var builder = new ApiKeyBuilder();
-        if (id.HasValue) builder.WithId(id.Value);
-        if (projectId.HasValue) builder.WithProjectId(projectId.Value);
-        if (name != null) builder.WithName(name.Value);
-        if (callerApp != null) builder.WithCallerApp(callerApp);
-        if (keyHash != null) builder.WithKeyHash(keyHash);
-        if (expiration != null) builder.WithExpiration(expiration);
-        if (now.HasValue) builder.WithTime(now.Value);
-        return builder.Build();
-    }
 
     public ApiKeyBuilder WithId(Guid id)
     {

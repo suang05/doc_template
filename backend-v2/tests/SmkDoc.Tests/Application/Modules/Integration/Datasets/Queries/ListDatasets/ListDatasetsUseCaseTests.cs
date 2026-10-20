@@ -10,15 +10,14 @@ public class ListDatasetsUseCaseTests
 {
     private readonly IntegrationModuleTestFixture _fixture = new();
 
-    private ListDatasetsUseCase CreateSut() =>
-        new(_fixture.DatasetRepo.Object, _fixture.ConnectionRepo.Object);
+    private ListDatasetsUseCase CreateSut() => _fixture.BuildListDatasetsUseCase();
 
     [Fact]
     public async Task ExecuteAsync_ShouldReturnEnrichedDatasets()
     {
         var connId = Guid.NewGuid();
-        var conn = DataConnectionBuilder.Create(connId, "PostgresDB", DatabaseProvider.PostgreSQL, "enc_pg");
-        var dataset = DatasetBuilder.Create(name: "CustomerData", description: "Customer queries", dataConnectionId: connId, sqlQuery: "SELECT * FROM customers", cacheSeconds: 120);
+        var conn = DataConnectionBuilder.Postgres(name: "PostgresDB", connectionString: "enc_pg", id: connId);
+        var dataset = new DatasetBuilder().WithName("CustomerData").WithDescription("Customer queries").WithDataConnectionId(connId).WithSqlQuery("SELECT * FROM customers").WithCacheSeconds(120).Build();
 
         _fixture.DatasetRepo.Setup(r => r.ListAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<Dataset> { dataset });

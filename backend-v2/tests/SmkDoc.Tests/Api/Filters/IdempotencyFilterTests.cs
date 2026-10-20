@@ -1,15 +1,12 @@
 using System.Text.Json;
-using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Abstractions;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Logging;
-using Moq;
 using SmkDoc.Api.Filters;
 using SmkDoc.Application.Common.Interfaces;
-using Xunit;
 
 namespace SmkDoc.Tests.Api.Filters;
 
@@ -77,7 +74,7 @@ public class IdempotencyFilterTests
             null,
             null,
             null,
-            DateTimeOffset.UtcNow);
+            TestConstants.BaselineTime);
 
         idempotencyStoreMock.Setup(s => s.TryAcquireOrGetAsync(
                 "idempotency:erp-system:test-key-1",
@@ -114,7 +111,7 @@ public class IdempotencyFilterTests
             StatusCodes.Status201Created,
             cachedJson,
             cachedHeaders,
-            DateTimeOffset.UtcNow);
+            TestConstants.BaselineTime);
 
         idempotencyStoreMock.Setup(s => s.TryAcquireOrGetAsync(
                 "idempotency:erp-system:test-key-2",
@@ -151,7 +148,7 @@ public class IdempotencyFilterTests
             StatusCodes.Status200OK,
             "{}",
             null,
-            DateTimeOffset.UtcNow);
+            TestConstants.BaselineTime);
 
         idempotencyStoreMock.Setup(s => s.TryAcquireOrGetAsync(
                 "idempotency:erp-system:test-key-3",

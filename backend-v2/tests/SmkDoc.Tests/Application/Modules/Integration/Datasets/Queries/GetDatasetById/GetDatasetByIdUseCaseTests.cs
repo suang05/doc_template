@@ -10,8 +10,7 @@ public class GetDatasetByIdUseCaseTests
 {
     private readonly IntegrationModuleTestFixture _fixture = new();
 
-    private GetDatasetByIdUseCase CreateSut() =>
-        new(_fixture.DatasetRepo.Object, _fixture.ConnectionRepo.Object);
+    private GetDatasetByIdUseCase CreateSut() => _fixture.BuildGetDatasetByIdUseCase();
 
     [Fact]
     public async Task ExecuteAsync_WhenFound_ReturnsEnrichedDto()
@@ -19,8 +18,8 @@ public class GetDatasetByIdUseCaseTests
         // Arrange
         var id = Guid.NewGuid();
         var connId = Guid.NewGuid();
-        var conn = DataConnectionBuilder.Create(connId, "AnalyticsDB", DatabaseProvider.PostgreSQL, "enc_analytics");
-        var dataset = DatasetBuilder.Create(id, "SalesMetrics", "desc", connId, "SELECT * FROM sales", 300);
+        var conn = DataConnectionBuilder.Postgres(name: "AnalyticsDB", connectionString: "enc_analytics", id: connId);
+        var dataset = new DatasetBuilder().WithId(id).WithName("SalesMetrics").WithDescription("desc").WithDataConnectionId(connId).WithSqlQuery("SELECT * FROM sales").WithCacheSeconds(300).Build();
 
         _fixture.DatasetRepo
             .Setup(r => r.GetByIdAsync(id, It.IsAny<CancellationToken>()))

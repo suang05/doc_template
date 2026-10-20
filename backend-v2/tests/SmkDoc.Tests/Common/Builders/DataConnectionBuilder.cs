@@ -32,21 +32,6 @@ public class DataConnectionBuilder
             .WithConnectionString(connectionString)
             .Build();
 
-    public static DataConnection Create(
-        Guid? id = null,
-        string name = "Default Connection",
-        DatabaseProvider? provider = null,
-        string encryptedConnectionString = "Host=localhost;Database=test",
-        DateTimeOffset? now = null)
-    {
-        var builder = new DataConnectionBuilder();
-        if (id.HasValue) builder.WithId(id.Value);
-        builder.WithName(name);
-        if (provider != null) builder.WithProvider(provider);
-        builder.WithConnectionString(encryptedConnectionString);
-        if (now.HasValue) builder.WithTime(now.Value);
-        return builder.Build();
-    }
 
     public DataConnectionBuilder WithId(Guid id)
     {

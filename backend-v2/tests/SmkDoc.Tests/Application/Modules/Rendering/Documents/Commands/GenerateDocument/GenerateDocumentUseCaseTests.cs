@@ -214,8 +214,6 @@ public class GenerateDocumentUseCaseTests
         var versionId = currentVersion.Id;
 
         currentVersion.UpdateDataSchema(schemaJson, null, now);
-        _fixture.VersionRepo.Setup(r => r.GetByIdAsync(versionId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(currentVersion);
 
         // Service returns invalid result (missing required field "doc_no")
         var errors = new List<ValidationErrorItem>
@@ -231,8 +229,6 @@ public class GenerateDocumentUseCaseTests
         _fixture.Storage.Setup(s => s.DownloadAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new MemoryStream());
 
-        _fixture.LogRepo.Setup(r => r.AddAsync(It.IsAny<GenerationLog>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
         _fixture.Uow.Setup(u => u.CommitAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(1);
 
@@ -273,20 +269,11 @@ public class GenerateDocumentUseCaseTests
             name: "Invoice",
             now: now);
         currentVersion.UpdateDataSchema(schemaJson, null, now);
-        _fixture.VersionRepo.Setup(r => r.GetByIdAsync(currentVersion.Id, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(currentVersion);
 
-        _fixture.Engine.Setup(e => e.EngineType).Returns(RenderEngineType.Html);
-        _fixture.Engine.Setup(e => e.RenderStreamAsync(It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<OutputFormat>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new MemoryStream(new byte[] { 1, 2, 3 }));
-        _fixture.Storage.Setup(s => s.DownloadAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new MemoryStream());
+        _fixture.GivenRenderEnginePdfOutput();
         _fixture.Storage.Setup(s => s.UploadAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("outputs/invoice.pdf");
         _fixture.GivenPresignedUrl("https://example.com/download/invoice.pdf");
-        _fixture.LogRepo.Setup(r => r.AddAsync(It.IsAny<GenerationLog>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
-        _fixture.Uow.Setup(u => u.CommitAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
 
         using var jsonDoc = JsonDocument.Parse("""{"customer":"ACME"}"""); // missing doc_no — but SkipValidation
         var request = new GenerateDocumentCommand(jsonDoc.RootElement, OutputFormat: "pdf", SkipValidation: true);

@@ -41,9 +41,22 @@ public class DatasetAliasMapBuilderTests
         // Arrange
         var datasetId = Guid.NewGuid();
         var connectionId = Guid.NewGuid();
-        var td = TemplateDataset.Create(Guid.NewGuid(), datasetId, DatasetAlias.Create("ds1"), 1, TestConstants.BaselineTime);
-        var dataset = DatasetBuilder.Create(id: datasetId, dataConnectionId: connectionId, sqlQuery: "SELECT * FROM orders");
-        var connection = DataConnectionBuilder.Create(id: connectionId, provider: DatabaseProvider.PostgreSQL, encryptedConnectionString: "enc:Host=pg");
+        var td = new TemplateDatasetBuilder()
+            .WithDatasetId(datasetId)
+            .WithAlias("ds1")
+            .WithSortOrder(1)
+            .WithTime(TestConstants.BaselineTime)
+            .Build();
+        var dataset = new DatasetBuilder()
+            .WithId(datasetId)
+            .WithDataConnectionId(connectionId)
+            .WithSqlQuery("SELECT * FROM orders")
+            .Build();
+        var connection = new DataConnectionBuilder()
+            .WithId(connectionId)
+            .WithProvider(DatabaseProvider.PostgreSQL)
+            .WithConnectionString("enc:Host=pg")
+            .Build();
 
         _datasetRepoMock.Setup(r => r.GetByIdAsync(datasetId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(dataset);
@@ -72,7 +85,12 @@ public class DatasetAliasMapBuilderTests
     {
         // Arrange
         var datasetId = Guid.NewGuid();
-        var td = TemplateDataset.Create(Guid.NewGuid(), datasetId, DatasetAlias.Create("ds1"), 1, TestConstants.BaselineTime);
+        var td = new TemplateDatasetBuilder()
+            .WithDatasetId(datasetId)
+            .WithAlias("ds1")
+            .WithSortOrder(1)
+            .WithTime(TestConstants.BaselineTime)
+            .Build();
 
         _datasetRepoMock.Setup(r => r.GetByIdAsync(datasetId, It.IsAny<CancellationToken>()))
             .ReturnsAsync((Dataset?)null);
@@ -96,8 +114,16 @@ public class DatasetAliasMapBuilderTests
         // Arrange
         var datasetId = Guid.NewGuid();
         var connectionId = Guid.NewGuid();
-        var td = TemplateDataset.Create(Guid.NewGuid(), datasetId, DatasetAlias.Create("ds1"), 1, TestConstants.BaselineTime);
-        var dataset = DatasetBuilder.Create(id: datasetId, dataConnectionId: connectionId);
+        var td = new TemplateDatasetBuilder()
+            .WithDatasetId(datasetId)
+            .WithAlias("ds1")
+            .WithSortOrder(1)
+            .WithTime(TestConstants.BaselineTime)
+            .Build();
+        var dataset = new DatasetBuilder()
+            .WithId(datasetId)
+            .WithDataConnectionId(connectionId)
+            .Build();
 
         _datasetRepoMock.Setup(r => r.GetByIdAsync(datasetId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(dataset);
@@ -123,9 +149,9 @@ public class DatasetAliasMapBuilderTests
         // Arrange
         var datasetId = Guid.NewGuid();
         var connectionId = Guid.NewGuid();
-        var td = TemplateDataset.Create(Guid.NewGuid(), datasetId, DatasetAlias.Create("ds1"), 1, TestConstants.BaselineTime);
-        var dataset = DatasetBuilder.Create(id: datasetId, dataConnectionId: connectionId);
-        var connection = DataConnectionBuilder.Create(id: connectionId, encryptedConnectionString: "corrupted_secret");
+        var td = new TemplateDatasetBuilder().WithDatasetId(datasetId).WithAlias("ds1").WithSortOrder(1).Build();
+        var dataset = new DatasetBuilder().WithId(datasetId).WithDataConnectionId(connectionId).Build();
+        var connection = new DataConnectionBuilder().WithId(connectionId).WithConnectionString("corrupted_secret").Build();
 
         _datasetRepoMock.Setup(r => r.GetByIdAsync(datasetId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(dataset);

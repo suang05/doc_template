@@ -11,15 +11,14 @@ public class UpdateDataConnectionUseCaseTests
 {
     private readonly IntegrationModuleTestFixture _fixture = new();
 
-    private UpdateDataConnectionUseCase CreateSut() =>
-        new(_fixture.ConnectionRepo.Object, _fixture.UnitOfWork.Object, _fixture.DataProtection.Object);
+    private UpdateDataConnectionUseCase CreateSut() => _fixture.BuildUpdateDataConnectionUseCase();
 
     [Fact]
     public async Task ExecuteAsync_WhenFoundWithNewSecret_EncryptsAndUpdates()
     {
         // Arrange
         var id = Guid.NewGuid();
-        var existing = DataConnectionBuilder.Create(id, "Old Name", DatabaseProvider.PostgreSQL, "old_enc");
+        var existing = DataConnectionBuilder.Postgres(name: "Old Name", connectionString: "old_enc", id: id);
 
         _fixture.ConnectionRepo
             .Setup(r => r.GetByIdAsync(id, It.IsAny<CancellationToken>()))
@@ -28,10 +27,6 @@ public class UpdateDataConnectionUseCaseTests
         _fixture.DataProtection
             .Setup(p => p.Encrypt("new_plain_conn"))
             .Returns("new_enc_conn");
-
-        _fixture.UnitOfWork
-            .Setup(u => u.CommitAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(1);
 
         var command = new UpdateDataConnectionCommand(id, "New Name", "SqlServer", "new_plain_conn");
 
@@ -45,7 +40,7 @@ public class UpdateDataConnectionUseCaseTests
         existing.EncryptedConnectionString.Should().Be("new_enc_conn");
         existing.UpdatedAt.Should().NotBeNull();
         _fixture.ConnectionRepo.Verify(r => r.Update(existing), Times.Once);
-        _fixture.UnitOfWork.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _fixture.Uow.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -53,15 +48,11 @@ public class UpdateDataConnectionUseCaseTests
     {
         // Arrange
         var id = Guid.NewGuid();
-        var existing = DataConnectionBuilder.Create(id, "DB", DatabaseProvider.PostgreSQL, "keep_this_enc");
+        var existing = DataConnectionBuilder.Postgres(name: "DB", connectionString: "keep_this_enc", id: id);
 
         _fixture.ConnectionRepo
             .Setup(r => r.GetByIdAsync(id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(existing);
-
-        _fixture.UnitOfWork
-            .Setup(u => u.CommitAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(1);
 
         var command = new UpdateDataConnectionCommand(id, "DB Renamed", "PostgreSQL", "");
 

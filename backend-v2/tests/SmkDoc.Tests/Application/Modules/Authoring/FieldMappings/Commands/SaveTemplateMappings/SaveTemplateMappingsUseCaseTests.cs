@@ -18,9 +18,13 @@ public class SaveTemplateMappingsUseCaseTests
     [Fact]
     public async Task ExecuteAsync_WhenValidCommand_SavesMappingsAndCommits()
     {
-        // Arrange
         var templateId = Guid.NewGuid();
-        var template = TemplateBuilder.Create(templateId, Guid.NewGuid(), "Contract", "contract");
+        var template = new TemplateBuilder()
+            .WithId(templateId)
+            .WithProjectId(Guid.NewGuid())
+            .WithName("Contract")
+            .WithSlug("contract")
+            .Build();
 
         _templateRepoMock
             .Setup(r => r.GetByIdAsync(templateId, It.IsAny<CancellationToken>()))

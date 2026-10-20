@@ -19,7 +19,7 @@ public class GetDocumentVersionsUseCaseTests
     {
         // Arrange
         var documentId = Guid.NewGuid();
-        var document = DocumentBuilder.Create(documentId, "SC-001", Guid.NewGuid());
+        var document = new DocumentBuilder().WithId(documentId).WithDocumentRef("SC-001").WithTemplateId(Guid.NewGuid()).Build();
 
         _documentRepoMock
             .Setup(r => r.FirstOrDefaultAsync(It.IsAny<Expression<Func<Document, bool>>>(), It.IsAny<CancellationToken>()))
@@ -28,8 +28,8 @@ public class GetDocumentVersionsUseCaseTests
         _versionRepoMock
             .Setup(r => r.ListAsync(It.IsAny<Expression<Func<DocumentVersion, bool>>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([
-                DocumentVersionBuilder.Create(documentId: documentId, version: 1),
-                DocumentVersionBuilder.Create(documentId: documentId, version: 2)
+                new DocumentVersionBuilder().ForDocument(documentId).WithVersion(1).Build(),
+                new DocumentVersionBuilder().ForDocument(documentId).WithVersion(2).Build()
             ]);
 
         // Act

@@ -41,34 +41,6 @@ public class TemplateBuilder
             .AsInactive()
             .Build();
 
-    public static Template Create(
-        Guid? id = null,
-        Guid? projectId = null,
-        string name = "Sample Template",
-        string slug = "sample-template",
-        string? category = null,
-        DateTimeOffset? now = null,
-        bool isActive = true,
-        Guid? currentVersionId = null)
-    {
-        var builder = new TemplateBuilder();
-        if (id.HasValue) builder.WithId(id.Value);
-        if (projectId.HasValue) builder.WithProjectId(projectId.Value);
-        builder.WithName(name);
-        builder.WithSlug(slug);
-        if (category != null) builder.WithCategory(category);
-        if (now.HasValue) builder.WithTime(now.Value);
-        if (!isActive) builder.AsInactive();
-        if (currentVersionId.HasValue)
-        {
-            builder.WithCurrentVersion(currentVersionId.Value);
-        }
-        else
-        {
-            builder.WithoutCurrentVersion();
-        }
-        return builder.Build();
-    }
 
     public TemplateBuilder WithId(Guid id)
     {

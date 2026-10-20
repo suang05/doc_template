@@ -55,7 +55,7 @@ public class ValidateApiKeyUseCaseTests
     public async Task ExecuteAsync_WhenKeyIsExpiredOrInactive_ReturnsNullAndDoesNotRecordUsage()
     {
         // Arrange
-        var key = ApiKeyBuilder.Create(now: TestConstants.BaselineTime);
+        var key = new ApiKeyBuilder().WithTime(TestConstants.BaselineTime).Build();
         key.Revoke(TestConstants.BaselineTime);
 
         _apiKeyRepoMock.Setup(r => r.GetByKeyHashAsync(It.IsAny<Sha256Hash>(), It.IsAny<CancellationToken>()))
@@ -77,11 +77,12 @@ public class ValidateApiKeyUseCaseTests
         const string plainText = "smk_billing_secret123";
         var hash = new Sha256Hash(ApiKeyHelper.ComputeHash(plainText));
         var projectId = Guid.NewGuid();
-        var key = ApiKeyBuilder.Create(
-            projectId: projectId,
-            callerApp: "billing-service",
-            keyHash: hash,
-            now: TestConstants.BaselineTime);
+        var key = new ApiKeyBuilder()
+            .WithProjectId(projectId)
+            .WithCallerApp("billing-service")
+            .WithKeyHash(hash)
+            .WithTime(TestConstants.BaselineTime)
+            .Build();
 
         _apiKeyRepoMock.Setup(r => r.GetByKeyHashAsync(hash, It.IsAny<CancellationToken>()))
             .ReturnsAsync(key);

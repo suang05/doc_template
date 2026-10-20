@@ -15,7 +15,6 @@ namespace SmkDoc.Tests.Application.Modules.Rendering.Documents.Queries.PreviewDo
 public class PreviewDocumentUseCaseTests
 {
     private readonly Mock<ITemplateRepository>          _mockTemplateRepo = new();
-    private readonly Mock<IRepository<TemplateVersion>> _mockVersionRepo  = new();
     private readonly Mock<IStorageService>              _mockStorage      = new();
     private readonly Mock<IRenderEngine>                _mockEngine       = new();
 

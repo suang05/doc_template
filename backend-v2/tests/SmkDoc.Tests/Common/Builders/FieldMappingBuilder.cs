@@ -21,34 +21,6 @@ public class FieldMappingBuilder
 
     public static FieldMapping Default() => AMapping().Build();
 
-    public static FieldMapping Create(
-        Guid? id = null,
-        Guid? templateId = null,
-        string placeholder = "placeholder",
-        string sourcePath = "source.path",
-        string label = "Label",
-        bool required = false,
-        int sortOrder = 1,
-        DataSourceType? dataSourceType = null,
-        string? defaultValue = null,
-        string? transform = null,
-        DateTimeOffset? now = null)
-    {
-        var builder = new FieldMappingBuilder();
-        if (id.HasValue) builder.WithId(id.Value);
-        if (templateId.HasValue) builder.WithTemplateId(templateId.Value);
-        builder.WithPlaceholder(placeholder);
-        builder.WithSourcePath(sourcePath);
-        builder.WithLabel(label);
-        builder.WithRequired(required);
-        builder.WithSortOrder(sortOrder);
-        if (dataSourceType != null) builder.WithDataSourceType(dataSourceType);
-        if (defaultValue != null) builder.WithDefaultValue(defaultValue);
-        if (transform != null) builder.WithTransform(transform);
-        if (now.HasValue) builder.WithTime(now.Value);
-        return builder.Build();
-    }
-
     public FieldMappingBuilder WithId(Guid id)
     {
         _id = id;

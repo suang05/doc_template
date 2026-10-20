@@ -1,154 +1,45 @@
-using FluentAssertions;
 using SmkDoc.Application.Common.Helpers;
-using Xunit;
 using static SmkDoc.Application.Common.Helpers.PlaceholderHelper;
 
 namespace SmkDoc.Tests.Application.Common.Helpers;
 
 public class PlaceholderHelperTests
 {
-    // ── Parse — PlaceholderKind.Text ──────────────────────────────────────
-
-    [Fact]
-    public void Parse_SimpleKey_ReturnsTextKind()
-    {
-        var result = Parse("customerName");
-        result.Kind.Should().Be(PlaceholderKind.Text);
-        result.Key.Should().Be("customerName");
-        result.Extra.Should().BeNull();
-    }
-
-    [Fact]
-    public void Parse_KeyWithLeadingAndTrailingWhitespace_TrimsKey()
-    {
-        var result = Parse("  orderTotal  ");
-        result.Kind.Should().Be(PlaceholderKind.Text);
-        result.Key.Should().Be("orderTotal");
-    }
-
-    [Fact]
-    public void Parse_EmptyString_ReturnsTextKindWithEmptyKey()
-    {
-        var result = Parse("");
-        result.Kind.Should().Be(PlaceholderKind.Text);
-        result.Key.Should().Be("");
-    }
-
-    [Fact]
-    public void Parse_DotNotationKey_ReturnsTextKind()
-    {
-        var result = Parse("customer.address.city");
-        result.Kind.Should().Be(PlaceholderKind.Text);
-        result.Key.Should().Be("customer.address.city");
-    }
-
-    // ── Parse — PlaceholderKind.Qr ───────────────────────────────────────
-
-    [Fact]
-    public void Parse_QrPrefix_ReturnsQrKindWithRightSideAsKey()
-    {
-        var result = Parse("qr:https://example.com");
-        result.Kind.Should().Be(PlaceholderKind.Qr);
-        result.Key.Should().Be("https://example.com");
-        result.Extra.Should().BeNull();
-    }
-
-    [Fact]
-    public void Parse_QrcodePrefix_ReturnsQrKind()
-    {
-        var result = Parse("qrcode:invoiceUrl");
-        result.Kind.Should().Be(PlaceholderKind.Qr);
-        result.Key.Should().Be("invoiceUrl");
-    }
-
     [Theory]
-    [InlineData("QR:data")]
-    [InlineData("Qr:data")]
-    [InlineData("QRCODE:data")]
-    [InlineData("QrCode:data")]
-    public void Parse_QrPrefix_IsCaseInsensitive(string content)
+    // Text
+    [InlineData("customerName", PlaceholderKind.Text, "customerName", null)]
+    [InlineData("  orderTotal  ", PlaceholderKind.Text, "orderTotal", null)]
+    [InlineData("", PlaceholderKind.Text, "", null)]
+    [InlineData("customer.address.city", PlaceholderKind.Text, "customer.address.city", null)]
+    // Qr
+    [InlineData("qr:https://example.com", PlaceholderKind.Qr, "https://example.com", null)]
+    [InlineData("qrcode:invoiceUrl", PlaceholderKind.Qr, "invoiceUrl", null)]
+    [InlineData("QR:data", PlaceholderKind.Qr, "data", null)]
+    [InlineData("Qr:data", PlaceholderKind.Qr, "data", null)]
+    [InlineData("QRCODE:data", PlaceholderKind.Qr, "data", null)]
+    [InlineData("QrCode:data", PlaceholderKind.Qr, "data", null)]
+    [InlineData("  qr : trackingCode  ", PlaceholderKind.Qr, "trackingCode", null)]
+    // Barcode
+    [InlineData("barcode:productSku", PlaceholderKind.Barcode, "productSku", null)]
+    [InlineData("BARCODE:sku123", PlaceholderKind.Barcode, "sku123", null)]
+    // Image
+    [InlineData("image:logoUrl", PlaceholderKind.Image, "logoUrl", null)]
+    [InlineData("IMAGE:avatarField", PlaceholderKind.Image, "avatarField", null)]
+    // Transform
+    [InlineData("date:orderDate", PlaceholderKind.Transform, "date", "orderDate")]
+    [InlineData("number:amount", PlaceholderKind.Transform, "number", "amount")]
+    [InlineData("  upper : firstName  ", PlaceholderKind.Transform, "upper", "firstName")]
+    public void Parse_WhenGivenInput_ShouldReturnExpectedPlaceholder(
+        string raw,
+        PlaceholderKind expectedKind,
+        string expectedKey,
+        string? expectedExtra)
     {
-        var result = Parse(content);
-        result.Kind.Should().Be(PlaceholderKind.Qr);
-        result.Key.Should().Be("data");
+        var result = Parse(raw);
+        result.Kind.Should().Be(expectedKind);
+        result.Key.Should().Be(expectedKey);
+        result.Extra.Should().Be(expectedExtra);
     }
-
-    [Fact]
-    public void Parse_QrPrefixWithWhitespace_TrimsLeftRight()
-    {
-        var result = Parse("  qr : trackingCode  ");
-        result.Kind.Should().Be(PlaceholderKind.Qr);
-        result.Key.Should().Be("trackingCode");
-    }
-
-    // ── Parse — PlaceholderKind.Barcode ──────────────────────────────────
-
-    [Fact]
-    public void Parse_BarcodePrefix_ReturnsBarcodeKind()
-    {
-        var result = Parse("barcode:productSku");
-        result.Kind.Should().Be(PlaceholderKind.Barcode);
-        result.Key.Should().Be("productSku");
-        result.Extra.Should().BeNull();
-    }
-
-    [Fact]
-    public void Parse_BarcodePrefixUpperCase_ReturnsBarcodeKind()
-    {
-        var result = Parse("BARCODE:sku123");
-        result.Kind.Should().Be(PlaceholderKind.Barcode);
-        result.Key.Should().Be("sku123");
-    }
-
-    // ── Parse — PlaceholderKind.Image ─────────────────────────────────────
-
-    [Fact]
-    public void Parse_ImagePrefix_ReturnsImageKind()
-    {
-        var result = Parse("image:logoUrl");
-        result.Kind.Should().Be(PlaceholderKind.Image);
-        result.Key.Should().Be("logoUrl");
-        result.Extra.Should().BeNull();
-    }
-
-    [Fact]
-    public void Parse_ImagePrefixUpperCase_ReturnsImageKind()
-    {
-        var result = Parse("IMAGE:avatarField");
-        result.Kind.Should().Be(PlaceholderKind.Image);
-        result.Key.Should().Be("avatarField");
-    }
-
-    // ── Parse — PlaceholderKind.Transform ─────────────────────────────────
-
-    [Fact]
-    public void Parse_UnknownPrefixWithColon_ReturnsTransformKind()
-    {
-        var result = Parse("date:orderDate");
-        result.Kind.Should().Be(PlaceholderKind.Transform);
-        result.Key.Should().Be("date");
-        result.Extra.Should().Be("orderDate");
-    }
-
-    [Fact]
-    public void Parse_NumberTransform_ReturnsTransformKindWithExtras()
-    {
-        var result = Parse("number:amount");
-        result.Kind.Should().Be(PlaceholderKind.Transform);
-        result.Key.Should().Be("number");
-        result.Extra.Should().Be("amount");
-    }
-
-    [Fact]
-    public void Parse_TransformWithWhitespace_TrimsLeftAndRight()
-    {
-        var result = Parse("  upper : firstName  ");
-        result.Kind.Should().Be(PlaceholderKind.Transform);
-        result.Key.Should().Be("upper");
-        result.Extra.Should().Be("firstName");
-    }
-
-    // ── Pattern (regex) ───────────────────────────────────────────────────
 
     [Fact]
     public void Pattern_ShouldMatchDoubleCurlyBraces()
@@ -182,7 +73,6 @@ public class PlaceholderHelperTests
     {
         var input = "{{outer {{inner}} text}}";
         var matches = Pattern.Matches(input);
-        // Pattern uses [^{}]+ so nested braces do not match
         matches.Should().HaveCount(1);
         matches[0].Groups[1].Value.Should().Be("inner");
     }

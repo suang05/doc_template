@@ -53,43 +53,6 @@ public class GenerationLogBuilder
             .AsFailed(errorMessage)
             .Build();
 
-    public static GenerationLog Create(
-        Guid? id = null,
-        Guid? templateId = null,
-        Guid? templateVersionId = null,
-        Guid? apiKeyId = null,
-        string? callerApp = "TestApp",
-        string? triggerSource = "API",
-        string? inputData = "{}",
-        string? outputKey = "outputs/doc.pdf",
-        OutputFormat? outputFormat = null,
-        long? fileSizeBytes = 1024,
-        int? pageCount = 1,
-        Sha256Hash? payloadHashSha256 = null,
-        int durationMs = 150,
-        GenerationStatus? status = null,
-        string? errorMsg = null,
-        DateTimeOffset? now = null)
-    {
-        var builder = new GenerationLogBuilder();
-        if (id.HasValue) builder.WithId(id.Value);
-        builder.WithTemplateId(templateId);
-        builder.WithTemplateVersionId(templateVersionId);
-        builder.WithApiKeyId(apiKeyId);
-        builder.WithCallerApp(callerApp);
-        builder.WithTriggerSource(triggerSource);
-        builder.WithInputData(inputData);
-        builder.WithOutputKey(outputKey);
-        if (outputFormat != null) builder.WithOutputFormat(outputFormat);
-        builder.WithFileSizeBytes(fileSizeBytes);
-        builder.WithPageCount(pageCount);
-        builder.WithPayloadHashSha256(payloadHashSha256);
-        builder.WithDurationMs(durationMs);
-        if (status != null) builder.WithStatus(status);
-        if (errorMsg != null) builder.AsFailed(errorMsg);
-        if (now.HasValue) builder.WithTime(now.Value);
-        return builder.Build();
-    }
 
     public GenerationLogBuilder WithId(Guid id)
     {

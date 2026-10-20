@@ -13,7 +13,7 @@ public class DocumentTests
     public void Create_WithValidParameters_InitializesCorrectly()
     {
         var templateId = TemplateId.New();
-        var now = new DateTimeOffset(2026, 10, 6, 12, 0, 0, TimeSpan.Zero);
+        var now = TestConstants.BaselineTime;
 
         var document = Document.Create(DocumentReference.Create("DOC-2026-001"), templateId, now);
 
@@ -49,8 +49,8 @@ public class DocumentTests
     [Fact]
     public void AddVersion_WithValidVersion_AddsToCollectionAndUpdatesTimestamp()
     {
-        var createdTime = new DateTimeOffset(2026, 10, 6, 10, 0, 0, TimeSpan.Zero);
-        var updatedTime = new DateTimeOffset(2026, 10, 6, 11, 0, 0, TimeSpan.Zero);
+        var createdTime = TestConstants.BaselineTime;
+        var updatedTime = TestConstants.BaselineTime.AddHours(1);
         var document = Document.Create(DocumentReference.Create("DOC-001"), null, createdTime);
 
         var version = DocumentVersion.Create(document.Id, 1, null, null, "Initial draft", null, createdTime);

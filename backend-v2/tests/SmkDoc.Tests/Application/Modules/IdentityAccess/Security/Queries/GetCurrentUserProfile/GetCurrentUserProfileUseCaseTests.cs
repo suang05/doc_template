@@ -8,20 +8,16 @@ using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Tests.Common.Builders;
+using SmkDoc.Tests.Common.Fixtures;
 using Xunit;
 
 namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Security.Queries.GetCurrentUserProfile;
 
 public class GetCurrentUserProfileUseCaseTests
 {
-    private readonly Mock<IUserRepository> _userRepoMock = new();
-    private readonly Mock<IUserWorkspaceQueryService> _workspaceQueryServiceMock = new();
-    private readonly Mock<IExecutionContext> _executionContextMock = new();
+    private readonly SecurityModuleTestFixture _fixture = new();
 
-    private GetCurrentUserProfileUseCase CreateSut() => new(
-        _userRepoMock.Object,
-        _workspaceQueryServiceMock.Object,
-        _executionContextMock.Object);
+    private GetCurrentUserProfileUseCase CreateSut() => _fixture.BuildGetCurrentUserProfileUseCase();
 
     [Fact]
     public async Task ExecuteAsync_WhenStandardUserWithProjects_ReturnsProfileAndAccessibleProjects()
@@ -42,9 +38,9 @@ public class GetCurrentUserProfileUseCaseTests
 
         var workspaceContext = new UserWorkspaceContextDto(projectId, "Admin", projectId, projects);
 
-        _userRepoMock.Setup(r => r.GetByIdAsync(user.Id, It.IsAny<CancellationToken>()))
+        _fixture.UserRepo.Setup(r => r.GetByIdAsync(user.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);
-        _workspaceQueryServiceMock.Setup(q => q.ResolveWorkspaceContextAsync(user, It.IsAny<Guid?>(), false, It.IsAny<CancellationToken>()))
+        _fixture.WorkspaceQueryService.Setup(q => q.ResolveWorkspaceContextAsync(user, It.IsAny<Guid?>(), false, It.IsAny<CancellationToken>()))
             .ReturnsAsync(workspaceContext);
 
         // Act
@@ -84,10 +80,10 @@ public class GetCurrentUserProfileUseCaseTests
 
         var workspaceContext = new UserWorkspaceContextDto(proj2, "Admin", proj1, projects);
 
-        _userRepoMock.Setup(r => r.GetByIdAsync(user.Id, It.IsAny<CancellationToken>()))
+        _fixture.UserRepo.Setup(r => r.GetByIdAsync(user.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);
-        _executionContextMock.Setup(c => c.ProjectId).Returns(proj2);
-        _workspaceQueryServiceMock.Setup(q => q.ResolveWorkspaceContextAsync(user, proj2, false, It.IsAny<CancellationToken>()))
+        _fixture.ExecutionContext.Setup(c => c.ProjectId).Returns(proj2);
+        _fixture.WorkspaceQueryService.Setup(q => q.ResolveWorkspaceContextAsync(user, proj2, false, It.IsAny<CancellationToken>()))
             .ReturnsAsync(workspaceContext);
 
         // Act
@@ -121,10 +117,10 @@ public class GetCurrentUserProfileUseCaseTests
         // Since unauthorizedProjectId is not accessible, workspace context resolves active project to proj1
         var workspaceContext = new UserWorkspaceContextDto(proj1, "Member", proj1, projects);
 
-        _userRepoMock.Setup(r => r.GetByIdAsync(user.Id, It.IsAny<CancellationToken>()))
+        _fixture.UserRepo.Setup(r => r.GetByIdAsync(user.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);
-        _executionContextMock.Setup(c => c.ProjectId).Returns(unauthorizedProjectId);
-        _workspaceQueryServiceMock.Setup(q => q.ResolveWorkspaceContextAsync(user, unauthorizedProjectId, false, It.IsAny<CancellationToken>()))
+        _fixture.ExecutionContext.Setup(c => c.ProjectId).Returns(unauthorizedProjectId);
+        _fixture.WorkspaceQueryService.Setup(q => q.ResolveWorkspaceContextAsync(user, unauthorizedProjectId, false, It.IsAny<CancellationToken>()))
             .ReturnsAsync(workspaceContext);
 
         // Act
@@ -155,9 +151,9 @@ public class GetCurrentUserProfileUseCaseTests
 
         var workspaceContext = new UserWorkspaceContextDto(projects[0].Id, "Admin", projects[0].Id, projects);
 
-        _userRepoMock.Setup(r => r.GetByIdAsync(user.Id, It.IsAny<CancellationToken>()))
+        _fixture.UserRepo.Setup(r => r.GetByIdAsync(user.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);
-        _workspaceQueryServiceMock.Setup(q => q.ResolveWorkspaceContextAsync(user, It.IsAny<Guid?>(), false, It.IsAny<CancellationToken>()))
+        _fixture.WorkspaceQueryService.Setup(q => q.ResolveWorkspaceContextAsync(user, It.IsAny<Guid?>(), false, It.IsAny<CancellationToken>()))
             .ReturnsAsync(workspaceContext);
 
         // Act
@@ -191,10 +187,10 @@ public class GetCurrentUserProfileUseCaseTests
 
         var workspaceContext = new UserWorkspaceContextDto(anyProject, "Admin", projects[0].Id, projects);
 
-        _userRepoMock.Setup(r => r.GetByIdAsync(user.Id, It.IsAny<CancellationToken>()))
+        _fixture.UserRepo.Setup(r => r.GetByIdAsync(user.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);
-        _executionContextMock.Setup(c => c.ProjectId).Returns(anyProject);
-        _workspaceQueryServiceMock.Setup(q => q.ResolveWorkspaceContextAsync(user, anyProject, false, It.IsAny<CancellationToken>()))
+        _fixture.ExecutionContext.Setup(c => c.ProjectId).Returns(anyProject);
+        _fixture.WorkspaceQueryService.Setup(q => q.ResolveWorkspaceContextAsync(user, anyProject, false, It.IsAny<CancellationToken>()))
             .ReturnsAsync(workspaceContext);
 
         // Act
@@ -209,7 +205,7 @@ public class GetCurrentUserProfileUseCaseTests
     public async Task ExecuteAsync_WhenUserNotFound_ThrowsUnauthorizedException()
     {
         // Arrange
-        _userRepoMock.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+        _fixture.UserRepo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((User?)null);
 
         // Act

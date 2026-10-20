@@ -9,22 +9,17 @@ public class DeleteDatasetUseCaseTests
 {
     private readonly IntegrationModuleTestFixture _fixture = new();
 
-    private DeleteDatasetUseCase CreateSut() =>
-        new(_fixture.DatasetRepo.Object, _fixture.UnitOfWork.Object);
+    private DeleteDatasetUseCase CreateSut() => _fixture.BuildDeleteDatasetUseCase();
 
     [Fact]
     public async Task ExecuteAsync_WhenFound_RemovesAndReturnsTrue()
     {
         // Arrange
-        var entity = DatasetBuilder.Create(name: "DS", dataConnectionId: Guid.NewGuid(), sqlQuery: "SELECT 1", cacheSeconds: 0);
+        var entity = new DatasetBuilder().WithName("DS").WithDataConnectionId(Guid.NewGuid()).WithSqlQuery("SELECT 1").WithCacheSeconds(0).Build();
 
         _fixture.DatasetRepo
             .Setup(r => r.GetByIdAsync(entity.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(entity);
-
-        _fixture.UnitOfWork
-            .Setup(u => u.CommitAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(1);
 
         var command = new DeleteDatasetCommand(entity.Id);
 
@@ -34,7 +29,7 @@ public class DeleteDatasetUseCaseTests
         // Assert
         result.Should().BeTrue();
         _fixture.DatasetRepo.Verify(r => r.Remove(entity), Times.Once);
-        _fixture.UnitOfWork.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _fixture.Uow.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -54,6 +49,6 @@ public class DeleteDatasetUseCaseTests
         // Assert
         result.Should().BeFalse();
         _fixture.DatasetRepo.Verify(r => r.Remove(It.IsAny<Dataset>()), Times.Never);
-        _fixture.UnitOfWork.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Never);
+        _fixture.Uow.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 }

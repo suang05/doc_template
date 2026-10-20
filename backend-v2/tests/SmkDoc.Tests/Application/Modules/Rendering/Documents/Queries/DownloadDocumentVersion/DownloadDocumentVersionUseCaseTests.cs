@@ -24,9 +24,9 @@ public class DownloadDocumentVersionUseCaseTests
         // Arrange
         var documentId = Guid.NewGuid();
         var logId = Guid.NewGuid();
-        var document = DocumentBuilder.Create(documentId, "SC-001", Guid.NewGuid());
-        var docVersion = DocumentVersionBuilder.Create(documentId: documentId, version: 1, templateVersionId: Guid.NewGuid(), generationLogId: logId);
-        var log = GenerationLogBuilder.Create(id: logId, outputKey: "outputs/sc001_v1.pdf", outputFormat: OutputFormat.Pdf, durationMs: 1);
+        var document = new DocumentBuilder().WithId(documentId).WithDocumentRef("SC-001").WithTemplateId(Guid.NewGuid()).Build();
+        var docVersion = new DocumentVersionBuilder().ForDocument(documentId).WithVersion(1).WithTemplateVersionId(Guid.NewGuid()).WithGenerationLogId(logId).Build();
+        var log = GenerationLogBuilder.Success(id: logId, outputKey: "outputs/sc001_v1.pdf", durationMs: 1);
         var pdfBytes = new byte[] { 0x25, 0x50, 0x44, 0x46 };
 
         _documentRepoMock

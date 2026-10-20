@@ -10,15 +10,14 @@ public class ListDataConnectionsUseCaseTests
 {
     private readonly IntegrationModuleTestFixture _fixture = new();
 
-    private ListDataConnectionsUseCase CreateSut() =>
-        new(_fixture.ConnectionRepo.Object);
+    private ListDataConnectionsUseCase CreateSut() => _fixture.BuildListDataConnectionsUseCase();
 
     [Fact]
     public async Task ExecuteAsync_WhenConnectionsExist_ReturnsProjectedDtosWithoutSecrets()
     {
         // Arrange
-        var conn1 = DataConnectionBuilder.Create(name: "Postgres Main", provider: DatabaseProvider.PostgreSQL, encryptedConnectionString: "enc_secret_1");
-        var conn2 = DataConnectionBuilder.Create(name: "SqlServer Legacy", provider: DatabaseProvider.SqlServer, encryptedConnectionString: "enc_secret_2");
+        var conn1 = DataConnectionBuilder.Postgres(name: "Postgres Main", connectionString: "enc_secret_1");
+        var conn2 = DataConnectionBuilder.SqlServer(name: "SqlServer Legacy", connectionString: "enc_secret_2");
 
         _fixture.ConnectionRepo
             .Setup(r => r.ListAsync(It.IsAny<CancellationToken>()))

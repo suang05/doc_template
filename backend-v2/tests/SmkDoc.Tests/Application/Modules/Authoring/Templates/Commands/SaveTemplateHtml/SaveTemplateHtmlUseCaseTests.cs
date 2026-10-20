@@ -13,7 +13,6 @@ namespace SmkDoc.Tests.Application.Modules.Authoring.Templates.Commands.SaveTemp
 public class SaveTemplateHtmlUseCaseTests
 {
     private readonly Mock<ITemplateRepository> _mockTemplateRepo = new();
-    private readonly Mock<IRepository<TemplateVersion>> _mockVersionRepo = new();
     private readonly Mock<IStorageService> _mockStorage = new();
     private readonly Mock<IUnitOfWork> _mockUow = new();
     private readonly Mock<IExecutionContext> _mockContext = new();
@@ -35,16 +34,26 @@ public class SaveTemplateHtmlUseCaseTests
         var currentVersionId = Guid.NewGuid();
 
         var projectId = Guid.NewGuid();
-        var template = TemplateBuilder.Create(templateId, projectId, "official-contract", "official-contract");
+        var template = new TemplateBuilder()
+            .WithId(templateId)
+            .WithProjectId(projectId)
+            .WithSlug("official-contract")
+            .WithName("official-contract")
+            .Build();
         template.SetCurrentVersion(currentVersionId, TestConstants.BaselineTime);
 
-        var currentVersion = TemplateVersionBuilder.Create(currentVersionId, templateId, 3, "", TemplateFormat.Html, createdBy: null);
+        var currentVersion = new TemplateVersionBuilder()
+            .WithId(currentVersionId)
+            .WithTemplateId(templateId)
+            .WithVersion(3)
+            .WithStorageKey("")
+            .WithFormat(TemplateFormat.Html)
+            .WithCreatedBy(null)
+            .Build();
 
         _mockTemplateRepo.Setup(r => r.GetByIdAsync(templateId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
         _mockTemplateRepo.Setup(r => r.GetVersionByIdAsync(currentVersionId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(currentVersion);
-        _mockVersionRepo.Setup(r => r.GetByIdAsync(currentVersionId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(currentVersion);
         _mockContext.SetupGet(c => c.CallerApp).Returns("studio-user");
 

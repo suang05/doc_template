@@ -32,8 +32,8 @@ public class DocumentDataPreparationServiceTests
     public async Task PrepareDataAsync_WhenNoMappings_ShouldReturnRawJson()
     {
         // Arrange
-        var template = TemplateBuilder.Create(name: "Tpl", slug: "tpl");
-        var version = TemplateVersionBuilder.Create(Guid.NewGuid(), template.Id, 1, "tpl.html", TemplateFormat.Html, "Pub", "Commit");
+        var template = new TemplateBuilder().WithName("Tpl").WithSlug("tpl").Build();
+        var version = TemplateVersionBuilder.PublishedHtml(templateId: template.Id, version: 1, storageKey: "tpl.html");
 
         var service = BuildService();
         using var jsonDoc = JsonDocument.Parse("""{"key":"value"}""");
@@ -51,8 +51,8 @@ public class DocumentDataPreparationServiceTests
     public async Task PrepareDataAsync_WhenValidationFails_ShouldReturnFailedValidationResult()
     {
         // Arrange
-        var template = TemplateBuilder.Create(name: "Tpl", slug: "tpl");
-        var version = TemplateVersionBuilder.Create(Guid.NewGuid(), template.Id, 1, "tpl.html", TemplateFormat.Html, "Pub", "Commit");
+        var template = new TemplateBuilder().WithName("Tpl").WithSlug("tpl").Build();
+        var version = TemplateVersionBuilder.PublishedHtml(templateId: template.Id, version: 1, storageKey: "tpl.html");
         const string schema = """{"required":["field"]}""";
         version.UpdateDataSchema(schema, null, TestConstants.BaselineTime);
 

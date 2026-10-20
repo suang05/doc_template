@@ -11,14 +11,13 @@ public class CreateDatasetUseCaseTests
 {
     private readonly IntegrationModuleTestFixture _fixture = new();
 
-    private CreateDatasetUseCase CreateSut() =>
-        new(_fixture.DatasetRepo.Object, _fixture.ConnectionRepo.Object, _fixture.UnitOfWork.Object);
+    private CreateDatasetUseCase CreateSut() => _fixture.BuildCreateDatasetUseCase();
 
     [Fact]
     public async Task ExecuteAsync_ShouldPersistDatasetAndReturnDto()
     {
         var connId = Guid.NewGuid();
-        var conn = DataConnectionBuilder.Create(connId, "DB1", DatabaseProvider.SqlServer, "enc_db1");
+        var conn = DataConnectionBuilder.SqlServer(name: "DB1", connectionString: "enc_db1", id: connId);
         var command = new CreateDatasetCommand("OrdersSet", "desc", connId, "SELECT * FROM orders", 60);
 
         _fixture.ConnectionRepo.Setup(r => r.GetByIdAsync(connId, It.IsAny<CancellationToken>()))
@@ -34,7 +33,7 @@ public class CreateDatasetUseCaseTests
             d.Name.Value == "OrdersSet" &&
             d.DataConnectionId == connId &&
             d.CacheSeconds == 60), It.IsAny<CancellationToken>()), Times.Once);
-        _fixture.UnitOfWork.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _fixture.Uow.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]

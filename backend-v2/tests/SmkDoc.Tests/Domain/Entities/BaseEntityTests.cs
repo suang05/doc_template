@@ -1,6 +1,4 @@
-using FluentAssertions;
 using SmkDoc.Tests.Common.Builders;
-using Xunit;
 
 namespace SmkDoc.Tests.Domain.Entities;
 
@@ -11,9 +9,9 @@ public class BaseEntityTests
     {
         var id = Guid.NewGuid();
         var projectId = Guid.NewGuid();
-        var t1 = TemplateBuilder.Create(id, projectId, "T1", "t1");
-        var t2 = TemplateBuilder.Create(id, projectId, "T2", "t2");
-        var other = TemplateBuilder.Create(Guid.NewGuid(), projectId, "T3", "t3");
+        var t1 = new TemplateBuilder().WithId(id).WithProjectId(projectId).WithName("T1").WithSlug("t1").Build();
+        var t2 = new TemplateBuilder().WithId(id).WithProjectId(projectId).WithName("T2").WithSlug("t2").Build();
+        var other = new TemplateBuilder().WithId(Guid.NewGuid()).WithProjectId(projectId).WithName("T3").WithSlug("t3").Build();
 
         t1.Should().Be(t2);
         (t1 == t2).Should().BeTrue();

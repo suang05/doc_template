@@ -14,19 +14,6 @@ public class CompanyBuilder
 
     public static Company Default() => ACompany().Build();
 
-    public static Company Create(
-        Guid? id = null,
-        string name = "Acme Corp",
-        DateTimeOffset? now = null,
-        bool isActive = true)
-    {
-        var builder = new CompanyBuilder();
-        if (id.HasValue) builder.WithId(id.Value);
-        builder.WithName(name);
-        if (now.HasValue) builder.WithTime(now.Value);
-        if (!isActive) builder.AsInactive();
-        return builder.Build();
-    }
 
     public CompanyBuilder WithId(Guid id)
     {

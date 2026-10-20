@@ -9,8 +9,7 @@ public class CreateDataConnectionUseCaseTests
 {
     private readonly IntegrationModuleTestFixture _fixture = new();
 
-    private CreateDataConnectionUseCase CreateSut() =>
-        new(_fixture.ConnectionRepo.Object, _fixture.UnitOfWork.Object, _fixture.DataProtection.Object);
+    private CreateDataConnectionUseCase CreateSut() => _fixture.BuildCreateDataConnectionUseCase();
 
     [Fact]
     public async Task ExecuteAsync_ShouldEncryptAndPersistConnection()
@@ -26,6 +25,6 @@ public class CreateDataConnectionUseCaseTests
             c.Name == "Warehouse" &&
             c.Provider == DatabaseProvider.PostgreSQL &&
             c.EncryptedConnectionString == "enc:Host=wh.local;Pass=secret"), It.IsAny<CancellationToken>()), Times.Once);
-        _fixture.UnitOfWork.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _fixture.Uow.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 }

@@ -22,7 +22,12 @@ public class SaveTemplateDatasetsUseCaseTests
     {
         // Arrange
         var templateId = Guid.NewGuid();
-        var template = TemplateBuilder.Create(templateId, Guid.NewGuid(), "Receipt", "receipt");
+        var template = new TemplateBuilder()
+            .WithId(templateId)
+            .WithProjectId(Guid.NewGuid())
+            .WithName("Receipt")
+            .WithSlug("receipt")
+            .Build();
         template.AttachDataset(Guid.NewGuid(), DatasetAlias.Create("old_alias"), 1, TestConstants.BaselineTime);
 
         _templateRepoMock
@@ -59,9 +64,6 @@ public class SaveTemplateDatasetsUseCaseTests
         _templateRepoMock
             .Setup(r => r.GetByIdWithDetailsAsync(templateId, It.IsAny<CancellationToken>()))
             .ReturnsAsync((Template?)null);
-        _templateRepoMock
-            .Setup(r => r.GetByIdAsync(templateId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync((Template?)null);
 
         var command = new SaveTemplateDatasetsCommand(templateId, new List<SaveTemplateDatasetItemDto>());
 
@@ -78,9 +80,16 @@ public class SaveTemplateDatasetsUseCaseTests
     {
         // Arrange
         var templateId = Guid.NewGuid();
+        var template = new TemplateBuilder()
+            .WithId(templateId)
+            .WithProjectId(Guid.NewGuid())
+            .WithName("Contract")
+            .WithSlug("contract")
+            .Build();
+
         _templateRepoMock
             .Setup(r => r.GetByIdWithDetailsAsync(templateId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(TemplateBuilder.Create(templateId, Guid.NewGuid(), "Contract", "contract"));
+            .ReturnsAsync(template);
 
         var items = new List<SaveTemplateDatasetItemDto>
         {

@@ -4,6 +4,8 @@ using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Tests.Common;
+using SmkDoc.Tests.Common.Builders;
 
 namespace SmkDoc.Tests.Application.Common.Helpers;
 
@@ -30,18 +32,16 @@ public class FieldMappingApplicatorServiceTests
         }
         """);
 
-        var now = DateTimeOffset.UtcNow;
-        var mapping = FieldMapping.Create(
-            templateId: Guid.NewGuid(),
-            placeholder: "customer_name",
-            sourcePath: string.Empty,
-            label: "Customer Name",
-            required: false,
-            sortOrder: 1,
-            now: now,
-            dataSourceType: DataSourceType.Sql,
-            defaultValue: null,
-            transform: null);
+        var now = TestConstants.BaselineTime;
+        var mapping = new FieldMappingBuilder()
+            .WithPlaceholder("customer_name")
+            .WithSourcePath(string.Empty)
+            .WithLabel("Customer Name")
+            .WithRequired(false)
+            .WithSortOrder(1)
+            .WithTime(now)
+            .WithDataSourceType(DataSourceType.Sql)
+            .Build();
 
         mapping.ConfigureDataSource(
             type: DataSourceType.Sql,
@@ -98,17 +98,17 @@ public class FieldMappingApplicatorServiceTests
         // Arrange
         var sut = CreateSut();
         var rootJson = JsonSerializer.Deserialize<JsonElement>("{\"name\": \"John Doe\"}");
-        var now = DateTimeOffset.UtcNow;
+        var now = TestConstants.BaselineTime;
 
-        var mapping = FieldMapping.Create(
-            templateId: Guid.NewGuid(),
-            placeholder: "recipient_name",
-            sourcePath: "name",
-            label: "Recipient",
-            required: true,
-            sortOrder: 1,
-            now: now,
-            dataSourceType: DataSourceType.Json);
+        var mapping = new FieldMappingBuilder()
+            .WithPlaceholder("recipient_name")
+            .WithSourcePath("name")
+            .WithLabel("Recipient")
+            .WithRequired(true)
+            .WithSortOrder(1)
+            .WithTime(now)
+            .WithDataSourceType(DataSourceType.Json)
+            .Build();
 
         // Act
         var resultJson = await sut.ApplyAsync(rootJson, [mapping], new Dictionary<string, ResolvedDatasetContext>());
@@ -123,17 +123,17 @@ public class FieldMappingApplicatorServiceTests
         // Arrange
         var sut = CreateSut();
         var rootJson = JsonSerializer.Deserialize<JsonElement>("{\"customerId\": 42}");
-        var now = DateTimeOffset.UtcNow;
+        var now = TestConstants.BaselineTime;
 
-        var mapping = FieldMapping.Create(
-            templateId: Guid.NewGuid(),
-            placeholder: "customer_name",
-            sourcePath: string.Empty,
-            label: "Customer Name",
-            required: false,
-            sortOrder: 1,
-            now: now,
-            dataSourceType: DataSourceType.Sql);
+        var mapping = new FieldMappingBuilder()
+            .WithPlaceholder("customer_name")
+            .WithSourcePath(string.Empty)
+            .WithLabel("Customer Name")
+            .WithRequired(false)
+            .WithSortOrder(1)
+            .WithTime(now)
+            .WithDataSourceType(DataSourceType.Sql)
+            .Build();
 
         mapping.ConfigureDataSource(
             type: DataSourceType.Sql,

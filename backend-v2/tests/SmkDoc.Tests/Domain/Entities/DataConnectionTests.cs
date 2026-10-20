@@ -9,7 +9,7 @@ namespace SmkDoc.Tests.Domain.Entities;
 
 public class DataConnectionTests
 {
-    private readonly DateTimeOffset _initialTime = new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+    private readonly DateTimeOffset _initialTime = TestConstants.BaselineTime;
 
     [Fact]
     public void Create_WithValidParameters_InitializesCorrectly()

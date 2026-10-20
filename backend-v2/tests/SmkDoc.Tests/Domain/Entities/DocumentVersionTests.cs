@@ -13,7 +13,7 @@ public class DocumentVersionTests
         var documentId = Guid.NewGuid();
         var templateVersionId = Guid.NewGuid();
         var generationLogId = Guid.NewGuid();
-        var now = new DateTimeOffset(2026, 10, 6, 14, 30, 0, TimeSpan.Zero);
+        var now = TestConstants.BaselineTime;
 
         var version = DocumentVersion.Create(
             documentId,

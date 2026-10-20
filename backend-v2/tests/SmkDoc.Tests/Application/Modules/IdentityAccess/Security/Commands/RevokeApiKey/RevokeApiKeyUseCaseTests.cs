@@ -1,6 +1,7 @@
 using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.RevokeApiKey;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
+using SmkDoc.Tests.Common.Builders;
 
 namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Security.Commands.RevokeApiKey;
 
@@ -46,13 +47,14 @@ public class RevokeApiKeyUseCaseTests
     {
         // Arrange
         var projectId = Guid.NewGuid();
-        var key = ApiKey.Issue(
-            projectId,
-            ApiKeyName.Create("Ops-Token"),
-            "ops-service",
-            new Sha256Hash(new string('a', 64)),
-            ExpirationPolicy.Never,
-            TestConstants.BaselineTime);
+        var key = new ApiKeyBuilder()
+            .WithProjectId(projectId)
+            .WithName("Ops-Token")
+            .WithCallerApp("ops-service")
+            .WithKeyHash(new Sha256Hash(new string('a', 64)))
+            .WithExpiration(ExpirationPolicy.Never)
+            .WithTime(TestConstants.BaselineTime)
+            .Build();
 
         _mockRepo.Setup(r => r.GetByIdAsync(key.Id, projectId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(key);

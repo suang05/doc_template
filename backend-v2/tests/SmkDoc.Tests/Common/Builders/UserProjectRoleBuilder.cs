@@ -20,7 +20,6 @@ public class UserProjectRoleBuilder
         return this;
     }
 
-    public UserProjectRoleBuilder WithUserId(Guid userId) => ForUser(userId);
 
     public UserProjectRoleBuilder InProject(Guid projectId)
     {
@@ -28,7 +27,6 @@ public class UserProjectRoleBuilder
         return this;
     }
 
-    public UserProjectRoleBuilder WithProjectId(Guid projectId) => InProject(projectId);
 
     public UserProjectRoleBuilder WithTime(DateTimeOffset time)
     {

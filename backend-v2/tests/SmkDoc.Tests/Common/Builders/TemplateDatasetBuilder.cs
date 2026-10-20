@@ -16,24 +16,6 @@ public class TemplateDatasetBuilder
 
     public static TemplateDataset Default() => ADatasetLink().Build();
 
-    public static TemplateDataset Create(
-        Guid? id = null,
-        Guid? templateId = null,
-        Guid? datasetId = null,
-        DatasetAlias? alias = null,
-        int sortOrder = 1,
-        DateTimeOffset? now = null)
-    {
-        var builder = new TemplateDatasetBuilder();
-        if (id.HasValue) builder.WithId(id.Value);
-        if (templateId.HasValue) builder.WithTemplateId(templateId.Value);
-        if (datasetId.HasValue) builder.WithDatasetId(datasetId.Value);
-        if (alias != null) builder.WithAlias(alias.Value);
-        builder.WithSortOrder(sortOrder);
-        if (now.HasValue) builder.WithTime(now.Value);
-        return builder.Build();
-    }
-
     public TemplateDatasetBuilder WithId(Guid id)
     {
         _id = id;

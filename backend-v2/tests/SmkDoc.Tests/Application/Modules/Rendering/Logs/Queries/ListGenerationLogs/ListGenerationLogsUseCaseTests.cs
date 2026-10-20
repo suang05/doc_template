@@ -20,19 +20,17 @@ public class ListGenerationLogsUseCaseTests
         // Arrange
         var logs = new List<GenerationLog>
         {
-            GenerationLogBuilder.Create(
-                templateId: Guid.NewGuid(),
-                templateVersionId: Guid.NewGuid(),
-                apiKeyId: Guid.NewGuid(),
-                callerApp: "crm",
-                triggerSource: "api",
-                inputData: "req-1",
-                outputKey: "out-1.pdf",
-                outputFormat: OutputFormat.Pdf,
-                fileSizeBytes: 1024,
-                pageCount: 1,
-                durationMs: 150,
-                status: GenerationStatus.Success)
+            new GenerationLogBuilder()
+                .WithApiKeyId(Guid.NewGuid())
+                .WithCallerApp("crm")
+                .WithTriggerSource("api")
+                .WithInputData("req-1")
+                .WithOutputKey("out-1.pdf")
+                .WithOutputFormat(OutputFormat.Pdf)
+                .WithFileSizeBytes(1024)
+                .WithPageCount(1)
+                .WithDurationMs(150)
+                .Build()
         };
 
         _repoMock.Setup(r => r.PagedListAsync(

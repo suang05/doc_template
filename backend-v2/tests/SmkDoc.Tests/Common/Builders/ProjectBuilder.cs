@@ -16,23 +16,6 @@ public class ProjectBuilder
 
     public static Project Default() => AProject().Build();
 
-    public static Project Create(
-        Guid? id = null,
-        Guid? companyId = null,
-        string name = "Sample Project",
-        string slug = "sample-project",
-        DateTimeOffset? now = null,
-        bool isActive = true)
-    {
-        var builder = new ProjectBuilder();
-        if (id.HasValue) builder.WithId(id.Value);
-        if (companyId.HasValue) builder.WithCompanyId(companyId.Value);
-        builder.WithName(name);
-        builder.WithSlug(slug);
-        if (now.HasValue) builder.WithTime(now.Value);
-        if (!isActive) builder.AsInactive();
-        return builder.Build();
-    }
 
     public ProjectBuilder WithId(Guid id)
     {

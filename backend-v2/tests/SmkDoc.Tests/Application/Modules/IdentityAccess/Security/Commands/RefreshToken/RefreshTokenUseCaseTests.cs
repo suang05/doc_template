@@ -11,6 +11,7 @@ using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Tests.Common.Builders;
+using SmkDoc.Tests.Common.Fixtures;
 using Xunit;
 using RefreshTokenEntity = SmkDoc.Domain.Entities.RefreshToken;
 
@@ -18,32 +19,10 @@ namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Security.Commands.Refr
 
 public class RefreshTokenUseCaseTests
 {
-    private readonly Mock<IRefreshTokenRepository> _tokenRepoMock = new();
-    private readonly Mock<IUserRepository> _userRepoMock = new();
-    private readonly Mock<IJwtTokenGenerator> _jwtGeneratorMock = new();
-    private readonly Mock<IUserWorkspaceQueryService> _workspaceQueryServiceMock = new();
-    private readonly Mock<IUnitOfWork> _uowMock = new();
-    private readonly Mock<IExecutionContext> _executionContextMock = new();
-    private readonly FakeTimeProvider _timeProvider = new(TestConstants.BaselineTime);
+    private readonly SecurityModuleTestFixture _fixture = new();
 
-    private readonly Mock<ISecurityAuditService> _auditServiceMock = new();
-    private readonly IValidator<RefreshTokenCommand> _validator = new RefreshTokenCommandValidator();
-
-    private RefreshTokenUseCase CreateSut(Guid? executionContextProjectId = null)
-    {
-        _executionContextMock.Setup(x => x.ProjectId).Returns(executionContextProjectId);
-
-        return new(
-            _tokenRepoMock.Object,
-            _userRepoMock.Object,
-            _jwtGeneratorMock.Object,
-            _workspaceQueryServiceMock.Object,
-            _uowMock.Object,
-            _validator,
-            _timeProvider,
-            _executionContextMock.Object,
-            _auditServiceMock.Object);
-    }
+    private RefreshTokenUseCase CreateSut(Guid? executionContextProjectId = null) =>
+        _fixture.BuildRefreshTokenUseCase(executionContextProjectId);
 
     [Fact]
     public async Task ExecuteAsync_WhenValidTokenAndNoProjectHeader_RotatesTokenAndDefaultsToFirstAccessibleProject()
@@ -63,13 +42,13 @@ public class RefreshTokenUseCaseTests
 
         var workspaceContext = new UserWorkspaceContextDto(projectAlphaId, "Admin", projectAlphaId, accessibleProjects);
 
-        _tokenRepoMock.Setup(r => r.GetByHashAsync(tokenHash, It.IsAny<CancellationToken>()))
+        _fixture.TokenRepo.Setup(r => r.GetByHashAsync(tokenHash, It.IsAny<CancellationToken>()))
             .ReturnsAsync(existingToken);
-        _userRepoMock.Setup(r => r.GetByIdAsync(user.Id, It.IsAny<CancellationToken>()))
+        _fixture.UserRepo.Setup(r => r.GetByIdAsync(user.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);
-        _workspaceQueryServiceMock.Setup(q => q.ResolveWorkspaceContextAsync(user, null, true, It.IsAny<CancellationToken>()))
+        _fixture.WorkspaceQueryService.Setup(q => q.ResolveWorkspaceContextAsync(user, null, true, It.IsAny<CancellationToken>()))
             .ReturnsAsync(workspaceContext);
-        _jwtGeneratorMock.Setup(j => j.GenerateToken(user, projectAlphaId, It.IsAny<IEnumerable<string>>()))
+        _fixture.JwtGenerator.Setup(j => j.GenerateToken(user, projectAlphaId, It.IsAny<IEnumerable<string>>()))
             .Returns("new-jwt-token");
 
         // Act
@@ -82,10 +61,10 @@ public class RefreshTokenUseCaseTests
         result.RefreshToken.Should().NotBe(rawToken);
 
         existingToken.IsRevoked.Should().BeTrue();
-        _tokenRepoMock.Verify(r => r.AddAsync(It.Is<RefreshTokenEntity>(t => t.UserId == user.Id), It.IsAny<CancellationToken>()), Times.Once);
-        _uowMock.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
-        _jwtGeneratorMock.Verify(j => j.GenerateToken(user, projectAlphaId, It.Is<IEnumerable<string>>(roles => roles.Contains("Admin"))), Times.Once);
-        _auditServiceMock.Verify(a => a.LogTokenRotated(user.Id), Times.Once);
+        _fixture.TokenRepo.Verify(r => r.AddAsync(It.Is<RefreshTokenEntity>(t => t.UserId == user.Id), It.IsAny<CancellationToken>()), Times.Once);
+        _fixture.Uow.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _fixture.JwtGenerator.Verify(j => j.GenerateToken(user, projectAlphaId, It.Is<IEnumerable<string>>(roles => roles.Contains("Admin"))), Times.Once);
+        _fixture.AuditService.Verify(a => a.LogTokenRotated(user.Id), Times.Once);
     }
 
     [Fact]
@@ -109,13 +88,13 @@ public class RefreshTokenUseCaseTests
 
         var workspaceContext = new UserWorkspaceContextDto(projectBetaId, "Viewer", projectAlphaId, accessibleProjects);
 
-        _tokenRepoMock.Setup(r => r.GetByHashAsync(tokenHash, It.IsAny<CancellationToken>()))
+        _fixture.TokenRepo.Setup(r => r.GetByHashAsync(tokenHash, It.IsAny<CancellationToken>()))
             .ReturnsAsync(existingToken);
-        _userRepoMock.Setup(r => r.GetByIdAsync(user.Id, It.IsAny<CancellationToken>()))
+        _fixture.UserRepo.Setup(r => r.GetByIdAsync(user.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);
-        _workspaceQueryServiceMock.Setup(q => q.ResolveWorkspaceContextAsync(user, projectBetaId, true, It.IsAny<CancellationToken>()))
+        _fixture.WorkspaceQueryService.Setup(q => q.ResolveWorkspaceContextAsync(user, projectBetaId, true, It.IsAny<CancellationToken>()))
             .ReturnsAsync(workspaceContext);
-        _jwtGeneratorMock.Setup(j => j.GenerateToken(user, projectBetaId, It.IsAny<IEnumerable<string>>()))
+        _fixture.JwtGenerator.Setup(j => j.GenerateToken(user, projectBetaId, It.IsAny<IEnumerable<string>>()))
             .Returns("refreshed-beta-jwt");
 
         // Act
@@ -124,7 +103,7 @@ public class RefreshTokenUseCaseTests
         // Assert
         result.Should().NotBeNull();
         result.AccessToken.Should().Be("refreshed-beta-jwt");
-        _jwtGeneratorMock.Verify(j => j.GenerateToken(user, projectBetaId, It.Is<IEnumerable<string>>(roles => roles.Contains("Viewer"))), Times.Once);
+        _fixture.JwtGenerator.Verify(j => j.GenerateToken(user, projectBetaId, It.Is<IEnumerable<string>>(roles => roles.Contains("Viewer"))), Times.Once);
     }
 
     [Fact]
@@ -138,16 +117,12 @@ public class RefreshTokenUseCaseTests
         var existingToken = RefreshTokenEntity.Create(user.Id, tokenHash, now.AddDays(7), now);
 
         var unauthorizedProjectId = Guid.NewGuid();
-        var accessibleProjects = new List<AccessibleProjectDto>
-        {
-            new(Guid.NewGuid(), "Authorized Project", "auth", "Viewer")
-        };
 
-        _tokenRepoMock.Setup(r => r.GetByHashAsync(tokenHash, It.IsAny<CancellationToken>()))
+        _fixture.TokenRepo.Setup(r => r.GetByHashAsync(tokenHash, It.IsAny<CancellationToken>()))
             .ReturnsAsync(existingToken);
-        _userRepoMock.Setup(r => r.GetByIdAsync(user.Id, It.IsAny<CancellationToken>()))
+        _fixture.UserRepo.Setup(r => r.GetByIdAsync(user.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);
-        _workspaceQueryServiceMock.Setup(q => q.ResolveWorkspaceContextAsync(user, unauthorizedProjectId, true, It.IsAny<CancellationToken>()))
+        _fixture.WorkspaceQueryService.Setup(q => q.ResolveWorkspaceContextAsync(user, unauthorizedProjectId, true, It.IsAny<CancellationToken>()))
             .ThrowsAsync(new UnauthorizedException("User does not have access to the specified project."));
 
         // Act
@@ -156,7 +131,7 @@ public class RefreshTokenUseCaseTests
         // Assert
         await act.Should().ThrowAsync<UnauthorizedException>()
             .WithMessage("User does not have access to the specified project.");
-        _uowMock.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Never);
+        _fixture.Uow.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -177,13 +152,13 @@ public class RefreshTokenUseCaseTests
 
         var workspaceContext = new UserWorkspaceContextDto(requestedProjectId, "Admin", requestedProjectId, accessibleProjects);
 
-        _tokenRepoMock.Setup(r => r.GetByHashAsync(tokenHash, It.IsAny<CancellationToken>()))
+        _fixture.TokenRepo.Setup(r => r.GetByHashAsync(tokenHash, It.IsAny<CancellationToken>()))
             .ReturnsAsync(existingToken);
-        _userRepoMock.Setup(r => r.GetByIdAsync(user.Id, It.IsAny<CancellationToken>()))
+        _fixture.UserRepo.Setup(r => r.GetByIdAsync(user.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);
-        _workspaceQueryServiceMock.Setup(q => q.ResolveWorkspaceContextAsync(user, requestedProjectId, true, It.IsAny<CancellationToken>()))
+        _fixture.WorkspaceQueryService.Setup(q => q.ResolveWorkspaceContextAsync(user, requestedProjectId, true, It.IsAny<CancellationToken>()))
             .ReturnsAsync(workspaceContext);
-        _jwtGeneratorMock.Setup(j => j.GenerateToken(user, requestedProjectId, It.IsAny<IEnumerable<string>>()))
+        _fixture.JwtGenerator.Setup(j => j.GenerateToken(user, requestedProjectId, It.IsAny<IEnumerable<string>>()))
             .Returns("admin-jwt-token");
 
         // Act
@@ -192,7 +167,7 @@ public class RefreshTokenUseCaseTests
         // Assert
         result.Should().NotBeNull();
         result.AccessToken.Should().Be("admin-jwt-token");
-        _jwtGeneratorMock.Verify(j => j.GenerateToken(user, requestedProjectId, It.Is<IEnumerable<string>>(roles => roles.Contains("Admin"))), Times.Once);
+        _fixture.JwtGenerator.Verify(j => j.GenerateToken(user, requestedProjectId, It.Is<IEnumerable<string>>(roles => roles.Contains("Admin"))), Times.Once);
     }
 
     [Fact]
@@ -202,7 +177,7 @@ public class RefreshTokenUseCaseTests
         var rawToken = "non-existent-token";
         var tokenHash = RefreshTokenHelper.HashToken(rawToken);
 
-        _tokenRepoMock.Setup(r => r.GetByHashAsync(tokenHash, It.IsAny<CancellationToken>()))
+        _fixture.TokenRepo.Setup(r => r.GetByHashAsync(tokenHash, It.IsAny<CancellationToken>()))
             .ReturnsAsync((RefreshTokenEntity?)null);
 
         // Act
@@ -211,7 +186,7 @@ public class RefreshTokenUseCaseTests
         // Assert
         await act.Should().ThrowAsync<UnauthorizedException>()
             .WithMessage("*Invalid refresh token*");
-        _uowMock.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Never);
+        _fixture.Uow.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -225,7 +200,7 @@ public class RefreshTokenUseCaseTests
         var revokedToken = RefreshTokenEntity.Create(userId, tokenHash, now.AddDays(7), now);
         revokedToken.Revoke(now.AddMinutes(-5));
 
-        _tokenRepoMock.Setup(r => r.GetByHashAsync(tokenHash, It.IsAny<CancellationToken>()))
+        _fixture.TokenRepo.Setup(r => r.GetByHashAsync(tokenHash, It.IsAny<CancellationToken>()))
             .ReturnsAsync(revokedToken);
 
         // Act
@@ -234,9 +209,9 @@ public class RefreshTokenUseCaseTests
         // Assert
         await act.Should().ThrowAsync<UnauthorizedException>()
             .WithMessage("*reuse detected*");
-        _tokenRepoMock.Verify(r => r.RevokeAllByUserIdAsync(userId, now, It.IsAny<CancellationToken>()), Times.Once);
-        _uowMock.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
-        _auditServiceMock.Verify(a => a.LogTokenReuseDetected(userId), Times.Once);
+        _fixture.TokenRepo.Verify(r => r.RevokeAllByUserIdAsync(userId, now, It.IsAny<CancellationToken>()), Times.Once);
+        _fixture.Uow.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _fixture.AuditService.Verify(a => a.LogTokenReuseDetected(userId), Times.Once);
     }
 
     [Fact]
@@ -258,13 +233,13 @@ public class RefreshTokenUseCaseTests
         };
         var workspaceContext = new UserWorkspaceContextDto(projectAlphaId, "Admin", projectAlphaId, accessibleProjects);
 
-        _tokenRepoMock.Setup(r => r.GetByHashAsync(tokenHash, It.IsAny<CancellationToken>()))
+        _fixture.TokenRepo.Setup(r => r.GetByHashAsync(tokenHash, It.IsAny<CancellationToken>()))
             .ReturnsAsync(revokedToken);
-        _userRepoMock.Setup(r => r.GetByIdAsync(user.Id, It.IsAny<CancellationToken>()))
+        _fixture.UserRepo.Setup(r => r.GetByIdAsync(user.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);
-        _workspaceQueryServiceMock.Setup(q => q.ResolveWorkspaceContextAsync(user, null, true, It.IsAny<CancellationToken>()))
+        _fixture.WorkspaceQueryService.Setup(q => q.ResolveWorkspaceContextAsync(user, null, true, It.IsAny<CancellationToken>()))
             .ReturnsAsync(workspaceContext);
-        _jwtGeneratorMock.Setup(j => j.GenerateToken(user, projectAlphaId, It.IsAny<IEnumerable<string>>()))
+        _fixture.JwtGenerator.Setup(j => j.GenerateToken(user, projectAlphaId, It.IsAny<IEnumerable<string>>()))
             .Returns("grace-period-jwt");
 
         // Act
@@ -277,11 +252,11 @@ public class RefreshTokenUseCaseTests
         result.RefreshToken.Should().NotBe(rawToken);
 
         // Crucial: Must NOT revoke all user sessions when within leeway
-        _tokenRepoMock.Verify(r => r.RevokeAllByUserIdAsync(user.Id, It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>()), Times.Never);
-        _tokenRepoMock.Verify(r => r.AddAsync(It.Is<RefreshTokenEntity>(t => t.UserId == user.Id), It.IsAny<CancellationToken>()), Times.Once);
-        _uowMock.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
-        _auditServiceMock.Verify(a => a.LogTokenRotated(user.Id), Times.Once);
-        _auditServiceMock.Verify(a => a.LogTokenReuseDetected(It.IsAny<Guid>()), Times.Never);
+        _fixture.TokenRepo.Verify(r => r.RevokeAllByUserIdAsync(user.Id, It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>()), Times.Never);
+        _fixture.TokenRepo.Verify(r => r.AddAsync(It.Is<RefreshTokenEntity>(t => t.UserId == user.Id), It.IsAny<CancellationToken>()), Times.Once);
+        _fixture.Uow.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _fixture.AuditService.Verify(a => a.LogTokenRotated(user.Id), Times.Once);
+        _fixture.AuditService.Verify(a => a.LogTokenReuseDetected(It.IsAny<Guid>()), Times.Never);
     }
 
     [Fact]
@@ -293,9 +268,9 @@ public class RefreshTokenUseCaseTests
         var tokenHash = RefreshTokenHelper.HashToken(rawToken);
         var userId = Guid.NewGuid();
         var expiredToken = RefreshTokenEntity.Create(userId, tokenHash, now.AddMinutes(10), now);
-        _timeProvider.Advance(TimeSpan.FromMinutes(20));
+        _fixture.TimeProvider.Advance(TimeSpan.FromMinutes(20));
 
-        _tokenRepoMock.Setup(r => r.GetByHashAsync(tokenHash, It.IsAny<CancellationToken>()))
+        _fixture.TokenRepo.Setup(r => r.GetByHashAsync(tokenHash, It.IsAny<CancellationToken>()))
             .ReturnsAsync(expiredToken);
 
         // Act
@@ -304,7 +279,7 @@ public class RefreshTokenUseCaseTests
         // Assert
         await act.Should().ThrowAsync<UnauthorizedException>()
             .WithMessage("*expired*");
-        _uowMock.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Never);
+        _fixture.Uow.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -317,9 +292,9 @@ public class RefreshTokenUseCaseTests
         var user = UserBuilder.AUser().WithTime(now).AsInactive().Build();
         var existingToken = RefreshTokenEntity.Create(user.Id, tokenHash, now.AddDays(7), now);
 
-        _tokenRepoMock.Setup(r => r.GetByHashAsync(tokenHash, It.IsAny<CancellationToken>()))
+        _fixture.TokenRepo.Setup(r => r.GetByHashAsync(tokenHash, It.IsAny<CancellationToken>()))
             .ReturnsAsync(existingToken);
-        _userRepoMock.Setup(r => r.GetByIdAsync(user.Id, It.IsAny<CancellationToken>()))
+        _fixture.UserRepo.Setup(r => r.GetByIdAsync(user.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);
 
         // Act
@@ -328,6 +303,6 @@ public class RefreshTokenUseCaseTests
         // Assert
         await act.Should().ThrowAsync<UnauthorizedException>()
             .WithMessage("*inactive or not found*");
-        _uowMock.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Never);
+        _fixture.Uow.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 }

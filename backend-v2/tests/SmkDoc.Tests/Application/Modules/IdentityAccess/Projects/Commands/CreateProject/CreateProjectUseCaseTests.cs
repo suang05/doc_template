@@ -54,7 +54,7 @@ public class CreateProjectUseCaseTests
         // Arrange
         var now = TestConstants.BaselineTime;
         var userId = Guid.NewGuid();
-        var company = CompanyBuilder.Create(name: "Test Company", now: now);
+        var company = new CompanyBuilder().WithName("Test Company").WithTime(now).Build();
         var command = new CreateProjectCommand(userId, "New Project", "new-project");
 
         _projectRepoMock.Setup(r => r.GetBySlugAsync("new-project", It.IsAny<CancellationToken>()))
@@ -64,13 +64,11 @@ public class CreateProjectUseCaseTests
 
         Project? capturedProject = null;
         _projectRepoMock.Setup(r => r.AddAsync(It.IsAny<Project>(), It.IsAny<CancellationToken>()))
-            .Callback<Project, CancellationToken>((p, _) => capturedProject = p)
-            .Returns(Task.CompletedTask);
+            .Callback<Project, CancellationToken>((p, _) => capturedProject = p);
 
         UserProjectRole? capturedRole = null;
         _roleRepoMock.Setup(r => r.AddAsync(It.IsAny<UserProjectRole>(), It.IsAny<CancellationToken>()))
-            .Callback<UserProjectRole, CancellationToken>((r, _) => capturedRole = r)
-            .Returns(Task.CompletedTask);
+            .Callback<UserProjectRole, CancellationToken>((r, _) => capturedRole = r);
 
         // Act
         var result = await CreateSut().ExecuteAsync(command);
@@ -102,8 +100,7 @@ public class CreateProjectUseCaseTests
 
         Company? capturedCompany = null;
         _companyRepoMock.Setup(r => r.AddAsync(It.IsAny<Company>(), It.IsAny<CancellationToken>()))
-            .Callback<Company, CancellationToken>((c, _) => capturedCompany = c)
-            .Returns(Task.CompletedTask);
+            .Callback<Company, CancellationToken>((c, _) => capturedCompany = c);
 
         // Act
         var result = await CreateSut().ExecuteAsync(command);

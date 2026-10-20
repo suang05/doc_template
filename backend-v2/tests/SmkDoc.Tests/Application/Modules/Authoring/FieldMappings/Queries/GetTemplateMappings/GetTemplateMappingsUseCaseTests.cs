@@ -19,9 +19,30 @@ public class GetTemplateMappingsUseCaseTests
     {
         // Arrange
         var templateId = Guid.NewGuid();
-        var template = TemplateBuilder.Create(templateId, Guid.NewGuid(), "Invoice", "invoice");
-        var m1 = FieldMapping.Create(templateId, "total", "payment.total", "ยอดชำระ", false, 2, TestConstants.BaselineTime, DataSourceType.Json);
-        var m2 = FieldMapping.Create(templateId, "name", "customer.name", "ชื่อลูกค้า", false, 1, TestConstants.BaselineTime, DataSourceType.Json);
+        var template = new TemplateBuilder()
+            .WithId(templateId)
+            .WithProjectId(Guid.NewGuid())
+            .WithName("Invoice")
+            .WithSlug("invoice")
+            .Build();
+        var m1 = new FieldMappingBuilder()
+            .WithTemplateId(templateId)
+            .WithPlaceholder("total")
+            .WithSourcePath("payment.total")
+            .WithLabel("ยอดชำระ")
+            .WithRequired(false)
+            .WithSortOrder(2)
+            .WithDataSourceType(DataSourceType.Json)
+            .Build();
+        var m2 = new FieldMappingBuilder()
+            .WithTemplateId(templateId)
+            .WithPlaceholder("name")
+            .WithSourcePath("customer.name")
+            .WithLabel("ชื่อลูกค้า")
+            .WithRequired(false)
+            .WithSortOrder(1)
+            .WithDataSourceType(DataSourceType.Json)
+            .Build();
         var mappings = new List<FieldMapping> { m1, m2 };
         template.ReplaceFieldMappings(mappings, TestConstants.BaselineTime);
 

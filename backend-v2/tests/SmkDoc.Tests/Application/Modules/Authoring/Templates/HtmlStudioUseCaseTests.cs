@@ -14,7 +14,6 @@ namespace SmkDoc.Tests.Application.Modules.Authoring.Templates;
 public class HtmlStudioUseCaseTests
 {
     private readonly Mock<ITemplateRepository>          _mockTemplateRepo = new();
-    private readonly Mock<IRepository<TemplateVersion>> _mockVersionRepo  = new();
     private readonly Mock<IStorageService>              _mockStorage      = new();
     private readonly Mock<IRenderEngine>                _mockHtmlEngine   = new();
     private readonly Mock<ITemplateScannerService>      _mockScanner      = new();
@@ -85,16 +84,26 @@ public class HtmlStudioUseCaseTests
         var templateId = Guid.NewGuid();
         var versionId = Guid.NewGuid();
 
-        var template = TemplateBuilder.Create(templateId, Guid.NewGuid(), "receipt-template", "receipt-template");
+        var template = new TemplateBuilder()
+            .WithId(templateId)
+            .WithProjectId(Guid.NewGuid())
+            .WithSlug("receipt-template")
+            .WithName("receipt-template")
+            .Build();
         template.SetCurrentVersion(versionId, TestConstants.BaselineTime);
 
-        var version = TemplateVersionBuilder.Create(versionId, templateId, 1, "templates/receipt.html", TemplateFormat.Html, createdBy: null);
+        var version = new TemplateVersionBuilder()
+            .WithId(versionId)
+            .WithTemplateId(templateId)
+            .WithVersion(1)
+            .WithStorageKey("templates/receipt.html")
+            .WithFormat(TemplateFormat.Html)
+            .WithCreatedBy(null)
+            .Build();
 
         _mockTemplateRepo.Setup(r => r.GetByIdAsync(templateId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(template);
         _mockTemplateRepo.Setup(r => r.GetVersionByIdAsync(versionId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(version);
-        _mockVersionRepo.Setup(r => r.GetByIdAsync(versionId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(version);
         _mockStorage.Setup(s => s.DownloadAsync("templates", "templates/receipt.html", It.IsAny<CancellationToken>()))
             .ReturnsAsync(new MemoryStream(Encoding.UTF8.GetBytes("<h1>Receipt Source</h1>")));

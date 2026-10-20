@@ -7,8 +7,7 @@ public class TestDataConnectionUseCaseTests
 {
     private readonly IntegrationModuleTestFixture _fixture = new();
 
-    private TestDataConnectionUseCase CreateSut() =>
-        new(_fixture.SqlExecutor.Object);
+    private TestDataConnectionUseCase CreateSut() => _fixture.BuildTestDataConnectionUseCase();
 
     [Fact]
     public async Task ExecuteAsync_WhenQuerySucceeds_ShouldReturnTrue()

@@ -1,13 +1,7 @@
 using System.Text;
-using FluentAssertions;
-using Moq;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.PreviewTemplateDraft;
-using SmkDoc.Domain.Enums;
-using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.Interfaces;
-using Xunit;
 
 namespace SmkDoc.Tests.Application.Modules.Authoring.Templates.Queries.PreviewTemplateDraft;
 
@@ -19,7 +13,7 @@ public class PreviewTemplateDraftUseCaseTests
     private PreviewTemplateDraftUseCase CreateSut() => new(_cache.Object, [_engine.Object]);
 
     [Fact]
-    public async Task PreviewAsync_ValidDraftId_RendersWithoutSideEffects()
+    public async Task ExecuteAsync_WhenValidDraftId_ShouldRenderWithoutSideEffects()
     {
         // Arrange
         var pdfBytes = Encoding.UTF8.GetBytes("%PDF-preview");
@@ -41,7 +35,7 @@ public class PreviewTemplateDraftUseCaseTests
     }
 
     [Fact]
-    public async Task PreviewStreamAsync_ValidDraftId_RendersStreamWithoutSideEffects()
+    public async Task ExecuteStreamAsync_WhenValidDraftId_ShouldRenderStreamWithoutSideEffects()
     {
         // Arrange
         var pdfBytes = Encoding.UTF8.GetBytes("%PDF-preview");
@@ -67,7 +61,7 @@ public class PreviewTemplateDraftUseCaseTests
     }
 
     [Fact]
-    public async Task PreviewAsync_DraftNotFound_ThrowsDraftExpiredException()
+    public async Task ExecuteAsync_WhenDraftNotFound_ShouldThrowDraftExpiredException()
     {
         // Arrange
         _cache.Setup(c => c.GetAsync("gone", It.IsAny<CancellationToken>())).ReturnsAsync((TemplateDraftEntry?)null);

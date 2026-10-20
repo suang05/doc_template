@@ -17,25 +17,6 @@ public class DatasetBuilder
 
     public static Dataset Default() => ADataset().Build();
 
-    public static Dataset Create(
-        Guid? id = null,
-        string name = "Default Dataset",
-        string? description = null,
-        Guid? dataConnectionId = null,
-        string sqlQuery = "SELECT 1",
-        int cacheSeconds = 0,
-        DateTimeOffset? now = null)
-    {
-        var builder = new DatasetBuilder();
-        if (id.HasValue) builder.WithId(id.Value);
-        builder.WithName(name);
-        if (description != null) builder.WithDescription(description);
-        if (dataConnectionId.HasValue) builder.WithDataConnectionId(dataConnectionId.Value);
-        builder.WithSqlQuery(sqlQuery);
-        builder.WithCacheSeconds(cacheSeconds);
-        if (now.HasValue) builder.WithTime(now.Value);
-        return builder.Build();
-    }
 
     public DatasetBuilder WithId(Guid id)
     {

@@ -18,7 +18,7 @@ public class GetLogDownloadUrlUseCaseTests
     {
         // Arrange
         var logId = Guid.NewGuid();
-        var log = GenerationLogBuilder.Create(id: logId, outputKey: "outputs/doc.pdf", durationMs: 1);
+        var log = GenerationLogBuilder.Success(id: logId, outputKey: "outputs/doc.pdf", durationMs: 1);
 
         _logRepoMock
             .Setup(r => r.GetByIdAsync(logId, It.IsAny<CancellationToken>()))

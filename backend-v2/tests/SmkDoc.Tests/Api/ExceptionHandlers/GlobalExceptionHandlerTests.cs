@@ -1,17 +1,34 @@
-using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging.Abstractions;
-using Moq;
 using SmkDoc.Api.ExceptionHandlers;
-using SmkDoc.Application.Common.Exceptions;
-using SmkDoc.Domain.Exceptions;
-using Xunit;
 
 namespace SmkDoc.Tests.Api.ExceptionHandlers;
 
 public class GlobalExceptionHandlerTests
 {
+    private static async Task<(bool Handled, DefaultHttpContext HttpContext, ProblemDetails ProblemDetails)> ExecuteHandlerAsync(
+        Exception exception,
+        string path = "/api/v1/templates/test")
+    {
+        ProblemDetails? capturedProblemDetails = null;
+        var problemDetailsServiceMock = new Mock<IProblemDetailsService>();
+        problemDetailsServiceMock
+            .Setup(s => s.TryWriteAsync(It.IsAny<ProblemDetailsContext>()))
+            .Callback<ProblemDetailsContext>(ctx => capturedProblemDetails = ctx.ProblemDetails)
+            .ReturnsAsync(true);
+
+        var handler = new GlobalExceptionHandler(
+            NullLogger<GlobalExceptionHandler>.Instance,
+            problemDetailsServiceMock.Object);
+
+        var httpContext = new DefaultHttpContext();
+        httpContext.Request.Path = path;
+
+        var handled = await handler.TryHandleAsync(httpContext, exception, CancellationToken.None);
+        return (handled, httpContext, capturedProblemDetails!);
+    }
+
     [Theory]
     [InlineData(typeof(NotFoundException), StatusCodes.Status404NotFound, "RESOURCE_NOT_FOUND")]
     [InlineData(typeof(DraftExpiredException), StatusCodes.Status410Gone, "DRAFT_EXPIRED")]
@@ -33,32 +50,18 @@ public class GlobalExceptionHandlerTests
             _ => throw new NotImplementedException()
         };
 
-        ProblemDetails? capturedProblemDetails = null;
-        var problemDetailsServiceMock = new Mock<IProblemDetailsService>();
-        problemDetailsServiceMock
-            .Setup(s => s.TryWriteAsync(It.IsAny<ProblemDetailsContext>()))
-            .Callback<ProblemDetailsContext>(ctx => capturedProblemDetails = ctx.ProblemDetails)
-            .ReturnsAsync(true);
-
-        var handler = new GlobalExceptionHandler(
-            NullLogger<GlobalExceptionHandler>.Instance,
-            problemDetailsServiceMock.Object);
-
-        var httpContext = new DefaultHttpContext();
-        httpContext.Request.Path = "/api/v1/templates/test";
-
         // Act
-        var handled = await handler.TryHandleAsync(httpContext, ex, CancellationToken.None);
+        var (handled, httpContext, problemDetails) = await ExecuteHandlerAsync(ex);
 
         // Assert
         handled.Should().BeTrue();
         httpContext.Response.StatusCode.Should().Be(expectedStatus);
-        capturedProblemDetails.Should().NotBeNull();
-        capturedProblemDetails!.Status.Should().Be(expectedStatus);
-        capturedProblemDetails.Extensions.Should().ContainKey("errorCode");
-        capturedProblemDetails.Extensions["errorCode"].Should().Be(expectedErrorCode);
-        capturedProblemDetails.Type.Should().Be($"https://api.sammakorn.co.th/errors/{expectedErrorCode.ToLowerInvariant().Replace('_', '-')}");
-        capturedProblemDetails.Instance.Should().Be("/api/v1/templates/test");
+        problemDetails.Should().NotBeNull();
+        problemDetails.Status.Should().Be(expectedStatus);
+        problemDetails.Extensions.Should().ContainKey("errorCode");
+        problemDetails.Extensions["errorCode"].Should().Be(expectedErrorCode);
+        problemDetails.Type.Should().Be($"https://api.sammakorn.co.th/errors/{expectedErrorCode.ToLowerInvariant().Replace('_', '-')}");
+        problemDetails.Instance.Should().Be("/api/v1/templates/test");
     }
 
     [Fact]
@@ -72,32 +75,18 @@ public class GlobalExceptionHandlerTests
         };
         var ex = new SchemaValidationException("tax-invoice", 2, errors);
 
-        ProblemDetails? capturedProblemDetails = null;
-        var problemDetailsServiceMock = new Mock<IProblemDetailsService>();
-        problemDetailsServiceMock
-            .Setup(s => s.TryWriteAsync(It.IsAny<ProblemDetailsContext>()))
-            .Callback<ProblemDetailsContext>(ctx => capturedProblemDetails = ctx.ProblemDetails)
-            .ReturnsAsync(true);
-
-        var handler = new GlobalExceptionHandler(
-            NullLogger<GlobalExceptionHandler>.Instance,
-            problemDetailsServiceMock.Object);
-
-        var httpContext = new DefaultHttpContext();
-        httpContext.Request.Path = "/api/v1/documents/generate/tax-invoice";
-
         // Act
-        var handled = await handler.TryHandleAsync(httpContext, ex, CancellationToken.None);
+        var (handled, httpContext, problemDetails) = await ExecuteHandlerAsync(ex, "/api/v1/documents/generate/tax-invoice");
 
         // Assert
         handled.Should().BeTrue();
         httpContext.Response.StatusCode.Should().Be(StatusCodes.Status422UnprocessableEntity);
-        capturedProblemDetails.Should().NotBeNull();
-        capturedProblemDetails!.Status.Should().Be(StatusCodes.Status422UnprocessableEntity);
-        capturedProblemDetails.Title.Should().Be("Schema Validation Failed");
-        capturedProblemDetails.Extensions.Should().ContainKey("errorCode");
-        capturedProblemDetails.Extensions["errorCode"].Should().Be("SCHEMA_VALIDATION_FAILED");
-        capturedProblemDetails.Extensions.Should().ContainKey("errors");
+        problemDetails.Should().NotBeNull();
+        problemDetails.Status.Should().Be(StatusCodes.Status422UnprocessableEntity);
+        problemDetails.Title.Should().Be("Schema Validation Failed");
+        problemDetails.Extensions.Should().ContainKey("errorCode");
+        problemDetails.Extensions["errorCode"].Should().Be("SCHEMA_VALIDATION_FAILED");
+        problemDetails.Extensions.Should().ContainKey("errors");
     }
 
     [Fact]
@@ -111,30 +100,17 @@ public class GlobalExceptionHandlerTests
         };
         var ex = new ValidationException(fieldErrors);
 
-        ProblemDetails? capturedProblemDetails = null;
-        var problemDetailsServiceMock = new Mock<IProblemDetailsService>();
-        problemDetailsServiceMock
-            .Setup(s => s.TryWriteAsync(It.IsAny<ProblemDetailsContext>()))
-            .Callback<ProblemDetailsContext>(ctx => capturedProblemDetails = ctx.ProblemDetails)
-            .ReturnsAsync(true);
-
-        var handler = new GlobalExceptionHandler(
-            NullLogger<GlobalExceptionHandler>.Instance,
-            problemDetailsServiceMock.Object);
-
-        var httpContext = new DefaultHttpContext();
-
         // Act
-        var handled = await handler.TryHandleAsync(httpContext, ex, CancellationToken.None);
+        var (handled, httpContext, problemDetails) = await ExecuteHandlerAsync(ex);
 
         // Assert
         handled.Should().BeTrue();
         httpContext.Response.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
-        capturedProblemDetails.Should().NotBeNull();
-        capturedProblemDetails!.Status.Should().Be(StatusCodes.Status400BadRequest);
-        capturedProblemDetails.Title.Should().Be("Validation Failed");
-        capturedProblemDetails.Extensions["errorCode"].Should().Be("VALIDATION_FAILED");
-        capturedProblemDetails.Extensions["errors"].Should().BeEquivalentTo(fieldErrors);
+        problemDetails.Should().NotBeNull();
+        problemDetails.Status.Should().Be(StatusCodes.Status400BadRequest);
+        problemDetails.Title.Should().Be("Validation Failed");
+        problemDetails.Extensions["errorCode"].Should().Be("VALIDATION_FAILED");
+        problemDetails.Extensions["errors"].Should().BeEquivalentTo(fieldErrors);
     }
 
     [Theory]
@@ -154,32 +130,19 @@ public class GlobalExceptionHandlerTests
             _ => throw new NotImplementedException()
         };
 
-        ProblemDetails? capturedProblemDetails = null;
-        var problemDetailsServiceMock = new Mock<IProblemDetailsService>();
-        problemDetailsServiceMock
-            .Setup(s => s.TryWriteAsync(It.IsAny<ProblemDetailsContext>()))
-            .Callback<ProblemDetailsContext>(ctx => capturedProblemDetails = ctx.ProblemDetails)
-            .ReturnsAsync(true);
-
-        var handler = new GlobalExceptionHandler(
-            NullLogger<GlobalExceptionHandler>.Instance,
-            problemDetailsServiceMock.Object);
-
-        var httpContext = new DefaultHttpContext();
-
         // Act
-        var handled = await handler.TryHandleAsync(httpContext, ex, CancellationToken.None);
+        var (handled, httpContext, problemDetails) = await ExecuteHandlerAsync(ex);
 
         // Assert
         handled.Should().BeTrue();
         httpContext.Response.StatusCode.Should().Be(expectedStatus);
-        capturedProblemDetails.Should().NotBeNull();
-        capturedProblemDetails!.Status.Should().Be(expectedStatus);
-        capturedProblemDetails.Extensions["errorCode"].Should().Be(expectedErrorCode);
+        problemDetails.Should().NotBeNull();
+        problemDetails.Status.Should().Be(expectedStatus);
+        problemDetails.Extensions["errorCode"].Should().Be(expectedErrorCode);
 
         if (expectedStatus == StatusCodes.Status500InternalServerError)
         {
-            capturedProblemDetails.Detail.Should().Be("An unexpected error occurred.");
+            problemDetails.Detail.Should().Be("An unexpected error occurred.");
         }
     }
 }
