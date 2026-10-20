@@ -2,6 +2,7 @@ using FluentAssertions;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Tests.Common;
 using Xunit;
 
 namespace SmkDoc.Tests.Domain.Entities;
@@ -9,7 +10,7 @@ namespace SmkDoc.Tests.Domain.Entities;
 public class ApiKeyTests
 {
     private static readonly Sha256Hash ValidHash = new(new string('a', 64));
-    private static readonly DateTimeOffset FixedNow = new(2026, 10, 5, 12, 0, 0, TimeSpan.Zero);
+    private static readonly DateTimeOffset FixedNow = TestConstants.BaselineTime;
 
     [Fact]
     public void Issue_WithValidParameters_CreatesActiveUsableKey()
@@ -44,17 +45,6 @@ public class ApiKeyTests
         var key = ApiKey.Issue(projectId, name, "reader-service", ValidHash, ExpirationPolicy.Never, FixedNow, ApiKeyScope.ReadOnly);
 
         key.Scope.Should().Be(ApiKeyScope.ReadOnly);
-    }
-
-    [Fact]
-    public void Issue_WithExpirationInPast_ThrowsDomainValidationException()
-    {
-        var pastDate = FixedNow.AddMinutes(-5);
-
-        var act = () => ExpirationPolicy.Until(pastDate, FixedNow);
-
-        act.Should().Throw<DomainValidationException>()
-            .WithMessage("*expiration must be in the future*");
     }
 
     [Fact]

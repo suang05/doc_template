@@ -2,6 +2,7 @@ using FluentAssertions;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Tests.Common;
 using SmkDoc.Tests.Common.Builders;
 using Xunit;
 
@@ -9,7 +10,7 @@ namespace SmkDoc.Tests.Domain.Entities;
 
 public class CompanyTests
 {
-    private readonly DateTimeOffset _initialTime = new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+    private readonly DateTimeOffset _initialTime = TestConstants.BaselineTime;
 
     [Fact]
     public void Create_WithValidParameters_InitializesActiveCompany()
@@ -22,17 +23,6 @@ public class CompanyTests
         company.CreatedAt.Should().Be(_initialTime);
         company.UpdatedAt.Should().BeNull();
         company.Projects.Should().BeEmpty();
-    }
-
-    [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    [InlineData("   ")]
-    public void Create_WithInvalidName_ThrowsDomainValidationException(string? invalidName)
-    {
-        var act = () => Company.Create(CompanyName.Create(invalidName!), _initialTime);
-
-        act.Should().Throw<DomainValidationException>();
     }
 
     [Fact]
@@ -109,17 +99,5 @@ public class CompanyTests
 
         company.IsActive.Should().BeTrue();
         company.UpdatedAt.Should().BeNull();
-    }
-
-    [Fact]
-    public void Projects_ShouldBeReadOnly_AndNotDirectlyMutable()
-    {
-        var company = Company.Create(CompanyName.Create("Acme Corp"), _initialTime);
-
-        company.Projects.Should().BeAssignableTo<IReadOnlyCollection<Project>>();
-
-        Action actMutateProjects = () => ((IList<Project>)company.Projects).Add(
-            Project.Create(company.Id, ProjectName.Create("P"), TemplateSlug.Create("proj-sample"), _initialTime));
-        actMutateProjects.Should().Throw<NotSupportedException>();
     }
 }

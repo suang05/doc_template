@@ -3,6 +3,7 @@ using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Tests.Common;
 using Xunit;
 
 namespace SmkDoc.Tests.Domain.Entities;
@@ -10,7 +11,7 @@ namespace SmkDoc.Tests.Domain.Entities;
 public class TemplateTests
 {
     private readonly Guid _projectId = Guid.NewGuid();
-    private readonly DateTimeOffset _initialTime = new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+    private readonly DateTimeOffset _initialTime = TestConstants.BaselineTime;
 
     private Template CreateTemplate(string name = "Standard Invoice", string slug = "std-invoice", string? category = null, DateTimeOffset? now = null) =>
         Template.Create(_projectId, TemplateName.Create(name), TemplateSlug.Create(slug), category, now ?? _initialTime);
@@ -132,5 +133,196 @@ public class TemplateTests
 
         template.FindVersion(v1.Id).Should().BeSameAs(v1);
         template.FindVersion(Guid.NewGuid()).Should().BeNull();
+    }
+
+    // ── Version Management ─────────────────────────────────────────────────────
+
+    [Fact]
+    public void AddVersion_ValidVersion_AddsToVersionsCollection()
+    {
+        var template = CreateTemplate("Invoice", "invoice", now: _initialTime);
+        var version = TemplateVersion.Draft(template.Id, 1, "s3-key-1", TemplateFormat.Html, "author", _initialTime);
+
+        template.AddVersion(version, _initialTime);
+
+        template.Versions.Should().ContainSingle().Which.Should().BeSameAs(version);
+        template.UpdatedAt.Should().NotBeNull();
+    }
+
+    [Fact]
+    public void AddVersion_WhenNull_ThrowsDomainValidationException()
+    {
+        var template = CreateTemplate("Invoice", "invoice", now: _initialTime);
+
+        Action actNull = () => template.AddVersion(null!, _initialTime);
+        actNull.Should().Throw<DomainValidationException>();
+    }
+
+    [Fact]
+    public void AddVersion_WhenTemplateIdMismatch_ThrowsDomainValidationException()
+    {
+        var template = CreateTemplate("Invoice", "invoice", now: _initialTime);
+
+        var foreignVersion = TemplateVersion.Draft(Guid.NewGuid(), 1, "key", TemplateFormat.Html, "author", _initialTime);
+        Action actMismatch = () => template.AddVersion(foreignVersion, _initialTime);
+        actMismatch.Should().Throw<DomainValidationException>()
+            .WithMessage("*does not match template ID*");
+    }
+
+    [Fact]
+    public void AddVersion_DuplicateVersionNumber_ThrowsBusinessRuleViolationException()
+    {
+        var template = CreateTemplate("Invoice", "invoice", now: _initialTime);
+        var v1 = TemplateVersion.Draft(template.Id, 1, "key-1", TemplateFormat.Html, "author", _initialTime);
+        var v2 = TemplateVersion.Draft(template.Id, 1, "key-2", TemplateFormat.Html, "author", _initialTime);
+
+        template.AddVersion(v1, _initialTime);
+
+        Action actDuplicate = () => template.AddVersion(v2, _initialTime);
+        var ex = actDuplicate.Should().Throw<BusinessRuleViolationException>()
+            .WithMessage("*already exists in template*");
+        ex.Which.ErrorCode.Should().Be("DUPLICATE_VERSION");
+    }
+
+    [Fact]
+    public void SetCurrentVersion_VersionBelongsToTemplate_SetsCurrentVersionId()
+    {
+        var template = CreateTemplate("Invoice", "invoice", now: _initialTime);
+        var version = TemplateVersion.Draft(template.Id, 1, "key", TemplateFormat.Html, "author", _initialTime);
+        template.AddVersion(version, _initialTime);
+
+        template.SetCurrentVersion(version.Id, _initialTime);
+
+        template.CurrentVersionId.Should().Be(version.Id);
+    }
+
+    [Fact]
+    public void SetCurrentVersion_VersionNotInTemplate_ThrowsBusinessRuleViolationException()
+    {
+        var template = CreateTemplate("Invoice", "invoice", now: _initialTime);
+        var version = TemplateVersion.Draft(template.Id, 1, "key", TemplateFormat.Html, "author", _initialTime);
+        template.AddVersion(version, _initialTime);
+
+        var foreignVersionId = Guid.NewGuid();
+        Action act = () => template.SetCurrentVersion(foreignVersionId, _initialTime);
+
+        var ex = act.Should().Throw<BusinessRuleViolationException>()
+            .WithMessage($"*does not belong to template '{template.Id}'*");
+        ex.Which.ErrorCode.Should().Be("VERSION_NOT_IN_TEMPLATE");
+    }
+
+    [Fact]
+    public void SetCurrentVersion_WhenInactive_ThrowsBusinessRuleViolationException()
+    {
+        var template = CreateTemplate("Invoice", "invoice", now: _initialTime);
+        template.Deactivate(_initialTime);
+
+        var act = () => template.SetCurrentVersion(Guid.NewGuid(), _initialTime);
+        act.Should().Throw<BusinessRuleViolationException>()
+            .Which.ErrorCode.Should().Be("INACTIVE_TEMPLATE");
+    }
+
+    [Fact]
+    public void SetCurrentVersion_WhenEmptyGuid_ThrowsDomainValidationException()
+    {
+        var template = CreateTemplate("Invoice", "invoice", now: _initialTime);
+
+        var act = () => template.SetCurrentVersion(Guid.Empty, _initialTime);
+        act.Should().Throw<DomainValidationException>()
+            .WithMessage("*VersionId cannot be empty*");
+    }
+
+    // ── Field Mappings ─────────────────────────────────────────────────────────
+
+    [Fact]
+    public void ReplaceFieldMappings_ValidMappings_ReplacesCollection()
+    {
+        var template = CreateTemplate("Receipt", "receipt", now: _initialTime);
+        var initial = FieldMapping.Create(template.Id, "name", "customer.name", "Name", true, 1, _initialTime);
+        template.AddFieldMapping(initial, _initialTime);
+
+        var replacement = new List<FieldMapping>
+        {
+            FieldMapping.Create(template.Id, "total", "invoice.total", "Total", true, 1, _initialTime),
+            FieldMapping.Create(template.Id, "date", "invoice.date", "Date", false, 2, _initialTime)
+        };
+
+        template.ReplaceFieldMappings(replacement, _initialTime);
+
+        template.FieldMappings.Should().HaveCount(2);
+        template.FieldMappings.Select(m => m.Placeholder).Should().Contain(["total", "date"]);
+    }
+
+    [Fact]
+    public void ReplaceFieldMappings_DuplicatePlaceholders_ThrowsBusinessRuleViolationException()
+    {
+        var template = CreateTemplate("Receipt", "receipt", now: _initialTime);
+        var mappings = new List<FieldMapping>
+        {
+            FieldMapping.Create(template.Id, "customerName", "a", "A", true, 1, _initialTime),
+            FieldMapping.Create(template.Id, "CUSTOMERNAME", "b", "B", false, 2, _initialTime)
+        };
+
+        Action act = () => template.ReplaceFieldMappings(mappings, _initialTime);
+
+        var ex = act.Should().Throw<BusinessRuleViolationException>();
+        ex.Which.ErrorCode.Should().Be("DUPLICATE_PLACEHOLDER");
+        ex.Which.Message.Should().Contain("customerName");
+    }
+
+    // ── Template Datasets ──────────────────────────────────────────────────────
+
+    [Fact]
+    public void AttachDataset_WhenValid_AddsToCollection()
+    {
+        var template = CreateTemplate("Order", "order", now: _initialTime);
+        var dsId = Guid.NewGuid();
+
+        template.AttachDataset(dsId, DatasetAlias.Create("items"), 1, _initialTime);
+
+        template.TemplateDatasets.Should().ContainSingle();
+        template.TemplateDatasets.First().Alias.Value.Should().Be("items");
+    }
+
+    [Fact]
+    public void DetachDataset_WhenExists_RemovesFromCollection()
+    {
+        var template = CreateTemplate("Order", "order", now: _initialTime);
+        var dsId = Guid.NewGuid();
+        template.AttachDataset(dsId, DatasetAlias.Create("items"), 1, _initialTime);
+
+        template.DetachDataset(dsId, _initialTime);
+
+        template.TemplateDatasets.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void AttachDataset_DuplicateAlias_ThrowsBusinessRuleViolationException()
+    {
+        var template = CreateTemplate("Order", "order", now: _initialTime);
+        template.AttachDataset(Guid.NewGuid(), DatasetAlias.Create("header"), 1, _initialTime);
+
+        Action act = () => template.AttachDataset(Guid.NewGuid(), DatasetAlias.Create("HEADER"), 2, _initialTime);
+
+        var ex = act.Should().Throw<BusinessRuleViolationException>()
+            .WithMessage("*already assigned to template*");
+        ex.Which.ErrorCode.Should().Be("DUPLICATE_DATASET_ALIAS");
+    }
+
+    [Fact]
+    public void ReplaceDatasets_DuplicateAliases_ThrowsBusinessRuleViolationException()
+    {
+        var template = CreateTemplate("Order", "order", now: _initialTime);
+        var datasets = new List<TemplateDataset>
+        {
+            TemplateDataset.Create(template.Id, Guid.NewGuid(), DatasetAlias.Create("customers"), 1, _initialTime),
+            TemplateDataset.Create(template.Id, Guid.NewGuid(), DatasetAlias.Create("CUSTOMERS"), 2, _initialTime)
+        };
+
+        Action act = () => template.ReplaceDatasets(datasets, _initialTime);
+
+        var ex = act.Should().Throw<BusinessRuleViolationException>();
+        ex.Which.ErrorCode.Should().Be("DUPLICATE_DATASET_ALIAS");
+        ex.Which.Message.Should().Contain("customers");
     }
 }

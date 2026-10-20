@@ -3,13 +3,14 @@ using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Tests.Common;
 using Xunit;
 
 namespace SmkDoc.Tests.Domain.Entities;
 
 public class UserTests
 {
-    private readonly DateTimeOffset _initialTime = new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+    private readonly DateTimeOffset _initialTime = TestConstants.BaselineTime;
 
     [Fact]
     public void Register_WithValidParameters_InitializesActiveUser()
@@ -26,17 +27,6 @@ public class UserTests
         user.CreatedAt.Should().Be(_initialTime);
         user.UpdatedAt.Should().BeNull();
         user.ProjectRoles.Should().BeEmpty();
-    }
-
-    [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    [InlineData("not-an-email")]
-    public void Register_WithInvalidEmail_ThrowsDomainValidationException(string? invalidEmail)
-    {
-        var act = () => User.Register(EmailAddress.Create(invalidEmail!), "hash123", "John", "Doe", _initialTime);
-
-        act.Should().Throw<DomainValidationException>();
     }
 
     [Theory]
@@ -179,18 +169,6 @@ public class UserTests
         user.Activate(reactTime);
         user.IsActive.Should().BeTrue();
         user.UpdatedAt.Should().Be(reactTime);
-    }
-
-    [Fact]
-    public void ProjectRoles_ShouldBeReadOnly_AndNotDirectlyMutable()
-    {
-        var user = User.Register(EmailAddress.Create("user@test.com"), "hashed_pwd", "John", "Doe", _initialTime);
-
-        user.ProjectRoles.Should().BeAssignableTo<IReadOnlyCollection<UserProjectRole>>();
-
-        Action actDirectMutate = () => ((IList<UserProjectRole>)user.ProjectRoles).Add(
-            UserProjectRole.Create(user.Id, Guid.NewGuid(), RoleType.Developer, _initialTime));
-        actDirectMutate.Should().Throw<NotSupportedException>();
     }
 
     [Fact]

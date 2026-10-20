@@ -2,14 +2,25 @@ using FluentAssertions;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.ValueObjects.Ids;
+using SmkDoc.Tests.Common;
 using Xunit;
 
 namespace SmkDoc.Tests.Domain.Entities;
 
 public class GenerationLogTests
 {
+    private static readonly DateTimeOffset Now = TestConstants.BaselineTime;
+
+    private static Action CreateLog(
+        string? callerApp = null,
+        string triggerSource = "api",
+        string? outputKey = null,
+        long? fileSizeBytes = null,
+        int? pageCount = null,
+        int durationMs = 10) =>
+        () => GenerationLog.Create(null, null, null, callerApp, triggerSource, null, outputKey, null, fileSizeBytes, pageCount, null, durationMs, GenerationStatus.Success, null, Now);
+
     [Fact]
     public void CreateSuccess_WithValidParameters_InitializesCorrectly()
     {
@@ -17,7 +28,6 @@ public class GenerationLogTests
         var templateId = TemplateId.New();
         var templateVersionId = Guid.NewGuid();
         var apiKeyId = ApiKeyId.New();
-        var now = new DateTimeOffset(2026, 10, 6, 15, 0, 0, TimeSpan.Zero);
 
         var log = GenerationLog.CreateSuccess(
             generationId,
@@ -31,7 +41,7 @@ public class GenerationLogTests
             OutputFormat.Pdf,
             20480,
             120,
-            now);
+            Now);
 
         log.Id.Should().Be(generationId);
         log.TemplateId.Should().Be(templateId);
@@ -46,7 +56,7 @@ public class GenerationLogTests
         log.DurationMs.Should().Be(120);
         log.Status.Should().Be(GenerationStatus.Success);
         log.ErrorMsg.Should().BeNull();
-        log.CreatedAt.Should().Be(now);
+        log.CreatedAt.Should().Be(Now);
         log.UpdatedAt.Should().BeNull();
     }
 
@@ -55,7 +65,6 @@ public class GenerationLogTests
     {
         var templateId = TemplateId.New();
         var templateVersionId = Guid.NewGuid();
-        var now = TestConstants.BaselineTime;
 
         var log = GenerationLog.CreateValidationFailure(
             templateId,
@@ -67,7 +76,7 @@ public class GenerationLogTests
             OutputFormat.Pdf,
             15,
             "Payload missing required field 'contractId'",
-            now);
+            Now);
 
         log.Status.Should().Be(GenerationStatus.ValidationFailed);
         log.ErrorMsg.Should().Be("Payload missing required field 'contractId'");
@@ -80,7 +89,6 @@ public class GenerationLogTests
     {
         var templateId = TemplateId.New();
         var templateVersionId = Guid.NewGuid();
-        var now = TestConstants.BaselineTime;
 
         var log = GenerationLog.CreateFailure(
             templateId,
@@ -92,80 +100,45 @@ public class GenerationLogTests
             OutputFormat.Pdf,
             3000,
             "Gotenberg service timeout",
-            now);
+            Now);
 
         log.Status.Should().Be(GenerationStatus.Failed);
         log.ErrorMsg.Should().Be("Gotenberg service timeout");
     }
 
-    [Fact]
-    public void Create_WithNegativeDurationMs_ThrowsDomainValidationException()
+    [Theory]
+    [InlineData("DurationMs", -1, null, null)]
+    [InlineData("FileSizeBytes", 10, -50L, null)]
+    [InlineData("PageCount", 10, null, -1)]
+    public void Create_WithNegativeNumeric_ThrowsDomainValidationException(string fieldName, int durationMs, long? fileSizeBytes, int? pageCount)
     {
-        var now = TestConstants.BaselineTime;
-        var act = () => GenerationLog.Create(null, null, null, null, "api", null, null, null, null, null, null, -1, GenerationStatus.Success, null, now);
-
+        var act = CreateLog(durationMs: durationMs, fileSizeBytes: fileSizeBytes, pageCount: pageCount);
         act.Should().Throw<DomainValidationException>()
-            .WithMessage("*DurationMs cannot be negative*");
+            .WithMessage($"*{fieldName} cannot be negative*");
     }
 
-    [Fact]
-    public void Create_WithNegativeFileSizeBytes_ThrowsDomainValidationException()
+    [Theory]
+    [InlineData("CallerApp")]
+    [InlineData("TriggerSource")]
+    [InlineData("OutputKey")]
+    public void Create_WithFieldExceedingMaxLength_ThrowsDomainValidationException(string field)
     {
-        var now = TestConstants.BaselineTime;
-        var act = () => GenerationLog.Create(null, null, null, null, "api", null, null, null, -50, null, null, 10, GenerationStatus.Success, null, now);
+        Action act = field switch
+        {
+            "CallerApp" => CreateLog(callerApp: new string('A', GenerationLog.MaxCallerAppLength + 1)),
+            "TriggerSource" => CreateLog(triggerSource: new string('S', GenerationLog.MaxTriggerSourceLength + 1)),
+            "OutputKey" => CreateLog(outputKey: new string('K', GenerationLog.MaxOutputKeyLength + 1)),
+            _ => throw new ArgumentException($"Unknown field {field}")
+        };
 
         act.Should().Throw<DomainValidationException>()
-            .WithMessage("*FileSizeBytes cannot be negative*");
-    }
-
-    [Fact]
-    public void Create_WithNegativePageCount_ThrowsDomainValidationException()
-    {
-        var now = TestConstants.BaselineTime;
-        var act = () => GenerationLog.Create(null, null, null, null, "api", null, null, null, 100, -1, null, 10, GenerationStatus.Success, null, now);
-
-        act.Should().Throw<DomainValidationException>()
-            .WithMessage("*PageCount cannot be negative*");
-    }
-
-    [Fact]
-    public void Create_WithCallerAppExceedingMaxLength_ThrowsDomainValidationException()
-    {
-        var now = TestConstants.BaselineTime;
-        var longApp = new string('A', GenerationLog.MaxCallerAppLength + 1);
-        var act = () => GenerationLog.Create(null, null, null, longApp, "api", null, null, null, null, null, null, 10, GenerationStatus.Success, null, now);
-
-        act.Should().Throw<DomainValidationException>()
-            .WithMessage($"*CallerApp must not exceed {GenerationLog.MaxCallerAppLength} characters*");
-    }
-
-    [Fact]
-    public void Create_WithTriggerSourceExceedingMaxLength_ThrowsDomainValidationException()
-    {
-        var now = TestConstants.BaselineTime;
-        var longSource = new string('S', GenerationLog.MaxTriggerSourceLength + 1);
-        var act = () => GenerationLog.Create(null, null, null, null, longSource, null, null, null, null, null, null, 10, GenerationStatus.Success, null, now);
-
-        act.Should().Throw<DomainValidationException>()
-            .WithMessage($"*TriggerSource must not exceed {GenerationLog.MaxTriggerSourceLength} characters*");
-    }
-
-    [Fact]
-    public void Create_WithOutputKeyExceedingMaxLength_ThrowsDomainValidationException()
-    {
-        var now = TestConstants.BaselineTime;
-        var longKey = new string('K', GenerationLog.MaxOutputKeyLength + 1);
-        var act = () => GenerationLog.Create(null, null, null, null, "api", null, longKey, null, null, null, null, 10, GenerationStatus.Success, null, now);
-
-        act.Should().Throw<DomainValidationException>()
-            .WithMessage($"*OutputKey must not exceed {GenerationLog.MaxOutputKeyLength} characters*");
+            .WithMessage($"*{field} must not exceed * characters*");
     }
 
     [Fact]
     public void Create_WithSmartEnumStatus_InitializesSuccessfully()
     {
-        var now = TestConstants.BaselineTime;
-        var log = GenerationLog.Create(null, null, null, null, "api", null, null, null, null, null, null, 10, GenerationStatus.Timeout, null, now);
+        var log = GenerationLog.Create(null, null, null, null, "api", null, null, null, null, null, null, 10, GenerationStatus.Timeout, null, Now);
 
         log.Status.Should().Be(GenerationStatus.Timeout);
     }

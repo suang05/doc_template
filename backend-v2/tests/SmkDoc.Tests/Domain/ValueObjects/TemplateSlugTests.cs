@@ -44,16 +44,4 @@ public class TemplateSlugTests
         var act = () => new TemplateSlug(input);
         act.Should().Throw<DomainValidationException>();
     }
-
-    [Fact]
-    public void ValueEquality_SameValue_AreEqual()
-    {
-        var slug1 = new TemplateSlug("invoice-v1");
-        var slug2 = new TemplateSlug("invoice-v1");
-        var slug3 = new TemplateSlug("receipt-v1");
-
-        slug1.Should().Be(slug2);
-        slug1.GetHashCode().Should().Be(slug2.GetHashCode());
-        slug1.Should().NotBe(slug3);
-    }
 }

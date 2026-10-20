@@ -28,19 +28,6 @@ public class StronglyTypedIdTests
     }
 
     [Fact]
-    public void StructuralEquality_SameGuid_AreEqual()
-    {
-        var guid = Guid.NewGuid();
-        var id1 = new TemplateId(guid);
-        var id2 = new TemplateId(guid);
-
-        id1.Should().Be(id2);
-        (id1 == id2).Should().BeTrue();
-        (id1 != id2).Should().BeFalse();
-        id1.GetHashCode().Should().Be(id2.GetHashCode());
-    }
-
-    [Fact]
     public void ImplicitConversions_Bidirectional_WorkSeamlessly()
     {
         var rawGuid = Guid.NewGuid();

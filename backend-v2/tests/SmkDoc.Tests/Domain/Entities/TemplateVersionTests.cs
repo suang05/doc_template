@@ -9,47 +9,30 @@ namespace SmkDoc.Tests.Domain.Entities;
 
 public class TemplateVersionTests
 {
-    // ── GetRenderEngineType ────────────────────────────────────────────────
+    private static readonly DateTimeOffset Now = TestConstants.BaselineTime;
 
-    [Fact]
-    public void GetRenderEngineType_WhenFileFormatIsXlsx_ReturnsExcel()
+    private static TemplateVersion CreateArchivedVersion()
     {
-        var now = TestConstants.BaselineTime;
-        var version = TemplateVersion.Draft(Guid.NewGuid(), 1, "", TemplateFormat.Xlsx, null, now);
-        version.GetRenderEngineType().Should().Be(RenderEngineType.Excel);
+        var version = TemplateVersion.Draft(Guid.NewGuid(), 1, "key", TemplateFormat.Html, "author", Now);
+        version.Archive(Now);
+        return version;
     }
 
-    [Fact]
-    public void GetRenderEngineType_WhenFileFormatIsDocx_ReturnsDocx()
+    public static readonly TheoryData<TemplateFormat?, RenderEngineType> FormatEngineMappings = new()
     {
-        var now = TestConstants.BaselineTime;
-        var version = TemplateVersion.Draft(Guid.NewGuid(), 1, "", TemplateFormat.Docx, null, now);
-        version.GetRenderEngineType().Should().Be(RenderEngineType.Docx);
-    }
+        { TemplateFormat.Xlsx, RenderEngineType.Excel },
+        { TemplateFormat.Docx, RenderEngineType.Docx },
+        { TemplateFormat.Html, RenderEngineType.Html },
+        { TemplateFormat.Pdf, RenderEngineType.Html },
+        { null, RenderEngineType.Html }
+    };
 
-    [Fact]
-    public void GetRenderEngineType_WhenFileFormatIsHtml_ReturnsHtml()
+    [Theory]
+    [MemberData(nameof(FormatEngineMappings))]
+    public void GetRenderEngineType_MapsFormatToEngine(TemplateFormat? format, RenderEngineType expectedEngine)
     {
-        var now = TestConstants.BaselineTime;
-        var version = TemplateVersion.Draft(Guid.NewGuid(), 1, "", TemplateFormat.Html, null, now);
-        version.GetRenderEngineType().Should().Be(RenderEngineType.Html);
-    }
-
-    [Fact]
-    public void GetRenderEngineType_WhenFileFormatIsPdf_ReturnsHtml()
-    {
-        // Pdf does not have its own render engine — falls back to Html
-        var now = TestConstants.BaselineTime;
-        var version = TemplateVersion.Draft(Guid.NewGuid(), 1, "", TemplateFormat.Pdf, null, now);
-        version.GetRenderEngineType().Should().Be(RenderEngineType.Html);
-    }
-
-    [Fact]
-    public void GetRenderEngineType_WhenFileFormatIsNull_ReturnsHtml()
-    {
-        var now = TestConstants.BaselineTime;
-        var version = TemplateVersion.Draft(Guid.NewGuid(), 1, "", null, null, now);
-        version.GetRenderEngineType().Should().Be(RenderEngineType.Html);
+        var version = TemplateVersion.Draft(Guid.NewGuid(), 1, "", format, null, Now);
+        version.GetRenderEngineType().Should().Be(expectedEngine);
     }
 
     // ── Default property values ────────────────────────────────────────────
@@ -57,9 +40,8 @@ public class TemplateVersionTests
     [Fact]
     public void NewTemplateVersion_ShouldHaveUniqueId()
     {
-        var now = TestConstants.BaselineTime;
-        var v1 = TemplateVersion.Draft(Guid.NewGuid(), 1, "", null, null, now);
-        var v2 = TemplateVersion.Draft(Guid.NewGuid(), 1, "", null, null, now);
+        var v1 = TemplateVersion.Draft(Guid.NewGuid(), 1, "", null, null, Now);
+        var v2 = TemplateVersion.Draft(Guid.NewGuid(), 1, "", null, null, Now);
         v1.Id.Should().NotBe(v2.Id);
         v1.Id.Should().NotBe(Guid.Empty);
     }
@@ -67,16 +49,14 @@ public class TemplateVersionTests
     [Fact]
     public void NewTemplateVersion_ShouldDefaultToDraftStatus()
     {
-        var now = TestConstants.BaselineTime;
-        var version = TemplateVersion.Draft(Guid.NewGuid(), 1, "", null, null, now);
+        var version = TemplateVersion.Draft(Guid.NewGuid(), 1, "", null, null, Now);
         version.Status.Should().Be(TemplateVersionStatus.Draft);
     }
 
     [Fact]
     public void NewTemplateVersion_StorageKey_ShouldDefaultToEmpty()
     {
-        var now = TestConstants.BaselineTime;
-        var version = TemplateVersion.Draft(Guid.NewGuid(), 1, "", null, null, now);
+        var version = TemplateVersion.Draft(Guid.NewGuid(), 1, "", null, null, Now);
         version.StorageKey.Should().NotBeNull();
         version.StorageKey.Should().BeEmpty();
     }
@@ -86,9 +66,8 @@ public class TemplateVersionTests
     [Fact]
     public void Publish_WhenDraft_SetsPublishedAndAuditTimestamp()
     {
-        var now = TestConstants.BaselineTime;
-        var version = TemplateVersion.Draft(Guid.NewGuid(), 1, "key", TemplateFormat.Html, "author", now);
-        var pubTime = now.AddHours(1);
+        var version = TemplateVersion.Draft(Guid.NewGuid(), 1, "key", TemplateFormat.Html, "author", Now);
+        var pubTime = Now.AddHours(1);
 
         version.Publish(pubTime);
 
@@ -99,9 +78,8 @@ public class TemplateVersionTests
     [Fact]
     public void Archive_WhenDraftOrPublished_SetsArchivedAndAuditTimestamp()
     {
-        var now = TestConstants.BaselineTime;
-        var version = TemplateVersion.Draft(Guid.NewGuid(), 1, "key", TemplateFormat.Html, "author", now);
-        var archTime = now.AddHours(2);
+        var version = TemplateVersion.Draft(Guid.NewGuid(), 1, "key", TemplateFormat.Html, "author", Now);
+        var archTime = Now.AddHours(2);
 
         version.Archive(archTime);
 
@@ -112,53 +90,41 @@ public class TemplateVersionTests
     [Fact]
     public void UpdateStorageKey_WhenArchived_ThrowsArchivedVersionImmutableException()
     {
-        var now = TestConstants.BaselineTime;
-        var version = TemplateVersion.Draft(Guid.NewGuid(), 1, "key", TemplateFormat.Html, "author", now);
-        version.Archive(now);
+        var version = CreateArchivedVersion();
+        var act = () => version.UpdateStorageKey("new-key", Now.AddMinutes(5));
 
-        var act = () => version.UpdateStorageKey("new-key", now.AddMinutes(5));
-
-        var ex = act.Should().Throw<ArchivedVersionImmutableException>();
-        ex.Which.ErrorCode.Should().Be("ARCHIVED_VERSION_IMMUTABLE");
+        act.Should().Throw<ArchivedVersionImmutableException>()
+            .Which.ErrorCode.Should().Be("ARCHIVED_VERSION_IMMUTABLE");
     }
 
     [Fact]
     public void UpdateDataSchema_WhenArchived_ThrowsArchivedVersionImmutableException()
     {
-        var now = TestConstants.BaselineTime;
-        var version = TemplateVersion.Draft(Guid.NewGuid(), 1, "key", TemplateFormat.Html, "author", now);
-        version.Archive(now);
+        var version = CreateArchivedVersion();
+        var act = () => version.UpdateDataSchema("{}", "{}", Now.AddMinutes(5));
 
-        var act = () => version.UpdateDataSchema("{}", "{}", now.AddMinutes(5));
-
-        var ex = act.Should().Throw<ArchivedVersionImmutableException>();
-        ex.Which.ErrorCode.Should().Be("ARCHIVED_VERSION_IMMUTABLE");
+        act.Should().Throw<ArchivedVersionImmutableException>()
+            .Which.ErrorCode.Should().Be("ARCHIVED_VERSION_IMMUTABLE");
     }
 
     [Fact]
     public void UpdateMappingsSnapshot_WhenArchived_ThrowsArchivedVersionImmutableException()
     {
-        var now = TestConstants.BaselineTime;
-        var version = TemplateVersion.Draft(Guid.NewGuid(), 1, "key", TemplateFormat.Html, "author", now);
-        version.Archive(now);
+        var version = CreateArchivedVersion();
+        var act = () => version.UpdateMappingsSnapshot("[]", Now.AddMinutes(5));
 
-        var act = () => version.UpdateMappingsSnapshot("[]", now.AddMinutes(5));
-
-        var ex = act.Should().Throw<ArchivedVersionImmutableException>();
-        ex.Which.ErrorCode.Should().Be("ARCHIVED_VERSION_IMMUTABLE");
+        act.Should().Throw<ArchivedVersionImmutableException>()
+            .Which.ErrorCode.Should().Be("ARCHIVED_VERSION_IMMUTABLE");
     }
 
     [Fact]
     public void Publish_WhenArchived_ThrowsArchivedVersionImmutableException()
     {
-        var now = TestConstants.BaselineTime;
-        var version = TemplateVersion.Draft(Guid.NewGuid(), 1, "key", TemplateFormat.Html, "author", now);
-        version.Archive(now);
+        var version = CreateArchivedVersion();
+        var act = () => version.Publish(Now.AddMinutes(5));
 
-        var act = () => version.Publish(now.AddMinutes(5));
-
-        var ex = act.Should().Throw<ArchivedVersionImmutableException>();
-        ex.Which.ErrorCode.Should().Be("ARCHIVED_VERSION_IMMUTABLE");
+        act.Should().Throw<ArchivedVersionImmutableException>()
+            .Which.ErrorCode.Should().Be("ARCHIVED_VERSION_IMMUTABLE");
     }
 
     [Theory]
@@ -167,7 +133,7 @@ public class TemplateVersionTests
     [InlineData(-10)]
     public void Draft_WithInvalidVersionNumber_ThrowsDomainValidationException(int invalidVersion)
     {
-        var act = () => TemplateVersion.Draft(Guid.NewGuid(), invalidVersion, "key", TemplateFormat.Html, "user", TestConstants.BaselineTime);
+        var act = () => TemplateVersion.Draft(Guid.NewGuid(), invalidVersion, "key", TemplateFormat.Html, "user", Now);
 
         act.Should().Throw<DomainValidationException>()
             .WithMessage("*greater than zero*");

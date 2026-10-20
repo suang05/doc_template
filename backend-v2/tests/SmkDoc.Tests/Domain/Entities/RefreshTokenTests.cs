@@ -2,6 +2,7 @@ using FluentAssertions;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Tests.Common;
 using Xunit;
 
 namespace SmkDoc.Tests.Domain.Entities;
@@ -10,7 +11,7 @@ public class RefreshTokenTests
 {
     private static readonly Sha256Hash ValidHash = new(new string('a', 64));
     private static readonly Sha256Hash ReplacementHash = new(new string('b', 64));
-    private static readonly DateTimeOffset FixedNow = new(2026, 10, 5, 12, 0, 0, TimeSpan.Zero);
+    private static readonly DateTimeOffset FixedNow = TestConstants.BaselineTime;
 
     [Fact]
     public void Create_WithValidParameters_CreatesActiveToken()
