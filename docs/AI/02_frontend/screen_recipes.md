@@ -19,6 +19,9 @@
 | **Type Definitions** | Manual duplicate TypeScript interfaces | Derived from Zod schemas via `z.infer<typeof Schema>` | Runtime & compile-time Single Source of Truth |
 | **Error Handling** | Unhandled fetch catch or generic alerts | RFC 9457 `ProblemDetails` via `ApiError` adapter | Type-safe error diagnostics across fields |
 | **Unit Test Co-location** | Test files in `src/tests/` or using `any` | Strictly in `src/__tests__/`, zero `any` (`RULE-FE-TS-001`) | SSoT Schema Testing & Type Safety |
+| **Static Value Tests** | Testing static `as const` tokens / arrays | Testing real transformation logic & schemas (`RULE-FE-TEST-004`) | Zero static test noise |
+| **Test Parameterization**| Separate `it()` per property or variation | `it.each(...)` tables & cohesive `.toEqual({...})` (`RULE-FE-TEST-005`) | Concise table-driven verification |
+| **Fetch Mocking** | Inlining `global.fetch = vi.fn()...` everywhere | Shared mock helper (e.g. `setupMockFetch`) (`RULE-FE-TEST-005`) | Centralized mock hygiene |
 </prior_inversion_map>
 
 <severity_hierarchy>
@@ -329,8 +332,9 @@ When receiving mockups or exported JSX/HTML from AI design tools (**Google Stitc
 * `[RULE-FE-TEST-001] [MUST]`: Place all Vitest unit test files exclusively inside `frontend-v2/src/__tests__/` (`*.test.ts`). Creating parallel `src/tests/` directories is strictly prohibited.
 * `[RULE-FE-TEST-002] [MUST]`: Import Zod schemas exclusively from the canonical `@/schemas/*.schema` modules. Never validate against legacy duplicate definitions in `@/types/api`.
 * `[RULE-FE-TEST-003] [MUST]`: Enforce 1:1 validation parity with Backend Domain Value Objects (e.g., `TemplateSlug` regex `^[a-z0-9]+(-[a-z0-9]+)*$` prohibits underscores `_` and uppercase characters).
-* `[RULE-FE-TEST-004] [MUST NOT]`: Never write tautological tests that assert on string literals, static constant arrays, or helper functions defined locally inside the test file. Every test MUST import and invoke a real production function, hook, or schema.
-* `[RULE-FE-TEST-005] [MUST]`: Assert async rejections in a single statement using `await expect(promise).rejects.toMatchObject({ status, errorCode })` instead of redundant `rejects.toThrow()` followed by `try/catch` blocks.
+* `[RULE-FE-TEST-004] [ZERO_STATIC_NOISE] [MUST NOT]`: Prohibit standalone test files or test suites that merely assert on static `as const` arrays, object literals, or design token values without behavioral transformation logic. Never assert on helper functions defined locally inside the test file. Every test MUST import and exercise real production functions, hooks, or schemas.
+* `[RULE-FE-TEST-005] [CONCISE_TABLE_AND_OBJECT_ASSERTIONS] [MUST]`: Mandate `it.each(...)` parameterized table tests for permission matrices, Zod schema valid/invalid field overrides, and input/output extraction tables. Mandate cohesive `.toEqual({...})` assertions on mapped domain objects instead of splitting each property into a separate `it(...)` block. Require shared mock helper functions (e.g., `setupMockFetch`) instead of repeating `global.fetch = vi.fn().mockResolvedValue(...)` boilerplate across individual tests.
+* `[RULE-FE-TEST-006] [CONCISE_ASYNC_REJECTIONS] [MUST]`: Assert async rejections in a single statement using `await expect(promise).rejects.toMatchObject({ status, errorCode })` instead of redundant `rejects.toThrow()` followed by `try/catch` blocks.
 
 ---
 
@@ -481,5 +485,5 @@ export async function parseResponse<T>(response: Response): Promise<T> {
 - [ ] Preview hooks implement `AbortController` cancellation and URL revocation
 - [ ] Client routes enforce RBAC permissions according to the 14-route matrix
 - [ ] API calls utilize `apiClient<T>` with RFC 9457 error adapter
-- [ ] Unit tests (`RULE-FE-TEST`) reside strictly in `src/__tests__/`, import production Zod schemas/functions directly, use `await expect(...).rejects` for async failures, and contain zero `any` types (`RULE-FE-TS-001`)
+- [ ] Unit tests (`RULE-FE-TEST`) reside strictly in `src/__tests__/`, import production Zod schemas/functions directly, prohibit static token/literal tests (`RULE-FE-TEST-004`), utilize `it.each` and cohesive `.toEqual` assertions with shared fetch helpers (`RULE-FE-TEST-005`), use `await expect(...).rejects` for async failures (`RULE-FE-TEST-006`), and contain zero `any` types (`RULE-FE-TS-001`)
 </verification_gateway>

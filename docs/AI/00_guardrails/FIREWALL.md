@@ -41,6 +41,8 @@
 | **Workspace Target** | Editing legacy `src/SmkDocServer/` | Editing active modern `backend-v2/src/SmkDoc.*/` | `FIREWALL-OPS-005` |
 | **Test Assertions** | Cast assertions `.Should().Be((TemplateId)guid)` | Zero-cast assertion: `var id = TemplateId.New(); ...Be(id)` | `FIREWALL-TEST-001` |
 | **Test Assertions (UoW / Mocks)** | `Times.Exactly(N)` where `N > 1` | `Times.Once` on atomic unit of work commits | `FIREWALL-TEST-002` |
+| **Mock Setup Hygiene** | Dead mocks, dual setups, `.Returns(Task.CompletedTask)` | Injected-only mocks, single setup, default Task return | `FIREWALL-TEST-002` |
+| **Compiler Feature Tests** | Testing `record` equality or casting `IReadOnly` | Testing business domain invariants only | `FIREWALL-TEST-002` |
 </prior_inversion_map>
 
 ---
@@ -740,22 +742,27 @@ None. Unit and integration tests must always instantiate strongly-typed IDs via 
 
 <firewall_rule id="FIREWALL-TEST-002" name="TAUTOLOGICAL_AND_OVERSPECIFIED_TESTS">
 <trigger_ast>
-["Times.Exactly(", "new Mock<TimeProvider>()", ".Reset()", "const get* = (*) =>"]
+["Times.Exactly(", "new Mock<TimeProvider>()", ".Reset()", "const get* = (*) =>", "Returns(Task.CompletedTask)", "((ICollection<"]
 </trigger_ast>
 <thinking_guard>
-IF test_asserts_local_helper_without_production_import OR verifies_multiple_uow_commits_in_single_usecase THEN
-    ASSERT_FORBIDDEN("Tautological tests provide zero regression safety; verifying multiple UoW commits masks FIREWALL-ARCH-003 violations");
-    ENFORCE_SUBSTITUTION("Black-Box SUT Behavioral Assertion & Single Atomic Commit");
+IF test_asserts_local_helper_without_production_import 
+   OR verifies_multiple_uow_commits_in_single_usecase 
+   OR declares_dead_uninjected_mock_field 
+   OR configures_defensive_dual_method_repository_setup 
+   OR tests_compiler_synthesized_record_equality_or_collection_cast 
+   OR uses_redundant_returns_task_completed_task THEN
+    ASSERT_FORBIDDEN("Tautological or overspecified tests provide zero regression safety; dead mocks and defensive dual setups mask actual execution paths; testing compiler features or redundant Task returns pollutes test suites");
+    ENFORCE_SUBSTITUTION("Black-Box SUT Behavioral Assertion, Shared Fixtures & Clean Mock Boundaries");
 END IF
 </thinking_guard>
 <mandatory_substitution>
-// Always invoke the real production SUT and verify atomic boundary side-effects once:
+// Always invoke the real production SUT via shared fixture, set up single required path, and assert observable behavior:
 var result = await CreateSut().ExecuteAsync(command, CancellationToken.None);
 result.Slug.Should().Be("invoice-standard");
 unitOfWorkMock.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
 </mandatory_substitution>
 <fatal_blast_radius>
-False-positive test suite: Tautological tests stay green when production code breaks, while overspecified mock verifications break on every valid internal refactoring.
+False-positive test suite and high maintenance drag: Tautological tests stay green when production code breaks, while overspecified mock verifications, dead mocks, and dual-setup assumptions break on valid internal refactoring.
 </fatal_blast_radius>
 <exemptions>
 Verifying retry count on external HTTP resilience pipelines (e.g. Polly retry tests in Infrastructure).
@@ -822,4 +829,5 @@ Strictly bounded exceptions (e.g. Unit tests, console CLI entry point) or None.
 - [ ] 4. Code emitted represents Minimal Complete AST without placeholders or `// TODO` blocks?
 - [ ] 5. Zero HTML parser collisions (all `<token>`, `<T>`, `<Feature>` tags wrapped in inline backticks)?
 - [ ] 6. Zero defective multi-line code blocks emitted in documentation?
+- [ ] 7. Unit tests free of tautological assertions, dead mocks, dual-method repository setups, compiler-synthesized tests, and redundant Returns(Task.CompletedTask) (`FIREWALL-TEST-002`)?
 </verification_gateway>

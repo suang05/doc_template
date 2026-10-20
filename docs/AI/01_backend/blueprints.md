@@ -26,7 +26,7 @@
 | **Validation Gate** | Controller manual property checks | Dual-Engine: `FluentValidation` (Command) + `JsonSchema.Net` (Payload) | Archetype 7 |
 | **Streaming Output** | Buffering document in `byte[]` | Zero-LOH Stream-over-RAM direct piping via `Stream.CopyToAsync` | Archetype 8 |
 | **Engine Selection** | Hardcoded `switch(format)` or `if-else` | Polymorphic Strategy via `IEnumerable<IRenderEngine>` | Archetype 9 |
-| **Unit Testing** | Real I/O / database in unit test | In-memory CQRS unit test with `CreateSut()` and `TestConstants.BaselineTime` | Archetype 10 |
+| **Unit Testing** | Real I/O, raw inline `Mock<T>` bypassing fixture, or positional `*TestFactory` | In-memory CQRS unit test with shared `*ModuleTestFixture`, fluent `*Builder`, `CreateSut()`, and `TestConstants.BaselineTime` | Archetype 10 (`RULE-TEST-005` to `010`) |
 </prior_inversion_map>
 
 ---
@@ -695,29 +695,18 @@ public sealed class RenderEngineFactory(
 ### Phase 5: Automated Testing Boundary
 
 #### Archetype 10: Gold-Standard CQRS Unit Testing Pattern
-* **Intent & Scope:** Unit test architecture adhering to 1:1 CQRS Folder Parity (`Commands/` vs `Queries/`), direct Moq mocks, `TestConstants.BaselineTime`, and SSoT `CreateSut()`. Zero disk or network I/O in unit tests.
-* **Formula:** `public sealed class {Action}{Entity}UseCaseTests` using `FluentAssertions`.
+* **Intent & Scope:** Unit test architecture adhering to 1:1 CQRS Folder Parity (`Commands/` vs `Queries/`), shared `*ModuleTestFixture` (`RULE-TEST-007`), fluent `*Builder` (`RULE-TEST-008`), `TestConstants.BaselineTime` (`RULE-TEST-006`), and SSoT `CreateSut()` (`RULE-TEST-005`). Zero disk or network I/O in unit tests.
+* **Formula:** `public sealed class {Action}{Entity}UseCaseTests` delegating setup to `{Module}TestFixture` and asserting with `FluentAssertions`.
 
 ```csharp
 // [GENERATIVE_SLOT_FORMULA: ARCHETYPE-10-UNIT-TEST]
-namespace SmkDoc.Tests.Application.Modules.Authoring.Templates.Commands;
+namespace SmkDoc.Tests.Application.Modules.Authoring.Templates.Commands.CreateTemplate;
 
 public sealed class CreateTemplateUseCaseTests
 {
-    private readonly Mock<ITemplateRepository> templateRepoMock = new();
-    private readonly Mock<IUnitOfWork> unitOfWorkMock = new();
-    private readonly Mock<ICurrentProjectContext> projectContextMock = new();
-    private readonly FakeTimeProvider clock = TestConstants.CreateFakeClock();
+    private readonly TemplateAuthoringTestFixture _fixture = new();
 
-    private CreateTemplateUseCase CreateSut()
-    {
-        projectContextMock.SetupGet(c => c.ProjectId).Returns(ProjectId.New());
-        return new CreateTemplateUseCase(
-            templateRepo: templateRepoMock.Object,
-            unitOfWork: unitOfWorkMock.Object,
-            projectContext: projectContextMock.Object,
-            timeProvider: clock);
-    }
+    private CreateTemplateUseCase CreateSut() => _fixture.BuildCreateTemplateUseCase();
 
     [Fact]
     public async Task ExecuteAsync_WhenSlugDoesNotExist_ShouldCreateTemplateAndCommit()
@@ -727,7 +716,7 @@ public sealed class CreateTemplateUseCaseTests
             Name: "Invoice Template",
             Slug: "invoice-standard");
 
-        templateRepoMock
+        _fixture.TemplateRepo
             .Setup(r => r.SlugExistsAsync(TemplateSlug.Create(command.Slug), It.IsAny<CancellationToken>()))
             .ReturnsAsync(false);
 
@@ -741,8 +730,8 @@ public sealed class CreateTemplateUseCaseTests
         result.Name.Should().Be("Invoice Template");
         result.Slug.Should().Be("invoice-standard");
 
-        templateRepoMock.Verify(r => r.AddAsync(It.IsAny<Template>(), It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _fixture.TemplateRepo.Verify(r => r.AddAsync(It.IsAny<Template>(), It.IsAny<CancellationToken>()), Times.Once);
+        _fixture.Uow.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -753,7 +742,7 @@ public sealed class CreateTemplateUseCaseTests
             Name: "Invoice Template",
             Slug: "invoice-duplicate");
 
-        templateRepoMock
+        _fixture.TemplateRepo
             .Setup(r => r.SlugExistsAsync(TemplateSlug.Create(command.Slug), It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
 
@@ -766,7 +755,7 @@ public sealed class CreateTemplateUseCaseTests
         await act.Should().ThrowAsync<ConflictException>()
             .WithMessage("*already exists*");
 
-        unitOfWorkMock.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Never);
+        _fixture.Uow.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 }
 ```
@@ -901,4 +890,5 @@ public static class ResilienceConfiguration
 - [ ] 4. Code emitted represents Minimal Complete AST without placeholders or `// TODO` blocks?
 - [ ] 5. Zero HTML parser collisions (all `<token>`, `<T>`, `<Feature>` tags wrapped in inline backticks)?
 - [ ] 6. Zero defective multi-line code blocks emitted in documentation?
+- [ ] 7. Unit tests follow Archetype 10 (shared `*ModuleTestFixture`, fluent `*Builder`, SSoT `CreateSut()`, `TestConstants.BaselineTime`, and single atomic `Times.Once` UoW verification)?
 </verification_gateway>
