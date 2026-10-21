@@ -11,7 +11,7 @@ COGNITIVE_FRAMEWORK & SYSTEM_CONTEXT:
   * PROACTIVE_CHALLENGE: Proactively challenge suboptimal designs, architectural flaws, or obsolete patterns (whether proposed by user, existing in code, or documented in `docs/AI/`). Boldly propose superior canonical structures with concrete trade-offs before implementing.
   * ZERO_REGRESSION: Enforce Clean Architecture, statelessness, and thread-safety invariants.
   * CODE_SIMPLICITY: Prioritize readable, cohesive, and decoupled structures over complex abstractions.
-  * REFACTOR_POLICY: IF existing code violates `docs/AI/00_guardrails/CONVENTIONS.md` THEN reject pattern and propose canonical refactor ELSE maintain codebase consistency.
+  * REFACTOR_POLICY: IF existing code violates `docs/AI/00_architecture_core/dependency_and_folder_rules.md` THEN reject pattern and propose canonical refactor ELSE maintain codebase consistency.
 </system_role>
 
 <core_mission_and_benchmarks>
@@ -124,30 +124,31 @@ Execute <verification_protocol> before concluding task turn.
 <context_routing_matrix>
 | Task Scope / Incoming Intent | Lexical Search Beacons | Target Documentation File |
 |---|---|---|
-| Master Documentation Index | Index, Navigation, SSoT | `docs/AI/INDEX.md` |
-| Coding Style, Naming, Micro-AST | Primary constructor, camelCase, C# 13 | `docs/AI/00_guardrails/CONVENTIONS.md` |
-| Anti-patterns, Memory Traps, Firewall | Anti-pattern, Banned, LOH, Memory leak | `docs/AI/00_guardrails/FIREWALL.md` |
-| Solution Topology, Namespaces, Stream | Clean Architecture, Solution Tree, Gotenberg | `docs/AI/01_backend/system_topology.md` |
-| Feature Slices, UseCases, Blueprints | CQRS, PEMR, Archetype, Command, Query | `docs/AI/01_backend/blueprints.md` |
-| API Contracts, DTOs, Endpoints, Auth | Endpoint manifest, RFC 9457, Auth, JWT | `docs/AI/01_backend/api_contract.md` |
-| Database Tables, EF Core, Relations | Schema, Migration, Entity, DDL, Postgres | `docs/AI/01_backend/persistence.md` |
-| Rendering Engines, Handlebars, Fonts | Gotenberg, Handlebars, OpenXml, ClosedXml | `docs/AI/01_backend/template_engines.md` |
-| Design Tokens, Themes, UI Primitives | Ice-White, Tokens, Colors, Radius, Monaco | `docs/AI/02_frontend/design_tokens.md` |
-| Screen Layouts, Page Recipes, Flows | Wireframe, AppShell, Screen assembly | `docs/AI/02_frontend/screen_recipes.md` |
-| Architectural History & Past ADRs | Decision, ADR, Architecture rationale | `docs/AI/03_archival/decisions.md` |
+| Master Documentation Switchboard | Index, Navigation, SSoT, Router | `docs/AI/INDEX.md` |
+| Clean Architecture & Dependencies | Inversion, Layer, Bounded Context, Slice | `docs/AI/00_architecture_core/dependency_and_folder_rules.md` |
+| Anti-patterns, Traps & Firewall | LOH, Concurrency, Async, SSRF, Timing | `docs/AI/00_architecture_core/anti_pattern_firewall.md` |
+| Domain Layer, Aggregates, VOs, Enums | Aggregate, Entity, ValueObject, Guard, Enum | `docs/AI/01_clean_arch_patterns/01_domain_layer.md` |
+| Application Layer, UseCases, PEMR | UseCase, Command, Query, PEMR, Result | `docs/AI/01_clean_arch_patterns/02_application_layer.md` |
+| Infrastructure, EF Core, Repositories | EF Core, Config, JSONB, Repository, Filter | `docs/AI/01_clean_arch_patterns/03_infrastructure_layer.md` |
+| Presentation, Controllers, ProblemDetails | Controller, ApiResponse, Idempotent, RFC 9457 | `docs/AI/01_clean_arch_patterns/04_api_presentation_layer.md` |
+| Testing Patterns, SSoT Unit Tests | CreateSut, FakeClock, Builder, Invariant | `docs/AI/01_clean_arch_patterns/05_testing_archetypes.md` |
+| Frontend App Router, Proxy, Preview | RSC, Server Proxy, useLivePreview, Query | `docs/AI/02_frontend_patterns/01_app_router_and_data_fetching.md` |
+| Frontend Design Tokens, CVA, Zod | Ice-White, CVA, Lucide, Zod, Vitest | `docs/AI/02_frontend_patterns/02_ui_component_conventions.md` |
+| Multi-Tenancy, Dual-Auth, ApiKeys | Dual-Auth, X-API-Key, Tenancy, Scopes | `docs/AI/03_specialized_mechanics/multi_tenant_security_pipeline.md` |
+| Rendering Engines, Gotenberg, OpenXML | Gotenberg, DrawingML, ClosedXML, ThaiData | `docs/AI/03_specialized_mechanics/document_rendering_mechanics.md` |
 </context_routing_matrix>
 
 <doc_drift_protocol>
 [SIGNAL_TRIGGER_REGISTRY]
 | Trigger Signal Token | Source Mutation Event in Codebase | Target Document & Action |
 |---|---|---|
-| `[SIGNAL_API_MUTATION]` | Controller, Route, Request/Response DTO, Auth | Update `docs/AI/01_backend/api_contract.md` (<endpoint_manifest>, DTO archetype, openapi.json) |
-| `[SIGNAL_DOMAIN_MUTATION]` | Entity, BaseEntity, Strongly-Typed ID, Value Object | Update `docs/AI/00_guardrails/CONVENTIONS.md` (Taxonomy & Matrix) & `01_backend/persistence.md` |
-| `[SIGNAL_DECEPTIVE_BUG]` | Runtime traps (LOH, boxing equality, deadlock) | Propose to `docs/AI/00_guardrails/FIREWALL.md` (<firewall_rule>) |
-| `[SIGNAL_SCHEMA_MIGRATION]` | EF Core table, column, index, migration | Update `docs/AI/01_backend/persistence.md` (Entity mapping, ER diagrams) |
-| `[SIGNAL_STRUCTURE_MUTATION]` | UseCase, Interface, Service, Layer project | Update `docs/AI/01_backend/system_topology.md` & `01_backend/blueprints.md` |
-| `[SIGNAL_TOPOLOGY_MUTATION]` | External services (Gotenberg, MinIO, Postgres) | Update `docs/AI/01_backend/system_topology.md` |
-| `[SIGNAL_UI_MUTATION]` | Design tokens, color palette, atomic primitive | Update `docs/AI/02_frontend/design_tokens.md` & `02_frontend/screen_recipes.md` |
+| `[SIGNAL_API_MUTATION]` | Controller, Route, Request/Response DTO | Update `docs/AI/01_clean_arch_patterns/04_api_presentation_layer.md` & `02_application_layer.md` |
+| `[SIGNAL_DOMAIN_MUTATION]` | Entity, Aggregate Root, Strongly-Typed ID, Value Object | Update `docs/AI/01_clean_arch_patterns/01_domain_layer.md` |
+| `[SIGNAL_DECEPTIVE_BUG]` | Runtime traps (LOH, concurrency, deadlock, SSRF) | Propose to `docs/AI/00_architecture_core/anti_pattern_firewall.md` |
+| `[SIGNAL_SCHEMA_MIGRATION]` | EF Core table, column, index, converter | Update `docs/AI/01_clean_arch_patterns/03_infrastructure_layer.md` |
+| `[SIGNAL_STRUCTURE_MUTATION]` | UseCase, Interface, Service, Layer project | Update `docs/AI/00_architecture_core/dependency_and_folder_rules.md` |
+| `[SIGNAL_TOPOLOGY_MUTATION]` | External services (Gotenberg, MinIO, Postgres) | Update `docs/AI/03_specialized_mechanics/document_rendering_mechanics.md` |
+| `[SIGNAL_UI_MUTATION]` | Design tokens, atomic primitive, UI recipe | Update `docs/AI/02_frontend_patterns/02_ui_component_conventions.md` & `01_app_router_and_data_fetching.md` |
 
 [UNIVERSAL_4_POINT_SYNCHRONIZATION]
 1. UPSTREAM_BREADCRUMB_SYNC: Update high-level roadmap/header at file top.
@@ -156,13 +157,7 @@ Execute <verification_protocol> before concluding task turn.
 4. CONTRADICTION_SWEEP: Grep for legacy syntax across `docs/AI/` and eliminate conflicts.
 
 [AUTHORING_INVARIANTS]
-- COGNITIVE_ALIGNMENT: All documentation updates MUST strictly target LLM Cognitive Anatomy (high token density, compiler-grade ASTs, zero conversational prose). Maintain or elevate established canonical standards.
-- 5_SLOT_CHASSIS_PRESERVATION: Every document in docs/AI/ MUST retain the Universal 5-Slot Cognitive Chassis wrapper tags. Never remove, rename, or collapse them:
-  * Slot 1: <cognitive_priming>    - Operational mode, attention budget, lexical search beacons
-  * Slot 2: <prior_inversion_map>   - Prohibited defective prior vs canonical substitution table
-  * Slot 3: <severity_hierarchy>    - TIER-1-FATAL, TIER-2-INTEGRITY, TIER-3-PERF
-  * Slot 4: <{domain}_scope>        - Minimal complete positive ASTs and schemas (zero placeholder comments)
-  * Slot 5: <verification_gateway>  - Active deterministic verification checklist
+- COGNITIVE_ALIGNMENT: All documentation updates MUST strictly target LLM Cognitive Anatomy (high token density, compiler-grade ASTs, zero conversational prose).
 - Zero decorative emojis. Zero pseudo-cyberpunk or academic metaphors.
 - Canonical symbolic dictionary: =>, !, ::, >>, &, |, >, <.
 - Minimal node-only Mermaid (<= 15 nodes, <= 2 levels, direct arrows). Indented text hierarchy for trees.
