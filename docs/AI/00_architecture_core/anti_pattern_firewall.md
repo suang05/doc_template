@@ -4,6 +4,7 @@
 Scope: Fatal Production Traps, Memory Safety, Concurrency, Security & Layer Isolation Interceptors
 Target: Full Stack (`backend-v2/` & `frontend-v2/`)
 Authority: Absolute SSoT Invariant (Zero violation tolerated)
+Boundary: Production anti-patterns & fatal trap interceptors. Prohibit task roadmaps, execution checklists, and tutorial prose.
 </context>
 
 ---

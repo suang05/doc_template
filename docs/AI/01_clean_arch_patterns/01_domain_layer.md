@@ -4,6 +4,7 @@
 Scope: Domain Layer Patterns, Aggregate Roots, Child Entities, Value Objects, Smart Enums, Guards & ID Catalog
 Target: `SmkDoc.Domain/` (`Entities/`, `ValueObjects/`, `Enums/`, `Common/`, `Exceptions/`)
 Authority: Absolute SSoT Invariant (Zero infrastructure dependency, 100% pure C# 13 POCOs)
+Boundary: Pure Domain POCOs & invariants only. Prohibit infrastructure, database configurations, and task roadmaps.
 </context>
 
 ---

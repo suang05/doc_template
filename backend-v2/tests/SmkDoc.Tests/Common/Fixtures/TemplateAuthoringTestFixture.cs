@@ -1,4 +1,5 @@
 using Moq;
+using Microsoft.Extensions.Time.Testing;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.ActivateTemplateVersion;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.CommitTemplateDraft;
@@ -24,7 +25,7 @@ public class TemplateAuthoringTestFixture
     public Mock<IProjectRepository> ProjectRepo { get; } = new();
     public Mock<ISchemaInferenceService> SchemaInference { get; } = new();
     public Mock<ICurrentProjectContext> ProjectContext { get; } = new();
-    public Microsoft.Extensions.Time.Testing.FakeTimeProvider Clock { get; } = TestConstants.CreateFakeClock();
+    public FakeTimeProvider Clock { get; } = TestConstants.CreateFakeClock();
 
     public static readonly Guid TestUserId = TestConstants.DefaultUserId;
 
@@ -32,7 +33,8 @@ public class TemplateAuthoringTestFixture
     {
         Context.Setup(c => c.UserId).Returns(TestUserId);
         Uow.Setup(u => u.CommitAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
-        var sampleProject = Project.Create(Guid.NewGuid(), ProjectName.Create("Default Project"), TemplateSlug.Create("default-proj"), Clock.GetUtcNow());
+        var sampleProject = Project.Create(Guid.NewGuid(), ProjectName.Create("Default Project"),
+            TemplateSlug.Create("default-proj"), Clock.GetUtcNow());
         ProjectRepo.Setup(p => p.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(sampleProject);
     }

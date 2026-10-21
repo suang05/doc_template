@@ -4,6 +4,7 @@
 Scope: Presentation Layer Patterns, Thin Controllers, ApiResponse Envelopes, Idempotency & RFC 9457 Exception Handling
 Target: `SmkDoc.Api/` (`Controllers/`, `Common/Responses/`, `Filters/`, `Middleware/`)
 Authority: Absolute SSoT Invariant (Thin orchestrators, zero business logic, strictly standardized HTTP wire format)
+Boundary: Presentation controllers, HTTP wire format & error handling. Prohibit business rules, persistence logic, or task roadmaps.
 </context>
 
 ---

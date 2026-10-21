@@ -4,6 +4,7 @@
 Scope: Next.js 15 App Router Architecture, Server/Client Component Boundaries, Route Handler Proxy & Live Preview Pipeline
 Target: `frontend-v2/` (`src/app/`, `src/hooks/`, `src/lib/api/`)
 Authority: Absolute SSoT Invariant (Zero client-side JWT token access, 100% debounced streaming preview)
+Boundary: Frontend Next.js 15 routing, RSC boundaries & API proxy. Prohibit backend persistence, raw CSS definitions, or task roadmaps.
 </context>
 
 ---

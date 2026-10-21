@@ -4,6 +4,7 @@
 Scope: Infrastructure Layer Patterns, EF Core Configurations, Strongly-Typed ID Converters, JSONB Mapping, Repositories & Tenancy Filter
 Target: `SmkDoc.Infrastructure/` (`Persistence/Configurations/`, `Repositories/`, `Storage/`, `Gotenberg/`)
 Authority: Absolute SSoT Invariant (Hides all network and persistence I/O behind Application ports)
+Boundary: Infrastructure persistence & external adapters. Prohibit domain business logic, presentation routing, or task roadmaps.
 </context>
 
 ---

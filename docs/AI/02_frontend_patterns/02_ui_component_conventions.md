@@ -4,6 +4,7 @@
 Scope: UI Component Conventions, Ice-White Design Tokens, CVA Component Variants, Lucide Icons, Zod Schemas & Vitest
 Target: `frontend-v2/` (`src/components/ui/`, `src/schemas/`, `src/__tests__/`)
 Authority: Absolute SSoT Invariant (Deterministic compact enterprise UI, zero raw HTML inputs, zero decorative emojis)
+Boundary: Frontend UI components, design tokens, CVA variants & Zod schemas. Prohibit business logic, API routes, or task roadmaps.
 </context>
 
 ---

@@ -4,6 +4,7 @@
 Scope: Clean Architecture Boundaries, Directional Dependencies, Bounded Context Folder Taxonomy & C# 13 System Invariants
 Target: `backend-v2/` (`SmkDoc.Domain`, `SmkDoc.Application`, `SmkDoc.Infrastructure`, `SmkDoc.Api`)
 Authority: Absolute SSoT Invariant (Zero architectural regression permitted)
+Boundary: Architectural dependency rules & folder taxonomy. Prohibit implementation details, task roadmaps, or runtime logic.
 </context>
 
 ---

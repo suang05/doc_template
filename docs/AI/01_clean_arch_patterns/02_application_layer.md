@@ -4,6 +4,7 @@
 Scope: Application Layer Patterns, CQRS UseCases, PEMR Pipeline, Commands, Queries, DTOs & Validation
 Target: `SmkDoc.Application/` (`Modules/{Context}/Commands/`, `Queries/`, `DTOs/`, `Common/`)
 Authority: Absolute SSoT Invariant (Orchestrates domain & infrastructure ports, zero direct SQL/framework leak)
+Boundary: Application CQRS use cases & PEMR pipeline. Prohibit direct SQL/persistence, framework leakage, or task roadmaps.
 </context>
 
 ---

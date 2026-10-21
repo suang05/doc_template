@@ -4,6 +4,7 @@
 Scope: Polymorphic Rendering Engines, Gotenberg Chromium Microservice, OpenXML DrawingML Fix, ClosedXML A4 Fit & ThaiDataTransformer SSoT
 Target: `SmkDoc.Infrastructure/Engines/` (`Gotenberg/`, `Word/`, `Excel/`, `Html/`) & `SmkDoc.Application/Common/Helpers/`
 Authority: Absolute SSoT Invariant (100% deterministic output, zero LibreOffice shift, zero multi-MB buffering)
+Boundary: Document rendering engines, Gotenberg, OpenXML & Thai formatting. Prohibit authentication pipelines, database migrations, or task roadmaps.
 </context>
 
 ---

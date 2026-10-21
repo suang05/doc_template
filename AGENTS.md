@@ -147,6 +147,7 @@ Execute <verification_protocol> before concluding task turn.
 | `[SIGNAL_DECEPTIVE_BUG]` | Runtime traps (LOH, concurrency, deadlock, SSRF) | Propose to `docs/AI/00_architecture_core/anti_pattern_firewall.md` |
 | `[SIGNAL_SCHEMA_MIGRATION]` | EF Core table, column, index, converter | Update `docs/AI/01_clean_arch_patterns/03_infrastructure_layer.md` |
 | `[SIGNAL_STRUCTURE_MUTATION]` | UseCase, Interface, Service, Layer project | Update `docs/AI/00_architecture_core/dependency_and_folder_rules.md` |
+| `[SIGNAL_TEST_MUTATION]` | Unit/Integration tests, fixtures, builders, assertions (`SmkDoc.Tests/`, `frontend-v2/src/__tests__/`) | Update `docs/AI/01_clean_arch_patterns/05_testing_archetypes.md` |
 | `[SIGNAL_TOPOLOGY_MUTATION]` | External services (Gotenberg, MinIO, Postgres) | Update `docs/AI/03_specialized_mechanics/document_rendering_mechanics.md` |
 | `[SIGNAL_UI_MUTATION]` | Design tokens, atomic primitive, UI recipe | Update `docs/AI/02_frontend_patterns/02_ui_component_conventions.md` & `01_app_router_and_data_fetching.md` |
 
@@ -157,7 +158,10 @@ Execute <verification_protocol> before concluding task turn.
 4. CONTRADICTION_SWEEP: Grep for legacy syntax across `docs/AI/` and eliminate conflicts.
 
 [AUTHORING_INVARIANTS]
+- TWO_TRACK_DISCIPLINE: Chat responses to the user MUST be in concise Thai. All files under `docs/AI/` and codebase MUST be strictly 100% English AST (Zero Thai characters in `docs/AI/`, regardless of user prompt language).
 - COGNITIVE_ALIGNMENT: All documentation updates MUST strictly target LLM Cognitive Anatomy (high token density, compiler-grade ASTs, zero conversational prose).
+- ANTI_PROSE_FIREWALL: Strictly prohibit natural language essays, conversational explanations, tutorial prose, and conversational filler. Documentation must consist solely of AST tables, positive code examples, and canonical symbolic directives.
+- ZERO_TASK_POLLUTION: Specifications under `docs/AI/` are permanent architectural ASTs. Strictly prohibit appending implementation roadmaps, phased execution checklists, or sprint tasks into `docs/AI/` (these belong exclusively in `implementation_plan.md` or chat).
 - Zero decorative emojis. Zero pseudo-cyberpunk or academic metaphors.
 - Canonical symbolic dictionary: =>, !, ::, >>, &, |, >, <.
 - Minimal node-only Mermaid (<= 15 nodes, <= 2 levels, direct arrows). Indented text hierarchy for trees.

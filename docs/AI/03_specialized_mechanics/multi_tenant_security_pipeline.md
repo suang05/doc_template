@@ -4,6 +4,7 @@
 Scope: Multi-Tenant Architecture, Dual-Channel Authentication, Ambient Project Context & EF Core Global Filters
 Target: Full Stack (`backend-v2/` & `frontend-v2/`)
 Authority: Absolute SSoT Invariant (Zero cross-tenant data leakage, strict constant-time hash verification)
+Boundary: Multi-tenant security, dual-auth topology & tenant isolation. Prohibit rendering mechanics, UI layout code, or task roadmaps.
 </context>
 
 ---

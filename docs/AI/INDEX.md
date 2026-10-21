@@ -4,6 +4,7 @@
 Scope: Master Documentation Switchboard, Cognitive Intent Router & LLM Working Set Budgeting
 Target: SmkDoc Full-Stack System (`backend-v2/` & `frontend-v2/`)
 Authority: Absolute SSoT Router (Direct lookup to authoritative leaf specifications)
+Boundary: Master documentation switchboard. Prohibit technical implementations, code snippets, or task tracking.
 </context>
 
 ---
