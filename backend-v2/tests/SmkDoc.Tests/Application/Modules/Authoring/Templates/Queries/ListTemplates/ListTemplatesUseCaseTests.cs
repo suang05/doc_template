@@ -1,25 +1,29 @@
-using FluentAssertions;
-using Moq;
+using SmkDoc.Application.Common.Interfaces;
+using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.ListTemplates;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common.Builders;
-using Xunit;
 
 namespace SmkDoc.Tests.Application.Modules.Authoring.Templates.Queries.ListTemplates;
 
-public class ListTemplatesUseCaseTests
+public sealed class ListTemplatesUseCaseTests
 {
-    private readonly Mock<ITemplateRepository> _mockRepo = new();
+    private readonly ITemplateRepository _templateRepo = Substitute.For<ITemplateRepository>();
+    private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
 
-    private ListTemplatesUseCase CreateSut() => new(_mockRepo.Object);
+    private ListTemplatesUseCase CreateSut(ICurrentProjectContext? projectContext = null) =>
+        new(_templateRepo, projectContext);
 
     [Fact]
     public async Task ExecuteAsync_WhenEmptyProjectId_ShouldThrowDomainValidationException()
     {
+        // Act
         var act = () => CreateSut().ExecuteAsync(new ListTemplatesQuery(Guid.Empty));
 
+        // Assert
         await act.Should().ThrowAsync<DomainValidationException>()
             .WithMessage("*ProjectId cannot be empty*");
     }
@@ -27,51 +31,52 @@ public class ListTemplatesUseCaseTests
     [Fact]
     public async Task ExecuteAsync_WhenValidProjectId_ShouldReturnProjectScopedTemplates()
     {
+        // Arrange
         var projectId = Guid.NewGuid();
-        var template1 = new TemplateBuilder()
+        Template template1 = TemplateBuilder.ATemplate()
             .WithProjectId(projectId)
             .WithName("Invoice")
-            .WithSlug("invoice")
-            .Build();
-        var template2 = new TemplateBuilder()
+            .WithSlug("invoice");
+        Template template2 = TemplateBuilder.ATemplate()
             .WithProjectId(projectId)
             .WithName("Receipt")
-            .WithSlug("receipt")
-            .Build();
+            .WithSlug("receipt");
 
-        _mockRepo.Setup(r => r.ListAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new List<Template> { template1, template2 });
+        _templateRepo.ListAsync(Arg.Any<CancellationToken>())
+            .Returns(new List<Template> { template1, template2 });
 
-        var result = await CreateSut().ExecuteAsync(new ListTemplatesQuery(projectId));
+        // Act
+        IReadOnlyList<TemplateResultDto> result = await CreateSut().ExecuteAsync(new ListTemplatesQuery(projectId));
 
+        // Assert
         result.Should().HaveCount(2);
         result[0].Name.Should().Be("Invoice");
         result[1].Name.Should().Be("Receipt");
-        _mockRepo.Verify(r => r.ListAsync(It.IsAny<CancellationToken>()), Times.Once);
+        await _templateRepo.Received(1).ListAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task ExecuteAsync_WhenProjectIdEmptyButAmbientContextResolved_ShouldReturnScopedTemplates()
     {
+        // Arrange
         var projectId = Guid.NewGuid();
-        var template = new TemplateBuilder()
+        Template template = TemplateBuilder.ATemplate()
             .WithProjectId(projectId)
             .WithName("Invoice")
-            .WithSlug("invoice")
-            .Build();
+            .WithSlug("invoice");
 
-        var mockContext = new Mock<SmkDoc.Application.Common.Interfaces.ICurrentProjectContext>();
-        mockContext.Setup(c => c.IsResolved).Returns(true);
-        mockContext.Setup(c => c.ProjectId).Returns(new SmkDoc.Domain.ValueObjects.Ids.ProjectId(projectId));
+        _projectContext.IsResolved.Returns(true);
+        _projectContext.ProjectId.Returns(new ProjectId(projectId));
 
-        _mockRepo.Setup(r => r.ListAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new List<Template> { template });
+        _templateRepo.ListAsync(Arg.Any<CancellationToken>())
+            .Returns(new List<Template> { template });
 
-        var sut = new ListTemplatesUseCase(_mockRepo.Object, mockContext.Object);
-        var result = await sut.ExecuteAsync(new ListTemplatesQuery(Guid.Empty));
+        // Act
+        var sut = CreateSut(_projectContext);
+        IReadOnlyList<TemplateResultDto> result = await sut.ExecuteAsync(new ListTemplatesQuery(Guid.Empty));
 
+        // Assert
         result.Should().HaveCount(1);
         result[0].Name.Should().Be("Invoice");
     }
 }
-

@@ -71,4 +71,6 @@ public class DatasetBuilder
             _cacheSeconds,
             _now);
     }
+
+    public static implicit operator Dataset(DatasetBuilder builder) => builder.Build();
 }

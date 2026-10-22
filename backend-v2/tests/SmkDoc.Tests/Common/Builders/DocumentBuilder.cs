@@ -47,4 +47,6 @@ public class DocumentBuilder
             _templateId,
             _now);
     }
+
+    public static implicit operator Document(DocumentBuilder builder) => builder.Build();
 }

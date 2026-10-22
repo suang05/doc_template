@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using FluentAssertions;
 using Microsoft.Extensions.Caching.Memory;
 using SmkDoc.Application.Modules.Authoring.Schemas.DTOs;
@@ -8,7 +8,7 @@ using Xunit;
 
 namespace SmkDoc.Tests.Application.Modules.Authoring.Schemas;
 
-public class ValidateStandaloneSchemaUseCaseTests
+public sealed class ValidateStandaloneSchemaUseCaseTests
 {
     private readonly JsonSchemaValidationService _validator = new(new MemoryCache(new MemoryCacheOptions()));
 

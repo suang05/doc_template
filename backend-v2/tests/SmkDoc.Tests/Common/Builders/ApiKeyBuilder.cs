@@ -71,4 +71,6 @@ public class ApiKeyBuilder
             _expiration,
             _now);
     }
+
+    public static implicit operator ApiKey(ApiKeyBuilder builder) => builder.Build();
 }

@@ -1,30 +1,29 @@
+using SmkDoc.Application.Modules.Integration.DataConnections.DTOs;
 using SmkDoc.Application.Modules.Integration.DataConnections.Queries.GetDataConnectionById;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Enums;
+using SmkDoc.Domain.Interfaces;
 using SmkDoc.Tests.Common.Builders;
-using SmkDoc.Tests.Common.Fixtures;
 
 namespace SmkDoc.Tests.Application.Modules.Integration.DataConnections.Queries.GetDataConnectionById;
 
-public class GetDataConnectionByIdUseCaseTests
+public sealed class GetDataConnectionByIdUseCaseTests
 {
-    private readonly IntegrationModuleTestFixture _fixture = new();
+    private readonly IDataConnectionRepository _connectionRepo = Substitute.For<IDataConnectionRepository>();
 
-    private GetDataConnectionByIdUseCase CreateSut() => _fixture.BuildGetDataConnectionByIdUseCase();
+    private GetDataConnectionByIdUseCase CreateSut() => new(_connectionRepo);
 
     [Fact]
     public async Task ExecuteAsync_WhenConnectionFound_ReturnsDto()
     {
         // Arrange
         var id = Guid.NewGuid();
-        var conn = DataConnectionBuilder.Postgres(name: "Production DB", connectionString: "enc_secret", id: id);
+        DataConnection conn = DataConnectionBuilder.Postgres(name: "Production DB", connectionString: "enc_secret", id: id);
 
-        _fixture.ConnectionRepo
-            .Setup(r => r.GetByIdAsync(id, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(conn);
+        _connectionRepo.GetByIdAsync(id, Arg.Any<CancellationToken>())
+            .Returns(conn);
 
         // Act
-        var result = await CreateSut().ExecuteAsync(new GetDataConnectionByIdQuery(id));
+        DataConnectionDto? result = await CreateSut().ExecuteAsync(new GetDataConnectionByIdQuery(id));
 
         // Assert
         result.Should().NotBeNull();
@@ -37,12 +36,11 @@ public class GetDataConnectionByIdUseCaseTests
     {
         // Arrange
         var id = Guid.NewGuid();
-        _fixture.ConnectionRepo
-            .Setup(r => r.GetByIdAsync(id, It.IsAny<CancellationToken>()))
-            .ReturnsAsync((DataConnection?)null);
+        _connectionRepo.GetByIdAsync(id, Arg.Any<CancellationToken>())
+            .Returns((DataConnection?)null);
 
         // Act
-        var result = await CreateSut().ExecuteAsync(new GetDataConnectionByIdQuery(id));
+        DataConnectionDto? result = await CreateSut().ExecuteAsync(new GetDataConnectionByIdQuery(id));
 
         // Assert
         result.Should().BeNull();

@@ -1,27 +1,24 @@
-using DocumentFormat.OpenXml;
+﻿using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
-using FluentAssertions;
-using Moq;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Infrastructure.Engines.Word;
 using SmkDoc.Infrastructure.Imaging;
-using Xunit;
 
 namespace SmkDoc.Tests.Infrastructure.Engines.Word;
 
-public class DocxTemplateEngineTests
+public sealed class DocxTemplateEngineTests
 {
-    private static DocxTemplateEngine CreateEngine(Mock<IPdfRenderer>? mockPdf = null)
+    private static DocxTemplateEngine CreateEngine(IPdfRenderer? pdfRenderer = null)
     {
-        mockPdf ??= new Mock<IPdfRenderer>();
+        pdfRenderer ??= Substitute.For<IPdfRenderer>();
         var mediaService = new MediaGenerationService(
-            new Mock<IQrCodeService>().Object,
-            new Mock<IBarcodeService>().Object,
-            new Mock<IImageOptimizer>().Object);
+            Substitute.For<IQrCodeService>(),
+            Substitute.For<IBarcodeService>(),
+            Substitute.For<IImageOptimizer>());
         var media = new WordMediaInjector(mediaService);
-        return new DocxTemplateEngine(mockPdf.Object, media);
+        return new DocxTemplateEngine(pdfRenderer, media);
     }
 
     private static MemoryStream BuildDocx(string paragraphText)
@@ -137,17 +134,17 @@ public class DocxTemplateEngineTests
     public async Task RenderStreamAsync_WithOutputFormatPdf_ShouldCallPdfRendererStream()
     {
         var expectedStream = new MemoryStream([0x25, 0x50, 0x44, 0x46]);
-        var mockPdf = new Mock<IPdfRenderer>();
-        mockPdf.Setup(p => p.RenderOfficeToPdfStreamAsync(It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-               .ReturnsAsync(expectedStream);
+        var pdfRenderer = Substitute.For<IPdfRenderer>();
+        pdfRenderer.RenderOfficeToPdfStreamAsync(Arg.Any<Stream>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+               .Returns(expectedStream);
 
-        var engine = CreateEngine(mockPdf);
+        var engine = CreateEngine(pdfRenderer);
         using var stream = BuildDocx("{{title}}");
         string data = "{\"title\": \"Test\"}";
 
         var resultStream = await engine.RenderStreamAsync(stream, data, OutputFormat.Pdf);
 
-        mockPdf.Verify(p => p.RenderOfficeToPdfStreamAsync(It.IsAny<Stream>(), "document.docx", It.IsAny<CancellationToken>()), Times.Once);
+        await pdfRenderer.Received(1).RenderOfficeToPdfStreamAsync(Arg.Any<Stream>(), "document.docx", Arg.Any<CancellationToken>());
         resultStream.Should().BeSameAs(expectedStream);
     }
 }

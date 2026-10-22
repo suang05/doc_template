@@ -71,4 +71,12 @@ public class UserBuilder
         }
         return user;
     }
+
+    public static implicit operator User(UserBuilder builder) => builder.Build();
+}
+
+public static class aUser
+{
+    public static UserBuilder Active() => UserBuilder.AUser();
+    public static UserBuilder Inactive() => UserBuilder.AUser().AsInactive();
 }

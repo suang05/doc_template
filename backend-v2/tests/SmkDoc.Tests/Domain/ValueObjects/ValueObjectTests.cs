@@ -1,11 +1,11 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects;
 using Xunit;
 
 namespace SmkDoc.Tests.Domain.ValueObjects;
 
-public class ValueObjectTests
+public sealed class ValueObjectTests
 {
     // ── Sha256Hash Zero-Allocation Hex Validation ───────────────────────────
 

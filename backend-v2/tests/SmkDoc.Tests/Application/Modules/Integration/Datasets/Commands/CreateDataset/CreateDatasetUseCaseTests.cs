@@ -1,51 +1,71 @@
 using SmkDoc.Application.Modules.Integration.Datasets.Commands.CreateDataset;
+using SmkDoc.Application.Modules.Integration.Datasets.DTOs;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
+using SmkDoc.Domain.Interfaces;
 using SmkDoc.Tests.Common.Builders;
-using SmkDoc.Tests.Common.Fixtures;
 
 namespace SmkDoc.Tests.Application.Modules.Integration.Datasets.Commands.CreateDataset;
 
-public class CreateDatasetUseCaseTests
+public sealed class CreateDatasetUseCaseTests
 {
-    private readonly IntegrationModuleTestFixture _fixture = new();
+    private readonly IDatasetRepository _datasetRepo = Substitute.For<IDatasetRepository>();
+    private readonly IDataConnectionRepository _connectionRepo = Substitute.For<IDataConnectionRepository>();
+    private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
 
-    private CreateDatasetUseCase CreateSut() => _fixture.BuildCreateDatasetUseCase();
+    public CreateDatasetUseCaseTests()
+    {
+        _unitOfWork.CommitAsync(Arg.Any<CancellationToken>()).Returns(1);
+    }
+
+    private CreateDatasetUseCase CreateSut() => new(
+        _datasetRepo,
+        _connectionRepo,
+        _unitOfWork);
 
     [Fact]
     public async Task ExecuteAsync_ShouldPersistDatasetAndReturnDto()
     {
+        // Arrange
         var connId = Guid.NewGuid();
-        var conn = DataConnectionBuilder.SqlServer(name: "DB1", connectionString: "enc_db1", id: connId);
+        DataConnection conn = DataConnectionBuilder.SqlServer(name: "DB1", connectionString: "enc_db1", id: connId);
         var command = new CreateDatasetCommand("OrdersSet", "desc", connId, "SELECT * FROM orders", 60);
 
-        _fixture.ConnectionRepo.Setup(r => r.GetByIdAsync(connId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(conn);
+        _connectionRepo.GetByIdAsync(connId, Arg.Any<CancellationToken>())
+            .Returns(conn);
 
-        var result = await CreateSut().ExecuteAsync(command);
+        // Act
+        DatasetDto result = await CreateSut().ExecuteAsync(command);
 
+        // Assert
         result.Name.Should().Be("OrdersSet");
         result.DataConnectionName.Should().Be("DB1");
         result.CacheSeconds.Should().Be(60);
 
-        _fixture.DatasetRepo.Verify(r => r.AddAsync(It.Is<Dataset>(d =>
-            d.Name.Value == "OrdersSet" &&
-            d.DataConnectionId == connId &&
-            d.CacheSeconds == 60), It.IsAny<CancellationToken>()), Times.Once);
-        _fixture.Uow.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
+        await _datasetRepo.Received(1).AddAsync(
+            Arg.Is<Dataset>(d =>
+                d.Name.Value == "OrdersSet" &&
+                d.DataConnectionId == connId &&
+                d.CacheSeconds == 60),
+            Arg.Any<CancellationToken>());
+        await _unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task ExecuteAsync_WhenConnectionNotFound_ShouldThrowNotFoundException()
     {
-        _fixture.ConnectionRepo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((DataConnection?)null);
+        // Arrange
+        _connectionRepo.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns((DataConnection?)null);
 
         var command = new CreateDatasetCommand("OrdersSet", null, Guid.NewGuid(), "SELECT 1");
 
+        // Act
         Func<Task> act = () => CreateSut().ExecuteAsync(command);
 
+        // Assert
         await act.Should().ThrowAsync<NotFoundException>();
+        await _datasetRepo.DidNotReceive().AddAsync(Arg.Any<Dataset>(), Arg.Any<CancellationToken>());
+        await _unitOfWork.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
     }
 }

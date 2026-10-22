@@ -1,4 +1,4 @@
-using SmkDoc.Application.Modules.Authoring.FieldMappings.Commands.SaveTemplateDatasets;
+﻿using SmkDoc.Application.Modules.Authoring.FieldMappings.Commands.SaveTemplateDatasets;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
@@ -9,13 +9,14 @@ using SmkDoc.Tests.Common.Builders;
 
 namespace SmkDoc.Tests.Application.Modules.Authoring.FieldMappings.Commands.SaveTemplateDatasets;
 
-public class SaveTemplateDatasetsUseCaseTests
+public sealed class SaveTemplateDatasetsUseCaseTests
 {
-    private readonly Mock<ITemplateRepository> _templateRepoMock = new();
-    private readonly Mock<IUnitOfWork> _unitOfWorkMock = new();
+    private readonly ITemplateRepository _templateRepo = Substitute.For<ITemplateRepository>();
+    private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
+    private readonly TimeProvider _timeProvider = TestConstants.CreateFakeClock();
 
     private SaveTemplateDatasetsUseCase CreateSut() =>
-        new(_templateRepoMock.Object, _unitOfWorkMock.Object);
+        new(_templateRepo, _unitOfWork, _timeProvider);
 
     [Fact]
     public async Task ExecuteAsync_WhenValidCommand_ReplacesDatasetsAndCommits()
@@ -30,13 +31,11 @@ public class SaveTemplateDatasetsUseCaseTests
             .Build();
         template.AttachDataset(Guid.NewGuid(), DatasetAlias.Create("old_alias"), 1, TestConstants.BaselineTime);
 
-        _templateRepoMock
-            .Setup(r => r.GetByIdWithDetailsAsync(templateId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(template);
+        _templateRepo.GetByIdWithDetailsAsync(templateId, Arg.Any<CancellationToken>())
+            .Returns(template);
 
-        _unitOfWorkMock
-            .Setup(u => u.CommitAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(1);
+        _unitOfWork.CommitAsync(Arg.Any<CancellationToken>())
+            .Returns(1);
 
         var dsId = Guid.NewGuid();
         var items = new List<SaveTemplateDatasetItemDto>
@@ -53,7 +52,7 @@ public class SaveTemplateDatasetsUseCaseTests
         template.TemplateDatasets.Should().HaveCount(1);
         template.TemplateDatasets.First().Alias.Value.Should().Be("payments");
         template.TemplateDatasets.First().DatasetId.Should().Be(dsId);
-        _unitOfWorkMock.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
+        await _unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -61,11 +60,12 @@ public class SaveTemplateDatasetsUseCaseTests
     {
         // Arrange
         var templateId = Guid.NewGuid();
-        _templateRepoMock
-            .Setup(r => r.GetByIdWithDetailsAsync(templateId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync((Template?)null);
+        _templateRepo.GetByIdWithDetailsAsync(templateId, Arg.Any<CancellationToken>())
+            .Returns((Template?)null);
+        _templateRepo.GetByIdAsync(templateId, Arg.Any<CancellationToken>())
+            .Returns((Template?)null);
 
-        var command = new SaveTemplateDatasetsCommand(templateId, new List<SaveTemplateDatasetItemDto>());
+        var command = new SaveTemplateDatasetsCommand(templateId, []);
 
         // Act
         var act = () => CreateSut().ExecuteAsync(command);
@@ -87,9 +87,8 @@ public class SaveTemplateDatasetsUseCaseTests
             .WithSlug("contract")
             .Build();
 
-        _templateRepoMock
-            .Setup(r => r.GetByIdWithDetailsAsync(templateId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(template);
+        _templateRepo.GetByIdWithDetailsAsync(templateId, Arg.Any<CancellationToken>())
+            .Returns(template);
 
         var items = new List<SaveTemplateDatasetItemDto>
         {

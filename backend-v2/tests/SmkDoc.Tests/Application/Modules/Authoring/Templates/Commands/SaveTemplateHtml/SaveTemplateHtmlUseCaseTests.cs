@@ -1,30 +1,31 @@
-using FluentAssertions;
-using Moq;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.SaveTemplateHtml;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Tests.Common.Builders;
-using Xunit;
 
 namespace SmkDoc.Tests.Application.Modules.Authoring.Templates.Commands.SaveTemplateHtml;
 
-public class SaveTemplateHtmlUseCaseTests
+public sealed class SaveTemplateHtmlUseCaseTests
 {
-    private readonly Mock<ITemplateRepository> _mockTemplateRepo = new();
-    private readonly Mock<IStorageService> _mockStorage = new();
-    private readonly Mock<IUnitOfWork> _mockUow = new();
-    private readonly Mock<IExecutionContext> _mockContext = new();
-    private readonly Mock<ISchemaInferenceService> _mockSchemaInference = new();
+    private readonly ITemplateRepository _templateRepo = Substitute.For<ITemplateRepository>();
+    private readonly IStorageService _storageService = Substitute.For<IStorageService>();
+    private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
+    private readonly IExecutionContext _executionContext = Substitute.For<IExecutionContext>();
+    private readonly ISchemaInferenceService _schemaInference = Substitute.For<ISchemaInferenceService>();
+
+    public SaveTemplateHtmlUseCaseTests()
+    {
+        _unitOfWork.CommitAsync(Arg.Any<CancellationToken>()).Returns(1);
+    }
 
     private SaveTemplateHtmlUseCase CreateSut() => new(
-        _mockTemplateRepo.Object,
-        _mockStorage.Object,
-        _mockUow.Object,
-        _mockContext.Object,
-        _mockSchemaInference.Object
-    );
+        _templateRepo,
+        _storageService,
+        _unitOfWork,
+        _executionContext,
+        _schemaInference);
 
     [Fact]
     public async Task SaveHtmlVersionAsync_ShouldUploadArchivedAndActiveKeys_AndIncrementVersion_AndPersistSchema()
@@ -32,35 +33,33 @@ public class SaveTemplateHtmlUseCaseTests
         // Arrange
         var templateId = Guid.NewGuid();
         var currentVersionId = Guid.NewGuid();
-
         var projectId = Guid.NewGuid();
-        var template = new TemplateBuilder()
+
+        Template template = TemplateBuilder.ATemplate()
             .WithId(templateId)
             .WithProjectId(projectId)
             .WithSlug("official-contract")
-            .WithName("official-contract")
-            .Build();
+            .WithName("official-contract");
         template.SetCurrentVersion(currentVersionId, TestConstants.BaselineTime);
 
-        var currentVersion = new TemplateVersionBuilder()
+        TemplateVersion currentVersion = TemplateVersionBuilder.AVersion()
             .WithId(currentVersionId)
             .WithTemplateId(templateId)
             .WithVersion(3)
             .WithStorageKey("")
             .WithFormat(TemplateFormat.Html)
-            .WithCreatedBy(null)
-            .Build();
+            .WithCreatedBy(null);
 
-        _mockTemplateRepo.Setup(r => r.GetByIdAsync(templateId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(template);
-        _mockTemplateRepo.Setup(r => r.GetVersionByIdAsync(currentVersionId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(currentVersion);
-        _mockContext.SetupGet(c => c.CallerApp).Returns("studio-user");
+        _templateRepo.GetByIdAsync(templateId, Arg.Any<CancellationToken>())
+            .Returns(template);
+        _templateRepo.GetVersionByIdAsync(currentVersionId, Arg.Any<CancellationToken>())
+            .Returns(currentVersion);
+        _executionContext.CallerApp.Returns("studio-user");
 
         string dummySchema = "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\"}";
         string dummySample = "{\"customerName\":\"คุณสมชาย\"}";
 
-        _mockSchemaInference.Setup(s => s.InferFromHtml(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string?>()))
+        _schemaInference.InferFromHtml(Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<string?>())
             .Returns((dummySchema, dummySample));
 
         var request = new SaveTemplateHtmlCommand(
@@ -76,30 +75,30 @@ public class SaveTemplateHtmlUseCaseTests
         nextVersion.Should().Be(4);
 
         // Verify versioned archive upload
-        _mockStorage.Verify(s => s.UploadAsync(
+        await _storageService.Received(1).UploadAsync(
             "templates",
             $"templates/{projectId}/archive/official-contract_v4.html",
-            It.IsAny<Stream>(),
+            Arg.Any<Stream>(),
             "text/html; charset=utf-8",
-            It.IsAny<CancellationToken>()), Times.Once);
+            Arg.Any<CancellationToken>());
 
         // Verify active upload
-        _mockStorage.Verify(s => s.UploadAsync(
+        await _storageService.Received(1).UploadAsync(
             "templates",
             $"templates/{projectId}/official-contract.html",
-            It.IsAny<Stream>(),
+            Arg.Any<Stream>(),
             "text/html; charset=utf-8",
-            It.IsAny<CancellationToken>()), Times.Once);
+            Arg.Any<CancellationToken>());
 
         // Verify database insert of new version with DataSchema and SamplePayload
-        _mockTemplateRepo.Verify(r => r.AddVersionAsync(
-            It.Is<TemplateVersion>(v => v.Version == 4 &&
+        await _templateRepo.Received(1).AddVersionAsync(
+            Arg.Is<TemplateVersion>(v => v.Version == 4 &&
                                         v.CommitMessage == "Updated payment terms" &&
                                         v.DataSchema == dummySchema &&
                                         v.SamplePayload == dummySample),
-            It.IsAny<CancellationToken>()), Times.Once);
+            Arg.Any<CancellationToken>());
 
         // Verify UoW saved
-        _mockUow.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
+        await _unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
     }
 }

@@ -1,10 +1,10 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using SmkDoc.Domain.Exceptions;
 using Xunit;
 
 namespace SmkDoc.Tests.Domain.Exceptions;
 
-public class DomainExceptionTests
+public sealed class DomainExceptionTests
 {
     [Fact]
     public void NotFoundException_ShouldHaveCorrectDefaults()

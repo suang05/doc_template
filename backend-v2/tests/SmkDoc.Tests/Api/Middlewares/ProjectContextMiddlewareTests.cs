@@ -1,14 +1,8 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Security.Claims;
-using System.Threading;
-using System.Threading.Tasks;
+﻿using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using SmkDoc.Api.Middleware;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Helpers;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Queries.ValidateApiKey;
 using SmkDoc.Domain.Entities;
@@ -17,15 +11,17 @@ using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Infrastructure.Contexts;
+using SmkDoc.Tests.Common;
 
 namespace SmkDoc.Tests.Api.Middlewares;
 
-public class ProjectContextMiddlewareTests
+public sealed class ProjectContextMiddlewareTests
 {
-    private readonly Mock<IApiKeyRepository> _apiKeyRepoMock = new();
-    private readonly Mock<IUnitOfWork> _unitOfWorkMock = new();
-    private readonly Mock<IUserProjectRoleRepository> _userProjectRoleRepoMock = new();
-    private readonly Mock<RequestDelegate> _nextMock = new();
+    private readonly IApiKeyRepository _apiKeyRepo = Substitute.For<IApiKeyRepository>();
+    private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
+    private readonly IUserProjectRoleRepository _userProjectRoleRepo = Substitute.For<IUserProjectRoleRepository>();
+    private readonly RequestDelegate _next = Substitute.For<RequestDelegate>();
+    private readonly ILogger<ProjectContextMiddleware> _logger = Substitute.For<ILogger<ProjectContextMiddleware>>();
     private readonly IConfiguration _configuration;
     private readonly ValidateApiKeyUseCase _validateApiKeyUseCase;
 
@@ -39,18 +35,18 @@ public class ProjectContextMiddlewareTests
             .Build();
 
         _validateApiKeyUseCase = new ValidateApiKeyUseCase(
-            _apiKeyRepoMock.Object,
-            _unitOfWorkMock.Object,
+            _apiKeyRepo,
+            _unitOfWork,
             TimeProvider.System);
 
-        _nextMock.Setup(n => n(It.IsAny<HttpContext>())).Returns(Task.CompletedTask);
+        _next.Invoke(Arg.Any<HttpContext>()).Returns(Task.CompletedTask);
     }
 
     private ProjectContextMiddleware CreateSut()
     {
         return new ProjectContextMiddleware(
-            _nextMock.Object,
-            Mock.Of<ILogger<ProjectContextMiddleware>>(),
+            _next,
+            _logger,
             _configuration);
     }
 
@@ -89,11 +85,11 @@ public class ProjectContextMiddlewareTests
             httpContext,
             projectContext,
             _validateApiKeyUseCase,
-            _userProjectRoleRepoMock.Object,
+            _userProjectRoleRepo,
             executionContext);
 
         // Assert
-        _nextMock.Verify(n => n(httpContext), Times.Once);
+        await _next.Received(1).Invoke(httpContext);
         projectContext.IsResolved.Should().BeFalse();
         httpContext.Response.StatusCode.Should().Be(StatusCodes.Status200OK);
     }
@@ -119,19 +115,19 @@ public class ProjectContextMiddlewareTests
         typeof(ApiKey).GetProperty(nameof(ApiKey.Expiration))!.SetValue(apiKey, ExpirationPolicy.Never);
         typeof(ApiKey).GetProperty(nameof(ApiKey.KeyHash))!.SetValue(apiKey, hash);
 
-        _apiKeyRepoMock.Setup(r => r.GetByKeyHashAsync(hash, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(apiKey);
+        _apiKeyRepo.GetByKeyHashAsync(hash, Arg.Any<CancellationToken>())
+            .Returns(apiKey);
 
         // Act
         await sut.InvokeAsync(
             httpContext,
             projectContext,
             _validateApiKeyUseCase,
-            _userProjectRoleRepoMock.Object,
+            _userProjectRoleRepo,
             executionContext);
 
         // Assert
-        _nextMock.Verify(n => n(httpContext), Times.Once);
+        await _next.Received(1).Invoke(httpContext);
         projectContext.IsResolved.Should().BeTrue();
         projectContext.ProjectId.Should().Be(targetProjectId);
         executionContext.ProjectId.Should().Be(targetProjectId.Value);
@@ -148,19 +144,19 @@ public class ProjectContextMiddlewareTests
 
         httpContext.Request.Headers["X-API-Key"] = "invalid-key";
 
-        _apiKeyRepoMock.Setup(r => r.GetByKeyHashAsync(It.IsAny<Sha256Hash>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((ApiKey?)null);
+        _apiKeyRepo.GetByKeyHashAsync(Arg.Any<Sha256Hash>(), Arg.Any<CancellationToken>())
+            .Returns((ApiKey?)null);
 
         // Act
         await sut.InvokeAsync(
             httpContext,
             projectContext,
             _validateApiKeyUseCase,
-            _userProjectRoleRepoMock.Object,
+            _userProjectRoleRepo,
             executionContext);
 
         // Assert
-        _nextMock.Verify(n => n(httpContext), Times.Never);
+        await _next.DidNotReceive().Invoke(httpContext);
         projectContext.IsResolved.Should().BeFalse();
         httpContext.Response.StatusCode.Should().Be(StatusCodes.Status401Unauthorized);
         httpContext.Response.ContentType.Should().StartWith("application/problem+json");
@@ -182,11 +178,11 @@ public class ProjectContextMiddlewareTests
             httpContext,
             projectContext,
             _validateApiKeyUseCase,
-            _userProjectRoleRepoMock.Object,
+            _userProjectRoleRepo,
             executionContext);
 
         // Assert
-        _nextMock.Verify(n => n(httpContext), Times.Once);
+        await _next.Received(1).Invoke(httpContext);
         projectContext.IsResolved.Should().BeTrue();
         projectContext.ProjectId.Should().Be(targetProjectId);
         executionContext.CallerApp.Should().Be("master");
@@ -211,19 +207,19 @@ public class ProjectContextMiddlewareTests
         httpContext.Request.Headers["X-Project-Id"] = targetProjectId.ToString();
 
         var roleAssignment = UserProjectRole.Create(new UserId(userId), targetProjectId, RoleType.Developer, TestConstants.BaselineTime);
-        _userProjectRoleRepoMock.Setup(r => r.GetAsync(targetProjectId.Value, userId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(roleAssignment);
+        _userProjectRoleRepo.GetAsync(targetProjectId.Value, userId, Arg.Any<CancellationToken>())
+            .Returns(roleAssignment);
 
         // Act
         await sut.InvokeAsync(
             httpContext,
             projectContext,
             _validateApiKeyUseCase,
-            _userProjectRoleRepoMock.Object,
+            _userProjectRoleRepo,
             executionContext);
 
         // Assert
-        _nextMock.Verify(n => n(httpContext), Times.Once);
+        await _next.Received(1).Invoke(httpContext);
         projectContext.IsResolved.Should().BeTrue();
         projectContext.ProjectId.Should().Be(targetProjectId);
         executionContext.UserId.Should().Be(userId);
@@ -250,19 +246,19 @@ public class ProjectContextMiddlewareTests
         httpContext.Request.Headers["X-Project-Id"] = unauthorizedProjectId.ToString();
 
         // User does NOT hold membership in target project
-        _userProjectRoleRepoMock.Setup(r => r.GetAsync(unauthorizedProjectId.Value, userId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync((UserProjectRole?)null);
+        _userProjectRoleRepo.GetAsync(unauthorizedProjectId.Value, userId, Arg.Any<CancellationToken>())
+            .Returns((UserProjectRole?)null);
 
         // Act
         await sut.InvokeAsync(
             httpContext,
             projectContext,
             _validateApiKeyUseCase,
-            _userProjectRoleRepoMock.Object,
+            _userProjectRoleRepo,
             executionContext);
 
         // Assert
-        _nextMock.Verify(n => n(httpContext), Times.Never);
+        await _next.DidNotReceive().Invoke(httpContext);
         projectContext.IsResolved.Should().BeFalse();
         httpContext.Response.StatusCode.Should().Be(StatusCodes.Status403Forbidden);
         httpContext.Response.ContentType.Should().StartWith("application/problem+json");
@@ -291,14 +287,14 @@ public class ProjectContextMiddlewareTests
             httpContext,
             projectContext,
             _validateApiKeyUseCase,
-            _userProjectRoleRepoMock.Object,
+            _userProjectRoleRepo,
             executionContext);
 
         // Assert
-        _nextMock.Verify(n => n(httpContext), Times.Once);
+        await _next.Received(1).Invoke(httpContext);
         projectContext.IsResolved.Should().BeTrue();
         projectContext.ProjectId.Should().Be(targetProjectId);
-        _userProjectRoleRepoMock.Verify(r => r.GetAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+        await _userProjectRoleRepo.DidNotReceive().GetAsync(Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -321,11 +317,11 @@ public class ProjectContextMiddlewareTests
             httpContext,
             projectContext,
             _validateApiKeyUseCase,
-            _userProjectRoleRepoMock.Object,
+            _userProjectRoleRepo,
             executionContext);
 
         // Assert
-        _nextMock.Verify(n => n(httpContext), Times.Once);
+        await _next.Received(1).Invoke(httpContext);
         projectContext.IsResolved.Should().BeFalse();
         executionContext.UserId.Should().Be(userId);
     }
@@ -342,11 +338,11 @@ public class ProjectContextMiddlewareTests
             httpContext,
             projectContext,
             _validateApiKeyUseCase,
-            _userProjectRoleRepoMock.Object,
+            _userProjectRoleRepo,
             executionContext);
 
         // Assert
-        _nextMock.Verify(n => n(httpContext), Times.Never);
+        await _next.DidNotReceive().Invoke(httpContext);
         projectContext.IsResolved.Should().BeFalse();
         httpContext.Response.StatusCode.Should().Be(StatusCodes.Status401Unauthorized);
         httpContext.Response.ContentType.Should().StartWith("application/problem+json");
@@ -376,16 +372,16 @@ public class ProjectContextMiddlewareTests
             httpContext,
             projectContext,
             _validateApiKeyUseCase,
-            _userProjectRoleRepoMock.Object,
+            _userProjectRoleRepo,
             executionContext);
 
         // Assert
-        _nextMock.Verify(n => n(httpContext), Times.Once);
+        await _next.Received(1).Invoke(httpContext);
         projectContext.IsResolved.Should().BeTrue();
         projectContext.ProjectId.Should().Be(targetProjectId);
         executionContext.CallerApp.Should().Be("portal");
         executionContext.UserId.Should().Be(userId);
-        _apiKeyRepoMock.Verify(r => r.GetByKeyHashAsync(It.IsAny<Sha256Hash>(), It.IsAny<CancellationToken>()), Times.Never);
+        await _apiKeyRepo.DidNotReceive().GetByKeyHashAsync(Arg.Any<Sha256Hash>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -412,22 +408,21 @@ public class ProjectContextMiddlewareTests
         typeof(ApiKey).GetProperty(nameof(ApiKey.Expiration))!.SetValue(apiKey, ExpirationPolicy.Never);
         typeof(ApiKey).GetProperty(nameof(ApiKey.KeyHash))!.SetValue(apiKey, hash);
 
-        _apiKeyRepoMock.Setup(r => r.GetByKeyHashAsync(hash, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(apiKey);
+        _apiKeyRepo.GetByKeyHashAsync(hash, Arg.Any<CancellationToken>())
+            .Returns(apiKey);
 
         // Act
         await sut.InvokeAsync(
             httpContext,
             projectContext,
             _validateApiKeyUseCase,
-            _userProjectRoleRepoMock.Object,
+            _userProjectRoleRepo,
             executionContext);
 
         // Assert
-        _nextMock.Verify(n => n(httpContext), Times.Never);
+        await _next.DidNotReceive().Invoke(httpContext);
         projectContext.IsResolved.Should().BeFalse();
         httpContext.Response.StatusCode.Should().Be(StatusCodes.Status403Forbidden);
         httpContext.Response.ContentType.Should().StartWith("application/problem+json");
     }
 }
-

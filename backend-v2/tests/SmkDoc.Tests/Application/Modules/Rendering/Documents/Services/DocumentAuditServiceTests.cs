@@ -1,57 +1,52 @@
-using FluentAssertions;
-using Moq;
-using SmkDoc.Application.Common.Interfaces;
+﻿using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Rendering.Documents.Services;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Interfaces;
-using Xunit;
 
 namespace SmkDoc.Tests.Application.Modules.Rendering.Documents.Services;
 
-public class DocumentAuditServiceTests
+public sealed class DocumentAuditServiceTests
 {
-    private readonly Mock<IRepository<GenerationLog>> _mockLogRepo = new();
-    private readonly Mock<IExecutionContext> _mockContext = new();
-    private readonly Mock<IUnitOfWork> _mockUow = new();
+    private readonly IRepository<GenerationLog> _logRepo = Substitute.For<IRepository<GenerationLog>>();
+    private readonly IExecutionContext _context = Substitute.For<IExecutionContext>();
+    private readonly IUnitOfWork _uow = Substitute.For<IUnitOfWork>();
 
-    private DocumentAuditService BuildService() => new(
-        _mockLogRepo.Object, _mockContext.Object, _mockUow.Object);
+    private DocumentAuditService CreateSut() => new(
+        _logRepo, _context, _uow);
 
     [Fact]
     public async Task LogValidationFailureAsync_ShouldAddFailedLogAndCommitImmediately()
     {
         // Arrange
-        var service = BuildService();
-        _mockContext.Setup(c => c.CallerApp).Returns("crm-app");
+        _context.CallerApp.Returns("crm-app");
 
         // Act
-        await service.LogValidationFailureAsync(
+        await CreateSut().LogValidationFailureAsync(
             Guid.NewGuid(), Guid.NewGuid(), "{}", OutputFormat.Pdf, 50, "Schema violation");
 
         // Assert
-        _mockLogRepo.Verify(r => r.AddAsync(
-            It.Is<GenerationLog>(l => l.Status == "VALIDATION_FAILED" && l.CallerApp == "crm-app"),
-            It.IsAny<CancellationToken>()), Times.Once);
-        _mockUow.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
+        await _logRepo.Received(1).AddAsync(
+            Arg.Is<GenerationLog>(l => l.Status == "VALIDATION_FAILED" && l.CallerApp == "crm-app"),
+            Arg.Any<CancellationToken>());
+        await _uow.Received(1).CommitAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task LogSuccessAsync_ShouldAddSuccessLogWithoutPrematureCommit()
     {
         // Arrange
-        var service = BuildService();
-        _mockContext.Setup(c => c.CallerApp).Returns("pos-app");
+        _context.CallerApp.Returns("pos-app");
         var genId = Guid.NewGuid();
 
         // Act
-        await service.LogSuccessAsync(
+        await CreateSut().LogSuccessAsync(
             genId, Guid.NewGuid(), Guid.NewGuid(), "{}", "outputs/receipt.pdf", OutputFormat.Pdf, 1024, 150);
 
         // Assert
-        _mockLogRepo.Verify(r => r.AddAsync(
-            It.Is<GenerationLog>(l => l.Id == genId && l.Status == "SUCCESS" && l.OutputKey == "outputs/receipt.pdf"),
-            It.IsAny<CancellationToken>()), Times.Once);
-        _mockUow.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Never);
+        await _logRepo.Received(1).AddAsync(
+            Arg.Is<GenerationLog>(l => l.Id == genId && l.Status == "SUCCESS" && l.OutputKey == "outputs/receipt.pdf"),
+            Arg.Any<CancellationToken>());
+        await _uow.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
     }
 }

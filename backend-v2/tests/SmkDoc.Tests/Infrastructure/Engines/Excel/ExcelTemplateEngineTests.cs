@@ -1,34 +1,31 @@
-using ClosedXML.Excel;
-using FluentAssertions;
-using Moq;
+﻿using ClosedXML.Excel;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Infrastructure.Engines.Excel;
 using SmkDoc.Infrastructure.Imaging;
-using Xunit;
 
 namespace SmkDoc.Tests.Infrastructure.Engines.Excel;
 
-public class ExcelTemplateEngineTests
+public sealed class ExcelTemplateEngineTests
 {
     private static ExcelTemplateEngine CreateEngine(
-        Mock<IQrCodeService>?  mockQr      = null,
-        Mock<IBarcodeService>? mockBc      = null,
-        Mock<IImageOptimizer>? mockOpt     = null,
-        Mock<IPdfRenderer>?    mockPdf     = null)
+        IQrCodeService? qr = null,
+        IBarcodeService? bc = null,
+        IImageOptimizer? opt = null,
+        IPdfRenderer? pdf = null)
     {
-        var qr  = mockQr  ?? new Mock<IQrCodeService>();
-        var bc  = mockBc  ?? new Mock<IBarcodeService>();
-        var opt = mockOpt ?? new Mock<IImageOptimizer>();
-        var pdf = mockPdf ?? new Mock<IPdfRenderer>();
+        qr ??= Substitute.For<IQrCodeService>();
+        bc ??= Substitute.For<IBarcodeService>();
+        opt ??= Substitute.For<IImageOptimizer>();
+        pdf ??= Substitute.For<IPdfRenderer>();
 
         // Default optimizer returns the input bytes unchanged
-        opt.Setup(x => x.Optimize(It.IsAny<byte[]>(), It.IsAny<int>(), It.IsAny<int>()))
-           .Returns<byte[], int, int>((b, _, _) => b);
+        opt.Optimize(Arg.Any<byte[]>(), Arg.Any<int>(), Arg.Any<int>())
+           .Returns(callInfo => callInfo.Arg<byte[]>());
 
-        var mediaService = new MediaGenerationService(qr.Object, bc.Object, opt.Object);
+        var mediaService = new MediaGenerationService(qr, bc, opt);
         var mediaInjector = new ExcelMediaInjector(mediaService);
-        return new ExcelTemplateEngine(pdf.Object, mediaInjector);
+        return new ExcelTemplateEngine(pdf, mediaInjector);
     }
 
     private static MemoryStream BuildWorkbook(Action<IXLWorksheet> setup)
@@ -159,15 +156,15 @@ public class ExcelTemplateEngineTests
     [Fact]
     public async Task RenderAsync_WithQrPlaceholder_ShouldCallQrServiceAndClearCell()
     {
-        var mockQr  = new Mock<IQrCodeService>();
-        var mockOpt = new Mock<IImageOptimizer>();
+        var qr = Substitute.For<IQrCodeService>();
+        var opt = Substitute.For<IImageOptimizer>();
 
-        mockQr.Setup(x => x.Generate("SCAN123", It.IsAny<int>()))
-              .Returns([0x89, 0x50, 0x4E, 0x47]); // PNG header stub
-        mockOpt.Setup(x => x.Optimize(It.IsAny<byte[]>(), It.IsAny<int>(), It.IsAny<int>()))
-               .Returns<byte[], int, int>((b, _, _) => b);
+        qr.Generate("SCAN123", Arg.Any<int>())
+          .Returns([0x89, 0x50, 0x4E, 0x47]); // PNG header stub
+        opt.Optimize(Arg.Any<byte[]>(), Arg.Any<int>(), Arg.Any<int>())
+           .Returns(callInfo => callInfo.Arg<byte[]>());
 
-        var engine = CreateEngine(mockQr: mockQr, mockOpt: mockOpt);
+        var engine = CreateEngine(qr: qr, opt: opt);
 
         using var wb = await RenderWorkbookAsync(ws =>
         {
@@ -175,8 +172,8 @@ public class ExcelTemplateEngineTests
             ws.Cell("B1").Value = "Other: {{label}}";
         }, "{\"code\": \"SCAN123\", \"label\": \"Hello\"}", engine);
 
-        mockQr.Verify(x => x.Generate("SCAN123", It.IsAny<int>()), Times.Once);
-        mockOpt.Verify(x => x.Optimize(It.IsAny<byte[]>(), 150, 150), Times.Once);
+        qr.Received(1).Generate("SCAN123", Arg.Any<int>());
+        opt.Received(1).Optimize(Arg.Any<byte[]>(), 150, 150);
 
         var ws = wb.Worksheet("Sheet1");
         ws.Cell("A1").GetString().Should().BeEmpty(); // cleared after image embed
@@ -186,8 +183,8 @@ public class ExcelTemplateEngineTests
     [Fact]
     public async Task RenderAsync_WithBarcodeAndMissingKey_ShouldNotCallBarcodeService()
     {
-        var mockBc = new Mock<IBarcodeService>();
-        var engine = CreateEngine(mockBc: mockBc);
+        var bc = Substitute.For<IBarcodeService>();
+        var engine = CreateEngine(bc: bc);
 
         using var template = BuildWorkbook(ws =>
         {
@@ -197,7 +194,7 @@ public class ExcelTemplateEngineTests
         // JSON has no "serialNo" key
         await engine.RenderAsync(template, "{\"other\": \"value\"}", OutputFormat.Xlsx);
 
-        mockBc.Verify(x => x.Generate(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>()), Times.Never);
+        bc.DidNotReceive().Generate(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<int>());
     }
 
     [Fact]
@@ -223,11 +220,11 @@ public class ExcelTemplateEngineTests
     public async Task RenderStreamAsync_WithOutputFormatPdf_ShouldCallPdfRendererStream()
     {
         var expectedStream = new MemoryStream([0x25, 0x50, 0x44, 0x46]);
-        var mockPdf = new Mock<IPdfRenderer>();
-        mockPdf.Setup(p => p.RenderOfficeToPdfStreamAsync(It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-               .ReturnsAsync(expectedStream);
+        var pdf = Substitute.For<IPdfRenderer>();
+        pdf.RenderOfficeToPdfStreamAsync(Arg.Any<Stream>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+           .Returns(expectedStream);
 
-        var engine = CreateEngine(mockPdf: mockPdf);
+        var engine = CreateEngine(pdf: pdf);
         using var template = BuildWorkbook(ws =>
         {
             ws.Cell("A1").Value = "Header: {{title}}";
@@ -237,7 +234,7 @@ public class ExcelTemplateEngineTests
 
         var resultStream = await engine.RenderStreamAsync(template, json, OutputFormat.Pdf);
 
-        mockPdf.Verify(p => p.RenderOfficeToPdfStreamAsync(It.IsAny<Stream>(), "spreadsheet.xlsx", It.IsAny<CancellationToken>()), Times.Once);
+        await pdf.Received(1).RenderOfficeToPdfStreamAsync(Arg.Any<Stream>(), "spreadsheet.xlsx", Arg.Any<CancellationToken>());
         resultStream.Should().BeSameAs(expectedStream);
     }
 }

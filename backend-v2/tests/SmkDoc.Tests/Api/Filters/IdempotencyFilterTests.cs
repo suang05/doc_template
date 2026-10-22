@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Abstractions;
@@ -7,22 +7,23 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Logging;
 using SmkDoc.Api.Filters;
 using SmkDoc.Application.Common.Interfaces;
+using SmkDoc.Tests.Common;
 
 namespace SmkDoc.Tests.Api.Filters;
 
-public class IdempotencyFilterTests
+public sealed class IdempotencyFilterTests
 {
-    private readonly Mock<IIdempotencyStore> idempotencyStoreMock = new();
-    private readonly Mock<IExecutionContext> executionContextMock = new();
-    private readonly Mock<ILogger<IdempotencyFilter>> loggerMock = new();
+    private readonly IIdempotencyStore _idempotencyStore = Substitute.For<IIdempotencyStore>();
+    private readonly IExecutionContext _executionContext = Substitute.For<IExecutionContext>();
+    private readonly ILogger<IdempotencyFilter> _logger = Substitute.For<ILogger<IdempotencyFilter>>();
     private readonly JsonSerializerOptions jsonOptions = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
     private IdempotencyFilter CreateSut(TimeSpan? completedTtl = null, bool mandatory = false)
     {
         return new IdempotencyFilter(
-            idempotencyStoreMock.Object,
-            executionContextMock.Object,
-            loggerMock.Object,
+            _idempotencyStore,
+            _executionContext,
+            _logger,
             jsonOptions,
             completedTtl ?? TimeSpan.FromHours(24),
             mandatory);
@@ -32,27 +33,27 @@ public class IdempotencyFilterTests
     public async Task OnActionExecutionAsync_WhenHeaderMissingAndOptIn_ProceedsNormally()
     {
         var sut = CreateSut(mandatory: false);
-        var (context, nextMock) = CreateActionContext();
+        var (context, next) = CreateActionContext();
 
         var executedContext = CreateExecutedContext(context, new OkResult());
-        nextMock.Setup(n => n()).ReturnsAsync(executedContext);
+        next.Invoke().Returns(Task.FromResult(executedContext));
 
-        await sut.OnActionExecutionAsync(context, nextMock.Object);
+        await sut.OnActionExecutionAsync(context, next);
 
-        nextMock.Verify(n => n(), Times.Once);
+        await next.Received(1).Invoke();
         context.Result.Should().BeNull();
-        idempotencyStoreMock.Verify(s => s.TryAcquireOrGetAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()), Times.Never);
+        await _idempotencyStore.DidNotReceive().TryAcquireOrGetAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task OnActionExecutionAsync_WhenHeaderMissingAndMandatory_Returns400BadRequest()
     {
         var sut = CreateSut(mandatory: true);
-        var (context, nextMock) = CreateActionContext();
+        var (context, next) = CreateActionContext();
 
-        await sut.OnActionExecutionAsync(context, nextMock.Object);
+        await sut.OnActionExecutionAsync(context, next);
 
-        nextMock.Verify(n => n(), Times.Never);
+        await next.DidNotReceive().Invoke();
         context.Result.Should().BeOfType<BadRequestObjectResult>();
         var badRequest = (BadRequestObjectResult)context.Result!;
         var problem = badRequest.Value.Should().BeOfType<ProblemDetails>().Subject;
@@ -64,8 +65,8 @@ public class IdempotencyFilterTests
     public async Task OnActionExecutionAsync_WhenKeyInFlight_Returns409Conflict()
     {
         var sut = CreateSut();
-        var (context, nextMock) = CreateActionContext(idempotencyKey: "test-key-1");
-        executionContextMock.Setup(e => e.CallerApp).Returns("erp-system");
+        var (context, next) = CreateActionContext(idempotencyKey: "test-key-1");
+        _executionContext.CallerApp.Returns("erp-system");
 
         var inFlightRecord = new IdempotencyRecord(
             "idempotency:erp-system:test-key-1",
@@ -76,16 +77,16 @@ public class IdempotencyFilterTests
             null,
             TestConstants.BaselineTime);
 
-        idempotencyStoreMock.Setup(s => s.TryAcquireOrGetAsync(
+        _idempotencyStore.TryAcquireOrGetAsync(
                 "idempotency:erp-system:test-key-1",
-                It.IsAny<string>(),
-                It.IsAny<TimeSpan>(),
-                It.IsAny<CancellationToken>()))
-            .ReturnsAsync(IdempotencyAcquisitionResult.Conflict(inFlightRecord));
+                Arg.Any<string>(),
+                Arg.Any<TimeSpan>(),
+                Arg.Any<CancellationToken>())
+            .Returns(IdempotencyAcquisitionResult.Conflict(inFlightRecord));
 
-        await sut.OnActionExecutionAsync(context, nextMock.Object);
+        await sut.OnActionExecutionAsync(context, next);
 
-        nextMock.Verify(n => n(), Times.Never);
+        await next.DidNotReceive().Invoke();
         context.Result.Should().BeOfType<ConflictObjectResult>();
         var conflict = (ConflictObjectResult)context.Result!;
         var problem = conflict.Value.Should().BeOfType<ProblemDetails>().Subject;
@@ -97,8 +98,8 @@ public class IdempotencyFilterTests
     public async Task OnActionExecutionAsync_WhenCompletedWithSameFingerprint_ReplaysCachedContentWithHeader()
     {
         var sut = CreateSut();
-        var (context, nextMock) = CreateActionContext(idempotencyKey: "test-key-2");
-        executionContextMock.Setup(e => e.CallerApp).Returns("erp-system");
+        var (context, next) = CreateActionContext(idempotencyKey: "test-key-2");
+        _executionContext.CallerApp.Returns("erp-system");
 
         var fingerprint = RequestFingerprintCalculator.ComputeFingerprint(context, jsonOptions);
         var cachedJson = "{\"templateId\":\"456\",\"status\":\"active\"}";
@@ -113,16 +114,16 @@ public class IdempotencyFilterTests
             cachedHeaders,
             TestConstants.BaselineTime);
 
-        idempotencyStoreMock.Setup(s => s.TryAcquireOrGetAsync(
+        _idempotencyStore.TryAcquireOrGetAsync(
                 "idempotency:erp-system:test-key-2",
                 fingerprint,
-                It.IsAny<TimeSpan>(),
-                It.IsAny<CancellationToken>()))
-            .ReturnsAsync(IdempotencyAcquisitionResult.Conflict(completedRecord));
+                Arg.Any<TimeSpan>(),
+                Arg.Any<CancellationToken>())
+            .Returns(IdempotencyAcquisitionResult.Conflict(completedRecord));
 
-        await sut.OnActionExecutionAsync(context, nextMock.Object);
+        await sut.OnActionExecutionAsync(context, next);
 
-        nextMock.Verify(n => n(), Times.Never);
+        await next.DidNotReceive().Invoke();
         context.Result.Should().BeOfType<ContentResult>();
         var contentResult = (ContentResult)context.Result!;
         contentResult.StatusCode.Should().Be(StatusCodes.Status201Created);
@@ -138,8 +139,8 @@ public class IdempotencyFilterTests
     public async Task OnActionExecutionAsync_WhenCompletedWithMismatchedFingerprint_Returns422UnprocessableEntity()
     {
         var sut = CreateSut();
-        var (context, nextMock) = CreateActionContext(idempotencyKey: "test-key-3");
-        executionContextMock.Setup(e => e.CallerApp).Returns("erp-system");
+        var (context, next) = CreateActionContext(idempotencyKey: "test-key-3");
+        _executionContext.CallerApp.Returns("erp-system");
 
         var completedRecord = new IdempotencyRecord(
             "idempotency:erp-system:test-key-3",
@@ -150,16 +151,16 @@ public class IdempotencyFilterTests
             null,
             TestConstants.BaselineTime);
 
-        idempotencyStoreMock.Setup(s => s.TryAcquireOrGetAsync(
+        _idempotencyStore.TryAcquireOrGetAsync(
                 "idempotency:erp-system:test-key-3",
-                It.IsAny<string>(),
-                It.IsAny<TimeSpan>(),
-                It.IsAny<CancellationToken>()))
-            .ReturnsAsync(IdempotencyAcquisitionResult.Conflict(completedRecord));
+                Arg.Any<string>(),
+                Arg.Any<TimeSpan>(),
+                Arg.Any<CancellationToken>())
+            .Returns(IdempotencyAcquisitionResult.Conflict(completedRecord));
 
-        await sut.OnActionExecutionAsync(context, nextMock.Object);
+        await sut.OnActionExecutionAsync(context, next);
 
-        nextMock.Verify(n => n(), Times.Never);
+        await next.DidNotReceive().Invoke();
         context.Result.Should().BeOfType<ObjectResult>();
         var objectResult = (ObjectResult)context.Result!;
         objectResult.StatusCode.Should().Be(StatusCodes.Status422UnprocessableEntity);
@@ -171,78 +172,78 @@ public class IdempotencyFilterTests
     public async Task OnActionExecutionAsync_WhenExecutionThrowsException_RollsBackLockAndRethrows()
     {
         var sut = CreateSut();
-        var (context, nextMock) = CreateActionContext(idempotencyKey: "fail-key");
-        executionContextMock.Setup(e => e.CallerApp).Returns("erp-system");
+        var (context, next) = CreateActionContext(idempotencyKey: "fail-key");
+        _executionContext.CallerApp.Returns("erp-system");
 
-        idempotencyStoreMock.Setup(s => s.TryAcquireOrGetAsync(
+        _idempotencyStore.TryAcquireOrGetAsync(
                 "idempotency:erp-system:fail-key",
-                It.IsAny<string>(),
-                It.IsAny<TimeSpan>(),
-                It.IsAny<CancellationToken>()))
-            .ReturnsAsync(IdempotencyAcquisitionResult.Acquired());
+                Arg.Any<string>(),
+                Arg.Any<TimeSpan>(),
+                Arg.Any<CancellationToken>())
+            .Returns(IdempotencyAcquisitionResult.Acquired());
 
-        nextMock.Setup(n => n()).ThrowsAsync(new InvalidOperationException("DB timeout"));
+        next.Invoke().ThrowsAsync(new InvalidOperationException("DB timeout"));
 
-        var act = async () => await sut.OnActionExecutionAsync(context, nextMock.Object);
+        var act = async () => await sut.OnActionExecutionAsync(context, next);
 
         await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("DB timeout");
-        idempotencyStoreMock.Verify(s => s.RemoveAsync("idempotency:erp-system:fail-key", It.IsAny<CancellationToken>()), Times.Once);
+        await _idempotencyStore.Received(1).RemoveAsync("idempotency:erp-system:fail-key", Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task OnActionExecutionAsync_WhenExecutionReturns201Created_CachesResponseSuccessfully()
     {
         var sut = CreateSut();
-        var (context, nextMock) = CreateActionContext(idempotencyKey: "success-key");
-        executionContextMock.Setup(e => e.CallerApp).Returns("erp-system");
+        var (context, next) = CreateActionContext(idempotencyKey: "success-key");
+        _executionContext.CallerApp.Returns("erp-system");
 
-        idempotencyStoreMock.Setup(s => s.TryAcquireOrGetAsync(
+        _idempotencyStore.TryAcquireOrGetAsync(
                 "idempotency:erp-system:success-key",
-                It.IsAny<string>(),
-                It.IsAny<TimeSpan>(),
-                It.IsAny<CancellationToken>()))
-            .ReturnsAsync(IdempotencyAcquisitionResult.Acquired());
+                Arg.Any<string>(),
+                Arg.Any<TimeSpan>(),
+                Arg.Any<CancellationToken>())
+            .Returns(IdempotencyAcquisitionResult.Acquired());
 
         var responseData = new { id = "new-template", name = "Contract" };
         var executedContext = CreateExecutedContext(context, new CreatedAtActionResult("GetById", "Template", new { id = "new-template" }, responseData));
-        nextMock.Setup(n => n()).ReturnsAsync(executedContext);
+        next.Invoke().Returns(Task.FromResult(executedContext));
 
-        await sut.OnActionExecutionAsync(context, nextMock.Object);
+        await sut.OnActionExecutionAsync(context, next);
 
-        idempotencyStoreMock.Verify(s => s.SaveCompletedAsync(
+        await _idempotencyStore.Received(1).SaveCompletedAsync(
             "idempotency:erp-system:success-key",
-            It.IsAny<string>(),
+            Arg.Any<string>(),
             StatusCodes.Status201Created,
-            It.Is<string>(json => json.Contains("new-template")),
-            It.IsAny<IReadOnlyDictionary<string, string>?>(),
+            Arg.Is<string>(json => json.Contains("new-template")),
+            Arg.Any<IReadOnlyDictionary<string, string>?>(),
             TimeSpan.FromHours(24),
-            It.IsAny<CancellationToken>()), Times.Once);
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task OnActionExecutionAsync_WhenExecutionReturns400BadRequest_RollsBackLock()
     {
         var sut = CreateSut();
-        var (context, nextMock) = CreateActionContext(idempotencyKey: "bad-request-key");
-        executionContextMock.Setup(e => e.CallerApp).Returns("erp-system");
+        var (context, next) = CreateActionContext(idempotencyKey: "bad-request-key");
+        _executionContext.CallerApp.Returns("erp-system");
 
-        idempotencyStoreMock.Setup(s => s.TryAcquireOrGetAsync(
+        _idempotencyStore.TryAcquireOrGetAsync(
                 "idempotency:erp-system:bad-request-key",
-                It.IsAny<string>(),
-                It.IsAny<TimeSpan>(),
-                It.IsAny<CancellationToken>()))
-            .ReturnsAsync(IdempotencyAcquisitionResult.Acquired());
+                Arg.Any<string>(),
+                Arg.Any<TimeSpan>(),
+                Arg.Any<CancellationToken>())
+            .Returns(IdempotencyAcquisitionResult.Acquired());
 
         var executedContext = CreateExecutedContext(context, new BadRequestObjectResult(new { error = "invalid" }));
-        nextMock.Setup(n => n()).ReturnsAsync(executedContext);
+        next.Invoke().Returns(Task.FromResult(executedContext));
 
-        await sut.OnActionExecutionAsync(context, nextMock.Object);
+        await sut.OnActionExecutionAsync(context, next);
 
-        idempotencyStoreMock.Verify(s => s.RemoveAsync("idempotency:erp-system:bad-request-key", It.IsAny<CancellationToken>()), Times.Once);
-        idempotencyStoreMock.Verify(s => s.SaveCompletedAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<string>(), It.IsAny<IReadOnlyDictionary<string, string>?>(), It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()), Times.Never);
+        await _idempotencyStore.Received(1).RemoveAsync("idempotency:erp-system:bad-request-key", Arg.Any<CancellationToken>());
+        await _idempotencyStore.DidNotReceive().SaveCompletedAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<int>(), Arg.Any<string>(), Arg.Any<IReadOnlyDictionary<string, string>?>(), Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>());
     }
 
-    private static (ActionExecutingContext context, Mock<ActionExecutionDelegate> nextMock) CreateActionContext(
+    private static (ActionExecutingContext context, ActionExecutionDelegate next) CreateActionContext(
         string? idempotencyKey = null,
         IDictionary<string, object?>? arguments = null)
     {
@@ -266,8 +267,8 @@ public class IdempotencyFilterTests
             arguments ?? new Dictionary<string, object?> { ["name"] = "Sample", ["slug"] = "sample-slug" },
             controller: new object());
 
-        var nextMock = new Mock<ActionExecutionDelegate>();
-        return (executingContext, nextMock);
+        var next = Substitute.For<ActionExecutionDelegate>();
+        return (executingContext, next);
     }
 
     private static ActionExecutedContext CreateExecutedContext(ActionExecutingContext executingContext, IActionResult result)

@@ -1,10 +1,10 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.CreateTemplate;
 using Xunit;
 
 namespace SmkDoc.Tests.Application.Modules.Authoring.Templates.Commands.CreateTemplate;
 
-public class CreateTemplateCommandValidatorTests
+public sealed class CreateTemplateCommandValidatorTests
 {
     private readonly CreateTemplateCommandValidator _validator = new();
 

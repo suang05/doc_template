@@ -53,4 +53,6 @@ public class CompanyBuilder
 
         return company;
     }
+
+    public static implicit operator Company(CompanyBuilder builder) => builder.Build();
 }

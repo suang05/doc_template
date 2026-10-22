@@ -1,88 +1,101 @@
-using FluentAssertions;
-using Moq;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.ActivateTemplateVersion;
+using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
+using SmkDoc.Domain.Interfaces;
 using SmkDoc.Tests.Common.Builders;
-using SmkDoc.Tests.Common.Fixtures;
-using Xunit;
 
 namespace SmkDoc.Tests.Application.Modules.Authoring.Templates.Commands.ActivateTemplateVersion;
 
-public class ActivateTemplateVersionUseCaseTests
+public sealed class ActivateTemplateVersionUseCaseTests
 {
-    private readonly TemplateAuthoringTestFixture _fixture = new();
+    private readonly ITemplateRepository _templateRepo = Substitute.For<ITemplateRepository>();
+    private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
+    private readonly FakeTimeProvider _timeProvider = TestConstants.CreateFakeClock();
 
-    private ActivateTemplateVersionUseCase CreateSut() => _fixture.BuildActivateTemplateVersionUseCase();
+    public ActivateTemplateVersionUseCaseTests()
+    {
+        _unitOfWork.CommitAsync(Arg.Any<CancellationToken>()).Returns(1);
+    }
+
+    private ActivateTemplateVersionUseCase CreateSut() => new(
+        _templateRepo,
+        _unitOfWork,
+        _timeProvider);
 
     [Fact]
     public async Task ExecuteAsync_WhenTemplateNotFound_ShouldThrowNotFoundException()
     {
+        // Arrange
         var templateId = Guid.NewGuid();
         var versionId = Guid.NewGuid();
 
-        _fixture.TemplateRepo
-            .Setup(r => r.GetByIdAsync(templateId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync((Template?)null);
+        _templateRepo.GetByIdAsync(templateId, Arg.Any<CancellationToken>())
+            .Returns((Template?)null);
 
+        // Act
         var act = () => CreateSut().ExecuteAsync(new ActivateTemplateVersionCommand(templateId, versionId));
 
+        // Assert
         await act.Should().ThrowAsync<NotFoundException>();
+        await _unitOfWork.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task ExecuteAsync_WhenVersionBelongsToAnotherTemplate_ShouldThrowConflictException()
     {
+        // Arrange
         var templateId = Guid.NewGuid();
         var foreignTemplateId = Guid.NewGuid();
         var versionId = Guid.NewGuid();
 
-        var template = new TemplateBuilder().WithId(templateId).Build();
-        var foreignVersion = new TemplateVersionBuilder()
+        Template template = TemplateBuilder.ATemplate().WithId(templateId);
+        TemplateVersion foreignVersion = TemplateVersionBuilder.AVersion()
             .WithId(versionId)
-            .WithTemplateId(foreignTemplateId)
-            .Build();
+            .WithTemplateId(foreignTemplateId);
 
-        _fixture.TemplateRepo
-            .Setup(r => r.GetByIdAsync(templateId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(template);
-        _fixture.TemplateRepo
-            .Setup(r => r.GetVersionByIdAsync(versionId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(foreignVersion);
+        _templateRepo.GetByIdAsync(templateId, Arg.Any<CancellationToken>())
+            .Returns(template);
+        _templateRepo.GetVersionByIdAsync(versionId, Arg.Any<CancellationToken>())
+            .Returns(foreignVersion);
 
+        // Act
         var act = () => CreateSut().ExecuteAsync(new ActivateTemplateVersionCommand(templateId, versionId));
 
+        // Assert
         await act.Should().ThrowAsync<ConflictException>();
+        _templateRepo.DidNotReceive().Update(Arg.Any<Template>());
+        await _unitOfWork.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task ExecuteAsync_WhenValid_ShouldEnforceDomainInvariantsAndCommit()
     {
+        // Arrange
         var templateId = Guid.NewGuid();
         var versionId = Guid.NewGuid();
 
-        var template = new TemplateBuilder().WithId(templateId).Build();
-        var version = new TemplateVersionBuilder()
+        Template template = TemplateBuilder.ATemplate().WithId(templateId);
+        TemplateVersion version = TemplateVersionBuilder.AVersion()
             .WithId(versionId)
             .WithTemplateId(templateId)
-            .WithVersion(2)
-            .Build();
+            .WithVersion(2);
 
-        _fixture.TemplateRepo
-            .Setup(r => r.GetByIdAsync(templateId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(template);
-        _fixture.TemplateRepo
-            .Setup(r => r.GetVersionByIdAsync(versionId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(version);
+        _templateRepo.GetByIdAsync(templateId, Arg.Any<CancellationToken>())
+            .Returns(template);
+        _templateRepo.GetVersionByIdAsync(versionId, Arg.Any<CancellationToken>())
+            .Returns(version);
 
-        var response = await CreateSut().ExecuteAsync(new ActivateTemplateVersionCommand(templateId, versionId));
+        // Act
+        TemplateResultDto result = await CreateSut().ExecuteAsync(new ActivateTemplateVersionCommand(templateId, versionId));
 
+        // Assert
         template.CurrentVersionId.Should().Be(versionId);
         template.IsActive.Should().BeTrue();
-        response.CurrentVersionId.Should().Be(versionId);
-        response.IsActive.Should().BeTrue();
+        result.CurrentVersionId.Should().Be(versionId);
+        result.IsActive.Should().BeTrue();
 
-        _fixture.TemplateRepo.Verify(r => r.Update(template), Times.Once);
-        _fixture.Uow.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _templateRepo.Received(1).Update(template);
+        await _unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
     }
 }

@@ -1,10 +1,10 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using SmkDoc.Application.Common;
 using Xunit;
 
 namespace SmkDoc.Tests.Application.Common;
 
-public class StorageBucketsTests
+public sealed class StorageBucketsTests
 {
     [Fact]
     public void Templates_ShouldBeExactly_templates()

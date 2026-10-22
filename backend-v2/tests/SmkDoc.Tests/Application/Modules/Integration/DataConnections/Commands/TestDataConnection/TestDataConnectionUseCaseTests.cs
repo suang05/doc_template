@@ -1,35 +1,41 @@
+using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Integration.DataConnections.Commands.TestDataConnection;
-using SmkDoc.Tests.Common.Fixtures;
 
 namespace SmkDoc.Tests.Application.Modules.Integration.DataConnections.Commands.TestDataConnection;
 
-public class TestDataConnectionUseCaseTests
+public sealed class TestDataConnectionUseCaseTests
 {
-    private readonly IntegrationModuleTestFixture _fixture = new();
+    private readonly ISqlExecutorService _sqlExecutor = Substitute.For<ISqlExecutorService>();
 
-    private TestDataConnectionUseCase CreateSut() => _fixture.BuildTestDataConnectionUseCase();
+    private TestDataConnectionUseCase CreateSut() => new(_sqlExecutor);
 
     [Fact]
     public async Task ExecuteAsync_WhenQuerySucceeds_ShouldReturnTrue()
     {
+        // Arrange
         var command = new TestDataConnectionCommand("PostgreSQL", "valid-conn");
-        _fixture.SqlExecutor.Setup(s => s.ExecuteQueryAsJsonAsync("PostgreSQL", "valid-conn", "SELECT 1", null))
-            .ReturnsAsync("[{\"1\": 1}]");
+        _sqlExecutor.ExecuteQueryAsJsonAsync("PostgreSQL", "valid-conn", "SELECT 1", null)
+            .Returns("[{\"1\": 1}]");
 
+        // Act
         var result = await CreateSut().ExecuteAsync(command);
 
+        // Assert
         result.Should().BeTrue();
     }
 
     [Fact]
     public async Task ExecuteAsync_WhenQueryFails_ShouldReturnFalse()
     {
+        // Arrange
         var command = new TestDataConnectionCommand("PostgreSQL", "invalid-conn");
-        _fixture.SqlExecutor.Setup(s => s.ExecuteQueryAsJsonAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IDictionary<string, object>?>()))
-            .ThrowsAsync(new Exception("Network timeout"));
+        _sqlExecutor.ExecuteQueryAsJsonAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<IDictionary<string, object>?>())
+            .ThrowsAsync(new InvalidOperationException("Network timeout"));
 
+        // Act
         var result = await CreateSut().ExecuteAsync(command);
 
+        // Assert
         result.Should().BeFalse();
     }
 }

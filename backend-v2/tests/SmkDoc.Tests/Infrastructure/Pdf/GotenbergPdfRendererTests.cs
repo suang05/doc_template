@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using System.Text;
 using FluentAssertions;
 using Microsoft.Extensions.Configuration;
@@ -12,7 +12,7 @@ using Xunit;
 
 namespace SmkDoc.Tests.Infrastructure.Pdf;
 
-public class GotenbergPdfRendererTests
+public sealed class GotenbergPdfRendererTests
 {
     private class MockHttpMessageHandler(Func<HttpRequestMessage, Task<HttpResponseMessage>> handlerFunc)
         : HttpMessageHandler

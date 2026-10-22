@@ -1,8 +1,8 @@
-using SmkDoc.Domain.Entities;
+﻿using SmkDoc.Domain.Entities;
 
 namespace SmkDoc.Tests.Domain.Entities;
 
-public class UserProjectRoleTests
+public sealed class UserProjectRoleTests
 {
     private readonly DateTimeOffset _initialTime = TestConstants.BaselineTime;
 

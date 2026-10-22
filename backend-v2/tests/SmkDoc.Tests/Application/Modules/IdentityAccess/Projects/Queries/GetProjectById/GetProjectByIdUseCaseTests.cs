@@ -1,22 +1,25 @@
+using SmkDoc.Application.Modules.IdentityAccess.Projects.DTOs;
 using SmkDoc.Application.Modules.IdentityAccess.Projects.Queries.GetProjectById;
 using SmkDoc.Domain.Entities;
+using SmkDoc.Domain.Exceptions;
+using SmkDoc.Domain.Interfaces;
 using SmkDoc.Tests.Common.Builders;
 
 namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Projects.Queries.GetProjectById;
 
-public class GetProjectByIdUseCaseTests
+public sealed class GetProjectByIdUseCaseTests
 {
-    private readonly Mock<IProjectRepository> _projectRepoMock = new();
+    private readonly IProjectRepository _projectRepo = Substitute.For<IProjectRepository>();
 
-    private GetProjectByIdUseCase CreateSut() => new(_projectRepoMock.Object);
+    private GetProjectByIdUseCase CreateSut() => new(_projectRepo);
 
     [Fact]
     public async Task ExecuteAsync_WhenProjectNotFound_ThrowsNotFoundException()
     {
         // Arrange
         var projectId = Guid.NewGuid();
-        _projectRepoMock.Setup(r => r.GetByIdAsync(projectId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync((Project?)null);
+        _projectRepo.GetByIdAsync(projectId, Arg.Any<CancellationToken>())
+            .Returns((Project?)null);
 
         // Act
         var act = () => CreateSut().ExecuteAsync(new GetProjectByIdQuery(projectId));
@@ -30,17 +33,16 @@ public class GetProjectByIdUseCaseTests
     {
         // Arrange
         var projectId = Guid.NewGuid();
-        var project = new ProjectBuilder()
+        Project project = ProjectBuilder.AProject()
             .WithId(projectId)
             .WithName("Billing Project")
-            .WithSlug("billing-proj")
-            .Build();
+            .WithSlug("billing-proj");
 
-        _projectRepoMock.Setup(r => r.GetByIdAsync(projectId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(project);
+        _projectRepo.GetByIdAsync(projectId, Arg.Any<CancellationToken>())
+            .Returns(project);
 
         // Act
-        var result = await CreateSut().ExecuteAsync(new GetProjectByIdQuery(projectId));
+        ProjectResultDto result = await CreateSut().ExecuteAsync(new GetProjectByIdQuery(projectId));
 
         // Assert
         result.Should().NotBeNull();

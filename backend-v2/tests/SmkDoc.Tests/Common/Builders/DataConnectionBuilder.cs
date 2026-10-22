@@ -72,4 +72,6 @@ public class DataConnectionBuilder
             _encryptedConnectionString,
             _now);
     }
+
+    public static implicit operator DataConnection(DataConnectionBuilder builder) => builder.Build();
 }

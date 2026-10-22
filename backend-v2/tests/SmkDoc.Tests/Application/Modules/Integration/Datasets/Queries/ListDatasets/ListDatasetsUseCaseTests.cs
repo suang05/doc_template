@@ -1,31 +1,42 @@
+using SmkDoc.Application.Modules.Integration.Datasets.DTOs;
 using SmkDoc.Application.Modules.Integration.Datasets.Queries.ListDatasets;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Enums;
+using SmkDoc.Domain.Interfaces;
 using SmkDoc.Tests.Common.Builders;
-using SmkDoc.Tests.Common.Fixtures;
 
 namespace SmkDoc.Tests.Application.Modules.Integration.Datasets.Queries.ListDatasets;
 
-public class ListDatasetsUseCaseTests
+public sealed class ListDatasetsUseCaseTests
 {
-    private readonly IntegrationModuleTestFixture _fixture = new();
+    private readonly IDatasetRepository _datasetRepo = Substitute.For<IDatasetRepository>();
+    private readonly IDataConnectionRepository _connectionRepo = Substitute.For<IDataConnectionRepository>();
 
-    private ListDatasetsUseCase CreateSut() => _fixture.BuildListDatasetsUseCase();
+    private ListDatasetsUseCase CreateSut() => new(
+        _datasetRepo,
+        _connectionRepo);
 
     [Fact]
     public async Task ExecuteAsync_ShouldReturnEnrichedDatasets()
     {
+        // Arrange
         var connId = Guid.NewGuid();
-        var conn = DataConnectionBuilder.Postgres(name: "PostgresDB", connectionString: "enc_pg", id: connId);
-        var dataset = new DatasetBuilder().WithName("CustomerData").WithDescription("Customer queries").WithDataConnectionId(connId).WithSqlQuery("SELECT * FROM customers").WithCacheSeconds(120).Build();
+        DataConnection conn = DataConnectionBuilder.Postgres(name: "PostgresDB", connectionString: "enc_pg", id: connId);
+        Dataset dataset = new DatasetBuilder()
+            .WithName("CustomerData")
+            .WithDescription("Customer queries")
+            .WithDataConnectionId(connId)
+            .WithSqlQuery("SELECT * FROM customers")
+            .WithCacheSeconds(120);
 
-        _fixture.DatasetRepo.Setup(r => r.ListAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new List<Dataset> { dataset });
-        _fixture.ConnectionRepo.Setup(r => r.GetByIdsAsync(It.IsAny<IEnumerable<Guid>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new List<DataConnection> { conn });
+        _datasetRepo.ListAsync(Arg.Any<CancellationToken>())
+            .Returns(new List<Dataset> { dataset });
+        _connectionRepo.GetByIdsAsync(Arg.Any<IEnumerable<Guid>>(), Arg.Any<CancellationToken>())
+            .Returns(new List<DataConnection> { conn });
 
-        var results = await CreateSut().ExecuteAsync(new ListDatasetsQuery());
+        // Act
+        IReadOnlyList<DatasetDto> results = await CreateSut().ExecuteAsync(new ListDatasetsQuery());
 
+        // Assert
         results.Should().HaveCount(1);
         results[0].Name.Should().Be("CustomerData");
         results[0].DataConnectionName.Should().Be("PostgresDB");

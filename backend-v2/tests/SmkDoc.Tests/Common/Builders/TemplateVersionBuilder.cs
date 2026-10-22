@@ -127,4 +127,6 @@ public class TemplateVersionBuilder
 
         return version;
     }
+
+    public static implicit operator TemplateVersion(TemplateVersionBuilder builder) => builder.Build();
 }

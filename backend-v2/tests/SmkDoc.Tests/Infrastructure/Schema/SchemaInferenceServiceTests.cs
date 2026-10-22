@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using SmkDoc.Infrastructure.Schema;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -6,7 +6,7 @@ using Xunit;
 
 namespace SmkDoc.Tests.Infrastructure.Schema;
 
-public class SchemaInferenceServiceTests
+public sealed class SchemaInferenceServiceTests
 {
     private readonly SchemaInferenceService _service = new();
 

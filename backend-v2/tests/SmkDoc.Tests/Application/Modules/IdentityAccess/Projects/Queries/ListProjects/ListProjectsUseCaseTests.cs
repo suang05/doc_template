@@ -1,21 +1,18 @@
-using FluentAssertions;
-using Moq;
+using SmkDoc.Application.Modules.IdentityAccess.Projects.DTOs;
 using SmkDoc.Application.Modules.IdentityAccess.Projects.Queries.ListProjects;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Tests.Common.Builders;
-using Xunit;
 
 namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Projects.Queries.ListProjects;
 
-public class ListProjectsUseCaseTests
+public sealed class ListProjectsUseCaseTests
 {
-    private readonly Mock<IProjectRepository> _projectRepoMock = new();
-    private readonly Mock<IUserRepository> _userRepoMock = new();
+    private readonly IProjectRepository _projectRepo = Substitute.For<IProjectRepository>();
+    private readonly IUserRepository _userRepo = Substitute.For<IUserRepository>();
 
-    private ListProjectsUseCase CreateSut() =>
-        new(_projectRepoMock.Object, _userRepoMock.Object);
+    private ListProjectsUseCase CreateSut() => new(_projectRepo, _userRepo);
 
     [Fact]
     public async Task ExecuteAsync_WhenStandardUser_QueriesUserAssignedProjectsOnly()
@@ -23,23 +20,23 @@ public class ListProjectsUseCaseTests
         // Arrange
         var now = TestConstants.BaselineTime;
         var userId = Guid.NewGuid();
-        var user = UserBuilder.AUser().WithSystemRole(SystemRole.Member).WithTime(now).Build();
-        var project = new ProjectBuilder().WithName("Proj 1").WithSlug("proj-1").WithTime(now).Build();
+        User user = UserBuilder.AUser().WithSystemRole(SystemRole.Member).WithTime(now);
+        Project project = ProjectBuilder.AProject().WithName("Proj 1").WithSlug("proj-1").WithTime(now);
 
-        _userRepoMock.Setup(u => u.GetByIdAsync(userId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(user);
+        _userRepo.GetByIdAsync(userId, Arg.Any<CancellationToken>())
+            .Returns(user);
 
-        _projectRepoMock.Setup(r => r.ListPagedByUserAsync(
+        _projectRepo.ListPagedByUserAsync(
                 userId,
                 false,
-                It.IsAny<string?>(),
+                Arg.Any<string?>(),
                 1,
                 20,
-                It.IsAny<CancellationToken>()))
-            .ReturnsAsync(([project], 1));
+                Arg.Any<CancellationToken>())
+            .Returns(([project], 1));
 
         // Act
-        var result = await CreateSut().ExecuteAsync(new ListProjectsQuery(userId));
+        ProjectPagedResultDto result = await CreateSut().ExecuteAsync(new ListProjectsQuery(userId));
 
         // Assert
         result.Should().NotBeNull();
@@ -55,34 +52,34 @@ public class ListProjectsUseCaseTests
         // Arrange
         var now = TestConstants.BaselineTime;
         var userId = Guid.NewGuid();
-        var user = UserBuilder.AUser().WithSystemRole(SystemRole.SuperAdmin).WithTime(now).Build();
-        var project = new ProjectBuilder().WithName("Proj 1").WithSlug("proj-1").WithTime(now).Build();
+        User user = UserBuilder.AUser().WithSystemRole(SystemRole.SuperAdmin).WithTime(now);
+        Project project = ProjectBuilder.AProject().WithName("Proj 1").WithSlug("proj-1").WithTime(now);
 
-        _userRepoMock.Setup(u => u.GetByIdAsync(userId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(user);
+        _userRepo.GetByIdAsync(userId, Arg.Any<CancellationToken>())
+            .Returns(user);
 
-        _projectRepoMock.Setup(r => r.ListPagedByUserAsync(
+        _projectRepo.ListPagedByUserAsync(
                 userId,
                 true,
-                It.IsAny<string?>(),
+                Arg.Any<string?>(),
                 1,
                 20,
-                It.IsAny<CancellationToken>()))
-            .ReturnsAsync(([project], 1));
+                Arg.Any<CancellationToken>())
+            .Returns(([project], 1));
 
         // Act
-        var result = await CreateSut().ExecuteAsync(new ListProjectsQuery(userId));
+        ProjectPagedResultDto result = await CreateSut().ExecuteAsync(new ListProjectsQuery(userId));
 
         // Assert
         result.Should().NotBeNull();
         result.TotalCount.Should().Be(1);
-        _projectRepoMock.Verify(r => r.ListPagedByUserAsync(
+        await _projectRepo.Received(1).ListPagedByUserAsync(
             userId,
             true,
-            It.IsAny<string?>(),
+            Arg.Any<string?>(),
             1,
             20,
-            It.IsAny<CancellationToken>()), Times.Once);
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -91,23 +88,23 @@ public class ListProjectsUseCaseTests
         // Arrange
         var now = TestConstants.BaselineTime;
         var userId = Guid.NewGuid();
-        var user = UserBuilder.AUser().WithSystemRole(SystemRole.Member).WithTime(now).Build();
+        User user = UserBuilder.AUser().WithSystemRole(SystemRole.Member).WithTime(now);
 
-        _userRepoMock.Setup(u => u.GetByIdAsync(userId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(user);
+        _userRepo.GetByIdAsync(userId, Arg.Any<CancellationToken>())
+            .Returns(user);
 
-        _projectRepoMock.Setup(r => r.ListPagedByUserAsync(
+        _projectRepo.ListPagedByUserAsync(
                 userId,
                 false,
                 "invoice",
                 2,
                 10,
-                It.IsAny<CancellationToken>()))
-            .ReturnsAsync(([], 0));
+                Arg.Any<CancellationToken>())
+            .Returns(([], 0));
 
         // Act
         var query = new ListProjectsQuery(userId, "invoice", 2, 10);
-        var result = await CreateSut().ExecuteAsync(query);
+        ProjectPagedResultDto result = await CreateSut().ExecuteAsync(query);
 
         // Assert
         result.Page.Should().Be(2);

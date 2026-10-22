@@ -1,17 +1,17 @@
-using SmkDoc.Application.Common.Interfaces;
+﻿using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Rendering.Logs.Queries.GetLogDownloadUrl;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Tests.Common.Builders;
 
 namespace SmkDoc.Tests.Application.Modules.Rendering.Logs.Queries.GetLogDownloadUrl;
 
-public class GetLogDownloadUrlUseCaseTests
+public sealed class GetLogDownloadUrlUseCaseTests
 {
-    private readonly Mock<IRepository<GenerationLog>> _logRepoMock = new();
-    private readonly Mock<IStorageService> _storageMock = new();
+    private readonly IRepository<GenerationLog> _logRepo = Substitute.For<IRepository<GenerationLog>>();
+    private readonly IStorageService _storage = Substitute.For<IStorageService>();
 
     private GetLogDownloadUrlUseCase CreateSut() =>
-        new(_logRepoMock.Object, _storageMock.Object);
+        new(_logRepo, _storage);
 
     [Fact]
     public async Task ExecuteAsync_WhenLogExists_ReturnsPresignedUrl()
@@ -20,13 +20,11 @@ public class GetLogDownloadUrlUseCaseTests
         var logId = Guid.NewGuid();
         var log = GenerationLogBuilder.Success(id: logId, outputKey: "outputs/doc.pdf", durationMs: 1);
 
-        _logRepoMock
-            .Setup(r => r.GetByIdAsync(logId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(log);
+        _logRepo.GetByIdAsync(logId, Arg.Any<CancellationToken>())
+            .Returns(log);
 
-        _storageMock
-            .Setup(s => s.GetPresignedUrlAsync("outputs", "outputs/doc.pdf", It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync("https://minio.sammakorn.co.th/outputs/doc.pdf?token=abc");
+        _storage.GetPresignedUrlAsync("outputs", "outputs/doc.pdf", Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>())
+            .Returns("https://minio.sammakorn.co.th/outputs/doc.pdf?token=abc");
 
         // Act
         var url = await CreateSut().ExecuteAsync(new GetLogDownloadUrlQuery(logId));

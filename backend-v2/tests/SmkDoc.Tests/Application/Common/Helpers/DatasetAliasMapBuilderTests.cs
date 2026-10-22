@@ -1,19 +1,19 @@
-using SmkDoc.Application.Common.Helpers;
+﻿using SmkDoc.Application.Common.Helpers;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
+using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
-using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Tests.Common;
 using SmkDoc.Tests.Common.Builders;
 
 namespace SmkDoc.Tests.Application.Common.Helpers;
 
-public class DatasetAliasMapBuilderTests
+public sealed class DatasetAliasMapBuilderTests
 {
-    private readonly Mock<IDatasetRepository> _datasetRepoMock = new();
-    private readonly Mock<IDataConnectionRepository> _connectionRepoMock = new();
-    private readonly Mock<IDataProtectionService> _dataProtectionMock = new();
+    private readonly IDatasetRepository _datasetRepo = Substitute.For<IDatasetRepository>();
+    private readonly IDataConnectionRepository _connectionRepo = Substitute.For<IDataConnectionRepository>();
+    private readonly IDataProtectionService _dataProtection = Substitute.For<IDataProtectionService>();
 
     [Fact]
     public async Task BuildAsync_WhenAssignmentsEmpty_ReturnsEmptyMapWithoutCallingRepositories()
@@ -24,15 +24,15 @@ public class DatasetAliasMapBuilderTests
         // Act
         var result = await DatasetAliasMapBuilder.BuildAsync(
             assignments,
-            _datasetRepoMock.Object,
-            _connectionRepoMock.Object,
-            _dataProtectionMock.Object,
+            _datasetRepo,
+            _connectionRepo,
+            _dataProtection,
             CancellationToken.None);
 
         // Assert
         result.Should().BeEmpty();
-        _datasetRepoMock.Verify(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
-        _connectionRepoMock.Verify(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+        await _datasetRepo.DidNotReceive().GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+        await _connectionRepo.DidNotReceive().GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -58,19 +58,19 @@ public class DatasetAliasMapBuilderTests
             .WithConnectionString("enc:Host=pg")
             .Build();
 
-        _datasetRepoMock.Setup(r => r.GetByIdAsync(datasetId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(dataset);
-        _connectionRepoMock.Setup(r => r.GetByIdAsync(connectionId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(connection);
-        _dataProtectionMock.Setup(p => p.Decrypt("enc:Host=pg"))
+        _datasetRepo.GetByIdAsync(datasetId, Arg.Any<CancellationToken>())
+            .Returns(dataset);
+        _connectionRepo.GetByIdAsync(connectionId, Arg.Any<CancellationToken>())
+            .Returns(connection);
+        _dataProtection.Decrypt("enc:Host=pg")
             .Returns("Host=pg;Port=5432");
 
         // Act
         var result = await DatasetAliasMapBuilder.BuildAsync(
-            new[] { td },
-            _datasetRepoMock.Object,
-            _connectionRepoMock.Object,
-            _dataProtectionMock.Object,
+            [td],
+            _datasetRepo,
+            _connectionRepo,
+            _dataProtection,
             CancellationToken.None);
 
         // Assert
@@ -92,20 +92,20 @@ public class DatasetAliasMapBuilderTests
             .WithTime(TestConstants.BaselineTime)
             .Build();
 
-        _datasetRepoMock.Setup(r => r.GetByIdAsync(datasetId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync((Dataset?)null);
+        _datasetRepo.GetByIdAsync(datasetId, Arg.Any<CancellationToken>())
+            .Returns((Dataset?)null);
 
         // Act
         var result = await DatasetAliasMapBuilder.BuildAsync(
-            new[] { td },
-            _datasetRepoMock.Object,
-            _connectionRepoMock.Object,
-            _dataProtectionMock.Object,
+            [td],
+            _datasetRepo,
+            _connectionRepo,
+            _dataProtection,
             CancellationToken.None);
 
         // Assert
         result.Should().BeEmpty();
-        _connectionRepoMock.Verify(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+        await _connectionRepo.DidNotReceive().GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -125,22 +125,22 @@ public class DatasetAliasMapBuilderTests
             .WithDataConnectionId(connectionId)
             .Build();
 
-        _datasetRepoMock.Setup(r => r.GetByIdAsync(datasetId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(dataset);
-        _connectionRepoMock.Setup(r => r.GetByIdAsync(connectionId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync((DataConnection?)null);
+        _datasetRepo.GetByIdAsync(datasetId, Arg.Any<CancellationToken>())
+            .Returns(dataset);
+        _connectionRepo.GetByIdAsync(connectionId, Arg.Any<CancellationToken>())
+            .Returns((DataConnection?)null);
 
         // Act
         var result = await DatasetAliasMapBuilder.BuildAsync(
-            new[] { td },
-            _datasetRepoMock.Object,
-            _connectionRepoMock.Object,
-            _dataProtectionMock.Object,
+            [td],
+            _datasetRepo,
+            _connectionRepo,
+            _dataProtection,
             CancellationToken.None);
 
         // Assert
         result.Should().BeEmpty();
-        _dataProtectionMock.Verify(p => p.Decrypt(It.IsAny<string>()), Times.Never);
+        _dataProtection.DidNotReceive().Decrypt(Arg.Any<string>());
     }
 
     [Fact]
@@ -153,19 +153,19 @@ public class DatasetAliasMapBuilderTests
         var dataset = new DatasetBuilder().WithId(datasetId).WithDataConnectionId(connectionId).Build();
         var connection = new DataConnectionBuilder().WithId(connectionId).WithConnectionString("corrupted_secret").Build();
 
-        _datasetRepoMock.Setup(r => r.GetByIdAsync(datasetId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(dataset);
-        _connectionRepoMock.Setup(r => r.GetByIdAsync(connectionId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(connection);
-        _dataProtectionMock.Setup(p => p.Decrypt("corrupted_secret"))
+        _datasetRepo.GetByIdAsync(datasetId, Arg.Any<CancellationToken>())
+            .Returns(dataset);
+        _connectionRepo.GetByIdAsync(connectionId, Arg.Any<CancellationToken>())
+            .Returns(connection);
+        _dataProtection.Decrypt("corrupted_secret")
             .Throws(new InvalidOperationException("Decryption error"));
 
         // Act
         var act = () => DatasetAliasMapBuilder.BuildAsync(
-            new[] { td },
-            _datasetRepoMock.Object,
-            _connectionRepoMock.Object,
-            _dataProtectionMock.Object,
+            [td],
+            _datasetRepo,
+            _connectionRepo,
+            _dataProtection,
             CancellationToken.None);
 
         // Assert

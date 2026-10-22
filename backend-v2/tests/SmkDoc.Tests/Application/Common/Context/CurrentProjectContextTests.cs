@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects.Ids;
@@ -7,7 +7,7 @@ using Xunit;
 
 namespace SmkDoc.Tests.Application.Common.Context;
 
-public class CurrentProjectContextTests
+public sealed class CurrentProjectContextTests
 {
     private readonly CurrentProjectContext _sut = new();
 

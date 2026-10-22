@@ -1,8 +1,8 @@
-using SmkDoc.Application.Modules.IdentityAccess.Users.Commands.InviteUser;
+﻿using SmkDoc.Application.Modules.IdentityAccess.Users.Commands.InviteUser;
 
 namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Users.Commands.InviteUser;
 
-public class InviteUserCommandValidatorTests
+public sealed class InviteUserCommandValidatorTests
 {
     private readonly InviteUserCommandValidator _validator = new();
 

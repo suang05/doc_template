@@ -1,8 +1,8 @@
-using SmkDoc.Application.Common.Helpers;
+﻿using SmkDoc.Application.Common.Helpers;
 
 namespace SmkDoc.Tests.Application.Common.Helpers;
 
-public class ThaiDataTransformerTests
+public sealed class ThaiDataTransformerTests
 {
     [Theory]
     [InlineData(0, "ศูนย์บาทถ้วน")]

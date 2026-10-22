@@ -5,8 +5,6 @@ using ClosedXML.Excel;
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
-using FluentAssertions;
-using Moq;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Infrastructure.Engines.Excel;
@@ -20,7 +18,7 @@ using Xunit.Abstractions;
 namespace SmkDoc.IntegrationTests.Benchmarks;
 
 [Trait("Category", "Benchmark")]
-public class PerformanceBenchmarkTests
+public sealed class PerformanceBenchmarkTests
 {
     private readonly ITestOutputHelper _output;
 
@@ -97,9 +95,9 @@ public class PerformanceBenchmarkTests
         var templateBytes = ms.ToArray();
 
         // 2. Measure Execution
-        var excelMediaService = new MediaGenerationService(new Mock<IQrCodeService>().Object, new Mock<IBarcodeService>().Object, new Mock<IImageOptimizer>().Object);
+        var excelMediaService = new MediaGenerationService(Substitute.For<IQrCodeService>(), Substitute.For<IBarcodeService>(), Substitute.For<IImageOptimizer>());
         var mediaInjector = new ExcelMediaInjector(excelMediaService);
-        var engine = new ExcelTemplateEngine(new Mock<IPdfRenderer>().Object, mediaInjector);
+        var engine = new ExcelTemplateEngine(Substitute.For<IPdfRenderer>(), mediaInjector);
 
         // Warm up
         using (var warmStream = new MemoryStream(templateBytes))
@@ -178,9 +176,9 @@ public class PerformanceBenchmarkTests
         var templateBytes = ms.ToArray();
 
         // 2. Measure Execution
-        var wordMediaService = new MediaGenerationService(new Mock<IQrCodeService>().Object, new Mock<IBarcodeService>().Object, new Mock<IImageOptimizer>().Object);
+        var wordMediaService = new MediaGenerationService(Substitute.For<IQrCodeService>(), Substitute.For<IBarcodeService>(), Substitute.For<IImageOptimizer>());
         var mediaInjector = new WordMediaInjector(wordMediaService);
-        var engine = new DocxTemplateEngine(new Mock<IPdfRenderer>().Object, mediaInjector);
+        var engine = new DocxTemplateEngine(Substitute.For<IPdfRenderer>(), mediaInjector);
 
         // Warm up
         using (var warmStream = new MemoryStream(templateBytes))
@@ -270,12 +268,12 @@ public class PerformanceBenchmarkTests
 </html>";
 
         var templateBytes = Encoding.UTF8.GetBytes(htmlTemplate);
-        var mockPdf = new Mock<IPdfRenderer>();
-        mockPdf.Setup(p => p.RenderHtmlToPdfAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((string html, string? h, string? f, CancellationToken ct) => Encoding.UTF8.GetBytes(html));
+        var mockPdf = Substitute.For<IPdfRenderer>();
+        mockPdf.RenderHtmlToPdfAsync(Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns(callInfo => Task.FromResult(Encoding.UTF8.GetBytes(callInfo.ArgAt<string>(0))));
 
-        var htmlMediaService = new MediaGenerationService(new Mock<IQrCodeService>().Object, new Mock<IBarcodeService>().Object);
-        var engine = new HtmlTemplateEngine(mockPdf.Object, new HtmlHelperRegistry(htmlMediaService));
+        var htmlMediaService = new MediaGenerationService(Substitute.For<IQrCodeService>(), Substitute.For<IBarcodeService>());
+        var engine = new HtmlTemplateEngine(mockPdf, new HtmlHelperRegistry(htmlMediaService));
 
         // Warm up
         using (var warmStream = new MemoryStream(templateBytes))
@@ -314,12 +312,12 @@ public class PerformanceBenchmarkTests
         var htmlTemplate = "<html><body><h1>Hello World</h1></body></html>";
         var templateBytes = Encoding.UTF8.GetBytes(htmlTemplate);
         
-        var mockPdf = new Mock<IPdfRenderer>();
-        mockPdf.Setup(p => p.RenderHtmlToPdfAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((string html, string? h, string? f, CancellationToken ct) => Encoding.UTF8.GetBytes(html)); // mock returns bytes
+        var mockPdf = Substitute.For<IPdfRenderer>();
+        mockPdf.RenderHtmlToPdfAsync(Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns(callInfo => Task.FromResult(Encoding.UTF8.GetBytes(callInfo.ArgAt<string>(0))));
 
-        var htmlMediaService = new MediaGenerationService(new Mock<IQrCodeService>().Object, new Mock<IBarcodeService>().Object);
-        var engine = new HtmlTemplateEngine(mockPdf.Object, new HtmlHelperRegistry(htmlMediaService));
+        var htmlMediaService = new MediaGenerationService(Substitute.For<IQrCodeService>(), Substitute.For<IBarcodeService>());
+        var engine = new HtmlTemplateEngine(mockPdf, new HtmlHelperRegistry(htmlMediaService));
         var payload = "{}";
 
         var sw = Stopwatch.StartNew();

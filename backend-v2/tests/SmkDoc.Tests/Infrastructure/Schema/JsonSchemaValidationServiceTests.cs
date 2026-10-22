@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using System.Text.Json;
 using SmkDoc.Infrastructure.Schema;
 using Xunit;
@@ -11,7 +11,7 @@ namespace SmkDoc.Tests.Infrastructure.Schema;
 /// Validates Draft-07 schema evaluation logic: required fields, type checking,
 /// pattern matching, minimum constraints, and format keywords.
 /// </summary>
-public class JsonSchemaValidationServiceTests
+public sealed class JsonSchemaValidationServiceTests
 {
     private readonly JsonSchemaValidationService _sut = new(new MemoryCache(new MemoryCacheOptions()));
 

@@ -1,29 +1,26 @@
 using ClosedXML.Excel;
-using FluentAssertions;
-using Moq;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Infrastructure.Engines.Excel;
 using SmkDoc.Infrastructure.Imaging;
-using Xunit;
 
 namespace SmkDoc.IntegrationTests.Generators;
 
 [Trait("Category", "Generator")]
-public class ExcelFixtureTemplateTests
+public sealed class ExcelFixtureTemplateTests
 {
     private static ExcelTemplateEngine CreateEngine()
     {
-        var qr = new Mock<IQrCodeService>();
-        var bc = new Mock<IBarcodeService>();
-        var opt = new Mock<IImageOptimizer>();
-        var pdf = new Mock<IPdfRenderer>();
-        opt.Setup(x => x.Optimize(It.IsAny<byte[]>(), It.IsAny<int>(), It.IsAny<int>()))
-           .Returns<byte[], int, int>((b, _, _) => b);
+        var qr = Substitute.For<IQrCodeService>();
+        var bc = Substitute.For<IBarcodeService>();
+        var opt = Substitute.For<IImageOptimizer>();
+        var pdf = Substitute.For<IPdfRenderer>();
+        opt.Optimize(Arg.Any<byte[]>(), Arg.Any<int>(), Arg.Any<int>())
+           .Returns(callInfo => callInfo.Arg<byte[]>());
 
-        var mediaService = new MediaGenerationService(qr.Object, bc.Object, opt.Object);
+        var mediaService = new MediaGenerationService(qr, bc, opt);
         var mediaInjector = new ExcelMediaInjector(mediaService);
-        return new ExcelTemplateEngine(pdf.Object, mediaInjector);
+        return new ExcelTemplateEngine(pdf, mediaInjector);
     }
 
     [Fact]

@@ -1,19 +1,21 @@
-using SmkDoc.Application.Modules.Authoring.FieldMappings.Commands.SaveTemplateMappings;
+﻿using SmkDoc.Application.Modules.Authoring.FieldMappings.Commands.SaveTemplateMappings;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Tests.Common;
 using SmkDoc.Tests.Common.Builders;
 
 namespace SmkDoc.Tests.Application.Modules.Authoring.FieldMappings.Commands.SaveTemplateMappings;
 
-public class SaveTemplateMappingsUseCaseTests
+public sealed class SaveTemplateMappingsUseCaseTests
 {
-    private readonly Mock<ITemplateRepository> _templateRepoMock = new();
-    private readonly Mock<IUnitOfWork> _uowMock = new();
+    private readonly ITemplateRepository _templateRepo = Substitute.For<ITemplateRepository>();
+    private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
+    private readonly TimeProvider _timeProvider = TestConstants.CreateFakeClock();
 
     private SaveTemplateMappingsUseCase CreateSut() =>
-        new(_templateRepoMock.Object, _uowMock.Object);
+        new(_templateRepo, _unitOfWork, _timeProvider);
 
     [Fact]
     public async Task ExecuteAsync_WhenValidCommand_SavesMappingsAndCommits()
@@ -26,9 +28,8 @@ public class SaveTemplateMappingsUseCaseTests
             .WithSlug("contract")
             .Build();
 
-        _templateRepoMock
-            .Setup(r => r.GetByIdAsync(templateId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(template);
+        _templateRepo.GetByIdWithDetailsAsync(templateId, Arg.Any<CancellationToken>())
+            .Returns(template);
 
         var items = new List<SaveFieldMappingItemDto>
         {
@@ -36,6 +37,7 @@ public class SaveTemplateMappingsUseCaseTests
         };
 
         var command = new SaveTemplateMappingsCommand(templateId, items);
+
         // Act
         await CreateSut().ExecuteAsync(command);
 
@@ -46,7 +48,7 @@ public class SaveTemplateMappingsUseCaseTests
         mapping.Placeholder.Should().Be("customerName");
         mapping.SourcePath.Should().Be("customer.name");
         mapping.Transform.Should().Be("thai_baht_text");
-        _uowMock.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
+        await _unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -54,11 +56,12 @@ public class SaveTemplateMappingsUseCaseTests
     {
         // Arrange
         var templateId = Guid.NewGuid();
-        _templateRepoMock
-            .Setup(r => r.GetByIdAsync(templateId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync((Template?)null);
+        _templateRepo.GetByIdWithDetailsAsync(templateId, Arg.Any<CancellationToken>())
+            .Returns((Template?)null);
+        _templateRepo.GetByIdAsync(templateId, Arg.Any<CancellationToken>())
+            .Returns((Template?)null);
 
-        var command = new SaveTemplateMappingsCommand(templateId, new List<SaveFieldMappingItemDto>());
+        var command = new SaveTemplateMappingsCommand(templateId, []);
 
         // Act
         var act = () => CreateSut().ExecuteAsync(command);

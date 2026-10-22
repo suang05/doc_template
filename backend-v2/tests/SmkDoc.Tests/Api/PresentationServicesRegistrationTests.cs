@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using FluentAssertions;
 using Microsoft.Extensions.Configuration;
@@ -8,7 +8,7 @@ using Xunit;
 
 namespace SmkDoc.Tests.Api;
 
-public class PresentationServicesRegistrationTests
+public sealed class PresentationServicesRegistrationTests
 {
     [Fact]
     public void AddPresentationServices_WhenJwtSecretMissing_ThrowsInvalidOperationException()

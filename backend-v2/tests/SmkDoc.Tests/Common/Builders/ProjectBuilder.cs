@@ -69,4 +69,12 @@ public class ProjectBuilder
 
         return project;
     }
+
+    public static implicit operator Project(ProjectBuilder builder) => builder.Build();
+}
+
+public static class aProject
+{
+    public static ProjectBuilder Active() => ProjectBuilder.AProject();
+    public static ProjectBuilder Inactive() => ProjectBuilder.AProject().AsInactive();
 }

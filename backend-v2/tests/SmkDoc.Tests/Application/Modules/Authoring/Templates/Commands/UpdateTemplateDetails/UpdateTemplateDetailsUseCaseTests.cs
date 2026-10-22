@@ -1,58 +1,90 @@
-using FluentAssertions;
-using Moq;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.UpdateTemplateDetails;
+using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
+using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
+using SmkDoc.Domain.Interfaces;
 using SmkDoc.Tests.Common.Builders;
-using SmkDoc.Tests.Common.Fixtures;
-using Xunit;
+using ValidationException = SmkDoc.Application.Common.Exceptions.ValidationException;
 
 namespace SmkDoc.Tests.Application.Modules.Authoring.Templates.Commands.UpdateTemplateDetails;
 
-public class UpdateTemplateDetailsUseCaseTests
+public sealed class UpdateTemplateDetailsUseCaseTests
 {
-    private readonly TemplateAuthoringTestFixture _fixture = new();
+    private readonly ITemplateRepository _templateRepo = Substitute.For<ITemplateRepository>();
+    private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
+    private readonly UpdateTemplateDetailsCommandValidator _validator = new();
+    private readonly FakeTimeProvider _timeProvider = TestConstants.CreateFakeClock();
 
-    private UpdateTemplateDetailsUseCase CreateSut() => _fixture.BuildUpdateTemplateDetailsUseCase();
+    public UpdateTemplateDetailsUseCaseTests()
+    {
+        _unitOfWork.CommitAsync(Arg.Any<CancellationToken>()).Returns(1);
+    }
+
+    private UpdateTemplateDetailsUseCase CreateSut() => new(
+        _templateRepo,
+        _unitOfWork,
+        _validator,
+        _timeProvider);
+
+    [Fact]
+    public async Task ExecuteAsync_WhenCommandIsInvalid_ShouldFailFastWithoutTouchingDb()
+    {
+        // Arrange
+        var invalidCommand = new UpdateTemplateDetailsCommand(Guid.Empty, "", null);
+
+        // Act
+        var act = () => CreateSut().ExecuteAsync(invalidCommand);
+
+        // Assert
+        await act.Should().ThrowAsync<ValidationException>();
+        await _templateRepo.DidNotReceive().GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+        await _unitOfWork.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
+    }
 
     [Fact]
     public async Task ExecuteAsync_WhenTemplateNotFound_ShouldThrowNotFoundException()
     {
+        // Arrange
         var templateId = Guid.NewGuid();
-        _fixture.TemplateRepo
-            .Setup(r => r.GetByIdAsync(templateId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync((SmkDoc.Domain.Entities.Template?)null);
+        _templateRepo.GetByIdAsync(templateId, Arg.Any<CancellationToken>())
+            .Returns((Template?)null);
 
         var command = new UpdateTemplateDetailsCommand(templateId, "New Name", "New Category");
 
+        // Act
         var act = () => CreateSut().ExecuteAsync(command);
 
+        // Assert
         await act.Should().ThrowAsync<NotFoundException>();
+        _templateRepo.DidNotReceive().Update(Arg.Any<Template>());
+        await _unitOfWork.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task ExecuteAsync_WhenValid_ShouldUpdateDetailsAndCommit()
     {
+        // Arrange
         var templateId = Guid.NewGuid();
-        var template = new TemplateBuilder()
+        Template template = TemplateBuilder.ATemplate()
             .WithId(templateId)
             .WithName("Old Name")
-            .WithSlug("slug")
-            .Build();
+            .WithSlug("slug");
 
-        _fixture.TemplateRepo
-            .Setup(r => r.GetByIdAsync(templateId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(template);
+        _templateRepo.GetByIdAsync(templateId, Arg.Any<CancellationToken>())
+            .Returns(template);
 
         var command = new UpdateTemplateDetailsCommand(templateId, "Updated Name", "Updated Category");
 
-        var response = await CreateSut().ExecuteAsync(command);
+        // Act
+        TemplateResultDto result = await CreateSut().ExecuteAsync(command);
 
+        // Assert
         template.Name.Value.Should().Be("Updated Name");
         template.Category.Should().Be("Updated Category");
-        response.Name.Should().Be("Updated Name");
-        response.Category.Should().Be("Updated Category");
+        result.Name.Should().Be("Updated Name");
+        result.Category.Should().Be("Updated Category");
 
-        _fixture.TemplateRepo.Verify(r => r.Update(template), Times.Once);
-        _fixture.Uow.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _templateRepo.Received(1).Update(template);
+        await _unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
     }
 }

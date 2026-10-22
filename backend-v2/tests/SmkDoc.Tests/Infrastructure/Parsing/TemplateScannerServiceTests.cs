@@ -1,11 +1,11 @@
-using System.Text;
+﻿using System.Text;
 using FluentAssertions;
 using SmkDoc.Infrastructure.Engines;
 using Xunit;
 
 namespace SmkDoc.Tests.Infrastructure.Parsing;
 
-public class TemplateScannerServiceTests
+public sealed class TemplateScannerServiceTests
 {
     [Fact]
     public async Task ScanPlaceholdersAsync_ShouldFilterHandlebarsBlocks_AndExtractValidPlaceholders()

@@ -102,4 +102,6 @@ public class FieldMappingBuilder
             _transform,
             _now);
     }
+
+    public static implicit operator FieldMapping(FieldMappingBuilder builder) => builder.Build();
 }

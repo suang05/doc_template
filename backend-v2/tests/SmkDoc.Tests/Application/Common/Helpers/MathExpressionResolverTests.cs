@@ -1,10 +1,10 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using SmkDoc.Application.Common.Helpers;
 using Xunit;
 
 namespace SmkDoc.Tests.Application.Common.Helpers;
 
-public class MathExpressionResolverTests
+public sealed class MathExpressionResolverTests
 {
     private static readonly MathExpressionResolverService Sut = new();
 

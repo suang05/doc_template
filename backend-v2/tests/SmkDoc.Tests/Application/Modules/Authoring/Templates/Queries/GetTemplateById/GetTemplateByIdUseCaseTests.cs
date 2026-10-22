@@ -1,51 +1,53 @@
-using FluentAssertions;
-using Moq;
+using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.GetTemplateById;
+using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
+using SmkDoc.Domain.Interfaces;
 using SmkDoc.Tests.Common.Builders;
-using SmkDoc.Tests.Common.Fixtures;
-using Xunit;
 
 namespace SmkDoc.Tests.Application.Modules.Authoring.Templates.Queries.GetTemplateById;
 
-public class GetTemplateByIdUseCaseTests
+public sealed class GetTemplateByIdUseCaseTests
 {
-    private readonly TemplateAuthoringTestFixture _fixture = new();
+    private readonly ITemplateRepository _templateRepo = Substitute.For<ITemplateRepository>();
 
-    private GetTemplateByIdUseCase CreateSut() => _fixture.BuildGetTemplateByIdUseCase();
+    private GetTemplateByIdUseCase CreateSut() => new(_templateRepo);
 
     [Fact]
     public async Task ExecuteAsync_WhenTemplateNotFound_ShouldThrowNotFoundException()
     {
+        // Arrange
         var templateId = Guid.NewGuid();
-        _fixture.TemplateRepo
-            .Setup(r => r.GetByIdAsync(templateId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync((SmkDoc.Domain.Entities.Template?)null);
+        _templateRepo.GetByIdAsync(templateId, Arg.Any<CancellationToken>())
+            .Returns((Template?)null);
 
+        // Act
         var act = () => CreateSut().ExecuteAsync(new GetTemplateByIdQuery(templateId));
 
+        // Assert
         await act.Should().ThrowAsync<NotFoundException>();
     }
 
     [Fact]
     public async Task ExecuteAsync_WhenTemplateExists_ShouldReturnMappedResponse()
     {
+        // Arrange
         var templateId = Guid.NewGuid();
-        var template = new TemplateBuilder()
+        Template template = TemplateBuilder.ATemplate()
             .WithId(templateId)
             .WithName("Statement")
-            .WithSlug("statement")
-            .Build();
+            .WithSlug("statement");
 
-        _fixture.TemplateRepo
-            .Setup(r => r.GetByIdAsync(templateId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(template);
+        _templateRepo.GetByIdAsync(templateId, Arg.Any<CancellationToken>())
+            .Returns(template);
 
-        var response = await CreateSut().ExecuteAsync(new GetTemplateByIdQuery(templateId));
+        // Act
+        TemplateResultDto result = await CreateSut().ExecuteAsync(new GetTemplateByIdQuery(templateId));
 
-        response.Should().NotBeNull();
-        response.Id.Should().Be(templateId);
-        response.Name.Should().Be("Statement");
-        response.Slug.Should().Be("statement");
+        // Assert
+        result.Should().NotBeNull();
+        result.Id.Should().Be(templateId);
+        result.Name.Should().Be("Statement");
+        result.Slug.Should().Be("statement");
     }
 }

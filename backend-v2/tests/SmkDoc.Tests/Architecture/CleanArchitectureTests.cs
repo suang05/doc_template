@@ -1,11 +1,11 @@
-using System.Reflection;
+﻿using System.Reflection;
 using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Common;
 
 namespace SmkDoc.Tests.Architecture;
 
-public class CleanArchitectureTests
+public sealed class CleanArchitectureTests
 {
     [Fact]
     public void Domain_Should_Not_Have_Any_Project_Or_Framework_Dependencies()

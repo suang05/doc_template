@@ -5,22 +5,22 @@ using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 
 namespace SmkDoc.Tests.Application.Modules.Authoring.Templates.Commands.ParseTemplateDraft;
 
-public class ParseTemplateDraftUseCaseTests
+public sealed class ParseTemplateDraftUseCaseTests
 {
-    private readonly Mock<ITemplateScannerService> _scanner = new();
-    private readonly Mock<ITemplateDraftCache> _cache = new();
+    private readonly ITemplateScannerService _scanner = Substitute.For<ITemplateScannerService>();
+    private readonly ITemplateDraftCache _cache = Substitute.For<ITemplateDraftCache>();
 
-    private ParseTemplateDraftUseCase CreateSut() => new(_scanner.Object, _cache.Object);
+    private ParseTemplateDraftUseCase CreateSut() => new(_scanner, _cache);
 
     [Fact]
     public async Task ExecuteAsync_WhenValidFile_ShouldStoreDraftAndReturnPlaceholders()
     {
         // Arrange
         var placeholders = new List<string> { "customer.name", "invoice.total" };
-        _scanner.Setup(s => s.ScanPlaceholdersAsync(It.IsAny<Stream>(), ".docx", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(placeholders);
-        _cache.Setup(c => c.StoreAsync(It.IsAny<TemplateDraftEntry>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync("draft-abc");
+        _scanner.ScanPlaceholdersAsync(Arg.Any<Stream>(), ".docx", Arg.Any<CancellationToken>())
+            .Returns(placeholders);
+        _cache.StoreAsync(Arg.Any<TemplateDraftEntry>(), Arg.Any<CancellationToken>())
+            .Returns("draft-abc");
 
         using var stream = new MemoryStream(Encoding.UTF8.GetBytes("fake-docx"));
 
@@ -30,18 +30,19 @@ public class ParseTemplateDraftUseCaseTests
         // Assert
         result.DraftId.Should().Be("draft-abc");
         result.Placeholders.Should().BeEquivalentTo(placeholders);
-        _cache.Verify(c => c.StoreAsync(It.Is<TemplateDraftEntry>(e =>
-            e.FileExtension == ".docx" && e.FileName == "invoice.docx"), It.IsAny<CancellationToken>()), Times.Once);
+        await _cache.Received(1).StoreAsync(
+            Arg.Is<TemplateDraftEntry>(e => e.FileExtension == ".docx" && e.FileName == "invoice.docx"),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task ExecuteAsync_WhenScannerReturnsEmpty_ShouldStoreEntryWithEmptyPlaceholders()
     {
         // Arrange
-        _scanner.Setup(s => s.ScanPlaceholdersAsync(It.IsAny<Stream>(), ".html", It.IsAny<CancellationToken>()))
-            .ReturnsAsync([]);
-        _cache.Setup(c => c.StoreAsync(It.IsAny<TemplateDraftEntry>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync("draft-empty");
+        _scanner.ScanPlaceholdersAsync(Arg.Any<Stream>(), ".html", Arg.Any<CancellationToken>())
+            .Returns([]);
+        _cache.StoreAsync(Arg.Any<TemplateDraftEntry>(), Arg.Any<CancellationToken>())
+            .Returns("draft-empty");
 
         using var stream = new MemoryStream(Encoding.UTF8.GetBytes("<html></html>"));
 

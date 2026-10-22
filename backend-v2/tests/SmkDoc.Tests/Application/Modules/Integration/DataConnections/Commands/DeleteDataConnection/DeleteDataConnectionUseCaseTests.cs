@@ -1,27 +1,33 @@
 using SmkDoc.Application.Modules.Integration.DataConnections.Commands.DeleteDataConnection;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Enums;
+using SmkDoc.Domain.Interfaces;
 using SmkDoc.Tests.Common.Builders;
-using SmkDoc.Tests.Common.Fixtures;
 
 namespace SmkDoc.Tests.Application.Modules.Integration.DataConnections.Commands.DeleteDataConnection;
 
-public class DeleteDataConnectionUseCaseTests
+public sealed class DeleteDataConnectionUseCaseTests
 {
-    private readonly IntegrationModuleTestFixture _fixture = new();
+    private readonly IDataConnectionRepository _connectionRepo = Substitute.For<IDataConnectionRepository>();
+    private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
 
-    private DeleteDataConnectionUseCase CreateSut() => _fixture.BuildDeleteDataConnectionUseCase();
+    public DeleteDataConnectionUseCaseTests()
+    {
+        _unitOfWork.CommitAsync(Arg.Any<CancellationToken>()).Returns(1);
+    }
+
+    private DeleteDataConnectionUseCase CreateSut() => new(
+        _connectionRepo,
+        _unitOfWork);
 
     [Fact]
     public async Task ExecuteAsync_WhenFound_RemovesAndReturnsTrue()
     {
         // Arrange
         var id = Guid.NewGuid();
-        var existing = DataConnectionBuilder.Postgres(name: "To Delete", connectionString: "enc_delete", id: id);
+        DataConnection existing = DataConnectionBuilder.Postgres(name: "To Delete", connectionString: "enc_delete", id: id);
 
-        _fixture.ConnectionRepo
-            .Setup(r => r.GetByIdAsync(id, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(existing);
+        _connectionRepo.GetByIdAsync(id, Arg.Any<CancellationToken>())
+            .Returns(existing);
 
         var command = new DeleteDataConnectionCommand(id);
 
@@ -30,8 +36,8 @@ public class DeleteDataConnectionUseCaseTests
 
         // Assert
         result.Should().BeTrue();
-        _fixture.ConnectionRepo.Verify(r => r.Remove(existing), Times.Once);
-        _fixture.Uow.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _connectionRepo.Received(1).Remove(existing);
+        await _unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -39,9 +45,8 @@ public class DeleteDataConnectionUseCaseTests
     {
         // Arrange
         var id = Guid.NewGuid();
-        _fixture.ConnectionRepo
-            .Setup(r => r.GetByIdAsync(id, It.IsAny<CancellationToken>()))
-            .ReturnsAsync((DataConnection?)null);
+        _connectionRepo.GetByIdAsync(id, Arg.Any<CancellationToken>())
+            .Returns((DataConnection?)null);
 
         var command = new DeleteDataConnectionCommand(id);
 
@@ -50,7 +55,7 @@ public class DeleteDataConnectionUseCaseTests
 
         // Assert
         result.Should().BeFalse();
-        _fixture.ConnectionRepo.Verify(r => r.Remove(It.IsAny<DataConnection>()), Times.Never);
-        _fixture.Uow.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Never);
+        _connectionRepo.DidNotReceive().Remove(Arg.Any<DataConnection>());
+        await _unitOfWork.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
     }
 }

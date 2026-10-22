@@ -1,11 +1,11 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects;
 using Xunit;
 
 namespace SmkDoc.Tests.Domain.ValueObjects;
 
-public class StringValueObjectTests
+public sealed class StringValueObjectTests
 {
     public static readonly TheoryData<Func<string?, object>, int> StringValueObjectFactories = new()
     {

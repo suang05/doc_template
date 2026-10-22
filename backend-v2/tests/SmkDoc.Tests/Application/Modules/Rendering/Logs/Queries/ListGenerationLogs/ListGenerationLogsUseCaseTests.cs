@@ -1,4 +1,4 @@
-using System.Linq.Expressions;
+﻿using System.Linq.Expressions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Rendering.Logs.Queries.ListGenerationLogs;
 using SmkDoc.Domain.Entities;
@@ -7,12 +7,12 @@ using SmkDoc.Tests.Common.Builders;
 
 namespace SmkDoc.Tests.Application.Modules.Rendering.Logs.Queries.ListGenerationLogs;
 
-public class ListGenerationLogsUseCaseTests
+public sealed class ListGenerationLogsUseCaseTests
 {
-    private readonly Mock<IRepository<GenerationLog>> _repoMock = new();
+    private readonly IRepository<GenerationLog> _repo = Substitute.For<IRepository<GenerationLog>>();
 
     private ListGenerationLogsUseCase CreateSut() =>
-        new(_repoMock.Object);
+        new(_repo);
 
     [Fact]
     public async Task ExecuteAsync_WhenCalled_ReturnsPagedResult()
@@ -33,14 +33,14 @@ public class ListGenerationLogsUseCaseTests
                 .Build()
         };
 
-        _repoMock.Setup(r => r.PagedListAsync(
-            It.IsAny<Expression<Func<GenerationLog, bool>>?>(),
-            It.IsAny<Expression<Func<GenerationLog, DateTimeOffset>>>(),
+        _repo.PagedListAsync(
+            Arg.Any<Expression<Func<GenerationLog, bool>>?>(),
+            Arg.Any<Expression<Func<GenerationLog, DateTimeOffset>>>(),
             true,
             1,
             50,
-            It.IsAny<CancellationToken>()))
-            .ReturnsAsync((logs, 1));
+            Arg.Any<CancellationToken>())
+            .Returns((logs, 1));
 
         // Act
         var result = await CreateSut().ExecuteAsync(new ListGenerationLogsQuery(1, 50));

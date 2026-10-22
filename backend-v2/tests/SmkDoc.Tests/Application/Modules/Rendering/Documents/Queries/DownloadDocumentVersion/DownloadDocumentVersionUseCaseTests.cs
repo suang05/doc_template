@@ -1,22 +1,21 @@
-using System.Linq.Expressions;
+﻿using System.Linq.Expressions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Rendering.Documents.Queries.DownloadDocumentVersion;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Tests.Common.Builders;
 
 namespace SmkDoc.Tests.Application.Modules.Rendering.Documents.Queries.DownloadDocumentVersion;
 
-public class DownloadDocumentVersionUseCaseTests
+public sealed class DownloadDocumentVersionUseCaseTests
 {
-    private readonly Mock<IRepository<Document>> _documentRepoMock = new();
-    private readonly Mock<IRepository<DocumentVersion>> _versionRepoMock = new();
-    private readonly Mock<IRepository<GenerationLog>> _logRepoMock = new();
-    private readonly Mock<IStorageService> _storageMock = new();
+    private readonly IRepository<Document> _documentRepo = Substitute.For<IRepository<Document>>();
+    private readonly IRepository<DocumentVersion> _versionRepo = Substitute.For<IRepository<DocumentVersion>>();
+    private readonly IRepository<GenerationLog> _logRepo = Substitute.For<IRepository<GenerationLog>>();
+    private readonly IStorageService _storage = Substitute.For<IStorageService>();
 
     private DownloadDocumentVersionUseCase CreateSut() =>
-        new(_documentRepoMock.Object, _versionRepoMock.Object, _logRepoMock.Object, _storageMock.Object);
+        new(_documentRepo, _versionRepo, _logRepo, _storage);
 
     [Fact]
     public async Task ExecuteAsync_WhenVersionExists_ReturnsStreamAndMetadata()
@@ -29,18 +28,14 @@ public class DownloadDocumentVersionUseCaseTests
         var log = GenerationLogBuilder.Success(id: logId, outputKey: "outputs/sc001_v1.pdf", durationMs: 1);
         var pdfBytes = new byte[] { 0x25, 0x50, 0x44, 0x46 };
 
-        _documentRepoMock
-            .Setup(r => r.FirstOrDefaultAsync(It.IsAny<Expression<Func<Document, bool>>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(document);
-        _versionRepoMock
-            .Setup(r => r.FirstOrDefaultAsync(It.IsAny<Expression<Func<DocumentVersion, bool>>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(docVersion);
-        _logRepoMock
-            .Setup(r => r.GetByIdAsync(logId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(log);
-        _storageMock
-            .Setup(s => s.DownloadAsync("outputs", "outputs/sc001_v1.pdf", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new MemoryStream(pdfBytes));
+        _documentRepo.FirstOrDefaultAsync(Arg.Any<Expression<Func<Document, bool>>>(), Arg.Any<CancellationToken>())
+            .Returns(document);
+        _versionRepo.FirstOrDefaultAsync(Arg.Any<Expression<Func<DocumentVersion, bool>>>(), Arg.Any<CancellationToken>())
+            .Returns(docVersion);
+        _logRepo.GetByIdAsync(logId, Arg.Any<CancellationToken>())
+            .Returns(log);
+        _storage.DownloadAsync("outputs", "outputs/sc001_v1.pdf", Arg.Any<CancellationToken>())
+            .Returns(new MemoryStream(pdfBytes));
 
         // Act
         var result = await CreateSut().ExecuteAsync(new DownloadDocumentVersionQuery("SC-001", 1));
@@ -55,9 +50,8 @@ public class DownloadDocumentVersionUseCaseTests
     public async Task ExecuteAsync_WhenDocumentDoesNotExist_ThrowsNotFoundException()
     {
         // Arrange
-        _documentRepoMock
-            .Setup(r => r.FirstOrDefaultAsync(It.IsAny<Expression<Func<Document, bool>>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((Document?)null);
+        _documentRepo.FirstOrDefaultAsync(Arg.Any<Expression<Func<Document, bool>>>(), Arg.Any<CancellationToken>())
+            .Returns((Document?)null);
 
         // Act
         var act = () => CreateSut().ExecuteAsync(new DownloadDocumentVersionQuery("MISSING", 1));

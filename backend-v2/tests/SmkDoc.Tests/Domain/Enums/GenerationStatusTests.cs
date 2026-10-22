@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using SmkDoc.Domain.Common;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
@@ -6,7 +6,7 @@ using Xunit;
 
 namespace SmkDoc.Tests.Domain.Enums;
 
-public class GenerationStatusTests
+public sealed class GenerationStatusTests
 {
     [Fact]
     public void GetAll_ReturnsAllDefinedStatuses()

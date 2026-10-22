@@ -1,21 +1,22 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using SmkDoc.Application.Common.Helpers;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 using SmkDoc.Domain.Entities;
+using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Tests.Common;
 using SmkDoc.Tests.Common.Builders;
 
 namespace SmkDoc.Tests.Application.Common.Helpers;
 
-public class FieldMappingApplicatorServiceTests
+public sealed class FieldMappingApplicatorServiceTests
 {
-    private readonly Mock<ISqlExecutorService> _sqlExecutorMock = new();
-    private readonly Mock<IMathExpressionResolver> _mathResolverMock = new();
+    private readonly ISqlExecutorService _sqlExecutor = Substitute.For<ISqlExecutorService>();
+    private readonly IMathExpressionResolver _mathResolver = Substitute.For<IMathExpressionResolver>();
 
     private FieldMappingApplicatorService CreateSut() =>
-        new(_sqlExecutorMock.Object, _mathResolverMock.Object);
+        new(_sqlExecutor, _mathResolver);
 
     [Fact]
     public async Task ApplyAsync_WithSqlDataSource_ExtractsParametersSafelyWithoutRawInterpolation()
@@ -63,20 +64,14 @@ public class FieldMappingApplicatorServiceTests
         IDictionary<string, object>? capturedParams = null;
         string? capturedQuery = null;
 
-        _sqlExecutorMock
-            .Setup(s => s.ExecuteQueryAsJsonAsync(
+        _sqlExecutor
+            .ExecuteQueryAsJsonAsync(
                 "postgresql",
                 "Host=localhost;Database=test",
-                It.IsAny<string>(),
-                It.IsAny<IDictionary<string, object>?>(),
-                It.IsAny<CancellationToken>()))
-            .Callback<string, string, string, IDictionary<string, object>?, CancellationToken>(
-                (provider, connStr, sql, parameters, ct) =>
-                {
-                    capturedQuery = sql;
-                    capturedParams = parameters;
-                })
-            .ReturnsAsync("[{\"id\":\"123\",\"name\":\"Acme Corp\"}]");
+                Arg.Do<string>(sql => capturedQuery = sql),
+                Arg.Do<IDictionary<string, object>?>(parameters => capturedParams = parameters),
+                Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult("[{\"id\":\"123\",\"name\":\"Acme Corp\"}]"));
 
         // Act
         var resultJson = await sut.ApplyAsync(rootJson, [mapping], datasetAliases);
@@ -152,20 +147,20 @@ public class FieldMappingApplicatorServiceTests
             ["customers"] = datasetContext
         };
 
-        _sqlExecutorMock
-            .Setup(s => s.ExecuteQueryAsJsonAsync(
-                It.IsAny<string>(),
-                It.IsAny<string>(),
-                It.IsAny<string>(),
-                It.IsAny<IDictionary<string, object>?>(),
-                It.IsAny<CancellationToken>()))
+        _sqlExecutor
+            .ExecuteQueryAsJsonAsync(
+                Arg.Any<string>(),
+                Arg.Any<string>(),
+                Arg.Any<string>(),
+                Arg.Any<IDictionary<string, object>?>(),
+                Arg.Any<CancellationToken>())
             .ThrowsAsync(new InvalidOperationException("Connection timeout to PostgreSQL cluster"));
 
         // Act
         var act = () => sut.ApplyAsync(rootJson, [mapping], datasetAliases);
 
         // Assert
-        var exception = await act.Should().ThrowAsync<SmkDoc.Domain.Exceptions.DatasetExecutionException>();
+        var exception = await act.Should().ThrowAsync<DatasetExecutionException>();
         exception.Which.Alias.Should().Be("customers");
         exception.Which.Provider.Should().Be("postgresql");
         exception.Which.InnerException.Should().BeOfType<InvalidOperationException>();

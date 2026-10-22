@@ -1,9 +1,9 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using SmkDoc.Api.Common.Responses;
 
 namespace SmkDoc.Tests.Api.Responses;
 
-public class PagedApiResponseTests
+public sealed class PagedApiResponseTests
 {
     private record SampleItem(string Id, string Name, string Slug);
 

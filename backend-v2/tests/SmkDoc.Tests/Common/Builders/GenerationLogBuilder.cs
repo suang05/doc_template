@@ -171,4 +171,6 @@ public class GenerationLogBuilder
             _errorMsg,
             _now);
     }
+
+    public static implicit operator GenerationLog(GenerationLogBuilder builder) => builder.Build();
 }

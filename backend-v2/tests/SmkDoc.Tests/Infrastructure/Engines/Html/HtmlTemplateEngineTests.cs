@@ -1,22 +1,19 @@
-using System.Text;
-using FluentAssertions;
-using Moq;
+﻿using System.Text;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Infrastructure.Engines.Html;
 using SmkDoc.Infrastructure.Engines.Html.Helpers;
 using SmkDoc.Infrastructure.Imaging;
-using Xunit;
 
 namespace SmkDoc.Tests.Infrastructure.Engines.Html;
 
-public class HtmlTemplateEngineTests
+public sealed class HtmlTemplateEngineTests
 {
     private static HtmlTemplateEngine CreateEngine(IPdfRenderer pdfRenderer, ICompiledTemplateCache? cache = null)
     {
         var mediaService = new MediaGenerationService(
-            new Mock<IQrCodeService>().Object,
-            new Mock<IBarcodeService>().Object,
+            Substitute.For<IQrCodeService>(),
+            Substitute.For<IBarcodeService>(),
             new ImageOptimizerService());
         var registry = new HtmlHelperRegistry(mediaService);
         return cache != null
@@ -29,14 +26,17 @@ public class HtmlTemplateEngineTests
         string json, 
         ICompiledTemplateCache? cache = null)
     {
-        var mockPdf = new Mock<IPdfRenderer>();
+        var pdfRenderer = Substitute.For<IPdfRenderer>();
         string capturedHtml = string.Empty;
 
-        mockPdf.Setup(p => p.RenderHtmlToPdfStreamAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
-            .Callback<string, string?, string?, CancellationToken>((h, _, _, _) => capturedHtml = h)
-            .ReturnsAsync(() => new MemoryStream(Encoding.UTF8.GetBytes("%PDF-1.4 mock")));
+        pdfRenderer.RenderHtmlToPdfStreamAsync(
+            Arg.Do<string>(h => capturedHtml = h),
+            Arg.Any<string?>(),
+            Arg.Any<string?>(),
+            Arg.Any<CancellationToken>())
+            .Returns(_ => new MemoryStream(Encoding.UTF8.GetBytes("%PDF-1.4 mock")));
 
-        var engine = CreateEngine(mockPdf.Object, cache);
+        var engine = CreateEngine(pdfRenderer, cache);
         using var stream = new MemoryStream(Encoding.UTF8.GetBytes(templateHtml));
         var result = await engine.RenderAsync(stream, json, OutputFormat.Pdf);
 
@@ -98,28 +98,28 @@ public class HtmlTemplateEngineTests
     [Fact]
     public async Task RenderAsync_WithTemplateCache_UsesCachedEvaluation()
     {
-        var mockCache = new Mock<ICompiledTemplateCache>();
-        mockCache.Setup(c => c.GetOrAdd(It.IsAny<string>(), It.IsAny<Func<Func<object, string>>>()))
-            .Returns<string, Func<Func<object, string>>>((_, factory) => factory());
+        var cache = Substitute.For<ICompiledTemplateCache>();
+        cache.GetOrAdd(Arg.Any<string>(), Arg.Any<Func<Func<object, string>>>())
+            .Returns(callInfo => callInfo.Arg<Func<Func<object, string>>>()());
 
         string template = "<html><body><h1>User: {{name}}</h1></body></html>";
         string inputData = "{\"name\": \"Somchai\"}";
 
-        var capturedHtml = await RenderAndCaptureHtmlAsync(template, inputData, mockCache.Object);
+        var capturedHtml = await RenderAndCaptureHtmlAsync(template, inputData, cache);
 
         capturedHtml.Should().Contain("User: Somchai");
-        mockCache.Verify(c => c.GetOrAdd(It.Is<string>(s => !string.IsNullOrEmpty(s)), It.IsAny<Func<Func<object, string>>>()), Times.Once);
+        cache.Received(1).GetOrAdd(Arg.Is<string>(s => !string.IsNullOrEmpty(s)), Arg.Any<Func<Func<object, string>>>());
     }
 
     [Fact]
     public async Task RenderStreamAsync_ShouldDirectlyReturnStreamFromPdfRenderer()
     {
-        var mockPdf = new Mock<IPdfRenderer>();
+        var pdfRenderer = Substitute.For<IPdfRenderer>();
         var expectedStream = new MemoryStream(Encoding.UTF8.GetBytes("%PDF-1.4 direct stream"));
-        mockPdf.Setup(p => p.RenderHtmlToPdfStreamAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(expectedStream);
+        pdfRenderer.RenderHtmlToPdfStreamAsync(Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns(expectedStream);
 
-        var engine = CreateEngine(mockPdf.Object);
+        var engine = CreateEngine(pdfRenderer);
 
         string template = "<html><body><h1>Direct Stream</h1></body></html>";
         using var stream = new MemoryStream(Encoding.UTF8.GetBytes(template));

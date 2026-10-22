@@ -1,70 +1,96 @@
-using FluentAssertions;
-using Moq;
+using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.CreateTemplate;
+using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
-using SmkDoc.Tests.Common.Fixtures;
-using Xunit;
+using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects;
+using ValidationException = SmkDoc.Application.Common.Exceptions.ValidationException;
 
 namespace SmkDoc.Tests.Application.Modules.Authoring.Templates.Commands.CreateTemplate;
 
-public class CreateTemplateUseCaseTests
+public sealed class CreateTemplateUseCaseTests
 {
-    private readonly TemplateAuthoringTestFixture _fixture = new();
+    private readonly ITemplateRepository _templateRepo = Substitute.For<ITemplateRepository>();
+    private readonly IStorageService _storageService = Substitute.For<IStorageService>();
+    private readonly IDocxSecurityScanner _securityScanner = Substitute.For<IDocxSecurityScanner>();
+    private readonly IExecutionContext _executionContext = Substitute.For<IExecutionContext>();
+    private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
+    private readonly CreateTemplateCommandValidator _validator = new();
+    private readonly FakeTimeProvider _timeProvider = TestConstants.CreateFakeClock();
 
-    private CreateTemplateUseCase CreateSut() => _fixture.BuildCreateTemplateUseCase();
+    public CreateTemplateUseCaseTests()
+    {
+        _executionContext.UserId.Returns(TestConstants.DefaultUserId);
+        _unitOfWork.CommitAsync(Arg.Any<CancellationToken>()).Returns(1);
+    }
+
+    private CreateTemplateUseCase CreateSut() => new(
+        _templateRepo,
+        _storageService,
+        _securityScanner,
+        _executionContext,
+        _unitOfWork,
+        _validator,
+        _timeProvider);
 
     [Fact]
     public async Task ExecuteAsync_WhenCommandIsInvalid_ShouldFailFastWithoutTouchingDb()
     {
+        // Arrange
         var invalidCommand = new CreateTemplateCommand(Guid.Empty, "", "INVALID_SLUG", null);
 
+        // Act
         var act = () => CreateSut().ExecuteAsync(invalidCommand);
 
+        // Assert
         await act.Should().ThrowAsync<ValidationException>();
-
-        _fixture.TemplateRepo.Verify(r => r.AddAsync(It.IsAny<Template>(), It.IsAny<CancellationToken>()), Times.Never);
-        _fixture.Uow.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Never);
+        await _templateRepo.DidNotReceive().AddAsync(Arg.Any<Template>(), Arg.Any<CancellationToken>());
+        await _unitOfWork.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task ExecuteAsync_WhenSlugAlreadyExists_ShouldThrowConflictException()
     {
+        // Arrange
         var projectId = Guid.NewGuid();
-        _fixture.TemplateRepo
-            .Setup(r => r.SlugExistsAsync("tax-invoice", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(true);
+        _templateRepo.SlugExistsAsync("tax-invoice", Arg.Any<CancellationToken>())
+            .Returns(true);
 
         var command = new CreateTemplateCommand(projectId, "Tax Invoice", "tax-invoice", "Finance");
 
+        // Act
         var act = () => CreateSut().ExecuteAsync(command);
 
+        // Assert
         await act.Should().ThrowAsync<ConflictException>();
-        _fixture.TemplateRepo.Verify(r => r.AddAsync(It.IsAny<Template>(), It.IsAny<CancellationToken>()), Times.Never);
+        await _templateRepo.DidNotReceive().AddAsync(Arg.Any<Template>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task ExecuteAsync_WhenValidHtmlTemplate_ShouldPersistAndReturnTemplateResultDto()
     {
+        // Arrange
         var projectId = Guid.NewGuid();
-        _fixture.TemplateRepo
-            .Setup(r => r.SlugExistsAsync("tax-invoice", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(false);
-        _fixture.Context.Setup(c => c.CallerApp).Returns("erp-system");
+        _templateRepo.SlugExistsAsync("tax-invoice", Arg.Any<CancellationToken>())
+            .Returns(false);
+        _executionContext.CallerApp.Returns("erp-system");
 
         var command = new CreateTemplateCommand(projectId, "Tax Invoice", "tax-invoice", "Finance");
 
-        var response = await CreateSut().ExecuteAsync(command);
+        // Act
+        TemplateResultDto result = await CreateSut().ExecuteAsync(command);
 
-        response.Should().NotBeNull();
-        response.Name.Should().Be("Tax Invoice");
-        response.Slug.Should().Be("tax-invoice");
-        response.Category.Should().Be("Finance");
-        response.ProjectId.Should().Be(projectId);
-        response.IsActive.Should().BeTrue();
+        // Assert
+        result.Should().NotBeNull();
+        result.Name.Should().Be("Tax Invoice");
+        result.Slug.Should().Be("tax-invoice");
+        result.Category.Should().Be("Finance");
+        result.ProjectId.Should().Be(projectId);
+        result.IsActive.Should().BeTrue();
 
-        _fixture.TemplateRepo.Verify(r => r.AddAsync(It.IsAny<Template>(), It.IsAny<CancellationToken>()), Times.Once);
-        _fixture.TemplateRepo.Verify(r => r.AddVersionAsync(It.IsAny<TemplateVersion>(), It.IsAny<CancellationToken>()), Times.Once);
-        _fixture.Uow.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
+        await _templateRepo.Received(1).AddAsync(Arg.Any<Template>(), Arg.Any<CancellationToken>());
+        await _templateRepo.Received(1).AddVersionAsync(Arg.Any<TemplateVersion>(), Arg.Any<CancellationToken>());
+        await _unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
     }
 }

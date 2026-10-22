@@ -3,43 +3,48 @@ using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.CreateApiKey;
 using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Helpers;
 using SmkDoc.Domain.Entities;
+using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Tests.Common.Builders;
 
 namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Security.Commands.CreateApiKey;
 
-public class CreateApiKeyUseCaseTests
+public sealed class CreateApiKeyUseCaseTests
 {
-    private readonly Mock<IApiKeyRepository> _apiKeyRepoMock = new();
-    private readonly Mock<IProjectRepository> _projectRepoMock = new();
-    private readonly Mock<IUnitOfWork> _uowMock = new();
+    private readonly IApiKeyRepository _apiKeyRepo = Substitute.For<IApiKeyRepository>();
+    private readonly IProjectRepository _projectRepo = Substitute.For<IProjectRepository>();
+    private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
     private readonly CreateApiKeyCommandValidator _validator = new();
 
+    public CreateApiKeyUseCaseTests()
+    {
+        _unitOfWork.CommitAsync(Arg.Any<CancellationToken>()).Returns(1);
+    }
+
     private CreateApiKeyUseCase CreateSut() =>
-        new(_apiKeyRepoMock.Object, _projectRepoMock.Object, _uowMock.Object, _validator);
+        new(_apiKeyRepo, _projectRepo, _unitOfWork, _validator);
 
     [Fact]
     public async Task ExecuteAsync_WhenValidCommand_ReturnsPlainTextKeyAndPersistsHashedKey()
     {
         // Arrange
         ApiKey? capturedKey = null;
-        _apiKeyRepoMock.Setup(r => r.AddAsync(It.IsAny<ApiKey>(), It.IsAny<CancellationToken>()))
-            .Callback<ApiKey, CancellationToken>((k, _) => capturedKey = k);
+        _apiKeyRepo.AddAsync(Arg.Do<ApiKey>(k => capturedKey = k), Arg.Any<CancellationToken>())
+            .Returns(Task.CompletedTask);
 
         var projectId = Guid.NewGuid();
-        var project = ProjectBuilder.AProject()
+        Project project = ProjectBuilder.AProject()
             .WithId(projectId)
             .WithName("Sales Project")
-            .WithSlug("sales-proj")
-            .Build();
+            .WithSlug("sales-proj");
 
-        _projectRepoMock.Setup(r => r.GetByIdAsync(projectId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(project);
+        _projectRepo.GetByIdAsync(projectId, Arg.Any<CancellationToken>())
+            .Returns(project);
 
         var command = new CreateApiKeyCommand("Sales App", "sales", projectId);
 
         // Act
-        var result = await CreateSut().ExecuteAsync(command);
+        CreateApiKeyResultDto result = await CreateSut().ExecuteAsync(command);
 
         // Assert
         result.Should().NotBeNull();
@@ -48,7 +53,7 @@ public class CreateApiKeyUseCaseTests
         capturedKey.Should().NotBeNull();
         capturedKey!.KeyHash.Value.Should().Be(ApiKeyHelper.ComputeHash(result.PlainTextKey));
 
-        _uowMock.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
+        await _unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -62,7 +67,7 @@ public class CreateApiKeyUseCaseTests
 
         // Assert
         await act.Should().ThrowAsync<ValidationException>();
-        _apiKeyRepoMock.Verify(r => r.AddAsync(It.IsAny<ApiKey>(), It.IsAny<CancellationToken>()), Times.Never);
-        _uowMock.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Never);
+        await _apiKeyRepo.DidNotReceive().AddAsync(Arg.Any<ApiKey>(), Arg.Any<CancellationToken>());
+        await _unitOfWork.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
     }
 }

@@ -1,10 +1,10 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using SmkDoc.Domain.ValueObjects.Ids;
 using Xunit;
 
 namespace SmkDoc.Tests.Domain.ValueObjects.Ids;
 
-public class StronglyTypedIdTests
+public sealed class StronglyTypedIdTests
 {
     [Fact]
     public void New_GeneratesNonEmptySequentialId()

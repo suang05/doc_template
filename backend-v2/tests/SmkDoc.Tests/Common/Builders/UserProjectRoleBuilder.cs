@@ -62,4 +62,6 @@ public class UserProjectRoleBuilder
     {
         return UserProjectRole.Create(_userId, _projectId, _role, _now);
     }
+
+    public static implicit operator UserProjectRole(UserProjectRoleBuilder builder) => builder.Build();
 }

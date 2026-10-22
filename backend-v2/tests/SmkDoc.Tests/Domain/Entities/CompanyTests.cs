@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects;
@@ -8,7 +8,7 @@ using Xunit;
 
 namespace SmkDoc.Tests.Domain.Entities;
 
-public class CompanyTests
+public sealed class CompanyTests
 {
     private readonly DateTimeOffset _initialTime = TestConstants.BaselineTime;
 

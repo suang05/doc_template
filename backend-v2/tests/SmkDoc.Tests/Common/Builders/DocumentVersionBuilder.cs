@@ -79,4 +79,6 @@ public class DocumentVersionBuilder
             _createdBy,
             _now);
     }
+
+    public static implicit operator DocumentVersion(DocumentVersionBuilder builder) => builder.Build();
 }

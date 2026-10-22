@@ -1,16 +1,18 @@
+using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Queries.ListApiKeys;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
+using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Tests.Common.Builders;
 
 namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Security.Queries.ListApiKeys;
 
-public class ListApiKeysUseCaseTests
+public sealed class ListApiKeysUseCaseTests
 {
-    private readonly Mock<IApiKeyRepository> _mockRepo = new();
+    private readonly IApiKeyRepository _apiKeyRepo = Substitute.For<IApiKeyRepository>();
 
-    private ListApiKeysUseCase CreateSut() => new(_mockRepo.Object);
+    private ListApiKeysUseCase CreateSut() => new(_apiKeyRepo);
 
     [Fact]
     public async Task ExecuteAsync_WhenEmptyProjectId_ThrowsDomainValidationException()
@@ -29,34 +31,32 @@ public class ListApiKeysUseCaseTests
         // Arrange
         var projectId = Guid.NewGuid();
         var now = TestConstants.BaselineTime;
-        var key1 = new ApiKeyBuilder()
+        ApiKey key1 = new ApiKeyBuilder()
             .WithProjectId(projectId)
             .WithName("ERP Key")
             .WithCallerApp("erp")
             .WithKeyHash(new Sha256Hash(new string('1', 64)))
             .WithExpiration(ExpirationPolicy.Never)
-            .WithTime(now)
-            .Build();
-        var key2 = new ApiKeyBuilder()
+            .WithTime(now);
+        ApiKey key2 = new ApiKeyBuilder()
             .WithProjectId(projectId)
             .WithName("CRM Key")
             .WithCallerApp("crm")
             .WithKeyHash(new Sha256Hash(new string('2', 64)))
             .WithExpiration(ExpirationPolicy.Never)
-            .WithTime(now)
-            .Build();
+            .WithTime(now);
 
-        _mockRepo.Setup(r => r.ListByProjectAsync(projectId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new List<ApiKey> { key1, key2 });
+        _apiKeyRepo.ListByProjectAsync(projectId, Arg.Any<CancellationToken>())
+            .Returns(new List<ApiKey> { key1, key2 });
 
         // Act
-        var result = await CreateSut().ExecuteAsync(new ListApiKeysQuery(projectId));
+        List<ApiKeyDto> result = await CreateSut().ExecuteAsync(new ListApiKeysQuery(projectId));
 
         // Assert
         result.Should().HaveCount(2);
         result[0].Name.Should().Be("ERP Key");
         result[1].Name.Should().Be("CRM Key");
-        _mockRepo.Verify(r => r.ListByProjectAsync(projectId, It.IsAny<CancellationToken>()), Times.Once);
+        await _apiKeyRepo.Received(1).ListByProjectAsync(projectId, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -64,14 +64,14 @@ public class ListApiKeysUseCaseTests
     {
         // Arrange
         var projectId = Guid.NewGuid();
-        _mockRepo.Setup(r => r.ListByProjectAsync(projectId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new List<ApiKey>());
+        _apiKeyRepo.ListByProjectAsync(projectId, Arg.Any<CancellationToken>())
+            .Returns(new List<ApiKey>());
 
         // Act
-        var result = await CreateSut().ExecuteAsync(new ListApiKeysQuery(projectId));
+        List<ApiKeyDto> result = await CreateSut().ExecuteAsync(new ListApiKeysQuery(projectId));
 
         // Assert
         result.Should().BeEmpty();
-        _mockRepo.Verify(r => r.ListByProjectAsync(projectId, It.IsAny<CancellationToken>()), Times.Once);
+        await _apiKeyRepo.Received(1).ListByProjectAsync(projectId, Arg.Any<CancellationToken>());
     }
 }

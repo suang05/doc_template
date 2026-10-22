@@ -1,8 +1,8 @@
-using SmkDoc.Application.Modules.IdentityAccess.Users.Commands.RemoveUser;
+﻿using SmkDoc.Application.Modules.IdentityAccess.Users.Commands.RemoveUser;
 
 namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Users.Commands.RemoveUser;
 
-public class RemoveUserCommandValidatorTests
+public sealed class RemoveUserCommandValidatorTests
 {
     private readonly RemoveUserCommandValidator _validator = new();
 

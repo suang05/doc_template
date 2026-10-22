@@ -1,9 +1,9 @@
-using SmkDoc.Application.Common.Helpers;
+﻿using SmkDoc.Application.Common.Helpers;
 using static SmkDoc.Application.Common.Helpers.PlaceholderHelper;
 
 namespace SmkDoc.Tests.Application.Common.Helpers;
 
-public class PlaceholderHelperTests
+public sealed class PlaceholderHelperTests
 {
     [Theory]
     // Text

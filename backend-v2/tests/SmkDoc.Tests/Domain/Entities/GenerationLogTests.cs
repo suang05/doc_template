@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
@@ -8,7 +8,7 @@ using Xunit;
 
 namespace SmkDoc.Tests.Domain.Entities;
 
-public class GenerationLogTests
+public sealed class GenerationLogTests
 {
     private static readonly DateTimeOffset Now = TestConstants.BaselineTime;
 

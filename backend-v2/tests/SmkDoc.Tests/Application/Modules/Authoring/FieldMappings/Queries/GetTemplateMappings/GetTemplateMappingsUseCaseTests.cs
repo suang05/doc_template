@@ -1,4 +1,4 @@
-using SmkDoc.Application.Modules.Authoring.FieldMappings.Queries.GetTemplateMappings;
+﻿using SmkDoc.Application.Modules.Authoring.FieldMappings.Queries.GetTemplateMappings;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
@@ -7,12 +7,12 @@ using SmkDoc.Tests.Common.Builders;
 
 namespace SmkDoc.Tests.Application.Modules.Authoring.FieldMappings.Queries.GetTemplateMappings;
 
-public class GetTemplateMappingsUseCaseTests
+public sealed class GetTemplateMappingsUseCaseTests
 {
-    private readonly Mock<ITemplateRepository> _templateRepoMock = new();
+    private readonly ITemplateRepository _templateRepo = Substitute.For<ITemplateRepository>();
 
     private GetTemplateMappingsUseCase CreateSut() =>
-        new(_templateRepoMock.Object);
+        new(_templateRepo);
 
     [Fact]
     public async Task ExecuteAsync_WhenTemplateExists_ReturnsSortedMappings()
@@ -46,9 +46,8 @@ public class GetTemplateMappingsUseCaseTests
         var mappings = new List<FieldMapping> { m1, m2 };
         template.ReplaceFieldMappings(mappings, TestConstants.BaselineTime);
 
-        _templateRepoMock
-            .Setup(r => r.GetByIdWithDetailsAsync(templateId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(template);
+        _templateRepo.GetByIdWithDetailsAsync(templateId, Arg.Any<CancellationToken>())
+            .Returns(template);
 
         // Act
         var result = await CreateSut().ExecuteAsync(new GetTemplateMappingsQuery(templateId));
@@ -64,9 +63,8 @@ public class GetTemplateMappingsUseCaseTests
     {
         // Arrange
         var templateId = Guid.NewGuid();
-        _templateRepoMock
-            .Setup(r => r.GetByIdWithDetailsAsync(templateId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync((Template?)null);
+        _templateRepo.GetByIdWithDetailsAsync(templateId, Arg.Any<CancellationToken>())
+            .Returns((Template?)null);
 
         // Act
         var result = await CreateSut().ExecuteAsync(new GetTemplateMappingsQuery(templateId));

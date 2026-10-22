@@ -1,5 +1,5 @@
 using FluentAssertions;
-using Moq;
+using NSubstitute;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Queries.GetCurrentUserProfile;
@@ -8,27 +8,30 @@ using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Tests.Common.Builders;
-using SmkDoc.Tests.Common.Fixtures;
 using Xunit;
 
 namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Security.Queries.GetCurrentUserProfile;
 
-public class GetCurrentUserProfileUseCaseTests
+public sealed class GetCurrentUserProfileUseCaseTests
 {
-    private readonly SecurityModuleTestFixture _fixture = new();
+    private readonly IUserRepository _userRepo = Substitute.For<IUserRepository>();
+    private readonly IUserWorkspaceQueryService _workspaceQueryService = Substitute.For<IUserWorkspaceQueryService>();
+    private readonly IExecutionContext _executionContext = Substitute.For<IExecutionContext>();
 
-    private GetCurrentUserProfileUseCase CreateSut() => _fixture.BuildGetCurrentUserProfileUseCase();
+    private GetCurrentUserProfileUseCase CreateSut() => new(
+        _userRepo,
+        _workspaceQueryService,
+        _executionContext);
 
     [Fact]
     public async Task ExecuteAsync_WhenStandardUserWithProjects_ReturnsProfileAndAccessibleProjects()
     {
         // Arrange
         var now = TestConstants.BaselineTime;
-        var user = UserBuilder.AUser()
+        User user = aUser.Active()
             .WithEmail("user@example.com")
             .WithName("John", "Doe")
-            .WithTime(now)
-            .Build();
+            .WithTime(now);
 
         var projectId = Guid.NewGuid();
         var projects = new List<AccessibleProjectDto>
@@ -38,10 +41,10 @@ public class GetCurrentUserProfileUseCaseTests
 
         var workspaceContext = new UserWorkspaceContextDto(projectId, "Admin", projectId, projects);
 
-        _fixture.UserRepo.Setup(r => r.GetByIdAsync(user.Id, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(user);
-        _fixture.WorkspaceQueryService.Setup(q => q.ResolveWorkspaceContextAsync(user, It.IsAny<Guid?>(), false, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(workspaceContext);
+        _userRepo.GetByIdAsync(user.Id, Arg.Any<CancellationToken>())
+            .Returns(user);
+        _workspaceQueryService.ResolveWorkspaceContextAsync(user, Arg.Any<Guid?>(), false, Arg.Any<CancellationToken>())
+            .Returns(workspaceContext);
 
         // Act
         var result = await CreateSut().ExecuteAsync(new GetCurrentUserProfileQuery(user.Id));
@@ -64,11 +67,10 @@ public class GetCurrentUserProfileUseCaseTests
     {
         // Arrange
         var now = TestConstants.BaselineTime;
-        var user = UserBuilder.AUser()
+        User user = aUser.Active()
             .WithEmail("user@example.com")
             .WithName("John", "Doe")
-            .WithTime(now)
-            .Build();
+            .WithTime(now);
 
         var proj1 = Guid.NewGuid();
         var proj2 = Guid.NewGuid();
@@ -80,11 +82,11 @@ public class GetCurrentUserProfileUseCaseTests
 
         var workspaceContext = new UserWorkspaceContextDto(proj2, "Admin", proj1, projects);
 
-        _fixture.UserRepo.Setup(r => r.GetByIdAsync(user.Id, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(user);
-        _fixture.ExecutionContext.Setup(c => c.ProjectId).Returns(proj2);
-        _fixture.WorkspaceQueryService.Setup(q => q.ResolveWorkspaceContextAsync(user, proj2, false, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(workspaceContext);
+        _userRepo.GetByIdAsync(user.Id, Arg.Any<CancellationToken>())
+            .Returns(user);
+        _executionContext.ProjectId.Returns(proj2);
+        _workspaceQueryService.ResolveWorkspaceContextAsync(user, proj2, false, Arg.Any<CancellationToken>())
+            .Returns(workspaceContext);
 
         // Act
         var result = await CreateSut().ExecuteAsync(new GetCurrentUserProfileQuery(user.Id));
@@ -100,11 +102,10 @@ public class GetCurrentUserProfileUseCaseTests
     {
         // Arrange
         var now = TestConstants.BaselineTime;
-        var user = UserBuilder.AUser()
+        User user = aUser.Active()
             .WithEmail("user@example.com")
             .WithName("John", "Doe")
-            .WithTime(now)
-            .Build();
+            .WithTime(now);
 
         var proj1 = Guid.NewGuid();
         var projects = new List<AccessibleProjectDto>
@@ -117,11 +118,11 @@ public class GetCurrentUserProfileUseCaseTests
         // Since unauthorizedProjectId is not accessible, workspace context resolves active project to proj1
         var workspaceContext = new UserWorkspaceContextDto(proj1, "Member", proj1, projects);
 
-        _fixture.UserRepo.Setup(r => r.GetByIdAsync(user.Id, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(user);
-        _fixture.ExecutionContext.Setup(c => c.ProjectId).Returns(unauthorizedProjectId);
-        _fixture.WorkspaceQueryService.Setup(q => q.ResolveWorkspaceContextAsync(user, unauthorizedProjectId, false, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(workspaceContext);
+        _userRepo.GetByIdAsync(user.Id, Arg.Any<CancellationToken>())
+            .Returns(user);
+        _executionContext.ProjectId.Returns(unauthorizedProjectId);
+        _workspaceQueryService.ResolveWorkspaceContextAsync(user, unauthorizedProjectId, false, Arg.Any<CancellationToken>())
+            .Returns(workspaceContext);
 
         // Act
         var result = await CreateSut().ExecuteAsync(new GetCurrentUserProfileQuery(user.Id));
@@ -137,11 +138,10 @@ public class GetCurrentUserProfileUseCaseTests
     {
         // Arrange
         var now = TestConstants.BaselineTime;
-        var user = UserBuilder.AUser()
+        User user = aUser.Active()
             .WithEmail("admin@example.com")
             .WithSystemRole(SystemRole.SuperAdmin)
-            .WithTime(now)
-            .Build();
+            .WithTime(now);
 
         var projects = new List<AccessibleProjectDto>
         {
@@ -151,10 +151,10 @@ public class GetCurrentUserProfileUseCaseTests
 
         var workspaceContext = new UserWorkspaceContextDto(projects[0].Id, "Admin", projects[0].Id, projects);
 
-        _fixture.UserRepo.Setup(r => r.GetByIdAsync(user.Id, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(user);
-        _fixture.WorkspaceQueryService.Setup(q => q.ResolveWorkspaceContextAsync(user, It.IsAny<Guid?>(), false, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(workspaceContext);
+        _userRepo.GetByIdAsync(user.Id, Arg.Any<CancellationToken>())
+            .Returns(user);
+        _workspaceQueryService.ResolveWorkspaceContextAsync(user, Arg.Any<Guid?>(), false, Arg.Any<CancellationToken>())
+            .Returns(workspaceContext);
 
         // Act
         var result = await CreateSut().ExecuteAsync(new GetCurrentUserProfileQuery(user.Id));
@@ -173,11 +173,10 @@ public class GetCurrentUserProfileUseCaseTests
     {
         // Arrange
         var now = TestConstants.BaselineTime;
-        var user = UserBuilder.AUser()
+        User user = aUser.Active()
             .WithEmail("admin@example.com")
             .WithSystemRole(SystemRole.SuperAdmin)
-            .WithTime(now)
-            .Build();
+            .WithTime(now);
 
         var anyProject = Guid.NewGuid();
         var projects = new List<AccessibleProjectDto>
@@ -187,11 +186,11 @@ public class GetCurrentUserProfileUseCaseTests
 
         var workspaceContext = new UserWorkspaceContextDto(anyProject, "Admin", projects[0].Id, projects);
 
-        _fixture.UserRepo.Setup(r => r.GetByIdAsync(user.Id, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(user);
-        _fixture.ExecutionContext.Setup(c => c.ProjectId).Returns(anyProject);
-        _fixture.WorkspaceQueryService.Setup(q => q.ResolveWorkspaceContextAsync(user, anyProject, false, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(workspaceContext);
+        _userRepo.GetByIdAsync(user.Id, Arg.Any<CancellationToken>())
+            .Returns(user);
+        _executionContext.ProjectId.Returns(anyProject);
+        _workspaceQueryService.ResolveWorkspaceContextAsync(user, anyProject, false, Arg.Any<CancellationToken>())
+            .Returns(workspaceContext);
 
         // Act
         var result = await CreateSut().ExecuteAsync(new GetCurrentUserProfileQuery(user.Id));
@@ -205,8 +204,8 @@ public class GetCurrentUserProfileUseCaseTests
     public async Task ExecuteAsync_WhenUserNotFound_ThrowsUnauthorizedException()
     {
         // Arrange
-        _fixture.UserRepo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((User?)null);
+        _userRepo.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns((User?)null);
 
         // Act
         var act = () => CreateSut().ExecuteAsync(new GetCurrentUserProfileQuery(Guid.NewGuid()));

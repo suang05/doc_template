@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using Microsoft.Extensions.Caching.Memory;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Infrastructure.Cache;
@@ -6,7 +6,7 @@ using Xunit;
 
 namespace SmkDoc.Tests.Infrastructure.Cache;
 
-public class MemoryIdempotencyStoreTests
+public sealed class MemoryIdempotencyStoreTests
 {
     private readonly MemoryIdempotencyStore sut;
 

@@ -1,11 +1,11 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using Microsoft.Extensions.Caching.Memory;
 using SmkDoc.Infrastructure.Cache;
 using Xunit;
 
 namespace SmkDoc.Tests.Infrastructure.Cache;
 
-public class MemoryCompiledTemplateCacheTests
+public sealed class MemoryCompiledTemplateCacheTests
 {
     [Fact]
     public void GetOrAdd_WhenCacheMiss_InvokesFactoryAndStoresResult()

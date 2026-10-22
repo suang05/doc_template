@@ -11,8 +11,10 @@ using SmkDoc.Infrastructure.Persistence.Interceptors;
 namespace SmkDoc.IntegrationTests.Persistence;
 
 [Trait("Category", "Integration")]
-public class TenantIsolationIntegrationTests
+public sealed class TenantIsolationIntegrationTests
 {
+    private static readonly DateTimeOffset FixedNow = new(2026, 3, 31, 0, 0, 0, TimeSpan.Zero);
+
     private static DbContextOptions<AppDbContext> CreateOptions(TenantSecuritySaveChangesInterceptor? interceptor = null)
     {
         var builder = new DbContextOptionsBuilder<AppDbContext>()
@@ -43,17 +45,23 @@ public class TenantIsolationIntegrationTests
         companyFilters.Should().NotBeNull().And.BeEmpty("Company is a tenant root entity and must not have a ProjectId query filter");
     }
 
+    private static ICurrentProjectContext CreateProjectContext(ProjectId projectId, bool isResolved = true)
+    {
+        var context = Substitute.For<ICurrentProjectContext>();
+        context.IsResolved.Returns(isResolved);
+        context.ProjectId.Returns(projectId);
+        return context;
+    }
+
     [Fact]
     public void DbContext_Properties_ReflectInjectedProjectContext()
     {
         // Arrange
         var expectedProjectId = ProjectId.New();
-        var mockContext = new Mock<ICurrentProjectContext>();
-        mockContext.Setup(c => c.IsResolved).Returns(true);
-        mockContext.Setup(c => c.ProjectId).Returns(expectedProjectId);
+        var projectContext = CreateProjectContext(expectedProjectId, isResolved: true);
 
         // Act
-        using var dbContext = new AppDbContext(CreateOptions(), mockContext.Object);
+        using var dbContext = new AppDbContext(CreateOptions(), projectContext);
 
         // Assert
         dbContext.IsTenantResolved.Should().BeTrue();
@@ -78,19 +86,16 @@ public class TenantIsolationIntegrationTests
         var activeTenantId = ProjectId.New();
         var foreignTenantId = ProjectId.New();
 
-        var mockContext = new Mock<ICurrentProjectContext>();
-        mockContext.Setup(c => c.IsResolved).Returns(true);
-        mockContext.Setup(c => c.ProjectId).Returns(activeTenantId);
-
-        var interceptor = new TenantSecuritySaveChangesInterceptor(mockContext.Object);
-        using var dbContext = new AppDbContext(CreateOptions(interceptor), mockContext.Object);
+        var projectContext = CreateProjectContext(activeTenantId);
+        var interceptor = new TenantSecuritySaveChangesInterceptor(projectContext);
+        using var dbContext = new AppDbContext(CreateOptions(interceptor), projectContext);
 
         var crossTenantTemplate = Template.Create(
             foreignTenantId,
             TemplateName.Create("Cross Tenant Template"),
             TemplateSlug.Create("cross-tenant-template"),
             null,
-            DateTimeOffset.UtcNow);
+            FixedNow);
 
         dbContext.Templates.Add(crossTenantTemplate);
 
@@ -108,19 +113,16 @@ public class TenantIsolationIntegrationTests
         // Arrange
         var activeTenantId = ProjectId.New();
 
-        var mockContext = new Mock<ICurrentProjectContext>();
-        mockContext.Setup(c => c.IsResolved).Returns(true);
-        mockContext.Setup(c => c.ProjectId).Returns(activeTenantId);
-
-        var interceptor = new TenantSecuritySaveChangesInterceptor(mockContext.Object);
-        using var dbContext = new AppDbContext(CreateOptions(interceptor), mockContext.Object);
+        var projectContext = CreateProjectContext(activeTenantId);
+        var interceptor = new TenantSecuritySaveChangesInterceptor(projectContext);
+        using var dbContext = new AppDbContext(CreateOptions(interceptor), projectContext);
 
         var matchingTemplate = Template.Create(
             activeTenantId,
             TemplateName.Create("Matching Tenant Template"),
             TemplateSlug.Create("matching-tenant-template"),
             null,
-            DateTimeOffset.UtcNow);
+            FixedNow);
 
         dbContext.Templates.Add(matchingTemplate);
 
@@ -137,19 +139,16 @@ public class TenantIsolationIntegrationTests
         // Arrange
         var foreignTenantId = ProjectId.New();
 
-        var mockContext = new Mock<ICurrentProjectContext>();
-        mockContext.Setup(c => c.IsResolved).Returns(false);
-        mockContext.Setup(c => c.ProjectId).Returns(ProjectId.Empty);
-
-        var interceptor = new TenantSecuritySaveChangesInterceptor(mockContext.Object);
-        using var dbContext = new AppDbContext(CreateOptions(interceptor), mockContext.Object);
+        var projectContext = CreateProjectContext(ProjectId.Empty, isResolved: false);
+        var interceptor = new TenantSecuritySaveChangesInterceptor(projectContext);
+        using var dbContext = new AppDbContext(CreateOptions(interceptor), projectContext);
 
         var template = Template.Create(
             foreignTenantId,
             TemplateName.Create("Unresolved Context Template"),
             TemplateSlug.Create("unresolved-context-template"),
             null,
-            DateTimeOffset.UtcNow);
+            FixedNow);
 
         dbContext.Templates.Add(template);
 
@@ -166,12 +165,9 @@ public class TenantIsolationIntegrationTests
         // Arrange
         var activeTenantId = ProjectId.New();
 
-        var mockContext = new Mock<ICurrentProjectContext>();
-        mockContext.Setup(c => c.IsResolved).Returns(true);
-        mockContext.Setup(c => c.ProjectId).Returns(activeTenantId);
-
-        var interceptor = new TenantSecuritySaveChangesInterceptor(mockContext.Object);
-        using var dbContext = new AppDbContext(CreateOptions(interceptor), mockContext.Object);
+        var projectContext = CreateProjectContext(activeTenantId);
+        var interceptor = new TenantSecuritySaveChangesInterceptor(projectContext);
+        using var dbContext = new AppDbContext(CreateOptions(interceptor), projectContext);
 
         // ApiKey has a private parameterless constructor for ORM materialization with ProjectId = ProjectId.Empty
         var apiKey = (ApiKey)Activator.CreateInstance(typeof(ApiKey), nonPublic: true)!;
@@ -193,19 +189,16 @@ public class TenantIsolationIntegrationTests
         var activeTenantId = ProjectId.New();
         var foreignTenantId = ProjectId.New();
 
-        var mockContext = new Mock<ICurrentProjectContext>();
-        mockContext.Setup(c => c.IsResolved).Returns(true);
-        mockContext.Setup(c => c.ProjectId).Returns(activeTenantId);
-
-        var interceptor = new TenantSecuritySaveChangesInterceptor(mockContext.Object);
-        using var dbContext = new AppDbContext(CreateOptions(interceptor), mockContext.Object);
+        var projectContext = CreateProjectContext(activeTenantId);
+        var interceptor = new TenantSecuritySaveChangesInterceptor(projectContext);
+        using var dbContext = new AppDbContext(CreateOptions(interceptor), projectContext);
 
         var crossTenantTemplate = Template.Create(
             foreignTenantId,
             TemplateName.Create("Cross Tenant Template"),
             TemplateSlug.Create("cross-tenant-template"),
             null,
-            DateTimeOffset.UtcNow);
+            FixedNow);
 
         dbContext.Templates.Attach(crossTenantTemplate);
         dbContext.Entry(crossTenantTemplate).State = EntityState.Modified;
@@ -225,19 +218,16 @@ public class TenantIsolationIntegrationTests
         var activeTenantId = ProjectId.New();
         var foreignTenantId = ProjectId.New();
 
-        var mockContext = new Mock<ICurrentProjectContext>();
-        mockContext.Setup(c => c.IsResolved).Returns(true);
-        mockContext.Setup(c => c.ProjectId).Returns(activeTenantId);
-
-        var interceptor = new TenantSecuritySaveChangesInterceptor(mockContext.Object);
-        using var dbContext = new AppDbContext(CreateOptions(interceptor), mockContext.Object);
+        var projectContext = CreateProjectContext(activeTenantId);
+        var interceptor = new TenantSecuritySaveChangesInterceptor(projectContext);
+        using var dbContext = new AppDbContext(CreateOptions(interceptor), projectContext);
 
         var crossTenantTemplate = Template.Create(
             foreignTenantId,
             TemplateName.Create("Cross Tenant Template"),
             TemplateSlug.Create("cross-tenant-template"),
             null,
-            DateTimeOffset.UtcNow);
+            FixedNow);
 
         dbContext.Templates.Attach(crossTenantTemplate);
         dbContext.Entry(crossTenantTemplate).State = EntityState.Deleted;
@@ -257,19 +247,16 @@ public class TenantIsolationIntegrationTests
         var activeTenantId = ProjectId.New();
         var foreignTenantId = ProjectId.New();
 
-        var mockContext = new Mock<ICurrentProjectContext>();
-        mockContext.Setup(c => c.IsResolved).Returns(true);
-        mockContext.Setup(c => c.ProjectId).Returns(activeTenantId);
-
-        var interceptor = new TenantSecuritySaveChangesInterceptor(mockContext.Object);
-        using var dbContext = new AppDbContext(CreateOptions(interceptor), mockContext.Object);
+        var projectContext = CreateProjectContext(activeTenantId);
+        var interceptor = new TenantSecuritySaveChangesInterceptor(projectContext);
+        using var dbContext = new AppDbContext(CreateOptions(interceptor), projectContext);
 
         var matchingTemplate = Template.Create(
             activeTenantId,
             TemplateName.Create("Matching Template"),
             TemplateSlug.Create("matching-template"),
             null,
-            DateTimeOffset.UtcNow);
+            FixedNow);
 
         dbContext.Templates.Attach(matchingTemplate);
         dbContext.Entry(matchingTemplate).Property(nameof(IMustHaveProject.ProjectId)).CurrentValue = foreignTenantId;

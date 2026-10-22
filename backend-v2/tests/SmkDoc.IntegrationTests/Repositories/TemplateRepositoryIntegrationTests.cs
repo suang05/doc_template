@@ -6,7 +6,7 @@ using SmkDoc.IntegrationTests.Fixtures;
 namespace SmkDoc.IntegrationTests.Repositories;
 
 [Trait("Category", "Integration")]
-public class TemplateRepositoryIntegrationTests : IClassFixture<PostgreSqlContainerFixture>
+public sealed class TemplateRepositoryIntegrationTests : IClassFixture<PostgreSqlContainerFixture>
 {
     private readonly PostgreSqlContainerFixture _fixture;
 

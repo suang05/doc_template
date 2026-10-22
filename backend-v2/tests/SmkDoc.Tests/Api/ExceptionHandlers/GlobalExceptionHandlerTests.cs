@@ -1,26 +1,25 @@
-using Microsoft.AspNetCore.Http;
+﻿using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging.Abstractions;
 using SmkDoc.Api.ExceptionHandlers;
 
 namespace SmkDoc.Tests.Api.ExceptionHandlers;
 
-public class GlobalExceptionHandlerTests
+public sealed class GlobalExceptionHandlerTests
 {
     private static async Task<(bool Handled, DefaultHttpContext HttpContext, ProblemDetails ProblemDetails)> ExecuteHandlerAsync(
         Exception exception,
         string path = "/api/v1/templates/test")
     {
         ProblemDetails? capturedProblemDetails = null;
-        var problemDetailsServiceMock = new Mock<IProblemDetailsService>();
-        problemDetailsServiceMock
-            .Setup(s => s.TryWriteAsync(It.IsAny<ProblemDetailsContext>()))
-            .Callback<ProblemDetailsContext>(ctx => capturedProblemDetails = ctx.ProblemDetails)
-            .ReturnsAsync(true);
+        var problemDetailsService = Substitute.For<IProblemDetailsService>();
+        problemDetailsService
+            .TryWriteAsync(Arg.Do<ProblemDetailsContext>(ctx => capturedProblemDetails = ctx.ProblemDetails))
+            .Returns(ValueTask.FromResult(true));
 
         var handler = new GlobalExceptionHandler(
             NullLogger<GlobalExceptionHandler>.Instance,
-            problemDetailsServiceMock.Object);
+            problemDetailsService);
 
         var httpContext = new DefaultHttpContext();
         httpContext.Request.Path = path;
@@ -138,6 +137,7 @@ public class GlobalExceptionHandlerTests
         httpContext.Response.StatusCode.Should().Be(expectedStatus);
         problemDetails.Should().NotBeNull();
         problemDetails.Status.Should().Be(expectedStatus);
+        problemDetails.Extensions.Should().ContainKey("errorCode");
         problemDetails.Extensions["errorCode"].Should().Be(expectedErrorCode);
 
         if (expectedStatus == StatusCodes.Status500InternalServerError)

@@ -1,5 +1,7 @@
 global using FluentAssertions;
-global using Moq;
+global using Microsoft.Extensions.Time.Testing;
+global using NSubstitute;
+global using NSubstitute.ExceptionExtensions;
 global using Xunit;
 global using SmkDoc.Application.Common.Exceptions;
 global using SmkDoc.Domain.Enums;

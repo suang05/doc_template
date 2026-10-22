@@ -1,32 +1,29 @@
-using System.Text.Json;
-using FluentAssertions;
-using Moq;
+﻿using System.Text.Json;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 using SmkDoc.Application.Modules.Rendering.Documents.Services;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Validation;
+using SmkDoc.Tests.Common;
 using SmkDoc.Tests.Common.Builders;
-using Xunit;
 
 namespace SmkDoc.Tests.Application.Modules.Rendering.Documents.Services;
 
-public class DocumentDataPreparationServiceTests
+public sealed class DocumentDataPreparationServiceTests
 {
-    private readonly Mock<IDatasetRepository> _mockDatasetRepo = new();
-    private readonly Mock<IDataConnectionRepository> _mockConnectionRepo = new();
-    private readonly Mock<IDataProtectionService> _mockDataProtection = new();
-    private readonly Mock<IFieldMappingApplicatorService> _mockApplicator = new();
-    private readonly Mock<IJsonSchemaValidationService> _mockSchemaValidation = new();
+    private readonly IDatasetRepository _datasetRepo = Substitute.For<IDatasetRepository>();
+    private readonly IDataConnectionRepository _connectionRepo = Substitute.For<IDataConnectionRepository>();
+    private readonly IDataProtectionService _dataProtection = Substitute.For<IDataProtectionService>();
+    private readonly IFieldMappingApplicatorService _applicator = Substitute.For<IFieldMappingApplicatorService>();
+    private readonly IJsonSchemaValidationService _schemaValidation = Substitute.For<IJsonSchemaValidationService>();
 
-    private DocumentDataPreparationService BuildService() => new(
-        _mockDatasetRepo.Object,
-        _mockConnectionRepo.Object,
-        _mockDataProtection.Object,
-        _mockApplicator.Object,
-        _mockSchemaValidation.Object);
+    private DocumentDataPreparationService CreateSut() => new(
+        _datasetRepo,
+        _connectionRepo,
+        _dataProtection,
+        _applicator,
+        _schemaValidation);
 
     [Fact]
     public async Task PrepareDataAsync_WhenNoMappings_ShouldReturnRawJson()
@@ -35,16 +32,18 @@ public class DocumentDataPreparationServiceTests
         var template = new TemplateBuilder().WithName("Tpl").WithSlug("tpl").Build();
         var version = TemplateVersionBuilder.PublishedHtml(templateId: template.Id, version: 1, storageKey: "tpl.html");
 
-        var service = BuildService();
         using var jsonDoc = JsonDocument.Parse("""{"key":"value"}""");
 
         // Act
-        var result = await service.PrepareDataAsync(template, version, jsonDoc.RootElement, skipValidation: true);
+        var result = await CreateSut().PrepareDataAsync(template, version, jsonDoc.RootElement, skipValidation: true);
 
         // Assert
         result.DataJson.Should().Be("""{"key":"value"}""");
         result.ValidationResult.Should().BeNull();
-        _mockApplicator.Verify(a => a.ApplyAsync(It.IsAny<JsonElement>(), It.IsAny<IEnumerable<FieldMapping>>(), It.IsAny<IReadOnlyDictionary<string, ResolvedDatasetContext>>()), Times.Never);
+        await _applicator.DidNotReceive().ApplyAsync(
+            Arg.Any<JsonElement>(),
+            Arg.Any<IEnumerable<FieldMapping>>(),
+            Arg.Any<IReadOnlyDictionary<string, ResolvedDatasetContext>>());
     }
 
     [Fact]
@@ -57,14 +56,13 @@ public class DocumentDataPreparationServiceTests
         version.UpdateDataSchema(schema, null, TestConstants.BaselineTime);
 
         var errors = new List<ValidationErrorItem> { new("/", "required", "Missing field") };
-        _mockSchemaValidation.Setup(s => s.Validate(schema, It.IsAny<string>()))
+        _schemaValidation.Validate(schema, Arg.Any<string>())
             .Returns(SchemaValidationResult.Failure(errors));
 
-        var service = BuildService();
         using var jsonDoc = JsonDocument.Parse("""{}""");
 
         // Act
-        var result = await service.PrepareDataAsync(template, version, jsonDoc.RootElement, skipValidation: false);
+        var result = await CreateSut().PrepareDataAsync(template, version, jsonDoc.RootElement, skipValidation: false);
 
         // Assert
         result.ValidationResult.Should().NotBeNull();

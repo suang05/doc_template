@@ -1,4 +1,4 @@
-using System.Linq.Expressions;
+﻿using System.Linq.Expressions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Rendering.Documents.Queries.GetDocumentVersions;
 using SmkDoc.Domain.Entities;
@@ -6,13 +6,13 @@ using SmkDoc.Tests.Common.Builders;
 
 namespace SmkDoc.Tests.Application.Modules.Rendering.Documents.Queries.GetDocumentVersions;
 
-public class GetDocumentVersionsUseCaseTests
+public sealed class GetDocumentVersionsUseCaseTests
 {
-    private readonly Mock<IRepository<Document>> _documentRepoMock = new();
-    private readonly Mock<IRepository<DocumentVersion>> _versionRepoMock = new();
+    private readonly IRepository<Document> _documentRepo = Substitute.For<IRepository<Document>>();
+    private readonly IRepository<DocumentVersion> _versionRepo = Substitute.For<IRepository<DocumentVersion>>();
 
     private GetDocumentVersionsUseCase CreateSut() =>
-        new(_documentRepoMock.Object, _versionRepoMock.Object);
+        new(_documentRepo, _versionRepo);
 
     [Fact]
     public async Task ExecuteAsync_WhenDocumentExists_ReturnsVersionsInDescendingOrder()
@@ -21,13 +21,11 @@ public class GetDocumentVersionsUseCaseTests
         var documentId = Guid.NewGuid();
         var document = new DocumentBuilder().WithId(documentId).WithDocumentRef("SC-001").WithTemplateId(Guid.NewGuid()).Build();
 
-        _documentRepoMock
-            .Setup(r => r.FirstOrDefaultAsync(It.IsAny<Expression<Func<Document, bool>>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(document);
+        _documentRepo.FirstOrDefaultAsync(Arg.Any<Expression<Func<Document, bool>>>(), Arg.Any<CancellationToken>())
+            .Returns(document);
 
-        _versionRepoMock
-            .Setup(r => r.ListAsync(It.IsAny<Expression<Func<DocumentVersion, bool>>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync([
+        _versionRepo.ListAsync(Arg.Any<Expression<Func<DocumentVersion, bool>>>(), Arg.Any<CancellationToken>())
+            .Returns([
                 new DocumentVersionBuilder().ForDocument(documentId).WithVersion(1).Build(),
                 new DocumentVersionBuilder().ForDocument(documentId).WithVersion(2).Build()
             ]);
@@ -46,9 +44,8 @@ public class GetDocumentVersionsUseCaseTests
     public async Task ExecuteAsync_WhenDocumentDoesNotExist_ReturnsEmptyList()
     {
         // Arrange
-        _documentRepoMock
-            .Setup(r => r.FirstOrDefaultAsync(It.IsAny<Expression<Func<Document, bool>>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((Document?)null);
+        _documentRepo.FirstOrDefaultAsync(Arg.Any<Expression<Func<Document, bool>>>(), Arg.Any<CancellationToken>())
+            .Returns((Document?)null);
 
         // Act
         var result = await CreateSut().ExecuteAsync(new GetDocumentVersionsQuery("DOES-NOT-EXIST"));

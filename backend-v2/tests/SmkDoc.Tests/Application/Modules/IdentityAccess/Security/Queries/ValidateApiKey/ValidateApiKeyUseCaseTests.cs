@@ -1,24 +1,26 @@
-using Microsoft.Extensions.Time.Testing;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Helpers;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Queries.ValidateApiKey;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
-using SmkDoc.Tests.Common;
 using SmkDoc.Tests.Common.Builders;
 
 namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Security.Queries.ValidateApiKey;
 
-public class ValidateApiKeyUseCaseTests
+public sealed class ValidateApiKeyUseCaseTests
 {
-    private readonly Mock<IApiKeyRepository> _apiKeyRepoMock = new();
-    private readonly Mock<IUnitOfWork> _uowMock = new();
+    private readonly IApiKeyRepository _apiKeyRepo = Substitute.For<IApiKeyRepository>();
+    private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
     private readonly FakeTimeProvider _clock = TestConstants.CreateFakeClock();
 
+    public ValidateApiKeyUseCaseTests()
+    {
+        _unitOfWork.CommitAsync(Arg.Any<CancellationToken>()).Returns(1);
+    }
+
     private ValidateApiKeyUseCase CreateSut() =>
-        new(_apiKeyRepoMock.Object, _uowMock.Object, _clock);
+        new(_apiKeyRepo, _unitOfWork, _clock);
 
     [Theory]
     [InlineData(null)]
@@ -31,43 +33,43 @@ public class ValidateApiKeyUseCaseTests
 
         // Assert
         result.Should().BeNull();
-        _apiKeyRepoMock.Verify(r => r.GetByKeyHashAsync(It.IsAny<Sha256Hash>(), It.IsAny<CancellationToken>()), Times.Never);
-        _uowMock.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Never);
+        await _apiKeyRepo.DidNotReceive().GetByKeyHashAsync(Arg.Any<Sha256Hash>(), Arg.Any<CancellationToken>());
+        await _unitOfWork.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task ExecuteAsync_WhenKeyNotFoundInRepo_ReturnsNull()
     {
         // Arrange
-        _apiKeyRepoMock.Setup(r => r.GetByKeyHashAsync(It.IsAny<Sha256Hash>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((ApiKey?)null);
+        _apiKeyRepo.GetByKeyHashAsync(Arg.Any<Sha256Hash>(), Arg.Any<CancellationToken>())
+            .Returns((ApiKey?)null);
 
         // Act
         var result = await CreateSut().ExecuteAsync(new ValidateApiKeyQuery("smk_test_key_not_found"));
 
         // Assert
         result.Should().BeNull();
-        _apiKeyRepoMock.Verify(r => r.Update(It.IsAny<ApiKey>()), Times.Never);
-        _uowMock.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Never);
+        _apiKeyRepo.DidNotReceive().Update(Arg.Any<ApiKey>());
+        await _unitOfWork.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task ExecuteAsync_WhenKeyIsExpiredOrInactive_ReturnsNullAndDoesNotRecordUsage()
     {
         // Arrange
-        var key = new ApiKeyBuilder().WithTime(TestConstants.BaselineTime).Build();
+        ApiKey key = new ApiKeyBuilder().WithTime(TestConstants.BaselineTime);
         key.Revoke(TestConstants.BaselineTime);
 
-        _apiKeyRepoMock.Setup(r => r.GetByKeyHashAsync(It.IsAny<Sha256Hash>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(key);
+        _apiKeyRepo.GetByKeyHashAsync(Arg.Any<Sha256Hash>(), Arg.Any<CancellationToken>())
+            .Returns(key);
 
         // Act
         var result = await CreateSut().ExecuteAsync(new ValidateApiKeyQuery("smk_test_inactive_key"));
 
         // Assert
         result.Should().BeNull();
-        _apiKeyRepoMock.Verify(r => r.Update(It.IsAny<ApiKey>()), Times.Never);
-        _uowMock.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Never);
+        _apiKeyRepo.DidNotReceive().Update(Arg.Any<ApiKey>());
+        await _unitOfWork.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -77,18 +79,17 @@ public class ValidateApiKeyUseCaseTests
         const string plainText = "smk_billing_secret123";
         var hash = new Sha256Hash(ApiKeyHelper.ComputeHash(plainText));
         var projectId = Guid.NewGuid();
-        var key = new ApiKeyBuilder()
+        ApiKey key = new ApiKeyBuilder()
             .WithProjectId(projectId)
             .WithCallerApp("billing-service")
             .WithKeyHash(hash)
-            .WithTime(TestConstants.BaselineTime)
-            .Build();
+            .WithTime(TestConstants.BaselineTime);
 
-        _apiKeyRepoMock.Setup(r => r.GetByKeyHashAsync(hash, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(key);
+        _apiKeyRepo.GetByKeyHashAsync(hash, Arg.Any<CancellationToken>())
+            .Returns(key);
 
         // Act
-        var result = await CreateSut().ExecuteAsync(new ValidateApiKeyQuery(plainText));
+        ValidatedApiKeyDto? result = await CreateSut().ExecuteAsync(new ValidateApiKeyQuery(plainText));
 
         // Assert
         result.Should().NotBeNull();
@@ -97,7 +98,7 @@ public class ValidateApiKeyUseCaseTests
         result.ProjectId.Should().Be(projectId);
 
         key.LastUsedAt.Should().Be(TestConstants.BaselineTime);
-        _apiKeyRepoMock.Verify(r => r.Update(key), Times.Once);
-        _uowMock.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _apiKeyRepo.Received(1).Update(key);
+        await _unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
     }
 }

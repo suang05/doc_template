@@ -1,28 +1,37 @@
 using FluentValidation;
-using ValidationException = SmkDoc.Application.Common.Exceptions.ValidationException;
 using SmkDoc.Application.Modules.IdentityAccess.Projects.Commands.CreateProject;
+using SmkDoc.Application.Modules.IdentityAccess.Projects.DTOs;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
+using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Tests.Common.Builders;
+using ValidationException = SmkDoc.Application.Common.Exceptions.ValidationException;
 
 namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Projects.Commands.CreateProject;
 
-public class CreateProjectUseCaseTests
+public sealed class CreateProjectUseCaseTests
 {
-    private readonly Mock<IProjectRepository> _projectRepoMock = new();
-    private readonly Mock<IUserProjectRoleRepository> _roleRepoMock = new();
-    private readonly Mock<ICompanyRepository> _companyRepoMock = new();
-    private readonly Mock<IUnitOfWork> _uowMock = new();
+    private readonly IProjectRepository _projectRepo = Substitute.For<IProjectRepository>();
+    private readonly IUserProjectRoleRepository _roleRepo = Substitute.For<IUserProjectRoleRepository>();
+    private readonly ICompanyRepository _companyRepo = Substitute.For<ICompanyRepository>();
+    private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
+    private readonly FakeTimeProvider _timeProvider = TestConstants.CreateFakeClock();
+
+    public CreateProjectUseCaseTests()
+    {
+        _unitOfWork.CommitAsync(Arg.Any<CancellationToken>()).Returns(1);
+    }
 
     private CreateProjectUseCase CreateSut(IValidator<CreateProjectCommand>? validator = null) =>
         new(
-            _projectRepoMock.Object,
-            _roleRepoMock.Object,
-            _companyRepoMock.Object,
-            _uowMock.Object,
-            validator);
+            _projectRepo,
+            _roleRepo,
+            _companyRepo,
+            _unitOfWork,
+            validator,
+            _timeProvider);
 
     [Fact]
     public async Task ExecuteAsync_WhenSlugAlreadyExists_ThrowsConflictException()
@@ -30,22 +39,21 @@ public class CreateProjectUseCaseTests
         // Arrange
         var now = TestConstants.BaselineTime;
         var command = new CreateProjectCommand(Guid.NewGuid(), "Existing Project", "existing-slug");
-        var existingProject = ProjectBuilder.AProject()
+        Project existingProject = ProjectBuilder.AProject()
             .WithName("Existing Project")
             .WithSlug("existing-slug")
-            .WithTime(now)
-            .Build();
+            .WithTime(now);
 
-        _projectRepoMock.Setup(r => r.GetBySlugAsync("existing-slug", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(existingProject);
+        _projectRepo.GetBySlugAsync("existing-slug", Arg.Any<CancellationToken>())
+            .Returns(existingProject);
 
         // Act
         var act = () => CreateSut().ExecuteAsync(command);
 
         // Assert
         await act.Should().ThrowAsync<ConflictException>();
-        _projectRepoMock.Verify(r => r.AddAsync(It.IsAny<Project>(), It.IsAny<CancellationToken>()), Times.Never);
-        _uowMock.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Never);
+        await _projectRepo.DidNotReceive().AddAsync(Arg.Any<Project>(), Arg.Any<CancellationToken>());
+        await _unitOfWork.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -54,24 +62,24 @@ public class CreateProjectUseCaseTests
         // Arrange
         var now = TestConstants.BaselineTime;
         var userId = Guid.NewGuid();
-        var company = new CompanyBuilder().WithName("Test Company").WithTime(now).Build();
+        Company company = new CompanyBuilder().WithName("Test Company").WithTime(now);
         var command = new CreateProjectCommand(userId, "New Project", "new-project");
 
-        _projectRepoMock.Setup(r => r.GetBySlugAsync("new-project", It.IsAny<CancellationToken>()))
-            .ReturnsAsync((Project?)null);
-        _companyRepoMock.Setup(r => r.GetFirstAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(company);
+        _projectRepo.GetBySlugAsync("new-project", Arg.Any<CancellationToken>())
+            .Returns((Project?)null);
+        _companyRepo.GetFirstAsync(Arg.Any<CancellationToken>())
+            .Returns(company);
 
         Project? capturedProject = null;
-        _projectRepoMock.Setup(r => r.AddAsync(It.IsAny<Project>(), It.IsAny<CancellationToken>()))
-            .Callback<Project, CancellationToken>((p, _) => capturedProject = p);
+        _projectRepo.AddAsync(Arg.Do<Project>(p => capturedProject = p), Arg.Any<CancellationToken>())
+            .Returns(Task.CompletedTask);
 
         UserProjectRole? capturedRole = null;
-        _roleRepoMock.Setup(r => r.AddAsync(It.IsAny<UserProjectRole>(), It.IsAny<CancellationToken>()))
-            .Callback<UserProjectRole, CancellationToken>((r, _) => capturedRole = r);
+        _roleRepo.AddAsync(Arg.Do<UserProjectRole>(r => capturedRole = r), Arg.Any<CancellationToken>())
+            .Returns(Task.CompletedTask);
 
         // Act
-        var result = await CreateSut().ExecuteAsync(command);
+        ProjectResultDto result = await CreateSut().ExecuteAsync(command);
 
         // Assert
         result.Should().NotBeNull();
@@ -83,7 +91,7 @@ public class CreateProjectUseCaseTests
         capturedRole!.UserId.Should().Be(userId);
         capturedRole.Role.Should().Be(RoleType.Admin);
 
-        _uowMock.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
+        await _unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -93,24 +101,24 @@ public class CreateProjectUseCaseTests
         var userId = Guid.NewGuid();
         var command = new CreateProjectCommand(userId, "Fallback Project", "fallback-project");
 
-        _projectRepoMock.Setup(r => r.GetBySlugAsync("fallback-project", It.IsAny<CancellationToken>()))
-            .ReturnsAsync((Project?)null);
-        _companyRepoMock.Setup(r => r.GetFirstAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync((Company?)null);
+        _projectRepo.GetBySlugAsync("fallback-project", Arg.Any<CancellationToken>())
+            .Returns((Project?)null);
+        _companyRepo.GetFirstAsync(Arg.Any<CancellationToken>())
+            .Returns((Company?)null);
 
         Company? capturedCompany = null;
-        _companyRepoMock.Setup(r => r.AddAsync(It.IsAny<Company>(), It.IsAny<CancellationToken>()))
-            .Callback<Company, CancellationToken>((c, _) => capturedCompany = c);
+        _companyRepo.AddAsync(Arg.Do<Company>(c => capturedCompany = c), Arg.Any<CancellationToken>())
+            .Returns(Task.CompletedTask);
 
         // Act
-        var result = await CreateSut().ExecuteAsync(command);
+        ProjectResultDto result = await CreateSut().ExecuteAsync(command);
 
         // Assert
         result.Should().NotBeNull();
         capturedCompany.Should().NotBeNull();
         capturedCompany!.Name.Value.Should().Be("Default Company");
-        _companyRepoMock.Verify(r => r.AddAsync(It.IsAny<Company>(), It.IsAny<CancellationToken>()), Times.Once);
-        _uowMock.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
+        await _companyRepo.Received(1).AddAsync(Arg.Any<Company>(), Arg.Any<CancellationToken>());
+        await _unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -125,7 +133,7 @@ public class CreateProjectUseCaseTests
 
         // Assert
         await act.Should().ThrowAsync<ValidationException>();
-        _projectRepoMock.Verify(r => r.AddAsync(It.IsAny<Project>(), It.IsAny<CancellationToken>()), Times.Never);
-        _uowMock.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Never);
+        await _projectRepo.DidNotReceive().AddAsync(Arg.Any<Project>(), Arg.Any<CancellationToken>());
+        await _unitOfWork.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
     }
 }

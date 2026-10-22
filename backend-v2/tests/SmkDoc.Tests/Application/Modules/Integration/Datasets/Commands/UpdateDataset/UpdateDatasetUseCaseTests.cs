@@ -1,18 +1,27 @@
 using SmkDoc.Application.Modules.Integration.Datasets.Commands.UpdateDataset;
+using SmkDoc.Application.Modules.Integration.Datasets.DTOs;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
-using SmkDoc.Tests.Common;
+using SmkDoc.Domain.Interfaces;
 using SmkDoc.Tests.Common.Builders;
-using SmkDoc.Tests.Common.Fixtures;
 
 namespace SmkDoc.Tests.Application.Modules.Integration.Datasets.Commands.UpdateDataset;
 
-public class UpdateDatasetUseCaseTests
+public sealed class UpdateDatasetUseCaseTests
 {
-    private readonly IntegrationModuleTestFixture _fixture = new();
+    private readonly IDatasetRepository _datasetRepo = Substitute.For<IDatasetRepository>();
+    private readonly IDataConnectionRepository _connectionRepo = Substitute.For<IDataConnectionRepository>();
+    private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
 
-    private UpdateDatasetUseCase CreateSut() => _fixture.BuildUpdateDatasetUseCase();
+    public UpdateDatasetUseCaseTests()
+    {
+        _unitOfWork.CommitAsync(Arg.Any<CancellationToken>()).Returns(1);
+    }
+
+    private UpdateDatasetUseCase CreateSut() => new(
+        _datasetRepo,
+        _connectionRepo,
+        _unitOfWork);
 
     [Fact]
     public async Task ExecuteAsync_WhenFound_UpdatesAndCommits()
@@ -20,29 +29,33 @@ public class UpdateDatasetUseCaseTests
         // Arrange
         var id = Guid.NewGuid();
         var connId = Guid.NewGuid();
-        var conn = DataConnectionBuilder.Postgres(name: "Conn1", connectionString: "enc_conn", id: connId);
-        var dataset = new DatasetBuilder().WithId(id).WithName("OldName").WithDescription("old desc").WithDataConnectionId(connId).WithSqlQuery("SELECT 1").WithCacheSeconds(0).Build();
+        DataConnection conn = DataConnectionBuilder.Postgres(name: "Conn1", connectionString: "enc_conn", id: connId);
+        Dataset dataset = new DatasetBuilder()
+            .WithId(id)
+            .WithName("OldName")
+            .WithDescription("old desc")
+            .WithDataConnectionId(connId)
+            .WithSqlQuery("SELECT 1")
+            .WithCacheSeconds(0);
 
-        _fixture.DatasetRepo
-            .Setup(r => r.GetByIdAsync(id, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(dataset);
+        _datasetRepo.GetByIdAsync(id, Arg.Any<CancellationToken>())
+            .Returns(dataset);
 
-        _fixture.ConnectionRepo
-            .Setup(r => r.GetByIdAsync(connId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(conn);
+        _connectionRepo.GetByIdAsync(connId, Arg.Any<CancellationToken>())
+            .Returns(conn);
 
         var command = new UpdateDatasetCommand(id, "NewName", "new desc", connId, "SELECT 2", 60);
 
         // Act
-        var result = await CreateSut().ExecuteAsync(command);
+        DatasetDto? result = await CreateSut().ExecuteAsync(command);
 
         // Assert
         result.Should().NotBeNull();
         result!.Name.Should().Be("NewName");
         result.DataConnectionName.Should().Be("Conn1");
         result.CacheSeconds.Should().Be(60);
-        _fixture.DatasetRepo.Verify(r => r.Update(dataset), Times.Once);
-        _fixture.Uow.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _datasetRepo.Received(1).Update(dataset);
+        await _unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -50,17 +63,18 @@ public class UpdateDatasetUseCaseTests
     {
         // Arrange
         var id = Guid.NewGuid();
-        _fixture.DatasetRepo
-            .Setup(r => r.GetByIdAsync(id, It.IsAny<CancellationToken>()))
-            .ReturnsAsync((Dataset?)null);
+        _datasetRepo.GetByIdAsync(id, Arg.Any<CancellationToken>())
+            .Returns((Dataset?)null);
 
         var command = new UpdateDatasetCommand(id, "Name", null, Guid.NewGuid(), "SELECT 1");
 
         // Act
-        var result = await CreateSut().ExecuteAsync(command);
+        DatasetDto? result = await CreateSut().ExecuteAsync(command);
 
         // Assert
         result.Should().BeNull();
+        _datasetRepo.DidNotReceive().Update(Arg.Any<Dataset>());
+        await _unitOfWork.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -68,15 +82,18 @@ public class UpdateDatasetUseCaseTests
     {
         // Arrange
         var id = Guid.NewGuid();
-        var dataset = new DatasetBuilder().WithId(id).WithName("Name").WithDataConnectionId(Guid.NewGuid()).WithSqlQuery("SELECT 1").WithCacheSeconds(0).Build();
+        Dataset dataset = new DatasetBuilder()
+            .WithId(id)
+            .WithName("Name")
+            .WithDataConnectionId(Guid.NewGuid())
+            .WithSqlQuery("SELECT 1")
+            .WithCacheSeconds(0);
 
-        _fixture.DatasetRepo
-            .Setup(r => r.GetByIdAsync(id, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(dataset);
+        _datasetRepo.GetByIdAsync(id, Arg.Any<CancellationToken>())
+            .Returns(dataset);
 
-        _fixture.ConnectionRepo
-            .Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((DataConnection?)null);
+        _connectionRepo.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns((DataConnection?)null);
 
         var command = new UpdateDatasetCommand(id, "Name", null, Guid.NewGuid(), "SELECT 1");
 
@@ -85,5 +102,7 @@ public class UpdateDatasetUseCaseTests
 
         // Assert
         await act.Should().ThrowAsync<NotFoundException>();
+        _datasetRepo.DidNotReceive().Update(Arg.Any<Dataset>());
+        await _unitOfWork.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
     }
 }

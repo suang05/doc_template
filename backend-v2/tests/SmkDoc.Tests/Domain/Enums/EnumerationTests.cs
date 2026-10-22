@@ -1,10 +1,10 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using SmkDoc.Domain.Enums;
 using Xunit;
 
 namespace SmkDoc.Tests.Domain.Enums;
 
-public class EnumerationTests
+public sealed class EnumerationTests
 {
     // ── Enumeration Static Cache & Lookup ───────────────────────────────────
 

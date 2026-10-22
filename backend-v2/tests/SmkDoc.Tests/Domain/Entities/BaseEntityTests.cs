@@ -1,8 +1,8 @@
-using SmkDoc.Tests.Common.Builders;
+﻿using SmkDoc.Tests.Common.Builders;
 
 namespace SmkDoc.Tests.Domain.Entities;
 
-public class BaseEntityTests
+public sealed class BaseEntityTests
 {
     [Fact]
     public void EntityEquality_UsesIdComparison()

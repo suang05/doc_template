@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
 using SmkDoc.Application;
@@ -6,7 +6,7 @@ using Xunit;
 
 namespace SmkDoc.Tests.Api;
 
-public class DependencyInjectionSmokeTests
+public sealed class DependencyInjectionSmokeTests
 {
     [Fact]
     public void AllUseCases_MustBeRegisteredInApplicationServices()

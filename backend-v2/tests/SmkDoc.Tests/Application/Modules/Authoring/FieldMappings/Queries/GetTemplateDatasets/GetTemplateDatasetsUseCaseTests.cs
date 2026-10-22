@@ -1,4 +1,4 @@
-using SmkDoc.Application.Modules.Authoring.FieldMappings.Queries.GetTemplateDatasets;
+﻿using SmkDoc.Application.Modules.Authoring.FieldMappings.Queries.GetTemplateDatasets;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
@@ -7,13 +7,13 @@ using SmkDoc.Tests.Common.Builders;
 
 namespace SmkDoc.Tests.Application.Modules.Authoring.FieldMappings.Queries.GetTemplateDatasets;
 
-public class GetTemplateDatasetsUseCaseTests
+public sealed class GetTemplateDatasetsUseCaseTests
 {
-    private readonly Mock<ITemplateRepository> _templateRepoMock = new();
-    private readonly Mock<IDatasetRepository> _datasetRepoMock = new();
+    private readonly ITemplateRepository _templateRepo = Substitute.For<ITemplateRepository>();
+    private readonly IDatasetRepository _datasetRepo = Substitute.For<IDatasetRepository>();
 
     private GetTemplateDatasetsUseCase CreateSut() =>
-        new(_templateRepoMock.Object, _datasetRepoMock.Object);
+        new(_templateRepo, _datasetRepo);
 
     [Fact]
     public async Task ExecuteAsync_WhenTemplateExists_ReturnsEnrichedDtosOrderedBySortOrder()
@@ -67,12 +67,10 @@ public class GetTemplateDatasetsUseCaseTests
             .Build();
         template.ReplaceDatasets(rows, TestConstants.BaselineTime);
 
-        _templateRepoMock
-            .Setup(r => r.GetByIdWithDetailsAsync(templateId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(template);
-        _datasetRepoMock
-            .Setup(r => r.GetByIdsAsync(It.IsAny<IEnumerable<Guid>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(datasets);
+        _templateRepo.GetByIdWithDetailsAsync(templateId, Arg.Any<CancellationToken>())
+            .Returns(template);
+        _datasetRepo.GetByIdsAsync(Arg.Any<IEnumerable<Guid>>(), Arg.Any<CancellationToken>())
+            .Returns(datasets);
 
         // Act
         var result = await CreateSut().ExecuteAsync(new GetTemplateDatasetsQuery(templateId));
@@ -93,9 +91,8 @@ public class GetTemplateDatasetsUseCaseTests
     {
         // Arrange
         var templateId = Guid.NewGuid();
-        _templateRepoMock
-            .Setup(r => r.GetByIdWithDetailsAsync(templateId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync((Template?)null);
+        _templateRepo.GetByIdWithDetailsAsync(templateId, Arg.Any<CancellationToken>())
+            .Returns((Template?)null);
 
         // Act
         var result = await CreateSut().ExecuteAsync(new GetTemplateDatasetsQuery(templateId));

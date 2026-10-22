@@ -1,10 +1,10 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using SmkDoc.Infrastructure.Imaging;
 using Xunit;
 
 namespace SmkDoc.Tests.Infrastructure.Imaging;
 
-public class BarcodeQrCodeServiceTests
+public sealed class BarcodeQrCodeServiceTests
 {
     private static readonly byte[] PngHeader = { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A };
 

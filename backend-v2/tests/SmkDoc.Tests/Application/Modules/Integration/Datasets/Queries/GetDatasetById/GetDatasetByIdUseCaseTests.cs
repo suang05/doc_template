@@ -1,16 +1,19 @@
+using SmkDoc.Application.Modules.Integration.Datasets.DTOs;
 using SmkDoc.Application.Modules.Integration.Datasets.Queries.GetDatasetById;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Enums;
+using SmkDoc.Domain.Interfaces;
 using SmkDoc.Tests.Common.Builders;
-using SmkDoc.Tests.Common.Fixtures;
 
 namespace SmkDoc.Tests.Application.Modules.Integration.Datasets.Queries.GetDatasetById;
 
-public class GetDatasetByIdUseCaseTests
+public sealed class GetDatasetByIdUseCaseTests
 {
-    private readonly IntegrationModuleTestFixture _fixture = new();
+    private readonly IDatasetRepository _datasetRepo = Substitute.For<IDatasetRepository>();
+    private readonly IDataConnectionRepository _connectionRepo = Substitute.For<IDataConnectionRepository>();
 
-    private GetDatasetByIdUseCase CreateSut() => _fixture.BuildGetDatasetByIdUseCase();
+    private GetDatasetByIdUseCase CreateSut() => new(
+        _datasetRepo,
+        _connectionRepo);
 
     [Fact]
     public async Task ExecuteAsync_WhenFound_ReturnsEnrichedDto()
@@ -18,19 +21,23 @@ public class GetDatasetByIdUseCaseTests
         // Arrange
         var id = Guid.NewGuid();
         var connId = Guid.NewGuid();
-        var conn = DataConnectionBuilder.Postgres(name: "AnalyticsDB", connectionString: "enc_analytics", id: connId);
-        var dataset = new DatasetBuilder().WithId(id).WithName("SalesMetrics").WithDescription("desc").WithDataConnectionId(connId).WithSqlQuery("SELECT * FROM sales").WithCacheSeconds(300).Build();
+        DataConnection conn = DataConnectionBuilder.Postgres(name: "AnalyticsDB", connectionString: "enc_analytics", id: connId);
+        Dataset dataset = new DatasetBuilder()
+            .WithId(id)
+            .WithName("SalesMetrics")
+            .WithDescription("desc")
+            .WithDataConnectionId(connId)
+            .WithSqlQuery("SELECT * FROM sales")
+            .WithCacheSeconds(300);
 
-        _fixture.DatasetRepo
-            .Setup(r => r.GetByIdAsync(id, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(dataset);
+        _datasetRepo.GetByIdAsync(id, Arg.Any<CancellationToken>())
+            .Returns(dataset);
 
-        _fixture.ConnectionRepo
-            .Setup(r => r.GetByIdAsync(connId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(conn);
+        _connectionRepo.GetByIdAsync(connId, Arg.Any<CancellationToken>())
+            .Returns(conn);
 
         // Act
-        var result = await CreateSut().ExecuteAsync(new GetDatasetByIdQuery(id));
+        DatasetDto? result = await CreateSut().ExecuteAsync(new GetDatasetByIdQuery(id));
 
         // Assert
         result.Should().NotBeNull();
@@ -44,12 +51,11 @@ public class GetDatasetByIdUseCaseTests
     {
         // Arrange
         var id = Guid.NewGuid();
-        _fixture.DatasetRepo
-            .Setup(r => r.GetByIdAsync(id, It.IsAny<CancellationToken>()))
-            .ReturnsAsync((Dataset?)null);
+        _datasetRepo.GetByIdAsync(id, Arg.Any<CancellationToken>())
+            .Returns((Dataset?)null);
 
         // Act
-        var result = await CreateSut().ExecuteAsync(new GetDatasetByIdQuery(id));
+        DatasetDto? result = await CreateSut().ExecuteAsync(new GetDatasetByIdQuery(id));
 
         // Assert
         result.Should().BeNull();

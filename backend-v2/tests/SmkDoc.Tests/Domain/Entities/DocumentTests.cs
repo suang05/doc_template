@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects;
@@ -7,7 +7,7 @@ using Xunit;
 
 namespace SmkDoc.Tests.Domain.Entities;
 
-public class DocumentTests
+public sealed class DocumentTests
 {
     [Fact]
     public void Create_WithValidParameters_InitializesCorrectly()

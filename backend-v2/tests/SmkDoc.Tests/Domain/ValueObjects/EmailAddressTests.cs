@@ -1,11 +1,11 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects;
 using Xunit;
 
 namespace SmkDoc.Tests.Domain.ValueObjects;
 
-public class EmailAddressTests
+public sealed class EmailAddressTests
 {
     [Theory]
     [InlineData("user@example.com", "user@example.com")]

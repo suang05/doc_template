@@ -6,24 +6,147 @@ using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 using SmkDoc.Application.Modules.Rendering.Documents;
 using SmkDoc.Application.Modules.Rendering.Documents.Commands.GenerateDocument;
 using SmkDoc.Application.Modules.Rendering.Documents.DTOs;
+using SmkDoc.Application.Modules.Rendering.Documents.Services;
 using SmkDoc.Domain.Entities;
+using SmkDoc.Domain.Enums;
+using SmkDoc.Domain.Exceptions;
+using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Validation;
 using SmkDoc.Tests.Common.Builders;
-using SmkDoc.Tests.Common.Fixtures;
 
 namespace SmkDoc.Tests.Application.Modules.Rendering.Documents.Commands.GenerateDocument;
 
-public class GenerateDocumentUseCaseTests
+public sealed class GenerateDocumentUseCaseTests
 {
-    private readonly RenderingModuleTestFixture _fixture = new();
+    private readonly ITemplateRepository _templateRepo = Substitute.For<ITemplateRepository>();
+    private readonly IDatasetRepository _datasetRepo = Substitute.For<IDatasetRepository>();
+    private readonly IDataConnectionRepository _connectionRepo = Substitute.For<IDataConnectionRepository>();
+    private readonly IRepository<GenerationLog> _logRepo = Substitute.For<IRepository<GenerationLog>>();
+    private readonly IRepository<Document> _documentRepo = Substitute.For<IRepository<Document>>();
+    private readonly IRepository<DocumentVersion> _docVersionRepo = Substitute.For<IRepository<DocumentVersion>>();
+    private readonly IStorageService _storageService = Substitute.For<IStorageService>();
+    private readonly IRenderEngine _engine = Substitute.For<IRenderEngine>();
+    private readonly IExecutionContext _executionContext = Substitute.For<IExecutionContext>();
+    private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
+    private readonly IFieldMappingApplicatorService _applicator = Substitute.For<IFieldMappingApplicatorService>();
+    private readonly IDataProtectionService _dataProtection = Substitute.For<IDataProtectionService>();
+    private readonly IJsonSchemaValidationService _schemaValidation = Substitute.For<IJsonSchemaValidationService>();
+    private readonly FakeTimeProvider _timeProvider = TestConstants.CreateFakeClock();
 
-    private GenerateDocumentUseCase CreateSut() => _fixture.BuildUseCase();
+    public GenerateDocumentUseCaseTests()
+    {
+        _unitOfWork.CommitAsync(Arg.Any<CancellationToken>()).Returns(1);
+        _executionContext.ProjectId.Returns(Guid.NewGuid());
+    }
+
+    private GenerateDocumentUseCase CreateSut()
+    {
+        var dataPrep = new DocumentDataPreparationService(
+            _datasetRepo,
+            _connectionRepo,
+            _dataProtection,
+            _applicator,
+            _schemaValidation);
+
+        var audit = new DocumentAuditService(
+            _logRepo,
+            _executionContext,
+            _unitOfWork);
+
+        var versioning = new DocumentVersioningService(
+            _documentRepo,
+            _docVersionRepo,
+            _executionContext);
+
+        return new GenerateDocumentUseCase(
+            _templateRepo,
+            _storageService,
+            new[] { _engine },
+            dataPrep,
+            audit,
+            versioning,
+            _unitOfWork,
+            _executionContext,
+            _timeProvider);
+    }
+
+    private void SetupTemplate(Template template)
+    {
+        _templateRepo.GetBySlugWithDetailsAsync(template.Slug.Value, Arg.Any<CancellationToken>())
+            .Returns(template);
+    }
+
+    private void SetupInactiveTemplate(string slug)
+    {
+        Template template = TemplateBuilder.ATemplate().AsInactive().WithSlug(slug);
+        SetupTemplate(template);
+    }
+
+    private void SetupTemplateWithoutVersion(string slug)
+    {
+        Template template = TemplateBuilder.ATemplate().WithoutCurrentVersion().WithSlug(slug);
+        SetupTemplate(template);
+    }
+
+    private (Template Template, TemplateVersion Version) SetupActiveHtmlTemplate(
+        string slug = "sale-contract",
+        string name = "Sale Contract",
+        string htmlContent = "<html><body>{{name}}</body></html>",
+        int versionNumber = 1,
+        Guid? templateId = null,
+        Guid? versionId = null,
+        DateTimeOffset? now = null)
+    {
+        var tId = templateId ?? Guid.NewGuid();
+        var vId = versionId ?? Guid.NewGuid();
+        var timestamp = now ?? TestConstants.BaselineTime;
+
+        Template template = TemplateBuilder.ATemplate()
+            .WithId(tId)
+            .WithName(name)
+            .WithSlug(slug)
+            .WithCurrentVersion(vId)
+            .WithTime(timestamp);
+
+        TemplateVersion version = TemplateVersionBuilder.AVersion()
+            .WithId(vId)
+            .WithTemplateId(tId)
+            .WithVersion(versionNumber)
+            .WithStorageKey($"templates/{slug}.html")
+            .WithFormat(TemplateFormat.Html)
+            .WithTime(timestamp);
+
+        SetupTemplateWithVersion(template, version, htmlContent);
+        return (template, version);
+    }
+
+    private void SetupTemplateWithVersion(Template template, TemplateVersion version, string htmlContent = "<html></html>")
+    {
+        SetupTemplate(template);
+        _templateRepo.GetVersionByIdAsync(version.Id, Arg.Any<CancellationToken>())
+            .Returns(version);
+        _storageService.DownloadAsync("templates", version.StorageKey, Arg.Any<CancellationToken>())
+            .Returns(new MemoryStream(Encoding.UTF8.GetBytes(htmlContent)));
+    }
+
+    private void SetupRenderEnginePdfOutput(string output = "%PDF-1.4 Mock Output")
+    {
+        _engine.EngineType.Returns(RenderEngineType.Html);
+        _engine.RenderStreamAsync(Arg.Any<Stream>(), Arg.Any<string>(), Arg.Any<OutputFormat>(), Arg.Any<CancellationToken>())
+            .Returns(new MemoryStream(Encoding.UTF8.GetBytes(output)));
+    }
+
+    private void SetupPresignedUrl(string url = "https://minio.sammakorn.co.th/outputs/sample.pdf")
+    {
+        _storageService.GetPresignedUrlAsync("outputs", Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>())
+            .Returns(url);
+    }
 
     [Fact]
     public async Task ExecuteAsync_WhenTemplateActive_ShouldGenerateAndReturnPresignedUrl()
     {
         // Arrange
-        var (template, currentVersion) = _fixture.GivenActiveHtmlTemplate(
+        var (template, currentVersion) = SetupActiveHtmlTemplate(
             slug: "sale-contract",
             name: "Sale Contract",
             htmlContent: "<html><body>{{name}}</body></html>",
@@ -31,23 +154,23 @@ public class GenerateDocumentUseCaseTests
         var templateId = template.Id;
         var versionId = currentVersion.Id;
 
-        _fixture.GivenRenderEnginePdfOutput("%PDF-1.4 Mock Output");
-        _fixture.GivenPresignedUrl("https://minio.sammakorn.co.th/outputs/sample.pdf?signature=valid");
+        SetupRenderEnginePdfOutput("%PDF-1.4 Mock Output");
+        SetupPresignedUrl("https://minio.sammakorn.co.th/outputs/sample.pdf?signature=valid");
 
         // No existing Document for this ref
-        _fixture.DocumentRepo.Setup(r => r.FirstOrDefaultAsync(It.IsAny<Expression<Func<Document, bool>>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((Document?)null);
+        _documentRepo.FirstOrDefaultAsync(Arg.Any<Expression<Func<Document, bool>>>(), Arg.Any<CancellationToken>())
+            .Returns((Document?)null);
 
-        _fixture.DocVersionRepo.Setup(r => r.MaxOrDefaultAsync(It.IsAny<Expression<Func<DocumentVersion, bool>>>(), It.IsAny<Expression<Func<DocumentVersion, int>>>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(0);
+        _docVersionRepo.MaxOrDefaultAsync(Arg.Any<Expression<Func<DocumentVersion, bool>>>(), Arg.Any<Expression<Func<DocumentVersion, int>>>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(0);
 
-        _fixture.Context.Setup(c => c.CallerApp).Returns("sales-app");
+        _executionContext.CallerApp.Returns("sales-app");
 
         using var jsonDoc = JsonDocument.Parse("{\"name\": \"สมชาย ใจดี\"}");
         var request = new GenerateDocumentCommand(jsonDoc.RootElement, OutputFormat: "pdf", DocumentRef: "SC-2026-0001");
 
         // Act
-        var result = await CreateSut().ExecuteAsync("sale-contract", request);
+        GenerateDocumentResultDto result = await CreateSut().ExecuteAsync("sale-contract", request);
 
         // Assert
         result.Should().NotBeNull();
@@ -55,29 +178,29 @@ public class GenerateDocumentUseCaseTests
         result.OutputFormat.Should().Be("pdf");
         result.GenerationId.Version.Should().Be(7);
 
-        _fixture.LogRepo.Verify(r => r.AddAsync(
-            It.Is<GenerationLog>(l => l.TemplateId == templateId
+        await _logRepo.Received(1).AddAsync(
+            Arg.Is<GenerationLog>(l => l.TemplateId == templateId
                                    && l.TemplateVersionId == versionId
                                    && l.Status == "SUCCESS"
                                    && l.TriggerSource == "api"),
-            It.IsAny<CancellationToken>()), Times.Once);
+            Arg.Any<CancellationToken>());
 
-        _fixture.DocumentRepo.Verify(r => r.AddAsync(
-            It.Is<Document>(d => d.DocumentRef == "SC-2026-0001"),
-            It.IsAny<CancellationToken>()), Times.Once);
+        await _documentRepo.Received(1).AddAsync(
+            Arg.Is<Document>(d => d.DocumentRef == "SC-2026-0001"),
+            Arg.Any<CancellationToken>());
 
-        _fixture.DocVersionRepo.Verify(r => r.AddAsync(
-            It.Is<DocumentVersion>(v => v.GenerationLogId != null && v.Version == 1),
-            It.IsAny<CancellationToken>()), Times.Once);
+        await _docVersionRepo.Received(1).AddAsync(
+            Arg.Is<DocumentVersion>(v => v.GenerationLogId != null && v.Version == 1),
+            Arg.Any<CancellationToken>());
 
-        _fixture.Uow.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
+        await _unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task ExecuteAsync_WhenTemplateInactive_ShouldThrowNotFoundException()
     {
         // Arrange
-        _fixture.GivenInactiveTemplate("inactive-tpl");
+        SetupInactiveTemplate("inactive-tpl");
 
         using var jsonDoc = JsonDocument.Parse("{}");
         var request = new GenerateDocumentCommand(jsonDoc.RootElement);
@@ -91,7 +214,7 @@ public class GenerateDocumentUseCaseTests
     public async Task ExecuteAsync_WhenNoCurrentVersion_ShouldThrowBusinessRuleViolationException()
     {
         // Arrange
-        _fixture.GivenTemplateWithoutVersion("no-ver-tpl");
+        SetupTemplateWithoutVersion("no-ver-tpl");
 
         using var jsonDoc = JsonDocument.Parse("{}");
         var request = new GenerateDocumentCommand(jsonDoc.RootElement);
@@ -106,7 +229,7 @@ public class GenerateDocumentUseCaseTests
     {
         // Arrange
         var now = TestConstants.BaselineTime;
-        var (template, currentVersion) = _fixture.GivenActiveHtmlTemplate(
+        var (template, currentVersion) = SetupActiveHtmlTemplate(
             slug: "contract-mapped",
             name: "Contract With Mappings",
             htmlContent: "<html><body>{{amount_baht}}</body></html>",
@@ -121,25 +244,28 @@ public class GenerateDocumentUseCaseTests
         mappings[0].UpdateMappingDetails("contract.price", "Price in Baht Text", true, null, "baht", 1, now);
         template.ReplaceFieldMappings(mappings, now);
 
-        _fixture.Applicator.Setup(s => s.ApplyAsync(
-                It.IsAny<JsonElement>(),
-                It.IsAny<IEnumerable<FieldMapping>>(),
-                It.IsAny<IReadOnlyDictionary<string, ResolvedDatasetContext>>()))
-            .ReturnsAsync("{\"amount_baht\":\"สองล้านห้าแสนบาทถ้วน\"}");
+        _applicator.ApplyAsync(
+                Arg.Any<JsonElement>(),
+                Arg.Any<IEnumerable<FieldMapping>>(),
+                Arg.Any<IReadOnlyDictionary<string, ResolvedDatasetContext>>())
+            .Returns("{\"amount_baht\":\"สองล้านห้าแสนบาทถ้วน\"}");
 
         string capturedDataJson = string.Empty;
-        _fixture.Engine.Setup(e => e.EngineType).Returns(RenderEngineType.Html);
-        _fixture.Engine.Setup(e => e.RenderStreamAsync(It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<OutputFormat>(), It.IsAny<CancellationToken>()))
-            .Callback<Stream, string, OutputFormat, CancellationToken>((_, json, _, _) => capturedDataJson = json)
-            .ReturnsAsync(new MemoryStream(Encoding.UTF8.GetBytes("%PDF-1.4 Mock Output")));
+        _engine.EngineType.Returns(RenderEngineType.Html);
+        _engine.RenderStreamAsync(Arg.Any<Stream>(), Arg.Any<string>(), Arg.Any<OutputFormat>(), Arg.Any<CancellationToken>())
+            .Returns(x =>
+            {
+                capturedDataJson = x.ArgAt<string>(1);
+                return new MemoryStream(Encoding.UTF8.GetBytes("%PDF-1.4 Mock Output"));
+            });
 
-        _fixture.GivenPresignedUrl("https://minio.sammakorn.co.th/outputs/sample.pdf");
+        SetupPresignedUrl("https://minio.sammakorn.co.th/outputs/sample.pdf");
 
         using var jsonDoc = JsonDocument.Parse("{\"contract\": {\"price\": \"2500000\"}}");
         var request = new GenerateDocumentCommand(jsonDoc.RootElement);
 
         // Act
-        var result = await CreateSut().ExecuteAsync("contract-mapped", request);
+        GenerateDocumentResultDto result = await CreateSut().ExecuteAsync("contract-mapped", request);
 
         // Assert
         result.Should().NotBeNull();
@@ -154,50 +280,45 @@ public class GenerateDocumentUseCaseTests
     {
         // Arrange
         var now = TestConstants.BaselineTime;
-        var (template, currentVersion) = _fixture.GivenActiveHtmlTemplate(
+        var (template, currentVersion) = SetupActiveHtmlTemplate(
             slug: "sale-contract",
             name: "Contract",
             now: now);
         var templateId = template.Id;
         var documentId = Guid.NewGuid();
 
-        var existingDocument = new DocumentBuilder()
+        Document existingDocument = new DocumentBuilder()
             .WithId(documentId)
             .WithDocumentRef("SC-2026-0001")
             .WithTemplateId(templateId)
-            .WithTime(now)
-            .Build();
+            .WithTime(now);
 
-        _fixture.GivenRenderEnginePdfOutput("%PDF-1.4");
-        _fixture.GivenPresignedUrl("https://minio.sammakorn.co.th/outputs/sc.pdf");
+        SetupRenderEnginePdfOutput("%PDF-1.4");
+        SetupPresignedUrl("https://minio.sammakorn.co.th/outputs/sc.pdf");
 
         // Existing document found
-        _fixture.DocumentRepo.Setup(r => r.FirstOrDefaultAsync(It.IsAny<Expression<Func<Document, bool>>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(existingDocument);
+        _documentRepo.FirstOrDefaultAsync(Arg.Any<Expression<Func<Document, bool>>>(), Arg.Any<CancellationToken>())
+            .Returns(existingDocument);
 
         // Current max version is 2 — next will be 3
-        _fixture.DocVersionRepo.Setup(r => r.MaxOrDefaultAsync(It.IsAny<Expression<Func<DocumentVersion, bool>>>(), It.IsAny<Expression<Func<DocumentVersion, int>>>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(2);
+        _docVersionRepo.MaxOrDefaultAsync(Arg.Any<Expression<Func<DocumentVersion, bool>>>(), Arg.Any<Expression<Func<DocumentVersion, int>>>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(2);
 
         using var jsonDoc = JsonDocument.Parse("{}");
         var request = new GenerateDocumentCommand(jsonDoc.RootElement, OutputFormat: "pdf", DocumentRef: "SC-2026-0001");
 
         // Act
-        var result = await CreateSut().ExecuteAsync("sale-contract", request);
+        GenerateDocumentResultDto result = await CreateSut().ExecuteAsync("sale-contract", request);
 
         // Assert — Document NOT created again
         result.DocumentRef.Should().Be("SC-2026-0001");
         result.Sha256.Should().NotBeNullOrEmpty();
-        _fixture.DocumentRepo.Verify(r => r.AddAsync(It.IsAny<Document>(), It.IsAny<CancellationToken>()), Times.Never);
+        await _documentRepo.DidNotReceive().AddAsync(Arg.Any<Document>(), Arg.Any<CancellationToken>());
 
-        _fixture.DocVersionRepo.Verify(r => r.AddAsync(
-            It.Is<DocumentVersion>(v => v.DocumentId == documentId && v.Version == 3),
-            It.IsAny<CancellationToken>()), Times.Once);
+        await _docVersionRepo.Received(1).AddAsync(
+            Arg.Is<DocumentVersion>(v => v.DocumentId == documentId && v.Version == 3),
+            Arg.Any<CancellationToken>());
     }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // Schema Validation Gate Tests
-    // ─────────────────────────────────────────────────────────────────────────
 
     [Fact]
     public async Task ExecuteAsync_WhenPayloadFailsSchema_ShouldThrowSchemaValidationExceptionAndLogFailed()
@@ -206,12 +327,10 @@ public class GenerateDocumentUseCaseTests
         const string schemaJson = """{"$schema":"http://json-schema.org/draft-07/schema#","type":"object","required":["doc_no"]}""";
         var now = TestConstants.BaselineTime;
 
-        var (template, currentVersion) = _fixture.GivenActiveHtmlTemplate(
+        var (template, currentVersion) = SetupActiveHtmlTemplate(
             slug: "invoice",
             name: "Invoice",
             now: now);
-        var templateId = template.Id;
-        var versionId = currentVersion.Id;
 
         currentVersion.UpdateDataSchema(schemaJson, null, now);
 
@@ -220,17 +339,16 @@ public class GenerateDocumentUseCaseTests
         {
             new("/", "required", "Required property 'doc_no' not found in JSON.")
         };
-        _fixture.SchemaValidation
-            .Setup(s => s.Validate(schemaJson, It.IsAny<string>()))
+        _schemaValidation.Validate(schemaJson, Arg.Any<string>())
             .Returns(SchemaValidationResult.Failure(errors));
 
         // Engine and storage must be set up so the use case reaches the validation gate
-        _fixture.Engine.Setup(e => e.EngineType).Returns(RenderEngineType.Html);
-        _fixture.Storage.Setup(s => s.DownloadAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new MemoryStream());
+        _engine.EngineType.Returns(RenderEngineType.Html);
+        _storageService.DownloadAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(new MemoryStream());
 
-        _fixture.Uow.Setup(u => u.CommitAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(1);
+        _unitOfWork.CommitAsync(Arg.Any<CancellationToken>())
+            .Returns(1);
 
         using var jsonDoc = JsonDocument.Parse("""{"customer":"ACME"}"""); // missing doc_no
         var request = new GenerateDocumentCommand(jsonDoc.RootElement, OutputFormat: "pdf");
@@ -246,15 +364,13 @@ public class GenerateDocumentUseCaseTests
         ex.Which.Errors[0].Rule.Should().Be("required");
 
         // Assert — VALIDATION_FAILED logged (no rendering attempted)
-        _fixture.LogRepo.Verify(r => r.AddAsync(
-            It.Is<GenerationLog>(l => l.Status == "VALIDATION_FAILED"),
-            It.IsAny<CancellationToken>()), Times.Once);
-        _fixture.Engine.Verify(e => e.RenderStreamAsync(
-            It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<OutputFormat>(), It.IsAny<CancellationToken>()),
-            Times.Never);
-        _fixture.Storage.Verify(s => s.DownloadAsync(
-            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
-            Times.Never);
+        await _logRepo.Received(1).AddAsync(
+            Arg.Is<GenerationLog>(l => l.Status == "VALIDATION_FAILED"),
+            Arg.Any<CancellationToken>());
+        await _engine.DidNotReceive().RenderStreamAsync(
+            Arg.Any<Stream>(), Arg.Any<string>(), Arg.Any<OutputFormat>(), Arg.Any<CancellationToken>());
+        await _storageService.DidNotReceive().DownloadAsync(
+            Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -264,26 +380,26 @@ public class GenerateDocumentUseCaseTests
         const string schemaJson = """{"$schema":"http://json-schema.org/draft-07/schema#","type":"object","required":["doc_no"]}""";
         var now = TestConstants.BaselineTime;
 
-        var (template, currentVersion) = _fixture.GivenActiveHtmlTemplate(
+        var (template, currentVersion) = SetupActiveHtmlTemplate(
             slug: "invoice",
             name: "Invoice",
             now: now);
         currentVersion.UpdateDataSchema(schemaJson, null, now);
 
-        _fixture.GivenRenderEnginePdfOutput();
-        _fixture.Storage.Setup(s => s.UploadAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync("outputs/invoice.pdf");
-        _fixture.GivenPresignedUrl("https://example.com/download/invoice.pdf");
+        SetupRenderEnginePdfOutput();
+        _storageService.UploadAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<Stream>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns("outputs/invoice.pdf");
+        SetupPresignedUrl("https://example.com/download/invoice.pdf");
 
         using var jsonDoc = JsonDocument.Parse("""{"customer":"ACME"}"""); // missing doc_no — but SkipValidation
         var request = new GenerateDocumentCommand(jsonDoc.RootElement, OutputFormat: "pdf", SkipValidation: true);
 
         // Act
-        var result = await CreateSut().ExecuteAsync("invoice", request);
+        GenerateDocumentResultDto result = await CreateSut().ExecuteAsync("invoice", request);
 
         // Assert — validation service never called; render completed successfully
-        _fixture.SchemaValidation.Verify(s => s.Validate(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
-        _fixture.Engine.Verify(e => e.RenderStreamAsync(It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<OutputFormat>(), It.IsAny<CancellationToken>()), Times.Once);
+        _schemaValidation.DidNotReceive().Validate(Arg.Any<string>(), Arg.Any<string>());
+        await _engine.Received(1).RenderStreamAsync(Arg.Any<Stream>(), Arg.Any<string>(), Arg.Any<OutputFormat>(), Arg.Any<CancellationToken>());
         result.Url.Should().Be("https://example.com/download/invoice.pdf");
     }
 
@@ -291,25 +407,25 @@ public class GenerateDocumentUseCaseTests
     public async Task ExecuteAsync_WhenOutputFormatIsUnrecognized_FallbacksToPdf()
     {
         // Arrange
-        _fixture.GivenActiveHtmlTemplate(
+        SetupActiveHtmlTemplate(
             slug: "fallback-contract",
             name: "Fallback Contract",
             htmlContent: "<html><body>Fallback</body></html>");
-        _fixture.GivenRenderEnginePdfOutput("%PDF-1.4 Mock Output");
-        _fixture.GivenPresignedUrl("https://example.com/download/fallback.pdf");
+        SetupRenderEnginePdfOutput("%PDF-1.4 Mock Output");
+        SetupPresignedUrl("https://example.com/download/fallback.pdf");
 
         using var jsonDoc = JsonDocument.Parse("{}");
         var request = new GenerateDocumentCommand(jsonDoc.RootElement, OutputFormat: "unknown_format", SkipValidation: true);
 
         // Act
-        var result = await CreateSut().ExecuteAsync("fallback-contract", request);
+        GenerateDocumentResultDto result = await CreateSut().ExecuteAsync("fallback-contract", request);
 
         // Assert — verifies engine was called with OutputFormat.Pdf fallback
-        _fixture.Engine.Verify(e => e.RenderStreamAsync(
-            It.IsAny<Stream>(),
-            It.IsAny<string>(),
+        await _engine.Received(1).RenderStreamAsync(
+            Arg.Any<Stream>(),
+            Arg.Any<string>(),
             OutputFormat.Pdf,
-            It.IsAny<CancellationToken>()), Times.Once);
+            Arg.Any<CancellationToken>());
         result.Url.Should().Be("https://example.com/download/fallback.pdf");
     }
 }

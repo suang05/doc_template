@@ -1,48 +1,44 @@
-using System.Linq.Expressions;
-using FluentAssertions;
-using Moq;
+﻿using System.Linq.Expressions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Rendering.Documents.Services;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Interfaces;
-using Xunit;
 
 namespace SmkDoc.Tests.Application.Modules.Rendering.Documents.Services;
 
-public class DocumentVersioningServiceTests
+public sealed class DocumentVersioningServiceTests
 {
-    private readonly Mock<IRepository<Document>> _mockDocumentRepo = new();
-    private readonly Mock<IRepository<DocumentVersion>> _mockDocVersionRepo = new();
-    private readonly Mock<IExecutionContext> _mockContext = new();
+    private readonly IRepository<Document> _documentRepo = Substitute.For<IRepository<Document>>();
+    private readonly IRepository<DocumentVersion> _docVersionRepo = Substitute.For<IRepository<DocumentVersion>>();
+    private readonly IExecutionContext _context = Substitute.For<IExecutionContext>();
 
-    private DocumentVersioningService BuildService() => new(
-        _mockDocumentRepo.Object, _mockDocVersionRepo.Object, _mockContext.Object);
+    private DocumentVersioningService CreateSut() => new(
+        _documentRepo, _docVersionRepo, _context);
 
     [Fact]
     public async Task RecordVersionAsync_WhenNewDocument_ShouldCreateDocumentAndFirstVersion()
     {
         // Arrange
-        var service = BuildService();
         var templateId = Guid.NewGuid();
         var versionId = Guid.NewGuid();
         var genId = Guid.NewGuid();
 
-        _mockDocumentRepo.Setup(r => r.FirstOrDefaultAsync(It.IsAny<Expression<Func<Document, bool>>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((Document?)null);
+        _documentRepo.FirstOrDefaultAsync(Arg.Any<Expression<Func<Document, bool>>>(), Arg.Any<CancellationToken>())
+            .Returns((Document?)null);
 
-        _mockDocVersionRepo.Setup(r => r.MaxOrDefaultAsync(It.IsAny<Expression<Func<DocumentVersion, bool>>>(), It.IsAny<Expression<Func<DocumentVersion, int>>>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(0);
+        _docVersionRepo.MaxOrDefaultAsync(Arg.Any<Expression<Func<DocumentVersion, bool>>>(), Arg.Any<Expression<Func<DocumentVersion, int>>>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(0);
 
         // Act
-        await service.RecordVersionAsync("INV-001", templateId, versionId, genId, "Initial version");
+        await CreateSut().RecordVersionAsync("INV-001", templateId, versionId, genId, "Initial version");
 
         // Assert
-        _mockDocumentRepo.Verify(r => r.AddAsync(
-            It.Is<Document>(d => d.DocumentRef == "INV-001" && d.TemplateId == templateId),
-            It.IsAny<CancellationToken>()), Times.Once);
+        await _documentRepo.Received(1).AddAsync(
+            Arg.Is<Document>(d => d.DocumentRef == "INV-001" && d.TemplateId == templateId),
+            Arg.Any<CancellationToken>());
 
-        _mockDocVersionRepo.Verify(r => r.AddAsync(
-            It.Is<DocumentVersion>(v => v.Version == 1 && v.GenerationLogId == genId),
-            It.IsAny<CancellationToken>()), Times.Once);
+        await _docVersionRepo.Received(1).AddAsync(
+            Arg.Is<DocumentVersion>(v => v.Version == 1 && v.GenerationLogId == genId),
+            Arg.Any<CancellationToken>());
     }
 }

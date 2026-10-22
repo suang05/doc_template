@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Tests.Common;
@@ -6,7 +6,7 @@ using Xunit;
 
 namespace SmkDoc.Tests.Domain.ValueObjects;
 
-public class ExpirationPolicyTests
+public sealed class ExpirationPolicyTests
 {
     private static readonly DateTimeOffset Now = TestConstants.BaselineTime;
 

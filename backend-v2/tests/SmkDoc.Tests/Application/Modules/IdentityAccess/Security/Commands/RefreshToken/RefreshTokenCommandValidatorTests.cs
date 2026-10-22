@@ -1,10 +1,10 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.RefreshToken;
 using Xunit;
 
 namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Security.Commands.RefreshToken;
 
-public class RefreshTokenCommandValidatorTests
+public sealed class RefreshTokenCommandValidatorTests
 {
     private readonly RefreshTokenCommandValidator _validator = new();
 

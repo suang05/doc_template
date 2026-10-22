@@ -1,16 +1,27 @@
-using FluentAssertions;
-using Microsoft.Extensions.Logging;
-using Moq;
+﻿using Microsoft.Extensions.Logging;
 using SmkDoc.Infrastructure.Security;
-using Xunit;
 
 namespace SmkDoc.Tests.Infrastructure.Security;
 
-public class SecurityAuditServiceTests
+public sealed class SecurityAuditServiceTests
 {
-    private readonly Mock<ILogger<SecurityAuditService>> _loggerMock = new();
+    private readonly ILogger<SecurityAuditService> _logger = Substitute.For<ILogger<SecurityAuditService>>();
 
-    private SecurityAuditService CreateSut() => new(_loggerMock.Object);
+    private SecurityAuditService CreateSut() => new(_logger);
+
+    private void AssertLogged(LogLevel level, params string[] messageParts)
+    {
+        var match = _logger.ReceivedCalls().Any(call =>
+        {
+            if (call.GetMethodInfo().Name != "Log") return false;
+            var args = call.GetArguments();
+            if (args.Length < 3 || args[0] is not LogLevel l || l != level) return false;
+            var stateStr = args[2]?.ToString() ?? string.Empty;
+            return messageParts.All(part => stateStr.Contains(part));
+        });
+
+        match.Should().BeTrue($"Expected log level '{level}' containing [{string.Join(", ", messageParts)}]");
+    }
 
     [Fact]
     public void LogLoginSuccess_DispatchesInformationLog()
@@ -25,14 +36,7 @@ public class SecurityAuditServiceTests
         sut.LogLoginSuccess(userId, email, projectId);
 
         // Assert
-        _loggerMock.Verify(
-            l => l.Log(
-                LogLevel.Information,
-                It.IsAny<EventId>(),
-                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains(email) && v.ToString()!.Contains(userId.ToString())),
-                null,
-                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
-            Times.Once);
+        AssertLogged(LogLevel.Information, email, userId.ToString());
     }
 
     [Fact]
@@ -47,14 +51,7 @@ public class SecurityAuditServiceTests
         sut.LogLoginFailure(email, reason);
 
         // Assert
-        _loggerMock.Verify(
-            l => l.Log(
-                LogLevel.Warning,
-                It.IsAny<EventId>(),
-                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains(email) && v.ToString()!.Contains(reason)),
-                null,
-                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
-            Times.Once);
+        AssertLogged(LogLevel.Warning, email, reason);
     }
 
     [Fact]
@@ -68,14 +65,7 @@ public class SecurityAuditServiceTests
         sut.LogTokenRotated(userId);
 
         // Assert
-        _loggerMock.Verify(
-            l => l.Log(
-                LogLevel.Information,
-                It.IsAny<EventId>(),
-                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains(userId.ToString())),
-                null,
-                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
-            Times.Once);
+        AssertLogged(LogLevel.Information, userId.ToString());
     }
 
     [Fact]
@@ -89,13 +79,6 @@ public class SecurityAuditServiceTests
         sut.LogTokenReuseDetected(userId);
 
         // Assert
-        _loggerMock.Verify(
-            l => l.Log(
-                LogLevel.Critical,
-                It.IsAny<EventId>(),
-                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains(userId.ToString())),
-                null,
-                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
-            Times.Once);
+        AssertLogged(LogLevel.Critical, userId.ToString());
     }
 }

@@ -62,4 +62,6 @@ public class TemplateDatasetBuilder
             _sortOrder,
             _now);
     }
+
+    public static implicit operator TemplateDataset(TemplateDatasetBuilder builder) => builder.Build();
 }

@@ -1,20 +1,20 @@
-using FluentAssertions;
-using Microsoft.Extensions.Configuration;
-using Moq;
+﻿using Microsoft.Extensions.Configuration;
 using SmkDoc.Infrastructure.Security;
-using Xunit;
 
 namespace SmkDoc.Tests.Infrastructure.Security;
 
-public class DataProtectionServiceTests
+public sealed class DataProtectionServiceTests
 {
+    private readonly IConfiguration _config = Substitute.For<IConfiguration>();
+
+    private DataProtectionService CreateSut() => new(_config);
+
     [Fact]
     public void EncryptAndDecrypt_ShouldRestoreOriginalPlainText()
     {
-        var configMock = new Mock<IConfiguration>();
-        configMock.Setup(c => c["EncryptionKey"]).Returns("my_super_secret_test_key_32_bytes!");
+        _config["EncryptionKey"].Returns("my_super_secret_test_key_32_bytes!");
 
-        var sut = new DataProtectionService(configMock.Object);
+        var sut = CreateSut();
         var plainText = "Host=prod-db.internal;Port=5432;Database=smkdoc;Password=SuperSecretP@ssw0rd;";
 
         var encrypted = sut.Encrypt(plainText);
@@ -30,8 +30,7 @@ public class DataProtectionServiceTests
     [InlineData(null)]
     public void Encrypt_EmptyOrNull_ShouldReturnInputAsIs(string? input)
     {
-        var configMock = new Mock<IConfiguration>();
-        var sut = new DataProtectionService(configMock.Object);
+        var sut = CreateSut();
 
         var result = sut.Encrypt(input!);
         result.Should().Be(input);
@@ -42,8 +41,7 @@ public class DataProtectionServiceTests
     [InlineData(null)]
     public void Decrypt_EmptyOrNull_ShouldReturnInputAsIs(string? input)
     {
-        var configMock = new Mock<IConfiguration>();
-        var sut = new DataProtectionService(configMock.Object);
+        var sut = CreateSut();
 
         var result = sut.Decrypt(input!);
         result.Should().Be(input);
@@ -52,10 +50,9 @@ public class DataProtectionServiceTests
     [Fact]
     public void DefaultKey_ShouldWorkWhenConfigurationKeyIsMissing()
     {
-        var configMock = new Mock<IConfiguration>();
-        configMock.Setup(c => c["EncryptionKey"]).Returns((string?)null);
+        _config["EncryptionKey"].Returns((string?)null);
 
-        var sut = new DataProtectionService(configMock.Object);
+        var sut = CreateSut();
         var plainText = "Sample sensitive text";
 
         var encrypted = sut.Encrypt(plainText);

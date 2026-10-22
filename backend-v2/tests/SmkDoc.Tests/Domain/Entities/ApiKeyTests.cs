@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects;
@@ -7,7 +7,7 @@ using Xunit;
 
 namespace SmkDoc.Tests.Domain.Entities;
 
-public class ApiKeyTests
+public sealed class ApiKeyTests
 {
     private static readonly Sha256Hash ValidHash = new(new string('a', 64));
     private static readonly DateTimeOffset FixedNow = TestConstants.BaselineTime;

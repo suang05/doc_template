@@ -3,19 +3,16 @@ using ClosedXML.Excel;
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
-using FluentAssertions;
-using Moq;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Infrastructure.Engines.Excel;
 using SmkDoc.Infrastructure.Engines.Word;
 using SmkDoc.Infrastructure.Imaging;
-using Xunit;
 
 namespace SmkDoc.IntegrationTests.Generators;
 
 [Trait("Category", "Generator")]
-public class RealEstateDocumentsGeneratorTests
+public sealed class RealEstateDocumentsGeneratorTests
 {
     private readonly string _outputDir = Environment.GetEnvironmentVariable("SMK_REALESTATE_OUT_DIR")
         ?? Path.Combine(Path.GetTempPath(), "smkdoc-tests", "real-estate");
@@ -150,9 +147,9 @@ public class RealEstateDocumentsGeneratorTests
         await File.WriteAllTextAsync(jsonPath, jsonString);
 
         // 3. Test render via DocxTemplateEngine
-        var mediaService = new MediaGenerationService(new QrCodeService(), new BarcodeService(), new Mock<IImageOptimizer>().Object);
+        var mediaService = new MediaGenerationService(new QrCodeService(), new BarcodeService(), Substitute.For<IImageOptimizer>());
         var mediaInjector = new WordMediaInjector(mediaService);
-        var docxEngine = new DocxTemplateEngine(new Mock<IPdfRenderer>().Object, mediaInjector);
+        var docxEngine = new DocxTemplateEngine(Substitute.For<IPdfRenderer>(), mediaInjector);
 
         using var templateStream = File.OpenRead(docxPath);
         var renderedBytes = await docxEngine.RenderAsync(templateStream, jsonString, OutputFormat.Docx);
@@ -279,9 +276,9 @@ public class RealEstateDocumentsGeneratorTests
         await File.WriteAllTextAsync(jsonPath, jsonString);
 
         // 3. Test render via ExcelTemplateEngine
-        var excelMediaService = new MediaGenerationService(new QrCodeService(), new BarcodeService(), new Mock<IImageOptimizer>().Object);
+        var excelMediaService = new MediaGenerationService(new QrCodeService(), new BarcodeService(), Substitute.For<IImageOptimizer>());
         var mediaInjector = new ExcelMediaInjector(excelMediaService);
-        var excelEngine = new ExcelTemplateEngine(new Mock<IPdfRenderer>().Object, mediaInjector);
+        var excelEngine = new ExcelTemplateEngine(Substitute.For<IPdfRenderer>(), mediaInjector);
 
         using var templateStream = File.OpenRead(xlsxPath);
         var renderedBytes = await excelEngine.RenderAsync(templateStream, jsonString, OutputFormat.Xlsx);

@@ -1,8 +1,8 @@
-using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.CreateApiKey;
+﻿using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.CreateApiKey;
 
 namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Security.Commands.CreateApiKey;
 
-public class CreateApiKeyCommandValidatorTests
+public sealed class CreateApiKeyCommandValidatorTests
 {
     private readonly CreateApiKeyCommandValidator _validator = new();
 

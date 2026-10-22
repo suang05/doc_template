@@ -1,10 +1,10 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using SmkDoc.Infrastructure.Parsing;
 using Xunit;
 
 namespace SmkDoc.Tests.Infrastructure.Parsing;
 
-public class JsonDataParserTests
+public sealed class JsonDataParserTests
 {
     private readonly JsonDataParser _parser = new();
 

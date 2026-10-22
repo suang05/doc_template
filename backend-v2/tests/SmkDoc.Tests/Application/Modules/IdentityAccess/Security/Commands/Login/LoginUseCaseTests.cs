@@ -1,6 +1,7 @@
 using FluentValidation;
+using FluentValidation.Results;
 using Microsoft.Extensions.Time.Testing;
-using ValidationException = SmkDoc.Application.Common.Exceptions.ValidationException;
+using NSubstitute;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.Login;
 using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
@@ -11,19 +12,47 @@ using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Tests.Common.Builders;
-using SmkDoc.Tests.Common.Fixtures;
 using RefreshTokenEntity = SmkDoc.Domain.Entities.RefreshToken;
+using ValidationException = SmkDoc.Application.Common.Exceptions.ValidationException;
 
 namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Security.Commands.Login;
 
-public class LoginUseCaseTests
+public sealed class LoginUseCaseTests
 {
-    private readonly SecurityModuleTestFixture _fixture = new();
+    private readonly IUserRepository _userRepo = Substitute.For<IUserRepository>();
+    private readonly IPasswordHasher _passwordHasher = Substitute.For<IPasswordHasher>();
+    private readonly IJwtTokenGenerator _jwtGenerator = Substitute.For<IJwtTokenGenerator>();
+    private readonly IUserWorkspaceQueryService _workspaceQueryService = Substitute.For<IUserWorkspaceQueryService>();
+    private readonly IRefreshTokenRepository _tokenRepo = Substitute.For<IRefreshTokenRepository>();
+    private readonly IUnitOfWork _uow = Substitute.For<IUnitOfWork>();
+    private readonly IExecutionContext _executionContext = Substitute.For<IExecutionContext>();
+    private readonly FakeTimeProvider _timeProvider = TestConstants.CreateFakeClock();
+    private readonly ISecurityAuditService _auditService = Substitute.For<ISecurityAuditService>();
+    private readonly LoginCommandValidator _defaultValidator = new();
+
+    public LoginUseCaseTests()
+    {
+        _uow.CommitAsync(Arg.Any<CancellationToken>()).Returns(1);
+    }
 
     private LoginUseCase CreateSut(
         IValidator<LoginCommand>? validator = null,
-        Guid? executionContextProjectId = null) =>
-        _fixture.BuildLoginUseCase(validator, executionContextProjectId);
+        Guid? executionContextProjectId = null)
+    {
+        _executionContext.ProjectId.Returns(executionContextProjectId);
+
+        return new LoginUseCase(
+            _userRepo,
+            _passwordHasher,
+            _jwtGenerator,
+            _workspaceQueryService,
+            validator ?? _defaultValidator,
+            _tokenRepo,
+            _uow,
+            _timeProvider,
+            _executionContext,
+            _auditService);
+    }
 
     [Fact]
     public async Task ExecuteAsync_WhenValidCredentialsAndRole_ReturnsTokenAndProjects()
@@ -32,13 +61,12 @@ public class LoginUseCaseTests
         var now = TestConstants.BaselineTime;
         var projectId = Guid.NewGuid();
         var command = new LoginCommand("test@example.com", "password123");
-        var user = UserBuilder.AUser()
+        User user = aUser.Active()
             .WithEmail("test@example.com")
             .WithPasswordHash("hashed_pw")
             .WithName("Test", "User")
             .WithSystemRole(SystemRole.Member)
-            .WithTime(now)
-            .Build();
+            .WithTime(now);
 
         var accessibleProjects = new List<AccessibleProjectDto>
         {
@@ -47,16 +75,16 @@ public class LoginUseCaseTests
 
         var workspaceContext = new UserWorkspaceContextDto(projectId, "Viewer", projectId, accessibleProjects);
 
-        _fixture.UserRepo.Setup(r => r.GetByEmailAsync(It.Is<EmailAddress>(e => e.Value == "test@example.com"), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(user);
+        _userRepo.GetByEmailAsync(Arg.Is<EmailAddress>(e => e.Value == "test@example.com"), Arg.Any<CancellationToken>())
+            .Returns(user);
 
-        _fixture.WorkspaceQueryService.Setup(q => q.ResolveWorkspaceContextAsync(user, projectId, true, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(workspaceContext);
+        _workspaceQueryService.ResolveWorkspaceContextAsync(user, projectId, true, Arg.Any<CancellationToken>())
+            .Returns(workspaceContext);
 
-        _fixture.PasswordHasher.Setup(p => p.VerifyPassword("password123", "hashed_pw"))
+        _passwordHasher.VerifyPassword("password123", "hashed_pw")
             .Returns(true);
 
-        _fixture.JwtGenerator.Setup(j => j.GenerateToken(user, projectId, It.IsAny<IEnumerable<string>>()))
+        _jwtGenerator.GenerateToken(user, projectId, Arg.Any<IEnumerable<string>>())
             .Returns("valid_token");
 
         // Act
@@ -70,7 +98,7 @@ public class LoginUseCaseTests
         result.AccessibleProjects[0].Name.Should().Be("Project Alpha");
         result.ActiveProjectId.Should().Be(projectId);
         result.ActiveRole.Should().Be("Viewer");
-        _fixture.AuditService.Verify(a => a.LogLoginSuccess(user.Id, "test@example.com", projectId), Times.Once);
+        _auditService.Received(1).LogLoginSuccess(user.Id, "test@example.com", projectId);
     }
 
     [Fact]
@@ -78,8 +106,8 @@ public class LoginUseCaseTests
     {
         // Arrange
         var command = new LoginCommand("notfound@example.com", "password123");
-        _fixture.UserRepo.Setup(r => r.GetByEmailAsync(It.IsAny<EmailAddress>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((User?)null);
+        _userRepo.GetByEmailAsync(Arg.Any<EmailAddress>(), Arg.Any<CancellationToken>())
+            .Returns((User?)null);
 
         // Act
         var act = () => CreateSut().ExecuteAsync(command);
@@ -87,8 +115,8 @@ public class LoginUseCaseTests
         // Assert
         await act.Should().ThrowAsync<UnauthorizedException>()
             .WithMessage("Invalid email or password.");
-        _fixture.PasswordHasher.Verify(p => p.VerifyPassword("password123", SecurityConstants.DummyPasswordHash), Times.Once);
-        _fixture.AuditService.Verify(a => a.LogLoginFailure("notfound@example.com", "UserNotFound"), Times.Once);
+        _passwordHasher.Received(1).VerifyPassword("password123", SecurityConstants.DummyPasswordHash);
+        _auditService.Received(1).LogLoginFailure("notfound@example.com", "UserNotFound");
     }
 
     [Fact]
@@ -97,17 +125,15 @@ public class LoginUseCaseTests
         // Arrange
         var now = TestConstants.BaselineTime;
         var command = new LoginCommand("inactive@example.com", "password123");
-        var user = UserBuilder.AUser()
+        User user = aUser.Inactive()
             .WithEmail("inactive@example.com")
             .WithPasswordHash("hashed_pw")
             .WithName("Inactive", "User")
             .WithSystemRole(SystemRole.Member)
-            .AsInactive()
-            .WithTime(now)
-            .Build();
+            .WithTime(now);
 
-        _fixture.UserRepo.Setup(r => r.GetByEmailAsync(It.IsAny<EmailAddress>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(user);
+        _userRepo.GetByEmailAsync(Arg.Any<EmailAddress>(), Arg.Any<CancellationToken>())
+            .Returns(user);
 
         // Act
         var act = () => CreateSut().ExecuteAsync(command);
@@ -115,8 +141,8 @@ public class LoginUseCaseTests
         // Assert
         await act.Should().ThrowAsync<UnauthorizedException>()
             .WithMessage("Invalid email or password.");
-        _fixture.PasswordHasher.Verify(p => p.VerifyPassword("password123", SecurityConstants.DummyPasswordHash), Times.Once);
-        _fixture.AuditService.Verify(a => a.LogLoginFailure("inactive@example.com", "UserInactive"), Times.Once);
+        _passwordHasher.Received(1).VerifyPassword("password123", SecurityConstants.DummyPasswordHash);
+        _auditService.Received(1).LogLoginFailure("inactive@example.com", "UserInactive");
     }
 
     [Fact]
@@ -124,17 +150,16 @@ public class LoginUseCaseTests
     {
         // Arrange
         var command = new LoginCommand("test@example.com", "wrongpassword");
-        var user = UserBuilder.AUser()
+        User user = aUser.Active()
             .WithEmail("test@example.com")
             .WithPasswordHash("hashed_pw")
             .WithName("Test", "User")
             .WithSystemRole(SystemRole.Member)
-            .WithTime(TestConstants.BaselineTime)
-            .Build();
+            .WithTime(TestConstants.BaselineTime);
 
-        _fixture.UserRepo.Setup(r => r.GetByEmailAsync(It.IsAny<EmailAddress>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(user);
-        _fixture.PasswordHasher.Setup(p => p.VerifyPassword("wrongpassword", "hashed_pw"))
+        _userRepo.GetByEmailAsync(Arg.Any<EmailAddress>(), Arg.Any<CancellationToken>())
+            .Returns(user);
+        _passwordHasher.VerifyPassword("wrongpassword", "hashed_pw")
             .Returns(false);
 
         // Act
@@ -143,7 +168,7 @@ public class LoginUseCaseTests
         // Assert
         await act.Should().ThrowAsync<UnauthorizedException>()
             .WithMessage("Invalid email or password.");
-        _fixture.AuditService.Verify(a => a.LogLoginFailure("test@example.com", "InvalidPassword"), Times.Once);
+        _auditService.Received(1).LogLoginFailure("test@example.com", "InvalidPassword");
     }
 
     [Fact]
@@ -153,20 +178,19 @@ public class LoginUseCaseTests
         var now = TestConstants.BaselineTime;
         var selectedProjectId = Guid.NewGuid();
         var command = new LoginCommand("test@example.com", "password123");
-        var user = UserBuilder.AUser()
+        User user = aUser.Active()
             .WithEmail("test@example.com")
             .WithPasswordHash("hashed_pw")
             .WithName("Test", "User")
             .WithSystemRole(SystemRole.Member)
-            .WithTime(now)
-            .Build();
+            .WithTime(now);
 
-        _fixture.UserRepo.Setup(r => r.GetByEmailAsync(It.IsAny<EmailAddress>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(user);
-        _fixture.PasswordHasher.Setup(p => p.VerifyPassword("password123", "hashed_pw"))
+        _userRepo.GetByEmailAsync(Arg.Any<EmailAddress>(), Arg.Any<CancellationToken>())
+            .Returns(user);
+        _passwordHasher.VerifyPassword("password123", "hashed_pw")
             .Returns(true);
-        _fixture.WorkspaceQueryService.Setup(q => q.ResolveWorkspaceContextAsync(user, selectedProjectId, true, It.IsAny<CancellationToken>()))
-            .ThrowsAsync(new UnauthorizedException("User does not have access to the specified project."));
+        _workspaceQueryService.ResolveWorkspaceContextAsync(user, selectedProjectId, true, Arg.Any<CancellationToken>())
+            .Returns<UserWorkspaceContextDto>(_ => throw new UnauthorizedException("User does not have access to the specified project."));
 
         // Act
         var act = () => CreateSut(executionContextProjectId: selectedProjectId).ExecuteAsync(command);
@@ -188,7 +212,7 @@ public class LoginUseCaseTests
 
         // Assert
         await act.Should().ThrowAsync<ValidationException>();
-        _fixture.UserRepo.Verify(r => r.GetByEmailAsync(It.IsAny<EmailAddress>(), It.IsAny<CancellationToken>()), Times.Never);
+        await _userRepo.DidNotReceive().GetByEmailAsync(Arg.Any<EmailAddress>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -196,17 +220,16 @@ public class LoginUseCaseTests
     {
         // Arrange
         var command = new LoginCommand("invalid-email-format", "password123");
+        var passValidator = Substitute.For<IValidator<LoginCommand>>();
+        passValidator.ValidateAsync(Arg.Any<LoginCommand>(), Arg.Any<CancellationToken>())
+            .Returns(new ValidationResult());
 
         // Act
-        var passValidator = new Mock<IValidator<LoginCommand>>();
-        passValidator.Setup(v => v.ValidateAsync(It.IsAny<LoginCommand>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new FluentValidation.Results.ValidationResult());
-
-        var act = () => CreateSut(validator: passValidator.Object).ExecuteAsync(command);
+        var act = () => CreateSut(validator: passValidator).ExecuteAsync(command);
 
         // Assert
         await act.Should().ThrowAsync<DomainValidationException>();
-        _fixture.UserRepo.Verify(r => r.GetByEmailAsync(It.IsAny<EmailAddress>(), It.IsAny<CancellationToken>()), Times.Never);
+        await _userRepo.DidNotReceive().GetByEmailAsync(Arg.Any<EmailAddress>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -215,21 +238,20 @@ public class LoginUseCaseTests
         // Arrange
         var now = TestConstants.BaselineTime;
         var command = new LoginCommand("test@example.com", "password123");
-        var user = UserBuilder.AUser()
+        User user = aUser.Active()
             .WithEmail("test@example.com")
             .WithPasswordHash("hashed_pw")
-            .WithTime(now)
-            .Build();
+            .WithTime(now);
 
         var workspaceContext = new UserWorkspaceContextDto(null, "Viewer", null, new List<AccessibleProjectDto>());
 
-        _fixture.UserRepo.Setup(r => r.GetByEmailAsync(It.IsAny<EmailAddress>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(user);
-        _fixture.WorkspaceQueryService.Setup(q => q.ResolveWorkspaceContextAsync(user, It.IsAny<Guid?>(), true, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(workspaceContext);
-        _fixture.PasswordHasher.Setup(p => p.VerifyPassword("password123", "hashed_pw"))
+        _userRepo.GetByEmailAsync(Arg.Any<EmailAddress>(), Arg.Any<CancellationToken>())
+            .Returns(user);
+        _workspaceQueryService.ResolveWorkspaceContextAsync(user, Arg.Any<Guid?>(), true, Arg.Any<CancellationToken>())
+            .Returns(workspaceContext);
+        _passwordHasher.VerifyPassword("password123", "hashed_pw")
             .Returns(true);
-        _fixture.JwtGenerator.Setup(j => j.GenerateToken(user, It.IsAny<Guid?>(), It.IsAny<IEnumerable<string>>()))
+        _jwtGenerator.GenerateToken(user, Arg.Any<Guid?>(), Arg.Any<IEnumerable<string>>())
             .Returns("valid_token");
 
         // Act
@@ -237,8 +259,8 @@ public class LoginUseCaseTests
 
         // Assert
         result.RefreshToken.Should().NotBeNullOrWhiteSpace();
-        _fixture.TokenRepo.Verify(r => r.AddAsync(It.Is<RefreshTokenEntity>(t => t.UserId == user.Id), It.IsAny<CancellationToken>()), Times.Once);
-        _fixture.Uow.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
+        await _tokenRepo.Received(1).AddAsync(Arg.Is<RefreshTokenEntity>(t => t.UserId == user.Id), Arg.Any<CancellationToken>());
+        await _uow.Received(1).CommitAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -248,12 +270,11 @@ public class LoginUseCaseTests
         var now = TestConstants.BaselineTime;
         var projectId = Guid.NewGuid();
         var command = new LoginCommand("test@example.com", "password123");
-        var user = UserBuilder.AUser()
+        User user = aUser.Active()
             .WithEmail("test@example.com")
             .WithPasswordHash("hashed_pw")
             .WithSystemRole(SystemRole.SuperAdmin)
-            .WithTime(now)
-            .Build();
+            .WithTime(now);
 
         var accessibleProjects = new List<AccessibleProjectDto>
         {
@@ -267,15 +288,15 @@ public class LoginUseCaseTests
 
         var workspaceContext = new UserWorkspaceContextDto(projectId, "Admin", projectId, accessibleProjects);
 
-        _fixture.UserRepo.Setup(r => r.GetByEmailAsync(It.IsAny<EmailAddress>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(user);
-        _fixture.WorkspaceQueryService.Setup(q => q.ResolveWorkspaceContextAsync(user, projectId, true, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(workspaceContext);
-        _fixture.WorkspaceQueryService.Setup(q => q.GetActiveApiKeysAsync(projectId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(activeKeys);
-        _fixture.PasswordHasher.Setup(p => p.VerifyPassword("password123", "hashed_pw"))
+        _userRepo.GetByEmailAsync(Arg.Any<EmailAddress>(), Arg.Any<CancellationToken>())
+            .Returns(user);
+        _workspaceQueryService.ResolveWorkspaceContextAsync(user, projectId, true, Arg.Any<CancellationToken>())
+            .Returns(workspaceContext);
+        _workspaceQueryService.GetActiveApiKeysAsync(projectId, Arg.Any<CancellationToken>())
+            .Returns(activeKeys);
+        _passwordHasher.VerifyPassword("password123", "hashed_pw")
             .Returns(true);
-        _fixture.JwtGenerator.Setup(j => j.GenerateToken(user, projectId, It.IsAny<IEnumerable<string>>()))
+        _jwtGenerator.GenerateToken(user, projectId, Arg.Any<IEnumerable<string>>())
             .Returns("valid_token");
 
         // Act

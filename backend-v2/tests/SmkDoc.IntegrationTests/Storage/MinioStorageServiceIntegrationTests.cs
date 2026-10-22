@@ -6,7 +6,7 @@ using SmkDoc.IntegrationTests.Fixtures;
 namespace SmkDoc.IntegrationTests.Storage;
 
 [Trait("Category", "Integration")]
-public class MinioStorageServiceIntegrationTests : IClassFixture<MinioContainerFixture>
+public sealed class MinioStorageServiceIntegrationTests : IClassFixture<MinioContainerFixture>
 {
     private readonly MinioContainerFixture _fixture;
 
