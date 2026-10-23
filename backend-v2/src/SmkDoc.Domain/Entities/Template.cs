@@ -1,5 +1,6 @@
 using SmkDoc.Domain.Common;
 using SmkDoc.Domain.Enums;
+using SmkDoc.Domain.Events;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
@@ -143,6 +144,7 @@ public sealed class Template : BaseEntity<TemplateId>, IMustHaveProject
         version.Publish(now);
         CurrentVersionId = versionId;
         SetUpdated(now);
+        AddDomainEvent(new TemplatePublishedDomainEvent(Id, ProjectId, version.Id, version.Version, now));
         return version;
     }
 
@@ -170,6 +172,7 @@ public sealed class Template : BaseEntity<TemplateId>, IMustHaveProject
         version.Publish(now);
         CurrentVersionId = version.Id;
         SetUpdated(now);
+        AddDomainEvent(new TemplatePublishedDomainEvent(Id, ProjectId, version.Id, version.Version, now));
     }
 
     public void AddFieldMapping(FieldMapping mapping, DateTimeOffset now)

@@ -1,5 +1,6 @@
 using FluentAssertions;
 using SmkDoc.Domain.Entities;
+using SmkDoc.Domain.Events;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.ValueObjects.Ids;
@@ -135,6 +136,18 @@ public sealed class DocumentTests
 
         document.Versions.Should().HaveCount(2);
         document.UpdatedAt.Should().Be(now.AddMinutes(5));
+
+        document.DomainEvents.Should().HaveCount(2);
+        document.DomainEvents.First().Should().BeOfType<DocumentVersionCreatedDomainEvent>()
+            .Which.Should().BeEquivalentTo(new
+            {
+                DocumentId = document.Id,
+                ProjectId = document.ProjectId,
+                Version = 1,
+                TemplateVersionId = (Guid?)null,
+                GenerationLogId = (Guid?)null,
+                OccurredOn = now
+            });
     }
 
     [Fact]

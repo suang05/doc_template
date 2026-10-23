@@ -1,5 +1,6 @@
 using SmkDoc.Domain.Common;
 using SmkDoc.Domain.Enums;
+using SmkDoc.Domain.Events;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
@@ -106,6 +107,7 @@ public sealed class ApiKey : BaseEntity<ApiKeyId>, IMustHaveProject
 
         IsActive = false;
         SetUpdated(now);
+        AddDomainEvent(new ApiKeyRevokedDomainEvent(Id, ProjectId, now));
     }
 
     private void EnsureUsableAt(DateTimeOffset now)

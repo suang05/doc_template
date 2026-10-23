@@ -1,5 +1,6 @@
 using FluentAssertions;
 using SmkDoc.Domain.Entities;
+using SmkDoc.Domain.Events;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.ValueObjects.Ids;
@@ -128,8 +129,18 @@ public sealed class ApiKeyTests
         key.IsRevoked.Should().BeTrue();
         key.UpdatedAt.Should().Be(firstRevoke);
 
-        // Second revoke must not throw and must not alter timestamp
+        key.DomainEvents.Should().ContainSingle()
+            .Which.Should().BeOfType<ApiKeyRevokedDomainEvent>()
+            .Which.Should().BeEquivalentTo(new
+            {
+                ApiKeyId = key.Id,
+                ProjectId = key.ProjectId,
+                OccurredOn = firstRevoke
+            });
+
+        // Second revoke must not throw, must not alter timestamp, and must not duplicate event
         key.Revoke(FixedNow.AddMinutes(20));
         key.UpdatedAt.Should().Be(firstRevoke);
+        key.DomainEvents.Should().ContainSingle();
     }
 }

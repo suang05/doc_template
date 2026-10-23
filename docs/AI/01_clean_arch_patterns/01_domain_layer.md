@@ -24,6 +24,7 @@ UpstreamKernel: AGENTS.md
 | **Identity Conversion** | Implicit Guid operators allowing silent ID type cross-contamination | Explicit operators (`explicit operator Guid`, `explicit operator TId`) for strict compile-time safety |
 | **Tenant Partitioning** | Default optional or unguarded ProjectId: `ProjectId projectId = default` | Mandatory fail-fast assertion: `ProjectId = Guard.NotEmpty(projectId, nameof(ProjectId));` |
 | **Child Entity Lifecycle** | Creating child entities directly outside aggregate: `var version = DocumentVersion.Create(...)` | Aggregate root encapsulates child creation & lifecycle: `document.CreateVersion(...)`, `template.PublishVersion(...)` |
+| **Domain Events Integration** | Direct MediatR/Event dispatch in Domain entity or un-encapsulated event list | Entities append events via `AddDomainEvent()`. Zero direct I/O inside domain. |
 
 ---
 
@@ -80,6 +81,15 @@ internal static class Guard
         value.Equals(default) ? throw new DomainValidationException($"{name} cannot be empty.") : value;
 }
 ```
+
+### Domain Events Catalog
+All Domain Events implement `IDomainEvent` (`INotification`) under `SmkDoc.Domain.Events`:
+| Domain Event Record | Payload Parameters | Trigger Entity & Business Verb | Bounded Context |
+|---|---|---|---|
+| `TemplatePublishedDomainEvent` | `TemplateId TemplateId, Guid VersionId, DateTimeOffset PublishedAt` | `Template.PublishVersion(...)` | Authoring |
+| `DocumentVersionCreatedDomainEvent` | `DocumentId DocumentId, Guid VersionId, int VersionNumber, DateTimeOffset CreatedAt` | `Document.CreateVersion(...)` | Rendering |
+| `ApiKeyRevokedDomainEvent` | `ApiKeyId ApiKeyId, DateTimeOffset RevokedAt` | `ApiKey.Revoke(...)` | IdentityAccess |
+| `UserDeactivatedDomainEvent` | `UserId UserId, DateTimeOffset DeactivatedAt` | `User.Deactivate(...)` | IdentityAccess |
 
 ---
 
@@ -356,5 +366,21 @@ public string EncryptedConnectionString { get; private set; }
 
 // >> CANONICAL: Encapsulated VO redacting sensitive payload in ToString()
 public EncryptedConnectionString EncryptedConnectionString { get; private set; } = null!;
+```
+
+### [TRAP-DOM-009]: Side-Effect Coupling vs In-Memory Domain Events
+```csharp
+// ! BANNED: Direct service injection, async dispatch, or I/O inside domain entity
+public async Task PublishVersion(IMediator mediator, Guid versionId) {
+    ...
+    await mediator.Publish(new VersionPublishedEvent(...)); // Violates domain purity & transaction boundary
+}
+
+// >> CANONICAL: Aggregate appends immutable event record; DbContext dispatches post-persistence
+public TemplateVersion PublishVersion(Guid versionId, DateTimeOffset now) {
+    ...
+    AddDomainEvent(new TemplatePublishedDomainEvent(Id, versionId, now));
+    return version;
+}
 ```
 

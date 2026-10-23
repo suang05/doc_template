@@ -1,6 +1,7 @@
 using FluentAssertions;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
+using SmkDoc.Domain.Events;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.ValueObjects.Ids;
@@ -165,6 +166,14 @@ public sealed class UserTests
         user.Deactivate(deactTime);
         user.IsActive.Should().BeFalse();
         user.UpdatedAt.Should().Be(deactTime);
+
+        user.DomainEvents.Should().ContainSingle()
+            .Which.Should().BeOfType<UserDeactivatedDomainEvent>()
+            .Which.Should().BeEquivalentTo(new
+            {
+                UserId = user.Id,
+                OccurredOn = deactTime
+            });
 
         var reactTime = _initialTime.AddDays(2);
         user.Activate(reactTime);

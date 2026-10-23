@@ -1,4 +1,5 @@
 using SmkDoc.Domain.Common;
+using SmkDoc.Domain.Events;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
@@ -71,6 +72,7 @@ public sealed class Document : BaseEntity<DocumentId>, IMustHaveProject
         var version = DocumentVersion.Create(Id, versionNumber, templateVersionId, generationLogId, changeNote, createdBy, now);
         _versions.Add(version);
         SetUpdated(now);
+        AddDomainEvent(new DocumentVersionCreatedDomainEvent(Id, ProjectId, version.Version, templateVersionId, generationLogId, now));
         return version;
     }
 

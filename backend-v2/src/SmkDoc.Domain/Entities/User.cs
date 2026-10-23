@@ -1,5 +1,6 @@
 using SmkDoc.Domain.Common;
 using SmkDoc.Domain.Enums;
+using SmkDoc.Domain.Events;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.ValueObjects.Ids;
@@ -76,6 +77,7 @@ public sealed class User : BaseEntity<UserId>
         if (!IsActive) return;
         IsActive = false;
         SetUpdated(now);
+        AddDomainEvent(new UserDeactivatedDomainEvent(Id, now));
     }
 
     public void Activate(DateTimeOffset now)

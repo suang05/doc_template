@@ -1,6 +1,7 @@
 using FluentAssertions;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
+using SmkDoc.Domain.Events;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.ValueObjects.Ids;
@@ -247,6 +248,20 @@ public sealed class TemplateTests
         published.Status.Should().Be(SmkDoc.Domain.Enums.TemplateVersionStatus.Published);
         template.CurrentVersionId.Should().Be(version.Id);
         template.UpdatedAt.Should().Be(pubTime);
+
+        template.DomainEvents.Should().ContainSingle()
+            .Which.Should().BeOfType<TemplatePublishedDomainEvent>()
+            .Which.Should().BeEquivalentTo(new
+            {
+                TemplateId = template.Id,
+                ProjectId = template.ProjectId,
+                VersionId = version.Id,
+                Version = 1,
+                OccurredOn = pubTime
+            });
+
+        template.ClearDomainEvents();
+        template.DomainEvents.Should().BeEmpty();
     }
 
     [Fact]

@@ -1,5 +1,6 @@
 using System.Reflection;
 using Microsoft.EntityFrameworkCore;
+using SmkDoc.Domain.Common;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Interfaces;
@@ -67,5 +68,21 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<TEntity>().HasQueryFilter(e => IsTenantResolved && e.ProjectId == CurrentTenantId);
     }
 
+    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        var domainEventEntities = ChangeTracker.Entries<IHaveDomainEvents>()
+            .Where(e => e.Entity.DomainEvents.Count > 0)
+            .Select(e => e.Entity)
+            .ToList();
+
+        var result = await base.SaveChangesAsync(cancellationToken);
+
+        foreach (var entity in domainEventEntities)
+        {
+            entity.ClearDomainEvents();
+        }
+
+        return result;
+    }
 }
 
