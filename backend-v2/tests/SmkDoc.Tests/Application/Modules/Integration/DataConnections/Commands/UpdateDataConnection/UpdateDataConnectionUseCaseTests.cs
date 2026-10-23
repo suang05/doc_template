@@ -46,7 +46,7 @@ public sealed class UpdateDataConnectionUseCaseTests
         result.Should().NotBeNull();
         result!.Name.Should().Be("New Name");
         result.Provider.Should().Be("SqlServer");
-        existing.EncryptedConnectionString.Should().Be("new_enc_conn");
+        existing.EncryptedConnectionString.Value.Should().Be("new_enc_conn");
         existing.UpdatedAt.Should().NotBeNull();
 
         _connectionRepo.Received(1).Update(existing);
@@ -70,7 +70,7 @@ public sealed class UpdateDataConnectionUseCaseTests
 
         // Assert
         result.Should().NotBeNull();
-        existing.EncryptedConnectionString.Should().Be("keep_this_enc");
+        existing.EncryptedConnectionString.Value.Should().Be("keep_this_enc");
         _dataProtection.DidNotReceive().Encrypt(Arg.Any<string>());
         _connectionRepo.Received(1).Update(existing);
     }

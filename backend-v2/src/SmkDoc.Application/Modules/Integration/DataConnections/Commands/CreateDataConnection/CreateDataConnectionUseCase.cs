@@ -29,7 +29,7 @@ public sealed class CreateDataConnectionUseCase(
         var entity = DataConnection.Create(
             ConnectionName.Create(command.Name),
             Enumeration.FromDisplayName<DatabaseProvider>(command.Provider),
-            dataProtection.Encrypt(command.ConnectionString),
+            EncryptedConnectionString.Create(dataProtection.Encrypt(command.ConnectionString)),
             now,
             _projectContext?.ProjectId ?? default);
 

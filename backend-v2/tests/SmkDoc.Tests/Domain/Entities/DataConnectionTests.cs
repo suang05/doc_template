@@ -16,13 +16,14 @@ public sealed class DataConnectionTests
     [Fact]
     public void Create_WithValidParameters_InitializesCorrectly()
     {
-        var conn = DataConnection.Create(ConnectionName.Create("Warehouse PostgreSQL"), DatabaseProvider.PostgreSQL, "enc_pg_secret", _initialTime, _projectId);
+        var conn = DataConnection.Create(ConnectionName.Create("Warehouse PostgreSQL"), DatabaseProvider.PostgreSQL, EncryptedConnectionString.Create("enc_pg_secret"), _initialTime, _projectId);
 
         conn.Id.Value.Should().NotBe(Guid.Empty);
         conn.ProjectId.Should().Be(_projectId);
         conn.Name.Value.Should().Be("Warehouse PostgreSQL");
         conn.Provider.Should().Be(DatabaseProvider.PostgreSQL);
-        conn.EncryptedConnectionString.Should().Be("enc_pg_secret");
+        conn.EncryptedConnectionString.Value.Should().Be("enc_pg_secret");
+        conn.EncryptedConnectionString.ToString().Should().Be("[REDACTED]");
         conn.CreatedAt.Should().Be(_initialTime);
         conn.UpdatedAt.Should().BeNull();
     }
@@ -30,34 +31,43 @@ public sealed class DataConnectionTests
     [Fact]
     public void Create_WithEmptyProjectId_ThrowsDomainValidationException()
     {
-        var act = () => DataConnection.Create(ConnectionName.Create("Warehouse"), DatabaseProvider.PostgreSQL, "enc_pg_secret", _initialTime, ProjectId.Empty);
+        var act = () => DataConnection.Create(ConnectionName.Create("Warehouse"), DatabaseProvider.PostgreSQL, EncryptedConnectionString.Create("enc_pg_secret"), _initialTime, ProjectId.Empty);
 
         act.Should().Throw<DomainValidationException>()
             .WithMessage("*ProjectId cannot be empty*");
     }
 
+    [Fact]
+    public void Create_WithNullEncryptedConnectionString_ThrowsDomainValidationException()
+    {
+        var act = () => DataConnection.Create(ConnectionName.Create("Warehouse"), DatabaseProvider.PostgreSQL, null!, _initialTime, _projectId);
+
+        act.Should().Throw<DomainValidationException>()
+            .WithMessage("*EncryptedConnectionString is required*");
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("   ")]
-    public void Create_WithEmptyOrWhitespaceConnectionString_ThrowsDomainValidationException(string invalidConn)
+    public void EncryptedConnectionString_WithEmptyOrWhitespace_ThrowsDomainValidationException(string invalidConn)
     {
-        var act = () => DataConnection.Create(ConnectionName.Create("Warehouse"), DatabaseProvider.PostgreSQL, invalidConn, _initialTime, _projectId);
+        var act = () => EncryptedConnectionString.Create(invalidConn);
 
         act.Should().Throw<DomainValidationException>()
-            .WithMessage("*EncryptedConnectionString cannot be empty*");
+            .WithMessage("*Encrypted connection string cannot be empty*");
     }
 
     [Fact]
     public void UpdateConnection_MutatesPropertiesAndSetsAuditTimestamp()
     {
-        var conn = DataConnection.Create(ConnectionName.Create("Old DB"), DatabaseProvider.PostgreSQL, "enc_old", _initialTime, _projectId);
+        var conn = DataConnection.Create(ConnectionName.Create("Old DB"), DatabaseProvider.PostgreSQL, EncryptedConnectionString.Create("enc_old"), _initialTime, _projectId);
         var updateTime = _initialTime.AddHours(3);
 
-        conn.UpdateConnection(ConnectionName.Create("New DB"), DatabaseProvider.SqlServer, "enc_new", updateTime);
+        conn.UpdateConnection(ConnectionName.Create("New DB"), DatabaseProvider.SqlServer, EncryptedConnectionString.Create("enc_new"), updateTime);
 
         conn.Name.Value.Should().Be("New DB");
         conn.Provider.Should().Be(DatabaseProvider.SqlServer);
-        conn.EncryptedConnectionString.Should().Be("enc_new");
+        conn.EncryptedConnectionString.Value.Should().Be("enc_new");
         conn.UpdatedAt.Should().Be(updateTime);
     }
 }

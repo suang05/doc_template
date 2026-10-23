@@ -77,7 +77,7 @@ public class DataConnectionBuilder
             new DataConnectionId(_id),
             ConnectionName.Create(_name),
             _provider,
-            _encryptedConnectionString,
+            EncryptedConnectionString.Create(_encryptedConnectionString),
             _now,
             _projectId);
     }

@@ -23,7 +23,8 @@ public sealed class DataConnectionConfiguration : IEntityTypeConfiguration<DataC
             .HasConversion(v => v.Value, v => ConnectionName.Create(v));
         builder.Property(e => e.Provider).IsRequired().HasMaxLength(50)
             .HasConversion(p => p.Name, v => SmkDoc.Domain.Common.Enumeration.FromDisplayName<DatabaseProvider>(v));
-        builder.Property(e => e.EncryptedConnectionString).IsRequired();
+        builder.Property(e => e.EncryptedConnectionString).IsRequired()
+            .HasConversion(DomainValueConverters.EncryptedConnectionStringConverter);
         builder.Property(e => e.CreatedAt).HasDefaultValueSql("NOW()");
 
         builder.HasOne<Project>()

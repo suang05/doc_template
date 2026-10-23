@@ -235,6 +235,16 @@ public sealed record class TemplateName
     public override string ToString() => Value;
 }
 
+// Sensitive Credential Validated VO
+public sealed record class EncryptedConnectionString
+{
+    public string Value { get; }
+    private EncryptedConnectionString(string value) => Value = value;
+    public static EncryptedConnectionString Create(string? value) => new(Guard.NotBlank(value, "Encrypted connection string"));
+    public static implicit operator string(EncryptedConnectionString connStr) => connStr.Value;
+    public override string ToString() => "[REDACTED]";
+}
+
 // Struct Primitive VO
 public readonly record struct PageDimension(float WidthMm, float HeightMm);
 ```
@@ -337,5 +347,14 @@ template.SetCurrentVersion(version.Id, now);
 // >> CANONICAL: Aggregate root encapsulates child lifecycle atomically
 var docVersion = doc.CreateVersion(max + 1, ...);
 template.PublishVersion(version, now);
+```
+
+### [TRAP-DOM-008]: Sensitive Credential Leak via Primitive String
+```csharp
+// ! BANNED: Raw connection string exposes secrets via ToString() and structured logging
+public string EncryptedConnectionString { get; private set; }
+
+// >> CANONICAL: Encapsulated VO redacting sensitive payload in ToString()
+public EncryptedConnectionString EncryptedConnectionString { get; private set; } = null!;
 ```
 

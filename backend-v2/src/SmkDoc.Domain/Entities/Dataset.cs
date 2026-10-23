@@ -15,7 +15,7 @@ public sealed class Dataset : BaseEntity<DatasetId>, IMustHaveProject
     public DatasetName Name { get; private set; } = null!;
     public string? Description { get; private set; }
     public DataConnectionId DataConnectionId { get; private set; }
-    public string SqlQuery { get; private set; } = string.Empty;
+    public SqlQuery SqlQuery { get; private set; } = null!;
     public int CacheSeconds { get; private set; }
 
     // Navigation property for EF Core materialization
@@ -29,7 +29,7 @@ public sealed class Dataset : BaseEntity<DatasetId>, IMustHaveProject
         DatasetName name,
         string? description,
         DataConnectionId dataConnectionId,
-        string sqlQuery,
+        SqlQuery sqlQuery,
         int cacheSeconds,
         DateTimeOffset now,
         ProjectId projectId)
@@ -38,7 +38,7 @@ public sealed class Dataset : BaseEntity<DatasetId>, IMustHaveProject
         Name = Guard.NotNull(name, nameof(Name));
         Description = string.IsNullOrWhiteSpace(description) ? null : description.Trim();
         DataConnectionId = Guard.NotEmpty(dataConnectionId, nameof(DataConnectionId));
-        SqlQuery = Guard.NotBlank(sqlQuery, nameof(SqlQuery));
+        SqlQuery = Guard.NotNull(sqlQuery, nameof(SqlQuery));
         if (cacheSeconds < 0)
         {
             throw new DomainValidationException("CacheSeconds cannot be negative.");
@@ -51,7 +51,7 @@ public sealed class Dataset : BaseEntity<DatasetId>, IMustHaveProject
         DatasetName name,
         string? description,
         DataConnectionId dataConnectionId,
-        string sqlQuery,
+        SqlQuery sqlQuery,
         int cacheSeconds,
         DateTimeOffset now,
         ProjectId projectId) =>
@@ -61,14 +61,14 @@ public sealed class Dataset : BaseEntity<DatasetId>, IMustHaveProject
         DatasetName name,
         string? description,
         DataConnectionId dataConnectionId,
-        string sqlQuery,
+        SqlQuery sqlQuery,
         int cacheSeconds,
         DateTimeOffset now)
     {
         Name = Guard.NotNull(name, nameof(Name));
         Description = string.IsNullOrWhiteSpace(description) ? null : description.Trim();
         DataConnectionId = Guard.NotEmpty(dataConnectionId, nameof(DataConnectionId));
-        SqlQuery = Guard.NotBlank(sqlQuery, nameof(SqlQuery));
+        SqlQuery = Guard.NotNull(sqlQuery, nameof(SqlQuery));
         if (cacheSeconds < 0)
         {
             throw new DomainValidationException("CacheSeconds cannot be negative.");

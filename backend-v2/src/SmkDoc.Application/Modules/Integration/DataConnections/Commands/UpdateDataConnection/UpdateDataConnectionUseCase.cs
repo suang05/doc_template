@@ -29,7 +29,7 @@ public sealed class UpdateDataConnectionUseCase(
 
         var encryptedCs = string.IsNullOrEmpty(command.ConnectionString)
             ? entity.EncryptedConnectionString
-            : dataProtection.Encrypt(command.ConnectionString);
+            : EncryptedConnectionString.Create(dataProtection.Encrypt(command.ConnectionString));
 
         var now = this.timeProvider.GetUtcNow();
         entity.UpdateConnection(

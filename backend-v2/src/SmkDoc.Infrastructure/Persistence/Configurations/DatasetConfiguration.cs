@@ -23,7 +23,8 @@ public sealed class DatasetConfiguration : IEntityTypeConfiguration<Dataset>
         builder.Property(e => e.Name).IsRequired().HasMaxLength(200)
             .HasConversion(v => v.Value, v => DatasetName.Create(v));
         builder.Property(e => e.Description).HasMaxLength(500);
-        builder.Property(e => e.SqlQuery).IsRequired().HasColumnType("text");
+        builder.Property(e => e.SqlQuery).IsRequired().HasColumnType("text")
+            .HasConversion(DomainValueConverters.SqlQueryConverter);
         builder.Property(e => e.CacheSeconds).HasDefaultValue(0);
         builder.Property(e => e.CreatedAt).HasDefaultValueSql("NOW()");
 

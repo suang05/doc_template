@@ -75,7 +75,7 @@ public class DatasetBuilder
             DatasetName.Create(_name),
             _description,
             new DataConnectionId(_dataConnectionId),
-            _sqlQuery,
+            SqlQuery.Create(_sqlQuery),
             _cacheSeconds,
             _now,
             _projectId);

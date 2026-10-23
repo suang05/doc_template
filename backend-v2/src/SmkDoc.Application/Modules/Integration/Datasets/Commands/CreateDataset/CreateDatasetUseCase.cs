@@ -38,7 +38,7 @@ public sealed class CreateDatasetUseCase(
             DatasetName.Create(command.Name),
             command.Description,
             new DataConnectionId(command.DataConnectionId),
-            command.SqlQuery,
+            SqlQuery.Create(command.SqlQuery),
             command.CacheSeconds,
             now,
             _projectContext?.ProjectId ?? default);
