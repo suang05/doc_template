@@ -23,6 +23,7 @@ UpstreamKernel: AGENTS.md
 | **Primitives vs VOs** | Raw `Guid` or `string` for identity and domain concepts | Strongly-typed IDs (`TemplateId`) and validated Value Objects (`TemplateName`) |
 | **Identity Conversion** | Implicit Guid operators allowing silent ID type cross-contamination | Explicit operators (`explicit operator Guid`, `explicit operator TId`) for strict compile-time safety |
 | **Tenant Partitioning** | Default optional or unguarded ProjectId: `ProjectId projectId = default` | Mandatory fail-fast assertion: `ProjectId = Guard.NotEmpty(projectId, nameof(ProjectId));` |
+| **Child Entity Lifecycle** | Creating child entities directly outside aggregate: `var version = DocumentVersion.Create(...)` | Aggregate root encapsulates child creation & lifecycle: `document.CreateVersion(...)`, `template.PublishVersion(...)` |
 
 ---
 
@@ -158,6 +159,21 @@ public sealed class Template : BaseEntity<TemplateId>, IMustHaveProject
         if (!IsActive) return;
         IsActive = false;
         SetUpdated(now);
+    }
+
+    public TemplateVersion PublishVersion(Guid versionId, DateTimeOffset now)
+    {
+        Guard.NotEmpty(versionId, nameof(versionId));
+        if (!IsActive)
+            throw new BusinessRuleViolationException("Cannot publish version on an inactive template.", "INACTIVE_TEMPLATE");
+
+        var version = _versions.FirstOrDefault(v => v.Id == versionId)
+            ?? throw new VersionNotInTemplateException(Id.Value, versionId);
+
+        version.Publish(now);
+        CurrentVersionId = versionId;
+        SetUpdated(now);
+        return version;
     }
 
     public void AddFieldMapping(string sourceField, string targetField, bool isRequired)
@@ -309,5 +325,17 @@ public static implicit operator TemplateId(Guid value) => new(value);
 // >> CANONICAL: Explicit operators prevent silent cross-domain ID pollution and force deliberate casting
 public static explicit operator Guid(TemplateId id) => id.Value;
 public static explicit operator TemplateId(Guid value) => new(value);
+```
+
+### [TRAP-DOM-007]: Child Entity Lifecycle Bypass & Split-Brain Mutation
+```csharp
+// ! BANNED: External direct instantiation or disconnected lifecycle mutation
+var docVersion = DocumentVersion.Create(doc.Id, max + 1, ...);
+version.Publish(now);
+template.SetCurrentVersion(version.Id, now);
+
+// >> CANONICAL: Aggregate root encapsulates child lifecycle atomically
+var docVersion = doc.CreateVersion(max + 1, ...);
+template.PublishVersion(version, now);
 ```
 

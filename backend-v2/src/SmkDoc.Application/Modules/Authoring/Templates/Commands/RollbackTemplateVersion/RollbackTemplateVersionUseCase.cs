@@ -63,10 +63,9 @@ public sealed class RollbackTemplateVersionUseCase(
             now,
             $"Rollback to v{command.TargetVersion}");
 
-        newVersion.Publish(now);
+        template.PublishVersion(newVersion, now);
         await _templateRepo.AddVersionAsync(newVersion, ct);
 
-        template.SetCurrentVersion(newVersion.Id, now);
         _templateRepo.Update(template);
 
         await _unitOfWork.CommitAsync(ct);

@@ -233,6 +233,75 @@ public sealed class TemplateTests
             .WithMessage("*VersionId cannot be empty*");
     }
 
+    [Fact]
+    public void PublishVersion_WithVersionId_PublishesVersionAndSetsCurrentVersionId()
+    {
+        var template = CreateTemplate("Invoice", "invoice", now: _initialTime);
+        var version = template.CreateDraftVersion(1, "key-1", TemplateFormat.Html, "author", _initialTime);
+
+        version.Status.Should().Be(SmkDoc.Domain.Enums.TemplateVersionStatus.Draft);
+
+        var pubTime = _initialTime.AddMinutes(10);
+        var published = template.PublishVersion(version.Id, pubTime);
+
+        published.Status.Should().Be(SmkDoc.Domain.Enums.TemplateVersionStatus.Published);
+        template.CurrentVersionId.Should().Be(version.Id);
+        template.UpdatedAt.Should().Be(pubTime);
+    }
+
+    [Fact]
+    public void PublishVersion_WithVersionInstance_AddsToCollectionAndPublishes()
+    {
+        var template = CreateTemplate("Invoice", "invoice", now: _initialTime);
+        var version = TemplateVersion.Draft(template.Id, 1, "key-inst", TemplateFormat.Html, "author", _initialTime);
+
+        var pubTime = _initialTime.AddMinutes(5);
+        template.PublishVersion(version, pubTime);
+
+        version.Status.Should().Be(SmkDoc.Domain.Enums.TemplateVersionStatus.Published);
+        template.CurrentVersionId.Should().Be(version.Id);
+        template.Versions.Should().ContainSingle().Which.Should().BeSameAs(version);
+        template.UpdatedAt.Should().Be(pubTime);
+    }
+
+    [Fact]
+    public void PublishVersion_WhenInactive_ThrowsBusinessRuleViolationException()
+    {
+        var template = CreateTemplate("Invoice", "invoice", now: _initialTime);
+        var version = template.CreateDraftVersion(1, "key-1", TemplateFormat.Html, "author", _initialTime);
+        template.Deactivate(_initialTime);
+
+        var act = () => template.PublishVersion(version.Id, _initialTime.AddMinutes(1));
+
+        act.Should().Throw<BusinessRuleViolationException>()
+            .Which.ErrorCode.Should().Be("INACTIVE_TEMPLATE");
+    }
+
+    [Fact]
+    public void PublishVersion_VersionNotInTemplate_ThrowsBusinessRuleViolationException()
+    {
+        var template = CreateTemplate("Invoice", "invoice", now: _initialTime);
+        var foreignVersionId = Guid.NewGuid();
+
+        var act = () => template.PublishVersion(foreignVersionId, _initialTime);
+
+        act.Should().Throw<BusinessRuleViolationException>()
+            .Which.ErrorCode.Should().Be("VERSION_NOT_IN_TEMPLATE");
+    }
+
+    [Fact]
+    public void PublishVersion_MismatchedTemplateId_ThrowsDomainValidationException()
+    {
+        var template = CreateTemplate("Invoice", "invoice", now: _initialTime);
+        var otherTemplateId = TemplateId.New();
+        var version = TemplateVersion.Draft(otherTemplateId, 1, "key-foreign", TemplateFormat.Html, "author", _initialTime);
+
+        var act = () => template.PublishVersion(version, _initialTime);
+
+        act.Should().Throw<DomainValidationException>()
+            .WithMessage("*does not match template ID*");
+    }
+
     // ── Field Mappings ─────────────────────────────────────────────────────────
 
     [Fact]

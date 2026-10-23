@@ -42,6 +42,38 @@ public sealed class Document : BaseEntity<DocumentId>, IMustHaveProject
         ProjectId projectId) =>
         new(null, documentRef, templateId, now, projectId);
 
+    public DocumentVersion CreateVersion(
+        Guid? templateVersionId,
+        Guid? generationLogId,
+        string? changeNote,
+        string? createdBy,
+        DateTimeOffset now)
+    {
+        var nextVersion = _versions.Count == 0 ? 1 : _versions.Max(v => v.Version) + 1;
+        return CreateVersion(nextVersion, templateVersionId, generationLogId, changeNote, createdBy, now);
+    }
+
+    public DocumentVersion CreateVersion(
+        int versionNumber,
+        Guid? templateVersionId,
+        Guid? generationLogId,
+        string? changeNote,
+        string? createdBy,
+        DateTimeOffset now)
+    {
+        Guard.Positive(versionNumber, nameof(versionNumber));
+
+        if (_versions.Any(v => v.Version == versionNumber))
+        {
+            throw new DuplicateDocumentVersionException(Id.Value, versionNumber);
+        }
+
+        var version = DocumentVersion.Create(Id, versionNumber, templateVersionId, generationLogId, changeNote, createdBy, now);
+        _versions.Add(version);
+        SetUpdated(now);
+        return version;
+    }
+
     public void AddVersion(DocumentVersion version, DateTimeOffset now)
     {
         Guard.NotNull(version, nameof(version));

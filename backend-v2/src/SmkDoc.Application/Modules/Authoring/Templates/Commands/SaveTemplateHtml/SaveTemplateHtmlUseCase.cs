@@ -68,11 +68,10 @@ public class SaveTemplateHtmlUseCase(
             now,
             request.ChangeNote);
         newVersion.UpdateDataSchema(inferredSchema, finalSamplePayload, now);
-        newVersion.Publish(now);
+        template.PublishVersion(newVersion, now);
         await _templateRepo.AddVersionAsync(newVersion, ct);
 
         // 4. Update template active pointer and timestamp
-        template.SetCurrentVersion(newVersion.Id, now);
         _templateRepo.Update(template);
 
         await _unitOfWork.CommitAsync(ct);

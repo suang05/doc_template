@@ -113,4 +113,56 @@ public sealed class DocumentTests
         ex.Which.ErrorCode.Should().Be("DUPLICATE_DOCUMENT_VERSION");
         ex.Which.Message.Should().Contain($"Version 1 already exists in document '{document.Id}'");
     }
+
+    [Fact]
+    public void CreateVersion_WithAutomaticVersion_CalculatesNextVersionSequentially()
+    {
+        var now = TestConstants.BaselineTime;
+        var document = Document.Create(DocumentReference.Create("DOC-AUTO"), null, now, _projectId);
+
+        var v1 = document.CreateVersion(null, null, "Initial version", "author-1", now);
+        var v2 = document.CreateVersion(null, null, "Second revision", "author-2", now.AddMinutes(5));
+
+        v1.Version.Should().Be(1);
+        v1.DocumentId.Should().Be(document.Id);
+        v1.ChangeNote.Should().Be("Initial version");
+        v1.CreatedBy.Should().Be("author-1");
+
+        v2.Version.Should().Be(2);
+        v2.DocumentId.Should().Be(document.Id);
+        v2.ChangeNote.Should().Be("Second revision");
+        v2.CreatedBy.Should().Be("author-2");
+
+        document.Versions.Should().HaveCount(2);
+        document.UpdatedAt.Should().Be(now.AddMinutes(5));
+    }
+
+    [Fact]
+    public void CreateVersion_WithExplicitVersion_AddsVersionAndEnforcesInvariants()
+    {
+        var now = TestConstants.BaselineTime;
+        var document = Document.Create(DocumentReference.Create("DOC-EXP"), null, now, _projectId);
+
+        var v5 = document.CreateVersion(5, null, null, "Custom v5", null, now);
+
+        v5.Version.Should().Be(5);
+        document.Versions.Should().ContainSingle().Which.Should().BeSameAs(v5);
+
+        // Next automatic version after v5 should be 6
+        var vNext = document.CreateVersion(null, null, "Next auto", null, now.AddSeconds(1));
+        vNext.Version.Should().Be(6);
+    }
+
+    [Fact]
+    public void CreateVersion_WithDuplicateVersion_ThrowsDuplicateDocumentVersionException()
+    {
+        var now = TestConstants.BaselineTime;
+        var document = Document.Create(DocumentReference.Create("DOC-DUP"), null, now, _projectId);
+        document.CreateVersion(1, null, null, null, null, now);
+
+        var act = () => document.CreateVersion(1, null, null, "Duplicate", null, now);
+
+        var ex = act.Should().Throw<DuplicateDocumentVersionException>();
+        ex.Which.ErrorCode.Should().Be("DUPLICATE_DOCUMENT_VERSION");
+    }
 }

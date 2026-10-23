@@ -114,8 +114,7 @@ public sealed class CreateTemplateUseCase(
             now,
             "Initial version");
 
-        initialVersion.Publish(now);
-        template.SetCurrentVersion(initialVersion.Id, now);
+        template.PublishVersion(initialVersion, now);
 
         await _templateRepo.AddAsync(template, ct);
         await _templateRepo.AddVersionAsync(initialVersion, ct);

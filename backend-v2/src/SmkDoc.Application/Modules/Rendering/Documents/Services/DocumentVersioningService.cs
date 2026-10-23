@@ -25,6 +25,8 @@ public sealed class DocumentVersioningService(
         var document = await documentRepo.FirstOrDefaultAsync(
             d => d.DocumentRef == documentRef, ct);
 
+        var now = this.timeProvider.GetUtcNow();
+
         if (document is null)
         {
             var projectId = executionContext.ProjectId.HasValue && executionContext.ProjectId.Value != Guid.Empty
@@ -35,7 +37,7 @@ public sealed class DocumentVersioningService(
             document = Document.Create(
                 DocumentReference.Create(documentRef),
                 new TemplateId(templateId),
-                this.timeProvider.GetUtcNow(),
+                now,
                 projectId);
             await documentRepo.AddAsync(document, ct);
         }
@@ -43,14 +45,13 @@ public sealed class DocumentVersioningService(
         int currentMax = await docVersionRepo.MaxOrDefaultAsync(
             v => v.DocumentId == document.Id, v => v.Version, 0, ct);
 
-        var docVersion = DocumentVersion.Create(
-            document.Id,
+        var docVersion = document.CreateVersion(
             currentMax + 1,
             currentVersionId,
             generationId,
             changeNote,
             executionContext.CallerApp,
-            this.timeProvider.GetUtcNow());
+            now);
 
         await docVersionRepo.AddAsync(docVersion, ct);
     }

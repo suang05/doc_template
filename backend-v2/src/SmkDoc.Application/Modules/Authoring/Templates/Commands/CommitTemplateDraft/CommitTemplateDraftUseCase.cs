@@ -80,9 +80,7 @@ public sealed class CommitTemplateDraftUseCase(
                 now,
                 "Initial upload via draft pipeline");
             version.UpdateDataSchema(inferredSchema, samplePayload, now);
-            version.Publish(now);
-
-            template.AddVersion(version, now);
+            template.PublishVersion(version, now);
 
             if (command.Request.Mappings != null)
             {
@@ -110,8 +108,6 @@ public sealed class CommitTemplateDraftUseCase(
                 }
                 template.ReplaceFieldMappings(mappings, now);
             }
-
-            template.SetCurrentVersion(version.Id, now);
 
             await templateRepo.AddAsync(template, ct);
             await templateRepo.AddVersionAsync(version, ct);

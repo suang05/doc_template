@@ -37,8 +37,8 @@ public sealed class ActivateTemplateVersionUseCase(
 
         // 3. Domain Invariants Execution
         var now = _timeProvider.GetUtcNow();
-        template.SetCurrentVersion(version.Id, now);
         template.Activate(now);
+        template.PublishVersion(version, now);
 
         // 4. Persistence & Atomic Commit
         _templateRepo.Update(template);

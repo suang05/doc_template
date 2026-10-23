@@ -52,7 +52,7 @@ public sealed class DocumentVersion : BaseEntity
         CreatedBy = createdBy?.Trim();
     }
 
-    public static DocumentVersion Create(
+    internal static DocumentVersion Create(
         DocumentId documentId,
         int version,
         Guid? templateVersionId,
