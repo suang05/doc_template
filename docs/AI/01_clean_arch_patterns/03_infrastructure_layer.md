@@ -22,6 +22,7 @@ UpstreamKernel: AGENTS.md
 | **Relationship Cascade** | Blind `Cascade` deletes on production documents/logs | `DeleteBehavior.Restrict` or `DeleteBehavior.SetNull` |
 | **JSON Column Storage** | Storing structured payloads as plain escaped text | Native PostgreSQL `jsonb` column mapping |
 | **IQueryable Leakage** | Leaking `IQueryable<T>` outside Infrastructure | Repositories evaluate queries internally; return `Task<IReadOnlyList<T>>` or `Task<T?>` |
+| **Entity Tracking Policy** | Using `.AsNoTracking()` when fetching aggregates for mutation in Commands | Fetching with EF Tracking (`FindAsync` / query without `AsNoTracking`) in mutating UseCases |
 
 ---
 
@@ -212,4 +213,17 @@ var templates = await dbContext.Templates.IgnoreQueryFilters().ToListAsync(ct); 
 
 // >> CANONICAL: Standard ambient query evaluated with automatic tenant filter
 var templates = await dbContext.Templates.ToListAsync(ct);
+```
+
+### [TRAP-EF-003]: Untracked Aggregate Mutation (Silent Save Loss)
+```csharp
+// ! BANNED: Mutating an entity fetched with AsNoTracking silently drops changes on CommitAsync
+var template = await dbContext.Templates.AsNoTracking().FirstOrDefaultAsync(t => t.Id == id, ct);
+template.UpdateName(newName, now);
+await unitOfWork.CommitAsync(ct); // FATAL: 0 rows affected! Changes lost silently.
+
+// >> CANONICAL: Mutating entity MUST be tracked by EF Core ChangeTracker
+var template = await templateRepo.GetByIdAsync(id, ct); // Tracked via FindAsync
+template.UpdateName(newName, now);
+await unitOfWork.CommitAsync(ct); // SQL UPDATE emitted correctly
 ```

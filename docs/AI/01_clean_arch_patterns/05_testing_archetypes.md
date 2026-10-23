@@ -310,3 +310,10 @@ result.CreatedAt.Should().BeCloseTo(DateTime.UtcNow, 1.Seconds()); // FATAL: Fla
 private readonly FakeTimeProvider _timeProvider = TestConstants.CreateFakeClock();
 result.CreatedAt.Should().Be(TestConstants.BaselineTime);
 ```
+
+### [TRAP-TEST-007]: CancellationToken Bitwise Verification Mismatch
+// ! BANNED: Passing literal CancellationToken struct to mock verification causes brittle struct mismatch
+await _templateRepo.Received(1).AddAsync(template, ct); // FLAKY / REJECTED
+
+// >> CANONICAL: Always match CancellationToken using Arg.Any in mock assertions
+await _templateRepo.Received(1).AddAsync(Arg.Any<Template>(), Arg.Any<CancellationToken>());

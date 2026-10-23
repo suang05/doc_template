@@ -20,6 +20,7 @@ UpstreamKernel: AGENTS.md
 | **Direct Backend Calls** | Client browser fetching backend API directly (`http://localhost:8080`) | All client fetch calls routed through `/api/proxy/[...path]` |
 | **Live Preview Sync** | Firing preview requests on every keystroke | Debounced (800ms) with `AbortController` cancellation |
 | **Blob URL Leaks** | Overwriting preview object URLs without revoking | Immediate cleanup: `URL.revokeObjectURL(previousUrl)` |
+| **Route Params (Next.js 15)** | Synchronous params: `{ params: { id } }` | Async Promise params: `{ params }: { params: Promise<{ id: string }> }` + `await params` |
 
 ---
 
@@ -441,4 +442,16 @@ if (previousUrlRef.current) URL.revokeObjectURL(previousUrlRef.current);
 const newUrl = URL.createObjectURL(blob);
 previousUrlRef.current = newUrl;
 setPdfUrl(newUrl);
+```
+
+### [TRAP-FRONT-004]: Synchronous Next.js 15 Route Params
+```typescript
+// ! BANNED: Synchronous params access throws runtime error in Next.js 15
+export default async function Page({ params }: { params: { id: string } }) {
+  const id = params.id; // REJECTED
+}
+// >> CANONICAL: Explicitly awaited Promise params
+export default async function Page({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+}
 ```

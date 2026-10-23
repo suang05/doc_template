@@ -23,6 +23,7 @@ UpstreamKernel: AGENTS.md
 | **Route Naming** | Inconsistent verb/camelCase routes: `/api/createTemplate` | RESTful plural kebab-case: `api/v1/templates`, `api/v1/data-sources` |
 | **Top-Level Arrays** | Accepting raw array: `[FromBody] List<TItem>` | Wrapped batch envelope: `[FromBody] BatchRequest { Items = [...] }` |
 | **Timestamp Wire Format**| Unspecified/local datetime strings | Strict ISO-8601 UTC with `Z` suffix (`2026-10-21T15:30:00Z`) |
+| **OpenAPI Schema Metadata** | Action without `[ProducesResponseType]` metadata | Explicit `[ProducesResponseType(typeof(ApiResponse<T>), StatusCodes.Status200OK)]` on all endpoints |
 
 ---
 
@@ -102,6 +103,8 @@ public sealed class TemplateController(
     [HttpPost]
     [Idempotent]
     [ProducesResponseType(typeof(ApiResponse<TemplateResultDto>), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Create([FromBody] CreateTemplateCommand command, CancellationToken ct)
     {
         var result = await createTemplateUseCase.ExecuteAsync(command, ct);
