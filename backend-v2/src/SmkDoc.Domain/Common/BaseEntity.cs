@@ -4,14 +4,20 @@ namespace SmkDoc.Domain.Common;
 /// Generic abstract base class for Domain Entities with strongly-typed identity.
 /// Provides primary identity, audit timestamps, and entity equality based on identity.
 /// </summary>
-public abstract class BaseEntity<TId> : IEquatable<BaseEntity<TId>>
+public abstract class BaseEntity<TId> : IHaveDomainEvents, IEquatable<BaseEntity<TId>>
     where TId : struct, IComparable<TId>, IEquatable<TId>
 {
     public TId Id { get; protected set; }
     public DateTimeOffset CreatedAt { get; protected set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset? UpdatedAt { get; protected set; }
+    private readonly List<IDomainEvent> _domainEvents = new();
+    public IReadOnlyCollection<IDomainEvent> DomainEvents => _domainEvents.AsReadOnly();
+    protected void AddDomainEvent(IDomainEvent domainEvent) => _domainEvents.Add(domainEvent);
+    public void ClearDomainEvents() => _domainEvents.Clear();
 
-    protected BaseEntity() { }
+    protected BaseEntity()
+    {
+    }
 
     protected BaseEntity(TId id, DateTimeOffset? createdAt = null)
     {

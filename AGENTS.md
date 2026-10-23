@@ -9,6 +9,7 @@ COGNITIVE_FRAMEWORK & SYSTEM_CONTEXT:
 - OPERATIONAL_HEURISTICS:
   * ARCHITECTURE_FIRST: Establish and confirm design before code modifications on non-trivial tasks.
   * PROACTIVE_CHALLENGE: Proactively challenge suboptimal designs, architectural flaws, or obsolete patterns (whether proposed by user, existing in code, or documented in `docs/AI/`). Boldly propose superior canonical structures with concrete trade-offs before implementing.
+  * CANONICAL_PRIMACY_OVER_LEGACY: Living specifications in `docs/AI/` represent the absolute North Star standard. The agent MUST NOT mimic legacy flaws, technical debt, or suboptimal shortcuts found in pre-existing codebase files. Always generate new code adhering 100% to Clean Architecture and canonical AST standards.
   * ZERO_REGRESSION: Enforce Clean Architecture, statelessness, and thread-safety invariants.
   * CODE_SIMPLICITY: Prioritize readable, cohesive, and decoupled structures over complex abstractions.
   * REFACTOR_POLICY: IF existing code violates `docs/AI/00_architecture_core/dependency_and_folder_rules.md` THEN reject pattern and propose canonical refactor ELSE maintain codebase consistency.
@@ -77,6 +78,9 @@ TestingArchetypes:
   BackendAggregateTests: Invariant state mutations tested directly inside {Aggregate}Tests.cs. Zero disk I/O in SmkDoc.Tests.
   FrontendUnitTests: Co-located strictly in frontend-v2/src/__tests__/ (prohibit src/tests/), importing SSoT Zod schemas from @/schemas/ and real production modules (zero test-local tautological functions).
 
+ArchetypePrimacy:
+  PrescriptiveRules: Code archetypes under Level 3 in docs/AI/ are governed by >> MANDATORY CANONICAL TEMPLATE [RULE-*]. LLM MUST treat them as compiler-grade prescriptive constraints, never as optional or passive examples.
+
 CentralizedConfiguration:
   OperationalSettings: IOptions<TOptions> bound from appsettings.json/environment.
   TechnicalConstants: Grouped in *Constants static classes.
@@ -121,24 +125,45 @@ Execute <verification_protocol> before concluding task turn.
 </workflow_guard>
 </operational_boundaries>
 
-<context_routing_matrix>
-| Task Scope / Incoming Intent | Lexical Search Beacons | Target Documentation File |
+<compound_context_router>
+[ZERO_HOP_SSOT_ROUTER: Load strictly the minimal relevant slice. Total active context <= 15,000 tokens]
+
+| Incoming Intent / Task Scope | Primary SSoT Leaf Specification | Mandatory Satellite Guards (Trigger When Applicable) |
 |---|---|---|
-| Master Documentation Switchboard | Index, Navigation, SSoT, Router | `docs/AI/INDEX.md` |
-| Clean Architecture & Dependencies | Inversion, Layer, Bounded Context, Slice | `docs/AI/00_architecture_core/dependency_and_folder_rules.md` |
-| Anti-patterns, Traps & Firewall | LOH, Concurrency, Async, SSRF, Timing | `docs/AI/00_architecture_core/anti_pattern_firewall.md` |
-| Domain Layer, Aggregates, VOs, Enums | Aggregate, Entity, ValueObject, Guard, Enum | `docs/AI/01_clean_arch_patterns/01_domain_layer.md` |
-| Application Layer, UseCases, PEMR | UseCase, Command, Query, PEMR, Result | `docs/AI/01_clean_arch_patterns/02_application_layer.md` |
-| Infrastructure, EF Core, Repositories | EF Core, Config, JSONB, Repository, Filter | `docs/AI/01_clean_arch_patterns/03_infrastructure_layer.md` |
-| Presentation, Controllers, ProblemDetails | Controller, ApiResponse, Idempotent, RFC 9457 | `docs/AI/01_clean_arch_patterns/04_api_presentation_layer.md` |
-| Testing Patterns, SSoT Unit Tests | CreateSut, FakeClock, Builder, Invariant | `docs/AI/01_clean_arch_patterns/05_testing_archetypes.md` |
-| Frontend App Router, Proxy, Preview | RSC, Server Proxy, useLivePreview, Query | `docs/AI/02_frontend_patterns/01_app_router_and_data_fetching.md` |
-| Frontend Design Tokens, CVA, Zod | Ice-White, CVA, Lucide, Zod, Vitest | `docs/AI/02_frontend_patterns/02_ui_component_conventions.md` |
-| Multi-Tenancy, Dual-Auth, ApiKeys | Dual-Auth, X-API-Key, Tenancy, Scopes | `docs/AI/03_specialized_mechanics/multi_tenant_security_pipeline.md` |
-| Rendering Engines, Gotenberg, OpenXML | Gotenberg, DrawingML, ClosedXML, ThaiData | `docs/AI/03_specialized_mechanics/document_rendering_mechanics.md` |
-</context_routing_matrix>
+| **Clean Architecture & Folder Taxonomy** | `docs/AI/00_architecture_core/dependency_and_folder_rules.md` | + `00_architecture_core/anti_pattern_firewall.md` (Boundary violations) |
+| **Anti-Patterns, Traps & Memory Firewall** | `docs/AI/00_architecture_core/anti_pattern_firewall.md` | + `01_clean_arch_patterns/03_infrastructure_layer.md` (EF / LOH traps) |
+| **Domain Entities, VOs & Smart Enums** | `docs/AI/01_clean_arch_patterns/01_domain_layer.md` | + `00_architecture_core/anti_pattern_firewall.md` (If adding async/time/allocation) |
+| **Application UseCases, Commands & PEMR** | `docs/AI/01_clean_arch_patterns/02_application_layer.md` | + `01_clean_arch_patterns/01_domain_layer.md` & `00_architecture_core/anti_pattern_firewall.md` |
+| **EF Core Mappings, Repos & Tenancy** | `docs/AI/01_clean_arch_patterns/03_infrastructure_layer.md` | + `03_specialized_mechanics/multi_tenant_security_pipeline.md` (If modifying queries) |
+| **API Controllers, Routes & RFC 9457** | `docs/AI/01_clean_arch_patterns/04_api_presentation_layer.md` | + `01_clean_arch_patterns/02_application_layer.md` (For DTO contracts) |
+| **Unit & Aggregate Testing Archetypes** | `docs/AI/01_clean_arch_patterns/05_testing_archetypes.md` | + `01_clean_arch_patterns/{target_layer}.md` |
+| **Next.js App Router, Proxy & Live Preview** | `docs/AI/02_frontend_patterns/01_app_router_and_data_fetching.md` | + `02_frontend_patterns/02_ui_component_conventions.md` |
+| **Ice-White Tokens, CVA & Zod Schemas** | `docs/AI/02_frontend_patterns/02_ui_component_conventions.md` | + `02_frontend_patterns/01_app_router_and_data_fetching.md` |
+| **Multi-Tenant Dual-Auth & Project Context** | `docs/AI/03_specialized_mechanics/multi_tenant_security_pipeline.md` | + `01_clean_arch_patterns/03_infrastructure_layer.md` |
+| **Gotenberg, DrawingML & Thai Formatting** | `docs/AI/03_specialized_mechanics/document_rendering_mechanics.md` | + `00_architecture_core/anti_pattern_firewall.md` (Zero-LOH streaming) |
+
+TopologyMap:
+docs/AI/
+├── 00_architecture_core/ (dependency_and_folder_rules.md, anti_pattern_firewall.md)
+├── 01_clean_arch_patterns/ (01_domain_layer.md .. 05_testing_archetypes.md)
+├── 02_frontend_patterns/ (01_app_router_and_data_fetching.md, 02_ui_component_conventions.md)
+└── 03_specialized_mechanics/ (multi_tenant_security_pipeline.md, document_rendering_mechanics.md)
+</compound_context_router>
 
 <doc_drift_protocol>
+[COGNITIVE_MODE_SWITCH]
+Trigger: Entering documentation synchronization or doc review phase
+Stance: Shift cognitive persona strictly to:
+        "Principal AI Knowledge Architect & Compiler-Grade AST Parser"
+Mandate: Zero emotional/conversational prose. Absolute token density. Structure all invariants into tables and micro-diffs.
+
+[4_TIER_COGNITIVE_HIERARCHY_STANDARD]
+Enforce this exact top-to-bottom layout in every leaf specification:
+1. Level 1 (Top / Max Attention): <context> block with TriggerSignals + Invariants Matrix (! BANNED vs >> MANDATORY)
+2. Level 2 (Middle / Blueprint): Core SSoT AST (Type signatures, EBNF schemas, column mappings)
+3. Level 3 (Lower Middle / Truth): Canonical implementation pattern (Compilable reference code)
+4. Level 4 (Bottom / Interception): Traps & Anti-patterns ([TRAP-*] micro-diff pairs)
+
 [SIGNAL_TRIGGER_REGISTRY]
 | Trigger Signal Token | Source Mutation Event in Codebase | Target Document & Action |
 |---|---|---|

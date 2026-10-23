@@ -4,15 +4,29 @@
 Scope: Polymorphic Rendering Engines, Gotenberg Chromium Microservice, OpenXML DrawingML Fix, ClosedXML A4 Fit & ThaiDataTransformer SSoT
 Target: `SmkDoc.Infrastructure/Engines/` (`Gotenberg/`, `Word/`, `Excel/`, `Html/`) & `SmkDoc.Application/Common/Helpers/`
 Authority: Absolute SSoT Invariant (100% deterministic output, zero LibreOffice shift, zero multi-MB buffering)
-Boundary: Document rendering engines, Gotenberg, OpenXML & Thai formatting. Prohibit authentication pipelines, database migrations, or task roadmaps.
+Boundary: Pure Architectural AST only. Prohibit task roadmaps, execution checklists, and conversational prose.
+TriggerSignals: [SIGNAL_TOPOLOGY_MUTATION]
+UpstreamKernel: AGENTS.md
 </context>
 
 ---
 
-## 1. Polymorphic Rendering Engine Strategy
+## 1. Level 1: Document Rendering Invariants Matrix
 
-Rendering engines are decoupled from application workflows via the Strategy Pattern:
+| Architectural Concern | Prohibited Pattern (! BANNED) | Canonical SSoT Pattern (>> MANDATORY) |
+|---|---|---|
+| **Buffer Allocations** | In-memory `byte[]` buffering of Gotenberg outputs | Direct streaming to `Response.Body` via `Stream.CopyToAsync(response.Body, 81920, ct)` |
+| **Engine Resolution** | Hardcoded `if/else` or `switch` chains for engine selection | Polymorphic dispatch via `IRenderingEngine` & `RenderingEngineResolver` |
+| **OpenXML DrawingML** | Leaving graphic frame property IDs as default `0` | Explicit positive non-zero integers ($\ge 1$) via `DrawingMlIdFixer` |
+| **Excel Printing** | Spreadsheets clipping content on print or PDF export | Automatic A4 portrait fit: `worksheet.PageSetup.FitToPages(1, 0)` |
+| **Thai Formatting** | Inline date / Baht text conversions inside Handlebars | Centralized `ThaiDataTransformer` helper methods |
+| **Thai Font Marks** | Missing Thai tone marks or floating vowels in PDF | Automated Google Fonts Sarabun injection in `HtmlLayoutProcessor` |
 
+---
+
+## 2. Level 2: Core Rendering SSoT ASTs & Matrices
+
+### Polymorphic Rendering Engine Strategy Contract
 ```csharp
 namespace SmkDoc.Infrastructure.Engines;
 
@@ -21,10 +35,7 @@ public interface IRenderingEngine
     EngineType SupportedEngine { get; }
     Task<Stream> RenderAsync(RenderContext context, CancellationToken ct);
 }
-```
 
-Engines are resolved dynamically via polymorphic dispatch:
-```csharp
 public sealed class RenderingEngineResolver(IEnumerable<IRenderingEngine> engines)
 {
     public IRenderingEngine Resolve(EngineType engineType) =>
@@ -33,21 +44,40 @@ public sealed class RenderingEngineResolver(IEnumerable<IRenderingEngine> engine
 }
 ```
 
----
+### Handlebars Authoritative Helpers Catalog
+| Helper Name | Usage in Template | Output Description |
+|---|---|---|
+| `thai_date` | `{{thai_date date_field}}` | Formats date into Buddhist Era (e.g. `21 ตุลาคม 2569`) |
+| `thai_baht_text` | `{{thai_baht_text amount}}` | Converts decimal to Thai Baht text (e.g. `หนึ่งพันสองร้อยบาทถ้วน`) |
+| `format_number` | `{{format_number amount 2}}` | Formats number with commas and decimal places (`1,200.00`) |
+| `format_phone` | `{{format_phone phone}}` | Formats 10-digit phone number (`081-234-5678`) |
+| `format_id_card` | `{{format_id_card id_card}}` | Formats 13-digit Thai National ID (`1-2345-67890-12-3`) |
+| `eq` | `{{#if (eq status "Published")}}` | Equality comparator helper |
+| `neq` | `{{#if (neq status "Draft")}}` | Inequality comparator helper |
+| `lookup` | `{{lookup items @index}}` | Dynamic dictionary or array lookup helper |
 
-## 2. Gotenberg 8 Dockerized Microservice Pipeline
+### Centralized ThaiDataTransformer AST (`SmkDoc.Application.Common.Helpers`)
+```csharp
+namespace SmkDoc.Application.Common.Helpers;
 
-SmkDoc Server replaces legacy embedded LibreOffice with **Gotenberg 8 (Dockerized Chromium microservice)** for deterministic HTML-to-PDF rendering:
-
-```mermaid
-graph TD
-    Assets["HTML + CSS Assets"] --> Engine["HtmlTemplateEngine (Handlebars AST Cached)"]
-    Engine --> Layout["HtmlLayoutProcessor (Sarabun Font Injection)"]
-    Layout --> Renderer["GotenbergPdfRenderer (Polly v8 Resilient Client)"]
-    Renderer --> Streaming["Direct Stream (Zero-LOH to Response.Body)"]
+public static class ThaiDataTransformer
+{
+    public static string FormatThaiDate(DateTimeOffset date);
+    public static string ToThaiBahtText(decimal amount);
+    public static string FormatPhone(string? phone);
+    public static string FormatThaiIdCard(string? idCard);
+}
 ```
 
-### 2.1 Direct Response Streaming Archetype
+---
+
+## 3. Level 3: Canonical Rendering Archetypes
+
+### Gotenberg Direct Response Streaming Archetype
+>> MANDATORY CANONICAL TEMPLATE [RULE-MECH-001]:
+* [MUST] Use `HttpCompletionOption.ResponseHeadersRead` when invoking external Gotenberg rendering endpoints.
+* [MUST] Return raw `Stream` directly from `response.Content.ReadAsStreamAsync(ct)`.
+* [MUST NOT] Buffer rendering payloads into in-memory `byte[]` arrays or unbounded `MemoryStream` instances (Zero Large Object Heap allocation).
 ```csharp
 public async Task<Stream> RenderHtmlToPdfStreamAsync(
     string html,
@@ -82,98 +112,11 @@ public async Task<Stream> RenderHtmlToPdfStreamAsync(
 }
 ```
 
-### 2.2 Polly v8 Enterprise HTTP Resilience Pipeline
-Configured on `HttpClient` in `SmkDoc.Infrastructure/DependencyInjection.cs` to shield document generation against network jitter and transient Gotenberg container reboots:
-
-```csharp
-services.AddHttpClient<IPdfRenderer, GotenbergPdfRenderer>(client =>
-{
-    if (!string.IsNullOrEmpty(gotenbergSettings.Url))
-        client.BaseAddress = new Uri(gotenbergSettings.Url);
-})
-.AddResilienceHandler("gotenberg-resilience", builder =>
-{
-    // 1. Total request timeout (inclusive of all attempts)
-    builder.AddTimeout(TimeSpan.FromSeconds(60));
-
-    // 2. Adaptive Retry with Exponential Backoff + Jitter for transient errors (503, 504)
-    builder.AddRetry(new HttpRetryStrategyOptions
-    {
-        MaxRetryAttempts = 3,
-        Delay = TimeSpan.FromSeconds(1),
-        BackoffType = DelayBackoffType.Exponential,
-        UseJitter = true,
-        ShouldHandle = args =>
-        {
-            if (args.Outcome.Result is HttpResponseMessage response)
-            {
-                int statusCode = (int)response.StatusCode;
-                return ValueTask.FromResult(statusCode == 503 || statusCode == 504);
-            }
-            return ValueTask.FromResult(args.Outcome.Exception is HttpRequestException or TimeoutRejectedException);
-        }
-    });
-
-    // 3. Circuit Breaker: Trip on 50% failure rate over 30s window (min 5 calls); 15s break duration
-    builder.AddCircuitBreaker(new HttpCircuitBreakerStrategyOptions
-    {
-        FailureRatio = 0.5,
-        SamplingDuration = TimeSpan.FromSeconds(30),
-        MinimumThroughput = 5,
-        BreakDuration = TimeSpan.FromSeconds(15),
-        ShouldHandle = args =>
-        {
-            if (args.Outcome.Result is HttpResponseMessage response)
-            {
-                int statusCode = (int)response.StatusCode;
-                return ValueTask.FromResult(statusCode == 503 || statusCode == 504);
-            }
-            return ValueTask.FromResult(args.Outcome.Exception is HttpRequestException or TimeoutRejectedException);
-        }
-    });
-
-    // 4. Per-attempt timeout (safeguards against hanging Chromium/Gotenberg worker)
-    builder.AddTimeout(TimeSpan.FromSeconds(30));
-});
-```
-
-### 2.3 Thai Typography & Sarabun Web Font Auto-Injection
-[RULE-RENDER-001]: Headless Chromium PDF rendering clips Thai floating vowels (สระบน/สระล่าง เช่น อิ, อี, อุ, อู) and tone marks (ไม้เอก, ไม้โท, ไม้ตรี, ไม้จัตวา) when standard fonts are undeclared. The `HtmlLayoutProcessor` automatically injects Google Fonts Sarabun into `<head>` if no font is specified:
-
-```csharp
-public class HtmlLayoutProcessor
-{
-    private const string FontHead = "<link rel=\"stylesheet\" href=\"https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap\"><style>body { font-family: 'Sarabun', sans-serif; }</style>";
-
-    public HtmlLayoutResult Process(string html)
-    {
-        if (string.IsNullOrWhiteSpace(html))
-            return new HtmlLayoutResult(string.Empty, null, null);
-
-        string processedHtml = html;
-
-        // Auto-inject Sarabun font if font-family or Google Fonts link is absent
-        if (!processedHtml.Contains("fonts.googleapis.com", StringComparison.OrdinalIgnoreCase) &&
-            !processedHtml.Contains("font-family", StringComparison.OrdinalIgnoreCase))
-        {
-            processedHtml = processedHtml.Contains("<head>", StringComparison.OrdinalIgnoreCase)
-                ? processedHtml.Replace("<head>", $"<head>\n{FontHead}", StringComparison.OrdinalIgnoreCase)
-                : $"{FontHead}\n{processedHtml}";
-        }
-
-        return new HtmlLayoutResult(processedHtml, headerHtml, footerHtml);
-    }
-}
-```
-
----
-
-## 3. OpenXML Word Processing & DrawingML Non-Zero ID Fix
-
-When injecting images or shapes into Microsoft Word (`.docx`) documents via OpenXML:
-* **The Fatal Bug**: OpenXML defaults graphic frame IDs to `0`. Microsoft Word treats `id="0"` as a corrupted XML element, throwing: `"Word found unreadable content in document.docx. Do you want to recover the contents?"`
-* **The Canonical Invariant**: All DrawingML graphic frame IDs MUST be assigned unique, positive, non-zero integers ($\ge 1$).
-
+### OpenXML DrawingML Non-Zero ID Fix Archetype
+>> MANDATORY CANONICAL TEMPLATE [RULE-MECH-002]:
+* [MUST] Intercept all `NonVisualDrawingProperties` (`nvPr`) during OpenXML DOCX manipulation.
+* [MUST] Ensure `nvPr.Id` is assigned an explicit, thread-safe non-zero positive integer (`>= 1`).
+* [MUST NOT] Allow duplicate or zero (`0`) graphic frame IDs which cause Microsoft Word corruption alerts.
 ```csharp
 using DocumentFormat.OpenXml.Drawing;
 
@@ -183,29 +126,22 @@ public static class DrawingMlIdFixer
 {
     private static uint _nextId = 1;
 
-    public static uint GenerateNonZeroId()
-    {
-        return Interlocked.Increment(ref _nextId);
-    }
+    public static uint GenerateNonZeroId() => Interlocked.Increment(ref _nextId);
 
     public static void EnsureNonZeroGraphicFrameId(NonVisualDrawingProperties nvPr)
     {
         if (nvPr.Id == null || nvPr.Id.Value == 0)
         {
-            nvPr.Id = GenerateNonZeroId(); // Enforce non-zero positive integer
+            nvPr.Id = GenerateNonZeroId();
         }
     }
 }
 ```
 
----
-
-## 4. ClosedXML Excel Processing & A4 Page Fit Calculation
-
-When producing Excel (`.xlsx`) documents for business reports:
-* **Page Fit Invariant**: Spreadsheets must automatically fit the printed page width to A4 without clipping columns.
-* **Cell Formatting Preservation**: Numeric and date values must retain native Excel types and number formatting (never converted to plain text).
-
+### ClosedXML A4 Auto-Fit Archetype
+>> MANDATORY CANONICAL TEMPLATE [RULE-MECH-003]:
+* [MUST] Configure `worksheet.PageSetup.PaperSize = XLPaperSize.A4Paper` and `PageOrientation = XLPageOrientation.Portrait` (or Landscape per template).
+* [MUST] Call `worksheet.PageSetup.FitToPages(1, 0)` so columns fit horizontally on a single page width without horizontal overflow.
 ```csharp
 using ClosedXML.Excel;
 
@@ -217,11 +153,7 @@ public static class ExcelPageSetupExtensions
     {
         worksheet.PageSetup.PaperSize = XLPaperSize.A4Paper;
         worksheet.PageSetup.PageOrientation = XLPageOrientation.Portrait;
-        
-        // Fit to 1 page wide, automatic pages tall
         worksheet.PageSetup.FitToPages(1, 0);
-
-        // Adjust column widths to fit content with padding
         worksheet.Columns().AdjustToContents();
     }
 }
@@ -229,87 +161,34 @@ public static class ExcelPageSetupExtensions
 
 ---
 
-## 5. Handlebars Helpers & Template AST Caching
+## 4. Level 4: Anti-Patterns & Micro-Diffs
 
-SmkDoc Server caches compiled Handlebars ASTs keyed by the SHA-256 hash of the template text:
-
+### [TRAP-MECH-001]: Large Object Heap (LOH) Buffering
 ```csharp
-public static class HandlebarsCache
-{
-    private static readonly ConcurrentDictionary<string, HandlebarsTemplate<object, object>> Cache = new();
+// ! BANNED: Buffering Gotenberg binary output into multi-MB byte array
+var ms = new MemoryStream();
+await stream.CopyToAsync(ms, ct);
+return File(ms.ToArray(), "application/pdf", "doc.pdf"); // FATAL: LOH Gen 2 Stalls!
 
-    public static HandlebarsTemplate<object, object> GetOrCompile(string templateText)
-    {
-        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(templateText)));
-        return Cache.GetOrAdd(hash, _ => Handlebars.Compile(templateText));
-    }
-}
+// >> CANONICAL: Direct stream pipe to Response.Body
+Response.ContentType = "application/pdf";
+await stream.CopyToAsync(Response.Body, 81920, ct);
 ```
 
-### 8 Authoritative Helpers
-| Helper Name | Usage in Template | Output Description |
-|---|---|---|
-| `thai_date` | `{{thai_date date_field}}` | Formats date into Buddhist Era (e.g. `21 ตุลาคม 2569`) |
-| `thai_baht_text` | `{{thai_baht_text amount}}` | Converts decimal to Thai Baht text (e.g. `หนึ่งพันสองร้อยบาทถ้วน`) |
-| `format_number` | `{{format_number amount 2}}` | Formats number with commas and decimal places (`1,200.00`) |
-| `format_phone` | `{{format_phone phone}}` | Formats 10-digit phone number (`081-234-5678`) |
-| `format_id_card` | `{{format_id_card id_card}}` | Formats 13-digit Thai National ID (`1-2345-67890-12-3`) |
-| `eq` | `{{#if (eq status "Published")}}` | Equality comparator helper |
-| `neq` | `{{#if (neq status "Draft")}}` | Inequality comparator helper |
-| `lookup` | `{{lookup items @index}}` | Dynamic dictionary or array lookup helper |
-
----
-
-## 6. ThaiDataTransformer SSoT (`SmkDoc.Application/Common/Helpers/`)
-
-All Thai-specific localized transformations MUST route through `ThaiDataTransformer`. Zero inline conversions in templates:
-
+### [TRAP-MECH-002]: OpenXML Zero Graphic Frame ID Corruption
 ```csharp
-namespace SmkDoc.Application.Common.Helpers;
+// ! BANNED: Default OpenXML id=0 causes Microsoft Word file corruption prompts
+nvPr.Id = 0; // REJECTED
 
-public static class ThaiDataTransformer
-{
-    private static readonly string[] ThaiMonths =
-    [
-        "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
-        "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"
-    ];
+// >> CANONICAL: Enforced non-zero positive integer
+DrawingMlIdFixer.EnsureNonZeroGraphicFrameId(nvPr);
+```
 
-    /// <summary>Converts Gregorian date to Thai Buddhist Era date string.</summary>
-    public static string FormatThaiDate(DateTimeOffset date)
-    {
-        int thaiYear = date.Year + 543;
-        string month = ThaiMonths[date.Month - 1];
-        return $"{date.Day} {month} {thaiYear}";
-    }
+### [TRAP-MECH-003]: Inline Thai Transformation in Templates
+```csharp
+// ! BANNED: Inline template transformation logic
+"{{date.Year + 543}}"
 
-    /// <summary>Converts numeric decimal amount to Thai Baht text string.</summary>
-    public static string ToThaiBahtText(decimal amount)
-    {
-        // Canonical Baht Text conversion algorithm
-        if (amount == 0) return "ศูนย์บาทถ้วน";
-        // Detailed implementation handles Baht, Satang, and "ถ้วน" suffix
-        return ThaiBahtConverter.Convert(amount);
-    }
-
-    /// <summary>Formats 10-digit phone number into standard 0xx-xxx-xxxx format.</summary>
-    public static string FormatPhone(string? phone)
-    {
-        if (string.IsNullOrWhiteSpace(phone)) return string.Empty;
-        var digits = new string(phone.Where(char.IsDigit).ToArray());
-        return digits.Length == 10
-            ? $"{digits[..3]}-{digits[3..6]}-{digits[6..]}"
-            : phone;
-    }
-
-    /// <summary>Formats 13-digit Thai National ID card number.</summary>
-    public static string FormatThaiIdCard(string? idCard)
-    {
-        if (string.IsNullOrWhiteSpace(idCard)) return string.Empty;
-        var digits = new string(idCard.Where(char.IsDigit).ToArray());
-        return digits.Length == 13
-            ? $"{digits[0]}-{digits[1..5]}-{digits[5..10]}-{digits[10..12]}-{digits[12]}"
-            : idCard;
-    }
-}
+// >> CANONICAL: Routing via centralized ThaiDataTransformer SSoT
+"{{thai_date date}}"
 ```

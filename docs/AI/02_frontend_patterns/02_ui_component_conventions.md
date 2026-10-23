@@ -4,22 +4,36 @@
 Scope: UI Component Conventions, Ice-White Design Tokens, CVA Component Variants, Lucide Icons, Zod Schemas & Vitest
 Target: `frontend-v2/` (`src/components/ui/`, `src/schemas/`, `src/__tests__/`)
 Authority: Absolute SSoT Invariant (Deterministic compact enterprise UI, zero raw HTML inputs, zero decorative emojis)
-Boundary: Frontend UI components, design tokens, CVA variants & Zod schemas. Prohibit business logic, API routes, or task roadmaps.
+Boundary: Pure Architectural AST only. Prohibit task roadmaps, execution checklists, and conversational prose.
+TriggerSignals: [SIGNAL_UI_MUTATION]
+UpstreamKernel: AGENTS.md
 </context>
 
 ---
 
-## 1. Design Philosophy & Ice-White Token Palette
+## 1. Level 1: UI Component & Design System Invariants Matrix
 
-SmkDoc Portal adopts the **Ice-White Compact Enterprise Design System**: ultra-crisp white surfaces with subtle cool-slate borders and sky-blue brand accents.
+| Architectural Concern | Prohibited Pattern (! BANNED) | Canonical SSoT Pattern (>> MANDATORY) |
+|---|---|---|
+| **Border Radii** | Arbitrary or large rounding: `rounded-xl`, `rounded-2xl` | Compact Enterprise Geometry: `0px` (`rounded-none`), `2px` (`rounded-sm`), `4px` (`rounded-md`) |
+| **Color Tokens** | Hardcoded arbitrary hex: `bg-[#0284c7]` | Curated Ice-White design tokens or Tailwind semantic utility classes |
+| **Component Variants** | Ad-hoc template string conditional styles | `class-variance-authority` (CVA) variant definitions |
+| **Icon Set** | Raw inline `<svg>` elements or inconsistent icon packages | Standard Lucide React icons (`lucide-react`) with fixed `size={16}` or `size={18}` |
+| **Validation Schemas** | Defining duplicated test-local Zod schemas in tests | Single Source of Truth Zod schemas imported from `@/schemas/` |
+| **Test Co-location** | Creating isolated `src/tests/` directory | Strictly co-located in `frontend-v2/src/__tests__/` matching source structure |
 
+---
+
+## 2. Level 2: Core Design System SSoT ASTs & Tokens
+
+### Ice-White Design Token Palette
 ```css
 :root {
   /* Surface & Background */
   --canvas-bg: #f8fbfe;         /* Primary screen backdrop */
   --surface-card: #ffffff;      /* Cards, tables, modals */
-  --border-subtle: #e2e8f0;     /* Default card & divider borders */
-  --border-strong: #cbd5e1;     /* Input borders, active states */
+  --border-subtle: #e2e8f0;     /* Default card & divider borders (Slate-200) */
+  --border-strong: #cbd5e1;     /* Input borders, active states (Slate-300) */
 
   /* Typography */
   --text-primary: #0f172a;      /* Headings, primary labels (Slate-900) */
@@ -38,10 +52,7 @@ SmkDoc Portal adopts the **Ice-White Compact Enterprise Design System**: ultra-c
 }
 ```
 
----
-
-## 2. Compact Enterprise Geometry Rules
-
+### Compact Enterprise Geometry Rules
 | Geometry Token | Tailwind Class | Application Scope | Prohibited Alternatives (! BANNED) |
 |---|---|---|---|
 | **`0px`** | `rounded-none` | Split-screen panels, monaco editor containers | - |
@@ -51,10 +62,14 @@ SmkDoc Portal adopts the **Ice-White Compact Enterprise Design System**: ultra-c
 
 ---
 
-## 3. CVA Component Variant Archetype (`Button.tsx`)
+## 3. Level 3: Canonical Component & Schema Archetypes
 
-Every atomic UI component in `src/components/ui/` uses `class-variance-authority` (CVA) for variant management:
-
+### CVA Component Variant Archetype (`Button.tsx`)
+>> MANDATORY CANONICAL TEMPLATE [RULE-UI-001]:
+* [MUST] Define UI primitive variants using `class-variance-authority` (CVA).
+* [MUST] Use Compact Enterprise Geometry (`rounded-none`, `rounded-sm`, `rounded-md`); prohibit `rounded-xl` and `rounded-2xl`.
+* [MUST] Integrate `cn()` helper (`clsx` + `tailwind-merge`) to merge caller-provided `className`.
+* [MUST] Forward refs via `React.forwardRef` and declare explicit `displayName`.
 ```typescript
 import * as React from 'react';
 import { cva, type VariantProps } from 'class-variance-authority';
@@ -103,60 +118,52 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 Button.displayName = 'Button';
 ```
 
----
-
-## 4. Iconography Standard
-
-Strictly import icons from `lucide-react`. Zero third-party icon packages, font icons, or emojis permitted:
-
-```typescript
-// >> CANONICAL: Crisp, tree-shakeable Lucide icons
-import { FileText, Download, CheckCircle, AlertTriangle, RefreshCw } from 'lucide-react';
-
-<Button variant="outline" size="sm">
-  <Download className="mr-2 h-4 w-4" /> Download PDF
-</Button>
-```
-
----
-
-## 5. Zod Validation SSoT (`src/schemas/`)
-
-Form validation schemas reside strictly in `src/schemas/`. TypeScript types are inferred directly from schemas:
-
+### SSoT Zod Validation Schema Archetype (`template.schema.ts`)
+>> MANDATORY CANONICAL TEMPLATE [RULE-UI-002]:
+* [MUST] Define form and payload validation schemas in `src/schemas/` as Single Source of Truth.
+* [MUST] Export both runtime Zod schema (`*Schema`) and derived TypeScript type (`z.infer<typeof *Schema>`).
+* [MUST NOT] Redefine or duplicate Zod schemas locally inside unit test files.
 ```typescript
 import { z } from 'zod';
 
-export const createTemplateSchema = z.object({
+export const templateSchema = z.object({
   name: z.string().min(1, 'Template name is required').max(100),
-  slug: z.string().min(1, 'Slug is required').max(100).regex(/^[a-z0-9-]+$/, 'Alphanumeric lowercase and hyphens only'),
+  slug: z.string().min(1, 'Slug is required').max(100).regex(/^[a-z0-9-]+$/, 'Lowercase letters, numbers, and hyphens only'),
   category: z.string().max(50).optional(),
 });
 
-export type CreateTemplateFormValues = z.infer<typeof createTemplateSchema>;
+export type TemplateFormData = z.infer<typeof templateSchema>;
 ```
 
 ---
 
-## 6. Frontend Unit Testing Standard (`src/__tests__/`)
+## 4. Level 4: Anti-Patterns & Micro-Diffs
 
-All tests must reside in `src/__tests__/` (directory `src/tests/` is strictly prohibited). Tests must import real Zod schemas:
-
+### [TRAP-UI-001]: Geometry: Bloated Rounded Corners
 ```typescript
-import { describe, it, expect } from 'vitest';
-import { createTemplateSchema } from '@/schemas/template.schema';
+// ! BANNED: Consumer rounded geometries break compact enterprise aesthetic
+<button className="rounded-2xl p-4">Submit</button>
 
-describe('createTemplateSchema', () => {
-  it('should accept valid template payload', () => {
-    const valid = { name: 'Tax Invoice', slug: 'tax-invoice-v1', category: 'Finance' };
-    const result = createTemplateSchema.safeParse(valid);
-    expect(result.success).toBe(true);
-  });
+// >> CANONICAL: 4px rounded compact geometry
+<button className="rounded-md px-4 py-2 text-sm">Submit</button>
+```
 
-  it('should reject invalid slug with uppercase letters', () => {
-    const invalid = { name: 'Tax Invoice', slug: 'TAX_INVOICE' };
-    const result = createTemplateSchema.safeParse(invalid);
-    expect(result.success).toBe(false);
-  });
-});
+### [TRAP-UI-002]: Icon Duplication: Raw SVG vs Lucide React
+```typescript
+// ! BANNED: Inline raw SVG elements bloat bundle and cause visual divergence
+<svg className="w-4 h-4"><path d="..." /></svg>
+
+// >> CANONICAL: Consistent Lucide icon imports
+import { FileText } from 'lucide-react';
+<FileText className="w-4 h-4 text-slate-500" />
+```
+
+### [TRAP-UI-003]: Test-Local Zod Schema Duplication
+```typescript
+// ! BANNED: Tautological test declaring its own local duplicate schema
+// src/__tests__/template.test.ts
+const localSchema = z.object({ name: z.string() }); // REJECTED!
+
+// >> CANONICAL: Real production module import
+import { templateSchema } from '@/schemas/template.schema';
 ```

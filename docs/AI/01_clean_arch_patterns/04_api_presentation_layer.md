@@ -4,12 +4,14 @@
 Scope: Presentation Layer Patterns, Thin Controllers, ApiResponse Envelopes, Idempotency & RFC 9457 Exception Handling
 Target: `SmkDoc.Api/` (`Controllers/`, `Common/Responses/`, `Filters/`, `Middleware/`)
 Authority: Absolute SSoT Invariant (Thin orchestrators, zero business logic, strictly standardized HTTP wire format)
-Boundary: Presentation controllers, HTTP wire format & error handling. Prohibit business rules, persistence logic, or task roadmaps.
+Boundary: Pure Architectural AST only. Prohibit task roadmaps, execution checklists, and conversational prose.
+TriggerSignals: [SIGNAL_API_MUTATION]
+UpstreamKernel: AGENTS.md
 </context>
 
 ---
 
-## 1. Presentation Layer Invariants & HTTP Semantics
+## 1. Level 1: Presentation Invariants & HTTP Semantics Matrix
 
 | Architectural Concern | Prohibited Pattern (! BANNED) | Canonical SSoT Pattern (>> MANDATORY) |
 |---|---|---|
@@ -24,8 +26,39 @@ Boundary: Presentation controllers, HTTP wire format & error handling. Prohibit 
 
 ---
 
-## 2. Thin Controller Archetype
+## 2. Level 2: Core Presentation SSoT ASTs & Wire Standards
 
+### RFC 9457 ProblemDetails Exception Translation Matrix
+| Domain / Application Exception | HTTP Status Code | RFC 9457 Title | ProblemDetails Type URI |
+|---|---|---|---|
+| `ValidationException` | `400 Bad Request` | Validation Error | `https://tools.ietf.org/html/rfc9110#section-15.5.1` |
+| `NotFoundException` | `404 Not Found` | Resource Not Found | `https://tools.ietf.org/html/rfc9110#section-15.5.5` |
+| `ConflictException` | `409 Conflict` | Conflict | `https://tools.ietf.org/html/rfc9110#section-15.5.10` |
+| `ForbiddenException` | `403 Forbidden` | Forbidden | `https://tools.ietf.org/html/rfc9110#section-15.5.4` |
+| `DomainValidationException` | `422 Unprocessable`| Domain Rule Violation | `https://tools.ietf.org/html/rfc9110#section-15.5.21` |
+| Unhandled Exceptions | `500 Internal Error`| Internal Server Error | `https://tools.ietf.org/html/rfc9110#section-15.6.1` |
+
+### OWASP Top-Level Array Envelope
+```csharp
+// >> CANONICAL: Wrapped batch request envelope
+public sealed record BatchCreateFieldsRequest(IReadOnlyList<CreateFieldDto> Items, bool DryRun = false);
+```
+
+### UTC ISO-8601 Timestamp Standard
+* Format: `yyyy-MM-ddTHH:mm:ssZ` (or with fractional seconds: `yyyy-MM-ddTHH:mm:ss.fffZ`).
+* Prohibited: Local time offsets without `Z` (e.g. `2026-10-21 15:30:00` or raw ticks).
+
+---
+
+## 3. Level 3: Canonical Presentation Archetypes
+
+### Thin Controller Archetype (`TemplateController`)
+>> MANDATORY CANONICAL TEMPLATE [RULE-API-001]:
+* [MUST] Inherit from `ControllerBase`, apply `[ApiController]`, and define route as `[Route("api/v1/{plural-kebab-resource}")]`.
+* [MUST] Inject single-responsibility UseCases via C# 13 primary constructor (prohibit generic multi-method service injection).
+* [MUST] Keep action methods thin (<= 5 lines per action): resolve identity, delegate to UseCase, and wrap result in standard response envelope.
+* [MUST] Apply `[Idempotent]` attribute on all state-mutating endpoints (`POST`, `PUT`, `DELETE`).
+* [MUST] Return `CreatedAtAction` with `201 Created` for resource creation, `Ok(new ApiResponse<T>(result))` for reads/updates, and `NoContent()` with `204 NoContent` for deletions.
 ```csharp
 using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Common.Responses;
@@ -69,8 +102,6 @@ public sealed class TemplateController(
     [HttpPost]
     [Idempotent]
     [ProducesResponseType(typeof(ApiResponse<TemplateResultDto>), StatusCodes.Status201Created)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Create([FromBody] CreateTemplateCommand command, CancellationToken ct)
     {
         var result = await createTemplateUseCase.ExecuteAsync(command, ct);
@@ -87,34 +118,20 @@ public sealed class TemplateController(
 }
 ```
 
----
-
-## 3. Standard Response Envelopes
-
-### Single Item Envelope (`ApiResponse<T>`)
+### Standard Response Envelopes
+>> MANDATORY CANONICAL TEMPLATE [RULE-ENV-001]:
+* [MUST] Encapsulate all single-resource reads, mutations, and actions in `ApiResponse<T>(T Data, bool Success = true, string? Message = null, DateTimeOffset Timestamp = default)`.
+* [MUST] Encapsulate all paginated collection queries in `PagedApiResponse<T>(IReadOnlyList<T> Items, int PageNumber, int PageSize, int TotalCount, bool Success = true)`.
+* [MUST NOT] Return anonymous objects (`new { success = true }`) or naked domain entities across the HTTP boundary.
 ```csharp
 namespace SmkDoc.Api.Common.Responses;
 
-public sealed record ApiResponse<T>(
-    T Data,
-    bool Success = true,
-    string? Message = null,
-    DateTimeOffset Timestamp = default)
+public sealed record ApiResponse<T>(T Data, bool Success = true, string? Message = null, DateTimeOffset Timestamp = default)
 {
     public DateTimeOffset Timestamp { get; init; } = Timestamp == default ? DateTimeOffset.UtcNow : Timestamp;
 }
-```
 
-### Paged List Envelope (`PagedApiResponse<T>`)
-```csharp
-namespace SmkDoc.Api.Common.Responses;
-
-public sealed record PagedApiResponse<T>(
-    IReadOnlyList<T> Items,
-    int PageNumber,
-    int PageSize,
-    int TotalCount,
-    bool Success = true)
+public sealed record PagedApiResponse<T>(IReadOnlyList<T> Items, int PageNumber, int PageSize, int TotalCount, bool Success = true)
 {
     public int TotalPages => (int)Math.Ceiling(TotalCount / (double)PageSize);
     public bool HasNextPage => PageNumber < TotalPages;
@@ -122,12 +139,12 @@ public sealed record PagedApiResponse<T>(
 }
 ```
 
----
-
-## 4. Centralized RFC 9457 Global Exception Handler
-
-All application and domain exceptions are intercepted and translated into RFC 9457 `ProblemDetails` via ASP.NET Core `IExceptionHandler`:
-
+### Centralized RFC 9457 Global Exception Handler
+>> MANDATORY CANONICAL TEMPLATE [RULE-ERR-001]:
+* [MUST] Implement Microsoft `IExceptionHandler` registering as the single RFC 9457 gateway.
+* [MUST] Map domain and application exceptions strictly according to Level 2 Translation Matrix.
+* [MUST] Set `httpContext.Response.ContentType = "application/problem+json"` and serialize RFC 9457 `ProblemDetails`.
+* [MUST NOT] Leak stack traces, SQL syntax, or internal connection strings to callers in production environments.
 ```csharp
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
@@ -137,44 +154,17 @@ namespace SmkDoc.Api.Middleware;
 
 public sealed class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger) : IExceptionHandler
 {
-    public async ValueTask<bool> TryHandleAsync(
-        HttpContext httpContext,
-        Exception exception,
-        CancellationToken cancellationToken)
+    public async ValueTask<bool> TryHandleAsync(HttpContext httpContext, Exception exception, CancellationToken ct)
     {
-        logger.LogError(exception, "Unhandled exception occurred: {Message}", exception.Message);
+        logger.LogError(exception, "Unhandled exception: {Message}", exception.Message);
 
         var (statusCode, title, detail, type) = exception switch
         {
-            ValidationException vex => (
-                StatusCodes.Status400BadRequest,
-                "Validation Error",
-                "One or more validation errors occurred.",
-                "https://tools.ietf.org/html/rfc9110#section-15.5.1"),
-
-            NotFoundException nfe => (
-                StatusCodes.Status404NotFound,
-                "Resource Not Found",
-                nfe.Message,
-                "https://tools.ietf.org/html/rfc9110#section-15.5.5"),
-
-            ConflictException ce => (
-                StatusCodes.Status409Conflict,
-                "Conflict",
-                ce.Message,
-                "https://tools.ietf.org/html/rfc9110#section-15.5.10"),
-
-            DomainValidationException dve => (
-                StatusCodes.Status422UnprocessableEntity,
-                "Domain Rule Violation",
-                dve.Message,
-                "https://tools.ietf.org/html/rfc9110#section-15.5.21"),
-
-            _ => (
-                StatusCodes.Status500InternalServerError,
-                "Internal Server Error",
-                "An unexpected server error occurred.",
-                "https://tools.ietf.org/html/rfc9110#section-15.6.1")
+            ValidationException vex => (StatusCodes.Status400BadRequest, "Validation Error", "Validation failed.", "https://tools.ietf.org/html/rfc9110#section-15.5.1"),
+            NotFoundException nfe => (StatusCodes.Status404NotFound, "Resource Not Found", nfe.Message, "https://tools.ietf.org/html/rfc9110#section-15.5.5"),
+            ConflictException ce => (StatusCodes.Status409Conflict, "Conflict", ce.Message, "https://tools.ietf.org/html/rfc9110#section-15.5.10"),
+            DomainValidationException dve => (StatusCodes.Status422UnprocessableEntity, "Domain Rule Violation", dve.Message, "https://tools.ietf.org/html/rfc9110#section-15.5.21"),
+            _ => (StatusCodes.Status500InternalServerError, "Internal Server Error", "An unexpected error occurred.", "https://tools.ietf.org/html/rfc9110#section-15.6.1")
         };
 
         var problemDetails = new ProblemDetails
@@ -193,7 +183,7 @@ public sealed class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logge
 
         httpContext.Response.StatusCode = statusCode;
         httpContext.Response.ContentType = "application/problem+json";
-        await httpContext.Response.WriteAsJsonAsync(problemDetails, cancellationToken);
+        await httpContext.Response.WriteAsJsonAsync(problemDetails, ct);
 
         return true;
     }
@@ -202,35 +192,36 @@ public sealed class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logge
 
 ---
 
-## 5. OWASP Top-Level JSON Array Defense & Wire Standards
+## 4. Level 4: Anti-Patterns & Micro-Diffs
 
-### [RULE-API-001]: Top-Level Request Wrapping
-Binding raw JSON arrays directly (`[FromBody] List<TItem> items`) is prohibited.
-1. **Security (JSON Hijacking)**: While modern browsers protect against classic `__proto__` script tag exploits, raw arrays remain vulnerable in non-browser JSON evaluators.
-2. **Contract Extensibility**: Wrapping arrays in an object envelope allows non-breaking schema evolution (e.g., adding `dryRun`, `batchId`, `mode` properties later).
-
+### [TRAP-API-001]: Fat Controller vs Thin Orchestrator
 ```csharp
-// BANNED:
-// public async Task<IActionResult> BatchCreate([FromBody] List<CreateFieldDto> items)
-
-// MANDATORY SSoT:
-public sealed record BatchCreateFieldsRequest(
-    IReadOnlyList<CreateFieldDto> Items,
-    bool DryRun = false);
-
-[HttpPost("batch")]
-[Idempotent]
-public async Task<IActionResult> BatchCreate(
-    [FromBody] BatchCreateFieldsRequest request,
-    CancellationToken ct)
+// ! BANNED: Fat controller executing business logic or entity manipulation
+[HttpPost]
+public async Task<IActionResult> Create(TemplateDto dto)
 {
-    var result = await batchCreateFieldsUseCase.ExecuteAsync(new BatchCreateFieldsCommand(request.Items, request.DryRun), ct);
-    return Ok(new ApiResponse<BatchCreateFieldsResultDto>(result));
+    if (string.IsNullOrEmpty(dto.Name)) return BadRequest();
+    var template = new Template { Name = dto.Name };
+    await db.Templates.AddAsync(template);
+    await db.SaveChangesAsync();
+    return Ok(template);
+}
+
+// >> CANONICAL: Thin controller (<= 5 lines) delegating to single-responsibility UseCase
+[HttpPost]
+[Idempotent]
+public async Task<IActionResult> Create([FromBody] CreateTemplateCommand command, CancellationToken ct)
+{
+    var result = await createTemplateUseCase.ExecuteAsync(command, ct);
+    return CreatedAtAction(nameof(GetById), new { id = result.Id }, new ApiResponse<TemplateResultDto>(result));
 }
 ```
 
-### [RULE-API-002]: Timestamp Wire Format
-All timestamps crossing the API boundary MUST serialize as UTC ISO-8601 with explicit `Z` suffix.
-* Format: `yyyy-MM-ddTHH:mm:ssZ` (or with fractional seconds: `yyyy-MM-ddTHH:mm:ss.fffZ`).
-* Prohibited: Local time offsets without `Z` (e.g. `2026-10-21 15:30:00` or raw ticks).
+### [TRAP-API-002]: Raw Anonymous Object vs Strongly-Typed DTO Envelope
+```csharp
+// ! BANNED: Returning anonymous objects without standard envelope
+return Ok(new { success = true, templateId = id });
 
+// >> CANONICAL: Strongly-typed ApiResponse<T> containing Application DTO
+return Ok(new ApiResponse<TemplateResultDto>(result));
+```

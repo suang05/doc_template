@@ -4,12 +4,14 @@
 Scope: Next.js 15 App Router Architecture, Server/Client Component Boundaries, Route Handler Proxy & Live Preview Pipeline
 Target: `frontend-v2/` (`src/app/`, `src/hooks/`, `src/lib/api/`)
 Authority: Absolute SSoT Invariant (Zero client-side JWT token access, 100% debounced streaming preview)
-Boundary: Frontend Next.js 15 routing, RSC boundaries & API proxy. Prohibit backend persistence, raw CSS definitions, or task roadmaps.
+Boundary: Pure Architectural AST only. Prohibit task roadmaps, execution checklists, and conversational prose.
+TriggerSignals: [SIGNAL_UI_MUTATION]
+UpstreamKernel: AGENTS.md
 </context>
 
 ---
 
-## 1. App Router Architecture & Component Boundary Rules
+## 1. Level 1: App Router & Data Fetching Invariants Matrix
 
 | Architectural Concern | Prohibited Pattern (! BANNED) | Canonical SSoT Pattern (>> MANDATORY) |
 |---|---|---|
@@ -21,10 +23,31 @@ Boundary: Frontend Next.js 15 routing, RSC boundaries & API proxy. Prohibit back
 
 ---
 
-## 2. Secure Server Proxy Pattern (`/api/proxy/[...path]/route.ts`)
+## 2. Level 2: Core Frontend Topology & Proxy Contracts
 
-The browser client never touches backend Bearer tokens or backend internal ports. The Next.js Route Handler bridges session cookies to backend Bearer JWT headers:
+### Hop-by-Hop Stripped Headers
+The Next.js reverse proxy MUST strip these headers before forwarding upstream:
+```typescript
+const HOP_BY_HOP_HEADERS = ['host', 'connection', 'content-length', 'transfer-encoding'];
+```
 
+### Component Boundary Classification Matrix
+| Component Archetype | Execution Realm | Permitted Capabilities | Prohibited Patterns |
+|---|---|---|---|
+| `Page / Layout` | Server Component (RSC) | Async data fetching, session resolution | No React hooks (`useState`, `useEffect`), no event listeners |
+| `Interactive Widget` | Client Component (`'use client'`) | State, effects, live preview, event listeners | No direct database queries, no secret environment variables |
+| `Proxy Route Handler` | Node.js Server Runtime | Token injection, header transformation, streaming | No client rendering, no localStorage access |
+
+---
+
+## 3. Level 3: Canonical Frontend Archetypes
+
+### Secure Server Proxy Route (`/api/proxy/[...path]/route.ts`)
+>> MANDATORY CANONICAL TEMPLATE [RULE-FRONT-001]:
+* [MUST] Route all client browser API traffic through the Next.js reverse proxy (`/api/proxy/[...path]`).
+* [MUST] Strip hop-by-hop headers (`host`, `connection`, `content-length`, `transfer-encoding`) before upstream dispatch.
+* [MUST] Inject backend Bearer JWT token strictly on server side from `httpOnly` NextAuth session cookies (prohibit client-side access).
+* [MUST] Stream backend response body directly to caller (`new Response(backendRes.body)` with duplex streaming).
 ```typescript
 import { NextRequest } from 'next/server';
 import { auth } from '@/auth';
@@ -77,19 +100,15 @@ async function proxy(req: NextRequest, { params }: { params: Promise<{ path: str
 export { proxy as GET, proxy as POST, proxy as PUT, proxy as PATCH, proxy as DELETE };
 ```
 
----
-
-## 3. Real-Time Live Preview Pipeline Hook (`useLivePreview.ts`)
-
-Prevents race conditions and memory leaks during live template editing:
-1. **800ms Debounce**: Throttle rapid input events.
-2. **AbortController**: Abort pending in-flight HTTP requests before issuing a new one.
-3. **URL Revocation**: Call `URL.revokeObjectURL` on previous blob URL to prevent browser memory leaks.
-
+### Real-Time Live Preview Pipeline Hook (`useLivePreview.ts`)
+>> MANDATORY CANONICAL TEMPLATE [RULE-FRONT-002]:
+* [MUST] Debounce live preview calls by at least 800ms to avoid Gotenberg engine thrashing.
+* [MUST] Cancel inflight HTTP requests via `AbortController` before issuing new preview calls.
+* [MUST] Clean up browser memory by calling `URL.revokeObjectURL(previousUrl)` whenever a new preview Blob URL is created or component unmounts.
 ```typescript
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { documentsApi } from '@/lib/api/documents.api';
 
 export function useLivePreview(slug?: string, html?: string, sampleDataJson?: string) {
@@ -99,11 +118,11 @@ export function useLivePreview(slug?: string, html?: string, sampleDataJson?: st
 
   const previousUrlRef = useRef<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  const generatePreview = useCallback(async () => {
+  const triggerPreview = useCallback(async () => {
     if (!slug && !html) return;
 
-    // 1. Cancel in-flight request
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
@@ -114,19 +133,13 @@ export function useLivePreview(slug?: string, html?: string, sampleDataJson?: st
     setError(null);
 
     try {
-      let parsedData: Record<string, unknown> = {};
-      if (sampleDataJson) {
-        try { parsedData = JSON.parse(sampleDataJson); } catch { /* ignore parse errors while typing */ }
-      }
-
-      // 2. Fetch rendered PDF blob via server proxy
-      const blob = await documentsApi.previewDocument(
+      const blob = await documentsApi.renderPreview({
         slug,
-        { payload: parsedData, html: html || undefined },
-        { signal: controller.signal }
-      );
+        html,
+        sampleDataJson,
+        signal: controller.signal,
+      });
 
-      // 3. Revoke previous blob URL to release browser RAM
       if (previousUrlRef.current) {
         URL.revokeObjectURL(previousUrlRef.current);
       }
@@ -135,76 +148,58 @@ export function useLivePreview(slug?: string, html?: string, sampleDataJson?: st
       previousUrlRef.current = newUrl;
       setPdfUrl(newUrl);
     } catch (err: unknown) {
-      if ((err as Error).name !== 'AbortError') {
-        setError((err as Error).message || 'Failed to render preview');
+      if ((err as Error)?.name !== 'AbortError') {
+        setError((err as Error)?.message || 'Preview generation failed');
       }
     } finally {
       setLoading(false);
     }
   }, [slug, html, sampleDataJson]);
 
-  return { pdfUrl, loading, error, generatePreview };
+  useEffect(() => {
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    debounceTimerRef.current = setTimeout(triggerPreview, 800);
+
+    return () => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+      if (previousUrlRef.current) URL.revokeObjectURL(previousUrlRef.current);
+    };
+  }, [triggerPreview]);
+
+  return { pdfUrl, loading, error, refresh: triggerPreview };
 }
 ```
 
 ---
 
-## 4. TanStack Query Data Fetching Pattern
+## 3.1 UI Architectural Recipes (Canonical Screen Archetypes)
+>> MANDATORY CANONICAL TEMPLATES [RULE-FRONT-003]:
+* [MUST] Adhere to the 4 canonical enterprise screen recipes below without introducing divergent layout conventions.
 
-Standardized query key factories and normalized error handling:
-
-```typescript
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { templatesApi } from '@/lib/api/templates.api';
-
-export const templateKeys = {
-  all: ['templates'] as const,
-  lists: () => [...templateKeys.all, 'list'] as const,
-  list: (projectId: string) => [...templateKeys.lists(), { projectId }] as const,
-  details: () => [...templateKeys.all, 'detail'] as const,
-  detail: (id: string) => [...templateKeys.details(), id] as const,
-};
-
-export function useTemplates(projectId?: string) {
-  return useQuery({
-    queryKey: templateKeys.list(projectId ?? ''),
-    queryFn: () => templatesApi.listTemplates(projectId),
-    enabled: Boolean(projectId),
-  });
-}
-```
-
----
-
-## 5. 4 Master Screen Stitching Recipes (Generative UI Blueprints)
-
-### Recipe A: Split-Screen Studio Layout (Editor + Live PDF Preview)
-* Target: Template Designer, HTML Authoring, Data Mapping (`src/app/(studio)/templates/[id]/editor/page.tsx`).
-* Invariants: Full viewport height (`h-screen overflow-hidden`), resizable or 50/50 split, debounced preview via `useLivePreview`.
+### Recipe A: Dynamic Split-Pane Template Editor
+* Target: Template Editor, Live Preview Studio (`src/app/(portal)/templates/[id]/editor/page.tsx`).
+* Invariants: Left pane code editor, right pane streaming PDF preview iframe, header with manual render action.
 
 ```tsx
 'use client';
 
+import { useState } from 'react';
 import { useLivePreview } from '@/hooks/useLivePreview';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { Spinner } from '@/components/ui/spinner';
 
-export function StudioPage({ slug, initialHtml }: { slug: string; initialHtml: string }) {
+export function TemplateEditorSplitLayout({ initialHtml, slug }: { initialHtml: string; slug: string }) {
   const [html, setHtml] = useState(initialHtml);
-  const { pdfUrl, loading, error, generatePreview } = useLivePreview(slug, html);
+  const { pdfUrl, loading, error, refresh } = useLivePreview(slug, html);
 
   return (
-    <div className="flex h-screen w-full flex-col bg-slate-900 text-slate-100">
-      <header className="flex h-14 items-center justify-between border-b border-slate-800 px-6">
-        <h1 className="text-sm font-semibold tracking-wide text-slate-200">Template Studio: {slug}</h1>
-        <Button size="sm" onClick={generatePreview} disabled={loading}>
-          {loading ? <Spinner className="mr-2 h-4 w-4" /> : null}
-          Render Preview
+    <div className="flex h-screen flex-col bg-slate-900 text-slate-100">
+      <header className="flex h-12 items-center justify-between border-b border-slate-800 px-4">
+        <span className="text-xs font-mono text-slate-400">Editing: {slug}</span>
+        <Button size="sm" onClick={refresh} disabled={loading}>
+          {loading ? 'Rendering...' : 'Render Preview'}
         </Button>
       </header>
       <main className="grid flex-1 grid-cols-2 overflow-hidden">
-        {/* Left Pane: Code/Monaco Editor */}
         <section className="flex flex-col border-r border-slate-800">
           <textarea
             aria-label="Template HTML Source"
@@ -213,11 +208,8 @@ export function StudioPage({ slug, initialHtml }: { slug: string; initialHtml: s
             onChange={(e) => setHtml(e.target.value)}
           />
         </section>
-        {/* Right Pane: Live PDF Streaming Viewer */}
         <section className="relative flex flex-col bg-slate-800/40">
-          {error ? (
-            <div className="p-4 text-xs text-rose-400 bg-rose-950/40 border-b border-rose-800">{error}</div>
-          ) : null}
+          {error && <div className="p-4 text-xs text-rose-400 bg-rose-950/40 border-b border-rose-800">{error}</div>}
           {pdfUrl ? (
             <iframe title="Document Preview" src={pdfUrl} className="h-full w-full border-none" />
           ) : (
@@ -233,8 +225,8 @@ export function StudioPage({ slug, initialHtml }: { slug: string; initialHtml: s
 ```
 
 ### Recipe B: Enterprise Data Table Management
-* Target: Template Registry, API Key Management, User List (`src/app/(admin)/templates/page.tsx`).
-* Invariants: Search + Filter Header, TanStack Table body with row action popovers, sticky pagination footer.
+* Target: Template Registry, API Key Management, User List (`src/app/(portal)/templates/page.tsx`).
+* Invariants: Search + Filter Header, Table body with row action buttons, compact enterprise badges.
 
 ```tsx
 'use client';
@@ -245,7 +237,13 @@ import { Table, TableHead, TableRow, TableHeader, TableBody, TableCell } from '@
 import { Badge } from '@/components/ui/badge';
 import { Plus, Search } from 'lucide-react';
 
-export function DataTablePage({ items, onSearch, onCreateNew }: DataTablePageProps) {
+interface DataTableProps {
+  items: Array<{ id: string; name: string; slug: string; engine: string; isActive: boolean }>;
+  onSearch: (query: string) => void;
+  onCreateNew: () => void;
+}
+
+export function DataTablePage({ items, onSearch, onCreateNew }: DataTableProps) {
   return (
     <div className="flex flex-col gap-6 p-8">
       <div className="flex items-center justify-between">
@@ -293,7 +291,7 @@ export function DataTablePage({ items, onSearch, onCreateNew }: DataTablePagePro
 ```
 
 ### Recipe C: Multi-Step Form Wizard Layout
-* Target: Template Creation Wizard, Data Connection Setup (`src/app/(admin)/templates/new/page.tsx`).
+* Target: Template Creation Wizard, Data Connection Setup (`src/app/(portal)/templates/new/page.tsx`).
 * Invariants: Horizontal step tracker, single card container for current step, persistent Back/Next footer with form validation guard.
 
 ```tsx
@@ -302,10 +300,20 @@ export function DataTablePage({ items, onSearch, onCreateNew }: DataTablePagePro
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 
+interface WizardProps {
+  currentStep: number;
+  totalSteps: number;
+  title: string;
+  description: string;
+  children: React.ReactNode;
+  onBack: () => void;
+  onNext: () => void;
+  isNextDisabled: boolean;
+}
+
 export function WizardLayout({ currentStep, totalSteps, title, description, children, onBack, onNext, isNextDisabled }: WizardProps) {
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 py-10">
-      {/* Step Tracker Indicator */}
       <div className="flex items-center justify-between px-2">
         {Array.from({ length: totalSteps }).map((_, idx) => (
           <div key={idx} className="flex items-center gap-2">
@@ -336,13 +344,18 @@ export function WizardLayout({ currentStep, totalSteps, title, description, chil
 ```
 
 ### Recipe D: Executive Metrics Dashboard Layout
-* Target: Analytics, Throughput, System Health (`src/app/(admin)/dashboard/page.tsx`).
+* Target: Analytics, Throughput, System Health (`src/app/(portal)/dashboard/page.tsx`).
 * Invariants: 4-Column KPI grid, responsive chart container, recent activity event feed.
 
 ```tsx
 'use client';
 
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+
+interface DashboardProps {
+  stats: Array<{ label: string; value: string; changeDescription: string }>;
+  recentLogs: Array<{ id: string; templateSlug: string; durationMs: number; format: string; success: boolean }>;
+}
 
 export function MetricsDashboardPage({ stats, recentLogs }: DashboardProps) {
   return (
@@ -352,7 +365,6 @@ export function MetricsDashboardPage({ stats, recentLogs }: DashboardProps) {
         <p className="text-xs text-slate-500">Document generation throughput, error rates, and active tenancy metrics.</p>
       </div>
 
-      {/* 4-Column StatBlock Grid */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {stats.map((stat) => (
           <Card key={stat.label}>
@@ -367,7 +379,6 @@ export function MetricsDashboardPage({ stats, recentLogs }: DashboardProps) {
         ))}
       </div>
 
-      {/* Operational Feed & Health Split */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <CardHeader><CardTitle className="text-sm">Rendering Throughput (Last 24h)</CardTitle></CardHeader>
@@ -393,3 +404,41 @@ export function MetricsDashboardPage({ stats, recentLogs }: DashboardProps) {
 }
 ```
 
+---
+
+## 4. Level 4: Anti-Patterns & Micro-Diffs
+
+### [TRAP-FRONT-001]: Client Component Sprawl
+```typescript
+// ! BANNED: Adding 'use client' at page root destroys React Server Component advantages
+// src/app/(portal)/templates/page.tsx
+'use client';
+export default function TemplatesPage() { ... }
+
+// >> CANONICAL: Server Component Page importing focused Client Component leaves
+// src/app/(portal)/templates/page.tsx (RSC)
+import { TemplateListWidget } from './_components/TemplateListWidget'; // 'use client'
+export default async function TemplatesPage() { return <TemplateListWidget />; }
+```
+
+### [TRAP-FRONT-002]: Direct Backend Access vs Secure Proxy
+```typescript
+// ! BANNED: Browser fetch directly calls internal backend port
+fetch('http://localhost:8080/api/v1/templates'); // FATAL: CORS & Token Exposure!
+
+// >> CANONICAL: Route through Next.js reverse proxy
+fetch('/api/proxy/v1/templates');
+```
+
+### [TRAP-FRONT-003]: Memory Leak: Unrevoked Object URLs
+```typescript
+// ! BANNED: Overwriting blob URLs without revoking leaks memory
+const url = URL.createObjectURL(blob);
+setPdfUrl(url);
+
+// >> CANONICAL: Explicit revocation of previous object URL before replacement
+if (previousUrlRef.current) URL.revokeObjectURL(previousUrlRef.current);
+const newUrl = URL.createObjectURL(blob);
+previousUrlRef.current = newUrl;
+setPdfUrl(newUrl);
+```

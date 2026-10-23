@@ -4,15 +4,28 @@
 Scope: Multi-Tenant Architecture, Dual-Channel Authentication, Ambient Project Context & EF Core Global Filters
 Target: Full Stack (`backend-v2/` & `frontend-v2/`)
 Authority: Absolute SSoT Invariant (Zero cross-tenant data leakage, strict constant-time hash verification)
-Boundary: Multi-tenant security, dual-auth topology & tenant isolation. Prohibit rendering mechanics, UI layout code, or task roadmaps.
+Boundary: Pure Architectural AST only. Prohibit task roadmaps, execution checklists, and conversational prose.
+TriggerSignals: [SIGNAL_API_MUTATION, SIGNAL_SCHEMA_MIGRATION]
+UpstreamKernel: AGENTS.md
 </context>
 
 ---
 
-## 1. Dual-Channel Authentication Topology
+## 1. Level 1: Multi-Tenant & Dual-Auth Invariants Matrix
 
-SmkDoc Server exposes a zero-trust dual-channel authentication pipeline:
+| Security Concern | Prohibited Pattern (! BANNED) | Canonical SSoT Pattern (>> MANDATORY) |
+|---|---|---|
+| **Raw Key Storage** | Storing plaintext API keys in database | SHA-256 cryptographic hash lookup (`KeyHash`) |
+| **Client Token Exposure** | Storing JWT in browser localStorage | httpOnly cookies translated via Next.js Proxy (`/api/proxy/[...path]`) |
+| **Cross-Tenant Queries** | Manual `WHERE project_id = @id` clauses in repositories | EF Core ambient Global Query Filter (`HasQueryFilter`) |
+| **Tenant Filter Bypass**| Invoking `.IgnoreQueryFilters()` in standard user routes | Strictly prohibited; ambient context scopes all queries automatically |
+| **Key Validation** | Variable-time string comparison | Constant-time cryptographic hash verification |
 
+---
+
+## 2. Level 2: Dual-Channel Authentication Topology & AST Signatures
+
+### Dual-Channel Authentication Topology
 ```mermaid
 graph TD
     Request["Incoming HTTP Request"] --> AuthCheck{"Has X-API-Key?"}
@@ -23,12 +36,37 @@ graph TD
     Context --> EfFilter["EF Core Global Query Filter (WHERE project_id = @Id)"]
 ```
 
+### Tenancy Context Interfaces
+```csharp
+namespace SmkDoc.Application.Common.Interfaces;
+
+public interface ICurrentProjectContext
+{
+    ProjectId ProjectId { get; }
+    bool IsResolved { get; }
+    void SetProject(ProjectId projectId);
+}
+
+public interface IExecutionContext
+{
+    Guid? UserId { get; }
+    Guid? ProjectId { get; }
+    Guid? CompanyId { get; }
+    string CallerApp { get; }
+    IReadOnlyCollection<string> Scopes { get; }
+}
+```
+
 ---
 
-## 2. Channel A: Machine-to-Machine (M2M) API Key Authentication
+## 3. Level 3: Canonical Security Archetypes
 
-M2M clients provide their API key via the `X-API-Key` HTTP header. Raw API keys are never stored in the database:
-
+### Channel A: M2M API Key Validator (`ApiKeyValidator`)
+>> MANDATORY CANONICAL TEMPLATE [RULE-SEC-001]:
+* [MUST] Hash all incoming M2M API keys using SHA-256 before database lookup.
+* [MUST NOT] Store or query raw API keys in plaintext in PostgreSQL.
+* [MUST] Compare expiration against `timeProvider.GetUtcNow()`.
+* [MUST] Resolve and inject authenticated `ProjectId` into `ICurrentProjectContext` and `IExecutionContext`.
 ```csharp
 using System.Security.Cryptography;
 using System.Text;
@@ -49,19 +87,19 @@ public static class ApiKeyValidator
     public static async Task<ApiKey?> AuthenticateAsync(
         string rawApiKey,
         AppDbContext dbContext,
+        TimeProvider timeProvider,
         CancellationToken ct)
     {
         var keyHash = HashApiKey(rawApiKey);
 
-        // Constant-time hash comparison in database
         var apiKey = await dbContext.ApiKeys
             .AsNoTracking()
             .FirstOrDefaultAsync(k => k.KeyHash == keyHash && k.IsActive, ct);
 
         if (apiKey == null) return null;
 
-        // Check expiration
-        if (apiKey.ExpiresAt.HasValue && apiKey.ExpiresAt.Value < DateTimeOffset.UtcNow)
+        var now = timeProvider.GetUtcNow();
+        if (apiKey.ExpiresAt.HasValue && apiKey.ExpiresAt.Value < now)
         {
             return null;
         }
@@ -71,50 +109,37 @@ public static class ApiKeyValidator
 }
 ```
 
----
-
-## 3. Tenancy Context Interfaces
-
-### `ICurrentProjectContext` (Infrastructure & Persistence)
-Scoped interface consumed by `AppDbContext` to filter database rows dynamically:
+### Cross-Tenant Parameter Spoofing Defense
+>> MANDATORY CANONICAL TEMPLATE [RULE-SEC-002]:
+* [MUST] Reject any request where caller-supplied `projectId` conflicts with ambient authenticated `context.ProjectId`.
+* [MUST] Throw RFC 9457 compliant `BadHttpRequestException` or `ForbiddenException`.
 ```csharp
-namespace SmkDoc.Application.Common.Interfaces;
-
-public interface ICurrentProjectContext
+// >> CANONICAL: Reject explicit parameter mismatches against ambient resolved context
+if (requestedProjectId.HasValue && context.ProjectId.HasValue && requestedProjectId.Value != context.ProjectId.Value)
 {
-    ProjectId ProjectId { get; }
-    bool IsResolved { get; }
-    void SetProject(ProjectId projectId);
-}
-```
-
-### `IExecutionContext` (Application & Presentation)
-Scoped interface consumed by UseCases and Controllers to inspect caller identity:
-```csharp
-namespace SmkDoc.Application.Common.Interfaces;
-
-public interface IExecutionContext
-{
-    Guid? UserId { get; }
-    Guid? ProjectId { get; }
-    Guid? CompanyId { get; }
-    string CallerApp { get; }
-    IReadOnlyCollection<string> Scopes { get; }
+    throw new BadHttpRequestException("Access denied: requested projectId does not match active project context.");
 }
 ```
 
 ---
 
-## 4. Multi-Tenant Query Filter Invariants
+## 4. Level 4: Anti-Patterns & Micro-Diffs
 
-1. **Automatic Scoping**: Every Entity implementing `IMustHaveProject` is partitioned by `project_id`.
-2. **Cross-Tenant Prevention**:
-   ```csharp
-   // If a client manually provides a projectId query parameter that does not match their token:
-   if (projectId.HasValue && context.ProjectId.HasValue && projectId.Value != context.ProjectId.Value)
-   {
-       throw new BadHttpRequestException("Access denied: requested projectId does not match active project context.");
-   }
-   ```
-3. **Prohibition of `.IgnoreQueryFilters()`**:
-   Never use `.IgnoreQueryFilters()` in production API queries. It is strictly reserved for administrative background maintenance jobs.
+### [TRAP-SEC-001]: Plaintext API Key Storage
+```csharp
+// ! BANNED: Storing or looking up plaintext API key in database
+var key = await dbContext.ApiKeys.FirstOrDefaultAsync(k => k.RawKey == rawKey); // FATAL: Plaintext credential leak!
+
+// >> CANONICAL: Cryptographic SHA-256 hash lookup
+var keyHash = ApiKeyValidator.HashApiKey(rawKey);
+var key = await dbContext.ApiKeys.FirstOrDefaultAsync(k => k.KeyHash == keyHash);
+```
+
+### [TRAP-SEC-002]: Manual Tenancy Filtering vs Global Filter
+```csharp
+// ! BANNED: Manually appending where clause on every query (Fragile / Leak prone)
+var docs = await dbContext.Documents.Where(d => d.ProjectId == currentProjectId).ToListAsync(ct);
+
+// >> CANONICAL: Ambient query evaluated automatically with EF Core Global Query Filter
+var docs = await dbContext.Documents.ToListAsync(ct);
+```

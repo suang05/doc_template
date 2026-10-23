@@ -4,22 +4,14 @@
 Scope: Clean Architecture Boundaries, Directional Dependencies, Bounded Context Folder Taxonomy & C# 13 System Invariants
 Target: `backend-v2/` (`SmkDoc.Domain`, `SmkDoc.Application`, `SmkDoc.Infrastructure`, `SmkDoc.Api`)
 Authority: Absolute SSoT Invariant (Zero architectural regression permitted)
-Boundary: Architectural dependency rules & folder taxonomy. Prohibit implementation details, task roadmaps, or runtime logic.
+Boundary: Pure Architectural AST only. Prohibit task roadmaps, execution checklists, and conversational prose.
+TriggerSignals: [SIGNAL_STRUCTURE_MUTATION]
+UpstreamKernel: AGENTS.md
 </context>
 
 ---
 
-## 1. Clean Architecture Concentric Layers & Dependency Inversion
-
-```mermaid
-graph TD
-    Api["SmkDoc.Api (Presentation)"] --> Application["SmkDoc.Application (UseCases)"]
-    Infrastructure["SmkDoc.Infrastructure"] --> Application
-    Application --> Domain["SmkDoc.Domain (POCOs)"]
-    Infrastructure --> Domain
-```
-
-### Layer Responsibilities & Isolation Rules
+## 1. Level 1: Layer Responsibilities & Isolation Invariants Matrix
 
 | Layer Project | Allowed Inbound References | Prohibited Patterns (! BANNED) | Canonical Mandates (>> MANDATORY) |
 |---|---|---|---|
@@ -30,10 +22,18 @@ graph TD
 
 ---
 
-## 2. Bounded Context Taxonomy & Feature Slices
+## 2. Level 2: Core Architecture AST & Topology
 
-The Application layer is strictly partitioned into 4 Bounded Contexts matching system capabilities:
+### Concentric Layers & Dependency Inversion
+```mermaid
+graph TD
+    Api["SmkDoc.Api (Presentation)"] --> Application["SmkDoc.Application (UseCases)"]
+    Infrastructure["SmkDoc.Infrastructure"] --> Application
+    Application --> Domain["SmkDoc.Domain (POCOs)"]
+    Infrastructure --> Domain
+```
 
+### Bounded Context Taxonomy
 ```
 backend-v2/src/SmkDoc.Application/Modules/
 ├── Authoring/                  # Template lifecycle & design assets
@@ -58,9 +58,7 @@ backend-v2/src/SmkDoc.Application/Modules/
 ```
 
 ### The 5-File CQRS Slice Pattern
-
 Every Application capability follows the 5-File Slice pattern for maximum testability and decoupling:
-
 ```
 Modules/{Context}/
 ├── Commands/{Action}{Entity}Command.cs      # 1. Positional record request
@@ -70,95 +68,8 @@ Modules/{Context}/
 └── (In SmkDoc.Api) Controllers/V1/          # 5. Thin presentation action
 ```
 
----
-
-## 3. C# 13 Coding Conventions & AST Invariants
-
-### Primary Constructor Naming Standard
-All Primary Constructor parameters MUST use `pureCamelCase` (Regex: `^[a-z][a-zA-Z0-9]+$`):
-```csharp
-// >> CANONICAL: Pure camelCase, zero prefix, directly captured by members
-public sealed class CreateTemplateUseCase(
-    ITemplateRepository templateRepository,
-    IUnitOfWork unitOfWork,
-    TimeProvider timeProvider,
-    ILogger<CreateTemplateUseCase> logger) : IUseCase<CreateTemplateCommand, TemplateResultDto>
-{
-    // Parameters consumed directly without private readonly field assignments
-}
-
-// ! BANNED: Underscore or symbol prefix
-public sealed class BadUseCase(ITemplateRepository _templateRepository) { } // REJECTED
-```
-
-### Positional Records for Requests & Responses
-```csharp
-// >> CANONICAL: Immutable positional records (Zero framework/MediatR coupling)
-public sealed record CreateTemplateCommand(
-    Guid ProjectId,
-    string Name,
-    string Slug,
-    string? Category);
-
-public sealed record TemplateResultDto(
-    Guid Id,
-    Guid ProjectId,
-    string Name,
-    string Slug,
-    string? Category,
-    bool IsActive,
-    Guid? CurrentVersionId,
-    string? FileFormat,
-    DateTimeOffset CreatedAt,
-    DateTimeOffset? UpdatedAt);
-```
-
-### Structured Logging Standard
-```csharp
-// >> CANONICAL: Semantic structured logging tokens (No string interpolation)
-logger.LogInformation("Processing template render {TemplateId} for tenant {ProjectId}", templateId, projectId);
-
-// ! BANNED: String interpolation creates memory pressure and breaks log aggregation
-logger.LogInformation($"Processing {templateId}"); // REJECTED
-```
-
-### Modern C# 13 & .NET 10 Language Primitives
-* **Collection Expressions `[]`**: MUST use `[]` instead of `new List<T>()` or `new T[] { }`.
-  ```csharp
-  // >> CANONICAL
-  private readonly List<FieldMapping> _fieldMappings = [];
-  IReadOnlyList<string> tags = ["invoice", "finance"];
-
-  // ! BANNED
-  private readonly List<FieldMapping> _fieldMappings = new List<FieldMapping>();
-  ```
-* **High-Performance Lock (`System.Threading.Lock`)**: Use C# 13 `Lock` object instead of untyped `object`.
-  ```csharp
-  // >> CANONICAL
-  private readonly Lock _gate = new();
-  lock (_gate) { /* thread-safe operation */ }
-  ```
-* **ReDoS Defense with `[GeneratedRegex]`**: Always use source-generated regex with `RegexOptions.NonBacktracking`.
-  ```csharp
-  [GeneratedRegex("^[a-z0-9-]+$", RegexOptions.NonBacktracking | RegexOptions.IgnoreCase)]
-  private static partial Regex SlugRegex();
-  ```
-* **Explicit Intermediate Variable Instantiation**: Never inline complex constructor instantiations inside method calls.
-  ```csharp
-  // >> CANONICAL: Clear, inspectable, readable in stack traces
-  var command = new CreateTemplateCommand(request.Name, request.Slug);
-  var result = await useCase.ExecuteAsync(command, ct);
-
-  // ! BANNED: Inlined instantiation obscures debugging
-  var result = await useCase.ExecuteAsync(new CreateTemplateCommand(request.Name, request.Slug), ct);
-  ```
-
----
-
-## 4. Strongly-Typed ID Zero-Cast Policy
-
-Every strongly-typed ID struct MUST be declared as `public readonly record struct Name(Guid Value) : IComparable<Name>` ($\le 16$ bytes, stack-allocated). It MUST supply bidirectional implicit conversions and cross-type equality operators so developers never need manual casts like `(TemplateId)guid`:
-
+### Strongly-Typed ID Zero-Cast Policy
+Every strongly-typed ID struct MUST be declared as `public readonly record struct Name(Guid Value) : IComparable<Name>` ($\le 16$ bytes, stack-allocated):
 ```csharp
 public readonly record struct TemplateId(Guid Value) : IComparable<TemplateId>
 {
@@ -182,7 +93,100 @@ public readonly record struct TemplateId(Guid Value) : IComparable<TemplateId>
 
 ---
 
-## 5. Zero Decorative Emojis
+## 3. Level 3: Canonical Implementation Archetypes
+
+### Positional Records for Requests & Responses
+>> MANDATORY CANONICAL TEMPLATE [RULE-STRUCT-001]:
+* [MUST] Use C# `sealed record` with positional parameters for all Commands, Queries, and DTOs.
+* [MUST NOT] Leak domain entities (`Template`, `User`) directly into DTOs or public contracts.
+* [MUST] Enforce immutability across layer boundaries.
+```csharp
+// >> CANONICAL: Immutable positional records (Zero framework/MediatR coupling)
+public sealed record CreateTemplateCommand(
+    Guid ProjectId,
+    string Name,
+    string Slug,
+    string? Category);
+
+public sealed record TemplateResultDto(
+    Guid Id,
+    Guid ProjectId,
+    string Name,
+    string Slug,
+    string? Category,
+    bool IsActive,
+    Guid? CurrentVersionId,
+    string? FileFormat,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset? UpdatedAt);
+```
+
+### Primary Constructor UseCase Orchestrator
+>> MANDATORY CANONICAL TEMPLATE [RULE-STRUCT-002]:
+* [MUST] Declare dependencies via C# 13 Primary Constructor with pure camelCase parameter names (e.g. `templateRepository`, `unitOfWork`).
+* [MUST NOT] Use symbol prefixes (`_templateRepository`, `m_templateRepository`).
+* [MUST] Implement `IUseCase<TRequest, TResponse>` with single-responsibility method `ExecuteAsync(TRequest request, CancellationToken ct)`.
+```csharp
+// >> CANONICAL: Pure camelCase, zero prefix, directly captured by members
+public sealed class CreateTemplateUseCase(
+    ITemplateRepository templateRepository,
+    IUnitOfWork unitOfWork,
+    TimeProvider timeProvider,
+    ILogger<CreateTemplateUseCase> logger) : IUseCase<CreateTemplateCommand, TemplateResultDto>
+{
+    public async Task<TemplateResultDto> ExecuteAsync(CreateTemplateCommand request, CancellationToken ct)
+    {
+        var now = timeProvider.GetUtcNow();
+        var template = Template.Create(request.ProjectId, request.Name, request.Slug, request.Category, now);
+        await templateRepository.AddAsync(template, ct);
+        await unitOfWork.CommitAsync(ct);
+        return template.ToResultDto();
+    }
+}
+```
+
+---
+
+## 4. Level 4: Anti-Pattern Interceptors & Micro-Diffs
+
+### [TRAP-STRUCT-001]: Primary Constructor Parameter Naming
+```csharp
+// ! BANNED: Underscore or symbol prefix
+public sealed class BadUseCase(ITemplateRepository _templateRepository) { } // REJECTED
+
+// >> CANONICAL: Pure camelCase parameter naming (Regex: ^[a-z][a-zA-Z0-9]+$)
+public sealed class GoodUseCase(ITemplateRepository templateRepository) { }
+```
+
+### [TRAP-STRUCT-002]: Structured Logging vs Interpolation
+```csharp
+// ! BANNED: String interpolation causes memory allocations and defeats semantic filtering
+logger.LogInformation($"Processing {templateId}"); // REJECTED
+
+// >> CANONICAL: Semantic structured logging tokens
+logger.LogInformation("Processing template render {TemplateId} for tenant {ProjectId}", templateId, projectId);
+```
+
+### [TRAP-STRUCT-003]: Collection Expressions
+```csharp
+// ! BANNED: Verbose constructor instantiations
+private readonly List<FieldMapping> _fieldMappings = new List<FieldMapping>();
+
+// >> CANONICAL: C# 13 collection expression syntax
+private readonly List<FieldMapping> _fieldMappings = [];
+IReadOnlyList<string> tags = ["invoice", "finance"];
+```
+
+### [TRAP-STRUCT-004]: Intermediate Variable Instantiation
+```csharp
+// ! BANNED: Inlined instantiation obscures debugging and stack traces
+var result = await useCase.ExecuteAsync(new CreateTemplateCommand(request.Name, request.Slug), ct);
+
+// >> CANONICAL: Explicit intermediate variable assignment
+var command = new CreateTemplateCommand(request.Name, request.Slug);
+var result = await useCase.ExecuteAsync(command, ct);
+```
+
+### Zero Decorative Emojis
 Zero decorative emojis permitted in source code, comments, test assertions, or documentation.
 Canonical symbolic dictionary: `=>`, `!`, `::`, `>>`, `&`, `|`, `>`, `<`.
-

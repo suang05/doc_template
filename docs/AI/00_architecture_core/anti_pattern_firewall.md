@@ -4,44 +4,99 @@
 Scope: Fatal Production Traps, Memory Safety, Concurrency, Security & Layer Isolation Interceptors
 Target: Full Stack (`backend-v2/` & `frontend-v2/`)
 Authority: Absolute SSoT Invariant (Zero violation tolerated)
-Boundary: Production anti-patterns & fatal trap interceptors. Prohibit task roadmaps, execution checklists, and tutorial prose.
+Boundary: Pure Architectural AST only. Prohibit task roadmaps, execution checklists, and conversational prose.
+TriggerSignals: [SIGNAL_DECEPTIVE_BUG]
+UpstreamKernel: AGENTS.md
 </context>
 
 ---
 
-## 1. Memory Safety & Large Object Heap (LOH)
+## 1. Level 1: High-Salience Fatal Traps Matrix
 
-### [TRAP-LOH-001]: Multi-MB Buffer Allocation in RAM
-Allocating byte arrays (`byte[]`) $\ge 85,000$ bytes lands on the Large Object Heap (LOH), causing GC fragmentation and Gen 2 collection stalls under high throughput.
+| Trap Identifier | Category | Prohibited Signature (! BANNED) | Canonical Remedy (>> CANONICAL) |
+|---|---|---|---|
+| **[TRAP-LOH-001]** | Memory Safety | `MemoryStream.ToArray()` / Buffer $\ge 85\text{KB}$ | Zero-LOH Stream-over-RAM direct response pipe |
+| **[TRAP-EF-002]** | Concurrency | Parallel consumption of scoped `AppDbContext` | `IDbContextFactory<AppDbContext>` per background worker |
+| **[TRAP-ASYNC-003]** | Thread Safety | `.Result`, `.Wait()`, `.GetAwaiter().GetResult()` | 100% `async`/`await` + forwarded `CancellationToken` |
+| **[TRAP-SSRF-004]** | Security | Forwarding unsanitized user HTML to Gotenberg Chromium | `HtmlSanitizer` + Chromium disabled flags + network isolation |
+| **[TRAP-AUTH-005]** | Security | Early return on missing user email (Timing leak) | Constant-time dummy hash verification & RFC 9457 dispatch |
+| **[TRAP-LEAK-006]** | Architecture | Returning Domain Entities from Controller or UseCase | Explicit immutable Application DTO record mapping |
+| **[TRAP-TIME-007]** | Testability | `DateTime.UtcNow` / `DateTimeOffset.UtcNow` queries | Injected `TimeProvider` or explicit `DateTimeOffset now` parameter |
+| **[TRAP-VOID-008]** | Reliability | Empty catch block swallowing exceptions | Rethrow strongly-typed `DomainException` or structured log |
 
+---
+
+## 2. Level 2: Interceptor Category ASTs
+
+### Memory Safety Invariants
+* Any buffer $\ge 85,000$ bytes lands on the Large Object Heap (LOH).
+* Streaming endpoints MUST pipe `Stream` to `Response.Body` using bounded buffers ($81,920$ bytes). Zero multi-MB byte array allocations.
+
+### Concurrency Invariants
+* EF Core `DbContext` instances are strictly non-thread-safe and scoped to a single logical thread/request.
+* Multi-threaded operations MUST instantiate short-lived contexts via `IDbContextFactory<T>`.
+
+### Security Invariants
+* Dynamic template inputs must be neutralized against SSRF (`file:///`, metadata endpoints).
+* Authentication paths must execute with uniform latency regardless of user presence.
+
+---
+
+## 3. Level 3: Canonical Implementation Archetypes
+
+### Zero-LOH Direct Response Pipe
+>> MANDATORY CANONICAL TEMPLATE [RULE-LOH-001]:
+* [MUST] Pipe binary documents directly from source stream to `Response.Body` with a bounded buffer ($81,920$ bytes).
+* [MUST NOT] Buffer streams into in-memory `byte[]` arrays, byte lists, or unbounded `MemoryStream` instances.
+* [MUST] Forward `CancellationToken` to `Stream.CopyToAsync`.
 ```csharp
-// ! BANNED: Buffering Gotenberg / MinIO binary outputs into RAM
-public async Task<IActionResult> DownloadDocument(Guid id, CancellationToken ct)
+// >> CANONICAL: Direct stream pipe to HTTP response body (Zero-LOH buffer)
+public async Task StreamPdfDocumentAsync(Guid id, HttpResponse response, CancellationToken ct)
 {
     var stream = await documentStorage.OpenReadStreamAsync(id, ct);
-    using var ms = new MemoryStream();
-    await stream.CopyToAsync(ms, ct);
-    byte[] payload = ms.ToArray(); // FATAL: LOH Allocation!
-    return File(payload, "application/pdf", "document.pdf");
+    response.ContentType = "application/pdf";
+    response.Headers.Append("Content-Disposition", "inline; filename=\"document.pdf\"");
+    await stream.CopyToAsync(response.Body, 81920, ct);
 }
+```
 
-// >> CANONICAL: Zero-LOH Stream-over-RAM Direct Response Pipe
-public async Task DownloadDocument(Guid id, CancellationToken ct)
+### DbContextFactory Parallel Execution Archetype
+>> MANDATORY CANONICAL TEMPLATE [RULE-CONC-001]:
+* [MUST] Inject `IDbContextFactory<AppDbContext>` for multi-threaded, parallel, or background batch processing.
+* [MUST] Create and dispose isolated `AppDbContext` instances inside each parallel task via `await using var dbContext = await contextFactory.CreateDbContextAsync(ct)`.
+* [MUST NOT] Share a single scoped `AppDbContext` instance across concurrent threads.
+```csharp
+// >> CANONICAL: Isolated DbContext instances per parallel thread
+public async Task ProcessBatchAsync(IReadOnlyList<Guid> ids, IDbContextFactory<AppDbContext> contextFactory, CancellationToken ct)
 {
-    var stream = await documentStorage.OpenReadStreamAsync(id, ct);
-    Response.ContentType = "application/pdf";
-    Response.Headers.Append("Content-Disposition", "inline; filename=\"document.pdf\"");
-    await stream.CopyToAsync(Response.Body, 81920, ct); // Piped directly without multi-MB buffer
+    await Parallel.ForEachAsync(ids, new ParallelOptions { MaxDegreeOfParallelism = 4, CancellationToken = ct }, async (id, token) =>
+    {
+        await using var dbContext = await contextFactory.CreateDbContextAsync(token);
+        var document = await dbContext.Documents.FindAsync([id], token);
+        // Process independently within isolated DbContext
+    });
 }
 ```
 
 ---
 
-## 2. Concurrency & Thread-Safety
+## 4. Level 4: Trap Micro-Diffs & Anti-Patterns
+
+### [TRAP-LOH-001]: Multi-MB Buffer Allocation in RAM
+```csharp
+// ! BANNED: Buffering Gotenberg / MinIO binary outputs into RAM byte arrays
+using var ms = new MemoryStream();
+await stream.CopyToAsync(ms, ct);
+byte[] payload = ms.ToArray(); // FATAL: LOH Allocation!
+return File(payload, "application/pdf", "document.pdf");
+
+// >> CANONICAL: Stream-over-RAM Direct Response Pipe
+Response.ContentType = "application/pdf";
+Response.Headers.Append("Content-Disposition", "inline; filename=\"document.pdf\"");
+await stream.CopyToAsync(Response.Body, 81920, ct);
+```
 
 ### [TRAP-EF-002]: Scoped DbContext Concurrency in Background Operations
-EF Core `AppDbContext` is strictly non-thread-safe. Consuming a scoped DbContext across asynchronous tasks or parallel threads causes `InvalidOperationException: A second operation was started on this context instance before a previous operation completed`.
-
 ```csharp
 // ! BANNED: Capturing scoped DbContext in parallel or background execution
 public Task ProcessBatchAsync(List<Guid> ids, AppDbContext dbContext)
@@ -50,66 +105,48 @@ public Task ProcessBatchAsync(List<Guid> ids, AppDbContext dbContext)
 }
 
 // >> CANONICAL: IDbContextFactory<AppDbContext> for independent units of work
-public async Task ProcessBatchAsync(List<Guid> ids, IDbContextFactory<AppDbContext> contextFactory, CancellationToken ct)
+await Parallel.ForEachAsync(ids, new ParallelOptions { MaxDegreeOfParallelism = 4, CancellationToken = ct }, async (id, token) =>
 {
-    await Parallel.ForEachAsync(ids, new ParallelOptions { MaxDegreeOfParallelism = 4, CancellationToken = ct }, async (id, token) =>
-    {
-        await using var dbContext = await contextFactory.CreateDbContextAsync(token);
-        var document = await dbContext.Documents.FindAsync([id], token);
-        // Process independently
-    });
-}
+    await using var dbContext = await contextFactory.CreateDbContextAsync(token);
+    var document = await dbContext.Documents.FindAsync([id], token);
+});
 ```
 
----
-
-## 3. Asynchronous Execution Safety
-
 ### [TRAP-ASYNC-003]: Synchronous Blocking on Asynchronous Code
-Invoking `.Result`, `.Wait()`, or `.GetAwaiter().GetResult()` locks the calling thread, causing ThreadPool starvation and thread-deadlocks under load.
-
 ```csharp
-// ! BANNED: Synchronous blocking
+// ! BANNED: Synchronous blocking causing thread-pool starvation
 public Template GetTemplate(Guid id)
 {
     return repository.GetByIdAsync(id).Result; // FATAL: Thread deadlock / starvation!
 }
 
 // >> CANONICAL: 100% async/await with forwarded CancellationToken
-public async Task<Template?> GetTemplateAsync(TemplateId id, CancellationToken cancellationToken)
+public async Task<Template?> GetTemplateAsync(TemplateId id, CancellationToken ct)
 {
-    return await repository.GetByIdAsync(id, cancellationToken);
+    return await repository.GetByIdAsync(id, ct);
 }
 ```
 
----
-
-## 4. Security & Boundary Defense
-
 ### [TRAP-SSRF-004]: Gotenberg HTML & Chromium SSRF Exploitation
-Gotenberg renders user-provided HTML via Chromium. Unsanitized templates requesting `file:///` or cloud metadata (`http://169.254.169.254/`) expose local server files and infrastructure credentials.
-
 ```csharp
-// ! BANNED: Forwarding raw user HTML directly to Gotenberg without sanitization or network isolation
+// ! BANNED: Forwarding raw user HTML directly to Gotenberg without sanitization
 var response = await gotenbergClient.SendHtmlAsync(rawUserHtml, ct);
 
-// >> CANONICAL: Defense-in-depth HTML sanitization & Gotenberg Chromium flags
+// >> CANONICAL: Defense-in-depth HTML sanitization & Chromium container flags
 // 1. Sanitize HTML via HtmlSanitizer SSoT: strip <iframe src="file://">, <object>, <embed>
-// 2. Gotenberg Docker container executed with: --chromium-disable-javascript=false --chromium-allow-file-access-from-files=false
-// 3. Network perimeter blocks outbound requests to 169.254.0.0/16 and 127.0.0.0/8 from rendering container
+// 2. Gotenberg container: --chromium-disable-javascript=false --chromium-allow-file-access-from-files=false
+// 3. Network perimeter blocks 169.254.0.0/16 and 127.0.0.0/8 from rendering container
 ```
 
 ### [TRAP-AUTH-005]: Timing Attack on User Password Verification
-Returning early when a user account does not exist allows attackers to enumerate valid usernames by measuring response time deltas.
-
 ```csharp
-// ! BANNED: Fast return on non-existent user leaking user identity
+// ! BANNED: Fast return on non-existent user leaking email validity
 var user = await userRepository.FindByEmailAsync(request.Email, ct);
 if (user == null)
 {
     throw new UnauthorizedException("Invalid email or password."); // Fast return (< 2ms) leaks user existence
 }
-bool valid = passwordHasher.VerifyPassword(user.PasswordHash, request.Password); // Slow BCrypt (~80ms)
+bool valid = passwordHasher.VerifyPassword(user.PasswordHash, request.Password);
 
 // >> CANONICAL: Constant-time dummy verification hash & RFC 9457 exception
 var user = await userRepository.FindByEmailAsync(request.Email, ct);
@@ -118,17 +155,11 @@ bool valid = passwordHasher.VerifyPassword(hashToVerify, request.Password);
 
 if (user == null || !valid)
 {
-    throw new UnauthorizedException("Invalid email or password."); // Uniform latency dispatched to RFC 9457 ProblemDetails
+    throw new UnauthorizedException("Invalid email or password."); // Uniform latency dispatched to RFC 9457
 }
 ```
 
----
-
-## 5. Domain & Layer Encapsulation
-
-### [TRAP-LEAK-006]: Leaking Domain Entities Across Application / Presentation Boundary
-Exposing Domain Entities directly to Controllers causes JSON serialization circular references, over-posting vulnerabilities, and leaks internal domain state.
-
+### [TRAP-LEAK-006]: Leaking Domain Entities Across Boundaries
 ```csharp
 // ! BANNED: Returning Domain Entity directly from Controller or UseCase
 [HttpGet("{id}")]
@@ -138,7 +169,7 @@ public async Task<ActionResult<Template>> Get(Guid id) // FATAL: Exposing intern
     return Ok(template);
 }
 
-// >> CANONICAL: Explicit mapping to immutable Application DTO and ApiResponse<T> record (Exceptions handled via RFC 9457)
+// >> CANONICAL: Explicit mapping to immutable Application DTO record
 [HttpGet("{id:guid}")]
 public async Task<IActionResult> GetById([FromRoute] Guid id, CancellationToken ct)
 {
@@ -148,10 +179,8 @@ public async Task<IActionResult> GetById([FromRoute] Guid id, CancellationToken 
 ```
 
 ### [TRAP-TIME-007]: Direct System Clock Queries
-Direct calls to `DateTime.UtcNow` or `DateTimeOffset.UtcNow` make business logic untestable with determinism.
-
 ```csharp
-// ! BANNED: Direct system clock access
+// ! BANNED: Direct system clock access makes business logic non-deterministic
 public void Publish()
 {
     PublishedAt = DateTimeOffset.UtcNow; // FATAL: Non-deterministic time coupling
@@ -165,13 +194,11 @@ public void Publish(DateTimeOffset now)
 ```
 
 ### [TRAP-VOID-008]: Swallowed Exceptions & Empty Catch Blocks
-Catching exceptions without re-throwing or logging hides catastrophic failures.
-
 ```csharp
-// ! BANNED: Empty catch block
+// ! BANNED: Empty catch block swallowing errors
 try { await unitOfWork.CommitAsync(ct); } catch { } // REJECTED
 
-// >> CANONICAL: Rethrow typed domain exception or structured semantic log
+// >> CANONICAL: Rethrow strongly-typed domain exception or structured semantic log
 try
 {
     await unitOfWork.CommitAsync(ct);
