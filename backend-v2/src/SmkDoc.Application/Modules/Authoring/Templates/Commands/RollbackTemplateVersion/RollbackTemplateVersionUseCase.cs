@@ -3,6 +3,7 @@ using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Modules.Authoring.Templates.Commands.RollbackTemplateVersion;
 
@@ -26,7 +27,7 @@ public sealed class RollbackTemplateVersionUseCase(
 
     public async Task<int> ExecuteAsync(RollbackTemplateVersionCommand command, CancellationToken ct = default)
     {
-        var template = await _templateRepo.GetByIdAsync(command.TemplateId, ct)
+        var template = await _templateRepo.GetByIdAsync(new TemplateId(command.TemplateId), ct)
             ?? throw new NotFoundException($"Template '{command.TemplateId}' was not found.");
 
         if (template.CurrentVersionId is null)
@@ -36,7 +37,7 @@ public sealed class RollbackTemplateVersionUseCase(
             ?? await _templateRepo.GetVersionByIdAsync(template.CurrentVersionId.Value, ct)
             ?? throw new NotFoundException($"Current version record for template '{template.Id}' not found.");
 
-        var versions = await _templateRepo.ListVersionsAsync(command.TemplateId, ct);
+        var versions = await _templateRepo.ListVersionsAsync(new TemplateId(command.TemplateId), ct);
         var archived = versions.FirstOrDefault(v => v.Version == command.TargetVersion)
             ?? throw new NotFoundException($"Version {command.TargetVersion} not found for template '{command.TemplateId}'.");
 

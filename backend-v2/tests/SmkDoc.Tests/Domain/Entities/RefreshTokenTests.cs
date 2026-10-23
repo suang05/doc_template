@@ -1,7 +1,8 @@
-﻿using FluentAssertions;
+using FluentAssertions;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common;
 using Xunit;
 
@@ -16,7 +17,7 @@ public sealed class RefreshTokenTests
     [Fact]
     public void Create_WithValidParameters_CreatesActiveToken()
     {
-        var userId = Guid.NewGuid();
+        var userId = UserId.New();
         var expiresAt = FixedNow.AddDays(7);
 
         var token = RefreshToken.Create(userId, ValidHash, expiresAt, FixedNow);
@@ -36,7 +37,7 @@ public sealed class RefreshTokenTests
     [Fact]
     public void Create_WithEmptyUserId_ThrowsDomainValidationException()
     {
-        var act = () => RefreshToken.Create(Guid.Empty, ValidHash, FixedNow.AddDays(7), FixedNow);
+        var act = () => RefreshToken.Create(UserId.Empty, ValidHash, FixedNow.AddDays(7), FixedNow);
 
         act.Should().Throw<DomainValidationException>()
             .WithMessage("*UserId cannot be empty*");
@@ -45,7 +46,7 @@ public sealed class RefreshTokenTests
     [Fact]
     public void Create_WithExpirationInPastOrNow_ThrowsDomainValidationException()
     {
-        var act = () => RefreshToken.Create(Guid.NewGuid(), ValidHash, FixedNow, FixedNow);
+        var act = () => RefreshToken.Create(UserId.New(), ValidHash, FixedNow, FixedNow);
 
         act.Should().Throw<DomainValidationException>()
             .WithMessage("*expiration must be strictly in the future*");
@@ -55,7 +56,7 @@ public sealed class RefreshTokenTests
     public void IsExpired_WhenCurrentTimePastExpiresAt_ReturnsTrue()
     {
         var expiresAt = FixedNow.AddDays(7);
-        var token = RefreshToken.Create(Guid.NewGuid(), ValidHash, expiresAt, FixedNow);
+        var token = RefreshToken.Create(UserId.New(), ValidHash, expiresAt, FixedNow);
 
         token.IsExpired(expiresAt.AddSeconds(1)).Should().BeTrue();
         token.IsActive(expiresAt.AddSeconds(1)).Should().BeFalse();
@@ -64,7 +65,7 @@ public sealed class RefreshTokenTests
     [Fact]
     public void Revoke_WhenActive_RevokesAndSetsReplacementHash()
     {
-        var token = RefreshToken.Create(Guid.NewGuid(), ValidHash, FixedNow.AddDays(7), FixedNow);
+        var token = RefreshToken.Create(UserId.New(), ValidHash, FixedNow.AddDays(7), FixedNow);
         var revokeTime = FixedNow.AddHours(1);
 
         token.Revoke(revokeTime, ReplacementHash);
@@ -79,7 +80,7 @@ public sealed class RefreshTokenTests
     [Fact]
     public void Revoke_WhenAlreadyRevoked_ThrowsBusinessRuleViolationException()
     {
-        var token = RefreshToken.Create(Guid.NewGuid(), ValidHash, FixedNow.AddDays(7), FixedNow);
+        var token = RefreshToken.Create(UserId.New(), ValidHash, FixedNow.AddDays(7), FixedNow);
         token.Revoke(FixedNow.AddMinutes(5));
 
         var act = () => token.Revoke(FixedNow.AddMinutes(10));
@@ -91,7 +92,7 @@ public sealed class RefreshTokenTests
     [Fact]
     public void IsWithinReuseLeeway_WhenNotRevoked_ReturnsFalse()
     {
-        var token = RefreshToken.Create(Guid.NewGuid(), ValidHash, FixedNow.AddDays(7), FixedNow);
+        var token = RefreshToken.Create(UserId.New(), ValidHash, FixedNow.AddDays(7), FixedNow);
 
         token.IsWithinReuseLeeway(FixedNow.AddMinutes(1), 30).Should().BeFalse();
     }
@@ -99,7 +100,7 @@ public sealed class RefreshTokenTests
     [Fact]
     public void IsWithinReuseLeeway_WhenRevokedWithinLeeway_ReturnsTrue()
     {
-        var token = RefreshToken.Create(Guid.NewGuid(), ValidHash, FixedNow.AddDays(7), FixedNow);
+        var token = RefreshToken.Create(UserId.New(), ValidHash, FixedNow.AddDays(7), FixedNow);
         var revokeTime = FixedNow.AddMinutes(5);
         token.Revoke(revokeTime, ReplacementHash);
 
@@ -112,7 +113,7 @@ public sealed class RefreshTokenTests
     [Fact]
     public void IsWithinReuseLeeway_WhenRevokedPastLeeway_ReturnsFalse()
     {
-        var token = RefreshToken.Create(Guid.NewGuid(), ValidHash, FixedNow.AddDays(7), FixedNow);
+        var token = RefreshToken.Create(UserId.New(), ValidHash, FixedNow.AddDays(7), FixedNow);
         var revokeTime = FixedNow.AddMinutes(5);
         token.Revoke(revokeTime, ReplacementHash);
 

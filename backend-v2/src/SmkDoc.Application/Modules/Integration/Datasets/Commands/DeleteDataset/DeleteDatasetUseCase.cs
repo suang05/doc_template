@@ -1,5 +1,6 @@
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Modules.Integration.Datasets.Commands.DeleteDataset;
 
@@ -14,7 +15,7 @@ public sealed class DeleteDatasetUseCase(
 
     public async Task<bool> ExecuteAsync(DeleteDatasetCommand command, CancellationToken ct = default)
     {
-        var entity = await _datasetRepo.GetByIdAsync(command.Id, ct);
+        var entity = await _datasetRepo.GetByIdAsync(new DatasetId(command.Id), ct);
         if (entity == null) return false;
 
         _datasetRepo.Remove(entity);

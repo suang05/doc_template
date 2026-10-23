@@ -5,6 +5,7 @@ using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Modules.Authoring.Templates.Commands.SaveTemplateHtml;
 
@@ -25,7 +26,7 @@ public class SaveTemplateHtmlUseCase(
 
     public async Task<int> SaveHtmlVersionAsync(Guid templateId, SaveTemplateHtmlCommand request, CancellationToken ct = default)
     {
-        var template = await _templateRepo.GetByIdAsync(templateId, ct)
+        var template = await _templateRepo.GetByIdAsync(new TemplateId(templateId), ct)
             ?? throw new NotFoundException($"Template '{templateId}' not found.");
 
         int currentVersionNumber = 0;

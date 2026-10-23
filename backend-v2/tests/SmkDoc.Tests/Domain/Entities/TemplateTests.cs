@@ -1,8 +1,9 @@
-﻿using FluentAssertions;
+using FluentAssertions;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common;
 using Xunit;
 
@@ -10,7 +11,7 @@ namespace SmkDoc.Tests.Domain.Entities;
 
 public sealed class TemplateTests
 {
-    private readonly Guid _projectId = Guid.NewGuid();
+    private readonly ProjectId _projectId = ProjectId.New();
     private readonly DateTimeOffset _initialTime = TestConstants.BaselineTime;
 
     private Template CreateTemplate(string name = "Standard Invoice", string slug = "std-invoice", string? category = null, DateTimeOffset? now = null) =>
@@ -21,7 +22,7 @@ public sealed class TemplateTests
     {
         var template = CreateTemplate("Standard Invoice", "std-invoice", now: _initialTime);
 
-        template.Id.Should().NotBe(Guid.Empty);
+        template.Id.Value.Should().NotBe(Guid.Empty);
         template.ProjectId.Should().Be(_projectId);
         template.Name.Value.Should().Be("Standard Invoice");
         template.Slug.Value.Should().Be("std-invoice");
@@ -38,7 +39,7 @@ public sealed class TemplateTests
     [Fact]
     public void Create_WithEmptyProjectId_ThrowsDomainValidationException()
     {
-        var act = () => Template.Create(Guid.Empty, TemplateName.Create("Name"), TemplateSlug.Create("slug"), null, _initialTime);
+        var act = () => Template.Create(ProjectId.Empty, TemplateName.Create("Name"), TemplateSlug.Create("slug"), null, _initialTime);
 
         act.Should().Throw<DomainValidationException>()
             .WithMessage("*ProjectId cannot be empty*");
@@ -163,7 +164,7 @@ public sealed class TemplateTests
     {
         var template = CreateTemplate("Invoice", "invoice", now: _initialTime);
 
-        var foreignVersion = TemplateVersion.Draft(Guid.NewGuid(), 1, "key", TemplateFormat.Html, "author", _initialTime);
+        var foreignVersion = TemplateVersion.Draft(TemplateId.New(), 1, "key", TemplateFormat.Html, "author", _initialTime);
         Action actMismatch = () => template.AddVersion(foreignVersion, _initialTime);
         actMismatch.Should().Throw<DomainValidationException>()
             .WithMessage("*does not match template ID*");
@@ -276,7 +277,7 @@ public sealed class TemplateTests
     public void AttachDataset_WhenValid_AddsToCollection()
     {
         var template = CreateTemplate("Order", "order", now: _initialTime);
-        var dsId = Guid.NewGuid();
+        var dsId = DatasetId.New();
 
         template.AttachDataset(dsId, DatasetAlias.Create("items"), 1, _initialTime);
 
@@ -288,7 +289,7 @@ public sealed class TemplateTests
     public void DetachDataset_WhenExists_RemovesFromCollection()
     {
         var template = CreateTemplate("Order", "order", now: _initialTime);
-        var dsId = Guid.NewGuid();
+        var dsId = DatasetId.New();
         template.AttachDataset(dsId, DatasetAlias.Create("items"), 1, _initialTime);
 
         template.DetachDataset(dsId, _initialTime);
@@ -300,9 +301,9 @@ public sealed class TemplateTests
     public void AttachDataset_DuplicateAlias_ThrowsBusinessRuleViolationException()
     {
         var template = CreateTemplate("Order", "order", now: _initialTime);
-        template.AttachDataset(Guid.NewGuid(), DatasetAlias.Create("header"), 1, _initialTime);
+        template.AttachDataset(DatasetId.New(), DatasetAlias.Create("header"), 1, _initialTime);
 
-        Action act = () => template.AttachDataset(Guid.NewGuid(), DatasetAlias.Create("HEADER"), 2, _initialTime);
+        Action act = () => template.AttachDataset(DatasetId.New(), DatasetAlias.Create("HEADER"), 2, _initialTime);
 
         var ex = act.Should().Throw<BusinessRuleViolationException>()
             .WithMessage("*already assigned to template*");
@@ -315,8 +316,8 @@ public sealed class TemplateTests
         var template = CreateTemplate("Order", "order", now: _initialTime);
         var datasets = new List<TemplateDataset>
         {
-            TemplateDataset.Create(template.Id, Guid.NewGuid(), DatasetAlias.Create("customers"), 1, _initialTime),
-            TemplateDataset.Create(template.Id, Guid.NewGuid(), DatasetAlias.Create("CUSTOMERS"), 2, _initialTime)
+            TemplateDataset.Create(template.Id, DatasetId.New(), DatasetAlias.Create("customers"), 1, _initialTime),
+            TemplateDataset.Create(template.Id, DatasetId.New(), DatasetAlias.Create("CUSTOMERS"), 2, _initialTime)
         };
 
         Action act = () => template.ReplaceDatasets(datasets, _initialTime);

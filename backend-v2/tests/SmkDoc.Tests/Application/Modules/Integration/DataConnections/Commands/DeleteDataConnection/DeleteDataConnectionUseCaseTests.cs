@@ -1,6 +1,7 @@
 using SmkDoc.Application.Modules.Integration.DataConnections.Commands.DeleteDataConnection;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common.Builders;
 
 namespace SmkDoc.Tests.Application.Modules.Integration.DataConnections.Commands.DeleteDataConnection;
@@ -26,7 +27,7 @@ public sealed class DeleteDataConnectionUseCaseTests
         var id = Guid.NewGuid();
         DataConnection existing = DataConnectionBuilder.Postgres(name: "To Delete", connectionString: "enc_delete", id: id);
 
-        _connectionRepo.GetByIdAsync(id, Arg.Any<CancellationToken>())
+        _connectionRepo.GetByIdAsync(new DataConnectionId(id), Arg.Any<CancellationToken>())
             .Returns(existing);
 
         var command = new DeleteDataConnectionCommand(id);
@@ -45,7 +46,7 @@ public sealed class DeleteDataConnectionUseCaseTests
     {
         // Arrange
         var id = Guid.NewGuid();
-        _connectionRepo.GetByIdAsync(id, Arg.Any<CancellationToken>())
+        _connectionRepo.GetByIdAsync(new DataConnectionId(id), Arg.Any<CancellationToken>())
             .Returns((DataConnection?)null);
 
         var command = new DeleteDataConnectionCommand(id);

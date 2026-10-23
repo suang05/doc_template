@@ -1,15 +1,17 @@
-﻿using FluentAssertions;
+using FluentAssertions;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Domain.ValueObjects.Ids;
 using Xunit;
 
 namespace SmkDoc.Tests.Domain.Entities;
 
 public sealed class DatasetTests
 {
-    private readonly Guid _connectionId = Guid.NewGuid();
+    private readonly DataConnectionId _connectionId = DataConnectionId.New();
     private readonly DateTimeOffset _initialTime = TestConstants.BaselineTime;
+    private readonly ProjectId _projectId = ProjectId.New();
 
     [Fact]
     public void Create_WithValidParameters_InitializesCorrectly()
@@ -20,9 +22,11 @@ public sealed class DatasetTests
             _connectionId,
             "SELECT * FROM invoices WHERE month = @month",
             60,
-            _initialTime);
+            _initialTime,
+            _projectId);
 
-        dataset.Id.Should().NotBe(Guid.Empty);
+        dataset.Id.Value.Should().NotBe(Guid.Empty);
+        dataset.ProjectId.Should().Be(_projectId);
         dataset.Name.Value.Should().Be("Monthly Invoices");
         dataset.Description.Should().Be("Fetches invoices for reporting");
         dataset.DataConnectionId.Should().Be(_connectionId);
@@ -33,9 +37,18 @@ public sealed class DatasetTests
     }
 
     [Fact]
+    public void Create_WithEmptyProjectId_ThrowsDomainValidationException()
+    {
+        var act = () => Dataset.Create(DatasetName.Create("Orders"), null, _connectionId, "SELECT 1", 0, _initialTime, ProjectId.Empty);
+
+        act.Should().Throw<DomainValidationException>()
+            .WithMessage("*ProjectId cannot be empty*");
+    }
+
+    [Fact]
     public void Create_WithEmptyConnectionId_ThrowsDomainValidationException()
     {
-        var act = () => Dataset.Create(DatasetName.Create("Orders"), null, Guid.Empty, "SELECT 1", 0, _initialTime);
+        var act = () => Dataset.Create(DatasetName.Create("Orders"), null, DataConnectionId.Empty, "SELECT 1", 0, _initialTime, _projectId);
 
         act.Should().Throw<DomainValidationException>()
             .WithMessage("*DataConnectionId cannot be empty*");
@@ -44,7 +57,7 @@ public sealed class DatasetTests
     [Fact]
     public void Create_WithNegativeCacheSeconds_ThrowsDomainValidationException()
     {
-        var act = () => Dataset.Create(DatasetName.Create("Orders"), null, _connectionId, "SELECT 1", -5, _initialTime);
+        var act = () => Dataset.Create(DatasetName.Create("Orders"), null, _connectionId, "SELECT 1", -5, _initialTime, _projectId);
 
         act.Should().Throw<DomainValidationException>()
             .WithMessage("*CacheSeconds cannot be negative*");
@@ -53,9 +66,9 @@ public sealed class DatasetTests
     [Fact]
     public void UpdateDetails_MutatesFieldsAndSetsAuditTimestamp()
     {
-        var dataset = Dataset.Create(DatasetName.Create("Old Name"), "Old Desc", _connectionId, "SELECT 1", 0, _initialTime);
+        var dataset = Dataset.Create(DatasetName.Create("Old Name"), "Old Desc", _connectionId, "SELECT 1", 0, _initialTime, _projectId);
         var updateTime = _initialTime.AddHours(1);
-        var newConnId = Guid.NewGuid();
+        var newConnId = DataConnectionId.New();
 
         dataset.UpdateDetails(DatasetName.Create("New Name"), "New Desc", newConnId, "SELECT 2", 120, updateTime);
 

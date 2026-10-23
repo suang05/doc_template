@@ -26,7 +26,7 @@ public sealed class ValidateApiKeyUseCase(
             key.RecordUsage(now);
             apiKeyRepo.Update(key);
             await unitOfWork.CommitAsync(ct);
-            return new ValidatedApiKeyDto(key.Id, key.CallerApp, key.ProjectId, key.Scope.Name);
+            return new ValidatedApiKeyDto(key.Id.Value, key.CallerApp, key.ProjectId.Value, key.Scope.Name);
         }
         return null;
     }

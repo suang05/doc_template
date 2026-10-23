@@ -20,7 +20,7 @@ public sealed class GetDocumentVersionsUseCase(
         return versions
             .OrderByDescending(v => v.Version)
             .Select(v => new DocumentVersionDto(
-                v.Id, v.DocumentId, document.DocumentRef,
+                v.Id, v.DocumentId.Value, document.DocumentRef,
                 v.Version, v.TemplateVersionId, v.GenerationLogId,
                 v.ChangeNote, v.CreatedBy, v.CreatedAt))
             .ToList();

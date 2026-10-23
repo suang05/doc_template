@@ -52,7 +52,7 @@ public sealed class GenerationLog : BaseEntity, IMustHaveProject
         GenerationStatus status,
         string? errorMsg,
         DateTimeOffset now,
-        ProjectId projectId = default)
+        ProjectId projectId)
         : base(id, createdAt: now)
     {
         if (durationMs < 0)
@@ -100,7 +100,7 @@ public sealed class GenerationLog : BaseEntity, IMustHaveProject
         PayloadHashSha256 = payloadHashSha256;
         DurationMs = durationMs;
         ErrorMsg = errorMsg;
-        ProjectId = projectId;
+        ProjectId = Guard.NotEmpty(projectId, nameof(ProjectId));
     }
 
     public static GenerationLog Create(
@@ -119,7 +119,7 @@ public sealed class GenerationLog : BaseEntity, IMustHaveProject
         GenerationStatus status,
         string? errorMsg,
         DateTimeOffset now,
-        ProjectId projectId = default) =>
+        ProjectId projectId) =>
         new(
             null,
             templateId,
@@ -152,7 +152,7 @@ public sealed class GenerationLog : BaseEntity, IMustHaveProject
         long fileSizeBytes,
         int durationMs,
         DateTimeOffset now,
-        ProjectId projectId = default) =>
+        ProjectId projectId) =>
         new(
             generationId,
             templateId,
@@ -183,7 +183,7 @@ public sealed class GenerationLog : BaseEntity, IMustHaveProject
         int durationMs,
         string errorMessage,
         DateTimeOffset now,
-        ProjectId projectId = default) =>
+        ProjectId projectId) =>
         new(
             null,
             templateId,
@@ -214,7 +214,7 @@ public sealed class GenerationLog : BaseEntity, IMustHaveProject
         int durationMs,
         string errorMessage,
         DateTimeOffset now,
-        ProjectId projectId = default) =>
+        ProjectId projectId) =>
         new(
             null,
             templateId,

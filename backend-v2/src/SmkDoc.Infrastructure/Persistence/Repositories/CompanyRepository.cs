@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Infrastructure.Persistence.Repositories;
 
@@ -13,7 +14,7 @@ public sealed class CompanyRepository(AppDbContext context) : ICompanyRepository
         return await _context.Companies.FirstOrDefaultAsync(ct);
     }
 
-    public async Task<Company?> GetByIdAsync(Guid id, CancellationToken ct = default)
+    public async Task<Company?> GetByIdAsync(CompanyId id, CancellationToken ct = default)
     {
         return await _context.Companies.FirstOrDefaultAsync(c => c.Id == id, ct);
     }

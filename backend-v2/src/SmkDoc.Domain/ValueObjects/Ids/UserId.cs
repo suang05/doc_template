@@ -15,8 +15,8 @@ public readonly record struct UserId(Guid Value) : IComparable<UserId>
 
     public override string ToString() => Value.ToString();
 
-    public static implicit operator Guid(UserId id) => id.Value;
-    public static implicit operator UserId(Guid value) => new(value);
+    public static explicit operator Guid(UserId id) => id.Value;
+    public static explicit operator UserId(Guid value) => new(value);
 
     public static bool operator ==(UserId left, Guid right) => left.Value == right;
     public static bool operator !=(UserId left, Guid right) => left.Value != right;

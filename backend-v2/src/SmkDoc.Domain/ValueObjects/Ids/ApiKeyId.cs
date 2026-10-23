@@ -15,8 +15,8 @@ public readonly record struct ApiKeyId(Guid Value) : IComparable<ApiKeyId>
 
     public override string ToString() => Value.ToString();
 
-    public static implicit operator Guid(ApiKeyId id) => id.Value;
-    public static implicit operator ApiKeyId(Guid value) => new(value);
+    public static explicit operator Guid(ApiKeyId id) => id.Value;
+    public static explicit operator ApiKeyId(Guid value) => new(value);
 
     public static bool operator ==(ApiKeyId left, Guid right) => left.Value == right;
     public static bool operator !=(ApiKeyId left, Guid right) => left.Value != right;

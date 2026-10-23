@@ -4,6 +4,7 @@ using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common.Builders;
 
 namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Security.Queries.ListApiKeys;
@@ -46,7 +47,7 @@ public sealed class ListApiKeysUseCaseTests
             .WithExpiration(ExpirationPolicy.Never)
             .WithTime(now);
 
-        _apiKeyRepo.ListByProjectAsync(projectId, Arg.Any<CancellationToken>())
+        _apiKeyRepo.ListByProjectAsync(new ProjectId(projectId), Arg.Any<CancellationToken>())
             .Returns(new List<ApiKey> { key1, key2 });
 
         // Act
@@ -56,7 +57,7 @@ public sealed class ListApiKeysUseCaseTests
         result.Should().HaveCount(2);
         result[0].Name.Should().Be("ERP Key");
         result[1].Name.Should().Be("CRM Key");
-        await _apiKeyRepo.Received(1).ListByProjectAsync(projectId, Arg.Any<CancellationToken>());
+        await _apiKeyRepo.Received(1).ListByProjectAsync(new ProjectId(projectId), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -64,7 +65,7 @@ public sealed class ListApiKeysUseCaseTests
     {
         // Arrange
         var projectId = Guid.NewGuid();
-        _apiKeyRepo.ListByProjectAsync(projectId, Arg.Any<CancellationToken>())
+        _apiKeyRepo.ListByProjectAsync(new ProjectId(projectId), Arg.Any<CancellationToken>())
             .Returns(new List<ApiKey>());
 
         // Act
@@ -72,6 +73,6 @@ public sealed class ListApiKeysUseCaseTests
 
         // Assert
         result.Should().BeEmpty();
-        await _apiKeyRepo.Received(1).ListByProjectAsync(projectId, Arg.Any<CancellationToken>());
+        await _apiKeyRepo.Received(1).ListByProjectAsync(new ProjectId(projectId), Arg.Any<CancellationToken>());
     }
 }

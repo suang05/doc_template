@@ -56,8 +56,8 @@ public class TemplateDatasetBuilder
     {
         return new TemplateDataset(
             _id,
-            _templateId,
-            _datasetId,
+            new SmkDoc.Domain.ValueObjects.Ids.TemplateId(_templateId),
+            new SmkDoc.Domain.ValueObjects.Ids.DatasetId(_datasetId),
             DatasetAlias.Create(_alias),
             _sortOrder,
             _now);

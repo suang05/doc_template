@@ -82,7 +82,7 @@ public sealed class ApiKey : BaseEntity<ApiKeyId>, IMustHaveProject
         Guard.NotNull(newName, nameof(newName));
         if (IsRevoked)
         {
-            throw new ApiKeyRevokedException(Id);
+            throw new ApiKeyRevokedException(Id.Value);
         }
 
         if (Name == newName)
@@ -112,12 +112,12 @@ public sealed class ApiKey : BaseEntity<ApiKeyId>, IMustHaveProject
     {
         if (IsRevoked)
         {
-            throw new ApiKeyRevokedException(Id);
+            throw new ApiKeyRevokedException(Id.Value);
         }
 
         if (IsExpiredAt(now))
         {
-            throw new ApiKeyExpiredException(Id, Expiration.ExpiresAt!.Value);
+            throw new ApiKeyExpiredException(Id.Value, Expiration.ExpiresAt!.Value);
         }
     }
 }

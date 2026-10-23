@@ -10,10 +10,9 @@ public sealed class UserRepository(AppDbContext context) : IUserRepository
 {
     private readonly AppDbContext _context = context;
 
-    public async Task<User?> GetByIdAsync(Guid id, CancellationToken ct = default)
+    public async Task<User?> GetByIdAsync(UserId id, CancellationToken ct = default)
     {
-        var userId = new UserId(id);
-        return await _context.Users.FirstOrDefaultAsync(u => u.Id == userId, ct);
+        return await _context.Users.FirstOrDefaultAsync(u => u.Id == id, ct);
     }
 
     public async Task<User?> GetByEmailAsync(string normalizedEmail, CancellationToken ct = default)
@@ -31,9 +30,9 @@ public sealed class UserRepository(AppDbContext context) : IUserRepository
         return await _context.Users.AnyAsync(u => u.Email == email, ct);
     }
 
-    public async Task<IReadOnlyList<User>> GetByIdsAsync(IEnumerable<Guid> ids, CancellationToken ct = default)
+    public async Task<IReadOnlyList<User>> GetByIdsAsync(IEnumerable<UserId> ids, CancellationToken ct = default)
     {
-        var idSet = ids.Select(id => new UserId(id)).ToHashSet();
+        var idSet = ids.ToHashSet();
         return await _context.Users.Where(u => idSet.Contains(u.Id)).ToListAsync(ct);
     }
 

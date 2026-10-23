@@ -3,6 +3,7 @@ using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Modules.Authoring.Templates.Queries.ScanTemplatePlaceholders;
 
@@ -22,7 +23,7 @@ public sealed class ScanTemplatePlaceholdersUseCase(
 
     public async Task<List<string>> ExecuteAsync(ScanTemplatePlaceholdersQuery query, CancellationToken ct = default)
     {
-        var template = await _templateRepo.GetByIdAsync(query.Id, ct)
+        var template = await _templateRepo.GetByIdAsync(new TemplateId(query.Id), ct)
             ?? throw new NotFoundException($"Template '{query.Id}' was not found.");
 
         if (template.CurrentVersionId is null)

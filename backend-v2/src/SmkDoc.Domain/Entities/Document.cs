@@ -27,19 +27,19 @@ public sealed class Document : BaseEntity<DocumentId>, IMustHaveProject
         DocumentReference documentRef,
         TemplateId? templateId,
         DateTimeOffset now,
-        ProjectId projectId = default)
+        ProjectId projectId)
         : base(id.HasValue && !id.Value.IsEmpty ? id.Value : DocumentId.New(), createdAt: now)
     {
         DocumentRef = Guard.NotNull(documentRef, nameof(DocumentRef));
         TemplateId = templateId;
-        ProjectId = projectId;
+        ProjectId = Guard.NotEmpty(projectId, nameof(ProjectId));
     }
 
     public static Document Create(
         DocumentReference documentRef,
         TemplateId? templateId,
         DateTimeOffset now,
-        ProjectId projectId = default) =>
+        ProjectId projectId) =>
         new(null, documentRef, templateId, now, projectId);
 
     public void AddVersion(DocumentVersion version, DateTimeOffset now)
@@ -54,7 +54,7 @@ public sealed class Document : BaseEntity<DocumentId>, IMustHaveProject
 
         if (_versions.Any(v => v.Version == version.Version))
         {
-            throw new DuplicateDocumentVersionException(Id, version.Version);
+            throw new DuplicateDocumentVersionException(Id.Value, version.Version);
         }
 
         _versions.Add(version);

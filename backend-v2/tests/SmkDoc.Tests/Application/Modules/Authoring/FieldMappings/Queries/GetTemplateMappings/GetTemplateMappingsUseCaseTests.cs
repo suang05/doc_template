@@ -1,7 +1,8 @@
-﻿using SmkDoc.Application.Modules.Authoring.FieldMappings.Queries.GetTemplateMappings;
+using SmkDoc.Application.Modules.Authoring.FieldMappings.Queries.GetTemplateMappings;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common;
 using SmkDoc.Tests.Common.Builders;
 
@@ -46,7 +47,7 @@ public sealed class GetTemplateMappingsUseCaseTests
         var mappings = new List<FieldMapping> { m1, m2 };
         template.ReplaceFieldMappings(mappings, TestConstants.BaselineTime);
 
-        _templateRepo.GetByIdWithDetailsAsync(templateId, Arg.Any<CancellationToken>())
+        _templateRepo.GetByIdWithDetailsAsync(new TemplateId(templateId), Arg.Any<CancellationToken>())
             .Returns(template);
 
         // Act
@@ -63,7 +64,7 @@ public sealed class GetTemplateMappingsUseCaseTests
     {
         // Arrange
         var templateId = Guid.NewGuid();
-        _templateRepo.GetByIdWithDetailsAsync(templateId, Arg.Any<CancellationToken>())
+        _templateRepo.GetByIdWithDetailsAsync(new TemplateId(templateId), Arg.Any<CancellationToken>())
             .Returns((Template?)null);
 
         // Act

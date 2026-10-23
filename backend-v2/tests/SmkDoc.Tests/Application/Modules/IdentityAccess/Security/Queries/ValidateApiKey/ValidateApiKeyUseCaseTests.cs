@@ -93,7 +93,7 @@ public sealed class ValidateApiKeyUseCaseTests
 
         // Assert
         result.Should().NotBeNull();
-        result!.Id.Should().Be(key.Id);
+        result!.Id.Should().Be(key.Id.Value);
         result.CallerApp.Should().Be("billing-service");
         result.ProjectId.Should().Be(projectId);
 

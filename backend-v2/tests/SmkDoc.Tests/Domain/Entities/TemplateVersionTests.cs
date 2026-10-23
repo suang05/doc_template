@@ -1,7 +1,8 @@
-﻿using FluentAssertions;
+using FluentAssertions;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
+using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common;
 using Xunit;
 
@@ -13,7 +14,7 @@ public sealed class TemplateVersionTests
 
     private static TemplateVersion CreateArchivedVersion()
     {
-        var version = TemplateVersion.Draft(Guid.NewGuid(), 1, "key", TemplateFormat.Html, "author", Now);
+        var version = TemplateVersion.Draft(TemplateId.New(), 1, "key", TemplateFormat.Html, "author", Now);
         version.Archive(Now);
         return version;
     }
@@ -31,7 +32,7 @@ public sealed class TemplateVersionTests
     [MemberData(nameof(FormatEngineMappings))]
     public void GetRenderEngineType_MapsFormatToEngine(TemplateFormat? format, RenderEngineType expectedEngine)
     {
-        var version = TemplateVersion.Draft(Guid.NewGuid(), 1, "", format, null, Now);
+        var version = TemplateVersion.Draft(TemplateId.New(), 1, "", format, null, Now);
         version.GetRenderEngineType().Should().Be(expectedEngine);
     }
 
@@ -40,8 +41,8 @@ public sealed class TemplateVersionTests
     [Fact]
     public void NewTemplateVersion_ShouldHaveUniqueId()
     {
-        var v1 = TemplateVersion.Draft(Guid.NewGuid(), 1, "", null, null, Now);
-        var v2 = TemplateVersion.Draft(Guid.NewGuid(), 1, "", null, null, Now);
+        var v1 = TemplateVersion.Draft(TemplateId.New(), 1, "", null, null, Now);
+        var v2 = TemplateVersion.Draft(TemplateId.New(), 1, "", null, null, Now);
         v1.Id.Should().NotBe(v2.Id);
         v1.Id.Should().NotBe(Guid.Empty);
     }
@@ -49,14 +50,14 @@ public sealed class TemplateVersionTests
     [Fact]
     public void NewTemplateVersion_ShouldDefaultToDraftStatus()
     {
-        var version = TemplateVersion.Draft(Guid.NewGuid(), 1, "", null, null, Now);
+        var version = TemplateVersion.Draft(TemplateId.New(), 1, "", null, null, Now);
         version.Status.Should().Be(TemplateVersionStatus.Draft);
     }
 
     [Fact]
     public void NewTemplateVersion_StorageKey_ShouldDefaultToEmpty()
     {
-        var version = TemplateVersion.Draft(Guid.NewGuid(), 1, "", null, null, Now);
+        var version = TemplateVersion.Draft(TemplateId.New(), 1, "", null, null, Now);
         version.StorageKey.Should().NotBeNull();
         version.StorageKey.Should().BeEmpty();
     }
@@ -66,7 +67,7 @@ public sealed class TemplateVersionTests
     [Fact]
     public void Publish_WhenDraft_SetsPublishedAndAuditTimestamp()
     {
-        var version = TemplateVersion.Draft(Guid.NewGuid(), 1, "key", TemplateFormat.Html, "author", Now);
+        var version = TemplateVersion.Draft(TemplateId.New(), 1, "key", TemplateFormat.Html, "author", Now);
         var pubTime = Now.AddHours(1);
 
         version.Publish(pubTime);
@@ -78,7 +79,7 @@ public sealed class TemplateVersionTests
     [Fact]
     public void Archive_WhenDraftOrPublished_SetsArchivedAndAuditTimestamp()
     {
-        var version = TemplateVersion.Draft(Guid.NewGuid(), 1, "key", TemplateFormat.Html, "author", Now);
+        var version = TemplateVersion.Draft(TemplateId.New(), 1, "key", TemplateFormat.Html, "author", Now);
         var archTime = Now.AddHours(2);
 
         version.Archive(archTime);
@@ -133,7 +134,7 @@ public sealed class TemplateVersionTests
     [InlineData(-10)]
     public void Draft_WithInvalidVersionNumber_ThrowsDomainValidationException(int invalidVersion)
     {
-        var act = () => TemplateVersion.Draft(Guid.NewGuid(), invalidVersion, "key", TemplateFormat.Html, "user", Now);
+        var act = () => TemplateVersion.Draft(TemplateId.New(), invalidVersion, "key", TemplateFormat.Html, "user", Now);
 
         act.Should().Throw<DomainValidationException>()
             .WithMessage("*greater than zero*");

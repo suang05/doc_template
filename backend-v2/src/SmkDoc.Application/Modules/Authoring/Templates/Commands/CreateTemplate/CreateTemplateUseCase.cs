@@ -8,6 +8,7 @@ using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Modules.Authoring.Templates.Commands.CreateTemplate;
 
@@ -99,7 +100,7 @@ public sealed class CreateTemplateUseCase(
         // 4. Domain Entity Instantiation (Encapsulated invariants)
         var now = _timeProvider.GetUtcNow();
         var template = Template.Create(
-            effectiveProjectId,
+            new ProjectId(effectiveProjectId),
             TemplateName.Create(command.Name),
             TemplateSlug.Create(command.Slug),
             command.Category?.Trim(),
@@ -122,8 +123,8 @@ public sealed class CreateTemplateUseCase(
 
         // 5. Safe Result DTO Mapping
         return new TemplateResultDto(
-            template.Id,
-            template.ProjectId,
+            template.Id.Value,
+            template.ProjectId.Value,
             template.Name,
             template.Slug,
             template.Category,

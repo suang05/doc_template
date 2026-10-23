@@ -1,5 +1,6 @@
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Tests.Common.Builders;
 
@@ -12,6 +13,7 @@ public class DatasetBuilder
     private string _sqlQuery = "SELECT 1";
     private int _cacheSeconds = 0;
     private DateTimeOffset _now = TestConstants.BaselineTime;
+    private ProjectId _projectId = ProjectId.New();
 
     public static DatasetBuilder ADataset() => new();
 
@@ -60,16 +62,23 @@ public class DatasetBuilder
         return this;
     }
 
+    public DatasetBuilder WithProjectId(ProjectId projectId)
+    {
+        _projectId = projectId;
+        return this;
+    }
+
     public Dataset Build()
     {
         return new Dataset(
-            _id,
+            new DatasetId(_id),
             DatasetName.Create(_name),
             _description,
-            _dataConnectionId,
+            new DataConnectionId(_dataConnectionId),
             _sqlQuery,
             _cacheSeconds,
-            _now);
+            _now,
+            _projectId);
     }
 
     public static implicit operator Dataset(DatasetBuilder builder) => builder.Build();

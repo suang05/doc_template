@@ -3,6 +3,7 @@ using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Users.DTOs;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Modules.IdentityAccess.Users.Commands.SetUserStatus;
 
@@ -27,13 +28,15 @@ public sealed class SetUserStatusUseCase(
             throw new ValidationException(validationResult.ToDictionary());
         }
 
-        var hasRole = await _roleRepo.GetAsync(command.ProjectId, command.UserId, ct);
+        var pId = new ProjectId(command.ProjectId);
+        var uId = new UserId(command.UserId);
+        var hasRole = await _roleRepo.GetAsync(pId, uId, ct);
         if (hasRole == null)
         {
             throw new NotFoundException("User is not a member of this project.");
         }
 
-        var user = await _userRepo.GetByIdAsync(command.UserId, ct)
+        var user = await _userRepo.GetByIdAsync(uId, ct)
             ?? throw new NotFoundException("User not found.");
 
         var now = _timeProvider.GetUtcNow();
@@ -50,7 +53,7 @@ public sealed class SetUserStatusUseCase(
         await _uow.CommitAsync(ct);
 
         return new UserResultDto(
-            user.Id,
+            user.Id.Value,
             user.Email.Value,
             user.FirstName,
             user.LastName,

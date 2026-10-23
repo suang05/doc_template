@@ -1,9 +1,10 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using SmkDoc.Application.Common;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.Queries.PreviewMapping;
 using SmkDoc.Domain.Entities;
+using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common.Builders;
 
 namespace SmkDoc.Tests.Application.Modules.Authoring.FieldMappings.Queries.PreviewMapping;
@@ -53,7 +54,7 @@ public sealed class PreviewMappingUseCaseTests
             template.ReplaceFieldMappings(mappings, now);
         }
 
-        _templateRepo.GetByIdWithDetailsAsync(templateId, Arg.Any<CancellationToken>())
+        _templateRepo.GetByIdWithDetailsAsync(new TemplateId(templateId), Arg.Any<CancellationToken>())
             .Returns(template);
         var version = new TemplateVersionBuilder()
             .WithId(versionId)
@@ -179,7 +180,7 @@ public sealed class PreviewMappingUseCaseTests
     [Fact]
     public async Task ExecuteAsync_WhenTemplateNotFound_ShouldThrowNotFoundException()
     {
-        _templateRepo.GetByIdWithDetailsAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+        _templateRepo.GetByIdWithDetailsAsync(Arg.Any<TemplateId>(), Arg.Any<CancellationToken>())
             .Returns((Template?)null);
 
         var act = () => CreateSut().ExecuteAsync(Guid.NewGuid(), default);
@@ -197,7 +198,7 @@ public sealed class PreviewMappingUseCaseTests
             .WithSlug("sample-template")
             .WithoutCurrentVersion()
             .Build();
-        _templateRepo.GetByIdWithDetailsAsync(templateId, Arg.Any<CancellationToken>())
+        _templateRepo.GetByIdWithDetailsAsync(new TemplateId(templateId), Arg.Any<CancellationToken>())
             .Returns(template);
 
         var act = () => CreateSut().ExecuteAsync(templateId, default);

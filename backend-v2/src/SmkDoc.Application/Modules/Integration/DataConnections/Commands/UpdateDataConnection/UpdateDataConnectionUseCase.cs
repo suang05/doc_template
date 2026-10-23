@@ -4,6 +4,7 @@ using SmkDoc.Domain.Common;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Modules.Integration.DataConnections.Commands.UpdateDataConnection;
 
@@ -23,7 +24,7 @@ public sealed class UpdateDataConnectionUseCase(
 
     public async Task<DataConnectionDto?> ExecuteAsync(UpdateDataConnectionCommand command, CancellationToken ct = default)
     {
-        var entity = await repository.GetByIdAsync(command.Id, ct);
+        var entity = await repository.GetByIdAsync(new DataConnectionId(command.Id), ct);
         if (entity == null) return null;
 
         var encryptedCs = string.IsNullOrEmpty(command.ConnectionString)
@@ -42,7 +43,7 @@ public sealed class UpdateDataConnectionUseCase(
 
         return new DataConnectionDto
         {
-            Id = entity.Id,
+            Id = entity.Id.Value,
             Name = entity.Name.Value,
             Provider = entity.Provider.Name,
             CreatedAt = entity.CreatedAt,

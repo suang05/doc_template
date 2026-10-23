@@ -1,6 +1,7 @@
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Tests.Common.Builders;
 
@@ -11,6 +12,7 @@ public class DataConnectionBuilder
     private DatabaseProvider _provider = DatabaseProvider.PostgreSQL;
     private string _encryptedConnectionString = "Host=localhost;Database=test";
     private DateTimeOffset _now = TestConstants.BaselineTime;
+    private ProjectId _projectId = ProjectId.New();
 
     public static DataConnectionBuilder AConnection() => new();
 
@@ -63,14 +65,21 @@ public class DataConnectionBuilder
         return this;
     }
 
+    public DataConnectionBuilder WithProjectId(ProjectId projectId)
+    {
+        _projectId = projectId;
+        return this;
+    }
+
     public DataConnection Build()
     {
         return new DataConnection(
-            _id,
+            new DataConnectionId(_id),
             ConnectionName.Create(_name),
             _provider,
             _encryptedConnectionString,
-            _now);
+            _now,
+            _projectId);
     }
 
     public static implicit operator DataConnection(DataConnectionBuilder builder) => builder.Build();

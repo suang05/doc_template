@@ -98,7 +98,7 @@ public sealed class LoginUseCaseTests
         result.AccessibleProjects[0].Name.Should().Be("Project Alpha");
         result.ActiveProjectId.Should().Be(projectId);
         result.ActiveRole.Should().Be("Viewer");
-        _auditService.Received(1).LogLoginSuccess(user.Id, "test@example.com", projectId);
+        _auditService.Received(1).LogLoginSuccess(user.Id.Value, "test@example.com", projectId);
     }
 
     [Fact]

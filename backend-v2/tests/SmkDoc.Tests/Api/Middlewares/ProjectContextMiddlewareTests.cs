@@ -1,4 +1,4 @@
-﻿using System.Security.Claims;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -207,7 +207,7 @@ public sealed class ProjectContextMiddlewareTests
         httpContext.Request.Headers["X-Project-Id"] = targetProjectId.ToString();
 
         var roleAssignment = UserProjectRole.Create(new UserId(userId), targetProjectId, RoleType.Developer, TestConstants.BaselineTime);
-        _userProjectRoleRepo.GetAsync(targetProjectId.Value, userId, Arg.Any<CancellationToken>())
+        _userProjectRoleRepo.GetAsync(targetProjectId, new UserId(userId), Arg.Any<CancellationToken>())
             .Returns(roleAssignment);
 
         // Act
@@ -246,7 +246,7 @@ public sealed class ProjectContextMiddlewareTests
         httpContext.Request.Headers["X-Project-Id"] = unauthorizedProjectId.ToString();
 
         // User does NOT hold membership in target project
-        _userProjectRoleRepo.GetAsync(unauthorizedProjectId.Value, userId, Arg.Any<CancellationToken>())
+        _userProjectRoleRepo.GetAsync(unauthorizedProjectId, new UserId(userId), Arg.Any<CancellationToken>())
             .Returns((UserProjectRole?)null);
 
         // Act
@@ -294,7 +294,7 @@ public sealed class ProjectContextMiddlewareTests
         await _next.Received(1).Invoke(httpContext);
         projectContext.IsResolved.Should().BeTrue();
         projectContext.ProjectId.Should().Be(targetProjectId);
-        await _userProjectRoleRepo.DidNotReceive().GetAsync(Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+        await _userProjectRoleRepo.DidNotReceive().GetAsync(Arg.Any<ProjectId>(), Arg.Any<UserId>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]

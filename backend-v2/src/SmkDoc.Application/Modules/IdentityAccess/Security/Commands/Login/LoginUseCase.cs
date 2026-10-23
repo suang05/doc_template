@@ -76,11 +76,11 @@ public sealed class LoginUseCase(
             ? await workspaceQueryService.GetActiveApiKeysAsync(workspace.ActiveProjectId.Value, ct)
             : [];
 
-        auditService.LogLoginSuccess(user.Id, user.Email.Value, workspace.ActiveProjectId);
+        auditService.LogLoginSuccess(user.Id.Value, user.Email.Value, workspace.ActiveProjectId);
 
         return new LoginResultDto(
             accessToken: token,
-            user: new UserProfileDto(user.Id, user.Email.Value, user.FirstName, user.LastName, user.SystemRole.Name),
+            user: new UserProfileDto(user.Id.Value, user.Email.Value, user.FirstName, user.LastName, user.SystemRole.Name),
             accessibleProjects: workspace.AccessibleProjects,
             defaultProjectId: workspace.DefaultProjectId,
             activeProjectId: workspace.ActiveProjectId,

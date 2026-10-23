@@ -64,7 +64,7 @@ public class UserBuilder
 
     public User Build()
     {
-        var user = new User(_id, EmailAddress.Create(_email), _passwordHash, _firstName, _lastName, _systemRole, _now);
+        var user = new User(new SmkDoc.Domain.ValueObjects.Ids.UserId(_id), EmailAddress.Create(_email), _passwordHash, _firstName, _lastName, _systemRole, _now);
         if (!_isActive)
         {
             user.Deactivate(_now);

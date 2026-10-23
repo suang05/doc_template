@@ -6,6 +6,7 @@ using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Modules.Authoring.Templates.Commands.CommitTemplateDraft;
 
@@ -38,7 +39,7 @@ public sealed class CommitTemplateDraftUseCase(
 
         if (projectRepo != null)
         {
-            var project = await projectRepo.GetByIdAsync(targetProjectId, ct)
+            var project = await projectRepo.GetByIdAsync(new ProjectId(targetProjectId), ct)
                 ?? throw new NotFoundException($"Project '{targetProjectId}' not found.");
         }
 
@@ -59,12 +60,12 @@ public sealed class CommitTemplateDraftUseCase(
         try
         {
             var template = Template.Create(
-                targetProjectId,
+                new ProjectId(targetProjectId),
                 TemplateName.Create(command.Request.Name),
                 TemplateSlug.Create(command.Request.Slug),
                 command.Request.Category,
                 now);
-            committedTemplateId = template.Id;
+            committedTemplateId = template.Id.Value;
 
             var placeholderList = command.Request.Mappings?.Select(m => m.Placeholder).ToList() ?? new List<string>();
             string? inferredSchema = schemaInferenceService?.InferSchemaFromPlaceholders(placeholderList, templateSlug: command.Request.Slug);

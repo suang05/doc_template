@@ -9,10 +9,9 @@ public sealed class ProjectRepository(AppDbContext context) : IProjectRepository
 {
     private readonly AppDbContext _context = context;
 
-    public async Task<Project?> GetByIdAsync(Guid id, CancellationToken ct = default)
+    public async Task<Project?> GetByIdAsync(ProjectId id, CancellationToken ct = default)
     {
-        var projectId = new ProjectId(id);
-        return await _context.Projects.FirstOrDefaultAsync(p => p.Id == projectId, ct);
+        return await _context.Projects.FirstOrDefaultAsync(p => p.Id == id, ct);
     }
 
     public async Task<Project?> GetBySlugAsync(string slug, CancellationToken ct = default)
@@ -30,9 +29,9 @@ public sealed class ProjectRepository(AppDbContext context) : IProjectRepository
         return await _context.Projects.AnyAsync(p => p.Slug == slug, ct);
     }
 
-    public async Task<IReadOnlyList<Project>> ListByIdsAsync(IEnumerable<Guid> ids, CancellationToken ct = default)
+    public async Task<IReadOnlyList<Project>> ListByIdsAsync(IEnumerable<ProjectId> ids, CancellationToken ct = default)
     {
-        var idSet = ids.Select(id => new ProjectId(id)).ToHashSet();
+        var idSet = ids.ToHashSet();
         return await _context.Projects
             .AsNoTracking()
             .Where(p => idSet.Contains(p.Id) && p.IsActive)
@@ -49,7 +48,7 @@ public sealed class ProjectRepository(AppDbContext context) : IProjectRepository
     }
 
     public async Task<(IReadOnlyList<Project> Items, int TotalCount)> ListPagedByUserAsync(
-        Guid userId,
+        UserId userId,
         bool isSuperAdmin,
         string? searchTerm,
         int page,
@@ -60,9 +59,8 @@ public sealed class ProjectRepository(AppDbContext context) : IProjectRepository
 
         if (!isSuperAdmin)
         {
-            var uId = new UserId(userId);
             var userProjectIds = _context.UserProjectRoles
-                .Where(r => r.UserId == uId)
+                .Where(r => r.UserId == userId)
                 .Select(r => r.ProjectId);
 
             query = query.Where(p => userProjectIds.Contains(p.Id));

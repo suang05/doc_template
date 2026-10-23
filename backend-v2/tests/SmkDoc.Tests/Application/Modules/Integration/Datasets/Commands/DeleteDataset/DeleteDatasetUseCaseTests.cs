@@ -1,6 +1,7 @@
 using SmkDoc.Application.Modules.Integration.Datasets.Commands.DeleteDataset;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common.Builders;
 
 namespace SmkDoc.Tests.Application.Modules.Integration.Datasets.Commands.DeleteDataset;
@@ -32,7 +33,7 @@ public sealed class DeleteDatasetUseCaseTests
         _datasetRepo.GetByIdAsync(entity.Id, Arg.Any<CancellationToken>())
             .Returns(entity);
 
-        var command = new DeleteDatasetCommand(entity.Id);
+        var command = new DeleteDatasetCommand(entity.Id.Value);
 
         // Act
         var result = await CreateSut().ExecuteAsync(command);
@@ -48,7 +49,7 @@ public sealed class DeleteDatasetUseCaseTests
     {
         // Arrange
         var id = Guid.NewGuid();
-        _datasetRepo.GetByIdAsync(id, Arg.Any<CancellationToken>())
+        _datasetRepo.GetByIdAsync(new DatasetId(id), Arg.Any<CancellationToken>())
             .Returns((Dataset?)null);
 
         var command = new DeleteDatasetCommand(id);

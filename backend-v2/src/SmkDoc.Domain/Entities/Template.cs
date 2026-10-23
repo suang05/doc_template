@@ -73,7 +73,7 @@ public sealed class Template : BaseEntity<TemplateId>, IMustHaveProject
     {
         if (_versions.Any(v => v.Version == versionNumber))
         {
-            throw new DuplicateVersionException(Id, versionNumber);
+            throw new DuplicateVersionException(Id.Value, versionNumber);
         }
 
         var version = TemplateVersion.Draft(Id, versionNumber, storageKey, fileFormat, createdBy, now, commitMessage);
@@ -99,7 +99,7 @@ public sealed class Template : BaseEntity<TemplateId>, IMustHaveProject
 
         if (_versions.Any(v => v.Version == version.Version))
         {
-            throw new DuplicateVersionException(Id, version.Version);
+            throw new DuplicateVersionException(Id.Value, version.Version);
         }
 
         _versions.Add(version);
@@ -119,7 +119,7 @@ public sealed class Template : BaseEntity<TemplateId>, IMustHaveProject
 
         if (_versions.Count > 0 && !_versions.Any(v => v.Id == versionId))
         {
-            throw new VersionNotInTemplateException(Id, versionId);
+            throw new VersionNotInTemplateException(Id.Value, versionId);
         }
 
         CurrentVersionId = versionId;
@@ -137,7 +137,7 @@ public sealed class Template : BaseEntity<TemplateId>, IMustHaveProject
 
         if (_fieldMappings.Any(m => string.Equals(m.Placeholder, mapping.Placeholder, StringComparison.OrdinalIgnoreCase)))
         {
-            throw new DuplicatePlaceholderException(Id, mapping.Placeholder);
+            throw new DuplicatePlaceholderException(Id.Value, mapping.Placeholder);
         }
 
         _fieldMappings.Add(mapping);
@@ -167,7 +167,7 @@ public sealed class Template : BaseEntity<TemplateId>, IMustHaveProject
 
         if (duplicates.Count > 0)
         {
-            throw new DuplicatePlaceholderException(Id, string.Join(", ", duplicates));
+            throw new DuplicatePlaceholderException(Id.Value, string.Join(", ", duplicates));
         }
 
         _fieldMappings.Clear();
@@ -182,7 +182,7 @@ public sealed class Template : BaseEntity<TemplateId>, IMustHaveProject
 
         if (_templateDatasets.Any(d => d.Alias == alias))
         {
-            throw new DuplicateDatasetAliasException(Id, alias.Value);
+            throw new DuplicateDatasetAliasException(Id.Value, alias.Value);
         }
 
         _templateDatasets.Add(TemplateDataset.Create((TemplateId)Id, datasetId, alias, sortOrder, now));
@@ -222,7 +222,7 @@ public sealed class Template : BaseEntity<TemplateId>, IMustHaveProject
 
         if (duplicateAliases.Count > 0)
         {
-            throw new DuplicateDatasetAliasException(Id, string.Join(", ", duplicateAliases));
+            throw new DuplicateDatasetAliasException(Id.Value, string.Join(", ", duplicateAliases));
         }
 
         _templateDatasets.Clear();

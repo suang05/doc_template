@@ -9,16 +9,15 @@ public sealed class DataConnectionRepository(AppDbContext context) : IDataConnec
 {
     private readonly AppDbContext _context = context;
 
-    public async Task<DataConnection?> GetByIdAsync(Guid id, CancellationToken ct = default)
+    public async Task<DataConnection?> GetByIdAsync(DataConnectionId id, CancellationToken ct = default)
     {
-        var connectionId = new DataConnectionId(id);
         return await _context.DataConnections
-            .FirstOrDefaultAsync(c => c.Id == connectionId, ct);
+            .FirstOrDefaultAsync(c => c.Id == id, ct);
     }
 
-    public async Task<IReadOnlyList<DataConnection>> GetByIdsAsync(IEnumerable<Guid> ids, CancellationToken ct = default)
+    public async Task<IReadOnlyList<DataConnection>> GetByIdsAsync(IEnumerable<DataConnectionId> ids, CancellationToken ct = default)
     {
-        var idSet = ids.Select(id => new DataConnectionId(id)).ToHashSet();
+        var idSet = ids.ToHashSet();
         return await _context.DataConnections
             .Where(c => idSet.Contains(c.Id))
             .ToListAsync(ct);

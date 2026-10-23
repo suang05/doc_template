@@ -1,9 +1,10 @@
-﻿using SmkDoc.Application.Modules.Authoring.FieldMappings.Commands.SaveTemplateDatasets;
+using SmkDoc.Application.Modules.Authoring.FieldMappings.Commands.SaveTemplateDatasets;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common;
 using SmkDoc.Tests.Common.Builders;
 
@@ -29,9 +30,9 @@ public sealed class SaveTemplateDatasetsUseCaseTests
             .WithName("Receipt")
             .WithSlug("receipt")
             .Build();
-        template.AttachDataset(Guid.NewGuid(), DatasetAlias.Create("old_alias"), 1, TestConstants.BaselineTime);
+        template.AttachDataset(DatasetId.New(), DatasetAlias.Create("old_alias"), 1, TestConstants.BaselineTime);
 
-        _templateRepo.GetByIdWithDetailsAsync(templateId, Arg.Any<CancellationToken>())
+        _templateRepo.GetByIdWithDetailsAsync(new TemplateId(templateId), Arg.Any<CancellationToken>())
             .Returns(template);
 
         _unitOfWork.CommitAsync(Arg.Any<CancellationToken>())
@@ -51,7 +52,7 @@ public sealed class SaveTemplateDatasetsUseCaseTests
         // Assert
         template.TemplateDatasets.Should().HaveCount(1);
         template.TemplateDatasets.First().Alias.Value.Should().Be("payments");
-        template.TemplateDatasets.First().DatasetId.Should().Be(dsId);
+        template.TemplateDatasets.First().DatasetId.Value.Should().Be(dsId);
         await _unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
     }
 
@@ -60,9 +61,9 @@ public sealed class SaveTemplateDatasetsUseCaseTests
     {
         // Arrange
         var templateId = Guid.NewGuid();
-        _templateRepo.GetByIdWithDetailsAsync(templateId, Arg.Any<CancellationToken>())
+        _templateRepo.GetByIdWithDetailsAsync(new TemplateId(templateId), Arg.Any<CancellationToken>())
             .Returns((Template?)null);
-        _templateRepo.GetByIdAsync(templateId, Arg.Any<CancellationToken>())
+        _templateRepo.GetByIdAsync(new TemplateId(templateId), Arg.Any<CancellationToken>())
             .Returns((Template?)null);
 
         var command = new SaveTemplateDatasetsCommand(templateId, []);
@@ -87,7 +88,7 @@ public sealed class SaveTemplateDatasetsUseCaseTests
             .WithSlug("contract")
             .Build();
 
-        _templateRepo.GetByIdWithDetailsAsync(templateId, Arg.Any<CancellationToken>())
+        _templateRepo.GetByIdWithDetailsAsync(new TemplateId(templateId), Arg.Any<CancellationToken>())
             .Returns(template);
 
         var items = new List<SaveTemplateDatasetItemDto>

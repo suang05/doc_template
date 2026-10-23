@@ -1,14 +1,15 @@
-﻿using FluentAssertions;
+using FluentAssertions;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Domain.ValueObjects.Ids;
 using Xunit;
 
 namespace SmkDoc.Tests.Domain.Entities;
 
 public sealed class FieldMappingTests
 {
-    private readonly Guid _templateId = Guid.NewGuid();
+    private readonly TemplateId _templateId = TemplateId.New();
     private readonly DateTimeOffset _initialTime = TestConstants.BaselineTime;
 
     [Fact]

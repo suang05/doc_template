@@ -5,6 +5,7 @@ using SmkDoc.Application.Modules.IdentityAccess.Security.Helpers;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common.Builders;
 
 namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Security.Commands.CreateApiKey;
@@ -38,7 +39,7 @@ public sealed class CreateApiKeyUseCaseTests
             .WithName("Sales Project")
             .WithSlug("sales-proj");
 
-        _projectRepo.GetByIdAsync(projectId, Arg.Any<CancellationToken>())
+        _projectRepo.GetByIdAsync(new ProjectId(projectId), Arg.Any<CancellationToken>())
             .Returns(project);
 
         var command = new CreateApiKeyCommand("Sales App", "sales", projectId);

@@ -1,5 +1,6 @@
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Modules.Integration.DataConnections.Commands.DeleteDataConnection;
 
@@ -11,7 +12,7 @@ public sealed class DeleteDataConnectionUseCase(
 {
     public async Task<bool> ExecuteAsync(DeleteDataConnectionCommand command, CancellationToken ct = default)
     {
-        var entity = await repository.GetByIdAsync(command.Id, ct);
+        var entity = await repository.GetByIdAsync(new DataConnectionId(command.Id), ct);
         if (entity == null) return false;
 
         repository.Remove(entity);

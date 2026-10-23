@@ -7,6 +7,7 @@ using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Modules.Authoring.FieldMappings.Queries.PreviewMapping;
 
@@ -57,8 +58,9 @@ public class PreviewMappingUseCase(
     private async Task<(TemplateVersion Version, string DataJson, IRenderEngine Engine)> PrepareRenderAsync(
         Guid templateId, JsonElement sampleData, CancellationToken ct)
     {
-        var template = await _templateRepo.GetByIdWithDetailsAsync(templateId, ct)
-            ?? await _templateRepo.GetByIdAsync(templateId, ct)
+        var tId = new TemplateId(templateId);
+        var template = await _templateRepo.GetByIdWithDetailsAsync(tId, ct)
+            ?? await _templateRepo.GetByIdAsync(tId, ct)
             ?? throw new NotFoundException($"Template '{templateId}' not found.");
 
         var mappings = template.FieldMappings.ToList();

@@ -42,7 +42,7 @@ public class CompanyBuilder
     public Company Build()
     {
         var company = new Company(
-            _id,
+            new SmkDoc.Domain.ValueObjects.Ids.CompanyId(_id),
             CompanyName.Create(_name),
             _now);
 

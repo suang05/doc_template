@@ -3,6 +3,7 @@ using SmkDoc.Application.Modules.Integration.Datasets.DTOs;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common.Builders;
 
 namespace SmkDoc.Tests.Application.Modules.Integration.Datasets.Commands.UpdateDataset;
@@ -38,10 +39,10 @@ public sealed class UpdateDatasetUseCaseTests
             .WithSqlQuery("SELECT 1")
             .WithCacheSeconds(0);
 
-        _datasetRepo.GetByIdAsync(id, Arg.Any<CancellationToken>())
+        _datasetRepo.GetByIdAsync(new DatasetId(id), Arg.Any<CancellationToken>())
             .Returns(dataset);
 
-        _connectionRepo.GetByIdAsync(connId, Arg.Any<CancellationToken>())
+        _connectionRepo.GetByIdAsync(new DataConnectionId(connId), Arg.Any<CancellationToken>())
             .Returns(conn);
 
         var command = new UpdateDatasetCommand(id, "NewName", "new desc", connId, "SELECT 2", 60);
@@ -63,7 +64,7 @@ public sealed class UpdateDatasetUseCaseTests
     {
         // Arrange
         var id = Guid.NewGuid();
-        _datasetRepo.GetByIdAsync(id, Arg.Any<CancellationToken>())
+        _datasetRepo.GetByIdAsync(new DatasetId(id), Arg.Any<CancellationToken>())
             .Returns((Dataset?)null);
 
         var command = new UpdateDatasetCommand(id, "Name", null, Guid.NewGuid(), "SELECT 1");
@@ -89,10 +90,10 @@ public sealed class UpdateDatasetUseCaseTests
             .WithSqlQuery("SELECT 1")
             .WithCacheSeconds(0);
 
-        _datasetRepo.GetByIdAsync(id, Arg.Any<CancellationToken>())
+        _datasetRepo.GetByIdAsync(new DatasetId(id), Arg.Any<CancellationToken>())
             .Returns(dataset);
 
-        _connectionRepo.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+        _connectionRepo.GetByIdAsync(Arg.Any<DataConnectionId>(), Arg.Any<CancellationToken>())
             .Returns((DataConnection?)null);
 
         var command = new UpdateDatasetCommand(id, "Name", null, Guid.NewGuid(), "SELECT 1");

@@ -1,5 +1,6 @@
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
+using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Tests.Common.Builders;
 
@@ -14,12 +15,23 @@ public class UserProjectRoleBuilder
 
     public static UserProjectRole Default() => ARole().Build();
 
+    public UserProjectRoleBuilder ForUser(UserId userId)
+    {
+        _userId = userId.Value;
+        return this;
+    }
+
     public UserProjectRoleBuilder ForUser(Guid userId)
     {
         _userId = userId;
         return this;
     }
 
+    public UserProjectRoleBuilder InProject(ProjectId projectId)
+    {
+        _projectId = projectId.Value;
+        return this;
+    }
 
     public UserProjectRoleBuilder InProject(Guid projectId)
     {
@@ -60,7 +72,11 @@ public class UserProjectRoleBuilder
 
     public UserProjectRole Build()
     {
-        return UserProjectRole.Create(_userId, _projectId, _role, _now);
+        return UserProjectRole.Create(
+            new SmkDoc.Domain.ValueObjects.Ids.UserId(_userId),
+            new SmkDoc.Domain.ValueObjects.Ids.ProjectId(_projectId),
+            _role,
+            _now);
     }
 
     public static implicit operator UserProjectRole(UserProjectRoleBuilder builder) => builder.Build();

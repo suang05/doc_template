@@ -2,6 +2,7 @@ using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Modules.Authoring.Templates.Queries.GetTemplateById;
 
@@ -15,12 +16,12 @@ public sealed class GetTemplateByIdUseCase(ITemplateRepository templateRepo) : I
 
     public async Task<TemplateResultDto> ExecuteAsync(GetTemplateByIdQuery query, CancellationToken ct = default)
     {
-        var template = await _templateRepo.GetByIdAsync(query.Id, ct)
+        var template = await _templateRepo.GetByIdAsync(new TemplateId(query.Id), ct)
             ?? throw new NotFoundException($"Template '{query.Id}' was not found.");
 
         return new TemplateResultDto(
-            template.Id,
-            template.ProjectId,
+            template.Id.Value,
+            template.ProjectId.Value,
             template.Name,
             template.Slug,
             template.Category,

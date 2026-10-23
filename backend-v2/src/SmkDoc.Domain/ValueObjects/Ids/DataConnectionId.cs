@@ -15,8 +15,8 @@ public readonly record struct DataConnectionId(Guid Value) : IComparable<DataCon
 
     public override string ToString() => Value.ToString();
 
-    public static implicit operator Guid(DataConnectionId id) => id.Value;
-    public static implicit operator DataConnectionId(Guid value) => new(value);
+    public static explicit operator Guid(DataConnectionId id) => id.Value;
+    public static explicit operator DataConnectionId(Guid value) => new(value);
 
     public static bool operator ==(DataConnectionId left, Guid right) => left.Value == right;
     public static bool operator !=(DataConnectionId left, Guid right) => left.Value != right;

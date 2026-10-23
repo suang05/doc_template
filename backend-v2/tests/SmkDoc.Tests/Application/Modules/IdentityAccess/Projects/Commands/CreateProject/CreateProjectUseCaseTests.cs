@@ -88,7 +88,7 @@ public sealed class CreateProjectUseCaseTests
 
         capturedProject.Should().NotBeNull();
         capturedRole.Should().NotBeNull();
-        capturedRole!.UserId.Should().Be(userId);
+        capturedRole!.UserId.Value.Should().Be(userId);
         capturedRole.Role.Should().Be(RoleType.Admin);
 
         await _unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());

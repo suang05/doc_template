@@ -3,6 +3,7 @@ using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common.Builders;
 
 namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Security.Commands.RevokeApiKey;
@@ -38,7 +39,7 @@ public sealed class RevokeApiKeyUseCaseTests
         var projectA = Guid.NewGuid();
         var keyId = Guid.NewGuid();
 
-        _apiKeyRepo.GetByIdAsync(keyId, projectA, Arg.Any<CancellationToken>())
+        _apiKeyRepo.GetByIdAsync(new ApiKeyId(keyId), new ProjectId(projectA), Arg.Any<CancellationToken>())
             .Returns((ApiKey?)null);
 
         // Act
@@ -63,11 +64,11 @@ public sealed class RevokeApiKeyUseCaseTests
             .WithExpiration(ExpirationPolicy.Never)
             .WithTime(TestConstants.BaselineTime);
 
-        _apiKeyRepo.GetByIdAsync(key.Id, projectId, Arg.Any<CancellationToken>())
+        _apiKeyRepo.GetByIdAsync(key.Id, new ProjectId(projectId), Arg.Any<CancellationToken>())
             .Returns(key);
 
         // Act
-        await CreateSut().ExecuteAsync(new RevokeApiKeyCommand(key.Id, projectId));
+        await CreateSut().ExecuteAsync(new RevokeApiKeyCommand(key.Id.Value, projectId));
 
         // Assert
         key.IsActive.Should().BeFalse();

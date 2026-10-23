@@ -1,5 +1,6 @@
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Tests.Common.Builders;
 
@@ -99,8 +100,8 @@ public class TemplateBuilder
     public Template Build()
     {
         var template = new Template(
-            _id,
-            _projectId,
+            new TemplateId(_id),
+            new ProjectId(_projectId),
             TemplateName.Create(_name),
             TemplateSlug.Create(_slug),
             _category,

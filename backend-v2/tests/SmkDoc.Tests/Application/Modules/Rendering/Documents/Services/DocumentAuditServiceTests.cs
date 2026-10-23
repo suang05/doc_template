@@ -1,4 +1,4 @@
-﻿using SmkDoc.Application.Common.Interfaces;
+using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Rendering.Documents.Services;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
@@ -20,6 +20,7 @@ public sealed class DocumentAuditServiceTests
     {
         // Arrange
         _context.CallerApp.Returns("crm-app");
+        _context.ProjectId.Returns(Guid.NewGuid());
 
         // Act
         await CreateSut().LogValidationFailureAsync(
@@ -37,6 +38,7 @@ public sealed class DocumentAuditServiceTests
     {
         // Arrange
         _context.CallerApp.Returns("pos-app");
+        _context.ProjectId.Returns(Guid.NewGuid());
         var genId = Guid.NewGuid();
 
         // Act

@@ -5,6 +5,7 @@ using SmkDoc.Application.Modules.IdentityAccess.Users.Commands.RemoveUser;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common.Builders;
 using ValidationException = SmkDoc.Application.Common.Exceptions.ValidationException;
 
@@ -34,7 +35,7 @@ public sealed class RemoveUserUseCaseTests
 
         // Assert
         await act.Should().ThrowAsync<ValidationException>();
-        await _roleRepo.DidNotReceive().GetAsync(Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+        await _roleRepo.DidNotReceive().GetAsync(Arg.Any<ProjectId>(), Arg.Any<UserId>(), Arg.Any<CancellationToken>());
         await _uow.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
     }
 
@@ -55,7 +56,7 @@ public sealed class RemoveUserUseCaseTests
 
         _validator.ValidateAsync(command, Arg.Any<CancellationToken>())
             .Returns(new ValidationResult());
-        _roleRepo.GetAsync(projectId, userId, Arg.Any<CancellationToken>())
+        _roleRepo.GetAsync(new ProjectId(projectId), new UserId(userId), Arg.Any<CancellationToken>())
             .Returns(roleEntry);
 
         // Act
@@ -83,9 +84,9 @@ public sealed class RemoveUserUseCaseTests
 
         _validator.ValidateAsync(command, Arg.Any<CancellationToken>())
             .Returns(new ValidationResult());
-        _roleRepo.GetAsync(projectId, userId, Arg.Any<CancellationToken>())
+        _roleRepo.GetAsync(new ProjectId(projectId), new UserId(userId), Arg.Any<CancellationToken>())
             .Returns(roleEntry);
-        _roleRepo.CountAdminsAsync(projectId, Arg.Any<CancellationToken>())
+        _roleRepo.CountAdminsAsync(new ProjectId(projectId), Arg.Any<CancellationToken>())
             .Returns(1);
 
         // Act
@@ -108,7 +109,7 @@ public sealed class RemoveUserUseCaseTests
 
         _validator.ValidateAsync(command, Arg.Any<CancellationToken>())
             .Returns(new ValidationResult());
-        _roleRepo.GetAsync(projectId, userId, Arg.Any<CancellationToken>())
+        _roleRepo.GetAsync(new ProjectId(projectId), new UserId(userId), Arg.Any<CancellationToken>())
             .Returns((UserProjectRole?)null);
 
         // Act

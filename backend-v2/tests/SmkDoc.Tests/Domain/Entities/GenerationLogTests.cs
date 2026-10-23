@@ -1,4 +1,4 @@
-﻿using FluentAssertions;
+using FluentAssertions;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
@@ -11,6 +11,7 @@ namespace SmkDoc.Tests.Domain.Entities;
 public sealed class GenerationLogTests
 {
     private static readonly DateTimeOffset Now = TestConstants.BaselineTime;
+    private static readonly ProjectId TestProjectId = ProjectId.New();
 
     private static Action CreateLog(
         string? callerApp = null,
@@ -18,8 +19,9 @@ public sealed class GenerationLogTests
         string? outputKey = null,
         long? fileSizeBytes = null,
         int? pageCount = null,
-        int durationMs = 10) =>
-        () => GenerationLog.Create(null, null, null, callerApp, triggerSource, null, outputKey, null, fileSizeBytes, pageCount, null, durationMs, GenerationStatus.Success, null, Now);
+        int durationMs = 10,
+        ProjectId? projectId = null) =>
+        () => GenerationLog.Create(null, null, null, callerApp, triggerSource, null, outputKey, null, fileSizeBytes, pageCount, null, durationMs, GenerationStatus.Success, null, Now, projectId ?? TestProjectId);
 
     [Fact]
     public void CreateSuccess_WithValidParameters_InitializesCorrectly()
@@ -41,9 +43,11 @@ public sealed class GenerationLogTests
             OutputFormat.Pdf,
             20480,
             120,
-            Now);
+            Now,
+            TestProjectId);
 
         log.Id.Should().Be(generationId);
+        log.ProjectId.Should().Be(TestProjectId);
         log.TemplateId.Should().Be(templateId);
         log.TemplateVersionId.Should().Be(templateVersionId);
         log.ApiKeyId.Should().Be(apiKeyId);
@@ -76,8 +80,10 @@ public sealed class GenerationLogTests
             OutputFormat.Pdf,
             15,
             "Payload missing required field 'contractId'",
-            Now);
+            Now,
+            TestProjectId);
 
+        log.ProjectId.Should().Be(TestProjectId);
         log.Status.Should().Be(GenerationStatus.ValidationFailed);
         log.ErrorMsg.Should().Be("Payload missing required field 'contractId'");
         log.FileSizeBytes.Should().Be(0);
@@ -100,10 +106,20 @@ public sealed class GenerationLogTests
             OutputFormat.Pdf,
             3000,
             "Gotenberg service timeout",
-            Now);
+            Now,
+            TestProjectId);
 
+        log.ProjectId.Should().Be(TestProjectId);
         log.Status.Should().Be(GenerationStatus.Failed);
         log.ErrorMsg.Should().Be("Gotenberg service timeout");
+    }
+
+    [Fact]
+    public void Create_WithEmptyProjectId_ThrowsDomainValidationException()
+    {
+        var act = () => GenerationLog.Create(null, null, null, "app", "api", null, null, null, null, null, null, 10, GenerationStatus.Success, null, Now, ProjectId.Empty);
+        act.Should().Throw<DomainValidationException>()
+            .WithMessage("*ProjectId cannot be empty*");
     }
 
     [Theory]
@@ -138,7 +154,7 @@ public sealed class GenerationLogTests
     [Fact]
     public void Create_WithSmartEnumStatus_InitializesSuccessfully()
     {
-        var log = GenerationLog.Create(null, null, null, null, "api", null, null, null, null, null, null, 10, GenerationStatus.Timeout, null, Now);
+        var log = GenerationLog.Create(null, null, null, null, "api", null, null, null, null, null, null, 10, GenerationStatus.Timeout, null, Now, TestProjectId);
 
         log.Status.Should().Be(GenerationStatus.Timeout);
     }

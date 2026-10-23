@@ -31,12 +31,12 @@ public sealed class CommitTemplateDraftUseCaseTests
         _unitOfWork.CommitAsync(Arg.Any<CancellationToken>()).Returns(1);
 
         Project sampleProject = Project.Create(
-            Guid.NewGuid(),
+            CompanyId.New(),
             ProjectName.Create("Default Project"),
             TemplateSlug.Create("default-proj"),
             _timeProvider.GetUtcNow());
 
-        _projectRepo.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+        _projectRepo.GetByIdAsync(Arg.Any<ProjectId>(), Arg.Any<CancellationToken>())
             .Returns(sampleProject);
     }
 

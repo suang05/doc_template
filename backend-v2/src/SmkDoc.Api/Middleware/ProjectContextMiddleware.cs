@@ -93,8 +93,8 @@ public class ProjectContextMiddleware(
                 else
                 {
                     var roleMapping = await userProjectRoleRepo.GetAsync(
-                        targetProjectId.Value,
-                        userIdGuid,
+                        targetProjectId,
+                        new UserId(userIdGuid),
                         context.RequestAborted);
 
                     if (roleMapping == null)

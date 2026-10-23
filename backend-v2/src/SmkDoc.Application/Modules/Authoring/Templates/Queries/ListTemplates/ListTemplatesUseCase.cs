@@ -31,8 +31,8 @@ public sealed class ListTemplatesUseCase(
 
         return templates
             .Select(t => new TemplateResultDto(
-                t.Id,
-                t.ProjectId,
+                t.Id.Value,
+                t.ProjectId.Value,
                 t.Name,
                 t.Slug,
                 t.Category,

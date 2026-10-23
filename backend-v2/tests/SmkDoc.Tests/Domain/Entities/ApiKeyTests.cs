@@ -1,7 +1,8 @@
-﻿using FluentAssertions;
+using FluentAssertions;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common;
 using Xunit;
 
@@ -15,7 +16,7 @@ public sealed class ApiKeyTests
     [Fact]
     public void Issue_WithValidParameters_CreatesActiveUsableKey()
     {
-        var projectId = Guid.NewGuid();
+        var projectId = ProjectId.New();
         var name = ApiKeyName.Create("Backend Worker");
         var expiresAt = FixedNow.AddDays(30);
         var expiration = ExpirationPolicy.Until(expiresAt, FixedNow);
@@ -40,7 +41,7 @@ public sealed class ApiKeyTests
     [Fact]
     public void Issue_WithReadOnlyScope_SetsScopeCorrectly()
     {
-        var projectId = Guid.NewGuid();
+        var projectId = ProjectId.New();
         var name = ApiKeyName.Create("Reader Worker");
         var key = ApiKey.Issue(projectId, name, "reader-service", ValidHash, ExpirationPolicy.Never, FixedNow, ApiKeyScope.ReadOnly);
 
@@ -50,7 +51,7 @@ public sealed class ApiKeyTests
     [Fact]
     public void Issue_WithEmptyProjectId_ThrowsDomainValidationException()
     {
-        var act = () => ApiKey.Issue(Guid.Empty, ApiKeyName.Create("Key"), "app", ValidHash, ExpirationPolicy.Never, FixedNow);
+        var act = () => ApiKey.Issue(ProjectId.Empty, ApiKeyName.Create("Key"), "app", ValidHash, ExpirationPolicy.Never, FixedNow);
 
         act.Should().Throw<DomainValidationException>()
             .WithMessage("*ProjectId cannot be empty*");
@@ -59,7 +60,7 @@ public sealed class ApiKeyTests
     [Fact]
     public void RecordUsage_WhenUsable_UpdatesLastUsedAt()
     {
-        var key = ApiKey.Issue(Guid.NewGuid(), ApiKeyName.Create("Key"), "app", ValidHash, ExpirationPolicy.Never, FixedNow);
+        var key = ApiKey.Issue(ProjectId.New(), ApiKeyName.Create("Key"), "app", ValidHash, ExpirationPolicy.Never, FixedNow);
         var usageTime = FixedNow.AddHours(2);
 
         key.RecordUsage(usageTime);
@@ -71,7 +72,7 @@ public sealed class ApiKeyTests
     [Fact]
     public void RecordUsage_WhenRevoked_ThrowsApiKeyRevokedException()
     {
-        var key = ApiKey.Issue(Guid.NewGuid(), ApiKeyName.Create("Key"), "app", ValidHash, ExpirationPolicy.Never, FixedNow);
+        var key = ApiKey.Issue(ProjectId.New(), ApiKeyName.Create("Key"), "app", ValidHash, ExpirationPolicy.Never, FixedNow);
         key.Revoke(FixedNow.AddMinutes(5));
 
         var act = () => key.RecordUsage(FixedNow.AddMinutes(10));
@@ -85,7 +86,7 @@ public sealed class ApiKeyTests
     {
         var expiresAt = FixedNow.AddHours(1);
         var expiration = ExpirationPolicy.Until(expiresAt, FixedNow);
-        var key = ApiKey.Issue(Guid.NewGuid(), ApiKeyName.Create("Key"), "app", ValidHash, expiration, FixedNow);
+        var key = ApiKey.Issue(ProjectId.New(), ApiKeyName.Create("Key"), "app", ValidHash, expiration, FixedNow);
 
         var act = () => key.RecordUsage(expiresAt.AddSeconds(1));
 
@@ -96,7 +97,7 @@ public sealed class ApiKeyTests
     [Fact]
     public void Rename_WhenActive_UpdatesName()
     {
-        var key = ApiKey.Issue(Guid.NewGuid(), ApiKeyName.Create("Old Name"), "app", ValidHash, ExpirationPolicy.Never, FixedNow);
+        var key = ApiKey.Issue(ProjectId.New(), ApiKeyName.Create("Old Name"), "app", ValidHash, ExpirationPolicy.Never, FixedNow);
         var newName = ApiKeyName.Create("New Name");
 
         key.Rename(newName, FixedNow.AddMinutes(1));
@@ -108,7 +109,7 @@ public sealed class ApiKeyTests
     [Fact]
     public void Rename_WhenRevoked_ThrowsApiKeyRevokedException()
     {
-        var key = ApiKey.Issue(Guid.NewGuid(), ApiKeyName.Create("Name"), "app", ValidHash, ExpirationPolicy.Never, FixedNow);
+        var key = ApiKey.Issue(ProjectId.New(), ApiKeyName.Create("Name"), "app", ValidHash, ExpirationPolicy.Never, FixedNow);
         key.Revoke(FixedNow);
 
         var act = () => key.Rename(ApiKeyName.Create("Another Name"), FixedNow.AddMinutes(1));
@@ -119,7 +120,7 @@ public sealed class ApiKeyTests
     [Fact]
     public void Revoke_IsIdempotent()
     {
-        var key = ApiKey.Issue(Guid.NewGuid(), ApiKeyName.Create("Key"), "app", ValidHash, ExpirationPolicy.Never, FixedNow);
+        var key = ApiKey.Issue(ProjectId.New(), ApiKeyName.Create("Key"), "app", ValidHash, ExpirationPolicy.Never, FixedNow);
         var firstRevoke = FixedNow.AddMinutes(10);
         key.Revoke(firstRevoke);
 

@@ -15,8 +15,8 @@ public readonly record struct CompanyId(Guid Value) : IComparable<CompanyId>
 
     public override string ToString() => Value.ToString();
 
-    public static implicit operator Guid(CompanyId id) => id.Value;
-    public static implicit operator CompanyId(Guid value) => new(value);
+    public static explicit operator Guid(CompanyId id) => id.Value;
+    public static explicit operator CompanyId(Guid value) => new(value);
 
     public static bool operator ==(CompanyId left, Guid right) => left.Value == right;
     public static bool operator !=(CompanyId left, Guid right) => left.Value != right;

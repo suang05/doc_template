@@ -21,28 +21,27 @@ UpstreamKernel: AGENTS.md
 | **Time Queries** | Direct `DateTime.UtcNow` calls inside domain entities | Time injected as explicit parameter: `DateTimeOffset now` |
 | **Child Collections** | Exposing `List<T>`: `public List<Item> Items { get; }` | `private readonly List<T> _items = []; public IReadOnlyCollection<T> Items => _items.AsReadOnly();` |
 | **Primitives vs VOs** | Raw `Guid` or `string` for identity and domain concepts | Strongly-typed IDs (`TemplateId`) and validated Value Objects (`TemplateName`) |
+| **Identity Conversion** | Implicit Guid operators allowing silent ID type cross-contamination | Explicit operators (`explicit operator Guid`, `explicit operator TId`) for strict compile-time safety |
+| **Tenant Partitioning** | Default optional or unguarded ProjectId: `ProjectId projectId = default` | Mandatory fail-fast assertion: `ProjectId = Guard.NotEmpty(projectId, nameof(ProjectId));` |
 
 ---
 
 ## 2. Level 2: Core Domain SSoT Catalogs & AST Signatures
 
-### All 12 Strongly-Typed IDs
-All strongly-typed IDs are defined under `SmkDoc.Domain.ValueObjects.Ids`:
-| ID Struct Name | Underlying Type | Associated Entity | Bounded Context |
+### Aggregate Root Strongly-Typed IDs
+All Aggregate Root strongly-typed IDs are defined as `readonly record struct` under `SmkDoc.Domain.ValueObjects.Ids`:
+| ID Struct Name | Underlying Type | Associated Aggregate Root | Bounded Context |
 |---|---|---|---|
 | `TemplateId` | `Guid` (UUIDv7) | `Template` | Authoring |
-| `TemplateVersionId` | `Guid` (UUIDv7) | `TemplateVersion` | Authoring |
-| `FieldMappingId` | `Guid` (UUIDv7) | `FieldMapping` | Authoring |
-| `FontId` | `Guid` (UUIDv7) | `Font` | Authoring |
 | `DocumentId` | `Guid` (UUIDv7) | `Document` | Rendering |
-| `DocumentVersionId` | `Guid` (UUIDv7) | `DocumentVersion` | Rendering |
-| `GenerationLogId` | `Guid` (UUIDv7) | `GenerationLog` | Rendering |
 | `DataConnectionId` | `Guid` (UUIDv7) | `DataConnection` | Integration |
 | `DatasetId` | `Guid` (UUIDv7) | `Dataset` | Integration |
 | `ProjectId` | `Guid` (UUIDv7) | `Project` | IdentityAccess |
 | `CompanyId` | `Guid` (UUIDv7) | `Company` | IdentityAccess |
 | `UserId` | `Guid` (UUIDv7) | `User` | IdentityAccess |
 | `ApiKeyId` | `Guid` (UUIDv7) | `ApiKey` | IdentityAccess |
+
+*Note: Child entities (`TemplateVersion`, `DocumentVersion`, `FieldMapping`, `Font`) and audit entities (`GenerationLog`) utilize standard `Guid` identities scoped strictly under their parent Aggregate Root ID, avoiding artificial abstraction overhead.*
 
 ### All 9 Smart Enums
 All Smart Enums inherit `Enumeration` under `SmkDoc.Domain.Enums`:
@@ -299,3 +298,16 @@ var template = new Template();
 // >> CANONICAL: Canonical factory method enforcing initial invariants
 var template = Template.Create(projectId, name, slug, category, now);
 ```
+
+### [TRAP-DOM-006]: Implicit ID Conversion Leak
+```csharp
+// ! BANNED: Implicit operator allows accidental assignment between different ID types or primitive Guids
+public static implicit operator Guid(TemplateId id) => id.Value;
+public static implicit operator TemplateId(Guid value) => new(value);
+// Inadvertent cross-domain pollution: TemplateId assigned to ProjectId or DocumentId without compiler error
+
+// >> CANONICAL: Explicit operators prevent silent cross-domain ID pollution and force deliberate casting
+public static explicit operator Guid(TemplateId id) => id.Value;
+public static explicit operator TemplateId(Guid value) => new(value);
+```
+

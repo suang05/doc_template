@@ -3,6 +3,7 @@ using SmkDoc.Application.Modules.Authoring.Templates.Queries.GetTemplateById;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common.Builders;
 
 namespace SmkDoc.Tests.Application.Modules.Authoring.Templates.Queries.GetTemplateById;
@@ -18,7 +19,7 @@ public sealed class GetTemplateByIdUseCaseTests
     {
         // Arrange
         var templateId = Guid.NewGuid();
-        _templateRepo.GetByIdAsync(templateId, Arg.Any<CancellationToken>())
+        _templateRepo.GetByIdAsync(new TemplateId(templateId), Arg.Any<CancellationToken>())
             .Returns((Template?)null);
 
         // Act
@@ -38,7 +39,7 @@ public sealed class GetTemplateByIdUseCaseTests
             .WithName("Statement")
             .WithSlug("statement");
 
-        _templateRepo.GetByIdAsync(templateId, Arg.Any<CancellationToken>())
+        _templateRepo.GetByIdAsync(new TemplateId(templateId), Arg.Any<CancellationToken>())
             .Returns(template);
 
         // Act

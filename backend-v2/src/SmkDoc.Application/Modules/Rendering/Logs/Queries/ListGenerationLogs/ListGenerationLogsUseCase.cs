@@ -24,9 +24,9 @@ public sealed class ListGenerationLogsUseCase(IRepository<GenerationLog> repo)
 
         var dtos = logs.Select(l => new GenerationLogDto(
             l.Id,
-            l.TemplateId,
+            l.TemplateId?.Value,
             l.TemplateVersionId,
-            l.ApiKeyId,
+            l.ApiKeyId?.Value,
             l.CallerApp,
             l.TriggerSource,
             l.OutputFormat?.Extension,

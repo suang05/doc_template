@@ -1,7 +1,8 @@
-﻿using FluentAssertions;
+using FluentAssertions;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common;
 using SmkDoc.Tests.Common.Builders;
 using Xunit;
@@ -11,14 +12,14 @@ namespace SmkDoc.Tests.Domain.Entities;
 public sealed class ProjectTests
 {
     private readonly DateTimeOffset _initialTime = TestConstants.BaselineTime;
-    private readonly Guid _companyId = Guid.NewGuid();
+    private readonly CompanyId _companyId = CompanyId.New();
 
     [Fact]
     public void Create_WithValidParameters_InitializesActiveProject()
     {
         var project = Project.Create(_companyId, ProjectName.Create("Billing System"), TemplateSlug.Create("billing-sys"), _initialTime);
 
-        project.Id.Should().NotBe(Guid.Empty);
+        project.Id.Value.Should().NotBe(Guid.Empty);
         project.CompanyId.Should().Be(_companyId);
         project.Name.Value.Should().Be("Billing System");
         project.Slug.Value.Should().Be("billing-sys");
@@ -33,7 +34,7 @@ public sealed class ProjectTests
     [Fact]
     public void Create_WithEmptyCompanyId_ThrowsDomainValidationException()
     {
-        var act = () => Project.Create(Guid.Empty, ProjectName.Create("Name"), TemplateSlug.Create("slug"), _initialTime);
+        var act = () => Project.Create(CompanyId.Empty, ProjectName.Create("Name"), TemplateSlug.Create("slug"), _initialTime);
 
         act.Should().Throw<DomainValidationException>()
             .WithMessage("*CompanyId cannot be empty*");

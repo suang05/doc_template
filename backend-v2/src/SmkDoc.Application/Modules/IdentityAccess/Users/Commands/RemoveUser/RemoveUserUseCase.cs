@@ -3,6 +3,7 @@ using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Modules.IdentityAccess.Users.Commands.RemoveUser;
 
@@ -23,12 +24,14 @@ public sealed class RemoveUserUseCase(
             throw new ValidationException(validationResult.ToDictionary());
         }
 
-        var roleEntry = await _roleRepo.GetAsync(command.ProjectId, command.UserId, ct)
+        var pId = new ProjectId(command.ProjectId);
+        var uId = new UserId(command.UserId);
+        var roleEntry = await _roleRepo.GetAsync(pId, uId, ct)
             ?? throw new NotFoundException("User is not a member of this project.");
 
         if (roleEntry.Role == RoleType.Admin)
         {
-            var adminCount = await _roleRepo.CountAdminsAsync(command.ProjectId, ct);
+            var adminCount = await _roleRepo.CountAdminsAsync(pId, ct);
             if (adminCount <= 1)
             {
                 throw new ConflictException("Cannot remove the last Admin from the project.");

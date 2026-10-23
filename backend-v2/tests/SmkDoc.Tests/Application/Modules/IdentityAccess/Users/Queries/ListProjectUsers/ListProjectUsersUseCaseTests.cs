@@ -5,6 +5,7 @@ using SmkDoc.Application.Modules.IdentityAccess.Users.DTOs;
 using SmkDoc.Application.Modules.IdentityAccess.Users.Queries.ListProjectUsers;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common.Builders;
 using ValidationException = SmkDoc.Application.Common.Exceptions.ValidationException;
 
@@ -40,10 +41,10 @@ public sealed class ListProjectUsersUseCaseTests
         _validator.ValidateAsync(Arg.Any<ListProjectUsersQuery>(), Arg.Any<CancellationToken>())
             .Returns(new ValidationResult());
 
-        _roleRepo.ListByProjectAsync(projectId, Arg.Any<CancellationToken>())
+        _roleRepo.ListByProjectAsync(new ProjectId(projectId), Arg.Any<CancellationToken>())
             .Returns(new List<UserProjectRole> { role });
 
-        _userRepo.GetByIdsAsync(Arg.Any<IEnumerable<Guid>>(), Arg.Any<CancellationToken>())
+        _userRepo.GetByIdsAsync(Arg.Any<IEnumerable<UserId>>(), Arg.Any<CancellationToken>())
             .Returns(new List<User> { user });
 
         var query = new ListProjectUsersQuery(projectId);
@@ -58,8 +59,8 @@ public sealed class ListProjectUsersUseCaseTests
         result[0].LastName.Should().Be("Jaidee");
         result[0].Role.Should().Be("Admin");
 
-        await _roleRepo.Received(1).ListByProjectAsync(projectId, Arg.Any<CancellationToken>());
-        await _userRepo.Received(1).GetByIdsAsync(Arg.Any<IEnumerable<Guid>>(), Arg.Any<CancellationToken>());
+        await _roleRepo.Received(1).ListByProjectAsync(new ProjectId(projectId), Arg.Any<CancellationToken>());
+        await _userRepo.Received(1).GetByIdsAsync(Arg.Any<IEnumerable<UserId>>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -75,7 +76,7 @@ public sealed class ListProjectUsersUseCaseTests
 
         // Assert
         await act.Should().ThrowAsync<ValidationException>();
-        await _roleRepo.DidNotReceive().ListByProjectAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
-        await _userRepo.DidNotReceive().GetByIdsAsync(Arg.Any<IEnumerable<Guid>>(), Arg.Any<CancellationToken>());
+        await _roleRepo.DidNotReceive().ListByProjectAsync(Arg.Any<ProjectId>(), Arg.Any<CancellationToken>());
+        await _userRepo.DidNotReceive().GetByIdsAsync(Arg.Any<IEnumerable<UserId>>(), Arg.Any<CancellationToken>());
     }
 }

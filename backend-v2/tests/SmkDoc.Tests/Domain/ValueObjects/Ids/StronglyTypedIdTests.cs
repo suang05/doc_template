@@ -1,4 +1,4 @@
-﻿using FluentAssertions;
+using FluentAssertions;
 using SmkDoc.Domain.ValueObjects.Ids;
 using Xunit;
 
@@ -28,11 +28,11 @@ public sealed class StronglyTypedIdTests
     }
 
     [Fact]
-    public void ImplicitConversions_Bidirectional_WorkSeamlessly()
+    public void ExplicitConversions_Bidirectional_WorkWithCast()
     {
         var rawGuid = Guid.NewGuid();
-        ProjectId projectId = rawGuid; // Implicit from Guid
-        Guid extractedGuid = projectId; // Implicit to Guid
+        var projectId = (ProjectId)rawGuid; // Explicit from Guid
+        var extractedGuid = (Guid)projectId; // Explicit to Guid
 
         extractedGuid.Should().Be(rawGuid);
         projectId.Value.Should().Be(rawGuid);

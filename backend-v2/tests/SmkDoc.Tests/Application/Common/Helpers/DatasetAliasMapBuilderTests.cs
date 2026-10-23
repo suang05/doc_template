@@ -1,9 +1,10 @@
-﻿using SmkDoc.Application.Common.Helpers;
+using SmkDoc.Application.Common.Helpers;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common;
 using SmkDoc.Tests.Common.Builders;
 
@@ -31,8 +32,8 @@ public sealed class DatasetAliasMapBuilderTests
 
         // Assert
         result.Should().BeEmpty();
-        await _datasetRepo.DidNotReceive().GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
-        await _connectionRepo.DidNotReceive().GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+        await _datasetRepo.DidNotReceive().GetByIdAsync(Arg.Any<DatasetId>(), Arg.Any<CancellationToken>());
+        await _connectionRepo.DidNotReceive().GetByIdAsync(Arg.Any<DataConnectionId>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -58,9 +59,9 @@ public sealed class DatasetAliasMapBuilderTests
             .WithConnectionString("enc:Host=pg")
             .Build();
 
-        _datasetRepo.GetByIdAsync(datasetId, Arg.Any<CancellationToken>())
+        _datasetRepo.GetByIdAsync(new DatasetId(datasetId), Arg.Any<CancellationToken>())
             .Returns(dataset);
-        _connectionRepo.GetByIdAsync(connectionId, Arg.Any<CancellationToken>())
+        _connectionRepo.GetByIdAsync(new DataConnectionId(connectionId), Arg.Any<CancellationToken>())
             .Returns(connection);
         _dataProtection.Decrypt("enc:Host=pg")
             .Returns("Host=pg;Port=5432");
@@ -92,7 +93,7 @@ public sealed class DatasetAliasMapBuilderTests
             .WithTime(TestConstants.BaselineTime)
             .Build();
 
-        _datasetRepo.GetByIdAsync(datasetId, Arg.Any<CancellationToken>())
+        _datasetRepo.GetByIdAsync(new DatasetId(datasetId), Arg.Any<CancellationToken>())
             .Returns((Dataset?)null);
 
         // Act
@@ -105,7 +106,7 @@ public sealed class DatasetAliasMapBuilderTests
 
         // Assert
         result.Should().BeEmpty();
-        await _connectionRepo.DidNotReceive().GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+        await _connectionRepo.DidNotReceive().GetByIdAsync(Arg.Any<DataConnectionId>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -125,9 +126,9 @@ public sealed class DatasetAliasMapBuilderTests
             .WithDataConnectionId(connectionId)
             .Build();
 
-        _datasetRepo.GetByIdAsync(datasetId, Arg.Any<CancellationToken>())
+        _datasetRepo.GetByIdAsync(new DatasetId(datasetId), Arg.Any<CancellationToken>())
             .Returns(dataset);
-        _connectionRepo.GetByIdAsync(connectionId, Arg.Any<CancellationToken>())
+        _connectionRepo.GetByIdAsync(new DataConnectionId(connectionId), Arg.Any<CancellationToken>())
             .Returns((DataConnection?)null);
 
         // Act
@@ -153,9 +154,9 @@ public sealed class DatasetAliasMapBuilderTests
         var dataset = new DatasetBuilder().WithId(datasetId).WithDataConnectionId(connectionId).Build();
         var connection = new DataConnectionBuilder().WithId(connectionId).WithConnectionString("corrupted_secret").Build();
 
-        _datasetRepo.GetByIdAsync(datasetId, Arg.Any<CancellationToken>())
+        _datasetRepo.GetByIdAsync(new DatasetId(datasetId), Arg.Any<CancellationToken>())
             .Returns(dataset);
-        _connectionRepo.GetByIdAsync(connectionId, Arg.Any<CancellationToken>())
+        _connectionRepo.GetByIdAsync(new DataConnectionId(connectionId), Arg.Any<CancellationToken>())
             .Returns(connection);
         _dataProtection.Decrypt("corrupted_secret")
             .Throws(new InvalidOperationException("Decryption error"));

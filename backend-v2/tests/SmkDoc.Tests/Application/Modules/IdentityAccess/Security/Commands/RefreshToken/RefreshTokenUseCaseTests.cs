@@ -10,6 +10,7 @@ using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common.Builders;
 using Xunit;
 using RefreshTokenEntity = SmkDoc.Domain.Entities.RefreshToken;
@@ -89,7 +90,7 @@ public sealed class RefreshTokenUseCaseTests
         await _tokenRepo.Received(1).AddAsync(Arg.Is<RefreshTokenEntity>(t => t.UserId == user.Id), Arg.Any<CancellationToken>());
         await _uow.Received(1).CommitAsync(Arg.Any<CancellationToken>());
         _jwtGenerator.Received(1).GenerateToken(user, projectAlphaId, Arg.Is<IEnumerable<string>>(roles => roles.Contains("Admin")));
-        _auditService.Received(1).LogTokenRotated(user.Id);
+        _auditService.Received(1).LogTokenRotated(user.Id.Value);
     }
 
     [Fact]
@@ -222,7 +223,7 @@ public sealed class RefreshTokenUseCaseTests
         var rawToken = "revoked-token";
         var tokenHash = RefreshTokenHelper.HashToken(rawToken);
         var userId = Guid.NewGuid();
-        var revokedToken = RefreshTokenEntity.Create(userId, tokenHash, now.AddDays(7), now);
+        var revokedToken = RefreshTokenEntity.Create(new UserId(userId), tokenHash, now.AddDays(7), now);
         revokedToken.Revoke(now.AddMinutes(-5));
 
         _tokenRepo.GetByHashAsync(tokenHash, Arg.Any<CancellationToken>())
@@ -234,7 +235,7 @@ public sealed class RefreshTokenUseCaseTests
         // Assert
         await act.Should().ThrowAsync<UnauthorizedException>()
             .WithMessage("*reuse detected*");
-        await _tokenRepo.Received(1).RevokeAllByUserIdAsync(userId, now, Arg.Any<CancellationToken>());
+        await _tokenRepo.Received(1).RevokeAllByUserIdAsync(new UserId(userId), now, Arg.Any<CancellationToken>());
         await _uow.Received(1).CommitAsync(Arg.Any<CancellationToken>());
         _auditService.Received(1).LogTokenReuseDetected(userId);
     }
@@ -280,7 +281,7 @@ public sealed class RefreshTokenUseCaseTests
         await _tokenRepo.DidNotReceive().RevokeAllByUserIdAsync(user.Id, Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>());
         await _tokenRepo.Received(1).AddAsync(Arg.Is<RefreshTokenEntity>(t => t.UserId == user.Id), Arg.Any<CancellationToken>());
         await _uow.Received(1).CommitAsync(Arg.Any<CancellationToken>());
-        _auditService.Received(1).LogTokenRotated(user.Id);
+        _auditService.Received(1).LogTokenRotated(user.Id.Value);
         _auditService.DidNotReceive().LogTokenReuseDetected(Arg.Any<Guid>());
     }
 
@@ -292,7 +293,7 @@ public sealed class RefreshTokenUseCaseTests
         var rawToken = "expired-token";
         var tokenHash = RefreshTokenHelper.HashToken(rawToken);
         var userId = Guid.NewGuid();
-        var expiredToken = RefreshTokenEntity.Create(userId, tokenHash, now.AddMinutes(10), now);
+        var expiredToken = RefreshTokenEntity.Create(new UserId(userId), tokenHash, now.AddMinutes(10), now);
         _timeProvider.Advance(TimeSpan.FromMinutes(20));
 
         _tokenRepo.GetByHashAsync(tokenHash, Arg.Any<CancellationToken>())

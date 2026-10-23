@@ -1,5 +1,6 @@
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
+using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Tests.Common.Builders;
 
@@ -20,6 +21,13 @@ public class TemplateVersionBuilder
     public static TemplateVersion Default() => AVersion().Build();
 
     public static TemplateVersion PublishedHtml(
+        TemplateId templateId,
+        int version = 1,
+        string storageKey = "templates/sample.html",
+        Guid? id = null) =>
+        PublishedHtml(templateId.Value, version, storageKey, id);
+
+    public static TemplateVersion PublishedHtml(
         Guid? templateId = null,
         int version = 1,
         string storageKey = "templates/sample.html",
@@ -32,6 +40,13 @@ public class TemplateVersionBuilder
             .WithFormat(TemplateFormat.Html)
             .WithStatus("Published")
             .Build();
+
+    public static TemplateVersion DraftHtml(
+        TemplateId templateId,
+        int version = 1,
+        string storageKey = "templates/sample.html",
+        Guid? id = null) =>
+        DraftHtml(templateId.Value, version, storageKey, id);
 
     public static TemplateVersion DraftHtml(
         Guid? templateId = null,
@@ -51,6 +66,12 @@ public class TemplateVersionBuilder
     public TemplateVersionBuilder WithId(Guid id)
     {
         _id = id;
+        return this;
+    }
+
+    public TemplateVersionBuilder WithTemplateId(TemplateId templateId)
+    {
+        _templateId = templateId.Value;
         return this;
     }
 
@@ -106,7 +127,7 @@ public class TemplateVersionBuilder
     {
         var version = new TemplateVersion(
             _id,
-            _templateId,
+            new SmkDoc.Domain.ValueObjects.Ids.TemplateId(_templateId),
             _version,
             _storageKey,
             _format,

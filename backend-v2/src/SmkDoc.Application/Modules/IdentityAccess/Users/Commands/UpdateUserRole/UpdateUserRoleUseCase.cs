@@ -4,6 +4,7 @@ using SmkDoc.Application.Modules.IdentityAccess.Users.DTOs;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Modules.IdentityAccess.Users.Commands.UpdateUserRole;
 
@@ -26,7 +27,9 @@ public sealed class UpdateUserRoleUseCase(
             throw new ValidationException(validationResult.ToDictionary());
         }
 
-        var roleEntry = await _roleRepo.GetAsync(command.ProjectId, command.UserId, ct)
+        var pId = new ProjectId(command.ProjectId);
+        var uId = new UserId(command.UserId);
+        var roleEntry = await _roleRepo.GetAsync(pId, uId, ct)
             ?? throw new NotFoundException("User is not a member of this project.");
 
         var targetRole = RoleType.FromDisplayName<RoleType>(command.Role);
@@ -34,7 +37,7 @@ public sealed class UpdateUserRoleUseCase(
         // Guard: Cannot demote the last Admin of the project
         if (roleEntry.Role == RoleType.Admin && targetRole != RoleType.Admin)
         {
-            var adminCount = await _roleRepo.CountAdminsAsync(command.ProjectId, ct);
+            var adminCount = await _roleRepo.CountAdminsAsync(pId, ct);
             if (adminCount <= 1)
             {
                 throw new ConflictException("Cannot remove the last Admin from the project.");
@@ -45,11 +48,11 @@ public sealed class UpdateUserRoleUseCase(
         _roleRepo.Update(roleEntry);
         await _uow.CommitAsync(ct);
 
-        var user = await _userRepo.GetByIdAsync(command.UserId, ct)
+        var user = await _userRepo.GetByIdAsync(uId, ct)
             ?? throw new NotFoundException("User not found.");
 
         return new UserResultDto(
-            user.Id,
+            user.Id.Value,
             user.Email.Value,
             user.FirstName,
             user.LastName,

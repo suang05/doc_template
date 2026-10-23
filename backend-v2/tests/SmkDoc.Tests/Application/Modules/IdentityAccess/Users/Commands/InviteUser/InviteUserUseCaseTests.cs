@@ -7,6 +7,7 @@ using SmkDoc.Application.Modules.IdentityAccess.Users.DTOs;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common.Builders;
 using ValidationException = SmkDoc.Application.Common.Exceptions.ValidationException;
 
@@ -93,7 +94,7 @@ public sealed class InviteUserUseCaseTests
             .Returns(new ValidationResult());
         _userRepo.GetByEmailAsync("exist@test.com", Arg.Any<CancellationToken>())
             .Returns(existingUser);
-        _roleRepo.GetAsync(projectId, existingUser.Id, Arg.Any<CancellationToken>())
+        _roleRepo.GetAsync(new ProjectId(projectId), existingUser.Id, Arg.Any<CancellationToken>())
             .Returns(existingRole);
 
         // Act

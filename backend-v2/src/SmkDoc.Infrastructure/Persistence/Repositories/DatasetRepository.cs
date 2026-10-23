@@ -9,17 +9,16 @@ public sealed class DatasetRepository(AppDbContext context) : IDatasetRepository
 {
     private readonly AppDbContext _context = context;
 
-    public async Task<Dataset?> GetByIdAsync(Guid id, CancellationToken ct = default)
+    public async Task<Dataset?> GetByIdAsync(DatasetId id, CancellationToken ct = default)
     {
-        var datasetId = new DatasetId(id);
         return await _context.Datasets
             .Include(d => d.DataConnection)
-            .FirstOrDefaultAsync(d => d.Id == datasetId, ct);
+            .FirstOrDefaultAsync(d => d.Id == id, ct);
     }
 
-    public async Task<IReadOnlyList<Dataset>> GetByIdsAsync(IEnumerable<Guid> ids, CancellationToken ct = default)
+    public async Task<IReadOnlyList<Dataset>> GetByIdsAsync(IEnumerable<DatasetId> ids, CancellationToken ct = default)
     {
-        var idSet = ids.Select(id => new DatasetId(id)).ToHashSet();
+        var idSet = ids.ToHashSet();
         return await _context.Datasets
             .Where(d => idSet.Contains(d.Id))
             .ToListAsync(ct);

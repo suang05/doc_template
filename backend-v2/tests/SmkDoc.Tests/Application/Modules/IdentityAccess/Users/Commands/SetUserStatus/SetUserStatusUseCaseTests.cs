@@ -5,6 +5,7 @@ using SmkDoc.Application.Modules.IdentityAccess.Users.Commands.SetUserStatus;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common.Builders;
 using ValidationException = SmkDoc.Application.Common.Exceptions.ValidationException;
 
@@ -38,8 +39,8 @@ public sealed class SetUserStatusUseCaseTests
 
         // Assert
         await act.Should().ThrowAsync<ValidationException>();
-        await _roleRepo.DidNotReceive().GetAsync(Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>());
-        await _userRepo.DidNotReceive().GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+        await _roleRepo.DidNotReceive().GetAsync(Arg.Any<ProjectId>(), Arg.Any<UserId>(), Arg.Any<CancellationToken>());
+        await _userRepo.DidNotReceive().GetByIdAsync(Arg.Any<UserId>(), Arg.Any<CancellationToken>());
         await _uow.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
     }
 
@@ -56,11 +57,11 @@ public sealed class SetUserStatusUseCaseTests
             .AsDeveloper()
             .Build();
 
-        var command = new SetUserStatusCommand(projectId, userId, false);
+        var command = new SetUserStatusCommand(projectId, userId.Value, false);
 
         _validator.ValidateAsync(command, Arg.Any<CancellationToken>())
             .Returns(new ValidationResult());
-        _roleRepo.GetAsync(projectId, userId, Arg.Any<CancellationToken>())
+        _roleRepo.GetAsync(new ProjectId(projectId), userId, Arg.Any<CancellationToken>())
             .Returns(roleEntry);
         _userRepo.GetByIdAsync(userId, Arg.Any<CancellationToken>())
             .Returns(user);
@@ -87,7 +88,7 @@ public sealed class SetUserStatusUseCaseTests
 
         _validator.ValidateAsync(command, Arg.Any<CancellationToken>())
             .Returns(new ValidationResult());
-        _roleRepo.GetAsync(projectId, userId, Arg.Any<CancellationToken>())
+        _roleRepo.GetAsync(new ProjectId(projectId), new UserId(userId), Arg.Any<CancellationToken>())
             .Returns((UserProjectRole?)null);
 
         // Act

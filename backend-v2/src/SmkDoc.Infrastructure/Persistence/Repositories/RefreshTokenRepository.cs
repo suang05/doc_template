@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Infrastructure.Persistence.Repositories;
 
@@ -18,7 +19,7 @@ public sealed class RefreshTokenRepository(AppDbContext context) : IRefreshToken
         await context.RefreshTokens.AddAsync(token, ct);
     }
 
-    public async Task RevokeAllByUserIdAsync(Guid userId, DateTimeOffset now, CancellationToken ct = default)
+    public async Task RevokeAllByUserIdAsync(UserId userId, DateTimeOffset now, CancellationToken ct = default)
     {
         var activeTokens = await context.RefreshTokens
             .Where(t => t.UserId == userId && t.RevokedAt == null && t.ExpiresAt > now)

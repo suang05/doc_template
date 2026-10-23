@@ -1,6 +1,7 @@
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Integration.DataConnections.DTOs;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Modules.Integration.DataConnections.Queries.GetDataConnectionById;
 
@@ -11,13 +12,13 @@ public sealed class GetDataConnectionByIdUseCase(
 {
     public async Task<DataConnectionDto?> ExecuteAsync(GetDataConnectionByIdQuery query, CancellationToken ct = default)
     {
-        var c = await repository.GetByIdAsync(query.Id, ct);
+        var c = await repository.GetByIdAsync(new DataConnectionId(query.Id), ct);
         if (c == null) return null;
 
         return new DataConnectionDto
         {
-            Id = c.Id,
-            Name = c.Name,
+            Id = c.Id.Value,
+            Name = c.Name.Value,
             Provider = c.Provider.Name,
             CreatedAt = c.CreatedAt,
             UpdatedAt = c.UpdatedAt

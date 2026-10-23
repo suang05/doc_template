@@ -3,6 +3,7 @@ using SmkDoc.Application.Modules.Authoring.Templates.Commands.SaveTemplateHtml;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common.Builders;
 
 namespace SmkDoc.Tests.Application.Modules.Authoring.Templates.Commands.SaveTemplateHtml;
@@ -50,7 +51,7 @@ public sealed class SaveTemplateHtmlUseCaseTests
             .WithFormat(TemplateFormat.Html)
             .WithCreatedBy(null);
 
-        _templateRepo.GetByIdAsync(templateId, Arg.Any<CancellationToken>())
+        _templateRepo.GetByIdAsync(new TemplateId(templateId), Arg.Any<CancellationToken>())
             .Returns(template);
         _templateRepo.GetVersionByIdAsync(currentVersionId, Arg.Any<CancellationToken>())
             .Returns(currentVersion);

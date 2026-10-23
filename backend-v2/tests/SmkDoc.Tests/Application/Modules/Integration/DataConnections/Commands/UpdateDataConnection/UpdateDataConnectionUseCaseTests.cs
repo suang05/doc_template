@@ -3,6 +3,7 @@ using SmkDoc.Application.Modules.Integration.DataConnections.Commands.UpdateData
 using SmkDoc.Application.Modules.Integration.DataConnections.DTOs;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common.Builders;
 
 namespace SmkDoc.Tests.Application.Modules.Integration.DataConnections.Commands.UpdateDataConnection;
@@ -30,7 +31,7 @@ public sealed class UpdateDataConnectionUseCaseTests
         var id = Guid.NewGuid();
         DataConnection existing = DataConnectionBuilder.Postgres(name: "Old Name", connectionString: "old_enc", id: id);
 
-        _connectionRepo.GetByIdAsync(id, Arg.Any<CancellationToken>())
+        _connectionRepo.GetByIdAsync(new DataConnectionId(id), Arg.Any<CancellationToken>())
             .Returns(existing);
 
         _dataProtection.Encrypt("new_plain_conn")
@@ -59,7 +60,7 @@ public sealed class UpdateDataConnectionUseCaseTests
         var id = Guid.NewGuid();
         DataConnection existing = DataConnectionBuilder.Postgres(name: "DB", connectionString: "keep_this_enc", id: id);
 
-        _connectionRepo.GetByIdAsync(id, Arg.Any<CancellationToken>())
+        _connectionRepo.GetByIdAsync(new DataConnectionId(id), Arg.Any<CancellationToken>())
             .Returns(existing);
 
         var command = new UpdateDataConnectionCommand(id, "DB Renamed", "PostgreSQL", "");
@@ -79,7 +80,7 @@ public sealed class UpdateDataConnectionUseCaseTests
     {
         // Arrange
         var id = Guid.NewGuid();
-        _connectionRepo.GetByIdAsync(id, Arg.Any<CancellationToken>())
+        _connectionRepo.GetByIdAsync(new DataConnectionId(id), Arg.Any<CancellationToken>())
             .Returns((DataConnection?)null);
 
         var command = new UpdateDataConnectionCommand(id, "X", "PostgreSQL", "conn");

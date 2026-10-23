@@ -4,6 +4,7 @@ using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Modules.Integration.Datasets.Commands.CreateDataset;
 
@@ -29,14 +30,14 @@ public sealed class CreateDatasetUseCase(
 
     public async Task<DatasetDto> ExecuteAsync(CreateDatasetCommand command, CancellationToken ct = default)
     {
-        var connection = await _connectionRepo.GetByIdAsync(command.DataConnectionId, ct)
+        var connection = await _connectionRepo.GetByIdAsync(new DataConnectionId(command.DataConnectionId), ct)
             ?? throw new NotFoundException($"DataConnection '{command.DataConnectionId}' not found.");
 
         var now = _timeProvider.GetUtcNow();
         var entity = Dataset.Create(
             DatasetName.Create(command.Name),
             command.Description,
-            command.DataConnectionId,
+            new DataConnectionId(command.DataConnectionId),
             command.SqlQuery,
             command.CacheSeconds,
             now,
@@ -47,10 +48,10 @@ public sealed class CreateDatasetUseCase(
 
         return new DatasetDto
         {
-            Id = entity.Id,
+            Id = entity.Id.Value,
             Name = entity.Name.Value,
             Description = entity.Description,
-            DataConnectionId = entity.DataConnectionId,
+            DataConnectionId = entity.DataConnectionId.Value,
             DataConnectionName = connection.Name.Value,
             SqlQuery = entity.SqlQuery,
             CacheSeconds = entity.CacheSeconds,

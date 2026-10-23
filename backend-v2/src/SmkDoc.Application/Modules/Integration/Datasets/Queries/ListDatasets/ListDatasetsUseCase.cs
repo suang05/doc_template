@@ -17,7 +17,7 @@ public sealed class ListDatasetsUseCase(
         var datasets = await datasetRepo.ListAsync(ct);
         var missingConnectionIds = datasets
             .Where(d => d.DataConnection == null)
-            .Select(d => (Guid)d.DataConnectionId)
+            .Select(d => d.DataConnectionId)
             .Distinct()
             .ToList();
 
@@ -30,15 +30,15 @@ public sealed class ListDatasetsUseCase(
 
         return datasets.Select(d =>
         {
-            var connName = d.DataConnection?.Name
-                ?? (fallbackConns.TryGetValue(d.DataConnectionId, out var c) ? c.Name : string.Empty);
+            var connName = d.DataConnection?.Name.Value
+                ?? (fallbackConns.TryGetValue(d.DataConnectionId, out var c) ? c.Name.Value : string.Empty);
 
             return new DatasetDto
             {
-                Id = d.Id,
-                Name = d.Name,
+                Id = d.Id.Value,
+                Name = d.Name.Value,
                 Description = d.Description,
-                DataConnectionId = d.DataConnectionId,
+                DataConnectionId = d.DataConnectionId.Value,
                 DataConnectionName = connName,
                 SqlQuery = d.SqlQuery,
                 CacheSeconds = d.CacheSeconds,

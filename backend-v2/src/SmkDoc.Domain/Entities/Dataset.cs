@@ -32,7 +32,7 @@ public sealed class Dataset : BaseEntity<DatasetId>, IMustHaveProject
         string sqlQuery,
         int cacheSeconds,
         DateTimeOffset now,
-        ProjectId projectId = default)
+        ProjectId projectId)
         : base(id.HasValue && !id.Value.IsEmpty ? id.Value : DatasetId.New(), createdAt: now)
     {
         Name = Guard.NotNull(name, nameof(Name));
@@ -44,7 +44,7 @@ public sealed class Dataset : BaseEntity<DatasetId>, IMustHaveProject
             throw new DomainValidationException("CacheSeconds cannot be negative.");
         }
         CacheSeconds = cacheSeconds;
-        ProjectId = projectId;
+        ProjectId = Guard.NotEmpty(projectId, nameof(ProjectId));
     }
 
     public static Dataset Create(
@@ -54,7 +54,7 @@ public sealed class Dataset : BaseEntity<DatasetId>, IMustHaveProject
         string sqlQuery,
         int cacheSeconds,
         DateTimeOffset now,
-        ProjectId projectId = default) =>
+        ProjectId projectId) =>
         new(null, name, description, dataConnectionId, sqlQuery, cacheSeconds, now, projectId);
 
     public void UpdateDetails(

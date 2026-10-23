@@ -4,6 +4,7 @@ using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Modules.Authoring.FieldMappings.Commands.SaveTemplateMappings;
 
@@ -20,8 +21,9 @@ public sealed class SaveTemplateMappingsUseCase(
 
     public async Task ExecuteAsync(SaveTemplateMappingsCommand command, CancellationToken ct = default)
     {
-        var template = await _templateRepo.GetByIdWithDetailsAsync(command.TemplateId, ct)
-            ?? await _templateRepo.GetByIdAsync(command.TemplateId, ct)
+        var templateId = new TemplateId(command.TemplateId);
+        var template = await _templateRepo.GetByIdWithDetailsAsync(templateId, ct)
+            ?? await _templateRepo.GetByIdAsync(templateId, ct)
             ?? throw new NotFoundException($"Template '{command.TemplateId}' not found.");
 
         var now = _timeProvider.GetUtcNow();
@@ -29,7 +31,7 @@ public sealed class SaveTemplateMappingsUseCase(
         {
             var dsType = item.DataSourceType != null ? DataSourceType.FromString(item.DataSourceType) : DataSourceType.Json;
             var mapping = FieldMapping.Create(
-                command.TemplateId,
+                template.Id,
                 item.Placeholder,
                 item.SourcePath,
                 item.Label,

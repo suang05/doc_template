@@ -1,5 +1,6 @@
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Tests.Common.Builders;
 
@@ -9,6 +10,7 @@ public class DocumentBuilder
     private string _documentRef = "DOC-2026-001";
     private Guid? _templateId = Guid.NewGuid();
     private DateTimeOffset _now = TestConstants.BaselineTime;
+    private ProjectId _projectId = ProjectId.New();
 
     public static DocumentBuilder ADocument() => new();
 
@@ -33,19 +35,32 @@ public class DocumentBuilder
         return this;
     }
 
+    public DocumentBuilder WithTemplateId(TemplateId? templateId)
+    {
+        _templateId = templateId?.Value;
+        return this;
+    }
+
     public DocumentBuilder WithTime(DateTimeOffset now)
     {
         _now = now;
         return this;
     }
 
+    public DocumentBuilder WithProjectId(ProjectId projectId)
+    {
+        _projectId = projectId;
+        return this;
+    }
+
     public Document Build()
     {
         return new Document(
-            _id,
+            new DocumentId(_id),
             DocumentReference.Create(_documentRef),
-            _templateId,
-            _now);
+            _templateId.HasValue ? new TemplateId(_templateId.Value) : null,
+            _now,
+            _projectId);
     }
 
     public static implicit operator Document(DocumentBuilder builder) => builder.Build();

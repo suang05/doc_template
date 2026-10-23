@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Infrastructure.Persistence.Repositories;
 
@@ -9,27 +10,27 @@ public sealed class UserProjectRoleRepository(AppDbContext context) : IUserProje
 {
     private readonly AppDbContext _context = context;
 
-    public async Task<IReadOnlyList<UserProjectRole>> ListByProjectAsync(Guid projectId, CancellationToken ct = default)
+    public async Task<IReadOnlyList<UserProjectRole>> ListByProjectAsync(ProjectId projectId, CancellationToken ct = default)
     {
         return await _context.UserProjectRoles
             .Where(r => r.ProjectId == projectId)
             .ToListAsync(ct);
     }
 
-    public async Task<IReadOnlyList<UserProjectRole>> ListByUserAsync(Guid userId, CancellationToken ct = default)
+    public async Task<IReadOnlyList<UserProjectRole>> ListByUserAsync(UserId userId, CancellationToken ct = default)
     {
         return await _context.UserProjectRoles
             .Where(r => r.UserId == userId)
             .ToListAsync(ct);
     }
 
-    public async Task<UserProjectRole?> GetAsync(Guid projectId, Guid userId, CancellationToken ct = default)
+    public async Task<UserProjectRole?> GetAsync(ProjectId projectId, UserId userId, CancellationToken ct = default)
     {
         return await _context.UserProjectRoles
             .FirstOrDefaultAsync(r => r.ProjectId == projectId && r.UserId == userId, ct);
     }
 
-    public async Task<int> CountAdminsAsync(Guid projectId, CancellationToken ct = default)
+    public async Task<int> CountAdminsAsync(ProjectId projectId, CancellationToken ct = default)
     {
         return await _context.UserProjectRoles
             .CountAsync(r => r.ProjectId == projectId && r.Role == RoleType.Admin, ct);

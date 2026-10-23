@@ -5,6 +5,7 @@ using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
+using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Infrastructure.Persistence.Queries;
 
@@ -17,17 +18,21 @@ public sealed class UserWorkspaceQueryService(AppDbContext context) : IUserWorks
     {
         if (isSuperAdmin)
         {
-            return await context.Projects
+            var projects = await context.Projects
                 .AsNoTracking()
                 .Where(p => p.IsActive)
                 .OrderBy(p => p.Name)
-                .Select(p => new AccessibleProjectDto(p.Id, p.Name, p.Slug, "Admin"))
                 .ToListAsync(ct);
+
+            return projects
+                .Select(p => new AccessibleProjectDto(p.Id.Value, p.Name.Value, p.Slug.Value, "Admin"))
+                .ToList();
         }
 
+        var typedUserId = new UserId(userId);
         var results = await (
             from r in context.UserProjectRoles.AsNoTracking()
-            where r.UserId == userId
+            where r.UserId == typedUserId
             join p in context.Projects.AsNoTracking() on r.ProjectId equals p.Id
             where p.IsActive
             orderby p.Name
@@ -41,7 +46,7 @@ public sealed class UserWorkspaceQueryService(AppDbContext context) : IUserWorks
         ).ToListAsync(ct);
 
         return results
-            .Select(x => new AccessibleProjectDto(x.Id, x.Name, x.Slug, x.Role))
+            .Select(x => new AccessibleProjectDto(x.Id.Value, x.Name.Value, x.Slug.Value, x.Role))
             .ToList();
     }
 
@@ -49,15 +54,16 @@ public sealed class UserWorkspaceQueryService(AppDbContext context) : IUserWorks
         Guid projectId,
         CancellationToken ct = default)
     {
+        var typedProjectId = new ProjectId(projectId);
         var keys = await context.ApiKeys
             .AsNoTracking()
-            .Where(k => k.ProjectId == projectId && k.IsActive)
+            .Where(k => k.ProjectId == typedProjectId && k.IsActive)
             .OrderByDescending(k => k.CreatedAt)
             .ToListAsync(ct);
 
         return keys
             .Select(k => new ApiKeyDto(
-                k.Id,
+                k.Id.Value,
                 k.Name.Value,
                 k.CallerApp,
                 k.IsActive,
@@ -74,7 +80,7 @@ public sealed class UserWorkspaceQueryService(AppDbContext context) : IUserWorks
         CancellationToken ct = default)
     {
         var isSuperAdmin = user.SystemRole == SystemRole.SuperAdmin;
-        var accessibleProjects = await GetAccessibleProjectsAsync(user.Id, isSuperAdmin, ct);
+        var accessibleProjects = await GetAccessibleProjectsAsync(user.Id.Value, isSuperAdmin, ct);
 
         var defaultProject = accessibleProjects.FirstOrDefault();
         var defaultProjectId = defaultProject?.Id;

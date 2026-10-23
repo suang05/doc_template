@@ -7,6 +7,7 @@ using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Modules.IdentityAccess.Users.Commands.InviteUser;
 
@@ -37,21 +38,22 @@ public sealed class InviteUserUseCase(
         var normalizedEmail = command.Email.Trim().ToLowerInvariant();
         var now = _timeProvider.GetUtcNow();
 
+        var pId = new ProjectId(command.ProjectId);
         var existingUser = await _userRepo.GetByEmailAsync(normalizedEmail, ct);
         if (existingUser != null)
         {
-            var existingRole = await _roleRepo.GetAsync(command.ProjectId, existingUser.Id, ct);
+            var existingRole = await _roleRepo.GetAsync(pId, existingUser.Id, ct);
             if (existingRole != null)
             {
                 throw new ConflictException($"User '{normalizedEmail}' is already a member of this project.");
             }
 
-            var newRole = UserProjectRole.Create(existingUser.Id, command.ProjectId, roleType, now);
+            var newRole = UserProjectRole.Create(existingUser.Id, pId, roleType, now);
             await _roleRepo.AddAsync(newRole, ct);
             await _uow.CommitAsync(ct);
 
             return new UserResultDto(
-                existingUser.Id,
+                existingUser.Id.Value,
                 existingUser.Email,
                 existingUser.FirstName,
                 existingUser.LastName,
@@ -76,11 +78,11 @@ public sealed class InviteUserUseCase(
         );
 
         await _userRepo.AddAsync(newUser, ct);
-        await _roleRepo.AddAsync(UserProjectRole.Create(newUser.Id, command.ProjectId, roleType, now), ct);
+        await _roleRepo.AddAsync(UserProjectRole.Create(newUser.Id, pId, roleType, now), ct);
         await _uow.CommitAsync(ct);
 
         return new UserResultDto(
-            newUser.Id,
+            newUser.Id.Value,
             newUser.Email,
             newUser.FirstName,
             newUser.LastName,

@@ -1,4 +1,5 @@
 using SmkDoc.Domain.Entities;
+using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Domain.Interfaces;
 
@@ -7,15 +8,15 @@ namespace SmkDoc.Domain.Interfaces;
 /// </summary>
 public interface ITemplateRepository
 {
-    Task<Template?> GetByIdAsync(Guid id, CancellationToken ct = default);
-    Task<Template?> GetByIdWithDetailsAsync(Guid id, CancellationToken ct = default);
+    Task<Template?> GetByIdAsync(TemplateId id, CancellationToken ct = default);
+    Task<Template?> GetByIdWithDetailsAsync(TemplateId id, CancellationToken ct = default);
     Task<Template?> GetBySlugAsync(string slug, CancellationToken ct = default);
     Task<Template?> GetBySlugWithDetailsAsync(string slug, CancellationToken ct = default);
     Task<bool> SlugExistsAsync(string slug, CancellationToken ct = default);
     Task<IReadOnlyList<Template>> ListAsync(CancellationToken ct = default);
     Task<TemplateVersion?> GetVersionByIdAsync(Guid versionId, CancellationToken ct = default);
-    Task<TemplateVersion?> GetCurrentVersionAsync(Guid templateId, CancellationToken ct = default);
-    Task<IReadOnlyList<TemplateVersion>> ListVersionsAsync(Guid templateId, CancellationToken ct = default);
+    Task<TemplateVersion?> GetCurrentVersionAsync(TemplateId templateId, CancellationToken ct = default);
+    Task<IReadOnlyList<TemplateVersion>> ListVersionsAsync(TemplateId templateId, CancellationToken ct = default);
     Task AddAsync(Template template, CancellationToken ct = default);
     Task AddVersionAsync(TemplateVersion version, CancellationToken ct = default);
     void Update(Template template);

@@ -6,6 +6,7 @@ using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Modules.IdentityAccess.Security.Commands.CreateApiKey;
 
@@ -35,14 +36,15 @@ public sealed class CreateApiKeyUseCase(
             throw new ValidationException("ProjectId", "ProjectId is required to create an API key.");
         }
 
-        var project = await projectRepo.GetByIdAsync(targetProjectId, ct)
+        var pId = new ProjectId(targetProjectId);
+        var project = await projectRepo.GetByIdAsync(pId, ct)
             ?? throw new NotFoundException($"Project '{targetProjectId}' not found.");
 
         string rawSecret = $"smk_{command.CallerApp.ToLowerInvariant()}_{Guid.NewGuid():N}";
         var hash = new Sha256Hash(ApiKeyHelper.ComputeHash(rawSecret));
 
         var key = ApiKey.Issue(
-            targetProjectId,
+            pId,
             ApiKeyName.Create(command.Name),
             command.CallerApp,
             hash,
@@ -52,6 +54,6 @@ public sealed class CreateApiKeyUseCase(
         await apiKeyRepo.AddAsync(key, ct);
         await unitOfWork.CommitAsync(ct);
 
-        return new CreateApiKeyResultDto(key.Id, key.Name.Value, key.CallerApp, rawSecret);
+        return new CreateApiKeyResultDto(key.Id.Value, key.Name.Value, key.CallerApp, rawSecret);
     }
 }

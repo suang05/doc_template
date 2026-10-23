@@ -3,6 +3,7 @@ using SmkDoc.Application.Modules.IdentityAccess.Projects.Queries.GetProjectById;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common.Builders;
 
 namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Projects.Queries.GetProjectById;
@@ -18,7 +19,7 @@ public sealed class GetProjectByIdUseCaseTests
     {
         // Arrange
         var projectId = Guid.NewGuid();
-        _projectRepo.GetByIdAsync(projectId, Arg.Any<CancellationToken>())
+        _projectRepo.GetByIdAsync(new ProjectId(projectId), Arg.Any<CancellationToken>())
             .Returns((Project?)null);
 
         // Act
@@ -38,7 +39,7 @@ public sealed class GetProjectByIdUseCaseTests
             .WithName("Billing Project")
             .WithSlug("billing-proj");
 
-        _projectRepo.GetByIdAsync(projectId, Arg.Any<CancellationToken>())
+        _projectRepo.GetByIdAsync(new ProjectId(projectId), Arg.Any<CancellationToken>())
             .Returns(project);
 
         // Act

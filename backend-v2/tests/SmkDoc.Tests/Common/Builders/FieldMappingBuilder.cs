@@ -91,7 +91,7 @@ public class FieldMappingBuilder
     {
         return new FieldMapping(
             _id,
-            _templateId,
+            new SmkDoc.Domain.ValueObjects.Ids.TemplateId(_templateId),
             _placeholder,
             _sourcePath,
             _label,

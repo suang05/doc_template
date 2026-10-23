@@ -38,7 +38,7 @@ public sealed class CreateDataConnectionUseCase(
 
         return new DataConnectionDto
         {
-            Id = entity.Id,
+            Id = entity.Id.Value,
             Name = entity.Name.Value,
             Provider = entity.Provider.Name,
             CreatedAt = entity.CreatedAt,

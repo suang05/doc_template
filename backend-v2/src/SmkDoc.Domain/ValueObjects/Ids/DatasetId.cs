@@ -15,8 +15,8 @@ public readonly record struct DatasetId(Guid Value) : IComparable<DatasetId>
 
     public override string ToString() => Value.ToString();
 
-    public static implicit operator Guid(DatasetId id) => id.Value;
-    public static implicit operator DatasetId(Guid value) => new(value);
+    public static explicit operator Guid(DatasetId id) => id.Value;
+    public static explicit operator DatasetId(Guid value) => new(value);
 
     public static bool operator ==(DatasetId left, Guid right) => left.Value == right;
     public static bool operator !=(DatasetId left, Guid right) => left.Value != right;

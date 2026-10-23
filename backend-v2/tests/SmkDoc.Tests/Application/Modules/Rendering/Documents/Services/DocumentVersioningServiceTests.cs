@@ -1,8 +1,9 @@
-﻿using System.Linq.Expressions;
+using System.Linq.Expressions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Rendering.Documents.Services;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Tests.Application.Modules.Rendering.Documents.Services;
 
@@ -22,6 +23,7 @@ public sealed class DocumentVersioningServiceTests
         var templateId = Guid.NewGuid();
         var versionId = Guid.NewGuid();
         var genId = Guid.NewGuid();
+        _context.ProjectId.Returns(Guid.NewGuid());
 
         _documentRepo.FirstOrDefaultAsync(Arg.Any<Expression<Func<Document, bool>>>(), Arg.Any<CancellationToken>())
             .Returns((Document?)null);
@@ -34,7 +36,7 @@ public sealed class DocumentVersioningServiceTests
 
         // Assert
         await _documentRepo.Received(1).AddAsync(
-            Arg.Is<Document>(d => d.DocumentRef == "INV-001" && d.TemplateId == templateId),
+            Arg.Is<Document>(d => d.DocumentRef == "INV-001" && d.TemplateId == new TemplateId(templateId)),
             Arg.Any<CancellationToken>());
 
         await _docVersionRepo.Received(1).AddAsync(

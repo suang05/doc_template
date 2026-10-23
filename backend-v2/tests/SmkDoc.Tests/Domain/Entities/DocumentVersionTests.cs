@@ -1,6 +1,7 @@
-﻿using FluentAssertions;
+using FluentAssertions;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
+using SmkDoc.Domain.ValueObjects.Ids;
 using Xunit;
 
 namespace SmkDoc.Tests.Domain.Entities;
@@ -10,7 +11,7 @@ public sealed class DocumentVersionTests
     [Fact]
     public void Create_WithValidParameters_InitializesCorrectly()
     {
-        var documentId = Guid.NewGuid();
+        var documentId = DocumentId.New();
         var templateVersionId = Guid.NewGuid();
         var generationLogId = Guid.NewGuid();
         var now = TestConstants.BaselineTime;
@@ -39,7 +40,7 @@ public sealed class DocumentVersionTests
     public void Create_WithEmptyDocumentId_ThrowsDomainValidationException()
     {
         var now = TestConstants.BaselineTime;
-        var act = () => DocumentVersion.Create(Guid.Empty, 1, null, null, null, null, now);
+        var act = () => DocumentVersion.Create(DocumentId.Empty, 1, null, null, null, null, now);
 
         act.Should().Throw<DomainValidationException>()
             .WithMessage("*DocumentId cannot be empty*");
@@ -52,7 +53,7 @@ public sealed class DocumentVersionTests
     public void Create_WithNonPositiveVersion_ThrowsDomainValidationException(int invalidVersion)
     {
         var now = TestConstants.BaselineTime;
-        var act = () => DocumentVersion.Create(Guid.NewGuid(), invalidVersion, null, null, null, null, now);
+        var act = () => DocumentVersion.Create(DocumentId.New(), invalidVersion, null, null, null, null, now);
 
         act.Should().Throw<DomainValidationException>()
             .WithMessage("*must be greater than zero*");
@@ -63,7 +64,7 @@ public sealed class DocumentVersionTests
     {
         var now = TestConstants.BaselineTime;
         var longNote = new string('N', DocumentVersion.MaxChangeNoteLength + 1);
-        var act = () => DocumentVersion.Create(Guid.NewGuid(), 1, null, null, longNote, null, now);
+        var act = () => DocumentVersion.Create(DocumentId.New(), 1, null, null, longNote, null, now);
 
         act.Should().Throw<DomainValidationException>()
             .WithMessage($"*must not exceed {DocumentVersion.MaxChangeNoteLength} characters*");
@@ -74,7 +75,7 @@ public sealed class DocumentVersionTests
     {
         var now = TestConstants.BaselineTime;
         var longUser = new string('U', DocumentVersion.MaxCreatedByLength + 1);
-        var act = () => DocumentVersion.Create(Guid.NewGuid(), 1, null, null, null, longUser, now);
+        var act = () => DocumentVersion.Create(DocumentId.New(), 1, null, null, null, longUser, now);
 
         act.Should().Throw<DomainValidationException>()
             .WithMessage($"*must not exceed {DocumentVersion.MaxCreatedByLength} characters*");

@@ -44,7 +44,7 @@ public sealed class RefreshTokenUseCase(
             if (!token.IsWithinReuseLeeway(now, SecurityConstants.RefreshTokenReuseLeewaySeconds))
             {
                 // Compromise detected beyond grace window: revoke all active sessions for this user
-                auditService.LogTokenReuseDetected(token.UserId);
+                auditService.LogTokenReuseDetected(token.UserId.Value);
                 await tokenRepo.RevokeAllByUserIdAsync(token.UserId, now, ct);
                 await unitOfWork.CommitAsync(ct);
                 throw new UnauthorizedException("Invalid refresh token (reuse detected).");
@@ -91,7 +91,7 @@ public sealed class RefreshTokenUseCase(
         // Atomic Unit of Work commit
         await unitOfWork.CommitAsync(ct);
 
-        auditService.LogTokenRotated(user.Id);
+        auditService.LogTokenRotated(user.Id.Value);
 
         return new TokenResultDto(
             newAccessToken,

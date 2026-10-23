@@ -26,13 +26,13 @@ public sealed class DataConnection : BaseEntity<DataConnectionId>, IMustHaveProj
         DatabaseProvider provider,
         string encryptedConnectionString,
         DateTimeOffset now,
-        ProjectId projectId = default)
+        ProjectId projectId)
         : base(id ?? DataConnectionId.New(), createdAt: now)
     {
         Name = Guard.NotNull(name, nameof(Name));
         Provider = provider ?? DatabaseProvider.PostgreSQL;
         EncryptedConnectionString = Guard.NotBlank(encryptedConnectionString, nameof(EncryptedConnectionString));
-        ProjectId = projectId;
+        ProjectId = Guard.NotEmpty(projectId, nameof(ProjectId));
     }
 
     public static DataConnection Create(
@@ -40,7 +40,7 @@ public sealed class DataConnection : BaseEntity<DataConnectionId>, IMustHaveProj
         DatabaseProvider provider,
         string encryptedConnectionString,
         DateTimeOffset now,
-        ProjectId projectId = default) =>
+        ProjectId projectId) =>
         new(null, name, provider, encryptedConnectionString, now, projectId);
 
     public void UpdateConnection(

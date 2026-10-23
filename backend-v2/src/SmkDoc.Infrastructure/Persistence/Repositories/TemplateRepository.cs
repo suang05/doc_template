@@ -9,24 +9,22 @@ public sealed class TemplateRepository(AppDbContext context) : ITemplateReposito
 {
     private readonly AppDbContext _context = context;
 
-    public async Task<Template?> GetByIdAsync(Guid id, CancellationToken ct = default)
+    public async Task<Template?> GetByIdAsync(TemplateId id, CancellationToken ct = default)
     {
-        var templateId = new TemplateId(id);
         return await _context.Templates
             .Include(t => t.CurrentVersion)
-            .FirstOrDefaultAsync(t => t.Id == templateId, ct);
+            .FirstOrDefaultAsync(t => t.Id == id, ct);
     }
 
-    public async Task<Template?> GetByIdWithDetailsAsync(Guid id, CancellationToken ct = default)
+    public async Task<Template?> GetByIdWithDetailsAsync(TemplateId id, CancellationToken ct = default)
     {
-        var templateId = new TemplateId(id);
         return await _context.Templates
             .AsSplitQuery()
             .Include(t => t.CurrentVersion)
             .Include(t => t.Versions)
             .Include(t => t.FieldMappings)
             .Include(t => t.TemplateDatasets)
-            .FirstOrDefaultAsync(t => t.Id == templateId, ct);
+            .FirstOrDefaultAsync(t => t.Id == id, ct);
     }
 
     public async Task<Template?> GetBySlugAsync(string slug, CancellationToken ct = default)
@@ -69,21 +67,19 @@ public sealed class TemplateRepository(AppDbContext context) : ITemplateReposito
             .FirstOrDefaultAsync(v => v.Id == versionId, ct);
     }
 
-    public async Task<TemplateVersion?> GetCurrentVersionAsync(Guid templateId, CancellationToken ct = default)
+    public async Task<TemplateVersion?> GetCurrentVersionAsync(TemplateId templateId, CancellationToken ct = default)
     {
-        var tId = new TemplateId(templateId);
         return await _context.Templates
-            .Where(t => t.Id == tId)
+            .Where(t => t.Id == templateId)
             .Select(t => t.CurrentVersion)
             .FirstOrDefaultAsync(ct);
     }
 
-    public async Task<IReadOnlyList<TemplateVersion>> ListVersionsAsync(Guid templateId, CancellationToken ct = default)
+    public async Task<IReadOnlyList<TemplateVersion>> ListVersionsAsync(TemplateId templateId, CancellationToken ct = default)
     {
-        var tId = new TemplateId(templateId);
         return await _context.Templates
             .AsNoTracking()
-            .Where(t => t.Id == tId)
+            .Where(t => t.Id == templateId)
             .SelectMany(t => t.Versions)
             .OrderByDescending(v => v.Version)
             .ToListAsync(ct);

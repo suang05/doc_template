@@ -2,6 +2,7 @@ using SmkDoc.Application.Modules.Integration.Datasets.DTOs;
 using SmkDoc.Application.Modules.Integration.Datasets.Queries.GetDatasetById;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common.Builders;
 
 namespace SmkDoc.Tests.Application.Modules.Integration.Datasets.Queries.GetDatasetById;
@@ -30,10 +31,10 @@ public sealed class GetDatasetByIdUseCaseTests
             .WithSqlQuery("SELECT * FROM sales")
             .WithCacheSeconds(300);
 
-        _datasetRepo.GetByIdAsync(id, Arg.Any<CancellationToken>())
+        _datasetRepo.GetByIdAsync(new DatasetId(id), Arg.Any<CancellationToken>())
             .Returns(dataset);
 
-        _connectionRepo.GetByIdAsync(connId, Arg.Any<CancellationToken>())
+        _connectionRepo.GetByIdAsync(new DataConnectionId(connId), Arg.Any<CancellationToken>())
             .Returns(conn);
 
         // Act
@@ -51,7 +52,7 @@ public sealed class GetDatasetByIdUseCaseTests
     {
         // Arrange
         var id = Guid.NewGuid();
-        _datasetRepo.GetByIdAsync(id, Arg.Any<CancellationToken>())
+        _datasetRepo.GetByIdAsync(new DatasetId(id), Arg.Any<CancellationToken>())
             .Returns((Dataset?)null);
 
         // Act

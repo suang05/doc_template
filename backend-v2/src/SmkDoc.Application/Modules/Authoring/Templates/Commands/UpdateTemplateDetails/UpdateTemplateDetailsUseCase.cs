@@ -4,6 +4,7 @@ using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Modules.Authoring.Templates.Commands.UpdateTemplateDetails;
 
@@ -32,7 +33,7 @@ public sealed class UpdateTemplateDetailsUseCase(
         }
 
         // 2. Fetch Aggregate Root
-        var template = await _templateRepo.GetByIdAsync(command.TemplateId, ct)
+        var template = await _templateRepo.GetByIdAsync(new TemplateId(command.TemplateId), ct)
             ?? throw new NotFoundException($"Template '{command.TemplateId}' was not found.");
 
         // 3. Domain Invariants Execution
@@ -45,10 +46,10 @@ public sealed class UpdateTemplateDetailsUseCase(
 
         // 5. Return Safe DTO
         return new TemplateResultDto(
-            template.Id,
-            template.ProjectId,
-            template.Name,
-            template.Slug,
+            template.Id.Value,
+            template.ProjectId.Value,
+            template.Name.Value,
+            template.Slug.Value,
             template.Category,
             template.IsActive,
             template.CurrentVersionId,

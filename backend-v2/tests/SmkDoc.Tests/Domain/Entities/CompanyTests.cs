@@ -1,4 +1,4 @@
-﻿using FluentAssertions;
+using FluentAssertions;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects;
@@ -17,7 +17,7 @@ public sealed class CompanyTests
     {
         var company = Company.Create(CompanyName.Create("SAMMAKORN"), _initialTime);
 
-        company.Id.Should().NotBe(Guid.Empty);
+        company.Id.Value.Should().NotBe(Guid.Empty);
         company.Name.Value.Should().Be("SAMMAKORN");
         company.IsActive.Should().BeTrue();
         company.CreatedAt.Should().Be(_initialTime);

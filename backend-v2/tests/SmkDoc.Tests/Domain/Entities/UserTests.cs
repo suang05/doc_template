@@ -1,8 +1,9 @@
-﻿using FluentAssertions;
+using FluentAssertions;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common;
 using Xunit;
 
@@ -17,7 +18,7 @@ public sealed class UserTests
     {
         var user = User.Register(EmailAddress.Create("test@example.com"), "hash123", "John", "Doe", _initialTime);
 
-        user.Id.Should().NotBe(Guid.Empty);
+        user.Id.Value.Should().NotBe(Guid.Empty);
         user.Email.Value.Should().Be("test@example.com");
         user.PasswordHash.Should().Be("hash123");
         user.FirstName.Should().Be("John");
@@ -69,7 +70,7 @@ public sealed class UserTests
     public void CanAccessProject_SuperAdmin_ReturnsTrueForAnyProject()
     {
         var user = User.Register(EmailAddress.Create("admin@example.com"), "hash123", "Super", "Admin", _initialTime, SystemRole.SuperAdmin);
-        var arbitraryProjectId = Guid.NewGuid();
+        var arbitraryProjectId = ProjectId.New();
 
         user.CanAccessProject(arbitraryProjectId).Should().BeTrue();
     }
@@ -78,8 +79,8 @@ public sealed class UserTests
     public void CanAccessProject_Member_ReturnsTrueOnlyIfRoleAssigned()
     {
         var user = User.Register(EmailAddress.Create("member@example.com"), "hash123", "Regular", "Member", _initialTime);
-        var assignedProject = Guid.NewGuid();
-        var unassignedProject = Guid.NewGuid();
+        var assignedProject = ProjectId.New();
+        var unassignedProject = ProjectId.New();
 
         user.AssignProjectRole(assignedProject, RoleType.Developer, _initialTime);
 
@@ -91,7 +92,7 @@ public sealed class UserTests
     public void AssignProjectRole_WhenNew_AddsToRoles()
     {
         var user = User.Register(EmailAddress.Create("member@example.com"), "hash123", "Regular", "Member", _initialTime);
-        var projectId = Guid.NewGuid();
+        var projectId = ProjectId.New();
         var assignTime = _initialTime.AddHours(2);
 
         user.AssignProjectRole(projectId, RoleType.Admin, assignTime);
@@ -105,7 +106,7 @@ public sealed class UserTests
     public void AssignProjectRole_WhenExisting_UpdatesRoleInPlace()
     {
         var user = User.Register(EmailAddress.Create("member@example.com"), "hash123", "Regular", "Member", _initialTime);
-        var projectId = Guid.NewGuid();
+        var projectId = ProjectId.New();
         user.AssignProjectRole(projectId, RoleType.Viewer, _initialTime);
 
         var updateTime = _initialTime.AddHours(3);
@@ -120,7 +121,7 @@ public sealed class UserTests
     public void RemoveProjectRole_WhenPresent_RemovesAndSetsUpdated()
     {
         var user = User.Register(EmailAddress.Create("member@example.com"), "hash123", "Regular", "Member", _initialTime);
-        var projectId = Guid.NewGuid();
+        var projectId = ProjectId.New();
         user.AssignProjectRole(projectId, RoleType.Viewer, _initialTime);
 
         var removeTime = _initialTime.AddHours(4);
@@ -175,7 +176,7 @@ public sealed class UserTests
     public void AssignProjectRole_MismatchUserId_ThrowsDomainValidationException()
     {
         var user = User.Register(EmailAddress.Create("user@test.com"), "hashed_pwd", "John", "Doe", _initialTime);
-        var foreignRole = UserProjectRole.Create(Guid.NewGuid(), Guid.NewGuid(), RoleType.Developer, _initialTime);
+        var foreignRole = UserProjectRole.Create(UserId.New(), ProjectId.New(), RoleType.Developer, _initialTime);
 
         Action act = () => user.AssignProjectRole(foreignRole, _initialTime);
         act.Should().Throw<DomainValidationException>()

@@ -71,7 +71,7 @@ public class DocumentVersionBuilder
     {
         return new DocumentVersion(
             _id,
-            _documentId,
+            new SmkDoc.Domain.ValueObjects.Ids.DocumentId(_documentId),
             _version,
             _templateVersionId,
             _generationLogId,

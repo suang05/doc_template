@@ -7,6 +7,7 @@ using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Modules.IdentityAccess.Projects.Commands.CreateProject;
 
@@ -50,7 +51,7 @@ public sealed class CreateProjectUseCase(
         var project = Project.Create(defaultCompany.Id, ProjectName.Create(request.Name), TemplateSlug.Create(request.Slug), now);
         await projectRepo.AddAsync(project, ct);
 
-        var role = UserProjectRole.Create(request.UserId, project.Id, RoleType.Admin, now);
+        var role = UserProjectRole.Create(new UserId(request.UserId), project.Id, RoleType.Admin, now);
         await userRoleRepo.AddAsync(role, ct);
 
         string? readPlainKey = null;
@@ -89,9 +90,9 @@ public sealed class CreateProjectUseCase(
         await unitOfWork.CommitAsync(ct);
 
         return new ProjectResultDto(
-            project.Id,
-            project.Name,
-            project.Slug,
+            project.Id.Value,
+            project.Name.Value,
+            project.Slug.Value,
             project.IsActive,
             project.CreatedAt,
             readPlainKey,

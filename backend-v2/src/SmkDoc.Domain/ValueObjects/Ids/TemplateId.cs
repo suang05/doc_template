@@ -15,8 +15,8 @@ public readonly record struct TemplateId(Guid Value) : IComparable<TemplateId>
 
     public override string ToString() => Value.ToString();
 
-    public static implicit operator Guid(TemplateId id) => id.Value;
-    public static implicit operator TemplateId(Guid value) => new(value);
+    public static explicit operator Guid(TemplateId id) => id.Value;
+    public static explicit operator TemplateId(Guid value) => new(value);
 
     public static bool operator ==(TemplateId left, Guid right) => left.Value == right;
     public static bool operator !=(TemplateId left, Guid right) => left.Value != right;

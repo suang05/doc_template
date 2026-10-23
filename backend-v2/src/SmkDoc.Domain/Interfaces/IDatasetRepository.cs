@@ -1,4 +1,5 @@
 using SmkDoc.Domain.Entities;
+using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Domain.Interfaces;
 
@@ -7,8 +8,8 @@ namespace SmkDoc.Domain.Interfaces;
 /// </summary>
 public interface IDatasetRepository
 {
-    Task<Dataset?> GetByIdAsync(Guid id, CancellationToken ct = default);
-    Task<IReadOnlyList<Dataset>> GetByIdsAsync(IEnumerable<Guid> ids, CancellationToken ct = default);
+    Task<Dataset?> GetByIdAsync(DatasetId id, CancellationToken ct = default);
+    Task<IReadOnlyList<Dataset>> GetByIdsAsync(IEnumerable<DatasetId> ids, CancellationToken ct = default);
     Task<IReadOnlyList<Dataset>> ListAsync(CancellationToken ct = default);
     Task AddAsync(Dataset dataset, CancellationToken ct = default);
     void Update(Dataset dataset);

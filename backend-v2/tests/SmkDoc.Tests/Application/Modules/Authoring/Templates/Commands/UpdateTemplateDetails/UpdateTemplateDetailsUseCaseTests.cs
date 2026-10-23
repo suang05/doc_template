@@ -3,6 +3,7 @@ using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common.Builders;
 using ValidationException = SmkDoc.Application.Common.Exceptions.ValidationException;
 
@@ -37,7 +38,7 @@ public sealed class UpdateTemplateDetailsUseCaseTests
 
         // Assert
         await act.Should().ThrowAsync<ValidationException>();
-        await _templateRepo.DidNotReceive().GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+        await _templateRepo.DidNotReceive().GetByIdAsync(Arg.Any<TemplateId>(), Arg.Any<CancellationToken>());
         await _unitOfWork.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
     }
 
@@ -46,7 +47,7 @@ public sealed class UpdateTemplateDetailsUseCaseTests
     {
         // Arrange
         var templateId = Guid.NewGuid();
-        _templateRepo.GetByIdAsync(templateId, Arg.Any<CancellationToken>())
+        _templateRepo.GetByIdAsync(new TemplateId(templateId), Arg.Any<CancellationToken>())
             .Returns((Template?)null);
 
         var command = new UpdateTemplateDetailsCommand(templateId, "New Name", "New Category");
@@ -70,7 +71,7 @@ public sealed class UpdateTemplateDetailsUseCaseTests
             .WithName("Old Name")
             .WithSlug("slug");
 
-        _templateRepo.GetByIdAsync(templateId, Arg.Any<CancellationToken>())
+        _templateRepo.GetByIdAsync(new TemplateId(templateId), Arg.Any<CancellationToken>())
             .Returns(template);
 
         var command = new UpdateTemplateDetailsCommand(templateId, "Updated Name", "Updated Category");

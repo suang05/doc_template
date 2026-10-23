@@ -74,7 +74,7 @@ public sealed class GenerateDocumentUseCase(
             sw.Stop();
             var errorMessage = $"{preparedData.ValidationResult.Errors.Count} schema violation(s) detected.";
             await _auditService.LogValidationFailureAsync(
-                template.Id,
+                template.Id.Value,
                 currentVersion.Id,
                 preparedData.DataJson,
                 outputFormat,
@@ -120,7 +120,7 @@ public sealed class GenerateDocumentUseCase(
         // --- Step 3: Audit Logging & Version Tracking ---
         await _auditService.LogSuccessAsync(
             generationId,
-            template.Id,
+            template.Id.Value,
             currentVersion.Id,
             preparedData.DataJson,
             outputKey,
@@ -133,7 +133,7 @@ public sealed class GenerateDocumentUseCase(
         {
             await _versioningService.RecordVersionAsync(
                 request.DocumentRef,
-                template.Id,
+                template.Id.Value,
                 currentVersion.Id,
                 generationId,
                 request.ChangeNote,

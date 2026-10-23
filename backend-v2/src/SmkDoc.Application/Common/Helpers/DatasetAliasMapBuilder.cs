@@ -40,7 +40,7 @@ public static class DatasetAliasMapBuilder
             }
             catch (Exception ex) when (ex is not DataConnectionDecryptionException)
             {
-                throw new DataConnectionDecryptionException(connection.Id, connection.Name.Value, ex);
+                throw new DataConnectionDecryptionException(connection.Id.Value, connection.Name.Value, ex);
             }
         }
 

@@ -1,7 +1,8 @@
-﻿using SmkDoc.Application.Modules.Authoring.FieldMappings.Queries.GetTemplateDatasets;
+using SmkDoc.Application.Modules.Authoring.FieldMappings.Queries.GetTemplateDatasets;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common;
 using SmkDoc.Tests.Common.Builders;
 
@@ -67,9 +68,9 @@ public sealed class GetTemplateDatasetsUseCaseTests
             .Build();
         template.ReplaceDatasets(rows, TestConstants.BaselineTime);
 
-        _templateRepo.GetByIdWithDetailsAsync(templateId, Arg.Any<CancellationToken>())
+        _templateRepo.GetByIdWithDetailsAsync(new TemplateId(templateId), Arg.Any<CancellationToken>())
             .Returns(template);
-        _datasetRepo.GetByIdsAsync(Arg.Any<IEnumerable<Guid>>(), Arg.Any<CancellationToken>())
+        _datasetRepo.GetByIdsAsync(Arg.Any<IEnumerable<DatasetId>>(), Arg.Any<CancellationToken>())
             .Returns(datasets);
 
         // Act
@@ -91,7 +92,7 @@ public sealed class GetTemplateDatasetsUseCaseTests
     {
         // Arrange
         var templateId = Guid.NewGuid();
-        _templateRepo.GetByIdWithDetailsAsync(templateId, Arg.Any<CancellationToken>())
+        _templateRepo.GetByIdWithDetailsAsync(new TemplateId(templateId), Arg.Any<CancellationToken>())
             .Returns((Template?)null);
 
         // Act

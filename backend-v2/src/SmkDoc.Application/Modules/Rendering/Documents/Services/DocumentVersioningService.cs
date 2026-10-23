@@ -2,6 +2,7 @@ using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Modules.Rendering.Documents.Services;
 
@@ -26,11 +27,16 @@ public sealed class DocumentVersioningService(
 
         if (document is null)
         {
+            var projectId = executionContext.ProjectId.HasValue && executionContext.ProjectId.Value != Guid.Empty
+                ? new ProjectId(executionContext.ProjectId.Value)
+                : throw new SmkDoc.Domain.Exceptions.BusinessRuleViolationException(
+                    "Document versioning requires a valid project context.", "MISSING_PROJECT_CONTEXT");
+
             document = Document.Create(
                 DocumentReference.Create(documentRef),
-                templateId,
+                new TemplateId(templateId),
                 this.timeProvider.GetUtcNow(),
-                executionContext.ProjectId.HasValue ? new SmkDoc.Domain.ValueObjects.Ids.ProjectId(executionContext.ProjectId.Value) : SmkDoc.Domain.ValueObjects.Ids.ProjectId.Empty);
+                projectId);
             await documentRepo.AddAsync(document, ct);
         }
 

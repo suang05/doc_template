@@ -2,6 +2,7 @@ using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Modules.IdentityAccess.Security.Commands.RevokeApiKey;
 
@@ -19,7 +20,7 @@ public sealed class RevokeApiKeyUseCase(
             throw new DomainValidationException("ProjectId cannot be empty.");
         }
 
-        var key = await apiKeyRepo.GetByIdAsync(command.Id, command.ProjectId, ct)
+        var key = await apiKeyRepo.GetByIdAsync(new ApiKeyId(command.Id), new ProjectId(command.ProjectId), ct)
             ?? throw new NotFoundException($"API Key '{command.Id}' not found.");
 
         key.Revoke(this.timeProvider.GetUtcNow());

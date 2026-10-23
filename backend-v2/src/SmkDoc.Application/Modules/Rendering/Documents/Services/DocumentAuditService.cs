@@ -2,6 +2,7 @@ using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Modules.Rendering.Documents.Services;
 
@@ -23,10 +24,19 @@ public sealed class DocumentAuditService(
         string errorMessage,
         CancellationToken ct = default)
     {
+        var projectId = executionContext.ProjectId.HasValue && executionContext.ProjectId.Value != Guid.Empty
+            ? new ProjectId(executionContext.ProjectId.Value)
+            : throw new SmkDoc.Domain.Exceptions.BusinessRuleViolationException(
+                "Document audit logging requires a valid project context.", "MISSING_PROJECT_CONTEXT");
+
+        var apiKeyId = executionContext.ApiKeyId.HasValue && executionContext.ApiKeyId.Value != Guid.Empty
+            ? (ApiKeyId?)new ApiKeyId(executionContext.ApiKeyId.Value)
+            : null;
+
         var failLog = GenerationLog.CreateValidationFailure(
-            templateId,
+            new TemplateId(templateId),
             templateVersionId,
-            executionContext.ApiKeyId,
+            apiKeyId,
             executionContext.CallerApp,
             "api",
             dataJson,
@@ -34,7 +44,7 @@ public sealed class DocumentAuditService(
             elapsedMs,
             errorMessage,
             this.timeProvider.GetUtcNow(),
-            executionContext.ProjectId.HasValue ? new SmkDoc.Domain.ValueObjects.Ids.ProjectId(executionContext.ProjectId.Value) : SmkDoc.Domain.ValueObjects.Ids.ProjectId.Empty);
+            projectId);
 
         await logRepo.AddAsync(failLog, ct);
         await unitOfWork.CommitAsync(ct);
@@ -53,11 +63,20 @@ public sealed class DocumentAuditService(
         int elapsedMs,
         CancellationToken ct = default)
     {
+        var projectId = executionContext.ProjectId.HasValue && executionContext.ProjectId.Value != Guid.Empty
+            ? new ProjectId(executionContext.ProjectId.Value)
+            : throw new SmkDoc.Domain.Exceptions.BusinessRuleViolationException(
+                "Document audit logging requires a valid project context.", "MISSING_PROJECT_CONTEXT");
+
+        var apiKeyId = executionContext.ApiKeyId.HasValue && executionContext.ApiKeyId.Value != Guid.Empty
+            ? (ApiKeyId?)new ApiKeyId(executionContext.ApiKeyId.Value)
+            : null;
+
         var log = GenerationLog.CreateSuccess(
             generationId,
-            templateId,
+            new TemplateId(templateId),
             templateVersionId,
-            executionContext.ApiKeyId,
+            apiKeyId,
             executionContext.CallerApp,
             "api",
             dataJson,
@@ -66,7 +85,7 @@ public sealed class DocumentAuditService(
             fileSizeBytes,
             elapsedMs,
             this.timeProvider.GetUtcNow(),
-            executionContext.ProjectId.HasValue ? new SmkDoc.Domain.ValueObjects.Ids.ProjectId(executionContext.ProjectId.Value) : SmkDoc.Domain.ValueObjects.Ids.ProjectId.Empty);
+            projectId);
 
         await logRepo.AddAsync(log, ct);
 

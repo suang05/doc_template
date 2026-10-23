@@ -7,6 +7,7 @@ using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common.Builders;
 using Xunit;
 
@@ -47,11 +48,11 @@ public sealed class GetCurrentUserProfileUseCaseTests
             .Returns(workspaceContext);
 
         // Act
-        var result = await CreateSut().ExecuteAsync(new GetCurrentUserProfileQuery(user.Id));
+        var result = await CreateSut().ExecuteAsync(new GetCurrentUserProfileQuery(user.Id.Value));
 
         // Assert
         result.Should().NotBeNull();
-        result.Id.Should().Be(user.Id);
+        result.Id.Should().Be(user.Id.Value);
         result.Email.Should().Be("user@example.com");
         result.FirstName.Should().Be("John");
         result.LastName.Should().Be("Doe");
@@ -89,7 +90,7 @@ public sealed class GetCurrentUserProfileUseCaseTests
             .Returns(workspaceContext);
 
         // Act
-        var result = await CreateSut().ExecuteAsync(new GetCurrentUserProfileQuery(user.Id));
+        var result = await CreateSut().ExecuteAsync(new GetCurrentUserProfileQuery(user.Id.Value));
 
         // Assert
         result.Should().NotBeNull();
@@ -125,7 +126,7 @@ public sealed class GetCurrentUserProfileUseCaseTests
             .Returns(workspaceContext);
 
         // Act
-        var result = await CreateSut().ExecuteAsync(new GetCurrentUserProfileQuery(user.Id));
+        var result = await CreateSut().ExecuteAsync(new GetCurrentUserProfileQuery(user.Id.Value));
 
         // Assert
         result.Should().NotBeNull();
@@ -157,7 +158,7 @@ public sealed class GetCurrentUserProfileUseCaseTests
             .Returns(workspaceContext);
 
         // Act
-        var result = await CreateSut().ExecuteAsync(new GetCurrentUserProfileQuery(user.Id));
+        var result = await CreateSut().ExecuteAsync(new GetCurrentUserProfileQuery(user.Id.Value));
 
         // Assert
         result.Should().NotBeNull();
@@ -193,7 +194,7 @@ public sealed class GetCurrentUserProfileUseCaseTests
             .Returns(workspaceContext);
 
         // Act
-        var result = await CreateSut().ExecuteAsync(new GetCurrentUserProfileQuery(user.Id));
+        var result = await CreateSut().ExecuteAsync(new GetCurrentUserProfileQuery(user.Id.Value));
 
         // Assert
         result.Should().NotBeNull();
@@ -204,7 +205,7 @@ public sealed class GetCurrentUserProfileUseCaseTests
     public async Task ExecuteAsync_WhenUserNotFound_ThrowsUnauthorizedException()
     {
         // Arrange
-        _userRepo.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+        _userRepo.GetByIdAsync(Arg.Any<UserId>(), Arg.Any<CancellationToken>())
             .Returns((User?)null);
 
         // Act

@@ -1,15 +1,16 @@
-﻿using FluentAssertions;
+using FluentAssertions;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Domain.ValueObjects.Ids;
 using Xunit;
 
 namespace SmkDoc.Tests.Domain.Entities;
 
 public sealed class TemplateDatasetTests
 {
-    private readonly Guid _templateId = Guid.NewGuid();
-    private readonly Guid _datasetId = Guid.NewGuid();
+    private readonly TemplateId _templateId = TemplateId.New();
+    private readonly DatasetId _datasetId = DatasetId.New();
     private readonly DateTimeOffset _initialTime = TestConstants.BaselineTime;
 
     [Fact]
@@ -29,7 +30,7 @@ public sealed class TemplateDatasetTests
     [Fact]
     public void Create_WithEmptyTemplateId_ThrowsDomainValidationException()
     {
-        var act = () => TemplateDataset.Create(Guid.Empty, _datasetId, DatasetAlias.Create("alias"), 1, _initialTime);
+        var act = () => TemplateDataset.Create(TemplateId.Empty, _datasetId, DatasetAlias.Create("alias"), 1, _initialTime);
 
         act.Should().Throw<DomainValidationException>()
             .WithMessage("*TemplateId cannot be empty*");
@@ -38,7 +39,7 @@ public sealed class TemplateDatasetTests
     [Fact]
     public void Create_WithEmptyDatasetId_ThrowsDomainValidationException()
     {
-        var act = () => TemplateDataset.Create(_templateId, Guid.Empty, DatasetAlias.Create("alias"), 1, _initialTime);
+        var act = () => TemplateDataset.Create(_templateId, DatasetId.Empty, DatasetAlias.Create("alias"), 1, _initialTime);
 
         act.Should().Throw<DomainValidationException>()
             .WithMessage("*DatasetId cannot be empty*");

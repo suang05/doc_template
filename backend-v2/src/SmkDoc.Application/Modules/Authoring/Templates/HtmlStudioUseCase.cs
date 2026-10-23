@@ -5,6 +5,8 @@ using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
+using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Modules.Authoring.Templates;
 
@@ -21,7 +23,7 @@ public sealed class HtmlStudioUseCase(
 
     public async Task<string> GetHtmlSourceAsync(Guid templateId, CancellationToken ct = default)
     {
-        var template = await _templateRepo.GetByIdAsync(templateId, ct)
+        var template = await _templateRepo.GetByIdAsync(new TemplateId(templateId), ct)
             ?? throw new NotFoundException($"Template '{templateId}' not found.");
 
         if (template.CurrentVersionId == null)
@@ -41,7 +43,7 @@ public sealed class HtmlStudioUseCase(
 
     public async Task<TemplateStudioDto> GetStudioBundleAsync(Guid templateId, CancellationToken ct = default)
     {
-        var template = await _templateRepo.GetByIdAsync(templateId, ct)
+        var template = await _templateRepo.GetByIdAsync(new TemplateId(templateId), ct)
             ?? throw new NotFoundException($"Template '{templateId}' not found.");
 
         if (template.CurrentVersionId == null)
@@ -68,7 +70,7 @@ public sealed class HtmlStudioUseCase(
 
     public async Task<TemplateSchemaDto> GetTemplateSchemaAsync(Guid templateId, CancellationToken ct = default)
     {
-        var template = await _templateRepo.GetByIdAsync(templateId, ct)
+        var template = await _templateRepo.GetByIdAsync(new TemplateId(templateId), ct)
             ?? throw new NotFoundException($"Template '{templateId}' not found.");
 
         TemplateVersion? activeVersion = null;
@@ -79,7 +81,7 @@ public sealed class HtmlStudioUseCase(
         }
 
         return new TemplateSchemaDto(
-            TemplateId: template.Id,
+            TemplateId: template.Id.Value,
             Slug: template.Slug,
             Format: activeVersion?.FileFormat,
             Version: activeVersion?.Version ?? 1,

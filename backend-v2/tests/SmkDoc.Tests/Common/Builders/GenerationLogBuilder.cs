@@ -1,6 +1,7 @@
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Tests.Common.Builders;
 
@@ -22,6 +23,7 @@ public class GenerationLogBuilder
     private GenerationStatus _status = GenerationStatus.Success;
     private string? _errorMsg = null;
     private DateTimeOffset _now = TestConstants.BaselineTime;
+    private ProjectId _projectId = ProjectId.New();
 
     public static GenerationLogBuilder ALog() => new();
 
@@ -151,13 +153,19 @@ public class GenerationLogBuilder
         return this;
     }
 
+    public GenerationLogBuilder WithProjectId(ProjectId projectId)
+    {
+        _projectId = projectId;
+        return this;
+    }
+
     public GenerationLog Build()
     {
         return new GenerationLog(
             _id,
-            _templateId,
+            _templateId.HasValue ? new TemplateId(_templateId.Value) : null,
             _templateVersionId,
-            _apiKeyId,
+            _apiKeyId.HasValue ? new ApiKeyId(_apiKeyId.Value) : null,
             _callerApp,
             _triggerSource,
             _inputData,
@@ -169,7 +177,8 @@ public class GenerationLogBuilder
             _durationMs,
             _status,
             _errorMsg,
-            _now);
+            _now,
+            _projectId);
     }
 
     public static implicit operator GenerationLog(GenerationLogBuilder builder) => builder.Build();

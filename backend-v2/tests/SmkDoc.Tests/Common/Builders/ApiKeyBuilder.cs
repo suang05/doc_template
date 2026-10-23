@@ -1,5 +1,6 @@
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Tests.Common.Builders;
 
@@ -63,8 +64,8 @@ public class ApiKeyBuilder
     public ApiKey Build()
     {
         return new ApiKey(
-            _id,
-            _projectId,
+            new ApiKeyId(_id),
+            new ProjectId(_projectId),
             ApiKeyName.Create(_name),
             _callerApp,
             _keyHash,

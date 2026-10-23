@@ -14,8 +14,8 @@ public sealed class ListDataConnectionsUseCase(
         var connections = await repository.ListAsync(ct);
         return connections.Select(c => new DataConnectionDto
         {
-            Id = c.Id,
-            Name = c.Name,
+            Id = c.Id.Value,
+            Name = c.Name.Value,
             Provider = c.Provider.Name,
             CreatedAt = c.CreatedAt,
             UpdatedAt = c.UpdatedAt

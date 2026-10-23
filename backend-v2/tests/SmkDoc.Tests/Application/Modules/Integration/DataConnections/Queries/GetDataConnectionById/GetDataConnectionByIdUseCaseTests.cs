@@ -2,6 +2,7 @@ using SmkDoc.Application.Modules.Integration.DataConnections.DTOs;
 using SmkDoc.Application.Modules.Integration.DataConnections.Queries.GetDataConnectionById;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common.Builders;
 
 namespace SmkDoc.Tests.Application.Modules.Integration.DataConnections.Queries.GetDataConnectionById;
@@ -19,7 +20,7 @@ public sealed class GetDataConnectionByIdUseCaseTests
         var id = Guid.NewGuid();
         DataConnection conn = DataConnectionBuilder.Postgres(name: "Production DB", connectionString: "enc_secret", id: id);
 
-        _connectionRepo.GetByIdAsync(id, Arg.Any<CancellationToken>())
+        _connectionRepo.GetByIdAsync(new DataConnectionId(id), Arg.Any<CancellationToken>())
             .Returns(conn);
 
         // Act
@@ -36,7 +37,7 @@ public sealed class GetDataConnectionByIdUseCaseTests
     {
         // Arrange
         var id = Guid.NewGuid();
-        _connectionRepo.GetByIdAsync(id, Arg.Any<CancellationToken>())
+        _connectionRepo.GetByIdAsync(new DataConnectionId(id), Arg.Any<CancellationToken>())
             .Returns((DataConnection?)null);
 
         // Act

@@ -1,8 +1,9 @@
-﻿using SmkDoc.Application.Modules.Authoring.FieldMappings.Commands.SaveTemplateMappings;
+using SmkDoc.Application.Modules.Authoring.FieldMappings.Commands.SaveTemplateMappings;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common;
 using SmkDoc.Tests.Common.Builders;
 
@@ -28,7 +29,7 @@ public sealed class SaveTemplateMappingsUseCaseTests
             .WithSlug("contract")
             .Build();
 
-        _templateRepo.GetByIdWithDetailsAsync(templateId, Arg.Any<CancellationToken>())
+        _templateRepo.GetByIdWithDetailsAsync(new TemplateId(templateId), Arg.Any<CancellationToken>())
             .Returns(template);
 
         var items = new List<SaveFieldMappingItemDto>
@@ -44,7 +45,7 @@ public sealed class SaveTemplateMappingsUseCaseTests
         // Assert
         template.FieldMappings.Should().HaveCount(1);
         var mapping = template.FieldMappings.First();
-        mapping.TemplateId.Should().Be(templateId);
+        mapping.TemplateId.Value.Should().Be(templateId);
         mapping.Placeholder.Should().Be("customerName");
         mapping.SourcePath.Should().Be("customer.name");
         mapping.Transform.Should().Be("thai_baht_text");
@@ -56,9 +57,9 @@ public sealed class SaveTemplateMappingsUseCaseTests
     {
         // Arrange
         var templateId = Guid.NewGuid();
-        _templateRepo.GetByIdWithDetailsAsync(templateId, Arg.Any<CancellationToken>())
+        _templateRepo.GetByIdWithDetailsAsync(new TemplateId(templateId), Arg.Any<CancellationToken>())
             .Returns((Template?)null);
-        _templateRepo.GetByIdAsync(templateId, Arg.Any<CancellationToken>())
+        _templateRepo.GetByIdAsync(new TemplateId(templateId), Arg.Any<CancellationToken>())
             .Returns((Template?)null);
 
         var command = new SaveTemplateMappingsCommand(templateId, []);

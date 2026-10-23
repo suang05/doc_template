@@ -2,6 +2,7 @@ using SmkDoc.Application.Modules.Integration.Datasets.DTOs;
 using SmkDoc.Application.Modules.Integration.Datasets.Queries.ListDatasets;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common.Builders;
 
 namespace SmkDoc.Tests.Application.Modules.Integration.Datasets.Queries.ListDatasets;
@@ -30,7 +31,7 @@ public sealed class ListDatasetsUseCaseTests
 
         _datasetRepo.ListAsync(Arg.Any<CancellationToken>())
             .Returns(new List<Dataset> { dataset });
-        _connectionRepo.GetByIdsAsync(Arg.Any<IEnumerable<Guid>>(), Arg.Any<CancellationToken>())
+        _connectionRepo.GetByIdsAsync(Arg.Any<IEnumerable<DataConnectionId>>(), Arg.Any<CancellationToken>())
             .Returns(new List<DataConnection> { conn });
 
         // Act
