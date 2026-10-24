@@ -22,7 +22,13 @@ public sealed class GenerationLogTests
         int? pageCount = null,
         int durationMs = 10,
         ProjectId? projectId = null) =>
-        () => GenerationLog.Create(null, null, null, callerApp, triggerSource, null, outputKey, null, fileSizeBytes, pageCount, null, durationMs, GenerationStatus.Success, null, Now, projectId ?? TestProjectId);
+        () => GenerationLog.Create(
+            projectId ?? TestProjectId,
+            new GenerationTarget(null, null, null, outputKey, null, null),
+            new GenerationContext(callerApp, triggerSource, null),
+            new GenerationMetrics(durationMs, fileSizeBytes, pageCount),
+            GenerationStatus.Success,
+            Now);
 
     [Fact]
     public void CreateSuccess_WithValidParameters_InitializesCorrectly()
@@ -32,20 +38,22 @@ public sealed class GenerationLogTests
         var templateVersionId = Guid.NewGuid();
         var apiKeyId = ApiKeyId.New();
 
-        var log = GenerationLog.CreateSuccess(
-            generationId,
+        var target = new GenerationTarget(
             templateId,
             templateVersionId,
-            apiKeyId,
-            "crm-service",
-            "api",
-            "{\"invoiceNo\":\"INV-001\"}",
-            "outputs/invoice.pdf",
             OutputFormat.Pdf,
-            20480,
-            120,
-            Now,
-            TestProjectId);
+            "outputs/invoice.pdf",
+            "{\"invoiceNo\":\"INV-001\"}");
+        var context = new GenerationContext("crm-service", "api", apiKeyId);
+        var metrics = GenerationMetrics.Of(120, 20480);
+
+        var log = GenerationLog.CreateSuccess(
+            generationId,
+            TestProjectId,
+            target,
+            context,
+            metrics,
+            Now);
 
         log.Id.Should().Be(generationId);
         log.ProjectId.Should().Be(TestProjectId);
@@ -73,20 +81,22 @@ public sealed class GenerationLogTests
         var expectedHashBytes = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(inputJson));
         var expectedHex = Convert.ToHexStringLower(expectedHashBytes);
 
-        var log = GenerationLog.CreateSuccess(
-            Guid.NewGuid(),
+        var target = new GenerationTarget(
             TemplateId.New(),
             Guid.NewGuid(),
-            ApiKeyId.New(),
-            "crm-service",
-            "api",
-            inputJson,
-            "outputs/invoice.pdf",
             OutputFormat.Pdf,
-            1024,
-            50,
-            Now,
-            TestProjectId);
+            "outputs/invoice.pdf",
+            inputJson);
+        var context = new GenerationContext("crm-service", "api", ApiKeyId.New());
+        var metrics = GenerationMetrics.Of(50, 1024);
+
+        var log = GenerationLog.CreateSuccess(
+            Guid.NewGuid(),
+            TestProjectId,
+            target,
+            context,
+            metrics,
+            Now);
 
         log.PayloadHashSha256.Should().NotBeNull();
         log.PayloadHashSha256!.Value.Should().Be(expectedHex);
@@ -95,21 +105,16 @@ public sealed class GenerationLogTests
     [Fact]
     public void CreateValidationFailure_SetsValidationFailedStatusAndErrorMessage()
     {
-        var templateId = TemplateId.New();
-        var templateVersionId = Guid.NewGuid();
+        var target = GenerationTarget.ForTemplate(TemplateId.New(), Guid.NewGuid(), OutputFormat.Pdf, "{}");
+        var context = new GenerationContext("portal", "ui", null);
 
         var log = GenerationLog.CreateValidationFailure(
-            templateId,
-            templateVersionId,
-            null,
-            "portal",
-            "ui",
-            "{}",
-            OutputFormat.Pdf,
+            TestProjectId,
+            target,
+            context,
             15,
             "Payload missing required field 'contractId'",
-            Now,
-            TestProjectId);
+            Now);
 
         log.ProjectId.Should().Be(TestProjectId);
         log.Status.Should().Be(GenerationStatus.ValidationFailed);
@@ -121,21 +126,16 @@ public sealed class GenerationLogTests
     [Fact]
     public void CreateFailure_SetsFailedStatusAndErrorMessage()
     {
-        var templateId = TemplateId.New();
-        var templateVersionId = Guid.NewGuid();
+        var target = GenerationTarget.ForTemplate(TemplateId.New(), Guid.NewGuid(), OutputFormat.Pdf, "{}");
+        var context = new GenerationContext("portal", "api", null);
 
         var log = GenerationLog.CreateFailure(
-            templateId,
-            templateVersionId,
-            null,
-            "portal",
-            "api",
-            "{}",
-            OutputFormat.Pdf,
+            TestProjectId,
+            target,
+            context,
             3000,
             "Gotenberg service timeout",
-            Now,
-            TestProjectId);
+            Now);
 
         log.ProjectId.Should().Be(TestProjectId);
         log.Status.Should().Be(GenerationStatus.Failed);
@@ -145,7 +145,18 @@ public sealed class GenerationLogTests
     [Fact]
     public void Create_WithEmptyProjectId_ThrowsDomainValidationException()
     {
-        var act = () => GenerationLog.Create(null, null, null, "app", "api", null, null, null, null, null, null, 10, GenerationStatus.Success, null, Now, ProjectId.Empty);
+        var target = new GenerationTarget();
+        var context = new GenerationContext("app", "api");
+        var metrics = GenerationMetrics.ForDuration(10, 0);
+
+        var act = () => GenerationLog.Create(
+            ProjectId.Empty,
+            target,
+            context,
+            metrics,
+            GenerationStatus.Success,
+            Now);
+
         act.Should().Throw<DomainValidationException>()
             .WithMessage("*ProjectId cannot be empty*");
     }
@@ -182,7 +193,17 @@ public sealed class GenerationLogTests
     [Fact]
     public void Create_WithSmartEnumStatus_InitializesSuccessfully()
     {
-        var log = GenerationLog.Create(null, null, null, null, "api", null, null, null, null, null, null, 10, GenerationStatus.Timeout, null, Now, TestProjectId);
+        var target = new GenerationTarget();
+        var context = new GenerationContext(null, "api");
+        var metrics = GenerationMetrics.ForDuration(10, 0);
+
+        var log = GenerationLog.Create(
+            TestProjectId,
+            target,
+            context,
+            metrics,
+            GenerationStatus.Timeout,
+            Now);
 
         log.Status.Should().Be(GenerationStatus.Timeout);
     }

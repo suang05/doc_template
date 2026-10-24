@@ -127,27 +127,6 @@ public sealed class Template : BaseEntity<TemplateId>, IMustHaveProject
         SetUpdated(now);
     }
 
-    public TemplateVersion PublishVersion(Guid versionId, DateTimeOffset now)
-    {
-        Guard.NotEmpty(versionId, nameof(versionId));
-
-        if (!IsActive)
-        {
-            throw new BusinessRuleViolationException(
-                "Cannot publish version on an inactive template.",
-                "INACTIVE_TEMPLATE");
-        }
-
-        var version = _versions.FirstOrDefault(v => v.Id == versionId)
-            ?? throw new VersionNotInTemplateException(Id.Value, versionId);
-
-        version.Publish(now);
-        CurrentVersionId = versionId;
-        SetUpdated(now);
-        AddDomainEvent(new TemplatePublishedDomainEvent(Id, ProjectId, version.Id, version.Version, now));
-        return version;
-    }
-
     public void PublishVersion(TemplateVersion version, DateTimeOffset now)
     {
         Guard.NotNull(version, nameof(version));

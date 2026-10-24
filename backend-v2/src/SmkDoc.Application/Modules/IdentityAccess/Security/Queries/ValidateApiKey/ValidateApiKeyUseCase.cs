@@ -2,6 +2,7 @@ using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Helpers;
 using SmkDoc.Domain.Entities;
+using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
 
@@ -9,6 +10,7 @@ namespace SmkDoc.Application.Modules.IdentityAccess.Security.Queries.ValidateApi
 
 public sealed class ValidateApiKeyUseCase(
     IApiKeyRepository apiKeyRepo,
+    IProjectRepository projectRepo,
     IUnitOfWork unitOfWork,
     TimeProvider? timeProvider = null) : IUseCase<ValidateApiKeyQuery, ValidatedApiKeyDto?>
 {
@@ -23,6 +25,12 @@ public sealed class ValidateApiKeyUseCase(
         var now = _timeProvider.GetUtcNow();
         if (key != null && key.IsUsableAt(now))
         {
+            var project = await projectRepo.GetByIdAsync(key.ProjectId, ct);
+            if (project == null || !project.IsActive)
+            {
+                throw new ProjectDeactivatedException(key.ProjectId.Value);
+            }
+
             key.RecordUsage(now);
             apiKeyRepo.Update(key);
             await unitOfWork.CommitAsync(ct);

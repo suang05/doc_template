@@ -83,6 +83,7 @@ public sealed class GlobalExceptionHandler(
             NotFoundException notFound           => (StatusCodes.Status404NotFound, "Not Found", notFound.ErrorCode),
             DraftExpiredException draftExpired   => (StatusCodes.Status410Gone, "Draft Expired", draftExpired.ErrorCode),
             ConflictException conflict           => (StatusCodes.Status409Conflict, "Conflict", conflict.ErrorCode),
+            ProjectDeactivatedException projDeact => (StatusCodes.Status403Forbidden, "Project Deactivated", projDeact.ErrorCode),
             RenderException render               => (StatusCodes.Status500InternalServerError, "Render Failed", render.ErrorCode),
             DataConnectionDecryptionException decrypt => (StatusCodes.Status500InternalServerError, "Data Connection Decryption Failed", decrypt.ErrorCode),
             DatasetExecutionException datasetEx  => (StatusCodes.Status500InternalServerError, "Dataset Query Failed", datasetEx.ErrorCode),

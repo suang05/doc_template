@@ -1,4 +1,4 @@
-﻿using FluentAssertions;
+using FluentAssertions;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects.Layout;
 using Xunit;
@@ -30,6 +30,26 @@ public sealed class LayoutStructTests
         landscape.HeightMm.Should().Be(210f);
         landscape.IsLandscape.Should().BeTrue();
         landscape.IsPortrait.Should().BeFalse();
+    }
+
+    [Fact]
+    public void PageDimension_ToPortrait_ConvertsLandscapeToPortraitAndPreservesPortrait()
+    {
+        var landscape = new PageDimension(297f, 210f);
+        var portrait = PageDimension.A4;
+
+        var converted = landscape.ToPortrait();
+        var unchanged = portrait.ToPortrait();
+
+        converted.WidthMm.Should().Be(210f);
+        converted.HeightMm.Should().Be(297f);
+        converted.IsPortrait.Should().BeTrue();
+        converted.IsLandscape.Should().BeFalse();
+
+        unchanged.WidthMm.Should().Be(210f);
+        unchanged.HeightMm.Should().Be(297f);
+        unchanged.IsPortrait.Should().BeTrue();
+        unchanged.IsLandscape.Should().BeFalse();
     }
 
     [Theory]

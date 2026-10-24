@@ -272,9 +272,9 @@ public sealed class TemplateTests
         version.Status.Should().Be(SmkDoc.Domain.Enums.TemplateVersionStatus.Draft);
 
         var pubTime = _initialTime.AddMinutes(10);
-        var published = template.PublishVersion(version.Id, pubTime);
+        template.PublishVersion(version, pubTime);
 
-        published.Status.Should().Be(SmkDoc.Domain.Enums.TemplateVersionStatus.Published);
+        version.Status.Should().Be(SmkDoc.Domain.Enums.TemplateVersionStatus.Published);
         template.CurrentVersionId.Should().Be(version.Id);
         template.UpdatedAt.Should().Be(pubTime);
 
@@ -315,22 +315,10 @@ public sealed class TemplateTests
         var version = template.CreateDraftVersion(1, "key-1", TemplateFormat.Html, "author", _initialTime);
         template.Deactivate(_initialTime);
 
-        var act = () => template.PublishVersion(version.Id, _initialTime.AddMinutes(1));
+        var act = () => template.PublishVersion(version, _initialTime.AddMinutes(1));
 
         act.Should().Throw<BusinessRuleViolationException>()
             .Which.ErrorCode.Should().Be("INACTIVE_TEMPLATE");
-    }
-
-    [Fact]
-    public void PublishVersion_VersionNotInTemplate_ThrowsBusinessRuleViolationException()
-    {
-        var template = CreateTemplate("Invoice", "invoice", now: _initialTime);
-        var foreignVersionId = Guid.NewGuid();
-
-        var act = () => template.PublishVersion(foreignVersionId, _initialTime);
-
-        act.Should().Throw<BusinessRuleViolationException>()
-            .Which.ErrorCode.Should().Be("VERSION_NOT_IN_TEMPLATE");
     }
 
     [Fact]

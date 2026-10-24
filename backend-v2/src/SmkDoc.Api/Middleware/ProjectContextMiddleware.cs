@@ -9,6 +9,7 @@ using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Queries.ValidateApiKey;
 using SmkDoc.Domain.Enums;
+using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Infrastructure.Contexts;
@@ -31,6 +32,7 @@ public class ProjectContextMiddleware(
         ICurrentProjectContextSetter projectContextSetter,
         ValidateApiKeyUseCase validateApiKeyUseCase,
         IUserProjectRoleRepository userProjectRoleRepo,
+        IProjectRepository projectRepo,
         ExecutionContextImpl executionContext)
     {
         string path = context.Request.Path.Value?.ToLowerInvariant() ?? string.Empty;
@@ -77,10 +79,39 @@ public class ProjectContextMiddleware(
                 }
             }
 
-            // If a specific project was requested, enforce IDOR defense
+            // If a specific project was requested, enforce active tenant validation & IDOR defense
             if (targetProjectIdGuid.HasValue)
             {
                 var targetProjectId = new ProjectId(targetProjectIdGuid.Value);
+
+                var project = await projectRepo.GetByIdAsync(targetProjectId, context.RequestAborted);
+                if (project == null)
+                {
+                    logger.LogWarning("Tenant resolution failed: Project {ProjectId} not found", targetProjectId);
+                    await WriteProblemDetailsAsync(
+                        context,
+                        StatusCodes.Status404NotFound,
+                        "Not Found",
+                        $"Project '{targetProjectId}' not found.",
+                        "https://tools.ietf.org/html/rfc9457");
+                    return;
+                }
+
+                if (!project.IsActive)
+                {
+                    logger.LogWarning(
+                        "Tenant inactive defense: User {UserId} denied access to deactivated project {ProjectId}",
+                        userIdGuid,
+                        targetProjectId);
+
+                    await WriteProblemDetailsAsync(
+                        context,
+                        StatusCodes.Status403Forbidden,
+                        "Forbidden",
+                        $"Project '{targetProjectId}' is deactivated.",
+                        "https://tools.ietf.org/html/rfc9457");
+                    return;
+                }
 
                 var systemRoleClaim = context.User.FindFirst("SystemRole")?.Value
                     ?? context.User.FindFirst(ClaimTypes.Role)?.Value;
@@ -148,7 +179,26 @@ public class ProjectContextMiddleware(
                 return;
             }
 
-            var key = await validateApiKeyUseCase.ExecuteAsync(new ValidateApiKeyQuery(rawKey), context.RequestAborted);
+            ValidatedApiKeyDto? key;
+            try
+            {
+                key = await validateApiKeyUseCase.ExecuteAsync(new ValidateApiKeyQuery(rawKey), context.RequestAborted);
+            }
+            catch (ProjectDeactivatedException ex)
+            {
+                logger.LogWarning(
+                    "Tenant inactive defense: API Key denied access because project {ProjectId} is deactivated",
+                    ex.ProjectId);
+
+                await WriteProblemDetailsAsync(
+                    context,
+                    StatusCodes.Status403Forbidden,
+                    "Forbidden",
+                    ex.Message,
+                    "https://tools.ietf.org/html/rfc9457");
+                return;
+            }
+
             if (key == null)
             {
                 logger.LogWarning("Invalid or inactive API Key attempt from {IpAddress} to {Path}", executionContext.ClientIp, path);

@@ -2,8 +2,10 @@ using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Helpers;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Queries.ValidateApiKey;
 using SmkDoc.Domain.Entities;
+using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common.Builders;
 
 namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Security.Queries.ValidateApiKey;
@@ -11,6 +13,7 @@ namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Security.Queries.Valid
 public sealed class ValidateApiKeyUseCaseTests
 {
     private readonly IApiKeyRepository _apiKeyRepo = Substitute.For<IApiKeyRepository>();
+    private readonly IProjectRepository _projectRepo = Substitute.For<IProjectRepository>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
     private readonly FakeTimeProvider _clock = TestConstants.CreateFakeClock();
 
@@ -20,7 +23,7 @@ public sealed class ValidateApiKeyUseCaseTests
     }
 
     private ValidateApiKeyUseCase CreateSut() =>
-        new(_apiKeyRepo, _unitOfWork, _clock);
+        new(_apiKeyRepo, _projectRepo, _unitOfWork, _clock);
 
     [Theory]
     [InlineData(null)]
@@ -88,6 +91,14 @@ public sealed class ValidateApiKeyUseCaseTests
         _apiKeyRepo.GetByKeyHashAsync(hash, Arg.Any<CancellationToken>())
             .Returns(key);
 
+        var project = Project.Create(
+            CompanyId.New(),
+            ProjectName.Create("Test Project"),
+            ProjectSlug.Create("test-project"),
+            TestConstants.BaselineTime);
+        _projectRepo.GetByIdAsync(key.ProjectId, Arg.Any<CancellationToken>())
+            .Returns(project);
+
         // Act
         ValidatedApiKeyDto? result = await CreateSut().ExecuteAsync(new ValidateApiKeyQuery(plainText));
 
@@ -100,5 +111,41 @@ public sealed class ValidateApiKeyUseCaseTests
         key.LastUsedAt.Should().Be(TestConstants.BaselineTime);
         _apiKeyRepo.Received(1).Update(key);
         await _unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenProjectIsDeactivated_ThrowsProjectDeactivatedException()
+    {
+        // Arrange
+        const string plainText = "smk_billing_secret123";
+        var hash = new Sha256Hash(ApiKeyHelper.ComputeHash(plainText));
+        var projectId = Guid.NewGuid();
+        ApiKey key = new ApiKeyBuilder()
+            .WithProjectId(projectId)
+            .WithCallerApp("billing-service")
+            .WithKeyHash(hash)
+            .WithTime(TestConstants.BaselineTime);
+
+        _apiKeyRepo.GetByKeyHashAsync(hash, Arg.Any<CancellationToken>())
+            .Returns(key);
+
+        var project = Project.Create(
+            CompanyId.New(),
+            ProjectName.Create("Test Project"),
+            ProjectSlug.Create("test-project"),
+            TestConstants.BaselineTime);
+        project.Deactivate(TestConstants.BaselineTime);
+
+        _projectRepo.GetByIdAsync(key.ProjectId, Arg.Any<CancellationToken>())
+            .Returns(project);
+
+        // Act
+        Func<Task> act = async () => await CreateSut().ExecuteAsync(new ValidateApiKeyQuery(plainText));
+
+        // Assert
+        var ex = await act.Should().ThrowAsync<ProjectDeactivatedException>();
+        ex.Which.ProjectId.Should().Be(projectId);
+        _apiKeyRepo.DidNotReceive().Update(Arg.Any<ApiKey>());
+        await _unitOfWork.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
     }
 }

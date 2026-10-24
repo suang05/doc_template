@@ -18,6 +18,7 @@ namespace SmkDoc.Tests.Api.Middlewares;
 public sealed class ProjectContextMiddlewareTests
 {
     private readonly IApiKeyRepository _apiKeyRepo = Substitute.For<IApiKeyRepository>();
+    private readonly IProjectRepository _projectRepo = Substitute.For<IProjectRepository>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
     private readonly IUserProjectRoleRepository _userProjectRoleRepo = Substitute.For<IUserProjectRoleRepository>();
     private readonly RequestDelegate _next = Substitute.For<RequestDelegate>();
@@ -34,8 +35,17 @@ public sealed class ProjectContextMiddlewareTests
             })
             .Build();
 
+        var defaultProject = Project.Create(
+            CompanyId.New(),
+            ProjectName.Create("Default Test Project"),
+            ProjectSlug.Create("default-test-project"),
+            DateTimeOffset.UtcNow);
+        _projectRepo.GetByIdAsync(Arg.Any<ProjectId>(), Arg.Any<CancellationToken>())
+            .Returns(defaultProject);
+
         _validateApiKeyUseCase = new ValidateApiKeyUseCase(
             _apiKeyRepo,
+            _projectRepo,
             _unitOfWork,
             TimeProvider.System);
 
@@ -86,6 +96,7 @@ public sealed class ProjectContextMiddlewareTests
             projectContext,
             _validateApiKeyUseCase,
             _userProjectRoleRepo,
+            _projectRepo,
             executionContext);
 
         // Assert
@@ -124,6 +135,7 @@ public sealed class ProjectContextMiddlewareTests
             projectContext,
             _validateApiKeyUseCase,
             _userProjectRoleRepo,
+            _projectRepo,
             executionContext);
 
         // Assert
@@ -153,6 +165,7 @@ public sealed class ProjectContextMiddlewareTests
             projectContext,
             _validateApiKeyUseCase,
             _userProjectRoleRepo,
+            _projectRepo,
             executionContext);
 
         // Assert
@@ -179,6 +192,7 @@ public sealed class ProjectContextMiddlewareTests
             projectContext,
             _validateApiKeyUseCase,
             _userProjectRoleRepo,
+            _projectRepo,
             executionContext);
 
         // Assert
@@ -216,6 +230,7 @@ public sealed class ProjectContextMiddlewareTests
             projectContext,
             _validateApiKeyUseCase,
             _userProjectRoleRepo,
+            _projectRepo,
             executionContext);
 
         // Assert
@@ -255,6 +270,7 @@ public sealed class ProjectContextMiddlewareTests
             projectContext,
             _validateApiKeyUseCase,
             _userProjectRoleRepo,
+            _projectRepo,
             executionContext);
 
         // Assert
@@ -288,6 +304,7 @@ public sealed class ProjectContextMiddlewareTests
             projectContext,
             _validateApiKeyUseCase,
             _userProjectRoleRepo,
+            _projectRepo,
             executionContext);
 
         // Assert
@@ -318,6 +335,7 @@ public sealed class ProjectContextMiddlewareTests
             projectContext,
             _validateApiKeyUseCase,
             _userProjectRoleRepo,
+            _projectRepo,
             executionContext);
 
         // Assert
@@ -339,6 +357,7 @@ public sealed class ProjectContextMiddlewareTests
             projectContext,
             _validateApiKeyUseCase,
             _userProjectRoleRepo,
+            _projectRepo,
             executionContext);
 
         // Assert
@@ -373,6 +392,7 @@ public sealed class ProjectContextMiddlewareTests
             projectContext,
             _validateApiKeyUseCase,
             _userProjectRoleRepo,
+            _projectRepo,
             executionContext);
 
         // Assert
@@ -417,6 +437,101 @@ public sealed class ProjectContextMiddlewareTests
             projectContext,
             _validateApiKeyUseCase,
             _userProjectRoleRepo,
+            _projectRepo,
+            executionContext);
+
+        // Assert
+        await _next.DidNotReceive().Invoke(httpContext);
+        projectContext.IsResolved.Should().BeFalse();
+        httpContext.Response.StatusCode.Should().Be(StatusCodes.Status403Forbidden);
+        httpContext.Response.ContentType.Should().StartWith("application/problem+json");
+    }
+
+    [Fact]
+    public async Task InvokeAsync_AuthenticatedPortalUser_DeactivatedProject_Returns403Forbidden()
+    {
+        // Arrange
+        var sut = CreateSut();
+        var (httpContext, projectContext, executionContext) = CreateContexts("/api/v1/templates");
+
+        var userId = Guid.NewGuid();
+        var deactivatedProjectId = ProjectId.New();
+
+        var claims = new[]
+        {
+            new Claim(ClaimTypes.NameIdentifier, userId.ToString()),
+            new Claim("SystemRole", "Member")
+        };
+        httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(claims, "Bearer"));
+        httpContext.Request.Headers["X-Project-Id"] = deactivatedProjectId.ToString();
+
+        var deactivatedProject = Project.Create(
+            CompanyId.New(),
+            ProjectName.Create("Deactivated Project"),
+            ProjectSlug.Create("deactivated-project"),
+            DateTimeOffset.UtcNow);
+        deactivatedProject.Deactivate(DateTimeOffset.UtcNow);
+
+        _projectRepo.GetByIdAsync(deactivatedProjectId, Arg.Any<CancellationToken>())
+            .Returns(deactivatedProject);
+
+        // Act
+        await sut.InvokeAsync(
+            httpContext,
+            projectContext,
+            _validateApiKeyUseCase,
+            _userProjectRoleRepo,
+            _projectRepo,
+            executionContext);
+
+        // Assert
+        await _next.DidNotReceive().Invoke(httpContext);
+        projectContext.IsResolved.Should().BeFalse();
+        httpContext.Response.StatusCode.Should().Be(StatusCodes.Status403Forbidden);
+        httpContext.Response.ContentType.Should().StartWith("application/problem+json");
+    }
+
+    [Fact]
+    public async Task InvokeAsync_ApiKey_DeactivatedProject_Returns403Forbidden()
+    {
+        // Arrange
+        var sut = CreateSut();
+        var (httpContext, projectContext, executionContext) = CreateContexts("/api/v1/templates");
+
+        string rawKey = "deactivated-raw-key";
+        httpContext.Request.Headers["X-API-Key"] = rawKey;
+
+        var targetProjectId = ProjectId.New();
+        var hash = new Sha256Hash(ApiKeyHelper.ComputeHash(rawKey));
+
+        var apiKey = (ApiKey)Activator.CreateInstance(typeof(ApiKey), nonPublic: true)!;
+        typeof(ApiKey).GetProperty(nameof(ApiKey.ProjectId))!.SetValue(apiKey, targetProjectId);
+        typeof(ApiKey).GetProperty(nameof(ApiKey.CallerApp))!.SetValue(apiKey, "crm-system");
+        typeof(ApiKey).GetProperty(nameof(ApiKey.Scope))!.SetValue(apiKey, ApiKeyScope.ReadWrite);
+        typeof(ApiKey).GetProperty(nameof(ApiKey.IsActive))!.SetValue(apiKey, true);
+        typeof(ApiKey).GetProperty(nameof(ApiKey.Expiration))!.SetValue(apiKey, ExpirationPolicy.Never);
+        typeof(ApiKey).GetProperty(nameof(ApiKey.KeyHash))!.SetValue(apiKey, hash);
+
+        _apiKeyRepo.GetByKeyHashAsync(hash, Arg.Any<CancellationToken>())
+            .Returns(apiKey);
+
+        var deactivatedProject = Project.Create(
+            CompanyId.New(),
+            ProjectName.Create("Deactivated Project"),
+            ProjectSlug.Create("deactivated-project"),
+            DateTimeOffset.UtcNow);
+        deactivatedProject.Deactivate(DateTimeOffset.UtcNow);
+
+        _projectRepo.GetByIdAsync(targetProjectId, Arg.Any<CancellationToken>())
+            .Returns(deactivatedProject);
+
+        // Act
+        await sut.InvokeAsync(
+            httpContext,
+            projectContext,
+            _validateApiKeyUseCase,
+            _userProjectRoleRepo,
+            _projectRepo,
             executionContext);
 
         // Assert
