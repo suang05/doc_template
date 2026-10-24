@@ -21,7 +21,7 @@ UpstreamKernel: AGENTS.md
 | **Api Middleware/Filters** | ActionExecutingContext / HttpContext mock | Direct unit test or WebApplicationFactory | RFC 9457 ProblemDetails, HTTP status codes |
 | **Architectural Boundaries**| NetArchTest on compiled assemblies | Pure Reflection | Inward layer dependencies, sealed classes |
 
-### Key Architectural Rationales
+### Engineering Rationale & Architectural Decisions
 * **Why Class-Scoped SSoT `CreateSut()` over God Fixtures:** Prevents mock bleed across unrelated tests, ensuring each test class explicitly documents its dependencies.
 * **Why 100% Real POCOs in Domain Tests:** Mocking domain entities tests the mock framework rather than actual business invariants, hiding domain calculation bugs.
 * **Why Fluent Hybrid Builders (`*Builder` with implicit cast):** Provides clean Object Mother defaults while allowing single-property overrides without verbose constructor calls.
@@ -238,18 +238,18 @@ public sealed class CreateTemplateCommandValidatorTests
 
 ---
 
-## 4. Level 4: Testing Traps & Anti-Patterns
+## 4. Level 4: High-Salience Testing Traps & Interceptors
 
-### [TRAP-TEST-001]: God Test Fixtures & Shared State Leakage
+### [TRAP-TEST-001]: God Test Fixtures & Hidden Mock Pollution
 ```csharp
-// ! BANNED: God Test Fixture bundling unrelated mocks
+// ! BANNED: God Test Fixtures bundling unrelated mocks and pre-configuring returns in constructors
 public class ListProjectUsersUseCaseTests
 {
-    private readonly UserManagementTestFixture _fixture = new();
+    private readonly UserManagementTestFixture _fixture = new(); // Hidden shared preconditions!
     private ListProjectUsersUseCase CreateSut() => _fixture.BuildListProjectUsersUseCase();
 }
 
-// >> CANONICAL: Class-Scoped SSoT with Transparent Mocks
+// >> CANONICAL: Class-Scoped SSoT with Transparent Mocks & Explicit Arrange Block
 public sealed class ListProjectUsersUseCaseTests
 {
     private readonly IUserProjectRoleRepository _roleRepo = Substitute.For<IUserProjectRoleRepository>();
@@ -257,55 +257,33 @@ public sealed class ListProjectUsersUseCaseTests
     private readonly IValidator<ListProjectUsersQuery> _validator = Substitute.For<IValidator<ListProjectUsersQuery>>();
 
     private ListProjectUsersUseCase CreateSut() => new(_roleRepo, _userRepo, _validator);
+
+    [Fact]
+    public async Task ExecuteAsync_WhenValid_ShouldReturnUsers()
+    {
+        // Explicit preconditions configured in Arrange block per test
+        _roleRepo.ListByProjectIdAsync(Arg.Any<ProjectId>(), Arg.Any<CancellationToken>()).Returns([]);
+        var sut = CreateSut();
+        ...
+    }
 }
 ```
 
-### [TRAP-TEST-002]: Hidden Constructor Mock Pollution
+### [TRAP-TEST-002]: Over-Mocking Domain Entities & Value Objects
 ```csharp
-// ! BANNED: Pre-configuring mock returns in constructor
-public UserManagementTestFixture()
-{
-    Uow.Setup(u => u.CommitAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1); // FATAL: Hidden precondition
-}
-
-// >> CANONICAL: Explicit Preconditions in Test Method Arrange Block
-[Fact]
-public async Task ExecuteAsync_WhenValid_ShouldCommit()
-{
-    _unitOfWork.CommitAsync(Arg.Any<CancellationToken>()).Returns(1);
-    ...
-}
-```
-
-### [TRAP-TEST-003]: Over-Mocking Domain Entities & Value Objects
-```csharp
-// ! BANNED: Mocking Domain Entity or Value Object
+// ! BANNED: Mocking Domain Entity or Value Object hides real domain bugs and state transitions
 var mockTemplate = Substitute.For<Template>(); // FATAL: State holder mocked!
 
-// >> CANONICAL: Real Domain POCO via Hybrid Builder or Factory
+// >> CANONICAL: Real Domain POCO via Hybrid Builder or SSoT Factory
 Template template = aTemplate.AsActive().WithName("Tax Invoice");
 ```
 
-### [TRAP-TEST-004]: Assert Sprawl & Cross-Concern Verification
+### [TRAP-TEST-003]: Validation Logic Duplication in UseCase Slices
 ```csharp
-// ! BANNED: Asserting unrelated properties during action test
-template.Deactivate(now);
-template.Id.Should().NotBeEmpty(); // FATAL: Sprawl! Unrelated to Deactivate
-template.Name.Value.Should().Be("Invoice");
-template.IsActive.Should().BeFalse();
+// ! BANNED: Re-testing validator regex/length edge cases inside UseCase test suite
+[Fact] public async Task Execute_WhenSlugHasUppercase_Throws() { ... } // REJECTED: Duplication!
 
-// >> CANONICAL: Focused Invariant Assertion (Mutated State Only)
-template.Deactivate(now);
-template.IsActive.Should().BeFalse();
-template.UpdatedAt.Should().Be(now);
-```
-
-### [TRAP-TEST-005]: Validation Logic Duplication in UseCase Slices
-```csharp
-// ! BANNED: Re-testing validator regex/length edge cases inside UseCase tests
-[Fact] public async Task Execute_WhenSlugHasUppercase_Throws() { ... }
-
-// >> CANONICAL: 1 Orchestration Fail-Fast Test in UseCase; Field details tested via TestValidate()
+// >> CANONICAL: Exactly 1 Orchestration Fail-Fast Test in UseCase; Field details tested via TestValidate()
 [Fact]
 public async Task ExecuteAsync_WhenCommandIsInvalid_ShouldFailFastWithoutTouchingPersistence()
 {
@@ -318,20 +296,3 @@ public async Task ExecuteAsync_WhenCommandIsInvalid_ShouldFailFastWithoutTouchin
     await _templateRepo.DidNotReceive().AddAsync(Arg.Any<Template>(), Arg.Any<CancellationToken>());
 }
 ```
-
-### [TRAP-TEST-006]: System Clock Non-Determinism (`DateTime.UtcNow`)
-```csharp
-// ! BANNED: Unpredictable system time in assertions
-result.CreatedAt.Should().BeCloseTo(DateTime.UtcNow, 1.Seconds()); // FATAL: Flaky!
-
-// >> CANONICAL: Deterministic Time via FakeTimeProvider
-private readonly FakeTimeProvider _timeProvider = TestConstants.CreateFakeClock();
-result.CreatedAt.Should().Be(TestConstants.BaselineTime);
-```
-
-### [TRAP-TEST-007]: CancellationToken Bitwise Verification Mismatch
-// ! BANNED: Passing literal CancellationToken struct to mock verification causes brittle struct mismatch
-await _templateRepo.Received(1).AddAsync(template, ct); // FLAKY / REJECTED
-
-// >> CANONICAL: Always match CancellationToken using Arg.Any in mock assertions
-await _templateRepo.Received(1).AddAsync(Arg.Any<Template>(), Arg.Any<CancellationToken>());

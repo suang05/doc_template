@@ -21,7 +21,7 @@ UpstreamKernel: AGENTS.md
 | **Transaction Boundary**| Mutated Domain State | Atomic commit via `IUnitOfWork.CommitAsync(ct)` | Infrastructure (`AppDbContext.SaveChangesAsync`) |
 | **Outbound Egress** | Domain Entity State | Maps to immutable Application DTO records | Presentation (`ApiResponse<T>`, RFC 9457 on error) |
 
-### Key Architectural Rationales
+### Engineering Rationale & Architectural Decisions
 * **Why Action-Centric `IUseCase` over MediatR:** Eliminates runtime reflection allocations, avoids opaque pipeline behaviors, enables transparent call stacks, and enforces 100% compile-time verified DI.
 * **Why Positional `sealed record` for Commands/DTOs:** Guarantees immutability across layer boundaries and provides zero-boilerplate structural equality and JSON serialization.
 * **Why Fail-Fast Validation at Line 1:** Prevents corrupted requests from touching persistence or executing expensive queries, throwing strongly-typed `ValidationException` immediately.

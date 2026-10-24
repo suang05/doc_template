@@ -21,7 +21,7 @@ UpstreamKernel: AGENTS.md
 | **Outbound Egress** | Domain State | Mapped to immutable Application DTOs | Presentation Layer (`TemplateResultDto`) |
 | **Side-Effects** | Aggregate Lifecycle Events | Appends immutable `IDomainEvent` records | `AppDbContext` Outbox / Post-Commit Dispatchers |
 
-### Key Architectural Rationales
+### Engineering Rationale & Architectural Decisions
 * **Why Sequential UUIDv7:** Chronological ordering eliminates PostgreSQL B-Tree index fragmentation while allowing client/caller ID pre-allocation without database round-trips.
 * **Why Sealed Reference Classes for Entities:** Reference identity prevents struct-copy state loss and preserves EF Core ChangeTracker snapshot fidelity.
 * **Why Explicit ID Operators:** Prohibits accidental cross-domain ID assignment (e.g. assigning a `ProjectId` to a `TemplateId` slot) at compile-time.
@@ -64,19 +64,20 @@ All Aggregate Root strongly-typed IDs are defined as `readonly record struct` un
 
 *Note: Child entities (`TemplateVersion`, `DocumentVersion`, `FieldMapping`, `Font`) and audit entities (`GenerationLog`) utilize standard `Guid` identities scoped strictly under their parent Aggregate Root ID, avoiding artificial abstraction overhead.*
 
-### All 9 Smart Enums
+### All 10 Smart Enums
 All Smart Enums inherit `Enumeration` under `SmkDoc.Domain.Enums`:
 | Smart Enum Class | Values (Id / Name) | Usage Scope |
 |---|---|---|
-| `EngineType` | 1: `Gotenberg`, 2: `OpenXml`, 3: `ClosedXml` | Rendering Engine selection |
-| `TemplateType` | 1: `Html`, 2: `Docx`, 3: `Xlsx` | Document Template format |
-| `TemplateStatus` | 1: `Draft`, 2: `Published`, 3: `Archived` | Authoring lifecycle |
-| `DocumentStatus` | 1: `Pending`, 2: `Processing`, 3: `Completed`, 4: `Failed` | Production render state |
-| `GenerationStatus`| 1: `Queued`, 2: `Rendering`, 3: `Success`, 4: `Error` | Audit trail logging |
-| `ProjectRole` | 1: `Owner`, 2: `Admin`, 3: `Editor`, 4: `Viewer` | Tenant RBAC authorization |
-| `ApiKeyScope` | 1: `Read`, 2: `Write`, 3: `Admin`, 4: `RenderOnly` | Machine-to-machine security |
-| `DataConnectionType`| 1: `PostgreSql`, 2: `MySql`, 3: `SqlServer`, 4: `RestApi`| Data source adapters |
-| `ExtractionStrategy`| 1: `DirectQuery`, 2: `Parameterized`, 3: `Batch` | Dataset extraction mode |
+| `ApiKeyScope` | 0: `ReadOnly`, 1: `ReadWrite` | Machine-to-machine security |
+| `DatabaseProvider` | 1: `PostgreSQL`, 2: `SqlServer`, 3: `MySQL`, 4: `Oracle` | External database connections |
+| `DataSourceType` | 1: `json`, 2: `sql` | Field mapping data source origin |
+| `GenerationStatus` | 1: `SUCCESS`, 2: `FAILED`, 3: `PROCESSING`, 4: `TIMEOUT`, 5: `VALIDATION_FAILED` | Audit trail logging |
+| `OutputFormat` | 1: `pdf`, 2: `docx`, 3: `xlsx` | Document render output format |
+| `RenderEngineType` | 1: `Html`, 2: `Docx`, 3: `Excel` | Low-level rendering engine dispatch |
+| `RoleType` | 0: `Viewer`, 1: `Developer`, 2: `Admin` | Project tenant RBAC authorization |
+| `SystemRole` | 1: `SuperAdmin`, 2: `Member`, 3: `Viewer` | Global system RBAC authorization |
+| `TemplateFormat` | 1: `html`, 2: `docx`, 3: `xlsx`, 4: `pdf` | Template source file format |
+| `TemplateVersionStatus`| 0: `Draft`, 1: `Published`, 2: `Archived` | Template version lifecycle |
 
 ### Guard Assertions & Validation Contract
 ```csharp
@@ -310,8 +311,7 @@ public sealed class EngineType : Enumeration
 ```
 
 ---
-
-## 4. Level 4: Anti-Patterns & Micro-Diffs
+## 4. Level 4: High-Salience Fatal Traps & Interceptors
 
 ### [TRAP-DOM-001]: Entity Struct Identity Collapse
 ```csharp
@@ -336,90 +336,16 @@ public sealed record class EmailAddress
 }
 ```
 
-### [TRAP-DOM-003]: Encapsulation: Public Setters vs Private
-```csharp
-// ! BANNED: Public setters permit external invariant bypass
-public string Name { get; set; } = null!;
-
-// >> CANONICAL: Encapsulated property mutated via business verb
-public TemplateName Name { get; private set; } = null!;
-public void Update(TemplateName name, DateTimeOffset now) { Name = Guard.NotNull(name, nameof(Name)); SetUpdated(now); }
-```
-
-### [TRAP-DOM-004]: Time Queries: Non-Deterministic Clock vs Injected Timestamp
-```csharp
-// ! BANNED: Invariant state depends on ambient system clock
-public void Deactivate() { IsActive = false; UpdatedAt = DateTimeOffset.UtcNow; }
-
-// >> CANONICAL: Deterministic timestamp injected by caller
-public void Deactivate(DateTimeOffset now) { IsActive = false; SetUpdated(now); }
-```
-
-### [TRAP-DOM-005]: Instantiation: Bypassing SSoT Factory
-```csharp
-// ! BANNED: Instantiating aggregate via public constructor
-var template = new Template();
-
-// >> CANONICAL: Canonical factory method enforcing initial invariants
-var template = Template.Create(projectId, name, slug, category, now);
-```
-
-### [TRAP-DOM-006]: Implicit ID Conversion Leak
+### [TRAP-DOM-003]: Implicit ID Conversion Cross-Domain Pollution
 ```csharp
 // ! BANNED: Implicit operator allows accidental assignment between different ID types or primitive Guids
 public static implicit operator Guid(TemplateId id) => id.Value;
 public static implicit operator TemplateId(Guid value) => new(value);
-// Inadvertent cross-domain pollution: TemplateId assigned to ProjectId or DocumentId without compiler error
+// Inadvertent cross-domain pollution: TemplateId assigned to ProjectId or DocumentId slot without compiler error
 
 // >> CANONICAL: Explicit operators prevent silent cross-domain ID pollution and force deliberate casting
 public static explicit operator Guid(TemplateId id) => id.Value;
 public static explicit operator TemplateId(Guid value) => new(value);
-```
-
-### [TRAP-DOM-007]: Child Entity Lifecycle Bypass & Split-Brain Mutation
-```csharp
-// ! BANNED: External direct instantiation or disconnected lifecycle mutation
-var docVersion = DocumentVersion.Create(doc.Id, max + 1, ...);
-version.Publish(now);
-template.SetCurrentVersion(version.Id, now);
-
-// >> CANONICAL: Aggregate root encapsulates child lifecycle atomically
-var docVersion = doc.CreateVersion(max + 1, ...);
-template.PublishVersion(version, now);
-```
-
-### [TRAP-DOM-008]: Sensitive Credential Leak via Primitive String
-```csharp
-// ! BANNED: Raw connection string exposes secrets via ToString() and structured logging
-public string EncryptedConnectionString { get; private set; }
-
-// >> CANONICAL: Encapsulated VO redacting sensitive payload in ToString()
-public EncryptedConnectionString EncryptedConnectionString { get; private set; } = null!;
-```
-
-### [TRAP-DOM-009]: Side-Effect Coupling vs In-Memory Domain Events
-```csharp
-// ! BANNED: Direct service injection, async dispatch, or I/O inside domain entity
-public async Task PublishVersion(IMediator mediator, Guid versionId) {
-    ...
-    await mediator.Publish(new VersionPublishedEvent(...)); // Violates domain purity & transaction boundary
-}
-
-// >> CANONICAL: Aggregate appends immutable event record; DbContext dispatches post-persistence
-public TemplateVersion PublishVersion(Guid versionId, DateTimeOffset now) {
-    ...
-    AddDomainEvent(new TemplatePublishedDomainEvent(Id, versionId, now));
-    return version;
-}
-```
-
-### [TRAP-DOM-010]: Cross-Domain Slug Semantic Coupling
-```csharp
-// ! BANNED: Reusing entity-specific slug across unrelated aggregates
-public class Project : BaseEntity<ProjectId> { public TemplateSlug Slug { get; private set; } }
-
-// >> CANONICAL: Distinct domain-specific Value Object per aggregate boundary
-public class Project : BaseEntity<ProjectId> { public ProjectSlug Slug { get; private set; } }
 ```
 
 

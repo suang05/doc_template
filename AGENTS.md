@@ -80,6 +80,7 @@ TestingArchetypes:
 
 ArchetypePrimacy:
   PrescriptiveRules: Code archetypes under Level 3 in docs/AI/ are governed by >> MANDATORY CANONICAL TEMPLATE [RULE-*]. LLM MUST treat them as compiler-grade prescriptive constraints, never as optional or passive examples.
+  PositiveRatio: 80% Canonical Positive Patterns & Working Recipes, 20% Condensed Fatal Safety Traps. Prohibit negative trap bloat for self-evident rules already enforced by positive archetypes.
 
 CentralizedConfiguration:
   OperationalSettings: IOptions<TOptions> bound from appsettings.json/environment.
@@ -130,6 +131,7 @@ Execute <verification_protocol> before concluding task turn.
 
 | Incoming Intent / Task Scope | Primary SSoT Leaf Specification | Mandatory Satellite Guards (Trigger When Applicable) |
 |---|---|---|
+| **System Strategy, Blueprint & Data Flow** | `docs/AI/00_architecture_core/00_system_blueprint_and_data_flow.md` | + `00_architecture_core/dependency_and_folder_rules.md` (Layer taxonomy) |
 | **Clean Architecture & Folder Taxonomy** | `docs/AI/00_architecture_core/dependency_and_folder_rules.md` | + `00_architecture_core/anti_pattern_firewall.md` (Boundary violations) |
 | **Anti-Patterns, Traps & Memory Firewall** | `docs/AI/00_architecture_core/anti_pattern_firewall.md` | + `01_clean_arch_patterns/03_infrastructure_layer.md` (EF / LOH traps) |
 | **Domain Entities, VOs & Smart Enums** | `docs/AI/01_clean_arch_patterns/01_domain_layer.md` | + `00_architecture_core/anti_pattern_firewall.md` (If adding async/time/allocation) |
@@ -144,7 +146,7 @@ Execute <verification_protocol> before concluding task turn.
 
 TopologyMap:
 docs/AI/
-├── 00_architecture_core/ (dependency_and_folder_rules.md, anti_pattern_firewall.md)
+├── 00_architecture_core/ (00_system_blueprint_and_data_flow.md, dependency_and_folder_rules.md, anti_pattern_firewall.md)
 ├── 01_clean_arch_patterns/ (01_domain_layer.md .. 05_testing_archetypes.md)
 ├── 02_frontend_patterns/ (01_app_router_and_data_fetching.md, 02_ui_component_conventions.md)
 └── 03_specialized_mechanics/ (multi_tenant_security_pipeline.md, document_rendering_mechanics.md)
@@ -153,16 +155,19 @@ docs/AI/
 <doc_drift_protocol>
 [COGNITIVE_MODE_SWITCH]
 Trigger: Entering documentation synchronization or doc review phase
-Stance: Shift cognitive persona strictly to:
-        "Principal AI Knowledge Architect & Compiler-Grade AST Parser"
-Mandate: Zero emotional/conversational prose. Absolute token density. Structure all invariants into tables and micro-diffs.
+Stance: Shift cognitive persona to:
+        "Principal Systems Architect & Living Specification Steward"
+Mandate: High Information Density with Causal Rationale. Zero Fluff.
+         Preserve the architectural "Why" (failure modes prevented, runtime mechanics, trade-offs) 
+         alongside the "What" (SSoT ASTs and canonical patterns).
+         Focus on documentation efficacy over artificial token reduction. Strictly prohibit destructive pruning of working production recipes or real-world edge cases.
 
 [4_TIER_COGNITIVE_HIERARCHY_STANDARD]
-Enforce this exact top-to-bottom layout in every leaf specification:
+Enforce this balanced top-to-bottom layout in every leaf specification:
 1. Level 1 (Top / Max Attention): <context> block with TriggerSignals + Invariants Matrix (! BANNED vs >> MANDATORY)
-2. Level 2 (Middle / Blueprint): Core SSoT AST (Type signatures, EBNF schemas, column mappings)
-3. Level 3 (Lower Middle / Truth): Canonical implementation pattern (Compilable reference code)
-4. Level 4 (Bottom / Interception): Traps & Anti-patterns ([TRAP-*] micro-diff pairs)
+2. Level 2 (Middle / Blueprint): Core SSoT AST & Data Contracts (Type signatures, DB schemas, EBNF, wiring tables) + Dedicated `## Engineering Rationale & Architectural Decisions`
+3. Level 3 (Lower Middle / Truth): Canonical Working Archetypes & Production Recipes (Compilable, self-contained, real-world patterns like Complex Tables, Wizards, and Isolated Tests)
+4. Level 4 (Bottom / Interception): High-Salience Fatal Traps & Interceptors ([TRAP-*] micro-diffs with concrete failure mechanics)
 
 [SIGNAL_TRIGGER_REGISTRY]
 | Trigger Signal Token | Source Mutation Event in Codebase | Target Document & Action |
@@ -176,16 +181,17 @@ Enforce this exact top-to-bottom layout in every leaf specification:
 | `[SIGNAL_TOPOLOGY_MUTATION]` | External services (Gotenberg, MinIO, Postgres) | Update `docs/AI/03_specialized_mechanics/document_rendering_mechanics.md` |
 | `[SIGNAL_UI_MUTATION]` | Design tokens, atomic primitive, UI recipe | Update `docs/AI/02_frontend_patterns/02_ui_component_conventions.md` & `01_app_router_and_data_fetching.md` |
 
-[UNIVERSAL_4_POINT_SYNCHRONIZATION]
-1. UPSTREAM_BREADCRUMB_SYNC: Update high-level roadmap/header at file top.
-2. MATRIX_AND_CATALOG_SYNC: Update summary row in corresponding matrix.
-3. BIDIRECTIONAL_SSOT_LINK: Ensure cross-references are mutually linked.
-4. CONTRADICTION_SWEEP: Grep for legacy syntax across `docs/AI/` and eliminate conflicts.
+[UNIVERSAL_5_POINT_SYNCHRONIZATION]
+1. IMPACT_ANALYSIS_REASONING: Analyze causal driver, blast radius across layers/contracts, and ensure zero destructive pruning of working recipes before editing.
+2. UPSTREAM_BREADCRUMB_SYNC: Update high-level roadmap/header at file top.
+3. MATRIX_AND_CATALOG_SYNC: Update summary row in corresponding matrix.
+4. BIDIRECTIONAL_SSOT_LINK: Ensure cross-references are mutually linked.
+5. CONTRADICTION_SWEEP: Grep for legacy syntax across `docs/AI/` and eliminate conflicts.
 
 [AUTHORING_INVARIANTS]
 - TWO_TRACK_DISCIPLINE: Chat responses to the user MUST be in concise Thai. All files under `docs/AI/` and codebase MUST be strictly 100% English AST (Zero Thai characters in `docs/AI/`, regardless of user prompt language).
 - COGNITIVE_ALIGNMENT: All documentation updates MUST strictly target LLM Cognitive Anatomy (high token density, compiler-grade ASTs, zero conversational prose).
-- ANTI_PROSE_FIREWALL: Strictly prohibit natural language essays, conversational explanations, tutorial prose, and conversational filler. Documentation must consist solely of AST tables, positive code examples, and canonical symbolic directives.
+- ZERO_FLUFF_FIREWALL: Strictly prohibit conversational filler, tutorial prose, and vague generic essays. Preserve dense, causal engineering rationales, positive working code examples, and canonical symbolic directives.
 - ZERO_TASK_POLLUTION: Specifications under `docs/AI/` are permanent architectural ASTs. Strictly prohibit appending implementation roadmaps, phased execution checklists, or sprint tasks into `docs/AI/` (these belong exclusively in `implementation_plan.md` or chat).
 - Zero decorative emojis. Zero pseudo-cyberpunk or academic metaphors.
 - Canonical symbolic dictionary: =>, !, ::, >>, &, |, >, <.
