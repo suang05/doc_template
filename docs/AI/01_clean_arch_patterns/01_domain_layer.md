@@ -34,17 +34,15 @@ UpstreamKernel: AGENTS.md
 
 | Architectural Concern | Prohibited Pattern (! BANNED) | Canonical SSoT Pattern (>> MANDATORY) |
 |---|---|---|
-| **Property Mutability** | Public setters: `public string Name { get; set; }` | Encapsulated state: `public TemplateName Name { get; private set; } = null!;` |
-| **Instantiation** | Calling `new Aggregate()` directly from outside | Exactly 1 canonical factory method: `public static Aggregate Create(...)` |
-| **Business Logic** | Anemic domain models manipulated via external services | Expressive business verbs on entity: `public void Update(...)`, `public void Deactivate(...)` |
-| **Time Queries** | Direct `DateTime.UtcNow` calls inside domain entities | Time injected as explicit parameter: `DateTimeOffset now` |
-| **Child Collections** | Exposing `List<T>`: `public List<Item> Items { get; }` | `private readonly List<T> _items = []; public IReadOnlyCollection<T> Items => _items.AsReadOnly();` |
-| **Primitives vs VOs** | Raw `Guid` or `string` for identity and domain concepts | Strongly-typed IDs (`TemplateId`) and validated Value Objects (`TemplateName`) |
-| **Identity Conversion** | Implicit Guid operators allowing silent ID type cross-contamination | Explicit operators (`explicit operator Guid`, `explicit operator TId`) for strict compile-time safety |
+| **External Dependencies** | NuGet packages, EF Core, ASP.NET Core, outer layers in csproj | Pure .NET SDK; zero PackageReference and zero ProjectReference in csproj |
+| **Persistence Ignorance** | ORM Data Annotations (`[Key]`, `[Table]`, `[Column]`) inside Domain | Pure C# POCOs; EF Core mapping isolated strictly in Infrastructure `IEntityTypeConfiguration<T>` |
+| **Always-Valid State** | Public setters, parameterless public constructors, mutable child lists | Encapsulated `private set`, 1 canonical factory `Create()`, `IReadOnlyCollection<T>`, expressive domain verbs |
+| **Temporal Determinism** | Direct system clock queries: `DateTime.UtcNow`, `DateTime.Now` | Time injected as explicit parameter: `DateTimeOffset now` or `TimeProvider` |
+| **Cross-Aggregate Boundaries** | Cross-aggregate navigation collections (`Project._templates`, `Company._projects`) | Reference other Aggregate Roots strictly by ID (`ProjectId`, `CompanyId`); map Unidirectional FK (`.WithMany()`) |
+| **Strongly-Typed Identity & VOs** | Raw `Guid`, primitive string obsession, implicit ID conversion | `readonly record struct TId(Guid Value)`, validated `sealed record class` VOs, `explicit operator` |
+| **Side-Effect Decoupling** | Direct I/O, HTTP client calls, messaging bus dispatch inside Domain | Entities append immutable `IDomainEvent` in-memory; dispatched post-commit via UseCases/Outbox |
+| **Child Entity Lifecycle** | Creating child entities directly outside aggregate: `var v = TemplateVersion.Draft(...)` | Aggregate root encapsulates child creation & lifecycle: `document.CreateVersion(...)`, `template.CreateDraftVersion(...)` |
 | **Tenant Partitioning** | Default optional or unguarded ProjectId: `ProjectId projectId = default` | Mandatory fail-fast assertion: `ProjectId = Guard.NotEmpty(projectId, nameof(ProjectId));` |
-| **Child Entity Lifecycle** | Creating child entities directly outside aggregate: `var version = TemplateVersion.Draft(...)` | Aggregate root encapsulates child creation & lifecycle: `document.CreateVersion(...)`, `template.CreateDraftVersion(...)`, `template.PublishVersion(...)` |
-| **Cross-Aggregate References** | Aggregate roots holding navigation collections of other roots: `Project._templates`, `Company._projects` | Reference other Aggregate Roots strictly by ID (`ProjectId`, `CompanyId`); map Unidirectional Foreign Keys (`.WithMany()`) in EF Core |
-| **Domain Events Integration** | Direct MediatR/Event dispatch in Domain entity or un-encapsulated event list | Entities append events via `AddDomainEvent()`. Zero direct I/O inside domain. |
 
 ---
 
@@ -288,6 +286,22 @@ public sealed partial record ProjectSlug
     public static implicit operator string(ProjectSlug slug) => slug.Value;
     public override string ToString() => Value;
 }
+
+// Cryptographic Integrity Hash VO
+public sealed record class Sha256Hash
+{
+    public const int HashLength = 64;
+    public string Value { get; }
+    public Sha256Hash(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Length != HashLength)
+            throw new DomainValidationException($"Hash must be exactly {HashLength} hexadecimal characters.");
+        Value = value.ToLowerInvariant();
+    }
+    public static Sha256Hash Create(string value) => new(value);
+    public static implicit operator string(Sha256Hash hash) => hash.Value;
+    public override string ToString() => Value;
+}
 ```
 
 ### Smart Enum Archetype
@@ -348,5 +362,3 @@ public static implicit operator TemplateId(Guid value) => new(value);
 public static explicit operator Guid(TemplateId id) => id.Value;
 public static explicit operator TemplateId(Guid value) => new(value);
 ```
-
-

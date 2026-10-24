@@ -14,6 +14,7 @@ using SmkDoc.Infrastructure.Engines.Html;
 using SmkDoc.Infrastructure.Engines.Html.Helpers;
 using SmkDoc.Infrastructure.Engines.Html.Pipeline;
 using SmkDoc.Infrastructure.Engines.Word;
+using SmkDoc.Infrastructure.Events;
 using SmkDoc.Infrastructure.Imaging;
 using SmkDoc.Infrastructure.Observability;
 using SmkDoc.Infrastructure.Parsing;
@@ -71,6 +72,7 @@ public static class DependencyInjection
         services.AddScoped<IUserWorkspaceQueryService, UserWorkspaceQueryService>();
         services.AddScoped<IProjectQueryService, ProjectQueryService>();
         services.AddScoped<ITemplateQueryService, TemplateQueryService>();
+        services.AddScoped<IDomainEventDispatcher, DomainEventDispatcher>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
 
         // 4. Storage
