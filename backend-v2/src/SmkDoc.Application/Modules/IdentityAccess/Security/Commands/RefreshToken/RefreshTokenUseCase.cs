@@ -1,8 +1,8 @@
 using FluentValidation;
+using SmkDoc.Application.Common.Constants;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Helpers;
-using SmkDoc.Domain.Constants;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
@@ -41,7 +41,7 @@ public sealed class RefreshTokenUseCase(
 
         if (token.IsRevoked)
         {
-            if (!token.IsWithinReuseLeeway(now, SecurityConstants.RefreshTokenReuseLeewaySeconds))
+            if (!token.IsWithinReuseLeeway(now, AuthConstants.RefreshTokenReuseLeewaySeconds))
             {
                 // Compromise detected beyond grace window: revoke all active sessions for this user
                 auditService.LogTokenReuseDetected(token.UserId.Value);
@@ -83,7 +83,7 @@ public sealed class RefreshTokenUseCase(
         var newRefreshToken = RefreshTokenEntity.Create(
             user.Id,
             newTokenHash,
-            now.AddDays(SecurityConstants.RefreshTokenLifetimeDays),
+            now.AddDays(AuthConstants.RefreshTokenLifetimeDays),
             now);
 
         await tokenRepo.AddAsync(newRefreshToken, ct);
@@ -96,7 +96,7 @@ public sealed class RefreshTokenUseCase(
         return new TokenResultDto(
             newAccessToken,
             newRawToken,
-            SecurityConstants.AccessTokenLifetimeSeconds,
-            SecurityConstants.BearerTokenType);
+            AuthConstants.AccessTokenLifetimeSeconds,
+            AuthConstants.BearerTokenType);
     }
 }

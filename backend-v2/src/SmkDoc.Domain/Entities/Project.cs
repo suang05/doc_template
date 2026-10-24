@@ -12,7 +12,7 @@ public sealed class Project : BaseEntity<ProjectId>
 {
     public CompanyId CompanyId { get; private set; }
     public ProjectName Name { get; private set; } = null!;
-    public TemplateSlug Slug { get; private set; } = null!;
+    public ProjectSlug Slug { get; private set; } = null!;
     public bool IsActive { get; private set; }
 
     private readonly List<Template> _templates = new();
@@ -27,7 +27,7 @@ public sealed class Project : BaseEntity<ProjectId>
     // For EF Core materialization only
     private Project() { }
 
-    internal Project(ProjectId? id, CompanyId companyId, ProjectName name, TemplateSlug slug, DateTimeOffset now)
+    internal Project(ProjectId? id, CompanyId companyId, ProjectName name, ProjectSlug slug, DateTimeOffset now)
         : base(id ?? ProjectId.New(), createdAt: now)
     {
         CompanyId = Guard.NotEmpty(companyId, nameof(CompanyId));
@@ -36,7 +36,7 @@ public sealed class Project : BaseEntity<ProjectId>
         IsActive = true;
     }
 
-    public static Project Create(CompanyId companyId, ProjectName name, TemplateSlug slug, DateTimeOffset now) =>
+    public static Project Create(CompanyId companyId, ProjectName name, ProjectSlug slug, DateTimeOffset now) =>
         new(null, companyId, name, slug, now);
 
     public void UpdateName(ProjectName newName, DateTimeOffset now)

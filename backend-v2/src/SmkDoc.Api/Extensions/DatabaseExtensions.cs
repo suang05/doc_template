@@ -61,7 +61,7 @@ public static class DatabaseExtensions
             project = Project.Create(
                 company.Id,
                 ProjectName.Create("Default Project"),
-                TemplateSlug.Create("default"),
+                ProjectSlug.Create("default"),
                 now);
             await projectRepo.AddAsync(project);
             await uow.CommitAsync();

@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using SmkDoc.Api.Constants;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Queries.ValidateApiKey;
@@ -61,7 +62,7 @@ public class ProjectContextMiddleware(
 
             // Resolve target project: Prefer X-Project-Id header, then ProjectId claim
             Guid? targetProjectIdGuid = null;
-            if (context.Request.Headers.TryGetValue("X-Project-Id", out var reqProjectIdStr) &&
+            if (context.Request.Headers.TryGetValue(HttpHeaderConstants.ProjectIdHeader, out var reqProjectIdStr) &&
                 Guid.TryParse(reqProjectIdStr, out var headerProjId) &&
                 headerProjId != Guid.Empty)
             {
@@ -125,7 +126,7 @@ public class ProjectContextMiddleware(
         }
 
         // 3. Channel A: Machine-to-Machine (M2M) via X-API-Key Header
-        if (context.Request.Headers.TryGetValue("X-API-Key", out var extractedApiKey) &&
+        if (context.Request.Headers.TryGetValue(HttpHeaderConstants.ApiKeyHeader, out var extractedApiKey) &&
             !string.IsNullOrWhiteSpace(extractedApiKey))
         {
             var rawKey = extractedApiKey.ToString();
@@ -133,7 +134,7 @@ public class ProjectContextMiddleware(
             // Bootstrap Master Key Support
             if (!string.IsNullOrEmpty(_masterApiKey) && rawKey == _masterApiKey)
             {
-                if (context.Request.Headers.TryGetValue("X-Project-Id", out var masterProjectHeader) &&
+                if (context.Request.Headers.TryGetValue(HttpHeaderConstants.ProjectIdHeader, out var masterProjectHeader) &&
                     Guid.TryParse(masterProjectHeader, out var masterProjId) &&
                     masterProjId != Guid.Empty)
                 {
@@ -161,7 +162,7 @@ public class ProjectContextMiddleware(
             }
 
             // Reject cross-tenant project ID spoofing for normal API keys
-            if (context.Request.Headers.TryGetValue("X-Project-Id", out var reqProjHeader) &&
+            if (context.Request.Headers.TryGetValue(HttpHeaderConstants.ProjectIdHeader, out var reqProjHeader) &&
                 Guid.TryParse(reqProjHeader, out var requestedProjectId) &&
                 requestedProjectId != Guid.Empty &&
                 requestedProjectId != key.ProjectId)

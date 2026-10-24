@@ -17,7 +17,7 @@ public sealed class ProjectTests
     [Fact]
     public void Create_WithValidParameters_InitializesActiveProject()
     {
-        var project = Project.Create(_companyId, ProjectName.Create("Billing System"), TemplateSlug.Create("billing-sys"), _initialTime);
+        var project = Project.Create(_companyId, ProjectName.Create("Billing System"), ProjectSlug.Create("billing-sys"), _initialTime);
 
         project.Id.Value.Should().NotBe(Guid.Empty);
         project.CompanyId.Should().Be(_companyId);
@@ -34,7 +34,7 @@ public sealed class ProjectTests
     [Fact]
     public void Create_WithEmptyCompanyId_ThrowsDomainValidationException()
     {
-        var act = () => Project.Create(CompanyId.Empty, ProjectName.Create("Name"), TemplateSlug.Create("slug"), _initialTime);
+        var act = () => Project.Create(CompanyId.Empty, ProjectName.Create("Name"), ProjectSlug.Create("slug"), _initialTime);
 
         act.Should().Throw<DomainValidationException>()
             .WithMessage("*CompanyId cannot be empty*");
@@ -43,7 +43,7 @@ public sealed class ProjectTests
     [Fact]
     public void UpdateName_WithNewName_UpdatesNameAndAuditTimestamp()
     {
-        var project = Project.Create(_companyId, ProjectName.Create("Old Name"), TemplateSlug.Create("slug-test"), _initialTime);
+        var project = Project.Create(_companyId, ProjectName.Create("Old Name"), ProjectSlug.Create("slug-test"), _initialTime);
         var updateTime = _initialTime.AddHours(3);
         var newName = ProjectName.Create("New Name");
 
@@ -56,7 +56,7 @@ public sealed class ProjectTests
     [Fact]
     public void UpdateName_WithSameName_DoesNotModifyAuditTimestamp()
     {
-        var project = Project.Create(_companyId, ProjectName.Create("Same Name"), TemplateSlug.Create("slug-test"), _initialTime);
+        var project = Project.Create(_companyId, ProjectName.Create("Same Name"), ProjectSlug.Create("slug-test"), _initialTime);
         var updateTime = _initialTime.AddHours(3);
 
         project.UpdateName(ProjectName.Create("Same Name"), updateTime);
@@ -67,7 +67,7 @@ public sealed class ProjectTests
     [Fact]
     public void Deactivate_WhenActive_SetsInactiveAndAuditTimestamp()
     {
-        var project = Project.Create(_companyId, ProjectName.Create("Test Proj"), TemplateSlug.Create("test-proj"), _initialTime);
+        var project = Project.Create(_companyId, ProjectName.Create("Test Proj"), ProjectSlug.Create("test-proj"), _initialTime);
         var deactTime = _initialTime.AddDays(1);
 
         project.Deactivate(deactTime);
@@ -79,7 +79,7 @@ public sealed class ProjectTests
     [Fact]
     public void Deactivate_WhenAlreadyInactive_IsIdempotent()
     {
-        var project = Project.Create(_companyId, ProjectName.Create("Test Proj"), TemplateSlug.Create("test-proj"), _initialTime);
+        var project = Project.Create(_companyId, ProjectName.Create("Test Proj"), ProjectSlug.Create("test-proj"), _initialTime);
         var deactTime = _initialTime.AddDays(1);
         project.Deactivate(deactTime);
 
@@ -93,7 +93,7 @@ public sealed class ProjectTests
     [Fact]
     public void Activate_WhenInactive_SetsActiveAndAuditTimestamp()
     {
-        var project = Project.Create(_companyId, ProjectName.Create("Test Proj"), TemplateSlug.Create("test-proj"), _initialTime);
+        var project = Project.Create(_companyId, ProjectName.Create("Test Proj"), ProjectSlug.Create("test-proj"), _initialTime);
         var deactTime = _initialTime.AddDays(1);
         project.Deactivate(deactTime);
 
@@ -107,7 +107,7 @@ public sealed class ProjectTests
     [Fact]
     public void Activate_WhenAlreadyActive_IsIdempotent()
     {
-        var project = Project.Create(_companyId, ProjectName.Create("Test Proj"), TemplateSlug.Create("test-proj"), _initialTime);
+        var project = Project.Create(_companyId, ProjectName.Create("Test Proj"), ProjectSlug.Create("test-proj"), _initialTime);
         var actTime = _initialTime.AddDays(1);
 
         project.Activate(actTime);

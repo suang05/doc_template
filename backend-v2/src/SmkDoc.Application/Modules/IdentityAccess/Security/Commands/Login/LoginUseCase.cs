@@ -1,8 +1,8 @@
 using FluentValidation;
+using SmkDoc.Application.Common.Constants;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Helpers;
-using SmkDoc.Domain.Constants;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
@@ -38,14 +38,14 @@ public sealed class LoginUseCase(
         // Constant-time execution defense against user enumeration timing attacks (OWASP)
         if (user == null)
         {
-            passwordHasher.VerifyPassword(request.Password, SecurityConstants.DummyPasswordHash);
+            passwordHasher.VerifyPassword(request.Password, AuthConstants.DummyPasswordHash);
             auditService.LogLoginFailure(request.Email, "UserNotFound");
             throw new UnauthorizedException("Invalid email or password.");
         }
 
         if (!user.IsActive)
         {
-            passwordHasher.VerifyPassword(request.Password, SecurityConstants.DummyPasswordHash);
+            passwordHasher.VerifyPassword(request.Password, AuthConstants.DummyPasswordHash);
             auditService.LogLoginFailure(request.Email, "UserInactive");
             throw new UnauthorizedException("Invalid email or password.");
         }
@@ -68,7 +68,7 @@ public sealed class LoginUseCase(
         var now = timeProvider.GetUtcNow();
         var rawRefreshToken = RefreshTokenHelper.GenerateTokenString();
         var refreshTokenHash = RefreshTokenHelper.HashToken(rawRefreshToken);
-        var refreshToken = RefreshTokenEntity.Create(user.Id, refreshTokenHash, now.AddDays(SecurityConstants.RefreshTokenLifetimeDays), now);
+        var refreshToken = RefreshTokenEntity.Create(user.Id, refreshTokenHash, now.AddDays(AuthConstants.RefreshTokenLifetimeDays), now);
         await tokenRepo.AddAsync(refreshToken, ct);
         await unitOfWork.CommitAsync(ct);
 

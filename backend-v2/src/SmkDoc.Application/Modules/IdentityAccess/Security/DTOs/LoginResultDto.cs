@@ -1,4 +1,4 @@
-using SmkDoc.Domain.Constants;
+using SmkDoc.Application.Common.Constants;
 
 namespace SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
 
@@ -9,8 +9,8 @@ public record LoginResultDto
 {
     public string AccessToken { get; init; } = string.Empty;
     public string? RefreshToken { get; init; }
-    public string TokenType { get; init; } = SecurityConstants.BearerTokenType;
-    public int ExpiresIn { get; init; } = SecurityConstants.AccessTokenLifetimeSeconds;
+    public string TokenType { get; init; } = AuthConstants.BearerTokenType;
+    public int ExpiresIn { get; init; } = AuthConstants.AccessTokenLifetimeSeconds;
     public UserProfileDto User { get; init; } = default!;
     public IReadOnlyList<AccessibleProjectDto> AccessibleProjects { get; init; } = [];
     public IReadOnlyList<ApiKeyDto> ActiveApiKeys { get; init; } = [];
@@ -27,8 +27,8 @@ public record LoginResultDto
         Guid? defaultProjectId,
         Guid? activeProjectId = null,
         string? activeRole = null,
-        string tokenType = SecurityConstants.BearerTokenType,
-        int expiresIn = SecurityConstants.AccessTokenLifetimeSeconds,
+        string tokenType = AuthConstants.BearerTokenType,
+        int expiresIn = AuthConstants.AccessTokenLifetimeSeconds,
         string? refreshToken = null,
         IReadOnlyList<ApiKeyDto>? activeApiKeys = null)
     {

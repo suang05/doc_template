@@ -1,4 +1,4 @@
-using SmkDoc.Domain.Constants;
+using SmkDoc.Application.Common.Constants;
 
 namespace SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
 
@@ -8,6 +8,6 @@ namespace SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
 public record TokenResultDto(
     string AccessToken,
     string RefreshToken,
-    int ExpiresIn = SecurityConstants.AccessTokenLifetimeSeconds,
-    string TokenType = SecurityConstants.BearerTokenType
+    int ExpiresIn = AuthConstants.AccessTokenLifetimeSeconds,
+    string TokenType = AuthConstants.BearerTokenType
 );

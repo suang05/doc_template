@@ -48,7 +48,7 @@ public sealed class CreateProjectUseCase(
             await companyRepo.AddAsync(defaultCompany, ct);
         }
 
-        var project = Project.Create(defaultCompany.Id, ProjectName.Create(request.Name), TemplateSlug.Create(request.Slug), now);
+        var project = Project.Create(defaultCompany.Id, ProjectName.Create(request.Name), ProjectSlug.Create(request.Slug), now);
         await projectRepo.AddAsync(project, ct);
 
         var role = UserProjectRole.Create(new UserId(request.UserId), project.Id, RoleType.Admin, now);

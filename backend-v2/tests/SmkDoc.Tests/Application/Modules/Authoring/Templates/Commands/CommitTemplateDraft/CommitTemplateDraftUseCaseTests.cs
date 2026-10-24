@@ -33,7 +33,7 @@ public sealed class CommitTemplateDraftUseCaseTests
         Project sampleProject = Project.Create(
             CompanyId.New(),
             ProjectName.Create("Default Project"),
-            TemplateSlug.Create("default-proj"),
+            ProjectSlug.Create("default-proj"),
             _timeProvider.GetUtcNow());
 
         _projectRepo.GetByIdAsync(Arg.Any<ProjectId>(), Arg.Any<CancellationToken>())

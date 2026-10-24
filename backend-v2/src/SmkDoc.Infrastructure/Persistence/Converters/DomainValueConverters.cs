@@ -17,4 +17,7 @@ public static class DomainValueConverters
 
     public static readonly ValueConverter<SqlQuery, string> SqlQueryConverter =
         new(q => q.Value, v => SqlQuery.Create(v));
+
+    public static readonly ValueConverter<ProjectSlug, string> ProjectSlugConverter =
+        new(s => s.Value, v => new ProjectSlug(v));
 }

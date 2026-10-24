@@ -8,7 +8,7 @@ public abstract class BaseEntity<TId> : IHaveDomainEvents, IEquatable<BaseEntity
     where TId : struct, IComparable<TId>, IEquatable<TId>
 {
     public TId Id { get; protected set; }
-    public DateTimeOffset CreatedAt { get; protected set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset CreatedAt { get; protected set; }
     public DateTimeOffset? UpdatedAt { get; protected set; }
     private readonly List<IDomainEvent> _domainEvents = new();
     public IReadOnlyCollection<IDomainEvent> DomainEvents => _domainEvents.AsReadOnly();
@@ -19,17 +19,14 @@ public abstract class BaseEntity<TId> : IHaveDomainEvents, IEquatable<BaseEntity
     {
     }
 
-    protected BaseEntity(TId id, DateTimeOffset? createdAt = null)
+    protected BaseEntity(TId id, DateTimeOffset createdAt)
     {
         Id = id;
-        if (createdAt.HasValue)
-        {
-            CreatedAt = createdAt.Value;
-        }
+        CreatedAt = createdAt;
     }
 
-    protected void SetUpdated(DateTimeOffset? updatedAt = null) =>
-        UpdatedAt = updatedAt ?? DateTimeOffset.UtcNow;
+    protected void SetUpdated(DateTimeOffset now) =>
+        UpdatedAt = now;
 
     public override bool Equals(object? obj) =>
         obj is BaseEntity<TId> other && Equals(other);
@@ -73,10 +70,9 @@ public abstract class BaseEntity : BaseEntity<Guid>
 {
     protected BaseEntity()
     {
-        Id = Guid.CreateVersion7();
     }
 
-    protected BaseEntity(Guid? id, DateTimeOffset? createdAt = null)
+    protected BaseEntity(Guid? id, DateTimeOffset createdAt)
         : base(id.HasValue && id.Value != Guid.Empty ? id.Value : Guid.CreateVersion7(), createdAt)
     {
     }

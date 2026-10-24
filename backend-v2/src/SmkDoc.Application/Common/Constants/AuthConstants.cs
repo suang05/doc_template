@@ -1,9 +1,9 @@
-namespace SmkDoc.Domain.Constants;
+namespace SmkDoc.Application.Common.Constants;
 
 /// <summary>
 /// Technical security constants for token lifetimes, auth schemes, and session policies.
 /// </summary>
-public static class SecurityConstants
+public static class AuthConstants
 {
     /// <summary>
     /// Default Access Token lifetime in seconds (24 hours).
@@ -19,16 +19,6 @@ public static class SecurityConstants
     /// Standard Bearer auth scheme name.
     /// </summary>
     public const string BearerTokenType = "Bearer";
-
-    /// <summary>
-    /// HTTP Header for workspace context override.
-    /// </summary>
-    public const string ProjectIdHeader = "X-Project-Id";
-
-    /// <summary>
-    /// HTTP Header for API Key authentication.
-    /// </summary>
-    public const string ApiKeyHeader = "X-API-Key";
 
     /// <summary>
     /// Concurrency grace period (in seconds) during Refresh Token Rotation to tolerate multi-tab parallel requests.

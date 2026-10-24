@@ -2,10 +2,10 @@ using FluentValidation;
 using FluentValidation.Results;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
+using SmkDoc.Application.Common.Constants;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.Login;
 using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
-using SmkDoc.Domain.Constants;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
@@ -115,7 +115,7 @@ public sealed class LoginUseCaseTests
         // Assert
         await act.Should().ThrowAsync<UnauthorizedException>()
             .WithMessage("Invalid email or password.");
-        _passwordHasher.Received(1).VerifyPassword("password123", SecurityConstants.DummyPasswordHash);
+        _passwordHasher.Received(1).VerifyPassword("password123", AuthConstants.DummyPasswordHash);
         _auditService.Received(1).LogLoginFailure("notfound@example.com", "UserNotFound");
     }
 
@@ -141,7 +141,7 @@ public sealed class LoginUseCaseTests
         // Assert
         await act.Should().ThrowAsync<UnauthorizedException>()
             .WithMessage("Invalid email or password.");
-        _passwordHasher.Received(1).VerifyPassword("password123", SecurityConstants.DummyPasswordHash);
+        _passwordHasher.Received(1).VerifyPassword("password123", AuthConstants.DummyPasswordHash);
         _auditService.Received(1).LogLoginFailure("inactive@example.com", "UserInactive");
     }
 

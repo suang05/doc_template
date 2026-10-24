@@ -59,7 +59,7 @@ public class ProjectBuilder
             new SmkDoc.Domain.ValueObjects.Ids.ProjectId(_id),
             new SmkDoc.Domain.ValueObjects.Ids.CompanyId(_companyId),
             ProjectName.Create(_name),
-            TemplateSlug.Create(_slug),
+            ProjectSlug.Create(_slug),
             _now);
 
         if (!_isActive)
