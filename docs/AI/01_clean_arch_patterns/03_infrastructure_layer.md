@@ -55,6 +55,13 @@ UpstreamKernel: AGENTS.md
 | **Audit & Legal Records** | `GenerationLog`, `AuditTrail`, `DocumentVersion` | `DeleteBehavior.Restrict` | Prohibit physical deletion of parent if audit records exist; prevents data falsification |
 | **Optional References** | `Template.CurrentVersionId`, `User.LastActiveProjectId` | `DeleteBehavior.SetNull` | Nullable FK; decoupling lifecycle avoids circular cascade cascades |
 
+### Object Storage Buckets SSoT Catalog (`StorageBuckets.cs`)
+| Bucket Constant | Bucket Name | Target Content | Key Path Partitioning Scheme |
+|---|---|---|---|
+| `StorageBuckets.Templates` | `templates` | DOCX/XLSX raw template assets | `templates/{projectId:N}/{templateId:N}/{versionId:N}.{ext}` |
+| `StorageBuckets.Outputs` | `outputs` | Generated production documents | `outputs/{projectId:N}/{yyyy/MM}/{generationId:N}.{ext}` |
+| `StorageBuckets.AuditPayloads` | `audit-payloads` | Large generation request payloads (>16KB) | `audit/{projectId:N}/{yyyy/MM/dd}/{payloadSha256}.json` |
+
 ### Native PostgreSQL JSONB Mapping AST
 ```csharp
 builder.Property(e => e.ExtractionSchema)

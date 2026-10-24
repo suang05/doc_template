@@ -68,7 +68,7 @@ Modules/{Context}/
 └── (In SmkDoc.Api) Controllers/V1/          # 5. Thin presentation action
 ```
 
-### Strongly-Typed ID Zero-Cast Policy
+### Strongly-Typed ID Explicit Operator Standard
 Every strongly-typed ID struct MUST be declared as `public readonly record struct Name(Guid Value) : IComparable<Name>` ($\le 16$ bytes, stack-allocated):
 ```csharp
 public readonly record struct TemplateId(Guid Value) : IComparable<TemplateId>
@@ -79,9 +79,9 @@ public readonly record struct TemplateId(Guid Value) : IComparable<TemplateId>
     public int CompareTo(TemplateId other) => Value.CompareTo(other.Value);
     public override string ToString() => Value.ToString();
 
-    // Bidirectional implicit conversions (Zero-Cast policy at CQRS/DTO boundaries)
-    public static implicit operator Guid(TemplateId id) => id.Value;
-    public static implicit operator TemplateId(Guid value) => new(value);
+    // Explicit conversions preventing accidental cross-domain ID pollution
+    public static explicit operator Guid(TemplateId id) => id.Value;
+    public static explicit operator TemplateId(Guid value) => new(value);
 
     // Cross-type equality operators for direct comparison with Guid
     public static bool operator ==(TemplateId left, Guid right) => left.Value == right;

@@ -1,4 +1,4 @@
-﻿using FluentAssertions;
+using FluentAssertions;
 using SmkDoc.Application.Common;
 using Xunit;
 
@@ -19,18 +19,26 @@ public sealed class StorageBucketsTests
     }
 
     [Fact]
+    public void AuditPayloads_ShouldBeExactly_audit_payloads()
+    {
+        StorageBuckets.AuditPayloads.Should().Be("audit-payloads");
+    }
+
+    [Fact]
     public void AllBucketNames_ShouldBeLowercase()
     {
         StorageBuckets.Templates.Should().Be(StorageBuckets.Templates.ToLowerInvariant(),
             "MinIO bucket names must be lowercase");
         StorageBuckets.Outputs.Should().Be(StorageBuckets.Outputs.ToLowerInvariant(),
             "MinIO bucket names must be lowercase");
+        StorageBuckets.AuditPayloads.Should().Be(StorageBuckets.AuditPayloads.ToLowerInvariant(),
+            "MinIO bucket names must be lowercase");
     }
 
     [Fact]
     public void AllBucketNames_ShouldBeDistinct()
     {
-        var names = new[] { StorageBuckets.Templates, StorageBuckets.Outputs };
+        var names = new[] { StorageBuckets.Templates, StorageBuckets.Outputs, StorageBuckets.AuditPayloads };
         names.Should().OnlyHaveUniqueItems("bucket names must not collide");
     }
 }

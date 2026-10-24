@@ -23,6 +23,7 @@ UpstreamKernel: AGENTS.md
 | **[TRAP-LEAK-006]** | Architecture | Returning Domain Entities from Controller or UseCase | Explicit immutable Application DTO record mapping |
 | **[TRAP-TIME-007]** | Testability | `DateTime.UtcNow` / `DateTimeOffset.UtcNow` queries | Injected `TimeProvider` or explicit `DateTimeOffset now` parameter |
 | **[TRAP-VOID-008]** | Reliability | Empty catch block swallowing exceptions | Rethrow strongly-typed `DomainException` or structured log |
+| **[TRAP-AUDIT-009]** | Storage / OLTP | Unbounded JSON payloads stored in PostgreSQL OLTP | Threshold offload (>16KB) to MinIO `audit-payloads` + SHA-256 hash in DB |
 
 ---
 
@@ -208,4 +209,15 @@ catch (DbUpdateConcurrencyException ex)
     logger.LogWarning(ex, "Concurrency conflict during template update {TemplateId}", id);
     throw new ConcurrencyDomainException("Resource was modified by another transaction.");
 }
+```
+
+### [TRAP-AUDIT-009]: Raw Multi-MB Payload in PostgreSQL OLTP
+```csharp
+// ! BANNED: Storing unbounded JSON payloads in PostgreSQL OLTP GenerationLog
+var log = GenerationLog.CreateSuccess(..., inputData: largeJsonPayload, ...);
+
+// >> CANONICAL: Threshold Offloading to MinIO + SHA-256 Integrity Hash
+var (storedInputData, payloadHash) = await PreparePayloadAsync(projectId, dataJson, now, ct);
+// If bytes > 16KB: stream to MinIO "audit-payloads", store "[OFFLOADED:audit/...]" pointer & SHA-256 in DB.
+// If bytes <= 16KB: store inline JSON & SHA-256 in DB.
 ```

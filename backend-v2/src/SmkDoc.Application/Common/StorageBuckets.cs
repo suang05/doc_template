@@ -4,4 +4,5 @@ public static class StorageBuckets
 {
     public const string Templates = "templates";
     public const string Outputs = "outputs";
+    public const string AuditPayloads = "audit-payloads";
 }

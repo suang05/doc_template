@@ -56,6 +56,8 @@ UpstreamKernel: AGENTS.md
 | `ConflictException` | `409 Conflict` | Conflict | `https://tools.ietf.org/html/rfc9110#section-15.5.10` |
 | `ForbiddenException` | `403 Forbidden` | Forbidden | `https://tools.ietf.org/html/rfc9110#section-15.5.4` |
 | `DomainValidationException` | `422 Unprocessable`| Domain Rule Violation | `https://tools.ietf.org/html/rfc9110#section-15.5.21` |
+| `DataConnectionDecryptionException` | `500 Internal Error`| Integration Error | `https://tools.ietf.org/html/rfc9110#section-15.6.1` |
+| `DatasetExecutionException` | `500 Internal Error`| Integration Error | `https://tools.ietf.org/html/rfc9110#section-15.6.1` |
 | Unhandled Exceptions | `500 Internal Error`| Internal Server Error | `https://tools.ietf.org/html/rfc9110#section-15.6.1` |
 
 ### OWASP Top-Level Array Envelope

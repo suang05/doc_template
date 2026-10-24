@@ -63,6 +63,33 @@ public sealed class GenerationLogTests
         log.ErrorMsg.Should().BeNull();
         log.CreatedAt.Should().Be(Now);
         log.UpdatedAt.Should().BeNull();
+        log.PayloadHashSha256.Should().NotBeNull();
+    }
+
+    [Fact]
+    public void CreateSuccess_WithInputData_AutoComputesSha256PayloadHash()
+    {
+        var inputJson = "{\"invoiceNo\":\"INV-001\"}";
+        var expectedHashBytes = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(inputJson));
+        var expectedHex = Convert.ToHexStringLower(expectedHashBytes);
+
+        var log = GenerationLog.CreateSuccess(
+            Guid.NewGuid(),
+            TemplateId.New(),
+            Guid.NewGuid(),
+            ApiKeyId.New(),
+            "crm-service",
+            "api",
+            inputJson,
+            "outputs/invoice.pdf",
+            OutputFormat.Pdf,
+            1024,
+            50,
+            Now,
+            TestProjectId);
+
+        log.PayloadHashSha256.Should().NotBeNull();
+        log.PayloadHashSha256!.Value.Should().Be(expectedHex);
     }
 
     [Fact]
