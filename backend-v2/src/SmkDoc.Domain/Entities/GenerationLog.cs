@@ -158,7 +158,7 @@ public sealed class GenerationLog : BaseEntity, IMustHaveProject
         int durationMs,
         string errorMessage,
         DateTimeOffset now) =>
-        new(null, projectId, target, context, GenerationMetrics.ForDuration(durationMs), GenerationStatus.ValidationFailed, errorMessage, now);
+        new(null, projectId, target, context, GenerationMetrics.ForDuration(durationMs, 0), GenerationStatus.ValidationFailed, errorMessage, now);
 
     public static GenerationLog CreateFailure(
         ProjectId projectId,
@@ -167,7 +167,7 @@ public sealed class GenerationLog : BaseEntity, IMustHaveProject
         int durationMs,
         string errorMessage,
         DateTimeOffset now) =>
-        new(null, projectId, target, context, GenerationMetrics.ForDuration(durationMs), GenerationStatus.Failed, errorMessage, now);
+        new(null, projectId, target, context, GenerationMetrics.ForDuration(durationMs, 0), GenerationStatus.Failed, errorMessage, now);
 
     // Convenience overloads preserving positional backwards compatibility
     public static GenerationLog Create(

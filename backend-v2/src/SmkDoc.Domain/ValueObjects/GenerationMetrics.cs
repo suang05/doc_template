@@ -8,7 +8,7 @@ public sealed record GenerationMetrics(
     long? FileSizeBytes = null,
     int? PageCount = null)
 {
-    public static GenerationMetrics ForDuration(int durationMs) => new(durationMs);
+    public static GenerationMetrics ForDuration(int durationMs, long? fileSizeBytes = 0) => new(durationMs, fileSizeBytes);
 
     public static GenerationMetrics Of(int durationMs, long fileSizeBytes, int? pageCount = null) =>
         new(durationMs, fileSizeBytes, pageCount);
