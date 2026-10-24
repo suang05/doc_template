@@ -39,6 +39,7 @@ UpstreamKernel: AGENTS.md
 | **Transaction Scope** | Manual SQL transactions inside UseCase | Atomic Unit of Work via `IUnitOfWork.CommitAsync(ct)` |
 | **Validation Timing** | Validating inputs halfway through execution | Fail-fast validation at line 1 via `IValidator<TRequest>` |
 | **Clock Resolution** | Calling `DateTime.UtcNow` in UseCase | Consuming injected `TimeProvider.GetUtcNow()` |
+| **Read Queries** | Loading full Domain Aggregates via Repositories for UI listing | Dedicated Query Services (`IProjectQueryService`, `ITemplateQueryService`) with `.AsNoTracking()` & DTO projection |
 
 ---
 
@@ -53,6 +54,8 @@ Throw strongly-typed exceptions; presentation layer dispatches directly to RFC 9
 | `ConflictException` | `409 Conflict` | Unique constraint violation (e.g. Duplicate slug, duplicate code) |
 | `ForbiddenException` | `403 Forbidden` | Access to resource denied across tenant boundaries |
 | `DomainValidationException`| `422 Unprocessable` | Business invariant check failed inside Domain Entity / Value Object |
+| `DataConnectionDecryptionException` | `500 Internal Error` | Key Vault / Connection string decryption failure |
+| `DatasetExecutionException` | `500 Internal Error` | External SQL provider query failure during data preparation |
 
 ### The 4-Step PEMR Execution Pipeline
 Every mutating UseCase MUST strictly follow the 4-step **PEMR Pipeline**:
