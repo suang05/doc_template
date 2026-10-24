@@ -20,26 +20,27 @@ UpstreamKernel: AGENTS.md
 
 ```
 docs/AI/
-├── INDEX.md                                    # Architectural Directory Manifest (This file)
+├── INDEX.md                                              # Architectural Directory Manifest (This file)
 │
-├── 00_architecture_core/                       # Architecture Rules & Anti-Pattern Firewall
-│   ├── dependency_and_folder_rules.md          # Clean Architecture dependencies & 4 Bounded Contexts
-│   └── anti_pattern_firewall.md                # 8 Fatal production traps (Zero-LOH, DbContext, Async, SSRF)
+├── 00_architecture_core/                                 # Supreme Blueprint, Architecture Rules & Traps
+│   ├── 00_system_blueprint_and_data_flow.md             # SUPREME SSoT: Master Blueprint, C4 Architecture & 2 Pipelines
+│   ├── dependency_and_folder_rules.md                   # Clean Architecture dependencies & 4 Bounded Contexts
+│   └── anti_pattern_firewall.md                         # 8 Fatal production traps (Zero-LOH, DbContext, Async, SSRF)
 │
-├── 01_clean_arch_patterns/                     # Backend C# 13 Clean Architecture Patterns
-│   ├── 01_domain_layer.md                      # Aggregate Root, Child Entity, VO, Smart Enum, SSoT Catalog
-│   ├── 02_application_layer.md                 # Command/Query Record, IUseCase, PEMR Pipeline, UnitOfWork
-│   ├── 03_infrastructure_layer.md              # EF Core IEntityTypeConfiguration, ID Converters, Global Filter
-│   ├── 04_api_presentation_layer.md            # Thin Controller, ApiResponse<T>, [Idempotent], ProblemDetails
-│   └── 05_testing_archetypes.md                 # SSoT Unit Test, CreateSut(), FakeTimeProvider, Fluent Builder
+├── 01_clean_arch_patterns/                               # Backend C# 13 Clean Architecture Patterns
+│   ├── 01_domain_layer.md                               # Aggregate Root, Child Entity, VO, Smart Enum, SSoT Catalog
+│   ├── 02_application_layer.md                          # Command/Query Record, IUseCase, PEMR Pipeline, UnitOfWork
+│   ├── 03_infrastructure_layer.md                       # EF Core IEntityTypeConfiguration, ID Converters, Global Filter
+│   ├── 04_api_presentation_layer.md                     # Thin Controller, ApiResponse<T>, [Idempotent], ProblemDetails
+│   └── 05_testing_archetypes.md                         # SSoT Unit Test, CreateSut(), FakeTimeProvider, Fluent Builder
 │
-├── 02_frontend_patterns/                       # Frontend Next.js 15 / React Patterns
-│   ├── 01_app_router_and_data_fetching.md      # RSC by default, Server Proxy (/api/proxy/[...path]), useLivePreview
-│   └── 02_ui_component_conventions.md          # Ice-White tokens, 0-4px geometry, CVA variants, Zod SSoT, Vitest
+├── 02_frontend_patterns/                                 # Frontend Next.js 15 / React Patterns
+│   ├── 01_app_router_and_data_fetching.md               # RSC by default, Server Proxy (/api/proxy/[...path]), useLivePreview
+│   └── 02_ui_component_conventions.md                   # Ice-White tokens, 0-4px geometry, CVA variants, Zod SSoT, Vitest
 │
-└── 03_specialized_mechanics/                   # High-Complexity Subsystem Mechanics
-    ├── multi_tenant_security_pipeline.md       # Dual-Auth (API Key / JWT), Tenancy Context, EF Global Filter
-    └── document_rendering_mechanics.md         # Gotenberg microservice, OpenXML DrawingML fix, ThaiDataTransformer
+└── 03_specialized_mechanics/                             # High-Complexity Subsystem Mechanics
+    ├── multi_tenant_security_pipeline.md                # Dual-Auth (API Key / JWT), Tenancy Context, EF Global Filter
+    └── document_rendering_mechanics.md                  # Gotenberg microservice, OpenXML DrawingML fix, ThaiDataTransformer
 ```
 
 ---
@@ -48,6 +49,7 @@ docs/AI/
 
 | Specification File | Scope / Focus | Governed Subsystems |
 |---|---|---|
+| [`00_architecture_core/00_system_blueprint_and_data_flow.md`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_architecture_core/00_system_blueprint_and_data_flow.md) | **Supreme North Star SSoT:** C4 topology, 2 Macroscopic Pipelines, 4 Contexts, ADRs | Full-Stack |
 | [`00_architecture_core/dependency_and_folder_rules.md`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_architecture_core/dependency_and_folder_rules.md) | Clean Architecture concentric layers & 4 Bounded Context feature slices | `backend-v2/src/` |
 | [`00_architecture_core/anti_pattern_firewall.md`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/00_architecture_core/anti_pattern_firewall.md) | 8 Fatal production interceptors (LOH, DbContext, Async deadlocks, SSRF) | Full-Stack |
 | [`01_clean_arch_patterns/01_domain_layer.md`](file:///c:/Users/jossl.000/Downloads/Compressed/smk-doc-server/smk-doc-server/docs/AI/01_clean_arch_patterns/01_domain_layer.md) | Aggregate Roots, Child Entities, Value Objects, Smart Enums, Factory SSoT | `SmkDoc.Domain/` |

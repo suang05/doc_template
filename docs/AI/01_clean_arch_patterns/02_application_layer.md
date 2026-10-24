@@ -11,6 +11,24 @@ UpstreamKernel: AGENTS.md
 
 ---
 
+## Architectural Wiring & Data Contracts
+
+| Direction | Upstream Origin | Current Layer Role (Application Orchestrator) | Downstream Destination |
+|---|---|---|---|
+| **Inbound Request** | Presentation Controller | Validates line 1 via `IValidator<TRequest>` | Application UseCase (`IUseCase<TReq, TRes>`) |
+| **Domain Orchestration**| Command Parameters | Invokes Entity Factories & Business Verbs | Domain Aggregate Roots (`Template`, `Document`) |
+| **Port Delegation** | Abstract Ports (`ITemplateRepo`, `IRenderEngine`) | Calls repository/engine adapters asynchronously | Infrastructure (`AppDbContext`, `GotenbergClient`) |
+| **Transaction Boundary**| Mutated Domain State | Atomic commit via `IUnitOfWork.CommitAsync(ct)` | Infrastructure (`AppDbContext.SaveChangesAsync`) |
+| **Outbound Egress** | Domain Entity State | Maps to immutable Application DTO records | Presentation (`ApiResponse<T>`, RFC 9457 on error) |
+
+### Key Architectural Rationales
+* **Why Action-Centric `IUseCase` over MediatR:** Eliminates runtime reflection allocations, avoids opaque pipeline behaviors, enables transparent call stacks, and enforces 100% compile-time verified DI.
+* **Why Positional `sealed record` for Commands/DTOs:** Guarantees immutability across layer boundaries and provides zero-boilerplate structural equality and JSON serialization.
+* **Why Fail-Fast Validation at Line 1:** Prevents corrupted requests from touching persistence or executing expensive queries, throwing strongly-typed `ValidationException` immediately.
+* **Why Application DTOs as Boundary Firewalls:** Domain entities must never cross the layer boundary into Presentation; prevents leaking internal domain state or lazy-loading EF Core traps.
+
+---
+
 ## 1. Level 1: Application Invariants & Boundaries Matrix
 
 | Architectural Concern | Prohibited Pattern (! BANNED) | Canonical SSoT Pattern (>> MANDATORY) |

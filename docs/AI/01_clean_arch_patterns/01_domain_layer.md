@@ -11,6 +11,25 @@ UpstreamKernel: AGENTS.md
 
 ---
 
+## Architectural Wiring & Data Contracts
+
+| Direction | Upstream Origin | Current Layer Role (Domain Core) | Downstream Destination |
+|---|---|---|---|
+| **Inbound Creation** | Application (`CreateTemplateCommand`) | Instantiates via SSoT Factory `Template.Create(...)` | Encapsulated Domain Aggregate Root |
+| **State Mutation** | Application (`PublishVersionCommand`) | Executes expressive business verb (`template.PublishVersion`) | Mutates internal state & appends `IDomainEvent` |
+| **Outbound Persistence**| Domain POCOs (`Template`) | Hydrated/Persisted via `ITemplateRepository` port | Infrastructure (`TemplateConfiguration` -> PostgreSQL) |
+| **Outbound Egress** | Domain State | Mapped to immutable Application DTOs | Presentation Layer (`TemplateResultDto`) |
+| **Side-Effects** | Aggregate Lifecycle Events | Appends immutable `IDomainEvent` records | `AppDbContext` Outbox / Post-Commit Dispatchers |
+
+### Key Architectural Rationales
+* **Why Sequential UUIDv7:** Chronological ordering eliminates PostgreSQL B-Tree index fragmentation while allowing client/caller ID pre-allocation without database round-trips.
+* **Why Sealed Reference Classes for Entities:** Reference identity prevents struct-copy state loss and preserves EF Core ChangeTracker snapshot fidelity.
+* **Why Explicit ID Operators:** Prohibits accidental cross-domain ID assignment (e.g. assigning a `ProjectId` to a `TemplateId` slot) at compile-time.
+* **Why Injected `DateTimeOffset now`:** Eliminates ambient system clock queries, guaranteeing 100% deterministic unit testing via `FakeTimeProvider`.
+* **Why In-Memory Domain Events:** Decouples domain aggregates from messaging infrastructure; side-effects are dispatched strictly post-transaction.
+
+---
+
 ## 1. Level 1: Domain Invariants & Encapsulation Rules
 
 | Architectural Concern | Prohibited Pattern (! BANNED) | Canonical SSoT Pattern (>> MANDATORY) |

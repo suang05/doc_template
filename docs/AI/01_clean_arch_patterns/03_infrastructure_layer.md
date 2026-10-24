@@ -11,6 +11,25 @@ UpstreamKernel: AGENTS.md
 
 ---
 
+## Architectural Wiring & Data Contracts
+
+| Direction | Upstream Origin | Current Layer Role (Infrastructure Port Adapter) | Downstream Destination |
+|---|---|---|---|
+| **Port Inbound** | Application Port (`ITemplateRepository`, `IUnitOfWork`) | Implements port via EF Core `AppDbContext` | Database / Network Port |
+| **Object Relational Mapping**| Domain POCOs (`Template`, `Document`) | Maps tables, columns (`snake_case`), and ID conversions | PostgreSQL 16+ Engine (`Npgsql`) |
+| **Concurrency Safeguard**| Entity State Mutation | Tracks row version via PostgreSQL `xmin` | Optimistic Concurrency Check |
+| **Storage Inbound** | Application Storage Port (`IStorageService`) | Pipes binary streams to S3 object storage | MinIO Cluster / AWS S3 Bucket |
+| **Rendering Inbound**| Application Render Port (`IRenderingEngine`) | Converts HTML/CSS via HTTP Chromium service | Gotenberg 8 Cluster (`/forms/chromium`) |
+| **Port Outbound** | Database / Gotenberg / S3 Results | Returns domain entities or raw streams | Application UseCases (Zero LOH buffer) |
+
+### Key Architectural Rationales
+* **Why EF Core `IEntityTypeConfiguration<T>` over DataAnnotations:** Keeps domain POCOs completely uncontaminated by ORM attributes, maintaining Clean Architecture purity.
+* **Why PostgreSQL `xmin` over Timestamp Columns:** PostgreSQL manages `xmin` internally per transaction, guaranteeing true row-level concurrency without manual clock tracking or trigger overhead.
+* **Why `.AsNoTracking()` Separation:** Query reads bypass EF ChangeTracker overhead entirely for maximum throughput; mutating commands fetch tracked entities so `SaveChangesAsync` produces minimal SQL diffs.
+* **Why Native `jsonb` Mapping:** Leverages PostgreSQL JSON query and indexing capabilities without string concatenation or unvalidated string storage.
+
+---
+
 ## 1. Level 1: Persistence Invariants & Rules Matrix
 
 | Architectural Concern | Prohibited Pattern (! BANNED) | Canonical SSoT Pattern (>> MANDATORY) |

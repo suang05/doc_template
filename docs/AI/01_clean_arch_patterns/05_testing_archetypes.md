@@ -11,6 +11,24 @@ UpstreamKernel: AGENTS.md
 
 ---
 
+## Architectural Wiring & Testing Boundaries
+
+| SUT Layer | Inbound Test Arranger | Mocking Policy | Assertion Verification |
+|---|---|---|---|
+| **Domain Entities** | Real instantiation via `Template.Create(...)` | ZERO MOCK (100% Real POCO) | Invariants, State mutations, Equality |
+| **Application UseCases** | Positional Command + SSoT `CreateSut()` | NSubstitute for Repos/UoW/Engines | FluentAssertions on DTO, `.Received(1)` on ports |
+| **Infrastructure Adapters**| In-Memory SQLite / Mock HttpMessageHandler | Mock external network & storage | Streaming fidelity, zero-buffer piping |
+| **Api Middleware/Filters** | ActionExecutingContext / HttpContext mock | Direct unit test or WebApplicationFactory | RFC 9457 ProblemDetails, HTTP status codes |
+| **Architectural Boundaries**| NetArchTest on compiled assemblies | Pure Reflection | Inward layer dependencies, sealed classes |
+
+### Key Architectural Rationales
+* **Why Class-Scoped SSoT `CreateSut()` over God Fixtures:** Prevents mock bleed across unrelated tests, ensuring each test class explicitly documents its dependencies.
+* **Why 100% Real POCOs in Domain Tests:** Mocking domain entities tests the mock framework rather than actual business invariants, hiding domain calculation bugs.
+* **Why Fluent Hybrid Builders (`*Builder` with implicit cast):** Provides clean Object Mother defaults while allowing single-property overrides without verbose constructor calls.
+* **Why `FakeTimeProvider` over Ambient Clock:** Guarantees absolute repeatability of time-dependent tests across local developer machines and CI pipelines.
+
+---
+
 ## 1. Level 1: Unit Testing Invariants & Standards Matrix
 
 | Testing Concern | Prohibited Pattern (! BANNED) | Canonical SSoT Pattern (>> MANDATORY) |

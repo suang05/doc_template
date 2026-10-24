@@ -11,6 +11,25 @@ UpstreamKernel: AGENTS.md
 
 ---
 
+## Architectural Wiring & Data Contracts
+
+| Direction | Upstream Origin | Current Layer Role (HTTP Presentation Gateway) | Downstream Destination |
+|---|---|---|---|
+| **Wire Inbound** | HTTP Client (Next.js Proxy / ERP) | Resolves Tenant & Auth Context | Controller Action (`[ApiController]`) |
+| **Command Dispatch** | Route & Body Parameters | Instantiates Command & forwards to UseCase | Application (`createTemplateUseCase.ExecuteAsync`) |
+| **Mutation Safeguard**| Mutating HTTP Methods (`POST`, `PUT`) | Enforces deduplication via `Idempotency-Key` | Idempotency Middleware / In-Memory Store |
+| **Wire Egress** | Application DTO (`TemplateResultDto`) | Envelopes into `ApiResponse<T>` with HTTP Status | Client (`200 OK`, `201 Created` + Location) |
+| **Streaming Egress** | Binary Render Stream | Streams directly to `Response.Body` | HTTP Chunked Stream (`application/pdf`) |
+| **Error Egress** | Unhandled Exceptions | Dispatches to RFC 9457 `ProblemDetails` | HTTP Client (`application/problem+json`) |
+
+### Key Architectural Rationales
+* **Why Thin Controllers (<= 5 Lines):** Keeps controllers purely focused on HTTP transport and identity resolution, preventing business logic duplication and making use cases independently testable.
+* **Why Standard Response Envelopes (`ApiResponse<T>`):** Guarantees consistent client consumption contracts (`data`, `success`, `message`, `timestamp`) across all endpoints.
+* **Why RFC 9457 Global Exception Handler:** Replaces ad-hoc error formats with an IETF standard, ensuring clients receive machine-parsable error codes and validation details without stack traces.
+* **Why Idempotency Keys on Mutations:** Protects distributed systems against network retries or double-submission bugs, ensuring operations execute exactly once.
+
+---
+
 ## 1. Level 1: Presentation Invariants & HTTP Semantics Matrix
 
 | Architectural Concern | Prohibited Pattern (! BANNED) | Canonical SSoT Pattern (>> MANDATORY) |
