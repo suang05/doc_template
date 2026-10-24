@@ -161,24 +161,33 @@ public class GenerationLogBuilder
 
     public GenerationLog Build()
     {
-        return new GenerationLog(
-            _id,
+        var target = new GenerationTarget(
             _templateId.HasValue ? new TemplateId(_templateId.Value) : null,
             _templateVersionId,
-            _apiKeyId.HasValue ? new ApiKeyId(_apiKeyId.Value) : null,
+            _outputFormat,
+            _outputKey,
+            _inputData,
+            _payloadHashSha256);
+
+        var context = new GenerationContext(
             _callerApp,
             _triggerSource,
-            _inputData,
-            _outputKey,
-            _outputFormat,
-            _fileSizeBytes,
-            _pageCount,
-            _payloadHashSha256,
+            _apiKeyId.HasValue ? new ApiKeyId(_apiKeyId.Value) : null);
+
+        var metrics = new GenerationMetrics(
             _durationMs,
+            _fileSizeBytes,
+            _pageCount);
+
+        return new GenerationLog(
+            _id,
+            _projectId,
+            target,
+            context,
+            metrics,
             _status,
             _errorMsg,
-            _now,
-            _projectId);
+            _now);
     }
 
     public static implicit operator GenerationLog(GenerationLogBuilder builder) => builder.Build();

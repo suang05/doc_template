@@ -37,6 +37,72 @@ public sealed class GenerationLog : BaseEntity, IMustHaveProject
 
     internal GenerationLog(
         Guid? id,
+        ProjectId projectId,
+        GenerationTarget target,
+        GenerationContext context,
+        GenerationMetrics metrics,
+        GenerationStatus status,
+        string? errorMsg,
+        DateTimeOffset now)
+        : base(id, createdAt: now)
+    {
+        ProjectId = Guard.NotEmpty(projectId, nameof(ProjectId));
+        Status = Guard.NotNull(status, nameof(Status));
+
+        Guard.NotNull(target, nameof(target));
+        Guard.NotNull(context, nameof(context));
+        Guard.NotNull(metrics, nameof(metrics));
+
+        if (metrics.DurationMs < 0)
+        {
+            throw new DomainValidationException("DurationMs cannot be negative.");
+        }
+
+        if (metrics.FileSizeBytes.HasValue && metrics.FileSizeBytes.Value < 0)
+        {
+            throw new DomainValidationException("FileSizeBytes cannot be negative.");
+        }
+
+        if (metrics.PageCount.HasValue && metrics.PageCount.Value < 0)
+        {
+            throw new DomainValidationException("PageCount cannot be negative.");
+        }
+
+        if (context.CallerApp is { Length: > MaxCallerAppLength })
+        {
+            throw new DomainValidationException($"CallerApp must not exceed {MaxCallerAppLength} characters.");
+        }
+
+        if (context.TriggerSource is { Length: > MaxTriggerSourceLength })
+        {
+            throw new DomainValidationException($"TriggerSource must not exceed {MaxTriggerSourceLength} characters.");
+        }
+
+        if (target.OutputKey is { Length: > MaxOutputKeyLength })
+        {
+            throw new DomainValidationException($"OutputKey must not exceed {MaxOutputKeyLength} characters.");
+        }
+
+        TemplateId = target.TemplateId;
+        TemplateVersionId = target.TemplateVersionId;
+        OutputFormat = target.OutputFormat;
+        OutputKey = target.OutputKey?.Trim();
+        InputData = target.InputData;
+        PayloadHashSha256 = target.PayloadHashSha256;
+
+        ApiKeyId = context.ApiKeyId;
+        CallerApp = context.CallerApp?.Trim();
+        TriggerSource = context.TriggerSource?.Trim();
+
+        DurationMs = metrics.DurationMs;
+        FileSizeBytes = metrics.FileSizeBytes;
+        PageCount = metrics.PageCount;
+
+        ErrorMsg = errorMsg;
+    }
+
+    internal GenerationLog(
+        Guid? id,
         TemplateId? templateId,
         Guid? templateVersionId,
         ApiKeyId? apiKeyId,
@@ -53,56 +119,57 @@ public sealed class GenerationLog : BaseEntity, IMustHaveProject
         string? errorMsg,
         DateTimeOffset now,
         ProjectId projectId)
-        : base(id, createdAt: now)
+        : this(
+            id,
+            projectId,
+            new GenerationTarget(templateId, templateVersionId, outputFormat, outputKey, inputData, payloadHashSha256),
+            new GenerationContext(callerApp, triggerSource, apiKeyId),
+            new GenerationMetrics(durationMs, fileSizeBytes, pageCount),
+            status,
+            errorMsg,
+            now)
     {
-        if (durationMs < 0)
-        {
-            throw new DomainValidationException("DurationMs cannot be negative.");
-        }
-
-        if (fileSizeBytes.HasValue && fileSizeBytes.Value < 0)
-        {
-            throw new DomainValidationException("FileSizeBytes cannot be negative.");
-        }
-
-        if (pageCount.HasValue && pageCount.Value < 0)
-        {
-            throw new DomainValidationException("PageCount cannot be negative.");
-        }
-
-        Status = Guard.NotNull(status, nameof(Status));
-
-        if (callerApp is { Length: > MaxCallerAppLength })
-        {
-            throw new DomainValidationException($"CallerApp must not exceed {MaxCallerAppLength} characters.");
-        }
-
-        if (triggerSource is { Length: > MaxTriggerSourceLength })
-        {
-            throw new DomainValidationException($"TriggerSource must not exceed {MaxTriggerSourceLength} characters.");
-        }
-
-        if (outputKey is { Length: > MaxOutputKeyLength })
-        {
-            throw new DomainValidationException($"OutputKey must not exceed {MaxOutputKeyLength} characters.");
-        }
-
-        TemplateId = templateId;
-        TemplateVersionId = templateVersionId;
-        ApiKeyId = apiKeyId;
-        CallerApp = callerApp?.Trim();
-        TriggerSource = triggerSource?.Trim();
-        InputData = inputData;
-        OutputKey = outputKey?.Trim();
-        OutputFormat = outputFormat;
-        FileSizeBytes = fileSizeBytes;
-        PageCount = pageCount;
-        PayloadHashSha256 = payloadHashSha256;
-        DurationMs = durationMs;
-        ErrorMsg = errorMsg;
-        ProjectId = Guard.NotEmpty(projectId, nameof(ProjectId));
     }
 
+    public static GenerationLog Create(
+        ProjectId projectId,
+        GenerationTarget target,
+        GenerationContext context,
+        GenerationMetrics metrics,
+        GenerationStatus status,
+        DateTimeOffset now,
+        string? errorMsg = null,
+        Guid? id = null) =>
+        new(id, projectId, target, context, metrics, status, errorMsg, now);
+
+    public static GenerationLog CreateSuccess(
+        Guid generationId,
+        ProjectId projectId,
+        GenerationTarget target,
+        GenerationContext context,
+        GenerationMetrics metrics,
+        DateTimeOffset now) =>
+        new(generationId, projectId, target, context, metrics, GenerationStatus.Success, null, now);
+
+    public static GenerationLog CreateValidationFailure(
+        ProjectId projectId,
+        GenerationTarget target,
+        GenerationContext context,
+        int durationMs,
+        string errorMessage,
+        DateTimeOffset now) =>
+        new(null, projectId, target, context, GenerationMetrics.ForDuration(durationMs), GenerationStatus.ValidationFailed, errorMessage, now);
+
+    public static GenerationLog CreateFailure(
+        ProjectId projectId,
+        GenerationTarget target,
+        GenerationContext context,
+        int durationMs,
+        string errorMessage,
+        DateTimeOffset now) =>
+        new(null, projectId, target, context, GenerationMetrics.ForDuration(durationMs), GenerationStatus.Failed, errorMessage, now);
+
+    // Convenience overloads preserving positional backwards compatibility
     public static GenerationLog Create(
         TemplateId? templateId,
         Guid? templateVersionId,
@@ -153,24 +220,13 @@ public sealed class GenerationLog : BaseEntity, IMustHaveProject
         int durationMs,
         DateTimeOffset now,
         ProjectId projectId) =>
-        new(
+        CreateSuccess(
             generationId,
-            templateId,
-            templateVersionId,
-            apiKeyId,
-            callerApp,
-            triggerSource,
-            inputData,
-            outputKey,
-            outputFormat,
-            fileSizeBytes,
-            null,
-            null,
-            durationMs,
-            GenerationStatus.Success,
-            null,
-            now,
-            projectId);
+            projectId,
+            new GenerationTarget(templateId, templateVersionId, outputFormat, outputKey, inputData),
+            new GenerationContext(callerApp, triggerSource, apiKeyId),
+            GenerationMetrics.Of(durationMs, fileSizeBytes),
+            now);
 
     public static GenerationLog CreateValidationFailure(
         TemplateId templateId,
@@ -184,24 +240,13 @@ public sealed class GenerationLog : BaseEntity, IMustHaveProject
         string errorMessage,
         DateTimeOffset now,
         ProjectId projectId) =>
-        new(
-            null,
-            templateId,
-            templateVersionId,
-            apiKeyId,
-            callerApp,
-            triggerSource,
-            inputData,
-            null,
-            outputFormat,
-            0,
-            null,
-            null,
+        CreateValidationFailure(
+            projectId,
+            GenerationTarget.ForTemplate(templateId, templateVersionId, outputFormat, inputData),
+            new GenerationContext(callerApp, triggerSource, apiKeyId),
             durationMs,
-            GenerationStatus.ValidationFailed,
             errorMessage,
-            now,
-            projectId);
+            now);
 
     public static GenerationLog CreateFailure(
         TemplateId templateId,
@@ -215,22 +260,11 @@ public sealed class GenerationLog : BaseEntity, IMustHaveProject
         string errorMessage,
         DateTimeOffset now,
         ProjectId projectId) =>
-        new(
-            null,
-            templateId,
-            templateVersionId,
-            apiKeyId,
-            callerApp,
-            triggerSource,
-            inputData,
-            null,
-            outputFormat,
-            0,
-            null,
-            null,
+        CreateFailure(
+            projectId,
+            GenerationTarget.ForTemplate(templateId, templateVersionId, outputFormat, inputData),
+            new GenerationContext(callerApp, triggerSource, apiKeyId),
             durationMs,
-            GenerationStatus.Failed,
             errorMessage,
-            now,
-            projectId);
+            now);
 }

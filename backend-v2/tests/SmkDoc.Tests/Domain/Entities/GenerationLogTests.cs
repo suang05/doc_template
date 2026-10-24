@@ -2,6 +2,7 @@ using FluentAssertions;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
+using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common;
 using Xunit;
@@ -157,5 +158,76 @@ public sealed class GenerationLogTests
         var log = GenerationLog.Create(null, null, null, null, "api", null, null, null, null, null, null, 10, GenerationStatus.Timeout, null, Now, TestProjectId);
 
         log.Status.Should().Be(GenerationStatus.Timeout);
+    }
+
+    [Fact]
+    public void Create_WithGroupedParameterRecords_InitializesCorrectly()
+    {
+        var target = new GenerationTarget(
+            TemplateId.New(),
+            Guid.NewGuid(),
+            OutputFormat.Pdf,
+            "outputs/doc.pdf",
+            "{\"key\":\"val\"}");
+
+        var context = new GenerationContext("billing-app", "cron", ApiKeyId.New());
+        var metrics = GenerationMetrics.Of(250, 40960, 2);
+
+        var log = GenerationLog.Create(
+            TestProjectId,
+            target,
+            context,
+            metrics,
+            GenerationStatus.Success,
+            Now);
+
+        log.ProjectId.Should().Be(TestProjectId);
+        log.TemplateId.Should().Be(target.TemplateId);
+        log.TemplateVersionId.Should().Be(target.TemplateVersionId);
+        log.OutputFormat.Should().Be(OutputFormat.Pdf);
+        log.OutputKey.Should().Be("outputs/doc.pdf");
+        log.InputData.Should().Be("{\"key\":\"val\"}");
+        log.CallerApp.Should().Be("billing-app");
+        log.TriggerSource.Should().Be("cron");
+        log.ApiKeyId.Should().Be(context.ApiKeyId);
+        log.DurationMs.Should().Be(250);
+        log.FileSizeBytes.Should().Be(40960);
+        log.PageCount.Should().Be(2);
+        log.Status.Should().Be(GenerationStatus.Success);
+    }
+
+    [Fact]
+    public void CreateSuccess_WithGroupedParameterRecords_InitializesAsSuccess()
+    {
+        var genId = Guid.NewGuid();
+        var target = GenerationTarget.ForTemplate(TemplateId.New(), Guid.NewGuid(), OutputFormat.Docx, "{}", "out.docx");
+        var context = new GenerationContext("app", "api");
+        var metrics = GenerationMetrics.Of(80, 1024);
+
+        var log = GenerationLog.CreateSuccess(genId, TestProjectId, target, context, metrics, Now);
+
+        log.Id.Should().Be(genId);
+        log.Status.Should().Be(GenerationStatus.Success);
+        log.ErrorMsg.Should().BeNull();
+        log.DurationMs.Should().Be(80);
+    }
+
+    [Fact]
+    public void CreateValidationFailure_WithGroupedParameterRecords_InitializesAsValidationFailed()
+    {
+        var target = GenerationTarget.ForTemplate(TemplateId.New(), Guid.NewGuid(), OutputFormat.Pdf, "{ invalid }");
+        var context = new GenerationContext("app", "api");
+
+        var log = GenerationLog.CreateValidationFailure(
+            TestProjectId,
+            target,
+            context,
+            15,
+            "Schema invalid",
+            Now);
+
+        log.Status.Should().Be(GenerationStatus.ValidationFailed);
+        log.ErrorMsg.Should().Be("Schema invalid");
+        log.DurationMs.Should().Be(15);
     }
 }

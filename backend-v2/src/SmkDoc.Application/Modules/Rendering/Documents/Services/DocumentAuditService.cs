@@ -2,6 +2,7 @@ using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Modules.Rendering.Documents.Services;
@@ -33,18 +34,24 @@ public sealed class DocumentAuditService(
             ? (ApiKeyId?)new ApiKeyId(executionContext.ApiKeyId.Value)
             : null;
 
-        var failLog = GenerationLog.CreateValidationFailure(
+        var target = GenerationTarget.ForTemplate(
             new TemplateId(templateId),
             templateVersionId,
-            apiKeyId,
+            outputFormat,
+            inputData: dataJson);
+
+        var context = new GenerationContext(
             executionContext.CallerApp,
             "api",
-            dataJson,
-            outputFormat,
+            apiKeyId);
+
+        var failLog = GenerationLog.CreateValidationFailure(
+            projectId,
+            target,
+            context,
             elapsedMs,
             errorMessage,
-            this.timeProvider.GetUtcNow(),
-            projectId);
+            this.timeProvider.GetUtcNow());
 
         await logRepo.AddAsync(failLog, ct);
         await unitOfWork.CommitAsync(ct);
@@ -72,20 +79,27 @@ public sealed class DocumentAuditService(
             ? (ApiKeyId?)new ApiKeyId(executionContext.ApiKeyId.Value)
             : null;
 
-        var log = GenerationLog.CreateSuccess(
-            generationId,
+        var target = new GenerationTarget(
             new TemplateId(templateId),
             templateVersionId,
-            apiKeyId,
+            outputFormat,
+            outputKey,
+            dataJson);
+
+        var context = new GenerationContext(
             executionContext.CallerApp,
             "api",
-            dataJson,
-            outputKey,
-            outputFormat,
-            fileSizeBytes,
-            elapsedMs,
-            this.timeProvider.GetUtcNow(),
-            projectId);
+            apiKeyId);
+
+        var logMetrics = GenerationMetrics.Of(elapsedMs, fileSizeBytes);
+
+        var log = GenerationLog.CreateSuccess(
+            generationId,
+            projectId,
+            target,
+            context,
+            logMetrics,
+            this.timeProvider.GetUtcNow());
 
         await logRepo.AddAsync(log, ct);
 
