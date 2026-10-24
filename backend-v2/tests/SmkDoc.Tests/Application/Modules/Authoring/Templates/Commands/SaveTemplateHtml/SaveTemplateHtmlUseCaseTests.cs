@@ -91,13 +91,12 @@ public sealed class SaveTemplateHtmlUseCaseTests
             "text/html; charset=utf-8",
             Arg.Any<CancellationToken>());
 
-        // Verify database insert of new version with DataSchema and SamplePayload
-        await _templateRepo.Received(1).AddVersionAsync(
-            Arg.Is<TemplateVersion>(v => v.Version == 4 &&
-                                        v.CommitMessage == "Updated payment terms" &&
-                                        v.DataSchema == dummySchema &&
-                                        v.SamplePayload == dummySample),
-            Arg.Any<CancellationToken>());
+        // Verify template updated with new version containing DataSchema and SamplePayload
+        _templateRepo.Received(1).Update(
+            Arg.Is<Template>(t => t.Versions.Any(v => v.Version == 4 &&
+                                                      v.CommitMessage == "Updated payment terms" &&
+                                                      v.DataSchema == dummySchema &&
+                                                      v.SamplePayload == dummySample)));
 
         // Verify UoW saved
         await _unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());

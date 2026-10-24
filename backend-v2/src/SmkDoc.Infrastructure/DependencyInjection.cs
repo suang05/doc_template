@@ -69,6 +69,7 @@ public static class DependencyInjection
         services.AddScoped<ICompanyRepository, CompanyRepository>();
         services.AddScoped<IGenerationLogMetricsRepository, GenerationLogMetricsRepository>();
         services.AddScoped<IUserWorkspaceQueryService, UserWorkspaceQueryService>();
+        services.AddScoped<IProjectQueryService, ProjectQueryService>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
 
         // 4. Storage

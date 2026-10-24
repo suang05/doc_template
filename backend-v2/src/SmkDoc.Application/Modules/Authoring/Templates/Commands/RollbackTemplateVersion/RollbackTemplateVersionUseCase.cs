@@ -54,8 +54,7 @@ public sealed class RollbackTemplateVersionUseCase(
         await _storageService.UploadAsync(StorageBuckets.Templates, versionedKey, memoryStream, contentType, ct);
 
         var now = _timeProvider.GetUtcNow();
-        var newVersion = TemplateVersion.Draft(
-            template.Id,
+        var newVersion = template.CreateDraftVersion(
             nextVersionNumber,
             versionedKey,
             archived.FileFormat,
@@ -64,7 +63,6 @@ public sealed class RollbackTemplateVersionUseCase(
             $"Rollback to v{command.TargetVersion}");
 
         template.PublishVersion(newVersion, now);
-        await _templateRepo.AddVersionAsync(newVersion, ct);
 
         _templateRepo.Update(template);
 

@@ -300,13 +300,13 @@ using SmkDoc.Domain.Common;
 
 namespace SmkDoc.Domain.Enums;
 
-public sealed class EngineType : Enumeration
+public sealed class RenderEngineType : Enumeration
 {
-    public static readonly EngineType Gotenberg = new(1, nameof(Gotenberg));
-    public static readonly EngineType OpenXml = new(2, nameof(OpenXml));
-    public static readonly EngineType ClosedXml = new(3, nameof(ClosedXml));
+    public static readonly RenderEngineType Html = new(1, "Html");
+    public static readonly RenderEngineType Docx = new(2, "Docx");
+    public static readonly RenderEngineType Excel = new(3, "Excel");
 
-    private EngineType(int id, string name) : base(id, name) { }
+    private RenderEngineType(int id, string name) : base(id, name) { }
 }
 ```
 

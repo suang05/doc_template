@@ -12,13 +12,6 @@ public interface IProjectRepository
     Task<bool> ExistsBySlugAsync(ProjectSlug slug, CancellationToken ct = default);
     Task<IReadOnlyList<Project>> ListByIdsAsync(IEnumerable<ProjectId> ids, CancellationToken ct = default);
     Task<IReadOnlyList<Project>> ListActiveAsync(CancellationToken ct = default);
-    Task<(IReadOnlyList<Project> Items, int TotalCount)> ListPagedByUserAsync(
-        UserId userId,
-        bool isSuperAdmin,
-        string? searchTerm,
-        int page,
-        int pageSize,
-        CancellationToken ct = default);
     Task AddAsync(Project project, CancellationToken ct = default);
     void Update(Project project);
 }

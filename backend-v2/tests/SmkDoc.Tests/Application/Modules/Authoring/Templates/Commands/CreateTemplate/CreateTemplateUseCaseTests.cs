@@ -89,8 +89,9 @@ public sealed class CreateTemplateUseCaseTests
         result.ProjectId.Should().Be(projectId);
         result.IsActive.Should().BeTrue();
 
-        await _templateRepo.Received(1).AddAsync(Arg.Any<Template>(), Arg.Any<CancellationToken>());
-        await _templateRepo.Received(1).AddVersionAsync(Arg.Any<TemplateVersion>(), Arg.Any<CancellationToken>());
+        await _templateRepo.Received(1).AddAsync(
+            Arg.Is<Template>(t => t.Versions.Count == 1 && t.Versions.Any(v => v.Version == 1)),
+            Arg.Any<CancellationToken>());
         await _unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
     }
 }

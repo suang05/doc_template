@@ -28,19 +28,13 @@ UpstreamKernel: AGENTS.md
 
 ### Polymorphic Rendering Engine Strategy Contract
 ```csharp
-namespace SmkDoc.Infrastructure.Engines;
+namespace SmkDoc.Application.Common.Interfaces;
 
-public interface IRenderingEngine
+public interface IRenderEngine
 {
-    EngineType SupportedEngine { get; }
-    Task<Stream> RenderAsync(RenderContext context, CancellationToken ct);
-}
-
-public sealed class RenderingEngineResolver(IEnumerable<IRenderingEngine> engines)
-{
-    public IRenderingEngine Resolve(EngineType engineType) =>
-        engines.FirstOrDefault(e => e.SupportedEngine == engineType)
-        ?? throw new NotSupportedException($"Rendering engine '{engineType.Name}' is not registered.");
+    RenderEngineType EngineType { get; }
+    Task<byte[]> RenderAsync(Stream templateStream, string inputDataJson, OutputFormat outputFormat, CancellationToken ct = default);
+    Task<Stream> RenderStreamAsync(Stream templateStream, string inputDataJson, OutputFormat outputFormat, CancellationToken ct = default);
 }
 ```
 

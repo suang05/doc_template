@@ -47,7 +47,7 @@ public sealed class TemplateVersion : BaseEntity
         Status = TemplateVersionStatus.Draft;
     }
 
-    public static TemplateVersion Draft(
+    internal static TemplateVersion Draft(
         TemplateId templateId,
         int version,
         string storageKey,

@@ -140,6 +140,35 @@ public sealed class TemplateTests
     // ── Version Management ─────────────────────────────────────────────────────
 
     [Fact]
+    public void CreateDraftVersion_ValidParameters_CreatesAndAddsToVersionsCollection()
+    {
+        var template = CreateTemplate("Invoice", "invoice", now: _initialTime);
+
+        var version = template.CreateDraftVersion(1, "s3-key-1", TemplateFormat.Html, "author", _initialTime, "Initial commit");
+
+        version.Should().NotBeNull();
+        version.TemplateId.Should().Be(template.Id);
+        version.Version.Should().Be(1);
+        version.StorageKey.Should().Be("s3-key-1");
+        version.FileFormat.Should().Be(TemplateFormat.Html);
+        version.CommitMessage.Should().Be("Initial commit");
+        template.Versions.Should().ContainSingle().Which.Should().BeSameAs(version);
+        template.UpdatedAt.Should().NotBeNull();
+    }
+
+    [Fact]
+    public void CreateDraftVersion_DuplicateVersionNumber_ThrowsDuplicateVersionException()
+    {
+        var template = CreateTemplate("Invoice", "invoice", now: _initialTime);
+        template.CreateDraftVersion(1, "key-1", TemplateFormat.Html, "author", _initialTime);
+
+        Action act = () => template.CreateDraftVersion(1, "key-2", TemplateFormat.Html, "author", _initialTime);
+
+        act.Should().Throw<DuplicateVersionException>()
+            .WithMessage("*already exists in template*");
+    }
+
+    [Fact]
     public void AddVersion_ValidVersion_AddsToVersionsCollection()
     {
         var template = CreateTemplate("Invoice", "invoice", now: _initialTime);

@@ -71,8 +71,7 @@ public sealed class CommitTemplateDraftUseCase(
             string? inferredSchema = schemaInferenceService?.InferSchemaFromPlaceholders(placeholderList, templateSlug: command.Request.Slug);
             string? samplePayload = schemaInferenceService?.GenerateDefaultSamplePayload(placeholderList);
 
-            var version = TemplateVersion.Draft(
-                template.Id,
+            var version = template.CreateDraftVersion(
                 1,
                 uploadedKey,
                 format,
@@ -110,7 +109,6 @@ public sealed class CommitTemplateDraftUseCase(
             }
 
             await templateRepo.AddAsync(template, ct);
-            await templateRepo.AddVersionAsync(version, ct);
             await unitOfWork.CommitAsync(ct);
         }
         catch

@@ -59,8 +59,7 @@ public class SaveTemplateHtmlUseCase(
 
         // 3. Create new database version record
         var now = _timeProvider.GetUtcNow();
-        var newVersion = TemplateVersion.Draft(
-            template.Id,
+        var newVersion = template.CreateDraftVersion(
             nextVersionNumber,
             versionedKey,
             TemplateFormat.Html,
@@ -69,7 +68,6 @@ public class SaveTemplateHtmlUseCase(
             request.ChangeNote);
         newVersion.UpdateDataSchema(inferredSchema, finalSamplePayload, now);
         template.PublishVersion(newVersion, now);
-        await _templateRepo.AddVersionAsync(newVersion, ct);
 
         // 4. Update template active pointer and timestamp
         _templateRepo.Update(template);

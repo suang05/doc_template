@@ -90,11 +90,6 @@ public sealed class TemplateRepository(AppDbContext context) : ITemplateReposito
         await _context.Templates.AddAsync(template, ct);
     }
 
-    public async Task AddVersionAsync(TemplateVersion version, CancellationToken ct = default)
-    {
-        await _context.TemplateVersions.AddAsync(version, ct);
-    }
-
     public void Update(Template template)
     {
         _context.Templates.Update(template);

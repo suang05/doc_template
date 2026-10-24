@@ -7,7 +7,7 @@ using SmkDoc.Domain.ValueObjects.Ids;
 namespace SmkDoc.Application.Modules.IdentityAccess.Projects.Queries.ListProjects;
 
 public sealed class ListProjectsUseCase(
-    IProjectRepository projectRepo,
+    IProjectQueryService projectQueryService,
     IUserRepository userRepo) : IUseCase<ListProjectsQuery, ProjectPagedResultDto>
 {
     public async Task<ProjectPagedResultDto> ExecuteAsync(ListProjectsQuery query, CancellationToken ct = default)
@@ -16,7 +16,7 @@ public sealed class ListProjectsUseCase(
         var user = await userRepo.GetByIdAsync(uId, ct);
         var isSuperAdmin = user?.SystemRole == SystemRole.SuperAdmin;
 
-        var (items, totalCount) = await projectRepo.ListPagedByUserAsync(
+        var (items, totalCount) = await projectQueryService.ListPagedByUserAsync(
             uId,
             isSuperAdmin,
             query.SearchTerm,
@@ -24,10 +24,6 @@ public sealed class ListProjectsUseCase(
             query.PageSize,
             ct);
 
-        var dtos = items
-            .Select(p => new ProjectResultDto(p.Id.Value, p.Name.Value, p.Slug.Value, p.IsActive, p.CreatedAt))
-            .ToList();
-
-        return new ProjectPagedResultDto(dtos, totalCount, query.Page, query.PageSize);
+        return new ProjectPagedResultDto(items, totalCount, query.Page, query.PageSize);
     }
 }
