@@ -1,24 +1,24 @@
 using SmkDoc.Domain.Common;
 using SmkDoc.Domain.Exceptions;
 
-namespace SmkDoc.Domain.ValueObjects;
+namespace SmkDoc.Domain.Enums;
 
-public sealed record class DataSourceType
+/// <summary>
+/// Smart Enum defining supported data source origins for template field mappings.
+/// </summary>
+public sealed class DataSourceType : Enumeration
 {
-    public static readonly DataSourceType Json = new("json");
-    public static readonly DataSourceType Sql = new("sql");
+    public static readonly DataSourceType Json = new(1, "json");
+    public static readonly DataSourceType Sql = new(2, "sql");
 
-    public string Value { get; }
-
-    private DataSourceType(string value)
-    {
-        Value = value;
-    }
+    private DataSourceType(int id, string name) : base(id, name) { }
 
     public static DataSourceType FromString(string type)
     {
         if (string.IsNullOrWhiteSpace(type))
+        {
             throw new DomainValidationException("DataSourceType cannot be null or empty.");
+        }
 
         var normalized = type.ToLowerInvariant();
         return normalized switch
@@ -29,5 +29,6 @@ public sealed record class DataSourceType
         };
     }
 
-    public override string ToString() => Value;
+    public static implicit operator string(DataSourceType type) => type.Name;
+    public string Value => Name;
 }

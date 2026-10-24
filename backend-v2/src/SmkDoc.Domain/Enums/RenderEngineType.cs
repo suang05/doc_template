@@ -2,7 +2,7 @@ using SmkDoc.Domain.Common;
 
 namespace SmkDoc.Domain.Enums;
 
-public class RenderEngineType : Enumeration
+public sealed class RenderEngineType : Enumeration
 {
     public static readonly RenderEngineType Html = new(1, "Html");
     public static readonly RenderEngineType Docx = new(2, "Docx");

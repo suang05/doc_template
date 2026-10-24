@@ -2,7 +2,7 @@ using SmkDoc.Domain.Common;
 
 namespace SmkDoc.Domain.Enums;
 
-public class GenerationStatus : Enumeration
+public sealed class GenerationStatus : Enumeration
 {
     public static readonly GenerationStatus Success = new(1, "SUCCESS");
     public static readonly GenerationStatus Failed = new(2, "FAILED");

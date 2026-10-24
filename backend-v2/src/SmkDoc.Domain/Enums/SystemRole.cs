@@ -2,7 +2,7 @@ using SmkDoc.Domain.Common;
 
 namespace SmkDoc.Domain.Enums;
 
-public class SystemRole : Enumeration
+public sealed class SystemRole : Enumeration
 {
     public static readonly SystemRole SuperAdmin = new(1, "SuperAdmin");
     public static readonly SystemRole Member = new(2, "Member");

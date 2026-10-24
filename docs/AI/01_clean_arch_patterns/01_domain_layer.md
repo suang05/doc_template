@@ -257,6 +257,16 @@ public sealed record class EncryptedConnectionString
 
 // Struct Primitive VO
 public readonly record struct PageDimension(float WidthMm, float HeightMm);
+
+// Normalized URL-Friendly Tenant Slug VO
+public sealed partial record ProjectSlug
+{
+    public string Value { get; }
+    public ProjectSlug(string value) => Value = Guard.NotBlank(value, "Project slug");
+    public static ProjectSlug Create(string value) => new(value);
+    public static implicit operator string(ProjectSlug slug) => slug.Value;
+    public override string ToString() => Value;
+}
 ```
 
 ### Smart Enum Archetype
@@ -383,4 +393,14 @@ public TemplateVersion PublishVersion(Guid versionId, DateTimeOffset now) {
     return version;
 }
 ```
+
+### [TRAP-DOM-010]: Cross-Domain Slug Semantic Coupling
+```csharp
+// ! BANNED: Reusing entity-specific slug across unrelated aggregates
+public class Project : BaseEntity<ProjectId> { public TemplateSlug Slug { get; private set; } }
+
+// >> CANONICAL: Distinct domain-specific Value Object per aggregate boundary
+public class Project : BaseEntity<ProjectId> { public ProjectSlug Slug { get; private set; } }
+```
+
 

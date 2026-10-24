@@ -2,7 +2,7 @@ using SmkDoc.Domain.Common;
 
 namespace SmkDoc.Domain.Enums;
 
-public class TemplateVersionStatus : Enumeration
+public sealed class TemplateVersionStatus : Enumeration
 {
     public static readonly TemplateVersionStatus Draft = new(0, "Draft");
     public static readonly TemplateVersionStatus Published = new(1, "Published");

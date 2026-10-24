@@ -1,4 +1,5 @@
 using SmkDoc.Domain.Entities;
+using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.ValueObjects;
 
 namespace SmkDoc.Tests.Common.Builders;

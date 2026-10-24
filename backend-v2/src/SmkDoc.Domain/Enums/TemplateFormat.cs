@@ -2,7 +2,7 @@ using SmkDoc.Domain.Common;
 
 namespace SmkDoc.Domain.Enums;
 
-public class TemplateFormat : Enumeration
+public sealed class TemplateFormat : Enumeration
 {
     public static readonly TemplateFormat Html = new(1, "html", "text/html", RenderEngineType.Html);
     public static readonly TemplateFormat Docx = new(2, "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", RenderEngineType.Docx);

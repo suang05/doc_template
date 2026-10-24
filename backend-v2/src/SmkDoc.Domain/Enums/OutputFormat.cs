@@ -2,7 +2,7 @@ using SmkDoc.Domain.Common;
 
 namespace SmkDoc.Domain.Enums;
 
-public class OutputFormat : Enumeration
+public sealed class OutputFormat : Enumeration
 {
     public static readonly OutputFormat Pdf = new(1, "pdf");
     public static readonly OutputFormat Docx = new(2, "docx");

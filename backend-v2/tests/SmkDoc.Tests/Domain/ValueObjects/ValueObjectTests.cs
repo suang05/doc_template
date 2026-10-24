@@ -1,4 +1,5 @@
-﻿using FluentAssertions;
+using FluentAssertions;
+using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects;
 using Xunit;
