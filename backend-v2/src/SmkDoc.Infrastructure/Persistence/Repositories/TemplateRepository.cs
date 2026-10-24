@@ -67,14 +67,6 @@ public sealed class TemplateRepository(AppDbContext context) : ITemplateReposito
             .FirstOrDefaultAsync(v => v.Id == versionId, ct);
     }
 
-    public async Task<TemplateVersion?> GetCurrentVersionAsync(TemplateId templateId, CancellationToken ct = default)
-    {
-        return await _context.Templates
-            .Where(t => t.Id == templateId)
-            .Select(t => t.CurrentVersion)
-            .FirstOrDefaultAsync(ct);
-    }
-
     public async Task<IReadOnlyList<TemplateVersion>> ListVersionsAsync(TemplateId templateId, CancellationToken ct = default)
     {
         return await _context.Templates

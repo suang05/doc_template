@@ -10,11 +10,6 @@ public sealed class ApiKeyRepository(AppDbContext context) : IApiKeyRepository
 {
     private readonly AppDbContext _context = context;
 
-    public async Task<ApiKey?> GetByIdAsync(ApiKeyId id, CancellationToken ct = default)
-    {
-        return await _context.ApiKeys.FirstOrDefaultAsync(k => k.Id == id, ct);
-    }
-
     public async Task<ApiKey?> GetByIdAsync(ApiKeyId id, ProjectId projectId, CancellationToken ct = default)
     {
         return await _context.ApiKeys.FirstOrDefaultAsync(k => k.Id == id && k.ProjectId == projectId, ct);
@@ -32,11 +27,6 @@ public sealed class ApiKeyRepository(AppDbContext context) : IApiKeyRepository
             .Where(k => k.ProjectId == projectId)
             .OrderByDescending(k => k.CreatedAt)
             .ToListAsync(ct);
-    }
-
-    public async Task<bool> ExistsByNameAsync(ProjectId projectId, ApiKeyName name, CancellationToken ct = default)
-    {
-        return await _context.ApiKeys.AnyAsync(k => k.ProjectId == projectId && k.Name == name, ct);
     }
 
     public async Task AddAsync(ApiKey key, CancellationToken ct = default)

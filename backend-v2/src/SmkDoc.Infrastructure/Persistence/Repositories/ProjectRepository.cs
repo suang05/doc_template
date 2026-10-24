@@ -20,31 +20,12 @@ public sealed class ProjectRepository(AppDbContext context) : IProjectRepository
         return await _context.Projects.FirstOrDefaultAsync(p => p.Slug == slug, ct);
     }
 
-    public async Task<Project?> GetBySlugAsync(ProjectSlug slug, CancellationToken ct = default)
-    {
-        return await _context.Projects.FirstOrDefaultAsync(p => p.Slug == slug, ct);
-    }
-
-    public async Task<bool> ExistsBySlugAsync(ProjectSlug slug, CancellationToken ct = default)
-    {
-        return await _context.Projects.AnyAsync(p => p.Slug == slug, ct);
-    }
-
     public async Task<IReadOnlyList<Project>> ListByIdsAsync(IEnumerable<ProjectId> ids, CancellationToken ct = default)
     {
         var idSet = ids.ToHashSet();
         return await _context.Projects
             .AsNoTracking()
             .Where(p => idSet.Contains(p.Id) && p.IsActive)
-            .ToListAsync(ct);
-    }
-
-    public async Task<IReadOnlyList<Project>> ListActiveAsync(CancellationToken ct = default)
-    {
-        return await _context.Projects
-            .AsNoTracking()
-            .Where(p => p.IsActive)
-            .OrderBy(p => p.Name)
             .ToListAsync(ct);
     }
 

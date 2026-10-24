@@ -8,10 +8,7 @@ public interface IProjectRepository
 {
     Task<Project?> GetByIdAsync(ProjectId id, CancellationToken ct = default);
     Task<Project?> GetBySlugAsync(string slug, CancellationToken ct = default);
-    Task<Project?> GetBySlugAsync(ProjectSlug slug, CancellationToken ct = default);
-    Task<bool> ExistsBySlugAsync(ProjectSlug slug, CancellationToken ct = default);
     Task<IReadOnlyList<Project>> ListByIdsAsync(IEnumerable<ProjectId> ids, CancellationToken ct = default);
-    Task<IReadOnlyList<Project>> ListActiveAsync(CancellationToken ct = default);
     Task AddAsync(Project project, CancellationToken ct = default);
     void Update(Project project);
 }
