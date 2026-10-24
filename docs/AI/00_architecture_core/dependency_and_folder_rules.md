@@ -43,8 +43,8 @@ backend-v2/src/SmkDoc.Application/Modules/
 │
 ├── Rendering/                  # Document production & output pipelines
 │   ├── Commands/               # RenderDocument, RenderPreview, CancelGeneration
-│   ├── Queries/                # GetDocumentById, GetGenerationLog, StreamDocument
-│   └── DTOs/                   # RenderDocumentResultDto, PreviewResultDto, GenerationLogDto
+│   ├── Queries/                # GetDocumentById, GetGenerationLog, StreamDocument, GetLogPayload
+│   └── DTOs/                   # RenderDocumentResultDto, PreviewResultDto, GenerationLogDto, LogPayloadResultDto
 │
 ├── Integration/                # External data connections & query datasets
 │   ├── Commands/               # CreateDataConnection, TestConnection, SaveDataset

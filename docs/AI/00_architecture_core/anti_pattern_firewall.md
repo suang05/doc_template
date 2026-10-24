@@ -24,6 +24,7 @@ UpstreamKernel: AGENTS.md
 | **[TRAP-TIME-007]** | Testability | `DateTime.UtcNow` / `DateTimeOffset.UtcNow` queries | Injected `TimeProvider` or explicit `DateTimeOffset now` parameter |
 | **[TRAP-VOID-008]** | Reliability | Empty catch block swallowing exceptions | Rethrow strongly-typed `DomainException` or structured log |
 | **[TRAP-AUDIT-009]** | Storage / OLTP | Unbounded JSON payloads stored in PostgreSQL OLTP | Threshold offload (>16KB) to MinIO `audit-payloads` + SHA-256 hash in DB |
+| **[TRAP-EVENT-010]** | Consistency | Pre-commit domain event dispatching | Harvest events, commit transaction via `SaveChangesAsync`, clear events, dispatch strictly post-commit |
 
 ---
 
@@ -221,3 +222,19 @@ var (storedInputData, payloadHash) = await PreparePayloadAsync(projectId, dataJs
 // If bytes > 16KB: stream to MinIO "audit-payloads", store "[OFFLOADED:audit/...]" pointer & SHA-256 in DB.
 // If bytes <= 16KB: store inline JSON & SHA-256 in DB.
 ```
+
+### [TRAP-EVENT-010]: Pre-Commit Domain Event Dispatch (Phantom Side-Effects)
+```csharp
+// ! BANNED: Dispatching domain events before database transaction commits triggers phantom side-effects on rollback
+foreach (var entity in entitiesWithEvents)
+    await dispatcher.DispatchEventsAsync(entity.DomainEvents, ct);
+await dbContext.SaveChangesAsync(ct); // FATAL: If DB throws, external handlers have already executed!
+
+// >> CANONICAL: Harvest events, commit transaction, clear entity events, dispatch strictly post-commit
+var pendingEvents = entitiesWithEvents.SelectMany(e => e.DomainEvents).ToList();
+entitiesWithEvents.ForEach(e => e.ClearDomainEvents());
+await dbContext.SaveChangesAsync(ct);
+if (dispatcher != null && pendingEvents.Count > 0)
+    await dispatcher.DispatchEventsAsync(pendingEvents, ct);
+```
+
