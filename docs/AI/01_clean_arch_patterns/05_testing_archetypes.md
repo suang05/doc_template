@@ -61,6 +61,7 @@ SmkDoc.Tests/
 ├── Application/Modules/{Context}/ # UseCase SSoT Tests & Validator Tests
 ├── Infrastructure/               # Engine, Adapter & Stream Tests (Zero LOH)
 ├── Api/                          # Middleware, Filter & RFC 9457 ProblemDetails Tests
+├── Architecture/                 # Clean Architecture Boundary Invariant Tests
 └── Common/Builders/              # Hybrid Builders (Mother + Builder + Implicit Cast)
 ```
 

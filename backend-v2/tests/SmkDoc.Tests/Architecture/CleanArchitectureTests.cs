@@ -1,14 +1,25 @@
-﻿using System.Reflection;
+using System.Reflection;
 using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Common;
+using SmkDoc.Infrastructure.Persistence;
 
 namespace SmkDoc.Tests.Architecture;
 
 public sealed class CleanArchitectureTests
 {
+    private static readonly HashSet<Type> SpecializedUseCases =
+    [
+        typeof(SmkDoc.Application.Modules.Authoring.Templates.HtmlStudioUseCase),
+        typeof(SmkDoc.Application.Modules.Authoring.Templates.Commands.SaveTemplateHtml.SaveTemplateHtmlUseCase),
+        typeof(SmkDoc.Application.Modules.Authoring.Templates.Queries.ValidateTemplateHtml.ValidateTemplateHtmlUseCase),
+        typeof(SmkDoc.Application.Modules.Rendering.Documents.RenderStatelessDocumentUseCase),
+        typeof(SmkDoc.Application.Modules.Authoring.FieldMappings.Queries.PreviewMapping.PreviewMappingUseCase),
+        typeof(SmkDoc.Application.Modules.Authoring.Schemas.ValidateStandaloneSchemaUseCase)
+    ];
+
     [Fact]
-    public void Domain_Should_Not_Have_Any_Project_Or_Framework_Dependencies()
+    public void Domain_Should_Not_HaveDependencyOn_OtherProjects()
     {
         // Arrange
         var domainAssembly = typeof(BaseEntity).Assembly;
@@ -31,7 +42,7 @@ public sealed class CleanArchitectureTests
     }
 
     [Fact]
-    public void Application_Should_Only_Depend_On_Domain()
+    public void Application_Should_Not_HaveDependencyOn_Infrastructure_Or_Api()
     {
         // Arrange
         var appAssembly = typeof(IExecutionContext).Assembly;
@@ -54,7 +65,22 @@ public sealed class CleanArchitectureTests
     }
 
     [Fact]
-    public void Domain_Entities_Should_Be_Sealed_And_Encapsulated()
+    public void Infrastructure_Should_Not_HaveDependencyOn_Api()
+    {
+        // Arrange
+        var infraAssembly = typeof(AppDbContext).Assembly;
+        var referencedAssemblies = infraAssembly.GetReferencedAssemblies();
+        var referencedNames = referencedAssemblies
+            .Select(a => a.Name ?? string.Empty)
+            .ToList();
+
+        // Assert
+        referencedNames.Should().NotBeEmpty();
+        referencedNames.Should().NotContain(name => name.StartsWith("SmkDoc.Api", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void DomainEntities_Should_Have_PrivateSetters_Or_EncapsulatedState()
     {
         // Arrange
         var domainAssembly = typeof(BaseEntity).Assembly;
@@ -81,6 +107,43 @@ public sealed class CleanArchitectureTests
                 }
             }
         }
+    }
+
+    [Fact]
+    public void UseCases_Should_Implement_IUseCaseInterface()
+    {
+        // Arrange
+        var appAssembly = typeof(IExecutionContext).Assembly;
+        var useCaseTypes = appAssembly.GetTypes()
+            .Where(t => t.IsClass && !t.IsAbstract && t.Name.EndsWith("UseCase", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        useCaseTypes.Should().NotBeEmpty();
+
+        var nonConformingUseCases = new List<string>();
+
+        foreach (var useCase in useCaseTypes)
+        {
+            if (SpecializedUseCases.Contains(useCase))
+            {
+                continue;
+            }
+
+            var implementsUseCase = useCase.GetInterfaces().Any(i =>
+                i.IsGenericType && (
+                    i.GetGenericTypeDefinition() == typeof(IUseCase<,>) ||
+                    i.GetGenericTypeDefinition() == typeof(IUseCase<>)
+                ));
+
+            if (!implementsUseCase)
+            {
+                nonConformingUseCases.Add(useCase.FullName ?? useCase.Name);
+            }
+        }
+
+        // Assert
+        nonConformingUseCases.Should().BeEmpty(
+            $"all standard CQRS UseCase classes must implement IUseCase<,> or IUseCase<>. Non-conforming: {string.Join(", ", nonConformingUseCases)}");
     }
 
     [Fact]
