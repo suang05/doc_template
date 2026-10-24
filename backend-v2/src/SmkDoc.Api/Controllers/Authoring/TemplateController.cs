@@ -33,10 +33,17 @@ public class TemplateController(
     ValidateTemplatePayloadUseCase validatePayloadUseCase,
     IExecutionContext context) : ControllerBase
 {
-    /// <summary>List all templates belonging to the active project.</summary>
+    /// <summary>List templates belonging to the active project with optional search, category filter, and server-side pagination.</summary>
     [HttpGet]
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<TemplateResultDto>>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> ListTemplates([FromQuery] Guid? projectId, CancellationToken ct)
+    public async Task<IActionResult> ListTemplates(
+        [FromQuery] Guid? projectId,
+        [FromQuery] string? search,
+        [FromQuery] string? category,
+        [FromQuery] bool? isActive,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken ct = default)
     {
         if (projectId.HasValue && context.ProjectId.HasValue && projectId.Value != context.ProjectId.Value)
         {
@@ -46,9 +53,14 @@ public class TemplateController(
         var targetProjectId = context.ProjectId ?? projectId
             ?? throw new BadHttpRequestException("ProjectId is required to list templates.");
 
-        var query = new ListTemplatesQuery(targetProjectId);
-        var templates = await listTemplatesUseCase.ExecuteAsync(query, ct);
-        return Ok(new ApiResponse<IEnumerable<TemplateResultDto>>(templates));
+        var query = new ListTemplatesQuery(targetProjectId, search, category, isActive, page, pageSize);
+        var pagedResult = await listTemplatesUseCase.ExecuteAsync(query, ct);
+
+        Response.Headers["X-Total-Count"] = pagedResult.TotalCount.ToString();
+        Response.Headers["X-Page"] = pagedResult.Page.ToString();
+        Response.Headers["X-Page-Size"] = pagedResult.PageSize.ToString();
+
+        return Ok(new ApiResponse<IEnumerable<TemplateResultDto>>(pagedResult.Items));
     }
 
     /// <summary>Get template details by unique identifier.</summary>

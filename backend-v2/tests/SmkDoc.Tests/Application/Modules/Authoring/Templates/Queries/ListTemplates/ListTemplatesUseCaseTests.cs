@@ -1,21 +1,21 @@
+using FluentAssertions;
+using NSubstitute;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.ListTemplates;
-using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
-using SmkDoc.Tests.Common.Builders;
+using Xunit;
 
 namespace SmkDoc.Tests.Application.Modules.Authoring.Templates.Queries.ListTemplates;
 
 public sealed class ListTemplatesUseCaseTests
 {
-    private readonly ITemplateRepository _templateRepo = Substitute.For<ITemplateRepository>();
+    private readonly ITemplateQueryService _templateQueryService = Substitute.For<ITemplateQueryService>();
     private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
 
     private ListTemplatesUseCase CreateSut(ICurrentProjectContext? projectContext = null) =>
-        new(_templateRepo, projectContext);
+        new(_templateQueryService, projectContext);
 
     [Fact]
     public async Task ExecuteAsync_WhenEmptyProjectId_ShouldThrowDomainValidationException()
@@ -33,26 +33,27 @@ public sealed class ListTemplatesUseCaseTests
     {
         // Arrange
         var projectId = Guid.NewGuid();
-        Template template1 = TemplateBuilder.ATemplate()
-            .WithProjectId(projectId)
-            .WithName("Invoice")
-            .WithSlug("invoice");
-        Template template2 = TemplateBuilder.ATemplate()
-            .WithProjectId(projectId)
-            .WithName("Receipt")
-            .WithSlug("receipt");
+        var template1 = new TemplateResultDto(Guid.NewGuid(), projectId, "Invoice", "invoice", "Billing", true, null, null, DateTimeOffset.UtcNow, null);
+        var template2 = new TemplateResultDto(Guid.NewGuid(), projectId, "Receipt", "receipt", "Billing", true, null, null, DateTimeOffset.UtcNow, null);
 
-        _templateRepo.ListAsync(Arg.Any<CancellationToken>())
-            .Returns(new List<Template> { template1, template2 });
+        _templateQueryService.ListPagedAsync(
+            new ProjectId(projectId),
+            Arg.Any<string?>(),
+            Arg.Any<string?>(),
+            Arg.Any<bool?>(),
+            Arg.Any<int>(),
+            Arg.Any<int>(),
+            Arg.Any<CancellationToken>())
+            .Returns(([template1, template2], 2));
 
         // Act
-        IReadOnlyList<TemplateResultDto> result = await CreateSut().ExecuteAsync(new ListTemplatesQuery(projectId));
+        var result = await CreateSut().ExecuteAsync(new ListTemplatesQuery(projectId));
 
         // Assert
-        result.Should().HaveCount(2);
-        result[0].Name.Should().Be("Invoice");
-        result[1].Name.Should().Be("Receipt");
-        await _templateRepo.Received(1).ListAsync(Arg.Any<CancellationToken>());
+        result.Items.Should().HaveCount(2);
+        result.TotalCount.Should().Be(2);
+        result.Items[0].Name.Should().Be("Invoice");
+        result.Items[1].Name.Should().Be("Receipt");
     }
 
     [Fact]
@@ -60,23 +61,28 @@ public sealed class ListTemplatesUseCaseTests
     {
         // Arrange
         var projectId = Guid.NewGuid();
-        Template template = TemplateBuilder.ATemplate()
-            .WithProjectId(projectId)
-            .WithName("Invoice")
-            .WithSlug("invoice");
+        var template = new TemplateResultDto(Guid.NewGuid(), projectId, "Invoice", "invoice", "Billing", true, null, null, DateTimeOffset.UtcNow, null);
 
         _projectContext.IsResolved.Returns(true);
         _projectContext.ProjectId.Returns(new ProjectId(projectId));
 
-        _templateRepo.ListAsync(Arg.Any<CancellationToken>())
-            .Returns(new List<Template> { template });
+        _templateQueryService.ListPagedAsync(
+            new ProjectId(projectId),
+            Arg.Any<string?>(),
+            Arg.Any<string?>(),
+            Arg.Any<bool?>(),
+            Arg.Any<int>(),
+            Arg.Any<int>(),
+            Arg.Any<CancellationToken>())
+            .Returns(([template], 1));
 
         // Act
         var sut = CreateSut(_projectContext);
-        IReadOnlyList<TemplateResultDto> result = await sut.ExecuteAsync(new ListTemplatesQuery(Guid.Empty));
+        var result = await sut.ExecuteAsync(new ListTemplatesQuery(Guid.Empty));
 
         // Assert
-        result.Should().HaveCount(1);
-        result[0].Name.Should().Be("Invoice");
+        result.Items.Should().HaveCount(1);
+        result.TotalCount.Should().Be(1);
+        result.Items[0].Name.Should().Be("Invoice");
     }
 }

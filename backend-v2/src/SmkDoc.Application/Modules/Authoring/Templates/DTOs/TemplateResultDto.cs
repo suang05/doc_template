@@ -15,3 +15,14 @@ public record TemplateResultDto(
     DateTimeOffset CreatedAt,
     DateTimeOffset? UpdatedAt
 );
+
+/// <summary>
+/// Paged query result for templates.
+/// </summary>
+public record TemplatePagedResultDto(
+    IReadOnlyList<TemplateResultDto> Items,
+    int TotalCount,
+    int Page,
+    int PageSize
+);
+

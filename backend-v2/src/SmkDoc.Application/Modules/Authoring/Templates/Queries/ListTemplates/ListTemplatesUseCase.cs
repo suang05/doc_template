@@ -1,22 +1,23 @@
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Modules.Authoring.Templates.Queries.ListTemplates;
 
 /// <summary>
 /// Single-responsibility Query Use Case for listing templates.
 /// Uses ambient ICurrentProjectContext when available with query fallback.
+/// Executes via ITemplateQueryService with AsNoTracking and server-side paging.
 /// </summary>
 public sealed class ListTemplatesUseCase(
-    ITemplateRepository templateRepo,
-    ICurrentProjectContext? projectContext = null) : IUseCase<ListTemplatesQuery, List<TemplateResultDto>>
+    ITemplateQueryService templateQueryService,
+    ICurrentProjectContext? projectContext = null) : IUseCase<ListTemplatesQuery, TemplatePagedResultDto>
 {
-    private readonly ITemplateRepository _templateRepo = templateRepo;
+    private readonly ITemplateQueryService _templateQueryService = templateQueryService;
     private readonly ICurrentProjectContext? _projectContext = projectContext;
 
-    public async Task<List<TemplateResultDto>> ExecuteAsync(ListTemplatesQuery query, CancellationToken ct = default)
+    public async Task<TemplatePagedResultDto> ExecuteAsync(ListTemplatesQuery query, CancellationToken ct = default)
     {
         var activeProjectId = query.ProjectId != Guid.Empty
             ? query.ProjectId
@@ -27,21 +28,15 @@ public sealed class ListTemplatesUseCase(
             throw new DomainValidationException("ProjectId cannot be empty.");
         }
 
-        var templates = await _templateRepo.ListAsync(ct);
+        var (items, totalCount) = await _templateQueryService.ListPagedAsync(
+            new ProjectId(activeProjectId),
+            query.SearchTerm,
+            query.Category,
+            query.IsActive,
+            query.Page,
+            query.PageSize,
+            ct);
 
-        return templates
-            .Select(t => new TemplateResultDto(
-                t.Id.Value,
-                t.ProjectId.Value,
-                t.Name,
-                t.Slug,
-                t.Category,
-                t.IsActive,
-                t.CurrentVersionId,
-                t.CurrentVersion?.FileFormat?.Name,
-                t.CreatedAt,
-                t.UpdatedAt
-            ))
-            .ToList();
+        return new TemplatePagedResultDto(items, totalCount, query.Page, query.PageSize);
     }
 }
