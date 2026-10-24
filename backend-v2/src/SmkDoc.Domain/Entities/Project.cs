@@ -15,15 +15,6 @@ public sealed class Project : BaseEntity<ProjectId>
     public ProjectSlug Slug { get; private set; } = null!;
     public bool IsActive { get; private set; }
 
-    private readonly List<Template> _templates = new();
-    private readonly List<ApiKey> _apiKeys = new();
-    private readonly List<UserProjectRole> _userRoles = new();
-
-    // Child collections owned by this project aggregate boundary
-    public IReadOnlyCollection<Template> Templates => _templates.AsReadOnly();
-    public IReadOnlyCollection<ApiKey> ApiKeys => _apiKeys.AsReadOnly();
-    public IReadOnlyCollection<UserProjectRole> UserRoles => _userRoles.AsReadOnly();
-
     // For EF Core materialization only
     private Project() { }
 

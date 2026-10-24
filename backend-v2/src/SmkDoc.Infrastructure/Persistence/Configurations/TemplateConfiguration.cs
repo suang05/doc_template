@@ -33,7 +33,7 @@ public sealed class TemplateConfiguration : IEntityTypeConfiguration<Template>
             .OnDelete(DeleteBehavior.SetNull);
 
         builder.HasOne<Project>()
-            .WithMany(p => p.Templates)
+            .WithMany()
             .HasForeignKey(e => e.ProjectId)
             .OnDelete(DeleteBehavior.Cascade);
     }

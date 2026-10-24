@@ -58,6 +58,16 @@ public class AppDbContext : DbContext
                     .Invoke(this, [modelBuilder]);
             }
         }
+
+        // 12. Matching Multi-Tenant Global Query Filters for Template child entities (eliminates EF Core 10622)
+        modelBuilder.Entity<TemplateVersion>()
+            .HasQueryFilter(v => v.Template != null && IsTenantResolved && v.Template.ProjectId == CurrentTenantId);
+
+        modelBuilder.Entity<FieldMapping>()
+            .HasQueryFilter(m => m.Template != null && IsTenantResolved && m.Template.ProjectId == CurrentTenantId);
+
+        modelBuilder.Entity<TemplateDataset>()
+            .HasQueryFilter(td => td.Template != null && IsTenantResolved && td.Template.ProjectId == CurrentTenantId);
     }
 
     private static readonly MethodInfo ConfigureProjectFilterMethod = typeof(AppDbContext)

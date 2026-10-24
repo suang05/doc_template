@@ -84,6 +84,8 @@ public sealed class GlobalExceptionHandler(
             DraftExpiredException draftExpired   => (StatusCodes.Status410Gone, "Draft Expired", draftExpired.ErrorCode),
             ConflictException conflict           => (StatusCodes.Status409Conflict, "Conflict", conflict.ErrorCode),
             RenderException render               => (StatusCodes.Status500InternalServerError, "Render Failed", render.ErrorCode),
+            DataConnectionDecryptionException decrypt => (StatusCodes.Status500InternalServerError, "Data Connection Decryption Failed", decrypt.ErrorCode),
+            DatasetExecutionException datasetEx  => (StatusCodes.Status500InternalServerError, "Dataset Query Failed", datasetEx.ErrorCode),
             UnauthorizedException unauthorized   => (StatusCodes.Status401Unauthorized, "Unauthorized", unauthorized.ErrorCode),
             DomainValidationException domainVal  => (StatusCodes.Status400BadRequest, "Domain Validation Error", domainVal.ErrorCode),
             BusinessRuleViolationException rule  => (StatusCodes.Status400BadRequest, "Business Rule Violation", rule.ErrorCode),

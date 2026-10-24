@@ -1,7 +1,10 @@
-namespace SmkDoc.Domain.Exceptions;
+using SmkDoc.Domain.Exceptions;
+
+namespace SmkDoc.Application.Common.Exceptions;
 
 /// <summary>
 /// Thrown when connection string decryption fails for a data connection.
+/// Maps to HTTP 500 Internal Server Error at the presentation layer.
 /// </summary>
 public sealed class DataConnectionDecryptionException : DomainException
 {

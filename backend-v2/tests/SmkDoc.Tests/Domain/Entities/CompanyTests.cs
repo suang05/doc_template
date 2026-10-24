@@ -22,7 +22,6 @@ public sealed class CompanyTests
         company.IsActive.Should().BeTrue();
         company.CreatedAt.Should().Be(_initialTime);
         company.UpdatedAt.Should().BeNull();
-        company.Projects.Should().BeEmpty();
     }
 
     [Fact]

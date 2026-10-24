@@ -19,11 +19,6 @@ public sealed class User : BaseEntity<UserId>
     public bool IsActive { get; private set; }
     public SystemRole SystemRole { get; private set; } = SystemRole.Member;
 
-    private readonly List<UserProjectRole> _projectRoles = new();
-
-    // Navigation properties (child collection within User aggregate)
-    public IReadOnlyCollection<UserProjectRole> ProjectRoles => _projectRoles.AsReadOnly();
-
     // For EF Core materialization only
     private User() { }
 
@@ -49,15 +44,7 @@ public sealed class User : BaseEntity<UserId>
         SetUpdated(now);
     }
 
-    public bool CanAccessProject(ProjectId projectId)
-    {
-        if (SystemRole == SystemRole.SuperAdmin)
-        {
-            return true;
-        }
-
-        return ProjectRoles.Any(r => r.ProjectId == projectId);
-    }
+    public bool IsSuperAdmin => SystemRole == SystemRole.SuperAdmin;
 
     public void UpdateProfile(string firstName, string lastName, DateTimeOffset now)
     {
@@ -85,52 +72,5 @@ public sealed class User : BaseEntity<UserId>
         if (IsActive) return;
         IsActive = true;
         SetUpdated(now);
-    }
-
-    public void AssignProjectRole(UserProjectRole role, DateTimeOffset now)
-    {
-        Guard.NotNull(role, nameof(role));
-        if (role.UserId != Id)
-        {
-            throw new DomainValidationException($"Role user ID '{role.UserId}' does not match user ID '{Id}'.");
-        }
-
-        var existing = _projectRoles.FirstOrDefault(r => r.ProjectId == role.ProjectId);
-        if (existing != null)
-        {
-            existing.UpdateRole(role.Role);
-        }
-        else
-        {
-            _projectRoles.Add(role);
-        }
-
-        SetUpdated(now);
-    }
-
-    public void AssignProjectRole(ProjectId projectId, RoleType role, DateTimeOffset now)
-    {
-        Guard.NotEmpty(projectId, nameof(projectId));
-        var existing = _projectRoles.FirstOrDefault(r => r.ProjectId == projectId);
-        if (existing != null)
-        {
-            existing.UpdateRole(role);
-        }
-        else
-        {
-            _projectRoles.Add(UserProjectRole.Create(Id, projectId, role, now));
-        }
-
-        SetUpdated(now);
-    }
-
-    public void RemoveProjectRole(ProjectId projectId, DateTimeOffset now)
-    {
-        var existing = _projectRoles.FirstOrDefault(r => r.ProjectId == projectId);
-        if (existing != null)
-        {
-            _projectRoles.Remove(existing);
-            SetUpdated(now);
-        }
     }
 }

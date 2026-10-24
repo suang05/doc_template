@@ -1,4 +1,5 @@
-﻿using System.Text.Json;
+using System.Text.Json;
+using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Helpers;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;

@@ -22,12 +22,12 @@ public sealed class UserProjectRoleConfiguration : IEntityTypeConfiguration<User
         builder.Property(e => e.CreatedAt).HasDefaultValueSql("NOW()");
 
         builder.HasOne<User>()
-            .WithMany(u => u.ProjectRoles)
+            .WithMany()
             .HasForeignKey(e => e.UserId)
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasOne<Project>()
-            .WithMany(p => p.UserRoles)
+            .WithMany()
             .HasForeignKey(e => e.ProjectId)
             .OnDelete(DeleteBehavior.Cascade);
     }

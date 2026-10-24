@@ -1,7 +1,10 @@
-namespace SmkDoc.Domain.Exceptions;
+using SmkDoc.Domain.Exceptions;
+
+namespace SmkDoc.Application.Common.Exceptions;
 
 /// <summary>
 /// Thrown when an external SQL dataset query fails during document data preparation.
+/// Maps to HTTP 500 Internal Server Error at the presentation layer.
 /// </summary>
 public sealed class DatasetExecutionException : DomainException
 {

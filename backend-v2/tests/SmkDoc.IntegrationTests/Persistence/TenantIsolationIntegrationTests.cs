@@ -38,11 +38,17 @@ public sealed class TenantIsolationIntegrationTests
         var templateFilters = dbContext.Model.FindEntityType(typeof(Template))?.GetDeclaredQueryFilters();
         var apiKeyFilters = dbContext.Model.FindEntityType(typeof(ApiKey))?.GetDeclaredQueryFilters();
         var companyFilters = dbContext.Model.FindEntityType(typeof(Company))?.GetDeclaredQueryFilters();
+        var versionFilters = dbContext.Model.FindEntityType(typeof(TemplateVersion))?.GetDeclaredQueryFilters();
+        var mappingFilters = dbContext.Model.FindEntityType(typeof(FieldMapping))?.GetDeclaredQueryFilters();
+        var datasetFilters = dbContext.Model.FindEntityType(typeof(TemplateDataset))?.GetDeclaredQueryFilters();
 
         // Assert
         templateFilters.Should().NotBeNull().And.NotBeEmpty("Template implements IMustHaveProject and must have a global query filter");
         apiKeyFilters.Should().NotBeNull().And.NotBeEmpty("ApiKey implements IMustHaveProject and must have a global query filter");
         companyFilters.Should().NotBeNull().And.BeEmpty("Company is a tenant root entity and must not have a ProjectId query filter");
+        versionFilters.Should().NotBeNull().And.NotBeEmpty("TemplateVersion is a Template child and must have an aligned query filter");
+        mappingFilters.Should().NotBeNull().And.NotBeEmpty("FieldMapping is a Template child and must have an aligned query filter");
+        datasetFilters.Should().NotBeNull().And.NotBeEmpty("TemplateDataset is a Template child and must have an aligned query filter");
     }
 
     private static ICurrentProjectContext CreateProjectContext(ProjectId projectId, bool isResolved = true)

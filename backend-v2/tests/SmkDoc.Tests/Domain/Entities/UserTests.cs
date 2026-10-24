@@ -28,7 +28,6 @@ public sealed class UserTests
         user.SystemRole.Should().Be(SystemRole.Member);
         user.CreatedAt.Should().Be(_initialTime);
         user.UpdatedAt.Should().BeNull();
-        user.ProjectRoles.Should().BeEmpty();
     }
 
     [Theory]
@@ -68,68 +67,19 @@ public sealed class UserTests
     }
 
     [Fact]
-    public void CanAccessProject_SuperAdmin_ReturnsTrueForAnyProject()
+    public void IsSuperAdmin_WhenRoleIsSuperAdmin_ReturnsTrue()
     {
         var user = User.Register(EmailAddress.Create("admin@example.com"), "hash123", "Super", "Admin", _initialTime, SystemRole.SuperAdmin);
-        var arbitraryProjectId = ProjectId.New();
 
-        user.CanAccessProject(arbitraryProjectId).Should().BeTrue();
+        user.IsSuperAdmin.Should().BeTrue();
     }
 
     [Fact]
-    public void CanAccessProject_Member_ReturnsTrueOnlyIfRoleAssigned()
+    public void IsSuperAdmin_WhenRoleIsMember_ReturnsFalse()
     {
-        var user = User.Register(EmailAddress.Create("member@example.com"), "hash123", "Regular", "Member", _initialTime);
-        var assignedProject = ProjectId.New();
-        var unassignedProject = ProjectId.New();
+        var user = User.Register(EmailAddress.Create("member@example.com"), "hash123", "Regular", "Member", _initialTime, SystemRole.Member);
 
-        user.AssignProjectRole(assignedProject, RoleType.Developer, _initialTime);
-
-        user.CanAccessProject(assignedProject).Should().BeTrue();
-        user.CanAccessProject(unassignedProject).Should().BeFalse();
-    }
-
-    [Fact]
-    public void AssignProjectRole_WhenNew_AddsToRoles()
-    {
-        var user = User.Register(EmailAddress.Create("member@example.com"), "hash123", "Regular", "Member", _initialTime);
-        var projectId = ProjectId.New();
-        var assignTime = _initialTime.AddHours(2);
-
-        user.AssignProjectRole(projectId, RoleType.Admin, assignTime);
-
-        user.ProjectRoles.Should().ContainSingle()
-            .Which.Should().Match<UserProjectRole>(r => r.ProjectId == projectId && r.Role == RoleType.Admin);
-        user.UpdatedAt.Should().Be(assignTime);
-    }
-
-    [Fact]
-    public void AssignProjectRole_WhenExisting_UpdatesRoleInPlace()
-    {
-        var user = User.Register(EmailAddress.Create("member@example.com"), "hash123", "Regular", "Member", _initialTime);
-        var projectId = ProjectId.New();
-        user.AssignProjectRole(projectId, RoleType.Viewer, _initialTime);
-
-        var updateTime = _initialTime.AddHours(3);
-        user.AssignProjectRole(projectId, RoleType.Developer, updateTime);
-
-        user.ProjectRoles.Should().ContainSingle()
-            .Which.Role.Should().Be(RoleType.Developer);
-        user.UpdatedAt.Should().Be(updateTime);
-    }
-
-    [Fact]
-    public void RemoveProjectRole_WhenPresent_RemovesAndSetsUpdated()
-    {
-        var user = User.Register(EmailAddress.Create("member@example.com"), "hash123", "Regular", "Member", _initialTime);
-        var projectId = ProjectId.New();
-        user.AssignProjectRole(projectId, RoleType.Viewer, _initialTime);
-
-        var removeTime = _initialTime.AddHours(4);
-        user.RemoveProjectRole(projectId, removeTime);
-
-        user.ProjectRoles.Should().BeEmpty();
-        user.UpdatedAt.Should().Be(removeTime);
+        user.IsSuperAdmin.Should().BeFalse();
     }
 
     [Fact]
@@ -179,16 +129,5 @@ public sealed class UserTests
         user.Activate(reactTime);
         user.IsActive.Should().BeTrue();
         user.UpdatedAt.Should().Be(reactTime);
-    }
-
-    [Fact]
-    public void AssignProjectRole_MismatchUserId_ThrowsDomainValidationException()
-    {
-        var user = User.Register(EmailAddress.Create("user@test.com"), "hashed_pwd", "John", "Doe", _initialTime);
-        var foreignRole = UserProjectRole.Create(UserId.New(), ProjectId.New(), RoleType.Developer, _initialTime);
-
-        Action act = () => user.AssignProjectRole(foreignRole, _initialTime);
-        act.Should().Throw<DomainValidationException>()
-            .WithMessage("*does not match user ID*");
     }
 }

@@ -24,7 +24,7 @@ public sealed class ProjectConfiguration : IEntityTypeConfiguration<Project>
         builder.Property(e => e.CreatedAt).HasDefaultValueSql("NOW()");
 
         builder.HasOne<Company>()
-            .WithMany(c => c.Projects)
+            .WithMany()
             .HasForeignKey(e => e.CompanyId)
             .OnDelete(DeleteBehavior.Cascade);
     }

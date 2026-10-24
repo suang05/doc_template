@@ -13,11 +13,6 @@ public sealed class Company : BaseEntity<CompanyId>
     public CompanyName Name { get; private set; } = null!;
     public bool IsActive { get; private set; }
 
-    private readonly List<Project> _projects = new();
-
-    // Navigation properties
-    public IReadOnlyCollection<Project> Projects => _projects.AsReadOnly();
-
     // For EF Core materialization only
     private Company() { }
 

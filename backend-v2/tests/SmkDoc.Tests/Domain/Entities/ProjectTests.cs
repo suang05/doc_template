@@ -26,9 +26,6 @@ public sealed class ProjectTests
         project.IsActive.Should().BeTrue();
         project.CreatedAt.Should().Be(_initialTime);
         project.UpdatedAt.Should().BeNull();
-        project.Templates.Should().BeEmpty();
-        project.ApiKeys.Should().BeEmpty();
-        project.UserRoles.Should().BeEmpty();
     }
 
     [Fact]
