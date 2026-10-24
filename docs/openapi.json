@@ -336,6 +336,168 @@
         }
       }
     },
+    "/api/v1/logs/{id}/payload": {
+      "get": {
+        "tags": [
+          "AuditLog"
+        ],
+        "summary": "Get full input payload for a generation log entry (transparently resolving offloaded payloads from storage).",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfLogPayloadResultDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfLogPayloadResultDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfLogPayloadResultDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/logs/{id}/payload": {
+      "get": {
+        "tags": [
+          "AuditLog"
+        ],
+        "summary": "Get full input payload for a generation log entry (transparently resolving offloaded payloads from storage).",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfLogPayloadResultDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfLogPayloadResultDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfLogPayloadResultDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/documents/generate/{slug}": {
       "post": {
         "tags": [
@@ -8904,6 +9066,25 @@
         },
         "description": "Standard API Response wrapper for successful requests that return data.\r\nEnforces the \"Envelope Pattern\" for consistent JSON schemas."
       },
+      "ApiResponseOfLogPayloadResultDto": {
+        "required": [
+          "data"
+        ],
+        "type": "object",
+        "properties": {
+          "data": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/LogPayloadResultDto"
+              }
+            ]
+          }
+        },
+        "description": "Standard API Response wrapper for successful requests that return data.\r\nEnforces the \"Envelope Pattern\" for consistent JSON schemas."
+      },
       "ApiResponseOfObject": {
         "required": [
           "data"
@@ -10020,6 +10201,37 @@
           }
         },
         "description": "Aggregated usage and performance metrics for document generations."
+      },
+      "LogPayloadResultDto": {
+        "required": [
+          "logId",
+          "payloadJson",
+          "isOffloaded",
+          "offloadedKey"
+        ],
+        "type": "object",
+        "properties": {
+          "logId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "payloadJson": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "isOffloaded": {
+            "type": "boolean"
+          },
+          "offloadedKey": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "Resolved payload result for an audit log entry."
       },
       "PagedApiResponseOfGenerationLogDto": {
         "type": "object",

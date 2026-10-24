@@ -5,6 +5,7 @@ using SmkDoc.Application.Modules.Rendering.Documents.Queries.GetDocumentVersions
 using SmkDoc.Application.Modules.Rendering.Documents.Services;
 using SmkDoc.Application.Modules.Rendering.Logs.Queries.GetLogDownloadUrl;
 using SmkDoc.Application.Modules.Rendering.Logs.Queries.GetLogMetrics;
+using SmkDoc.Application.Modules.Rendering.Logs.Queries.GetLogPayload;
 using SmkDoc.Application.Modules.Rendering.Logs.Queries.ListGenerationLogs;
 
 namespace SmkDoc.Application.Modules.Rendering;
@@ -30,6 +31,7 @@ public static class RenderingModuleExtensions
         services.AddScoped<ListGenerationLogsUseCase>();
         services.AddScoped<GetLogMetricsUseCase>();
         services.AddScoped<GetLogDownloadUrlUseCase>();
+        services.AddScoped<GetLogPayloadUseCase>();
 
         return services;
     }

@@ -35,3 +35,12 @@ export const PagedLogsResponseSchema = z.object({
   pagination: PaginationMetadataSchema,
 });
 export type PagedLogsResponse = z.infer<typeof PagedLogsResponseSchema>;
+
+export const LogPayloadResultDtoSchema = z.object({
+  logId: z.string().uuid(),
+  payloadJson: z.string().nullable(),
+  isOffloaded: z.boolean(),
+  offloadedKey: z.string().nullable(),
+});
+export type LogPayloadResultDto = z.infer<typeof LogPayloadResultDtoSchema>;
+

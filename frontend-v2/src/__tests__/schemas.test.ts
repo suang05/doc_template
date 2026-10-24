@@ -29,7 +29,7 @@ import {
   ThaiTransformTypes,
 } from '@/schemas/mapping.schema';
 import { CreateApiKeyRequestSchema } from '@/schemas/apikey.schema';
-import { PagedLogsResponseSchema, PaginationMetadataSchema } from '@/schemas/log.schema';
+import { PagedLogsResponseSchema, PaginationMetadataSchema, LogPayloadResultDtoSchema } from '@/schemas/log.schema';
 
 // ── ThaiTransformTypes Compatibility ───────────────────────────────────────
 
@@ -304,6 +304,28 @@ describe('Log Schemas Validation Integrity', () => {
     expect(parsed.pagination.limit).toBe(20);
     expect(parsed.pagination.page).toBe(1);
     expect(() => PaginationMetadataSchema.parse(valid.pagination)).not.toThrow();
+  });
+
+  it('should validate LogPayloadResultDtoSchema for inline and offloaded payloads', () => {
+    const inline = {
+      logId: '01926b42-7c3a-7000-8000-123456789abc',
+      payloadJson: '{"name":"Somchai"}',
+      isOffloaded: false,
+      offloadedKey: null,
+    };
+    const parsedInline = LogPayloadResultDtoSchema.parse(inline);
+    expect(parsedInline.isOffloaded).toBe(false);
+    expect(parsedInline.payloadJson).toBe('{"name":"Somchai"}');
+
+    const offloaded = {
+      logId: '01926b42-7c3a-7000-8000-123456789abc',
+      payloadJson: '{"large":true}',
+      isOffloaded: true,
+      offloadedKey: 'audit/proj-1/2026/10/24/abc.json',
+    };
+    const parsedOffloaded = LogPayloadResultDtoSchema.parse(offloaded);
+    expect(parsedOffloaded.isOffloaded).toBe(true);
+    expect(parsedOffloaded.offloadedKey).toBe('audit/proj-1/2026/10/24/abc.json');
   });
 });
 

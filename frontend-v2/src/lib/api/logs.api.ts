@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import { PagedLogsResponse } from '@/types/api';
+import { PagedLogsResponse, LogPayloadResultDto, ApiResponse } from '@/types/api';
 
 export const logsApi = {
   /**
@@ -15,6 +15,15 @@ export const logsApi = {
     }
 
     return apiClient<PagedLogsResponse>(`/api/logs?${params.toString()}`, {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * Get full input payload for an audit log entry (transparently resolving offloaded payloads)
+   */
+  async getPayload(id: string): Promise<ApiResponse<LogPayloadResultDto>> {
+    return apiClient<ApiResponse<LogPayloadResultDto>>(`/api/logs/${id}/payload`, {
       method: 'GET',
     });
   },

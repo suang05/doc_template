@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Common.Responses;
 using SmkDoc.Application.Modules.Rendering.Logs.DTOs;
 using SmkDoc.Application.Modules.Rendering.Logs.Queries.GetLogMetrics;
+using SmkDoc.Application.Modules.Rendering.Logs.Queries.GetLogPayload;
 using SmkDoc.Application.Modules.Rendering.Logs.Queries.ListGenerationLogs;
 
 namespace SmkDoc.Api.Controllers.Rendering;
@@ -18,7 +19,8 @@ namespace SmkDoc.Api.Controllers.Rendering;
 [ProducesResponseType(StatusCodes.Status401Unauthorized)]
 public class AuditLogController(
     ListGenerationLogsUseCase listUseCase,
-    GetLogMetricsUseCase metricsUseCase) : ControllerBase
+    GetLogMetricsUseCase metricsUseCase,
+    GetLogPayloadUseCase payloadUseCase) : ControllerBase
 {
     /// <summary>List paginated document generation audit logs.</summary>
     [HttpGet]
@@ -46,5 +48,16 @@ public class AuditLogController(
         var query = new GetLogMetricsQuery(startDate, endDate);
         var result = await metricsUseCase.ExecuteAsync(query, ct);
         return Ok(new ApiResponse<LogMetricsDto>(result));
+    }
+
+    /// <summary>Get full input payload for a generation log entry (transparently resolving offloaded payloads from storage).</summary>
+    [HttpGet("{id:guid}/payload")]
+    [ProducesResponseType(typeof(ApiResponse<LogPayloadResultDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetPayload([FromRoute] Guid id, CancellationToken ct = default)
+    {
+        var query = new GetLogPayloadQuery(id);
+        var result = await payloadUseCase.ExecuteAsync(query, ct);
+        return Ok(new ApiResponse<LogPayloadResultDto>(result));
     }
 }
