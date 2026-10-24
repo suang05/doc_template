@@ -111,11 +111,29 @@ Trigger: Hardcoded literals, magic numbers, or system clock queries (DateTime.Ut
 </execution_blockers>
 
 <workflow_guard>
-[STEP_1: PLAN_REQUIREMENT]
+[STEP_1: HIERARCHICAL_PLAN_REQUIREMENT]
 Language: Strictly English (Ensures code-AST token alignment & zero translation drift).
-DecompositionRule: IF TouchedFiles > 3 OR Steps > 5 THEN plan MUST be partitioned into sequential, gated Phases.
-PhasedExecution: Execute exactly 1 Phase at a time. Run verification gates (`dotnet test`) before proceeding to subsequent Phases.
-Artifact: implementation_plan.md (RequestFeedback: true, UserFacing: true) before source code modification.
+DecompositionRule:
+  - IF (TouchedFiles <= 3 & Steps <= 5) THEN:
+    * Standard Single-Tier Plan: Generate `implementation_plan.md` directly.
+  - IF (TouchedFiles > 3 OR Steps > 5) THEN:
+    * Trigger 2-Tier Hierarchical Planning:
+
+    * TIER_1_MASTER_PLAN (Context Compass):
+      - Filename: Descriptive, intuitive name matching the topic (e.g., `BLUEPRINT_<feature>.md` or `MASTER_PLAN_<feature>.md`).
+      - Scope: High-level architectural decisions, phase catalog, deliverable contracts, and status tracker (`[ ]`, `[▶]`, `[x]`).
+      - Constraint: Lean SSoT. Strictly prohibit verbose code snippets or step-by-step tasks here to prevent token bloat.
+
+    * TIER_2_ACTIVE_PLAN (Execution Work Order):
+      - Filename: `implementation_plan.md` (RequestFeedback: true, UserFacing: true).
+      - Scope: STRICTLY 1 active Phase at a time. Must state its parent Master Plan reference at the top.
+      - Standard: Full-Fidelity only. Zero placeholders (`// TODO`), exact file paths, full type signatures/schemas, exhaustive business logic, and verification commands.
+      - Lifecycle: Overwritten on each phase transition.
+
+    * PHASE_TRANSITION_GATE:
+      - Execute active phase tasks => Run verification gate (`dotnet test` / `npm test`).
+      - On green verification: Mark Phase `[x]` in parent Master Plan => Present phase completion summary => Overwrite `implementation_plan.md` with the next Phase upon confirmation.
+
 EXEMPTION: (TouchedFileCount == 1) & (FileExtension == ".md") & (DiffType == "TypoFixOnly").
 
 [STEP_2: REUSE_SEARCH]
