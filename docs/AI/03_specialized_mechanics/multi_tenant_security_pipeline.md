@@ -30,7 +30,10 @@ UpstreamKernel: AGENTS.md
 | **Cross-Tenant Queries** | Manual `WHERE project_id = @id` clauses in repositories | EF Core ambient Global Query Filter (`HasQueryFilter`) |
 | **Tenant Filter Bypass** | Invoking `.IgnoreQueryFilters()` in standard user routes | Strictly prohibited; ambient context scopes all queries automatically |
 | **Key Validation** | Variable-time string comparison (`key == storedHash`) | Constant-time comparison: `CryptographicOperations.FixedTimeEquals` |
-| **Parameter Spoofing** | Accepting caller `projectId` parameter differing from token | Fail-fast assertion: throw `BadHttpRequestException` on mismatch |
+| **Parameter Spoofing** | Accepting caller `projectId` parameter differing from context | Fail-fast assertion: throw strongly-typed `ForbiddenException` (RFC 9457 403) |
+| **Route Precedence** | Extracting tenant identifier strictly from headers | Route (`{projectId}`) => Header (`X-Project-Id`) => JWT Claim (`project_id`) |
+| **Role Claim Hydration** | Ad-hoc controller role queries or manual claims mapping | Inject `ClaimTypes.Role` into `ClaimsIdentity` during `ProjectContextMiddleware` |
+| **SuperAdmin Hierarchy** | Single-role checks locking out platform admins with 403 | Grant dual `SuperAdmin` + `Admin` claims & use `RoleConstants.AdminOrSuperAdmin` |
 
 ---
 
@@ -40,7 +43,10 @@ UpstreamKernel: AGENTS.md
 * **Why SHA-256 Hash Lookup:** Plaintext API keys stored in the database create massive exposure risks during database dumps or unauthorized log reads; hashing guarantees keys cannot be recovered.
 * **Why `CryptographicOperations.FixedTimeEquals`:** Standard string equality (`==`) terminates on the first mismatched character, creating timing side-channel vulnerabilities that allow attackers to deduce hashes.
 * **Why Ambient `ICurrentProjectContext` over Parameter Passing:** Manual parameter passing allows developers to accidentally query data without tenancy filters; ambient resolution ensures all queries within a request scope are automatically constrained.
-* **Why Fail-Fast on Parameter vs Token Mismatches:** If an authenticated caller provides an explicit `projectId` in the URL or payload that differs from their authenticated token, silently ignoring it or switching projects leads to confused-deputy bugs.
+* **Why Fail-Fast on Parameter vs Context Mismatches:** If an authenticated caller provides an explicit `projectId` in the URL or payload that differs from their ambient resolved project, silently ignoring it or switching projects leads to confused-deputy bugs.
+* **Why Route Precedence over Header:** Administrative endpoints like `/api/v1/projects/{projectId}/users` define resource hierarchy in the URI; parsing `{projectId}` from route values guarantees REST boundary alignment and prevents ambient header mismatch.
+* **Why Dynamic Role Claim Injection:** Populating `ClaimTypes.Role` dynamically during `ProjectContextMiddleware` satisfies ASP.NET Core declarative authorization (`[Authorize(Roles = "...")]`) without custom policy bloat.
+* **Why Dual-Role Grant for SuperAdmin:** SuperAdmin users must access tenant admin resources seamlessly; adding both `SuperAdmin` and `Admin` claims avoids 403 Forbidden on `[Authorize(Roles = "Admin")]` without weakening tenant isolation.
 
 ### Cognitive Tenancy Optimization & Guard Engine
 ```yaml
@@ -162,59 +168,48 @@ public static class ApiKeyValidator
 }
 ```
 
-### Ambient Project Context Middleware Archetype (`CurrentProjectContextMiddleware`)
+### Ambient Project Context Middleware Archetype (`ProjectContextMiddleware`)
 >> MANDATORY CANONICAL TEMPLATE [RULE-SEC-002]:
-* [MUST] Extract tenant identifier from authenticated Claims or `X-Project-Id` request header.
-* [MUST] Populate scoped `ICurrentProjectContext` before controller action execution.
-* [MUST] Validate that the caller possesses access rights to the target project.
+* [MUST] Extract tenant identifier following precedence: Route `{projectId}` => Header `X-Project-Id` => JWT Claim `project_id`.
+* [MUST] Reject mismatched Route vs Header project IDs with RFC 9457 `400 Bad Request`.
+* [MUST] Hydrate `ClaimTypes.Role` into `ClaimsIdentity` and grant both `SuperAdmin` and `Admin` claims for SuperAdmin accounts.
 ```csharp
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using SmkDoc.Api.Constants;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Api.Middleware;
 
-public sealed class CurrentProjectContextMiddleware(RequestDelegate next)
+public sealed class ProjectContextMiddleware(RequestDelegate next)
 {
-    public async Task InvokeAsync(
-        HttpContext context,
-        ICurrentProjectContext projectContext,
-        IExecutionContext executionContext)
+    public async Task InvokeAsync(HttpContext context, ICurrentProjectContext projectContext)
     {
-        Guid? resolvedProjectId = null;
+        Guid? routeProjectId = ExtractRouteProjectId(context);
+        Guid? headerProjectId = ExtractHeaderProjectId(context);
 
-        // 1. Resolve from Authenticated User Claims (Bearer Auth)
-        var projectClaim = context.User.FindFirst("project_id")?.Value;
-        if (!string.IsNullOrWhiteSpace(projectClaim) && Guid.TryParse(projectClaim, out var claimId))
+        if (routeProjectId.HasValue && headerProjectId.HasValue && routeProjectId.Value != headerProjectId.Value)
         {
-            resolvedProjectId = claimId;
-        }
-
-        // 2. Resolve or Override from X-Project-Id Header (if permitted by scope)
-        if (context.Request.Headers.TryGetValue("X-Project-Id", out var headerVal) &&
-            Guid.TryParse(headerVal.FirstOrDefault(), out var headerProjectId))
-        {
-            if (resolvedProjectId.HasValue && resolvedProjectId.Value != headerProjectId)
+            context.Response.StatusCode = StatusCodes.Status400BadRequest;
+            context.Response.ContentType = "application/problem+json";
+            var problem = new ProblemDetails
             {
-                // Cross-tenant spoofing guard
-                context.Response.StatusCode = StatusCodes.Status403Forbidden;
-                await context.Response.WriteAsync("Forbidden: Project ID header conflicts with authenticated session token.");
-                return;
-            }
-
-            resolvedProjectId = headerProjectId;
+                Status = StatusCodes.Status400BadRequest,
+                Title = "Tenant Identification Conflict",
+                Detail = $"Route ProjectId '{routeProjectId}' conflicts with Header X-Project-Id '{headerProjectId}'.",
+                Instance = context.Request.Path
+            };
+            await context.Response.WriteAsJsonAsync(problem);
+            return;
         }
 
-        // 3. Fallback to API Key Execution Context
-        if (!resolvedProjectId.HasValue && executionContext.ProjectId.HasValue)
+        var effectiveProjectId = routeProjectId ?? headerProjectId ?? ExtractClaimProjectId(context);
+        if (effectiveProjectId.HasValue)
         {
-            resolvedProjectId = executionContext.ProjectId.Value;
-        }
-
-        if (resolvedProjectId.HasValue && resolvedProjectId.Value != Guid.Empty)
-        {
-            projectContext.SetProject(new ProjectId(resolvedProjectId.Value));
+            projectContext.SetProject(new ProjectId(effectiveProjectId.Value));
+            SynchronizeRoleClaims(context);
         }
 
         await next(context);
@@ -224,13 +219,13 @@ public sealed class CurrentProjectContextMiddleware(RequestDelegate next)
 
 ### Cross-Tenant Parameter Spoofing Defense
 >> MANDATORY CANONICAL TEMPLATE [RULE-SEC-003]:
-* [MUST] Reject any request where caller-supplied `projectId` conflicts with ambient authenticated `context.ProjectId`.
-* [MUST] Throw RFC 9457 compliant `BadHttpRequestException` or `ForbiddenException`.
+* [MUST] Reject any request where caller-supplied `projectId` conflicts with ambient resolved `projectContext.ProjectId`.
+* [MUST] Throw strongly-typed `ForbiddenException` mapped to RFC 9457 403 Forbidden.
 ```csharp
-// >> CANONICAL: Reject explicit parameter mismatches against ambient resolved context
-if (requestedProjectId.HasValue && context.ProjectId.HasValue && requestedProjectId.Value != context.ProjectId.Value)
+// >> CANONICAL: Fail-fast parameter anti-spoofing guard
+if (projectContext.IsResolved && command.ProjectId != Guid.Empty && command.ProjectId != projectContext.ProjectId.Value)
 {
-    throw new BadHttpRequestException("Access denied: requested projectId does not match active project context.");
+    throw new ForbiddenException($"Cross-tenant operation rejected: Payload ProjectId '{command.ProjectId}' does not match active context '{projectContext.ProjectId.Value}'.");
 }
 ```
 
@@ -262,6 +257,6 @@ if (requestedProjectId.HasValue && context.ProjectId.HasValue && requestedProjec
 ### [TRAP-SEC-004]: Confused Deputy Cross-Tenant Parameter Spoofing
 ```diff
 - var targetProject = query.ProjectId ?? context.ProjectId.Value;
-+ if (query.ProjectId.HasValue && context.ProjectId.HasValue && query.ProjectId.Value != context.ProjectId.Value) throw new BadHttpRequestException("Forbidden: Project mismatch.");
++ if (projectContext.IsResolved && query.ProjectId.HasValue && query.ProjectId.Value != projectContext.ProjectId.Value) throw new ForbiddenException("Cross-tenant query rejected.");
 ```
 *Rationale: Allowing callers to override their authenticated token's project without boundary checks enables unauthorized cross-tenant data access.*
