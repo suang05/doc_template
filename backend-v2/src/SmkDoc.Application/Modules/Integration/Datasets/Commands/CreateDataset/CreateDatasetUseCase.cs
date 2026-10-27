@@ -25,11 +25,7 @@ public sealed class CreateDatasetUseCase(
     TimeProvider? timeProvider = null,
     ICurrentProjectContext? projectContext = null) : IUseCase<CreateDatasetCommand, DatasetDto>
 {
-    private readonly IDatasetRepository _datasetRepo = datasetRepo;
-    private readonly IDataConnectionRepository _connectionRepo = connectionRepo;
-    private readonly IUnitOfWork _unitOfWork = unitOfWork;
-    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
-    private readonly ICurrentProjectContext? _projectContext = projectContext;
+    private readonly TimeProvider timeProvider = timeProvider ?? TimeProvider.System;
 
     public async Task<DatasetDto> ExecuteAsync(CreateDatasetCommand command, CancellationToken ct = default)
     {
@@ -39,10 +35,10 @@ public sealed class CreateDatasetUseCase(
             throw new ValidationException(validationResult.ToDictionary());
         }
 
-        var connection = await _connectionRepo.GetByIdAsync(new DataConnectionId(command.DataConnectionId), ct)
+        var connection = await connectionRepo.GetByIdAsync(new DataConnectionId(command.DataConnectionId), ct)
             ?? throw new NotFoundException($"DataConnection '{command.DataConnectionId}' not found.");
 
-        var now = _timeProvider.GetUtcNow();
+        var now = this.timeProvider.GetUtcNow();
         var entity = Dataset.Create(
             DatasetName.Create(command.Name),
             command.Description,
@@ -50,22 +46,20 @@ public sealed class CreateDatasetUseCase(
             SqlQuery.Create(command.SqlQuery),
             command.CacheSeconds,
             now,
-            _projectContext?.ProjectId ?? default);
+            projectContext?.ProjectId ?? default);
 
-        await _datasetRepo.AddAsync(entity, ct);
-        await _unitOfWork.CommitAsync(ct);
+        await datasetRepo.AddAsync(entity, ct);
+        await unitOfWork.CommitAsync(ct);
 
-        return new DatasetDto
-        {
-            Id = entity.Id.Value,
-            Name = entity.Name.Value,
-            Description = entity.Description,
-            DataConnectionId = entity.DataConnectionId.Value,
-            DataConnectionName = connection.Name.Value,
-            SqlQuery = entity.SqlQuery,
-            CacheSeconds = entity.CacheSeconds,
-            CreatedAt = entity.CreatedAt,
-            UpdatedAt = entity.UpdatedAt
-        };
+        return new DatasetDto(
+            entity.Id.Value,
+            entity.Name.Value,
+            entity.Description,
+            entity.DataConnectionId.Value,
+            connection.Name.Value,
+            entity.SqlQuery,
+            entity.CacheSeconds,
+            entity.CreatedAt,
+            entity.UpdatedAt);
     }
 }

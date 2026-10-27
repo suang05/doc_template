@@ -16,7 +16,7 @@ public sealed class CreateApiKeyUseCase(
     IUnitOfWork unitOfWork,
     IValidator<CreateApiKeyCommand> validator,
     TimeProvider? timeProvider = null,
-    IExecutionContext? executionContext = null) : IUseCase<CreateApiKeyCommand, CreateApiKeyResultDto>
+    ICurrentProjectContext? projectContext = null) : IUseCase<CreateApiKeyCommand, CreateApiKeyResultDto>
 {
     private readonly TimeProvider timeProvider = timeProvider ?? TimeProvider.System;
 
@@ -29,7 +29,7 @@ public sealed class CreateApiKeyUseCase(
         }
 
         Guid targetProjectId = command.ProjectId 
-            ?? (executionContext?.ProjectId.HasValue == true ? executionContext.ProjectId.Value : Guid.Empty);
+            ?? (projectContext?.IsResolved == true ? projectContext.ProjectId.Value : Guid.Empty);
 
         if (targetProjectId == Guid.Empty)
         {

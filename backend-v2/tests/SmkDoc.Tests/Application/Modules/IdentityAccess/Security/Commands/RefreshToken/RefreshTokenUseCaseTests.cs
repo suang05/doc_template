@@ -26,7 +26,7 @@ public sealed class RefreshTokenUseCaseTests
     private readonly IUnitOfWork _uow = Substitute.For<IUnitOfWork>();
     private readonly RefreshTokenCommandValidator _validator = new();
     private readonly FakeTimeProvider _timeProvider = TestConstants.CreateFakeClock();
-    private readonly IExecutionContext _executionContext = Substitute.For<IExecutionContext>();
+    private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
     private readonly ISecurityAuditService _auditService = Substitute.For<ISecurityAuditService>();
 
     public RefreshTokenUseCaseTests()
@@ -34,9 +34,10 @@ public sealed class RefreshTokenUseCaseTests
         _uow.CommitAsync(Arg.Any<CancellationToken>()).Returns(1);
     }
 
-    private RefreshTokenUseCase CreateSut(Guid? executionContextProjectId = null)
+    private RefreshTokenUseCase CreateSut(Guid? projectContextId = null)
     {
-        _executionContext.ProjectId.Returns(executionContextProjectId);
+        _projectContext.IsResolved.Returns(projectContextId.HasValue);
+        _projectContext.ProjectId.Returns(projectContextId.HasValue ? new ProjectId(projectContextId.Value) : default);
 
         return new RefreshTokenUseCase(
             _tokenRepo,
@@ -46,7 +47,7 @@ public sealed class RefreshTokenUseCaseTests
             _uow,
             _validator,
             _timeProvider,
-            _executionContext,
+            _projectContext,
             _auditService);
     }
 
@@ -124,7 +125,7 @@ public sealed class RefreshTokenUseCaseTests
             .Returns("refreshed-beta-jwt");
 
         // Act
-        var result = await CreateSut(executionContextProjectId: projectBetaId).ExecuteAsync(new RefreshTokenCommand(rawToken));
+        var result = await CreateSut(projectContextId: projectBetaId).ExecuteAsync(new RefreshTokenCommand(rawToken));
 
         // Assert
         result.Should().NotBeNull();
@@ -152,7 +153,7 @@ public sealed class RefreshTokenUseCaseTests
             .Returns<UserWorkspaceContextDto>(_ => throw new UnauthorizedException("User does not have access to the specified project."));
 
         // Act
-        var act = () => CreateSut(executionContextProjectId: unauthorizedProjectId).ExecuteAsync(new RefreshTokenCommand(rawToken));
+        var act = () => CreateSut(projectContextId: unauthorizedProjectId).ExecuteAsync(new RefreshTokenCommand(rawToken));
 
         // Assert
         await act.Should().ThrowAsync<UnauthorizedException>()
@@ -188,7 +189,7 @@ public sealed class RefreshTokenUseCaseTests
             .Returns("admin-jwt-token");
 
         // Act
-        var result = await CreateSut(executionContextProjectId: requestedProjectId).ExecuteAsync(new RefreshTokenCommand(rawToken));
+        var result = await CreateSut(projectContextId: requestedProjectId).ExecuteAsync(new RefreshTokenCommand(rawToken));
 
         // Assert
         result.Should().NotBeNull();

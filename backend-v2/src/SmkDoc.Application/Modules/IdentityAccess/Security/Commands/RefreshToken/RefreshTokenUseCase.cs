@@ -19,7 +19,7 @@ public sealed class RefreshTokenUseCase(
     IUnitOfWork unitOfWork,
     IValidator<RefreshTokenCommand> validator,
     TimeProvider timeProvider,
-    IExecutionContext executionContext,
+    ICurrentProjectContext projectContext,
     ISecurityAuditService auditService) : IUseCase<RefreshTokenCommand, TokenResultDto>
 {
     public async Task<TokenResultDto> ExecuteAsync(RefreshTokenCommand request, CancellationToken ct = default)
@@ -64,7 +64,7 @@ public sealed class RefreshTokenUseCase(
 
         var workspace = await workspaceQueryService.ResolveWorkspaceContextAsync(
             user,
-            executionContext.ProjectId,
+            projectContext.IsResolved ? projectContext.ProjectId.Value : (Guid?)null,
             throwOnUnauthorized: true,
             ct);
 

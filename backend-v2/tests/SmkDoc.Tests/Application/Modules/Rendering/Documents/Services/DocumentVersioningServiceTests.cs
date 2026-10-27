@@ -11,9 +11,10 @@ public sealed class DocumentVersioningServiceTests
 {
     private readonly IDocumentRepository _documentRepo = Substitute.For<IDocumentRepository>();
     private readonly IExecutionContext _context = Substitute.For<IExecutionContext>();
+    private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
 
     private DocumentVersioningService CreateSut() => new(
-        _documentRepo, _context);
+        _documentRepo, _context, _projectContext);
 
     [Fact]
     public async Task RecordVersionAsync_WhenNewDocument_ShouldCreateDocumentAndFirstVersion()
@@ -22,7 +23,10 @@ public sealed class DocumentVersioningServiceTests
         var templateId = Guid.NewGuid();
         var versionId = Guid.NewGuid();
         var genId = Guid.NewGuid();
-        _context.ProjectId.Returns(Guid.NewGuid());
+        var projectId = Guid.NewGuid();
+        _context.ProjectId.Returns(projectId);
+        _projectContext.IsResolved.Returns(true);
+        _projectContext.ProjectId.Returns(new ProjectId(projectId));
 
         _documentRepo.GetByDocumentRefWithVersionsAsync(Arg.Any<DocumentReference>(), Arg.Any<CancellationToken>())
             .Returns((Document?)null);
@@ -45,6 +49,8 @@ public sealed class DocumentVersioningServiceTests
         var genId = Guid.NewGuid();
         var projectId = Guid.NewGuid();
         _context.ProjectId.Returns(projectId);
+        _projectContext.IsResolved.Returns(true);
+        _projectContext.ProjectId.Returns(new ProjectId(projectId));
 
         var existingDoc = Document.Create(
             DocumentReference.Create("INV-001"),

@@ -1,4 +1,5 @@
 using SmkDoc.Application.Common.Exceptions;
+using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.CreateApiKey;
 using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Helpers;
@@ -70,5 +71,41 @@ public sealed class CreateApiKeyUseCaseTests
         await act.Should().ThrowAsync<ValidationException>();
         await _apiKeyRepo.DidNotReceive().AddAsync(Arg.Any<ApiKey>(), Arg.Any<CancellationToken>());
         await _unitOfWork.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenProjectIdOmitted_ResolvesFromCurrentProjectContext()
+    {
+        // Arrange
+        var contextProjectId = Guid.NewGuid();
+        var projectContext = Substitute.For<ICurrentProjectContext>();
+        projectContext.IsResolved.Returns(true);
+        projectContext.ProjectId.Returns(new ProjectId(contextProjectId));
+
+        Project project = ProjectBuilder.AProject()
+            .WithId(contextProjectId)
+            .WithName("Context Project")
+            .WithSlug("ctx-proj");
+
+        _projectRepo.GetByIdAsync(new ProjectId(contextProjectId), Arg.Any<CancellationToken>())
+            .Returns(project);
+
+        var sut = new CreateApiKeyUseCase(
+            _apiKeyRepo,
+            _projectRepo,
+            _unitOfWork,
+            _validator,
+            projectContext: projectContext);
+
+        var command = new CreateApiKeyCommand("Context App", "ctx-app", ProjectId: null);
+
+        // Act
+        var result = await sut.ExecuteAsync(command);
+
+        // Assert
+        result.Should().NotBeNull();
+        await _apiKeyRepo.Received(1).AddAsync(
+            Arg.Is<ApiKey>(k => k.ProjectId == new ProjectId(contextProjectId)),
+            Arg.Any<CancellationToken>());
     }
 }

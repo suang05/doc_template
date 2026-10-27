@@ -15,12 +15,10 @@ public sealed class ValidateTemplatePayloadUseCaseTests
 {
     private readonly ITemplateRepository _templateRepo = Substitute.For<ITemplateRepository>();
     private readonly IJsonSchemaValidationService _schemaValidation = Substitute.For<IJsonSchemaValidationService>();
-    private readonly IExecutionContext _executionContext = Substitute.For<IExecutionContext>();
 
     private ValidateTemplatePayloadUseCase CreateSut() => new(
         _templateRepo,
-        _schemaValidation,
-        _executionContext);
+        _schemaValidation);
 
     private (Template Template, TemplateVersion Version) GivenTemplateWithSchema(
         string slug,
@@ -53,7 +51,6 @@ public sealed class ValidateTemplatePayloadUseCaseTests
             version.UpdateDataSchema(schema, "{}", TestConstants.BaselineTime);
         }
 
-        _executionContext.ProjectId.Returns(projectId);
         _templateRepo.GetBySlugAsync(slug, Arg.Any<CancellationToken>())
             .Returns(template);
         _templateRepo.GetVersionByIdAsync(versionId, Arg.Any<CancellationToken>())

@@ -33,18 +33,16 @@ public sealed class ListDatasetsUseCase(
             var connName = d.DataConnection?.Name.Value
                 ?? (fallbackConns.TryGetValue(d.DataConnectionId, out var c) ? c.Name.Value : string.Empty);
 
-            return new DatasetDto
-            {
-                Id = d.Id.Value,
-                Name = d.Name.Value,
-                Description = d.Description,
-                DataConnectionId = d.DataConnectionId.Value,
-                DataConnectionName = connName,
-                SqlQuery = d.SqlQuery,
-                CacheSeconds = d.CacheSeconds,
-                CreatedAt = d.CreatedAt,
-                UpdatedAt = d.UpdatedAt
-            };
+            return new DatasetDto(
+                d.Id.Value,
+                d.Name.Value,
+                d.Description,
+                d.DataConnectionId.Value,
+                connName,
+                d.SqlQuery,
+                d.CacheSeconds,
+                d.CreatedAt,
+                d.UpdatedAt);
         }).ToList();
     }
 }

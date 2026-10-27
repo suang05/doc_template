@@ -14,12 +14,6 @@ public sealed class DocumentDataPreparationService(
     IFieldMappingApplicatorService fieldMappingApplicator,
     IJsonSchemaValidationService schemaValidation) : IDocumentDataPreparationService
 {
-    private readonly IDatasetRepository _datasetRepo = datasetRepo;
-    private readonly IDataConnectionRepository _connectionRepo = connectionRepo;
-    private readonly IDataProtectionService _dataProtection = dataProtection;
-    private readonly IFieldMappingApplicatorService _fieldMappingApplicator = fieldMappingApplicator;
-    private readonly IJsonSchemaValidationService _schemaValidation = schemaValidation;
-
     public async Task<PreparedDocumentData> PrepareDataAsync(
         Template template,
         TemplateVersion currentVersion,
@@ -33,8 +27,8 @@ public sealed class DocumentDataPreparationService(
         if (mappings.Count > 0)
         {
             var aliasMap = await DatasetAliasMapBuilder.BuildAsync(
-                template.TemplateDatasets, _datasetRepo, _connectionRepo, _dataProtection, ct);
-            dataJson = await _fieldMappingApplicator.ApplyAsync(rawData, mappings, aliasMap);
+                template.TemplateDatasets, datasetRepo, connectionRepo, dataProtection, ct);
+            dataJson = await fieldMappingApplicator.ApplyAsync(rawData, mappings, aliasMap);
         }
         else
         {
@@ -45,7 +39,7 @@ public sealed class DocumentDataPreparationService(
         SchemaValidationResult? validationResult = null;
         if (!skipValidation && !string.IsNullOrWhiteSpace(currentVersion.DataSchema))
         {
-            validationResult = _schemaValidation.Validate(currentVersion.DataSchema, dataJson);
+            validationResult = schemaValidation.Validate(currentVersion.DataSchema, dataJson);
         }
 
         return new PreparedDocumentData(dataJson, validationResult);

@@ -10,16 +10,13 @@ public sealed class DeleteDatasetUseCase(
     IDatasetRepository datasetRepo,
     IUnitOfWork unitOfWork) : IUseCase<DeleteDatasetCommand, bool>
 {
-    private readonly IDatasetRepository _datasetRepo = datasetRepo;
-    private readonly IUnitOfWork _unitOfWork = unitOfWork;
-
     public async Task<bool> ExecuteAsync(DeleteDatasetCommand command, CancellationToken ct = default)
     {
-        var entity = await _datasetRepo.GetByIdAsync(new DatasetId(command.Id), ct);
+        var entity = await datasetRepo.GetByIdAsync(new DatasetId(command.Id), ct);
         if (entity == null) return false;
 
-        _datasetRepo.Remove(entity);
-        await _unitOfWork.CommitAsync(ct);
+        datasetRepo.Remove(entity);
+        await unitOfWork.CommitAsync(ct);
         return true;
     }
 }

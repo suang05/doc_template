@@ -17,7 +17,6 @@ public sealed class CommitTemplateDraftUseCase(
     IUnitOfWork unitOfWork,
     IProjectRepository projectRepo,
     ISchemaInferenceService schemaInferenceService,
-    IExecutionContext executionContext,
     ICurrentProjectContext projectContext,
     TimeProvider timeProvider) : IUseCase<CommitTemplateDraftCommand, string>
 {
@@ -30,7 +29,7 @@ public sealed class CommitTemplateDraftUseCase(
 
         Guid targetProjectId = (command.Request.ProjectId.HasValue && command.Request.ProjectId.Value != Guid.Empty)
             ? command.Request.ProjectId.Value
-            : (projectContext?.IsResolved == true ? projectContext.ProjectId.Value : (executionContext?.ProjectId.HasValue == true ? executionContext.ProjectId.Value : Guid.Empty));
+            : (projectContext.IsResolved ? projectContext.ProjectId.Value : Guid.Empty);
 
         if (targetProjectId == Guid.Empty)
         {

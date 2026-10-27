@@ -12,11 +12,9 @@ namespace SmkDoc.Application.Modules.Authoring.Templates.Queries.GetTemplateById
 /// </summary>
 public sealed class GetTemplateByIdUseCase(ITemplateRepository templateRepo) : IUseCase<GetTemplateByIdQuery, TemplateResultDto>
 {
-    private readonly ITemplateRepository _templateRepo = templateRepo;
-
     public async Task<TemplateResultDto> ExecuteAsync(GetTemplateByIdQuery query, CancellationToken ct = default)
     {
-        var template = await _templateRepo.GetByIdAsync(new TemplateId(query.Id), ct)
+        var template = await templateRepo.GetByIdAsync(new TemplateId(query.Id), ct)
             ?? throw new NotFoundException($"Template '{query.Id}' was not found.");
 
         return new TemplateResultDto(

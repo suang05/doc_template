@@ -20,25 +20,18 @@ public sealed class CreateTemplateUseCase(
     ITemplateRepository templateRepo,
     IStorageService storageService,
     IDocxSecurityScanner securityScanner,
+    ICurrentProjectContext projectContext,
     IExecutionContext executionContext,
     IUnitOfWork unitOfWork,
     IValidator<CreateTemplateCommand> validator,
-    TimeProvider? timeProvider = null,
-    ICurrentProjectContext? projectContext = null) : IUseCase<CreateTemplateCommand, TemplateResultDto>
+    TimeProvider? timeProvider = null) : IUseCase<CreateTemplateCommand, TemplateResultDto>
 {
-    private readonly ITemplateRepository _templateRepo = templateRepo;
-    private readonly IStorageService _storageService = storageService;
-    private readonly IDocxSecurityScanner _securityScanner = securityScanner;
-    private readonly IExecutionContext _executionContext = executionContext;
-    private readonly IUnitOfWork _unitOfWork = unitOfWork;
-    private readonly IValidator<CreateTemplateCommand> _validator = validator;
-    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
-    private readonly ICurrentProjectContext? _projectContext = projectContext;
+    private readonly TimeProvider timeProvider = timeProvider ?? TimeProvider.System;
 
     public async Task<TemplateResultDto> ExecuteAsync(CreateTemplateCommand command, CancellationToken ct = default)
     {
         // 1. Fail-Fast Input Validation
-        var validationResult = await _validator.ValidateAsync(command, ct);
+        var validationResult = await validator.ValidateAsync(command, ct);
         if (!validationResult.IsValid)
         {
             throw new ValidationException(validationResult.ToDictionary());
@@ -46,10 +39,10 @@ public sealed class CreateTemplateUseCase(
 
         var effectiveProjectId = command.ProjectId != Guid.Empty
             ? command.ProjectId
-            : (_projectContext?.IsResolved == true ? _projectContext.ProjectId.Value : _executionContext.ProjectId ?? Guid.Empty);
+            : (projectContext.IsResolved ? projectContext.ProjectId.Value : Guid.Empty);
 
         // 2. Domain Rule Check (Slug uniqueness)
-        var slugExists = await _templateRepo.SlugExistsAsync(command.Slug, ct);
+        var slugExists = await templateRepo.SlugExistsAsync(command.Slug, ct);
         if (slugExists)
         {
             throw ConflictException.DuplicateSlug(command.Slug);
@@ -70,7 +63,7 @@ public sealed class CreateTemplateUseCase(
                 scanCopy.Position = 0;
                 command.FileStream.Position = 0;
 
-                var scanResult = _securityScanner.Scan(scanCopy);
+                var scanResult = securityScanner.Scan(scanCopy);
                 if (!scanResult.IsSafe)
                 {
                     throw new DomainValidationException(
@@ -86,7 +79,7 @@ public sealed class CreateTemplateUseCase(
                 _       => TemplateFormat.Html
             };
             string contentType = fileFormat.MimeType;
-            await _storageService.UploadAsync(StorageBuckets.Templates, storageKey, command.FileStream, contentType, ct);
+            await storageService.UploadAsync(StorageBuckets.Templates, storageKey, command.FileStream, contentType, ct);
         }
         else
         {
@@ -94,11 +87,11 @@ public sealed class CreateTemplateUseCase(
             fileFormat = TemplateFormat.Html;
             string defaultHtml = "<!DOCTYPE html>\n<html lang=\"th\">\n<head>\n  <meta charset=\"UTF-8\" />\n</head>\n<body>\n  <h2>Template</h2>\n</body>\n</html>";
             using var htmlStream = new MemoryStream(Encoding.UTF8.GetBytes(defaultHtml));
-            await _storageService.UploadAsync(StorageBuckets.Templates, storageKey, htmlStream, "text/html; charset=utf-8", ct);
+            await storageService.UploadAsync(StorageBuckets.Templates, storageKey, htmlStream, "text/html; charset=utf-8", ct);
         }
 
         // 4. Domain Entity Instantiation (Encapsulated invariants)
-        var now = _timeProvider.GetUtcNow();
+        var now = this.timeProvider.GetUtcNow();
         var template = Template.Create(
             new ProjectId(effectiveProjectId),
             TemplateName.Create(command.Name),
@@ -109,14 +102,14 @@ public sealed class CreateTemplateUseCase(
             1,
             storageKey,
             fileFormat,
-            _executionContext.CallerApp ?? "system",
+            executionContext.CallerApp ?? "system",
             now,
             "Initial version");
 
         template.PublishVersion(initialVersion, now);
 
-        await _templateRepo.AddAsync(template, ct);
-        await _unitOfWork.CommitAsync(ct);
+        await templateRepo.AddAsync(template, ct);
+        await unitOfWork.CommitAsync(ct);
 
         // 5. Safe Result DTO Mapping
         return new TemplateResultDto(

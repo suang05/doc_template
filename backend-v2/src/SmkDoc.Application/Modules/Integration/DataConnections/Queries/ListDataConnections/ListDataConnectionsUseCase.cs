@@ -12,13 +12,11 @@ public sealed class ListDataConnectionsUseCase(
     public async Task<List<DataConnectionDto>> ExecuteAsync(ListDataConnectionsQuery query, CancellationToken ct = default)
     {
         var connections = await repository.ListAsync(ct);
-        return connections.Select(c => new DataConnectionDto
-        {
-            Id = c.Id.Value,
-            Name = c.Name.Value,
-            Provider = c.Provider.Name,
-            CreatedAt = c.CreatedAt,
-            UpdatedAt = c.UpdatedAt
-        }).ToList();
+        return connections.Select(c => new DataConnectionDto(
+            c.Id.Value,
+            c.Name.Value,
+            c.Provider.Name,
+            c.CreatedAt,
+            c.UpdatedAt)).ToList();
     }
 }

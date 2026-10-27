@@ -5,6 +5,7 @@ using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Domain.ValueObjects.Ids;
 using ValidationException = SmkDoc.Application.Common.Exceptions.ValidationException;
 
 namespace SmkDoc.Tests.Application.Modules.Authoring.Templates.Commands.CreateTemplate;
@@ -15,6 +16,7 @@ public sealed class CreateTemplateUseCaseTests
     private readonly IStorageService _storageService = Substitute.For<IStorageService>();
     private readonly IDocxSecurityScanner _securityScanner = Substitute.For<IDocxSecurityScanner>();
     private readonly IExecutionContext _executionContext = Substitute.For<IExecutionContext>();
+    private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
     private readonly CreateTemplateCommandValidator _validator = new();
     private readonly FakeTimeProvider _timeProvider = TestConstants.CreateFakeClock();
@@ -22,6 +24,8 @@ public sealed class CreateTemplateUseCaseTests
     public CreateTemplateUseCaseTests()
     {
         _executionContext.UserId.Returns(TestConstants.DefaultUserId);
+        _projectContext.IsResolved.Returns(true);
+        _projectContext.ProjectId.Returns(new ProjectId(TestConstants.DefaultProjectId));
         _unitOfWork.CommitAsync(Arg.Any<CancellationToken>()).Returns(1);
     }
 
@@ -29,6 +33,7 @@ public sealed class CreateTemplateUseCaseTests
         _templateRepo,
         _storageService,
         _securityScanner,
+        _projectContext,
         _executionContext,
         _unitOfWork,
         _validator,

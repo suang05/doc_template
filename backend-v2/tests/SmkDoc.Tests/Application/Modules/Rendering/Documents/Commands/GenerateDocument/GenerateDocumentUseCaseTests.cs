@@ -13,6 +13,7 @@ using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Domain.ValueObjects.Validation;
 using SmkDoc.Tests.Common.Builders;
 
@@ -28,6 +29,7 @@ public sealed class GenerateDocumentUseCaseTests
     private readonly IStorageService _storageService = Substitute.For<IStorageService>();
     private readonly IRenderEngine _engine = Substitute.For<IRenderEngine>();
     private readonly IExecutionContext _executionContext = Substitute.For<IExecutionContext>();
+    private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
     private readonly IFieldMappingApplicatorService _applicator = Substitute.For<IFieldMappingApplicatorService>();
     private readonly IDataProtectionService _dataProtection = Substitute.For<IDataProtectionService>();
@@ -37,7 +39,10 @@ public sealed class GenerateDocumentUseCaseTests
     public GenerateDocumentUseCaseTests()
     {
         _unitOfWork.CommitAsync(Arg.Any<CancellationToken>()).Returns(1);
-        _executionContext.ProjectId.Returns(Guid.NewGuid());
+        var projectId = Guid.NewGuid();
+        _executionContext.ProjectId.Returns(projectId);
+        _projectContext.IsResolved.Returns(true);
+        _projectContext.ProjectId.Returns(new ProjectId(projectId));
     }
 
     private GenerateDocumentUseCase CreateSut(IValidator<GenerateDocumentCommand>? validator = null)
@@ -51,11 +56,13 @@ public sealed class GenerateDocumentUseCaseTests
 
         var audit = new DocumentAuditService(
             _logRepo,
-            _executionContext);
+            _executionContext,
+            _projectContext);
 
         var versioning = new DocumentVersioningService(
             _documentRepo,
-            _executionContext);
+            _executionContext,
+            _projectContext);
 
         return new GenerateDocumentUseCase(
             _templateRepo,
@@ -65,7 +72,7 @@ public sealed class GenerateDocumentUseCaseTests
             audit,
             versioning,
             _unitOfWork,
-            _executionContext,
+            _projectContext,
             validator ?? new GenerateDocumentCommandValidator(),
             _timeProvider);
     }

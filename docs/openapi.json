@@ -9610,6 +9610,13 @@
         "description": "Profile result returned by GET /api/v1/auth/me for current authenticated user."
       },
       "DataConnectionDto": {
+        "required": [
+          "id",
+          "name",
+          "provider",
+          "createdAt",
+          "updatedAt"
+        ],
         "type": "object",
         "properties": {
           "id": {
@@ -9637,6 +9644,17 @@
         "description": "DTO representing a safe database connection definition (connection string omitted)."
       },
       "DatasetDto": {
+        "required": [
+          "id",
+          "name",
+          "description",
+          "dataConnectionId",
+          "dataConnectionName",
+          "sqlQuery",
+          "cacheSeconds",
+          "createdAt",
+          "updatedAt"
+        ],
         "type": "object",
         "properties": {
           "id": {

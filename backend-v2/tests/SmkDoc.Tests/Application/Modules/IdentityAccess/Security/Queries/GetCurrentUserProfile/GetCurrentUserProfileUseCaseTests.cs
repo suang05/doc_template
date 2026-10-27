@@ -17,12 +17,12 @@ public sealed class GetCurrentUserProfileUseCaseTests
 {
     private readonly IUserRepository _userRepo = Substitute.For<IUserRepository>();
     private readonly IUserWorkspaceQueryService _workspaceQueryService = Substitute.For<IUserWorkspaceQueryService>();
-    private readonly IExecutionContext _executionContext = Substitute.For<IExecutionContext>();
+    private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
 
     private GetCurrentUserProfileUseCase CreateSut() => new(
         _userRepo,
         _workspaceQueryService,
-        _executionContext);
+        _projectContext);
 
     [Fact]
     public async Task ExecuteAsync_WhenStandardUserWithProjects_ReturnsProfileAndAccessibleProjects()
@@ -85,7 +85,8 @@ public sealed class GetCurrentUserProfileUseCaseTests
 
         _userRepo.GetByIdAsync(user.Id, Arg.Any<CancellationToken>())
             .Returns(user);
-        _executionContext.ProjectId.Returns(proj2);
+        _projectContext.IsResolved.Returns(true);
+        _projectContext.ProjectId.Returns(new ProjectId(proj2));
         _workspaceQueryService.ResolveWorkspaceContextAsync(user, proj2, false, Arg.Any<CancellationToken>())
             .Returns(workspaceContext);
 
@@ -121,7 +122,8 @@ public sealed class GetCurrentUserProfileUseCaseTests
 
         _userRepo.GetByIdAsync(user.Id, Arg.Any<CancellationToken>())
             .Returns(user);
-        _executionContext.ProjectId.Returns(unauthorizedProjectId);
+        _projectContext.IsResolved.Returns(true);
+        _projectContext.ProjectId.Returns(new ProjectId(unauthorizedProjectId));
         _workspaceQueryService.ResolveWorkspaceContextAsync(user, unauthorizedProjectId, false, Arg.Any<CancellationToken>())
             .Returns(workspaceContext);
 
@@ -189,7 +191,8 @@ public sealed class GetCurrentUserProfileUseCaseTests
 
         _userRepo.GetByIdAsync(user.Id, Arg.Any<CancellationToken>())
             .Returns(user);
-        _executionContext.ProjectId.Returns(anyProject);
+        _projectContext.IsResolved.Returns(true);
+        _projectContext.ProjectId.Returns(new ProjectId(anyProject));
         _workspaceQueryService.ResolveWorkspaceContextAsync(user, anyProject, false, Arg.Any<CancellationToken>())
             .Returns(workspaceContext);
 

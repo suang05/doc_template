@@ -21,7 +21,7 @@ public sealed class LoginUseCase(
     IRefreshTokenRepository tokenRepo,
     IUnitOfWork unitOfWork,
     TimeProvider timeProvider,
-    IExecutionContext executionContext,
+    ICurrentProjectContext projectContext,
     ISecurityAuditService auditService) : IUseCase<LoginCommand, LoginResultDto>
 {
     public async Task<LoginResultDto> ExecuteAsync(LoginCommand request, CancellationToken ct = default)
@@ -58,7 +58,7 @@ public sealed class LoginUseCase(
 
         var workspace = await workspaceQueryService.ResolveWorkspaceContextAsync(
             user,
-            executionContext.ProjectId,
+            projectContext.IsResolved ? projectContext.ProjectId.Value : (Guid?)null,
             throwOnUnauthorized: true,
             ct);
 

@@ -13,13 +13,8 @@ namespace SmkDoc.Application.Modules.Authoring.Templates.Queries.ValidateTemplat
 /// </summary>
 public class ValidateTemplatePayloadUseCase(
     ITemplateRepository templateRepo,
-    IJsonSchemaValidationService schemaValidation,
-    IExecutionContext executionContext) : IUseCase<ValidateTemplatePayloadQuery, ValidateTemplatePayloadResult>
+    IJsonSchemaValidationService schemaValidation) : IUseCase<ValidateTemplatePayloadQuery, ValidateTemplatePayloadResult>
 {
-    private readonly ITemplateRepository _templateRepo = templateRepo;
-    private readonly IJsonSchemaValidationService _schemaValidation = schemaValidation;
-    private readonly IExecutionContext _executionContext = executionContext;
-
     public async Task<ValidateTemplatePayloadResult> ExecuteAsync(
         ValidateTemplatePayloadQuery query, CancellationToken ct = default)
     {
@@ -31,7 +26,7 @@ public class ValidateTemplatePayloadUseCase(
         }
 
         // 1. Fetch template with tenant isolation via Global Query Filter
-        var template = await _templateRepo.GetBySlugAsync(query.Slug, ct);
+        var template = await templateRepo.GetBySlugAsync(query.Slug, ct);
 
         if (template == null || !template.IsActive)
         {
@@ -44,7 +39,7 @@ public class ValidateTemplatePayloadUseCase(
         }
 
         var currentVersion = template.CurrentVersion
-            ?? await _templateRepo.GetVersionByIdAsync(template.CurrentVersionId.Value, ct)
+            ?? await templateRepo.GetVersionByIdAsync(template.CurrentVersionId.Value, ct)
             ?? throw new NotFoundException($"Current version for template '{query.Slug}' not found.");
 
         // 2. If no schema is stored, treat as valid pass-through
@@ -59,7 +54,7 @@ public class ValidateTemplatePayloadUseCase(
         }
 
         // 3. Evaluate payload against template Draft-07 schema
-        var result = _schemaValidation.Validate(currentVersion.DataSchema, query.Data);
+        var result = schemaValidation.Validate(currentVersion.DataSchema, query.Data);
 
         if (!result.IsValid)
         {

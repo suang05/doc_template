@@ -23,8 +23,7 @@ public sealed class CreateDataConnectionUseCase(
     TimeProvider? timeProvider = null,
     ICurrentProjectContext? projectContext = null) : IUseCase<CreateDataConnectionCommand, DataConnectionDto>
 {
-    private readonly TimeProvider timeProvider = timeProvider ?? TimeProvider.System;
-    private readonly ICurrentProjectContext? _projectContext = projectContext;
+    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
 
     public async Task<DataConnectionDto> ExecuteAsync(CreateDataConnectionCommand command, CancellationToken ct = default)
     {
@@ -34,24 +33,22 @@ public sealed class CreateDataConnectionUseCase(
             throw new ValidationException(validationResult.ToDictionary());
         }
 
-        var now = this.timeProvider.GetUtcNow();
+        var now = _timeProvider.GetUtcNow();
         var entity = DataConnection.Create(
             ConnectionName.Create(command.Name),
             Enumeration.FromDisplayName<DatabaseProvider>(command.Provider),
             EncryptedConnectionString.Create(dataProtection.Encrypt(command.ConnectionString)),
             now,
-            _projectContext?.ProjectId ?? default);
+            projectContext?.ProjectId ?? default);
 
         await repository.AddAsync(entity, ct);
         await unitOfWork.CommitAsync(ct);
 
-        return new DataConnectionDto
-        {
-            Id = entity.Id.Value,
-            Name = entity.Name.Value,
-            Provider = entity.Provider.Name,
-            CreatedAt = entity.CreatedAt,
-            UpdatedAt = entity.UpdatedAt
-        };
+        return new DataConnectionDto(
+            entity.Id.Value,
+            entity.Name.Value,
+            entity.Provider.Name,
+            entity.CreatedAt,
+            entity.UpdatedAt);
     }
 }

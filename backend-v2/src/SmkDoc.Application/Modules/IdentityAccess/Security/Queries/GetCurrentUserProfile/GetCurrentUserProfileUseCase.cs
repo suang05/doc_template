@@ -10,7 +10,7 @@ namespace SmkDoc.Application.Modules.IdentityAccess.Security.Queries.GetCurrentU
 public sealed class GetCurrentUserProfileUseCase(
     IUserRepository userRepo,
     IUserWorkspaceQueryService workspaceQueryService,
-    IExecutionContext executionContext) : IUseCase<GetCurrentUserProfileQuery, CurrentUserProfileResultDto>
+    ICurrentProjectContext projectContext) : IUseCase<GetCurrentUserProfileQuery, CurrentUserProfileResultDto>
 {
     public async Task<CurrentUserProfileResultDto> ExecuteAsync(GetCurrentUserProfileQuery query, CancellationToken ct = default)
     {
@@ -22,7 +22,7 @@ public sealed class GetCurrentUserProfileUseCase(
 
         var workspace = await workspaceQueryService.ResolveWorkspaceContextAsync(
             user,
-            executionContext.ProjectId,
+            projectContext.IsResolved ? projectContext.ProjectId.Value : (Guid?)null,
             throwOnUnauthorized: false,
             ct);
 

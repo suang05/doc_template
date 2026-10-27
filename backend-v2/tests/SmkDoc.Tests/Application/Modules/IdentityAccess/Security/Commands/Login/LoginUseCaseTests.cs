@@ -11,6 +11,7 @@ using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common.Builders;
 using RefreshTokenEntity = SmkDoc.Domain.Entities.RefreshToken;
 using ValidationException = SmkDoc.Application.Common.Exceptions.ValidationException;
@@ -25,7 +26,7 @@ public sealed class LoginUseCaseTests
     private readonly IUserWorkspaceQueryService _workspaceQueryService = Substitute.For<IUserWorkspaceQueryService>();
     private readonly IRefreshTokenRepository _tokenRepo = Substitute.For<IRefreshTokenRepository>();
     private readonly IUnitOfWork _uow = Substitute.For<IUnitOfWork>();
-    private readonly IExecutionContext _executionContext = Substitute.For<IExecutionContext>();
+    private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
     private readonly FakeTimeProvider _timeProvider = TestConstants.CreateFakeClock();
     private readonly ISecurityAuditService _auditService = Substitute.For<ISecurityAuditService>();
     private readonly LoginCommandValidator _defaultValidator = new();
@@ -37,9 +38,10 @@ public sealed class LoginUseCaseTests
 
     private LoginUseCase CreateSut(
         IValidator<LoginCommand>? validator = null,
-        Guid? executionContextProjectId = null)
+        Guid? projectContextId = null)
     {
-        _executionContext.ProjectId.Returns(executionContextProjectId);
+        _projectContext.IsResolved.Returns(projectContextId.HasValue);
+        _projectContext.ProjectId.Returns(projectContextId.HasValue ? new ProjectId(projectContextId.Value) : default);
 
         return new LoginUseCase(
             _userRepo,
@@ -50,7 +52,7 @@ public sealed class LoginUseCaseTests
             _tokenRepo,
             _uow,
             _timeProvider,
-            _executionContext,
+            _projectContext,
             _auditService);
     }
 
@@ -88,7 +90,7 @@ public sealed class LoginUseCaseTests
             .Returns("valid_token");
 
         // Act
-        var result = await CreateSut(executionContextProjectId: projectId).ExecuteAsync(command);
+        var result = await CreateSut(projectContextId: projectId).ExecuteAsync(command);
 
         // Assert
         result.Should().NotBeNull();
@@ -193,7 +195,7 @@ public sealed class LoginUseCaseTests
             .Returns<UserWorkspaceContextDto>(_ => throw new UnauthorizedException("User does not have access to the specified project."));
 
         // Act
-        var act = () => CreateSut(executionContextProjectId: selectedProjectId).ExecuteAsync(command);
+        var act = () => CreateSut(projectContextId: selectedProjectId).ExecuteAsync(command);
 
         // Assert
         await act.Should().ThrowAsync<UnauthorizedException>()
@@ -300,7 +302,7 @@ public sealed class LoginUseCaseTests
             .Returns("valid_token");
 
         // Act
-        var result = await CreateSut(executionContextProjectId: projectId).ExecuteAsync(command);
+        var result = await CreateSut(projectContextId: projectId).ExecuteAsync(command);
 
         // Assert
         result.ActiveApiKeys.Should().HaveCount(1);

@@ -21,20 +21,11 @@ public sealed class GenerateDocumentUseCase(
     IDocumentAuditService auditService,
     IDocumentVersioningService versioningService,
     IUnitOfWork unitOfWork,
-    IExecutionContext executionContext,
+    ICurrentProjectContext projectContext,
     IValidator<GenerateDocumentCommand> validator,
     TimeProvider? timeProvider = null) : IUseCase<GenerateDocumentCommand, GenerateDocumentResultDto>
 {
-    private readonly ITemplateRepository _templateRepo = templateRepo;
-    private readonly IStorageService _storageService = storageService;
-    private readonly IEnumerable<IRenderEngine> _engines = engines;
-    private readonly IDocumentDataPreparationService _dataPreparationService = dataPreparationService;
-    private readonly IDocumentAuditService _auditService = auditService;
-    private readonly IDocumentVersioningService _versioningService = versioningService;
-    private readonly IUnitOfWork _unitOfWork = unitOfWork;
-    private readonly IExecutionContext _executionContext = executionContext;
-    private readonly IValidator<GenerateDocumentCommand> _validator = validator;
-    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
+    private readonly TimeProvider timeProvider = timeProvider ?? TimeProvider.System;
 
     public Task<GenerateDocumentResultDto> ExecuteAsync(
         GenerateDocumentCommand request, CancellationToken ct = default)
@@ -44,7 +35,7 @@ public sealed class GenerateDocumentUseCase(
         string slug, GenerateDocumentCommand request, CancellationToken ct = default)
     {
         // 1. Fail-Fast Static Input Validation
-        var validationResult = await _validator.ValidateAsync(request, ct);
+        var validationResult = await validator.ValidateAsync(request, ct);
         if (!validationResult.IsValid)
         {
             throw new ValidationException(validationResult.ToDictionary());
@@ -52,7 +43,7 @@ public sealed class GenerateDocumentUseCase(
 
         var sw = Stopwatch.StartNew();
 
-        var template = await _templateRepo.GetBySlugWithDetailsAsync(slug, ct);
+        var template = await templateRepo.GetBySlugWithDetailsAsync(slug, ct);
         if (template == null || !template.IsActive)
             throw new NotFoundException($"Template '{slug}' not found or inactive.");
 
@@ -60,7 +51,7 @@ public sealed class GenerateDocumentUseCase(
             throw new BusinessRuleViolationException($"Template '{slug}' has no published version.");
 
         var currentVersion = template.CurrentVersion
-            ?? await _templateRepo.GetVersionByIdAsync(template.CurrentVersionId.Value, ct)
+            ?? await templateRepo.GetVersionByIdAsync(template.CurrentVersionId.Value, ct)
             ?? throw new NotFoundException($"Current version for template '{slug}' not found.");
 
         var outputFormat = request.OutputFormat.Trim().ToLowerInvariant() switch
@@ -72,18 +63,18 @@ public sealed class GenerateDocumentUseCase(
 
         var engineType = currentVersion.GetRenderEngineType();
 
-        var engine = _engines.FirstOrDefault(e => e.EngineType == engineType)
+        var engine = engines.FirstOrDefault(e => e.EngineType == engineType)
             ?? throw new RenderException(slug, engineType.ToString(), $"No render engine registered for engine type '{engineType}'.");
 
         // --- Step 1: Fail-Fast Data Preparation & Schema Validation Gate ---
-        var preparedData = await _dataPreparationService.PrepareDataAsync(
+        var preparedData = await dataPreparationService.PrepareDataAsync(
             template, currentVersion, request.Payload, request.SkipValidation, ct);
 
         if (preparedData.ValidationResult is { IsValid: false })
         {
             sw.Stop();
             var errorMessage = $"{preparedData.ValidationResult.Errors.Count} schema violation(s) detected.";
-            await _auditService.LogValidationFailureAsync(
+            await auditService.LogValidationFailureAsync(
                 template.Id.Value,
                 currentVersion.Id,
                 preparedData.DataJson,
@@ -92,24 +83,24 @@ public sealed class GenerateDocumentUseCase(
                 errorMessage,
                 ct);
 
-            await _unitOfWork.CommitAsync(ct);
+            await unitOfWork.CommitAsync(ct);
 
             throw new SchemaValidationException(
                 slug, currentVersion.Version, preparedData.ValidationResult.Errors);
         }
 
         // --- Step 2: Download Template from Storage & Render Output ---
-        using var templateStream = await _storageService.DownloadAsync(StorageBuckets.Templates, currentVersion.StorageKey, ct);
+        using var templateStream = await storageService.DownloadAsync(StorageBuckets.Templates, currentVersion.StorageKey, ct);
         await using var outputStream = await engine.RenderStreamAsync(templateStream, preparedData.DataJson, outputFormat, ct);
 
         string ext = outputFormat.Extension;
         string contentType = outputFormat.MimeType;
 
         var generationId = Guid.CreateVersion7();
-        var tenantId = _executionContext.ProjectId.HasValue && _executionContext.ProjectId.Value != Guid.Empty
-            ? _executionContext.ProjectId.Value
+        var tenantId = projectContext.IsResolved
+            ? projectContext.ProjectId.Value
             : template.ProjectId.Value;
-        string outputKey = $"outputs/{tenantId:N}/{_timeProvider.GetUtcNow():yyyy/MM/dd}/{slug}_{generationId:N}.{ext}";
+        string outputKey = $"outputs/{tenantId:N}/{this.timeProvider.GetUtcNow():yyyy/MM/dd}/{slug}_{generationId:N}.{ext}";
 
         long fileSizeBytes = 0;
         string sha256 = string.Empty;
@@ -122,15 +113,15 @@ public sealed class GenerateDocumentUseCase(
             outputStream.Position = 0;
         }
 
-        await _storageService.UploadAsync(StorageBuckets.Outputs, outputKey, outputStream, contentType, ct);
+        await storageService.UploadAsync(StorageBuckets.Outputs, outputKey, outputStream, contentType, ct);
 
         var expiry = TimeSpan.FromHours(24);
-        string downloadUrl = await _storageService.GetPresignedUrlAsync(StorageBuckets.Outputs, outputKey, expiry, ct);
+        string downloadUrl = await storageService.GetPresignedUrlAsync(StorageBuckets.Outputs, outputKey, expiry, ct);
 
         sw.Stop();
 
         // --- Step 3: Audit Logging & Version Tracking ---
-        await _auditService.LogSuccessAsync(
+        await auditService.LogSuccessAsync(
             generationId,
             template.Id.Value,
             currentVersion.Id,
@@ -143,7 +134,7 @@ public sealed class GenerateDocumentUseCase(
 
         if (!string.IsNullOrWhiteSpace(request.DocumentRef))
         {
-            await _versioningService.RecordVersionAsync(
+            await versioningService.RecordVersionAsync(
                 request.DocumentRef,
                 template.Id.Value,
                 currentVersion.Id,
@@ -152,7 +143,7 @@ public sealed class GenerateDocumentUseCase(
                 ct);
         }
 
-        await _unitOfWork.CommitAsync(ct);
+        await unitOfWork.CommitAsync(ct);
 
         return new GenerateDocumentResultDto(
             GenerationId: generationId,
@@ -161,7 +152,7 @@ public sealed class GenerateDocumentUseCase(
             FileSizeBytes: fileSizeBytes,
             Sha256: sha256,
             Url: downloadUrl,
-            ExpiresAt: _timeProvider.GetUtcNow().Add(expiry)
+            ExpiresAt: this.timeProvider.GetUtcNow().Add(expiry)
         );
     }
 }

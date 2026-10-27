@@ -15,13 +15,11 @@ public sealed class GetDataConnectionByIdUseCase(
         var c = await repository.GetByIdAsync(new DataConnectionId(query.Id), ct);
         if (c == null) return null;
 
-        return new DataConnectionDto
-        {
-            Id = c.Id.Value,
-            Name = c.Name.Value,
-            Provider = c.Provider.Name,
-            CreatedAt = c.CreatedAt,
-            UpdatedAt = c.UpdatedAt
-        };
+        return new DataConnectionDto(
+            c.Id.Value,
+            c.Name.Value,
+            c.Provider.Name,
+            c.CreatedAt,
+            c.UpdatedAt);
     }
 }

@@ -21,13 +21,11 @@ public sealed class CommitTemplateDraftUseCaseTests
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
     private readonly IProjectRepository _projectRepo = Substitute.For<IProjectRepository>();
     private readonly ISchemaInferenceService _schemaInference = Substitute.For<ISchemaInferenceService>();
-    private readonly IExecutionContext _executionContext = Substitute.For<IExecutionContext>();
     private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
     private readonly FakeTimeProvider _timeProvider = TestConstants.CreateFakeClock();
 
     public CommitTemplateDraftUseCaseTests()
     {
-        _executionContext.UserId.Returns(TestConstants.DefaultUserId);
         _unitOfWork.CommitAsync(Arg.Any<CancellationToken>()).Returns(1);
 
         Project sampleProject = Project.Create(
@@ -47,7 +45,6 @@ public sealed class CommitTemplateDraftUseCaseTests
         _unitOfWork,
         _projectRepo,
         _schemaInference,
-        _executionContext,
         _projectContext,
         _timeProvider);
 

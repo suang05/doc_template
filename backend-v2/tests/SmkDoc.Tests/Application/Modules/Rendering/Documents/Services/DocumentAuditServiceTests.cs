@@ -7,6 +7,7 @@ using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common;
 using Xunit;
 
@@ -16,11 +17,18 @@ public sealed class DocumentAuditServiceTests
 {
     private readonly IGenerationLogRepository _logRepo = Substitute.For<IGenerationLogRepository>();
     private readonly IExecutionContext _context = Substitute.For<IExecutionContext>();
+    private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
     private readonly IStorageService _storageService = Substitute.For<IStorageService>();
     private readonly TimeProvider _timeProvider = TestConstants.CreateFakeClock();
 
+    public DocumentAuditServiceTests()
+    {
+        _projectContext.IsResolved.Returns(true);
+        _projectContext.ProjectId.Returns(ProjectId.New());
+    }
+
     private DocumentAuditService CreateSut(IStorageService? storage = null) => new(
-        _logRepo, _context, storage, null, _timeProvider);
+        _logRepo, _context, _projectContext, storage, null, _timeProvider);
 
     [Fact]
     public async Task LogValidationFailureAsync_ShouldAddFailedLogWithoutPrematureCommit()
@@ -90,6 +98,8 @@ public sealed class DocumentAuditServiceTests
         var projectId = Guid.NewGuid();
         _context.CallerApp.Returns("batch-generator");
         _context.ProjectId.Returns(projectId);
+        _projectContext.IsResolved.Returns(true);
+        _projectContext.ProjectId.Returns(new ProjectId(projectId));
         var largeJson = new string('A', DocumentAuditService.MaxInlinePayloadSizeBytes + 500);
         var genId = Guid.NewGuid();
 
@@ -145,6 +155,8 @@ public sealed class DocumentAuditServiceTests
         var projectId = Guid.NewGuid();
         _context.CallerApp.Returns("api-gateway");
         _context.ProjectId.Returns(projectId);
+        _projectContext.IsResolved.Returns(true);
+        _projectContext.ProjectId.Returns(new ProjectId(projectId));
         var largeJson = new string('C', DocumentAuditService.MaxInlinePayloadSizeBytes + 200);
 
         // Act
@@ -172,6 +184,7 @@ public sealed class DocumentAuditServiceTests
     {
         // Arrange
         _context.ProjectId.Returns((Guid?)null);
+        _projectContext.IsResolved.Returns(false);
 
         // Act
         var act = async () => await CreateSut().LogSuccessAsync(
