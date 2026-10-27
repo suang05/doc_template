@@ -4,49 +4,78 @@
 Scope: Infrastructure Layer Patterns, EF Core Configurations, Strongly-Typed ID Converters, JSONB Mapping, Repositories & Tenancy Filter
 Target: `SmkDoc.Infrastructure/` (`Persistence/Configurations/`, `Repositories/`, `Storage/`, `Gotenberg/`)
 Authority: Absolute SSoT Invariant (Hides all network and persistence I/O behind Application ports)
-Boundary: Pure Architectural AST only. Prohibit task roadmaps, execution checklists, and conversational prose.
-TriggerSignals: [SIGNAL_SCHEMA_MIGRATION]
+Invariants: Bounded Memory Streaming (<=81,920 buffer), Ambient Tenancy HasQueryFilter, xmin Concurrency Token
+Format: 100% English AST, Positive-First Archetypes (80/20 Rule), Canonical Keyboard Operators
+TriggerSignals: [SIGNAL_SCHEMA_MIGRATION], [SIGNAL_TOPOLOGY_MUTATION]
 UpstreamKernel: AGENTS.md
 </context>
 
 ---
 
-## Architectural Wiring & Data Contracts
+## 1. Level 1: Persistence Invariants & Rules Matrix
 
+### Architectural Wiring & Data Contracts
 | Direction | Upstream Origin | Current Layer Role (Infrastructure Port Adapter) | Downstream Destination |
 |---|---|---|---|
 | **Port Inbound** | Application Port (`ITemplateRepository`, `IUnitOfWork`) | Implements port via EF Core `AppDbContext` | Database / Network Port |
 | **Object Relational Mapping**| Domain POCOs (`Template`, `Document`) | Maps tables, columns (`snake_case`), and ID conversions | PostgreSQL 16+ Engine (`Npgsql`) |
 | **Concurrency Safeguard**| Entity State Mutation | Tracks row version via PostgreSQL `xmin` | Optimistic Concurrency Check |
 | **Storage Inbound** | Application Storage Port (`IStorageService`) | Pipes binary streams to S3 object storage | MinIO Cluster / AWS S3 Bucket |
-| **Rendering Inbound**| Application Render Port (`IRenderingEngine`) | Converts HTML/CSS via HTTP Chromium service | Gotenberg 8 Cluster (`/forms/chromium`) |
+| **Rendering Inbound**| Application Render Port (`IRenderEngine`) | Converts HTML/CSS via HTTP Chromium service | Gotenberg 8 Cluster (`/forms/chromium`) |
 | **Port Outbound** | Database / Gotenberg / S3 Results | Returns domain entities or raw streams | Application UseCases (Zero LOH buffer) |
+
+### Persistence Invariants & Rules Matrix
+| Architectural Concern | Prohibited Pattern (! BANNED) | Canonical SSoT Pattern (>> MANDATORY) |
+|---|---|---|
+| **Leaking Persistence** | Exposing EF Core `DbSet<T>` or `DbContext` outside | Hide behind domain repository interfaces (`ITemplateRepository`) |
+| **Identity Storage** | Mapping strongly-typed IDs as raw `string` or object | Value converter to PostgreSQL native `uuid`: `HasConversion(id => id.Value, v => new TemplateId(v))` |
+| **Tenant Scoping** | Manual `where p.ProjectId == id` filter in every query | Ambient multi-tenant global query filter in `AppDbContext`: `ConfigureProjectFilter` |
+| **Child Tenant Filters** | Leaving child entities unfiltered when parent aggregate has global query filter (EF Warning 10622) | Matching query filters on child entities (`TemplateVersion`, `FieldMapping`) via parent navigation |
+| **Concurrency Token** | Unprotected mutations susceptible to lost updates | PostgreSQL `xmin` system column mapped as row version token |
+| **Relationship Cascade**| Blind `Cascade` deletes on production documents/logs | `DeleteBehavior.Restrict` or `DeleteBehavior.SetNull` per Level 2 matrix |
+| **JSON Column Storage** | Storing structured payloads as plain escaped text | Native PostgreSQL `jsonb` column mapping |
+| **IQueryable Leakage** | Leaking `IQueryable<T>` outside Infrastructure | Repositories evaluate queries internally; return `Task<IReadOnlyList<T>>` or `Task<T?>` |
+| **Entity Tracking Policy**| Using `.AsNoTracking()` when fetching aggregates for mutation in Commands | Fetching with EF Tracking (`FindAsync` / query without `AsNoTracking`) in mutating UseCases |
+
+---
+
+## 2. Level 2: Core Persistence SSoT ASTs & Cognitive Infrastructure Engine
 
 ### Engineering Rationale & Architectural Decisions
 * **Why EF Core `IEntityTypeConfiguration<T>` over DataAnnotations:** Keeps domain POCOs completely uncontaminated by ORM attributes, maintaining Clean Architecture purity.
 * **Why PostgreSQL `xmin` over Timestamp Columns:** PostgreSQL manages `xmin` internally per transaction, guaranteeing true row-level concurrency without manual clock tracking or trigger overhead.
 * **Why `.AsNoTracking()` Separation:** Query reads bypass EF ChangeTracker overhead entirely for maximum throughput; mutating commands fetch tracked entities so `SaveChangesAsync` produces minimal SQL diffs.
 * **Why Native `jsonb` Mapping:** Leverages PostgreSQL JSON query and indexing capabilities without string concatenation or unvalidated string storage.
+* **Why ResponseHeadersRead Streaming:** Starting stream piping immediately upon HTTP header arrival avoids buffering multi-MB PDF payloads into .NET process RAM.
 
----
+### Cognitive Infrastructure Optimization & Guard Engine
+```yaml
+OptimizationObjectives:
+  PrimaryObjective: Bounded Memory Footprint & Absolute Persistence Isolation
+  TradeOffPriority: MemorySafety (Zero-LOH) > TenantIsolation > ConcurrencyFidelity > DirectQueryPerformance
 
-## 1. Level 1: Persistence Invariants & Rules Matrix
+ProactiveInfraGuards:
+  - Scope: SmkDoc.Infrastructure.Repositories
+    Trigger: Method returning IQueryable<T> across interface boundary
+    CanonicalAction: Materialize query asynchronously within repository and return IReadOnlyList<T> or T? >> Ref: [RULE-INFRA-002]
 
-| Architectural Concern | Prohibited Pattern (! BANNED) | Canonical SSoT Pattern (>> MANDATORY) |
-|---|---|---|
-| **Leaking Persistence** | Exposing EF Core `DbSet<T>` or `DbContext` outside | Hide behind domain repository interfaces (`ITemplateRepository`) |
-| **Identity Storage** | Mapping strongly-typed IDs as raw `string` or object | Value converter to PostgreSQL native `uuid`: `HasConversion(id => id.Value, v => new TemplateId(v))` |
-| **Tenant Scoping** | Manual `where p.ProjectId == id` filter in every query | Ambient multi-tenant global query filter in `AppDbContext`: `ConfigureProjectFilter` |
-| **Child Tenant Filters** | Leaving child entities unfiltered when parent aggregate has global query filter (EF Warning 10622) | Matching query filters on child entities (`TemplateVersion`, `FieldMapping`, `TemplateDataset`) via parent navigation |
-| **Concurrency Token** | Unprotected mutations susceptible to lost updates | PostgreSQL `xmin` system column mapped as row version token |
-| **Relationship Cascade** | Blind `Cascade` deletes on production documents/logs | `DeleteBehavior.Restrict` or `DeleteBehavior.SetNull` |
-| **JSON Column Storage** | Storing structured payloads as plain escaped text | Native PostgreSQL `jsonb` column mapping |
-| **IQueryable Leakage** | Leaking `IQueryable<T>` outside Infrastructure | Repositories evaluate queries internally; return `Task<IReadOnlyList<T>>` or `Task<T?>` |
-| **Entity Tracking Policy** | Using `.AsNoTracking()` when fetching aggregates for mutation in Commands | Fetching with EF Tracking (`FindAsync` / query without `AsNoTracking`) in mutating UseCases |
+  - Scope: SmkDoc.Infrastructure.Persistence
+    Trigger: Call to .IgnoreQueryFilters() in production application code
+    CanonicalAction: Reject immediately; ambient tenancy filter must remain enforced >> Ref: [TRAP-INFRA-002]
 
----
+  - Scope: SmkDoc.Infrastructure.Persistence.Configurations
+    Trigger: Entity mapping missing PostgreSQL xmin concurrency token
+    CanonicalAction: Add builder.Property<uint>("xmin").HasColumnType("xid").ValueGeneratedOnAddOrUpdate().IsConcurrencyToken() >> Ref: [RULE-INFRA-001]
 
-## 2. Level 2: Core Persistence SSoT ASTs & Integrity Matrix
+  - Scope: SmkDoc.Infrastructure.Gotenberg
+    Trigger: Buffering response stream into byte[] or MemoryStream.ToArray()
+    CanonicalAction: Enforce HttpCompletionOption.ResponseHeadersRead and pipe directly with 81,920 bounded buffer >> Ref: [RULE-INFRA-004]
+
+CoreExtensionSlots:
+  RepositoryAdapterSlot: IRepository<TAggregate, TId> (Pluggable entity persistence adapter)
+  StorageServiceSlot: IBucketStorageService (MinIO S3 / AWS S3 / Azure Blob Storage adapter)
+  RenderingEngineSlot: IRenderEngine (Gotenberg Chromium / OpenXML Word / ClosedXML Excel)
+```
 
 ### Referential Integrity & Cascade Delete Matrix
 | Relationship Category | Target Entities | EF Core DeleteBehavior | Foreign Key Invariant |
@@ -194,63 +223,108 @@ public sealed class TemplateRepository(AppDbContext dbContext) : ITemplateReposi
 * [MUST] Evaluate tenant context dynamically: `_projectContext == null || !_projectContext.IsResolved || e.ProjectId == _projectContext.ProjectId`.
 * [MUST NOT] Disable query filter via `.IgnoreQueryFilters()` in standard application routes.
 ```csharp
-protected override void OnModelCreating(ModelBuilder modelBuilder)
+using System.Reflection;
+using Microsoft.EntityFrameworkCore;
+using SmkDoc.Domain.Interfaces;
+
+namespace SmkDoc.Infrastructure.Persistence;
+
+public partial class AppDbContext
 {
-    base.OnModelCreating(modelBuilder);
-    modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
-
-    foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        if (typeof(IMustHaveProject).IsAssignableFrom(entityType.ClrType))
-        {
-            var method = typeof(AppDbContext)
-                .GetMethod(nameof(ConfigureProjectFilter), BindingFlags.NonPublic | BindingFlags.Instance)!
-                .MakeGenericMethod(entityType.ClrType);
+        base.OnModelCreating(modelBuilder);
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
 
-            method.Invoke(this, [modelBuilder]);
+        foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+        {
+            if (typeof(IMustHaveProject).IsAssignableFrom(entityType.ClrType))
+            {
+                var method = typeof(AppDbContext)
+                    .GetMethod(nameof(ConfigureProjectFilter), BindingFlags.NonPublic | BindingFlags.Instance)!
+                    .MakeGenericMethod(entityType.ClrType);
+
+                method.Invoke(this, [modelBuilder]);
+            }
         }
     }
-}
 
-private void ConfigureProjectFilter<TEntity>(ModelBuilder modelBuilder) where TEntity : class, IMustHaveProject
+    private void ConfigureProjectFilter<TEntity>(ModelBuilder modelBuilder) where TEntity : class, IMustHaveProject
+    {
+        modelBuilder.Entity<TEntity>().HasQueryFilter(e =>
+            _projectContext == null || !_projectContext.IsResolved || e.ProjectId == _projectContext.ProjectId);
+    }
+}
+```
+
+### Zero-LOH Gotenberg HTTP Streaming Client Archetype
+>> MANDATORY CANONICAL TEMPLATE [RULE-INFRA-004]:
+* [MUST] Use `HttpCompletionOption.ResponseHeadersRead` when sending conversion requests to Gotenberg.
+* [MUST] Pipe response body directly to consumer stream using bounded 81,920 buffer (Zero `byte[]` in-memory allocation).
+* [MUST] Forward `CancellationToken` to `SendAsync` and `CopyToAsync`.
+```csharp
+using System.Net.Http;
+using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
+
+namespace SmkDoc.Infrastructure.Gotenberg;
+
+public sealed class GotenbergClient(HttpClient httpClient)
 {
-    modelBuilder.Entity<TEntity>().HasQueryFilter(e =>
-        _projectContext == null || !_projectContext.IsResolved || e.ProjectId == _projectContext.ProjectId);
+    public async Task<Stream> ConvertHtmlToPdfStreamAsync(string htmlContent, CancellationToken ct)
+    {
+        using var form = new MultipartFormDataContent();
+        form.Add(new StringContent(htmlContent), "files", "index.html");
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/forms/chromium/convert/html")
+        {
+            Content = form
+        };
+
+        var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+        response.EnsureSuccessStatusCode();
+
+        return await response.Content.ReadAsStreamAsync(ct);
+    }
 }
 ```
 
 ---
 
-## 4. Level 4: Anti-Patterns & Micro-Diffs
+## 4. Level 4: Anti-Patterns & Unified Micro-Diffs
 
 ### [TRAP-INFRA-001]: IQueryable Boundary Leakage
-```csharp
-// ! BANNED: Leaking IQueryable across layer boundaries triggers uncontrolled execution
-public IQueryable<Template> GetTemplates() => dbContext.Templates;
-
-// >> CANONICAL: Fully evaluated, async query execution within repository port
-public async Task<IReadOnlyList<Template>> GetTemplatesAsync(ProjectId projectId, CancellationToken ct) =>
-    await dbContext.Templates.AsNoTracking().Where(t => t.ProjectId == projectId).ToListAsync(ct);
+```diff
+- public IQueryable<Template> GetTemplates() => dbContext.Templates;
++ public async Task<IReadOnlyList<Template>> GetTemplatesAsync(ProjectId projectId, CancellationToken ct) => await dbContext.Templates.AsNoTracking().Where(t => t.ProjectId == projectId).ToListAsync(ct);
 ```
+*Rationale: Leaking `IQueryable` crosses layer boundaries, causing deferred execution outside transaction and unit-of-work scopes.*
 
 ### [TRAP-INFRA-002]: Multi-Tenant Isolation Bypass
-```csharp
-// ! BANNED: Disabling global query filter without explicit elevated administrative authorization
-var templates = await dbContext.Templates.IgnoreQueryFilters().ToListAsync(ct); // FATAL: Data leak!
-
-// >> CANONICAL: Standard ambient query evaluated with automatic tenant filter
-var templates = await dbContext.Templates.ToListAsync(ct);
+```diff
+- var templates = await dbContext.Templates.IgnoreQueryFilters().ToListAsync(ct);
++ var templates = await dbContext.Templates.ToListAsync(ct);
 ```
+*Rationale: Disabling global query filters creates catastrophic IDOR cross-tenant data leaks in production endpoints.*
 
 ### [TRAP-EF-003]: Untracked Aggregate Mutation (Silent Save Loss)
-```csharp
-// ! BANNED: Mutating an entity fetched with AsNoTracking silently drops changes on CommitAsync
-var template = await dbContext.Templates.AsNoTracking().FirstOrDefaultAsync(t => t.Id == id, ct);
-template.UpdateName(newName, now);
-await unitOfWork.CommitAsync(ct); // FATAL: 0 rows affected! Changes lost silently.
-
-// >> CANONICAL: Mutating entity MUST be tracked by EF Core ChangeTracker
-var template = await templateRepo.GetByIdAsync(id, ct); // Tracked via FindAsync
-template.UpdateName(newName, now);
-await unitOfWork.CommitAsync(ct); // SQL UPDATE emitted correctly
+```diff
+- var template = await dbContext.Templates.AsNoTracking().FirstOrDefaultAsync(t => t.Id == id, ct); template.Update(name, cat, now); await unitOfWork.CommitAsync(ct);
++ var template = await templateRepo.GetByIdAsync(id, ct); template.Update(name, cat, now); await unitOfWork.CommitAsync(ct);
 ```
+*Rationale: Entities fetched with `AsNoTracking()` are ignored by EF Core ChangeTracker, silently emitting zero SQL updates on commit.*
+
+### [TRAP-INFRA-004]: Multi-MB Gotenberg Buffer Allocation in RAM
+```diff
+- var bytes = await response.Content.ReadAsByteArrayAsync(ct); return new MemoryStream(bytes);
++ return await response.Content.ReadAsStreamAsync(ct);
+```
+*Rationale: Calling `ReadAsByteArrayAsync` forces multi-MB PDFs into RAM byte arrays, triggering GC Gen 2 LOH fragmentation.*
+
+### [TRAP-INFRA-005]: Missing Concurrency Token Configuration
+```diff
+- builder.ToTable("templates"); builder.HasKey(e => e.Id);
++ builder.ToTable("templates"); builder.HasKey(e => e.Id); builder.Property<uint>("xmin").HasColumnType("xid").ValueGeneratedOnAddOrUpdate().IsConcurrencyToken();
+```
+*Rationale: Omitting PostgreSQL `xmin` concurrency tokens leaves entity records vulnerable to silent overwrite race conditions.*

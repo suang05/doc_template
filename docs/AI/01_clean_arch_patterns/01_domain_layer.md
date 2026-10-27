@@ -2,24 +2,43 @@
 
 <context>
 Scope: Domain Layer Patterns, Aggregate Roots, Child Entities, Value Objects, Smart Enums, Guards & ID Catalog
-Target: `SmkDoc.Domain/` (`Entities/`, `ValueObjects/`, `Enums/`, `Common/`, `Exceptions/`)
+Target: `SmkDoc.Domain/` (`Entities/`, `ValueObjects/`, `Enums/`, `Common/`, `Exceptions/`, `Events/`)
 Authority: Absolute SSoT Invariant (Zero infrastructure dependency, 100% pure C# 13 POCOs)
-Boundary: Pure Architectural AST only. Prohibit task roadmaps, execution checklists, and conversational prose.
+Invariants: Encapsulated State, Single Factory Create(), UUIDv7 Identifiers, Parameterized TimeProvider
+Format: 100% English AST, Positive-First Archetypes (80/20 Rule), Canonical Keyboard Operators
 TriggerSignals: [SIGNAL_DOMAIN_MUTATION]
 UpstreamKernel: AGENTS.md
 </context>
 
 ---
 
-## Architectural Wiring & Data Contracts
+## 1. Level 1: Domain Invariants & Encapsulation Rules
 
+### Architectural Wiring & Layer Contracts
 | Direction | Upstream Origin | Current Layer Role (Domain Core) | Downstream Destination |
 |---|---|---|---|
 | **Inbound Creation** | Application (`CreateTemplateCommand`) | Instantiates via SSoT Factory `Template.Create(...)` | Encapsulated Domain Aggregate Root |
 | **State Mutation** | Application (`PublishVersionCommand`) | Executes expressive business verb (`template.PublishVersion`) | Mutates internal state & appends `IDomainEvent` |
-| **Outbound Persistence**| Domain POCOs (`Template`) | Hydrated/Persisted via `ITemplateRepository` port | Infrastructure (`TemplateConfiguration` -> PostgreSQL) |
+| **Outbound Persistence**| Domain POCOs (`Template`) | Hydrated/Persisted via `ITemplateRepository` port | Infrastructure (`TemplateConfiguration` => PostgreSQL) |
 | **Outbound Egress** | Domain State | Mapped to immutable Application DTOs | Presentation Layer (`TemplateResultDto`) |
 | **Side-Effects** | Aggregate Lifecycle Events | Appends immutable `IDomainEvent` records | `AppDbContext` Outbox / Post-Commit Dispatchers |
+
+### Domain Isolation Invariants Matrix
+| Architectural Concern | Prohibited Pattern (! BANNED) | Canonical SSoT Pattern (>> MANDATORY) |
+|---|---|---|
+| **External Dependencies** | NuGet packages, EF Core, ASP.NET Core, outer layers in csproj | Pure .NET SDK; zero PackageReference and zero ProjectReference in csproj |
+| **Persistence Ignorance** | ORM Data Annotations (`[Key]`, `[Table]`, `[Column]`) inside Domain | Pure C# POCOs; EF Core mapping isolated strictly in Infrastructure `IEntityTypeConfiguration<T>` |
+| **Always-Valid State** | Public setters, parameterless public constructors, mutable child lists | Encapsulated `private set`, 1 canonical factory `Create()`, `IReadOnlyCollection<T>`, expressive verbs |
+| **Temporal Determinism** | Direct system clock queries: `DateTime.UtcNow`, `DateTime.Now` | Time injected as explicit parameter: `DateTimeOffset now` or `TimeProvider` |
+| **Cross-Aggregate Boundaries**| Cross-aggregate navigation collections (`Project._templates`, `Company._projects`)| Reference other Aggregate Roots strictly by ID (`ProjectId`, `CompanyId`); unidirectional FK |
+| **Strongly-Typed Identity** | Raw `Guid`, primitive string obsession, implicit ID conversion | `readonly record struct TId(Guid Value)`, validated `sealed record class` VOs, `explicit operator` |
+| **Side-Effect Decoupling** | Direct I/O, HTTP client calls, messaging bus dispatch inside Domain | Entities append immutable `IDomainEvent` in-memory; dispatched post-commit via UseCases |
+| **Child Entity Lifecycle** | Creating child entities directly outside aggregate: `var v = TemplateVersion.Draft(...)` | Aggregate root encapsulates child creation & lifecycle: `template.CreateDraftVersion(...)` |
+| **Tenant Partitioning** | Default optional or unguarded ProjectId: `ProjectId projectId = default` | Mandatory fail-fast assertion: `ProjectId = Guard.NotEmpty(projectId, nameof(ProjectId));` |
+
+---
+
+## 2. Level 2: Core Domain SSoT Catalogs & Cognitive Domain Engine
 
 ### Engineering Rationale & Architectural Decisions
 * **Why Sequential UUIDv7:** Chronological ordering eliminates PostgreSQL B-Tree index fragmentation while allowing client/caller ID pre-allocation without database round-trips.
@@ -28,25 +47,35 @@ UpstreamKernel: AGENTS.md
 * **Why Injected `DateTimeOffset now`:** Eliminates ambient system clock queries, guaranteeing 100% deterministic unit testing via `FakeTimeProvider`.
 * **Why In-Memory Domain Events:** Decouples domain aggregates from messaging infrastructure; side-effects are dispatched strictly post-transaction.
 
----
+### Cognitive Domain Optimization & Guard Engine
+```yaml
+OptimizationObjectives:
+  PrimaryObjective: Domain Invariant Preservation & Pure Entity State Encapsulation
+  TradeOffPriority: DomainPurity > StrictEncapsulation > TemporalDeterminism > RawBoilerplateReduction
 
-## 1. Level 1: Domain Invariants & Encapsulation Rules
+ProactiveDomainGuards:
+  - Scope: SmkDoc.Domain.Entities
+    Trigger: Detection of public setter (`set;`) or public parameterless constructor
+    CanonicalAction: Enforce private set and declare single canonical static Create() factory >> Ref: [RULE-DOM-001]
 
-| Architectural Concern | Prohibited Pattern (! BANNED) | Canonical SSoT Pattern (>> MANDATORY) |
-|---|---|---|
-| **External Dependencies** | NuGet packages, EF Core, ASP.NET Core, outer layers in csproj | Pure .NET SDK; zero PackageReference and zero ProjectReference in csproj |
-| **Persistence Ignorance** | ORM Data Annotations (`[Key]`, `[Table]`, `[Column]`) inside Domain | Pure C# POCOs; EF Core mapping isolated strictly in Infrastructure `IEntityTypeConfiguration<T>` |
-| **Always-Valid State** | Public setters, parameterless public constructors, mutable child lists | Encapsulated `private set`, 1 canonical factory `Create()`, `IReadOnlyCollection<T>`, expressive domain verbs |
-| **Temporal Determinism** | Direct system clock queries: `DateTime.UtcNow`, `DateTime.Now` | Time injected as explicit parameter: `DateTimeOffset now` or `TimeProvider` |
-| **Cross-Aggregate Boundaries** | Cross-aggregate navigation collections (`Project._templates`, `Company._projects`) | Reference other Aggregate Roots strictly by ID (`ProjectId`, `CompanyId`); map Unidirectional FK (`.WithMany()`) |
-| **Strongly-Typed Identity & VOs** | Raw `Guid`, primitive string obsession, implicit ID conversion | `readonly record struct TId(Guid Value)`, validated `sealed record class` VOs, `explicit operator` |
-| **Side-Effect Decoupling** | Direct I/O, HTTP client calls, messaging bus dispatch inside Domain | Entities append immutable `IDomainEvent` in-memory; dispatched post-commit via UseCases/Outbox |
-| **Child Entity Lifecycle** | Creating child entities directly outside aggregate: `var v = TemplateVersion.Draft(...)` | Aggregate root encapsulates child creation & lifecycle: `document.CreateVersion(...)`, `template.CreateDraftVersion(...)` |
-| **Tenant Partitioning** | Default optional or unguarded ProjectId: `ProjectId projectId = default` | Mandatory fail-fast assertion: `ProjectId = Guard.NotEmpty(projectId, nameof(ProjectId));` |
+  - Scope: SmkDoc.Domain
+    Trigger: Reference to DateTime.UtcNow, DateTime.Now, or ambient clock
+    CanonicalAction: Parameterize method signature with explicit DateTimeOffset now
 
----
+  - Scope: SmkDoc.Domain.ValueObjects.Ids
+    Trigger: Declaration of implicit cast operator to/from Guid
+    CanonicalAction: Enforce explicit cast operator to prevent cross-domain ID pollution >> Ref: [TRAP-DOM-003]
 
-## 2. Level 2: Core Domain SSoT Catalogs & AST Signatures
+  - Scope: SmkDoc.Domain.Dependencies
+    Trigger: Addition of Microsoft.EntityFrameworkCore or external packages in csproj
+    CanonicalAction: Reject immediately; Domain must compile with pure .NET SDK only
+
+CoreExtensionSlots:
+  AggregateRootSlot: BaseEntity<TId> (Encapsulated identity, versioning, and domain event hooks)
+  ValueObjectSlot: ValueObject / Record Class (Immutable self-validating business attributes)
+  DomainEventSlot: IDomainEvent (Immutable event notification record)
+  SmartEnumSlot: Enumeration (Type-safe behavior-driven static enum instances)
+```
 
 ### Aggregate Root Strongly-Typed IDs
 All Aggregate Root strongly-typed IDs are defined as `readonly record struct` under `SmkDoc.Domain.ValueObjects.Ids`:
@@ -60,8 +89,6 @@ All Aggregate Root strongly-typed IDs are defined as `readonly record struct` un
 | `CompanyId` | `Guid` (UUIDv7) | `Company` | IdentityAccess |
 | `UserId` | `Guid` (UUIDv7) | `User` | IdentityAccess |
 | `ApiKeyId` | `Guid` (UUIDv7) | `ApiKey` | IdentityAccess |
-
-*Note: Child entities (`TemplateVersion`, `DocumentVersion`, `FieldMapping`, `Font`) and audit entities (`GenerationLog`) utilize standard `Guid` identities scoped strictly under their parent Aggregate Root ID, avoiding artificial abstraction overhead.*
 
 ### All 10 Smart Enums
 All Smart Enums inherit `Enumeration` under `SmkDoc.Domain.Enums`:
@@ -102,7 +129,7 @@ internal static class Guard
 ```
 
 ### Domain Events Catalog
-All Domain Events implement `IDomainEvent` (`INotification`) under `SmkDoc.Domain.Events`:
+All Domain Events implement `IDomainEvent` under `SmkDoc.Domain.Events`:
 | Domain Event Record | Payload Parameters | Trigger Entity & Business Verb | Bounded Context |
 |---|---|---|---|
 | `TemplatePublishedDomainEvent` | `TemplateId TemplateId, Guid VersionId, DateTimeOffset PublishedAt` | `Template.PublishVersion(...)` | Authoring |
@@ -118,13 +145,14 @@ All Domain Events implement `IDomainEvent` (`INotification`) under `SmkDoc.Domai
 >> MANDATORY CANONICAL TEMPLATE [RULE-DOM-001]:
 * [MUST] Inherit from `BaseEntity<TId>` where `TId` is a strongly-typed ID value object.
 * [MUST] Declare class as `sealed class`. Entities MUST remain reference types (prohibit `struct`/`record struct`).
-* [MUST] Encapsulate all property mutations with `private set;` or `init;`. Direct public setters are strictly prohibited.
+* [MUST] Encapsulate all property mutations with `private set;`. Direct public setters are strictly prohibited.
 * [MUST] Provide exactly 1 `private Template()` parameterless constructor for EF Core hydration.
 * [MUST] Provide an `internal` constructor for factory/test hydration and exactly 1 `public static TEntity Create(...)` factory method as SSoT.
 * [MUST] Require caller to pass explicit `DateTimeOffset now` parameter for time-dependent state mutations (prohibit `DateTime.UtcNow`).
 * [MUST] Encapsulate collections as `IReadOnlyCollection<T>` backed by a private `List<T>` field initialized with `[]`.
 ```csharp
 using SmkDoc.Domain.Common;
+using SmkDoc.Domain.Events;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
@@ -202,6 +230,7 @@ public sealed class Template : BaseEntity<TemplateId>, IMustHaveProject
         version.Publish(now);
         CurrentVersionId = versionId;
         SetUpdated(now);
+        AddDomainEvent(new TemplatePublishedDomainEvent(Id, versionId, now));
         return version;
     }
 
@@ -224,6 +253,9 @@ public sealed class Template : BaseEntity<TemplateId>, IMustHaveProject
 * [MUST] Provide `internal static TChild Create(...)` factory accessible only to aggregate root.
 * [MUST] Enforce all child lifecycle mutations and invariants strictly through the parent Aggregate Root.
 ```csharp
+using SmkDoc.Domain.Common;
+using SmkDoc.Domain.ValueObjects.Ids;
+
 namespace SmkDoc.Domain.Entities;
 
 public sealed class FieldMapping : BaseEntity
@@ -252,6 +284,9 @@ public sealed class FieldMapping : BaseEntity
 * [MUST] Model small, immutable geometric or numeric measurements (<= 16 bytes, e.g. `PageDimension`, `Margins`) as `readonly record struct`.
 * [MUST] Execute validation guards immediately inside `Create(...)` throwing strongly-typed `DomainValidationException`.
 ```csharp
+using SmkDoc.Domain.Common;
+using SmkDoc.Domain.Exceptions;
+
 namespace SmkDoc.Domain.ValueObjects;
 
 // Reference Type Validated VO
@@ -278,10 +313,10 @@ public sealed record class EncryptedConnectionString
 public readonly record struct PageDimension(float WidthMm, float HeightMm);
 
 // Normalized URL-Friendly Tenant Slug VO
-public sealed partial record ProjectSlug
+public sealed record class ProjectSlug
 {
     public string Value { get; }
-    public ProjectSlug(string value) => Value = Guard.NotBlank(value, "Project slug");
+    private ProjectSlug(string value) => Value = Guard.NotBlank(value, "Project slug");
     public static ProjectSlug Create(string value) => new(value);
     public static implicit operator string(ProjectSlug slug) => slug.Value;
     public override string ToString() => Value;
@@ -292,7 +327,7 @@ public sealed record class Sha256Hash
 {
     public const int HashLength = 64;
     public string Value { get; }
-    public Sha256Hash(string value)
+    private Sha256Hash(string value)
     {
         if (string.IsNullOrWhiteSpace(value) || value.Length != HashLength)
             throw new DomainValidationException($"Hash must be exactly {HashLength} hexadecimal characters.");
@@ -326,39 +361,47 @@ public sealed class RenderEngineType : Enumeration
 ```
 
 ---
-## 4. Level 4: High-Salience Fatal Traps & Interceptors
+
+## 4. Level 4: High-Salience Fatal Traps & Unified Micro-Diffs
 
 ### [TRAP-DOM-001]: Entity Struct Identity Collapse
-```csharp
-// ! BANNED: Declaring entity as struct collapses EF Core change tracking and causes stack copy bloat
-public struct Template : BaseEntity { ... }
-
-// >> CANONICAL: Sealed class reference type preserving identity and EF Core ChangeTracker snapshots
-public sealed class Template : BaseEntity<TemplateId> { ... }
+```diff
+- public struct Template : BaseEntity { }
++ public sealed class Template : BaseEntity<TemplateId> { }
 ```
+*Rationale: Struct entities cause state copy-loss on pass-by-value and break EF Core ChangeTracker snapshot fidelity.*
 
 ### [TRAP-DOM-002]: Struct Value Object Default Invariant Breach
-```csharp
-// ! BANNED: Struct value object allows default(T) bypass of Guard validation
-public readonly record struct EmailAddress(string Value); // default(EmailAddress).Value is null!
-
-// >> CANONICAL: Sealed record class with private constructor enforcing factory execution
-public sealed record class EmailAddress
-{
-    public string Value { get; }
-    private EmailAddress(string value) => Value = value;
-    public static EmailAddress Create(string? value) => new(Guard.ValidEmail(value, "Email"));
-}
+```diff
+- public readonly record struct EmailAddress(string Value);
++ public sealed record class EmailAddress { public string Value { get; } private EmailAddress(string value) => Value = value; public static EmailAddress Create(string? value) => new(Guard.ValidEmail(value, "Email")); }
 ```
+*Rationale: Struct value objects allow `default(EmailAddress)` bypass of guard checks, producing null values at runtime.*
 
 ### [TRAP-DOM-003]: Implicit ID Conversion Cross-Domain Pollution
-```csharp
-// ! BANNED: Implicit operator allows accidental assignment between different ID types or primitive Guids
-public static implicit operator Guid(TemplateId id) => id.Value;
-public static implicit operator TemplateId(Guid value) => new(value);
-// Inadvertent cross-domain pollution: TemplateId assigned to ProjectId or DocumentId slot without compiler error
-
-// >> CANONICAL: Explicit operators prevent silent cross-domain ID pollution and force deliberate casting
-public static explicit operator Guid(TemplateId id) => id.Value;
-public static explicit operator TemplateId(Guid value) => new(value);
+```diff
+- public static implicit operator Guid(TemplateId id) => id.Value; public static implicit operator TemplateId(Guid value) => new(value);
++ public static explicit operator Guid(TemplateId id) => id.Value; public static explicit operator TemplateId(Guid value) => new(value);
 ```
+*Rationale: Implicit conversions allow silent accidental assignment of `TemplateId` to `ProjectId` or `DocumentId` slots without compiler error.*
+
+### [TRAP-DOM-004]: Direct System Clock Access
+```diff
+- PublishedAt = DateTimeOffset.UtcNow;
++ PublishedAt = Guard.NotDefault(now, nameof(now));
+```
+*Rationale: Direct system clock access prevents deterministic unit testing via `FakeTimeProvider`.*
+
+### [TRAP-DOM-005]: Public Property Mutation / Missing Encapsulation
+```diff
+- public TemplateName Name { get; set; }
++ public TemplateName Name { get; private set; } = null!;
+```
+*Rationale: Public setters allow external callers to mutate entity state bypassing aggregate invariants and validation rules.*
+
+### [TRAP-DOM-006]: Direct Child Entity Creation Outside Aggregate Root
+```diff
+- var version = TemplateVersion.Create(templateId, 1, html, now);
++ var version = template.CreateDraftVersion(html, now);
+```
+*Rationale: Creating child entities outside their parent aggregate root breaks lifecycle boundaries and invariant validation.*
