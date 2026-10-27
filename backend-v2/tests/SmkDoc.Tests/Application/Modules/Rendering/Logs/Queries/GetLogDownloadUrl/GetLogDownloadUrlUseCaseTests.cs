@@ -1,13 +1,14 @@
-﻿using SmkDoc.Application.Common.Interfaces;
+using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Rendering.Logs.Queries.GetLogDownloadUrl;
 using SmkDoc.Domain.Entities;
+using SmkDoc.Domain.Interfaces;
 using SmkDoc.Tests.Common.Builders;
 
 namespace SmkDoc.Tests.Application.Modules.Rendering.Logs.Queries.GetLogDownloadUrl;
 
 public sealed class GetLogDownloadUrlUseCaseTests
 {
-    private readonly IRepository<GenerationLog> _logRepo = Substitute.For<IRepository<GenerationLog>>();
+    private readonly IGenerationLogRepository _logRepo = Substitute.For<IGenerationLogRepository>();
     private readonly IStorageService _storage = Substitute.For<IStorageService>();
 
     private GetLogDownloadUrlUseCase CreateSut() =>

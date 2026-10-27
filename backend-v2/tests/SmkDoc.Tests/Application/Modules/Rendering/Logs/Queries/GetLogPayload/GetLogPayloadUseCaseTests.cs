@@ -6,6 +6,7 @@ using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Rendering.Logs.Queries.GetLogPayload;
 using SmkDoc.Domain.Entities;
+using SmkDoc.Domain.Interfaces;
 using SmkDoc.Tests.Common.Builders;
 using Xunit;
 
@@ -13,7 +14,7 @@ namespace SmkDoc.Tests.Application.Modules.Rendering.Logs.Queries.GetLogPayload;
 
 public sealed class GetLogPayloadUseCaseTests
 {
-    private readonly IRepository<GenerationLog> _logRepo = Substitute.For<IRepository<GenerationLog>>();
+    private readonly IGenerationLogRepository _logRepo = Substitute.For<IGenerationLogRepository>();
     private readonly IStorageService _storageService = Substitute.For<IStorageService>();
 
     private GetLogPayloadUseCase CreateSut() => new(_logRepo, _storageService);

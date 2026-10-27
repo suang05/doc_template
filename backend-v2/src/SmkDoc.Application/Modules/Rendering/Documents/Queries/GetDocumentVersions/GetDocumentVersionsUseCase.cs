@@ -1,24 +1,21 @@
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Rendering.Documents.DTOs;
-using SmkDoc.Domain.Entities;
+using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects;
 
 namespace SmkDoc.Application.Modules.Rendering.Documents.Queries.GetDocumentVersions;
 
 public sealed class GetDocumentVersionsUseCase(
-    IRepository<Document> documentRepo,
-    IRepository<DocumentVersion> versionRepo) : IUseCase<GetDocumentVersionsQuery, List<DocumentVersionDto>>
+    IDocumentRepository documentRepo) : IUseCase<GetDocumentVersionsQuery, List<DocumentVersionDto>>
 {
-    private readonly IRepository<Document> _documentRepo = documentRepo;
-    private readonly IRepository<DocumentVersion> _versionRepo = versionRepo;
-
     public async Task<List<DocumentVersionDto>> ExecuteAsync(GetDocumentVersionsQuery query, CancellationToken ct = default)
     {
-        var document = await _documentRepo.FirstOrDefaultAsync(d => d.DocumentRef == query.DocumentRef, ct);
+        var docRef = DocumentReference.Create(query.DocumentRef);
+        var document = await documentRepo.GetByDocumentRefAsync(docRef, ct);
         if (document is null) return [];
 
-        var versions = await _versionRepo.ListAsync(v => v.DocumentId == document.Id, ct);
+        var versions = await documentRepo.GetVersionHistoryAsync(docRef, ct);
         return versions
-            .OrderByDescending(v => v.Version)
             .Select(v => new DocumentVersionDto(
                 v.Id, v.DocumentId.Value, document.DocumentRef,
                 v.Version, v.TemplateVersionId, v.GenerationLogId,

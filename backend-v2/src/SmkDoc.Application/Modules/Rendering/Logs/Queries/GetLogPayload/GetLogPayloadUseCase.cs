@@ -3,12 +3,12 @@ using SmkDoc.Application.Common;
 using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Rendering.Logs.DTOs;
-using SmkDoc.Domain.Entities;
+using SmkDoc.Domain.Interfaces;
 
 namespace SmkDoc.Application.Modules.Rendering.Logs.Queries.GetLogPayload;
 
 public sealed class GetLogPayloadUseCase(
-    IRepository<GenerationLog> logRepo,
+    IGenerationLogRepository logRepo,
     IStorageService storageService) : IUseCase<GetLogPayloadQuery, LogPayloadResultDto>
 {
     private const string OffloadedPrefix = "[OFFLOADED:";

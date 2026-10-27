@@ -1,21 +1,21 @@
-﻿using System.Linq.Expressions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Rendering.Documents.Queries.DownloadDocumentVersion;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
+using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Tests.Common.Builders;
 
 namespace SmkDoc.Tests.Application.Modules.Rendering.Documents.Queries.DownloadDocumentVersion;
 
 public sealed class DownloadDocumentVersionUseCaseTests
 {
-    private readonly IRepository<Document> _documentRepo = Substitute.For<IRepository<Document>>();
-    private readonly IRepository<DocumentVersion> _versionRepo = Substitute.For<IRepository<DocumentVersion>>();
-    private readonly IRepository<GenerationLog> _logRepo = Substitute.For<IRepository<GenerationLog>>();
+    private readonly IDocumentRepository _documentRepo = Substitute.For<IDocumentRepository>();
+    private readonly IGenerationLogRepository _logRepo = Substitute.For<IGenerationLogRepository>();
     private readonly IStorageService _storage = Substitute.For<IStorageService>();
 
     private DownloadDocumentVersionUseCase CreateSut() =>
-        new(_documentRepo, _versionRepo, _logRepo, _storage);
+        new(_documentRepo, _logRepo, _storage);
 
     [Fact]
     public async Task ExecuteAsync_WhenVersionExists_ReturnsStreamAndMetadata()
@@ -28,9 +28,9 @@ public sealed class DownloadDocumentVersionUseCaseTests
         var log = GenerationLogBuilder.Success(id: logId, outputKey: "outputs/sc001_v1.pdf", durationMs: 1);
         var pdfBytes = new byte[] { 0x25, 0x50, 0x44, 0x46 };
 
-        _documentRepo.FirstOrDefaultAsync(Arg.Any<Expression<Func<Document, bool>>>(), Arg.Any<CancellationToken>())
+        _documentRepo.GetByDocumentRefAsync(Arg.Any<DocumentReference>(), Arg.Any<CancellationToken>())
             .Returns(document);
-        _versionRepo.FirstOrDefaultAsync(Arg.Any<Expression<Func<DocumentVersion, bool>>>(), Arg.Any<CancellationToken>())
+        _documentRepo.GetVersionAsync(Arg.Any<DocumentReference>(), 1, Arg.Any<CancellationToken>())
             .Returns(docVersion);
         _logRepo.GetByIdAsync(logId, Arg.Any<CancellationToken>())
             .Returns(log);
@@ -50,7 +50,7 @@ public sealed class DownloadDocumentVersionUseCaseTests
     public async Task ExecuteAsync_WhenDocumentDoesNotExist_ThrowsNotFoundException()
     {
         // Arrange
-        _documentRepo.FirstOrDefaultAsync(Arg.Any<Expression<Func<Document, bool>>>(), Arg.Any<CancellationToken>())
+        _documentRepo.GetByDocumentRefAsync(Arg.Any<DocumentReference>(), Arg.Any<CancellationToken>())
             .Returns((Document?)null);
 
         // Act

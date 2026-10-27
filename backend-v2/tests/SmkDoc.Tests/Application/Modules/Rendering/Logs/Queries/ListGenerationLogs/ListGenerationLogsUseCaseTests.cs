@@ -1,15 +1,14 @@
-﻿using System.Linq.Expressions;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Rendering.Logs.Queries.ListGenerationLogs;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
+using SmkDoc.Domain.Interfaces;
 using SmkDoc.Tests.Common.Builders;
 
 namespace SmkDoc.Tests.Application.Modules.Rendering.Logs.Queries.ListGenerationLogs;
 
 public sealed class ListGenerationLogsUseCaseTests
 {
-    private readonly IRepository<GenerationLog> _repo = Substitute.For<IRepository<GenerationLog>>();
+    private readonly IGenerationLogRepository _repo = Substitute.For<IGenerationLogRepository>();
 
     private ListGenerationLogsUseCase CreateSut() =>
         new(_repo);
@@ -33,17 +32,15 @@ public sealed class ListGenerationLogsUseCaseTests
                 .Build()
         };
 
-        _repo.PagedListAsync(
-            Arg.Any<Expression<Func<GenerationLog, bool>>?>(),
-            Arg.Any<Expression<Func<GenerationLog, DateTimeOffset>>>(),
-            true,
+        _repo.ListPagedAsync(
+            "crm",
             1,
             50,
             Arg.Any<CancellationToken>())
             .Returns((logs, 1));
 
         // Act
-        var result = await CreateSut().ExecuteAsync(new ListGenerationLogsQuery(1, 50));
+        var result = await CreateSut().ExecuteAsync(new ListGenerationLogsQuery(1, 50, "crm"));
 
         // Assert
         result.Should().NotBeNull();

@@ -1,12 +1,12 @@
 using SmkDoc.Application.Common;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
+using SmkDoc.Domain.Interfaces;
 
 namespace SmkDoc.Application.Modules.Rendering.Logs.Queries.GetLogDownloadUrl;
 
 public sealed class GetLogDownloadUrlUseCase(
-    IRepository<GenerationLog> logRepo,
+    IGenerationLogRepository logRepo,
     IStorageService storageService) : IUseCase<GetLogDownloadUrlQuery, string>
 {
     public async Task<string> ExecuteAsync(GetLogDownloadUrlQuery query, CancellationToken ct = default)
