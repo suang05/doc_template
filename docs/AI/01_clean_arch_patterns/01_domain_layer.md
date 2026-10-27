@@ -1,8 +1,8 @@
 # [PATTERN-001]: 01_domain_layer.md — Domain Layer Design Patterns & SSoT Catalog
 
 <context>
-Scope: Domain Layer Patterns, Aggregate Roots, Child Entities, Value Objects, Smart Enums, Guards & ID Catalog
-Target: `SmkDoc.Domain/` (`Entities/`, `ValueObjects/`, `Enums/`, `Common/`, `Exceptions/`, `Events/`)
+Scope: Domain Layer Patterns, Aggregate Roots, Child Entities, Value Objects, Smart Enums, Guards, Domain Events & BaseEntity Contract
+Target: `SmkDoc.Domain/` (`Entities/`, `ValueObjects/`, `Enums/`, `Common/`, `Exceptions/`, `Events/`, `Interfaces/`)
 Authority: Absolute SSoT Invariant (Zero infrastructure dependency, 100% pure C# 13 POCOs)
 Invariants: Encapsulated State, Single Factory Create(), UUIDv7 Identifiers, Parameterized TimeProvider
 Format: 100% English AST, Positive-First Archetypes (80/20 Rule), Canonical Keyboard Operators
@@ -46,6 +46,7 @@ UpstreamKernel: AGENTS.md
 * **Why Explicit ID Operators:** Prohibits accidental cross-domain ID assignment (e.g. assigning a `ProjectId` to a `TemplateId` slot) at compile-time.
 * **Why Injected `DateTimeOffset now`:** Eliminates ambient system clock queries, guaranteeing 100% deterministic unit testing via `FakeTimeProvider`.
 * **Why In-Memory Domain Events:** Decouples domain aggregates from messaging infrastructure; side-effects are dispatched strictly post-transaction.
+* **Why Child Entities Use Standard `Guid`:** Child entities (`TemplateVersion`, `FieldMapping`, `TemplateDataset`) are strictly scoped within their parent aggregate root; creating strongly-typed ID structs for every child entity causes abstraction bloat without safety benefits.
 
 ### Cognitive Domain Optimization & Guard Engine
 ```yaml
@@ -72,6 +73,7 @@ ProactiveDomainGuards:
 
 CoreExtensionSlots:
   AggregateRootSlot: BaseEntity<TId> (Encapsulated identity, versioning, and domain event hooks)
+  ChildEntitySlot: BaseEntity (Parent-scoped entity lifecycle)
   ValueObjectSlot: ValueObject / Record Class (Immutable self-validating business attributes)
   DomainEventSlot: IDomainEvent (Immutable event notification record)
   SmartEnumSlot: Enumeration (Type-safe behavior-driven static enum instances)
@@ -90,6 +92,18 @@ All Aggregate Root strongly-typed IDs are defined as `readonly record struct` un
 | `UserId` | `Guid` (UUIDv7) | `User` | IdentityAccess |
 | `ApiKeyId` | `Guid` (UUIDv7) | `ApiKey` | IdentityAccess |
 
+### Child & Association Entities Catalog
+Child entities utilize standard `Guid` identities scoped strictly under their parent Aggregate Root ID, avoiding artificial abstraction overhead:
+| Child / Association Entity | Parent Aggregate Root | Identity Type | Lifecycle Controller |
+|---|---|---|---|
+| `TemplateVersion` | `Template` | `Guid` | `Template.CreateDraftVersion(...)`, `Template.PublishVersion(...)` |
+| `FieldMapping` | `Template` | `Guid` | `Template.AddFieldMapping(...)` |
+| `TemplateDataset` | `Template` | `Guid` | `Template.AddDataset(...)` |
+| `DocumentVersion` | `Document` | `Guid` | `Document.CreateVersion(...)` |
+| `RefreshToken` | `User` | `Guid` | `User.AddRefreshToken(...)`, `User.RevokeRefreshToken(...)` |
+| `UserProjectRole` | `User` / `Project` | `Guid` | `User.AssignRole(...)` |
+| `GenerationLog` | Audit Aggregate | `Guid` | Standalone audit trail capturing render attempts |
+
 ### All 10 Smart Enums
 All Smart Enums inherit `Enumeration` under `SmkDoc.Domain.Enums`:
 | Smart Enum Class | Values (Id / Name) | Usage Scope |
@@ -104,6 +118,29 @@ All Smart Enums inherit `Enumeration` under `SmkDoc.Domain.Enums`:
 | `SystemRole` | 1: `SuperAdmin`, 2: `Member`, 3: `Viewer` | Global system RBAC authorization |
 | `TemplateFormat` | 1: `html`, 2: `docx`, 3: `xlsx`, 4: `pdf` | Template source file format |
 | `TemplateVersionStatus`| 0: `Draft`, 1: `Published`, 2: `Archived` | Template version lifecycle |
+
+### Comprehensive Value Objects Catalog
+All Value Objects encapsulate validation rules and enforce immutability:
+| Value Object Class | Category | Type Structure | Invariant / Validation Rule |
+|---|---|---|---|
+| `TemplateName` | Identity/Descriptor | `sealed record class` | Not blank, <= 100 chars |
+| `TemplateSlug` | URL/Key | `sealed record class` | Lowercase alphanumeric kebab: `^[a-z0-9-]+$` |
+| `ProjectName` | Identity/Descriptor | `sealed record class` | Not blank, <= 100 chars |
+| `ProjectSlug` | URL/Key | `sealed record class` | Lowercase alphanumeric kebab: `^[a-z0-9-]+$` |
+| `CompanyName` | Identity/Descriptor | `sealed record class` | Not blank, <= 150 chars |
+| `ConnectionName` | Identity/Descriptor | `sealed record class` | Not blank, <= 100 chars |
+| `DatasetName` | Identity/Descriptor | `sealed record class` | Not blank, <= 100 chars |
+| `DatasetAlias` | Variable Identifier | `sealed record class` | Valid identifier format: `^[a-zA-Z_][a-zA-Z0-9_]*$` |
+| `ApiKeyName` | Security Credential | `sealed record class` | Not blank, <= 100 chars |
+| `EmailAddress` | Communication | `sealed record class` | Strict email regex validation |
+| `EncryptedConnectionString` | Security Secret | `sealed record class` | Obfuscates output: `ToString() => "[REDACTED]"` |
+| `Sha256Hash` | Cryptographic | `sealed record class` | Exactly 64 hexadecimal characters |
+| `SqlQuery` | Integration Payload | `sealed record class` | Not empty, sanitized query string |
+| `PageDimension` | Layout / Geometry | `readonly record struct` | WidthMm > 0, HeightMm > 0 |
+| `PageMargin` | Layout / Geometry | `readonly record struct` | TopMm, BottomMm, LeftMm, RightMm >= 0 |
+| `DateRange` | Temporal Range | `readonly record struct` | StartDate <= EndDate |
+| `ExpirationPolicy` | Lifecycle Policy | `sealed record class` | Expiration date must be future |
+| `DocumentReference` | Reference Token | `sealed record class` | Not blank, structured reference format |
 
 ### Guard Assertions & Validation Contract
 ```csharp
@@ -125,6 +162,14 @@ internal static class Guard
 
     public static TId NotEmpty<TId>(TId value, string name) where TId : struct, IEquatable<TId> =>
         value.Equals(default) ? throw new DomainValidationException($"{name} cannot be empty.") : value;
+
+    public static string ValidEmail(string? value, string name)
+    {
+        var email = NotBlank(value, name, 255);
+        if (!email.Contains('@') || !email.Contains('.'))
+            throw new DomainValidationException($"{name} has an invalid email format.");
+        return email.ToLowerInvariant();
+    }
 }
 ```
 
@@ -140,6 +185,48 @@ All Domain Events implement `IDomainEvent` under `SmkDoc.Domain.Events`:
 ---
 
 ## 3. Level 3: Canonical Domain Archetypes
+
+### Base Entity Contracts (`BaseEntity<TId>` & `BaseEntity`)
+>> MANDATORY CANONICAL TEMPLATE [RULE-DOM-000]:
+* [MUST] Provide `BaseEntity<TId>` for Aggregate Roots with strongly-typed identity and domain event harvesting.
+* [MUST] Provide `BaseEntity` for child entities utilizing standard `Guid` identities.
+* [MUST] Encapsulate `_domainEvents` collection with `IReadOnlyCollection<IDomainEvent>` and `AddDomainEvent()` / `ClearDomainEvents()`.
+```csharp
+using SmkDoc.Domain.Common;
+
+namespace SmkDoc.Domain.Common;
+
+public abstract class BaseEntity<TId> : IHaveDomainEvents where TId : struct, IEquatable<TId>
+{
+    public TId Id { get; protected set; }
+    public DateTimeOffset CreatedAt { get; protected set; }
+    public DateTimeOffset? UpdatedAt { get; protected set; }
+
+    private readonly List<IDomainEvent> _domainEvents = [];
+    public IReadOnlyCollection<IDomainEvent> DomainEvents => _domainEvents.AsReadOnly();
+
+    protected BaseEntity() { }
+
+    protected BaseEntity(TId id, DateTimeOffset createdAt)
+    {
+        Id = Guard.NotEmpty(id, nameof(Id));
+        CreatedAt = Guard.NotDefault(createdAt, nameof(CreatedAt));
+    }
+
+    public void AddDomainEvent(IDomainEvent domainEvent) => _domainEvents.Add(Guard.NotNull(domainEvent, nameof(domainEvent)));
+    public void ClearDomainEvents() => _domainEvents.Clear();
+    protected void SetUpdated(DateTimeOffset now) => UpdatedAt = Guard.NotDefault(now, nameof(now));
+}
+
+public abstract class BaseEntity
+{
+    public Guid Id { get; protected set; } = Guid.NewGuid();
+    public DateTimeOffset CreatedAt { get; protected set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset? UpdatedAt { get; protected set; }
+
+    protected void SetUpdated(DateTimeOffset now) => UpdatedAt = Guard.NotDefault(now, nameof(now));
+}
+```
 
 ### Aggregate Root Archetype (`Template`)
 >> MANDATORY CANONICAL TEMPLATE [RULE-DOM-001]:
@@ -281,7 +368,7 @@ public sealed class FieldMapping : BaseEntity
 ### Value Object Archetypes
 >> MANDATORY CANONICAL TEMPLATE [RULE-DOM-003]:
 * [MUST] Model validated domain concepts (names, slugs, emails) as `sealed record class` with a `private` constructor and canonical `public static T Create(...)` factory.
-* [MUST] Model small, immutable geometric or numeric measurements (<= 16 bytes, e.g. `PageDimension`, `Margins`) as `readonly record struct`.
+* [MUST] Model small, immutable geometric or numeric measurements (<= 16 bytes, e.g. `PageDimension`, `PageMargin`, `DateRange`) as `readonly record struct`.
 * [MUST] Execute validation guards immediately inside `Create(...)` throwing strongly-typed `DomainValidationException`.
 ```csharp
 using SmkDoc.Domain.Common;
@@ -309,8 +396,27 @@ public sealed record class EncryptedConnectionString
     public override string ToString() => "[REDACTED]";
 }
 
-// Struct Primitive VO
+// Validated Communication VO
+public sealed record class EmailAddress
+{
+    public string Value { get; }
+    private EmailAddress(string value) => Value = value;
+    public static EmailAddress Create(string? value) => new(Guard.ValidEmail(value, "Email address"));
+    public static implicit operator string(EmailAddress email) => email.Value;
+    public override string ToString() => Value;
+}
+
+// Struct Primitive VO (Layout Dimensions)
 public readonly record struct PageDimension(float WidthMm, float HeightMm);
+
+// Struct Primitive VO (Page Margins)
+public readonly record struct PageMargin(float TopMm, float BottomMm, float LeftMm, float RightMm);
+
+// Struct Primitive VO (Temporal Range)
+public readonly record struct DateRange(DateTimeOffset StartDate, DateTimeOffset EndDate)
+{
+    public bool Contains(DateTimeOffset date) => date >= StartDate && date <= EndDate;
+}
 
 // Normalized URL-Friendly Tenant Slug VO
 public sealed record class ProjectSlug

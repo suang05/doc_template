@@ -31,6 +31,8 @@ FatalInvariants:
   3_ExtensibleEngines: Select rendering engines via Polymorphic Dispatch / Strategy / Factory Pattern. Prohibit hardcoded switch/if-else chains.
   4_ZeroLohStreaming: Stream binary outputs directly to HTTP responses with bounded 81,920-byte buffer. Prohibit multi-MB in-memory buffering (`byte[]`, unbounded MemoryStream).
   5_NonBlockingIO: All network and persistence I/O MUST use `async`/`await` with forwarded CancellationToken. Prohibit synchronous blocking (`.Result`, `.Wait()`).
+  6_ZeroTrustTenantIsolation: Enforce ambient ICurrentProjectContext via EF Core global query filters. Prohibit manual ad-hoc filtering or unvalidated caller project parameter overrides.
+  7_DeterministicTimeProvider: All temporal operations and time queries MUST consume injected TimeProvider. Prohibit direct ambient clock queries (DateTime.UtcNow, DateTime.Now).
 </architectural_invariants>
 
 <operational_boundaries>
@@ -53,6 +55,10 @@ Trigger: Binary generation or disk write inside `SmkDoc.Tests`
   => Action: Move test to `SmkDoc.IntegrationTests`.
 Trigger: Hardcoded literals, magic numbers, or system clock queries (DateTime.UtcNow)
   => Action: Substitute with IOptions<T>, Technical Constants, or TimeProvider.
+Trigger: Synchronous Next.js 15 params access ({ params: { id } })
+  => Action: Substitute with async Promise params ({ params }: { params: Promise<{ id: string }> }) and await params.
+Trigger: In-memory byte[] buffering of document outputs (MemoryStream.ToArray())
+  => Action: Substitute with direct bounded Stream pass-through (81,920 buffer).
 </execution_blockers>
 
 <workflow_guard>
@@ -145,6 +151,7 @@ RepresentationHierarchy:
 TestingArchetypes:
   BackendUseCaseTests: Direct mocks, SSoT CreateSut(), FakeTimeProvider (TestConstants.CreateFakeClock()), Fluent *Builder, 1 behavior per test, CQRS folder parity.
   BackendAggregateTests: Invariant state mutations tested directly inside {Aggregate}Tests.cs. Zero disk I/O in SmkDoc.Tests.
+  ValidationTests: Isolated FluentValidation testing via TestValidate(); exactly 1 fail-fast orchestration test per UseCase test suite.
   FrontendUnitTests: Co-located strictly in frontend-v2/src/__tests__/, importing SSoT Zod schemas from @/schemas/ and real production modules.
 
 ArchetypePrimacy:
@@ -205,6 +212,7 @@ SignalTriggerRegistry:
   | `[SIGNAL_STRUCTURE_MUTATION]` | UseCase, Interface, Service, Layer project | Update `docs/AI/00_architecture_core/dependency_and_folder_rules.md` |
   | `[SIGNAL_TEST_MUTATION]` | Unit/Integration tests, fixtures, builders (`SmkDoc.Tests/`, `frontend-v2/src/__tests__/`) | Update `docs/AI/01_clean_arch_patterns/05_testing_archetypes.md` |
   | `[SIGNAL_TOPOLOGY_MUTATION]` | External services (Gotenberg, MinIO, Postgres) | Update `docs/AI/03_specialized_mechanics/document_rendering_mechanics.md` |
+  | `[SIGNAL_SECURITY_MUTATION]` | Auth handler, ApiKey, ProjectContext, tenant isolation | Update `docs/AI/03_specialized_mechanics/multi_tenant_security_pipeline.md` & `01_clean_arch_patterns/03_infrastructure_layer.md` |
   | `[SIGNAL_UI_MUTATION]` | Design tokens, atomic primitive, UI recipe | Update `docs/AI/02_frontend_patterns/02_ui_component_conventions.md` & `01_app_router_and_data_fetching.md` |
 
 UniversalFivePointSynchronization:

@@ -1,10 +1,10 @@
 # [PATTERN-004]: 04_api_presentation_layer.md — Presentation Layer Design Patterns & HTTP SSoT
 
 <context>
-Scope: Presentation Layer Patterns, Thin Controllers, ApiResponse Envelopes, Idempotency & RFC 9457 Exception Handling
+Scope: Presentation Layer Patterns, Thin Controllers, ApiResponse Envelopes, Idempotency, Binary Streaming & RFC 9457 Exception Handling
 Target: `SmkDoc.Api/` (`Controllers/`, `Common/Responses/`, `Filters/`, `Middleware/`)
 Authority: Absolute SSoT Invariant (Thin orchestrators, zero business logic, strictly standardized HTTP wire format)
-Invariants: Thin Actions (<=5 LOC), RFC 9457 ProblemDetails, Idempotency on Mutating Routes, ApiResponse Envelope
+Invariants: Thin Actions (<=5 LOC), RFC 9457 ProblemDetails, Idempotency on Mutating Routes, ApiResponse Envelope, Direct Stream Egress
 Format: 100% English AST, Positive-First Archetypes (80/20 Rule), Canonical Keyboard Operators
 TriggerSignals: [SIGNAL_API_MUTATION]
 UpstreamKernel: AGENTS.md
@@ -32,7 +32,7 @@ UpstreamKernel: AGENTS.md
 | **Error Format** | Custom ad-hoc error JSON objects | RFC 9457 `ProblemDetails` dispatched via `GlobalExceptionHandler` |
 | **Validation Error Payload**| Omitting field error dictionary from validation response | Structured RFC 9457 `errors` dictionary populated in `problemDetails.Extensions["errors"]` |
 | **Mutating Routes** | Unprotected mutations without idempotency safeguards | `[Idempotent]` filter on `POST`, `PUT`, `DELETE` routes |
-| **Binary Downloads** | In-memory `byte[]` arrays returned via `File(byte[], ...)` | Direct streaming via `Response.Body` |
+| **Binary Downloads** | In-memory `byte[]` arrays returned via `File(byte[], ...)` | Direct streaming via `Response.Body` or `File(Stream, ...)` |
 | **Route Naming** | Inconsistent verb/camelCase routes: `/api/createTemplate` | RESTful plural kebab-case: `api/v1/templates`, `api/v1/data-sources` |
 | **Top-Level Arrays** | Accepting raw array: `[FromBody] List<TItem>` | Wrapped batch envelope: `[FromBody] BatchRequest { Items = [...] }` |
 | **Timestamp Wire Format**| Unspecified/local datetime strings | Strict ISO-8601 UTC with `Z` suffix (`2026-10-21T15:30:00Z`) |
@@ -110,7 +110,7 @@ public sealed record BatchCreateFieldsRequest(IReadOnlyList<CreateFieldDto> Item
 * [MUST] Inject single-responsibility UseCases via C# 13 primary constructor (prohibit generic multi-method service injection).
 * [MUST] Keep action methods thin (<= 5 lines per action): resolve identity, delegate to UseCase, and wrap result in standard response envelope.
 * [MUST] Apply `[Idempotent]` attribute on all state-mutating endpoints (`POST`, `PUT`, `DELETE`).
-* [MUST] Return `CreatedAtAction` with `201 Created` for resource creation, `Ok(new ApiResponse<T>(result))` for reads/updates, and `NoContent()` with `204 NoContent` for deletions.
+* [MUST] Return `CreatedAtAction` with `201 Created` for resource creation, `Ok(new ApiResponse<T>(result))` for reads/updates, `NoContent()` with `204 NoContent` for deletions, and `File(stream, contentType, fileName)` for binary streaming.
 ```csharp
 using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Common.Responses;
@@ -121,6 +121,7 @@ using SmkDoc.Application.Modules.Authoring.Templates.Commands.DeactivateTemplate
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.GetTemplateById;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.ListTemplates;
+using SmkDoc.Application.Modules.Rendering.Documents.Queries.RenderDocument;
 
 namespace SmkDoc.Api.Controllers.Authoring;
 
@@ -131,6 +132,7 @@ public sealed class TemplateController(
     GetTemplateByIdUseCase getTemplateByIdUseCase,
     CreateTemplateUseCase createTemplateUseCase,
     DeactivateTemplateUseCase deactivateTemplateUseCase,
+    RenderDocumentUseCase renderDocumentUseCase,
     IExecutionContext context) : ControllerBase
 {
     [HttpGet]
@@ -170,6 +172,16 @@ public sealed class TemplateController(
     {
         await deactivateTemplateUseCase.ExecuteAsync(new DeactivateTemplateCommand(id), ct);
         return NoContent();
+    }
+
+    [HttpPost("{id:guid}/render")]
+    [Idempotent]
+    [ProducesResponseType(typeof(FileStreamResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> Render([FromRoute] Guid id, [FromBody] RenderDocumentQuery query, CancellationToken ct)
+    {
+        var stream = await renderDocumentUseCase.ExecuteAsync(query, ct);
+        return File(stream, "application/pdf", $"{id}.pdf");
     }
 }
 ```

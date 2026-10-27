@@ -1,8 +1,8 @@
 # [PATTERN-005]: 05_testing_archetypes.md — Testing Design Patterns & SSoT Test Archetypes
 
 <context>
-Scope: Testing Patterns, SSoT UseCase Tests, Aggregate Invariant Tests, Isolated FluentValidation Tests, FakeTimeProvider, Hybrid Builders & Anti-Pattern Firewall
-Target: `SmkDoc.Tests/` (`Domain/`, `Application/`, `Infrastructure/`, `Api/`, `Common/`)
+Scope: Testing Patterns, SSoT UseCase Tests, Aggregate Invariant Tests, Isolated FluentValidation Tests, FakeTimeProvider, Hybrid Builders, Integration Tests & Anti-Pattern Firewall
+Target: `SmkDoc.Tests/` & `SmkDoc.IntegrationTests/`
 Authority: Absolute SSoT Invariant (Zero disk/network I/O in unit test project, 100% deterministic, 1 behavior per test, Zero God Fixtures)
 Invariants: Class-Scoped CreateSut(), 100% Real POCOs in Domain, Deterministic FakeTimeProvider, Strict AAA Naming, Isolated Validator Testing
 Format: 100% English AST, Positive-First Archetypes (80/20 Rule), Canonical Keyboard Operators
@@ -22,6 +22,7 @@ UpstreamKernel: AGENTS.md
 | **FluentValidation Validators**| Direct instantiation of `*Validator` | ZERO MOCK (100% Real Validator) | `TestValidate()`, `ShouldHaveValidationErrorFor` |
 | **Infrastructure Adapters**| In-Memory SQLite / Mock HttpMessageHandler | Mock external network & storage | Streaming fidelity, zero-buffer piping |
 | **Api Middleware/Filters** | ActionExecutingContext / HttpContext mock | Direct unit test or WebApplicationFactory | RFC 9457 ProblemDetails, HTTP status codes |
+| **Integration Web API** | `SmkDocApiFactory` (`WebApplicationFactory`) | Real Testcontainers Postgres & MinIO | HTTP status, JSON envelopes, Database commits |
 | **Architectural Boundaries**| NetArchTest on compiled assemblies | Pure Reflection | Inward layer dependencies, sealed classes |
 
 ### Testing Invariants & Standards Matrix
@@ -46,6 +47,7 @@ UpstreamKernel: AGENTS.md
 * **Why Isolated Validator Tests (`TestValidate()`):** `FluentValidation.TestHelper` tests boundary rules, regex, and message keys in isolation with microsecond execution time. UseCase tests only verify the fail-fast orchestration link.
 * **Why Fluent Hybrid Builders (`*Builder` with implicit cast):** Provides clean Object Mother defaults while allowing single-property overrides without verbose constructor calls.
 * **Why `FakeTimeProvider` over Ambient Clock:** Guarantees absolute repeatability of time-dependent tests across local developer machines and CI pipelines.
+* **Why Testcontainers in Integration Tests:** Executes real PostgreSQL queries and EF Core migrations in isolated throwaway Docker containers, catching true SQL syntax and constraint bugs.
 
 ### Cognitive Test Optimization & Guard Engine
 ```yaml
@@ -79,6 +81,7 @@ CoreExtensionSlots:
   TimeFixtureSlot: FakeTimeProvider (Deterministic clock control)
   SutFactorySlot: CreateSut() (Class-scoped SUT instantiator)
   ValidatorTestSlot: TestValidate() (Isolated property rule assertion)
+  ApiFactorySlot: WebApplicationFactory<Program> (Integration test harness)
 ```
 
 ### Layer Testing Rules Matrix
@@ -89,6 +92,7 @@ CoreExtensionSlots:
 | **Validation** | FluentValidation `AbstractValidator<T>` | ZERO MOCK (100% Real Validator) | `ShouldHaveValidationErrorFor`, `ShouldNotHaveAnyValidationErrors` |
 | **Infrastructure** | Render Engines, Gotenberg, Storage | NSubstitute / FakeHttpMessageHandler | Zero LOH streams, HTTP contract, Error mapping |
 | **Presentation** | Filters, Middlewares, Exception Handlers | Mock HttpContext / ActionContext | RFC 9457 ProblemDetails, Status code, Headers |
+| **Integration** | HTTP Endpoints & DB Migrations | Real Testcontainers PostgreSQL & MinIO | HTTP Status, JSON wire contract, DB Row assertion |
 | **Architecture** | Assemblies & Dependency Graph | Pure Reflection / NetArchTest | Boundary isolation, Layer direction, Sealed POCOs |
 
 ### Test Project Folder Parity
@@ -107,6 +111,12 @@ SmkDoc.Tests/
   Architecture/ # Clean Architecture Boundary Invariant Tests
   Common/
     Builders/ # Hybrid Builders (Mother + Builder + Implicit Cast)
+
+SmkDoc.IntegrationTests/
+  Fixtures/ # SmkDocApiFactory, PostgreSqlContainerFixture, MinioContainerFixture
+  Persistence/ # Real EF Core migrations & query performance
+  Repositories/ # Real database repository query tests
+  Storage/ # Real MinIO S3 bucket upload/download tests
 ```
 
 ---
@@ -388,6 +398,45 @@ public static class aTemplate
 {
     public static TemplateBuilder AsActive() => TemplateBuilder.Default.AsActive();
     public static TemplateBuilder AsInactive() => TemplateBuilder.Default.AsInactive();
+}
+```
+
+### Integration Test Archetype (`SmkDocApiFactory` & Testcontainers)
+>> MANDATORY CANONICAL TEMPLATE [RULE-TEST-005]:
+* [MUST] Place integration tests strictly under `SmkDoc.IntegrationTests`.
+* [MUST] Use `WebApplicationFactory<Program>` with PostgreSQL and MinIO container fixtures.
+* [MUST] Assert HTTP status codes, RFC 9457 ProblemDetails envelopes, and database commits end-to-end.
+```csharp
+using System.Net;
+using System.Net.Http.Json;
+using FluentAssertions;
+using SmkDoc.Api.Common.Responses;
+using SmkDoc.Application.Modules.Authoring.Templates.Commands.CreateTemplate;
+using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
+using SmkDoc.IntegrationTests.Fixtures;
+using Xunit;
+
+namespace SmkDoc.IntegrationTests.Controllers;
+
+[Collection("Integration")]
+public sealed class TemplateEndpointIntegrationTests(SmkDocApiFactory factory) : IClassFixture<SmkDocApiFactory>
+{
+    private readonly HttpClient _client = factory.CreateClient();
+
+    [Fact]
+    public async Task CreateTemplate_WhenPayloadIsValid_ShouldReturn201CreatedAndPersistToPostgres()
+    {
+        var projectId = Guid.NewGuid();
+        var command = new CreateTemplateCommand(projectId, "Integration Template", "integration-template", "Testing");
+
+        var response = await _client.PostAsJsonAsync("api/v1/templates", command);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+        var envelope = await response.Content.ReadFromJsonAsync<ApiResponse<TemplateResultDto>>();
+        envelope.Should().NotBeNull();
+        envelope!.Data.Name.Should().Be("Integration Template");
+        envelope.Data.Slug.Should().Be("integration-template");
+    }
 }
 ```
 

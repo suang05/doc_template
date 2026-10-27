@@ -1,7 +1,7 @@
 # [PATTERN-003]: 03_infrastructure_layer.md — Infrastructure Layer Design Patterns & EF Core SSoT
 
 <context>
-Scope: Infrastructure Layer Patterns, EF Core Configurations, Strongly-Typed ID Converters, JSONB Mapping, Repositories & Tenancy Filter
+Scope: Infrastructure Layer Patterns, EF Core Configurations, Strongly-Typed ID Converters, JSONB Mapping, Repositories, Tenancy Filter & S3 Storage
 Target: `SmkDoc.Infrastructure/` (`Persistence/Configurations/`, `Repositories/`, `Storage/`, `Gotenberg/`)
 Authority: Absolute SSoT Invariant (Hides all network and persistence I/O behind Application ports)
 Invariants: Bounded Memory Streaming (<=81,920 buffer), Ambient Tenancy HasQueryFilter, xmin Concurrency Token
@@ -47,6 +47,7 @@ UpstreamKernel: AGENTS.md
 * **Why `.AsNoTracking()` Separation:** Query reads bypass EF ChangeTracker overhead entirely for maximum throughput; mutating commands fetch tracked entities so `SaveChangesAsync` produces minimal SQL diffs.
 * **Why Native `jsonb` Mapping:** Leverages PostgreSQL JSON query and indexing capabilities without string concatenation or unvalidated string storage.
 * **Why ResponseHeadersRead Streaming:** Starting stream piping immediately upon HTTP header arrival avoids buffering multi-MB PDF payloads into .NET process RAM.
+* **Why Bounded S3 Streams:** Streaming directly to/from MinIO with chunked transfers prevents Large Object Heap fragmentation on multi-MB document uploads and downloads.
 
 ### Cognitive Infrastructure Optimization & Guard Engine
 ```yaml
@@ -71,9 +72,13 @@ ProactiveInfraGuards:
     Trigger: Buffering response stream into byte[] or MemoryStream.ToArray()
     CanonicalAction: Enforce HttpCompletionOption.ResponseHeadersRead and pipe directly with 81,920 bounded buffer >> Ref: [RULE-INFRA-004]
 
+  - Scope: SmkDoc.Infrastructure.Storage
+    Trigger: Loading complete file into byte[] before sending to MinIO client
+    CanonicalAction: Pass Stream directly to PutObjectArgs with known size or -1 for chunked transfer >> Ref: [RULE-INFRA-005]
+
 CoreExtensionSlots:
   RepositoryAdapterSlot: IRepository<TAggregate, TId> (Pluggable entity persistence adapter)
-  StorageServiceSlot: IBucketStorageService (MinIO S3 / AWS S3 / Azure Blob Storage adapter)
+  StorageServiceSlot: IStorageService (MinIO S3 / AWS S3 / Azure Blob Storage adapter)
   RenderingEngineSlot: IRenderEngine (Gotenberg Chromium / OpenXML Word / ClosedXML Excel)
 ```
 
@@ -286,6 +291,54 @@ public sealed class GotenbergClient(HttpClient httpClient)
         response.EnsureSuccessStatusCode();
 
         return await response.Content.ReadAsStreamAsync(ct);
+    }
+}
+```
+
+### S3 Object Storage Service Archetype (MinIO)
+>> MANDATORY CANONICAL TEMPLATE [RULE-INFRA-005]:
+* [MUST] Implement `IStorageService` using MinIO S3 SDK.
+* [MUST] Stream payload directly without in-memory buffering using `PutObjectArgs.WithStreamData(stream)`.
+* [MUST] Forward `CancellationToken` to all storage operations.
+```csharp
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Minio;
+using Minio.DataModel.Args;
+using SmkDoc.Application.Common.Interfaces;
+
+namespace SmkDoc.Infrastructure.Storage;
+
+public sealed class MinioStorageService(
+    IMinioClient client,
+    ILogger<MinioStorageService> logger) : IStorageService
+{
+    public async Task<string> UploadAsync(string bucket, string objectName, Stream data, string contentType, CancellationToken ct = default)
+    {
+        long length = data.CanSeek ? data.Length : -1;
+        var args = new PutObjectArgs()
+            .WithBucket(bucket)
+            .WithObject(objectName)
+            .WithStreamData(data)
+            .WithObjectSize(length)
+            .WithContentType(contentType);
+
+        await client.PutObjectAsync(args, ct);
+        logger.LogInformation("Uploaded object {ObjectName} to bucket {Bucket}", objectName, bucket);
+        return objectName;
+    }
+
+    public async Task<Stream> DownloadAsync(string bucket, string objectName, CancellationToken ct = default)
+    {
+        var destination = new MemoryStream();
+        var args = new GetObjectArgs()
+            .WithBucket(bucket)
+            .WithObject(objectName)
+            .WithCallbackStream((stream, cancellationToken) => stream.CopyToAsync(destination, cancellationToken));
+
+        await client.GetObjectAsync(args, ct);
+        destination.Position = 0;
+        return destination;
     }
 }
 ```

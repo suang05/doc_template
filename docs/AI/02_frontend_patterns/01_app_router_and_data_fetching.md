@@ -4,7 +4,7 @@
 Scope: Next.js 15 App Router Architecture, Server/Client Component Boundaries, Route Handler Proxy & Live Preview Pipeline
 Target: `frontend-v2/` (`src/app/`, `src/hooks/`, `src/lib/api/`)
 Authority: Absolute SSoT Invariant (Zero client-side JWT token access, 100% debounced streaming preview)
-Boundary: Pure Architectural AST only. Prohibit task roadmaps, execution checklists, and conversational prose.
+Format: 100% English AST, Positive-First Archetypes (80/20 Rule), Canonical Keyboard Operators
 TriggerSignals: [SIGNAL_UI_MUTATION]
 UpstreamKernel: AGENTS.md
 </context>
@@ -13,6 +13,16 @@ UpstreamKernel: AGENTS.md
 
 ## 1. Level 1: App Router & Data Fetching Invariants Matrix
 
+### Architectural Wiring & Data Contracts
+| Direction | Upstream Origin | Current Role (Next.js Application Gateway) | Downstream Destination |
+|---|---|---|---|
+| **Client Request** | Browser Client Component | Dispatches fetch to local route handler | Secure Server Proxy (`/api/proxy/[...path]`) |
+| **Auth Injection** | NextAuth `httpOnly` Session | Extracts Bearer JWT & Project Context | Upstream Request Headers (`Authorization`, `x-project-id`) |
+| **Header Stripping**| Browser Request Headers | Strips hop-by-hop headers (`host`, `connection`, etc.) | Backend API Port (`http://backend:8080/api/v1/`) |
+| **Streaming Egress**| Backend Document Stream | Duplex-pipes body stream directly to caller | Browser Client (`Response(backendRes.body)`) |
+| **Live Preview** | Template Editor Changes | Debounces (800ms) with `AbortController` cancellation | Blob URL Egress (`URL.revokeObjectURL(old)`) |
+
+### App Router Invariants Matrix
 | Architectural Concern | Prohibited Pattern (! BANNED) | Canonical SSoT Pattern (>> MANDATORY) |
 |---|---|---|
 | **Client Component Scope** | Placing `'use client'` at root page or layout | React Server Components (RSC) by default; restrict `'use client'` to leaf interactive components |
@@ -20,11 +30,50 @@ UpstreamKernel: AGENTS.md
 | **Direct Backend Calls** | Client browser fetching backend API directly (`http://localhost:8080`) | All client fetch calls routed through `/api/proxy/[...path]` |
 | **Live Preview Sync** | Firing preview requests on every keystroke | Debounced (800ms) with `AbortController` cancellation |
 | **Blob URL Leaks** | Overwriting preview object URLs without revoking | Immediate cleanup: `URL.revokeObjectURL(previousUrl)` |
-| **Route Params (Next.js 15)** | Synchronous params: `{ params: { id } }` | Async Promise params: `{ params }: { params: Promise<{ id: string }> }` + `await params` |
+| **Route Params (Next.js 15)**| Synchronous params: `{ params: { id } }` | Async Promise params: `{ params }: { params: Promise<{ id: string }> }` + `await params` |
+| **Stateful Server Leaves**| Using React hooks (`useState`, `useEffect`) in RSC pages | Split layout into RSC Page wrapper + Client Leaf Widget |
 
 ---
 
-## 2. Level 2: Core Frontend Topology & Proxy Contracts
+## 2. Level 2: Core Frontend Topology & Cognitive Frontend Engine
+
+### Engineering Rationale & Architectural Decisions
+* **Why Next.js Server Proxy over Direct Browser Calls:** Keeps backend JWT tokens and internal cluster endpoints completely hidden inside server-side `httpOnly` cookies, eliminating XSS token theft vectors.
+* **Why Next.js 15 Async `params`:** Next.js 15 enforces asynchronous route parameters to enable partial prerendering and streaming server components without synchronous blocking.
+* **Why 800ms Debounce with AbortController:** Document rendering via Gotenberg is CPU-intensive; 800ms debounce prevents cluster thrashing, while `AbortController` immediately halts stale rendering jobs on the wire.
+* **Why Strict `URL.revokeObjectURL` Cleanup:** Browser blob URLs remain retained in browser heap memory until explicitly revoked; omitting cleanup causes substantial memory leaks during prolonged template editing sessions.
+
+### Cognitive Frontend Optimization & Guard Engine
+```yaml
+OptimizationObjectives:
+  PrimaryObjective: Zero-Trust Token Isolation, Sub-Second Live Preview & Lean Client Bundles
+  TradeOffPriority: SecurityPurity (Server-Proxy) > MemoryFidelity (Blob Revoke) > RenderingResponsiveness > BoilerplateSimplicity
+
+ProactiveFrontendGuards:
+  - Scope: frontend-v2.src.app
+    Trigger: Declaration of 'use client' at page.tsx or layout.tsx root
+    CanonicalAction: Convert page to async RSC and extract interactive logic to leaf component under _components/ >> Ref: [RULE-FRONT-001]
+
+  - Scope: frontend-v2.src.app
+    Trigger: Accessing params synchronously without await in Next.js 15
+    CanonicalAction: Type params as Promise<{ [key: string]: string }> and await params before reading properties >> Ref: [RULE-FRONT-002]
+
+  - Scope: frontend-v2.src.hooks
+    Trigger: Creating object URL with URL.createObjectURL without revoking previous URL
+    CanonicalAction: Enforce URL.revokeObjectURL(previousUrlRef.current) before updating state and on unmount >> Ref: [RULE-FRONT-003]
+
+  - Scope: frontend-v2.src.lib.api
+    Trigger: Fetching internal backend port directly from browser runtime
+    CanonicalAction: Rewrite URL to route through /api/proxy/[...path] to ensure secure token injection
+
+CoreExtensionSlots:
+  ServerProxySlot: /api/proxy/[...path]/route.ts (Duplex streaming reverse proxy)
+  LivePreviewHookSlot: useLivePreview (Debounced rendering with abort lifecycle)
+  SplitEditorRecipeSlot: TemplateEditorSplitLayout (Monaco editor + PDF iframe layout)
+  DataTableRecipeSlot: DataTablePage (Enterprise grid with search & row actions)
+  WizardRecipeSlot: WizardLayout (Multi-step form container with stepper)
+  DashboardRecipeSlot: MetricsDashboardPage (KPI cards + Chart + Audit log feed)
+```
 
 ### Hop-by-Hop Stripped Headers
 The Next.js reverse proxy MUST strip these headers before forwarding upstream:
@@ -101,8 +150,37 @@ async function proxy(req: NextRequest, { params }: { params: Promise<{ path: str
 export { proxy as GET, proxy as POST, proxy as PUT, proxy as PATCH, proxy as DELETE };
 ```
 
-### Real-Time Live Preview Pipeline Hook (`useLivePreview.ts`)
+### Next.js 15 Async Route Page Archetype (`src/app/(portal)/templates/[id]/page.tsx`)
 >> MANDATORY CANONICAL TEMPLATE [RULE-FRONT-002]:
+* [MUST] Treat `params` as `Promise<{ [key: string]: string }>` and `await params` before accessing properties.
+* [MUST] Execute initial server-side data fetching inside the RSC page before rendering client leaves.
+```tsx
+import { auth } from '@/auth';
+import { notFound } from 'next/navigation';
+import { TemplateEditorClientWidget } from './_components/TemplateEditorClientWidget';
+
+interface PageProps {
+  params: Promise<{ id: string }>;
+}
+
+export default async function TemplateDetailsPage({ params }: PageProps) {
+  const { id } = await params;
+  const session = await auth();
+
+  if (!session?.user) {
+    notFound();
+  }
+
+  return (
+    <div className="flex h-full flex-col">
+      <TemplateEditorClientWidget templateId={id} projectId={session.user.projectId} />
+    </div>
+  );
+}
+```
+
+### Real-Time Live Preview Pipeline Hook (`useLivePreview.ts`)
+>> MANDATORY CANONICAL TEMPLATE [RULE-FRONT-003]:
 * [MUST] Debounce live preview calls by at least 800ms to avoid Gotenberg engine thrashing.
 * [MUST] Cancel inflight HTTP requests via `AbortController` before issuing new preview calls.
 * [MUST] Clean up browser memory by calling `URL.revokeObjectURL(previousUrl)` whenever a new preview Blob URL is created or component unmounts.
@@ -174,13 +252,12 @@ export function useLivePreview(slug?: string, html?: string, sampleDataJson?: st
 ---
 
 ## 3.1 UI Architectural Recipes (Canonical Screen Archetypes)
->> MANDATORY CANONICAL TEMPLATES [RULE-FRONT-003]:
+>> MANDATORY CANONICAL TEMPLATES [RULE-FRONT-004]:
 * [MUST] Adhere to the 4 canonical enterprise screen recipes below without introducing divergent layout conventions.
 
 ### Recipe A: Dynamic Split-Pane Template Editor
 * Target: Template Editor, Live Preview Studio (`src/app/(portal)/templates/[id]/editor/page.tsx`).
 * Invariants: Left pane code editor, right pane streaming PDF preview iframe, header with manual render action.
-
 ```tsx
 'use client';
 
@@ -228,7 +305,6 @@ export function TemplateEditorSplitLayout({ initialHtml, slug }: { initialHtml: 
 ### Recipe B: Enterprise Data Table Management
 * Target: Template Registry, API Key Management, User List (`src/app/(portal)/templates/page.tsx`).
 * Invariants: Search + Filter Header, Table body with row action buttons, compact enterprise badges.
-
 ```tsx
 'use client';
 
@@ -294,7 +370,6 @@ export function DataTablePage({ items, onSearch, onCreateNew }: DataTableProps) 
 ### Recipe C: Multi-Step Form Wizard Layout
 * Target: Template Creation Wizard, Data Connection Setup (`src/app/(portal)/templates/new/page.tsx`).
 * Invariants: Horizontal step tracker, single card container for current step, persistent Back/Next footer with form validation guard.
-
 ```tsx
 'use client';
 
@@ -347,7 +422,6 @@ export function WizardLayout({ currentStep, totalSteps, title, description, chil
 ### Recipe D: Executive Metrics Dashboard Layout
 * Target: Analytics, Throughput, System Health (`src/app/(portal)/dashboard/page.tsx`).
 * Invariants: 4-Column KPI grid, responsive chart container, recent activity event feed.
-
 ```tsx
 'use client';
 
@@ -407,51 +481,39 @@ export function MetricsDashboardPage({ stats, recentLogs }: DashboardProps) {
 
 ---
 
-## 4. Level 4: Anti-Patterns & Micro-Diffs
+## 4. Level 4: High-Salience Fatal Traps & Unified Micro-Diffs
 
-### [TRAP-FRONT-001]: Client Component Sprawl
-```typescript
-// ! BANNED: Adding 'use client' at page root destroys React Server Component advantages
-// src/app/(portal)/templates/page.tsx
-'use client';
-export default function TemplatesPage() { ... }
-
-// >> CANONICAL: Server Component Page importing focused Client Component leaves
-// src/app/(portal)/templates/page.tsx (RSC)
-import { TemplateListWidget } from './_components/TemplateListWidget'; // 'use client'
-export default async function TemplatesPage() { return <TemplateListWidget />; }
+### [TRAP-FRONT-001]: Client Component Sprawl on Root Page
+```diff
+- 'use client'; export default function TemplatesPage() { return <div>...</div>; }
++ import { TemplateListWidget } from './_components/TemplateListWidget'; export default async function TemplatesPage() { return <TemplateListWidget />; }
 ```
+*Rationale: Adding `'use client'` to the page root disables React Server Component benefits, increases bundle size, and prevents direct server session resolution.*
 
-### [TRAP-FRONT-002]: Direct Backend Access vs Secure Proxy
-```typescript
-// ! BANNED: Browser fetch directly calls internal backend port
-fetch('http://localhost:8080/api/v1/templates'); // FATAL: CORS & Token Exposure!
-
-// >> CANONICAL: Route through Next.js reverse proxy
-fetch('/api/proxy/v1/templates');
+### [TRAP-FRONT-002]: Direct Backend Access vs Secure Server Proxy
+```diff
+- const res = await fetch('http://localhost:8080/api/v1/templates');
++ const res = await fetch('/api/proxy/v1/templates');
 ```
+*Rationale: Direct browser calls to internal backend endpoints trigger CORS failures and expose authorization tokens on the client.*
 
 ### [TRAP-FRONT-003]: Memory Leak: Unrevoked Object URLs
-```typescript
-// ! BANNED: Overwriting blob URLs without revoking leaks memory
-const url = URL.createObjectURL(blob);
-setPdfUrl(url);
-
-// >> CANONICAL: Explicit revocation of previous object URL before replacement
-if (previousUrlRef.current) URL.revokeObjectURL(previousUrlRef.current);
-const newUrl = URL.createObjectURL(blob);
-previousUrlRef.current = newUrl;
-setPdfUrl(newUrl);
+```diff
+- const newUrl = URL.createObjectURL(blob); setPdfUrl(newUrl);
++ if (previousUrlRef.current) URL.revokeObjectURL(previousUrlRef.current); const newUrl = URL.createObjectURL(blob); previousUrlRef.current = newUrl; setPdfUrl(newUrl);
 ```
+*Rationale: Overwriting Blob URLs without revoking the previous URL retains binary PDF blobs in browser RAM indefinitely.*
 
 ### [TRAP-FRONT-004]: Synchronous Next.js 15 Route Params
-```typescript
-// ! BANNED: Synchronous params access throws runtime error in Next.js 15
-export default async function Page({ params }: { params: { id: string } }) {
-  const id = params.id; // REJECTED
-}
-// >> CANONICAL: Explicitly awaited Promise params
-export default async function Page({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-}
+```diff
+- export default async function Page({ params }: { params: { id: string } }) { const id = params.id; }
++ export default async function Page({ params }: { params: Promise<{ id: string }> }) { const { id } = await params; }
 ```
+*Rationale: Next.js 15 requires awaiting route params; synchronous property access throws a runtime warning/error during hydration.*
+
+### [TRAP-FRONT-005]: Uncancelled In-Flight Preview Requests
+```diff
+- const blob = await documentsApi.renderPreview({ slug, html });
++ if (abortControllerRef.current) abortControllerRef.current.abort(); const controller = new AbortController(); abortControllerRef.current = controller; const blob = await documentsApi.renderPreview({ slug, html, signal: controller.signal });
+```
+*Rationale: Firing new preview requests without aborting in-flight requests causes race conditions where an older, slower render overwrites a newer one.*
