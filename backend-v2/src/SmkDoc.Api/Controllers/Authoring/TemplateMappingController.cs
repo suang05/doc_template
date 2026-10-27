@@ -63,7 +63,8 @@ public class TemplateMappingController(
         [FromBody] PreviewMappingRequest request,
         CancellationToken ct)
     {
-        var pdfStream = await previewMappingUseCase.ExecuteStreamAsync(id, request.SampleData, ct);
+        var query = new PreviewMappingQuery(id, request.SampleData);
+        var pdfStream = await previewMappingUseCase.ExecuteAsync(query, ct);
         Response.Headers.ContentDisposition = "inline";
         return File(pdfStream, "application/pdf");
     }

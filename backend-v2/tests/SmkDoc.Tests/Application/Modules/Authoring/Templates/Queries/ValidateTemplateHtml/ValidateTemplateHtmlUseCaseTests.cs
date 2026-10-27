@@ -11,7 +11,7 @@ public sealed class ValidateTemplateHtmlUseCaseTests
     private ValidateTemplateHtmlUseCase CreateSut() => new(_renderer);
 
     [Fact]
-    public async Task ValidateHtmlAsync_WithValidTags_ShouldDetectFields()
+    public async Task ExecuteAsync_WithValidTags_ShouldDetectFields()
     {
         // Arrange
         const string html = "<html><body><h1>Hello</h1><Field name=\"customerName\" label=\"Customer Name\" /><Field name=\"totalAmount\" label=\"Total\" /></body></html>";
@@ -19,7 +19,7 @@ public sealed class ValidateTemplateHtmlUseCaseTests
             .Returns([0x25, 0x50, 0x44, 0x46]);
 
         // Act
-        TemplateValidationResultDto result = await CreateSut().ValidateHtmlAsync(html);
+        TemplateValidationResultDto result = await CreateSut().ExecuteAsync(new ValidateTemplateHtmlQuery(html));
 
         // Assert
         result.Valid.Should().BeTrue();
@@ -28,23 +28,23 @@ public sealed class ValidateTemplateHtmlUseCaseTests
     }
 
     [Fact]
-    public async Task ValidateHtmlAsync_WithMissingNameAttribute_ShouldReportError()
+    public async Task ExecuteAsync_WithMissingNameAttribute_ShouldReportError()
     {
         // Arrange
         const string html = "<html><body><Field label=\"Missing Name\" /></body></html>";
 
         // Act
-        TemplateValidationResultDto result = await CreateSut().ValidateHtmlAsync(html);
+        TemplateValidationResultDto result = await CreateSut().ExecuteAsync(new ValidateTemplateHtmlQuery(html));
 
         // Assert
         result.Errors.Should().Contain(e => e.Contains("missing 'name' attribute"));
     }
 
     [Fact]
-    public async Task ValidateHtmlAsync_WithEmptyHtml_ShouldReturnInvalid()
+    public async Task ExecuteAsync_WithEmptyHtml_ShouldReturnInvalid()
     {
         // Act
-        TemplateValidationResultDto result = await CreateSut().ValidateHtmlAsync(string.Empty);
+        TemplateValidationResultDto result = await CreateSut().ExecuteAsync(new ValidateTemplateHtmlQuery(string.Empty));
 
         // Assert
         result.Valid.Should().BeFalse();

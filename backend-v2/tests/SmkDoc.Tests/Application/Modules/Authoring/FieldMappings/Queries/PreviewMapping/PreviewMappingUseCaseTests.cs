@@ -4,6 +4,7 @@ using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.Queries.PreviewMapping;
 using SmkDoc.Domain.Entities;
+using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common.Builders;
 
@@ -81,17 +82,19 @@ public sealed class PreviewMappingUseCaseTests
         var versionId = Guid.NewGuid();
         SetupTemplate(templateId, versionId);
 
+        var expectedStream = new MemoryStream([0x25, 0x50, 0x44, 0x46]);
         _storage.DownloadAsync(StorageBuckets.Templates, "templates/sample-template.html", Arg.Any<CancellationToken>())
             .Returns(new MemoryStream("<html></html>"u8.ToArray()));
-        _htmlEngine.RenderAsync(Arg.Any<Stream>(), Arg.Any<string>(), OutputFormat.Pdf, Arg.Any<CancellationToken>())
-            .Returns([0x25, 0x50, 0x44, 0x46]);
+        _htmlEngine.RenderStreamAsync(Arg.Any<Stream>(), Arg.Any<string>(), OutputFormat.Pdf, Arg.Any<CancellationToken>())
+            .Returns(expectedStream);
 
         var sampleData = JsonDocument.Parse("{\"name\":\"John\"}").RootElement;
+        var query = new PreviewMappingQuery(templateId, sampleData);
 
-        var result = await CreateSut().ExecuteAsync(templateId, sampleData);
+        var resultStream = await CreateSut().ExecuteAsync(query);
 
-        result.Should().NotBeEmpty();
-        await _htmlEngine.Received(1).RenderAsync(
+        resultStream.Should().BeSameAs(expectedStream);
+        await _htmlEngine.Received(1).RenderStreamAsync(
             Arg.Any<Stream>(),
             "{\"name\":\"John\"}",
             OutputFormat.Pdf,
@@ -119,16 +122,19 @@ public sealed class PreviewMappingUseCaseTests
         var versionId = Guid.NewGuid();
         SetupTemplate(templateId, versionId);
 
+        var expectedStream = new MemoryStream();
         _storage.DownloadAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(new MemoryStream());
-        _htmlEngine.RenderAsync(Arg.Any<Stream>(), Arg.Any<string>(), OutputFormat.Pdf, Arg.Any<CancellationToken>())
-            .Returns([]);
+        _htmlEngine.RenderStreamAsync(Arg.Any<Stream>(), Arg.Any<string>(), OutputFormat.Pdf, Arg.Any<CancellationToken>())
+            .Returns(expectedStream);
 
         var undefined = default(JsonElement);
+        var query = new PreviewMappingQuery(templateId, undefined);
 
-        await CreateSut().ExecuteAsync(templateId, undefined);
+        var resultStream = await CreateSut().ExecuteAsync(query);
 
-        await _htmlEngine.Received(1).RenderAsync(
+        resultStream.Should().BeSameAs(expectedStream);
+        await _htmlEngine.Received(1).RenderStreamAsync(
             Arg.Any<Stream>(),
             "{}",
             OutputFormat.Pdf,
@@ -157,18 +163,20 @@ public sealed class PreviewMappingUseCaseTests
         };
         SetupTemplate(templateId, versionId, mappings: mappings);
 
+        var expectedStream = new MemoryStream([0x25, 0x50, 0x44, 0x46]);
         _storage.DownloadAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(new MemoryStream());
         _applicator.ApplyAsync(Arg.Any<JsonElement>(), Arg.Any<IEnumerable<FieldMapping>>(), Arg.Any<IReadOnlyDictionary<string, ResolvedDatasetContext>>())
             .Returns("{\"fullName\":\"John Doe\"}");
-        _htmlEngine.RenderAsync(Arg.Any<Stream>(), "{\"fullName\":\"John Doe\"}", OutputFormat.Pdf, Arg.Any<CancellationToken>())
-            .Returns([0x25, 0x50, 0x44, 0x46]);
+        _htmlEngine.RenderStreamAsync(Arg.Any<Stream>(), "{\"fullName\":\"John Doe\"}", OutputFormat.Pdf, Arg.Any<CancellationToken>())
+            .Returns(expectedStream);
 
         var sampleData = JsonDocument.Parse("{\"customer\":{\"name\":\"John Doe\"}}").RootElement;
+        var query = new PreviewMappingQuery(templateId, sampleData);
 
-        var result = await CreateSut().ExecuteAsync(templateId, sampleData);
+        var resultStream = await CreateSut().ExecuteAsync(query);
 
-        result.Should().NotBeEmpty();
+        resultStream.Should().BeSameAs(expectedStream);
         await _applicator.Received(1).ApplyAsync(
             Arg.Any<JsonElement>(),
             Arg.Is<IEnumerable<FieldMapping>>(m => m.Count() == 1),
@@ -183,7 +191,7 @@ public sealed class PreviewMappingUseCaseTests
         _templateRepo.GetByIdWithDetailsAsync(Arg.Any<TemplateId>(), Arg.Any<CancellationToken>())
             .Returns((Template?)null);
 
-        var act = () => CreateSut().ExecuteAsync(Guid.NewGuid(), default);
+        var act = () => CreateSut().ExecuteAsync(new PreviewMappingQuery(Guid.NewGuid(), default));
         await act.Should().ThrowAsync<NotFoundException>();
     }
 
@@ -201,7 +209,7 @@ public sealed class PreviewMappingUseCaseTests
         _templateRepo.GetByIdWithDetailsAsync(new TemplateId(templateId), Arg.Any<CancellationToken>())
             .Returns(template);
 
-        var act = () => CreateSut().ExecuteAsync(templateId, default);
+        var act = () => CreateSut().ExecuteAsync(new PreviewMappingQuery(templateId, default));
         await act.Should().ThrowAsync<BusinessRuleViolationException>();
     }
 
@@ -216,79 +224,7 @@ public sealed class PreviewMappingUseCaseTests
             .Returns(new MemoryStream());
 
         // Only Html engine registered — Docx engine is missing
-        var act = () => CreateSut().ExecuteAsync(templateId, default);
+        var act = () => CreateSut().ExecuteAsync(new PreviewMappingQuery(templateId, default));
         await act.Should().ThrowAsync<SmkDoc.Application.Common.Exceptions.RenderException>();
-    }
-
-    // ── Stream execution tests ──────────────────────────────────────────
-
-    [Fact]
-    public async Task ExecuteStreamAsync_WithNoMappings_ShouldStreamPdfDirectly()
-    {
-        var templateId = Guid.NewGuid();
-        var versionId = Guid.NewGuid();
-        SetupTemplate(templateId, versionId);
-
-        var expectedStream = new MemoryStream([0x25, 0x50, 0x44, 0x46]);
-        _storage.DownloadAsync(StorageBuckets.Templates, "templates/sample-template.html", Arg.Any<CancellationToken>())
-            .Returns(new MemoryStream("<html></html>"u8.ToArray()));
-        _htmlEngine.RenderStreamAsync(Arg.Any<Stream>(), Arg.Any<string>(), OutputFormat.Pdf, Arg.Any<CancellationToken>())
-            .Returns(expectedStream);
-
-        var sampleData = JsonDocument.Parse("{\"name\":\"John\"}").RootElement;
-
-        var resultStream = await CreateSut().ExecuteStreamAsync(templateId, sampleData);
-
-        resultStream.Should().BeSameAs(expectedStream);
-        await _htmlEngine.Received(1).RenderStreamAsync(
-            Arg.Any<Stream>(),
-            "{\"name\":\"John\"}",
-            OutputFormat.Pdf,
-            Arg.Any<CancellationToken>());
-        await _storage.DidNotReceive().UploadAsync(
-            Arg.Any<string>(),
-            Arg.Any<string>(),
-            Arg.Any<Stream>(),
-            Arg.Any<string>(),
-            Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task ExecuteStreamAsync_WithMappings_ShouldCallApplicatorAndStreamPdf()
-    {
-        var templateId = Guid.NewGuid();
-        var versionId = Guid.NewGuid();
-
-        var mappings = new List<FieldMapping>
-        {
-            new FieldMappingBuilder()
-                .WithTemplateId(templateId)
-                .WithPlaceholder("fullName")
-                .WithSourcePath("customer.name")
-                .WithLabel("Full Name")
-                .WithRequired(false)
-                .WithSortOrder(1)
-                .WithDataSourceType(DataSourceType.Json)
-                .Build()
-        };
-        SetupTemplate(templateId, versionId, mappings: mappings);
-
-        var expectedStream = new MemoryStream([0x25, 0x50, 0x44, 0x46]);
-        _storage.DownloadAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(new MemoryStream());
-        _applicator.ApplyAsync(Arg.Any<JsonElement>(), Arg.Any<IEnumerable<FieldMapping>>(), Arg.Any<IReadOnlyDictionary<string, ResolvedDatasetContext>>())
-            .Returns("{\"fullName\":\"John Doe\"}");
-        _htmlEngine.RenderStreamAsync(Arg.Any<Stream>(), "{\"fullName\":\"John Doe\"}", OutputFormat.Pdf, Arg.Any<CancellationToken>())
-            .Returns(expectedStream);
-
-        var sampleData = JsonDocument.Parse("{\"customer\":{\"name\":\"John Doe\"}}").RootElement;
-
-        var resultStream = await CreateSut().ExecuteStreamAsync(templateId, sampleData);
-
-        resultStream.Should().BeSameAs(expectedStream);
-        await _applicator.Received(1).ApplyAsync(
-            Arg.Any<JsonElement>(),
-            Arg.Is<IEnumerable<FieldMapping>>(m => m.Count() == 1),
-            Arg.Any<IReadOnlyDictionary<string, ResolvedDatasetContext>>());
     }
 }

@@ -5158,7 +5158,7 @@
         ],
         "summary": "Standalone validation of a JSON payload against a Draft-07 JSON Schema.\r\nReturns 200 OK with validation result details (valid = true/false and error items).",
         "requestBody": {
-          "description": "Request containing both schema and payload JsonElements.",
+          "description": "Cancellation token.",
           "content": {
             "application/json": {
               "schema": {
@@ -5229,7 +5229,7 @@
         ],
         "summary": "Standalone validation of a JSON payload against a Draft-07 JSON Schema.\r\nReturns 200 OK with validation result details (valid = true/false and error items).",
         "requestBody": {
-          "description": "Request containing both schema and payload JsonElements.",
+          "description": "Cancellation token.",
           "content": {
             "application/json": {
               "schema": {

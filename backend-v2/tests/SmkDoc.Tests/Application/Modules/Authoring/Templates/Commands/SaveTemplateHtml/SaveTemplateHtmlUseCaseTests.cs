@@ -64,13 +64,14 @@ public sealed class SaveTemplateHtmlUseCaseTests
             .Returns((dummySchema, dummySample));
 
         var request = new SaveTemplateHtmlCommand(
+            TemplateId: templateId,
             Html: "<html><body><h1>Contract Version 4</h1></body></html>",
             SamplePayload: dummySample,
             ChangeNote: "Updated payment terms"
         );
 
         // Act
-        int nextVersion = await CreateSut().SaveHtmlVersionAsync(templateId, request);
+        int nextVersion = await CreateSut().ExecuteAsync(request);
 
         // Assert
         nextVersion.Should().Be(4);

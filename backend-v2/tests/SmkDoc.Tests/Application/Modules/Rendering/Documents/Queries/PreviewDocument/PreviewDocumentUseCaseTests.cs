@@ -1,4 +1,4 @@
-﻿using System.Text;
+using System.Text;
 using System.Text.Json;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Rendering.Documents;
@@ -38,14 +38,15 @@ public sealed class PreviewDocumentUseCaseTests
         using var jsonDoc = JsonDocument.Parse("{\"buyer\": \"สมศรี\"}");
         var request = new PreviewDocumentQuery(
             Payload: jsonDoc.RootElement,
-            Html: "<html><body><Field name=\"buyer\" /><h2>Preview: {{buyer}}</h2></body></html>"
+            Html: "<html><body><Field name=\"buyer\" /><h2>Preview: {{buyer}}</h2></body></html>",
+            Slug: "sale-contract"
         );
 
         // Act
-        byte[] previewBytes = await CreateSut().ExecuteAsync("sale-contract", request);
+        await using var previewStream = await CreateSut().ExecuteAsync(request);
 
         // Assert
-        previewBytes.Should().NotBeNullOrEmpty();
+        previewStream.Should().NotBeNull();
 
         // Zero side-effects verification:
         await _storage.DidNotReceive().UploadAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<Stream>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
@@ -66,15 +67,15 @@ public sealed class PreviewDocumentUseCaseTests
         );
 
         // Act
-        byte[] previewBytes = await CreateSut().ExecuteAsync(null, request);
+        await using var previewStream = await CreateSut().ExecuteAsync(request);
 
         // Assert
-        previewBytes.Should().NotBeNullOrEmpty();
+        previewStream.Should().NotBeNull();
         await _templateRepo.DidNotReceive().GetBySlugAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task ExecuteStreamAsync_ShouldReturnDirectStreamWithoutStorageSideEffects()
+    public async Task ExecuteAsync_ShouldReturnDirectStreamWithoutStorageSideEffects()
     {
         // Arrange
         _engine.RenderStreamAsync(Arg.Any<Stream>(), Arg.Any<string>(), OutputFormat.Pdf, Arg.Any<CancellationToken>())
@@ -87,7 +88,7 @@ public sealed class PreviewDocumentUseCaseTests
         );
 
         // Act
-        await using var streamResult = await CreateSut().ExecuteStreamAsync(null, request);
+        await using var streamResult = await CreateSut().ExecuteAsync(request);
 
         // Assert
         streamResult.Should().NotBeNull();
@@ -99,21 +100,21 @@ public sealed class PreviewDocumentUseCaseTests
     }
 
     [Fact]
-    public async Task ExecuteStreamAsync_WhenSlugIsNull_AndHtmlIsNull_ThrowsDomainValidationException()
+    public async Task ExecuteAsync_WhenSlugIsNull_AndHtmlIsNull_ThrowsDomainValidationException()
     {
         // Arrange
         using var jsonDoc = JsonDocument.Parse("{}");
         var request = new PreviewDocumentQuery(Payload: jsonDoc.RootElement, Html: null);
 
         // Act
-        var act = () => CreateSut().ExecuteStreamAsync(null, request);
+        var act = () => CreateSut().ExecuteAsync(request);
 
         // Assert
         await act.Should().ThrowAsync<DomainValidationException>();
     }
 
     [Fact]
-    public async Task ExecuteStreamAsync_WhenTemplateHasNoPublishedVersion_ThrowsBusinessRuleViolationException()
+    public async Task ExecuteAsync_WhenTemplateHasNoPublishedVersion_ThrowsBusinessRuleViolationException()
     {
         // Arrange
         var template = TemplateBuilder.ATemplate().WithoutCurrentVersion().Build();
@@ -121,10 +122,10 @@ public sealed class PreviewDocumentUseCaseTests
             .Returns(template);
 
         using var jsonDoc = JsonDocument.Parse("{}");
-        var request = new PreviewDocumentQuery(Payload: jsonDoc.RootElement, Html: null);
+        var request = new PreviewDocumentQuery(Payload: jsonDoc.RootElement, Html: null, Slug: "tpl-no-version");
 
         // Act
-        var act = () => CreateSut().ExecuteStreamAsync("tpl-no-version", request);
+        var act = () => CreateSut().ExecuteAsync(request);
 
         // Assert
         await act.Should().ThrowAsync<BusinessRuleViolationException>();

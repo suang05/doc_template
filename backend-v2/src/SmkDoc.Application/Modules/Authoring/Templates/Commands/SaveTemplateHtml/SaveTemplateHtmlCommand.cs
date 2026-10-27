@@ -3,7 +3,8 @@ namespace SmkDoc.Application.Modules.Authoring.Templates.Commands.SaveTemplateHt
 /// <summary>
 /// Command for persisting updated HTML code from Monaco Studio.
 /// </summary>
-public record SaveTemplateHtmlCommand(
+public sealed record SaveTemplateHtmlCommand(
+    Guid TemplateId,
     string Html,
     string? SamplePayload = null,
     string? ChangeNote = null

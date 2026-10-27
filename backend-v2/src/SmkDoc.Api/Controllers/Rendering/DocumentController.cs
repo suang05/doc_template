@@ -78,8 +78,8 @@ public class DocumentController(
     [Produces("application/pdf")]
     public async Task<IActionResult> Preview([FromRoute] string? slug, [FromBody] PreviewDocumentRequest request, CancellationToken ct)
     {
-        var query = new PreviewDocumentQuery(request.Payload, request.Html);
-        var pdfStream = await previewUseCase.ExecuteStreamAsync(slug, query, ct);
+        var query = new PreviewDocumentQuery(request.Payload, request.Html, slug);
+        var pdfStream = await previewUseCase.ExecuteAsync(query, ct);
         Response.Headers.ContentDisposition = "inline";
         return File(pdfStream, "application/pdf");
     }
@@ -145,8 +145,9 @@ public class DocumentController(
             throw new DomainValidationException("File is required and must not be empty.");
         }
 
-        var stream = file.OpenReadStream();
-        var pdfStream = await renderStatelessUseCase.ExecuteStreamAsync(stream, file.FileName, jsonData, ct);
+        var command = new SmkDoc.Application.Modules.Rendering.Documents.Commands.RenderStatelessDocument.RenderStatelessDocumentCommand(
+            file.OpenReadStream(), file.FileName, jsonData);
+        var pdfStream = await renderStatelessUseCase.ExecuteAsync(command, ct);
         
         Response.Headers.ContentDisposition = "inline";
         return File(pdfStream, "application/pdf");

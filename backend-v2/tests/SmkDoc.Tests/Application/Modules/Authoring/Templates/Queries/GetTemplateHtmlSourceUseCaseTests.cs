@@ -85,7 +85,8 @@ public sealed class GetTemplateHtmlSourceUseCaseTests
             .WithId(templateId)
             .WithProjectId(Guid.NewGuid())
             .WithSlug("receipt-template")
-            .WithName("receipt-template");
+            .WithName("receipt-template")
+            .WithoutCurrentVersion();
 
         _templateRepo.GetByIdAsync(new TemplateId(templateId), Arg.Any<CancellationToken>())
             .Returns(template);

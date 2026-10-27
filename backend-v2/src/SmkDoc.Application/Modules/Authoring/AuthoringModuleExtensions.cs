@@ -50,7 +50,6 @@ public static class AuthoringModuleExtensions
         services.AddScoped<SmkDoc.Application.Modules.Authoring.Templates.Queries.GetTemplateSchema.GetTemplateSchemaUseCase>();
         services.AddScoped<SmkDoc.Application.Modules.Authoring.Templates.Queries.PreviewTemplateHtml.PreviewTemplateHtmlUseCase>();
         services.AddScoped<SmkDoc.Application.Modules.Authoring.Templates.Commands.SaveTemplateHtml.SaveTemplateHtmlUseCase>();
-        services.AddScoped<IHtmlPersistenceUseCase>(sp => sp.GetRequiredService<SmkDoc.Application.Modules.Authoring.Templates.Commands.SaveTemplateHtml.SaveTemplateHtmlUseCase>());
         services.AddScoped<ParseTemplateDraftUseCase>();
         services.AddScoped<PreviewTemplateDraftUseCase>();
         services.AddScoped<CommitTemplateDraftUseCase>();

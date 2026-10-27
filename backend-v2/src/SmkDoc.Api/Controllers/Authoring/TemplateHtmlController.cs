@@ -22,7 +22,7 @@ public class TemplateHtmlController(
     GetTemplateHtmlSourceUseCase getHtmlSourceUseCase,
     GetTemplateStudioBundleUseCase getStudioBundleUseCase,
     GetTemplateSchemaUseCase getSchemaUseCase,
-    IHtmlPersistenceUseCase htmlPersistenceUseCase,
+    SaveTemplateHtmlUseCase saveHtmlUseCase,
     ValidateTemplateHtmlUseCase validateUseCase) : ControllerBase
 {
     /// <summary>Get raw HTML source for the Monaco Editor.</summary>
@@ -63,8 +63,8 @@ public class TemplateHtmlController(
         [FromBody] SaveHtmlRequest request,
         CancellationToken ct)
     {
-        var command = new SaveTemplateHtmlCommand(request.Html, request.SamplePayload, request.ChangeNote);
-        int newVersion = await htmlPersistenceUseCase.SaveHtmlVersionAsync(id, command, ct);
+        var command = new SaveTemplateHtmlCommand(id, request.Html, request.SamplePayload, request.ChangeNote);
+        int newVersion = await saveHtmlUseCase.ExecuteAsync(command, ct);
         return Ok(new ApiResponse<SaveHtmlResponse>(new SaveHtmlResponse(newVersion)));
     }
 
@@ -76,7 +76,8 @@ public class TemplateHtmlController(
         [FromBody] ValidateHtmlRequest request,
         CancellationToken ct)
     {
-        var result = await validateUseCase.ValidateHtmlAsync(request.Html, ct);
+        var query = new ValidateTemplateHtmlQuery(request.Html);
+        var result = await validateUseCase.ExecuteAsync(query, ct);
         return Ok(new ApiResponse<TemplateValidationResultDto>(result));
     }
 }

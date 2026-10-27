@@ -1,39 +1,29 @@
-using System.Text.Json;
 using SmkDoc.Application.Common.Interfaces;
+using SmkDoc.Application.Modules.Rendering.Documents.Commands.RenderStatelessDocument;
 using SmkDoc.Domain.Enums;
 
 namespace SmkDoc.Application.Modules.Rendering.Documents;
 
 /// <summary>
-/// Stateless preview use-case: Generates PDF bytes directly from an uploaded file stream and JSON payload.
+/// Stateless preview use-case: Generates PDF stream directly from an uploaded file stream and JSON payload.
 /// Rule: NEVER upload to MinIO, NEVER write to generation_logs, NEVER increment versions.
 /// </summary>
 public sealed class RenderStatelessDocumentUseCase(IEnumerable<IRenderEngine> engines)
+    : IUseCase<RenderStatelessDocumentCommand, Stream>
 {
-    public async Task<Stream> ExecuteStreamAsync(Stream fileStream, string fileName, string? jsonData, CancellationToken ct = default)
+    public async Task<Stream> ExecuteAsync(RenderStatelessDocumentCommand request, CancellationToken ct = default)
     {
-        var engineType = GetEngineTypeFromFileName(fileName);
+        var engineType = GetEngineTypeFromFileName(request.FileName);
         var engine = engines.FirstOrDefault(e => e.EngineType == engineType) 
             ?? throw new NotSupportedException($"No render engine found for {engineType}");
 
-        string payload = string.IsNullOrWhiteSpace(jsonData) ? "{}" : jsonData;
+        string payload = string.IsNullOrWhiteSpace(request.JsonData) ? "{}" : request.JsonData;
 
         // Render stateless document to PDF stream
-        return await engine.RenderStreamAsync(fileStream, payload, OutputFormat.Pdf, ct);
+        return await engine.RenderStreamAsync(request.FileStream, payload, OutputFormat.Pdf, ct);
     }
 
-    public async Task<byte[]> ExecuteAsync(Stream fileStream, string fileName, string? jsonData, CancellationToken ct = default)
-    {
-        await using var stream = await ExecuteStreamAsync(fileStream, fileName, jsonData, ct);
-        if (stream is MemoryStream ms)
-            return ms.ToArray();
-
-        using var copyMs = new MemoryStream();
-        await stream.CopyToAsync(copyMs, ct);
-        return copyMs.ToArray();
-    }
-
-    private RenderEngineType GetEngineTypeFromFileName(string fileName)
+    private static RenderEngineType GetEngineTypeFromFileName(string fileName)
     {
         string ext = Path.GetExtension(fileName);
         if (TemplateFormat.TryFromExtension(ext, out var format))

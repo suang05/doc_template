@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using FluentAssertions;
 using Microsoft.Extensions.Caching.Memory;
 using SmkDoc.Application.Modules.Authoring.Schemas.DTOs;
@@ -15,7 +15,7 @@ public sealed class ValidateStandaloneSchemaUseCaseTests
     private ValidateStandaloneSchemaUseCase CreateSut() => new(_validator);
 
     [Fact]
-    public void Execute_WithValidSchemaAndPayload_ReturnsValidResult()
+    public async Task ExecuteAsync_WithValidSchemaAndPayload_ReturnsValidResult()
     {
         const string schemaJson = """
             {
@@ -40,7 +40,7 @@ public sealed class ValidateStandaloneSchemaUseCaseTests
         using var payloadDoc = JsonDocument.Parse(payloadJson);
 
         var command = new ValidateStandaloneSchemaCommand(schemaDoc.RootElement, payloadDoc.RootElement);
-        var result = CreateSut().Execute(command);
+        var result = await CreateSut().ExecuteAsync(command);
 
         result.Valid.Should().BeTrue();
         result.Message.Should().Contain("successfully");
@@ -48,7 +48,7 @@ public sealed class ValidateStandaloneSchemaUseCaseTests
     }
 
     [Fact]
-    public void Execute_WithInvalidPayload_ReturnsInvalidResultWithErrors()
+    public async Task ExecuteAsync_WithInvalidPayload_ReturnsInvalidResultWithErrors()
     {
         const string schemaJson = """
             {
@@ -73,7 +73,7 @@ public sealed class ValidateStandaloneSchemaUseCaseTests
         using var payloadDoc = JsonDocument.Parse(payloadJson);
 
         var command = new ValidateStandaloneSchemaCommand(schemaDoc.RootElement, payloadDoc.RootElement);
-        var result = CreateSut().Execute(command);
+        var result = await CreateSut().ExecuteAsync(command);
 
         result.Valid.Should().BeFalse();
         result.Errors.Should().NotBeNullOrEmpty();
@@ -81,13 +81,13 @@ public sealed class ValidateStandaloneSchemaUseCaseTests
     }
 
     [Fact]
-    public void Execute_WithEmptySchema_ReturnsValidResult()
+    public async Task ExecuteAsync_WithEmptySchema_ReturnsValidResult()
     {
         using var schemaDoc = JsonDocument.Parse("{}");
         using var payloadDoc = JsonDocument.Parse("{\"any\": \"data\"}");
 
         var command = new ValidateStandaloneSchemaCommand(schemaDoc.RootElement, payloadDoc.RootElement);
-        var result = CreateSut().Execute(command);
+        var result = await CreateSut().ExecuteAsync(command);
 
         result.Valid.Should().BeTrue();
     }

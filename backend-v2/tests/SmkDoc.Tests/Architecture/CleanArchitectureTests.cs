@@ -8,14 +8,6 @@ namespace SmkDoc.Tests.Architecture;
 
 public sealed class CleanArchitectureTests
 {
-    private static readonly HashSet<Type> SpecializedUseCases =
-    [
-        typeof(SmkDoc.Application.Modules.Authoring.Templates.Commands.SaveTemplateHtml.SaveTemplateHtmlUseCase),
-        typeof(SmkDoc.Application.Modules.Authoring.Templates.Queries.ValidateTemplateHtml.ValidateTemplateHtmlUseCase),
-        typeof(SmkDoc.Application.Modules.Rendering.Documents.RenderStatelessDocumentUseCase),
-        typeof(SmkDoc.Application.Modules.Authoring.FieldMappings.Queries.PreviewMapping.PreviewMappingUseCase),
-        typeof(SmkDoc.Application.Modules.Authoring.Schemas.ValidateStandaloneSchemaUseCase)
-    ];
 
     [Fact]
     public void Domain_Should_Not_HaveDependencyOn_OtherProjects()
@@ -123,11 +115,6 @@ public sealed class CleanArchitectureTests
 
         foreach (var useCase in useCaseTypes)
         {
-            if (SpecializedUseCases.Contains(useCase))
-            {
-                continue;
-            }
-
             var implementsUseCase = useCase.GetInterfaces().Any(i =>
                 i.IsGenericType && (
                     i.GetGenericTypeDefinition() == typeof(IUseCase<,>) ||

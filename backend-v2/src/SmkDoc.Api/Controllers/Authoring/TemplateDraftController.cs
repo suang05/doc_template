@@ -54,7 +54,7 @@ public class TemplateDraftController(
         CancellationToken ct)
     {
         var query = new PreviewTemplateDraftQuery(draftId, request.DataJson);
-        var pdfStream = await previewUseCase.ExecuteStreamAsync(query, ct);
+        var pdfStream = await previewUseCase.ExecuteAsync(query, ct);
         Response.Headers.ContentDisposition = "inline";
         return File(pdfStream, "application/pdf");
     }

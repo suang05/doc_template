@@ -22,11 +22,12 @@ public class SchemaController(ValidateStandaloneSchemaUseCase validateUseCase) :
     /// Returns 200 OK with validation result details (valid = true/false and error items).
     /// </summary>
     /// <param name="request">Request containing both schema and payload JsonElements.</param>
+    /// <param name="ct">Cancellation token.</param>
     /// <returns>ApiResponse containing <see cref="ValidateStandaloneSchemaResult"/>.</returns>
     [HttpPost("validate")]
     [ProducesResponseType(typeof(ApiResponse<ValidateStandaloneSchemaResult>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
-    public IActionResult Validate([FromBody] ValidateSchemaRequest request)
+    public async Task<IActionResult> Validate([FromBody] ValidateSchemaRequest request, CancellationToken ct)
     {
         if (request == null ||
             request.Schema.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null ||
@@ -37,7 +38,7 @@ public class SchemaController(ValidateStandaloneSchemaUseCase validateUseCase) :
         }
 
         var command = new ValidateStandaloneSchemaCommand(request.Schema, request.Payload);
-        var result = validateUseCase.Execute(command);
+        var result = await validateUseCase.ExecuteAsync(command, ct);
         return Ok(new ApiResponse<ValidateStandaloneSchemaResult>(result));
     }
 }

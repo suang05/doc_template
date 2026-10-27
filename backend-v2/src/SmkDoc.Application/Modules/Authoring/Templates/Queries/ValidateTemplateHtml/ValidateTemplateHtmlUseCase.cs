@@ -7,7 +7,8 @@ namespace SmkDoc.Application.Modules.Authoring.Templates.Queries.ValidateTemplat
 /// <summary>
 /// Validates HTML template syntax, detects &lt;Field&gt; tags, and performs a Gotenberg dry-run render.
 /// </summary>
-public partial class ValidateTemplateHtmlUseCase(IPdfRenderer pdfRenderer)
+public sealed partial class ValidateTemplateHtmlUseCase(IPdfRenderer pdfRenderer)
+    : IUseCase<ValidateTemplateHtmlQuery, TemplateValidationResultDto>
 {
     [GeneratedRegex(@"<Field\s+([^>]+?)\s*\/?>", RegexOptions.IgnoreCase)]
     private static partial Regex FieldTagRegex();
@@ -18,9 +19,9 @@ public partial class ValidateTemplateHtmlUseCase(IPdfRenderer pdfRenderer)
     [GeneratedRegex(@"label=[""']([^""']+)[""']", RegexOptions.IgnoreCase)]
     private static partial Regex LabelAttributeRegex();
 
-    public async Task<TemplateValidationResultDto> ValidateHtmlAsync(string html, CancellationToken ct = default)
+    public async Task<TemplateValidationResultDto> ExecuteAsync(ValidateTemplateHtmlQuery query, CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(html))
+        if (string.IsNullOrWhiteSpace(query.Html))
         {
             return new TemplateValidationResultDto(
                 Valid: false,
@@ -29,8 +30,8 @@ public partial class ValidateTemplateHtmlUseCase(IPdfRenderer pdfRenderer)
             );
         }
 
-        var (fields, errors) = ExtractFields(html);
-        await ValidateRenderAsync(html, errors, ct);
+        var (fields, errors) = ExtractFields(query.Html);
+        await ValidateRenderAsync(query.Html, errors, ct);
 
         bool isValid = errors.Count == 0 || !errors.Any(e => e.StartsWith("Renderer validation error:"));
         return new TemplateValidationResultDto(isValid, fields, errors);

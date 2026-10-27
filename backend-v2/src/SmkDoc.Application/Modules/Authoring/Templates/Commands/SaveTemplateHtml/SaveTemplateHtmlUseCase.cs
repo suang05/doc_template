@@ -9,13 +9,13 @@ using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Modules.Authoring.Templates.Commands.SaveTemplateHtml;
 
-public class SaveTemplateHtmlUseCase(
+public sealed class SaveTemplateHtmlUseCase(
     ITemplateRepository templateRepo,
     IStorageService storageService,
     IUnitOfWork unitOfWork,
     IExecutionContext executionContext,
     ISchemaInferenceService schemaInferenceService,
-    TimeProvider? timeProvider = null) : IHtmlPersistenceUseCase
+    TimeProvider? timeProvider = null) : IUseCase<SaveTemplateHtmlCommand, int>
 {
     private readonly ITemplateRepository _templateRepo = templateRepo;
     private readonly IStorageService _storageService = storageService;
@@ -24,10 +24,10 @@ public class SaveTemplateHtmlUseCase(
     private readonly ISchemaInferenceService _schemaInferenceService = schemaInferenceService;
     private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
 
-    public async Task<int> SaveHtmlVersionAsync(Guid templateId, SaveTemplateHtmlCommand request, CancellationToken ct = default)
+    public async Task<int> ExecuteAsync(SaveTemplateHtmlCommand request, CancellationToken ct = default)
     {
-        var template = await _templateRepo.GetByIdAsync(new TemplateId(templateId), ct)
-            ?? throw new NotFoundException($"Template '{templateId}' not found.");
+        var template = await _templateRepo.GetByIdAsync(new TemplateId(request.TemplateId), ct)
+            ?? throw new NotFoundException($"Template '{request.TemplateId}' not found.");
 
         int currentVersionNumber = 0;
         if (template.CurrentVersionId.HasValue)

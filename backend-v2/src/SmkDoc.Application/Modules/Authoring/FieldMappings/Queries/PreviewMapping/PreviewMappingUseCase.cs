@@ -14,15 +14,16 @@ namespace SmkDoc.Application.Modules.Authoring.FieldMappings.Queries.PreviewMapp
 /// <summary>
 /// Renders a template with its field mappings applied to caller-supplied sample data.
 /// Zero side-effects: no DB writes, no MinIO uploads, no log entries.
+/// Pure Stream output (Zero LOH).
 /// </summary>
-public class PreviewMappingUseCase(
+public sealed class PreviewMappingUseCase(
     ITemplateRepository templateRepo,
     IDatasetRepository datasetRepo,
     IDataConnectionRepository connectionRepo,
     IStorageService storageService,
     IEnumerable<IRenderEngine> engines,
     IFieldMappingApplicatorService fieldMappingApplicator,
-    IDataProtectionService dataProtection)
+    IDataProtectionService dataProtection) : IUseCase<PreviewMappingQuery, Stream>
 {
     private readonly ITemplateRepository _templateRepo = templateRepo;
     private readonly IDatasetRepository _datasetRepo = datasetRepo;
@@ -32,9 +33,9 @@ public class PreviewMappingUseCase(
     private readonly IFieldMappingApplicatorService _fieldMappingApplicator = fieldMappingApplicator;
     private readonly IDataProtectionService _dataProtection = dataProtection;
 
-    public async Task<Stream> ExecuteStreamAsync(Guid templateId, JsonElement sampleData, CancellationToken ct = default)
+    public async Task<Stream> ExecuteAsync(PreviewMappingQuery request, CancellationToken ct = default)
     {
-        var (version, dataJson, engine) = await PrepareRenderAsync(templateId, sampleData, ct);
+        var (version, dataJson, engine) = await PrepareRenderAsync(request.TemplateId, request.SampleData, ct);
 
         var templateStream = await _storageService.DownloadAsync(StorageBuckets.Templates, version.StorageKey, ct);
         try
@@ -45,14 +46,6 @@ public class PreviewMappingUseCase(
         {
             templateStream.Dispose();
         }
-    }
-
-    public async Task<byte[]> ExecuteAsync(Guid templateId, JsonElement sampleData, CancellationToken ct = default)
-    {
-        var (version, dataJson, engine) = await PrepareRenderAsync(templateId, sampleData, ct);
-
-        using var templateStream = await _storageService.DownloadAsync(StorageBuckets.Templates, version.StorageKey, ct);
-        return await engine.RenderAsync(templateStream, dataJson, OutputFormat.Pdf, ct);
     }
 
     private async Task<(TemplateVersion Version, string DataJson, IRenderEngine Engine)> PrepareRenderAsync(
