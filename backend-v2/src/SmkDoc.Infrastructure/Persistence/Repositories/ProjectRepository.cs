@@ -20,6 +20,11 @@ public sealed class ProjectRepository(AppDbContext context) : IProjectRepository
         return await _context.Projects.FirstOrDefaultAsync(p => p.Slug == slug, ct);
     }
 
+    public async Task<Project?> GetFirstForCompanyAsync(CompanyId companyId, CancellationToken ct = default)
+    {
+        return await _context.Projects.FirstOrDefaultAsync(p => p.CompanyId == companyId, ct);
+    }
+
     public async Task<IReadOnlyList<Project>> ListByIdsAsync(IEnumerable<ProjectId> ids, CancellationToken ct = default)
     {
         var idSet = ids.ToHashSet();

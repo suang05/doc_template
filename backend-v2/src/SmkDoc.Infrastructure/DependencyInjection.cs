@@ -58,7 +58,6 @@ public static class DependencyInjection
             options.AddInterceptors(sp.GetRequiredService<TenantSecuritySaveChangesInterceptor>());
         });
 
-        services.AddScoped(typeof(IRepository<>), typeof(EfRepository<>));
         services.AddScoped<ITemplateRepository, TemplateRepository>();
         services.AddScoped<IDatasetRepository, DatasetRepository>();
         services.AddScoped<IDataConnectionRepository, DataConnectionRepository>();

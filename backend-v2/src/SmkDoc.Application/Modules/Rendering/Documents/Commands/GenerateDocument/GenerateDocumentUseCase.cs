@@ -82,6 +82,8 @@ public sealed class GenerateDocumentUseCase(
                 errorMessage,
                 ct);
 
+            await _unitOfWork.CommitAsync(ct);
+
             throw new SchemaValidationException(
                 slug, currentVersion.Version, preparedData.ValidationResult.Errors);
         }

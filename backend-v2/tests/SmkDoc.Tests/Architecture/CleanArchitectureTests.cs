@@ -167,29 +167,62 @@ public sealed class CleanArchitectureTests
     }
 
     [Fact]
-    public void Application_UseCases_Should_Not_Inject_Child_TemplateVersion_Repository()
+    public void Application_Classes_Should_Not_Inject_Generic_Repository()
     {
         // Arrange
         var appAssembly = typeof(IExecutionContext).Assembly;
-        var useCaseTypes = appAssembly.GetTypes()
-            .Where(t => t.IsClass && !t.IsAbstract && t.Name.EndsWith("UseCase", StringComparison.OrdinalIgnoreCase))
+        var appTypes = appAssembly.GetTypes()
+            .Where(t => t.IsClass && !t.IsAbstract)
             .ToList();
 
         // Assert
-        useCaseTypes.Should().NotBeEmpty();
+        appTypes.Should().NotBeEmpty();
 
-        var prohibitedType = typeof(IRepository<SmkDoc.Domain.Entities.TemplateVersion>);
-
-        foreach (var useCase in useCaseTypes)
+        foreach (var type in appTypes)
         {
-            var constructors = useCase.GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+            var constructors = type.GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
             foreach (var ctor in constructors)
             {
                 foreach (var parameter in ctor.GetParameters())
                 {
-                    parameter.ParameterType.Should().NotBe(
-                        prohibitedType,
-                        $"UseCase '{useCase.Name}' parameter '{parameter.Name}' must not inject child entity repository '{prohibitedType.Name}'. Access TemplateVersion through ITemplateRepository or Template aggregate root.");
+                    var paramType = parameter.ParameterType;
+                    var isGenericRepo = paramType.IsGenericType && paramType.Name.StartsWith("IRepository", StringComparison.OrdinalIgnoreCase);
+
+                    isGenericRepo.Should().BeFalse(
+                        $"Class '{type.Name}' parameter '{parameter.Name}' must not inject generic repository '{paramType.Name}'. Consume explicit domain repository interfaces instead.");
+                }
+            }
+        }
+    }
+
+    [Fact]
+    public void Application_Classes_Should_Not_Inject_Child_Entity_Repositories()
+    {
+        // Arrange
+        var appAssembly = typeof(IExecutionContext).Assembly;
+        var appTypes = appAssembly.GetTypes()
+            .Where(t => t.IsClass && !t.IsAbstract)
+            .ToList();
+
+        var prohibitedRepositories = new[] { "DocumentVersionRepository", "TemplateVersionRepository", "FieldMappingRepository", "TemplateDatasetRepository" };
+
+        // Assert
+        appTypes.Should().NotBeEmpty();
+
+        foreach (var type in appTypes)
+        {
+            var constructors = type.GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+            foreach (var ctor in constructors)
+            {
+                foreach (var parameter in ctor.GetParameters())
+                {
+                    var paramTypeName = parameter.ParameterType.Name;
+                    foreach (var prohibited in prohibitedRepositories)
+                    {
+                        paramTypeName.Should().NotContain(
+                            prohibited,
+                            $"Class '{type.Name}' parameter '{parameter.Name}' must not inject child entity repository '{paramTypeName}'. Access child entities through aggregate roots.");
+                    }
                 }
             }
         }

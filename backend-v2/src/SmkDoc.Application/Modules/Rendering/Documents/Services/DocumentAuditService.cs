@@ -9,9 +9,8 @@ using SmkDoc.Domain.ValueObjects.Ids;
 namespace SmkDoc.Application.Modules.Rendering.Documents.Services;
 
 public sealed class DocumentAuditService(
-    IRepository<GenerationLog> logRepo,
+    IGenerationLogRepository logRepo,
     IExecutionContext executionContext,
-    IUnitOfWork unitOfWork,
     IStorageService? storageService = null,
     IDocumentMetrics? metrics = null,
     TimeProvider? timeProvider = null) : IDocumentAuditService
@@ -63,7 +62,6 @@ public sealed class DocumentAuditService(
             now);
 
         await logRepo.AddAsync(failLog, ct);
-        await unitOfWork.CommitAsync(ct);
 
         metrics?.RecordGenerationFailure("Unknown", outputFormat.Extension, elapsedMs, "VALIDATION_FAILED");
     }

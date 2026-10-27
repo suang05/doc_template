@@ -1,20 +1,19 @@
-using System.Linq.Expressions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Rendering.Documents.Services;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Tests.Application.Modules.Rendering.Documents.Services;
 
 public sealed class DocumentVersioningServiceTests
 {
-    private readonly IRepository<Document> _documentRepo = Substitute.For<IRepository<Document>>();
-    private readonly IRepository<DocumentVersion> _docVersionRepo = Substitute.For<IRepository<DocumentVersion>>();
+    private readonly IDocumentRepository _documentRepo = Substitute.For<IDocumentRepository>();
     private readonly IExecutionContext _context = Substitute.For<IExecutionContext>();
 
     private DocumentVersioningService CreateSut() => new(
-        _documentRepo, _docVersionRepo, _context);
+        _documentRepo, _context);
 
     [Fact]
     public async Task RecordVersionAsync_WhenNewDocument_ShouldCreateDocumentAndFirstVersion()
@@ -25,22 +24,45 @@ public sealed class DocumentVersioningServiceTests
         var genId = Guid.NewGuid();
         _context.ProjectId.Returns(Guid.NewGuid());
 
-        _documentRepo.FirstOrDefaultAsync(Arg.Any<Expression<Func<Document, bool>>>(), Arg.Any<CancellationToken>())
+        _documentRepo.GetByDocumentRefWithVersionsAsync(Arg.Any<DocumentReference>(), Arg.Any<CancellationToken>())
             .Returns((Document?)null);
-
-        _docVersionRepo.MaxOrDefaultAsync(Arg.Any<Expression<Func<DocumentVersion, bool>>>(), Arg.Any<Expression<Func<DocumentVersion, int>>>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(0);
 
         // Act
         await CreateSut().RecordVersionAsync("INV-001", templateId, versionId, genId, "Initial version");
 
         // Assert
         await _documentRepo.Received(1).AddAsync(
-            Arg.Is<Document>(d => d.DocumentRef == "INV-001" && d.TemplateId == new TemplateId(templateId)),
+            Arg.Is<Document>(d => d.DocumentRef == "INV-001" && d.TemplateId == new TemplateId(templateId) && d.Versions.Count == 1 && d.Versions.First().Version == 1),
             Arg.Any<CancellationToken>());
+    }
 
-        await _docVersionRepo.Received(1).AddAsync(
-            Arg.Is<DocumentVersion>(v => v.Version == 1 && v.GenerationLogId == genId),
-            Arg.Any<CancellationToken>());
+    [Fact]
+    public async Task RecordVersionAsync_WhenExistingDocument_ShouldIncrementVersionOnAggregate()
+    {
+        // Arrange
+        var templateId = Guid.NewGuid();
+        var versionId = Guid.NewGuid();
+        var genId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+        _context.ProjectId.Returns(projectId);
+
+        var existingDoc = Document.Create(
+            DocumentReference.Create("INV-001"),
+            new TemplateId(templateId),
+            DateTimeOffset.UtcNow,
+            new ProjectId(projectId));
+        existingDoc.CreateVersion(versionId, Guid.NewGuid(), "v1", "app", DateTimeOffset.UtcNow);
+
+        _documentRepo.GetByDocumentRefWithVersionsAsync(Arg.Any<DocumentReference>(), Arg.Any<CancellationToken>())
+            .Returns(existingDoc);
+
+        // Act
+        await CreateSut().RecordVersionAsync("INV-001", templateId, versionId, genId, "Second version");
+
+        // Assert
+        existingDoc.Versions.Should().HaveCount(2);
+        existingDoc.Versions.Last().Version.Should().Be(2);
+        existingDoc.Versions.Last().GenerationLogId.Should().Be(genId);
+        await _documentRepo.DidNotReceive().AddAsync(Arg.Any<Document>(), Arg.Any<CancellationToken>());
     }
 }

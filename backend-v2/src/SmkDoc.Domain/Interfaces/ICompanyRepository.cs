@@ -8,6 +8,7 @@ public interface ICompanyRepository
 {
     Task<Company?> GetFirstAsync(CancellationToken ct = default);
     Task<Company?> GetByIdAsync(CompanyId id, CancellationToken ct = default);
+    Task<Company?> GetByNameAsync(CompanyName name, CancellationToken ct = default);
     Task<IReadOnlyList<Company>> ListAsync(CancellationToken ct = default);
     Task AddAsync(Company company, CancellationToken ct = default);
 }

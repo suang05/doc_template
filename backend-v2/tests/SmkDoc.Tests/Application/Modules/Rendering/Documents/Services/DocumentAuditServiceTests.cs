@@ -14,17 +14,16 @@ namespace SmkDoc.Tests.Application.Modules.Rendering.Documents.Services;
 
 public sealed class DocumentAuditServiceTests
 {
-    private readonly IRepository<GenerationLog> _logRepo = Substitute.For<IRepository<GenerationLog>>();
+    private readonly IGenerationLogRepository _logRepo = Substitute.For<IGenerationLogRepository>();
     private readonly IExecutionContext _context = Substitute.For<IExecutionContext>();
-    private readonly IUnitOfWork _uow = Substitute.For<IUnitOfWork>();
     private readonly IStorageService _storageService = Substitute.For<IStorageService>();
     private readonly TimeProvider _timeProvider = TestConstants.CreateFakeClock();
 
     private DocumentAuditService CreateSut(IStorageService? storage = null) => new(
-        _logRepo, _context, _uow, storage, null, _timeProvider);
+        _logRepo, _context, storage, null, _timeProvider);
 
     [Fact]
-    public async Task LogValidationFailureAsync_ShouldAddFailedLogAndCommitImmediately()
+    public async Task LogValidationFailureAsync_ShouldAddFailedLogWithoutPrematureCommit()
     {
         // Arrange
         _context.CallerApp.Returns("crm-app");
@@ -38,7 +37,6 @@ public sealed class DocumentAuditServiceTests
         await _logRepo.Received(1).AddAsync(
             Arg.Is<GenerationLog>(l => l.Status == GenerationStatus.ValidationFailed && l.CallerApp == "crm-app"),
             Arg.Any<CancellationToken>());
-        await _uow.Received(1).CommitAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -57,7 +55,6 @@ public sealed class DocumentAuditServiceTests
         await _logRepo.Received(1).AddAsync(
             Arg.Is<GenerationLog>(l => l.Id == genId && l.Status == GenerationStatus.Success && l.OutputKey == "outputs/receipt.pdf"),
             Arg.Any<CancellationToken>());
-        await _uow.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -142,7 +139,7 @@ public sealed class DocumentAuditServiceTests
     }
 
     [Fact]
-    public async Task LogValidationFailureAsync_WithLargePayload_OffloadsToMinIoAndCommits()
+    public async Task LogValidationFailureAsync_WithLargePayload_OffloadsToMinIo()
     {
         // Arrange
         var projectId = Guid.NewGuid();
@@ -168,8 +165,6 @@ public sealed class DocumentAuditServiceTests
                 l.InputData != null &&
                 l.InputData.StartsWith("[OFFLOADED:audit/")),
             Arg.Any<CancellationToken>());
-
-        await _uow.Received(1).CommitAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]

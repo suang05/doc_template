@@ -21,9 +21,8 @@ public sealed class GenerateDocumentUseCaseTests
     private readonly ITemplateRepository _templateRepo = Substitute.For<ITemplateRepository>();
     private readonly IDatasetRepository _datasetRepo = Substitute.For<IDatasetRepository>();
     private readonly IDataConnectionRepository _connectionRepo = Substitute.For<IDataConnectionRepository>();
-    private readonly IRepository<GenerationLog> _logRepo = Substitute.For<IRepository<GenerationLog>>();
-    private readonly IRepository<Document> _documentRepo = Substitute.For<IRepository<Document>>();
-    private readonly IRepository<DocumentVersion> _docVersionRepo = Substitute.For<IRepository<DocumentVersion>>();
+    private readonly IGenerationLogRepository _logRepo = Substitute.For<IGenerationLogRepository>();
+    private readonly IDocumentRepository _documentRepo = Substitute.For<IDocumentRepository>();
     private readonly IStorageService _storageService = Substitute.For<IStorageService>();
     private readonly IRenderEngine _engine = Substitute.For<IRenderEngine>();
     private readonly IExecutionContext _executionContext = Substitute.For<IExecutionContext>();
@@ -50,12 +49,10 @@ public sealed class GenerateDocumentUseCaseTests
 
         var audit = new DocumentAuditService(
             _logRepo,
-            _executionContext,
-            _unitOfWork);
+            _executionContext);
 
         var versioning = new DocumentVersioningService(
             _documentRepo,
-            _docVersionRepo,
             _executionContext);
 
         return new GenerateDocumentUseCase(
@@ -158,11 +155,8 @@ public sealed class GenerateDocumentUseCaseTests
         SetupPresignedUrl("https://minio.sammakorn.co.th/outputs/sample.pdf?signature=valid");
 
         // No existing Document for this ref
-        _documentRepo.FirstOrDefaultAsync(Arg.Any<Expression<Func<Document, bool>>>(), Arg.Any<CancellationToken>())
+        _documentRepo.GetByDocumentRefWithVersionsAsync(Arg.Any<DocumentReference>(), Arg.Any<CancellationToken>())
             .Returns((Document?)null);
-
-        _docVersionRepo.MaxOrDefaultAsync(Arg.Any<Expression<Func<DocumentVersion, bool>>>(), Arg.Any<Expression<Func<DocumentVersion, int>>>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(0);
 
         _executionContext.CallerApp.Returns("sales-app");
 
@@ -186,11 +180,7 @@ public sealed class GenerateDocumentUseCaseTests
             Arg.Any<CancellationToken>());
 
         await _documentRepo.Received(1).AddAsync(
-            Arg.Is<Document>(d => d.DocumentRef == "SC-2026-0001"),
-            Arg.Any<CancellationToken>());
-
-        await _docVersionRepo.Received(1).AddAsync(
-            Arg.Is<DocumentVersion>(v => v.GenerationLogId != null && v.Version == 1),
+            Arg.Is<Document>(d => d.DocumentRef == "SC-2026-0001" && d.Versions.Count == 1 && d.Versions.First().Version == 1),
             Arg.Any<CancellationToken>());
 
         await _unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
@@ -296,13 +286,12 @@ public sealed class GenerateDocumentUseCaseTests
         SetupRenderEnginePdfOutput("%PDF-1.4");
         SetupPresignedUrl("https://minio.sammakorn.co.th/outputs/sc.pdf");
 
-        // Existing document found
-        _documentRepo.FirstOrDefaultAsync(Arg.Any<Expression<Func<Document, bool>>>(), Arg.Any<CancellationToken>())
-            .Returns(existingDocument);
+        existingDocument.CreateVersion(Guid.NewGuid(), Guid.NewGuid(), "v1", "app", now);
+        existingDocument.CreateVersion(Guid.NewGuid(), Guid.NewGuid(), "v2", "app", now);
 
-        // Current max version is 2 — next will be 3
-        _docVersionRepo.MaxOrDefaultAsync(Arg.Any<Expression<Func<DocumentVersion, bool>>>(), Arg.Any<Expression<Func<DocumentVersion, int>>>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(2);
+        // Existing document found
+        _documentRepo.GetByDocumentRefWithVersionsAsync(Arg.Any<DocumentReference>(), Arg.Any<CancellationToken>())
+            .Returns(existingDocument);
 
         using var jsonDoc = JsonDocument.Parse("{}");
         var request = new GenerateDocumentCommand(jsonDoc.RootElement, OutputFormat: "pdf", DocumentRef: "SC-2026-0001");
@@ -314,10 +303,8 @@ public sealed class GenerateDocumentUseCaseTests
         result.DocumentRef.Should().Be("SC-2026-0001");
         result.Sha256.Should().NotBeNullOrEmpty();
         await _documentRepo.DidNotReceive().AddAsync(Arg.Any<Document>(), Arg.Any<CancellationToken>());
-
-        await _docVersionRepo.Received(1).AddAsync(
-            Arg.Is<DocumentVersion>(v => v.DocumentId == documentId && v.Version == 3),
-            Arg.Any<CancellationToken>());
+        existingDocument.Versions.Should().HaveCount(3);
+        existingDocument.Versions.Last().Version.Should().Be(3);
     }
 
     [Fact]

@@ -40,14 +40,14 @@ public static class DatabaseExtensions
         IHostEnvironment environment,
         ILogger logger)
     {
-        var companyRepo = services.GetRequiredService<IRepository<Company>>();
-        var projectRepo = services.GetRequiredService<IRepository<Project>>();
+        var companyRepo = services.GetRequiredService<ICompanyRepository>();
+        var projectRepo = services.GetRequiredService<IProjectRepository>();
         var apiKeyRepo = services.GetRequiredService<IApiKeyRepository>();
         var uow = services.GetRequiredService<IUnitOfWork>();
         var timeProvider = services.GetRequiredService<TimeProvider>();
         var now = timeProvider.GetUtcNow();
 
-        var company = await companyRepo.FirstOrDefaultAsync(c => c.Name == CompanyName.Create("SAMMAKORN"));
+        var company = await companyRepo.GetByNameAsync(CompanyName.Create("SAMMAKORN"));
         if (company == null)
         {
             company = Company.Create(CompanyName.Create("SAMMAKORN"), now);
@@ -55,7 +55,7 @@ public static class DatabaseExtensions
             await uow.CommitAsync();
         }
 
-        var project = await projectRepo.FirstOrDefaultAsync(p => p.CompanyId == company.Id);
+        var project = await projectRepo.GetFirstForCompanyAsync(company.Id);
         if (project == null)
         {
             project = Project.Create(

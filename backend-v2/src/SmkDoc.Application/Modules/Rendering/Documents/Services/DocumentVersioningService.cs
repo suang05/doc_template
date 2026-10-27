@@ -7,8 +7,7 @@ using SmkDoc.Domain.ValueObjects.Ids;
 namespace SmkDoc.Application.Modules.Rendering.Documents.Services;
 
 public sealed class DocumentVersioningService(
-    IRepository<Document> documentRepo,
-    IRepository<DocumentVersion> docVersionRepo,
+    IDocumentRepository documentRepo,
     IExecutionContext executionContext,
     TimeProvider? timeProvider = null) : IDocumentVersioningService
 {
@@ -22,8 +21,8 @@ public sealed class DocumentVersioningService(
         string? changeNote,
         CancellationToken ct = default)
     {
-        var document = await documentRepo.FirstOrDefaultAsync(
-            d => d.DocumentRef == documentRef, ct);
+        var docRef = DocumentReference.Create(documentRef);
+        var document = await documentRepo.GetByDocumentRefWithVersionsAsync(docRef, ct);
 
         var now = this.timeProvider.GetUtcNow();
 
@@ -35,24 +34,18 @@ public sealed class DocumentVersioningService(
                     "Document versioning requires a valid project context.", "MISSING_PROJECT_CONTEXT");
 
             document = Document.Create(
-                DocumentReference.Create(documentRef),
+                docRef,
                 new TemplateId(templateId),
                 now,
                 projectId);
             await documentRepo.AddAsync(document, ct);
         }
 
-        int currentMax = await docVersionRepo.MaxOrDefaultAsync(
-            v => v.DocumentId == document.Id, v => v.Version, 0, ct);
-
-        var docVersion = document.CreateVersion(
-            currentMax + 1,
+        document.CreateVersion(
             currentVersionId,
             generationId,
             changeNote,
             executionContext.CallerApp,
             now);
-
-        await docVersionRepo.AddAsync(docVersion, ct);
     }
 }
