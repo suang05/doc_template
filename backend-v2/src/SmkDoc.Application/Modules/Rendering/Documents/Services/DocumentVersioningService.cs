@@ -31,10 +31,8 @@ public sealed class DocumentVersioningService(
         {
             var projectId = projectContext.IsResolved
                 ? projectContext.ProjectId
-                : (executionContext.ProjectId.HasValue && executionContext.ProjectId.Value != Guid.Empty
-                    ? new ProjectId(executionContext.ProjectId.Value)
-                    : throw new SmkDoc.Domain.Exceptions.BusinessRuleViolationException(
-                        "Document versioning requires a valid project context.", "MISSING_PROJECT_CONTEXT"));
+                : throw new SmkDoc.Domain.Exceptions.BusinessRuleViolationException(
+                    "Document versioning requires a valid project context.", "MISSING_PROJECT_CONTEXT");
 
             document = Document.Create(
                 docRef,

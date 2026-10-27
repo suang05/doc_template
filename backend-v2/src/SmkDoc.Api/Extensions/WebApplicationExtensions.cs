@@ -35,12 +35,15 @@ public static class WebApplicationExtensions
         app.UseMiddleware<SecurityHeadersMiddleware>();
         app.UseCors();
 
-        // 4. Authentication & Perimeter Project Context Gateway
+        // 4. Endpoint Routing (must execute prior to authentication and context resolution)
+        app.UseRouting();
+
+        // 5. Authentication & Perimeter Project Context Gateway
         app.UseAuthentication();
         app.UseMiddleware<ProjectContextMiddleware>();
         app.UseAuthorization();
 
-        // 5. Rate Limiting
+        // 6. Rate Limiting
         app.UseRateLimiter();
 
         // 6. Controllers with Rate Limiting Policy

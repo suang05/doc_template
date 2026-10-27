@@ -32,10 +32,8 @@ public sealed class DocumentAuditService(
     {
         var projectId = projectContext.IsResolved
             ? projectContext.ProjectId
-            : (executionContext.ProjectId.HasValue && executionContext.ProjectId.Value != Guid.Empty
-                ? new ProjectId(executionContext.ProjectId.Value)
-                : throw new SmkDoc.Domain.Exceptions.BusinessRuleViolationException(
-                    "Document audit logging requires a valid project context.", "MISSING_PROJECT_CONTEXT"));
+            : throw new SmkDoc.Domain.Exceptions.BusinessRuleViolationException(
+                "Document audit logging requires a valid project context.", "MISSING_PROJECT_CONTEXT");
 
         var apiKeyId = executionContext.ApiKeyId.HasValue && executionContext.ApiKeyId.Value != Guid.Empty
             ? (ApiKeyId?)new ApiKeyId(executionContext.ApiKeyId.Value)
@@ -82,10 +80,8 @@ public sealed class DocumentAuditService(
     {
         var projectId = projectContext.IsResolved
             ? projectContext.ProjectId
-            : (executionContext.ProjectId.HasValue && executionContext.ProjectId.Value != Guid.Empty
-                ? new ProjectId(executionContext.ProjectId.Value)
-                : throw new SmkDoc.Domain.Exceptions.BusinessRuleViolationException(
-                    "Document audit logging requires a valid project context.", "MISSING_PROJECT_CONTEXT"));
+            : throw new SmkDoc.Domain.Exceptions.BusinessRuleViolationException(
+                "Document audit logging requires a valid project context.", "MISSING_PROJECT_CONTEXT");
 
         var apiKeyId = executionContext.ApiKeyId.HasValue && executionContext.ApiKeyId.Value != Guid.Empty
             ? (ApiKeyId?)new ApiKeyId(executionContext.ApiKeyId.Value)

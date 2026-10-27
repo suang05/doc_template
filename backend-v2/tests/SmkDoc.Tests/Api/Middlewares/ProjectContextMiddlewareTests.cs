@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using SmkDoc.Api.Constants;
 using SmkDoc.Api.Middleware;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Helpers;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Queries.ValidateApiKey;
@@ -67,7 +68,7 @@ public sealed class ProjectContextMiddlewareTests
         httpContext.Response.Body = new MemoryStream();
 
         var projectContext = new CurrentProjectContext();
-        var executionContext = new ExecutionContextImpl();
+        var executionContext = new ExecutionContextImpl(projectContext);
 
         return (httpContext, projectContext, executionContext);
     }
@@ -539,5 +540,180 @@ public sealed class ProjectContextMiddlewareTests
         projectContext.IsResolved.Should().BeFalse();
         httpContext.Response.StatusCode.Should().Be(StatusCodes.Status403Forbidden);
         httpContext.Response.ContentType.Should().StartWith("application/problem+json");
+    }
+
+    [Fact]
+    public async Task InvokeAsync_PortalUser_RouteProjectIdProvided_ResolvesProjectAndHydratesRoleClaim()
+    {
+        // Arrange
+        var sut = CreateSut();
+        var (httpContext, projectContext, executionContext) = CreateContexts("/api/v1/management/projects/users");
+
+        var userId = Guid.NewGuid();
+        var targetProjectId = ProjectId.New();
+
+        var claims = new List<Claim>
+        {
+            new(ClaimTypes.NameIdentifier, userId.ToString()),
+            new("sub", userId.ToString())
+        };
+        httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(claims, "Bearer"));
+        httpContext.Request.RouteValues["projectId"] = targetProjectId.Value.ToString();
+
+        var activeProject = Project.Create(
+            CompanyId.New(),
+            ProjectName.Create("Test Project"),
+            ProjectSlug.Create("test-project"),
+            DateTimeOffset.UtcNow);
+
+        _projectRepo.GetByIdAsync(targetProjectId, Arg.Any<CancellationToken>())
+            .Returns(activeProject);
+
+        var roleMapping = UserProjectRole.Create(new UserId(userId), targetProjectId, RoleType.Admin, DateTimeOffset.UtcNow);
+        _userProjectRoleRepo.GetAsync(targetProjectId, new UserId(userId), Arg.Any<CancellationToken>())
+            .Returns(roleMapping);
+
+        // Act
+        await sut.InvokeAsync(
+            httpContext,
+            projectContext,
+            _validateApiKeyUseCase,
+            _userProjectRoleRepo,
+            _projectRepo,
+            executionContext);
+
+        // Assert
+        await _next.Received(1).Invoke(httpContext);
+        projectContext.IsResolved.Should().BeTrue();
+        projectContext.ProjectId.Should().Be(targetProjectId);
+        executionContext.UserId.Should().Be(userId);
+        executionContext.ProjectId.Should().Be(targetProjectId.Value);
+        httpContext.User.IsInRole("Admin").Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task InvokeAsync_PortalUser_RouteAndHeaderMismatch_Returns400BadRequest()
+    {
+        // Arrange
+        var sut = CreateSut();
+        var (httpContext, projectContext, executionContext) = CreateContexts("/api/v1/management/projects/users");
+
+        var userId = Guid.NewGuid();
+        var routeProjectId = Guid.NewGuid();
+        var headerProjectId = Guid.NewGuid();
+
+        var claims = new List<Claim>
+        {
+            new(ClaimTypes.NameIdentifier, userId.ToString()),
+            new("sub", userId.ToString())
+        };
+        httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(claims, "Bearer"));
+        httpContext.Request.RouteValues["projectId"] = routeProjectId.ToString();
+        httpContext.Request.Headers[HttpHeaderConstants.ProjectIdHeader] = headerProjectId.ToString();
+
+        // Act
+        await sut.InvokeAsync(
+            httpContext,
+            projectContext,
+            _validateApiKeyUseCase,
+            _userProjectRoleRepo,
+            _projectRepo,
+            executionContext);
+
+        // Assert
+        await _next.DidNotReceive().Invoke(httpContext);
+        projectContext.IsResolved.Should().BeFalse();
+        httpContext.Response.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
+        httpContext.Response.ContentType.Should().StartWith("application/problem+json");
+    }
+
+    [Fact]
+    public async Task InvokeAsync_PortalUser_SuperAdmin_HydratesBothSuperAdminAndAdminRoles()
+    {
+        // Arrange
+        var sut = CreateSut();
+        var (httpContext, projectContext, executionContext) = CreateContexts("/api/v1/management/projects/users");
+
+        var userId = Guid.NewGuid();
+        var targetProjectId = ProjectId.New();
+
+        var claims = new List<Claim>
+        {
+            new(ClaimTypes.NameIdentifier, userId.ToString()),
+            new("sub", userId.ToString()),
+            new("SystemRole", "SuperAdmin")
+        };
+        httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(claims, "Bearer"));
+        httpContext.Request.RouteValues["projectId"] = targetProjectId.Value.ToString();
+
+        var activeProject = Project.Create(
+            CompanyId.New(),
+            ProjectName.Create("Test Project"),
+            ProjectSlug.Create("test-project"),
+            DateTimeOffset.UtcNow);
+
+        _projectRepo.GetByIdAsync(targetProjectId, Arg.Any<CancellationToken>())
+            .Returns(activeProject);
+
+        // Act
+        await sut.InvokeAsync(
+            httpContext,
+            projectContext,
+            _validateApiKeyUseCase,
+            _userProjectRoleRepo,
+            _projectRepo,
+            executionContext);
+
+        // Assert
+        await _next.Received(1).Invoke(httpContext);
+        projectContext.IsResolved.Should().BeTrue();
+        projectContext.ProjectId.Should().Be(targetProjectId);
+        httpContext.User.IsInRole("SuperAdmin").Should().BeTrue();
+        httpContext.User.IsInRole("Admin").Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task InvokeAsync_PortalUser_PathFallbackExtraction_ResolvesProjectSuccessfully()
+    {
+        // Arrange
+        var sut = CreateSut();
+        var targetProjectId = ProjectId.New();
+        var (httpContext, projectContext, executionContext) = CreateContexts($"/api/v1/management/projects/{targetProjectId.Value}/users");
+
+        var userId = Guid.NewGuid();
+        var claims = new List<Claim>
+        {
+            new(ClaimTypes.NameIdentifier, userId.ToString()),
+            new("sub", userId.ToString())
+        };
+        httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(claims, "Bearer"));
+
+        var activeProject = Project.Create(
+            CompanyId.New(),
+            ProjectName.Create("Test Project"),
+            ProjectSlug.Create("test-project"),
+            DateTimeOffset.UtcNow);
+
+        _projectRepo.GetByIdAsync(targetProjectId, Arg.Any<CancellationToken>())
+            .Returns(activeProject);
+
+        var roleMapping = UserProjectRole.Create(new UserId(userId), targetProjectId, RoleType.Developer, DateTimeOffset.UtcNow);
+        _userProjectRoleRepo.GetAsync(targetProjectId, new UserId(userId), Arg.Any<CancellationToken>())
+            .Returns(roleMapping);
+
+        // Act
+        await sut.InvokeAsync(
+            httpContext,
+            projectContext,
+            _validateApiKeyUseCase,
+            _userProjectRoleRepo,
+            _projectRepo,
+            executionContext);
+
+        // Assert
+        await _next.Received(1).Invoke(httpContext);
+        projectContext.IsResolved.Should().BeTrue();
+        projectContext.ProjectId.Should().Be(targetProjectId);
+        httpContext.User.IsInRole("Developer").Should().BeTrue();
     }
 }

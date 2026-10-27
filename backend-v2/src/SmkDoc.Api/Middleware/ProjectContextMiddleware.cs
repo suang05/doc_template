@@ -2,6 +2,7 @@ using System;
 using System.Security.Claims;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using SmkDoc.Api.Constants;
@@ -62,15 +63,70 @@ public class ProjectContextMiddleware(
             executionContext.CallerApp = "portal";
             executionContext.Scope = ApiKeyScope.ReadWrite;
 
-            // Resolve target project: Prefer X-Project-Id header, then ProjectId claim
-            Guid? targetProjectIdGuid = null;
+            // 1. Resolve target project from Route Values (e.g. /api/v1/management/projects/{projectId}/...)
+            Guid? routeProjectIdGuid = null;
+            if (context.GetRouteValue("projectId") is object routeVal &&
+                Guid.TryParse(routeVal.ToString(), out var routeProjId) &&
+                routeProjId != Guid.Empty)
+            {
+                routeProjectIdGuid = routeProjId;
+            }
+            else if (context.Request.RouteValues.TryGetValue("projectId", out var dictVal) &&
+                dictVal != null &&
+                Guid.TryParse(dictVal.ToString(), out var dictProjId) &&
+                dictProjId != Guid.Empty)
+            {
+                routeProjectIdGuid = dictProjId;
+            }
+            else
+            {
+                // Fallback: Path segments extraction for /projects/{guid}
+                var segments = context.Request.Path.Value?.Split('/', StringSplitOptions.RemoveEmptyEntries);
+                if (segments != null)
+                {
+                    for (int i = 0; i < segments.Length - 1; i++)
+                    {
+                        if (string.Equals(segments[i], "projects", StringComparison.OrdinalIgnoreCase) &&
+                            Guid.TryParse(segments[i + 1], out var pathProjId) &&
+                            pathProjId != Guid.Empty)
+                        {
+                            routeProjectIdGuid = pathProjId;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // 2. Resolve target project from Header X-Project-Id
+            Guid? headerProjectIdGuid = null;
             if (context.Request.Headers.TryGetValue(HttpHeaderConstants.ProjectIdHeader, out var reqProjectIdStr) &&
                 Guid.TryParse(reqProjectIdStr, out var headerProjId) &&
                 headerProjId != Guid.Empty)
             {
-                targetProjectIdGuid = headerProjId;
+                headerProjectIdGuid = headerProjId;
             }
-            else
+
+            // 3. Strict Conflict Detection: Fail-fast if Route and Header contradict ([TRAP-SEC-004])
+            if (routeProjectIdGuid.HasValue && headerProjectIdGuid.HasValue && routeProjectIdGuid.Value != headerProjectIdGuid.Value)
+            {
+                logger.LogWarning(
+                    "Tenant conflict detected: Route specifies project {RouteProjectId}, but X-Project-Id header specifies {HeaderProjectId}",
+                    routeProjectIdGuid.Value,
+                    headerProjectIdGuid.Value);
+
+                await WriteProblemDetailsAsync(
+                    context,
+                    StatusCodes.Status400BadRequest,
+                    "Bad Request",
+                    $"Tenant conflict detected: Route specifies project '{routeProjectIdGuid.Value}', but X-Project-Id header specifies '{headerProjectIdGuid.Value}'.",
+                    "https://tools.ietf.org/html/rfc9457");
+                return;
+            }
+
+            Guid? targetProjectIdGuid = routeProjectIdGuid ?? headerProjectIdGuid;
+
+            // 4. Fallback to ProjectId claim in user token if neither route nor header specified
+            if (!targetProjectIdGuid.HasValue)
             {
                 var claimProjectIdStr = context.User.FindFirst("ProjectId")?.Value;
                 if (Guid.TryParse(claimProjectIdStr, out var claimProjId) && claimProjId != Guid.Empty)
@@ -115,12 +171,12 @@ public class ProjectContextMiddleware(
 
                 var systemRoleClaim = context.User.FindFirst("SystemRole")?.Value
                     ?? context.User.FindFirst(ClaimTypes.Role)?.Value;
-                bool isSuperAdmin = string.Equals(systemRoleClaim, "SuperAdmin", StringComparison.OrdinalIgnoreCase);
+                bool isSuperAdmin = string.Equals(systemRoleClaim, RoleConstants.SuperAdmin, StringComparison.OrdinalIgnoreCase);
 
-                string roleName = "Member";
+                string roleName = RoleConstants.Member;
                 if (isSuperAdmin)
                 {
-                    roleName = "SuperAdmin";
+                    roleName = RoleConstants.SuperAdmin;
                 }
                 else
                 {
@@ -149,7 +205,20 @@ public class ProjectContextMiddleware(
                 }
 
                 projectContextSetter.SetProject(targetProjectId, $"User:{userIdGuid}:{roleName}");
-                executionContext.ProjectId = targetProjectId.Value;
+
+                // Dynamic ClaimTypes.Role Hydration with SuperAdmin privilege inheritance
+                if (context.User.Identity is ClaimsIdentity identity)
+                {
+                    if (isSuperAdmin)
+                    {
+                        identity.AddClaim(new Claim(ClaimTypes.Role, RoleConstants.SuperAdmin));
+                        identity.AddClaim(new Claim(ClaimTypes.Role, RoleConstants.Admin));
+                    }
+                    else
+                    {
+                        identity.AddClaim(new Claim(ClaimTypes.Role, roleName));
+                    }
+                }
             }
 
             await next(context);
@@ -170,7 +239,6 @@ public class ProjectContextMiddleware(
                     masterProjId != Guid.Empty)
                 {
                     projectContextSetter.SetProject(new ProjectId(masterProjId), "MasterKey");
-                    executionContext.ProjectId = masterProjId;
                 }
 
                 executionContext.CallerApp = "master";
@@ -236,7 +304,6 @@ public class ProjectContextMiddleware(
 
             executionContext.ApiKeyId = key.Id;
             executionContext.CallerApp = key.CallerApp;
-            executionContext.ProjectId = key.ProjectId;
             executionContext.Scope = ApiKeyScope.TryFromName(key.Scope, out var scope) ? scope : ApiKeyScope.ReadWrite;
 
             await next(context);

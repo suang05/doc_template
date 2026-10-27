@@ -58,7 +58,7 @@ public sealed class CreateTemplateUseCaseTests
     public async Task ExecuteAsync_WhenSlugAlreadyExists_ShouldThrowConflictException()
     {
         // Arrange
-        var projectId = Guid.NewGuid();
+        var projectId = TestConstants.DefaultProjectId;
         _templateRepo.SlugExistsAsync("tax-invoice", Arg.Any<CancellationToken>())
             .Returns(true);
 
@@ -76,7 +76,7 @@ public sealed class CreateTemplateUseCaseTests
     public async Task ExecuteAsync_WhenValidHtmlTemplate_ShouldPersistAndReturnTemplateResultDto()
     {
         // Arrange
-        var projectId = Guid.NewGuid();
+        var projectId = TestConstants.DefaultProjectId;
         _templateRepo.SlugExistsAsync("tax-invoice", Arg.Any<CancellationToken>())
             .Returns(false);
         _executionContext.CallerApp.Returns("erp-system");
@@ -98,5 +98,21 @@ public sealed class CreateTemplateUseCaseTests
             Arg.Is<Template>(t => t.Versions.Count == 1 && t.Versions.Any(v => v.Version == 1)),
             Arg.Any<CancellationToken>());
         await _unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenCommandProjectIdMismatchesContext_ShouldThrowForbiddenException()
+    {
+        // Arrange
+        var spoofedProjectId = Guid.NewGuid();
+        var command = new CreateTemplateCommand(spoofedProjectId, "Spoofed Template", "spoofed-template", "Security");
+
+        // Act
+        var act = () => CreateSut().ExecuteAsync(command);
+
+        // Assert
+        await act.Should().ThrowAsync<ForbiddenException>()
+            .WithMessage("*Cross-tenant template creation rejected*");
+        await _templateRepo.DidNotReceive().AddAsync(Arg.Any<Template>(), Arg.Any<CancellationToken>());
     }
 }

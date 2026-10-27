@@ -1,4 +1,5 @@
 using FluentValidation;
+using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Helpers;
@@ -28,10 +29,21 @@ public sealed class CreateApiKeyUseCase(
             throw new ValidationException(validationResult.ToDictionary());
         }
 
-        Guid targetProjectId = command.ProjectId 
-            ?? (projectContext?.IsResolved == true ? projectContext.ProjectId.Value : Guid.Empty);
+        Guid targetProjectId;
+        if (projectContext?.IsResolved == true)
+        {
+            if (command.ProjectId.HasValue && command.ProjectId.Value != Guid.Empty && command.ProjectId.Value != projectContext.ProjectId.Value)
+            {
+                throw new ForbiddenException($"Cross-tenant API key creation rejected: Command ProjectId '{command.ProjectId.Value}' does not match active context '{projectContext.ProjectId.Value}'.");
+            }
 
-        if (targetProjectId == Guid.Empty)
+            targetProjectId = projectContext.ProjectId.Value;
+        }
+        else if (command.ProjectId.HasValue && command.ProjectId.Value != Guid.Empty)
+        {
+            targetProjectId = command.ProjectId.Value;
+        }
+        else
         {
             throw new ValidationException("ProjectId", "ProjectId is required to create an API key.");
         }

@@ -8,10 +8,8 @@ namespace SmkDoc.Infrastructure.Contexts;
 /// Scoped thread-safe implementation of <see cref="ICurrentProjectContext"/> and <see cref="ICurrentProjectContextSetter"/>.
 /// Provides immutable guarantees once a project has been successfully resolved for the request.
 /// </summary>
-public sealed class CurrentProjectContext(ExecutionContextImpl? executionContext = null) : ICurrentProjectContext, ICurrentProjectContextSetter
+public sealed class CurrentProjectContext : ICurrentProjectContext, ICurrentProjectContextSetter
 {
-    private readonly ExecutionContextImpl? _executionContext = executionContext;
-
     public ProjectId ProjectId { get; private set; } = ProjectId.Empty;
     public bool IsResolved => !ProjectId.IsEmpty;
     public string? CallerIdentity { get; private set; }
@@ -30,10 +28,5 @@ public sealed class CurrentProjectContext(ExecutionContextImpl? executionContext
 
         ProjectId = projectId;
         CallerIdentity = callerIdentity;
-
-        if (_executionContext != null)
-        {
-            _executionContext.ProjectId = projectId.Value;
-        }
     }
 }

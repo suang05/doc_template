@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Common.Responses;
+using SmkDoc.Api.Constants;
 using SmkDoc.Api.Contracts.IdentityAccess.Projects;
 using SmkDoc.Api.Extensions;
 using SmkDoc.Application.Modules.IdentityAccess.Projects.Commands.CreateProject;
@@ -57,7 +58,7 @@ public class ProjectManagementController(
 
     /// <summary>Create a new project. Admin only.</summary>
     [HttpPost]
-    [Authorize(Roles = "Admin")] // Declarative RBAC คืน 403 Forbidden อัตโนมัติเมื่อไม่มีสิทธิ์
+    [Authorize(Roles = RoleConstants.AdminOrSuperAdmin)] // Declarative RBAC คืน 403 Forbidden อัตโนมัติเมื่อไม่มีสิทธิ์
     [ProducesResponseType(typeof(ApiResponse<ProjectResultDto>), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]

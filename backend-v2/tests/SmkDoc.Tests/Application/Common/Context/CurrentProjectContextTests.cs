@@ -1,4 +1,4 @@
-﻿using FluentAssertions;
+using FluentAssertions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects.Ids;
@@ -95,19 +95,22 @@ public sealed class CurrentProjectContextTests
     }
 
     [Fact]
-    public void SetProject_WithExecutionContext_SynchronizesProjectIdOnExecutionContext()
+    public void ExecutionContextImpl_ProjectId_DelegatesToCurrentProjectContext()
     {
         // Arrange
-        var executionContext = new ExecutionContextImpl();
-        var sut = new CurrentProjectContext(executionContext);
+        var projectContext = new CurrentProjectContext();
+        var executionContext = new ExecutionContextImpl(projectContext);
         var projectId = ProjectId.New();
 
-        // Act
-        sut.SetProject(projectId, "portal");
+        // Assert before resolution
+        executionContext.ProjectId.Should().BeNull();
 
-        // Assert
-        sut.IsResolved.Should().BeTrue();
-        sut.ProjectId.Should().Be(projectId);
+        // Act
+        projectContext.SetProject(projectId, "portal");
+
+        // Assert after resolution
+        projectContext.IsResolved.Should().BeTrue();
+        projectContext.ProjectId.Should().Be(projectId);
         executionContext.ProjectId.Should().Be(projectId.Value);
     }
 }

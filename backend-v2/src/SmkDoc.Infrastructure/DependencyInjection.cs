@@ -34,12 +34,12 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructureServices(this IServiceCollection services, IConfiguration configuration)
     {
-        // 2. Execution Context
-        services.AddScoped<ExecutionContextImpl>();
-        services.AddScoped<IExecutionContext>(sp => sp.GetRequiredService<ExecutionContextImpl>());
+        // 2. Ambient Project & Execution Context
         services.AddScoped<CurrentProjectContext>();
         services.AddScoped<ICurrentProjectContext>(sp => sp.GetRequiredService<CurrentProjectContext>());
         services.AddScoped<ICurrentProjectContextSetter>(sp => sp.GetRequiredService<CurrentProjectContext>());
+        services.AddScoped<ExecutionContextImpl>();
+        services.AddScoped<IExecutionContext>(sp => sp.GetRequiredService<ExecutionContextImpl>());
 
         // 3. Database
         string connectionString = configuration.GetConnectionString("DefaultConnection")

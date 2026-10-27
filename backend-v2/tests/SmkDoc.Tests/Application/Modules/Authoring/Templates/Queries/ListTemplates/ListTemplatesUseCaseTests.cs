@@ -85,4 +85,32 @@ public sealed class ListTemplatesUseCaseTests
         result.TotalCount.Should().Be(1);
         result.Items[0].Name.Should().Be("Invoice");
     }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenQueryProjectIdMismatchesAmbientContext_ShouldThrowForbiddenException()
+    {
+        // Arrange
+        var contextProjectId = Guid.NewGuid();
+        var spoofedProjectId = Guid.NewGuid();
+
+        _projectContext.IsResolved.Returns(true);
+        _projectContext.ProjectId.Returns(new ProjectId(contextProjectId));
+
+        var sut = CreateSut(_projectContext);
+
+        // Act
+        var act = () => sut.ExecuteAsync(new ListTemplatesQuery(spoofedProjectId));
+
+        // Assert
+        await act.Should().ThrowAsync<ForbiddenException>()
+            .WithMessage("*Cross-tenant template listing rejected*");
+        await _templateQueryService.DidNotReceive().ListPagedAsync(
+            Arg.Any<ProjectId>(),
+            Arg.Any<string?>(),
+            Arg.Any<string?>(),
+            Arg.Any<bool?>(),
+            Arg.Any<int>(),
+            Arg.Any<int>(),
+            Arg.Any<CancellationToken>());
+    }
 }

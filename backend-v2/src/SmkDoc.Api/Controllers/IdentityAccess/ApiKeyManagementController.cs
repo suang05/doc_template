@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Common.Responses;
+using SmkDoc.Api.Constants;
 using SmkDoc.Api.Contracts.IdentityAccess.ApiKeys;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.CreateApiKey;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.RevokeApiKey;
@@ -15,7 +16,7 @@ namespace SmkDoc.Api.Controllers.IdentityAccess;
 /// </summary>
 [ApiController]
 [Route("api/v1/management/projects/{projectId:guid}/api-keys")]
-[Authorize(Roles = "Admin")] // ใช้ Declarative Authorization ระดับ Controller ป้องกันข้อผิดพลาดแบบ Fail-Safe
+[Authorize(Roles = RoleConstants.AdminOrSuperAdmin)]
 [ProducesResponseType(StatusCodes.Status401Unauthorized)]
 [ProducesResponseType(StatusCodes.Status403Forbidden)]
 public class ApiKeyManagementController(

@@ -1,4 +1,5 @@
 using SmkDoc.Application.Common;
+using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Domain.Entities;
@@ -27,11 +28,21 @@ public sealed class CommitTemplateDraftUseCase(
         var draft = await draftCache.GetAsync(command.DraftId, ct)
             ?? throw new DraftExpiredException(command.DraftId);
 
-        Guid targetProjectId = (command.Request.ProjectId.HasValue && command.Request.ProjectId.Value != Guid.Empty)
-            ? command.Request.ProjectId.Value
-            : (projectContext.IsResolved ? projectContext.ProjectId.Value : Guid.Empty);
+        Guid targetProjectId;
+        if (projectContext.IsResolved)
+        {
+            if (command.Request.ProjectId.HasValue && command.Request.ProjectId.Value != Guid.Empty && command.Request.ProjectId.Value != projectContext.ProjectId.Value)
+            {
+                throw new ForbiddenException($"Cross-tenant draft commit rejected: Payload ProjectId '{command.Request.ProjectId.Value}' does not match active context '{projectContext.ProjectId.Value}'.");
+            }
 
-        if (targetProjectId == Guid.Empty)
+            targetProjectId = projectContext.ProjectId.Value;
+        }
+        else if (command.Request.ProjectId.HasValue && command.Request.ProjectId.Value != Guid.Empty)
+        {
+            targetProjectId = command.Request.ProjectId.Value;
+        }
+        else
         {
             throw new ValidationException("ProjectId", "ProjectId is required to commit template.");
         }

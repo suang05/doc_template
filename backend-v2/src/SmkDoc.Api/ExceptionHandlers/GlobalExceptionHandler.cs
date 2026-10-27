@@ -88,6 +88,7 @@ public sealed class GlobalExceptionHandler(
             DataConnectionDecryptionException decrypt => (StatusCodes.Status500InternalServerError, "Data Connection Decryption Failed", decrypt.ErrorCode),
             DatasetExecutionException datasetEx  => (StatusCodes.Status500InternalServerError, "Dataset Query Failed", datasetEx.ErrorCode),
             UnauthorizedException unauthorized   => (StatusCodes.Status401Unauthorized, "Unauthorized", unauthorized.ErrorCode),
+            ForbiddenException forbidden         => (StatusCodes.Status403Forbidden, "Forbidden", forbidden.ErrorCode),
             DomainValidationException domainVal  => (StatusCodes.Status400BadRequest, "Domain Validation Error", domainVal.ErrorCode),
             BusinessRuleViolationException rule  => (StatusCodes.Status400BadRequest, "Business Rule Violation", rule.ErrorCode),
             SchemaValidationException schema     => (StatusCodes.Status422UnprocessableEntity, "Schema Validation Failed", schema.ErrorCode),

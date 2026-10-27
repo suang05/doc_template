@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Common.Responses;
+using SmkDoc.Api.Constants;
 using SmkDoc.Api.Contracts.IdentityAccess.Users;
 using SmkDoc.Api.Extensions;
 using SmkDoc.Application.Modules.IdentityAccess.Users.Commands.InviteUser;
@@ -38,7 +39,7 @@ public class UserManagementController(
 
     /// <summary>Invite a new user to the project. Admin only.</summary>
     [HttpPost]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = RoleConstants.AdminOrSuperAdmin)]
     [ProducesResponseType(typeof(ApiResponse<UserResultDto>), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -56,7 +57,7 @@ public class UserManagementController(
 
     /// <summary>Update a user's role within the project. Admin only.</summary>
     [HttpPut("{userId:guid}/role")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = RoleConstants.AdminOrSuperAdmin)]
     [ProducesResponseType(typeof(ApiResponse<UserResultDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -75,7 +76,7 @@ public class UserManagementController(
 
     /// <summary>Remove a user from the project. Admin only.</summary>
     [HttpDelete("{userId:guid}")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = RoleConstants.AdminOrSuperAdmin)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -94,7 +95,7 @@ public class UserManagementController(
 
     /// <summary>Activate or deactivate a user account. Admin only.</summary>
     [HttpPatch("{userId:guid}/status")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = RoleConstants.AdminOrSuperAdmin)]
     [ProducesResponseType(typeof(ApiResponse<UserResultDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]

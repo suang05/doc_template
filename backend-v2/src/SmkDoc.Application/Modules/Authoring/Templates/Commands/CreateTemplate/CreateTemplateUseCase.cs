@@ -1,6 +1,7 @@
 using System.Text;
 using FluentValidation;
 using SmkDoc.Application.Common;
+using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Domain.Entities;
@@ -37,9 +38,24 @@ public sealed class CreateTemplateUseCase(
             throw new ValidationException(validationResult.ToDictionary());
         }
 
-        var effectiveProjectId = command.ProjectId != Guid.Empty
-            ? command.ProjectId
-            : (projectContext.IsResolved ? projectContext.ProjectId.Value : Guid.Empty);
+        Guid effectiveProjectId;
+        if (projectContext.IsResolved)
+        {
+            if (command.ProjectId != Guid.Empty && command.ProjectId != projectContext.ProjectId.Value)
+            {
+                throw new ForbiddenException($"Cross-tenant template creation rejected: Payload ProjectId '{command.ProjectId}' does not match active context '{projectContext.ProjectId.Value}'.");
+            }
+
+            effectiveProjectId = projectContext.ProjectId.Value;
+        }
+        else if (command.ProjectId != Guid.Empty)
+        {
+            effectiveProjectId = command.ProjectId;
+        }
+        else
+        {
+            throw new BusinessRuleViolationException("Creating a template requires an active project context.", "MISSING_PROJECT_CONTEXT");
+        }
 
         // 2. Domain Rule Check (Slug uniqueness)
         var slugExists = await templateRepo.SlugExistsAsync(command.Slug, ct);

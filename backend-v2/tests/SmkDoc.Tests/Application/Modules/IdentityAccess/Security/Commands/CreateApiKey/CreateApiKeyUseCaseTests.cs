@@ -108,4 +108,32 @@ public sealed class CreateApiKeyUseCaseTests
             Arg.Is<ApiKey>(k => k.ProjectId == new ProjectId(contextProjectId)),
             Arg.Any<CancellationToken>());
     }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenCommandProjectIdMismatchesContext_ThrowsForbiddenException()
+    {
+        // Arrange
+        var contextProjectId = Guid.NewGuid();
+        var spoofedProjectId = Guid.NewGuid();
+        var projectContext = Substitute.For<ICurrentProjectContext>();
+        projectContext.IsResolved.Returns(true);
+        projectContext.ProjectId.Returns(new ProjectId(contextProjectId));
+
+        var sut = new CreateApiKeyUseCase(
+            _apiKeyRepo,
+            _projectRepo,
+            _unitOfWork,
+            _validator,
+            projectContext: projectContext);
+
+        var command = new CreateApiKeyCommand("Spoofed App", "spoofed-app", ProjectId: spoofedProjectId);
+
+        // Act
+        var act = () => sut.ExecuteAsync(command);
+
+        // Assert
+        await act.Should().ThrowAsync<ForbiddenException>()
+            .WithMessage("*Cross-tenant API key creation rejected*");
+        await _apiKeyRepo.DidNotReceive().AddAsync(Arg.Any<ApiKey>(), Arg.Any<CancellationToken>());
+    }
 }

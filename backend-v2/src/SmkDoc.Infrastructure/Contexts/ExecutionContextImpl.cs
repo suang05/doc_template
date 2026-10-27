@@ -3,9 +3,11 @@ using SmkDoc.Domain.Enums;
 
 namespace SmkDoc.Infrastructure.Contexts;
 
-public class ExecutionContextImpl : IExecutionContext
+public class ExecutionContextImpl(ICurrentProjectContext? projectContext = null) : IExecutionContext
 {
-    public Guid? ProjectId { get; set; }
+    private readonly ICurrentProjectContext? _projectContext = projectContext;
+
+    public Guid? ProjectId => _projectContext?.IsResolved == true ? _projectContext.ProjectId.Value : null;
     public Guid? UserId { get; set; }
     public Guid? ApiKeyId { get; set; }
     public ApiKeyScope? Scope { get; set; }

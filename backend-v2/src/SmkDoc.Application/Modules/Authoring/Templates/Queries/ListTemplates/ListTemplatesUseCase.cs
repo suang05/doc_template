@@ -1,3 +1,4 @@
+using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Domain.Exceptions;
@@ -19,11 +20,21 @@ public sealed class ListTemplatesUseCase(
 
     public async Task<TemplatePagedResultDto> ExecuteAsync(ListTemplatesQuery query, CancellationToken ct = default)
     {
-        var activeProjectId = query.ProjectId != Guid.Empty
-            ? query.ProjectId
-            : (_projectContext?.IsResolved == true ? _projectContext.ProjectId.Value : Guid.Empty);
+        Guid activeProjectId;
+        if (_projectContext?.IsResolved == true)
+        {
+            if (query.ProjectId != Guid.Empty && query.ProjectId != _projectContext.ProjectId.Value)
+            {
+                throw new ForbiddenException($"Cross-tenant template listing rejected: Query ProjectId '{query.ProjectId}' does not match active context '{_projectContext.ProjectId.Value}'.");
+            }
 
-        if (activeProjectId == Guid.Empty)
+            activeProjectId = _projectContext.ProjectId.Value;
+        }
+        else if (query.ProjectId != Guid.Empty)
+        {
+            activeProjectId = query.ProjectId;
+        }
+        else
         {
             throw new DomainValidationException("ProjectId cannot be empty.");
         }
