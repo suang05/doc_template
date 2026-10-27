@@ -1,9 +1,12 @@
 using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.Contracts.Authoring.Templates;
-using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Application.Modules.Authoring.Templates;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.SaveTemplateHtml;
+using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
+using SmkDoc.Application.Modules.Authoring.Templates.Queries.GetTemplateHtmlSource;
+using SmkDoc.Application.Modules.Authoring.Templates.Queries.GetTemplateSchema;
+using SmkDoc.Application.Modules.Authoring.Templates.Queries.GetTemplateStudioBundle;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.ValidateTemplateHtml;
 
 namespace SmkDoc.Api.Controllers.Authoring;
@@ -16,7 +19,9 @@ namespace SmkDoc.Api.Controllers.Authoring;
 [Route("api/v1/templates/{id:guid}")]
 [Route("api/templates/{id:guid}")]
 public class TemplateHtmlController(
-    IHtmlStudioUseCase htmlStudioUseCase,
+    GetTemplateHtmlSourceUseCase getHtmlSourceUseCase,
+    GetTemplateStudioBundleUseCase getStudioBundleUseCase,
+    GetTemplateSchemaUseCase getSchemaUseCase,
     IHtmlPersistenceUseCase htmlPersistenceUseCase,
     ValidateTemplateHtmlUseCase validateUseCase) : ControllerBase
 {
@@ -25,7 +30,8 @@ public class TemplateHtmlController(
     [Produces("text/html")]
     public async Task<IActionResult> GetHtml([FromRoute] Guid id, CancellationToken ct)
     {
-        string html = await htmlStudioUseCase.GetHtmlSourceAsync(id, ct);
+        var query = new GetTemplateHtmlSourceQuery(id);
+        string html = await getHtmlSourceUseCase.ExecuteAsync(query, ct);
         return Content(html, "text/html; charset=utf-8");
     }
 
@@ -34,7 +40,8 @@ public class TemplateHtmlController(
     [ProducesResponseType(typeof(ApiResponse<TemplateStudioDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetStudioBundle([FromRoute] Guid id, CancellationToken ct)
     {
-        var bundle = await htmlStudioUseCase.GetStudioBundleAsync(id, ct);
+        var query = new GetTemplateStudioBundleQuery(id);
+        var bundle = await getStudioBundleUseCase.ExecuteAsync(query, ct);
         return Ok(new ApiResponse<TemplateStudioDto>(bundle));
     }
 
@@ -43,7 +50,8 @@ public class TemplateHtmlController(
     [ProducesResponseType(typeof(ApiResponse<TemplateSchemaDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetSchema([FromRoute] Guid id, CancellationToken ct)
     {
-        var schemaDto = await htmlStudioUseCase.GetTemplateSchemaAsync(id, ct);
+        var query = new GetTemplateSchemaQuery(id);
+        var schemaDto = await getSchemaUseCase.ExecuteAsync(query, ct);
         return Ok(new ApiResponse<TemplateSchemaDto>(schemaDto));
     }
 

@@ -10,7 +10,6 @@ public sealed class CleanArchitectureTests
 {
     private static readonly HashSet<Type> SpecializedUseCases =
     [
-        typeof(SmkDoc.Application.Modules.Authoring.Templates.HtmlStudioUseCase),
         typeof(SmkDoc.Application.Modules.Authoring.Templates.Commands.SaveTemplateHtml.SaveTemplateHtmlUseCase),
         typeof(SmkDoc.Application.Modules.Authoring.Templates.Queries.ValidateTemplateHtml.ValidateTemplateHtmlUseCase),
         typeof(SmkDoc.Application.Modules.Rendering.Documents.RenderStatelessDocumentUseCase),

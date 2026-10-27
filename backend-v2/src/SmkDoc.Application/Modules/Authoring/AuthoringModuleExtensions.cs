@@ -45,7 +45,10 @@ public static class AuthoringModuleExtensions
         services.AddScoped<ScanUploadedTemplateUseCase>();
 
         // Monaco Studio & Draft Pipeline (Action-Centric Vertical Slice)
-        services.AddScoped<IHtmlStudioUseCase, HtmlStudioUseCase>();
+        services.AddScoped<SmkDoc.Application.Modules.Authoring.Templates.Queries.GetTemplateHtmlSource.GetTemplateHtmlSourceUseCase>();
+        services.AddScoped<SmkDoc.Application.Modules.Authoring.Templates.Queries.GetTemplateStudioBundle.GetTemplateStudioBundleUseCase>();
+        services.AddScoped<SmkDoc.Application.Modules.Authoring.Templates.Queries.GetTemplateSchema.GetTemplateSchemaUseCase>();
+        services.AddScoped<SmkDoc.Application.Modules.Authoring.Templates.Queries.PreviewTemplateHtml.PreviewTemplateHtmlUseCase>();
         services.AddScoped<SmkDoc.Application.Modules.Authoring.Templates.Commands.SaveTemplateHtml.SaveTemplateHtmlUseCase>();
         services.AddScoped<IHtmlPersistenceUseCase>(sp => sp.GetRequiredService<SmkDoc.Application.Modules.Authoring.Templates.Commands.SaveTemplateHtml.SaveTemplateHtmlUseCase>());
         services.AddScoped<ParseTemplateDraftUseCase>();
