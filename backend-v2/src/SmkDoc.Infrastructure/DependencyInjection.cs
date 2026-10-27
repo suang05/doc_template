@@ -68,6 +68,8 @@ public static class DependencyInjection
         services.AddScoped<IApiKeyRepository, ApiKeyRepository>();
         services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
         services.AddScoped<ICompanyRepository, CompanyRepository>();
+        services.AddScoped<IDocumentRepository, DocumentRepository>();
+        services.AddScoped<IGenerationLogRepository, GenerationLogRepository>();
         services.AddScoped<IGenerationLogMetricsRepository, GenerationLogMetricsRepository>();
         services.AddScoped<IUserWorkspaceQueryService, UserWorkspaceQueryService>();
         services.AddScoped<IProjectQueryService, ProjectQueryService>();

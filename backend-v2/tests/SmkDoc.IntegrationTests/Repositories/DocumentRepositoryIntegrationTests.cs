@@ -27,7 +27,7 @@ public sealed class DocumentRepositoryIntegrationTests : IClassFixture<PostgreSq
         using var dbContext = new AppDbContext(options);
 
         // Act
-        var repo = new EfRepository<Document>(dbContext);
+        var repo = new DocumentRepository(dbContext);
 
         // Assert
         repo.Should().NotBeNull();
