@@ -1,10 +1,11 @@
+using FluentValidation;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Integration.DataConnections.Commands.CreateDataConnection;
 using SmkDoc.Application.Modules.Integration.DataConnections.DTOs;
+using SmkDoc.Application.Modules.Integration.DataConnections.Validators;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Interfaces;
-
 using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Tests.Application.Modules.Integration.DataConnections.Commands.CreateDataConnection;
@@ -25,11 +26,27 @@ public sealed class CreateDataConnectionUseCaseTests
         _projectContext.ProjectId.Returns(_projectId);
     }
 
-    private CreateDataConnectionUseCase CreateSut() => new(
+    private CreateDataConnectionUseCase CreateSut(IValidator<CreateDataConnectionCommand>? validator = null) => new(
         _connectionRepo,
         _unitOfWork,
         _dataProtection,
+        validator ?? new CreateDataConnectionCommandValidator(),
         projectContext: _projectContext);
+
+    [Fact]
+    public async Task ExecuteAsync_WithInvalidCommand_ShouldThrowValidationException()
+    {
+        // Arrange
+        var command = new CreateDataConnectionCommand("", "InvalidProvider", "");
+
+        // Act
+        Func<Task> act = () => CreateSut().ExecuteAsync(command);
+
+        // Assert
+        await act.Should().ThrowAsync<SmkDoc.Application.Common.Exceptions.ValidationException>();
+        await _connectionRepo.DidNotReceive().AddAsync(Arg.Any<DataConnection>(), Arg.Any<CancellationToken>());
+        await _unitOfWork.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
+    }
 
     [Fact]
     public async Task ExecuteAsync_ShouldEncryptAndPersistConnection()

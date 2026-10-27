@@ -1,3 +1,5 @@
+using FluentValidation;
+using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Integration.DataConnections.DTOs;
 using SmkDoc.Domain.Common;
@@ -17,6 +19,7 @@ public sealed class CreateDataConnectionUseCase(
     IDataConnectionRepository repository,
     IUnitOfWork unitOfWork,
     IDataProtectionService dataProtection,
+    IValidator<CreateDataConnectionCommand> validator,
     TimeProvider? timeProvider = null,
     ICurrentProjectContext? projectContext = null) : IUseCase<CreateDataConnectionCommand, DataConnectionDto>
 {
@@ -25,6 +28,12 @@ public sealed class CreateDataConnectionUseCase(
 
     public async Task<DataConnectionDto> ExecuteAsync(CreateDataConnectionCommand command, CancellationToken ct = default)
     {
+        var validationResult = await validator.ValidateAsync(command, ct);
+        if (!validationResult.IsValid)
+        {
+            throw new ValidationException(validationResult.ToDictionary());
+        }
+
         var now = this.timeProvider.GetUtcNow();
         var entity = DataConnection.Create(
             ConnectionName.Create(command.Name),

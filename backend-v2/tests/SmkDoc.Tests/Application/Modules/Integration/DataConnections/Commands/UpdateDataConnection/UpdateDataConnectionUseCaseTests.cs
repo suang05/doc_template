@@ -1,6 +1,8 @@
+using FluentValidation;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Integration.DataConnections.Commands.UpdateDataConnection;
 using SmkDoc.Application.Modules.Integration.DataConnections.DTOs;
+using SmkDoc.Application.Modules.Integration.DataConnections.Validators;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
@@ -19,10 +21,25 @@ public sealed class UpdateDataConnectionUseCaseTests
         _unitOfWork.CommitAsync(Arg.Any<CancellationToken>()).Returns(1);
     }
 
-    private UpdateDataConnectionUseCase CreateSut() => new(
+    private UpdateDataConnectionUseCase CreateSut(IValidator<UpdateDataConnectionCommand>? validator = null) => new(
         _connectionRepo,
         _unitOfWork,
-        _dataProtection);
+        _dataProtection,
+        validator ?? new UpdateDataConnectionCommandValidator());
+
+    [Fact]
+    public async Task ExecuteAsync_WithInvalidCommand_ShouldThrowValidationException()
+    {
+        // Arrange
+        var command = new UpdateDataConnectionCommand(Guid.Empty, "", "InvalidProvider", "");
+
+        // Act
+        Func<Task> act = () => CreateSut().ExecuteAsync(command);
+
+        // Assert
+        await act.Should().ThrowAsync<SmkDoc.Application.Common.Exceptions.ValidationException>();
+        await _connectionRepo.DidNotReceive().GetByIdAsync(Arg.Any<DataConnectionId>(), Arg.Any<CancellationToken>());
+    }
 
     [Fact]
     public async Task ExecuteAsync_WhenFoundWithNewSecret_EncryptsAndUpdates()

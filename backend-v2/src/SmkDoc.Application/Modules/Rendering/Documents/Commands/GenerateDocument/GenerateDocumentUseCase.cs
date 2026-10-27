@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using FluentValidation;
 using SmkDoc.Application.Common;
 using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
@@ -21,6 +22,7 @@ public sealed class GenerateDocumentUseCase(
     IDocumentVersioningService versioningService,
     IUnitOfWork unitOfWork,
     IExecutionContext executionContext,
+    IValidator<GenerateDocumentCommand> validator,
     TimeProvider? timeProvider = null) : IUseCase<GenerateDocumentCommand, GenerateDocumentResultDto>
 {
     private readonly ITemplateRepository _templateRepo = templateRepo;
@@ -31,6 +33,7 @@ public sealed class GenerateDocumentUseCase(
     private readonly IDocumentVersioningService _versioningService = versioningService;
     private readonly IUnitOfWork _unitOfWork = unitOfWork;
     private readonly IExecutionContext _executionContext = executionContext;
+    private readonly IValidator<GenerateDocumentCommand> _validator = validator;
     private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
 
     public Task<GenerateDocumentResultDto> ExecuteAsync(
@@ -40,6 +43,13 @@ public sealed class GenerateDocumentUseCase(
     public async Task<GenerateDocumentResultDto> ExecuteAsync(
         string slug, GenerateDocumentCommand request, CancellationToken ct = default)
     {
+        // 1. Fail-Fast Static Input Validation
+        var validationResult = await _validator.ValidateAsync(request, ct);
+        if (!validationResult.IsValid)
+        {
+            throw new ValidationException(validationResult.ToDictionary());
+        }
+
         var sw = Stopwatch.StartNew();
 
         var template = await _templateRepo.GetBySlugWithDetailsAsync(slug, ct);

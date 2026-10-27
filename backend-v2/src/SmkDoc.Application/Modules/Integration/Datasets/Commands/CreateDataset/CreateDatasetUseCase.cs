@@ -1,3 +1,5 @@
+using FluentValidation;
+using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Integration.Datasets.DTOs;
 using SmkDoc.Domain.Entities;
@@ -19,6 +21,7 @@ public sealed class CreateDatasetUseCase(
     IDatasetRepository datasetRepo,
     IDataConnectionRepository connectionRepo,
     IUnitOfWork unitOfWork,
+    IValidator<CreateDatasetCommand> validator,
     TimeProvider? timeProvider = null,
     ICurrentProjectContext? projectContext = null) : IUseCase<CreateDatasetCommand, DatasetDto>
 {
@@ -30,6 +33,12 @@ public sealed class CreateDatasetUseCase(
 
     public async Task<DatasetDto> ExecuteAsync(CreateDatasetCommand command, CancellationToken ct = default)
     {
+        var validationResult = await validator.ValidateAsync(command, ct);
+        if (!validationResult.IsValid)
+        {
+            throw new ValidationException(validationResult.ToDictionary());
+        }
+
         var connection = await _connectionRepo.GetByIdAsync(new DataConnectionId(command.DataConnectionId), ct)
             ?? throw new NotFoundException($"DataConnection '{command.DataConnectionId}' not found.");
 

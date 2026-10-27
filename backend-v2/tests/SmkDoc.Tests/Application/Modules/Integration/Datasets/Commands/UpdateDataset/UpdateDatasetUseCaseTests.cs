@@ -1,5 +1,7 @@
+using FluentValidation;
 using SmkDoc.Application.Modules.Integration.Datasets.Commands.UpdateDataset;
 using SmkDoc.Application.Modules.Integration.Datasets.DTOs;
+using SmkDoc.Application.Modules.Integration.Datasets.Validators;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
@@ -19,10 +21,26 @@ public sealed class UpdateDatasetUseCaseTests
         _unitOfWork.CommitAsync(Arg.Any<CancellationToken>()).Returns(1);
     }
 
-    private UpdateDatasetUseCase CreateSut() => new(
+    private UpdateDatasetUseCase CreateSut(IValidator<UpdateDatasetCommand>? validator = null) => new(
         _datasetRepo,
         _connectionRepo,
-        _unitOfWork);
+        _unitOfWork,
+        validator ?? new UpdateDatasetCommandValidator());
+
+    [Fact]
+    public async Task ExecuteAsync_WithInvalidCommand_ShouldThrowValidationException()
+    {
+        // Arrange
+        var command = new UpdateDatasetCommand(Guid.Empty, "", null, Guid.Empty, "", -1);
+
+        // Act
+        Func<Task> act = () => CreateSut().ExecuteAsync(command);
+
+        // Assert
+        await act.Should().ThrowAsync<SmkDoc.Application.Common.Exceptions.ValidationException>();
+        await _datasetRepo.DidNotReceive().GetByIdAsync(Arg.Any<DatasetId>(), Arg.Any<CancellationToken>());
+        await _unitOfWork.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
+    }
 
     [Fact]
     public async Task ExecuteAsync_WhenFound_UpdatesAndCommits()

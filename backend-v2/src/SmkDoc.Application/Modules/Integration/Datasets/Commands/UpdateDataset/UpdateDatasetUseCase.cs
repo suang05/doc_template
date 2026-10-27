@@ -1,3 +1,5 @@
+using FluentValidation;
+using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Integration.Datasets.DTOs;
 using SmkDoc.Domain.Exceptions;
@@ -19,6 +21,7 @@ public sealed class UpdateDatasetUseCase(
     IDatasetRepository datasetRepo,
     IDataConnectionRepository connectionRepo,
     IUnitOfWork unitOfWork,
+    IValidator<UpdateDatasetCommand> validator,
     TimeProvider? timeProvider = null) : IUseCase<UpdateDatasetCommand, DatasetDto?>
 {
     private readonly IDatasetRepository _datasetRepo = datasetRepo;
@@ -28,6 +31,12 @@ public sealed class UpdateDatasetUseCase(
 
     public async Task<DatasetDto?> ExecuteAsync(UpdateDatasetCommand command, CancellationToken ct = default)
     {
+        var validationResult = await validator.ValidateAsync(command, ct);
+        if (!validationResult.IsValid)
+        {
+            throw new ValidationException(validationResult.ToDictionary());
+        }
+
         var entity = await _datasetRepo.GetByIdAsync(new DatasetId(command.Id), ct);
         if (entity == null) return null;
 

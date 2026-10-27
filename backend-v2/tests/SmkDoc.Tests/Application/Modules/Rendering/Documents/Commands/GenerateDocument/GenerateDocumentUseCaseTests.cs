@@ -1,12 +1,14 @@
 using System.Linq.Expressions;
 using System.Text;
 using System.Text.Json;
+using FluentValidation;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 using SmkDoc.Application.Modules.Rendering.Documents;
 using SmkDoc.Application.Modules.Rendering.Documents.Commands.GenerateDocument;
 using SmkDoc.Application.Modules.Rendering.Documents.DTOs;
 using SmkDoc.Application.Modules.Rendering.Documents.Services;
+using SmkDoc.Application.Modules.Rendering.Documents.Validators;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
@@ -38,7 +40,7 @@ public sealed class GenerateDocumentUseCaseTests
         _executionContext.ProjectId.Returns(Guid.NewGuid());
     }
 
-    private GenerateDocumentUseCase CreateSut()
+    private GenerateDocumentUseCase CreateSut(IValidator<GenerateDocumentCommand>? validator = null)
     {
         var dataPrep = new DocumentDataPreparationService(
             _datasetRepo,
@@ -64,7 +66,23 @@ public sealed class GenerateDocumentUseCaseTests
             versioning,
             _unitOfWork,
             _executionContext,
+            validator ?? new GenerateDocumentCommandValidator(),
             _timeProvider);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenCommandFailsValidation_ShouldThrowValidationException_WithoutExecutingServices()
+    {
+        // Arrange
+        using var jsonDoc = JsonDocument.Parse("{}");
+        var invalidCommand = new GenerateDocumentCommand(jsonDoc.RootElement, OutputFormat: "unsupported_format");
+
+        // Act
+        Func<Task> act = () => CreateSut().ExecuteAsync("sale-contract", invalidCommand);
+
+        // Assert
+        await act.Should().ThrowAsync<SmkDoc.Application.Common.Exceptions.ValidationException>();
+        await _templateRepo.DidNotReceive().GetBySlugWithDetailsAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
     private void SetupTemplate(Template template)
@@ -401,11 +419,15 @@ public sealed class GenerateDocumentUseCaseTests
         SetupRenderEnginePdfOutput("%PDF-1.4 Mock Output");
         SetupPresignedUrl("https://example.com/download/fallback.pdf");
 
+        var permissiveValidator = Substitute.For<IValidator<GenerateDocumentCommand>>();
+        permissiveValidator.ValidateAsync(Arg.Any<GenerateDocumentCommand>(), Arg.Any<CancellationToken>())
+            .Returns(new FluentValidation.Results.ValidationResult());
+
         using var jsonDoc = JsonDocument.Parse("{}");
         var request = new GenerateDocumentCommand(jsonDoc.RootElement, OutputFormat: "unknown_format", SkipValidation: true);
 
         // Act
-        GenerateDocumentResultDto result = await CreateSut().ExecuteAsync("fallback-contract", request);
+        GenerateDocumentResultDto result = await CreateSut(permissiveValidator).ExecuteAsync("fallback-contract", request);
 
         // Assert — verifies engine was called with OutputFormat.Pdf fallback
         await _engine.Received(1).RenderStreamAsync(

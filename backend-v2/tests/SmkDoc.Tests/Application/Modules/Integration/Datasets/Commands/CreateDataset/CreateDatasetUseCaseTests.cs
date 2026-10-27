@@ -1,6 +1,8 @@
+using FluentValidation;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Integration.Datasets.Commands.CreateDataset;
 using SmkDoc.Application.Modules.Integration.Datasets.DTOs;
+using SmkDoc.Application.Modules.Integration.Datasets.Validators;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
@@ -24,11 +26,28 @@ public sealed class CreateDatasetUseCaseTests
         _projectContext.ProjectId.Returns(_projectId);
     }
 
-    private CreateDatasetUseCase CreateSut() => new(
+    private CreateDatasetUseCase CreateSut(IValidator<CreateDatasetCommand>? validator = null) => new(
         _datasetRepo,
         _connectionRepo,
         _unitOfWork,
+        validator ?? new CreateDatasetCommandValidator(),
         projectContext: _projectContext);
+
+    [Fact]
+    public async Task ExecuteAsync_WithInvalidCommand_ShouldThrowValidationException()
+    {
+        // Arrange
+        var command = new CreateDatasetCommand("", null, Guid.Empty, "", -1);
+
+        // Act
+        Func<Task> act = () => CreateSut().ExecuteAsync(command);
+
+        // Assert
+        await act.Should().ThrowAsync<SmkDoc.Application.Common.Exceptions.ValidationException>();
+        await _connectionRepo.DidNotReceive().GetByIdAsync(Arg.Any<DataConnectionId>(), Arg.Any<CancellationToken>());
+        await _datasetRepo.DidNotReceive().AddAsync(Arg.Any<Dataset>(), Arg.Any<CancellationToken>());
+        await _unitOfWork.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
+    }
 
     [Fact]
     public async Task ExecuteAsync_ShouldPersistDatasetAndReturnDto()
