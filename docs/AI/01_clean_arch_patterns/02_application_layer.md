@@ -50,6 +50,8 @@ ProactiveChallengeHeuristics:
     Action: Challenge and map to sealed record Application DTO >> Ref: [TRAP-APP-001]
   - Trigger: Missing unitOfWork.CommitAsync() before returning in mutating UseCase
     Action: Challenge immediately; uncommitted mutations cause silent data loss >> Ref: [TRAP-APP-003]
+  - Trigger: UseCase parameter named request or input class suffixed with *Request instead of *Command or *Query
+    Action: Enforce *Command with parameter command for mutations, and *Query with parameter query for queries >> Ref: [RULE-APP-CMD-001]
 
 CoreExtensionSlots:
   RenderingEngines: Pluggable IRenderEngine strategy dispatch (Html, Docx, Excel)
@@ -75,7 +77,7 @@ CoreExtensionSlots:
 >> POSITIVE ARCHITECTURAL INVARIANTS:
 1. `ClassTopology`: Exactly one public execution method per class: `Task<TResponse> ExecuteAsync(TRequest request, CancellationToken ct)`.
 2. `InterfaceContract`: Every use case MUST implement `IUseCase<TRequest, TResponse>` or `IUseCase<TRequest>`.
-3. `RequestImmutability`: All Commands and Queries MUST be `sealed record` with positional primary constructor parameters.
+3. `CQRSNamingAndImmutability`: Mutating inputs MUST be suffixed with `Command` (parameter named `command`); Read/Stream inputs MUST be suffixed with `Query` (parameter named `query`). Strictly prohibit `*Request` suffix in Application layer (`*Request` is reserved for Presentation HTTP wire models). All Commands and Queries MUST be `sealed record` with positional primary constructor parameters.
 4. `BoundaryFirewall`: Prohibit returning Domain Entities (`AggregateRoot`, `Entity`, `ValueObject`). Return immutable Application DTO records or `Stream`.
 5. `TemporalResolution`: System time queries MUST consume `TimeProvider.GetUtcNow()`. Prohibit ambient clock queries (`DateTime.UtcNow`).
 6. `TransactionIsolation`: Mutating use cases commit strictly via `IUnitOfWork.CommitAsync(ct)` at egress. Read queries never mutate state.
@@ -181,10 +183,10 @@ public sealed class CreateTemplateUseCase(
     TimeProvider timeProvider,
     IDomainEventDispatcher eventDispatcher) : IUseCase<CreateTemplateCommand, TemplateResultDto>
 {
-    public async Task<TemplateResultDto> ExecuteAsync(CreateTemplateCommand request, CancellationToken ct = default)
+    public async Task<TemplateResultDto> ExecuteAsync(CreateTemplateCommand command, CancellationToken ct = default)
     {
         // 1. Parse & Validate (Fail-Fast)
-        var validationResult = await validator.ValidateAsync(request, ct);
+        var validationResult = await validator.ValidateAsync(command, ct);
         if (!validationResult.IsValid)
             throw new ValidationException(validationResult.ToDictionary());
 
@@ -192,17 +194,17 @@ public sealed class CreateTemplateUseCase(
             throw new ForbiddenException("Active project context is required to create a template.");
 
         // 2. Execute Precondition Query
-        var slugExists = await templateRepo.SlugExistsAsync(request.Slug, ct);
+        var slugExists = await templateRepo.SlugExistsAsync(command.Slug, ct);
         if (slugExists)
-            throw ConflictException.DuplicateSlug(request.Slug);
+            throw ConflictException.DuplicateSlug(command.Slug);
 
         // 3. Mutate Domain State
         var now = timeProvider.GetUtcNow();
         var template = Template.Create(
             projectContext.ProjectId,
-            TemplateName.Create(request.Name),
-            new TemplateSlug(request.Slug),
-            request.Category,
+            TemplateName.Create(command.Name),
+            new TemplateSlug(command.Slug),
+            command.Category,
             now);
 
         await templateRepo.AddAsync(template, ct);
@@ -268,18 +270,18 @@ public sealed class RenderDocumentUseCase(
     ICurrentProjectContext projectContext,
     IValidator<RenderDocumentQuery> validator) : IUseCase<RenderDocumentQuery, Stream>
 {
-    public async Task<Stream> ExecuteAsync(RenderDocumentQuery request, CancellationToken ct = default)
+    public async Task<Stream> ExecuteAsync(RenderDocumentQuery query, CancellationToken ct = default)
     {
-        var validationResult = await validator.ValidateAsync(request, ct);
+        var validationResult = await validator.ValidateAsync(query, ct);
         if (!validationResult.IsValid)
             throw new ValidationException(validationResult.ToDictionary());
 
         if (!projectContext.IsResolved)
             throw new ForbiddenException("Active project context is required.");
 
-        var template = await templateRepo.GetByIdAsync(new TemplateId(request.TemplateId), ct);
+        var template = await templateRepo.GetByIdAsync(new TemplateId(query.TemplateId), ct);
         if (template is null || template.CurrentVersion is null)
-            throw new NotFoundException($"Published template '{request.TemplateId}' not found.");
+            throw new NotFoundException($"Published template '{query.TemplateId}' not found.");
 
         await using var templateStream = await storageService.DownloadAsync(
             StorageBuckets.Templates,
@@ -287,7 +289,7 @@ public sealed class RenderDocumentUseCase(
             ct);
 
         var engine = engineResolver.Resolve(template.CurrentVersion.GetRenderEngineType());
-        return await engine.RenderStreamAsync(templateStream, request.PayloadJson, OutputFormat.Pdf, ct);
+        return await engine.RenderStreamAsync(templateStream, query.PayloadJson, OutputFormat.Pdf, ct);
     }
 }
 ```
@@ -309,13 +311,13 @@ public sealed class ListTemplatesUseCase(
     ITemplateRepository templateRepo,
     ICurrentProjectContext projectContext) : IUseCase<ListTemplatesQuery, PagedResultDto<TemplateResultDto>>
 {
-    public async Task<PagedResultDto<TemplateResultDto>> ExecuteAsync(ListTemplatesQuery request, CancellationToken ct = default)
+    public async Task<PagedResultDto<TemplateResultDto>> ExecuteAsync(ListTemplatesQuery query, CancellationToken ct = default)
     {
         if (!projectContext.IsResolved)
             throw new ForbiddenException("Active project context is required.");
 
-        var page = Math.Max(1, request.Page);
-        var pageSize = Math.Clamp(request.PageSize, 1, 100);
+        var page = Math.Max(1, query.Page);
+        var pageSize = Math.Clamp(query.PageSize, 1, 100);
 
         var (items, totalCount) = await templateRepo.GetPagedByProjectAsync(projectContext.ProjectId, null, page, pageSize, ct);
 

@@ -193,9 +193,8 @@ using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.ValueObjects.Ids;
 
-// 1. Immutable Request Command
+// 1. Immutable Positional Command (Zero caller ProjectId override)
 public sealed record CreateTemplateCommand(
-    Guid ProjectId,
     string Name,
     string Slug,
     string? Category);
@@ -205,6 +204,7 @@ public sealed class CreateTemplateUseCase(
     ITemplateRepository templateRepository,
     IUnitOfWork unitOfWork,
     IValidator<CreateTemplateCommand> validator,
+    ICurrentProjectContext projectContext,
     TimeProvider timeProvider) : IUseCase<CreateTemplateCommand, TemplateResultDto>
 {
     public async Task<TemplateResultDto> ExecuteAsync(CreateTemplateCommand command, CancellationToken ct = default)
@@ -216,6 +216,11 @@ public sealed class CreateTemplateUseCase(
             throw new ValidationException(validationResult.ToDictionary());
         }
 
+        if (!projectContext.IsResolved)
+        {
+            throw new ForbiddenException("Active project context is required.");
+        }
+
         // 2. Precondition Query
         var slugExists = await templateRepository.SlugExistsAsync(command.Slug, ct);
         if (slugExists)
@@ -224,12 +229,11 @@ public sealed class CreateTemplateUseCase(
         }
 
         // 3. Explicit Local Variable Assignments (Zero Nested Constructor Inlining)
-        var projectId = new ProjectId(command.ProjectId);
         var templateName = TemplateName.Create(command.Name);
         var templateSlug = new TemplateSlug(command.Slug);
         var now = timeProvider.GetUtcNow();
 
-        var template = Template.Create(projectId, templateName, templateSlug, command.Category, now);
+        var template = Template.Create(projectContext.ProjectId, templateName, templateSlug, command.Category, now);
 
         // 4. Persistence Operations with Full Variable Names
         await templateRepository.AddAsync(template, ct);
@@ -273,13 +277,18 @@ using SmkDoc.Domain.ValueObjects.Ids;
 
 public sealed class ListTemplatesUseCase(
     ITemplateRepository templateRepository,
+    ICurrentProjectContext projectContext,
     ILogger<ListTemplatesUseCase> logger) : IUseCase<ListTemplatesQuery, IReadOnlyList<TemplateResultDto>>
 {
     public async Task<IReadOnlyList<TemplateResultDto>> ExecuteAsync(ListTemplatesQuery query, CancellationToken ct = default)
     {
-        logger.LogInformation("Listing templates for Project {ProjectId}", query.ProjectId);
-        var projectId = new ProjectId(query.ProjectId);
-        var templates = await templateRepository.ListByProjectIdAsync(projectId, ct);
+        if (!projectContext.IsResolved)
+        {
+            throw new ForbiddenException("Active project context is required.");
+        }
+
+        logger.LogInformation("Listing templates for Project {ProjectId}", projectContext.ProjectId);
+        var templates = await templateRepository.ListByProjectIdAsync(projectContext.ProjectId, ct);
 
         if (templates.Count == 0)
         {
@@ -509,8 +518,8 @@ public sealed class GotenbergHttpAdapter(HttpClient httpClient)
 
 ### [TRAP-CONV-004]: Chained Instantiation without Local Variables
 ```diff
-- await templateRepository.AddAsync(Template.Create(new ProjectId(command.ProjectId), TemplateName.Create(command.Name), new TemplateSlug(command.Slug), command.Category, now), ct);
-+ var projectId = new ProjectId(command.ProjectId); var name = TemplateName.Create(command.Name); var slug = new TemplateSlug(command.Slug); var template = Template.Create(projectId, name, slug, command.Category, now); await templateRepository.AddAsync(template, ct);
+- await templateRepository.AddAsync(Template.Create(projectContext.ProjectId, TemplateName.Create(command.Name), new TemplateSlug(command.Slug), command.Category, now), ct);
++ var name = TemplateName.Create(command.Name); var slug = new TemplateSlug(command.Slug); var template = Template.Create(projectContext.ProjectId, name, slug, command.Category, now); await templateRepository.AddAsync(template, ct);
 ```
 *Rationale: Chaining nested constructors into arguments obscures compilation failures and degrades debugging readability.*
 

@@ -134,7 +134,7 @@ public sealed record TemplateResultDto(
 >> MANDATORY CANONICAL TEMPLATE [RULE-STRUCT-002]:
 * [MUST] Declare dependencies via C# 13 Primary Constructor with pure camelCase parameter names (e.g. `templateRepository`, `unitOfWork`, `projectContext`).
 * [MUST NOT] Use symbol prefixes (`_templateRepository`, `m_templateRepository`).
-* [MUST] Implement `IUseCase<TRequest, TResponse>` with single-responsibility method `ExecuteAsync(TRequest request, CancellationToken ct)`.
+* [MUST] Implement `IUseCase<TCommand, TResponse>` or `IUseCase<TQuery, TResponse>` with single-responsibility method `ExecuteAsync(TCommand command, CancellationToken ct)` or `ExecuteAsync(TQuery query, CancellationToken ct)`.
 ```csharp
 // >> CANONICAL: Pure camelCase, zero prefix, mandatory ambient ICurrentProjectContext
 public sealed class CreateTemplateUseCase(
@@ -144,7 +144,7 @@ public sealed class CreateTemplateUseCase(
     TimeProvider timeProvider,
     ILogger<CreateTemplateUseCase> logger) : IUseCase<CreateTemplateCommand, TemplateResultDto>
 {
-    public async Task<TemplateResultDto> ExecuteAsync(CreateTemplateCommand request, CancellationToken ct)
+    public async Task<TemplateResultDto> ExecuteAsync(CreateTemplateCommand command, CancellationToken ct)
     {
         if (!projectContext.IsResolved)
             throw new ForbiddenException("Active project context is required.");
@@ -152,11 +152,11 @@ public sealed class CreateTemplateUseCase(
         var now = timeProvider.GetUtcNow();
         var template = Template.Create(
             projectContext.ProjectId,
-            TemplateName.Create(request.Name),
-            new TemplateSlug(request.Slug),
-            request.Category,
+            TemplateName.Create(command.Name),
+            new TemplateSlug(command.Slug),
+            command.Category,
             now);
-        logger.LogInformation("Creating template {Slug} for project {ProjectId}", request.Slug, projectContext.ProjectId);
+        logger.LogInformation("Creating template {Slug} for project {ProjectId}", command.Slug, projectContext.ProjectId);
         await templateRepository.AddAsync(template, ct);
         await unitOfWork.CommitAsync(ct);
         return template.ToResultDto();

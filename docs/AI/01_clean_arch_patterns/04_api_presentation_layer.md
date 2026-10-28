@@ -158,9 +158,9 @@ public sealed class TemplateController(
     [ProducesResponseType(typeof(ApiResponse<TemplateResultDto>), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
-    public async Task<IActionResult> Create([FromBody] CreateTemplateCommand request, CancellationToken ct)
+    public async Task<IActionResult> Create([FromBody] CreateTemplateCommand command, CancellationToken ct)
     {
-        var result = await createTemplateUseCase.ExecuteAsync(request, ct);
+        var result = await createTemplateUseCase.ExecuteAsync(command, ct);
         return CreatedAtAction(nameof(GetById), new { id = result.Id }, new ApiResponse<TemplateResultDto>(result));
     }
 
@@ -179,9 +179,9 @@ public sealed class TemplateController(
     [Idempotent]
     [ProducesResponseType(typeof(FileStreamResult), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> Render([FromRoute] Guid id, [FromBody] RenderDocumentQuery request, CancellationToken ct)
+    public async Task<IActionResult> Render([FromRoute] Guid id, [FromBody] RenderDocumentQuery query, CancellationToken ct)
     {
-        var stream = await renderDocumentUseCase.ExecuteAsync(request, ct);
+        var stream = await renderDocumentUseCase.ExecuteAsync(query, ct);
         return File(stream, "application/pdf", $"{id}.pdf");
     }
 }
