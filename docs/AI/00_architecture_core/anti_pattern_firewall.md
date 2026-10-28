@@ -26,6 +26,7 @@ UpstreamKernel: AGENTS.md
 | **[TRAP-VOID-008]** | Reliability | Empty catch block swallowing exceptions | Rethrow strongly-typed `DomainException` or log | HIGH |
 | **[TRAP-AUDIT-009]** | Storage / OLTP | Unbounded JSON payloads stored in PostgreSQL OLTP | Threshold offload (>16KB) to MinIO + SHA-256 in DB | HIGH |
 | **[TRAP-EVENT-010]** | Consistency | Pre-commit domain event dispatching | Harvest, commit transaction, clear, dispatch post-commit | FATAL |
+| **[TRAP-SQL-011]** | Security / SSRF | Unchecked external `DataConnection` host or mutating SQL | Block Loopback/Link-Local/Self-DB; enforce single `SELECT`/`WITH` in `READ ONLY` tx | CRITICAL |
 
 ---
 
@@ -305,3 +306,10 @@ public async Task<(string StoredPayload, string ChecksumSha256)> PrepareAuditPay
 + await dbContext.SaveChangesAsync(ct); await dispatcher.DispatchEventsAsync(pendingEvents, ct);
 ```
 *Rationale: Pre-commit dispatching triggers external side-effects (e.g. email, message queue) that cannot be rolled back if DB throws.*
+
+### [TRAP-SQL-011]: External SQL SSRF & Read-Write Query Execution
+```diff
+- await using var conn = new NpgsqlConnection(connStr); return await conn.QueryAsync(rawSql);
++ SqlConnectionTargetGuard.EnsureSafeExternalTarget(connStr, selfConnStr); SqlReadOnlyValidator.EnsureSingleSelectOrWith(rawSql); // Execute inside BEGIN TRANSACTION READ ONLY with 15s CommandTimeout & CancellationToken
+```
+*Rationale: Unchecked external connection strings allow SSRF against Loopback (`127.0.0.0/8`, `::1`), cloud metadata (`169.254.0.0/16`), or SmkDoc's own OLTP database, while unguarded SQL permits stacked DDL/DML mutations on customer ERP databases.*

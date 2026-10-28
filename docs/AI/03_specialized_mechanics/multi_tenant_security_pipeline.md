@@ -5,7 +5,7 @@ Scope: Multi-Tenant Architecture, Dual-Channel Authentication, Ambient Project C
 Target: Full Stack (`backend-v2/` & `frontend-v2/`)
 Authority: Absolute SSoT Invariant (Zero cross-tenant data leakage, strict constant-time hash verification)
 Format: 100% English AST, Positive-First Archetypes (80/20 Rule), Canonical Keyboard Operators
-TriggerSignals: [SIGNAL_API_MUTATION, SIGNAL_SCHEMA_MIGRATION]
+TriggerSignals: [SIGNAL_API_MUTATION, SIGNAL_SCHEMA_MIGRATION, SIGNAL_SECURITY_MUTATION]
 UpstreamKernel: AGENTS.md
 </context>
 
@@ -16,24 +16,27 @@ UpstreamKernel: AGENTS.md
 ### Architectural Wiring & Security Contracts
 | Direction | Upstream Origin | Current Role (Tenancy & Security Engine) | Downstream Destination |
 |---|---|---|---|
-| **Incoming HTTP** | M2M Client or Next.js Proxy | Inspects auth headers (`X-API-Key` vs `Bearer`) | Authentication Handler Dispatch |
-| **Channel A (M2M)** | External Integration Client | Validates SHA-256 hash in constant-time | Resolves `ApiKeyId` & `ProjectId` |
-| **Channel B (JWT)** | User Session via Next.js Proxy| Resolves User claims and Active Project | Resolves `UserId` & `ProjectId` |
-| **Ambient Context** | Authenticated Channel | Hydrates scoped `ICurrentProjectContext` | EF Core `AppDbContext` Instance |
-| **Persistence Query**| UseCase / Repository Query | Enforces global tenancy SQL partition | PostgreSQL Engine (`WHERE project_id = @Id`) |
+| **Incoming HTTP** | M2M Client or Web Studio | Inspects auth headers (`X-API-Key` vs `Authorization: Bearer`) | Authentication Handler Dispatch |
+| **Channel A (M2M)** | External Integration Client | SHA-256 hash DB lookup, extracts `project_id` from key & enforces `ApiKeyScope` | Hydrates unified `ICurrentProjectContext` |
+| **Channel B (JWT)** | Web Studio User Session | Verifies JWT signature, user membership, role claims & reads `X-Project-Id` / `{projectId}` | Hydrates unified `ICurrentProjectContext` |
+| **Ambient Context** | Authenticated Channel | Exposes channel-agnostic `ICurrentProjectContext` (zero `IExecutionContext`) | EF Core `AppDbContext` & Inner Business Logic |
+| **Persistence Query**| UseCase / Repository Query | Enforces fail-closed global tenancy SQL partition | PostgreSQL Engine (`WHERE @IsResolved AND project_id = @Id`) |
 
 ### Multi-Tenant & Dual-Auth Invariants Matrix
 | Security Concern | Prohibited Pattern (! BANNED) | Canonical SSoT Pattern (>> MANDATORY) |
 |---|---|---|
 | **Raw Key Storage** | Storing plaintext API keys in database | SHA-256 cryptographic hash lookup (`KeyHash`) |
 | **Client Token Exposure** | Storing JWT in browser localStorage | httpOnly cookies translated via Next.js Proxy (`/api/proxy/[...path]`) |
-| **Cross-Tenant Queries** | Manual `WHERE project_id = @id` clauses in repositories | EF Core ambient Global Query Filter (`HasQueryFilter`) |
+| **Dual Ambient Contexts** | Maintaining a separate `IExecutionContext` alongside `ICurrentProjectContext` | Retire `IExecutionContext`; inject unified channel-agnostic `ICurrentProjectContext` everywhere |
+| **Cross-Tenant Queries** | Manual `WHERE project_id = @id` clauses in repositories | EF Core fail-closed Global Query Filter (`IsTenantResolved && e.ProjectId == CurrentTenantId`) |
 | **Tenant Filter Bypass** | Invoking `.IgnoreQueryFilters()` in standard user routes | Strictly prohibited; ambient context scopes all queries automatically |
 | **Key Validation** | Variable-time string comparison (`key == storedHash`) | Constant-time comparison: `CryptographicOperations.FixedTimeEquals` |
-| **Parameter Spoofing** | Accepting caller `projectId` parameter differing from context | Fail-fast assertion: throw strongly-typed `ForbiddenException` (RFC 9457 403) |
-| **Route Precedence** | Extracting tenant identifier strictly from headers | Route (`{projectId}`) => Header (`X-Project-Id`) => JWT Claim (`project_id`) |
-| **Role Claim Hydration** | Ad-hoc controller role queries or manual claims mapping | Inject `ClaimTypes.Role` into `ClaimsIdentity` during `ProjectContextMiddleware` |
-| **SuperAdmin Hierarchy** | Single-role checks locking out platform admins with 403 | Grant dual `SuperAdmin` + `Admin` claims & use `RoleConstants.AdminOrSuperAdmin` |
+| **Parameter Spoofing** | Accepting caller `ProjectId` overrides in tenant Commands/Queries | Omit `ProjectId` from tenant payloads; reject conflicting legacy route/query params with `ForbiddenException` (403) |
+| **Route Precedence** | Extracting tenant identifier strictly from headers | Route (`{projectId}`) => Header (`X-Project-Id`) => JWT Claim (`ProjectId`), rejecting Route vs Header conflicts (400) |
+| **Role Claim Hydration** | Ad-hoc controller role queries or skipping global SuperAdmin claims | Hydrate `SuperAdmin` + `Admin` claims unconditionally for SuperAdmins; hydrate project `RoleType` claim on tenant routes |
+| **M2M Scope Enforcement** | Allowing `ApiKeyScope.ReadOnly` keys to execute mutating HTTP verbs | Reject `POST`/`PUT`/`PATCH`/`DELETE` with `403 Forbidden` except zero-side-effect stateless `preview`/`validate` routes |
+| **Preview Bypass** | Whitelisting `/preview` endpoints as unauthenticated public paths | Require authenticated tenant context on all preview routes to resolve templates and protect Gotenberg |
+| **Idempotency Partition** | Keying idempotency store by shared `CallerApp` (`idempotency:portal:{key}`) | Partition strictly by resolved tenant: `idempotency:{ProjectId:N}:{IdempotencyKey}` |
 
 ---
 
@@ -42,17 +45,17 @@ UpstreamKernel: AGENTS.md
 ### Engineering Rationale & Architectural Decisions
 * **Why SHA-256 Hash Lookup:** Plaintext API keys stored in the database create massive exposure risks during database dumps or unauthorized log reads; hashing guarantees keys cannot be recovered.
 * **Why `CryptographicOperations.FixedTimeEquals`:** Standard string equality (`==`) terminates on the first mismatched character, creating timing side-channel vulnerabilities that allow attackers to deduce hashes.
-* **Why Ambient `ICurrentProjectContext` over Parameter Passing:** Manual parameter passing allows developers to accidentally query data without tenancy filters; ambient resolution ensures all queries within a request scope are automatically constrained.
-* **Why Fail-Fast on Parameter vs Context Mismatches:** If an authenticated caller provides an explicit `projectId` in the URL or payload that differs from their ambient resolved project, silently ignoring it or switching projects leads to confused-deputy bugs.
-* **Why Route Precedence over Header:** Administrative endpoints like `/api/v1/projects/{projectId}/users` define resource hierarchy in the URI; parsing `{projectId}` from route values guarantees REST boundary alignment and prevents ambient header mismatch.
-* **Why Dynamic Role Claim Injection:** Populating `ClaimTypes.Role` dynamically during `ProjectContextMiddleware` satisfies ASP.NET Core declarative authorization (`[Authorize(Roles = "...")]`) without custom policy bloat.
-* **Why Dual-Role Grant for SuperAdmin:** SuperAdmin users must access tenant admin resources seamlessly; adding both `SuperAdmin` and `Admin` claims avoids 403 Forbidden on `[Authorize(Roles = "Admin")]` without weakening tenant isolation.
+* **Why Unified `ICurrentProjectContext` (Retiring `IExecutionContext`):** Maintaining both `ICurrentProjectContext` and `IExecutionContext` causes split-brain bugs and leaks HTTP authentication mechanics into UseCases. Both `X-API-Key` (M2M, extracting `project_id` from the validated key) and `Authorization: Bearer` (Web Studio, verifying JWT + membership and reading `X-Project-Id` / `{projectId}`) converge at the perimeter into `ICurrentProjectContext` so inner Business Logic executes completely agnostically of who called it.
+* **Why Omitting `ProjectId` from Tenant Payloads:** Eliminating `Guid ProjectId` from tenant-scoped Commands and Queries removes confused-deputy attack vectors by construction rather than relying on repetitive per-handler checks.
+* **Why Route Precedence with Conflict Rejection:** Administrative endpoints like `/api/v1/management/projects/{projectId}/users` define resource hierarchy in the URI; parsing `{projectId}` from route values and rejecting mismatches against `X-Project-Id` prevents cross-project header bleed.
+* **Why Unconditional SuperAdmin Claim Hydration:** Global endpoints such as `POST /api/v1/management/projects` execute before a target project exists; hydrating `SuperAdmin` and `Admin` role claims prior to tenant resolution allows `[Authorize(Roles = RoleConstants.AdminOrSuperAdmin)]` to succeed without weakening tenant checks on project-scoped routes.
+* **Why Perimeter Enforcement of `ApiKeyScope.ReadOnly`:** Blocking state-mutating HTTP methods at `ProjectContextMiddleware` prevents read-only integration keys from creating templates, uploading fonts, or persisting documents while still permitting stateless POST `preview` and `validate` calls without leaking M2M scope checks into UseCases.
 
 ### Cognitive Tenancy Optimization & Guard Engine
 ```yaml
 OptimizationObjectives:
-  PrimaryObjective: Zero-Leakage Tenancy Isolation & Cryptographic Side-Channel Immunity
-  TradeOffPriority: SecurityBoundary > TimingSideChannelImmunity > QuerySimplicity > CustomQueryFlexibility
+  PrimaryObjective: Zero-Leakage Channel-Agnostic Tenancy Isolation & Cryptographic Side-Channel Immunity
+  TradeOffPriority: SecurityBoundary > TimingSideChannelImmunity > ChannelAgnosticSimplicity > CustomQueryFlexibility
 
 ProactiveTenancyGuards:
   - Scope: SmkDoc.Infrastructure.Persistence
@@ -63,48 +66,57 @@ ProactiveTenancyGuards:
     Trigger: String equality check (== or .Equals()) on API key hashes
     CanonicalAction: Enforce CryptographicOperations.FixedTimeEquals on byte arrays >> Ref: [RULE-SEC-001]
 
-  - Scope: SmkDoc.Domain.Entities
-    Trigger: Entity implementing IMustHaveProject without ProjectId guard
-    CanonicalAction: Add Guard.NotEmpty(projectId, nameof(ProjectId)) in factory
+  - Scope: SmkDoc.Application
+    Trigger: Declaration of IExecutionContext or caller ProjectId on tenant-scoped Command/Query record
+    CanonicalAction: Retire IExecutionContext; omit caller ProjectId and inject mandatory ICurrentProjectContext >> Ref: [RULE-SEC-003]
+
+  - Scope: SmkDoc.Api.Middleware
+    Trigger: Whitelisting /preview routes or allowing ApiKeyScope.ReadOnly on mutating routes
+    CanonicalAction: Require auth on preview routes and enforce ReadOnly mutation block >> Ref: [RULE-SEC-002]
 
 CoreExtensionSlots:
   ApiKeyValidatorSlot: ApiKeyValidator (Cryptographic hash generator and verification)
-  AuthHandlerSlot: ApiKeyAuthenticationHandler (ASP.NET Core authentication scheme)
-  ProjectContextSlot: ICurrentProjectContext (Scoped tenant identity container)
-  ContextMiddlewareSlot: CurrentProjectContextMiddleware (Ambient HTTP header/claim extractor)
+  ProjectContextSlot: ICurrentProjectContext / ICurrentProjectContextSetter (Single unified channel-agnostic ambient context)
+  ContextMiddlewareSlot: ProjectContextMiddleware (Dual-auth perimeter gateway converging M2M and JWT into ICurrentProjectContext)
 ```
 
 ### Dual-Channel Authentication Topology
 ```mermaid
 graph TD
-    Request["Incoming HTTP Request"] --> AuthCheck{"Has X-API-Key?"}
-    AuthCheck -->|Yes| ChannelA["Channel A: M2M API Key (SHA-256 Lookup)"]
-    AuthCheck -->|No| ChannelB["Channel B: Portal JWT Bearer Auth"]
-    ChannelA --> Context["ICurrentProjectContext & IExecutionContext Resolution"]
+    Request["Incoming HTTP Request to Core API"] --> AuthCheck{"Which Auth Header Is Present?"}
+    AuthCheck -->|"X-API-Key (External M2M)"| ChannelA["SHA-256 DB Lookup, Enforce ReadOnly Scope & Auto-Extract project_id"]
+    AuthCheck -->|"Authorization: Bearer (Web Studio)"| ChannelB["Verify JWT Signature, Check User Role & Read X-Project-Id / {projectId}"]
+    ChannelA --> Context["Hydrate Unified ICurrentProjectContext"]
     ChannelB --> Context
-    Context --> EfFilter["EF Core Global Query Filter (WHERE project_id = @Id)"]
+    Context --> Inner["Channel-Agnostic Inner Business Logic & Fail-Closed EF Core Global Filter"]
 ```
 
-### Tenancy Context Interfaces
+### Unified Ambient Context Interfaces
 ```csharp
 namespace SmkDoc.Application.Common.Interfaces;
 
+using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.ValueObjects.Ids;
 
 public interface ICurrentProjectContext
 {
     ProjectId ProjectId { get; }
     bool IsResolved { get; }
-    void SetProject(ProjectId projectId);
+    string? CallerIdentity { get; }
+    UserId? UserId { get; }
+    SystemRole? SystemRole { get; }
+    ApiKeyId? ApiKeyId { get; }
 }
 
-public interface IExecutionContext
+public interface ICurrentProjectContextSetter
 {
-    Guid? UserId { get; }
-    Guid? ProjectId { get; }
-    Guid? CompanyId { get; }
-    string CallerApp { get; }
-    IReadOnlyCollection<string> Scopes { get; }
+    void SetProject(ProjectId projectId, string? callerIdentity = null);
+
+    void SetActor(
+        UserId? userId = null,
+        SystemRole? systemRole = null,
+        ApiKeyId? apiKeyId = null,
+        string? callerIdentity = null);
 }
 ```
 
@@ -170,63 +182,136 @@ public static class ApiKeyValidator
 
 ### Ambient Project Context Middleware Archetype (`ProjectContextMiddleware`)
 >> MANDATORY CANONICAL TEMPLATE [RULE-SEC-002]:
-* [MUST] Extract tenant identifier following precedence: Route `{projectId}` => Header `X-Project-Id` => JWT Claim `project_id`.
-* [MUST] Reject mismatched Route vs Header project IDs with RFC 9457 `400 Bad Request`.
-* [MUST] Hydrate `ClaimTypes.Role` into `ClaimsIdentity` and grant both `SuperAdmin` and `Admin` claims for SuperAdmin accounts.
+* [MUST] Converge both Channel A (`X-API-Key`) and Channel B (`Authorization: Bearer`) exclusively into `ICurrentProjectContextSetter` (zero `IExecutionContext`).
+* [MUST] Extract Channel B tenant identifier following precedence: Route `{projectId}` => Header `X-Project-Id` => JWT Claim `ProjectId`, rejecting Route vs Header conflicts with RFC 9457 `400 Bad Request`.
+* [MUST] Hydrate `SuperAdmin` and `Admin` role claims unconditionally for authenticated `SystemRole.SuperAdmin` users before project checks, and hydrate resolved project `RoleType` (`Admin`, `Developer`, `Viewer`) into `ClaimTypes.Role`.
+* [MUST] Enforce `ApiKeyScope.ReadOnly` on Channel A at the HTTP perimeter by rejecting `POST`, `PUT`, `PATCH`, and `DELETE` requests with `403 Forbidden`, allowing only stateless `preview` and `validate` endpoints.
+* [MUST NOT] Whitelist `/preview` endpoints as unauthenticated routes.
 ```csharp
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Constants;
 using SmkDoc.Application.Common.Interfaces;
+using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Api.Middleware;
 
 public sealed class ProjectContextMiddleware(RequestDelegate next)
 {
-    public async Task InvokeAsync(HttpContext context, ICurrentProjectContext projectContext)
+    public async Task InvokeAsync(
+        HttpContext context,
+        ICurrentProjectContextSetter projectContextSetter)
     {
-        Guid? routeProjectId = ExtractRouteProjectId(context);
-        Guid? headerProjectId = ExtractHeaderProjectId(context);
-
-        if (routeProjectId.HasValue && headerProjectId.HasValue && routeProjectId.Value != headerProjectId.Value)
+        if (context.User.Identity?.IsAuthenticated == true)
         {
-            context.Response.StatusCode = StatusCodes.Status400BadRequest;
-            context.Response.ContentType = "application/problem+json";
-            var problem = new ProblemDetails
+            Guid? routeProjectId = ExtractRouteProjectId(context);
+            Guid? headerProjectId = ExtractHeaderProjectId(context);
+
+            if (routeProjectId.HasValue && headerProjectId.HasValue && routeProjectId.Value != headerProjectId.Value)
             {
-                Status = StatusCodes.Status400BadRequest,
-                Title = "Tenant Identification Conflict",
-                Detail = $"Route ProjectId '{routeProjectId}' conflicts with Header X-Project-Id '{headerProjectId}'.",
-                Instance = context.Request.Path
-            };
-            await context.Response.WriteAsJsonAsync(problem);
+                await WriteProblemAsync(context, StatusCodes.Status400BadRequest, "Tenant Identification Conflict",
+                    $"Route ProjectId '{routeProjectId}' conflicts with Header X-Project-Id '{headerProjectId}'.");
+                return;
+            }
+
+            var userId = ExtractUserId(context.User);
+            var isSuperAdmin = IsSuperAdminPrincipal(context.User);
+            var systemRole = isSuperAdmin ? SystemRole.SuperAdmin : SystemRole.Member;
+
+            projectContextSetter.SetActor(
+                userId: userId,
+                systemRole: systemRole,
+                callerIdentity: userId is { } uid ? $"User:{uid.Value:N}" : "portal");
+
+            if (isSuperAdmin && context.User.Identity is ClaimsIdentity superIdentity)
+            {
+                EnsureRoleClaim(superIdentity, RoleConstants.SuperAdmin);
+                EnsureRoleClaim(superIdentity, RoleConstants.Admin);
+            }
+
+            var effectiveProjectId = routeProjectId ?? headerProjectId ?? ExtractClaimProjectId(context);
+            if (effectiveProjectId.HasValue)
+            {
+                projectContextSetter.SetProject(new ProjectId(effectiveProjectId.Value));
+            }
+
+            await next(context);
             return;
         }
 
-        var effectiveProjectId = routeProjectId ?? headerProjectId ?? ExtractClaimProjectId(context);
-        if (effectiveProjectId.HasValue)
-        {
-            projectContext.SetProject(new ProjectId(effectiveProjectId.Value));
-            SynchronizeRoleClaims(context);
-        }
+        // Channel A (X-API-Key): validate SHA-256 hash, block ReadOnly mutations, and bind key.ProjectId
+        // if (scope == ApiKeyScope.ReadOnly && IsMutatingNonStatelessRequest(context.Request)) => 403 Forbidden
+        // projectContextSetter.SetActor(apiKeyId: new ApiKeyId(key.Id), callerIdentity: key.CallerApp);
+        // projectContextSetter.SetProject(new ProjectId(key.ProjectId), key.CallerApp);
 
         await next(context);
+    }
+
+    private static bool IsMutatingNonStatelessRequest(HttpRequest request)
+    {
+        if (HttpMethods.IsGet(request.Method) || HttpMethods.IsHead(request.Method) || HttpMethods.IsOptions(request.Method))
+            return false;
+
+        var path = request.Path.Value ?? string.Empty;
+        return !path.Contains("/preview", StringComparison.OrdinalIgnoreCase)
+            && !path.Contains("/validate", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static UserId? ExtractUserId(ClaimsPrincipal principal)
+    {
+        var raw = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? principal.FindFirst("sub")?.Value;
+        return Guid.TryParse(raw, out var guid) && guid != Guid.Empty ? new UserId(guid) : null;
+    }
+
+    private static bool IsSuperAdminPrincipal(ClaimsPrincipal principal) =>
+        string.Equals(principal.FindFirst("SystemRole")?.Value, RoleConstants.SuperAdmin, StringComparison.OrdinalIgnoreCase);
+
+    private static void EnsureRoleClaim(ClaimsIdentity identity, string role)
+    {
+        if (!identity.HasClaim(ClaimTypes.Role, role))
+            identity.AddClaim(new Claim(ClaimTypes.Role, role));
+    }
+
+    private static Guid? ExtractRouteProjectId(HttpContext context) =>
+        Guid.TryParse(context.Request.RouteValues["projectId"]?.ToString(), out var id) && id != Guid.Empty ? id : null;
+
+    private static Guid? ExtractHeaderProjectId(HttpContext context) =>
+        Guid.TryParse(context.Request.Headers[HttpHeaderConstants.ProjectIdHeader], out var id) && id != Guid.Empty ? id : null;
+
+    private static Guid? ExtractClaimProjectId(HttpContext context) =>
+        Guid.TryParse(context.User.FindFirst("ProjectId")?.Value, out var id) && id != Guid.Empty ? id : null;
+
+    private static Task WriteProblemAsync(HttpContext context, int status, string title, string detail)
+    {
+        context.Response.StatusCode = status;
+        context.Response.ContentType = "application/problem+json";
+        return context.Response.WriteAsJsonAsync(new ProblemDetails
+        {
+            Status = status,
+            Title = title,
+            Detail = detail,
+            Instance = context.Request.Path
+        });
     }
 }
 ```
 
-### Cross-Tenant Parameter Spoofing Defense
+### Mandatory Ambient Tenant Resolution & Anti-Spoofing Guard
 >> MANDATORY CANONICAL TEMPLATE [RULE-SEC-003]:
-* [MUST] Reject any request where caller-supplied `projectId` conflicts with ambient resolved `projectContext.ProjectId`.
-* [MUST] Throw strongly-typed `ForbiddenException` mapped to RFC 9457 403 Forbidden.
+* [MUST] Consume `ICurrentProjectContext` as the single mandatory ambient context in all tenant-scoped UseCases (prohibit optional `ICurrentProjectContext? = null` and prohibit reintroducing `IExecutionContext`).
+* [MUST NOT] Declare `Guid ProjectId` on tenant-scoped Command or Query records (`CreateTemplateCommand`, `ListTemplatesQuery`, `CreateApiKeyCommand`).
+* [MUST] Partition `IdempotencyFilter` cache keys by `projectContext.ProjectId.Value` (`idempotency:{ProjectId:N}:{IdempotencyKey}`).
+* [MUST] Throw `ForbiddenException` (RFC 9457 `403 Forbidden`) at Presentation boundary if a legacy query string supplies a `projectId` conflicting with `projectContext.ProjectId.Value`.
 ```csharp
-// >> CANONICAL: Fail-fast parameter anti-spoofing guard
-if (projectContext.IsResolved && command.ProjectId != Guid.Empty && command.ProjectId != projectContext.ProjectId.Value)
+// >> CANONICAL: Fail-closed mandatory ambient tenant resolution inside UseCase
+if (!projectContext.IsResolved)
 {
-    throw new ForbiddenException($"Cross-tenant operation rejected: Payload ProjectId '{command.ProjectId}' does not match active context '{projectContext.ProjectId.Value}'.");
+    throw new ForbiddenException("Active project context is required for this tenant operation.");
 }
+
+var activeProjectId = projectContext.ProjectId;
 ```
 
 ---
@@ -254,9 +339,9 @@ if (projectContext.IsResolved && command.ProjectId != Guid.Empty && command.Proj
 ```
 *Rationale: Standard string equality short-circuits on mismatch, leaking character-by-character timing signals to network attackers.*
 
-### [TRAP-SEC-004]: Confused Deputy Cross-Tenant Parameter Spoofing
+### [TRAP-SEC-004]: Dual Ambient Context & Caller ProjectId Override
 ```diff
-- var targetProject = query.ProjectId ?? context.ProjectId.Value;
-+ if (projectContext.IsResolved && query.ProjectId.HasValue && query.ProjectId.Value != projectContext.ProjectId.Value) throw new ForbiddenException("Cross-tenant query rejected.");
+- var targetProject = command.ProjectId != Guid.Empty ? command.ProjectId : legacyContext.ProjectId!.Value;
++ if (!projectContext.IsResolved) throw new ForbiddenException("Tenant context required."); var targetProject = projectContext.ProjectId;
 ```
-*Rationale: Allowing callers to override their authenticated token's project without boundary checks enables unauthorized cross-tenant data access.*
+*Rationale: Maintaining a parallel execution context or accepting caller-supplied `ProjectId` overrides creates split-brain cross-tenant writes bypassing EF Core query filters.*

@@ -108,11 +108,11 @@ Modules/{Context}/
 >> MANDATORY CANONICAL TEMPLATE [RULE-STRUCT-001]:
 * [MUST] Use C# `sealed record` with positional parameters for all Commands, Queries, and DTOs.
 * [MUST NOT] Leak domain entities directly into DTOs or public contracts.
+* [MUST NOT] Include caller-supplied `ProjectId` overrides on tenant-scoped Command or Query records >> Ref: [RULE-SEC-003].
 * [MUST] Enforce immutability across layer boundaries.
 ```csharp
-// >> CANONICAL: Immutable positional records (Zero framework/MediatR coupling)
+// >> CANONICAL: Immutable positional records (Zero framework/MediatR coupling, zero tenant spoofing parameter)
 public sealed record CreateTemplateCommand(
-    Guid ProjectId,
     string Name,
     string Slug,
     string? Category);
@@ -132,21 +132,31 @@ public sealed record TemplateResultDto(
 
 ### Primary Constructor UseCase Orchestrator
 >> MANDATORY CANONICAL TEMPLATE [RULE-STRUCT-002]:
-* [MUST] Declare dependencies via C# 13 Primary Constructor with pure camelCase parameter names (e.g. `templateRepository`, `unitOfWork`).
+* [MUST] Declare dependencies via C# 13 Primary Constructor with pure camelCase parameter names (e.g. `templateRepository`, `unitOfWork`, `projectContext`).
 * [MUST NOT] Use symbol prefixes (`_templateRepository`, `m_templateRepository`).
 * [MUST] Implement `IUseCase<TRequest, TResponse>` with single-responsibility method `ExecuteAsync(TRequest request, CancellationToken ct)`.
 ```csharp
-// >> CANONICAL: Pure camelCase, zero prefix, directly captured by members
+// >> CANONICAL: Pure camelCase, zero prefix, mandatory ambient ICurrentProjectContext
 public sealed class CreateTemplateUseCase(
     ITemplateRepository templateRepository,
+    ICurrentProjectContext projectContext,
     IUnitOfWork unitOfWork,
     TimeProvider timeProvider,
     ILogger<CreateTemplateUseCase> logger) : IUseCase<CreateTemplateCommand, TemplateResultDto>
 {
     public async Task<TemplateResultDto> ExecuteAsync(CreateTemplateCommand request, CancellationToken ct)
     {
+        if (!projectContext.IsResolved)
+            throw new ForbiddenException("Active project context is required.");
+
         var now = timeProvider.GetUtcNow();
-        var template = Template.Create(request.ProjectId, request.Name, request.Slug, request.Category, now);
+        var template = Template.Create(
+            projectContext.ProjectId,
+            TemplateName.Create(request.Name),
+            new TemplateSlug(request.Slug),
+            request.Category,
+            now);
+        logger.LogInformation("Creating template {Slug} for project {ProjectId}", request.Slug, projectContext.ProjectId);
         await templateRepository.AddAsync(template, ct);
         await unitOfWork.CommitAsync(ct);
         return template.ToResultDto();

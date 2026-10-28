@@ -132,16 +132,15 @@ public sealed class TemplateController(
     GetTemplateByIdUseCase getTemplateByIdUseCase,
     CreateTemplateUseCase createTemplateUseCase,
     DeactivateTemplateUseCase deactivateTemplateUseCase,
-    RenderDocumentUseCase renderDocumentUseCase,
-    IExecutionContext context) : ControllerBase
+    RenderDocumentUseCase renderDocumentUseCase) : ControllerBase
 {
     [HttpGet]
     [ProducesResponseType(typeof(PagedApiResponse<TemplateResultDto>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> List([FromQuery] Guid? projectId, [FromQuery] int page = 1, [FromQuery] int pageSize = 20, CancellationToken ct = default)
+    public async Task<IActionResult> List([FromQuery] int page = 1, [FromQuery] int pageSize = 20, CancellationToken ct = default)
     {
-        var targetProjectId = context.ProjectId ?? projectId ?? throw new BadHttpRequestException("ProjectId required.");
-        var result = await listTemplatesUseCase.ExecuteAsync(new ListTemplatesQuery(targetProjectId, page, pageSize), ct);
-        return Ok(new PagedApiResponse<TemplateResultDto>(result.Items, result.PageNumber, result.PageSize, result.TotalCount));
+        var query = new ListTemplatesQuery(page, pageSize);
+        var result = await listTemplatesUseCase.ExecuteAsync(query, ct);
+        return Ok(new PagedApiResponse<TemplateResultDto>(result.Items, result.TotalCount, result.Page, result.PageSize));
     }
 
     [HttpGet("{id:guid}")]
@@ -149,7 +148,8 @@ public sealed class TemplateController(
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetById([FromRoute] Guid id, CancellationToken ct)
     {
-        var result = await getTemplateByIdUseCase.ExecuteAsync(new GetTemplateByIdQuery(id), ct);
+        var query = new GetTemplateByIdQuery(id);
+        var result = await getTemplateByIdUseCase.ExecuteAsync(query, ct);
         return Ok(new ApiResponse<TemplateResultDto>(result));
     }
 
@@ -158,9 +158,9 @@ public sealed class TemplateController(
     [ProducesResponseType(typeof(ApiResponse<TemplateResultDto>), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
-    public async Task<IActionResult> Create([FromBody] CreateTemplateCommand command, CancellationToken ct)
+    public async Task<IActionResult> Create([FromBody] CreateTemplateCommand request, CancellationToken ct)
     {
-        var result = await createTemplateUseCase.ExecuteAsync(command, ct);
+        var result = await createTemplateUseCase.ExecuteAsync(request, ct);
         return CreatedAtAction(nameof(GetById), new { id = result.Id }, new ApiResponse<TemplateResultDto>(result));
     }
 
@@ -170,7 +170,8 @@ public sealed class TemplateController(
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Deactivate([FromRoute] Guid id, CancellationToken ct)
     {
-        await deactivateTemplateUseCase.ExecuteAsync(new DeactivateTemplateCommand(id), ct);
+        var command = new DeactivateTemplateCommand(id);
+        await deactivateTemplateUseCase.ExecuteAsync(command, ct);
         return NoContent();
     }
 
@@ -178,9 +179,9 @@ public sealed class TemplateController(
     [Idempotent]
     [ProducesResponseType(typeof(FileStreamResult), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> Render([FromRoute] Guid id, [FromBody] RenderDocumentQuery query, CancellationToken ct)
+    public async Task<IActionResult> Render([FromRoute] Guid id, [FromBody] RenderDocumentQuery request, CancellationToken ct)
     {
-        var stream = await renderDocumentUseCase.ExecuteAsync(query, ct);
+        var stream = await renderDocumentUseCase.ExecuteAsync(request, ct);
         return File(stream, "application/pdf", $"{id}.pdf");
     }
 }

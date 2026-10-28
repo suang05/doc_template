@@ -151,19 +151,20 @@ namespace SmkDoc.Tests.Application.Modules.Authoring.Templates.Commands.CreateTe
 public sealed class CreateTemplateUseCaseTests
 {
     private readonly ITemplateRepository _templateRepo = Substitute.For<ITemplateRepository>();
+    private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
     private readonly IValidator<CreateTemplateCommand> _validator = Substitute.For<IValidator<CreateTemplateCommand>>();
-    private readonly ILogger<CreateTemplateUseCase> _logger = Substitute.For<ILogger<CreateTemplateUseCase>>();
+    private readonly IDomainEventDispatcher _eventDispatcher = Substitute.For<IDomainEventDispatcher>();
     private readonly FakeTimeProvider _timeProvider = TestConstants.CreateFakeClock();
 
     private CreateTemplateUseCase CreateSut() =>
-        new(_templateRepo, _unitOfWork, _validator, _timeProvider, _logger);
+        new(_templateRepo, _unitOfWork, _validator, _projectContext, _timeProvider, _eventDispatcher);
 
     [Fact]
     public async Task ExecuteAsync_WhenCommandIsInvalid_ShouldFailFastWithoutTouchingPersistence()
     {
         // Arrange
-        var command = new CreateTemplateCommand(Guid.Empty, "", "INVALID_SLUG", null);
+        var command = new CreateTemplateCommand("", "INVALID_SLUG", null);
         _validator.ValidateAsync(command, Arg.Any<CancellationToken>())
             .Returns(new ValidationResult([new ValidationFailure("Name", "Name is required.")]));
 
@@ -182,7 +183,10 @@ public sealed class CreateTemplateUseCaseTests
     public async Task ExecuteAsync_WhenSlugAlreadyExists_ShouldThrowConflictException()
     {
         // Arrange
-        var command = new CreateTemplateCommand(Guid.NewGuid(), "Tax Invoice", "tax-invoice", "Finance");
+        var projectId = new ProjectId(Guid.NewGuid());
+        _projectContext.IsResolved.Returns(true);
+        _projectContext.ProjectId.Returns(projectId);
+        var command = new CreateTemplateCommand("Tax Invoice", "tax-invoice", "Finance");
         _validator.ValidateAsync(command, Arg.Any<CancellationToken>())
             .Returns(new ValidationResult());
         _templateRepo.SlugExistsAsync(command.Slug, Arg.Any<CancellationToken>())
@@ -203,8 +207,10 @@ public sealed class CreateTemplateUseCaseTests
     public async Task ExecuteAsync_WhenCommandIsValid_ShouldPersistTemplateAndReturnDto()
     {
         // Arrange
-        var projectId = Guid.NewGuid();
-        var command = new CreateTemplateCommand(projectId, "Invoice Template", "invoice-template", "Billing");
+        var projectId = new ProjectId(Guid.NewGuid());
+        _projectContext.IsResolved.Returns(true);
+        _projectContext.ProjectId.Returns(projectId);
+        var command = new CreateTemplateCommand("Invoice Template", "invoice-template", "Billing");
         _validator.ValidateAsync(command, Arg.Any<CancellationToken>())
             .Returns(new ValidationResult());
         _templateRepo.SlugExistsAsync(command.Slug, Arg.Any<CancellationToken>())
@@ -217,6 +223,7 @@ public sealed class CreateTemplateUseCaseTests
 
         // Assert
         result.Should().NotBeNull();
+        result.ProjectId.Should().Be(projectId.Value);
         result.Name.Should().Be("Invoice Template");
         result.Slug.Should().Be("invoice-template");
         result.Category.Should().Be("Billing");
@@ -301,7 +308,7 @@ public sealed class CreateTemplateCommandValidatorTests
     [Fact]
     public void Validate_WhenNameIsEmpty_ShouldHaveValidationError()
     {
-        var command = new CreateTemplateCommand(Guid.NewGuid(), "", "invoice-slug", null);
+        var command = new CreateTemplateCommand("", "invoice-slug", null);
         var result = _sut.TestValidate(command);
         result.ShouldHaveValidationErrorFor(c => c.Name);
     }
@@ -309,7 +316,7 @@ public sealed class CreateTemplateCommandValidatorTests
     [Fact]
     public void Validate_WhenSlugContainsUppercase_ShouldHaveValidationError()
     {
-        var command = new CreateTemplateCommand(Guid.NewGuid(), "Invoice", "INVALID_SLUG", null);
+        var command = new CreateTemplateCommand("Invoice", "INVALID_SLUG", null);
         var result = _sut.TestValidate(command);
         result.ShouldHaveValidationErrorFor(c => c.Slug);
     }
@@ -317,7 +324,7 @@ public sealed class CreateTemplateCommandValidatorTests
     [Fact]
     public void Validate_WhenCommandIsValid_ShouldNotHaveAnyValidationErrors()
     {
-        var command = new CreateTemplateCommand(Guid.NewGuid(), "Invoice", "valid-slug", "Finance");
+        var command = new CreateTemplateCommand("Invoice", "valid-slug", "Finance");
         var result = _sut.TestValidate(command);
         result.ShouldNotHaveAnyValidationErrors();
     }
@@ -426,8 +433,7 @@ public sealed class TemplateEndpointIntegrationTests(SmkDocApiFactory factory) :
     [Fact]
     public async Task CreateTemplate_WhenPayloadIsValid_ShouldReturn201CreatedAndPersistToPostgres()
     {
-        var projectId = Guid.NewGuid();
-        var command = new CreateTemplateCommand(projectId, "Integration Template", "integration-template", "Testing");
+        var command = new CreateTemplateCommand("Integration Template", "integration-template", "Testing");
 
         var response = await _client.PostAsJsonAsync("api/v1/templates", command);
 

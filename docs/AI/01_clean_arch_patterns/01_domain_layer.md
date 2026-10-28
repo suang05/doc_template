@@ -220,9 +220,17 @@ public abstract class BaseEntity<TId> : IHaveDomainEvents where TId : struct, IE
 
 public abstract class BaseEntity
 {
-    public Guid Id { get; protected set; } = Guid.NewGuid();
-    public DateTimeOffset CreatedAt { get; protected set; } = DateTimeOffset.UtcNow;
+    public Guid Id { get; protected set; }
+    public DateTimeOffset CreatedAt { get; protected set; }
     public DateTimeOffset? UpdatedAt { get; protected set; }
+
+    protected BaseEntity() { }
+
+    protected BaseEntity(Guid? id, DateTimeOffset createdAt)
+    {
+        Id = id.HasValue && id.Value != Guid.Empty ? id.Value : Guid.CreateVersion7();
+        CreatedAt = Guard.NotDefault(createdAt, nameof(CreatedAt));
+    }
 
     protected void SetUpdated(DateTimeOffset now) => UpdatedAt = Guard.NotDefault(now, nameof(now));
 }
@@ -314,10 +322,15 @@ public sealed class Template : BaseEntity<TemplateId>, IMustHaveProject
         var version = _versions.FirstOrDefault(v => v.Id == versionId)
             ?? throw new VersionNotInTemplateException(Id.Value, versionId);
 
+        foreach (var existing in _versions.Where(v => v.Id != versionId && v.Status == TemplateVersionStatus.Published))
+        {
+            existing.Archive(now);
+        }
+
         version.Publish(now);
         CurrentVersionId = versionId;
         SetUpdated(now);
-        AddDomainEvent(new TemplatePublishedDomainEvent(Id, versionId, now));
+        AddDomainEvent(new TemplatePublishedDomainEvent(Id, ProjectId, versionId, version.Version, now));
         return version;
     }
 

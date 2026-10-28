@@ -129,7 +129,7 @@ public interface IDomainEventDispatcher
 >> CANONICAL RECIPE [RULE-APP-CMD-001]:
 * [MUST] Implement `IUseCase<TCommand, TResultDto>`.
 * [MUST] Group Command, Validator, UseCase, and DTO in a co-located folder slice under `Modules/{BoundedContext}/{Aggregate}/Commands/{CommandName}/`.
-* [MUST] Resolve tenant ID from request or fallback to ambient `ICurrentProjectContext` / `IExecutionContext`.
+* [MUST] Resolve tenant identity strictly from mandatory injected `ICurrentProjectContext` as the single channel-agnostic ambient context (zero caller `ProjectId` parameter on tenant Commands; `IExecutionContext` is retired) >> Ref: [RULE-SEC-003].
 * [MUST] Follow strictly the 4-step PEMR execution pipeline.
 * [MUST] Validate line 1 via injected `IValidator<TCommand>` and throw strongly-typed `ValidationException` on failure.
 * [MUST] Dispatch domain events strictly post-commit.
@@ -143,11 +143,9 @@ using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
-using SmkDoc.Domain.ValueObjects.Ids;
 
-// 1. Positional Immutable Command
+// 1. Positional Immutable Command (Zero caller ProjectId override)
 public sealed record CreateTemplateCommand(
-    Guid ProjectId,
     string Name,
     string Slug,
     string? Category);
@@ -179,38 +177,32 @@ public sealed class CreateTemplateUseCase(
     ITemplateRepository templateRepo,
     IUnitOfWork unitOfWork,
     IValidator<CreateTemplateCommand> validator,
+    ICurrentProjectContext projectContext,
     TimeProvider timeProvider,
-    IDomainEventDispatcher eventDispatcher,
-    ICurrentProjectContext? projectContext = null,
-    IExecutionContext? executionContext = null) : IUseCase<CreateTemplateCommand, TemplateResultDto>
+    IDomainEventDispatcher eventDispatcher) : IUseCase<CreateTemplateCommand, TemplateResultDto>
 {
-    public async Task<TemplateResultDto> ExecuteAsync(CreateTemplateCommand command, CancellationToken ct = default)
+    public async Task<TemplateResultDto> ExecuteAsync(CreateTemplateCommand request, CancellationToken ct = default)
     {
         // 1. Parse & Validate (Fail-Fast)
-        var validationResult = await validator.ValidateAsync(command, ct);
+        var validationResult = await validator.ValidateAsync(request, ct);
         if (!validationResult.IsValid)
             throw new ValidationException(validationResult.ToDictionary());
 
-        // Resolve Tenant Context (Explicit Parameter > Ambient Context)
-        var effectiveProjectId = command.ProjectId != Guid.Empty
-            ? command.ProjectId
-            : (projectContext?.IsResolved == true ? projectContext.ProjectId.Value : executionContext?.ProjectId ?? Guid.Empty);
-
-        if (effectiveProjectId == Guid.Empty)
-            throw new DomainValidationException("ProjectId cannot be empty.");
+        if (!projectContext.IsResolved)
+            throw new ForbiddenException("Active project context is required to create a template.");
 
         // 2. Execute Precondition Query
-        var slugExists = await templateRepo.SlugExistsAsync(command.Slug, ct);
+        var slugExists = await templateRepo.SlugExistsAsync(request.Slug, ct);
         if (slugExists)
-            throw ConflictException.DuplicateSlug(command.Slug);
+            throw ConflictException.DuplicateSlug(request.Slug);
 
         // 3. Mutate Domain State
         var now = timeProvider.GetUtcNow();
         var template = Template.Create(
-            new ProjectId(effectiveProjectId),
-            TemplateName.Create(command.Name),
-            new TemplateSlug(command.Slug),
-            command.Category,
+            projectContext.ProjectId,
+            TemplateName.Create(request.Name),
+            new TemplateSlug(request.Slug),
+            request.Category,
             now);
 
         await templateRepo.AddAsync(template, ct);
@@ -245,14 +237,16 @@ public sealed class CreateTemplateUseCase(
 namespace SmkDoc.Application.Modules.Rendering.Documents.Queries.RenderDocument;
 
 using FluentValidation;
+using SmkDoc.Application.Common;
 using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
+using SmkDoc.Domain.Enums;
+using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
 
 // 1. Immutable Query Contract
 public sealed record RenderDocumentQuery(
-    Guid ProjectId,
     Guid TemplateId,
     string PayloadJson);
 
@@ -261,7 +255,6 @@ public sealed class RenderDocumentQueryValidator : AbstractValidator<RenderDocum
 {
     public RenderDocumentQueryValidator()
     {
-        RuleFor(x => x.ProjectId).NotEmpty();
         RuleFor(x => x.TemplateId).NotEmpty();
         RuleFor(x => x.PayloadJson).NotEmpty();
     }
@@ -270,21 +263,31 @@ public sealed class RenderDocumentQueryValidator : AbstractValidator<RenderDocum
 // 3. Streaming UseCase (Zero byte[] allocation, direct Stream return)
 public sealed class RenderDocumentUseCase(
     ITemplateRepository templateRepo,
-    IRenderEngine renderEngine,
+    IStorageService storageService,
+    IRenderEngineResolver engineResolver,
+    ICurrentProjectContext projectContext,
     IValidator<RenderDocumentQuery> validator) : IUseCase<RenderDocumentQuery, Stream>
 {
-    public async Task<Stream> ExecuteAsync(RenderDocumentQuery query, CancellationToken ct = default)
+    public async Task<Stream> ExecuteAsync(RenderDocumentQuery request, CancellationToken ct = default)
     {
-        var validationResult = await validator.ValidateAsync(query, ct);
+        var validationResult = await validator.ValidateAsync(request, ct);
         if (!validationResult.IsValid)
             throw new ValidationException(validationResult.ToDictionary());
 
-        var template = await templateRepo.GetByIdAsync(new TemplateId(query.TemplateId), ct);
-        if (template is null || template.ProjectId.Value != query.ProjectId)
-            throw new NotFoundException($"Template '{query.TemplateId}' not found for project.");
+        if (!projectContext.IsResolved)
+            throw new ForbiddenException("Active project context is required.");
 
-        // Returns live Gotenberg response stream directly (Zero RAM buffering)
-        return await renderEngine.RenderStreamAsync(template.CurrentVersion?.HtmlStream ?? Stream.Null, query.PayloadJson, OutputFormat.Pdf, ct);
+        var template = await templateRepo.GetByIdAsync(new TemplateId(request.TemplateId), ct);
+        if (template is null || template.CurrentVersion is null)
+            throw new NotFoundException($"Published template '{request.TemplateId}' not found.");
+
+        await using var templateStream = await storageService.DownloadAsync(
+            StorageBuckets.Templates,
+            template.CurrentVersion.StorageKey,
+            ct);
+
+        var engine = engineResolver.Resolve(template.CurrentVersion.GetRenderEngineType());
+        return await engine.RenderStreamAsync(templateStream, request.PayloadJson, OutputFormat.Pdf, ct);
     }
 }
 ```
@@ -295,23 +298,26 @@ public sealed class RenderDocumentUseCase(
 namespace SmkDoc.Application.Modules.Authoring.Templates.Queries.ListTemplates;
 
 using SmkDoc.Application.Common.Interfaces;
+using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
-using SmkDoc.Domain.ValueObjects.Ids;
 
-public sealed record ListTemplatesQuery(Guid ProjectId, int Page = 1, int PageSize = 20);
+public sealed record ListTemplatesQuery(int Page = 1, int PageSize = 20);
 
 public sealed record PagedResultDto<T>(IReadOnlyList<T> Items, int TotalCount, int Page, int PageSize);
 
 public sealed class ListTemplatesUseCase(
-    ITemplateRepository templateRepo) : IUseCase<ListTemplatesQuery, PagedResultDto<TemplateResultDto>>
+    ITemplateRepository templateRepo,
+    ICurrentProjectContext projectContext) : IUseCase<ListTemplatesQuery, PagedResultDto<TemplateResultDto>>
 {
-    public async Task<PagedResultDto<TemplateResultDto>> ExecuteAsync(ListTemplatesQuery query, CancellationToken ct = default)
+    public async Task<PagedResultDto<TemplateResultDto>> ExecuteAsync(ListTemplatesQuery request, CancellationToken ct = default)
     {
-        var page = Math.Max(1, query.Page);
-        var pageSize = Math.Clamp(query.PageSize, 1, 100);
+        if (!projectContext.IsResolved)
+            throw new ForbiddenException("Active project context is required.");
 
-        var totalCount = await templateRepo.CountAsync(new ProjectId(query.ProjectId), ct);
-        var items = await templateRepo.ListAsync(new ProjectId(query.ProjectId), page, pageSize, ct);
+        var page = Math.Max(1, request.Page);
+        var pageSize = Math.Clamp(request.PageSize, 1, 100);
+
+        var (items, totalCount) = await templateRepo.GetPagedByProjectAsync(projectContext.ProjectId, null, page, pageSize, ct);
 
         var dtos = items.Select(t => new TemplateResultDto(
             t.Id.Value,

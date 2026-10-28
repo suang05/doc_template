@@ -126,13 +126,15 @@ Presentation (SmkDoc.Api):
 <system_standards>
 NamingRules:
   PrimaryConstructorParams: pure camelCase (Regex: ^[a-z][a-zA-Z0-9]+$) # Zero symbol prefix
-  PayloadVariables: "request"
+  PayloadVariables: "command" for commands, "query" for queries, "result" for outputs, "now" for injected time, "ct" for CancellationToken
+  VariableNaming: Full semantic names strictly; prohibit cryptic abbreviations (repo, uow, ctx, svc, t, v, d)
   HandlerOutputVariables: "result"
   DatabaseColumns: snake_case
   EntityProperties: PascalCase
 
 CodeStructures:
   ObjectInstantiation: Explicit local variable assignment before method consumption.
+  UsingDirectives: Mandatory top-level using directives at file head; prohibit inlining namespace paths in method bodies.
   ErrorResponses: Strongly-typed RFC 9457 ProblemDetails dispatched via GlobalExceptionHandler (IExceptionHandler).
   ApiResponses: ApiResponse<T> for JSON envelopes; Stream for binary documents.
   IdempotencyAndRateLimiting: [Idempotent] filter with Idempotency-Key header on mutating endpoints; Rate Limiting middleware on high-throughput routes.
@@ -177,6 +179,7 @@ CentralizedConfiguration:
 | **EF Core Mappings, Repos & Tenancy** | `docs/AI/01_clean_arch_patterns/03_infrastructure_layer.md` | + `03_specialized_mechanics/multi_tenant_security_pipeline.md` (If modifying queries) |
 | **API Controllers, Routes & RFC 9457** | `docs/AI/01_clean_arch_patterns/04_api_presentation_layer.md` | + `01_clean_arch_patterns/02_application_layer.md` (For DTO contracts) |
 | **Unit & Aggregate Testing Archetypes** | `docs/AI/01_clean_arch_patterns/05_testing_archetypes.md` | + `01_clean_arch_patterns/{target_layer}.md` |
+| **Universal Syntax, Lexicon & Conventions** | `docs/AI/00_architecture_core/coding_conventions.md` | + `00_architecture_core/anti_pattern_firewall.md` |
 | **Next.js App Router, Proxy & Live Preview** | `docs/AI/02_frontend_patterns/01_app_router_and_data_fetching.md` | + `02_frontend_patterns/02_ui_component_conventions.md` |
 | **Ice-White Tokens, CVA & Zod Schemas** | `docs/AI/02_frontend_patterns/02_ui_component_conventions.md` | + `02_frontend_patterns/01_app_router_and_data_fetching.md` |
 | **Multi-Tenant Dual-Auth & Project Context** | `docs/AI/03_specialized_mechanics/multi_tenant_security_pipeline.md` | + `01_clean_arch_patterns/03_infrastructure_layer.md` |
@@ -184,7 +187,7 @@ CentralizedConfiguration:
 
 TopologyMap:
 docs/AI/
-  00_architecture_core/ (00_system_blueprint_and_data_flow.md, dependency_and_folder_rules.md, anti_pattern_firewall.md)
+  00_architecture_core/ (00_system_blueprint_and_data_flow.md, dependency_and_folder_rules.md, anti_pattern_firewall.md, coding_conventions.md)
   01_clean_arch_patterns/ (01_domain_layer.md .. 05_testing_archetypes.md)
   02_frontend_patterns/ (01_app_router_and_data_fetching.md, 02_ui_component_conventions.md)
   03_specialized_mechanics/ (multi_tenant_security_pipeline.md, document_rendering_mechanics.md)
@@ -209,7 +212,7 @@ SignalTriggerRegistry:
   | `[SIGNAL_DOMAIN_MUTATION]` | Entity, Aggregate Root, Strongly-Typed ID, Value Object | Update `docs/AI/01_clean_arch_patterns/01_domain_layer.md` |
   | `[SIGNAL_DECEPTIVE_BUG]` | Runtime traps (LOH, concurrency, deadlock, SSRF) | Propose to `docs/AI/00_architecture_core/anti_pattern_firewall.md` |
   | `[SIGNAL_SCHEMA_MIGRATION]` | EF Core table, column, index, converter | Update `docs/AI/01_clean_arch_patterns/03_infrastructure_layer.md` |
-  | `[SIGNAL_STRUCTURE_MUTATION]` | UseCase, Interface, Service, Layer project | Update `docs/AI/00_architecture_core/dependency_and_folder_rules.md` |
+  | `[SIGNAL_STRUCTURE_MUTATION]` | UseCase, Interface, Service, Layer project | Update `docs/AI/00_architecture_core/dependency_and_folder_rules.md` & `coding_conventions.md` |
   | `[SIGNAL_TEST_MUTATION]` | Unit/Integration tests, fixtures, builders (`SmkDoc.Tests/`, `frontend-v2/src/__tests__/`) | Update `docs/AI/01_clean_arch_patterns/05_testing_archetypes.md` |
   | `[SIGNAL_TOPOLOGY_MUTATION]` | External services (Gotenberg, MinIO, Postgres) | Update `docs/AI/03_specialized_mechanics/document_rendering_mechanics.md` |
   | `[SIGNAL_SECURITY_MUTATION]` | Auth handler, ApiKey, ProjectContext, tenant isolation | Update `docs/AI/03_specialized_mechanics/multi_tenant_security_pipeline.md` & `01_clean_arch_patterns/03_infrastructure_layer.md` |

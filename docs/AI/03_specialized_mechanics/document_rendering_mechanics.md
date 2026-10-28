@@ -115,15 +115,15 @@ public interface IRenderEngineResolver
 ### Gotenberg Direct Response Streaming Archetype
 >> MANDATORY CANONICAL TEMPLATE [RULE-MECH-001]:
 * [MUST] Use `HttpCompletionOption.ResponseHeadersRead` when invoking external Gotenberg rendering endpoints.
-* [MUST] Return raw `Stream` directly from `response.Content.ReadAsStreamAsync(ct)`.
-* [MUST NOT] Buffer rendering payloads into in-memory `byte[]` arrays or unbounded `MemoryStream` instances (Zero Large Object Heap allocation).
+* [MUST] Wrap `response.Content.ReadAsStreamAsync(ct)` in a `ResponseDisposingStream` so `HttpResponseMessage` is deterministically disposed on stream close, and dispose `response` inside `finally`/`catch` on non-2xx or setup failure.
+* [MUST] For persistent production renders (`GenerateDocumentUseCase`), spool unseekable engine streams via `ArrayPool<byte>` (81,920 bytes) + `IncrementalHash` (`SHA256`) into a `FileOptions.DeleteOnClose | FileOptions.Asynchronous` temporary `FileStream` before MinIO upload (Zero Large Object Heap allocation).
 ```csharp
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
 using SmkDoc.Application.Common.Exceptions;
 
-namespace SmkDoc.Infrastructure.Gotenberg;
+namespace SmkDoc.Infrastructure.Pdf;
 
 public sealed class GotenbergHtmlRenderer(HttpClient httpClient)
 {
@@ -160,11 +160,27 @@ public sealed class GotenbergHtmlRenderer(HttpClient httpClient)
         var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
         if (!response.IsSuccessStatusCode)
         {
-            var errorDetail = await response.Content.ReadAsStringAsync(ct);
-            throw new DocumentRenderException($"Gotenberg rendering failed with status {response.StatusCode}: {errorDetail}");
+            try
+            {
+                var errorDetail = await response.Content.ReadAsStringAsync(ct);
+                throw new RenderException("html", "GotenbergChromium", $"Gotenberg failed ({response.StatusCode}): {errorDetail}");
+            }
+            finally
+            {
+                response.Dispose();
+            }
         }
 
-        return await response.Content.ReadAsStreamAsync(ct);
+        try
+        {
+            var innerStream = await response.Content.ReadAsStreamAsync(ct);
+            return new ResponseDisposingStream(innerStream, response);
+        }
+        catch
+        {
+            response.Dispose();
+            throw;
+        }
     }
 }
 ```
@@ -218,7 +234,7 @@ public static class ExcelPageSetupExtensions
 
 ### Centralized ThaiDataTransformer Implementation
 >> MANDATORY CANONICAL TEMPLATE [RULE-MECH-004]:
-* [MUST] Format dates with Buddhist Era offset (+543 years) and Thai month names.
+* [MUST] Format dates with Buddhist Era offset (+543 years) and Thai month names, normalizing Buddhist Era input years (`year > 2400 => year - 543`) BEFORE Gregorian calendar validation so Buddhist leap-year dates (e.g. `29/02/2567` == `2024-02-29`) parse deterministically without failing on non-leap Gregorian year `2567`.
 * [MUST] Convert numerical currency amounts to standardized Thai Baht text (`บาทถ้วน` or satang suffix).
 * [MUST] Format phone numbers to `0xx-xxx-xxxx` and national ID cards to `x-xxxx-xxxxx-xx-x`.
 ```csharp
