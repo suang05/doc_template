@@ -1,21 +1,11 @@
-'use client';
+import type { Metadata } from 'next';
+import { TemplatesPageClient } from './_components/TemplatesPageClient';
 
-import React from 'react';
-import { useRouter } from 'next/navigation';
-import { RequireRole } from '@/components/ui/RequireRole';
-import { TemplatesView } from '@/components/features/templates/TemplatesView';
+export const metadata: Metadata = {
+  title: 'Templates — SMK Document Platform',
+  description: 'Manage and design enterprise document templates',
+};
 
 export default function TemplatesPage() {
-  const router = useRouter();
-
-  return (
-    <RequireRole role="Editor">
-      <TemplatesView
-        onOpenStudio={(templateId) => router.push(`/studio/${templateId}`)}
-        onOpenMapping={(templateId) => router.push(`/mapping?templateId=${templateId}`)}
-        onOpenGenerator={(slug) => router.push(`/generator?slug=${encodeURIComponent(slug)}`)}
-        onNavigateUpload={() => router.push('/upload')}
-      />
-    </RequireRole>
-  );
+  return <TemplatesPageClient />;
 }

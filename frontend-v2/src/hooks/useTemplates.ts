@@ -1,42 +1,48 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { TemplateDto, DocumentCategory } from '@/types/api';
 import { templatesApi } from '@/lib/api/templates.api';
 import { FETCH_TIMEOUT_MS } from '@/constants/timeouts';
 
-export function useTemplates() {
-  const [templates, setTemplates] = useState<TemplateDto[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+export const TEMPLATES_QUERY_KEY = ['templates'] as const;
 
+export function useTemplates() {
+  const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<DocumentCategory | 'all'>('all');
 
-  const fetchTemplates = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  const {
+    data: templates = [],
+    isLoading: loading,
+    error: rawError,
+    refetch,
+  } = useQuery<TemplateDto[], Error>({
+    queryKey: TEMPLATES_QUERY_KEY,
+    queryFn: async ({ signal }) => {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
-    // Add timeout to prevent hanging forever if backend doesn't respond
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+      const abortHandler = () => controller.abort();
+      signal?.addEventListener('abort', abortHandler);
 
-    try {
-      const data = await templatesApi.listTemplates({ signal: controller.signal });
-      setTemplates(data || []);
-    } catch (err: unknown) {
-      setError(err instanceof Error && err.name === 'AbortError'
-        ? 'การเชื่อมต่อกับ Backend ใช้เวลานานเกินไป กรุณาลองใหม่อีกครั้ง'
-        : (err instanceof Error ? err.message : 'ไม่สามารถโหลดรายการแม่แบบได้'));
-    } finally {
-      clearTimeout(timeoutId);
-      setLoading(false);
-    }
-  }, []);
+      try {
+        const data = await templatesApi.listTemplates({ signal: controller.signal });
+        return data || [];
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === 'AbortError') {
+          throw new Error('การเชื่อมต่อกับ Backend ใช้เวลานานเกินไป กรุณาลองใหม่อีกครั้ง');
+        }
+        throw err instanceof Error ? err : new Error('ไม่สามารถโหลดรายการแม่แบบได้');
+      } finally {
+        clearTimeout(timeoutId);
+        signal?.removeEventListener('abort', abortHandler);
+      }
+    },
+  });
 
-  useEffect(() => {
-    fetchTemplates();
-  }, [fetchTemplates]);
+  const error = rawError ? rawError.message : null;
 
   const filteredTemplates = useMemo(() => {
     return templates.filter((t) => {
@@ -52,6 +58,10 @@ export function useTemplates() {
     });
   }, [templates, searchQuery, selectedCategory]);
 
+  const refresh = useCallback(async () => {
+    await refetch();
+  }, [refetch]);
+
   return {
     templates,
     filteredTemplates,
@@ -61,6 +71,7 @@ export function useTemplates() {
     setSearchQuery,
     selectedCategory,
     setSelectedCategory,
-    refresh: fetchTemplates,
+    refresh,
+    invalidate: () => queryClient.invalidateQueries({ queryKey: TEMPLATES_QUERY_KEY }),
   };
 }

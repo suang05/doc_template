@@ -1,8 +1,11 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useCallback } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { listUsers } from '@/lib/api/users.api';
 import type { UserListItem } from '@/types/api';
+
+export const USERS_QUERY_KEY = ['users'] as const;
 
 export interface UseUsersReturn {
   users: UserListItem[];
@@ -12,26 +15,23 @@ export interface UseUsersReturn {
 }
 
 export function useUsers(): UseUsersReturn {
-  const [users, setUsers] = useState<UserListItem[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const {
+    data: users = [],
+    isLoading: loading,
+    error: rawError,
+    refetch,
+  } = useQuery<UserListItem[], Error>({
+    queryKey: USERS_QUERY_KEY,
+    queryFn: async () => {
+      return await listUsers();
+    },
+  });
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await listUsers();
-      setUsers(data);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'โหลดข้อมูลไม่สำเร็จ');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const reload = useCallback(async () => {
+    await refetch();
+  }, [refetch]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  const error = rawError ? (rawError.message || 'โหลดข้อมูลไม่สำเร็จ') : null;
 
-  return { users, loading, error, reload: load };
+  return { users, loading, error, reload };
 }

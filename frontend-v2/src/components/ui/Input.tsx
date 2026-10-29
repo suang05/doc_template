@@ -1,7 +1,31 @@
-import React from 'react';
+import * as React from 'react';
+import { cva, type VariantProps } from 'class-variance-authority';
 import { LucideIcon } from 'lucide-react';
+import { cn } from '@/utils/cn';
 
-export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
+export const inputVariants = cva(
+  'w-full h-8 rounded-sm bg-surface border text-xs text-textPrimary placeholder:text-textMuted transition-colors focus:outline-none focus:ring-1 pr-2.5 disabled:opacity-50 disabled:cursor-not-allowed',
+  {
+    variants: {
+      hasError: {
+        true: 'border-red-500 focus:border-red-500 focus:ring-red-500',
+        false: 'border-border focus:border-primary focus:ring-primary',
+      },
+      hasIcon: {
+        true: 'pl-8',
+        false: 'px-2.5',
+      },
+    },
+    defaultVariants: {
+      hasError: false,
+      hasIcon: false,
+    },
+  }
+);
+
+export interface InputProps
+  extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'size'>,
+    VariantProps<typeof inputVariants> {
   label?: string;
   error?: string;
   icon?: LucideIcon;
@@ -9,7 +33,7 @@ export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> 
 }
 
 export const Input = React.forwardRef<HTMLInputElement, InputProps>(
-  ({ label, error, icon: Icon, helperText, className = '', id, ...props }, ref) => {
+  ({ label, error, icon: Icon, helperText, className, id, ...props }, ref) => {
     const inputId = id || (label ? label.toLowerCase().replace(/\s+/g, '-') : undefined);
 
     return (
@@ -30,9 +54,13 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
           <input
             ref={ref}
             id={inputId}
-            className={`w-full h-8 rounded-sm bg-surface border text-xs text-textPrimary placeholder:text-textMuted transition-colors focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary ${
-              Icon ? 'pl-8' : 'px-2.5'
-            } pr-2.5 ${error ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : 'border-border'} ${className}`}
+            className={cn(
+              inputVariants({
+                hasError: Boolean(error),
+                hasIcon: Boolean(Icon),
+              }),
+              className
+            )}
             {...props}
           />
         </div>

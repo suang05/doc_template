@@ -1,20 +1,17 @@
-'use client';
+import type { Metadata } from 'next';
+import { StudioPageClient } from './_components/StudioPageClient';
 
-import React from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import { RequireRole } from '@/components/ui/RequireRole';
-import { TemplateStudioView } from '@/components/features/studio/TemplateStudioView';
+interface StudioPageProps {
+  params: Promise<{ templateId: string }>;
+}
 
-export default function StudioPage() {
-  const router = useRouter();
-  const params = useParams<{ templateId: string }>();
+export const metadata: Metadata = {
+  title: 'Template Studio — SMK Document Platform',
+  description: 'Visual code editor and real-time live preview for document templates',
+};
 
-  return (
-    <RequireRole role="Editor">
-      <TemplateStudioView
-        templateId={params.templateId ?? ''}
-        onBack={() => router.push('/templates')}
-      />
-    </RequireRole>
-  );
+export default async function StudioPage({ params }: StudioPageProps) {
+  const { templateId } = await params;
+
+  return <StudioPageClient templateId={templateId ?? ''} />;
 }

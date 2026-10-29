@@ -1,25 +1,16 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import dynamic from 'next/dynamic';
-import {
-  Save,
-  CheckCircle,
-  AlertTriangle,
-  History,
-  ArrowLeft,
-  Eye,
-  RefreshCw,
-  Upload,
-} from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { CheckCircle, AlertTriangle } from 'lucide-react';
 import { useTemplateStudio, parseCombinedHtml } from '@/hooks/useTemplateStudio';
 import { useLivePreview } from '@/hooks/useLivePreview';
 import { extractVariablesFromHtml } from '@/lib/html/variableExtractor';
-import { Button, Modal } from '@/components/ui';
 import { registerTemplateCompletion } from '@/lib/monaco/templateCompletion';
-
-// Dynamically import Monaco Editor to avoid SSR issues
-const Editor = dynamic(() => import('@monaco-editor/react'), { ssr: false });
+import { StudioHeader } from './StudioHeader';
+import { StudioEditorTabs, StudioTabKey } from './StudioEditorTabs';
+import { StudioPreviewSection } from './StudioPreviewSection';
+import { StudioSaveModal } from './StudioSaveModal';
+import { StudioHistoryModal } from './StudioHistoryModal';
 
 export interface TemplateStudioViewProps {
   templateId: string;
@@ -55,16 +46,16 @@ export const TemplateStudioView: React.FC<TemplateStudioViewProps> = ({
   } = useTemplateStudio(templateId);
 
   const [sampleDataJson, setSampleDataJson] = useState('{}');
-  const [leftTab, setLeftTab] = useState<'main' | 'headerFooter' | 'payload'>('main');
+  const [leftTab, setLeftTab] = useState<StudioTabKey>('main');
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [changeNote, setChangeNote] = useState('');
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
   const [importNotice, setImportNotice] = useState<string | null>(null);
 
-  const fileInputRef = React.useRef<HTMLInputElement>(null);
-  const editorRef = React.useRef<any>(null);
-  const monacoRef = React.useRef<any>(null);
-  const completionDisposableRef = React.useRef<any>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const editorRef = useRef<any>(null);
+  const monacoRef = useRef<any>(null);
+  const completionDisposableRef = useRef<any>(null);
 
   const handleFileImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -90,7 +81,6 @@ export const TemplateStudioView: React.FC<TemplateStudioViewProps> = ({
     editorRef.current = editor;
     monacoRef.current = monaco;
 
-    // Register template completion once
     if (!completionDisposableRef.current) {
       completionDisposableRef.current = registerTemplateCompletion(monaco, {
         getAvailableFields: () => validationResult?.fields || [],
@@ -98,7 +88,7 @@ export const TemplateStudioView: React.FC<TemplateStudioViewProps> = ({
     }
   };
 
-  React.useEffect(() => {
+  useEffect(() => {
     return () => {
       if (completionDisposableRef.current) {
         completionDisposableRef.current.dispose();
@@ -124,7 +114,7 @@ export const TemplateStudioView: React.FC<TemplateStudioViewProps> = ({
   };
 
   // Auto-extract Handlebars variables and array loops from HTML into sample data
-  React.useEffect(() => {
+  useEffect(() => {
     if (!html) return;
     try {
       const current = JSON.parse(sampleDataJson) as Record<string, unknown>;
@@ -133,13 +123,13 @@ export const TemplateStudioView: React.FC<TemplateStudioViewProps> = ({
     } catch {
       // skip until sampleDataJson is valid JSON
     }
-  }, [html]);
+  }, [html, sampleDataJson]);
 
   // Synchronize persisted sample payload from server when loaded
-  React.useEffect(() => {
+  useEffect(() => {
     if (persistedSamplePayload && persistedSamplePayload.trim() !== '' && persistedSamplePayload.trim() !== '{}') {
       try {
-        JSON.parse(persistedSamplePayload); // validate JSON
+        JSON.parse(persistedSamplePayload);
         setSampleDataJson(persistedSamplePayload);
       } catch {
         // ignore invalid JSON
@@ -147,7 +137,6 @@ export const TemplateStudioView: React.FC<TemplateStudioViewProps> = ({
     }
   }, [persistedSamplePayload]);
 
-  // Live PDF preview hook with debouncing and APM telemetry
   const {
     pdfUrl,
     loading: previewLoading,
@@ -182,78 +171,24 @@ export const TemplateStudioView: React.FC<TemplateStudioViewProps> = ({
     );
   }
 
+  const currentVersion = versions.length > 0 ? Math.max(...versions.map((v) => v.version)) : 0;
+
   return (
     <div className="flex flex-col h-[calc(100vh-6rem)] border border-border rounded-sm bg-surface overflow-hidden shadow-sm">
       {/* Studio Header Bar */}
-      <div className="h-11 bg-surfaceSubtle border-b border-border px-3 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={onBack}
-            className="p-1 rounded-sm text-textSecondary hover:text-textPrimary hover:bg-slate-200/50 transition-colors cursor-pointer"
-            title="กลับหน้ารายการ"
-          >
-            <ArrowLeft className="w-4 h-4" />
-          </button>
-
-          <span className="text-xs font-bold text-textPrimary flex items-center gap-1">
-            {template?.name || 'สตูดิโอแม่แบบ (ยังไม่บันทึก)'}
-            {isDirty && <span className="text-amber-500 text-sm leading-none" title="มีการแก้ไขที่ยังไม่บันทึก">*</span>}
-          </span>
-
-          <span className="text-[11px] font-mono text-textMuted bg-surface px-1.5 py-0.5 rounded-sm border border-border">
-            v{versions.length > 0 ? Math.max(...versions.map(v => v.version)) : 0}
-          </span>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <input
-            type="file"
-            ref={fileInputRef}
-            accept=".html,.htm"
-            className="hidden"
-            onChange={handleFileImport}
-          />
-
-          <Button
-            variant="outline"
-            size="sm"
-            icon={Upload}
-            onClick={() => fileInputRef.current?.click()}
-            title="เลือกไฟล์ .html จากเครื่องแล้วใส่ลง Monaco Editor"
-          >
-            นำเข้า HTML
-          </Button>
-
-          <Button
-            variant="ghost"
-            size="sm"
-            icon={History}
-            onClick={() => setIsHistoryOpen(true)}
-          >
-            ประวัติ (v{versions.length})
-          </Button>
-
-          <Button
-            variant="secondary"
-            size="sm"
-            icon={CheckCircle}
-            loading={validating}
-            onClick={validate}
-          >
-            ตรวจสอบโค้ด
-          </Button>
-
-          <Button
-            variant="primary"
-            size="sm"
-            icon={Save}
-            disabled={!isDirty}
-            onClick={() => setIsSaveModalOpen(true)}
-          >
-            บันทึก v{(versions.length > 0 ? Math.max(...versions.map(v => v.version)) : 0) + 1}
-          </Button>
-        </div>
-      </div>
+      <StudioHeader
+        templateName={template?.name}
+        isDirty={isDirty}
+        currentVersion={currentVersion}
+        versionsCount={versions.length}
+        validating={validating}
+        fileInputRef={fileInputRef}
+        onBack={onBack}
+        onFileImport={handleFileImport}
+        onOpenHistory={() => setIsHistoryOpen(true)}
+        onValidate={validate}
+        onOpenSave={() => setIsSaveModalOpen(true)}
+      />
 
       {/* Validation alert banner if present */}
       {validationResult && (
@@ -296,417 +231,61 @@ export const TemplateStudioView: React.FC<TemplateStudioViewProps> = ({
       {importNotice && (
         <div className="px-3 py-1.5 bg-sky-50 border-b border-sky-200 text-xs text-sky-800 flex items-center justify-between shrink-0">
           <span>📂 {importNotice}</span>
-          <button onClick={() => setImportNotice(null)} className="text-sky-500 hover:text-sky-700 ml-3 font-bold leading-none cursor-pointer">×</button>
+          <button
+            onClick={() => setImportNotice(null)}
+            className="text-sky-500 hover:text-sky-700 ml-3 font-bold leading-none cursor-pointer"
+          >
+            ×
+          </button>
         </div>
       )}
 
-      {/* Split-Screen: Left Input (50%), Right Live PDF Preview (50%) */}
+      {/* Split-Screen: Left Input Tabs (50%), Right Live PDF Preview (50%) */}
       <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
-        
-        {/* Left: Input Tabs (50%) */}
-        <div className="w-full md:w-1/2 flex flex-col border-r border-border h-full bg-surface min-w-0">
-          {/* Tab Header */}
-          <div className="h-9 bg-surfaceSubtle border-b border-border px-3 flex items-center justify-between shrink-0">
-            <div className="flex items-center gap-1 h-full pt-2">
-              <button
-                onClick={() => setLeftTab('main')}
-                className={`px-4 h-full flex items-center text-[11px] font-semibold rounded-t-sm transition-colors ${
-                  leftTab === 'main' 
-                    ? 'bg-surface text-primary border-t border-l border-r border-border border-b-2 border-b-primary -mb-px' 
-                    : 'text-textMuted hover:text-textPrimary border-b-2 border-b-transparent -mb-px'
-                }`}
-              >
-                Main HTML
-              </button>
-              <button
-                onClick={() => setLeftTab('headerFooter')}
-                className={`px-4 h-full flex items-center text-[11px] font-semibold rounded-t-sm transition-colors ${
-                  leftTab === 'headerFooter' 
-                    ? 'bg-surface text-primary border-t border-l border-r border-border border-b-2 border-b-primary -mb-px' 
-                    : 'text-textMuted hover:text-textPrimary border-b-2 border-b-transparent -mb-px'
-                }`}
-              >
-                Header & Footer
-              </button>
-              <button
-                onClick={() => setLeftTab('payload')}
-                className={`px-4 h-full flex items-center text-[11px] font-semibold rounded-t-sm transition-colors ${
-                  leftTab === 'payload' 
-                    ? 'bg-surface text-primary border-t border-l border-r border-border border-b-2 border-b-primary -mb-px' 
-                    : 'text-textMuted hover:text-textPrimary border-b-2 border-b-transparent -mb-px'
-                }`}
-              >
-                JSON Payload
-              </button>
-            </div>
-            {leftTab !== 'payload' && (
-              <span className="text-[10px] text-textMuted">UTF-8 • Sarabun Font</span>
-            )}
-            {leftTab === 'payload' && (
-              <span className="text-[10px] bg-slate-100 text-textMuted px-1.5 py-0.5 rounded-[2px]">Auto-extracted</span>
-            )}
-          </div>
+        <StudioEditorTabs
+          leftTab={leftTab}
+          onTabChange={setLeftTab}
+          mainHtml={mainHtml}
+          headerHtml={headerHtml}
+          footerHtml={footerHtml}
+          sampleDataJson={sampleDataJson}
+          onUpdateMainHtml={updateMainHtml}
+          onUpdateHeaderHtml={updateHeaderHtml}
+          onUpdateFooterHtml={updateFooterHtml}
+          onUpdateSampleDataJson={setSampleDataJson}
+          onInsertSnippet={insertSnippet}
+          onEditorMount={handleEditorMount}
+        />
 
-          {/* Tab Content */}
-          <div className="flex-1 relative flex flex-col overflow-hidden bg-zinc-900">
-            {/* Quick Insert Snippet Bar for HTML templates */}
-            {leftTab !== 'payload' && (
-              <div className="bg-zinc-950 border-b border-zinc-800 px-3 py-1.5 flex items-center gap-1.5 overflow-x-auto shrink-0 scrollbar-thin">
-                <span className="text-zinc-500 font-mono text-[10px] uppercase shrink-0 mr-1">แทรกด่วน:</span>
-                <button
-                  type="button"
-                  onClick={() => insertSnippet('{{#each items}}\n<tr>\n  <td>{{addOne @index}}</td>\n  <td>{{name}}</td>\n  <td style="text-align: right;">{{amount:number}}</td>\n</tr>\n{{/each}}')}
-                  className="px-2 py-0.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded-[2px] text-[11px] font-mono shrink-0 transition-colors border border-zinc-700/60 flex items-center gap-1 cursor-pointer"
-                  title="แทรกบล็อกวนลูปตารางรายการ"
-                >
-                  <span className="text-indigo-400 font-bold">+</span> ตารางรายการ (each)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => insertSnippet('{{#if condition}}\n  <!-- เมื่อเป็นจริง -->\n{{else}}\n  <!-- เมื่อเป็นเท็จ -->\n{{/if}}')}
-                  className="px-2 py-0.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded-[2px] text-[11px] font-mono shrink-0 transition-colors border border-zinc-700/60 flex items-center gap-1 cursor-pointer"
-                  title="แทรกบล็อกเงื่อนไข True/False"
-                >
-                  <span className="text-sky-400 font-bold">+</span> เงื่อนไข (if)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => insertSnippet('{{#ifEquals status "APPROVED"}}\n  <span>อนุมัติแล้ว</span>\n{{else}}\n  <span>รออนุมัติ</span>\n{{/ifEquals}}')}
-                  className="px-2 py-0.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded-[2px] text-[11px] font-mono shrink-0 transition-colors border border-zinc-700/60 flex items-center gap-1 cursor-pointer"
-                  title="ตรวจสอบค่าเท่ากัน"
-                >
-                  <span className="text-sky-400 font-bold">+</span> เช็คค่า (ifEquals)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => insertSnippet('{{addOne @index}}')}
-                  className="px-2 py-0.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded-[2px] text-[11px] font-mono shrink-0 transition-colors border border-zinc-700/60 flex items-center gap-1 cursor-pointer"
-                  title="ลำดับแถวเริ่มต้นที่ 1"
-                >
-                  <span className="text-emerald-400 font-bold">+</span> ลำดับ (1,2,3..)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => insertSnippet('<div style="page-break-after: always;"></div>')}
-                  className="px-2 py-0.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded-[2px] text-[11px] font-mono shrink-0 transition-colors border border-zinc-700/60 flex items-center gap-1 cursor-pointer"
-                  title="แบ่งหน้าขึ้นหน้าใหม่ A4"
-                >
-                  <span className="text-amber-400 font-bold">+</span> แบ่งหน้า A4
-                </button>
-                <button
-                  type="button"
-                  onClick={() => insertSnippet('{{qr:trackingUrl}}')}
-                  className="px-2 py-0.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded-[2px] text-[11px] font-mono shrink-0 transition-colors border border-zinc-700/60 flex items-center gap-1 cursor-pointer"
-                  title="แทรกรูป QR Code ขนาด 150x150"
-                >
-                  <span className="text-purple-400 font-bold">+</span> QR Code
-                </button>
-                <button
-                  type="button"
-                  onClick={() => insertSnippet('{{barcode:code}}')}
-                  className="px-2 py-0.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded-[2px] text-[11px] font-mono shrink-0 transition-colors border border-zinc-700/60 flex items-center gap-1 cursor-pointer"
-                  title="แทรกรูป Barcode Code128"
-                >
-                  <span className="text-purple-400 font-bold">+</span> Barcode
-                </button>
-                <button
-                  type="button"
-                  onClick={() => insertSnippet(':thai_baht_text}}')}
-                  className="px-2 py-0.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded-[2px] text-[11px] font-mono shrink-0 transition-colors border border-zinc-700/60 flex items-center gap-1 cursor-pointer"
-                  title="แปลงตัวเลขเป็นตัวหนังสือบาทไทย"
-                >
-                  <span className="text-emerald-400 font-bold">:</span> ตัวหนังสือบาท
-                </button>
-                <button
-                  type="button"
-                  onClick={() => insertSnippet(':number}}')}
-                  className="px-2 py-0.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded-[2px] text-[11px] font-mono shrink-0 transition-colors border border-zinc-700/60 flex items-center gap-1 cursor-pointer"
-                  title="จัดฟอร์แมตตัวเลขมีคอมม่าทศนิยม"
-                >
-                  <span className="text-emerald-400 font-bold">:</span> ตัวเลขคอมม่า
-                </button>
-                <button
-                  type="button"
-                  onClick={() => insertSnippet(':thai_date}}')}
-                  className="px-2 py-0.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded-[2px] text-[11px] font-mono shrink-0 transition-colors border border-zinc-700/60 flex items-center gap-1 cursor-pointer"
-                  title="จัดรูปแบบวันที่ไทย พ.ศ."
-                >
-                  <span className="text-amber-400 font-bold">:</span> วันที่ไทย
-                </button>
-              </div>
-            )}
-
-            {leftTab === 'main' && (
-              <Editor
-                height="100%"
-                defaultLanguage="html"
-                theme="vs-dark"
-                value={mainHtml}
-                onChange={(val) => { updateMainHtml(val || ''); }}
-                onMount={handleEditorMount}
-                path="main"
-                options={{
-                  minimap: { enabled: false },
-                  fontSize: 12,
-                  fontFamily: "'Fira Code', monospace",
-                  lineNumbers: 'on',
-                  wordWrap: 'on',
-                  automaticLayout: true,
-                }}
-              />
-            )}
-            
-            {leftTab === 'headerFooter' && (
-              <div className="flex-1 flex flex-col">
-                <div className="flex-1 flex flex-col border-b border-zinc-800">
-                  <div className="text-[10px] font-mono text-zinc-500 bg-zinc-900 px-3 py-1 border-b border-zinc-800 flex items-center gap-1.5">
-                    <span>Header HTML</span>
-                    <span className="text-zinc-700">·</span>
-                    <span className="text-sky-600/60">{'<template id="header">'}&hellip;{'</template>'}</span>
-                  </div>
-                  <div className="flex-1 relative">
-                    <Editor
-                      height="100%"
-                      defaultLanguage="html"
-                      theme="vs-dark"
-                      value={headerHtml}
-                      onChange={(val) => { updateHeaderHtml(val || ''); }}
-                      onMount={handleEditorMount}
-                      path="header"
-                      options={{
-                        minimap: { enabled: false },
-                        fontSize: 12,
-                        fontFamily: "'Fira Code', monospace",
-                        lineNumbers: 'on',
-                        wordWrap: 'on',
-                        automaticLayout: true,
-                      }}
-                    />
-                  </div>
-                </div>
-                <div className="flex-1 flex flex-col">
-                  <div className="text-[10px] font-mono text-zinc-500 bg-zinc-900 px-3 py-1 border-b border-zinc-800 flex items-center gap-1.5">
-                    <span>Footer HTML</span>
-                    <span className="text-zinc-700">·</span>
-                    <span className="text-sky-600/60">{'<template id="footer">'}&hellip;{'</template>'}</span>
-                  </div>
-                  <div className="flex-1 relative">
-                    <Editor
-                      height="100%"
-                      defaultLanguage="html"
-                      theme="vs-dark"
-                      value={footerHtml}
-                      onChange={(val) => { updateFooterHtml(val || ''); }}
-                      onMount={handleEditorMount}
-                      path="footer"
-                      options={{
-                        minimap: { enabled: false },
-                        fontSize: 12,
-                        fontFamily: "'Fira Code', monospace",
-                        lineNumbers: 'on',
-                        wordWrap: 'on',
-                        automaticLayout: true,
-                      }}
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-            
-            {leftTab === 'payload' && (
-              <Editor
-                height="100%"
-                defaultLanguage="json"
-                theme="vs-dark"
-                value={sampleDataJson}
-                onChange={(v) => setSampleDataJson(v || '{}')}
-                path="payload"
-                options={{
-                  minimap: { enabled: false },
-                  fontSize: 12,
-                  fontFamily: "'Fira Code', monospace",
-                  lineNumbers: 'on',
-                  wordWrap: 'on',
-                  automaticLayout: true,
-                }}
-              />
-            )}
-          </div>
-        </div>
-
-        {/* Right: Live PDF Preview Panel (50%) */}
-        <div className="w-full md:w-1/2 flex flex-col h-full bg-slate-100 min-w-0">
-          <div className="h-9 bg-surfaceSubtle border-b border-border px-3 flex items-center justify-between shrink-0">
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] font-semibold text-textSecondary flex items-center gap-1.5">
-                <Eye className="w-3.5 h-3.5 text-primary" />
-                Live PDF Preview (Gotenberg)
-              </span>
-              {previewLoading ? (
-                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[2px] text-[10px] font-mono bg-blue-50 text-blue-700 border border-blue-200">
-                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
-                  เรนเดอร์...
-                </span>
-              ) : renderLatencyMs !== null ? (
-                <span
-                  className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[2px] text-[10px] font-mono border ${
-                    renderLatencyMs < 600
-                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                      : renderLatencyMs < 2000
-                      ? 'bg-amber-50 text-amber-700 border-amber-200'
-                      : 'bg-rose-50 text-rose-700 border-rose-200'
-                  }`}
-                  title="Client roundtrip rendering latency"
-                >
-                  ⚡ {renderLatencyMs}ms · {contentSizeBytes ? `${(contentSizeBytes / 1024).toFixed(1)} KB` : 'Stream'}
-                </span>
-              ) : null}
-            </div>
-
-            <div className="flex items-center gap-2">
-              {pdfUrl && (
-                <a
-                  href={pdfUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-2 py-0.5 bg-primary/10 text-primary hover:bg-primary/20 rounded-[2px] text-[10px] font-semibold transition-colors flex items-center gap-1"
-                >
-                  เปิด PDF ใหม่
-                </a>
-              )}
-              <button
-                onClick={refreshPreview}
-                className="p-1 rounded-[2px] text-textMuted hover:bg-slate-200 transition-colors cursor-pointer"
-                title="รีเฟรช Preview"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${previewLoading ? 'animate-spin text-primary' : ''}`} />
-              </button>
-            </div>
-          </div>
-
-          <div className="flex-1 relative flex flex-col overflow-hidden items-center justify-center">
-            {previewLoading && !pdfUrl ? (
-              <div className="flex flex-col items-center justify-center text-xs text-textMuted gap-3">
-                <span className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                <span>กำลังจำลองผล PDF (Gotenberg)...</span>
-              </div>
-            ) : previewError ? (
-              <div className="bg-white border border-border p-5 rounded-sm text-left text-xs text-red-600 space-y-2.5 max-w-md shadow-sm mx-4">
-                <div className="flex items-center gap-2">
-                  <AlertTriangle className="w-5 h-5 text-red-500 shrink-0" />
-                  <span className="font-semibold text-textPrimary">เกิดข้อผิดพลาดในการสร้างพรีวิว</span>
-                  {previewErrorDetails?.code && (
-                    <span className="ml-auto font-mono text-[10px] bg-red-50 text-red-700 px-1.5 py-0.5 rounded-[2px] border border-red-200">
-                      {previewErrorDetails.code}
-                    </span>
-                  )}
-                </div>
-                <p className="text-[11px] text-textMuted leading-relaxed font-mono bg-slate-50 p-2 rounded-sm border border-slate-200 overflow-x-auto whitespace-pre-wrap">
-                  {previewErrorDetails?.detail || previewError}
-                </p>
-                {previewErrorDetails?.errors && Object.keys(previewErrorDetails.errors).length > 0 && (
-                  <div className="text-[11px] space-y-1 bg-red-50/50 p-2 rounded-sm border border-red-100">
-                    <span className="font-medium text-red-800">รายละเอียดจุดที่ผิดพลาด:</span>
-                    <ul className="list-disc list-inside text-red-700 space-y-0.5">
-                      {Object.entries(previewErrorDetails.errors).map(([key, errs]) => (
-                        <li key={key}>
-                          <strong className="font-mono">{key}:</strong> {errs.join(', ')}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                <div className="pt-1 flex justify-end">
-                  <Button variant="outline" size="sm" icon={RefreshCw} onClick={refreshPreview}>
-                    ลองใหม่อีกครั้ง
-                  </Button>
-                </div>
-              </div>
-            ) : pdfUrl ? (
-              <div className="w-full h-full bg-white shadow-sm flex flex-col">
-                <iframe
-                  src={`${pdfUrl}#toolbar=0`}
-                  className="w-full h-full border-none"
-                  title="PDF Live Preview"
-                />
-              </div>
-            ) : (
-              <div className="text-xs text-textMuted flex flex-col items-center gap-2">
-                {!template?.slug ? (
-                  <>
-                    <Eye className="w-6 h-6 text-border" />
-                    <p>กรุณาบันทึกแม่แบบก่อนเพื่อเปิดใช้งาน Live Preview</p>
-                  </>
-                ) : (
-                  <p>กำลังเตรียมแสดงผล...</p>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
+        <StudioPreviewSection
+          pdfUrl={pdfUrl}
+          previewLoading={previewLoading}
+          previewError={previewError}
+          previewErrorDetails={previewErrorDetails}
+          renderLatencyMs={renderLatencyMs}
+          contentSizeBytes={contentSizeBytes}
+          hasTemplateSlug={Boolean(template?.slug)}
+          onRefreshPreview={refreshPreview}
+        />
       </div>
 
       {/* Save Modal */}
-      <Modal
+      <StudioSaveModal
         isOpen={isSaveModalOpen}
+        nextVersion={currentVersion + 1}
+        changeNote={changeNote}
+        saving={saving}
+        onChangeNote={setChangeNote}
+        onConfirm={handleSave}
         onClose={() => setIsSaveModalOpen(false)}
-        title={`ยืนยันการบันทึกแม่แบบ v${(versions.length > 0 ? Math.max(...versions.map(v => v.version)) : 0) + 1}`}
-        footer={
-          <>
-            <Button variant="ghost" onClick={() => setIsSaveModalOpen(false)}>
-              ยกเลิก
-            </Button>
-            <Button variant="primary" onClick={handleSave} loading={saving}>
-              บันทึกเวอร์ชันใหม่
-            </Button>
-          </>
-        }
-      >
-        <div className="space-y-2">
-          <p className="text-xs text-textSecondary">
-            ระบบจะสร้างเวอร์ชันใหม่ (v{(versions.length > 0 ? Math.max(...versions.map(v => v.version)) : 0) + 1}) และจัดเก็บประวัติการแก้ไขเดิมไว้ใน MinIO
-          </p>
-          <label className="block text-xs font-medium text-textPrimary">บันทึกข้อความสรุปการแก้ไข (Change Note):</label>
-          <input
-            type="text"
-            className="w-full h-8 px-2.5 text-xs rounded-sm border border-border bg-surface outline-none focus:border-primary"
-            placeholder="เช่น ปรับตำแหน่งลายเซ็น, แก้ไขรูปแบบวันที่..."
-            value={changeNote}
-            onChange={(e) => setChangeNote(e.target.value)}
-          />
-        </div>
-      </Modal>
+      />
 
       {/* Revisions History Modal */}
-      <Modal
+      <StudioHistoryModal
         isOpen={isHistoryOpen}
+        versions={versions}
         onClose={() => setIsHistoryOpen(false)}
-        title="ประวัติการแก้ไขแม่แบบ (Revision History)"
-        maxWidth="lg"
-      >
-        <div className="space-y-2">
-          {versions.length === 0 ? (
-            <p className="text-xs text-textMuted text-center py-4">ไม่พบประวัติเวอร์ชันเดิม</p>
-          ) : (
-            <div className="divide-y divide-border border border-border rounded-sm">
-              {versions.map((v: any) => (
-                <div key={v.id} className="p-2.5 flex items-center justify-between text-xs hover:bg-slate-50">
-                  <div className="space-y-0.5">
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-textPrimary">v{v.version}</span>
-                      <span className="text-textMuted text-[11px]">{new Date(v.createdAt).toLocaleString('th-TH')}</span>
-                    </div>
-                    <p className="text-textSecondary text-[11px]">{v.commitMessage || 'ไม่มีรายละเอียด'}</p>
-                  </div>
-                  <span className="text-[10px] font-mono text-textMuted bg-surfaceSubtle px-1.5 py-0.5 border rounded-xs">
-                    {v.storageKey.split('/').pop()}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </Modal>
+      />
     </div>
   );
 };

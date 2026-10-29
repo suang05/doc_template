@@ -1,5 +1,8 @@
-import { useState, useCallback } from 'react';
-import { dataconnectionsApi } from '../lib/api/dataconnections.api';
+'use client';
+
+import { useCallback } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { dataconnectionsApi } from '@/lib/api/dataconnections.api';
 import type {
   DataConnection,
   CreateDataConnectionRequest,
@@ -7,82 +10,85 @@ import type {
   TestDataConnectionRequest,
 } from '@/types/api';
 
+export const DATA_CONNECTIONS_QUERY_KEY = ['dataconnections'] as const;
+
 export function useDataConnections() {
-  const [connections, setConnections] = useState<DataConnection[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+
+  const {
+    data: connections = [],
+    isLoading,
+    error: queryError,
+    refetch,
+  } = useQuery<DataConnection[], Error>({
+    queryKey: DATA_CONNECTIONS_QUERY_KEY,
+    queryFn: async () => {
+      const data = await dataconnectionsApi.getAll();
+      return Array.isArray(data) ? data : [];
+    },
+  });
+
+  const createMutation = useMutation({
+    mutationFn: (data: CreateDataConnectionRequest) => dataconnectionsApi.create(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: DATA_CONNECTIONS_QUERY_KEY });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: UpdateDataConnectionRequest }) =>
+      dataconnectionsApi.update(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: DATA_CONNECTIONS_QUERY_KEY });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => dataconnectionsApi.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: DATA_CONNECTIONS_QUERY_KEY });
+    },
+  });
 
   const fetchConnections = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const data = await dataconnectionsApi.getAll();
-      setConnections(Array.isArray(data) ? data : []);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch connections');
-    } finally {
-      setIsLoading(false);
-    }
+    await refetch();
+  }, [refetch]);
+
+  const createConnection = useCallback(
+    async (data: CreateDataConnectionRequest) => {
+      return await createMutation.mutateAsync(data);
+    },
+    [createMutation]
+  );
+
+  const updateConnection = useCallback(
+    async (id: string, data: UpdateDataConnectionRequest) => {
+      return await updateMutation.mutateAsync({ id, data });
+    },
+    [updateMutation]
+  );
+
+  const deleteConnection = useCallback(
+    async (id: string) => {
+      await deleteMutation.mutateAsync(id);
+    },
+    [deleteMutation]
+  );
+
+  const testConnection = useCallback(async (data: TestDataConnectionRequest) => {
+    return await dataconnectionsApi.test(data);
   }, []);
 
-  const createConnection = async (data: CreateDataConnectionRequest) => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const newConnection = await dataconnectionsApi.create(data);
-      setConnections((prev) => [...prev, newConnection]);
-      return newConnection;
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to create connection');
-      throw err;
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const updateConnection = async (id: string, data: UpdateDataConnectionRequest) => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const updated = await dataconnectionsApi.update(id, data);
-      setConnections((prev) =>
-        prev.map((c) => (c.id === id ? updated : c))
-      );
-      return updated;
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to update connection');
-      throw err;
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const deleteConnection = async (id: string) => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      await dataconnectionsApi.delete(id);
-      setConnections((prev) => prev.filter((c) => c.id !== id));
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to delete connection');
-      throw err;
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const testConnection = async (data: TestDataConnectionRequest) => {
-    try {
-      const res = await dataconnectionsApi.test(data);
-      return res;
-    } catch (err: unknown) {
-      throw err;
-    }
-  };
+  const error =
+    queryError?.message ||
+    createMutation.error?.message ||
+    updateMutation.error?.message ||
+    deleteMutation.error?.message ||
+    null;
 
   return {
     connections,
-    isLoading,
+    isLoading: isLoading || createMutation.isPending || updateMutation.isPending || deleteMutation.isPending,
     error,
     fetchConnections,
     createConnection,

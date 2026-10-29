@@ -1,19 +1,11 @@
-'use client';
+import type { Metadata } from 'next';
+import { UploadPageClient } from './_components/UploadPageClient';
 
-import React from 'react';
-import { useRouter } from 'next/navigation';
-import { RequireRole } from '@/components/ui/RequireRole';
-import { UploadTemplateView } from '@/components/features/templates/UploadTemplateView';
+export const metadata: Metadata = {
+  title: 'Upload Template — SMK Document Platform',
+  description: 'Upload ZIP, HTML, or Word template packages to the gateway',
+};
 
 export default function UploadPage() {
-  const router = useRouter();
-
-  return (
-    <RequireRole role="Editor">
-      <UploadTemplateView
-        onSuccess={(templateId) => router.push(`/mapping?templateId=${templateId}`)}
-        onCancel={() => router.push('/templates')}
-      />
-    </RequireRole>
-  );
+  return <UploadPageClient />;
 }

@@ -1,17 +1,22 @@
-'use client';
+import type { Metadata } from 'next';
+import { Suspense } from 'react';
+import { MappingPageClient } from './_components/MappingPageClient';
 
-import React from 'react';
-import { useSearchParams } from 'next/navigation';
-import { RequireRole } from '@/components/ui/RequireRole';
-import { FieldMappingView } from '@/components/features/mappings/FieldMappingView';
+interface MappingPageProps {
+  searchParams: Promise<{ templateId?: string }>;
+}
 
-export default function MappingPage() {
-  const searchParams = useSearchParams();
-  const templateId = searchParams.get('templateId') ?? undefined;
+export const metadata: Metadata = {
+  title: 'Field Mapping — SMK Document Platform',
+  description: 'Map dataset fields to template variables with transformers',
+};
+
+export default async function MappingPage({ searchParams }: MappingPageProps) {
+  const { templateId } = await searchParams;
 
   return (
-    <RequireRole role="Editor">
-      <FieldMappingView initialTemplateId={templateId} />
-    </RequireRole>
+    <Suspense fallback={<div className="p-8 text-center text-xs text-textMuted">Loading mapping canvas...</div>}>
+      <MappingPageClient initialTemplateId={templateId} />
+    </Suspense>
   );
 }
