@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { genId, newRow, dtoToRow, rowToSaveItem } from '@/lib/mapping/mappingMapper';
+import { genId, newRow, dtoToRow, rowToSaveItem } from '@/features/mapping/domain/mappingMapper';
 import type { FieldMappingDto } from '@/types/api';
 
 describe('genId', () => {

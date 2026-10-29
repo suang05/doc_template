@@ -1,6 +1,6 @@
 import React from 'react';
 import { RequireRole } from '@/components/ui/RequireRole';
-import { UsersView } from '@/components/features/users/UsersView';
+import { UsersView } from '@/features/users';
 
 export default function UsersPage() {
   return (

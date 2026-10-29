@@ -282,12 +282,14 @@ public partial class AppDbContext
 >> MANDATORY CANONICAL TEMPLATE [RULE-INFRA-004]:
 * [MUST] Use `HttpCompletionOption.ResponseHeadersRead` when sending conversion requests to Gotenberg.
 * [MUST] Wrap `response.Content.ReadAsStreamAsync(ct)` in a `ResponseDisposingStream` so `HttpResponseMessage` is deterministically disposed when the caller closes the stream (and dispose `response` inside `catch` on early failure).
+* [MUST] Catch and enrich transport exceptions into strongly-typed domain/application exceptions (e.g. `DocumentRenderException`); strictly prohibit swallowing exceptions silently.
 * [MUST] Forward `CancellationToken` to `SendAsync` and `ReadAsStreamAsync`.
 ```csharp
 using System.IO;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
+using SmkDoc.Application.Common.Exceptions;
 
 namespace SmkDoc.Infrastructure.Pdf;
 
@@ -309,6 +311,11 @@ public sealed class GotenbergClient(HttpClient httpClient)
             response.EnsureSuccessStatusCode();
             var innerStream = await response.Content.ReadAsStreamAsync(ct);
             return new ResponseDisposingStream(innerStream, response);
+        }
+        catch (HttpRequestException ex)
+        {
+            response.Dispose();
+            throw new DocumentRenderException($"Gotenberg cluster unreachable or returned error: {ex.Message}", ex);
         }
         catch
         {

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { simulatePreview } from '@/lib/mapping/previewSimulator';
-import { newRow, type MappingRow } from '@/lib/mapping/mappingMapper';
+import { simulatePreview } from '@/features/mapping/domain/previewSimulator';
+import { newRow, type MappingRow } from '@/features/mapping/domain/mappingMapper';
 
 function makeRow(overrides: Partial<MappingRow> = {}): MappingRow {
   return {

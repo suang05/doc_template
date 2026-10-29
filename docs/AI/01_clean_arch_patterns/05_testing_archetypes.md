@@ -35,6 +35,7 @@ UpstreamKernel: AGENTS.md
 | **Precondition Leaks** | Hidden mock setups inside fixture constructors | Explicit Arrange phase inside each test method (Strict AAA) |
 | **System Clock** | Unpredictable `DateTime.UtcNow` in assertions | Deterministic `FakeTimeProvider` (`TestConstants.CreateFakeClock()`) |
 | **Disk & Network I/O** | Writing files to disk or hitting real DB in `SmkDoc.Tests` | 100% in-memory; move integration tests to `SmkDoc.IntegrationTests` |
+| **Test Layout (DRY vs DAMP)**| Over-abstracting test setup into opaque helper chains | DAMP (Descriptive And Meaningful Phrases) over DRY in tests; explicit 3-phase AAA |
 | **Assertion Clarity** | Primitive `Assert.True(x == y)` | Expressive FluentAssertions: `result.Should().Be(...)` |
 
 ---
@@ -125,6 +126,7 @@ SmkDoc.IntegrationTests/
 
 ### SSoT UseCase Test Archetype (NSubstitute Canonical)
 >> MANDATORY CANONICAL TEMPLATE [RULE-TEST-001]:
+* [MUST] Follow DAMP (Descriptive And Meaningful Phrases) over DRY in unit tests: explicitly declare Arrange, Act, and Assert in every test method without hiding setups in base classes or God Fixtures.
 * [MUST] Use class-scoped private mocks (`Substitute.For<T>()`) and a single `private TUseCase CreateSut()` factory method as SSoT.
 * [MUST] Prohibit shared God Fixtures (`*TestFixture`) bundling mocks across multiple UseCases.
 * [MUST] Test exactly 1 behavior per test method with strict 3-phase AAA naming (`Method_WhenCondition_ShouldExpectedResult`).

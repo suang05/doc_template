@@ -3,7 +3,7 @@
 import React from 'react';
 import { useRouter } from 'next/navigation';
 import { RequireRole } from '@/components/ui/RequireRole';
-import { UploadTemplateView } from '@/components/features/templates/UploadTemplateView';
+import { UploadTemplateView } from '@/features/templates';
 
 export function UploadPageClient() {
   const router = useRouter();
@@ -17,4 +17,3 @@ export function UploadPageClient() {
     </RequireRole>
   );
 }
-

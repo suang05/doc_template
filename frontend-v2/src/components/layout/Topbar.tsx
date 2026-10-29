@@ -13,7 +13,7 @@ import {
   HelpCircle,
   Check,
 } from 'lucide-react';
-import { useStoredApiKey } from '@/hooks/useStoredApiKey';
+import { useStoredApiKey } from '@/features/apikeys';
 
 export interface TopbarProps {
   isSidebarOpen: boolean;

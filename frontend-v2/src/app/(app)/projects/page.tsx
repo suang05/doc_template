@@ -1,6 +1,6 @@
 import React from 'react';
 import { RequireRole } from '@/components/ui/RequireRole';
-import { ApiKeysView } from '@/components/features/apikeys/ApiKeysView';
+import { ApiKeysView } from '@/features/apikeys';
 
 export default function ProjectsPage() {
   return (

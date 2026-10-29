@@ -198,12 +198,14 @@ public sealed class CreateTemplateUseCase(
         if (slugExists)
             throw ConflictException.DuplicateSlug(command.Slug);
 
-        // 3. Mutate Domain State
+        // 3. Mutate Domain State (Explicit Local Variable Assignments)
+        var templateName = TemplateName.Create(command.Name);
+        var templateSlug = new TemplateSlug(command.Slug);
         var now = timeProvider.GetUtcNow();
         var template = Template.Create(
             projectContext.ProjectId,
-            TemplateName.Create(command.Name),
-            new TemplateSlug(command.Slug),
+            templateName,
+            templateSlug,
             command.Category,
             now);
 

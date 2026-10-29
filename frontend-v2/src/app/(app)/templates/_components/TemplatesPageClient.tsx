@@ -3,7 +3,7 @@
 import React from 'react';
 import { useRouter } from 'next/navigation';
 import { RequireRole } from '@/components/ui/RequireRole';
-import { TemplatesView } from '@/components/features/templates/TemplatesView';
+import { TemplatesView } from '@/features/templates';
 
 export function TemplatesPageClient() {
   const router = useRouter();
@@ -19,4 +19,3 @@ export function TemplatesPageClient() {
     </RequireRole>
   );
 }
-

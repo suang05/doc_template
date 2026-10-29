@@ -2,7 +2,7 @@
 
 <context>
 Scope: Next.js 15 App Router Architecture, Server/Client Component Boundaries, Route Handler Proxy & Live Preview Pipeline
-Target: `frontend-v2/` (`src/app/`, `src/hooks/`, `src/lib/api/`)
+Target: `frontend-v2/` (`src/app/(app)/`, `src/features/`, `src/components/ui/`, `src/hooks/`, `src/lib/api/`)
 Authority: Absolute SSoT Invariant (Zero client-side JWT token access, 100% debounced streaming preview)
 Format: 100% English AST, Positive-First Archetypes (80/20 Rule), Canonical Keyboard Operators
 TriggerSignals: [SIGNAL_UI_MUTATION]
@@ -32,6 +32,8 @@ UpstreamKernel: AGENTS.md
 | **Blob URL Leaks** | Overwriting preview object URLs without revoking | Immediate cleanup: `URL.revokeObjectURL(previousUrl)` |
 | **Route Params (Next.js 15)**| Synchronous params: `{ params: { id } }` | Async Promise params: `{ params }: { params: Promise<{ id: string }> }` + `await params` |
 | **Stateful Server Leaves**| Using React hooks (`useState`, `useEffect`) in RSC pages | Split layout into RSC Page wrapper + Client Leaf Widget |
+| **Server State & Caching**| Ad-hoc `useState` + `useEffect` data fetching in custom hooks | Centralized `@tanstack/react-query` (`useQuery`, `useMutation`) with automatic cache invalidation |
+| **Feature Encapsulation** | Scattering feature hooks, APIs, schemas in flat global folders | Physical Feature-Sliced structure (`src/features/{slice}/`) with explicit `index.ts` public barrels |
 
 ---
 
@@ -42,6 +44,8 @@ UpstreamKernel: AGENTS.md
 * **Why Next.js 15 Async `params`:** Next.js 15 enforces asynchronous route parameters to enable partial prerendering and streaming server components without synchronous blocking.
 * **Why 800ms Debounce with AbortController:** Document rendering via Gotenberg is CPU-intensive; 800ms debounce prevents cluster thrashing, while `AbortController` immediately halts stale rendering jobs on the wire.
 * **Why Strict `URL.revokeObjectURL` Cleanup:** Browser blob URLs remain retained in browser heap memory until explicitly revoked; omitting cleanup causes substantial memory leaks during prolonged template editing sessions.
+* **Why TanStack Query over Ad-hoc useEffect:** Eliminates duplicate network requests, provides stale-while-revalidate background caching, and automates cache invalidation across disparate feature widgets without props drilling.
+* **Why Feature-Sliced Taxonomy over Flat Layered Folders:** Grouping related components, hooks, APIs, and schemas by domain capability ensures high cohesion and low coupling. Developers modify feature mechanics in a single directory without navigating across 6 disparate root folders, preventing circular dependencies and git merge conflicts.
 
 ### Cognitive Frontend Optimization & Guard Engine
 ```yaml
@@ -67,12 +71,58 @@ ProactiveFrontendGuards:
     CanonicalAction: Rewrite URL to route through /api/proxy/[...path] to ensure secure token injection
 
 CoreExtensionSlots:
+  FeatureSliceTaxonomy:
+    - templates: Authoring registry, upload wizard, and create modal
+    - studio: Monaco template editor, live HTML preview, variable extraction
+    - generator: Document render form, payload editor, Gotenberg invocation
+    - mapping: Field mapping visual designer, transform expressions, dnd
+    - datasources: Integration datasets and external DB connections
+    - auth: NextAuth session, login UI, and token lifecycle
+    - users: User management, role assignment
+    - apikeys: API key issuance and project scoping
   ServerProxySlot: /api/proxy/[...path]/route.ts (Duplex streaming reverse proxy)
   LivePreviewHookSlot: useLivePreview (Debounced rendering with abort lifecycle)
   SplitEditorRecipeSlot: TemplateEditorSplitLayout (Monaco editor + PDF iframe layout)
   DataTableRecipeSlot: DataTablePage (Enterprise grid with search & row actions)
   WizardRecipeSlot: WizardLayout (Multi-step form container with stepper)
   DashboardRecipeSlot: MetricsDashboardPage (KPI cards + Chart + Audit log feed)
+```
+
+### Frontend Bounded Context Taxonomy (`src/features/`)
+```
+frontend-v2/src/features/
+  templates/ # Authoring: List, Create, Upload Wizard, Choice Modal
+    components/
+    hooks/
+    api/
+    schemas/
+    index.ts # Public API export barrel
+  studio/ # Interactive Authoring: Monaco, HTML preview, Variable extraction
+    components/
+    hooks/
+    domain/
+    index.ts # Public API export barrel
+  generator/ # Rendering: Dynamic forms, Payload editor, Gotenberg dispatch
+    components/
+    hooks/
+    api/
+    schemas/
+    index.ts # Public API export barrel
+  mapping/ # Field Mapping: Visual Mapper, SQL/Fx transform, drag-and-drop
+    components/
+    hooks/
+    domain/
+    schemas/
+    index.ts # Public API export barrel
+  datasources/ # Integration: Datasets, Connections, Test query
+    components/
+    hooks/
+    api/
+    schemas/
+    index.ts # Public API export barrel
+  auth/ # IdentityAccess: Login, NextAuth proxy, session state
+  users/ # IdentityAccess: User management, role assignment
+  apikeys/ # IdentityAccess: API key tokens, project scoping
 ```
 
 ### Hop-by-Hop Stripped Headers
@@ -150,7 +200,7 @@ async function proxy(req: NextRequest, { params }: { params: Promise<{ path: str
 export { proxy as GET, proxy as POST, proxy as PUT, proxy as PATCH, proxy as DELETE };
 ```
 
-### Next.js 15 Async Route Page Archetype (`src/app/(portal)/templates/[id]/page.tsx`)
+### Next.js 15 Async Route Page Archetype (`src/app/(app)/studio/[templateId]/page.tsx`)
 >> MANDATORY CANONICAL TEMPLATE [RULE-FRONT-002]:
 * [MUST] Treat `params` as `Promise<{ [key: string]: string }>` and `await params` before accessing properties.
 * [MUST] Execute initial server-side data fetching inside the RSC page before rendering client leaves.
@@ -256,14 +306,14 @@ export function useLivePreview(slug?: string, html?: string, sampleDataJson?: st
 * [MUST] Adhere to the 4 canonical enterprise screen recipes below without introducing divergent layout conventions.
 
 ### Recipe A: Dynamic Split-Pane Template Editor
-* Target: Template Editor, Live Preview Studio (`src/app/(portal)/templates/[id]/editor/page.tsx`).
+* Target: Template Editor, Live Preview Studio (`src/app/(app)/studio/[templateId]/page.tsx`).
 * Invariants: Left pane code editor, right pane streaming PDF preview iframe, header with manual render action.
 ```tsx
 'use client';
 
 import { useState } from 'react';
-import { useLivePreview } from '@/hooks/useLivePreview';
-import { Button } from '@/components/ui/button';
+import { useLivePreview } from '@/features/studio';
+import { Button } from '@/components/ui/Button';
 
 export function TemplateEditorSplitLayout({ initialHtml, slug }: { initialHtml: string; slug: string }) {
   const [html, setHtml] = useState(initialHtml);
@@ -303,13 +353,13 @@ export function TemplateEditorSplitLayout({ initialHtml, slug }: { initialHtml: 
 ```
 
 ### Recipe B: Enterprise Data Table Management
-* Target: Template Registry, API Key Management, User List (`src/app/(portal)/templates/page.tsx`).
+* Target: Template Registry, API Key Management, User List (`src/app/(app)/templates/page.tsx`).
 * Invariants: Search + Filter Header, Table body with row action buttons, compact enterprise badges.
 ```tsx
 'use client';
 
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/Input';
+import { Button } from '@/components/ui/Button';
 import { Table, TableHead, TableRow, TableHeader, TableBody, TableCell } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Plus, Search } from 'lucide-react';
@@ -368,13 +418,13 @@ export function DataTablePage({ items, onSearch, onCreateNew }: DataTableProps) 
 ```
 
 ### Recipe C: Multi-Step Form Wizard Layout
-* Target: Template Creation Wizard, Data Connection Setup (`src/app/(portal)/templates/new/page.tsx`).
+* Target: Template Creation Wizard, Data Connection Setup (`src/app/(app)/upload/page.tsx`).
 * Invariants: Horizontal step tracker, single card container for current step, persistent Back/Next footer with form validation guard.
 ```tsx
 'use client';
 
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/ui/Button';
 
 interface WizardProps {
   currentStep: number;
@@ -420,7 +470,7 @@ export function WizardLayout({ currentStep, totalSteps, title, description, chil
 ```
 
 ### Recipe D: Executive Metrics Dashboard Layout
-* Target: Analytics, Throughput, System Health (`src/app/(portal)/dashboard/page.tsx`).
+* Target: Analytics, Throughput, System Health (`src/app/(app)/analytics/page.tsx`).
 * Invariants: 4-Column KPI grid, responsive chart container, recent activity event feed.
 ```tsx
 'use client';

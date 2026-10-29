@@ -27,7 +27,7 @@ UpstreamKernel: AGENTS.md
 ### Universal Conventions Invariants Matrix
 | Architectural Concern | Prohibited Pattern (! BANNED) | Canonical SSoT Pattern (>> MANDATORY) |
 |---|---|---|
-| **Payload Variable Names**| Fluctuating between `request`, `req`, `cmd`, `q`, `data` | Strict CQRS payload naming: `command` for Commands, `query` for Queries, `result` for outputs |
+| **Payload Variable Names**| Fluctuating between `request`, `req`, `cmd`, `q`, `data` | Strict Layered Payload naming: `request` for Controller `[FromBody]`, `command` for Application Commands, `query` for Application Queries, `result` for outputs |
 | **Variable Abbreviations**| Cryptic single-letter or clipped names: `t`, `v`, `repo`, `uow`, `ctx`, `svc` | Full expressive semantic names: `template`, `version`, `templateRepository`, `unitOfWork`, `projectContext` |
 | **Inline Class Qualifiers**| Inlining full namespace paths: `SmkDoc.Domain.Entities.Template` | Mandatory top-level `using` statements at file head; clean short class names in body |
 | **Chained Instantiations**| Nesting instantiation inside method calls: `repo.Add(Template.Create(...))` | Explicit local variable assignment before passing into method or return |
@@ -92,8 +92,9 @@ Every method, handler, and UseCase MUST adhere strictly to this payload variable
 
 | Scope / Role | Mandatory Variable Name | Banned Synonyms (! REJECTED) | Example Method Signature |
 |---|---|---|---|
-| **Command Payload** | `command` | `request`, `cmd`, `req`, `c`, `payload` | `ExecuteAsync(CreateTemplateCommand command, CancellationToken ct)` |
-| **Query Payload** | `query` | `request`, `q`, `qry`, `req`, `payload` | `ExecuteAsync(ListTemplatesQuery query, CancellationToken ct)` |
+| **Controller HTTP Body Payload** | `request` | `body`, `payload`, `data`, `dto`, `req` | `Task<IActionResult> Create([FromBody] CreateTemplateRequest request, CancellationToken ct)` |
+| **Application Command Payload** | `command` | `request` (inside UseCase), `cmd`, `req`, `c`, `payload` | `ExecuteAsync(CreateTemplateCommand command, CancellationToken ct)` |
+| **Application Query Payload** | `query` | `request` (inside UseCase), `q`, `qry`, `req`, `payload` | `ExecuteAsync(ListTemplatesQuery query, CancellationToken ct)` |
 | **UseCase Execution Output**| `result` | `res`, `output`, `data`, `dto`, `response` | `var result = await useCase.ExecuteAsync(command, ct);` |
 | **Controller Action Output**| `response` | `resp`, `res`, `result` | `return Ok(new ApiResponse<TemplateResultDto>(result));` |
 | **Temporal Parameter** | `now` | `currentTime`, `utc`, `time`, `dt`, `dateTime` | `Template.Create(projectId, name, slug, category, now)` |
@@ -117,7 +118,7 @@ The codebase strictly prohibits lazy, clipped, or single-letter variable names. 
 | `tmp` | `temporary` | Local Variables |
 | `msg` | `message` | Communication / Events |
 | `ex` | `exception`, `validationException` | Catch Blocks (use descriptive name) |
-| `req` | `command` or `query` (per operation type) | Method Parameters |
+| `req` | `request` (in Controller `[FromBody]`) or `command`/`query` (in Application UseCases) | Method Parameters |
 | `res` | `result` or `response` | Return Values |
 
 ### Strict Lexical Verb & Noun Dictionary
@@ -170,326 +171,95 @@ SmkDoc Bounded Suffix Taxonomy:
 
 ---
 
-## 3. Level 3: Canonical Working Archetypes (100% Fully-Hydrated Recipes)
+## 3. Level 3: Canonical Micro-Syntax Archetypes & Layer Routing
 
-### Pillar 1: SUT Class & Method Archetype (`CreateTemplateUseCase` with Explicit Variables)
->> MANDATORY CANONICAL TEMPLATE [RULE-CONV-001]:
-* [MUST] Name parameter `command` for Commands and `query` for Queries (prohibit `request`).
-* [MUST] Use full semantic variable names (prohibit `repo`, `uow`, `t`).
-* [MUST] Import all external namespaces via top-level `using` directives (prohibit inline namespace paths).
-* [MUST] Assign all instantiated objects and intermediate expressions to explicit local variables before consumption.
+### Universal C# 13, .NET 10 & TypeScript Micro-Syntax Cheatsheet
+>> MANDATORY CANONICAL MICRO-ASTs [RULE-CONV-001]:
+
+#### 1. Primary Constructor Dependency Injection (Pure camelCase, Zero Prefix)
 ```csharp
-namespace SmkDoc.Application.Modules.Authoring.Templates.Commands.CreateTemplate;
-
-using System;
-using System.Threading;
-using System.Threading.Tasks;
-using FluentValidation;
-using SmkDoc.Application.Common.Exceptions;
-using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.Interfaces;
-using SmkDoc.Domain.ValueObjects;
-using SmkDoc.Domain.ValueObjects.Ids;
-
-// 1. Immutable Positional Command (Zero caller ProjectId override)
-public sealed record CreateTemplateCommand(
-    string Name,
-    string Slug,
-    string? Category);
-
-// 2. Single-Responsibility UseCase with Explicit Local Variable Assignments
-public sealed class CreateTemplateUseCase(
+// >> CANONICAL: C# 13 Primary Constructor (zero boilerplate field assignment, zero '_' prefix)
+public sealed class TemplateService(
     ITemplateRepository templateRepository,
-    IUnitOfWork unitOfWork,
-    IValidator<CreateTemplateCommand> validator,
     ICurrentProjectContext projectContext,
-    TimeProvider timeProvider) : IUseCase<CreateTemplateCommand, TemplateResultDto>
+    IUnitOfWork unitOfWork,
+    ILogger<TemplateService> logger)
 {
-    public async Task<TemplateResultDto> ExecuteAsync(CreateTemplateCommand command, CancellationToken ct = default)
+    // Access parameters directly in methods without private fields
+}
+```
+
+#### 2. Collection Expressions `[]` & Modern Concurrency Lock
+```csharp
+// >> CANONICAL: C# 12+ Collection Expressions and C# 13 System.Threading.Lock
+private readonly List<FieldMapping> _fieldMappings = [];
+private readonly System.Threading.Lock _syncLock = new();
+
+public void SafeMutate()
+{
+    lock (_syncLock) // Uses new C# 13 lightweight lock primitive
     {
-        // 1. Fail-Fast Validation
-        var validationResult = await validator.ValidateAsync(command, ct);
-        if (!validationResult.IsValid)
-        {
-            throw new ValidationException(validationResult.ToDictionary());
-        }
-
-        if (!projectContext.IsResolved)
-        {
-            throw new ForbiddenException("Active project context is required.");
-        }
-
-        // 2. Precondition Query
-        var slugExists = await templateRepository.SlugExistsAsync(command.Slug, ct);
-        if (slugExists)
-        {
-            throw ConflictException.DuplicateSlug(command.Slug);
-        }
-
-        // 3. Explicit Local Variable Assignments (Zero Nested Constructor Inlining)
-        var templateName = TemplateName.Create(command.Name);
-        var templateSlug = new TemplateSlug(command.Slug);
-        var now = timeProvider.GetUtcNow();
-
-        var template = Template.Create(projectContext.ProjectId, templateName, templateSlug, command.Category, now);
-
-        // 4. Persistence Operations with Full Variable Names
-        await templateRepository.AddAsync(template, ct);
-        await unitOfWork.CommitAsync(ct);
-
-        // 5. Explicit Result Assignment
-        var result = new TemplateResultDto(
-            template.Id.Value,
-            template.ProjectId.Value,
-            template.Name.Value,
-            template.Slug.Value,
-            template.Category,
-            template.IsActive,
-            template.CurrentVersionId,
-            template.CreatedAt,
-            template.UpdatedAt);
-
-        return result;
+        IReadOnlyList<string> tags = ["invoice", "finance", "tax"];
     }
 }
 ```
 
-### Pillar 2: Formatting, Top-Level Using & Layout Architecture Archetype
->> MANDATORY CANONICAL TEMPLATE [RULE-CONV-002]:
-* [MUST] Use file-scoped namespace in all C# files (prohibit curly brace namespace blocks).
-* [MUST] Place all `using` directives at top of file, ordered: 1) System => 2) Microsoft => 3) Third-party => 4) Internal (`SmkDoc.*`).
-* [MUST] Use collection expressions `[]` for all empty or collection initializers.
-* [MUST] Order TypeScript imports: 1) Framework => 2) External libraries => 3) Internal (`@/*`) => 4) Relative (`./`).
+#### 3. Sequential Identity UUIDv7 & Deterministic System Clock
 ```csharp
-namespace SmkDoc.Application.Modules.Authoring.Templates.Queries.ListTemplates;
+// >> CANONICAL: UUIDv7 for B-Tree indexing and injected TimeProvider for testability
+var entityId = Guid.CreateVersion7();
+var now = timeProvider.GetUtcNow();
+```
 
+#### 4. File-Scoped Namespace & Ordered Top-Level using Directives
+```csharp
+namespace SmkDoc.Application.Modules.Authoring.Templates;
+
+// 1. System => 2. Microsoft => 3. Third-Party => 4. Internal SmkDoc.*
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using FluentValidation;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Domain.Interfaces;
-using SmkDoc.Domain.ValueObjects.Ids;
-
-public sealed class ListTemplatesUseCase(
-    ITemplateRepository templateRepository,
-    ICurrentProjectContext projectContext,
-    ILogger<ListTemplatesUseCase> logger) : IUseCase<ListTemplatesQuery, IReadOnlyList<TemplateResultDto>>
-{
-    public async Task<IReadOnlyList<TemplateResultDto>> ExecuteAsync(ListTemplatesQuery query, CancellationToken ct = default)
-    {
-        if (!projectContext.IsResolved)
-        {
-            throw new ForbiddenException("Active project context is required.");
-        }
-
-        logger.LogInformation("Listing templates for Project {ProjectId}", projectContext.ProjectId);
-        var templates = await templateRepository.ListByProjectIdAsync(projectContext.ProjectId, ct);
-
-        if (templates.Count == 0)
-        {
-            return []; // C# 12+ Collection expression
-        }
-
-        var resultList = templates.Select(template => new TemplateResultDto(
-            template.Id.Value,
-            template.ProjectId.Value,
-            template.Name.Value,
-            template.Slug.Value,
-            template.Category,
-            template.IsActive,
-            template.CurrentVersionId,
-            template.CreatedAt,
-            template.UpdatedAt)).ToList();
-
-        return resultList;
-    }
-}
-```
-
-### Pillar 3: Code Structure & Member Ordering Archetype (Top-to-Bottom Layout)
->> MANDATORY CANONICAL TEMPLATE [RULE-CONV-003]:
-* [MUST] Order class members top-to-bottom:
-  1. Constants & Static Members
-  2. Public Properties (state encapsulation via `private set`)
-  3. Private Backing Fields
-  4. Parameterless Constructor (for EF Core)
-  5. Internal / Factory Constructor
-  6. SSoT Static `Create(...)` Factory
-  7. Public Business Verbs (mutations & invariant enforcement)
-  8. Private Helper Methods / Guards
-```csharp
-namespace SmkDoc.Domain.Entities;
-
-using System;
-using System.Collections.Generic;
-using SmkDoc.Domain.Common;
-using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.Interfaces;
-using SmkDoc.Domain.ValueObjects;
-using SmkDoc.Domain.ValueObjects.Ids;
-
-public sealed class Document : BaseEntity<DocumentId>, IMustHaveProject
-{
-    // 1. Constants
-    public const int MaxTitleLength = 200;
-
-    // 2. Encapsulated Properties
-    public ProjectId ProjectId { get; private set; }
-    public TemplateId TemplateId { get; private set; }
-    public string Title { get; private set; } = null!;
-    public int CurrentVersionNumber { get; private set; }
-
-    // 3. Private Backing Fields
-    private readonly List<DocumentVersion> _versions = [];
-    public IReadOnlyCollection<DocumentVersion> Versions => _versions.AsReadOnly();
-
-    // 4. Parameterless Constructor (ORM)
-    private Document() { }
-
-    // 5. Internal Constructor
-    internal Document(
-        DocumentId id,
-        ProjectId projectId,
-        TemplateId templateId,
-        string title,
-        DateTimeOffset now) : base(id, now)
-    {
-        ProjectId = Guard.NotEmpty(projectId, nameof(ProjectId));
-        TemplateId = Guard.NotEmpty(templateId, nameof(TemplateId));
-        Title = Guard.NotBlank(title, nameof(Title), MaxTitleLength);
-        CurrentVersionNumber = 1;
-    }
-
-    // 6. SSoT Public Factory Method
-    public static Document Create(
-        ProjectId projectId,
-        TemplateId templateId,
-        string title,
-        DateTimeOffset now)
-    {
-        return new Document(DocumentId.New(), projectId, templateId, title, now);
-    }
-
-    // 7. Public Business Verbs
-    public DocumentVersion CreateNextVersion(Stream contentStream, DateTimeOffset now)
-    {
-        CurrentVersionNumber++;
-        var nextVersion = DocumentVersion.Create(Id, CurrentVersionNumber, contentStream, now);
-        _versions.Add(nextVersion);
-        SetUpdated(now);
-        return nextVersion;
-    }
-}
-```
-
-### Pillar 3.1: DAMP Testing Layout Archetype (Explicit AAA)
->> MANDATORY CANONICAL TEMPLATE [RULE-CONV-004]:
-* [MUST] Follow DAMP (Descriptive And Meaningful Phrases) over DRY in unit tests.
-* [MUST] Explicitly declare Arrange, Act, and Assert in every test method without hiding stubs in God Fixtures.
-```csharp
-namespace SmkDoc.Tests.Application.Modules.Authoring.Templates.Queries.GetTemplateById;
-
-using System;
-using System.Threading;
-using System.Threading.Tasks;
-using FluentAssertions;
-using NSubstitute;
-using SmkDoc.Application.Common.Exceptions;
-using SmkDoc.Application.Modules.Authoring.Templates.Queries.GetTemplateById;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Interfaces;
-using SmkDoc.Domain.ValueObjects.Ids;
-using Xunit;
-
-public sealed class GetTemplateByIdUseCaseTests
-{
-    private readonly ITemplateRepository _templateRepository = Substitute.For<ITemplateRepository>();
-
-    private GetTemplateByIdUseCase CreateSut() => new(_templateRepository);
-
-    [Fact]
-    public async Task ExecuteAsync_WhenTemplateDoesNotExist_ShouldThrowNotFoundException()
-    {
-        // Arrange (DAMP: Explicit local setup)
-        var templateId = Guid.NewGuid();
-        var query = new GetTemplateByIdQuery(templateId);
-        _templateRepository.GetByIdAsync(Arg.Any<TemplateId>(), Arg.Any<CancellationToken>())
-            .Returns((Template?)null);
-
-        var sut = CreateSut();
-
-        // Act
-        var act = () => sut.ExecuteAsync(query, CancellationToken.None);
-
-        // Assert
-        await act.Should().ThrowAsync<NotFoundException>()
-            .WithMessage($"*{templateId}*");
-    }
-}
 ```
 
-### Pillar 4: Error Handling & RFC 9457 Translation Archetype
->> MANDATORY CANONICAL TEMPLATE [RULE-CONV-005]:
-* [MUST] Throw strongly-typed domain or application exceptions; strictly prohibit throwing raw `System.Exception`.
-* [MUST NOT] Catch and swallow exceptions silently; catch only to enrich context and rethrow or let bubble to `GlobalExceptionHandler`.
-* [MUST] Map every domain/application exception to an exact RFC 9457 HTTP Status Code.
+#### 5. Explicit Local Variable Assignments Before Consumption
 ```csharp
-namespace SmkDoc.Application.Common.Exceptions;
+// >> CANONICAL: Deconstruct nested parameters into named local variables before passing to factories
+var templateName = TemplateName.Create(command.Name);
+var templateSlug = new TemplateSlug(command.Slug);
+var now = timeProvider.GetUtcNow();
 
-using System;
-using System.Collections.Generic;
+var template = Template.Create(projectContext.ProjectId, templateName, templateSlug, command.Category, now);
+await templateRepository.AddAsync(template, ct);
+```
 
-// 1. Strongly-Typed Exception Hierarchy
-public abstract class AppException(string message) : Exception(message);
-
-public sealed class NotFoundException(string message) : AppException(message);
-
-public sealed class ConflictException(string message) : AppException(message)
+#### 6. Mandatory Async Await (Prohibit Task Elision)
+```csharp
+// >> CANONICAL: Always await asynchronous calls to preserve stack traces and avoid premature resource disposal
+public async Task<Stream> RenderAsync(RenderDocumentQuery query, CancellationToken ct)
 {
-    public static ConflictException DuplicateSlug(string slug) =>
-        new($"A template with slug '{slug}' already exists in this project.");
+    return await renderEngine.RenderStreamAsync(query.PayloadJson, ct);
 }
+```
 
-public sealed class ForbiddenException(string message) : AppException(message);
-
-public sealed class ValidationException(IDictionary<string, string[]> errors)
-    : AppException("One or more validation failures have occurred.")
-{
-    public IDictionary<string, string[]> Errors { get; } = errors;
-}
-
-// 2. Catch-and-Enrich Infrastructure Pattern (Never Swallow)
-namespace SmkDoc.Infrastructure.Engines.Gotenberg;
-
-using System.Net.Http;
-using System.IO;
-using System.Threading;
-using System.Threading.Tasks;
-using SmkDoc.Application.Common.Exceptions;
-
-public sealed class GotenbergHttpAdapter(HttpClient httpClient)
-{
-    public async Task<Stream> ExecuteConvertAsync(HttpRequestMessage request, CancellationToken ct)
-    {
-        try
-        {
-            var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
-            response.EnsureSuccessStatusCode();
-            return await response.Content.ReadAsStreamAsync(ct);
-        }
-        catch (HttpRequestException exception)
-        {
-            // Enrich with upstream Gotenberg context and rethrow strongly-typed exception
-            throw new DocumentRenderException($"Gotenberg cluster unreachable or returned error: {exception.Message}", exception);
-        }
+#### 7. Next.js 15 Async Dynamic Route Params & Zod SafeParse
+```typescript
+// >> CANONICAL: Next.js 15 async params resolution and strict Zod runtime validation
+export default async function TemplatePage({ params }: { params: Promise<{ id: string }> }) {
+    const { id } = await params;
+    const validationResult = templateIdSchema.safeParse(id);
+    if (!validationResult.success) {
+        notFound();
     }
 }
 ```
+
+### Hermetic Layer Archetype Boundary
+Universal conventions in this document apply across the entire codebase. Fully-hydrated architectural implementations (Domain member layout, CQRS use case slices, streaming adapters, thin controllers, and DAMP test suites) reside strictly within their respective layer SSoTs in `docs/AI/01_clean_arch_patterns/` and `docs/AI/02_frontend_patterns/`. Context ingestion and task dispatching are governed exclusively by `<compound_context_router>` in `AGENTS.md`.
 
 ---
 
@@ -518,8 +288,16 @@ public sealed class GotenbergHttpAdapter(HttpClient httpClient)
 
 ### [TRAP-CONV-004]: Chained Instantiation without Local Variables
 ```diff
-- await templateRepository.AddAsync(Template.Create(projectContext.ProjectId, TemplateName.Create(command.Name), new TemplateSlug(command.Slug), command.Category, now), ct);
-+ var name = TemplateName.Create(command.Name); var slug = new TemplateSlug(command.Slug); var template = Template.Create(projectContext.ProjectId, name, slug, command.Category, now); await templateRepository.AddAsync(template, ct);
+- await templateRepository.AddAsync(Template.Create(
+-     projectContext.ProjectId,
+-     TemplateName.Create(command.Name),
+-     new TemplateSlug(command.Slug),
+-     command.Category,
+-     now), ct);
++ var templateName = TemplateName.Create(command.Name);
++ var templateSlug = new TemplateSlug(command.Slug);
++ var template = Template.Create(projectContext.ProjectId, templateName, templateSlug, command.Category, now);
++ await templateRepository.AddAsync(template, ct);
 ```
 *Rationale: Chaining nested constructors into arguments obscures compilation failures and degrades debugging readability.*
 
@@ -532,7 +310,12 @@ public sealed class GotenbergHttpAdapter(HttpClient httpClient)
 
 ### [TRAP-CONV-006]: Empty / Swallowed Catch Block
 ```diff
-- try { await uow.CommitAsync(ct); } catch (Exception) { /* ignore */ }
-+ try { await unitOfWork.CommitAsync(ct); } catch (DbUpdateConcurrencyException exception) { throw new ConflictException("Concurrent edit detected.", exception); }
+- try { await uow.CommitAsync(ct); }
+- catch (Exception) { /* ignore */ }
++ try { await unitOfWork.CommitAsync(ct); }
++ catch (DbUpdateConcurrencyException exception)
++ {
++     throw new ConflictException("Concurrent edit detected.", exception);
++ }
 ```
 *Rationale: Swallowing catch blocks causes silent data corruption, hides deadlocks, and prevents RFC 9457 error translation.*

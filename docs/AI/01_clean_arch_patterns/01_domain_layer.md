@@ -241,6 +241,7 @@ public abstract class BaseEntity
 * [MUST] Inherit from `BaseEntity<TId>` where `TId` is a strongly-typed ID value object.
 * [MUST] Declare class as `sealed class`. Entities MUST remain reference types (prohibit `struct`/`record struct`).
 * [MUST] Encapsulate all property mutations with `private set;`. Direct public setters are strictly prohibited.
+* [MUST] Enforce top-to-bottom class member ordering: 1) Constants, 2) Public Encapsulated Properties, 3) Private Backing Fields, 4) Parameterless Constructor (ORM), 5) Internal Constructor, 6) SSoT Static `Create(...)` Factory, 7) Public Business Verbs.
 * [MUST] Provide exactly 1 `private Template()` parameterless constructor for EF Core hydration.
 * [MUST] Provide an `internal` constructor for factory/test hydration and exactly 1 `public static TEntity Create(...)` factory method as SSoT.
 * [MUST] Require caller to pass explicit `DateTimeOffset now` parameter for time-dependent state mutations (prohibit `DateTime.UtcNow`).
@@ -257,6 +258,7 @@ namespace SmkDoc.Domain.Entities;
 
 public sealed class Template : BaseEntity<TemplateId>, IMustHaveProject
 {
+    // 1. Public Encapsulated Properties
     public ProjectId ProjectId { get; private set; }
     public TemplateName Name { get; private set; } = null!;
     public TemplateSlug Slug { get; private set; } = null!;
@@ -264,6 +266,7 @@ public sealed class Template : BaseEntity<TemplateId>, IMustHaveProject
     public bool IsActive { get; private set; }
     public Guid? CurrentVersionId { get; private set; }
 
+    // 2. Private Backing Fields
     private readonly List<FieldMapping> _fieldMappings = [];
     private readonly List<TemplateVersion> _versions = [];
 
@@ -271,8 +274,10 @@ public sealed class Template : BaseEntity<TemplateId>, IMustHaveProject
     public IReadOnlyCollection<TemplateVersion> Versions => _versions.AsReadOnly();
     public TemplateVersion? CurrentVersion { get; private set; }
 
+    // 3. Parameterless Constructor (ORM)
     private Template() { }
 
+    // 4. Internal Constructor
     internal Template(
         TemplateId? id,
         ProjectId projectId,
@@ -289,6 +294,7 @@ public sealed class Template : BaseEntity<TemplateId>, IMustHaveProject
         IsActive = true;
     }
 
+    // 5. Static SSoT Factory Method
     public static Template Create(
         ProjectId projectId,
         TemplateName name,
@@ -299,6 +305,7 @@ public sealed class Template : BaseEntity<TemplateId>, IMustHaveProject
         return new Template(null, projectId, name, slug, category, now);
     }
 
+    // 6. Public Business Verbs
     public void Update(TemplateName name, string? category, DateTimeOffset now)
     {
         Name = Guard.NotNull(name, nameof(Name));

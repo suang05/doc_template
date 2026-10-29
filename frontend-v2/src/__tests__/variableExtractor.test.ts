@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { extractVariablesFromHtml } from '@/lib/html/variableExtractor';
+import { extractVariablesFromHtml } from '@/features/studio/domain/variableExtractor';
 
 describe('extractVariablesFromHtml', () => {
   it('returns same reference when html has no variables', () => {

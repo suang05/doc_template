@@ -2,7 +2,7 @@
 
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { Eye, FileText, Maximize2, RotateCcw, Printer, ExternalLink } from 'lucide-react';
-import { documentsApi } from '@/lib/api/documents.api';
+import { documentsApi } from '@/features/generator';
 
 export interface PdfPreviewPanelProps {
   file: File | null;

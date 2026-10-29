@@ -1,6 +1,6 @@
 import React from 'react';
 import { AuthProvider } from '@/contexts/AuthContext';
-import { AuthGate } from '@/components/features/auth/AuthGate';
+import { AuthGate } from '@/features/auth';
 import { QueryProvider } from '@/contexts/QueryProvider';
 
 export interface AppGroupLayoutProps {

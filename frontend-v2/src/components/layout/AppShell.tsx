@@ -4,7 +4,7 @@ import { KeyRound, X } from 'lucide-react';
 import { Topbar } from './Topbar';
 import { Sidebar, NavigationItemId, navLabels } from './Sidebar';
 import { CommandPalette } from './CommandPalette';
-import { useStoredApiKey } from '@/hooks/useStoredApiKey';
+import { useStoredApiKey } from '@/features/apikeys';
 import { useAuthContext } from '@/contexts/AuthContext';
 
 export interface AppShellProps {

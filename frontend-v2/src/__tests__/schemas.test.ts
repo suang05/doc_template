@@ -7,29 +7,29 @@ import {
   TemplateValidationResultSchema,
   TemplateStudioDtoSchema,
   TemplateSchemaDtoSchema,
-} from '@/schemas/template.schema';
-import { loginRequestSchema, loginResponseSchema } from '@/schemas/auth.schema';
+} from '@/features/templates/schemas/template.schema';
+import { loginRequestSchema, loginResponseSchema } from '@/features/auth/schemas/auth.schema';
 import {
   dataConnectionSchema,
   createDataConnectionSchema,
   testDataConnectionSchema,
-} from '@/schemas/dataconnection.schema';
+} from '@/features/datasources/schemas/dataconnection.schema';
 import {
   DatasetSchema,
   CreateDatasetSchema,
-} from '@/schemas/dataset.schema';
+} from '@/features/datasources/schemas/dataset.schema';
 import {
   SaveTemplateDatasetItemSchema,
   TemplateDatasetDtoSchema,
-} from '@/schemas/templateDataset.schema';
-import { GenerateDocumentRequestSchema } from '@/schemas/document.schema';
+} from '@/features/datasources/schemas/templateDataset.schema';
+import { GenerateDocumentRequestSchema } from '@/features/generator/schemas/document.schema';
 import {
   SaveFieldMappingItemSchema,
   FieldMappingDtoSchema,
   ThaiTransformTypes,
-} from '@/schemas/mapping.schema';
-import { CreateApiKeyRequestSchema } from '@/schemas/apikey.schema';
-import { PagedLogsResponseSchema, PaginationMetadataSchema, LogPayloadResultDtoSchema } from '@/schemas/log.schema';
+} from '@/features/mapping/schemas/mapping.schema';
+import { CreateApiKeyRequestSchema } from '@/features/apikeys/schemas/apikey.schema';
+import { PagedLogsResponseSchema, PaginationMetadataSchema, LogPayloadResultDtoSchema } from '@/features/logs/schemas/log.schema';
 
 // ── ThaiTransformTypes Compatibility ───────────────────────────────────────
 

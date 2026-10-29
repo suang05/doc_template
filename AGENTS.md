@@ -41,12 +41,15 @@ FatalInvariants:
 - Mass file deletions or cross-domain refactoring.
 - Modifying EF Core Database Migrations or breaking public API contracts (DTOs).
 - Installing NuGet or npm packages.
+- Staging or committing git changes (PROHIBITED: Git state mutations are strictly reserved for manual user control).
 - Updating `AGENTS.md` or any file in `docs/AI/` (MUST use Propose-and-Wait: draft the exact diff, ask user for confirmation, DO NOT modify doc files autonomously during coding turns).
 - Unused code/import cleanups detected during unrelated file edits.
 </approval_gates>
 
 <execution_blockers>
 [STRICT_INTERCEPTORS]
+Trigger: Command contains ("git add", "git commit", "git stage")
+  => Action: STRICTLY PROHIBIT autonomous git staging or committing; manual user execution only.
 Trigger: Command contains ("docker", "docker compose", "rm -rf", "dropdb") 
   => Action: Emit bash snippet to user; DO NOT execute autonomously.
 Trigger: Catch block empty
@@ -154,7 +157,7 @@ TestingArchetypes:
   BackendUseCaseTests: Direct mocks, SSoT CreateSut(), FakeTimeProvider (TestConstants.CreateFakeClock()), Fluent *Builder, 1 behavior per test, CQRS folder parity.
   BackendAggregateTests: Invariant state mutations tested directly inside {Aggregate}Tests.cs. Zero disk I/O in SmkDoc.Tests.
   ValidationTests: Isolated FluentValidation testing via TestValidate(); exactly 1 fail-fast orchestration test per UseCase test suite.
-  FrontendUnitTests: Co-located strictly in frontend-v2/src/__tests__/, importing SSoT Zod schemas from @/schemas/ and real production modules.
+  FrontendUnitTests: Co-located strictly in frontend-v2/src/__tests__/, importing SSoT Zod schemas from @/features/*/schemas/ and real production modules.
 
 ArchetypePrimacy:
   PrescriptiveRules: Code archetypes under Level 3 in docs/AI/ are governed by >> MANDATORY CANONICAL TEMPLATE [RULE-*]. LLM MUST treat them as compiler-grade prescriptive constraints.

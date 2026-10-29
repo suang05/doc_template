@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { RequireRole } from '@/components/ui/RequireRole';
-import { FieldMappingView } from '@/components/features/mappings/FieldMappingView';
+import { FieldMappingView } from '@/features/mapping';
 
 export interface MappingPageClientProps {
   initialTemplateId?: string;

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { registerTemplateCompletion } from '@/lib/monaco/templateCompletion';
+import { registerTemplateCompletion } from '@/features/studio/domain/templateCompletion';
 
 describe('registerTemplateCompletion', () => {
   it('handles null or invalid monaco instance gracefully', () => {

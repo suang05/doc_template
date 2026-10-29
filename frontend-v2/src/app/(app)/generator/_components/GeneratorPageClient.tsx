@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { GeneratorView } from '@/components/features/generator/GeneratorView';
+import { GeneratorView } from '@/features/generator';
 
 export interface GeneratorPageClientProps {
   initialSlug: string;

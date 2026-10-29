@@ -2,7 +2,7 @@
 
 <context>
 Scope: UI Component Conventions, Ice-White Design Tokens, CVA Component Variants, Lucide Icons, Zod Schemas & Vitest
-Target: `frontend-v2/` (`src/components/ui/`, `src/schemas/`, `src/__tests__/`)
+Target: `frontend-v2/` (`src/components/ui/`, `src/features/*/schemas/`, `src/__tests__/`)
 Authority: Absolute SSoT Invariant (Deterministic compact enterprise UI, zero raw HTML inputs, zero decorative emojis)
 Format: 100% English AST, Positive-First Archetypes (80/20 Rule), Canonical Keyboard Operators
 TriggerSignals: [SIGNAL_UI_MUTATION]
@@ -20,7 +20,7 @@ UpstreamKernel: AGENTS.md
 | **Component Variants**| Caller Props (`variant`, `size`) | Dispatches variant classes via CVA | DOM HTML Attributes (`className`) |
 | **Form Inputs** | User Keystrokes | Validates shape at runtime via Zod schema | React Hook Form State |
 | **Icons** | Lucide React Icon Package | Consistent 16px/18px stroke rendering | UI Buttons, Headers & Status Badges |
-| **Test Verification** | Production Schemas (`@/schemas/`) | Co-located Vitest execution (`src/__tests__/`) | Quality Gate CI Pipeline |
+| **Test Verification** | Production Schemas (`@/features/*/schemas/`) | Co-located Vitest execution (`src/__tests__/`) | Quality Gate CI Pipeline |
 
 ### UI Component Invariants Matrix
 | Architectural Concern | Prohibited Pattern (! BANNED) | Canonical SSoT Pattern (>> MANDATORY) |
@@ -29,7 +29,7 @@ UpstreamKernel: AGENTS.md
 | **Color Tokens** | Hardcoded arbitrary hex: `bg-[#0284c7]` | Curated Ice-White design tokens or Tailwind semantic utility classes |
 | **Component Variants** | Ad-hoc template string conditional styles | `class-variance-authority` (CVA) variant definitions |
 | **Icon Set** | Raw inline `<svg>` elements or inconsistent icon packages | Standard Lucide React icons (`lucide-react`) with fixed `size={16}` or `size={18}` |
-| **Validation Schemas** | Defining duplicated test-local Zod schemas in tests | Single Source of Truth Zod schemas imported from `@/schemas/` |
+| **Validation Schemas** | Defining duplicated test-local Zod schemas in tests | SSoT Zod schemas co-located in `src/features/{slice}/schemas/` and imported from `@/features/*` |
 | **Test Co-location** | Creating isolated `src/tests/` directory | Strictly co-located in `frontend-v2/src/__tests__/` matching source structure |
 | **Raw HTML Inputs** | Direct `<input>` or `<button>` without styling wrapper | Controlled CVA UI primitives (`<Input>`, `<Button>`, `<Card>`) |
 
@@ -60,7 +60,7 @@ ProactiveUiGuards:
 
   - Scope: frontend-v2.src.__tests__
     Trigger: Inline duplicate z.object() declared inside test spec
-    CanonicalAction: Import SSoT schema directly from @/schemas/ >> Ref: [RULE-UI-003]
+    CanonicalAction: Import SSoT schema directly from @/features/*/schemas/ >> Ref: [RULE-UI-003]
 
   - Scope: frontend-v2.src
     Trigger: Hardcoded hex color codes in className (e.g. bg-[#...])
@@ -121,7 +121,7 @@ CoreExtensionSlots:
 ```typescript
 import * as React from 'react';
 import { cva, type VariantProps } from 'class-variance-authority';
-import { cn } from '@/lib/utils';
+import { cn } from '@/utils/cn';
 
 export const buttonVariants = cva(
   'inline-flex items-center justify-center font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:pointer-events-none disabled:opacity-50 rounded-md',
@@ -172,7 +172,7 @@ Button.displayName = 'Button';
 * [MUST] Integrate with `cn()` utility and forward `ref`.
 ```typescript
 import * as React from 'react';
-import { cn } from '@/lib/utils';
+import { cn } from '@/utils/cn';
 
 export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {}
 
@@ -199,7 +199,7 @@ Input.displayName = 'Input';
 * [MUST] Encapsulate container geometry with `rounded-md`, `border-slate-200`, and clean surface card backgrounds.
 ```typescript
 import * as React from 'react';
-import { cn } from '@/lib/utils';
+import { cn } from '@/utils/cn';
 
 export const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
@@ -246,7 +246,7 @@ CardFooter.displayName = 'CardFooter';
 
 ### SSoT Zod Validation Schema Archetype (`template.schema.ts`)
 >> MANDATORY CANONICAL TEMPLATE [RULE-UI-004]:
-* [MUST] Define form and payload validation schemas in `src/schemas/` as Single Source of Truth.
+* [MUST] Define form and payload validation schemas in `src/features/{feature}/schemas/` as Single Source of Truth.
 * [MUST] Export both runtime Zod schema (`*Schema`) and derived TypeScript type (`z.infer<typeof *Schema>`).
 * [MUST NOT] Redefine or duplicate Zod schemas locally inside unit test files.
 ```typescript
@@ -264,12 +264,12 @@ export type TemplateFormData = z.infer<typeof templateSchema>;
 ### Co-Located Vitest Spec Archetype (`src/__tests__/schemas.test.ts`)
 >> MANDATORY CANONICAL TEMPLATE [RULE-UI-005]:
 * [MUST] Co-locate tests strictly under `frontend-v2/src/__tests__/`.
-* [MUST] Import real production schemas from `@/schemas/` to eliminate test drift.
+* [MUST] Import real production schemas from `@/features/*/schemas/` to eliminate test drift.
 ```typescript
 import { describe, it, expect } from 'vitest';
-import { templateSchema } from '@/schemas/template.schema';
+import { CreateTemplateRequestSchema } from '@/features/templates/schemas/template.schema';
 
-describe('templateSchema validation', () => {
+describe('CreateTemplateRequestSchema validation', () => {
   it('should accept valid template payload', () => {
     const validData = {
       name: 'Invoice Template',
@@ -277,7 +277,7 @@ describe('templateSchema validation', () => {
       category: 'Billing',
     };
 
-    const result = templateSchema.safeParse(validData);
+    const result = CreateTemplateRequestSchema.safeParse(validData);
     expect(result.success).toBe(true);
   });
 
@@ -287,7 +287,7 @@ describe('templateSchema validation', () => {
       slug: 'INVOICE_TEMPLATE',
     };
 
-    const result = templateSchema.safeParse(invalidData);
+    const result = CreateTemplateRequestSchema.safeParse(invalidData);
     expect(result.success).toBe(false);
     if (!result.success) {
       expect(result.error.issues[0].path).toContain('slug');
@@ -300,7 +300,7 @@ describe('templateSchema validation', () => {
       slug: 'valid-slug',
     };
 
-    const result = templateSchema.safeParse(invalidData);
+    const result = CreateTemplateRequestSchema.safeParse(invalidData);
     expect(result.success).toBe(false);
   });
 });
@@ -327,7 +327,7 @@ describe('templateSchema validation', () => {
 ### [TRAP-UI-003]: Test-Local Duplicate Zod Schemas
 ```diff
 - const localSchema = z.object({ name: z.string() }); // REJECTED: Tautological test!
-+ import { templateSchema } from '@/schemas/template.schema';
++ import { CreateTemplateRequestSchema } from '@/features/templates/schemas/template.schema';
 ```
 *Rationale: Testing against isolated local schemas tests the mock schema rather than production validation rules.*
 

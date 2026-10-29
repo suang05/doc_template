@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseCombinedHtml, getCombinedHtml } from '@/hooks/useTemplateStudio';
+import { parseCombinedHtml, getCombinedHtml } from '@/features/studio/hooks/useTemplateStudio';
 
 // ── parseCombinedHtml ───────────────────────────────────────────────────────
 
