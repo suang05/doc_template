@@ -864,16 +864,6 @@
           "Document"
         ],
         "summary": "Ephemeral live preview for Monaco Editor / Form with zero side-effects",
-        "parameters": [
-          {
-            "name": "slug",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -910,16 +900,6 @@
           "Document"
         ],
         "summary": "Ephemeral live preview for Monaco Editor / Form with zero side-effects",
-        "parameters": [
-          {
-            "name": "slug",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -955,7 +935,7 @@
         "tags": [
           "Document"
         ],
-        "summary": "Ephemeral live preview for Monaco Editor / Form with zero side-effects",
+        "summary": "Ephemeral live preview for a specific template slug with zero side-effects",
         "parameters": [
           {
             "name": "slug",
@@ -1001,7 +981,7 @@
         "tags": [
           "Document"
         ],
-        "summary": "Ephemeral live preview for Monaco Editor / Form with zero side-effects",
+        "summary": "Ephemeral live preview for a specific template slug with zero side-effects",
         "parameters": [
           {
             "name": "slug",

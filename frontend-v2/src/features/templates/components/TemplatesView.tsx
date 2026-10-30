@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Search,
   Plus,
@@ -14,6 +14,8 @@ import {
   Copy,
   AlertCircle,
   RefreshCw,
+  LayoutGrid,
+  List,
 } from 'lucide-react';
 import { useTemplates } from '../hooks/useTemplates';
 import { DocumentCategory, DocumentFormat, tokens } from '@/tokens';
@@ -27,8 +29,11 @@ import {
   EmptyState,
   StatBlock,
   Dropdown,
+  Table,
+  Column,
 } from '@/components/ui';
 import { templatesApi } from '../api/templates.api';
+import { TemplateDto } from '../schemas/template.schema';
 import { CreateTemplateChoiceModal } from './CreateTemplateChoiceModal';
 
 export interface TemplatesViewProps {
@@ -57,6 +62,27 @@ export const TemplatesView: React.FC<TemplatesViewProps> = ({
   } = useTemplates();
 
   const [isChoiceModalOpen, setIsChoiceModalOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('table');
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('smk_templates_view_mode');
+      if (saved === 'cards' || saved === 'table') {
+        setViewMode(saved);
+      }
+    } catch {
+      // localStorage unavailable or restricted
+    }
+  }, []);
+
+  const handleViewModeChange = (mode: 'cards' | 'table') => {
+    setViewMode(mode);
+    try {
+      localStorage.setItem('smk_templates_view_mode', mode);
+    } catch {
+      // ignore
+    }
+  };
 
   const handleDeactivate = async (id: string, name: string) => {
     if (!confirm(`ต้องการยกเลิกการใช้งานแม่แบบ "${name}" หรือไม่?`)) return;
@@ -91,6 +117,106 @@ export const TemplatesView: React.FC<TemplatesViewProps> = ({
     { value: 'official', label: 'หนังสือสำคัญ' },
     { value: 'hr', label: 'บุคคล/ภายใน' },
     { value: 'operations', label: 'ปฏิบัติการทั่วไป' },
+  ];
+
+  const tableColumns: Column<TemplateDto>[] = [
+    {
+      header: 'ชื่อแม่แบบเอกสาร',
+      accessor: (item) => {
+        const cat = (item.category || 'operations') as DocumentCategory;
+        const fmt = (item.fileFormat || 'html') as DocumentFormat;
+        return (
+          <div className="flex items-center gap-2">
+            <Badge category={cat} dot size="sm">
+              {tokens.categories[cat]?.label || item.category}
+            </Badge>
+            <span
+              className="font-bold text-textPrimary hover:text-sky-600 cursor-pointer truncate max-w-xs transition-colors"
+              onClick={() => (fmt === 'html' ? onOpenStudio(item.id) : onOpenMapping(item.id))}
+              title={item.name}
+            >
+              {item.name}
+            </span>
+          </div>
+        );
+      },
+    },
+    {
+      header: 'Slug',
+      accessor: (item) => (
+        <span className="font-mono text-xs text-sky-700 bg-sky-50 px-2 py-0.5 rounded-sm border border-sky-200">
+          {item.slug}
+        </span>
+      ),
+    },
+    {
+      header: 'รูปแบบ / Engine',
+      accessor: (item) => {
+        const fmt = (item.fileFormat || 'html') as DocumentFormat;
+        return (
+          <Badge format={fmt} size="sm">
+            {tokens.formats[fmt]?.label || fmt.toUpperCase()}
+          </Badge>
+        );
+      },
+      align: 'center',
+    },
+    {
+      header: 'สถานะ',
+      accessor: (item) => (
+        <div className="flex items-center justify-center gap-1.5 text-[11px] font-medium text-textSecondary">
+          <span className={`w-2 h-2 rounded-full ${item.isActive !== false ? 'bg-emerald-500' : 'bg-slate-300'}`} />
+          <span>{item.isActive !== false ? 'Active' : 'Inactive'}</span>
+        </div>
+      ),
+      align: 'center',
+    },
+    {
+      header: 'แก้ไขล่าสุด',
+      accessor: (item) => (
+        <span className="text-[11px] font-mono text-textMuted">
+          {new Date(item.updatedAt).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })}
+        </span>
+      ),
+      align: 'center',
+    },
+    {
+      header: 'การจัดการ',
+      accessor: (item) => {
+        const fmt = (item.fileFormat || 'html') as DocumentFormat;
+        return (
+          <div className="flex items-center justify-end gap-1.5">
+            <Button
+              variant="primary"
+              size="sm"
+              icon={Play}
+              onClick={() => onOpenGenerator(item.slug)}
+            >
+              สร้างเอกสาร
+            </Button>
+            <Dropdown
+              align="right"
+              items={
+                fmt === 'html'
+                  ? [
+                      { id: 'studio', label: 'แก้ไขโค้ด (Monaco Studio)', icon: Edit3, onClick: () => onOpenStudio(item.id) },
+                      { id: 'duplicate', label: 'ทำสำเนา', icon: Copy, onClick: () => console.log('Duplicate', item.id) },
+                      { id: 'download', label: 'ดาวน์โหลดไฟล์ HTML', icon: Download, onClick: () => handleDownload(item.id, item.slug) },
+                      { id: 'deactivate', label: item.isActive !== false ? 'ระงับการใช้งาน' : 'เปิดใช้งาน', icon: Trash2, danger: item.isActive !== false, onClick: () => handleDeactivate(item.id, item.name) },
+                    ]
+                  : [
+                      { id: 'mapping', label: 'กำหนดฟิลด์ (Field Mapping)', icon: GitFork, onClick: () => onOpenMapping(item.id) },
+                      { id: 'history', label: 'ประวัติเวอร์ชัน', icon: History, onClick: () => console.log('Version history', item.id) },
+                      { id: 'download', label: 'ดาวน์โหลดไฟล์ต้นฉบับ', icon: Download, onClick: () => handleDownload(item.id, item.slug) },
+                      { id: 'deactivate', label: item.isActive !== false ? 'ระงับการใช้งาน' : 'เปิดใช้งาน', icon: Trash2, danger: item.isActive !== false, onClick: () => handleDeactivate(item.id, item.name) },
+                    ]
+              }
+            />
+          </div>
+        );
+      },
+      align: 'right',
+    },
   ];
 
   return (
@@ -142,13 +268,43 @@ export const TemplatesView: React.FC<TemplatesViewProps> = ({
           </>
         }
         rightSlot={
-          <Button
-            variant="primary"
-            icon={Plus}
-            onClick={() => setIsChoiceModalOpen(true)}
-          >
-            สร้างแม่แบบใหม่
-          </Button>
+          <div className="flex items-center gap-2">
+            {/* View Switcher: Table vs Cards */}
+            <div className="flex items-center border border-border rounded-sm overflow-hidden bg-surface">
+              <button
+                type="button"
+                onClick={() => handleViewModeChange('table')}
+                className={`p-1.5 transition-colors cursor-pointer ${
+                  viewMode === 'table'
+                    ? 'bg-primaryLight text-primary font-semibold'
+                    : 'text-textMuted hover:text-textPrimary hover:bg-surfaceSubtle'
+                }`}
+                title="มุมมองตาราง (Table View)"
+              >
+                <List className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => handleViewModeChange('cards')}
+                className={`p-1.5 transition-colors cursor-pointer ${
+                  viewMode === 'cards'
+                    ? 'bg-primaryLight text-primary font-semibold'
+                    : 'text-textMuted hover:text-textPrimary hover:bg-surfaceSubtle'
+                }`}
+                title="มุมมองการ์ด (Card Grid)"
+              >
+                <LayoutGrid className="w-4 h-4" />
+              </button>
+            </div>
+
+            <Button
+              variant="primary"
+              icon={Plus}
+              onClick={() => setIsChoiceModalOpen(true)}
+            >
+              สร้างแม่แบบใหม่
+            </Button>
+          </div>
         }
       />
 
@@ -175,6 +331,13 @@ export const TemplatesView: React.FC<TemplatesViewProps> = ({
           description="ไม่มีแม่แบบในหมวดหมู่นี้"
           actionLabel="สร้างแม่แบบ"
           onAction={() => setIsChoiceModalOpen(true)}
+        />
+      ) : viewMode === 'table' ? (
+        <Table<TemplateDto>
+          columns={tableColumns}
+          data={filteredTemplates}
+          keyExtractor={(t) => t.id}
+          emptyMessage="ไม่มีแม่แบบในหมวดหมู่นี้"
         />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">

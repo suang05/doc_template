@@ -5,6 +5,7 @@ import {
   BookOpen,
   Lock,
   Sparkles,
+  Play,
 } from 'lucide-react';
 import {
   CardBlock,
@@ -18,6 +19,7 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
 export const ApiDocsView: React.FC = () => {
   const [activeTab, setActiveTab] = useState('generate');
+  const [codeLang, setCodeLang] = useState<'curl' | 'typescript' | 'csharp'>('curl');
 
   const tabs = [
     { id: 'generate', label: '1. สร้างเอกสาร (Generate)' },
@@ -35,14 +37,18 @@ export const ApiDocsView: React.FC = () => {
         icon={BookOpen}
         iconColor="sky"
         rightSlot={
-          <>
+          <div className="flex items-center gap-2">
+            <a
+              href="/generator"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-sm bg-primary hover:bg-primary/90 text-white text-xs font-semibold shadow-xs transition-colors"
+            >
+              <Play className="w-3.5 h-3.5" />
+              <span>เปิด Generator Console</span>
+            </a>
             <Badge status="success" dot size="sm">
               SDD v1.3 Ready
             </Badge>
-            <Badge format="pdf" size="sm">
-              Gotenberg 8
-            </Badge>
-          </>
+          </div>
         }
       />
 
@@ -118,14 +124,100 @@ export const ApiDocsView: React.FC = () => {
               </div>
 
               <div className="space-y-2">
-                <span className="text-xs font-semibold text-textPrimary">cURL ตัวอย่าง:</span>
-                <CodeBlock
-                  code={`curl -X POST "${API_BASE}/api/documents/generate/condo-sales-agreement" \\
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-textPrimary">ตัวอย่างโค้ดเรียกใช้งาน (Client Code Example):</span>
+                  <div className="flex items-center border border-border rounded-sm overflow-hidden bg-surface text-[11px] font-mono">
+                    <button
+                      type="button"
+                      onClick={() => setCodeLang('curl')}
+                      className={`px-2.5 py-1 transition-colors cursor-pointer ${
+                        codeLang === 'curl' ? 'bg-primary text-white font-semibold' : 'text-textMuted hover:text-textPrimary'
+                      }`}
+                    >
+                      cURL
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCodeLang('typescript')}
+                      className={`px-2.5 py-1 transition-colors cursor-pointer ${
+                        codeLang === 'typescript' ? 'bg-primary text-white font-semibold' : 'text-textMuted hover:text-textPrimary'
+                      }`}
+                    >
+                      TypeScript
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCodeLang('csharp')}
+                      className={`px-2.5 py-1 transition-colors cursor-pointer ${
+                        codeLang === 'csharp' ? 'bg-primary text-white font-semibold' : 'text-textMuted hover:text-textPrimary'
+                      }`}
+                    >
+                      C# (.NET)
+                    </button>
+                  </div>
+                </div>
+
+                {codeLang === 'curl' && (
+                  <CodeBlock
+                    code={`curl -X POST "${API_BASE}/api/documents/generate/condo-sales-agreement" \\
   -H "X-API-Key: YOUR_API_KEY" \\
   -H "Content-Type: application/json" \\
-  -d '{"payload":{"contractNo":"001","customerName":"สมชาย"},"outputFormat":"pdf"}'`}
-                  language="bash"
-                />
+  -d '{"payload":{"contractNo":"SMK-CONDO-2026-001","customerName":"นายสมชาย ใจดี"},"outputFormat":"pdf"}'`}
+                    language="bash"
+                  />
+                )}
+
+                {codeLang === 'typescript' && (
+                  <CodeBlock
+                    code={`const response = await fetch('/api/proxy/v1/documents/generate/condo-sales-agreement', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    payload: {
+      contractNo: 'SMK-CONDO-2026-001',
+      customerName: 'นายสมชาย ใจดี',
+      unitNo: 'A-1204',
+      price: 3500000,
+    },
+    outputFormat: 'pdf',
+    documentRef: 'CONDO-2026-001',
+  }),
+});
+
+const result = await response.json();
+console.log('Presigned Download URL:', result.url);`}
+                    language="typescript"
+                  />
+                )}
+
+                {codeLang === 'csharp' && (
+                  <CodeBlock
+                    code={`using var httpClient = new HttpClient();
+httpClient.DefaultRequestHeaders.Add("X-API-Key", apiKey);
+
+var requestPayload = new
+{
+    payload = new Dictionary<string, object>
+    {
+        ["contractNo"] = "SMK-CONDO-2026-001",
+        ["customerName"] = "นายสมชาย ใจดี",
+        ["unitNo"] = "A-1204",
+        ["price"] = 3500000
+    },
+    outputFormat = "pdf",
+    documentRef = "CONDO-2026-001"
+};
+
+var response = await httpClient.PostAsJsonAsync(
+    "http://document-server:8080/api/v1/documents/generate/condo-sales-agreement",
+    requestPayload);
+
+var result = await response.Content.ReadFromJsonAsync<DocumentResult>();`}
+                    language="csharp"
+                  />
+                )}
               </div>
             </div>
           )}

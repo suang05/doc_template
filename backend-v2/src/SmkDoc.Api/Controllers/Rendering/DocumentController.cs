@@ -74,9 +74,21 @@ public class DocumentController(
     /// Ephemeral live preview for Monaco Editor / Form with zero side-effects
     /// </summary>
     [HttpPost("preview")]
+    [Produces("application/pdf")]
+    public async Task<IActionResult> PreviewRaw([FromBody] PreviewDocumentRequest request, CancellationToken ct)
+    {
+        var query = new PreviewDocumentQuery(request.Payload, request.Html, null);
+        var pdfStream = await previewUseCase.ExecuteAsync(query, ct);
+        Response.Headers.ContentDisposition = "inline";
+        return File(pdfStream, "application/pdf");
+    }
+
+    /// <summary>
+    /// Ephemeral live preview for a specific template slug with zero side-effects
+    /// </summary>
     [HttpPost("preview/{slug}")]
     [Produces("application/pdf")]
-    public async Task<IActionResult> Preview([FromRoute] string? slug, [FromBody] PreviewDocumentRequest request, CancellationToken ct)
+    public async Task<IActionResult> PreviewBySlug([FromRoute] string slug, [FromBody] PreviewDocumentRequest request, CancellationToken ct)
     {
         var query = new PreviewDocumentQuery(request.Payload, request.Html, slug);
         var pdfStream = await previewUseCase.ExecuteAsync(query, ct);

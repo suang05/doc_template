@@ -1,10 +1,16 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Table2, Plus, Trash2, Edit2, Clock } from 'lucide-react';
+import dynamic from 'next/dynamic';
+import { Table2, Plus, Trash2, Edit2, Clock, Code2 } from 'lucide-react';
 import { Button, CardBlock, Input, Select, Modal, Table, EmptyState } from '@/components/ui';
 import { useDatasets } from '../hooks/useDatasets';
 import type { DataConnection, Dataset, CreateDatasetRequest } from '@/types/api';
+
+const Editor = dynamic(
+  () => import('@monaco-editor/react').then((mod) => mod.Editor),
+  { ssr: false }
+);
 
 interface DatasetModalState {
   name: string;
@@ -183,6 +189,7 @@ export const DatasetsSection: React.FC<DatasetsSectionProps> = ({ connections })
         isOpen={isModalOpen}
         onClose={closeModal}
         title={editingDataset ? 'แก้ไข Dataset' : 'เพิ่ม Dataset ใหม่'}
+        maxWidth="2xl"
       >
         <div className="space-y-4">
           <Input
@@ -206,18 +213,44 @@ export const DatasetsSection: React.FC<DatasetsSectionProps> = ({ connections })
           />
 
           <div className="space-y-1">
-            <label className="block text-xs font-medium text-textSecondary">
-              SQL Query <span className="text-red-500">*</span>
-            </label>
-            <textarea
-              value={form.sqlQuery}
-              onChange={e => setField('sqlQuery', e.target.value)}
-              rows={5}
-              placeholder={'SELECT total FROM contracts WHERE ref = @ref'}
-              className="w-full rounded-sm bg-surface border border-border text-xs text-textPrimary placeholder:text-textMuted font-mono px-2.5 py-2 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary resize-y"
-            />
-            <p className="text-[10px] text-textMuted">
-              ใช้ <code className="bg-slate-100 px-1 rounded">@variableName</code> เพื่อรับค่าจาก request data เช่น <code className="bg-slate-100 px-1 rounded">@ref</code> หรือ <code className="bg-slate-100 px-1 rounded">@customerId</code>
+            <div className="flex items-center justify-between">
+              <label className="block text-xs font-medium text-textSecondary flex items-center gap-1.5">
+                <Code2 className="w-3.5 h-3.5 text-primary" />
+                <span>SQL Query (Monaco SQL Mode)</span>
+                <span className="text-red-500">*</span>
+              </label>
+              <span className="text-[10px] text-textMuted font-mono">PostgreSQL / Oracle / SQL Server</span>
+            </div>
+
+            <div className="h-44 border border-border rounded-sm overflow-hidden bg-zinc-950">
+              <Editor
+                language="sql"
+                theme="vs-dark"
+                value={form.sqlQuery}
+                onChange={(val) => setField('sqlQuery', val || '')}
+                options={{
+                  minimap: { enabled: false },
+                  fontSize: 12,
+                  scrollBeyondLastLine: false,
+                  wordWrap: 'on',
+                  lineNumbers: 'on',
+                }}
+              />
+            </div>
+
+            {Array.from(new Set(form.sqlQuery.match(/[@:][a-zA-Z0-9_]+/g) || [])).length > 0 && (
+              <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                <span className="text-[10px] text-textMuted uppercase font-mono">ตัวแปรที่พบ:</span>
+                {Array.from(new Set(form.sqlQuery.match(/[@:][a-zA-Z0-9_]+/g) || [])).map((param) => (
+                  <span key={param} className="px-1.5 py-0.2 bg-sky-50 text-sky-700 text-[10px] font-mono border border-sky-200 rounded-xs">
+                    {param}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            <p className="text-[10px] text-textMuted pt-0.5">
+              ใช้ <code className="bg-slate-100 px-1 rounded">@variableName</code> หรือ <code className="bg-slate-100 px-1 rounded">:param</code> เพื่อรับค่าจาก request payload เช่น <code className="bg-slate-100 px-1 rounded">@ref</code>
             </p>
           </div>
 

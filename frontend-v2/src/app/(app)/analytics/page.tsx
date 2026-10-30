@@ -1,15 +1,11 @@
-import React from 'react';
-import { navLabels } from '@/components/layout/Sidebar';
+import type { Metadata } from 'next';
+import { AnalyticsView } from '@/features/analytics';
+
+export const metadata: Metadata = {
+  title: 'Analytics & Telemetry — SMK Document Platform',
+  description: 'Document generation throughput, error rates, and system performance metrics',
+};
 
 export default function AnalyticsPage() {
-  return (
-    <div className="flex h-full items-center justify-center pt-20">
-      <div className="text-center space-y-2">
-        <h3 className="text-sm font-bold text-textPrimary">
-          {navLabels['analytics']} (Coming Soon)
-        </h3>
-        <p className="text-xs text-textMuted">ฟีเจอร์นี้อยู่ในระหว่างการพัฒนา</p>
-      </div>
-    </div>
-  );
+  return <AnalyticsView />;
 }

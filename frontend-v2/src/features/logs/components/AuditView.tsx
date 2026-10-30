@@ -1,11 +1,12 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Search,
   History,
   Download,
   FileCheck,
+  Eye,
 } from 'lucide-react';
 import { useLegalAudit } from '../hooks/useLegalAudit';
 import {
@@ -16,6 +17,7 @@ import {
   Column,
   EmptyState,
   PageHeader,
+  Modal,
 } from '@/components/ui';
 import { DocumentVersionDto } from '@/types/api';
 
@@ -31,9 +33,13 @@ export const AuditView: React.FC = () => {
     downloadingVersion,
   } = useLegalAudit();
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    fetchVersions(documentRef);
+  const [inspectVersion, setInspectVersion] = useState<DocumentVersionDto | null>(null);
+
+  const handleSearch = (e?: React.FormEvent, customRef?: string) => {
+    if (e) e.preventDefault();
+    const query = customRef || documentRef;
+    if (customRef) setDocumentRef(customRef);
+    fetchVersions(query);
   };
 
   const columns: Column<DocumentVersionDto>[] = [
@@ -76,6 +82,14 @@ export const AuditView: React.FC = () => {
       accessor: (item) => (
         <div className="flex items-center justify-end gap-1.5">
           <Button
+            variant="ghost"
+            size="sm"
+            icon={Eye}
+            onClick={() => setInspectVersion(item)}
+          >
+            ตรวจสอบ
+          </Button>
+          <Button
             variant="outline"
             size="sm"
             icon={Download}
@@ -100,26 +114,46 @@ export const AuditView: React.FC = () => {
         iconColor="indigo"
       />
 
-      {/* Toolbar Search */}
+      {/* Toolbar Search with Presets */}
       <Toolbar
         leftSlot={
-          <form onSubmit={handleSearch} className="flex items-center gap-2 w-full max-w-md">
-            <Input
-              placeholder="ระบุเลขอ้างอิง เช่น DOC-2026-0001..."
-              icon={Search}
-              value={documentRef}
-              onChange={(e) => setDocumentRef(e.target.value)}
-            />
-            <Button
-              variant="primary"
-              size="md"
-              type="submit"
-              loading={loading}
-              icon={Search}
-            >
-              ค้นหา
-            </Button>
-          </form>
+          <div className="flex items-center gap-3 flex-wrap w-full">
+            <form onSubmit={(e) => handleSearch(e)} className="flex items-center gap-2 w-full max-w-md">
+              <Input
+                placeholder="ระบุเลขอ้างอิง เช่น DOC-2026-0001..."
+                icon={Search}
+                value={documentRef}
+                onChange={(e) => setDocumentRef(e.target.value)}
+              />
+              <Button
+                variant="primary"
+                size="md"
+                type="submit"
+                loading={loading}
+                icon={Search}
+              >
+                ค้นหา
+              </Button>
+            </form>
+
+            <div className="flex items-center gap-1.5 text-xs">
+              <span className="text-textMuted text-[11px]">ตัวอย่างค้นหา:</span>
+              <button
+                type="button"
+                onClick={() => handleSearch(undefined, 'DOC-2026-0001')}
+                className="px-2 py-0.5 bg-surfaceSubtle hover:bg-slate-200 text-textSecondary text-[11px] font-mono rounded-xs border border-border transition-colors cursor-pointer"
+              >
+                DOC-2026-0001
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSearch(undefined, 'CONDO-2026-001')}
+                className="px-2 py-0.5 bg-surfaceSubtle hover:bg-slate-200 text-textSecondary text-[11px] font-mono rounded-xs border border-border transition-colors cursor-pointer"
+              >
+                CONDO-2026-001
+              </button>
+            </div>
+          </div>
         }
       />
 
@@ -150,6 +184,63 @@ export const AuditView: React.FC = () => {
           title="พร้อมค้นหาประวัติเอกสาร"
           description="กรอกเลขอ้างอิงเอกสาร (Document Ref) ด้านบน เพื่อดึงประวัติการแก้ไขและดาวน์โหลดไฟล์ย้อนหลัง"
         />
+      )}
+
+      {/* Inspection Modal */}
+      {inspectVersion && (
+        <Modal
+          isOpen={Boolean(inspectVersion)}
+          onClose={() => setInspectVersion(null)}
+          title={`รายละเอียดเอกสาร ${inspectVersion.documentRef} (v${inspectVersion.version})`}
+          maxWidth="lg"
+        >
+          <div className="space-y-4">
+            <div className="p-3 bg-surfaceSubtle border border-border rounded-sm flex items-center justify-between text-xs">
+              <div>
+                <span className="text-textMuted text-[11px] block">เวอร์ชันเอกสาร</span>
+                <span className="font-mono font-bold text-sky-800 text-sm">v{inspectVersion.version}</span>
+              </div>
+              <div className="text-right">
+                <span className="text-textMuted text-[11px] block">วัน-เวลาที่จัดทำ</span>
+                <span className="font-mono text-textPrimary text-xs">
+                  {new Date(inspectVersion.createdAt).toLocaleString('th-TH')}
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-textPrimary block">
+                บันทึกการแก้ไขทางกฎหมาย (Legal Revision Note):
+              </label>
+              <div className="p-3 bg-slate-50 border border-border rounded-sm text-xs text-textSecondary font-sans leading-relaxed">
+                {inspectVersion.changeNote || 'ไม่มีบันทึกรายละเอียดเพิ่มเติมในการสร้างเวอร์ชันนี้'}
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-textPrimary block">
+                รหัสอ้างอิงแม่แบบ (Template Version ID):
+              </label>
+              <p className="font-mono text-xs bg-surfaceSubtle p-2 rounded-sm border border-border text-textMuted select-all">
+                {inspectVersion.templateVersionId || '-'}
+              </p>
+            </div>
+
+            <div className="pt-3 border-t border-border flex items-center justify-between">
+              <Button variant="ghost" onClick={() => setInspectVersion(null)}>
+                ปิดหน้าต่าง
+              </Button>
+              <Button
+                variant="primary"
+                icon={Download}
+                loading={downloadingVersion === inspectVersion.version}
+                onClick={() => downloadVersion(inspectVersion.documentRef, inspectVersion.version)}
+              >
+                ดาวน์โหลดเอกสารต้นฉบับ
+              </Button>
+            </div>
+          </div>
+        </Modal>
       )}
 
     </div>

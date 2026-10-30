@@ -1,19 +1,16 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import {
   PanelLeftClose,
   PanelLeftOpen,
   ChevronLeft,
   ChevronRight,
   Home,
-  Key,
   Search,
   Bell,
   HelpCircle,
-  Check,
 } from 'lucide-react';
-import { useStoredApiKey } from '@/features/apikeys';
 
 export interface TopbarProps {
   isSidebarOpen: boolean;
@@ -30,9 +27,6 @@ export const Topbar: React.FC<TopbarProps> = ({
   onOpenSearch,
   activeViewTitle,
 }) => {
-  const { apiKey, saveApiKey } = useStoredApiKey();
-  const [keySaved, setKeySaved] = useState(false);
-
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
@@ -43,12 +37,6 @@ export const Topbar: React.FC<TopbarProps> = ({
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onOpenSearch]);
-
-  const handleKeySave = (val: string) => {
-    saveApiKey(val);
-    setKeySaved(true);
-    setTimeout(() => setKeySaved(false), 2000);
-  };
 
   return (
     <header className="h-12 bg-surface border-b border-border px-3 flex items-center justify-between shrink-0 select-none z-20">
@@ -108,18 +96,11 @@ export const Topbar: React.FC<TopbarProps> = ({
 
       {/* Right controls */}
       <div className="flex items-center gap-2">
-        {/* Quick API Key input */}
-        <div className="flex items-center gap-1 bg-surfaceSubtle border border-border rounded-sm px-2 py-0.5 text-xs">
-          <Key className="w-3.5 h-3.5 text-textMuted" />
-          <input
-            type="password"
-            value={apiKey}
-            onChange={(e) => handleKeySave(e.target.value)}
-            placeholder="X-API-Key..."
-            className="w-28 bg-transparent text-xs font-mono text-textPrimary outline-none placeholder:text-textMuted"
-            title="ใส่ API Key"
-          />
-          {keySaved && <Check className="w-3 h-3 text-emerald-600 animate-in zoom-in-50" />}
+        {/* Active Project Context */}
+        <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-sm bg-surfaceSubtle border border-border text-[11px] text-textSecondary select-none">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+          <span className="text-textMuted">Project:</span>
+          <span className="font-semibold text-textPrimary">Default Workspace</span>
         </div>
 
         {/* Quick search shortcut */}

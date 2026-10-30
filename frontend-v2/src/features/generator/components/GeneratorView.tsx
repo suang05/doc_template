@@ -113,7 +113,7 @@ export const GeneratorView: React.FC<GeneratorViewProps> = ({ initialSlug }) => 
   })();
 
   return (
-    <div className="flex flex-col h-[calc(100vh-8rem)] min-h-[600px] gap-4">
+    <div className="flex flex-col h-full w-full min-h-0 gap-3">
       {/* Top action bar */}
       <GeneratorActionBar
         generating={generating}

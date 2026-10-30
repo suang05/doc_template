@@ -174,7 +174,7 @@ export const TemplateStudioView: React.FC<TemplateStudioViewProps> = ({
   const currentVersion = versions.length > 0 ? Math.max(...versions.map((v) => v.version)) : 0;
 
   return (
-    <div className="flex flex-col h-[calc(100vh-6rem)] border border-border rounded-sm bg-surface overflow-hidden shadow-sm">
+    <div className="flex flex-col h-full w-full min-h-0 border border-border rounded-sm bg-surface overflow-hidden shadow-sm">
       {/* Studio Header Bar */}
       <StudioHeader
         templateName={template?.name}

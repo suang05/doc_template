@@ -26,6 +26,11 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
   const { isAuthenticated } = useAuthContext();
   const missingKey = !isAuthenticated && !hasApiKey && !bannerDismissed;
 
+  const isFixedViewport =
+    pathname.startsWith('/studio') ||
+    pathname.startsWith('/generator') ||
+    pathname.startsWith('/mapping');
+
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-canvas font-sans antialiased text-textPrimary">
       {/* Sidebar */}
@@ -69,10 +74,16 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
           </div>
         )}
 
-        {/* Scrollable View Canvas */}
-        <main className="flex-1 overflow-y-auto p-4 md:p-6 bg-canvas">
-          <div className="max-w-7xl mx-auto w-full">{children}</div>
-        </main>
+        {/* View Canvas: Fixed viewport for Studio/Generator/Mapping, Contained scroll for others */}
+        {isFixedViewport ? (
+          <main className="flex-1 overflow-hidden p-2 md:p-3 bg-canvas flex flex-col min-h-0">
+            {children}
+          </main>
+        ) : (
+          <main className="flex-1 overflow-y-auto p-4 md:p-6 bg-canvas">
+            <div className="max-w-7xl mx-auto w-full">{children}</div>
+          </main>
+        )}
       </div>
 
       {/* Command Palette Modal (Ctrl+K) */}

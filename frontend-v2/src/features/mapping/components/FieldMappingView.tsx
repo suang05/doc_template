@@ -61,7 +61,7 @@ export const FieldMappingView: React.FC<FieldMappingViewProps> = ({ initialTempl
   };
 
   return (
-    <div className="space-y-0">
+    <div className="flex flex-col h-full w-full min-h-0">
       {/* ── Toolbar ── */}
       <div className="bg-surface border border-border rounded-sm mb-3 p-3 flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-2.5 flex-wrap">
@@ -167,10 +167,10 @@ export const FieldMappingView: React.FC<FieldMappingViewProps> = ({ initialTempl
       )}
 
       {/* ── Main: table + preview panel ── */}
-      <div className="flex border border-border rounded-sm bg-surface overflow-hidden">
+      <div className="flex-1 flex border border-border rounded-sm bg-surface overflow-hidden min-h-0">
 
         {/* Table panel */}
-        <div className="flex-1 min-w-0 flex flex-col">
+        <div className="flex-1 min-w-0 flex flex-col min-h-0">
           {mapping.loading ? (
             <div className="py-16 flex items-center justify-center gap-2 text-xs text-textMuted">
               <RefreshCw className="w-4 h-4 animate-spin" />
@@ -187,7 +187,7 @@ export const FieldMappingView: React.FC<FieldMappingViewProps> = ({ initialTempl
             </div>
           ) : (
             <>
-              <div className="overflow-x-auto">
+              <div className="flex-1 overflow-auto">
                 <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={mapping.handleDragEnd}>
                   <SortableContext items={mapping.rows.map(r => r._id)} strategy={verticalListSortingStrategy}>
                     <table className="w-full text-left border-collapse" style={{ minWidth: 860 }}>
