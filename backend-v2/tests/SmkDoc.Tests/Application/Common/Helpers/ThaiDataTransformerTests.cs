@@ -1,4 +1,4 @@
-﻿using SmkDoc.Application.Common.Helpers;
+using SmkDoc.Application.Common.Helpers;
 
 namespace SmkDoc.Tests.Application.Common.Helpers;
 
@@ -20,11 +20,24 @@ public sealed class ThaiDataTransformerTests
 
     [Theory]
     [InlineData("2026-09-15", "15 กันยายน 2569")]
+    [InlineData("2567-02-29", "29 กุมภาพันธ์ 2567")]
+    [InlineData("29/02/2567", "29 กุมภาพันธ์ 2567")]
+    [InlineData("29/02/2568", "29/02/2568")]
     [InlineData("invalid-date", "invalid-date")]
     [InlineData("", "")]
     public void FormatThaiDate_WhenGivenDateString_FormatsOrReturnsOriginal(string input, string expected)
     {
         var result = ThaiDataTransformer.FormatThaiDate(input);
+
+        result.Should().Be(expected);
+    }
+
+    [Theory]
+    [InlineData("2567-02-29T14:30:00", "29 กุมภาพันธ์ 2567 14:30 น.")]
+    [InlineData("29/02/2567 09:05", "29 กุมภาพันธ์ 2567 09:05 น.")]
+    public void FormatThaiDateTime_WhenGivenBuddhistEraLeapYearDateTime_FormatsAccurately(string input, string expected)
+    {
+        var result = ThaiDataTransformer.FormatThaiDateTime(input);
 
         result.Should().Be(expected);
     }

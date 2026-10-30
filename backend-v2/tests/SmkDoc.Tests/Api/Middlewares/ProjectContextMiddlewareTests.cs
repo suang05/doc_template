@@ -61,16 +61,34 @@ public sealed class ProjectContextMiddlewareTests
             _configuration);
     }
 
-    private static (DefaultHttpContext context, CurrentProjectContext projectContext, ExecutionContextImpl executionContext) CreateContexts(string path)
+    private static (DefaultHttpContext context, CurrentProjectContext projectContext) CreateContexts(string path, string method = "GET")
     {
         var httpContext = new DefaultHttpContext();
+        httpContext.Request.Method = method;
         httpContext.Request.Path = path;
         httpContext.Response.Body = new MemoryStream();
 
         var projectContext = new CurrentProjectContext();
-        var executionContext = new ExecutionContextImpl(projectContext);
 
-        return (httpContext, projectContext, executionContext);
+        return (httpContext, projectContext);
+    }
+
+    private static ApiKey CreateHydratedApiKey(
+        ProjectId projectId,
+        Sha256Hash hash,
+        ApiKeyScope scope,
+        string callerApp = "crm-system",
+        ApiKeyId? id = null)
+    {
+        var apiKey = (ApiKey)Activator.CreateInstance(typeof(ApiKey), nonPublic: true)!;
+        typeof(ApiKey).GetProperty(nameof(ApiKey.Id))!.SetValue(apiKey, id ?? ApiKeyId.New());
+        typeof(ApiKey).GetProperty(nameof(ApiKey.ProjectId))!.SetValue(apiKey, projectId);
+        typeof(ApiKey).GetProperty(nameof(ApiKey.CallerApp))!.SetValue(apiKey, callerApp);
+        typeof(ApiKey).GetProperty(nameof(ApiKey.Scope))!.SetValue(apiKey, scope);
+        typeof(ApiKey).GetProperty(nameof(ApiKey.IsActive))!.SetValue(apiKey, true);
+        typeof(ApiKey).GetProperty(nameof(ApiKey.Expiration))!.SetValue(apiKey, ExpirationPolicy.Never);
+        typeof(ApiKey).GetProperty(nameof(ApiKey.KeyHash))!.SetValue(apiKey, hash);
+        return apiKey;
     }
 
     [Theory]
@@ -84,12 +102,11 @@ public sealed class ProjectContextMiddlewareTests
     [InlineData("/api/v1/auth/login")]
     [InlineData("/api/v1/auth/refresh")]
     [InlineData("/api/v1/schemas/validate")]
-    [InlineData("/api/documents/preview")]
     public async Task InvokeAsync_WhitelistedPath_BypassesResolutionAndCallsNext(string path)
     {
         // Arrange
         var sut = CreateSut();
-        var (httpContext, projectContext, executionContext) = CreateContexts(path);
+        var (httpContext, projectContext) = CreateContexts(path);
 
         // Act
         await sut.InvokeAsync(
@@ -97,8 +114,7 @@ public sealed class ProjectContextMiddlewareTests
             projectContext,
             _validateApiKeyUseCase,
             _userProjectRoleRepo,
-            _projectRepo,
-            executionContext);
+            _projectRepo);
 
         // Assert
         await _next.Received(1).Invoke(httpContext);
@@ -106,26 +122,44 @@ public sealed class ProjectContextMiddlewareTests
         httpContext.Response.StatusCode.Should().Be(StatusCodes.Status200OK);
     }
 
-    [Fact]
-    public async Task InvokeAsync_ValidApiKey_ResolvesProjectAndCallsNext()
+    [Theory]
+    [InlineData("/api/documents/preview")]
+    [InlineData("/api/v1/documents/preview")]
+    public async Task InvokeAsync_UnauthenticatedDocumentPreview_Returns401Unauthorized(string path)
     {
         // Arrange
         var sut = CreateSut();
-        var (httpContext, projectContext, executionContext) = CreateContexts("/api/v1/templates");
+        var (httpContext, projectContext) = CreateContexts(path, "POST");
+
+        // Act
+        await sut.InvokeAsync(
+            httpContext,
+            projectContext,
+            _validateApiKeyUseCase,
+            _userProjectRoleRepo,
+            _projectRepo);
+
+        // Assert
+        await _next.DidNotReceive().Invoke(httpContext);
+        projectContext.IsResolved.Should().BeFalse();
+        httpContext.Response.StatusCode.Should().Be(StatusCodes.Status401Unauthorized);
+        httpContext.Response.ContentType.Should().StartWith("application/problem+json");
+    }
+
+    [Fact]
+    public async Task InvokeAsync_ValidApiKey_ResolvesProjectAndHydratesApiKeyActor()
+    {
+        // Arrange
+        var sut = CreateSut();
+        var (httpContext, projectContext) = CreateContexts("/api/v1/templates");
 
         string rawKey = "valid-raw-key";
         httpContext.Request.Headers["X-API-Key"] = rawKey;
 
         var targetProjectId = ProjectId.New();
+        var apiKeyId = ApiKeyId.New();
         var hash = new Sha256Hash(ApiKeyHelper.ComputeHash(rawKey));
-
-        var apiKey = (ApiKey)Activator.CreateInstance(typeof(ApiKey), nonPublic: true)!;
-        typeof(ApiKey).GetProperty(nameof(ApiKey.ProjectId))!.SetValue(apiKey, targetProjectId);
-        typeof(ApiKey).GetProperty(nameof(ApiKey.CallerApp))!.SetValue(apiKey, "crm-system");
-        typeof(ApiKey).GetProperty(nameof(ApiKey.Scope))!.SetValue(apiKey, ApiKeyScope.ReadWrite);
-        typeof(ApiKey).GetProperty(nameof(ApiKey.IsActive))!.SetValue(apiKey, true);
-        typeof(ApiKey).GetProperty(nameof(ApiKey.Expiration))!.SetValue(apiKey, ExpirationPolicy.Never);
-        typeof(ApiKey).GetProperty(nameof(ApiKey.KeyHash))!.SetValue(apiKey, hash);
+        var apiKey = CreateHydratedApiKey(targetProjectId, hash, ApiKeyScope.ReadWrite, "crm-system", apiKeyId);
 
         _apiKeyRepo.GetByKeyHashAsync(hash, Arg.Any<CancellationToken>())
             .Returns(apiKey);
@@ -136,16 +170,82 @@ public sealed class ProjectContextMiddlewareTests
             projectContext,
             _validateApiKeyUseCase,
             _userProjectRoleRepo,
-            _projectRepo,
-            executionContext);
+            _projectRepo);
 
         // Assert
         await _next.Received(1).Invoke(httpContext);
         projectContext.IsResolved.Should().BeTrue();
         projectContext.ProjectId.Should().Be(targetProjectId);
-        executionContext.ProjectId.Should().Be(targetProjectId.Value);
-        executionContext.CallerApp.Should().Be("crm-system");
-        executionContext.Scope.Should().Be(ApiKeyScope.ReadWrite);
+        projectContext.ApiKeyId.Should().Be(apiKeyId);
+        projectContext.CallerIdentity.Should().Be("crm-system");
+        projectContext.UserId.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task InvokeAsync_ReadOnlyApiKey_OnMutatingEndpoint_Returns403Forbidden()
+    {
+        // Arrange
+        var sut = CreateSut();
+        var (httpContext, projectContext) = CreateContexts("/api/v1/documents/generate/invoice", "POST");
+
+        string rawKey = "readonly-raw-key";
+        httpContext.Request.Headers["X-API-Key"] = rawKey;
+
+        var targetProjectId = ProjectId.New();
+        var hash = new Sha256Hash(ApiKeyHelper.ComputeHash(rawKey));
+        var apiKey = CreateHydratedApiKey(targetProjectId, hash, ApiKeyScope.ReadOnly, "reporting-bot");
+
+        _apiKeyRepo.GetByKeyHashAsync(hash, Arg.Any<CancellationToken>())
+            .Returns(apiKey);
+
+        // Act
+        await sut.InvokeAsync(
+            httpContext,
+            projectContext,
+            _validateApiKeyUseCase,
+            _userProjectRoleRepo,
+            _projectRepo);
+
+        // Assert
+        await _next.DidNotReceive().Invoke(httpContext);
+        projectContext.IsResolved.Should().BeFalse();
+        httpContext.Response.StatusCode.Should().Be(StatusCodes.Status403Forbidden);
+        httpContext.Response.ContentType.Should().StartWith("application/problem+json");
+    }
+
+    [Theory]
+    [InlineData("GET", "/api/v1/templates")]
+    [InlineData("POST", "/api/v1/documents/preview")]
+    [InlineData("POST", "/api/v1/templates/validate")]
+    public async Task InvokeAsync_ReadOnlyApiKey_OnReadOrStatelessEndpoint_ResolvesProjectAndCallsNext(string method, string path)
+    {
+        // Arrange
+        var sut = CreateSut();
+        var (httpContext, projectContext) = CreateContexts(path, method);
+
+        string rawKey = "readonly-raw-key";
+        httpContext.Request.Headers["X-API-Key"] = rawKey;
+
+        var targetProjectId = ProjectId.New();
+        var hash = new Sha256Hash(ApiKeyHelper.ComputeHash(rawKey));
+        var apiKey = CreateHydratedApiKey(targetProjectId, hash, ApiKeyScope.ReadOnly, "reporting-bot");
+
+        _apiKeyRepo.GetByKeyHashAsync(hash, Arg.Any<CancellationToken>())
+            .Returns(apiKey);
+
+        // Act
+        await sut.InvokeAsync(
+            httpContext,
+            projectContext,
+            _validateApiKeyUseCase,
+            _userProjectRoleRepo,
+            _projectRepo);
+
+        // Assert
+        await _next.Received(1).Invoke(httpContext);
+        projectContext.IsResolved.Should().BeTrue();
+        projectContext.ProjectId.Should().Be(targetProjectId);
+        projectContext.CallerIdentity.Should().Be("reporting-bot");
     }
 
     [Fact]
@@ -153,7 +253,7 @@ public sealed class ProjectContextMiddlewareTests
     {
         // Arrange
         var sut = CreateSut();
-        var (httpContext, projectContext, executionContext) = CreateContexts("/api/v1/templates");
+        var (httpContext, projectContext) = CreateContexts("/api/v1/templates");
 
         httpContext.Request.Headers["X-API-Key"] = "invalid-key";
 
@@ -166,8 +266,7 @@ public sealed class ProjectContextMiddlewareTests
             projectContext,
             _validateApiKeyUseCase,
             _userProjectRoleRepo,
-            _projectRepo,
-            executionContext);
+            _projectRepo);
 
         // Assert
         await _next.DidNotReceive().Invoke(httpContext);
@@ -181,7 +280,7 @@ public sealed class ProjectContextMiddlewareTests
     {
         // Arrange
         var sut = CreateSut();
-        var (httpContext, projectContext, executionContext) = CreateContexts("/api/v1/templates");
+        var (httpContext, projectContext) = CreateContexts("/api/v1/templates");
 
         var targetProjectId = ProjectId.New();
         httpContext.Request.Headers["X-API-Key"] = "master-secret-key";
@@ -193,14 +292,13 @@ public sealed class ProjectContextMiddlewareTests
             projectContext,
             _validateApiKeyUseCase,
             _userProjectRoleRepo,
-            _projectRepo,
-            executionContext);
+            _projectRepo);
 
         // Assert
         await _next.Received(1).Invoke(httpContext);
         projectContext.IsResolved.Should().BeTrue();
         projectContext.ProjectId.Should().Be(targetProjectId);
-        executionContext.CallerApp.Should().Be("master");
+        projectContext.CallerIdentity.Should().Be("master");
     }
 
     [Fact]
@@ -208,7 +306,7 @@ public sealed class ProjectContextMiddlewareTests
     {
         // Arrange
         var sut = CreateSut();
-        var (httpContext, projectContext, executionContext) = CreateContexts("/api/v1/templates");
+        var (httpContext, projectContext) = CreateContexts("/api/v1/templates");
 
         var userId = Guid.NewGuid();
         var targetProjectId = ProjectId.New();
@@ -231,16 +329,15 @@ public sealed class ProjectContextMiddlewareTests
             projectContext,
             _validateApiKeyUseCase,
             _userProjectRoleRepo,
-            _projectRepo,
-            executionContext);
+            _projectRepo);
 
         // Assert
         await _next.Received(1).Invoke(httpContext);
         projectContext.IsResolved.Should().BeTrue();
         projectContext.ProjectId.Should().Be(targetProjectId);
-        executionContext.UserId.Should().Be(userId);
-        executionContext.ProjectId.Should().Be(targetProjectId.Value);
-        executionContext.CallerApp.Should().Be("portal");
+        projectContext.UserId.Should().Be(new UserId(userId));
+        projectContext.SystemRole.Should().Be(SystemRole.Member);
+        projectContext.CallerIdentity.Should().Be($"User:{userId:N}");
     }
 
     [Fact]
@@ -248,7 +345,7 @@ public sealed class ProjectContextMiddlewareTests
     {
         // Arrange: IDOR Defense Test
         var sut = CreateSut();
-        var (httpContext, projectContext, executionContext) = CreateContexts("/api/v1/templates");
+        var (httpContext, projectContext) = CreateContexts("/api/v1/templates");
 
         var userId = Guid.NewGuid();
         var unauthorizedProjectId = ProjectId.New();
@@ -261,7 +358,6 @@ public sealed class ProjectContextMiddlewareTests
         httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(claims, "Bearer"));
         httpContext.Request.Headers["X-Project-Id"] = unauthorizedProjectId.ToString();
 
-        // User does NOT hold membership in target project
         _userProjectRoleRepo.GetAsync(unauthorizedProjectId, new UserId(userId), Arg.Any<CancellationToken>())
             .Returns((UserProjectRole?)null);
 
@@ -271,8 +367,7 @@ public sealed class ProjectContextMiddlewareTests
             projectContext,
             _validateApiKeyUseCase,
             _userProjectRoleRepo,
-            _projectRepo,
-            executionContext);
+            _projectRepo);
 
         // Assert
         await _next.DidNotReceive().Invoke(httpContext);
@@ -286,7 +381,7 @@ public sealed class ProjectContextMiddlewareTests
     {
         // Arrange
         var sut = CreateSut();
-        var (httpContext, projectContext, executionContext) = CreateContexts("/api/v1/templates");
+        var (httpContext, projectContext) = CreateContexts("/api/v1/templates");
 
         var userId = Guid.NewGuid();
         var targetProjectId = ProjectId.New();
@@ -305,14 +400,46 @@ public sealed class ProjectContextMiddlewareTests
             projectContext,
             _validateApiKeyUseCase,
             _userProjectRoleRepo,
-            _projectRepo,
-            executionContext);
+            _projectRepo);
 
         // Assert
         await _next.Received(1).Invoke(httpContext);
         projectContext.IsResolved.Should().BeTrue();
         projectContext.ProjectId.Should().Be(targetProjectId);
+        projectContext.SystemRole.Should().Be(SystemRole.SuperAdmin);
         await _userProjectRoleRepo.DidNotReceive().GetAsync(Arg.Any<ProjectId>(), Arg.Any<UserId>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task InvokeAsync_SuperAdminWithoutTargetProjectId_HydratesGlobalRoleClaimsOnGlobalRoute()
+    {
+        // Arrange: SuperAdmin calling POST /api/v1/management/projects without X-Project-Id
+        var sut = CreateSut();
+        var (httpContext, projectContext) = CreateContexts("/api/v1/management/projects", "POST");
+
+        var userId = Guid.NewGuid();
+        var claims = new[]
+        {
+            new Claim(ClaimTypes.NameIdentifier, userId.ToString()),
+            new Claim("SystemRole", "SuperAdmin")
+        };
+        httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(claims, "Bearer"));
+
+        // Act
+        await sut.InvokeAsync(
+            httpContext,
+            projectContext,
+            _validateApiKeyUseCase,
+            _userProjectRoleRepo,
+            _projectRepo);
+
+        // Assert
+        await _next.Received(1).Invoke(httpContext);
+        projectContext.IsResolved.Should().BeFalse();
+        projectContext.UserId.Should().Be(new UserId(userId));
+        projectContext.SystemRole.Should().Be(SystemRole.SuperAdmin);
+        httpContext.User.IsInRole(RoleConstants.SuperAdmin).Should().BeTrue();
+        httpContext.User.IsInRole(RoleConstants.Admin).Should().BeTrue();
     }
 
     [Fact]
@@ -320,7 +447,7 @@ public sealed class ProjectContextMiddlewareTests
     {
         // Arrange: User calling general endpoint like /api/v1/projects without project selection
         var sut = CreateSut();
-        var (httpContext, projectContext, executionContext) = CreateContexts("/api/v1/projects");
+        var (httpContext, projectContext) = CreateContexts("/api/v1/projects");
 
         var userId = Guid.NewGuid();
         var claims = new[]
@@ -336,13 +463,12 @@ public sealed class ProjectContextMiddlewareTests
             projectContext,
             _validateApiKeyUseCase,
             _userProjectRoleRepo,
-            _projectRepo,
-            executionContext);
+            _projectRepo);
 
         // Assert
         await _next.Received(1).Invoke(httpContext);
         projectContext.IsResolved.Should().BeFalse();
-        executionContext.UserId.Should().Be(userId);
+        projectContext.UserId.Should().Be(new UserId(userId));
     }
 
     [Fact]
@@ -350,7 +476,7 @@ public sealed class ProjectContextMiddlewareTests
     {
         // Arrange
         var sut = CreateSut();
-        var (httpContext, projectContext, executionContext) = CreateContexts("/api/v1/templates");
+        var (httpContext, projectContext) = CreateContexts("/api/v1/templates");
 
         // Act
         await sut.InvokeAsync(
@@ -358,8 +484,7 @@ public sealed class ProjectContextMiddlewareTests
             projectContext,
             _validateApiKeyUseCase,
             _userProjectRoleRepo,
-            _projectRepo,
-            executionContext);
+            _projectRepo);
 
         // Assert
         await _next.DidNotReceive().Invoke(httpContext);
@@ -373,7 +498,7 @@ public sealed class ProjectContextMiddlewareTests
     {
         // Arrange
         var sut = CreateSut();
-        var (httpContext, projectContext, executionContext) = CreateContexts("/api/v1/templates");
+        var (httpContext, projectContext) = CreateContexts("/api/v1/templates");
 
         var userId = Guid.NewGuid();
         var targetProjectId = ProjectId.New();
@@ -393,15 +518,15 @@ public sealed class ProjectContextMiddlewareTests
             projectContext,
             _validateApiKeyUseCase,
             _userProjectRoleRepo,
-            _projectRepo,
-            executionContext);
+            _projectRepo);
 
         // Assert
         await _next.Received(1).Invoke(httpContext);
         projectContext.IsResolved.Should().BeTrue();
         projectContext.ProjectId.Should().Be(targetProjectId);
-        executionContext.CallerApp.Should().Be("portal");
-        executionContext.UserId.Should().Be(userId);
+        projectContext.CallerIdentity.Should().Be($"User:{userId:N}");
+        projectContext.UserId.Should().Be(new UserId(userId));
+        projectContext.ApiKeyId.Should().BeNull();
         await _apiKeyRepo.DidNotReceive().GetByKeyHashAsync(Arg.Any<Sha256Hash>(), Arg.Any<CancellationToken>());
     }
 
@@ -410,7 +535,7 @@ public sealed class ProjectContextMiddlewareTests
     {
         // Arrange
         var sut = CreateSut();
-        var (httpContext, projectContext, executionContext) = CreateContexts("/api/v1/templates");
+        var (httpContext, projectContext) = CreateContexts("/api/v1/templates");
 
         string rawKey = "valid-raw-key";
         httpContext.Request.Headers["X-API-Key"] = rawKey;
@@ -420,14 +545,7 @@ public sealed class ProjectContextMiddlewareTests
         httpContext.Request.Headers["X-Project-Id"] = spoofedProjectId.ToString();
 
         var hash = new Sha256Hash(ApiKeyHelper.ComputeHash(rawKey));
-
-        var apiKey = (ApiKey)Activator.CreateInstance(typeof(ApiKey), nonPublic: true)!;
-        typeof(ApiKey).GetProperty(nameof(ApiKey.ProjectId))!.SetValue(apiKey, keyProjectId);
-        typeof(ApiKey).GetProperty(nameof(ApiKey.CallerApp))!.SetValue(apiKey, "crm-system");
-        typeof(ApiKey).GetProperty(nameof(ApiKey.Scope))!.SetValue(apiKey, ApiKeyScope.ReadWrite);
-        typeof(ApiKey).GetProperty(nameof(ApiKey.IsActive))!.SetValue(apiKey, true);
-        typeof(ApiKey).GetProperty(nameof(ApiKey.Expiration))!.SetValue(apiKey, ExpirationPolicy.Never);
-        typeof(ApiKey).GetProperty(nameof(ApiKey.KeyHash))!.SetValue(apiKey, hash);
+        var apiKey = CreateHydratedApiKey(keyProjectId, hash, ApiKeyScope.ReadWrite, "crm-system");
 
         _apiKeyRepo.GetByKeyHashAsync(hash, Arg.Any<CancellationToken>())
             .Returns(apiKey);
@@ -438,8 +556,7 @@ public sealed class ProjectContextMiddlewareTests
             projectContext,
             _validateApiKeyUseCase,
             _userProjectRoleRepo,
-            _projectRepo,
-            executionContext);
+            _projectRepo);
 
         // Assert
         await _next.DidNotReceive().Invoke(httpContext);
@@ -453,7 +570,7 @@ public sealed class ProjectContextMiddlewareTests
     {
         // Arrange
         var sut = CreateSut();
-        var (httpContext, projectContext, executionContext) = CreateContexts("/api/v1/templates");
+        var (httpContext, projectContext) = CreateContexts("/api/v1/templates");
 
         var userId = Guid.NewGuid();
         var deactivatedProjectId = ProjectId.New();
@@ -482,8 +599,7 @@ public sealed class ProjectContextMiddlewareTests
             projectContext,
             _validateApiKeyUseCase,
             _userProjectRoleRepo,
-            _projectRepo,
-            executionContext);
+            _projectRepo);
 
         // Assert
         await _next.DidNotReceive().Invoke(httpContext);
@@ -497,21 +613,14 @@ public sealed class ProjectContextMiddlewareTests
     {
         // Arrange
         var sut = CreateSut();
-        var (httpContext, projectContext, executionContext) = CreateContexts("/api/v1/templates");
+        var (httpContext, projectContext) = CreateContexts("/api/v1/templates");
 
         string rawKey = "deactivated-raw-key";
         httpContext.Request.Headers["X-API-Key"] = rawKey;
 
         var targetProjectId = ProjectId.New();
         var hash = new Sha256Hash(ApiKeyHelper.ComputeHash(rawKey));
-
-        var apiKey = (ApiKey)Activator.CreateInstance(typeof(ApiKey), nonPublic: true)!;
-        typeof(ApiKey).GetProperty(nameof(ApiKey.ProjectId))!.SetValue(apiKey, targetProjectId);
-        typeof(ApiKey).GetProperty(nameof(ApiKey.CallerApp))!.SetValue(apiKey, "crm-system");
-        typeof(ApiKey).GetProperty(nameof(ApiKey.Scope))!.SetValue(apiKey, ApiKeyScope.ReadWrite);
-        typeof(ApiKey).GetProperty(nameof(ApiKey.IsActive))!.SetValue(apiKey, true);
-        typeof(ApiKey).GetProperty(nameof(ApiKey.Expiration))!.SetValue(apiKey, ExpirationPolicy.Never);
-        typeof(ApiKey).GetProperty(nameof(ApiKey.KeyHash))!.SetValue(apiKey, hash);
+        var apiKey = CreateHydratedApiKey(targetProjectId, hash, ApiKeyScope.ReadWrite, "crm-system");
 
         _apiKeyRepo.GetByKeyHashAsync(hash, Arg.Any<CancellationToken>())
             .Returns(apiKey);
@@ -532,8 +641,7 @@ public sealed class ProjectContextMiddlewareTests
             projectContext,
             _validateApiKeyUseCase,
             _userProjectRoleRepo,
-            _projectRepo,
-            executionContext);
+            _projectRepo);
 
         // Assert
         await _next.DidNotReceive().Invoke(httpContext);
@@ -547,7 +655,7 @@ public sealed class ProjectContextMiddlewareTests
     {
         // Arrange
         var sut = CreateSut();
-        var (httpContext, projectContext, executionContext) = CreateContexts("/api/v1/management/projects/users");
+        var (httpContext, projectContext) = CreateContexts("/api/v1/management/projects/users");
 
         var userId = Guid.NewGuid();
         var targetProjectId = ProjectId.New();
@@ -579,15 +687,13 @@ public sealed class ProjectContextMiddlewareTests
             projectContext,
             _validateApiKeyUseCase,
             _userProjectRoleRepo,
-            _projectRepo,
-            executionContext);
+            _projectRepo);
 
         // Assert
         await _next.Received(1).Invoke(httpContext);
         projectContext.IsResolved.Should().BeTrue();
         projectContext.ProjectId.Should().Be(targetProjectId);
-        executionContext.UserId.Should().Be(userId);
-        executionContext.ProjectId.Should().Be(targetProjectId.Value);
+        projectContext.UserId.Should().Be(new UserId(userId));
         httpContext.User.IsInRole("Admin").Should().BeTrue();
     }
 
@@ -596,7 +702,7 @@ public sealed class ProjectContextMiddlewareTests
     {
         // Arrange
         var sut = CreateSut();
-        var (httpContext, projectContext, executionContext) = CreateContexts("/api/v1/management/projects/users");
+        var (httpContext, projectContext) = CreateContexts("/api/v1/management/projects/users");
 
         var userId = Guid.NewGuid();
         var routeProjectId = Guid.NewGuid();
@@ -617,8 +723,7 @@ public sealed class ProjectContextMiddlewareTests
             projectContext,
             _validateApiKeyUseCase,
             _userProjectRoleRepo,
-            _projectRepo,
-            executionContext);
+            _projectRepo);
 
         // Assert
         await _next.DidNotReceive().Invoke(httpContext);
@@ -632,7 +737,7 @@ public sealed class ProjectContextMiddlewareTests
     {
         // Arrange
         var sut = CreateSut();
-        var (httpContext, projectContext, executionContext) = CreateContexts("/api/v1/management/projects/users");
+        var (httpContext, projectContext) = CreateContexts("/api/v1/management/projects/users");
 
         var userId = Guid.NewGuid();
         var targetProjectId = ProjectId.New();
@@ -661,8 +766,7 @@ public sealed class ProjectContextMiddlewareTests
             projectContext,
             _validateApiKeyUseCase,
             _userProjectRoleRepo,
-            _projectRepo,
-            executionContext);
+            _projectRepo);
 
         // Assert
         await _next.Received(1).Invoke(httpContext);
@@ -678,7 +782,7 @@ public sealed class ProjectContextMiddlewareTests
         // Arrange
         var sut = CreateSut();
         var targetProjectId = ProjectId.New();
-        var (httpContext, projectContext, executionContext) = CreateContexts($"/api/v1/management/projects/{targetProjectId.Value}/users");
+        var (httpContext, projectContext) = CreateContexts($"/api/v1/management/projects/{targetProjectId.Value}/users");
 
         var userId = Guid.NewGuid();
         var claims = new List<Claim>
@@ -707,8 +811,7 @@ public sealed class ProjectContextMiddlewareTests
             projectContext,
             _validateApiKeyUseCase,
             _userProjectRoleRepo,
-            _projectRepo,
-            executionContext);
+            _projectRepo);
 
         // Assert
         await _next.Received(1).Invoke(httpContext);

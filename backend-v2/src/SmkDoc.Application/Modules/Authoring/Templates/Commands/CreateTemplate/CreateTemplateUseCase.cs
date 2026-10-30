@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text;
 using FluentValidation;
 using SmkDoc.Application.Common;
@@ -9,7 +10,6 @@ using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
-using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Modules.Authoring.Templates.Commands.CreateTemplate;
 
@@ -22,12 +22,11 @@ public sealed class CreateTemplateUseCase(
     IStorageService storageService,
     IDocxSecurityScanner securityScanner,
     ICurrentProjectContext projectContext,
-    IExecutionContext executionContext,
     IUnitOfWork unitOfWork,
     IValidator<CreateTemplateCommand> validator,
     TimeProvider? timeProvider = null) : IUseCase<CreateTemplateCommand, TemplateResultDto>
 {
-    private readonly TimeProvider timeProvider = timeProvider ?? TimeProvider.System;
+    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
 
     public async Task<TemplateResultDto> ExecuteAsync(CreateTemplateCommand command, CancellationToken ct = default)
     {
@@ -38,96 +37,118 @@ public sealed class CreateTemplateUseCase(
             throw new ValidationException(validationResult.ToDictionary());
         }
 
-        Guid effectiveProjectId;
-        if (projectContext.IsResolved)
+        if (!projectContext.IsResolved)
         {
-            if (command.ProjectId != Guid.Empty && command.ProjectId != projectContext.ProjectId.Value)
-            {
-                throw new ForbiddenException($"Cross-tenant template creation rejected: Payload ProjectId '{command.ProjectId}' does not match active context '{projectContext.ProjectId.Value}'.");
-            }
-
-            effectiveProjectId = projectContext.ProjectId.Value;
-        }
-        else if (command.ProjectId != Guid.Empty)
-        {
-            effectiveProjectId = command.ProjectId;
-        }
-        else
-        {
-            throw new BusinessRuleViolationException("Creating a template requires an active project context.", "MISSING_PROJECT_CONTEXT");
+            throw new ForbiddenException("Creating a template requires an active project context.");
         }
 
-        // 2. Domain Rule Check (Slug uniqueness)
+        // 2. Domain Rule Check (Slug uniqueness within active tenant)
         var slugExists = await templateRepo.SlugExistsAsync(command.Slug, ct);
         if (slugExists)
         {
             throw ConflictException.DuplicateSlug(command.Slug);
         }
 
+        // 3. Domain Aggregate Instantiation (provides canonical TemplateId for immutable object storage key)
+        var now = _timeProvider.GetUtcNow();
+        var template = Template.Create(
+            projectContext.ProjectId,
+            TemplateName.Create(command.Name),
+            TemplateSlug.Create(command.Slug),
+            command.Category?.Trim(),
+            now);
+
         string storageKey;
         TemplateFormat fileFormat;
 
-        // 3. Asset Storage & Security scanning
+        // 4. Asset Security Scanning & Immutable Storage Upload
         if (command.FileStream != null && !string.IsNullOrWhiteSpace(command.FileName))
         {
             string ext = Path.GetExtension(command.FileName).ToLowerInvariant();
+            if (string.IsNullOrWhiteSpace(ext))
+            {
+                ext = ".html";
+            }
+
+            fileFormat = ext switch
+            {
+                ".docx" => TemplateFormat.Docx,
+                ".xlsx" => TemplateFormat.Xlsx,
+                _ => TemplateFormat.Html
+            };
+
+            storageKey = StorageBuckets.TemplateVersionKey(template.ProjectId, template.Id, 1, ext);
 
             if (ext == ".docx")
             {
                 using var scanCopy = new MemoryStream();
                 await command.FileStream.CopyToAsync(scanCopy, ct);
                 scanCopy.Position = 0;
-                command.FileStream.Position = 0;
 
                 var scanResult = securityScanner.Scan(scanCopy);
-                if (!scanResult.IsSafe)
+                if (scanResult is { IsSafe: false })
                 {
                     throw new DomainValidationException(
                         $"DOCX file failed security scan: {string.Join("; ", scanResult.Threats)}");
                 }
-            }
 
-            storageKey = $"templates/{effectiveProjectId}/{command.Slug}{ext}";
-            fileFormat = ext switch
+                scanCopy.Position = 0;
+                await storageService.UploadAsync(StorageBuckets.Templates, storageKey, scanCopy, fileFormat.MimeType, ct);
+            }
+            else
             {
-                ".docx" => TemplateFormat.Docx,
-                ".xlsx" => TemplateFormat.Xlsx,
-                _       => TemplateFormat.Html
-            };
-            string contentType = fileFormat.MimeType;
-            await storageService.UploadAsync(StorageBuckets.Templates, storageKey, command.FileStream, contentType, ct);
+                if (command.FileStream.CanSeek)
+                {
+                    command.FileStream.Position = 0;
+                }
+
+                await storageService.UploadAsync(StorageBuckets.Templates, storageKey, command.FileStream, fileFormat.MimeType, ct);
+            }
         }
         else
         {
-            storageKey = $"templates/{effectiveProjectId}/{command.Slug}.html";
             fileFormat = TemplateFormat.Html;
-            string defaultHtml = "<!DOCTYPE html>\n<html lang=\"th\">\n<head>\n  <meta charset=\"UTF-8\" />\n</head>\n<body>\n  <h2>Template</h2>\n</body>\n</html>";
+            storageKey = StorageBuckets.TemplateVersionKey(template.ProjectId, template.Id, 1, ".html");
+            const string defaultHtml = "<!DOCTYPE html>\n<html lang=\"th\">\n<head>\n  <meta charset=\"UTF-8\" />\n</head>\n<body>\n  <h2>Template</h2>\n</body>\n</html>";
             using var htmlStream = new MemoryStream(Encoding.UTF8.GetBytes(defaultHtml));
             await storageService.UploadAsync(StorageBuckets.Templates, storageKey, htmlStream, "text/html; charset=utf-8", ct);
         }
 
-        // 4. Domain Entity Instantiation (Encapsulated invariants)
-        var now = this.timeProvider.GetUtcNow();
-        var template = Template.Create(
-            new ProjectId(effectiveProjectId),
-            TemplateName.Create(command.Name),
-            TemplateSlug.Create(command.Slug),
-            command.Category?.Trim(),
-            now);
+        // 5. Append-Only Initial Version & Compensating Storage Cleanup on Persistence Failure
         var initialVersion = template.CreateDraftVersion(
             1,
             storageKey,
             fileFormat,
-            executionContext.CallerApp ?? "system",
+            projectContext.CallerIdentity ?? "system",
             now,
             "Initial version");
 
         template.PublishVersion(initialVersion, now);
 
-        await templateRepo.AddAsync(template, ct);
-        await unitOfWork.CommitAsync(ct);
+        try
+        {
+            await templateRepo.AddAsync(template, ct);
+            await unitOfWork.CommitAsync(ct);
+        }
+        catch (Exception primaryEx)
+        {
+            try
+            {
+                await storageService.DeleteAsync(StorageBuckets.Templates, storageKey, CancellationToken.None);
+            }
+            catch (Exception cleanupEx)
+            {
+                primaryEx.Data["OrphanedStorageKey"] = storageKey;
+                primaryEx.Data["CompensatingDeleteError"] = cleanupEx.Message;
+                Trace.TraceWarning(
+                    "Failed to delete orphaned template object '{0}' after database commit failure: {1}",
+                    storageKey,
+                    cleanupEx.Message);
+            }
 
-        // 5. Safe Result DTO Mapping
+            throw;
+        }
+
         return new TemplateResultDto(
             template.Id.Value,
             template.ProjectId.Value,

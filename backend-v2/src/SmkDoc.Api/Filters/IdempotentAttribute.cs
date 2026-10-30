@@ -31,14 +31,14 @@ public sealed class IdempotentAttribute : Attribute, IFilterFactory
     public IFilterMetadata CreateInstance(IServiceProvider serviceProvider)
     {
         var idempotencyStore = serviceProvider.GetRequiredService<IIdempotencyStore>();
-        var executionContext = serviceProvider.GetRequiredService<IExecutionContext>();
+        var projectContext = serviceProvider.GetRequiredService<ICurrentProjectContext>();
         var logger = serviceProvider.GetRequiredService<ILogger<IdempotencyFilter>>();
         var jsonOptions = serviceProvider.GetService<IOptions<JsonOptions>>()?.Value.JsonSerializerOptions
             ?? new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
         return new IdempotencyFilter(
             idempotencyStore,
-            executionContext,
+            projectContext,
             logger,
             jsonOptions,
             TimeSpan.FromHours(TtlHours),

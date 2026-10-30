@@ -84,7 +84,10 @@ public sealed class TemplateRepository(AppDbContext context) : ITemplateReposito
 
     public void Update(Template template)
     {
-        _context.Templates.Update(template);
+        if (_context.Entry(template).State == EntityState.Detached)
+        {
+            _context.Templates.Update(template);
+        }
     }
 
     public void Remove(Template template)

@@ -36,7 +36,7 @@ public sealed class CleanArchitectureTests
     public void Application_Should_Not_HaveDependencyOn_Infrastructure_Or_Api()
     {
         // Arrange
-        var appAssembly = typeof(IExecutionContext).Assembly;
+        var appAssembly = typeof(ICurrentProjectContext).Assembly;
         var referencedAssemblies = appAssembly.GetReferencedAssemblies();
         var referencedNames = referencedAssemblies
             .Select(a => a.Name ?? string.Empty)
@@ -104,7 +104,7 @@ public sealed class CleanArchitectureTests
     public void UseCases_Should_Implement_IUseCaseInterface()
     {
         // Arrange
-        var appAssembly = typeof(IExecutionContext).Assembly;
+        var appAssembly = typeof(ICurrentProjectContext).Assembly;
         var useCaseTypes = appAssembly.GetTypes()
             .Where(t => t.IsClass && !t.IsAbstract && t.Name.EndsWith("UseCase", StringComparison.OrdinalIgnoreCase))
             .ToList();
@@ -170,7 +170,7 @@ public sealed class CleanArchitectureTests
     public void Application_Classes_Should_Not_Inject_Generic_Repository()
     {
         // Arrange
-        var appAssembly = typeof(IExecutionContext).Assembly;
+        var appAssembly = typeof(ICurrentProjectContext).Assembly;
         var appTypes = appAssembly.GetTypes()
             .Where(t => t.IsClass && !t.IsAbstract)
             .ToList();
@@ -199,7 +199,7 @@ public sealed class CleanArchitectureTests
     public void Application_Classes_Should_Not_Inject_Child_Entity_Repositories()
     {
         // Arrange
-        var appAssembly = typeof(IExecutionContext).Assembly;
+        var appAssembly = typeof(ICurrentProjectContext).Assembly;
         var appTypes = appAssembly.GetTypes()
             .Where(t => t.IsClass && !t.IsAbstract)
             .ToList();
@@ -246,6 +246,18 @@ public sealed class CleanArchitectureTests
         projectIdProp!.PropertyType.Should().Be(typeof(SmkDoc.Domain.ValueObjects.Ids.ProjectId));
         projectIdProp.GetSetMethod(nonPublic: true).Should().NotBeNull();
         projectIdProp.GetSetMethod(nonPublic: false).Should().BeNull($"Entity '{entityType.Name}' ProjectId setter must be private.");
+    }
+
+    [Fact]
+    public void LegacyExecutionContext_Must_Be_Retired_Across_All_Assemblies()
+    {
+        var appAssembly = typeof(ICurrentProjectContext).Assembly;
+        var infraAssembly = typeof(AppDbContext).Assembly;
+
+        appAssembly.GetType("SmkDoc.Application.Common.Interfaces.IExecutionContext")
+            .Should().BeNull("IExecutionContext was retired in favor of unified ICurrentProjectContext");
+        infraAssembly.GetType("SmkDoc.Infrastructure.Contexts.ExecutionContextImpl")
+            .Should().BeNull("ExecutionContextImpl was retired in favor of unified CurrentProjectContext");
     }
 
     private static bool IsSubclassOfBaseEntity(Type type)

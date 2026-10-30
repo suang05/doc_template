@@ -89,6 +89,9 @@ public sealed class Template : BaseEntity<TemplateId>, IMustHaveProject
     public TemplateVersion? FindVersion(Guid versionId) =>
         _versions.FirstOrDefault(v => v.Id == versionId);
 
+    public int GetNextVersionNumber() =>
+        _versions.Count == 0 ? 1 : _versions.Max(v => v.Version) + 1;
+
     public void AddVersion(TemplateVersion version, DateTimeOffset now)
     {
         Guard.NotNull(version, nameof(version));
@@ -148,8 +151,17 @@ public sealed class Template : BaseEntity<TemplateId>, IMustHaveProject
             _versions.Add(version);
         }
 
+        foreach (var existing in _versions)
+        {
+            if (existing.Id != version.Id && existing.Status == TemplateVersionStatus.Published)
+            {
+                existing.Archive(now);
+            }
+        }
+
         version.Publish(now);
         CurrentVersionId = version.Id;
+        CurrentVersion = version;
         SetUpdated(now);
         AddDomainEvent(new TemplatePublishedDomainEvent(Id, ProjectId, version.Id, version.Version, now));
     }

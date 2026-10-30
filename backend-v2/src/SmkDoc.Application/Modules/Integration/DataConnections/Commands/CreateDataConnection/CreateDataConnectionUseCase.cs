@@ -5,6 +5,7 @@ using SmkDoc.Application.Modules.Integration.DataConnections.DTOs;
 using SmkDoc.Domain.Common;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
+using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
 
@@ -20,8 +21,9 @@ public sealed class CreateDataConnectionUseCase(
     IUnitOfWork unitOfWork,
     IDataProtectionService dataProtection,
     IValidator<CreateDataConnectionCommand> validator,
-    TimeProvider? timeProvider = null,
-    ICurrentProjectContext? projectContext = null) : IUseCase<CreateDataConnectionCommand, DataConnectionDto>
+    ISqlConnectionValidator sqlValidator,
+    ICurrentProjectContext projectContext,
+    TimeProvider? timeProvider = null) : IUseCase<CreateDataConnectionCommand, DataConnectionDto>
 {
     private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
 
@@ -30,8 +32,15 @@ public sealed class CreateDataConnectionUseCase(
         var validationResult = await validator.ValidateAsync(command, ct);
         if (!validationResult.IsValid)
         {
-            throw new ValidationException(validationResult.ToDictionary());
+            throw new SmkDoc.Application.Common.Exceptions.ValidationException(validationResult.ToDictionary());
         }
+
+        if (!projectContext.IsResolved)
+        {
+            throw new ForbiddenException("Creating a data connection requires an active project context.");
+        }
+
+        await sqlValidator.ValidateConnectionTargetAsync(command.Provider, command.ConnectionString, ct);
 
         var now = _timeProvider.GetUtcNow();
         var entity = DataConnection.Create(
@@ -39,7 +48,7 @@ public sealed class CreateDataConnectionUseCase(
             Enumeration.FromDisplayName<DatabaseProvider>(command.Provider),
             EncryptedConnectionString.Create(dataProtection.Encrypt(command.ConnectionString)),
             now,
-            projectContext?.ProjectId ?? default);
+            projectContext.ProjectId);
 
         await repository.AddAsync(entity, ct);
         await unitOfWork.CommitAsync(ct);

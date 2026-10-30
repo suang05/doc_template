@@ -93,9 +93,9 @@ public class UserManagementController(
         return NoContent();
     }
 
-    /// <summary>Activate or deactivate a user account. Admin only.</summary>
+    /// <summary>Activate or deactivate a global user account. SuperAdmin only.</summary>
     [HttpPatch("{userId:guid}/status")]
-    [Authorize(Roles = RoleConstants.AdminOrSuperAdmin)]
+    [Authorize(Roles = RoleConstants.SuperAdmin)]
     [ProducesResponseType(typeof(ApiResponse<UserResultDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]

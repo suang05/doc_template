@@ -16,9 +16,6 @@ public sealed partial class ValidateTemplateHtmlUseCase(IPdfRenderer pdfRenderer
     [GeneratedRegex(@"name=[""']([^""']+)[""']", RegexOptions.IgnoreCase)]
     private static partial Regex NameAttributeRegex();
 
-    [GeneratedRegex(@"label=[""']([^""']+)[""']", RegexOptions.IgnoreCase)]
-    private static partial Regex LabelAttributeRegex();
-
     public async Task<TemplateValidationResultDto> ExecuteAsync(ValidateTemplateHtmlQuery query, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(query.Html))
@@ -33,7 +30,7 @@ public sealed partial class ValidateTemplateHtmlUseCase(IPdfRenderer pdfRenderer
         var (fields, errors) = ExtractFields(query.Html);
         await ValidateRenderAsync(query.Html, errors, ct);
 
-        bool isValid = errors.Count == 0 || !errors.Any(e => e.StartsWith("Renderer validation error:"));
+        bool isValid = errors.Count == 0;
         return new TemplateValidationResultDto(isValid, fields, errors);
     }
 
@@ -57,11 +54,6 @@ public sealed partial class ValidateTemplateHtmlUseCase(IPdfRenderer pdfRenderer
             {
                 fields.Add(fieldName);
             }
-
-            if (!LabelAttributeRegex().IsMatch(attributes))
-            {
-                errors.Add($"<Field name=\"{fieldName}\"> is missing recommended 'label' attribute.");
-            }
         }
 
         return (fields, errors);
@@ -73,7 +65,7 @@ public sealed partial class ValidateTemplateHtmlUseCase(IPdfRenderer pdfRenderer
         {
             await pdfRenderer.RenderHtmlToPdfAsync(html, ct: ct);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             errors.Add($"Renderer validation error: {ex.Message}");
         }

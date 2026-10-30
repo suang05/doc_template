@@ -1,5 +1,6 @@
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Entities;
+using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.ValueObjects.Ids;
@@ -8,11 +9,10 @@ namespace SmkDoc.Application.Modules.Rendering.Documents.Services;
 
 public sealed class DocumentVersioningService(
     IDocumentRepository documentRepo,
-    IExecutionContext executionContext,
     ICurrentProjectContext projectContext,
     TimeProvider? timeProvider = null) : IDocumentVersioningService
 {
-    private readonly TimeProvider timeProvider = timeProvider ?? TimeProvider.System;
+    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
 
     public async Task RecordVersionAsync(
         string documentRef,
@@ -25,13 +25,13 @@ public sealed class DocumentVersioningService(
         var docRef = DocumentReference.Create(documentRef);
         var document = await documentRepo.GetByDocumentRefWithVersionsAsync(docRef, ct);
 
-        var now = this.timeProvider.GetUtcNow();
+        var now = _timeProvider.GetUtcNow();
 
         if (document is null)
         {
             var projectId = projectContext.IsResolved
                 ? projectContext.ProjectId
-                : throw new SmkDoc.Domain.Exceptions.BusinessRuleViolationException(
+                : throw new BusinessRuleViolationException(
                     "Document versioning requires a valid project context.", "MISSING_PROJECT_CONTEXT");
 
             document = Document.Create(
@@ -42,11 +42,17 @@ public sealed class DocumentVersioningService(
             await documentRepo.AddAsync(document, ct);
         }
 
+        var createdBy = projectContext.CallerIdentity?.Trim();
+        if (createdBy is { Length: > DocumentVersion.MaxCreatedByLength })
+        {
+            createdBy = createdBy[..DocumentVersion.MaxCreatedByLength];
+        }
+
         document.CreateVersion(
             currentVersionId,
             generationId,
             changeNote,
-            executionContext.CallerApp,
+            createdBy,
             now);
     }
 }

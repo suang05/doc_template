@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Contracts.IdentityAccess.ApiKeys;
+using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.CreateApiKey;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.RevokeApiKey;
@@ -21,35 +22,23 @@ public class ApiKeyController(
     ListApiKeysUseCase listApiKeysUseCase,
     CreateApiKeyUseCase createApiKeyUseCase,
     RevokeApiKeyUseCase revokeApiKeyUseCase,
-    IExecutionContext context) : ControllerBase
+    ICurrentProjectContext projectContext) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> ListKeys(
         [FromQuery] Guid? projectId,
         CancellationToken ct)
     {
-        if (projectId.HasValue && context.ProjectId.HasValue && projectId.Value != context.ProjectId.Value)
-        {
-            throw new BadHttpRequestException("Access denied: requested projectId does not match the active project context.");
-        }
-
-        var targetProjectId = context.ProjectId ?? projectId
-            ?? throw new BadHttpRequestException("ProjectId is required to list API keys.");
-        var query = new ListApiKeysQuery(targetProjectId);
-        var keys = await listApiKeysUseCase.ExecuteAsync(query, ct);
+        EnsureMatchingProjectContext(projectId);
+        var keys = await listApiKeysUseCase.ExecuteAsync(new ListApiKeysQuery(), ct);
         return Ok(new { keys });
     }
 
     [HttpPost]
     public async Task<IActionResult> CreateKey([FromBody] CreateApiKeyRequest request, CancellationToken ct)
     {
-        if (context.ProjectId.HasValue && request.ProjectId != Guid.Empty && request.ProjectId != context.ProjectId.Value)
-        {
-            throw new BadHttpRequestException("Access denied: requested projectId does not match the active project context.");
-        }
-
-        var targetProjectId = context.ProjectId ?? request.ProjectId;
-        var command = new CreateApiKeyCommand(request.Name, request.CallerApp, targetProjectId);
+        EnsureMatchingProjectContext(request.ProjectId);
+        var command = new CreateApiKeyCommand(request.Name, request.CallerApp);
         var result = await createApiKeyUseCase.ExecuteAsync(command, ct);
         return Ok(new
         {
@@ -66,15 +55,22 @@ public class ApiKeyController(
         [FromQuery] Guid? projectId,
         CancellationToken ct)
     {
-        if (projectId.HasValue && context.ProjectId.HasValue && projectId.Value != context.ProjectId.Value)
-        {
-            throw new BadHttpRequestException("Access denied: requested projectId does not match the active project context.");
-        }
-
-        var targetProjectId = context.ProjectId ?? projectId
-            ?? throw new BadHttpRequestException("ProjectId is required to revoke an API key.");
-        var command = new RevokeApiKeyCommand(id, targetProjectId);
+        EnsureMatchingProjectContext(projectId);
+        var command = new RevokeApiKeyCommand(id);
         await revokeApiKeyUseCase.ExecuteAsync(command, ct);
         return Ok(new { success = true });
+    }
+
+    private void EnsureMatchingProjectContext(Guid? requestedProjectId)
+    {
+        if (!projectContext.IsResolved)
+        {
+            throw new ForbiddenException("Active project context is required for API key operations.");
+        }
+
+        if (requestedProjectId.HasValue && requestedProjectId.Value != Guid.Empty && requestedProjectId.Value != projectContext.ProjectId.Value)
+        {
+            throw new ForbiddenException("Access denied: requested projectId does not match the active project context.");
+        }
     }
 }

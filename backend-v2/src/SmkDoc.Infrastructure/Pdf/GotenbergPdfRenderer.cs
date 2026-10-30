@@ -3,7 +3,6 @@ using System.Text;
 using Microsoft.Extensions.Logging;
 using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Domain.Exceptions;
 
 namespace SmkDoc.Infrastructure.Pdf;
 
@@ -50,7 +49,16 @@ public class GotenbergPdfRenderer(HttpClient httpClient, ILogger<GotenbergPdfRen
             }
         }
 
-        return await response.Content.ReadAsStreamAsync(ct);
+        try
+        {
+            var innerStream = await response.Content.ReadAsStreamAsync(ct);
+            return new ResponseDisposingStream(innerStream, response);
+        }
+        catch
+        {
+            response.Dispose();
+            throw;
+        }
     }
 
     public async Task<byte[]> RenderHtmlToPdfAsync(string html, string? headerHtml = null, string? footerHtml = null, CancellationToken ct = default)
@@ -85,7 +93,16 @@ public class GotenbergPdfRenderer(HttpClient httpClient, ILogger<GotenbergPdfRen
             }
         }
 
-        return await response.Content.ReadAsStreamAsync(ct);
+        try
+        {
+            var innerStream = await response.Content.ReadAsStreamAsync(ct);
+            return new ResponseDisposingStream(innerStream, response);
+        }
+        catch
+        {
+            response.Dispose();
+            throw;
+        }
     }
 
     public async Task<byte[]> RenderOfficeToPdfAsync(Stream officeStream, string fileName, CancellationToken ct = default)

@@ -7,4 +7,5 @@ public interface IStorageService
     Task<string> GetPresignedUrlAsync(string bucket, string objectName, TimeSpan expiry, CancellationToken ct = default);
     Task DeleteAsync(string bucket, string objectName, CancellationToken ct = default);
     Task<bool> ExistsAsync(string bucket, string objectName, CancellationToken ct = default);
+    Task<IReadOnlyList<string>> ListObjectsAsync(string bucket, string prefix, CancellationToken ct = default);
 }

@@ -16,7 +16,6 @@ namespace SmkDoc.Tests.Application.Modules.Rendering.Documents.Services;
 public sealed class DocumentAuditServiceTests
 {
     private readonly IGenerationLogRepository _logRepo = Substitute.For<IGenerationLogRepository>();
-    private readonly IExecutionContext _context = Substitute.For<IExecutionContext>();
     private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
     private readonly IStorageService _storageService = Substitute.For<IStorageService>();
     private readonly TimeProvider _timeProvider = TestConstants.CreateFakeClock();
@@ -28,14 +27,13 @@ public sealed class DocumentAuditServiceTests
     }
 
     private DocumentAuditService CreateSut(IStorageService? storage = null) => new(
-        _logRepo, _context, _projectContext, storage, null, _timeProvider);
+        _logRepo, _projectContext, storage, null, _timeProvider);
 
     [Fact]
-    public async Task LogValidationFailureAsync_ShouldAddFailedLogWithoutPrematureCommit()
+    public async Task LogValidationFailureAsync_ShouldAddValidationFailedLogWithoutPrematureCommit()
     {
         // Arrange
-        _context.CallerApp.Returns("crm-app");
-        _context.ProjectId.Returns(Guid.NewGuid());
+        _projectContext.CallerIdentity.Returns("crm-app");
 
         // Act
         await CreateSut().LogValidationFailureAsync(
@@ -48,11 +46,29 @@ public sealed class DocumentAuditServiceTests
     }
 
     [Fact]
+    public async Task LogFailureAsync_ShouldAddFailedLogWithErrorMessage()
+    {
+        // Arrange
+        _projectContext.CallerIdentity.Returns("erp-worker");
+
+        // Act
+        await CreateSut().LogFailureAsync(
+            Guid.NewGuid(), Guid.NewGuid(), "{\"doc\":1}", OutputFormat.Pdf, 180, "Gotenberg engine timeout");
+
+        // Assert
+        await _logRepo.Received(1).AddAsync(
+            Arg.Is<GenerationLog>(l =>
+                l.Status == GenerationStatus.Failed &&
+                l.CallerApp == "erp-worker" &&
+                l.ErrorMsg == "Gotenberg engine timeout"),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task LogSuccessAsync_ShouldAddSuccessLogWithoutPrematureCommit()
     {
         // Arrange
-        _context.CallerApp.Returns("pos-app");
-        _context.ProjectId.Returns(Guid.NewGuid());
+        _projectContext.CallerIdentity.Returns("pos-app");
         var genId = Guid.NewGuid();
 
         // Act
@@ -69,8 +85,7 @@ public sealed class DocumentAuditServiceTests
     public async Task LogSuccessAsync_WithSmallPayload_StoresPayloadInlineAndComputesSha256()
     {
         // Arrange
-        _context.CallerApp.Returns("web-portal");
-        _context.ProjectId.Returns(Guid.NewGuid());
+        _projectContext.CallerIdentity.Returns("web-portal");
         var smallJson = "{\"customerId\": 42, \"name\": \"Acme Corp\"}";
         var genId = Guid.NewGuid();
 
@@ -96,8 +111,7 @@ public sealed class DocumentAuditServiceTests
     {
         // Arrange
         var projectId = Guid.NewGuid();
-        _context.CallerApp.Returns("batch-generator");
-        _context.ProjectId.Returns(projectId);
+        _projectContext.CallerIdentity.Returns("batch-generator");
         _projectContext.IsResolved.Returns(true);
         _projectContext.ProjectId.Returns(new ProjectId(projectId));
         var largeJson = new string('A', DocumentAuditService.MaxInlinePayloadSizeBytes + 500);
@@ -129,8 +143,7 @@ public sealed class DocumentAuditServiceTests
     public async Task LogSuccessAsync_WithLargePayloadAndNullStorageService_FallsBackToInlineStorage()
     {
         // Arrange
-        _context.CallerApp.Returns("direct-service");
-        _context.ProjectId.Returns(Guid.NewGuid());
+        _projectContext.CallerIdentity.Returns("direct-service");
         var largeJson = new string('B', DocumentAuditService.MaxInlinePayloadSizeBytes + 100);
         var genId = Guid.NewGuid();
 
@@ -153,8 +166,7 @@ public sealed class DocumentAuditServiceTests
     {
         // Arrange
         var projectId = Guid.NewGuid();
-        _context.CallerApp.Returns("api-gateway");
-        _context.ProjectId.Returns(projectId);
+        _projectContext.CallerIdentity.Returns("api-gateway");
         _projectContext.IsResolved.Returns(true);
         _projectContext.ProjectId.Returns(new ProjectId(projectId));
         var largeJson = new string('C', DocumentAuditService.MaxInlinePayloadSizeBytes + 200);
@@ -183,7 +195,6 @@ public sealed class DocumentAuditServiceTests
     public async Task LogSuccessAsync_WithoutProjectId_ThrowsBusinessRuleViolationException()
     {
         // Arrange
-        _context.ProjectId.Returns((Guid?)null);
         _projectContext.IsResolved.Returns(false);
 
         // Act

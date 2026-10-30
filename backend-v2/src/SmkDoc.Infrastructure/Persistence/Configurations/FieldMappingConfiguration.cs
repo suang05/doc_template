@@ -13,6 +13,7 @@ public sealed class FieldMappingConfiguration : IEntityTypeConfiguration<FieldMa
     {
         builder.ToTable("field_mappings");
         builder.HasKey(e => e.Id);
+        builder.Property(e => e.Id).ValueGeneratedNever();
         builder.Property(e => e.TemplateId)
             .HasConversion(id => id.Value, v => new TemplateId(v));
         builder.HasIndex(e => new { e.TemplateId, e.Placeholder }).IsUnique();

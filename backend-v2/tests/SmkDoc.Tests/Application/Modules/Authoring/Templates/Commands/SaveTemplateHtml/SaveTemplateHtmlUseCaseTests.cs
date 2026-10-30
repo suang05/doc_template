@@ -1,3 +1,5 @@
+using SmkDoc.Application.Common;
+using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.SaveTemplateHtml;
 using SmkDoc.Domain.Entities;
@@ -13,11 +15,15 @@ public sealed class SaveTemplateHtmlUseCaseTests
     private readonly ITemplateRepository _templateRepo = Substitute.For<ITemplateRepository>();
     private readonly IStorageService _storageService = Substitute.For<IStorageService>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
-    private readonly IExecutionContext _executionContext = Substitute.For<IExecutionContext>();
+    private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
     private readonly ISchemaInferenceService _schemaInference = Substitute.For<ISchemaInferenceService>();
+    private readonly FakeTimeProvider _timeProvider = TestConstants.CreateFakeClock();
 
     public SaveTemplateHtmlUseCaseTests()
     {
+        _projectContext.IsResolved.Returns(true);
+        _projectContext.ProjectId.Returns(new ProjectId(TestConstants.DefaultProjectId));
+        _projectContext.CallerIdentity.Returns("studio-user");
         _unitOfWork.CommitAsync(Arg.Any<CancellationToken>()).Returns(1);
     }
 
@@ -25,11 +31,12 @@ public sealed class SaveTemplateHtmlUseCaseTests
         _templateRepo,
         _storageService,
         _unitOfWork,
-        _executionContext,
-        _schemaInference);
+        _projectContext,
+        _schemaInference,
+        _timeProvider);
 
     [Fact]
-    public async Task SaveHtmlVersionAsync_ShouldUploadArchivedAndActiveKeys_AndIncrementVersion_AndPersistSchema()
+    public async Task ExecuteAsync_ShouldUploadOnlyImmutableVersionKey_ArchivePreviousVersion_AndCarryForwardMappingsSnapshot()
     {
         // Arrange
         var templateId = Guid.NewGuid();
@@ -47,15 +54,16 @@ public sealed class SaveTemplateHtmlUseCaseTests
             .WithId(currentVersionId)
             .WithTemplateId(templateId)
             .WithVersion(3)
-            .WithStorageKey("")
+            .WithStorageKey($"templates/{projectId:N}/{templateId:N}/v3.html")
             .WithFormat(TemplateFormat.Html)
-            .WithCreatedBy(null);
+            .WithStatus("Published")
+            .WithCreatedBy("author");
+        currentVersion.UpdateMappingsSnapshot("[{\"placeholder\":\"customerName\"}]", TestConstants.BaselineTime);
 
-        _templateRepo.GetByIdAsync(new TemplateId(templateId), Arg.Any<CancellationToken>())
+        _templateRepo.GetByIdWithDetailsAsync(new TemplateId(templateId), Arg.Any<CancellationToken>())
             .Returns(template);
         _templateRepo.GetVersionByIdAsync(currentVersionId, Arg.Any<CancellationToken>())
             .Returns(currentVersion);
-        _executionContext.CallerApp.Returns("studio-user");
 
         string dummySchema = "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\"}";
         string dummySample = "{\"customerName\":\"คุณสมชาย\"}";
@@ -75,31 +83,84 @@ public sealed class SaveTemplateHtmlUseCaseTests
 
         // Assert
         nextVersion.Should().Be(4);
+        var expectedImmutableKey = $"templates/{projectId:N}/{templateId:N}/v4.html";
 
-        // Verify versioned archive upload
+        // Verify ONLY ONE immutable upload (no mutable activeKey overwrite)
         await _storageService.Received(1).UploadAsync(
-            "templates",
-            $"templates/{projectId}/archive/official-contract_v4.html",
+            StorageBuckets.Templates,
+            expectedImmutableKey,
             Arg.Any<Stream>(),
             "text/html; charset=utf-8",
             Arg.Any<CancellationToken>());
-
-        // Verify active upload
         await _storageService.Received(1).UploadAsync(
-            "templates",
-            $"templates/{projectId}/official-contract.html",
+            Arg.Any<string>(),
+            Arg.Any<string>(),
             Arg.Any<Stream>(),
-            "text/html; charset=utf-8",
+            Arg.Any<string>(),
             Arg.Any<CancellationToken>());
 
-        // Verify template updated with new version containing DataSchema and SamplePayload
+        // Previous Published version was archived
+        currentVersion.Status.Should().Be(TemplateVersionStatus.Archived);
+
+        // Verify template updated with new version containing DataSchema, SamplePayload, and MappingsSnapshot
         _templateRepo.Received(1).Update(
-            Arg.Is<Template>(t => t.Versions.Any(v => v.Version == 4 &&
-                                                      v.CommitMessage == "Updated payment terms" &&
-                                                      v.DataSchema == dummySchema &&
-                                                      v.SamplePayload == dummySample)));
+            Arg.Is<Template>(t => t.Versions.Any(v =>
+                v.Version == 4 &&
+                v.StorageKey == expectedImmutableKey &&
+                v.Status == TemplateVersionStatus.Published &&
+                v.CommitMessage == "Updated payment terms" &&
+                v.DataSchema == dummySchema &&
+                v.SamplePayload == dummySample &&
+                v.MappingsSnapshot == "[{\"placeholder\":\"customerName\"}]")));
 
-        // Verify UoW saved
         await _unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenDbCommitFails_ShouldDeleteOrphanedVersionObjectFromMinio()
+    {
+        // Arrange
+        var templateId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+        Template template = TemplateBuilder.ATemplate()
+            .WithId(templateId)
+            .WithProjectId(projectId)
+            .WithSlug("official-contract")
+            .WithName("official-contract");
+
+        _templateRepo.GetByIdWithDetailsAsync(new TemplateId(templateId), Arg.Any<CancellationToken>())
+            .Returns(template);
+        _schemaInference.InferFromHtml(Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<string?>())
+            .Returns(("{}", "{}"));
+        _unitOfWork.CommitAsync(Arg.Any<CancellationToken>())
+            .ThrowsAsync(new InvalidOperationException("DB commit failed"));
+
+        var request = new SaveTemplateHtmlCommand(templateId, "<html></html>", "{}", "Note");
+
+        // Act
+        var act = () => CreateSut().ExecuteAsync(request);
+
+        // Assert
+        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("DB commit failed");
+        await _storageService.Received(1).DeleteAsync(
+            StorageBuckets.Templates,
+            $"templates/{projectId:N}/{templateId:N}/v1.html",
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenProjectContextUnresolved_ShouldThrowForbiddenException()
+    {
+        // Arrange
+        _projectContext.IsResolved.Returns(false);
+        var request = new SaveTemplateHtmlCommand(Guid.NewGuid(), "<html></html>", "{}", "Note");
+
+        // Act
+        var act = () => CreateSut().ExecuteAsync(request);
+
+        // Assert
+        await act.Should().ThrowAsync<ForbiddenException>();
+        await _storageService.DidNotReceive().UploadAsync(
+            Arg.Any<string>(), Arg.Any<string>(), Arg.Any<Stream>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 }

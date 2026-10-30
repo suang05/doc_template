@@ -11,6 +11,7 @@ public sealed class DocumentVersionConfiguration : IEntityTypeConfiguration<Docu
     {
         builder.ToTable("document_versions");
         builder.HasKey(e => e.Id);
+        builder.Property(e => e.Id).ValueGeneratedNever();
         builder.HasIndex(e => new { e.DocumentId, e.Version }).IsUnique();
         builder.Property(e => e.DocumentId)
             .HasConversion(id => id.Value, v => new DocumentId(v));
@@ -18,7 +19,7 @@ public sealed class DocumentVersionConfiguration : IEntityTypeConfiguration<Docu
         builder.Property(e => e.CreatedBy).HasMaxLength(100);
         builder.Property(e => e.CreatedAt).HasDefaultValueSql("NOW()");
 
-        builder.HasOne<Document>()
+        builder.HasOne(e => e.Document)
             .WithMany(d => d.Versions)
             .HasForeignKey(e => e.DocumentId)
             .OnDelete(DeleteBehavior.Cascade);

@@ -11,6 +11,7 @@ public interface IUserRepository
     Task<User?> GetByEmailAsync(EmailAddress email, CancellationToken ct = default);
     Task<bool> ExistsByEmailAsync(EmailAddress email, CancellationToken ct = default);
     Task<IReadOnlyList<User>> GetByIdsAsync(IEnumerable<UserId> ids, CancellationToken ct = default);
+    Task<int> CountActiveSuperAdminsAsync(CancellationToken ct = default);
     Task AddAsync(User user, CancellationToken ct = default);
     void Update(User user);
 }

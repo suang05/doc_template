@@ -1,7 +1,8 @@
+using SmkDoc.Application.Common.Exceptions;
+using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Queries.ListApiKeys;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.ValueObjects.Ids;
@@ -12,25 +13,37 @@ namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Security.Queries.ListA
 public sealed class ListApiKeysUseCaseTests
 {
     private readonly IApiKeyRepository _apiKeyRepo = Substitute.For<IApiKeyRepository>();
+    private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
 
-    private ListApiKeysUseCase CreateSut() => new(_apiKeyRepo);
+    public ListApiKeysUseCaseTests()
+    {
+        _projectContext.IsResolved.Returns(true);
+        _projectContext.ProjectId.Returns(new ProjectId(TestConstants.DefaultProjectId));
+    }
+
+    private ListApiKeysUseCase CreateSut() => new(_apiKeyRepo, _projectContext);
 
     [Fact]
-    public async Task ExecuteAsync_WhenEmptyProjectId_ThrowsDomainValidationException()
+    public async Task ExecuteAsync_WhenProjectContextUnresolved_ThrowsForbiddenException()
     {
+        // Arrange
+        _projectContext.IsResolved.Returns(false);
+
         // Act
-        var act = () => CreateSut().ExecuteAsync(new ListApiKeysQuery(Guid.Empty));
+        var act = () => CreateSut().ExecuteAsync(new ListApiKeysQuery());
 
         // Assert
-        await act.Should().ThrowAsync<DomainValidationException>()
-            .WithMessage("*ProjectId cannot be empty*");
+        await act.Should().ThrowAsync<ForbiddenException>()
+            .WithMessage("*Active project context is required*");
     }
 
     [Fact]
-    public async Task ExecuteAsync_WhenValidProjectId_ReturnsProjectScopedApiKeys()
+    public async Task ExecuteAsync_WhenAmbientProjectResolved_ReturnsProjectScopedApiKeys()
     {
         // Arrange
         var projectId = Guid.NewGuid();
+        _projectContext.ProjectId.Returns(new ProjectId(projectId));
+
         var now = TestConstants.BaselineTime;
         ApiKey key1 = new ApiKeyBuilder()
             .WithProjectId(projectId)
@@ -51,7 +64,7 @@ public sealed class ListApiKeysUseCaseTests
             .Returns(new List<ApiKey> { key1, key2 });
 
         // Act
-        List<ApiKeyDto> result = await CreateSut().ExecuteAsync(new ListApiKeysQuery(projectId));
+        List<ApiKeyDto> result = await CreateSut().ExecuteAsync(new ListApiKeysQuery());
 
         // Assert
         result.Should().HaveCount(2);
@@ -65,11 +78,13 @@ public sealed class ListApiKeysUseCaseTests
     {
         // Arrange
         var projectId = Guid.NewGuid();
+        _projectContext.ProjectId.Returns(new ProjectId(projectId));
+
         _apiKeyRepo.ListByProjectAsync(new ProjectId(projectId), Arg.Any<CancellationToken>())
             .Returns(new List<ApiKey>());
 
         // Act
-        List<ApiKeyDto> result = await CreateSut().ExecuteAsync(new ListApiKeysQuery(projectId));
+        List<ApiKeyDto> result = await CreateSut().ExecuteAsync(new ListApiKeysQuery());
 
         // Assert
         result.Should().BeEmpty();

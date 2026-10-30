@@ -1,4 +1,5 @@
 using SmkDoc.Application.Common.Interfaces;
+using SmkDoc.Domain.Exceptions;
 
 namespace SmkDoc.Application.Modules.Integration.DataConnections.Commands.TestDataConnection;
 
@@ -11,13 +12,17 @@ public sealed class TestDataConnectionUseCase(
     {
         try
         {
-            var testQuery = "SELECT 1";
-            await sqlExecutor.ExecuteQueryAsJsonAsync(command.Provider, command.ConnectionString, testQuery);
+            const string testQuery = "SELECT 1";
+            await sqlExecutor.ExecuteQueryAsJsonAsync(command.Provider, command.ConnectionString, testQuery, null, ct);
             return true;
+        }
+        catch (Exception ex) when (ex is ForbiddenException or DomainValidationException or OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception)
         {
-            // Connectivity test failure returns false rather than throwing
+            // Network/authentication connectivity test failure returns false rather than throwing
             return false;
         }
     }

@@ -15,7 +15,7 @@ namespace SmkDoc.Api.Filters;
 /// </summary>
 public sealed class IdempotencyFilter(
     IIdempotencyStore idempotencyStore,
-    IExecutionContext executionContext,
+    ICurrentProjectContext projectContext,
     ILogger<IdempotencyFilter> logger,
     JsonSerializerOptions jsonSerializerOptions,
     TimeSpan completedTtl,
@@ -27,12 +27,12 @@ public sealed class IdempotencyFilter(
 
     public IdempotencyFilter(
         IIdempotencyStore idempotencyStore,
-        IExecutionContext executionContext,
+        ICurrentProjectContext projectContext,
         ILogger<IdempotencyFilter> logger,
         IOptions<JsonOptions> jsonOptions)
         : this(
             idempotencyStore,
-            executionContext,
+            projectContext,
             logger,
             jsonOptions.Value.JsonSerializerOptions,
             TimeSpan.FromHours(24),
@@ -66,7 +66,9 @@ public sealed class IdempotencyFilter(
         }
 
         var idempotencyKey = rawKey.ToString().Trim();
-        var callerId = executionContext.CallerApp ?? executionContext.ProjectId?.ToString("N") ?? "anonymous";
+        var callerId = projectContext.IsResolved
+            ? projectContext.ProjectId.Value.ToString("N")
+            : (projectContext.UserId?.Value.ToString("N") ?? projectContext.CallerIdentity ?? "anonymous");
         var cacheKey = $"idempotency:{callerId}:{idempotencyKey}";
         var fingerprint = RequestFingerprintCalculator.ComputeFingerprint(context, jsonSerializerOptions);
 

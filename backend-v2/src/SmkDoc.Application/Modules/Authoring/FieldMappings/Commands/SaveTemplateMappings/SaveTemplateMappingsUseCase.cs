@@ -1,5 +1,6 @@
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
+using SmkDoc.Application.Modules.Authoring.FieldMappings.Helpers;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
@@ -35,7 +36,7 @@ public sealed class SaveTemplateMappingsUseCase(
                 template.Id,
                 item.Placeholder,
                 item.SourcePath,
-                item.Label,
+                item.Label ?? string.Empty,
                 item.Required,
                 item.SortOrder,
                 now,
@@ -51,6 +52,20 @@ public sealed class SaveTemplateMappingsUseCase(
         }).ToList();
 
         template.ReplaceFieldMappings(mappings, now);
+
+        TemplateVersion? activeVersion = template.CurrentVersion;
+        if (activeVersion is null && template.CurrentVersionId.HasValue)
+        {
+            activeVersion = template.FindVersion(template.CurrentVersionId.Value)
+                ?? await _templateRepo.GetVersionByIdAsync(template.CurrentVersionId.Value, ct);
+        }
+
+        if (activeVersion != null && activeVersion.Status != TemplateVersionStatus.Archived)
+        {
+            activeVersion.UpdateMappingsSnapshot(FieldMappingSnapshotSerializer.Serialize(template.FieldMappings), now);
+        }
+
+        _templateRepo.Update(template);
         await _unitOfWork.CommitAsync(ct);
     }
 }

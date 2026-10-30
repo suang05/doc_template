@@ -5,10 +5,9 @@ namespace SmkDoc.Application.Modules.Authoring.Templates.Commands.CommitTemplate
 /// <summary>
 /// Command payload for committing a draft template to persistent storage and database.
 /// </summary>
-public record CommitDraftCommand(
+public sealed record CommitDraftCommand(
     string Name,
     string Slug,
     string? Category,
-    IReadOnlyList<SaveFieldMappingItemDto> Mappings,
-    Guid? ProjectId = null
+    IReadOnlyList<SaveFieldMappingItemDto> Mappings
 );

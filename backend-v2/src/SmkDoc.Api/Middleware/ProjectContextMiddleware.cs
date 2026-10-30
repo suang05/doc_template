@@ -13,13 +13,13 @@ using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
-using SmkDoc.Infrastructure.Contexts;
 
 namespace SmkDoc.Api.Middleware;
 
 /// <summary>
 /// Centralized perimeter security gateway performing dual-channel authentication,
-/// tenant isolation resolution, and IDOR defense across all incoming HTTP traffic.
+/// tenant isolation resolution, M2M scope enforcement, and IDOR defense across all incoming HTTP traffic.
+/// Converges both X-API-Key (M2M) and Authorization Bearer (Web Studio) into <see cref="ICurrentProjectContextSetter"/>.
 /// </summary>
 public class ProjectContextMiddleware(
     RequestDelegate next,
@@ -33,14 +33,10 @@ public class ProjectContextMiddleware(
         ICurrentProjectContextSetter projectContextSetter,
         ValidateApiKeyUseCase validateApiKeyUseCase,
         IUserProjectRoleRepository userProjectRoleRepo,
-        IProjectRepository projectRepo,
-        ExecutionContextImpl executionContext)
+        IProjectRepository projectRepo)
     {
         string path = context.Request.Path.Value?.ToLowerInvariant() ?? string.Empty;
-
-        // Capture client telemetry on execution context
-        executionContext.ClientIp = context.Connection.RemoteIpAddress?.ToString();
-        executionContext.UserAgent = context.Request.Headers.UserAgent.ToString();
+        string? clientIp = context.Connection.RemoteIpAddress?.ToString();
 
         // 1. Whitelist Bypass for Public Endpoints
         if (IsWhitelistedPath(path))
@@ -55,58 +51,32 @@ public class ProjectContextMiddleware(
             var userIdStr = context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value
                 ?? context.User.FindFirst("sub")?.Value;
 
-            if (Guid.TryParse(userIdStr, out var userIdGuid) && userIdGuid != Guid.Empty)
+            UserId? parsedUserId = Guid.TryParse(userIdStr, out var userIdGuid) && userIdGuid != Guid.Empty
+                ? new UserId(userIdGuid)
+                : null;
+
+            var systemRoleClaim = context.User.FindFirst("SystemRole")?.Value
+                ?? context.User.FindFirst(ClaimTypes.Role)?.Value;
+            bool isSuperAdmin = string.Equals(systemRoleClaim, RoleConstants.SuperAdmin, StringComparison.OrdinalIgnoreCase);
+            var parsedSystemRole = isSuperAdmin ? SystemRole.SuperAdmin : SystemRole.Member;
+
+            string actorIdentity = parsedUserId is { } uid ? $"User:{uid.Value:N}" : "portal";
+            projectContextSetter.SetActor(
+                userId: parsedUserId,
+                systemRole: parsedSystemRole,
+                callerIdentity: actorIdentity);
+
+            // Unconditionally hydrate SuperAdmin + Admin claims even on global routes without a target ProjectId
+            if (isSuperAdmin && context.User.Identity is ClaimsIdentity superIdentity)
             {
-                executionContext.UserId = userIdGuid;
+                EnsureRoleClaim(superIdentity, RoleConstants.SuperAdmin);
+                EnsureRoleClaim(superIdentity, RoleConstants.Admin);
             }
 
-            executionContext.CallerApp = "portal";
-            executionContext.Scope = ApiKeyScope.ReadWrite;
+            Guid? routeProjectIdGuid = ExtractRouteProjectId(context);
+            Guid? headerProjectIdGuid = ExtractHeaderProjectId(context);
 
-            // 1. Resolve target project from Route Values (e.g. /api/v1/management/projects/{projectId}/...)
-            Guid? routeProjectIdGuid = null;
-            if (context.GetRouteValue("projectId") is object routeVal &&
-                Guid.TryParse(routeVal.ToString(), out var routeProjId) &&
-                routeProjId != Guid.Empty)
-            {
-                routeProjectIdGuid = routeProjId;
-            }
-            else if (context.Request.RouteValues.TryGetValue("projectId", out var dictVal) &&
-                dictVal != null &&
-                Guid.TryParse(dictVal.ToString(), out var dictProjId) &&
-                dictProjId != Guid.Empty)
-            {
-                routeProjectIdGuid = dictProjId;
-            }
-            else
-            {
-                // Fallback: Path segments extraction for /projects/{guid}
-                var segments = context.Request.Path.Value?.Split('/', StringSplitOptions.RemoveEmptyEntries);
-                if (segments != null)
-                {
-                    for (int i = 0; i < segments.Length - 1; i++)
-                    {
-                        if (string.Equals(segments[i], "projects", StringComparison.OrdinalIgnoreCase) &&
-                            Guid.TryParse(segments[i + 1], out var pathProjId) &&
-                            pathProjId != Guid.Empty)
-                        {
-                            routeProjectIdGuid = pathProjId;
-                            break;
-                        }
-                    }
-                }
-            }
-
-            // 2. Resolve target project from Header X-Project-Id
-            Guid? headerProjectIdGuid = null;
-            if (context.Request.Headers.TryGetValue(HttpHeaderConstants.ProjectIdHeader, out var reqProjectIdStr) &&
-                Guid.TryParse(reqProjectIdStr, out var headerProjId) &&
-                headerProjId != Guid.Empty)
-            {
-                headerProjectIdGuid = headerProjId;
-            }
-
-            // 3. Strict Conflict Detection: Fail-fast if Route and Header contradict ([TRAP-SEC-004])
+            // Strict Conflict Detection: Fail-fast if Route and Header contradict ([TRAP-SEC-004])
             if (routeProjectIdGuid.HasValue && headerProjectIdGuid.HasValue && routeProjectIdGuid.Value != headerProjectIdGuid.Value)
             {
                 logger.LogWarning(
@@ -125,7 +95,7 @@ public class ProjectContextMiddleware(
 
             Guid? targetProjectIdGuid = routeProjectIdGuid ?? headerProjectIdGuid;
 
-            // 4. Fallback to ProjectId claim in user token if neither route nor header specified
+            // Fallback to ProjectId claim in user token if neither route nor header specified
             if (!targetProjectIdGuid.HasValue)
             {
                 var claimProjectIdStr = context.User.FindFirst("ProjectId")?.Value;
@@ -169,16 +139,8 @@ public class ProjectContextMiddleware(
                     return;
                 }
 
-                var systemRoleClaim = context.User.FindFirst("SystemRole")?.Value
-                    ?? context.User.FindFirst(ClaimTypes.Role)?.Value;
-                bool isSuperAdmin = string.Equals(systemRoleClaim, RoleConstants.SuperAdmin, StringComparison.OrdinalIgnoreCase);
-
-                string roleName = RoleConstants.Member;
-                if (isSuperAdmin)
-                {
-                    roleName = RoleConstants.SuperAdmin;
-                }
-                else
+                string roleName = RoleConstants.SuperAdmin;
+                if (!isSuperAdmin)
                 {
                     var roleMapping = await userProjectRoleRepo.GetAsync(
                         targetProjectId,
@@ -202,23 +164,14 @@ public class ProjectContextMiddleware(
                     }
 
                     roleName = roleMapping.Role.Name;
-                }
 
-                projectContextSetter.SetProject(targetProjectId, $"User:{userIdGuid}:{roleName}");
-
-                // Dynamic ClaimTypes.Role Hydration with SuperAdmin privilege inheritance
-                if (context.User.Identity is ClaimsIdentity identity)
-                {
-                    if (isSuperAdmin)
+                    if (context.User.Identity is ClaimsIdentity projectIdentity)
                     {
-                        identity.AddClaim(new Claim(ClaimTypes.Role, RoleConstants.SuperAdmin));
-                        identity.AddClaim(new Claim(ClaimTypes.Role, RoleConstants.Admin));
-                    }
-                    else
-                    {
-                        identity.AddClaim(new Claim(ClaimTypes.Role, roleName));
+                        EnsureRoleClaim(projectIdentity, roleName);
                     }
                 }
+
+                projectContextSetter.SetProject(targetProjectId, actorIdentity);
             }
 
             await next(context);
@@ -230,19 +183,19 @@ public class ProjectContextMiddleware(
             !string.IsNullOrWhiteSpace(extractedApiKey))
         {
             var rawKey = extractedApiKey.ToString();
+            Guid? routeProjectIdGuid = ExtractRouteProjectId(context);
+            Guid? headerProjectIdGuid = ExtractHeaderProjectId(context);
 
             // Bootstrap Master Key Support
             if (!string.IsNullOrEmpty(_masterApiKey) && rawKey == _masterApiKey)
             {
-                if (context.Request.Headers.TryGetValue(HttpHeaderConstants.ProjectIdHeader, out var masterProjectHeader) &&
-                    Guid.TryParse(masterProjectHeader, out var masterProjId) &&
-                    masterProjId != Guid.Empty)
+                projectContextSetter.SetActor(callerIdentity: "master");
+                var masterProjId = routeProjectIdGuid ?? headerProjectIdGuid;
+                if (masterProjId.HasValue)
                 {
-                    projectContextSetter.SetProject(new ProjectId(masterProjId), "MasterKey");
+                    projectContextSetter.SetProject(new ProjectId(masterProjId.Value), "master");
                 }
 
-                executionContext.CallerApp = "master";
-                executionContext.Scope = ApiKeyScope.ReadWrite;
                 await next(context);
                 return;
             }
@@ -269,7 +222,7 @@ public class ProjectContextMiddleware(
 
             if (key == null)
             {
-                logger.LogWarning("Invalid or inactive API Key attempt from {IpAddress} to {Path}", executionContext.ClientIp, path);
+                logger.LogWarning("Invalid or inactive API Key attempt from {IpAddress} to {Path}", clientIp, path);
                 await WriteProblemDetailsAsync(
                     context,
                     StatusCodes.Status401Unauthorized,
@@ -279,16 +232,17 @@ public class ProjectContextMiddleware(
                 return;
             }
 
-            // Reject cross-tenant project ID spoofing for normal API keys
-            if (context.Request.Headers.TryGetValue(HttpHeaderConstants.ProjectIdHeader, out var reqProjHeader) &&
-                Guid.TryParse(reqProjHeader, out var requestedProjectId) &&
-                requestedProjectId != Guid.Empty &&
-                requestedProjectId != key.ProjectId)
+            // Reject cross-tenant project ID spoofing via X-Project-Id header or {projectId} route value
+            Guid? spoofedProjectId = (headerProjectIdGuid.HasValue && headerProjectIdGuid.Value != key.ProjectId)
+                ? headerProjectIdGuid
+                : (routeProjectIdGuid.HasValue && routeProjectIdGuid.Value != key.ProjectId ? routeProjectIdGuid : null);
+
+            if (spoofedProjectId.HasValue)
             {
                 logger.LogWarning(
-                    "Tenant spoofing attempt detected: API Key belongs to project {KeyProjectId}, but caller supplied X-Project-Id {RequestedProjectId}",
+                    "Tenant spoofing attempt detected: API Key belongs to project {KeyProjectId}, but caller supplied {RequestedProjectId}",
                     key.ProjectId,
-                    requestedProjectId);
+                    spoofedProjectId.Value);
 
                 await WriteProblemDetailsAsync(
                     context,
@@ -299,12 +253,28 @@ public class ProjectContextMiddleware(
                 return;
             }
 
-            var projectId = new ProjectId(key.ProjectId);
-            projectContextSetter.SetProject(projectId, $"ApiKey:{key.CallerApp}:{key.Id}");
+            var scope = ApiKeyScope.TryFromName(key.Scope, out var parsedScope) ? parsedScope : ApiKeyScope.ReadWrite;
+            if (scope == ApiKeyScope.ReadOnly && IsMutatingNonStatelessRequest(context.Request, path))
+            {
+                logger.LogWarning(
+                    "ReadOnly API Key {ApiKeyId} ({CallerApp}) blocked from mutating request {Method} {Path}",
+                    key.Id,
+                    key.CallerApp,
+                    context.Request.Method,
+                    path);
 
-            executionContext.ApiKeyId = key.Id;
-            executionContext.CallerApp = key.CallerApp;
-            executionContext.Scope = ApiKeyScope.TryFromName(key.Scope, out var scope) ? scope : ApiKeyScope.ReadWrite;
+                await WriteProblemDetailsAsync(
+                    context,
+                    StatusCodes.Status403Forbidden,
+                    "Forbidden",
+                    "Read-only API keys cannot invoke state-mutating endpoints.",
+                    "https://tools.ietf.org/html/rfc9457");
+                return;
+            }
+
+            var projectId = new ProjectId(key.ProjectId);
+            projectContextSetter.SetActor(apiKeyId: new ApiKeyId(key.Id), callerIdentity: key.CallerApp);
+            projectContextSetter.SetProject(projectId, key.CallerApp);
 
             await next(context);
             return;
@@ -317,6 +287,85 @@ public class ProjectContextMiddleware(
             "Unauthorized",
             "Authentication credentials missing or invalid. Provide an X-API-Key header or Bearer token.",
             "https://tools.ietf.org/html/rfc9457");
+    }
+
+    private static Guid? ExtractRouteProjectId(HttpContext context)
+    {
+        if (context.GetRouteValue("projectId") is object routeVal &&
+            Guid.TryParse(routeVal.ToString(), out var routeProjId) &&
+            routeProjId != Guid.Empty)
+        {
+            return routeProjId;
+        }
+
+        if (context.Request.RouteValues.TryGetValue("projectId", out var dictVal) &&
+            dictVal != null &&
+            Guid.TryParse(dictVal.ToString(), out var dictProjId) &&
+            dictProjId != Guid.Empty)
+        {
+            return dictProjId;
+        }
+
+        var segments = context.Request.Path.Value?.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (segments != null)
+        {
+            for (int i = 0; i < segments.Length - 1; i++)
+            {
+                if (string.Equals(segments[i], "projects", StringComparison.OrdinalIgnoreCase) &&
+                    Guid.TryParse(segments[i + 1], out var pathProjId) &&
+                    pathProjId != Guid.Empty)
+                {
+                    return pathProjId;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static Guid? ExtractHeaderProjectId(HttpContext context)
+    {
+        if (context.Request.Headers.TryGetValue(HttpHeaderConstants.ProjectIdHeader, out var reqProjectIdStr) &&
+            Guid.TryParse(reqProjectIdStr, out var headerProjId) &&
+            headerProjId != Guid.Empty)
+        {
+            return headerProjId;
+        }
+
+        return null;
+    }
+
+    private static void EnsureRoleClaim(ClaimsIdentity identity, string role)
+    {
+        if (!identity.HasClaim(ClaimTypes.Role, role))
+        {
+            identity.AddClaim(new Claim(ClaimTypes.Role, role));
+        }
+    }
+
+    private static bool IsMutatingNonStatelessRequest(HttpRequest request, string normalizedLowerPath)
+    {
+        if (HttpMethods.IsGet(request.Method) ||
+            HttpMethods.IsHead(request.Method) ||
+            HttpMethods.IsOptions(request.Method))
+        {
+            return false;
+        }
+
+        if (HttpMethods.IsPost(request.Method))
+        {
+            bool isStatelessPreviewOrValidate =
+                normalizedLowerPath.StartsWith("/api/v1/documents/preview", StringComparison.Ordinal)
+                || normalizedLowerPath.StartsWith("/api/documents/preview", StringComparison.Ordinal)
+                || normalizedLowerPath.StartsWith("/api/v1/rendering/preview", StringComparison.Ordinal)
+                || normalizedLowerPath.StartsWith("/api/rendering/preview", StringComparison.Ordinal)
+                || normalizedLowerPath.EndsWith("/validate", StringComparison.Ordinal)
+                || normalizedLowerPath.EndsWith("/validate-payload", StringComparison.Ordinal);
+
+            return !isStatelessPreviewOrValidate;
+        }
+
+        return true;
     }
 
     private static bool IsWhitelistedPath(string path)
@@ -336,10 +385,7 @@ public class ProjectContextMiddleware(
             || path.StartsWith("/api/v1/auth/login", StringComparison.OrdinalIgnoreCase)
             || path.StartsWith("/api/v1/auth/refresh", StringComparison.OrdinalIgnoreCase)
             || path.StartsWith("/api/v1/schemas/validate", StringComparison.OrdinalIgnoreCase)
-            || path.StartsWith("/api/schemas/validate", StringComparison.OrdinalIgnoreCase)
-            || path.StartsWith("/api/documents/preview", StringComparison.OrdinalIgnoreCase)
-            || path.StartsWith("/api/v1/documents/preview", StringComparison.OrdinalIgnoreCase)
-            || path.StartsWith("/api/v1/rendering/preview", StringComparison.OrdinalIgnoreCase);
+            || path.StartsWith("/api/schemas/validate", StringComparison.OrdinalIgnoreCase);
     }
 
     private static async Task WriteProblemDetailsAsync(

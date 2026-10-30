@@ -1,6 +1,5 @@
 using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
@@ -10,25 +9,19 @@ namespace SmkDoc.Application.Modules.IdentityAccess.Security.Commands.RevokeApiK
 public sealed class RevokeApiKeyUseCase(
     IApiKeyRepository apiKeyRepo,
     IUnitOfWork unitOfWork,
-    TimeProvider? timeProvider = null,
-    ICurrentProjectContext? projectContext = null) : IUseCase<RevokeApiKeyCommand>
+    ICurrentProjectContext projectContext,
+    TimeProvider? timeProvider = null) : IUseCase<RevokeApiKeyCommand>
 {
     private readonly TimeProvider timeProvider = timeProvider ?? TimeProvider.System;
-    private readonly ICurrentProjectContext? projectContext = projectContext;
 
     public async Task ExecuteAsync(RevokeApiKeyCommand command, CancellationToken ct = default)
     {
-        if (command.ProjectId == Guid.Empty)
+        if (!projectContext.IsResolved)
         {
-            throw new DomainValidationException("ProjectId cannot be empty.");
+            throw new ForbiddenException("Active project context is required to revoke an API key.");
         }
 
-        if (projectContext?.IsResolved == true && command.ProjectId != projectContext.ProjectId.Value)
-        {
-            throw new ForbiddenException($"Cross-tenant API key revocation rejected: Command ProjectId '{command.ProjectId}' does not match active context '{projectContext.ProjectId.Value}'.");
-        }
-
-        var key = await apiKeyRepo.GetByIdAsync(new ApiKeyId(command.Id), new ProjectId(command.ProjectId), ct)
+        var key = await apiKeyRepo.GetByIdAsync(new ApiKeyId(command.Id), projectContext.ProjectId, ct)
             ?? throw new NotFoundException($"API Key '{command.Id}' not found.");
 
         key.Revoke(this.timeProvider.GetUtcNow());

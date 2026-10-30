@@ -2,6 +2,8 @@ using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.Contracts.Authoring.Templates;
 using SmkDoc.Api.Filters;
+using SmkDoc.Application.Common.Exceptions;
+using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.CommitTemplateDraft;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.ParseTemplateDraft;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.PreviewTemplateDraft;
@@ -12,7 +14,6 @@ namespace SmkDoc.Api.Controllers.Authoring;
 /// <summary>
 /// Draft Upload Pipeline (3-step, RAM-only until Commit).
 /// Steps 1 and 2 are pure/side-effect-free. Step 3 commits atomically to MinIO + DB.
-/// Auth: X-API-Key via ApiKeyMiddleware.
 /// </summary>
 [ApiController]
 [Route("api/v1/templates/draft")]
@@ -20,7 +21,8 @@ namespace SmkDoc.Api.Controllers.Authoring;
 public class TemplateDraftController(
     ParseTemplateDraftUseCase parseUseCase,
     PreviewTemplateDraftUseCase previewUseCase,
-    CommitTemplateDraftUseCase commitUseCase) : ControllerBase
+    CommitTemplateDraftUseCase commitUseCase,
+    ICurrentProjectContext projectContext) : ControllerBase
 {
     /// <summary>
     /// Step 1 — Parse: upload file to RAM cache, return draftId + discovered placeholders.
@@ -74,8 +76,17 @@ public class TemplateDraftController(
         [FromBody] CommitDraftRequest request,
         CancellationToken ct)
     {
-        var commandPayload = new CommitDraftCommand(request.Name, request.Slug, request.Category, request.Mappings,
-            request.ProjectId);
+        if (!projectContext.IsResolved)
+        {
+            throw new ForbiddenException("Active project context is required to commit a template draft.");
+        }
+
+        if (request.ProjectId.HasValue && request.ProjectId.Value != Guid.Empty && request.ProjectId.Value != projectContext.ProjectId.Value)
+        {
+            throw new ForbiddenException("Access denied: requested projectId does not match the active project context.");
+        }
+
+        var commandPayload = new CommitDraftCommand(request.Name, request.Slug, request.Category, request.Mappings);
         var command = new CommitTemplateDraftCommand(draftId, commandPayload);
         var templateId = await commitUseCase.ExecuteAsync(command, ct);
         return StatusCode(StatusCodes.Status201Created, new ApiResponse<CommitDraftResponse>(new CommitDraftResponse(Guid.Parse(templateId))));

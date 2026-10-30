@@ -11,7 +11,7 @@ public sealed class ValidateTemplateHtmlUseCaseTests
     private ValidateTemplateHtmlUseCase CreateSut() => new(_renderer);
 
     [Fact]
-    public async Task ExecuteAsync_WithValidTags_ShouldDetectFields()
+    public async Task ExecuteAsync_WithValidTags_ShouldDetectFieldsAndReturnValidTrue()
     {
         // Arrange
         const string html = "<html><body><h1>Hello</h1><Field name=\"customerName\" label=\"Customer Name\" /><Field name=\"totalAmount\" label=\"Total\" /></body></html>";
@@ -28,7 +28,7 @@ public sealed class ValidateTemplateHtmlUseCaseTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_WithMissingNameAttribute_ShouldReportError()
+    public async Task ExecuteAsync_WithMissingNameAttribute_ShouldReportErrorAndReturnValidFalse()
     {
         // Arrange
         const string html = "<html><body><Field label=\"Missing Name\" /></body></html>";
@@ -37,7 +37,24 @@ public sealed class ValidateTemplateHtmlUseCaseTests
         TemplateValidationResultDto result = await CreateSut().ExecuteAsync(new ValidateTemplateHtmlQuery(html));
 
         // Assert
+        result.Valid.Should().BeFalse();
         result.Errors.Should().Contain(e => e.Contains("missing 'name' attribute"));
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenPdfRendererThrows_ShouldReturnValidFalseWithRendererError()
+    {
+        // Arrange
+        const string html = "<html><body><h1>Broken Render</h1></body></html>";
+        _renderer.RenderHtmlToPdfAsync(html, Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .ThrowsAsync(new InvalidOperationException("Gotenberg 503 Unavailable"));
+
+        // Act
+        TemplateValidationResultDto result = await CreateSut().ExecuteAsync(new ValidateTemplateHtmlQuery(html));
+
+        // Assert
+        result.Valid.Should().BeFalse();
+        result.Errors.Should().ContainSingle(e => e.Contains("Renderer validation error") && e.Contains("Gotenberg 503 Unavailable"));
     }
 
     [Fact]

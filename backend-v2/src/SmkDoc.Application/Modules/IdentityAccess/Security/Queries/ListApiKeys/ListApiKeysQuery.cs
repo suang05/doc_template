@@ -1,3 +1,3 @@
 namespace SmkDoc.Application.Modules.IdentityAccess.Security.Queries.ListApiKeys;
 
-public sealed record ListApiKeysQuery(Guid ProjectId);
+public sealed record ListApiKeysQuery;

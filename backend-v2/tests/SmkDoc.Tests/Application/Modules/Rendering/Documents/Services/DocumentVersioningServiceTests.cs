@@ -10,11 +10,10 @@ namespace SmkDoc.Tests.Application.Modules.Rendering.Documents.Services;
 public sealed class DocumentVersioningServiceTests
 {
     private readonly IDocumentRepository _documentRepo = Substitute.For<IDocumentRepository>();
-    private readonly IExecutionContext _context = Substitute.For<IExecutionContext>();
     private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
 
     private DocumentVersioningService CreateSut() => new(
-        _documentRepo, _context, _projectContext);
+        _documentRepo, _projectContext);
 
     [Fact]
     public async Task RecordVersionAsync_WhenNewDocument_ShouldCreateDocumentAndFirstVersion()
@@ -24,9 +23,9 @@ public sealed class DocumentVersioningServiceTests
         var versionId = Guid.NewGuid();
         var genId = Guid.NewGuid();
         var projectId = Guid.NewGuid();
-        _context.ProjectId.Returns(projectId);
         _projectContext.IsResolved.Returns(true);
         _projectContext.ProjectId.Returns(new ProjectId(projectId));
+        _projectContext.CallerIdentity.Returns("erp-system");
 
         _documentRepo.GetByDocumentRefWithVersionsAsync(Arg.Any<DocumentReference>(), Arg.Any<CancellationToken>())
             .Returns((Document?)null);
@@ -36,7 +35,12 @@ public sealed class DocumentVersioningServiceTests
 
         // Assert
         await _documentRepo.Received(1).AddAsync(
-            Arg.Is<Document>(d => d.DocumentRef == "INV-001" && d.TemplateId == new TemplateId(templateId) && d.Versions.Count == 1 && d.Versions.First().Version == 1),
+            Arg.Is<Document>(d =>
+                d.DocumentRef == "INV-001" &&
+                d.TemplateId == new TemplateId(templateId) &&
+                d.Versions.Count == 1 &&
+                d.Versions.First().Version == 1 &&
+                d.Versions.First().CreatedBy == "erp-system"),
             Arg.Any<CancellationToken>());
     }
 
@@ -48,9 +52,9 @@ public sealed class DocumentVersioningServiceTests
         var versionId = Guid.NewGuid();
         var genId = Guid.NewGuid();
         var projectId = Guid.NewGuid();
-        _context.ProjectId.Returns(projectId);
         _projectContext.IsResolved.Returns(true);
         _projectContext.ProjectId.Returns(new ProjectId(projectId));
+        _projectContext.CallerIdentity.Returns("portal-user");
 
         var existingDoc = Document.Create(
             DocumentReference.Create("INV-001"),
@@ -69,6 +73,7 @@ public sealed class DocumentVersioningServiceTests
         existingDoc.Versions.Should().HaveCount(2);
         existingDoc.Versions.Last().Version.Should().Be(2);
         existingDoc.Versions.Last().GenerationLogId.Should().Be(genId);
+        existingDoc.Versions.Last().CreatedBy.Should().Be("portal-user");
         await _documentRepo.DidNotReceive().AddAsync(Arg.Any<Document>(), Arg.Any<CancellationToken>());
     }
 }

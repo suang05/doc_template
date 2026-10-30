@@ -12,6 +12,7 @@ public sealed class TemplateDatasetConfiguration : IEntityTypeConfiguration<Temp
     {
         builder.ToTable("template_datasets");
         builder.HasKey(e => e.Id);
+        builder.Property(e => e.Id).ValueGeneratedNever();
         builder.HasIndex(e => new { e.TemplateId, e.Alias }).IsUnique();
         builder.Property(e => e.TemplateId)
             .HasConversion(id => id.Value, v => new TemplateId(v));

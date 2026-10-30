@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 using SmkDoc.Application.Modules.Rendering.Documents.Services;
@@ -43,7 +43,8 @@ public sealed class DocumentDataPreparationServiceTests
         await _applicator.DidNotReceive().ApplyAsync(
             Arg.Any<JsonElement>(),
             Arg.Any<IEnumerable<FieldMapping>>(),
-            Arg.Any<IReadOnlyDictionary<string, ResolvedDatasetContext>>());
+            Arg.Any<IReadOnlyDictionary<string, ResolvedDatasetContext>>(),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]

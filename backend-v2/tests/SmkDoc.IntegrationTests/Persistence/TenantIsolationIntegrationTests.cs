@@ -41,6 +41,7 @@ public sealed class TenantIsolationIntegrationTests
         var versionFilters = dbContext.Model.FindEntityType(typeof(TemplateVersion))?.GetDeclaredQueryFilters();
         var mappingFilters = dbContext.Model.FindEntityType(typeof(FieldMapping))?.GetDeclaredQueryFilters();
         var datasetFilters = dbContext.Model.FindEntityType(typeof(TemplateDataset))?.GetDeclaredQueryFilters();
+        var documentVersionFilters = dbContext.Model.FindEntityType(typeof(DocumentVersion))?.GetDeclaredQueryFilters();
 
         // Assert
         templateFilters.Should().NotBeNull().And.NotBeEmpty("Template implements IMustHaveProject and must have a global query filter");
@@ -49,6 +50,31 @@ public sealed class TenantIsolationIntegrationTests
         versionFilters.Should().NotBeNull().And.NotBeEmpty("TemplateVersion is a Template child and must have an aligned query filter");
         mappingFilters.Should().NotBeNull().And.NotBeEmpty("FieldMapping is a Template child and must have an aligned query filter");
         datasetFilters.Should().NotBeNull().And.NotBeEmpty("TemplateDataset is a Template child and must have an aligned query filter");
+        documentVersionFilters.Should().NotBeNull().And.NotBeEmpty("DocumentVersion is a DocumentRecord child and must have an aligned query filter");
+    }
+
+    [Fact]
+    public void ModelConfiguration_ChildEntitiesWithDomainAssignedIds_UseValueGeneratedNever()
+    {
+        // Arrange
+        using var dbContext = new AppDbContext(CreateOptions());
+        var childTypes = new[]
+        {
+            typeof(TemplateVersion),
+            typeof(FieldMapping),
+            typeof(TemplateDataset),
+            typeof(DocumentVersion)
+        };
+
+        // Act & Assert
+        foreach (var childType in childTypes)
+        {
+            var idProperty = dbContext.Model.FindEntityType(childType)?.FindPrimaryKey()?.Properties.Single();
+            idProperty.Should().NotBeNull($"{childType.Name} must define a primary key");
+            idProperty!.ValueGenerated.Should().Be(
+                Microsoft.EntityFrameworkCore.Metadata.ValueGenerated.Never,
+                $"{childType.Name}.Id is assigned in domain code via Guid.NewGuid() and must use ValueGeneratedNever");
+        }
     }
 
     private static ICurrentProjectContext CreateProjectContext(ProjectId projectId, bool isResolved = true)

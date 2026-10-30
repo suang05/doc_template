@@ -1,4 +1,5 @@
 using FluentValidation;
+using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Integration.DataConnections.Commands.CreateDataConnection;
 using SmkDoc.Application.Modules.Integration.DataConnections.DTOs;
@@ -15,6 +16,7 @@ public sealed class CreateDataConnectionUseCaseTests
     private readonly IDataConnectionRepository _connectionRepo = Substitute.For<IDataConnectionRepository>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
     private readonly IDataProtectionService _dataProtection = Substitute.For<IDataProtectionService>();
+    private readonly ISqlConnectionValidator _sqlValidator = Substitute.For<ISqlConnectionValidator>();
     private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
     private readonly ProjectId _projectId = ProjectId.New();
 
@@ -31,7 +33,8 @@ public sealed class CreateDataConnectionUseCaseTests
         _unitOfWork,
         _dataProtection,
         validator ?? new CreateDataConnectionCommandValidator(),
-        projectContext: _projectContext);
+        _sqlValidator,
+        _projectContext);
 
     [Fact]
     public async Task ExecuteAsync_WithInvalidCommand_ShouldThrowValidationException()
@@ -49,7 +52,22 @@ public sealed class CreateDataConnectionUseCaseTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_ShouldEncryptAndPersistConnection()
+    public async Task ExecuteAsync_WhenProjectUnresolved_ShouldThrowForbiddenException()
+    {
+        // Arrange
+        _projectContext.IsResolved.Returns(false);
+        var command = new CreateDataConnectionCommand("Warehouse", "PostgreSQL", "Host=10.0.0.5;Database=erp");
+
+        // Act
+        Func<Task> act = () => CreateSut().ExecuteAsync(command);
+
+        // Assert
+        await act.Should().ThrowAsync<ForbiddenException>();
+        await _sqlValidator.DidNotReceive().ValidateConnectionTargetAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_ShouldValidateConnectionTargetEncryptAndPersist()
     {
         // Arrange
         var command = new CreateDataConnectionCommand("Warehouse", "PostgreSQL", "Host=wh.local;Pass=secret");
@@ -61,6 +79,7 @@ public sealed class CreateDataConnectionUseCaseTests
         result.Name.Should().Be("Warehouse");
         result.Provider.Should().Be("PostgreSQL");
 
+        await _sqlValidator.Received(1).ValidateConnectionTargetAsync("PostgreSQL", "Host=wh.local;Pass=secret", Arg.Any<CancellationToken>());
         await _connectionRepo.Received(1).AddAsync(
             Arg.Is<DataConnection>(c =>
                 c.Name.Value == "Warehouse" &&

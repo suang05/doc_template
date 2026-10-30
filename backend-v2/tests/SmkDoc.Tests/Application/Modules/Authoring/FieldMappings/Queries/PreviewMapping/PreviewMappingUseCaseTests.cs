@@ -101,8 +101,9 @@ public sealed class PreviewMappingUseCaseTests
             Arg.Any<CancellationToken>());
         await _applicator.DidNotReceive().ApplyAsync(
             Arg.Any<JsonElement>(),
-            Arg.Any<List<FieldMapping>>(),
-            Arg.Any<IReadOnlyDictionary<string, ResolvedDatasetContext>>());
+            Arg.Any<IEnumerable<FieldMapping>>(),
+            Arg.Any<IReadOnlyDictionary<string, ResolvedDatasetContext>>(),
+            Arg.Any<CancellationToken>());
         await _storage.Received(1).DownloadAsync(
             StorageBuckets.Templates,
             "templates/sample-template.html",
@@ -166,7 +167,7 @@ public sealed class PreviewMappingUseCaseTests
         var expectedStream = new MemoryStream([0x25, 0x50, 0x44, 0x46]);
         _storage.DownloadAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(new MemoryStream());
-        _applicator.ApplyAsync(Arg.Any<JsonElement>(), Arg.Any<IEnumerable<FieldMapping>>(), Arg.Any<IReadOnlyDictionary<string, ResolvedDatasetContext>>())
+        _applicator.ApplyAsync(Arg.Any<JsonElement>(), Arg.Any<IEnumerable<FieldMapping>>(), Arg.Any<IReadOnlyDictionary<string, ResolvedDatasetContext>>(), Arg.Any<CancellationToken>())
             .Returns("{\"fullName\":\"John Doe\"}");
         _htmlEngine.RenderStreamAsync(Arg.Any<Stream>(), "{\"fullName\":\"John Doe\"}", OutputFormat.Pdf, Arg.Any<CancellationToken>())
             .Returns(expectedStream);
@@ -180,7 +181,8 @@ public sealed class PreviewMappingUseCaseTests
         await _applicator.Received(1).ApplyAsync(
             Arg.Any<JsonElement>(),
             Arg.Is<IEnumerable<FieldMapping>>(m => m.Count() == 1),
-            Arg.Any<IReadOnlyDictionary<string, ResolvedDatasetContext>>());
+            Arg.Any<IReadOnlyDictionary<string, ResolvedDatasetContext>>(),
+            Arg.Any<CancellationToken>());
     }
 
     // ── Error paths ───────────────────────────────────────────────────────

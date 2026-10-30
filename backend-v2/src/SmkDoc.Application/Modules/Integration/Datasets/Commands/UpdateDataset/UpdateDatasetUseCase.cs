@@ -22,17 +22,20 @@ public sealed class UpdateDatasetUseCase(
     IDataConnectionRepository connectionRepo,
     IUnitOfWork unitOfWork,
     IValidator<UpdateDatasetCommand> validator,
+    ISqlConnectionValidator sqlValidator,
     TimeProvider? timeProvider = null) : IUseCase<UpdateDatasetCommand, DatasetDto?>
 {
-    private readonly TimeProvider timeProvider = timeProvider ?? TimeProvider.System;
+    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
 
     public async Task<DatasetDto?> ExecuteAsync(UpdateDatasetCommand command, CancellationToken ct = default)
     {
         var validationResult = await validator.ValidateAsync(command, ct);
         if (!validationResult.IsValid)
         {
-            throw new ValidationException(validationResult.ToDictionary());
+            throw new SmkDoc.Application.Common.Exceptions.ValidationException(validationResult.ToDictionary());
         }
+
+        sqlValidator.ValidateReadOnlySql(command.SqlQuery);
 
         var entity = await datasetRepo.GetByIdAsync(new DatasetId(command.Id), ct);
         if (entity == null) return null;
@@ -40,7 +43,7 @@ public sealed class UpdateDatasetUseCase(
         var connection = await connectionRepo.GetByIdAsync(new DataConnectionId(command.DataConnectionId), ct)
             ?? throw new NotFoundException($"DataConnection '{command.DataConnectionId}' not found.");
 
-        var now = this.timeProvider.GetUtcNow();
+        var now = _timeProvider.GetUtcNow();
         entity.UpdateDetails(
             DatasetName.Create(command.Name),
             command.Description,

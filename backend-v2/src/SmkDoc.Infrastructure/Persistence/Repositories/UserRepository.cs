@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using SmkDoc.Domain.Entities;
+using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.ValueObjects.Ids;
@@ -34,6 +35,13 @@ public sealed class UserRepository(AppDbContext context) : IUserRepository
     {
         var idSet = ids.ToHashSet();
         return await _context.Users.Where(u => idSet.Contains(u.Id)).ToListAsync(ct);
+    }
+
+    public async Task<int> CountActiveSuperAdminsAsync(CancellationToken ct = default)
+    {
+        return await _context.Users.CountAsync(
+            u => u.IsActive && u.SystemRole == SystemRole.SuperAdmin,
+            ct);
     }
 
     public async Task AddAsync(User user, CancellationToken ct = default)

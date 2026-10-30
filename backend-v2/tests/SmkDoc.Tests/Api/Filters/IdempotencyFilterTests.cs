@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Abstractions;
@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Logging;
 using SmkDoc.Api.Filters;
 using SmkDoc.Application.Common.Interfaces;
+using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common;
 
 namespace SmkDoc.Tests.Api.Filters;
@@ -14,7 +15,7 @@ namespace SmkDoc.Tests.Api.Filters;
 public sealed class IdempotencyFilterTests
 {
     private readonly IIdempotencyStore _idempotencyStore = Substitute.For<IIdempotencyStore>();
-    private readonly IExecutionContext _executionContext = Substitute.For<IExecutionContext>();
+    private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
     private readonly ILogger<IdempotencyFilter> _logger = Substitute.For<ILogger<IdempotencyFilter>>();
     private readonly JsonSerializerOptions jsonOptions = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
@@ -22,11 +23,19 @@ public sealed class IdempotencyFilterTests
     {
         return new IdempotencyFilter(
             _idempotencyStore,
-            _executionContext,
+            _projectContext,
             _logger,
             jsonOptions,
             completedTtl ?? TimeSpan.FromHours(24),
             mandatory);
+    }
+
+    private string ConfigureResolvedTenant(ProjectId? projectId = null)
+    {
+        var pid = projectId ?? ProjectId.New();
+        _projectContext.IsResolved.Returns(true);
+        _projectContext.ProjectId.Returns(pid);
+        return pid.Value.ToString("N");
     }
 
     [Fact]
@@ -66,10 +75,11 @@ public sealed class IdempotencyFilterTests
     {
         var sut = CreateSut();
         var (context, next) = CreateActionContext(idempotencyKey: "test-key-1");
-        _executionContext.CallerApp.Returns("erp-system");
+        var tenantKey = ConfigureResolvedTenant();
+        var expectedCacheKey = $"idempotency:{tenantKey}:test-key-1";
 
         var inFlightRecord = new IdempotencyRecord(
-            "idempotency:erp-system:test-key-1",
+            expectedCacheKey,
             "fingerprint-123",
             IdempotencyStatus.InFlight,
             null,
@@ -78,7 +88,7 @@ public sealed class IdempotencyFilterTests
             TestConstants.BaselineTime);
 
         _idempotencyStore.TryAcquireOrGetAsync(
-                "idempotency:erp-system:test-key-1",
+                expectedCacheKey,
                 Arg.Any<string>(),
                 Arg.Any<TimeSpan>(),
                 Arg.Any<CancellationToken>())
@@ -99,14 +109,15 @@ public sealed class IdempotencyFilterTests
     {
         var sut = CreateSut();
         var (context, next) = CreateActionContext(idempotencyKey: "test-key-2");
-        _executionContext.CallerApp.Returns("erp-system");
+        var tenantKey = ConfigureResolvedTenant();
+        var expectedCacheKey = $"idempotency:{tenantKey}:test-key-2";
 
         var fingerprint = RequestFingerprintCalculator.ComputeFingerprint(context, jsonOptions);
         var cachedJson = "{\"templateId\":\"456\",\"status\":\"active\"}";
         var cachedHeaders = new Dictionary<string, string> { ["Location"] = "/api/v1/templates/456" };
 
         var completedRecord = new IdempotencyRecord(
-            "idempotency:erp-system:test-key-2",
+            expectedCacheKey,
             fingerprint,
             IdempotencyStatus.Completed,
             StatusCodes.Status201Created,
@@ -115,7 +126,7 @@ public sealed class IdempotencyFilterTests
             TestConstants.BaselineTime);
 
         _idempotencyStore.TryAcquireOrGetAsync(
-                "idempotency:erp-system:test-key-2",
+                expectedCacheKey,
                 fingerprint,
                 Arg.Any<TimeSpan>(),
                 Arg.Any<CancellationToken>())
@@ -140,10 +151,11 @@ public sealed class IdempotencyFilterTests
     {
         var sut = CreateSut();
         var (context, next) = CreateActionContext(idempotencyKey: "test-key-3");
-        _executionContext.CallerApp.Returns("erp-system");
+        var tenantKey = ConfigureResolvedTenant();
+        var expectedCacheKey = $"idempotency:{tenantKey}:test-key-3";
 
         var completedRecord = new IdempotencyRecord(
-            "idempotency:erp-system:test-key-3",
+            expectedCacheKey,
             "different-hash-from-first-request",
             IdempotencyStatus.Completed,
             StatusCodes.Status200OK,
@@ -152,7 +164,7 @@ public sealed class IdempotencyFilterTests
             TestConstants.BaselineTime);
 
         _idempotencyStore.TryAcquireOrGetAsync(
-                "idempotency:erp-system:test-key-3",
+                expectedCacheKey,
                 Arg.Any<string>(),
                 Arg.Any<TimeSpan>(),
                 Arg.Any<CancellationToken>())
@@ -173,10 +185,11 @@ public sealed class IdempotencyFilterTests
     {
         var sut = CreateSut();
         var (context, next) = CreateActionContext(idempotencyKey: "fail-key");
-        _executionContext.CallerApp.Returns("erp-system");
+        var tenantKey = ConfigureResolvedTenant();
+        var expectedCacheKey = $"idempotency:{tenantKey}:fail-key";
 
         _idempotencyStore.TryAcquireOrGetAsync(
-                "idempotency:erp-system:fail-key",
+                expectedCacheKey,
                 Arg.Any<string>(),
                 Arg.Any<TimeSpan>(),
                 Arg.Any<CancellationToken>())
@@ -187,7 +200,7 @@ public sealed class IdempotencyFilterTests
         var act = async () => await sut.OnActionExecutionAsync(context, next);
 
         await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("DB timeout");
-        await _idempotencyStore.Received(1).RemoveAsync("idempotency:erp-system:fail-key", Arg.Any<CancellationToken>());
+        await _idempotencyStore.Received(1).RemoveAsync(expectedCacheKey, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -195,10 +208,11 @@ public sealed class IdempotencyFilterTests
     {
         var sut = CreateSut();
         var (context, next) = CreateActionContext(idempotencyKey: "success-key");
-        _executionContext.CallerApp.Returns("erp-system");
+        var tenantKey = ConfigureResolvedTenant();
+        var expectedCacheKey = $"idempotency:{tenantKey}:success-key";
 
         _idempotencyStore.TryAcquireOrGetAsync(
-                "idempotency:erp-system:success-key",
+                expectedCacheKey,
                 Arg.Any<string>(),
                 Arg.Any<TimeSpan>(),
                 Arg.Any<CancellationToken>())
@@ -211,7 +225,7 @@ public sealed class IdempotencyFilterTests
         await sut.OnActionExecutionAsync(context, next);
 
         await _idempotencyStore.Received(1).SaveCompletedAsync(
-            "idempotency:erp-system:success-key",
+            expectedCacheKey,
             Arg.Any<string>(),
             StatusCodes.Status201Created,
             Arg.Is<string>(json => json.Contains("new-template")),
@@ -225,10 +239,11 @@ public sealed class IdempotencyFilterTests
     {
         var sut = CreateSut();
         var (context, next) = CreateActionContext(idempotencyKey: "bad-request-key");
-        _executionContext.CallerApp.Returns("erp-system");
+        var tenantKey = ConfigureResolvedTenant();
+        var expectedCacheKey = $"idempotency:{tenantKey}:bad-request-key";
 
         _idempotencyStore.TryAcquireOrGetAsync(
-                "idempotency:erp-system:bad-request-key",
+                expectedCacheKey,
                 Arg.Any<string>(),
                 Arg.Any<TimeSpan>(),
                 Arg.Any<CancellationToken>())
@@ -239,8 +254,73 @@ public sealed class IdempotencyFilterTests
 
         await sut.OnActionExecutionAsync(context, next);
 
-        await _idempotencyStore.Received(1).RemoveAsync("idempotency:erp-system:bad-request-key", Arg.Any<CancellationToken>());
+        await _idempotencyStore.Received(1).RemoveAsync(expectedCacheKey, Arg.Any<CancellationToken>());
         await _idempotencyStore.DidNotReceive().SaveCompletedAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<int>(), Arg.Any<string>(), Arg.Any<IReadOnlyDictionary<string, string>?>(), Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task OnActionExecutionAsync_DifferentTenantsWithSameIdempotencyKey_PartitionIntoDistinctCacheKeys()
+    {
+        var sut = CreateSut();
+        var tenantA = ProjectId.New();
+        var tenantB = ProjectId.New();
+
+        _idempotencyStore.TryAcquireOrGetAsync(
+                Arg.Any<string>(),
+                Arg.Any<string>(),
+                Arg.Any<TimeSpan>(),
+                Arg.Any<CancellationToken>())
+            .Returns(IdempotencyAcquisitionResult.Acquired());
+
+        // Tenant A call
+        ConfigureResolvedTenant(tenantA);
+        var (ctxA, nextA) = CreateActionContext(idempotencyKey: "shared-key");
+        nextA.Invoke().Returns(Task.FromResult(CreateExecutedContext(ctxA, new OkObjectResult(new { ok = true }))));
+        await sut.OnActionExecutionAsync(ctxA, nextA);
+
+        // Tenant B call
+        ConfigureResolvedTenant(tenantB);
+        var (ctxB, nextB) = CreateActionContext(idempotencyKey: "shared-key");
+        nextB.Invoke().Returns(Task.FromResult(CreateExecutedContext(ctxB, new OkObjectResult(new { ok = true }))));
+        await sut.OnActionExecutionAsync(ctxB, nextB);
+
+        await _idempotencyStore.Received(1).TryAcquireOrGetAsync(
+            $"idempotency:{tenantA.Value:N}:shared-key",
+            Arg.Any<string>(),
+            Arg.Any<TimeSpan>(),
+            Arg.Any<CancellationToken>());
+        await _idempotencyStore.Received(1).TryAcquireOrGetAsync(
+            $"idempotency:{tenantB.Value:N}:shared-key",
+            Arg.Any<string>(),
+            Arg.Any<TimeSpan>(),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task OnActionExecutionAsync_WhenProjectUnresolved_PartitionsByUserIdFallback()
+    {
+        var sut = CreateSut();
+        var userId = UserId.New();
+        _projectContext.IsResolved.Returns(false);
+        _projectContext.UserId.Returns(userId);
+
+        _idempotencyStore.TryAcquireOrGetAsync(
+                Arg.Any<string>(),
+                Arg.Any<string>(),
+                Arg.Any<TimeSpan>(),
+                Arg.Any<CancellationToken>())
+            .Returns(IdempotencyAcquisitionResult.Acquired());
+
+        var (ctx, next) = CreateActionContext(idempotencyKey: "global-op-key");
+        next.Invoke().Returns(Task.FromResult(CreateExecutedContext(ctx, new OkObjectResult(new { ok = true }))));
+
+        await sut.OnActionExecutionAsync(ctx, next);
+
+        await _idempotencyStore.Received(1).TryAcquireOrGetAsync(
+            $"idempotency:{userId.Value:N}:global-op-key",
+            Arg.Any<string>(),
+            Arg.Any<TimeSpan>(),
+            Arg.Any<CancellationToken>());
     }
 
     private static (ActionExecutingContext context, ActionExecutionDelegate next) CreateActionContext(

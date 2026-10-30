@@ -95,22 +95,39 @@ public sealed class CurrentProjectContextTests
     }
 
     [Fact]
-    public void ExecutionContextImpl_ProjectId_DelegatesToCurrentProjectContext()
+    public void SetActor_ChannelA_M2MApiKey_ShouldHydrateApiKeyIdAndCallerIdentity()
     {
         // Arrange
-        var projectContext = new CurrentProjectContext();
-        var executionContext = new ExecutionContextImpl(projectContext);
-        var projectId = ProjectId.New();
-
-        // Assert before resolution
-        executionContext.ProjectId.Should().BeNull();
+        var apiKeyId = ApiKeyId.New();
 
         // Act
-        projectContext.SetProject(projectId, "portal");
+        _sut.SetActor(apiKeyId: apiKeyId, callerIdentity: "erp-system");
 
-        // Assert after resolution
-        projectContext.IsResolved.Should().BeTrue();
-        projectContext.ProjectId.Should().Be(projectId);
-        executionContext.ProjectId.Should().Be(projectId.Value);
+        // Assert
+        _sut.IsResolved.Should().BeFalse();
+        _sut.ApiKeyId.Should().Be(apiKeyId);
+        _sut.UserId.Should().BeNull();
+        _sut.SystemRole.Should().BeNull();
+        _sut.CallerIdentity.Should().Be("erp-system");
+    }
+
+    [Fact]
+    public void SetActor_ChannelB_WebStudioUser_ShouldHydrateUserIdSystemRoleAndCallerIdentity()
+    {
+        // Arrange
+        var userId = UserId.New();
+
+        // Act
+        _sut.SetActor(
+            userId: userId,
+            systemRole: SmkDoc.Domain.Enums.SystemRole.SuperAdmin,
+            callerIdentity: $"User:{userId.Value:N}");
+
+        // Assert
+        _sut.IsResolved.Should().BeFalse();
+        _sut.UserId.Should().Be(userId);
+        _sut.SystemRole.Should().Be(SmkDoc.Domain.Enums.SystemRole.SuperAdmin);
+        _sut.ApiKeyId.Should().BeNull();
+        _sut.CallerIdentity.Should().Be($"User:{userId.Value:N}");
     }
 }

@@ -8,7 +8,6 @@ using SmkDoc.Application.Modules.Authoring.Fonts.Queries.GetFontBase64;
 using SmkDoc.Application.Modules.Authoring.Fonts.Queries.ListFonts;
 using SmkDoc.Application.Modules.Authoring.Schemas;
 using SmkDoc.Application.Modules.Authoring.Templates;
-using SmkDoc.Application.Modules.Authoring.Templates.Commands.ActivateTemplateVersion;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.CommitTemplateDraft;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.CreateTemplate;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.DeactivateTemplate;
@@ -32,7 +31,6 @@ public static class AuthoringModuleExtensions
         // Template Lifecycle Commands (Action-Centric Vertical Slice)
         services.AddScoped<CreateTemplateUseCase>();
         services.AddScoped<UpdateTemplateDetailsUseCase>();
-        services.AddScoped<ActivateTemplateVersionUseCase>();
         services.AddScoped<DeactivateTemplateUseCase>();
         services.AddScoped<RollbackTemplateVersionUseCase>();
 

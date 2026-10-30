@@ -15,6 +15,7 @@ public sealed class UpdateDataConnectionUseCaseTests
     private readonly IDataConnectionRepository _connectionRepo = Substitute.For<IDataConnectionRepository>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
     private readonly IDataProtectionService _dataProtection = Substitute.For<IDataProtectionService>();
+    private readonly ISqlConnectionValidator _sqlValidator = Substitute.For<ISqlConnectionValidator>();
 
     public UpdateDataConnectionUseCaseTests()
     {
@@ -25,7 +26,8 @@ public sealed class UpdateDataConnectionUseCaseTests
         _connectionRepo,
         _unitOfWork,
         _dataProtection,
-        validator ?? new UpdateDataConnectionCommandValidator());
+        validator ?? new UpdateDataConnectionCommandValidator(),
+        _sqlValidator);
 
     [Fact]
     public async Task ExecuteAsync_WithInvalidCommand_ShouldThrowValidationException()
@@ -42,7 +44,7 @@ public sealed class UpdateDataConnectionUseCaseTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_WhenFoundWithNewSecret_EncryptsAndUpdates()
+    public async Task ExecuteAsync_WhenFoundWithNewSecret_ValidatesTargetEncryptsAndUpdates()
     {
         // Arrange
         var id = Guid.NewGuid();
@@ -66,12 +68,13 @@ public sealed class UpdateDataConnectionUseCaseTests
         existing.EncryptedConnectionString.Value.Should().Be("new_enc_conn");
         existing.UpdatedAt.Should().NotBeNull();
 
+        await _sqlValidator.Received(1).ValidateConnectionTargetAsync("SqlServer", "new_plain_conn", Arg.Any<CancellationToken>());
         _connectionRepo.Received(1).Update(existing);
         await _unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task ExecuteAsync_WhenConnectionStringIsEmpty_PreservesExistingSecret()
+    public async Task ExecuteAsync_WhenConnectionStringIsEmpty_ValidatesDecryptedTargetAndPreservesExistingSecret()
     {
         // Arrange
         var id = Guid.NewGuid();
@@ -79,6 +82,7 @@ public sealed class UpdateDataConnectionUseCaseTests
 
         _connectionRepo.GetByIdAsync(new DataConnectionId(id), Arg.Any<CancellationToken>())
             .Returns(existing);
+        _dataProtection.Decrypt("keep_this_enc").Returns("Host=10.0.0.10;Database=erp");
 
         var command = new UpdateDataConnectionCommand(id, "DB Renamed", "PostgreSQL", "");
 
@@ -88,6 +92,7 @@ public sealed class UpdateDataConnectionUseCaseTests
         // Assert
         result.Should().NotBeNull();
         existing.EncryptedConnectionString.Value.Should().Be("keep_this_enc");
+        await _sqlValidator.Received(1).ValidateConnectionTargetAsync("PostgreSQL", "Host=10.0.0.10;Database=erp", Arg.Any<CancellationToken>());
         _dataProtection.DidNotReceive().Encrypt(Arg.Any<string>());
         _connectionRepo.Received(1).Update(existing);
     }

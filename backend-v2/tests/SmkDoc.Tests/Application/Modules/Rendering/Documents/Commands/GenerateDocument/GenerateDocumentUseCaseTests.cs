@@ -1,7 +1,8 @@
-using System.Linq.Expressions;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using FluentValidation;
+using SmkDoc.Application.Common;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 using SmkDoc.Application.Modules.Rendering.Documents;
@@ -13,6 +14,7 @@ using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Domain.ValueObjects.Validation;
 using SmkDoc.Tests.Common.Builders;
@@ -28,7 +30,6 @@ public sealed class GenerateDocumentUseCaseTests
     private readonly IDocumentRepository _documentRepo = Substitute.For<IDocumentRepository>();
     private readonly IStorageService _storageService = Substitute.For<IStorageService>();
     private readonly IRenderEngine _engine = Substitute.For<IRenderEngine>();
-    private readonly IExecutionContext _executionContext = Substitute.For<IExecutionContext>();
     private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
     private readonly IFieldMappingApplicatorService _applicator = Substitute.For<IFieldMappingApplicatorService>();
@@ -40,9 +41,9 @@ public sealed class GenerateDocumentUseCaseTests
     {
         _unitOfWork.CommitAsync(Arg.Any<CancellationToken>()).Returns(1);
         var projectId = Guid.NewGuid();
-        _executionContext.ProjectId.Returns(projectId);
         _projectContext.IsResolved.Returns(true);
         _projectContext.ProjectId.Returns(new ProjectId(projectId));
+        _projectContext.CallerIdentity.Returns("sales-app");
     }
 
     private GenerateDocumentUseCase CreateSut(IValidator<GenerateDocumentCommand>? validator = null)
@@ -56,13 +57,13 @@ public sealed class GenerateDocumentUseCaseTests
 
         var audit = new DocumentAuditService(
             _logRepo,
-            _executionContext,
-            _projectContext);
+            _projectContext,
+            timeProvider: _timeProvider);
 
         var versioning = new DocumentVersioningService(
             _documentRepo,
-            _executionContext,
-            _projectContext);
+            _projectContext,
+            _timeProvider);
 
         return new GenerateDocumentUseCase(
             _templateRepo,
@@ -179,11 +180,8 @@ public sealed class GenerateDocumentUseCaseTests
         SetupRenderEnginePdfOutput("%PDF-1.4 Mock Output");
         SetupPresignedUrl("https://minio.sammakorn.co.th/outputs/sample.pdf?signature=valid");
 
-        // No existing Document for this ref
         _documentRepo.GetByDocumentRefWithVersionsAsync(Arg.Any<DocumentReference>(), Arg.Any<CancellationToken>())
             .Returns((Document?)null);
-
-        _executionContext.CallerApp.Returns("sales-app");
 
         using var jsonDoc = JsonDocument.Parse("{\"name\": \"สมชาย ใจดี\"}");
         var request = new GenerateDocumentCommand(jsonDoc.RootElement, OutputFormat: "pdf", DocumentRef: "SC-2026-0001");
@@ -201,7 +199,8 @@ public sealed class GenerateDocumentUseCaseTests
             Arg.Is<GenerationLog>(l => l.TemplateId == templateId
                                    && l.TemplateVersionId == versionId
                                    && l.Status == "SUCCESS"
-                                   && l.TriggerSource == "api"),
+                                   && l.TriggerSource == "api"
+                                   && l.CallerApp == "sales-app"),
             Arg.Any<CancellationToken>());
 
         await _documentRepo.Received(1).AddAsync(
@@ -209,6 +208,81 @@ public sealed class GenerateDocumentUseCaseTests
             Arg.Any<CancellationToken>());
 
         await _unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenEngineReturnsNonSeekableStream_ShouldSpoolAndComputeExactSizeAndSha256()
+    {
+        // Arrange
+        SetupActiveHtmlTemplate(slug: "non-seekable-doc");
+        var payloadBytes = Encoding.UTF8.GetBytes("%PDF-1.4 Non-seekable HTTP stream payload");
+        var expectedSha256 = Convert.ToHexString(SHA256.HashData(payloadBytes)).ToLowerInvariant();
+
+        _engine.EngineType.Returns(RenderEngineType.Html);
+        _engine.RenderStreamAsync(Arg.Any<Stream>(), Arg.Any<string>(), Arg.Any<OutputFormat>(), Arg.Any<CancellationToken>())
+            .Returns(new NonSeekableReadOnlyStream(payloadBytes));
+        SetupPresignedUrl("https://minio.sammakorn.co.th/outputs/non-seekable.pdf");
+
+        using var jsonDoc = JsonDocument.Parse("{}");
+        var request = new GenerateDocumentCommand(jsonDoc.RootElement, OutputFormat: "pdf");
+
+        // Act
+        GenerateDocumentResultDto result = await CreateSut().ExecuteAsync("non-seekable-doc", request);
+
+        // Assert
+        result.FileSizeBytes.Should().Be(payloadBytes.Length);
+        result.Sha256.Should().Be(expectedSha256);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenRenderEngineThrows_ShouldPersistFailedGenerationLogAndRethrow()
+    {
+        // Arrange
+        var (template, currentVersion) = SetupActiveHtmlTemplate(slug: "broken-render");
+        _engine.EngineType.Returns(RenderEngineType.Html);
+        _engine.RenderStreamAsync(Arg.Any<Stream>(), Arg.Any<string>(), Arg.Any<OutputFormat>(), Arg.Any<CancellationToken>())
+            .ThrowsAsync(new InvalidOperationException("Gotenberg container crashed"));
+
+        using var jsonDoc = JsonDocument.Parse("{\"invoice\":123}");
+        var request = new GenerateDocumentCommand(jsonDoc.RootElement, OutputFormat: "pdf");
+
+        // Act
+        Func<Task> act = () => CreateSut().ExecuteAsync("broken-render", request);
+
+        // Assert
+        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("Gotenberg container crashed");
+        await _logRepo.Received(1).AddAsync(
+            Arg.Is<GenerationLog>(l =>
+                l.TemplateId == template.Id &&
+                l.TemplateVersionId == currentVersion.Id &&
+                l.Status == GenerationStatus.Failed &&
+                l.ErrorMsg == "Gotenberg container crashed"),
+            Arg.Any<CancellationToken>());
+        await _unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenPostUploadCommitFails_ShouldDeleteOrphanedOutputObject()
+    {
+        // Arrange
+        SetupActiveHtmlTemplate(slug: "commit-fail-doc");
+        SetupRenderEnginePdfOutput("%PDF-1.4");
+        SetupPresignedUrl("https://minio.sammakorn.co.th/outputs/orphan.pdf");
+        _unitOfWork.CommitAsync(Arg.Any<CancellationToken>())
+            .ThrowsAsync(new InvalidOperationException("PostgreSQL deadlock"));
+
+        using var jsonDoc = JsonDocument.Parse("{}");
+        var request = new GenerateDocumentCommand(jsonDoc.RootElement, OutputFormat: "pdf");
+
+        // Act
+        Func<Task> act = () => CreateSut().ExecuteAsync("commit-fail-doc", request);
+
+        // Assert
+        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("PostgreSQL deadlock");
+        await _storageService.Received(1).DeleteAsync(
+            StorageBuckets.Outputs,
+            Arg.Is<string>(k => k.StartsWith("outputs/") && k.EndsWith(".pdf")),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -244,7 +318,7 @@ public sealed class GenerateDocumentUseCaseTests
     {
         // Arrange
         var now = TestConstants.BaselineTime;
-        var (template, currentVersion) = SetupActiveHtmlTemplate(
+        var (template, _) = SetupActiveHtmlTemplate(
             slug: "contract-mapped",
             name: "Contract With Mappings",
             htmlContent: "<html><body>{{amount_baht}}</body></html>",
@@ -262,7 +336,8 @@ public sealed class GenerateDocumentUseCaseTests
         _applicator.ApplyAsync(
                 Arg.Any<JsonElement>(),
                 Arg.Any<IEnumerable<FieldMapping>>(),
-                Arg.Any<IReadOnlyDictionary<string, ResolvedDatasetContext>>())
+                Arg.Any<IReadOnlyDictionary<string, ResolvedDatasetContext>>(),
+                Arg.Any<CancellationToken>())
             .Returns("{\"amount_baht\":\"สองล้านห้าแสนบาทถ้วน\"}");
 
         string capturedDataJson = string.Empty;
@@ -295,7 +370,7 @@ public sealed class GenerateDocumentUseCaseTests
     {
         // Arrange
         var now = TestConstants.BaselineTime;
-        var (template, currentVersion) = SetupActiveHtmlTemplate(
+        var (template, _) = SetupActiveHtmlTemplate(
             slug: "sale-contract",
             name: "Contract",
             now: now);
@@ -314,7 +389,6 @@ public sealed class GenerateDocumentUseCaseTests
         existingDocument.CreateVersion(Guid.NewGuid(), Guid.NewGuid(), "v1", "app", now);
         existingDocument.CreateVersion(Guid.NewGuid(), Guid.NewGuid(), "v2", "app", now);
 
-        // Existing document found
         _documentRepo.GetByDocumentRefWithVersionsAsync(Arg.Any<DocumentReference>(), Arg.Any<CancellationToken>())
             .Returns(existingDocument);
 
@@ -324,7 +398,7 @@ public sealed class GenerateDocumentUseCaseTests
         // Act
         GenerateDocumentResultDto result = await CreateSut().ExecuteAsync("sale-contract", request);
 
-        // Assert — Document NOT created again
+        // Assert
         result.DocumentRef.Should().Be("SC-2026-0001");
         result.Sha256.Should().NotBeNullOrEmpty();
         await _documentRepo.DidNotReceive().AddAsync(Arg.Any<Document>(), Arg.Any<CancellationToken>());
@@ -339,14 +413,13 @@ public sealed class GenerateDocumentUseCaseTests
         const string schemaJson = """{"$schema":"http://json-schema.org/draft-07/schema#","type":"object","required":["doc_no"]}""";
         var now = TestConstants.BaselineTime;
 
-        var (template, currentVersion) = SetupActiveHtmlTemplate(
+        var (_, currentVersion) = SetupActiveHtmlTemplate(
             slug: "invoice",
             name: "Invoice",
             now: now);
 
         currentVersion.UpdateDataSchema(schemaJson, null, now);
 
-        // Service returns invalid result (missing required field "doc_no")
         var errors = new List<ValidationErrorItem>
         {
             new("/", "required", "Required property 'doc_no' not found in JSON.")
@@ -354,7 +427,6 @@ public sealed class GenerateDocumentUseCaseTests
         _schemaValidation.Validate(schemaJson, Arg.Any<string>())
             .Returns(SchemaValidationResult.Failure(errors));
 
-        // Engine and storage must be set up so the use case reaches the validation gate
         _engine.EngineType.Returns(RenderEngineType.Html);
         _storageService.DownloadAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(new MemoryStream());
@@ -362,20 +434,19 @@ public sealed class GenerateDocumentUseCaseTests
         _unitOfWork.CommitAsync(Arg.Any<CancellationToken>())
             .Returns(1);
 
-        using var jsonDoc = JsonDocument.Parse("""{"customer":"ACME"}"""); // missing doc_no
+        using var jsonDoc = JsonDocument.Parse("""{"customer":"ACME"}""");
         var request = new GenerateDocumentCommand(jsonDoc.RootElement, OutputFormat: "pdf");
 
         // Act
         var act = () => CreateSut().ExecuteAsync("invoice", request);
 
-        // Assert — SchemaValidationException is thrown
+        // Assert
         var ex = await act.Should().ThrowAsync<SchemaValidationException>();
         ex.Which.TemplateSlug.Should().Be("invoice");
         ex.Which.Version.Should().Be(1);
         ex.Which.Errors.Should().HaveCount(1);
         ex.Which.Errors[0].Rule.Should().Be("required");
 
-        // Assert — VALIDATION_FAILED logged (no rendering attempted)
         await _logRepo.Received(1).AddAsync(
             Arg.Is<GenerationLog>(l => l.Status == "VALIDATION_FAILED"),
             Arg.Any<CancellationToken>());
@@ -392,7 +463,7 @@ public sealed class GenerateDocumentUseCaseTests
         const string schemaJson = """{"$schema":"http://json-schema.org/draft-07/schema#","type":"object","required":["doc_no"]}""";
         var now = TestConstants.BaselineTime;
 
-        var (template, currentVersion) = SetupActiveHtmlTemplate(
+        var (_, currentVersion) = SetupActiveHtmlTemplate(
             slug: "invoice",
             name: "Invoice",
             now: now);
@@ -403,13 +474,13 @@ public sealed class GenerateDocumentUseCaseTests
             .Returns("outputs/invoice.pdf");
         SetupPresignedUrl("https://example.com/download/invoice.pdf");
 
-        using var jsonDoc = JsonDocument.Parse("""{"customer":"ACME"}"""); // missing doc_no — but SkipValidation
+        using var jsonDoc = JsonDocument.Parse("""{"customer":"ACME"}""");
         var request = new GenerateDocumentCommand(jsonDoc.RootElement, OutputFormat: "pdf", SkipValidation: true);
 
         // Act
         GenerateDocumentResultDto result = await CreateSut().ExecuteAsync("invoice", request);
 
-        // Assert — validation service never called; render completed successfully
+        // Assert
         _schemaValidation.DidNotReceive().Validate(Arg.Any<string>(), Arg.Any<string>());
         await _engine.Received(1).RenderStreamAsync(Arg.Any<Stream>(), Arg.Any<string>(), Arg.Any<OutputFormat>(), Arg.Any<CancellationToken>());
         result.Url.Should().Be("https://example.com/download/invoice.pdf");
@@ -436,12 +507,37 @@ public sealed class GenerateDocumentUseCaseTests
         // Act
         GenerateDocumentResultDto result = await CreateSut(permissiveValidator).ExecuteAsync("fallback-contract", request);
 
-        // Assert — verifies engine was called with OutputFormat.Pdf fallback
+        // Assert
         await _engine.Received(1).RenderStreamAsync(
             Arg.Any<Stream>(),
             Arg.Any<string>(),
             OutputFormat.Pdf,
             Arg.Any<CancellationToken>());
         result.Url.Should().Be("https://example.com/download/fallback.pdf");
+    }
+
+    private sealed class NonSeekableReadOnlyStream(byte[] bytes) : Stream
+    {
+        private readonly MemoryStream _inner = new(bytes);
+
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException("Stream is not seekable.");
+        public override long Position
+        {
+            get => throw new NotSupportedException("Stream is not seekable.");
+            set => throw new NotSupportedException("Stream is not seekable.");
+        }
+
+        public override void Flush() => _inner.Flush();
+        public override int Read(byte[] buffer, int offset, int count) => _inner.Read(buffer, offset, count);
+        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
+            _inner.ReadAsync(buffer, offset, count, cancellationToken);
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default) =>
+            _inner.ReadAsync(buffer, cancellationToken);
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
 }

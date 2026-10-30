@@ -1,6 +1,7 @@
 using SmkDoc.Application.Modules.Authoring.FieldMappings.Commands.SaveTemplateMappings;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 using SmkDoc.Domain.Entities;
+using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
@@ -19,7 +20,7 @@ public sealed class SaveTemplateMappingsUseCaseTests
         new(_templateRepo, _unitOfWork, _timeProvider);
 
     [Fact]
-    public async Task ExecuteAsync_WhenValidCommand_SavesMappingsAndCommits()
+    public async Task ExecuteAsync_WhenValidCommand_SavesMappingsUpdatesActiveSnapshotAndCommits()
     {
         var templateId = Guid.NewGuid();
         var template = new TemplateBuilder()
@@ -28,6 +29,15 @@ public sealed class SaveTemplateMappingsUseCaseTests
             .WithName("Contract")
             .WithSlug("contract")
             .Build();
+
+        var version = template.CreateDraftVersion(
+            1,
+            "templates/p/t/v1.html",
+            TemplateFormat.Html,
+            "author",
+            TestConstants.BaselineTime,
+            "Init");
+        template.PublishVersion(version, TestConstants.BaselineTime);
 
         _templateRepo.GetByIdWithDetailsAsync(new TemplateId(templateId), Arg.Any<CancellationToken>())
             .Returns(template);
@@ -49,6 +59,8 @@ public sealed class SaveTemplateMappingsUseCaseTests
         mapping.Placeholder.Should().Be("customerName");
         mapping.SourcePath.Should().Be("customer.name");
         mapping.Transform.Should().Be("thai_baht_text");
+        version.MappingsSnapshot.Should().NotBeNullOrWhiteSpace();
+        version.MappingsSnapshot.Should().Contain("customerName");
         await _unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
     }
 

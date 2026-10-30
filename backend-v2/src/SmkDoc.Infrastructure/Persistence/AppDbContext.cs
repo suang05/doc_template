@@ -1,12 +1,10 @@
 using System.Reflection;
 using Microsoft.EntityFrameworkCore;
+using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Common;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Interfaces;
-using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.ValueObjects.Ids;
-using SmkDoc.Application.Common.Interfaces;
 
 namespace SmkDoc.Infrastructure.Persistence;
 
@@ -59,7 +57,7 @@ public class AppDbContext : DbContext
             }
         }
 
-        // 12. Matching Multi-Tenant Global Query Filters for Template child entities (eliminates EF Core 10622)
+        // 12. Matching Multi-Tenant Global Query Filters for aggregate child entities (eliminates EF Core 10622)
         modelBuilder.Entity<TemplateVersion>()
             .HasQueryFilter(v => v.Template != null && IsTenantResolved && v.Template.ProjectId == CurrentTenantId);
 
@@ -68,6 +66,9 @@ public class AppDbContext : DbContext
 
         modelBuilder.Entity<TemplateDataset>()
             .HasQueryFilter(td => td.Template != null && IsTenantResolved && td.Template.ProjectId == CurrentTenantId);
+
+        modelBuilder.Entity<DocumentVersion>()
+            .HasQueryFilter(dv => dv.Document != null && IsTenantResolved && dv.Document.ProjectId == CurrentTenantId);
     }
 
     private static readonly MethodInfo ConfigureProjectFilterMethod = typeof(AppDbContext)
@@ -95,4 +96,3 @@ public class AppDbContext : DbContext
         return result;
     }
 }
-

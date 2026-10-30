@@ -28,7 +28,7 @@ public sealed class DocumentDataPreparationService(
         {
             var aliasMap = await DatasetAliasMapBuilder.BuildAsync(
                 template.TemplateDatasets, datasetRepo, connectionRepo, dataProtection, ct);
-            dataJson = await fieldMappingApplicator.ApplyAsync(rawData, mappings, aliasMap);
+            dataJson = await fieldMappingApplicator.ApplyAsync(rawData, mappings, aliasMap, ct);
         }
         else
         {

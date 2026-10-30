@@ -1,5 +1,6 @@
 using System.Text;
 using SmkDoc.Application.Common;
+using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.CommitTemplateDraft;
@@ -9,7 +10,6 @@ using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.ValueObjects.Ids;
-using ValidationException = SmkDoc.Application.Common.Exceptions.ValidationException;
 
 namespace SmkDoc.Tests.Application.Modules.Authoring.Templates.Commands.CommitTemplateDraft;
 
@@ -23,10 +23,14 @@ public sealed class CommitTemplateDraftUseCaseTests
     private readonly ISchemaInferenceService _schemaInference = Substitute.For<ISchemaInferenceService>();
     private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
     private readonly FakeTimeProvider _timeProvider = TestConstants.CreateFakeClock();
+    private readonly ProjectId _defaultProjectId = ProjectId.New();
 
     public CommitTemplateDraftUseCaseTests()
     {
         _unitOfWork.CommitAsync(Arg.Any<CancellationToken>()).Returns(1);
+        _projectContext.IsResolved.Returns(true);
+        _projectContext.ProjectId.Returns(_defaultProjectId);
+        _projectContext.CallerIdentity.Returns("studio-user");
 
         Project sampleProject = Project.Create(
             CompanyId.New(),
@@ -49,25 +53,28 @@ public sealed class CommitTemplateDraftUseCaseTests
         _timeProvider);
 
     [Fact]
-    public async Task ExecuteAsync_WhenValidDraft_ShouldUploadToMinioAndPersistToDb()
+    public async Task ExecuteAsync_WhenValidDraft_ShouldUploadImmutableVersionKeyAndPersistToDb()
     {
         // Arrange
         var fileBytes = Encoding.UTF8.GetBytes("xlsx-content");
         var entry = new TemplateDraftEntry(fileBytes, "report.xlsx", ".xlsx", []);
-        var request = new CommitDraftCommand("Report", "report", "finance", [], ProjectId: Guid.NewGuid());
+        var request = new CommitDraftCommand("Report", "report", "finance", []);
 
         _draftCache.GetAsync("draft-commit", Arg.Any<CancellationToken>()).Returns(entry);
         _storageService.UploadAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<Stream>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns("storage-key");
+            .Returns(ci => ci.ArgAt<string>(1));
 
         // Act
-        var templateId = await CreateSut().ExecuteAsync(new CommitTemplateDraftCommand("draft-commit", request), CancellationToken.None);
+        var templateIdStr = await CreateSut().ExecuteAsync(new CommitTemplateDraftCommand("draft-commit", request), CancellationToken.None);
 
         // Assert
-        templateId.Should().NotBeEmpty();
+        templateIdStr.Should().NotBeEmpty();
+        var templateGuid = Guid.Parse(templateIdStr);
+        var expectedKey = $"templates/{_defaultProjectId.Value:N}/{templateGuid:N}/v1.xlsx";
+
         await _storageService.Received(1).UploadAsync(
             StorageBuckets.Templates,
-            Arg.Is<string>(k => k.StartsWith($"templates/{request.ProjectId}/")),
+            expectedKey,
             Arg.Any<Stream>(),
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             Arg.Any<CancellationToken>());
@@ -80,18 +87,21 @@ public sealed class CommitTemplateDraftUseCaseTests
     {
         // Arrange
         var entry = new TemplateDraftEntry(Encoding.UTF8.GetBytes("data"), "t.docx", ".docx", []);
-        var request = new CommitDraftCommand("T", "test-template", null, [], ProjectId: Guid.NewGuid());
+        var request = new CommitDraftCommand("Report", "test-template", null, []);
 
         _draftCache.GetAsync("draft-fail", Arg.Any<CancellationToken>()).Returns(entry);
         _storageService.UploadAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<Stream>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns("storage-key");
+            .Returns(ci => ci.ArgAt<string>(1));
         _unitOfWork.CommitAsync(Arg.Any<CancellationToken>()).ThrowsAsync(new InvalidOperationException("DB error"));
 
         // Act & Assert
         await CreateSut().Invoking(u => u.ExecuteAsync(new CommitTemplateDraftCommand("draft-fail", request), CancellationToken.None))
             .Should().ThrowAsync<InvalidOperationException>().WithMessage("DB error");
 
-        await _storageService.Received(1).DeleteAsync(StorageBuckets.Templates, Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await _storageService.Received(1).DeleteAsync(
+            StorageBuckets.Templates,
+            Arg.Is<string>(k => k.StartsWith($"templates/{_defaultProjectId.Value:N}/") && k.EndsWith("/v1.docx")),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -99,7 +109,7 @@ public sealed class CommitTemplateDraftUseCaseTests
     {
         // Arrange
         _draftCache.GetAsync("stale", Arg.Any<CancellationToken>()).Returns((TemplateDraftEntry?)null);
-        var request = new CommitDraftCommand("T", "test-template", null, [], ProjectId: Guid.NewGuid());
+        var request = new CommitDraftCommand("Report", "test-template", null, []);
 
         // Act & Assert
         await CreateSut().Invoking(u => u.ExecuteAsync(new CommitTemplateDraftCommand("stale", request), CancellationToken.None))
@@ -107,7 +117,7 @@ public sealed class CommitTemplateDraftUseCaseTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_WhenMappingsProvided_ShouldPersistAllFieldMappings()
+    public async Task ExecuteAsync_WhenMappingsProvided_ShouldPersistFieldMappingsAndMappingsSnapshot()
     {
         // Arrange
         var entry = new TemplateDraftEntry(Encoding.UTF8.GetBytes("html"), "t.html", ".html", []);
@@ -116,65 +126,39 @@ public sealed class CommitTemplateDraftUseCaseTests
             new("name", "customer.name", "ชื่อลูกค้า", true, null, null, 0),
             new("total", "invoice.total", "ยอดรวม", false, null, null, 1),
         };
-        var request = new CommitDraftCommand("Invoice", "invoice", null, mappings, ProjectId: Guid.NewGuid());
+        var request = new CommitDraftCommand("Invoice", "invoice", null, mappings);
 
         _draftCache.GetAsync("draft-map", Arg.Any<CancellationToken>()).Returns(entry);
         _storageService.UploadAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<Stream>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns("key");
+            .Returns(ci => ci.ArgAt<string>(1));
 
         // Act
         await CreateSut().ExecuteAsync(new CommitTemplateDraftCommand("draft-map", request), CancellationToken.None);
 
         // Assert
         await _templateRepo.Received(1).AddAsync(
-            Arg.Is<Template>(t => t.FieldMappings.Count == 2),
+            Arg.Is<Template>(t =>
+                t.FieldMappings.Count == 2 &&
+                !string.IsNullOrWhiteSpace(t.Versions.Single().MappingsSnapshot)),
             Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task ExecuteAsync_WhenMissingProjectIdAndNoContext_ShouldThrowValidationExceptionWithoutUploading()
+    public async Task ExecuteAsync_WhenProjectContextUnresolved_ShouldThrowForbiddenExceptionWithoutUploading()
     {
         // Arrange
+        _projectContext.IsResolved.Returns(false);
         var entry = new TemplateDraftEntry(Encoding.UTF8.GetBytes("data"), "report.docx", ".docx", []);
-        var request = new CommitDraftCommand("Report", "report", null, [], ProjectId: null);
+        var request = new CommitDraftCommand("Report", "report", null, []);
 
         _draftCache.GetAsync("draft-no-proj", Arg.Any<CancellationToken>()).Returns(entry);
 
         // Act & Assert
         var act = () => CreateSut().ExecuteAsync(new CommitTemplateDraftCommand("draft-no-proj", request), CancellationToken.None);
-        var ex = await act.Should().ThrowAsync<ValidationException>();
-        ex.Which.Errors.Should().ContainKey("ProjectId");
+        await act.Should().ThrowAsync<ForbiddenException>()
+            .WithMessage("*active project context*");
 
         await _storageService.DidNotReceive().UploadAsync(
             Arg.Any<string>(), Arg.Any<string>(), Arg.Any<Stream>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task ExecuteAsync_WhenNullProjectIdInRequest_ShouldFallbackToCurrentProjectContext()
-    {
-        // Arrange
-        var contextProjectId = Guid.NewGuid();
-        _projectContext.IsResolved.Returns(true);
-        _projectContext.ProjectId.Returns(new ProjectId(contextProjectId));
-
-        var fileBytes = Encoding.UTF8.GetBytes("docx-content");
-        var entry = new TemplateDraftEntry(fileBytes, "report.docx", ".docx", []);
-        var request = new CommitDraftCommand("Report", "report", null, [], ProjectId: null);
-
-        _draftCache.GetAsync("draft-ctx", Arg.Any<CancellationToken>()).Returns(entry);
-        _storageService.UploadAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<Stream>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns("storage-key");
-
-        // Act
-        var result = await CreateSut().ExecuteAsync(new CommitTemplateDraftCommand("draft-ctx", request), CancellationToken.None);
-
-        // Assert
-        result.Should().NotBeEmpty();
-        await _storageService.Received(1).UploadAsync(
-            StorageBuckets.Templates,
-            Arg.Is<string>(k => k.StartsWith($"templates/{contextProjectId}/")),
-            Arg.Any<Stream>(),
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            Arg.Any<CancellationToken>());
     }
 }

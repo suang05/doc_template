@@ -4,10 +4,9 @@ using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Helpers;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.Exceptions;
+using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
-using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Modules.IdentityAccess.Security.Commands.CreateApiKey;
 
@@ -16,8 +15,8 @@ public sealed class CreateApiKeyUseCase(
     IProjectRepository projectRepo,
     IUnitOfWork unitOfWork,
     IValidator<CreateApiKeyCommand> validator,
-    TimeProvider? timeProvider = null,
-    ICurrentProjectContext? projectContext = null) : IUseCase<CreateApiKeyCommand, CreateApiKeyResultDto>
+    ICurrentProjectContext projectContext,
+    TimeProvider? timeProvider = null) : IUseCase<CreateApiKeyCommand, CreateApiKeyResultDto>
 {
     private readonly TimeProvider timeProvider = timeProvider ?? TimeProvider.System;
 
@@ -29,28 +28,14 @@ public sealed class CreateApiKeyUseCase(
             throw new ValidationException(validationResult.ToDictionary());
         }
 
-        Guid targetProjectId;
-        if (projectContext?.IsResolved == true)
+        if (!projectContext.IsResolved)
         {
-            if (command.ProjectId.HasValue && command.ProjectId.Value != Guid.Empty && command.ProjectId.Value != projectContext.ProjectId.Value)
-            {
-                throw new ForbiddenException($"Cross-tenant API key creation rejected: Command ProjectId '{command.ProjectId.Value}' does not match active context '{projectContext.ProjectId.Value}'.");
-            }
-
-            targetProjectId = projectContext.ProjectId.Value;
-        }
-        else if (command.ProjectId.HasValue && command.ProjectId.Value != Guid.Empty)
-        {
-            targetProjectId = command.ProjectId.Value;
-        }
-        else
-        {
-            throw new ValidationException("ProjectId", "ProjectId is required to create an API key.");
+            throw new ForbiddenException("Active project context is required to create an API key.");
         }
 
-        var pId = new ProjectId(targetProjectId);
-        var project = await projectRepo.GetByIdAsync(pId, ct)
-            ?? throw new NotFoundException($"Project '{targetProjectId}' not found.");
+        var pId = projectContext.ProjectId;
+        _ = await projectRepo.GetByIdAsync(pId, ct)
+            ?? throw new NotFoundException($"Project '{pId.Value}' not found.");
 
         string rawSecret = $"smk_{command.CallerApp.ToLowerInvariant()}_{Guid.NewGuid():N}";
         var hash = new Sha256Hash(ApiKeyHelper.ComputeHash(rawSecret));

@@ -12,6 +12,7 @@ public sealed class TemplateVersionConfiguration : IEntityTypeConfiguration<Temp
     {
         builder.ToTable("template_versions");
         builder.HasKey(e => e.Id);
+        builder.Property(e => e.Id).ValueGeneratedNever();
         builder.Property(e => e.TemplateId)
             .HasConversion(id => id.Value, v => new TemplateId(v));
         builder.HasIndex(e => new { e.TemplateId, e.Version }).IsUnique();

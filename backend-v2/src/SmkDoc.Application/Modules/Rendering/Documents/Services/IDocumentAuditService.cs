@@ -13,6 +13,15 @@ public interface IDocumentAuditService
         string errorMessage,
         CancellationToken ct = default);
 
+    Task LogFailureAsync(
+        Guid templateId,
+        Guid templateVersionId,
+        string? dataJson,
+        OutputFormat outputFormat,
+        int elapsedMs,
+        string errorMessage,
+        CancellationToken ct = default);
+
     Task LogSuccessAsync(
         Guid generationId,
         Guid templateId,

@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Minio;
@@ -11,6 +12,7 @@ public class MinioStorageService : IStorageService
     private readonly IMinioClient _client;
     private readonly IMinioClient _publicClient;
     private readonly ILogger<MinioStorageService> _logger;
+    private readonly ConcurrentDictionary<string, bool> _initializedBuckets = new(StringComparer.Ordinal);
 
     public MinioStorageService(IOptions<MinioSettings> settings, ILogger<MinioStorageService> logger)
     {
@@ -37,7 +39,7 @@ public class MinioStorageService : IStorageService
     {
         await EnsureBucketExistsAsync(bucket, ct);
 
-        long length = data.CanSeek ? data.Length : -1;
+        long length = data.CanSeek ? (data.Length - data.Position) : -1;
         var args = new PutObjectArgs()
             .WithBucket(bucket)
             .WithObject(objectName)
@@ -97,8 +99,34 @@ public class MinioStorageService : IStorageService
         }
     }
 
+    public async Task<IReadOnlyList<string>> ListObjectsAsync(string bucket, string prefix, CancellationToken ct = default)
+    {
+        await EnsureBucketExistsAsync(bucket, ct);
+
+        var results = new List<string>();
+        var listArgs = new ListObjectsArgs()
+            .WithBucket(bucket)
+            .WithPrefix(prefix)
+            .WithRecursive(true);
+
+        await foreach (var item in _client.ListObjectsEnumAsync(listArgs, ct))
+        {
+            if (!item.IsDir && !string.IsNullOrWhiteSpace(item.Key))
+            {
+                results.Add(item.Key);
+            }
+        }
+
+        return results;
+    }
+
     private async Task EnsureBucketExistsAsync(string bucket, CancellationToken ct)
     {
+        if (_initializedBuckets.ContainsKey(bucket))
+        {
+            return;
+        }
+
         try
         {
             var existsArgs = new BucketExistsArgs().WithBucket(bucket);
@@ -108,6 +136,8 @@ public class MinioStorageService : IStorageService
                 var makeArgs = new MakeBucketArgs().WithBucket(bucket);
                 await _client.MakeBucketAsync(makeArgs, ct);
             }
+
+            _initializedBuckets.TryAdd(bucket, true);
         }
         catch (Exception ex)
         {

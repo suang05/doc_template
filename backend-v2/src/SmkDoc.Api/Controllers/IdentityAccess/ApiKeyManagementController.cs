@@ -3,6 +3,8 @@ using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.Constants;
 using SmkDoc.Api.Contracts.IdentityAccess.ApiKeys;
+using SmkDoc.Application.Common.Exceptions;
+using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.CreateApiKey;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.RevokeApiKey;
 using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
@@ -22,15 +24,16 @@ namespace SmkDoc.Api.Controllers.IdentityAccess;
 public class ApiKeyManagementController(
     ListApiKeysUseCase listApiKeysUseCase,
     CreateApiKeyUseCase createApiKeyUseCase,
-    RevokeApiKeyUseCase revokeApiKeyUseCase) : ControllerBase
+    RevokeApiKeyUseCase revokeApiKeyUseCase,
+    ICurrentProjectContext projectContext) : ControllerBase
 {
     /// <summary>List all API keys for the specified project. Admin only.</summary>
     [HttpGet]
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<ApiKeyDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> ListKeys([FromRoute] Guid projectId, CancellationToken ct)
     {
-        var query = new ListApiKeysQuery(projectId);
-        var keys = await listApiKeysUseCase.ExecuteAsync(query, ct);
+        EnsureRouteMatchesProjectContext(projectId);
+        var keys = await listApiKeysUseCase.ExecuteAsync(new ListApiKeysQuery(), ct);
         return Ok(new ApiResponse<IEnumerable<ApiKeyDto>>(keys));
     }
 
@@ -43,7 +46,13 @@ public class ApiKeyManagementController(
         [FromBody] CreateApiKeyRequest request,
         CancellationToken ct)
     {
-        var command = new CreateApiKeyCommand(request.Name, request.CallerApp, projectId);
+        EnsureRouteMatchesProjectContext(projectId);
+        if (request.ProjectId.HasValue && request.ProjectId.Value != Guid.Empty && request.ProjectId.Value != projectContext.ProjectId.Value)
+        {
+            throw new ForbiddenException("Access denied: payload projectId does not match the active project context.");
+        }
+
+        var command = new CreateApiKeyCommand(request.Name, request.CallerApp);
         var result = await createApiKeyUseCase.ExecuteAsync(command, ct);
 
         var dto = new ApiKeyResponseDto(
@@ -53,7 +62,6 @@ public class ApiKeyManagementController(
             result.PlainTextKey,
             request.ExpiresAt);
 
-        // คืน 201 Created ตามมาตรฐาน RESTful
         return StatusCode(StatusCodes.Status201Created, new ApiResponse<ApiKeyResponseDto>(dto));
     }
 
@@ -66,8 +74,17 @@ public class ApiKeyManagementController(
         [FromRoute] Guid keyId,
         CancellationToken ct)
     {
-        var command = new RevokeApiKeyCommand(keyId, projectId);
+        EnsureRouteMatchesProjectContext(projectId);
+        var command = new RevokeApiKeyCommand(keyId);
         await revokeApiKeyUseCase.ExecuteAsync(command, ct);
         return NoContent();
+    }
+
+    private void EnsureRouteMatchesProjectContext(Guid routeProjectId)
+    {
+        if (!projectContext.IsResolved || projectContext.ProjectId.Value != routeProjectId)
+        {
+            throw new ForbiddenException("Access denied: route projectId does not match the active project context.");
+        }
     }
 }

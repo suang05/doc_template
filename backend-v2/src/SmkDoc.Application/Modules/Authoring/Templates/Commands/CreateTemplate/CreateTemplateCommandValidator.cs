@@ -7,9 +7,6 @@ public sealed partial class CreateTemplateCommandValidator : AbstractValidator<C
 {
     public CreateTemplateCommandValidator()
     {
-        RuleFor(x => x.ProjectId)
-            .NotEmpty().WithMessage("ProjectId is required.");
-
         RuleFor(x => x.Name)
             .NotEmpty().WithMessage("Template name is required.")
             .MinimumLength(2).WithMessage("Template name must be at least 2 characters.")

@@ -1,4 +1,4 @@
-﻿using FluentAssertions;
+using FluentAssertions;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.CreateTemplate;
 using Xunit;
 
@@ -15,7 +15,7 @@ public sealed class CreateTemplateCommandValidatorTests
     [InlineData("123-report")]
     public void Validate_ValidSlug_ShouldPass(string slug)
     {
-        var command = new CreateTemplateCommand(Guid.NewGuid(), "Valid Name", slug, "Category");
+        var command = new CreateTemplateCommand("Valid Name", slug, "Category");
         var result = _validator.Validate(command);
         result.IsValid.Should().BeTrue();
     }
@@ -29,7 +29,7 @@ public sealed class CreateTemplateCommandValidatorTests
     [InlineData("")]
     public void Validate_InvalidSlug_ShouldFail(string slug)
     {
-        var command = new CreateTemplateCommand(Guid.NewGuid(), "Valid Name", slug, "Category");
+        var command = new CreateTemplateCommand("Valid Name", slug, "Category");
         var result = _validator.Validate(command);
         result.IsValid.Should().BeFalse();
         result.Errors.Should().Contain(e => e.PropertyName == "Slug");
@@ -40,18 +40,9 @@ public sealed class CreateTemplateCommandValidatorTests
     [InlineData("A")]
     public void Validate_InvalidName_ShouldFail(string name)
     {
-        var command = new CreateTemplateCommand(Guid.NewGuid(), name, "valid-slug", "Category");
+        var command = new CreateTemplateCommand(name, "valid-slug", "Category");
         var result = _validator.Validate(command);
         result.IsValid.Should().BeFalse();
         result.Errors.Should().Contain(e => e.PropertyName == "Name");
-    }
-
-    [Fact]
-    public void Validate_EmptyProjectId_ShouldFail()
-    {
-        var command = new CreateTemplateCommand(Guid.Empty, "Valid Name", "valid-slug", "Category");
-        var result = _validator.Validate(command);
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.PropertyName == "ProjectId");
     }
 }

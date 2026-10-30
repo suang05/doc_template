@@ -1,4 +1,5 @@
 using FluentValidation;
+using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Integration.Datasets.Commands.CreateDataset;
 using SmkDoc.Application.Modules.Integration.Datasets.DTOs;
@@ -16,6 +17,7 @@ public sealed class CreateDatasetUseCaseTests
     private readonly IDatasetRepository _datasetRepo = Substitute.For<IDatasetRepository>();
     private readonly IDataConnectionRepository _connectionRepo = Substitute.For<IDataConnectionRepository>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
+    private readonly ISqlConnectionValidator _sqlValidator = Substitute.For<ISqlConnectionValidator>();
     private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
     private readonly ProjectId _projectId = ProjectId.New();
 
@@ -31,7 +33,8 @@ public sealed class CreateDatasetUseCaseTests
         _connectionRepo,
         _unitOfWork,
         validator ?? new CreateDatasetCommandValidator(),
-        projectContext: _projectContext);
+        _sqlValidator,
+        _projectContext);
 
     [Fact]
     public async Task ExecuteAsync_WithInvalidCommand_ShouldThrowValidationException()
@@ -50,7 +53,22 @@ public sealed class CreateDatasetUseCaseTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_ShouldPersistDatasetAndReturnDto()
+    public async Task ExecuteAsync_WhenProjectUnresolved_ShouldThrowForbiddenException()
+    {
+        // Arrange
+        _projectContext.IsResolved.Returns(false);
+        var command = new CreateDatasetCommand("OrdersSet", null, Guid.NewGuid(), "SELECT 1");
+
+        // Act
+        Func<Task> act = () => CreateSut().ExecuteAsync(command);
+
+        // Assert
+        await act.Should().ThrowAsync<ForbiddenException>();
+        _sqlValidator.DidNotReceive().ValidateReadOnlySql(Arg.Any<string>());
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_ShouldValidateReadOnlySqlPersistDatasetAndReturnDto()
     {
         // Arrange
         var connId = Guid.NewGuid();
@@ -68,6 +86,7 @@ public sealed class CreateDatasetUseCaseTests
         result.DataConnectionName.Should().Be("DB1");
         result.CacheSeconds.Should().Be(60);
 
+        _sqlValidator.Received(1).ValidateReadOnlySql("SELECT * FROM orders");
         await _datasetRepo.Received(1).AddAsync(
             Arg.Is<Dataset>(d =>
                 d.Name.Value == "OrdersSet" &&

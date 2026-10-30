@@ -4913,7 +4913,7 @@
         "tags": [
           "UserManagement"
         ],
-        "summary": "Activate or deactivate a user account. Admin only.",
+        "summary": "Activate or deactivate a global user account. SuperAdmin only.",
         "parameters": [
           {
             "name": "projectId",
@@ -5063,7 +5063,7 @@
         "tags": [
           "FontManagement"
         ],
-        "summary": "List all uploaded custom fonts.",
+        "summary": "List all available fonts for the active project.",
         "responses": {
           "200": {
             "description": "OK",
@@ -5091,7 +5091,7 @@
         "tags": [
           "FontManagement"
         ],
-        "summary": "Upload a new font file (.ttf, .otf). Max 10 MB.",
+        "summary": "Upload a new font file (.ttf, .otf, .woff, .woff2). Max 10 MB. Author or Admin role required.",
         "requestBody": {
           "content": {
             "multipart/form-data": {
@@ -5130,6 +5130,26 @@
           },
           "400": {
             "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
             "content": {
               "text/plain": {
                 "schema": {

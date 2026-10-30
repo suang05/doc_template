@@ -10,22 +10,30 @@ namespace SmkDoc.Application.Common.Helpers;
 /// - Thai Buddhist Era date formatting (e.g. 2026-09-09 -> 9 กันยายน 2569)
 /// - Currency, phone number, and Thai national ID card formatting
 /// </summary>
-public static class ThaiDataTransformer
+public static partial class ThaiDataTransformer
 {
-    private static readonly string[] Units = { "", "หนึ่ง", "สอง", "สาม", "สี่", "ห้า", "หก", "เจ็ด", "แปด", "เก้า" };
-    private static readonly string[] Digits = { "", "สิบ", "ร้อย", "พัน", "หมื่น", "แสน", "ล้าน" };
+    private static readonly string[] Units = ["", "หนึ่ง", "สอง", "สาม", "สี่", "ห้า", "หก", "เจ็ด", "แปด", "เก้า"];
+    private static readonly string[] Digits = ["", "สิบ", "ร้อย", "พัน", "หมื่น", "แสน", "ล้าน"];
 
-    private static readonly string[] FullThaiMonths = {
+    private static readonly string[] FullThaiMonths =
+    [
         "", "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน",
         "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม",
         "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"
-    };
+    ];
 
-    private static readonly string[] AbbrThaiMonths = {
+    private static readonly string[] AbbrThaiMonths =
+    [
         "", "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.",
         "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.",
         "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."
-    };
+    ];
+
+    [GeneratedRegex(@"^(?<y>\d{4})[-/](?<m>\d{1,2})[-/](?<d>\d{1,2})(?:[T\s](?<rest>.+))?$")]
+    private static partial Regex YearFirstDateRegex();
+
+    [GeneratedRegex(@"^(?<d>\d{1,2})[-/](?<m>\d{1,2})[-/](?<y>\d{4})(?:[T\s](?<rest>.+))?$")]
+    private static partial Regex DayFirstDateRegex();
 
     public static string Transform(string? value, string transformType)
     {
@@ -176,8 +184,7 @@ public static class ThaiDataTransformer
     {
         if (string.IsNullOrWhiteSpace(input)) return string.Empty;
 
-        if (!DateTime.TryParse(input, CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime date) &&
-            !DateTime.TryParse(input, out date))
+        if (!TryParseGregorianDate(input.Trim(), out DateTime date))
         {
             return input;
         }
@@ -191,14 +198,112 @@ public static class ThaiDataTransformer
     {
         if (string.IsNullOrWhiteSpace(input)) return string.Empty;
 
-        if (!DateTime.TryParse(input, CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime date) &&
-            !DateTime.TryParse(input, out date))
+        if (!TryParseGregorianDate(input.Trim(), out DateTime date))
         {
             return input;
         }
 
-        string datePart = FormatThaiDate(input, abbreviated);
-        return $"{datePart} {date:HH:mm} น.";
+        int thaiYear = date.Year > 2400 ? date.Year : date.Year + 543;
+        string month = abbreviated ? AbbrThaiMonths[date.Month] : FullThaiMonths[date.Month];
+        return $"{date.Day} {month} {thaiYear} {date:HH:mm} น.";
+    }
+
+    private static bool TryParseGregorianDate(string trimmed, out DateTime gregorianDate)
+    {
+        // 1. Pre-normalize Buddhist Era years (> 2400 => - 543) BEFORE Gregorian calendar validation
+        //    so Buddhist Era leap-year dates (e.g., 2567-02-29 or 29/02/2567) resolve to 2024-02-29.
+        var yearFirstMatch = YearFirstDateRegex().Match(trimmed);
+        if (yearFirstMatch.Success &&
+            int.TryParse(yearFirstMatch.Groups["y"].Value, out int yfYear) &&
+            int.TryParse(yearFirstMatch.Groups["m"].Value, out int yfMonth) &&
+            int.TryParse(yearFirstMatch.Groups["d"].Value, out int yfDay))
+        {
+            int normalizedYear = yfYear > 2400 ? yfYear - 543 : yfYear;
+            return TryBuildDateWithOptionalTime(
+                normalizedYear,
+                yfMonth,
+                yfDay,
+                yearFirstMatch.Groups["rest"].Value,
+                out gregorianDate);
+        }
+
+        var dayFirstMatch = DayFirstDateRegex().Match(trimmed);
+        if (dayFirstMatch.Success &&
+            int.TryParse(dayFirstMatch.Groups["y"].Value, out int dfYear) &&
+            int.TryParse(dayFirstMatch.Groups["m"].Value, out int dfMonth) &&
+            int.TryParse(dayFirstMatch.Groups["d"].Value, out int dfDay))
+        {
+            // When Buddhist Era year (> 2400) or unambiguous day > 12 is used, interpret strictly as dd/MM/yyyy.
+            if (dfYear > 2400 || dfDay > 12)
+            {
+                int normalizedYear = dfYear > 2400 ? dfYear - 543 : dfYear;
+                return TryBuildDateWithOptionalTime(
+                    normalizedYear,
+                    dfMonth,
+                    dfDay,
+                    dayFirstMatch.Groups["rest"].Value,
+                    out gregorianDate);
+            }
+        }
+
+        // 2. Fallback to standard Gregorian parsing for ISO/Invariant formats
+        if (DateTime.TryParse(trimmed, CultureInfo.InvariantCulture, DateTimeStyles.None, out gregorianDate) ||
+            DateTime.TryParse(trimmed, out gregorianDate))
+        {
+            if (gregorianDate.Year > 2400)
+            {
+                return TryBuildDateWithOptionalTime(
+                    gregorianDate.Year - 543,
+                    gregorianDate.Month,
+                    gregorianDate.Day,
+                    gregorianDate.TimeOfDay == TimeSpan.Zero ? string.Empty : gregorianDate.ToString("HH:mm:ss", CultureInfo.InvariantCulture),
+                    out gregorianDate);
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool TryBuildDateWithOptionalTime(
+        int gregorianYear,
+        int month,
+        int day,
+        string? timeRest,
+        out DateTime result)
+    {
+        result = default;
+        if (gregorianYear is < 1 or > 9999 || month is < 1 or > 12)
+        {
+            return false;
+        }
+
+        int maxDay = DateTime.DaysInMonth(gregorianYear, month);
+        if (day < 1 || day > maxDay)
+        {
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(timeRest))
+        {
+            result = new DateTime(gregorianYear, month, day, 0, 0, 0, DateTimeKind.Unspecified);
+            return true;
+        }
+
+        string isoCandidate = $"{gregorianYear:D4}-{month:D2}-{day:D2}T{timeRest.Trim()}";
+        if (DateTimeOffset.TryParse(isoCandidate, CultureInfo.InvariantCulture, DateTimeStyles.None, out var dto))
+        {
+            result = dto.DateTime;
+            return true;
+        }
+
+        if (DateTime.TryParse(isoCandidate, CultureInfo.InvariantCulture, DateTimeStyles.None, out result))
+        {
+            return true;
+        }
+
+        return false;
     }
 
     public static string FormatCurrency(string input, int decimalPlaces = 2)

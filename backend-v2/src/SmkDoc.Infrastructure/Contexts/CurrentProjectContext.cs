@@ -1,11 +1,12 @@
 using SmkDoc.Application.Common.Interfaces;
+using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Infrastructure.Contexts;
 
 /// <summary>
-/// Scoped thread-safe implementation of <see cref="ICurrentProjectContext"/> and <see cref="ICurrentProjectContextSetter"/>.
+/// Scoped implementation of <see cref="ICurrentProjectContext"/> and <see cref="ICurrentProjectContextSetter"/>.
 /// Provides immutable guarantees once a project has been successfully resolved for the request.
 /// </summary>
 public sealed class CurrentProjectContext : ICurrentProjectContext, ICurrentProjectContextSetter
@@ -13,6 +14,9 @@ public sealed class CurrentProjectContext : ICurrentProjectContext, ICurrentProj
     public ProjectId ProjectId { get; private set; } = ProjectId.Empty;
     public bool IsResolved => !ProjectId.IsEmpty;
     public string? CallerIdentity { get; private set; }
+    public UserId? UserId { get; private set; }
+    public SystemRole? SystemRole { get; private set; }
+    public ApiKeyId? ApiKeyId { get; private set; }
 
     public void SetProject(ProjectId projectId, string? callerIdentity = null)
     {
@@ -27,6 +31,24 @@ public sealed class CurrentProjectContext : ICurrentProjectContext, ICurrentProj
         }
 
         ProjectId = projectId;
-        CallerIdentity = callerIdentity;
+        if (!string.IsNullOrWhiteSpace(callerIdentity))
+        {
+            CallerIdentity = callerIdentity;
+        }
+    }
+
+    public void SetActor(
+        UserId? userId = null,
+        SystemRole? systemRole = null,
+        ApiKeyId? apiKeyId = null,
+        string? callerIdentity = null)
+    {
+        UserId = userId;
+        SystemRole = systemRole;
+        ApiKeyId = apiKeyId;
+        if (!string.IsNullOrWhiteSpace(callerIdentity))
+        {
+            CallerIdentity = callerIdentity;
+        }
     }
 }

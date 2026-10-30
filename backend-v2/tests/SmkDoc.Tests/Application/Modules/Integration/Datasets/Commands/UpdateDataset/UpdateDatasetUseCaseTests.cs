@@ -1,4 +1,5 @@
 using FluentValidation;
+using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Integration.Datasets.Commands.UpdateDataset;
 using SmkDoc.Application.Modules.Integration.Datasets.DTOs;
 using SmkDoc.Application.Modules.Integration.Datasets.Validators;
@@ -15,6 +16,7 @@ public sealed class UpdateDatasetUseCaseTests
     private readonly IDatasetRepository _datasetRepo = Substitute.For<IDatasetRepository>();
     private readonly IDataConnectionRepository _connectionRepo = Substitute.For<IDataConnectionRepository>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
+    private readonly ISqlConnectionValidator _sqlValidator = Substitute.For<ISqlConnectionValidator>();
 
     public UpdateDatasetUseCaseTests()
     {
@@ -25,7 +27,8 @@ public sealed class UpdateDatasetUseCaseTests
         _datasetRepo,
         _connectionRepo,
         _unitOfWork,
-        validator ?? new UpdateDatasetCommandValidator());
+        validator ?? new UpdateDatasetCommandValidator(),
+        _sqlValidator);
 
     [Fact]
     public async Task ExecuteAsync_WithInvalidCommand_ShouldThrowValidationException()
@@ -43,7 +46,7 @@ public sealed class UpdateDatasetUseCaseTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_WhenFound_UpdatesAndCommits()
+    public async Task ExecuteAsync_WhenFound_ValidatesReadOnlySqlUpdatesAndCommits()
     {
         // Arrange
         var id = Guid.NewGuid();
@@ -73,6 +76,7 @@ public sealed class UpdateDatasetUseCaseTests
         result!.Name.Should().Be("NewName");
         result.DataConnectionName.Should().Be("Conn1");
         result.CacheSeconds.Should().Be(60);
+        _sqlValidator.Received(1).ValidateReadOnlySql("SELECT 2");
         _datasetRepo.Received(1).Update(dataset);
         await _unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
     }

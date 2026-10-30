@@ -19,6 +19,9 @@ public sealed class DocumentVersion : BaseEntity
     public string? ChangeNote { get; private set; }
     public string? CreatedBy { get; private set; }
 
+    // Navigation property for EF Core materialization and matching tenant query filter
+    public Document? Document { get; private set; }
+
     // For EF Core materialization
     private DocumentVersion() { }
 

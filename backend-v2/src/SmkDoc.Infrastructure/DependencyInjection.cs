@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Http.Resilience;
 using Polly;
 using SmkDoc.Application.Common.Interfaces;
+using SmkDoc.Domain.Interfaces;
 using SmkDoc.Infrastructure.Cache;
 using SmkDoc.Infrastructure.Contexts;
 using SmkDoc.Infrastructure.Data;
@@ -26,7 +27,6 @@ using SmkDoc.Infrastructure.Persistence.Repositories;
 using SmkDoc.Infrastructure.Schema;
 using SmkDoc.Infrastructure.Security;
 using SmkDoc.Infrastructure.Storage;
-using SmkDoc.Domain.Interfaces;
 
 namespace SmkDoc.Infrastructure;
 
@@ -34,12 +34,10 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructureServices(this IServiceCollection services, IConfiguration configuration)
     {
-        // 2. Ambient Project & Execution Context
+        // 2. Unified Channel-Agnostic Ambient Project & Caller Context
         services.AddScoped<CurrentProjectContext>();
         services.AddScoped<ICurrentProjectContext>(sp => sp.GetRequiredService<CurrentProjectContext>());
         services.AddScoped<ICurrentProjectContextSetter>(sp => sp.GetRequiredService<CurrentProjectContext>());
-        services.AddScoped<ExecutionContextImpl>();
-        services.AddScoped<IExecutionContext>(sp => sp.GetRequiredService<ExecutionContextImpl>());
 
         // 3. Database
         string connectionString = configuration.GetConnectionString("DefaultConnection")
@@ -92,6 +90,7 @@ public static class DependencyInjection
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton<IDataProtectionService, DataProtectionService>();
         services.AddSingleton<IDocxSecurityScanner, DocxSecurityScannerService>();
+        services.AddSingleton<ISqlConnectionValidator, SqlSecurityGuard>();
         services.AddScoped<ISqlExecutorService, SqlExecutorService>();
 
         // 5. PDF Converter (Gotenberg 8)
@@ -114,11 +113,11 @@ public static class DependencyInjection
             builder.AddTimeout(TimeSpan.FromSeconds(60));
 
             // 2. Adaptive Retry with Exponential Backoff + Jitter for transient errors
-            builder.AddRetry(new Microsoft.Extensions.Http.Resilience.HttpRetryStrategyOptions
+            builder.AddRetry(new HttpRetryStrategyOptions
             {
                 MaxRetryAttempts = 3,
                 Delay = TimeSpan.FromSeconds(1),
-                BackoffType = Polly.DelayBackoffType.Exponential,
+                BackoffType = DelayBackoffType.Exponential,
                 UseJitter = true,
                 ShouldHandle = args =>
                 {
@@ -133,7 +132,7 @@ public static class DependencyInjection
             });
 
             // 3. Circuit Breaker: Trip on 50% transient failures over 30s window; 15s break duration
-            builder.AddCircuitBreaker(new Microsoft.Extensions.Http.Resilience.HttpCircuitBreakerStrategyOptions
+            builder.AddCircuitBreaker(new HttpCircuitBreakerStrategyOptions
             {
                 FailureRatio = 0.5,
                 SamplingDuration = TimeSpan.FromSeconds(30),

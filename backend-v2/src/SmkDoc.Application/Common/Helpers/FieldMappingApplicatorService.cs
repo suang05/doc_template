@@ -6,7 +6,6 @@ using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.ValueObjects;
 
 namespace SmkDoc.Application.Common.Helpers;
 
@@ -39,19 +38,18 @@ public sealed class FieldMappingApplicatorService(
 
         var ordered = mappings.OrderBy(m => m.SortOrder).ToList();
 
-        // ── Pass 1: json ──────────────────────────────────────────────────
+        // -- Pass 1: json --------------------------------------------------
         foreach (var mapping in ordered.Where(m => m.DataSourceType == DataSourceType.Json))
         {
             var val = Finalize(ResolveJsonPath(root, mapping.SourcePath), mapping);
             dict[mapping.Placeholder] = val;
         }
 
-        // ── Pass 1b: sql — group by alias, execute each query once ────────
+        // -- Pass 1b: sql -- group by alias, execute each query once --------
         var sqlMappings = ordered
             .Where(m => m.DataSourceType == DataSourceType.Sql && m.DatasetAlias != null)
             .ToList();
 
-        // Cache: alias → parsed JSON result
         var aliasCache = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var alias in sqlMappings.Select(m => m.DatasetAlias!.Value).Distinct(StringComparer.OrdinalIgnoreCase))
@@ -71,7 +69,7 @@ public sealed class FieldMappingApplicatorService(
                 if (!string.IsNullOrWhiteSpace(json))
                     aliasCache[alias] = JsonDocument.Parse(json).RootElement.Clone();
             }
-            catch (Exception ex) when (ex is not DatasetExecutionException)
+            catch (Exception ex) when (ex is not DatasetExecutionException and not OperationCanceledException and not ForbiddenException)
             {
                 throw new DatasetExecutionException(alias, ds.Provider, ex.Message, ex);
             }
@@ -90,7 +88,7 @@ public sealed class FieldMappingApplicatorService(
             dict[mapping.Placeholder] = Finalize(val, mapping);
         }
 
-        // ── Pass 2: MathExpression — applied after all json/sql settled ───
+        // -- Pass 2: MathExpression -- applied after all json/sql settled ---
         var stringVars = BuildStringVars(dict);
         foreach (var mapping in ordered.Where(m => !string.IsNullOrWhiteSpace(m.MathExpression)))
         {
@@ -115,8 +113,6 @@ public sealed class FieldMappingApplicatorService(
         });
     }
 
-    // ── Helpers ────────────────────────────────────────────────────────────
-
     private static string Finalize(string? val, FieldMapping mapping)
     {
         if (string.IsNullOrWhiteSpace(val)) val = mapping.DefaultValue;
@@ -138,10 +134,10 @@ public sealed class FieldMappingApplicatorService(
         {
             result[key] = value switch
             {
-                string s       => s,
+                string s => s,
                 JsonElement je => je.ValueKind == JsonValueKind.String ? je.GetString() : je.GetRawText(),
-                null           => null,
-                _              => value.ToString()
+                null => null,
+                _ => value.ToString()
             };
         }
         return result;
@@ -181,7 +177,7 @@ public sealed class FieldMappingApplicatorService(
     private static string? ResolveJsonPath(JsonElement root, string path)
     {
         if (string.IsNullOrWhiteSpace(path)) return null;
-        var parts   = path.Split('.');
+        var parts = path.Split('.');
         var current = root;
 
         foreach (var part in parts)
@@ -217,10 +213,10 @@ public sealed class FieldMappingApplicatorService(
         {
             JsonValueKind.String => current.GetString(),
             JsonValueKind.Number => current.GetRawText(),
-            JsonValueKind.True   => "true",
-            JsonValueKind.False  => "false",
-            JsonValueKind.Null   => string.Empty,
-            _                    => current.GetRawText()
+            JsonValueKind.True => "true",
+            JsonValueKind.False => "false",
+            JsonValueKind.Null => string.Empty,
+            _ => current.GetRawText()
         };
     }
 
@@ -235,9 +231,9 @@ public sealed class FieldMappingApplicatorService(
             var first = target.EnumerateObject().FirstOrDefault();
             return first.Value.ValueKind switch
             {
-                JsonValueKind.String    => first.Value.GetString(),
+                JsonValueKind.String => first.Value.GetString(),
                 JsonValueKind.Undefined => null,
-                _                       => first.Value.GetRawText()
+                _ => first.Value.GetRawText()
             };
         }
 
@@ -245,7 +241,7 @@ public sealed class FieldMappingApplicatorService(
         {
             JsonValueKind.String => target.GetString(),
             JsonValueKind.Number => target.GetRawText(),
-            _                    => null
+            _ => null
         };
     }
 }

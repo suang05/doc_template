@@ -63,7 +63,7 @@ public sealed class PreviewMappingUseCase(
         {
             var aliasMap = await DatasetAliasMapBuilder.BuildAsync(
                 template.TemplateDatasets, _datasetRepo, _connectionRepo, _dataProtection, ct);
-            dataJson = await _fieldMappingApplicator.ApplyAsync(sampleData, mappings, aliasMap);
+            dataJson = await _fieldMappingApplicator.ApplyAsync(sampleData, mappings, aliasMap, ct);
         }
         else
         {

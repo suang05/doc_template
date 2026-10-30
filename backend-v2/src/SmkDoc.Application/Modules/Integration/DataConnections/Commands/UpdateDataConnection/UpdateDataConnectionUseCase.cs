@@ -21,9 +21,10 @@ public sealed class UpdateDataConnectionUseCase(
     IUnitOfWork unitOfWork,
     IDataProtectionService dataProtection,
     IValidator<UpdateDataConnectionCommand> validator,
+    ISqlConnectionValidator sqlValidator,
     TimeProvider? timeProvider = null) : IUseCase<UpdateDataConnectionCommand, DataConnectionDto?>
 {
-    private readonly TimeProvider timeProvider = timeProvider ?? TimeProvider.System;
+    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
 
     public async Task<DataConnectionDto?> ExecuteAsync(UpdateDataConnectionCommand command, CancellationToken ct = default)
     {
@@ -36,11 +37,20 @@ public sealed class UpdateDataConnectionUseCase(
         var entity = await repository.GetByIdAsync(new DataConnectionId(command.Id), ct);
         if (entity == null) return null;
 
-        var encryptedCs = string.IsNullOrEmpty(command.ConnectionString)
-            ? entity.EncryptedConnectionString
-            : EncryptedConnectionString.Create(dataProtection.Encrypt(command.ConnectionString));
+        EncryptedConnectionString encryptedCs;
+        if (string.IsNullOrEmpty(command.ConnectionString))
+        {
+            var existingPlaintext = dataProtection.Decrypt(entity.EncryptedConnectionString.Value);
+            await sqlValidator.ValidateConnectionTargetAsync(command.Provider, existingPlaintext, ct);
+            encryptedCs = entity.EncryptedConnectionString;
+        }
+        else
+        {
+            await sqlValidator.ValidateConnectionTargetAsync(command.Provider, command.ConnectionString, ct);
+            encryptedCs = EncryptedConnectionString.Create(dataProtection.Encrypt(command.ConnectionString));
+        }
 
-        var now = this.timeProvider.GetUtcNow();
+        var now = _timeProvider.GetUtcNow();
         entity.UpdateConnection(
             ConnectionName.Create(command.Name),
             Enumeration.FromDisplayName<DatabaseProvider>(command.Provider),

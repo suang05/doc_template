@@ -1,13 +1,13 @@
+using System.Diagnostics;
 using SmkDoc.Application.Common;
 using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
+using SmkDoc.Application.Modules.Authoring.FieldMappings.Helpers;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
-using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Modules.Authoring.Templates.Commands.CommitTemplateDraft;
 
@@ -19,65 +19,53 @@ public sealed class CommitTemplateDraftUseCase(
     IProjectRepository projectRepo,
     ISchemaInferenceService schemaInferenceService,
     ICurrentProjectContext projectContext,
-    TimeProvider timeProvider) : IUseCase<CommitTemplateDraftCommand, string>
+    TimeProvider? timeProvider = null) : IUseCase<CommitTemplateDraftCommand, string>
 {
-    private readonly TimeProvider timeProvider = timeProvider;
+    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
 
     public async Task<string> ExecuteAsync(CommitTemplateDraftCommand command, CancellationToken ct = default)
     {
+        if (!projectContext.IsResolved)
+        {
+            throw new ForbiddenException("Committing a template draft requires an active project context.");
+        }
+
         var draft = await draftCache.GetAsync(command.DraftId, ct)
             ?? throw new DraftExpiredException(command.DraftId);
 
-        Guid targetProjectId;
-        if (projectContext.IsResolved)
-        {
-            if (command.Request.ProjectId.HasValue && command.Request.ProjectId.Value != Guid.Empty && command.Request.ProjectId.Value != projectContext.ProjectId.Value)
-            {
-                throw new ForbiddenException($"Cross-tenant draft commit rejected: Payload ProjectId '{command.Request.ProjectId.Value}' does not match active context '{projectContext.ProjectId.Value}'.");
-            }
-
-            targetProjectId = projectContext.ProjectId.Value;
-        }
-        else if (command.Request.ProjectId.HasValue && command.Request.ProjectId.Value != Guid.Empty)
-        {
-            targetProjectId = command.Request.ProjectId.Value;
-        }
-        else
-        {
-            throw new ValidationException("ProjectId", "ProjectId is required to commit template.");
-        }
-
         if (projectRepo != null)
         {
-            var project = await projectRepo.GetByIdAsync(new ProjectId(targetProjectId), ct)
-                ?? throw new NotFoundException($"Project '{targetProjectId}' not found.");
+            _ = await projectRepo.GetByIdAsync(projectContext.ProjectId, ct)
+                ?? throw new NotFoundException($"Project '{projectContext.ProjectId}' not found.");
         }
 
-        var format      = FormatFromExt(draft.FileExtension);
-        var tempId      = Guid.CreateVersion7();
-        var storageKey  = $"templates/{targetProjectId}/{tempId}/{Guid.CreateVersion7()}{draft.FileExtension}";
+        if (await templateRepo.SlugExistsAsync(command.Request.Slug, ct))
+        {
+            throw ConflictException.DuplicateSlug(command.Request.Slug);
+        }
+
+        var now = _timeProvider.GetUtcNow();
+        var template = Template.Create(
+            projectContext.ProjectId,
+            TemplateName.Create(command.Request.Name),
+            TemplateSlug.Create(command.Request.Slug),
+            command.Request.Category,
+            now);
+
+        var format = FormatFromExt(draft.FileExtension);
+        var storageKey = StorageBuckets.TemplateVersionKey(template.ProjectId, template.Id, 1, draft.FileExtension);
         var contentType = ContentTypeFromExt(draft.FileExtension);
 
         string uploadedKey;
         using (var ms = new MemoryStream(draft.FileBytes))
         {
-            uploadedKey = await storageService.UploadAsync(StorageBuckets.Templates, storageKey, ms, contentType, ct);
+            var resultKey = await storageService.UploadAsync(StorageBuckets.Templates, storageKey, ms, contentType, ct);
+            uploadedKey = string.IsNullOrWhiteSpace(resultKey) ? storageKey : resultKey;
         }
-
-        var now = this.timeProvider.GetUtcNow();
-        Guid committedTemplateId;
 
         try
         {
-            var template = Template.Create(
-                new ProjectId(targetProjectId),
-                TemplateName.Create(command.Request.Name),
-                TemplateSlug.Create(command.Request.Slug),
-                command.Request.Category,
-                now);
-            committedTemplateId = template.Id.Value;
-
-            var placeholderList = command.Request.Mappings?.Select(m => m.Placeholder).ToList() ?? new List<string>();
+            var placeholderList = command.Request.Mappings?.Select(m => m.Placeholder).ToList() ?? [];
             string? inferredSchema = schemaInferenceService?.InferSchemaFromPlaceholders(placeholderList, templateSlug: command.Request.Slug);
             string? samplePayload = schemaInferenceService?.GenerateDefaultSamplePayload(placeholderList);
 
@@ -85,15 +73,14 @@ public sealed class CommitTemplateDraftUseCase(
                 1,
                 uploadedKey,
                 format,
-                "system",
+                projectContext.CallerIdentity ?? "system",
                 now,
                 "Initial upload via draft pipeline");
             version.UpdateDataSchema(inferredSchema, samplePayload, now);
-            template.PublishVersion(version, now);
 
-            if (command.Request.Mappings != null)
+            if (command.Request.Mappings is { Count: > 0 })
             {
-                var mappings = new List<FieldMapping>();
+                var mappings = new List<FieldMapping>(command.Request.Mappings.Count);
                 foreach (var m in command.Request.Mappings)
                 {
                     var dsType = m.DataSourceType != null ? DataSourceType.FromString(m.DataSourceType) : DataSourceType.Json;
@@ -101,48 +88,68 @@ public sealed class CommitTemplateDraftUseCase(
                         template.Id,
                         m.Placeholder,
                         m.SourcePath,
-                        m.Label,
+                        m.Label ?? string.Empty,
                         m.Required,
                         m.SortOrder,
                         now,
                         dsType,
                         m.DefaultValue,
                         m.Transform);
-                    if (!string.IsNullOrWhiteSpace(m.DatasetAlias) || !string.IsNullOrWhiteSpace(m.ResultPath) || !string.IsNullOrWhiteSpace(m.MathExpression))
+
+                    if (!string.IsNullOrWhiteSpace(m.DatasetAlias) ||
+                        !string.IsNullOrWhiteSpace(m.ResultPath) ||
+                        !string.IsNullOrWhiteSpace(m.MathExpression))
                     {
                         var aliasVo = !string.IsNullOrWhiteSpace(m.DatasetAlias) ? DatasetAlias.Create(m.DatasetAlias) : null;
                         fm.ConfigureDataSource(dsType, aliasVo, m.ResultPath, m.MathExpression, now);
                     }
+
                     mappings.Add(fm);
                 }
+
                 template.ReplaceFieldMappings(mappings, now);
+                version.UpdateMappingsSnapshot(FieldMappingSnapshotSerializer.Serialize(template.FieldMappings), now);
             }
+
+            template.PublishVersion(version, now);
 
             await templateRepo.AddAsync(template, ct);
             await unitOfWork.CommitAsync(ct);
         }
-        catch
+        catch (Exception primaryEx)
         {
-            try { await storageService.DeleteAsync(StorageBuckets.Templates, uploadedKey, CancellationToken.None); }
-            catch { /* swallow rollback errors */ }
+            try
+            {
+                await storageService.DeleteAsync(StorageBuckets.Templates, uploadedKey, CancellationToken.None);
+            }
+            catch (Exception cleanupEx)
+            {
+                primaryEx.Data["OrphanedStorageKey"] = uploadedKey;
+                primaryEx.Data["CompensatingDeleteError"] = cleanupEx.Message;
+                Trace.TraceWarning(
+                    "Failed to delete orphaned draft template object '{0}' after database commit failure: {1}",
+                    uploadedKey,
+                    cleanupEx.Message);
+            }
+
             throw;
         }
 
         await draftCache.RemoveAsync(command.DraftId, ct);
-        return committedTemplateId.ToString();
+        return template.Id.Value.ToString();
     }
 
     private static TemplateFormat FormatFromExt(string ext) => ext switch
     {
         ".xlsx" => TemplateFormat.Xlsx,
         ".docx" => TemplateFormat.Docx,
-        _       => TemplateFormat.Html,
+        _ => TemplateFormat.Html,
     };
 
     private static string ContentTypeFromExt(string ext) => ext switch
     {
         ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         ".xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        _       => "text/html; charset=utf-8",
+        _ => "text/html; charset=utf-8",
     };
 }
