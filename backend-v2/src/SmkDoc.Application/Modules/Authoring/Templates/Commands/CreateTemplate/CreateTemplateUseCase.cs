@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.Text;
-using FluentValidation;
 using SmkDoc.Application.Common;
 using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
@@ -23,34 +22,24 @@ public sealed class CreateTemplateUseCase(
     IDocxSecurityScanner securityScanner,
     ICurrentProjectContext projectContext,
     IUnitOfWork unitOfWork,
-    IValidator<CreateTemplateCommand> validator,
-    TimeProvider? timeProvider = null) : IUseCase<CreateTemplateCommand, TemplateResultDto>
+    TimeProvider timeProvider) : IUseCase<CreateTemplateCommand, TemplateResultDto>
 {
-    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
-
     public async Task<TemplateResultDto> ExecuteAsync(CreateTemplateCommand command, CancellationToken ct = default)
     {
-        // 1. Fail-Fast Input Validation
-        var validationResult = await validator.ValidateAsync(command, ct);
-        if (!validationResult.IsValid)
-        {
-            throw new ValidationException(validationResult.ToDictionary());
-        }
-
         if (!projectContext.IsResolved)
         {
             throw new ForbiddenException("Creating a template requires an active project context.");
         }
 
-        // 2. Domain Rule Check (Slug uniqueness within active tenant)
+        // 1. Domain Rule Check (Slug uniqueness within active tenant)
         var slugExists = await templateRepo.SlugExistsAsync(command.Slug, ct);
         if (slugExists)
         {
             throw ConflictException.DuplicateSlug(command.Slug);
         }
 
-        // 3. Domain Aggregate Instantiation (provides canonical TemplateId for immutable object storage key)
-        var now = _timeProvider.GetUtcNow();
+        // 2. Domain Aggregate Instantiation (provides canonical TemplateId for immutable object storage key)
+        var now = timeProvider.GetUtcNow();
         var template = Template.Create(
             projectContext.ProjectId,
             TemplateName.Create(command.Name),
@@ -61,7 +50,7 @@ public sealed class CreateTemplateUseCase(
         string storageKey;
         TemplateFormat fileFormat;
 
-        // 4. Asset Security Scanning & Immutable Storage Upload
+        // 3. Asset Security Scanning & Immutable Storage Upload
         if (command.FileStream != null && !string.IsNullOrWhiteSpace(command.FileName))
         {
             string ext = Path.GetExtension(command.FileName).ToLowerInvariant();
@@ -114,7 +103,7 @@ public sealed class CreateTemplateUseCase(
             await storageService.UploadAsync(StorageBuckets.Templates, storageKey, htmlStream, "text/html; charset=utf-8", ct);
         }
 
-        // 5. Append-Only Initial Version & Compensating Storage Cleanup on Persistence Failure
+        // 4. Append-Only Initial Version & Compensating Storage Cleanup on Persistence Failure
         var initialVersion = template.CreateDraftVersion(
             1,
             storageKey,

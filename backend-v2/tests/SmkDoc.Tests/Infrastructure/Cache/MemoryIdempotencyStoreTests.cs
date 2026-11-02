@@ -1,4 +1,4 @@
-﻿using FluentAssertions;
+using FluentAssertions;
 using Microsoft.Extensions.Caching.Memory;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Infrastructure.Cache;
@@ -13,7 +13,7 @@ public sealed class MemoryIdempotencyStoreTests
     public MemoryIdempotencyStoreTests()
     {
         var memoryCache = new MemoryCache(new MemoryCacheOptions());
-        sut = new MemoryIdempotencyStore(memoryCache);
+        sut = new MemoryIdempotencyStore(memoryCache, TestConstants.CreateFakeClock());
     }
 
     [Fact]

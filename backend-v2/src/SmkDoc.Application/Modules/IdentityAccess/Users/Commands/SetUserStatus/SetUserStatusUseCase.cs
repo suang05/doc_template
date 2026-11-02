@@ -1,4 +1,3 @@
-using FluentValidation;
 using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Users.DTOs;
@@ -14,20 +13,11 @@ public sealed class SetUserStatusUseCase(
     IUserProjectRoleRepository roleRepo,
     IRefreshTokenRepository refreshTokenRepo,
     IUnitOfWork uow,
-    IValidator<SetUserStatusCommand> validator,
     ICurrentProjectContext projectContext,
-    TimeProvider? timeProvider = null) : IUseCase<SetUserStatusCommand, UserResultDto>
+    TimeProvider timeProvider) : IUseCase<SetUserStatusCommand, UserResultDto>
 {
-    private readonly TimeProvider timeProvider = timeProvider ?? TimeProvider.System;
-
     public async Task<UserResultDto> ExecuteAsync(SetUserStatusCommand command, CancellationToken ct = default)
     {
-        var validationResult = await validator.ValidateAsync(command, ct);
-        if (!validationResult.IsValid)
-        {
-            throw new ValidationException(validationResult.ToDictionary());
-        }
-
         if (projectContext.SystemRole != SystemRole.SuperAdmin)
         {
             throw new ForbiddenException("Only global SuperAdmin accounts are authorized to change user account status.");
@@ -41,7 +31,7 @@ public sealed class SetUserStatusUseCase(
         var user = await userRepo.GetByIdAsync(uId, ct)
             ?? throw new NotFoundException("User not found.");
 
-        var now = this.timeProvider.GetUtcNow();
+        var now = timeProvider.GetUtcNow();
         if (command.IsActive)
         {
             user.Activate(now);

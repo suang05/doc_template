@@ -24,12 +24,12 @@ namespace SmkDoc.Api.Controllers.IdentityAccess;
 [Route("api/users")]
 [Authorize] // บังคับ JWT สำหรับทุก endpoint
 [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-public class UserManagementController(
-    ListProjectUsersUseCase listProjectUsersUseCase,
-    InviteUserUseCase inviteUserUseCase,
-    UpdateUserRoleUseCase updateUserRoleUseCase,
-    RemoveUserUseCase removeUserUseCase,
-    SetUserStatusUseCase setUserStatusUseCase,
+public sealed class UserManagementController(
+    IUseCase<ListProjectUsersQuery, List<UserResultDto>> listProjectUsersUseCase,
+    IUseCase<InviteUserCommand, UserResultDto> inviteUserUseCase,
+    IUseCase<UpdateUserRoleCommand, UserResultDto> updateUserRoleUseCase,
+    IUseCase<RemoveUserCommand> removeUserUseCase,
+    IUseCase<SetUserStatusCommand, UserResultDto> setUserStatusUseCase,
     ICurrentProjectContext projectContext) : ControllerBase
 {
     private Guid ResolveProjectId(Guid routeProjectId)

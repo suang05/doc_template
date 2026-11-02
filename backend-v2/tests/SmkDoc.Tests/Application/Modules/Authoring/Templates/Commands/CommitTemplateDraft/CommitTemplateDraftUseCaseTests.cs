@@ -58,14 +58,14 @@ public sealed class CommitTemplateDraftUseCaseTests
         // Arrange
         var fileBytes = Encoding.UTF8.GetBytes("xlsx-content");
         var entry = new TemplateDraftEntry(fileBytes, "report.xlsx", ".xlsx", []);
-        var request = new CommitDraftCommand("Report", "report", "finance", []);
+        var command = new CommitTemplateDraftCommand("draft-commit", "Report", "report", "finance", []);
 
         _draftCache.GetAsync("draft-commit", Arg.Any<CancellationToken>()).Returns(entry);
         _storageService.UploadAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<Stream>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(ci => ci.ArgAt<string>(1));
 
         // Act
-        var templateIdStr = await CreateSut().ExecuteAsync(new CommitTemplateDraftCommand("draft-commit", request), CancellationToken.None);
+        var templateIdStr = await CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         templateIdStr.Should().NotBeEmpty();
@@ -87,7 +87,7 @@ public sealed class CommitTemplateDraftUseCaseTests
     {
         // Arrange
         var entry = new TemplateDraftEntry(Encoding.UTF8.GetBytes("data"), "t.docx", ".docx", []);
-        var request = new CommitDraftCommand("Report", "test-template", null, []);
+        var command = new CommitTemplateDraftCommand("draft-fail", "Report", "test-template", null, []);
 
         _draftCache.GetAsync("draft-fail", Arg.Any<CancellationToken>()).Returns(entry);
         _storageService.UploadAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<Stream>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
@@ -95,7 +95,7 @@ public sealed class CommitTemplateDraftUseCaseTests
         _unitOfWork.CommitAsync(Arg.Any<CancellationToken>()).ThrowsAsync(new InvalidOperationException("DB error"));
 
         // Act & Assert
-        await CreateSut().Invoking(u => u.ExecuteAsync(new CommitTemplateDraftCommand("draft-fail", request), CancellationToken.None))
+        await CreateSut().Invoking(u => u.ExecuteAsync(command, CancellationToken.None))
             .Should().ThrowAsync<InvalidOperationException>().WithMessage("DB error");
 
         await _storageService.Received(1).DeleteAsync(
@@ -109,10 +109,10 @@ public sealed class CommitTemplateDraftUseCaseTests
     {
         // Arrange
         _draftCache.GetAsync("stale", Arg.Any<CancellationToken>()).Returns((TemplateDraftEntry?)null);
-        var request = new CommitDraftCommand("Report", "test-template", null, []);
+        var command = new CommitTemplateDraftCommand("stale", "Report", "test-template", null, []);
 
         // Act & Assert
-        await CreateSut().Invoking(u => u.ExecuteAsync(new CommitTemplateDraftCommand("stale", request), CancellationToken.None))
+        await CreateSut().Invoking(u => u.ExecuteAsync(command, CancellationToken.None))
             .Should().ThrowAsync<DraftExpiredException>();
     }
 
@@ -126,14 +126,14 @@ public sealed class CommitTemplateDraftUseCaseTests
             new("name", "customer.name", "ชื่อลูกค้า", true, null, null, 0),
             new("total", "invoice.total", "ยอดรวม", false, null, null, 1),
         };
-        var request = new CommitDraftCommand("Invoice", "invoice", null, mappings);
+        var command = new CommitTemplateDraftCommand("draft-map", "Invoice", "invoice", null, mappings);
 
         _draftCache.GetAsync("draft-map", Arg.Any<CancellationToken>()).Returns(entry);
         _storageService.UploadAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<Stream>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(ci => ci.ArgAt<string>(1));
 
         // Act
-        await CreateSut().ExecuteAsync(new CommitTemplateDraftCommand("draft-map", request), CancellationToken.None);
+        await CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         await _templateRepo.Received(1).AddAsync(
@@ -149,12 +149,12 @@ public sealed class CommitTemplateDraftUseCaseTests
         // Arrange
         _projectContext.IsResolved.Returns(false);
         var entry = new TemplateDraftEntry(Encoding.UTF8.GetBytes("data"), "report.docx", ".docx", []);
-        var request = new CommitDraftCommand("Report", "report", null, []);
+        var command = new CommitTemplateDraftCommand("draft-no-proj", "Report", "report", null, []);
 
         _draftCache.GetAsync("draft-no-proj", Arg.Any<CancellationToken>()).Returns(entry);
 
         // Act & Assert
-        var act = () => CreateSut().ExecuteAsync(new CommitTemplateDraftCommand("draft-no-proj", request), CancellationToken.None);
+        var act = () => CreateSut().ExecuteAsync(command, CancellationToken.None);
         await act.Should().ThrowAsync<ForbiddenException>()
             .WithMessage("*active project context*");
 

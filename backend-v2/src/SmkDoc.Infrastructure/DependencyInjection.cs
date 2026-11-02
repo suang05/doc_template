@@ -174,6 +174,7 @@ public static class DependencyInjection
         services.AddSingleton<IMediaGenerationService, MediaGenerationService>();
         services.AddSingleton<JsonDataParser>();
         services.AddSingleton<IJsonHierarchyParser>(sp => sp.GetRequiredService<JsonDataParser>());
+        services.AddSingleton<IJsonTableParser>(sp => sp.GetRequiredService<JsonDataParser>());
         services.AddSingleton<IJsonNamedArrayParser>(sp => sp.GetRequiredService<JsonDataParser>());
         services.AddSingleton<ITemplateScannerService, TemplateScannerService>();
         services.AddSingleton<ISchemaInferenceService, SchemaInferenceService>();

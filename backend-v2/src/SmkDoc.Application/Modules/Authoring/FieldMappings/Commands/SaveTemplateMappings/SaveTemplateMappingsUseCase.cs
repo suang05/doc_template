@@ -1,5 +1,4 @@
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.Helpers;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
@@ -10,25 +9,19 @@ using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Modules.Authoring.FieldMappings.Commands.SaveTemplateMappings;
 
-public record SaveTemplateMappingsCommand(Guid TemplateId, List<SaveFieldMappingItemDto> Items);
-
 public sealed class SaveTemplateMappingsUseCase(
     ITemplateRepository templateRepo,
     IUnitOfWork unitOfWork,
-    TimeProvider? timeProvider = null) : IUseCase<SaveTemplateMappingsCommand>
+    TimeProvider timeProvider) : IUseCase<SaveTemplateMappingsCommand>
 {
-    private readonly ITemplateRepository _templateRepo = templateRepo;
-    private readonly IUnitOfWork _unitOfWork = unitOfWork;
-    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
-
     public async Task ExecuteAsync(SaveTemplateMappingsCommand command, CancellationToken ct = default)
     {
         var templateId = new TemplateId(command.TemplateId);
-        var template = await _templateRepo.GetByIdWithDetailsAsync(templateId, ct)
-            ?? await _templateRepo.GetByIdAsync(templateId, ct)
+        var template = await templateRepo.GetByIdWithDetailsAsync(templateId, ct)
+            ?? await templateRepo.GetByIdAsync(templateId, ct)
             ?? throw new NotFoundException($"Template '{command.TemplateId}' not found.");
 
-        var now = _timeProvider.GetUtcNow();
+        var now = timeProvider.GetUtcNow();
         var mappings = command.Items.Select(item =>
         {
             var dsType = item.DataSourceType != null ? DataSourceType.FromString(item.DataSourceType) : DataSourceType.Json;
@@ -57,7 +50,7 @@ public sealed class SaveTemplateMappingsUseCase(
         if (activeVersion is null && template.CurrentVersionId.HasValue)
         {
             activeVersion = template.FindVersion(template.CurrentVersionId.Value)
-                ?? await _templateRepo.GetVersionByIdAsync(template.CurrentVersionId.Value, ct);
+                ?? await templateRepo.GetVersionByIdAsync(template.CurrentVersionId.Value, ct);
         }
 
         if (activeVersion != null && activeVersion.Status != TemplateVersionStatus.Archived)
@@ -65,7 +58,7 @@ public sealed class SaveTemplateMappingsUseCase(
             activeVersion.UpdateMappingsSnapshot(FieldMappingSnapshotSerializer.Serialize(template.FieldMappings), now);
         }
 
-        _templateRepo.Update(template);
-        await _unitOfWork.CommitAsync(ct);
+        templateRepo.Update(template);
+        await unitOfWork.CommitAsync(ct);
     }
 }

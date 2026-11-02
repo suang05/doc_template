@@ -1,11 +1,9 @@
-using System.Text.Json;
-
 namespace SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 
 /// <summary>
 /// DTO representing an individual template placeholder-to-datasource mapping rule.
 /// </summary>
-public record FieldMappingDto(
+public sealed record FieldMappingDto(
     Guid Id,
     Guid TemplateId,
     string Placeholder,
@@ -24,7 +22,7 @@ public record FieldMappingDto(
 /// <summary>
 /// Item DTO for saving/updating field mapping configurations.
 /// </summary>
-public record SaveFieldMappingItemDto(
+public sealed record SaveFieldMappingItemDto(
     string Placeholder,
     string SourcePath,
     string Label,
@@ -41,7 +39,7 @@ public record SaveFieldMappingItemDto(
 /// <summary>
 /// DTO representing a dataset attached to a template with an alias.
 /// </summary>
-public record TemplateDatasetDto(
+public sealed record TemplateDatasetDto(
     Guid Id,
     Guid TemplateId,
     Guid DatasetId,
@@ -53,18 +51,13 @@ public record TemplateDatasetDto(
 /// <summary>
 /// Item DTO for linking datasets to templates.
 /// </summary>
-public record SaveTemplateDatasetItemDto(
+public sealed record SaveTemplateDatasetItemDto(
     Guid DatasetId,
     string Alias,
     int SortOrder
 );
 
 /// <summary>
-/// Query for previewing field mappings with sample data.
-/// </summary>
-public record PreviewMappingsQuery(JsonElement SampleData);
-
-/// <summary>
 /// Pre-resolved dataset execution context passed to FieldMappingApplicatorService.
 /// </summary>
-public record ResolvedDatasetContext(string Provider, string ConnectionString, string SqlQuery);
+public sealed record ResolvedDatasetContext(string Provider, string ConnectionString, string SqlQuery);

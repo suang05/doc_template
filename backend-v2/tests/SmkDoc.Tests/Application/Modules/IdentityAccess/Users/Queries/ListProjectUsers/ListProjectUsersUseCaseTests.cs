@@ -1,6 +1,5 @@
-using FluentValidation;
-using FluentValidation.Results;
 using NSubstitute;
+using SmkDoc.Application.Common.Behaviors;
 using SmkDoc.Application.Modules.IdentityAccess.Users.DTOs;
 using SmkDoc.Application.Modules.IdentityAccess.Users.Queries.ListProjectUsers;
 using SmkDoc.Domain.Entities;
@@ -15,12 +14,10 @@ public sealed class ListProjectUsersUseCaseTests
 {
     private readonly IUserProjectRoleRepository _roleRepo = Substitute.For<IUserProjectRoleRepository>();
     private readonly IUserRepository _userRepo = Substitute.For<IUserRepository>();
-    private readonly IValidator<ListProjectUsersQuery> _validator = Substitute.For<IValidator<ListProjectUsersQuery>>();
 
     private ListProjectUsersUseCase CreateSut() => new(
         _roleRepo,
-        _userRepo,
-        _validator);
+        _userRepo);
 
     [Fact]
     public async Task ExecuteAsync_WhenUsersExist_ShouldReturnProjectUserSummaries()
@@ -37,9 +34,6 @@ public sealed class ListProjectUsersUseCaseTests
             .InProject(projectId)
             .AsAdmin()
             .Build();
-
-        _validator.ValidateAsync(Arg.Any<ListProjectUsersQuery>(), Arg.Any<CancellationToken>())
-            .Returns(new ValidationResult());
 
         _roleRepo.ListByProjectAsync(new ProjectId(projectId), Arg.Any<CancellationToken>())
             .Returns(new List<UserProjectRole> { role });
@@ -68,11 +62,12 @@ public sealed class ListProjectUsersUseCaseTests
     {
         // Arrange
         var query = new ListProjectUsersQuery(Guid.Empty);
-        _validator.ValidateAsync(query, Arg.Any<CancellationToken>())
-            .Returns(new ValidationResult([new ValidationFailure("ProjectId", "ProjectId is required.")]));
+        var pipeline = new ValidatingUseCaseDecorator<ListProjectUsersQuery, List<UserResultDto>>(
+            CreateSut(),
+            [new ListProjectUsersQueryValidator()]);
 
         // Act
-        var act = () => CreateSut().ExecuteAsync(query);
+        var act = () => pipeline.ExecuteAsync(query);
 
         // Assert
         await act.Should().ThrowAsync<ValidationException>();

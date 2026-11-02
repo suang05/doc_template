@@ -1,4 +1,3 @@
-using FluentValidation;
 using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
@@ -14,20 +13,11 @@ public sealed class CreateApiKeyUseCase(
     IApiKeyRepository apiKeyRepo,
     IProjectRepository projectRepo,
     IUnitOfWork unitOfWork,
-    IValidator<CreateApiKeyCommand> validator,
     ICurrentProjectContext projectContext,
-    TimeProvider? timeProvider = null) : IUseCase<CreateApiKeyCommand, CreateApiKeyResultDto>
+    TimeProvider timeProvider) : IUseCase<CreateApiKeyCommand, CreateApiKeyResultDto>
 {
-    private readonly TimeProvider timeProvider = timeProvider ?? TimeProvider.System;
-
     public async Task<CreateApiKeyResultDto> ExecuteAsync(CreateApiKeyCommand command, CancellationToken ct = default)
     {
-        var validationResult = await validator.ValidateAsync(command, ct);
-        if (!validationResult.IsValid)
-        {
-            throw new ValidationException(validationResult.ToDictionary());
-        }
-
         if (!projectContext.IsResolved)
         {
             throw new ForbiddenException("Active project context is required to create an API key.");
@@ -46,7 +36,7 @@ public sealed class CreateApiKeyUseCase(
             command.CallerApp,
             hash,
             ExpirationPolicy.Never,
-            now: this.timeProvider.GetUtcNow());
+            now: timeProvider.GetUtcNow());
 
         await apiKeyRepo.AddAsync(key, ct);
         await unitOfWork.CommitAsync(ct);

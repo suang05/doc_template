@@ -34,6 +34,7 @@ UpstreamKernel: AGENTS.md
 | **Query Verb Synonyms** | Using synonyms: `Find`, `Fetch`, `Query`, `Search`, `Retrieve` | Strict Lexical Verbs: `Get` (single/nullable), `List` (paged/multiple), `Exists` (bool), `Count` (numeric) |
 | **Command Verb Synonyms**| Using synonyms: `Add`, `Insert`, `Generate`, `Modify`, `Edit`, `Delete`, `Remove` | Strict Lexical Verbs: `Create`, `Update`, `Deactivate` (soft-delete), `Publish`, `Assign`, `Revoke` |
 | **Namespace Layout** | Curly brace block namespaces: `namespace Foo { ... }` | File-scoped namespaces: `namespace SmkDoc.Domain.Entities;` |
+| **One Primary Type Per File** | Bundling `*Command`, `*Validator`, and `*UseCase` inside `*UseCase.cs`, or dumping validators into shared `*Validators.cs` files | Strict 1-Primary-Type-Per-File (`{TypeName}.cs`) for Commands, Queries, Validators, UseCases, EventHandlers, and Services (only `*Dtos.cs` / `*ResultDto.cs` may group immutable DTO records) |
 | **Constructor DI** | Block constructors with manual field assignments (`_foo = foo;`) | C# 13 Primary Constructors: `public sealed class Foo(IBar bar)` |
 | **Collection Allocation**| Legacy initializers: `new List<T>()`, `new()` | C# 12+ Collection Expressions: `[]` |
 | **Cancellation Tokens** | Inconsistent names: `cancellationToken`, `cancelToken`, `token` | Parameter name strictly `ct`: `CancellationToken ct = default` |
@@ -52,6 +53,7 @@ UpstreamKernel: AGENTS.md
 * **Why Explicit Local Variable Assignment Before Consumption:** Nesting constructors inside arguments (`AddAsync(Template.Create(...))`) creates dense AST nests where parameter type mismatches are difficult to pinpoint during compilation and debugging.
 * **Why Strict Lexical Verbs over Synonyms:** Eliminates LLM token entropy. When multiple valid synonyms exist (`Get` vs `Find` vs `Fetch`), transformer softmax distribution flattens, resulting in non-deterministic naming drift across turns.
 * **Why File-Scoped Namespaces in C#:** Eliminates one unnecessary indentation level across entire files, reducing whitespace token bloat.
+* **Why Strict 1-Primary-Type-Per-File in CQRS Slices (`SA1402` Discipline):** Declaring `*Command`, `*Validator`, and `*UseCase` inside `*UseCase.cs` hides input contracts and validation rules from Solution Explorer and git file diffs, while dumping unrelated validators into shared `Validators/` folders breaks vertical slice cohesion. Every primary slice type MUST map 1-to-1 to `{TypeName}.cs` inside its slice folder (only immutable DTO grouping files `*Dtos.cs` / `*ResultDto.cs` may hold multiple positional DTO records).
 
 ### Cognitive Conventions Optimization & Guard Engine
 ```yaml
@@ -79,6 +81,10 @@ ProactiveConventionsGuards:
   - Scope: SmkDoc
     Trigger: Instantiating object directly as inline method argument without local variable
     CanonicalAction: Assign to typed or var local variable before method invocation >> Ref: [RULE-CONV-004]
+
+  - Scope: SmkDoc.Application
+    Trigger: Multiple primary public types declared in a non-DTO .cs file (e.g. Command + Validator + UseCase in *UseCase.cs) or validators placed in a shared Validators/ bucket folder
+    CanonicalAction: Split into 1-Primary-Type-Per-File ({TypeName}.cs) co-located inside Commands/{SliceName}/ or Queries/{SliceName}/ >> Ref: [RULE-CONV-005]
 
 CoreExtensionSlots:
   NamingLexiconSlot: LexicalVerbMatrix (SSoT verb, noun, and payload variable contract)
@@ -319,3 +325,13 @@ Universal conventions in this document apply across the entire codebase. Fully-h
 + }
 ```
 *Rationale: Swallowing catch blocks causes silent data corruption, hides deadlocks, and prevents RFC 9457 error translation.*
+
+### [TRAP-CONV-007]: Multi-Type CQRS Slice Files & Detached Validator Buckets
+```diff
+- // RollbackTemplateVersionUseCase.cs (Bundled Command + Validator + UseCase in 1 file)
+- // OR Validators/DataConnectionCommandValidators.cs (Detached multi-validator bucket)
++ // Commands/RollbackTemplateVersion/RollbackTemplateVersionCommand.cs
++ // Commands/RollbackTemplateVersion/RollbackTemplateVersionCommandValidator.cs
++ // Commands/RollbackTemplateVersion/RollbackTemplateVersionUseCase.cs
+```
+*Rationale: Every primary CQRS slice type (`*Command`, `*Query`, `*Validator`, `*UseCase`) MUST reside in its own `{TypeName}.cs` file co-located inside its vertical slice folder (`[RULE-CONV-005]`).*

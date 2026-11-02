@@ -1,6 +1,5 @@
-using FluentValidation;
-using FluentValidation.Results;
 using NSubstitute;
+using SmkDoc.Application.Common.Behaviors;
 using SmkDoc.Application.Modules.IdentityAccess.Users.Commands.RemoveUser;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
@@ -15,23 +14,22 @@ public sealed class RemoveUserUseCaseTests
 {
     private readonly IUserProjectRoleRepository _roleRepo = Substitute.For<IUserProjectRoleRepository>();
     private readonly IUnitOfWork _uow = Substitute.For<IUnitOfWork>();
-    private readonly IValidator<RemoveUserCommand> _validator = Substitute.For<IValidator<RemoveUserCommand>>();
 
     private RemoveUserUseCase CreateSut() => new(
         _roleRepo,
-        _uow,
-        _validator);
+        _uow);
 
     [Fact]
     public async Task ExecuteAsync_WhenCommandIsInvalid_ShouldFailFastWithoutTouchingPersistence()
     {
         // Arrange
         var command = new RemoveUserCommand(Guid.Empty, Guid.Empty, Guid.Empty);
-        _validator.ValidateAsync(command, Arg.Any<CancellationToken>())
-            .Returns(new ValidationResult([new ValidationFailure("ProjectId", "ProjectId is required")]));
+        var pipeline = new ValidatingUseCaseDecorator<RemoveUserCommand>(
+            CreateSut(),
+            [new RemoveUserCommandValidator()]);
 
         // Act
-        var act = () => CreateSut().ExecuteAsync(command);
+        var act = () => pipeline.ExecuteAsync(command);
 
         // Assert
         await act.Should().ThrowAsync<ValidationException>();
@@ -54,8 +52,6 @@ public sealed class RemoveUserUseCaseTests
 
         var command = new RemoveUserCommand(projectId, userId, currentUserId);
 
-        _validator.ValidateAsync(command, Arg.Any<CancellationToken>())
-            .Returns(new ValidationResult());
         _roleRepo.GetAsync(new ProjectId(projectId), new UserId(userId), Arg.Any<CancellationToken>())
             .Returns(roleEntry);
 
@@ -82,8 +78,6 @@ public sealed class RemoveUserUseCaseTests
 
         var command = new RemoveUserCommand(projectId, userId, currentUserId);
 
-        _validator.ValidateAsync(command, Arg.Any<CancellationToken>())
-            .Returns(new ValidationResult());
         _roleRepo.GetAsync(new ProjectId(projectId), new UserId(userId), Arg.Any<CancellationToken>())
             .Returns(roleEntry);
         _roleRepo.CountAdminsAsync(new ProjectId(projectId), Arg.Any<CancellationToken>())
@@ -107,8 +101,6 @@ public sealed class RemoveUserUseCaseTests
         var currentUserId = Guid.NewGuid();
         var command = new RemoveUserCommand(projectId, userId, currentUserId);
 
-        _validator.ValidateAsync(command, Arg.Any<CancellationToken>())
-            .Returns(new ValidationResult());
         _roleRepo.GetAsync(new ProjectId(projectId), new UserId(userId), Arg.Any<CancellationToken>())
             .Returns((UserProjectRole?)null);
 

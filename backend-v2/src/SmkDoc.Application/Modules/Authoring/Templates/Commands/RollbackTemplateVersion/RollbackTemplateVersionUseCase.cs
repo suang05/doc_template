@@ -9,8 +9,6 @@ using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Modules.Authoring.Templates.Commands.RollbackTemplateVersion;
 
-public sealed record RollbackTemplateVersionCommand(Guid TemplateId, int TargetVersion);
-
 /// <summary>
 /// Single-responsibility Use Case for rolling back a template to an earlier version
 /// using zero-copy immutable storage references and restoring snapshotted metadata.
@@ -20,24 +18,18 @@ public sealed class RollbackTemplateVersionUseCase(
     IStorageService storageService,
     ICurrentProjectContext projectContext,
     IUnitOfWork unitOfWork,
-    TimeProvider? timeProvider = null) : IUseCase<RollbackTemplateVersionCommand, int>
+    TimeProvider timeProvider) : IUseCase<RollbackTemplateVersionCommand, int>
 {
-    private readonly ITemplateRepository _templateRepo = templateRepo;
-    private readonly IStorageService _storageService = storageService;
-    private readonly ICurrentProjectContext _projectContext = projectContext;
-    private readonly IUnitOfWork _unitOfWork = unitOfWork;
-    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
-
     public async Task<int> ExecuteAsync(RollbackTemplateVersionCommand command, CancellationToken ct = default)
     {
-        if (!_projectContext.IsResolved)
+        if (!projectContext.IsResolved)
         {
             throw new ForbiddenException("Rolling back a template version requires an active project context.");
         }
 
         var templateId = new TemplateId(command.TemplateId);
-        var template = await _templateRepo.GetByIdWithDetailsAsync(templateId, ct)
-            ?? await _templateRepo.GetByIdAsync(templateId, ct)
+        var template = await templateRepo.GetByIdWithDetailsAsync(templateId, ct)
+            ?? await templateRepo.GetByIdAsync(templateId, ct)
             ?? throw new NotFoundException($"Template '{command.TemplateId}' was not found.");
 
         if (template.CurrentVersionId is null)
@@ -47,18 +39,18 @@ public sealed class RollbackTemplateVersionUseCase(
 
         var currentVersion = template.CurrentVersion
             ?? template.FindVersion(template.CurrentVersionId.Value)
-            ?? await _templateRepo.GetVersionByIdAsync(template.CurrentVersionId.Value, ct)
+            ?? await templateRepo.GetVersionByIdAsync(template.CurrentVersionId.Value, ct)
             ?? throw new NotFoundException($"Current version record for template '{template.Id}' not found.");
 
         IReadOnlyCollection<TemplateVersion> allVersions = template.Versions.Count > 0
             ? template.Versions
-            : (await _templateRepo.ListVersionsAsync(templateId, ct) ?? []);
+            : (await templateRepo.ListVersionsAsync(templateId, ct) ?? []);
 
         var targetVersion = allVersions.FirstOrDefault(v => v.Version == command.TargetVersion)
             ?? throw new NotFoundException($"Version {command.TargetVersion} not found for template '{command.TemplateId}'.");
 
         if (string.IsNullOrWhiteSpace(targetVersion.StorageKey) ||
-            !await _storageService.ExistsAsync(StorageBuckets.Templates, targetVersion.StorageKey, ct))
+            !await storageService.ExistsAsync(StorageBuckets.Templates, targetVersion.StorageKey, ct))
         {
             throw new NotFoundException(
                 $"Storage asset '{targetVersion.StorageKey}' for template version {command.TargetVersion} was not found.");
@@ -69,7 +61,7 @@ public sealed class RollbackTemplateVersionUseCase(
             : currentVersion.Version;
         int nextVersionNumber = maxVersion + 1;
 
-        var now = _timeProvider.GetUtcNow();
+        var now = timeProvider.GetUtcNow();
         if (currentVersion.Status == TemplateVersionStatus.Published)
         {
             currentVersion.Archive(now);
@@ -79,7 +71,7 @@ public sealed class RollbackTemplateVersionUseCase(
             nextVersionNumber,
             targetVersion.StorageKey,
             targetVersion.FileFormat,
-            _projectContext.CallerIdentity ?? "system",
+            projectContext.CallerIdentity ?? "system",
             now,
             $"Rollback to v{command.TargetVersion}");
 
@@ -93,9 +85,9 @@ public sealed class RollbackTemplateVersionUseCase(
         }
 
         template.PublishVersion(newVersion, now);
-        _templateRepo.Update(template);
+        templateRepo.Update(template);
 
-        await _unitOfWork.CommitAsync(ct);
+        await unitOfWork.CommitAsync(ct);
         return nextVersionNumber;
     }
 }

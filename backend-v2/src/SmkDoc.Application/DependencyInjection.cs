@@ -6,7 +6,7 @@ using SmkDoc.Application.Modules.Authoring;
 using SmkDoc.Application.Modules.IdentityAccess;
 using SmkDoc.Application.Modules.Integration;
 using SmkDoc.Application.Modules.Rendering;
-using SmkDoc.Application.Modules.Rendering.Documents.Validators;
+using SmkDoc.Application.Modules.Rendering.Documents.Commands.GenerateDocument;
 
 namespace SmkDoc.Application;
 

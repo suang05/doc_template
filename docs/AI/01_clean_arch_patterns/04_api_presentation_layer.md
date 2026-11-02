@@ -106,8 +106,8 @@ public sealed record BatchCreateFieldsRequest(IReadOnlyList<CreateFieldDto> Item
 
 ### Thin Controller Archetype (`TemplateController`)
 >> MANDATORY CANONICAL TEMPLATE [RULE-API-001]:
-* [MUST] Inherit from `ControllerBase`, apply `[ApiController]`, and define route as `[Route("api/v1/{plural-kebab-resource}")]`.
-* [MUST] Inject single-responsibility UseCases via C# 13 primary constructor (prohibit generic multi-method service injection).
+* [MUST] Inherit from `ControllerBase`, apply `[ApiController]`, mark class `sealed`, and define route as `[Route("api/v1/{plural-kebab-resource}")]`.
+* [MUST] Inject single-responsibility `IUseCase<TRequest, TResponse>` / `IUseCase<TRequest>` abstractions via C# 13 primary constructor (prohibit concrete `*UseCase` or multi-method service injection).
 * [MUST] Keep action methods thin (<= 5 lines per action): resolve identity, delegate to UseCase, and wrap result in standard response envelope.
 * [MUST] Apply `[Idempotent]` attribute on all state-mutating endpoints (`POST`, `PUT`, `DELETE`).
 * [MUST] Return `CreatedAtAction` with `201 Created` for resource creation, `Ok(new ApiResponse<T>(result))` for reads/updates, `NoContent()` with `204 NoContent` for deletions, and `File(stream, contentType, fileName)` for binary streaming.
@@ -128,11 +128,11 @@ namespace SmkDoc.Api.Controllers.Authoring;
 [ApiController]
 [Route("api/v1/templates")]
 public sealed class TemplateController(
-    ListTemplatesUseCase listTemplatesUseCase,
-    GetTemplateByIdUseCase getTemplateByIdUseCase,
-    CreateTemplateUseCase createTemplateUseCase,
-    DeactivateTemplateUseCase deactivateTemplateUseCase,
-    RenderDocumentUseCase renderDocumentUseCase) : ControllerBase
+    IUseCase<ListTemplatesQuery, TemplatePagedResultDto> listTemplatesUseCase,
+    IUseCase<GetTemplateByIdQuery, TemplateResultDto> getTemplateByIdUseCase,
+    IUseCase<CreateTemplateCommand, TemplateResultDto> createTemplateUseCase,
+    IUseCase<DeactivateTemplateCommand> deactivateTemplateUseCase,
+    IUseCase<RenderDocumentQuery, Stream> renderDocumentUseCase) : ControllerBase
 {
     [HttpGet]
     [ProducesResponseType(typeof(PagedApiResponse<TemplateResultDto>), StatusCodes.Status200OK)]

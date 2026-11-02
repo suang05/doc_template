@@ -12,6 +12,9 @@ public sealed class ListProjectsUseCase(
 {
     public async Task<ProjectPagedResultDto> ExecuteAsync(ListProjectsQuery query, CancellationToken ct = default)
     {
+        int page = Math.Max(1, query.Page);
+        int pageSize = Math.Clamp(query.PageSize, 1, 100);
+
         var uId = new UserId(query.UserId);
         var user = await userRepo.GetByIdAsync(uId, ct);
         var isSuperAdmin = user?.SystemRole == SystemRole.SuperAdmin;
@@ -20,10 +23,10 @@ public sealed class ListProjectsUseCase(
             uId,
             isSuperAdmin,
             query.SearchTerm,
-            query.Page,
-            query.PageSize,
+            page,
+            pageSize,
             ct);
 
-        return new ProjectPagedResultDto(items, totalCount, query.Page, query.PageSize);
+        return new ProjectPagedResultDto(items, totalCount, page, pageSize);
     }
 }

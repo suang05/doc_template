@@ -27,7 +27,7 @@ public sealed class DocumentAuditServiceTests
     }
 
     private DocumentAuditService CreateSut(IStorageService? storage = null) => new(
-        _logRepo, _projectContext, storage, null, _timeProvider);
+        _logRepo, _projectContext, _timeProvider, storage, null);
 
     [Fact]
     public async Task LogValidationFailureAsync_ShouldAddValidationFailedLogWithoutPrematureCommit()

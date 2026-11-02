@@ -12,14 +12,11 @@ namespace SmkDoc.Application.Modules.Rendering.Documents.Services;
 public sealed class DocumentAuditService(
     IGenerationLogRepository logRepo,
     ICurrentProjectContext projectContext,
+    TimeProvider timeProvider,
     IStorageService? storageService = null,
-    IDocumentMetrics? metrics = null,
-    TimeProvider? timeProvider = null) : IDocumentAuditService
+    IDocumentMetrics? metrics = null) : IDocumentAuditService
 {
     public const int MaxInlinePayloadSizeBytes = 16 * 1024; // 16 KB threshold for PostgreSQL OLTP storage
-
-    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
-    private readonly IStorageService? _storageService = storageService;
 
     public async Task LogValidationFailureAsync(
         Guid templateId,
@@ -31,7 +28,7 @@ public sealed class DocumentAuditService(
         CancellationToken ct = default)
     {
         var projectId = ResolveProjectId();
-        var now = _timeProvider.GetUtcNow();
+        var now = timeProvider.GetUtcNow();
         var (storedInputData, payloadHash) = await PreparePayloadAsync(projectId, dataJson, now, ct);
 
         var target = GenerationTarget.ForTemplate(
@@ -66,7 +63,7 @@ public sealed class DocumentAuditService(
         CancellationToken ct = default)
     {
         var projectId = ResolveProjectId();
-        var now = _timeProvider.GetUtcNow();
+        var now = timeProvider.GetUtcNow();
         var (storedInputData, payloadHash) = await PreparePayloadAsync(projectId, dataJson, now, ct);
 
         var target = GenerationTarget.ForTemplate(
@@ -103,7 +100,7 @@ public sealed class DocumentAuditService(
         CancellationToken ct = default)
     {
         var projectId = ResolveProjectId();
-        var now = _timeProvider.GetUtcNow();
+        var now = timeProvider.GetUtcNow();
         var (storedInputData, payloadHash) = await PreparePayloadAsync(projectId, dataJson, now, ct);
 
         var target = new GenerationTarget(
@@ -167,14 +164,14 @@ public sealed class DocumentAuditService(
         var hexHash = Convert.ToHexStringLower(hashBytes);
         var payloadHash = new Sha256Hash(hexHash);
 
-        if (bytes.Length <= MaxInlinePayloadSizeBytes || _storageService == null)
+        if (bytes.Length <= MaxInlinePayloadSizeBytes || storageService == null)
         {
             return (dataJson, payloadHash);
         }
 
         var objectKey = $"audit/{projectId.Value:N}/{now:yyyy/MM/dd}/{hexHash}.json";
         using var stream = new MemoryStream(bytes);
-        await _storageService.UploadAsync(StorageBuckets.AuditPayloads, objectKey, stream, "application/json", ct);
+        await storageService.UploadAsync(StorageBuckets.AuditPayloads, objectKey, stream, "application/json", ct);
 
         return ($"[OFFLOADED:{objectKey}]", payloadHash);
     }

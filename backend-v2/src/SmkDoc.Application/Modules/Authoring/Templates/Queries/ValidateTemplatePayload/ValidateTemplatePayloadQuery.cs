@@ -5,7 +5,7 @@ namespace SmkDoc.Application.Modules.Authoring.Templates.Queries.ValidateTemplat
 /// <summary>
 /// Query for validating a JSON payload against a published template's schema contract (stateless, read-only dry-run).
 /// </summary>
-public record ValidateTemplatePayloadQuery(
+public sealed record ValidateTemplatePayloadQuery(
     string Slug,
     JsonElement Data
 );

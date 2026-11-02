@@ -1,9 +1,9 @@
-using FluentValidation;
-using FluentValidation.Results;
 using NSubstitute;
+using SmkDoc.Application.Common.Behaviors;
 using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Users.Commands.SetUserStatus;
+using SmkDoc.Application.Modules.IdentityAccess.Users.DTOs;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
@@ -20,7 +20,6 @@ public sealed class SetUserStatusUseCaseTests
     private readonly IUserProjectRoleRepository _roleRepo = Substitute.For<IUserProjectRoleRepository>();
     private readonly IRefreshTokenRepository _refreshTokenRepo = Substitute.For<IRefreshTokenRepository>();
     private readonly IUnitOfWork _uow = Substitute.For<IUnitOfWork>();
-    private readonly IValidator<SetUserStatusCommand> _validator = Substitute.For<IValidator<SetUserStatusCommand>>();
     private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
     private readonly FakeTimeProvider _timeProvider = TestConstants.CreateFakeClock();
     private readonly UserId _actorSuperAdminId = UserId.New();
@@ -37,7 +36,6 @@ public sealed class SetUserStatusUseCaseTests
         _roleRepo,
         _refreshTokenRepo,
         _uow,
-        _validator,
         _projectContext,
         _timeProvider);
 
@@ -46,11 +44,12 @@ public sealed class SetUserStatusUseCaseTests
     {
         // Arrange
         var command = new SetUserStatusCommand(Guid.Empty, Guid.Empty, false);
-        _validator.ValidateAsync(command, Arg.Any<CancellationToken>())
-            .Returns(new ValidationResult([new ValidationFailure("ProjectId", "ProjectId is required")]));
+        var pipeline = new ValidatingUseCaseDecorator<SetUserStatusCommand, UserResultDto>(
+            CreateSut(),
+            [new SetUserStatusCommandValidator()]);
 
         // Act
-        var act = () => CreateSut().ExecuteAsync(command);
+        var act = () => pipeline.ExecuteAsync(command);
 
         // Assert
         await act.Should().ThrowAsync<ValidationException>();
@@ -65,8 +64,6 @@ public sealed class SetUserStatusUseCaseTests
         // Arrange
         _projectContext.SystemRole.Returns(SystemRole.Member);
         var command = new SetUserStatusCommand(Guid.NewGuid(), Guid.NewGuid(), false);
-        _validator.ValidateAsync(command, Arg.Any<CancellationToken>())
-            .Returns(new ValidationResult());
 
         // Act
         var act = () => CreateSut().ExecuteAsync(command);
@@ -93,8 +90,6 @@ public sealed class SetUserStatusUseCaseTests
 
         var command = new SetUserStatusCommand(projectId, userId.Value, false);
 
-        _validator.ValidateAsync(command, Arg.Any<CancellationToken>())
-            .Returns(new ValidationResult());
         _roleRepo.GetAsync(new ProjectId(projectId), userId, Arg.Any<CancellationToken>())
             .Returns(roleEntry);
         _userRepo.GetByIdAsync(userId, Arg.Any<CancellationToken>())
@@ -127,8 +122,6 @@ public sealed class SetUserStatusUseCaseTests
 
         var command = new SetUserStatusCommand(projectId, _actorSuperAdminId.Value, false);
 
-        _validator.ValidateAsync(command, Arg.Any<CancellationToken>())
-            .Returns(new ValidationResult());
         _roleRepo.GetAsync(new ProjectId(projectId), _actorSuperAdminId, Arg.Any<CancellationToken>())
             .Returns(roleEntry);
         _userRepo.GetByIdAsync(_actorSuperAdminId, Arg.Any<CancellationToken>())
@@ -157,8 +150,6 @@ public sealed class SetUserStatusUseCaseTests
 
         var command = new SetUserStatusCommand(projectId, targetSuperAdmin.Id.Value, false);
 
-        _validator.ValidateAsync(command, Arg.Any<CancellationToken>())
-            .Returns(new ValidationResult());
         _roleRepo.GetAsync(new ProjectId(projectId), targetSuperAdmin.Id, Arg.Any<CancellationToken>())
             .Returns(roleEntry);
         _userRepo.GetByIdAsync(targetSuperAdmin.Id, Arg.Any<CancellationToken>())
@@ -183,8 +174,6 @@ public sealed class SetUserStatusUseCaseTests
         var userId = Guid.NewGuid();
         var command = new SetUserStatusCommand(projectId, userId, true);
 
-        _validator.ValidateAsync(command, Arg.Any<CancellationToken>())
-            .Returns(new ValidationResult());
         _roleRepo.GetAsync(new ProjectId(projectId), new UserId(userId), Arg.Any<CancellationToken>())
             .Returns((UserProjectRole?)null);
 

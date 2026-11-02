@@ -1,3 +1,4 @@
+using SmkDoc.Application.Common.Behaviors;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.UpdateTemplateDetails;
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Domain.Entities;
@@ -13,7 +14,6 @@ public sealed class UpdateTemplateDetailsUseCaseTests
 {
     private readonly ITemplateRepository _templateRepo = Substitute.For<ITemplateRepository>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
-    private readonly UpdateTemplateDetailsCommandValidator _validator = new();
     private readonly FakeTimeProvider _timeProvider = TestConstants.CreateFakeClock();
 
     public UpdateTemplateDetailsUseCaseTests()
@@ -24,7 +24,6 @@ public sealed class UpdateTemplateDetailsUseCaseTests
     private UpdateTemplateDetailsUseCase CreateSut() => new(
         _templateRepo,
         _unitOfWork,
-        _validator,
         _timeProvider);
 
     [Fact]
@@ -32,9 +31,12 @@ public sealed class UpdateTemplateDetailsUseCaseTests
     {
         // Arrange
         var invalidCommand = new UpdateTemplateDetailsCommand(Guid.Empty, "", null);
+        var pipeline = new ValidatingUseCaseDecorator<UpdateTemplateDetailsCommand, TemplateResultDto>(
+            CreateSut(),
+            [new UpdateTemplateDetailsCommandValidator()]);
 
         // Act
-        var act = () => CreateSut().ExecuteAsync(invalidCommand);
+        var act = () => pipeline.ExecuteAsync(invalidCommand);
 
         // Assert
         await act.Should().ThrowAsync<ValidationException>();

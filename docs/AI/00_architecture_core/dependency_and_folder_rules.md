@@ -17,7 +17,7 @@ UpstreamKernel: AGENTS.md
 | Layer Project | Allowed Inbound References | Prohibited Patterns (! BANNED) | Canonical Mandates (>> MANDATORY) | Boundary Vector |
 |---|---|---|---|---|
 | **`SmkDoc.Domain`** | `Application`, `Infrastructure`, `Api` | ! EF Core / ASP.NET / MinIO references<br/>! Public property setters (`set;`)<br/>! Direct system clock queries (`DateTime.UtcNow`) | >> Pure C# 13 POCOs<br/>>> Encapsulated state (`private/protected set`)<br/>>> Exactly 1 canonical factory method (`Create`)<br/>>> Parameterized `TimeProvider` or explicit `DateTimeOffset now` | Core Center |
-| **`SmkDoc.Application`** | `Infrastructure`, `Api` | ! Leaking Domain Entities across boundaries<br/>! Direct EF Core `DbContext` references<br/>! Synchronous blocking (`.Result`, `.Wait()`) | >> Positional `record` for Commands/Queries/DTOs<br/>>> Orchestrate workflows via `IUseCase<TReq, TRes>`<br/>>> Transaction boundary via `IUnitOfWork.CommitAsync(ct)` | Inward => Domain |
+| **`SmkDoc.Application`** | `Infrastructure`, `Api` | ! Leaking Domain Entities across boundaries<br/>! Direct EF Core `DbContext` references<br/>! Synchronous blocking (`.Result`, `.Wait()`)<br/>! Multi-type `*UseCase.cs` or detached `Validators/` buckets | >> Positional `record` for Commands/Queries/DTOs<br/>>> 1-Primary-Type-Per-File co-located per CQRS slice<br/>>> Orchestrate workflows via `IUseCase<TReq, TRes>`<br/>>> Transaction boundary via `IUnitOfWork.CommitAsync(ct)` | Inward => Domain |
 | **`SmkDoc.Infrastructure`**| `Api` (DI composition root only) | ! Exposing EF `DbContext` outside<br/>! Bypassing ambient tenant query filters<br/>! Multi-MB in-memory buffering (`byte[]`) | >> Implement Application ports/interfaces<br/>>> Zero-LOH streaming for Gotenberg/MinIO<br/>>> `IEntityTypeConfiguration<T>` + `xmin` concurrency | Inward => Domain & Application |
 | **`SmkDoc.Api`** | None (Entry Point) | ! Business logic inside controllers<br/>! Actions exceeding 5 lines of code<br/>! Direct Entity consumption or return | >> Thin orchestrators with Primary Constructors<br/>>> Centralized RFC 9457 `ProblemDetails`<br/>>> `ApiResponse<T>` / `PagedApiResponse<T>` | Inward => Application |
 
@@ -53,6 +53,10 @@ ProactiveStructuralGuards:
   - Scope: Cross-Layer Contracts
     Trigger: Class-based mutable DTO with public setters
     CanonicalAction: Refactor to positional sealed record with immutable properties
+
+  - Scope: SmkDoc.Application
+    Trigger: Declaring multiple primary public types in a slice file (*UseCase.cs) or placing validators in detached Validators/ folders
+    CanonicalAction: Enforce 1-Primary-Type-Per-File ({TypeName}.cs) co-located inside Modules/{Context}/{Aggregate}/{Commands|Queries}/{SliceName}/ >> Ref: [RULE-STRUCT-004]
 
 CoreExtensionSlots:
   UseCasePortSlot: IUseCase<TRequest, TResponse> (Action-centric application entry point)
@@ -90,14 +94,21 @@ backend-v2/src/SmkDoc.Application/Modules/
     DTOs/ # AuthTokenResultDto, UserProfileResultDto, ApiKeyResultDto
 ```
 
-### The 5-File CQRS Slice Pattern
+### The 5-File Co-Located CQRS Vertical Slice Topology
+>> MANDATORY CANONICAL TOPOLOGY [RULE-STRUCT-004]:
+* [MUST] Isolate every `*Command`, `*Query`, `*Validator`, and `*UseCase` into its own dedicated `.cs` file (`{TypeName}.cs`) co-located inside `Modules/{Context}/{Aggregate}/{Commands|Queries}/{SliceName}/`.
+* [MUST NOT] Bundle `*Command`, `*Query`, or `*Validator` declarations inside `*UseCase.cs`.
+* [MUST NOT] Create detached `Validators/` dumping-ground folders that separate `IValidator<T>` from its `T` request slice namespace.
+* [MAY] Group cohesive immutable positional DTO records for the same aggregate inside `DTOs/{Aggregate}Dtos.cs` or `DTOs/{Aggregate}ResultDto.cs`.
 ```
-Modules/{Context}/
-  Commands/{Action}{Entity}Command.cs # 1. Positional record request
-  Commands/{Action}{Entity}UseCase.cs # 2. Single-responsibility orchestrator
-  Commands/{Action}{Entity}Validator.cs # 3. FluentValidation / Guard rules
-  DTOs/{Entity}ResultDto.cs # 4. Immutable positional record DTO
-  (In SmkDoc.Api) Controllers/V1/ # 5. Thin presentation action
+Modules/{Context}/{Aggregate}/
+  Commands/{SliceName}/
+    {SliceName}Command.cs          # 1. Positional record request (1 file = 1 type)
+    {SliceName}CommandValidator.cs # 2. Co-located FluentValidation rules (1 file = 1 type)
+    {SliceName}UseCase.cs          # 3. Single-responsibility orchestrator (1 file = 1 type)
+  DTOs/
+    {Aggregate}ResultDto.cs        # 4. Immutable positional record DTOs
+  (In SmkDoc.Api) Controllers/V1/  # 5. Thin presentation action
 ```
 
 ---
@@ -220,3 +231,12 @@ public readonly record struct TemplateId(Guid Value) : IComparable<TemplateId>
 + var command = new CreateTemplateCommand(request.Name, request.Slug); var result = await useCase.ExecuteAsync(command, ct);
 ```
 *Rationale: Explicit intermediate variable instantiation improves breakpoint inspection and stack trace readability.*
+
+### [TRAP-STRUCT-005]: Multi-Type `*UseCase.cs` vs 1-Primary-Type-Per-File Slice Co-Location
+```diff
+- Modules/Authoring/Templates/Commands/RollbackTemplateVersion/RollbackTemplateVersionUseCase.cs (Command + Validator + UseCase)
++ Modules/Authoring/Templates/Commands/RollbackTemplateVersion/RollbackTemplateVersionCommand.cs
++ Modules/Authoring/Templates/Commands/RollbackTemplateVersion/RollbackTemplateVersionCommandValidator.cs
++ Modules/Authoring/Templates/Commands/RollbackTemplateVersion/RollbackTemplateVersionUseCase.cs
+```
+*Rationale: Enforcing 1-Primary-Type-Per-File inside each vertical slice folder guarantees deterministic file lookup and zero hidden contracts.*

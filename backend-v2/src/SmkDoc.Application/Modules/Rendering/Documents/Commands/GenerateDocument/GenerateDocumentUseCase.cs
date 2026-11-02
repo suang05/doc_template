@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using FluentValidation;
 using SmkDoc.Application.Common;
 using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Helpers;
@@ -22,30 +21,17 @@ public sealed class GenerateDocumentUseCase(
     IDocumentVersioningService versioningService,
     IUnitOfWork unitOfWork,
     ICurrentProjectContext projectContext,
-    IValidator<GenerateDocumentCommand> validator,
-    TimeProvider? timeProvider = null) : IUseCase<GenerateDocumentCommand, GenerateDocumentResultDto>
+    TimeProvider timeProvider) : IUseCase<GenerateDocumentCommand, GenerateDocumentResultDto>
 {
-    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
-
-    public Task<GenerateDocumentResultDto> ExecuteAsync(
-        GenerateDocumentCommand request, CancellationToken ct = default)
-        => ExecuteAsync(request.Slug, request, ct);
-
     public async Task<GenerateDocumentResultDto> ExecuteAsync(
-        string slug, GenerateDocumentCommand request, CancellationToken ct = default)
+        GenerateDocumentCommand command, CancellationToken ct = default)
     {
-        // 1. Fail-Fast Static Input Validation
-        var validationResult = await validator.ValidateAsync(request, ct);
-        if (!validationResult.IsValid)
-        {
-            throw new ValidationException(validationResult.ToDictionary());
-        }
-
         if (!projectContext.IsResolved)
         {
             throw new ForbiddenException("Document generation requires an active project context.");
         }
 
+        string slug = command.Slug;
         var sw = Stopwatch.StartNew();
 
         var template = await templateRepo.GetBySlugWithDetailsAsync(slug, ct);
@@ -64,7 +50,7 @@ public sealed class GenerateDocumentUseCase(
             ?? await templateRepo.GetVersionByIdAsync(template.CurrentVersionId.Value, ct)
             ?? throw new NotFoundException($"Current version for template '{slug}' not found.");
 
-        var outputFormat = request.OutputFormat.Trim().ToLowerInvariant() switch
+        var outputFormat = command.OutputFormat.Trim().ToLowerInvariant() switch
         {
             "docx" => OutputFormat.Docx,
             "xlsx" => OutputFormat.Xlsx,
@@ -80,7 +66,7 @@ public sealed class GenerateDocumentUseCase(
         string contentType = outputFormat.MimeType;
         var generationId = Guid.CreateVersion7();
         var tenantId = projectContext.ProjectId.Value;
-        string outputKey = $"outputs/{tenantId:N}/{_timeProvider.GetUtcNow():yyyy/MM/dd}/{slug}_{generationId:N}.{ext}";
+        string outputKey = $"outputs/{tenantId:N}/{timeProvider.GetUtcNow():yyyy/MM/dd}/{slug}_{generationId:N}.{ext}";
         long fileSizeBytes;
         string sha256;
 
@@ -88,7 +74,7 @@ public sealed class GenerateDocumentUseCase(
         try
         {
             var preparedData = await dataPreparationService.PrepareDataAsync(
-                template, currentVersion, request.Payload, request.SkipValidation, ct);
+                template, currentVersion, command.Payload, command.SkipValidation, ct);
             preparedDataJson = preparedData.DataJson;
 
             if (preparedData.ValidationResult is { IsValid: false })
@@ -124,7 +110,7 @@ public sealed class GenerateDocumentUseCase(
             sw.Stop();
             try
             {
-                var fallbackPayload = preparedDataJson ?? request.Payload.GetRawText();
+                var fallbackPayload = preparedDataJson ?? command.Payload.GetRawText();
                 await auditService.LogFailureAsync(
                     template.Id.Value,
                     currentVersion.Id,
@@ -167,14 +153,14 @@ public sealed class GenerateDocumentUseCase(
                 (int)sw.ElapsedMilliseconds,
                 ct);
 
-            if (!string.IsNullOrWhiteSpace(request.DocumentRef))
+            if (!string.IsNullOrWhiteSpace(command.DocumentRef))
             {
                 await versioningService.RecordVersionAsync(
-                    request.DocumentRef,
+                    command.DocumentRef,
                     template.Id.Value,
                     currentVersion.Id,
                     generationId,
-                    request.ChangeNote,
+                    command.ChangeNote,
                     ct);
             }
 
@@ -182,12 +168,12 @@ public sealed class GenerateDocumentUseCase(
 
             return new GenerateDocumentResultDto(
                 GenerationId: generationId,
-                DocumentRef: request.DocumentRef,
+                DocumentRef: command.DocumentRef,
                 OutputFormat: ext,
                 FileSizeBytes: fileSizeBytes,
                 Sha256: sha256,
                 Url: downloadUrl,
-                ExpiresAt: _timeProvider.GetUtcNow().Add(expiry)
+                ExpiresAt: timeProvider.GetUtcNow().Add(expiry)
             );
         }
         catch (Exception primaryEx)

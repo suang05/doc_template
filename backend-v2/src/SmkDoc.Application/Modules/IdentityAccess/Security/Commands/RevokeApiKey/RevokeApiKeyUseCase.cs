@@ -10,10 +10,8 @@ public sealed class RevokeApiKeyUseCase(
     IApiKeyRepository apiKeyRepo,
     IUnitOfWork unitOfWork,
     ICurrentProjectContext projectContext,
-    TimeProvider? timeProvider = null) : IUseCase<RevokeApiKeyCommand>
+    TimeProvider timeProvider) : IUseCase<RevokeApiKeyCommand>
 {
-    private readonly TimeProvider timeProvider = timeProvider ?? TimeProvider.System;
-
     public async Task ExecuteAsync(RevokeApiKeyCommand command, CancellationToken ct = default)
     {
         if (!projectContext.IsResolved)
@@ -24,7 +22,7 @@ public sealed class RevokeApiKeyUseCase(
         var key = await apiKeyRepo.GetByIdAsync(new ApiKeyId(command.Id), projectContext.ProjectId, ct)
             ?? throw new NotFoundException($"API Key '{command.Id}' not found.");
 
-        key.Revoke(this.timeProvider.GetUtcNow());
+        key.Revoke(timeProvider.GetUtcNow());
         apiKeyRepo.Update(key);
         await unitOfWork.CommitAsync(ct);
     }

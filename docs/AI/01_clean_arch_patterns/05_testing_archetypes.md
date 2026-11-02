@@ -130,15 +130,14 @@ SmkDoc.IntegrationTests/
 * [MUST] Use class-scoped private mocks (`Substitute.For<T>()`) and a single `private TUseCase CreateSut()` factory method as SSoT.
 * [MUST] Prohibit shared God Fixtures (`*TestFixture`) bundling mocks across multiple UseCases.
 * [MUST] Test exactly 1 behavior per test method with strict 3-phase AAA naming (`Method_WhenCondition_ShouldExpectedResult`).
-* [MUST] Include exactly 1 Fail-Fast orchestration test asserting that an invalid command throws `ValidationException` without touching repositories or Unit of Work.
+* [MUST] Test `AbstractValidator<T>` rules in isolated `*ValidatorTests` (`TestValidate()`) and pipeline fail-fast wiring in `ValidatingUseCaseDecoratorTests` (UseCases never inject `IValidator<T>` directly).
 * [MUST] Assert domain entity interactions using `.Received(1)` and `.DidNotReceive()`.
 * [MUST] Use `FakeTimeProvider` (`TestConstants.CreateFakeClock()`) for deterministic time assertions.
 ```csharp
 using FluentAssertions;
-using FluentValidation;
-using FluentValidation.Results;
-using Microsoft.Extensions.Logging;
 using NSubstitute;
+using SmkDoc.Application.Common.Exceptions;
+using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.CreateTemplate;
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Domain.Entities;
@@ -155,28 +154,24 @@ public sealed class CreateTemplateUseCaseTests
     private readonly ITemplateRepository _templateRepo = Substitute.For<ITemplateRepository>();
     private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
-    private readonly IValidator<CreateTemplateCommand> _validator = Substitute.For<IValidator<CreateTemplateCommand>>();
-    private readonly IDomainEventDispatcher _eventDispatcher = Substitute.For<IDomainEventDispatcher>();
     private readonly FakeTimeProvider _timeProvider = TestConstants.CreateFakeClock();
 
     private CreateTemplateUseCase CreateSut() =>
-        new(_templateRepo, _unitOfWork, _validator, _projectContext, _timeProvider, _eventDispatcher);
+        new(_templateRepo, _unitOfWork, _projectContext, _timeProvider);
 
     [Fact]
-    public async Task ExecuteAsync_WhenCommandIsInvalid_ShouldFailFastWithoutTouchingPersistence()
+    public async Task ExecuteAsync_WhenProjectContextIsUnresolved_ShouldThrowForbiddenWithoutTouchingPersistence()
     {
         // Arrange
-        var command = new CreateTemplateCommand("", "INVALID_SLUG", null);
-        _validator.ValidateAsync(command, Arg.Any<CancellationToken>())
-            .Returns(new ValidationResult([new ValidationFailure("Name", "Name is required.")]));
-
+        _projectContext.IsResolved.Returns(false);
+        var command = new CreateTemplateCommand("Tax Invoice", "tax-invoice", "Finance");
         var sut = CreateSut();
 
         // Act
         var act = () => sut.ExecuteAsync(command, CancellationToken.None);
 
         // Assert
-        await act.Should().ThrowAsync<ValidationException>();
+        await act.Should().ThrowAsync<ForbiddenException>();
         await _templateRepo.DidNotReceive().AddAsync(Arg.Any<Template>(), Arg.Any<CancellationToken>());
         await _unitOfWork.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
     }
@@ -189,8 +184,6 @@ public sealed class CreateTemplateUseCaseTests
         _projectContext.IsResolved.Returns(true);
         _projectContext.ProjectId.Returns(projectId);
         var command = new CreateTemplateCommand("Tax Invoice", "tax-invoice", "Finance");
-        _validator.ValidateAsync(command, Arg.Any<CancellationToken>())
-            .Returns(new ValidationResult());
         _templateRepo.SlugExistsAsync(command.Slug, Arg.Any<CancellationToken>())
             .Returns(true);
 
@@ -213,8 +206,6 @@ public sealed class CreateTemplateUseCaseTests
         _projectContext.IsResolved.Returns(true);
         _projectContext.ProjectId.Returns(projectId);
         var command = new CreateTemplateCommand("Invoice Template", "invoice-template", "Billing");
-        _validator.ValidateAsync(command, Arg.Any<CancellationToken>())
-            .Returns(new ValidationResult());
         _templateRepo.SlugExistsAsync(command.Slug, Arg.Any<CancellationToken>())
             .Returns(false);
 

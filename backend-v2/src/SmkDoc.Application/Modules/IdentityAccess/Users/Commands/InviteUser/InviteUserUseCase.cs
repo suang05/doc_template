@@ -1,4 +1,3 @@
-using FluentValidation;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Users.DTOs;
 using SmkDoc.Domain.Common;
@@ -16,41 +15,27 @@ public sealed class InviteUserUseCase(
     IUserProjectRoleRepository roleRepo,
     IPasswordHasher passwordHasher,
     IUnitOfWork uow,
-    IValidator<InviteUserCommand> validator,
-    TimeProvider? timeProvider = null) : IUseCase<InviteUserCommand, UserResultDto>
+    TimeProvider timeProvider) : IUseCase<InviteUserCommand, UserResultDto>
 {
-    private readonly IUserRepository _userRepo = userRepo;
-    private readonly IUserProjectRoleRepository _roleRepo = roleRepo;
-    private readonly IPasswordHasher _passwordHasher = passwordHasher;
-    private readonly IUnitOfWork _uow = uow;
-    private readonly IValidator<InviteUserCommand> _validator = validator;
-    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
-
     public async Task<UserResultDto> ExecuteAsync(InviteUserCommand command, CancellationToken ct = default)
     {
-        var validationResult = await _validator.ValidateAsync(command, ct);
-        if (!validationResult.IsValid)
-        {
-            throw new ValidationException(validationResult.ToDictionary());
-        }
-
         var roleType = Enumeration.FromDisplayName<RoleType>(command.Role);
         var normalizedEmail = command.Email.Trim().ToLowerInvariant();
-        var now = _timeProvider.GetUtcNow();
+        var now = timeProvider.GetUtcNow();
 
         var pId = new ProjectId(command.ProjectId);
-        var existingUser = await _userRepo.GetByEmailAsync(normalizedEmail, ct);
+        var existingUser = await userRepo.GetByEmailAsync(normalizedEmail, ct);
         if (existingUser != null)
         {
-            var existingRole = await _roleRepo.GetAsync(pId, existingUser.Id, ct);
+            var existingRole = await roleRepo.GetAsync(pId, existingUser.Id, ct);
             if (existingRole != null)
             {
                 throw new ConflictException($"User '{normalizedEmail}' is already a member of this project.");
             }
 
             var newRole = UserProjectRole.Create(existingUser.Id, pId, roleType, now);
-            await _roleRepo.AddAsync(newRole, ct);
-            await _uow.CommitAsync(ct);
+            await roleRepo.AddAsync(newRole, ct);
+            await uow.CommitAsync(ct);
 
             return new UserResultDto(
                 existingUser.Id.Value,
@@ -71,15 +56,15 @@ public sealed class InviteUserUseCase(
 
         var newUser = User.Register(
             EmailAddress.Create(normalizedEmail),
-            _passwordHasher.HashPassword(command.Password),
+            passwordHasher.HashPassword(command.Password),
             command.FirstName,
             command.LastName,
             now
         );
 
-        await _userRepo.AddAsync(newUser, ct);
-        await _roleRepo.AddAsync(UserProjectRole.Create(newUser.Id, pId, roleType, now), ct);
-        await _uow.CommitAsync(ct);
+        await userRepo.AddAsync(newUser, ct);
+        await roleRepo.AddAsync(UserProjectRole.Create(newUser.Id, pId, roleType, now), ct);
+        await uow.CommitAsync(ct);
 
         return new UserResultDto(
             newUser.Id.Value,

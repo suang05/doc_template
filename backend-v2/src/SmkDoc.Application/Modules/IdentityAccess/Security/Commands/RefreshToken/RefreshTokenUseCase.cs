@@ -1,10 +1,7 @@
-using FluentValidation;
 using SmkDoc.Application.Common.Constants;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Helpers;
-using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 using RefreshTokenEntity = SmkDoc.Domain.Entities.RefreshToken;
@@ -17,21 +14,14 @@ public sealed class RefreshTokenUseCase(
     IJwtTokenGenerator jwtTokenGenerator,
     IUserWorkspaceQueryService workspaceQueryService,
     IUnitOfWork unitOfWork,
-    IValidator<RefreshTokenCommand> validator,
     TimeProvider timeProvider,
     ICurrentProjectContext projectContext,
     ISecurityAuditService auditService) : IUseCase<RefreshTokenCommand, TokenResultDto>
 {
-    public async Task<TokenResultDto> ExecuteAsync(RefreshTokenCommand request, CancellationToken ct = default)
+    public async Task<TokenResultDto> ExecuteAsync(RefreshTokenCommand command, CancellationToken ct = default)
     {
-        var validationResult = await validator.ValidateAsync(request, ct);
-        if (!validationResult.IsValid)
-        {
-            throw new ValidationException(validationResult.ToDictionary());
-        }
-
         var now = timeProvider.GetUtcNow();
-        var tokenHash = RefreshTokenHelper.HashToken(request.RefreshToken);
+        var tokenHash = RefreshTokenHelper.HashToken(command.RefreshToken);
         var token = await tokenRepo.GetByHashAsync(tokenHash, ct);
 
         if (token == null)

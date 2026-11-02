@@ -4,8 +4,6 @@ using SmkDoc.Domain.Interfaces;
 
 namespace SmkDoc.Application.Modules.Integration.DataConnections.Queries.ListDataConnections;
 
-public record ListDataConnectionsQuery;
-
 public sealed class ListDataConnectionsUseCase(
     IDataConnectionRepository repository) : IUseCase<ListDataConnectionsQuery, List<DataConnectionDto>>
 {

@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.Contracts.Integration.DataConnections;
+using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Integration.DataConnections.Commands.CreateDataConnection;
 using SmkDoc.Application.Modules.Integration.DataConnections.Commands.DeleteDataConnection;
 using SmkDoc.Application.Modules.Integration.DataConnections.Commands.TestDataConnection;
@@ -21,13 +22,13 @@ namespace SmkDoc.Api.Controllers.Integration;
 [Route("api/data-connections")]
 [Authorize]
 [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-public class DataConnectionsController(
-    ListDataConnectionsUseCase listUseCase,
-    GetDataConnectionByIdUseCase getByIdUseCase,
-    CreateDataConnectionUseCase createUseCase,
-    UpdateDataConnectionUseCase updateUseCase,
-    DeleteDataConnectionUseCase deleteUseCase,
-    TestDataConnectionUseCase testUseCase) : ControllerBase
+public sealed class DataConnectionsController(
+    IUseCase<ListDataConnectionsQuery, List<DataConnectionDto>> listUseCase,
+    IUseCase<GetDataConnectionByIdQuery, DataConnectionDto?> getByIdUseCase,
+    IUseCase<CreateDataConnectionCommand, DataConnectionDto> createUseCase,
+    IUseCase<UpdateDataConnectionCommand, DataConnectionDto?> updateUseCase,
+    IUseCase<DeleteDataConnectionCommand, bool> deleteUseCase,
+    IUseCase<TestDataConnectionCommand, bool> testUseCase) : ControllerBase
 {
     /// <summary>List all configured database connections.</summary>
     [HttpGet]

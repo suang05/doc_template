@@ -3,8 +3,6 @@ using SmkDoc.Domain.Exceptions;
 
 namespace SmkDoc.Application.Modules.Integration.DataConnections.Commands.TestDataConnection;
 
-public record TestDataConnectionCommand(string Provider, string ConnectionString);
-
 public sealed class TestDataConnectionUseCase(
     ISqlExecutorService sqlExecutor) : IUseCase<TestDataConnectionCommand, bool>
 {

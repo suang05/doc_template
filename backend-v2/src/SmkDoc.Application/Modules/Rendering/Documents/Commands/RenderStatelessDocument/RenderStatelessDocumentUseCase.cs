@@ -13,19 +13,19 @@ public sealed class RenderStatelessDocumentUseCase(
     IEnumerable<IRenderEngine> engines,
     IDocxSecurityScanner securityScanner) : IUseCase<RenderStatelessDocumentCommand, Stream>
 {
-    public async Task<Stream> ExecuteAsync(RenderStatelessDocumentCommand request, CancellationToken ct = default)
+    public async Task<Stream> ExecuteAsync(RenderStatelessDocumentCommand command, CancellationToken ct = default)
     {
-        string ext = Path.GetExtension(request.FileName).ToLowerInvariant();
+        string ext = Path.GetExtension(command.FileName).ToLowerInvariant();
         var engineType = GetEngineTypeFromExtension(ext);
         var engine = engines.FirstOrDefault(e => e.EngineType == engineType)
             ?? throw new NotSupportedException($"No render engine found for {engineType}");
 
-        string payload = string.IsNullOrWhiteSpace(request.JsonData) ? "{}" : request.JsonData;
+        string payload = string.IsNullOrWhiteSpace(command.JsonData) ? "{}" : command.JsonData;
 
         if (ext == ".docx")
         {
             using var docxCopy = new MemoryStream();
-            await request.FileStream.CopyToAsync(docxCopy, ct);
+            await command.FileStream.CopyToAsync(docxCopy, ct);
             docxCopy.Position = 0;
 
             var scanResult = securityScanner.Scan(docxCopy);
@@ -39,7 +39,7 @@ public sealed class RenderStatelessDocumentUseCase(
             return await engine.RenderStreamAsync(docxCopy, payload, OutputFormat.Pdf, ct);
         }
 
-        return await engine.RenderStreamAsync(request.FileStream, payload, OutputFormat.Pdf, ct);
+        return await engine.RenderStreamAsync(command.FileStream, payload, OutputFormat.Pdf, ct);
     }
 
     private static RenderEngineType GetEngineTypeFromExtension(string ext)

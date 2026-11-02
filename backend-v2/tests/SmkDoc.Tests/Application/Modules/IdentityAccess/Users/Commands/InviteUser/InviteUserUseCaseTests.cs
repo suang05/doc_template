@@ -1,6 +1,5 @@
-using FluentValidation;
-using FluentValidation.Results;
 using NSubstitute;
+using SmkDoc.Application.Common.Behaviors;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Users.Commands.InviteUser;
 using SmkDoc.Application.Modules.IdentityAccess.Users.DTOs;
@@ -19,7 +18,6 @@ public sealed class InviteUserUseCaseTests
     private readonly IUserProjectRoleRepository _roleRepo = Substitute.For<IUserProjectRoleRepository>();
     private readonly IPasswordHasher _passwordHasher = Substitute.For<IPasswordHasher>();
     private readonly IUnitOfWork _uow = Substitute.For<IUnitOfWork>();
-    private readonly IValidator<InviteUserCommand> _validator = Substitute.For<IValidator<InviteUserCommand>>();
     private readonly FakeTimeProvider _timeProvider = TestConstants.CreateFakeClock();
 
     private InviteUserUseCase CreateSut() => new(
@@ -27,7 +25,6 @@ public sealed class InviteUserUseCaseTests
         _roleRepo,
         _passwordHasher,
         _uow,
-        _validator,
         _timeProvider);
 
     [Fact]
@@ -35,11 +32,12 @@ public sealed class InviteUserUseCaseTests
     {
         // Arrange
         var command = new InviteUserCommand(Guid.Empty, "invalid-email", "", "", "", "Viewer");
-        _validator.ValidateAsync(command, Arg.Any<CancellationToken>())
-            .Returns(new ValidationResult([new ValidationFailure("Email", "Invalid email")]));
+        var pipeline = new ValidatingUseCaseDecorator<InviteUserCommand, UserResultDto>(
+            CreateSut(),
+            [new InviteUserCommandValidator()]);
 
         // Act
-        var act = () => CreateSut().ExecuteAsync(command);
+        var act = () => pipeline.ExecuteAsync(command);
 
         // Assert
         await act.Should().ThrowAsync<ValidationException>();
@@ -58,8 +56,6 @@ public sealed class InviteUserUseCaseTests
         var roleStr = "Developer";
         var command = new InviteUserCommand(projectId, email, password, "New", "User", roleStr);
 
-        _validator.ValidateAsync(command, Arg.Any<CancellationToken>())
-            .Returns(new ValidationResult());
         _userRepo.GetByEmailAsync(email, Arg.Any<CancellationToken>())
             .Returns((User?)null);
         _passwordHasher.HashPassword(password)
@@ -90,8 +86,6 @@ public sealed class InviteUserUseCaseTests
 
         var command = new InviteUserCommand(projectId, "exist@test.com", "Pass@1234", "", "", "Viewer");
 
-        _validator.ValidateAsync(command, Arg.Any<CancellationToken>())
-            .Returns(new ValidationResult());
         _userRepo.GetByEmailAsync("exist@test.com", Arg.Any<CancellationToken>())
             .Returns(existingUser);
         _roleRepo.GetAsync(new ProjectId(projectId), existingUser.Id, Arg.Any<CancellationToken>())

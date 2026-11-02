@@ -5,15 +5,10 @@ using SmkDoc.Domain.Exceptions;
 
 namespace SmkDoc.Application.Modules.Authoring.Fonts.Commands.UploadFont;
 
-public record UploadFontCommand(Stream Data, string FileName, string ContentType);
-
 public sealed partial class UploadFontUseCase(
     IStorageService storageService,
     ICurrentProjectContext projectContext) : IUseCase<UploadFontCommand, string>
 {
-    private readonly IStorageService _storageService = storageService;
-    private readonly ICurrentProjectContext _projectContext = projectContext;
-
     private static readonly HashSet<string> AllowedContentTypes = new(StringComparer.OrdinalIgnoreCase)
     {
         "font/woff2",
@@ -36,7 +31,7 @@ public sealed partial class UploadFontUseCase(
 
     public async Task<string> ExecuteAsync(UploadFontCommand command, CancellationToken ct = default)
     {
-        if (!_projectContext.IsResolved)
+        if (!projectContext.IsResolved)
         {
             throw new ForbiddenException("Uploading a custom font requires an active project context.");
         }
@@ -65,8 +60,8 @@ public sealed partial class UploadFontUseCase(
         }
 
         buffer.Position = 0;
-        var objectKey = StorageBuckets.TenantFontKey(_projectContext.ProjectId, safeFileName);
-        await _storageService.UploadAsync(StorageBuckets.Fonts, objectKey, buffer, command.ContentType.Trim(), ct);
+        var objectKey = StorageBuckets.TenantFontKey(projectContext.ProjectId, safeFileName);
+        await storageService.UploadAsync(StorageBuckets.Fonts, objectKey, buffer, command.ContentType.Trim(), ct);
         return safeFileName;
     }
 

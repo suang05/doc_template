@@ -1,7 +1,6 @@
-using FluentValidation;
-using FluentValidation.Results;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
+using SmkDoc.Application.Common.Behaviors;
 using SmkDoc.Application.Common.Constants;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.Login;
@@ -29,16 +28,13 @@ public sealed class LoginUseCaseTests
     private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
     private readonly FakeTimeProvider _timeProvider = TestConstants.CreateFakeClock();
     private readonly ISecurityAuditService _auditService = Substitute.For<ISecurityAuditService>();
-    private readonly LoginCommandValidator _defaultValidator = new();
 
     public LoginUseCaseTests()
     {
         _uow.CommitAsync(Arg.Any<CancellationToken>()).Returns(1);
     }
 
-    private LoginUseCase CreateSut(
-        IValidator<LoginCommand>? validator = null,
-        Guid? projectContextId = null)
+    private LoginUseCase CreateSut(Guid? projectContextId = null)
     {
         _projectContext.IsResolved.Returns(projectContextId.HasValue);
         _projectContext.ProjectId.Returns(projectContextId.HasValue ? new ProjectId(projectContextId.Value) : default);
@@ -48,7 +44,6 @@ public sealed class LoginUseCaseTests
             _passwordHasher,
             _jwtGenerator,
             _workspaceQueryService,
-            validator ?? _defaultValidator,
             _tokenRepo,
             _uow,
             _timeProvider,
@@ -207,10 +202,12 @@ public sealed class LoginUseCaseTests
     {
         // Arrange
         var command = new LoginCommand("invalid-email", "123");
-        var validator = new LoginCommandValidator();
+        var pipeline = new ValidatingUseCaseDecorator<LoginCommand, LoginResultDto>(
+            CreateSut(),
+            [new LoginCommandValidator()]);
 
         // Act
-        var act = () => CreateSut(validator).ExecuteAsync(command);
+        var act = () => pipeline.ExecuteAsync(command);
 
         // Assert
         await act.Should().ThrowAsync<ValidationException>();
@@ -222,12 +219,9 @@ public sealed class LoginUseCaseTests
     {
         // Arrange
         var command = new LoginCommand("invalid-email-format", "password123");
-        var passValidator = Substitute.For<IValidator<LoginCommand>>();
-        passValidator.ValidateAsync(Arg.Any<LoginCommand>(), Arg.Any<CancellationToken>())
-            .Returns(new ValidationResult());
 
         // Act
-        var act = () => CreateSut(validator: passValidator).ExecuteAsync(command);
+        var act = () => CreateSut().ExecuteAsync(command);
 
         // Assert
         await act.Should().ThrowAsync<DomainValidationException>();

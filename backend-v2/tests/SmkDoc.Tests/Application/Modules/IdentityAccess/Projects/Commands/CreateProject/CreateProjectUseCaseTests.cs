@@ -1,4 +1,4 @@
-using FluentValidation;
+using SmkDoc.Application.Common.Behaviors;
 using SmkDoc.Application.Modules.IdentityAccess.Projects.Commands.CreateProject;
 using SmkDoc.Application.Modules.IdentityAccess.Projects.DTOs;
 using SmkDoc.Domain.Entities;
@@ -24,13 +24,12 @@ public sealed class CreateProjectUseCaseTests
         _unitOfWork.CommitAsync(Arg.Any<CancellationToken>()).Returns(1);
     }
 
-    private CreateProjectUseCase CreateSut(IValidator<CreateProjectCommand>? validator = null) =>
+    private CreateProjectUseCase CreateSut() =>
         new(
             _projectRepo,
             _roleRepo,
             _companyRepo,
             _unitOfWork,
-            validator,
             _timeProvider);
 
     [Fact]
@@ -126,10 +125,12 @@ public sealed class CreateProjectUseCaseTests
     {
         // Arrange
         var command = new CreateProjectCommand(Guid.Empty, "", "");
-        var validator = new CreateProjectCommandValidator();
+        var pipeline = new ValidatingUseCaseDecorator<CreateProjectCommand, ProjectResultDto>(
+            CreateSut(),
+            [new CreateProjectCommandValidator()]);
 
         // Act
-        var act = () => CreateSut(validator).ExecuteAsync(command);
+        var act = () => pipeline.ExecuteAsync(command);
 
         // Assert
         await act.Should().ThrowAsync<ValidationException>();

@@ -1,21 +1,19 @@
-using System.Text.Json;
 using ClosedXML.Excel;
 using SmkDoc.Application.Common.Helpers;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Enums;
+using SmkDoc.Infrastructure.Parsing;
 using static SmkDoc.Application.Common.Helpers.PlaceholderHelper;
 
 namespace SmkDoc.Infrastructure.Engines.Excel;
 
-public class ExcelTemplateEngine(
+public sealed class ExcelTemplateEngine(
     IPdfRenderer pdfRenderer,
     ExcelMediaInjector mediaInjector,
-    IJsonDataParser? jsonDataParser = null) : IRenderEngine
+    IJsonNamedArrayParser? jsonNamedArrayParser = null) : IRenderEngine
 {
-    private readonly IPdfRenderer _pdfRenderer = pdfRenderer;
-    private readonly ExcelMediaInjector _mediaInjector = mediaInjector;
     private readonly ExcelTableExpander _tableExpander = new();
-    private readonly IJsonDataParser _jsonDataParser = jsonDataParser ?? new SmkDoc.Infrastructure.Parsing.JsonDataParser();
+    private readonly IJsonNamedArrayParser _jsonNamedArrayParser = jsonNamedArrayParser ?? new JsonDataParser();
 
     public RenderEngineType EngineType => RenderEngineType.Excel;
 
@@ -25,7 +23,7 @@ public class ExcelTemplateEngine(
         OutputFormat outputFormat,
         CancellationToken ct = default)
     {
-        var (replacements, arrays) = _jsonDataParser.FlattenNamed(inputDataJson);
+        var (replacements, arrays) = _jsonNamedArrayParser.FlattenNamed(inputDataJson);
 
         using var memoryStream = new MemoryStream();
         await templateStream.CopyToAsync(memoryStream, ct);
@@ -35,26 +33,20 @@ public class ExcelTemplateEngine(
 
         foreach (var worksheet in workbook.Worksheets)
         {
-            // Standardize to A4 paper size if left at Excel default (Letter)
             if (worksheet.PageSetup.PaperSize == XLPaperSize.LetterPaper)
             {
                 worksheet.PageSetup.PaperSize = XLPaperSize.A4Paper;
             }
 
-            // Only apply 1-page-wide fit if not already customized by the template designer
             if (worksheet.PageSetup.PagesWide == 0 && worksheet.PageSetup.PagesTall == 0)
             {
                 worksheet.PageSetup.PagesWide = 1;
                 worksheet.PageSetup.PagesTall = 0;
             }
 
-            // 1. Inject QR / Barcode images
-            _mediaInjector.InjectMedia(worksheet, replacements);
-
-            // 2. Expand array template rows
+            mediaInjector.InjectMedia(worksheet, replacements);
             _tableExpander.ExpandTables(worksheet, arrays);
 
-            // 3. Replace flat text placeholders
             foreach (var cell in worksheet.CellsUsed())
             {
                 if (cell.HasFormula) continue;
@@ -72,7 +64,7 @@ public class ExcelTemplateEngine(
                             replacements.TryGetValue(parsed.Key, out var r)
                                 ? ThaiDataTransformer.Transform(r, parsed.Extra!)
                                 : m.Value,
-                        _ => m.Value // QR / Barcode / Image already handled
+                        _ => m.Value
                     };
                 });
 
@@ -89,10 +81,10 @@ public class ExcelTemplateEngine(
         {
             await using (outputStream)
             {
-                var pdfStream = await _pdfRenderer.RenderOfficeToPdfStreamAsync(outputStream, "spreadsheet.xlsx", ct);
-                if (pdfStream == null)
+                var pdfStream = await pdfRenderer.RenderOfficeToPdfStreamAsync(outputStream, "spreadsheet.xlsx", ct);
+                if (pdfStream is null)
                 {
-                    var bytes = await _pdfRenderer.RenderOfficeToPdfAsync(outputStream, "spreadsheet.xlsx", ct);
+                    var bytes = await pdfRenderer.RenderOfficeToPdfAsync(outputStream, "spreadsheet.xlsx", ct);
                     return new MemoryStream(bytes);
                 }
                 return pdfStream;

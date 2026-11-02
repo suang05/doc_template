@@ -19,10 +19,8 @@ public sealed class CommitTemplateDraftUseCase(
     IProjectRepository projectRepo,
     ISchemaInferenceService schemaInferenceService,
     ICurrentProjectContext projectContext,
-    TimeProvider? timeProvider = null) : IUseCase<CommitTemplateDraftCommand, string>
+    TimeProvider timeProvider) : IUseCase<CommitTemplateDraftCommand, string>
 {
-    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
-
     public async Task<string> ExecuteAsync(CommitTemplateDraftCommand command, CancellationToken ct = default)
     {
         if (!projectContext.IsResolved)
@@ -39,17 +37,17 @@ public sealed class CommitTemplateDraftUseCase(
                 ?? throw new NotFoundException($"Project '{projectContext.ProjectId}' not found.");
         }
 
-        if (await templateRepo.SlugExistsAsync(command.Request.Slug, ct))
+        if (await templateRepo.SlugExistsAsync(command.Slug, ct))
         {
-            throw ConflictException.DuplicateSlug(command.Request.Slug);
+            throw ConflictException.DuplicateSlug(command.Slug);
         }
 
-        var now = _timeProvider.GetUtcNow();
+        var now = timeProvider.GetUtcNow();
         var template = Template.Create(
             projectContext.ProjectId,
-            TemplateName.Create(command.Request.Name),
-            TemplateSlug.Create(command.Request.Slug),
-            command.Request.Category,
+            TemplateName.Create(command.Name),
+            TemplateSlug.Create(command.Slug),
+            command.Category,
             now);
 
         var format = FormatFromExt(draft.FileExtension);
@@ -65,8 +63,8 @@ public sealed class CommitTemplateDraftUseCase(
 
         try
         {
-            var placeholderList = command.Request.Mappings?.Select(m => m.Placeholder).ToList() ?? [];
-            string? inferredSchema = schemaInferenceService?.InferSchemaFromPlaceholders(placeholderList, templateSlug: command.Request.Slug);
+            var placeholderList = command.Mappings?.Select(m => m.Placeholder).ToList() ?? [];
+            string? inferredSchema = schemaInferenceService?.InferSchemaFromPlaceholders(placeholderList, templateSlug: command.Slug);
             string? samplePayload = schemaInferenceService?.GenerateDefaultSamplePayload(placeholderList);
 
             var version = template.CreateDraftVersion(
@@ -78,10 +76,10 @@ public sealed class CommitTemplateDraftUseCase(
                 "Initial upload via draft pipeline");
             version.UpdateDataSchema(inferredSchema, samplePayload, now);
 
-            if (command.Request.Mappings is { Count: > 0 })
+            if (command.Mappings is { Count: > 0 })
             {
-                var mappings = new List<FieldMapping>(command.Request.Mappings.Count);
-                foreach (var m in command.Request.Mappings)
+                var mappings = new List<FieldMapping>(command.Mappings.Count);
+                foreach (var m in command.Mappings)
                 {
                     var dsType = m.DataSourceType != null ? DataSourceType.FromString(m.DataSourceType) : DataSourceType.Json;
                     var fm = FieldMapping.Create(

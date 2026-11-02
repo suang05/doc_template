@@ -6,8 +6,6 @@ using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Modules.Integration.Datasets.Queries.ListDatasets;
 
-public record ListDatasetsQuery;
-
 public sealed class ListDatasetsUseCase(
     IDatasetRepository datasetRepo,
     IDataConnectionRepository connectionRepo) : IUseCase<ListDatasetsQuery, List<DatasetDto>>

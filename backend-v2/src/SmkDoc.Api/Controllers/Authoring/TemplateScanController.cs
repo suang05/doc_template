@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.Contracts.Authoring.Templates;
+using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.ScanTemplatePlaceholders;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.ScanUploadedTemplate;
 using SmkDoc.Domain.Exceptions;
@@ -14,9 +15,9 @@ namespace SmkDoc.Api.Controllers.Authoring;
 [ApiController]
 [Route("api/v1/templates")]
 [Route("api/templates")]
-public class TemplateScanController(
-    ScanUploadedTemplateUseCase scanUploadedUseCase,
-    ScanTemplatePlaceholdersUseCase scanStoredUseCase) : ControllerBase
+public sealed class TemplateScanController(
+    IUseCase<ScanUploadedTemplateQuery, List<string>> scanUploadedUseCase,
+    IUseCase<ScanTemplatePlaceholdersQuery, List<string>> scanStoredUseCase) : ControllerBase
 {
     /// <summary>
     /// Stateless scan — upload any file and get its placeholders without creating a template.
@@ -31,7 +32,7 @@ public class TemplateScanController(
             throw new DomainValidationException("File is required and must not be empty.");
 
         var ext = Path.GetExtension(file.FileName);
-        using var stream = file.OpenReadStream();
+        await using var stream = file.OpenReadStream();
         var query = new ScanUploadedTemplateQuery(stream, ext);
         var placeholders = await scanUploadedUseCase.ExecuteAsync(query, ct);
         return Ok(new ApiResponse<ScanFieldsResponse>(new ScanFieldsResponse(placeholders)));

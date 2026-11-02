@@ -4,6 +4,7 @@ using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.Constants;
 using SmkDoc.Api.Contracts.IdentityAccess.Projects;
 using SmkDoc.Api.Extensions;
+using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Projects.Commands.CreateProject;
 using SmkDoc.Application.Modules.IdentityAccess.Projects.DTOs;
 using SmkDoc.Application.Modules.IdentityAccess.Projects.Queries.GetProjectById;
@@ -18,10 +19,10 @@ namespace SmkDoc.Api.Controllers.IdentityAccess;
 [Route("api/v1/management/projects")]
 [Authorize]
 [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-public class ProjectManagementController(
-    ListProjectsUseCase listProjectsUseCase,
-    GetProjectByIdUseCase getProjectByIdUseCase,
-    CreateProjectUseCase createProjectUseCase) : ControllerBase
+public sealed class ProjectManagementController(
+    IUseCase<ListProjectsQuery, ProjectPagedResultDto> listProjectsUseCase,
+    IUseCase<GetProjectByIdQuery, ProjectResultDto> getProjectByIdUseCase,
+    IUseCase<CreateProjectCommand, ProjectResultDto> createProjectUseCase) : ControllerBase
 {
     /// <summary>List all projects accessible to the authenticated user with server-side pagination and search.</summary>
     [HttpGet]

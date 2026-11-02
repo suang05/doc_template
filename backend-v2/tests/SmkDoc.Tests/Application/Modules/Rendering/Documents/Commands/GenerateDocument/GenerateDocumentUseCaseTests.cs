@@ -1,15 +1,14 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using FluentValidation;
 using SmkDoc.Application.Common;
+using SmkDoc.Application.Common.Behaviors;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 using SmkDoc.Application.Modules.Rendering.Documents;
 using SmkDoc.Application.Modules.Rendering.Documents.Commands.GenerateDocument;
 using SmkDoc.Application.Modules.Rendering.Documents.DTOs;
 using SmkDoc.Application.Modules.Rendering.Documents.Services;
-using SmkDoc.Application.Modules.Rendering.Documents.Validators;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
@@ -46,7 +45,7 @@ public sealed class GenerateDocumentUseCaseTests
         _projectContext.CallerIdentity.Returns("sales-app");
     }
 
-    private GenerateDocumentUseCase CreateSut(IValidator<GenerateDocumentCommand>? validator = null)
+    private GenerateDocumentUseCase CreateSut()
     {
         var dataPrep = new DocumentDataPreparationService(
             _datasetRepo,
@@ -58,7 +57,7 @@ public sealed class GenerateDocumentUseCaseTests
         var audit = new DocumentAuditService(
             _logRepo,
             _projectContext,
-            timeProvider: _timeProvider);
+            _timeProvider);
 
         var versioning = new DocumentVersioningService(
             _documentRepo,
@@ -74,7 +73,6 @@ public sealed class GenerateDocumentUseCaseTests
             versioning,
             _unitOfWork,
             _projectContext,
-            validator ?? new GenerateDocumentCommandValidator(),
             _timeProvider);
     }
 
@@ -83,10 +81,13 @@ public sealed class GenerateDocumentUseCaseTests
     {
         // Arrange
         using var jsonDoc = JsonDocument.Parse("{}");
-        var invalidCommand = new GenerateDocumentCommand(jsonDoc.RootElement, OutputFormat: "unsupported_format");
+        var invalidCommand = new GenerateDocumentCommand("sale-contract", jsonDoc.RootElement, OutputFormat: "unsupported_format");
+        var pipeline = new ValidatingUseCaseDecorator<GenerateDocumentCommand, GenerateDocumentResultDto>(
+            CreateSut(),
+            [new GenerateDocumentCommandValidator()]);
 
         // Act
-        Func<Task> act = () => CreateSut().ExecuteAsync("sale-contract", invalidCommand);
+        Func<Task> act = () => pipeline.ExecuteAsync(invalidCommand);
 
         // Assert
         await act.Should().ThrowAsync<SmkDoc.Application.Common.Exceptions.ValidationException>();
@@ -184,10 +185,10 @@ public sealed class GenerateDocumentUseCaseTests
             .Returns((Document?)null);
 
         using var jsonDoc = JsonDocument.Parse("{\"name\": \"สมชาย ใจดี\"}");
-        var request = new GenerateDocumentCommand(jsonDoc.RootElement, OutputFormat: "pdf", DocumentRef: "SC-2026-0001");
+        var request = new GenerateDocumentCommand("sale-contract", jsonDoc.RootElement, OutputFormat: "pdf", DocumentRef: "SC-2026-0001");
 
         // Act
-        GenerateDocumentResultDto result = await CreateSut().ExecuteAsync("sale-contract", request);
+        GenerateDocumentResultDto result = await CreateSut().ExecuteAsync(request);
 
         // Assert
         result.Should().NotBeNull();
@@ -224,10 +225,10 @@ public sealed class GenerateDocumentUseCaseTests
         SetupPresignedUrl("https://minio.sammakorn.co.th/outputs/non-seekable.pdf");
 
         using var jsonDoc = JsonDocument.Parse("{}");
-        var request = new GenerateDocumentCommand(jsonDoc.RootElement, OutputFormat: "pdf");
+        var request = new GenerateDocumentCommand("non-seekable-doc", jsonDoc.RootElement, OutputFormat: "pdf");
 
         // Act
-        GenerateDocumentResultDto result = await CreateSut().ExecuteAsync("non-seekable-doc", request);
+        GenerateDocumentResultDto result = await CreateSut().ExecuteAsync(request);
 
         // Assert
         result.FileSizeBytes.Should().Be(payloadBytes.Length);
@@ -244,10 +245,10 @@ public sealed class GenerateDocumentUseCaseTests
             .ThrowsAsync(new InvalidOperationException("Gotenberg container crashed"));
 
         using var jsonDoc = JsonDocument.Parse("{\"invoice\":123}");
-        var request = new GenerateDocumentCommand(jsonDoc.RootElement, OutputFormat: "pdf");
+        var request = new GenerateDocumentCommand("broken-render", jsonDoc.RootElement, OutputFormat: "pdf");
 
         // Act
-        Func<Task> act = () => CreateSut().ExecuteAsync("broken-render", request);
+        Func<Task> act = () => CreateSut().ExecuteAsync(request);
 
         // Assert
         await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("Gotenberg container crashed");
@@ -272,10 +273,10 @@ public sealed class GenerateDocumentUseCaseTests
             .ThrowsAsync(new InvalidOperationException("PostgreSQL deadlock"));
 
         using var jsonDoc = JsonDocument.Parse("{}");
-        var request = new GenerateDocumentCommand(jsonDoc.RootElement, OutputFormat: "pdf");
+        var request = new GenerateDocumentCommand("commit-fail-doc", jsonDoc.RootElement, OutputFormat: "pdf");
 
         // Act
-        Func<Task> act = () => CreateSut().ExecuteAsync("commit-fail-doc", request);
+        Func<Task> act = () => CreateSut().ExecuteAsync(request);
 
         // Assert
         await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("PostgreSQL deadlock");
@@ -292,10 +293,10 @@ public sealed class GenerateDocumentUseCaseTests
         SetupInactiveTemplate("inactive-tpl");
 
         using var jsonDoc = JsonDocument.Parse("{}");
-        var request = new GenerateDocumentCommand(jsonDoc.RootElement);
+        var request = new GenerateDocumentCommand("inactive-tpl", jsonDoc.RootElement);
 
         // Act & Assert
-        Func<Task> act = () => CreateSut().ExecuteAsync("inactive-tpl", request);
+        Func<Task> act = () => CreateSut().ExecuteAsync(request);
         await act.Should().ThrowAsync<NotFoundException>();
     }
 
@@ -306,10 +307,10 @@ public sealed class GenerateDocumentUseCaseTests
         SetupTemplateWithoutVersion("no-ver-tpl");
 
         using var jsonDoc = JsonDocument.Parse("{}");
-        var request = new GenerateDocumentCommand(jsonDoc.RootElement);
+        var request = new GenerateDocumentCommand("no-ver-tpl", jsonDoc.RootElement);
 
         // Act & Assert
-        Func<Task> act = () => CreateSut().ExecuteAsync("no-ver-tpl", request);
+        Func<Task> act = () => CreateSut().ExecuteAsync(request);
         await act.Should().ThrowAsync<BusinessRuleViolationException>();
     }
 
@@ -352,10 +353,10 @@ public sealed class GenerateDocumentUseCaseTests
         SetupPresignedUrl("https://minio.sammakorn.co.th/outputs/sample.pdf");
 
         using var jsonDoc = JsonDocument.Parse("{\"contract\": {\"price\": \"2500000\"}}");
-        var request = new GenerateDocumentCommand(jsonDoc.RootElement);
+        var request = new GenerateDocumentCommand("contract-mapped", jsonDoc.RootElement);
 
         // Act
-        GenerateDocumentResultDto result = await CreateSut().ExecuteAsync("contract-mapped", request);
+        GenerateDocumentResultDto result = await CreateSut().ExecuteAsync(request);
 
         // Assert
         result.Should().NotBeNull();
@@ -393,10 +394,10 @@ public sealed class GenerateDocumentUseCaseTests
             .Returns(existingDocument);
 
         using var jsonDoc = JsonDocument.Parse("{}");
-        var request = new GenerateDocumentCommand(jsonDoc.RootElement, OutputFormat: "pdf", DocumentRef: "SC-2026-0001");
+        var request = new GenerateDocumentCommand("sale-contract", jsonDoc.RootElement, OutputFormat: "pdf", DocumentRef: "SC-2026-0001");
 
         // Act
-        GenerateDocumentResultDto result = await CreateSut().ExecuteAsync("sale-contract", request);
+        GenerateDocumentResultDto result = await CreateSut().ExecuteAsync(request);
 
         // Assert
         result.DocumentRef.Should().Be("SC-2026-0001");
@@ -435,10 +436,10 @@ public sealed class GenerateDocumentUseCaseTests
             .Returns(1);
 
         using var jsonDoc = JsonDocument.Parse("""{"customer":"ACME"}""");
-        var request = new GenerateDocumentCommand(jsonDoc.RootElement, OutputFormat: "pdf");
+        var request = new GenerateDocumentCommand("invoice", jsonDoc.RootElement, OutputFormat: "pdf");
 
         // Act
-        var act = () => CreateSut().ExecuteAsync("invoice", request);
+        var act = () => CreateSut().ExecuteAsync(request);
 
         // Assert
         var ex = await act.Should().ThrowAsync<SchemaValidationException>();
@@ -475,10 +476,10 @@ public sealed class GenerateDocumentUseCaseTests
         SetupPresignedUrl("https://example.com/download/invoice.pdf");
 
         using var jsonDoc = JsonDocument.Parse("""{"customer":"ACME"}""");
-        var request = new GenerateDocumentCommand(jsonDoc.RootElement, OutputFormat: "pdf", SkipValidation: true);
+        var request = new GenerateDocumentCommand("invoice", jsonDoc.RootElement, OutputFormat: "pdf", SkipValidation: true);
 
         // Act
-        GenerateDocumentResultDto result = await CreateSut().ExecuteAsync("invoice", request);
+        GenerateDocumentResultDto result = await CreateSut().ExecuteAsync(request);
 
         // Assert
         _schemaValidation.DidNotReceive().Validate(Arg.Any<string>(), Arg.Any<string>());
@@ -497,15 +498,11 @@ public sealed class GenerateDocumentUseCaseTests
         SetupRenderEnginePdfOutput("%PDF-1.4 Mock Output");
         SetupPresignedUrl("https://example.com/download/fallback.pdf");
 
-        var permissiveValidator = Substitute.For<IValidator<GenerateDocumentCommand>>();
-        permissiveValidator.ValidateAsync(Arg.Any<GenerateDocumentCommand>(), Arg.Any<CancellationToken>())
-            .Returns(new FluentValidation.Results.ValidationResult());
-
         using var jsonDoc = JsonDocument.Parse("{}");
-        var request = new GenerateDocumentCommand(jsonDoc.RootElement, OutputFormat: "unknown_format", SkipValidation: true);
+        var request = new GenerateDocumentCommand("fallback-contract", jsonDoc.RootElement, OutputFormat: "unknown_format", SkipValidation: true);
 
         // Act
-        GenerateDocumentResultDto result = await CreateSut(permissiveValidator).ExecuteAsync("fallback-contract", request);
+        GenerateDocumentResultDto result = await CreateSut().ExecuteAsync(request);
 
         // Assert
         await _engine.Received(1).RenderStreamAsync(

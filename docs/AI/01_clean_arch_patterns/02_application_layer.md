@@ -17,12 +17,12 @@ UpstreamKernel: AGENTS.md
 ### Layer Boundary Wiring & Contracts
 | Direction | Upstream Origin | Current Role (Application Orchestrator) | Downstream Destination |
 |---|---|---|---|
-| **Inbound Request** | Presentation Controller | Validates request line 1 via `IValidator<T>` | Application UseCase (`IUseCase<TReq, TRes>`) |
+| **Inbound Request** | Presentation Controller | Validates line 1 via `ValidatingUseCaseDecorator` (`IValidator<T>`) | Application UseCase (`IUseCase<TReq, TRes>`) |
 | **Precondition** | Command Parameters | Checks uniqueness / existence via Domain Port | Repository (`ITemplateRepository.SlugExistsAsync`) |
 | **Domain Mutation** | Validated Command | Invokes Entity Factory or Expressive Verb | Domain Aggregate (`Template.Create(...)`) |
-| **Persistence** | Mutated Aggregate | Persists changes and commits single transaction | Unit of Work (`IUnitOfWork.CommitAsync`) |
+| **Persistence** | Mutated Aggregate | Commits transaction & dispatches post-commit events | Unit of Work (`IUnitOfWork.CommitAsync`) |
 | **Outbound Egress** | Mutated State | Maps directly to immutable DTO or Stream | Presentation Layer (`ApiResponse<T>` / `Stream`) |
-| **Side-Effects** | Aggregate `DomainEvents` | Dispatches post-commit via `IDomainEventDispatcher` | Outbox / Event Handlers (Audit, Notifications) |
+| **Side-Effects** | Aggregate `DomainEvents` | Dispatches fault-isolated post-commit handlers | `IDomainEventHandler<T>` (Audit, Cache, Telemetry) |
 
 ### Inline Execution Pipeline
 `[Presentation Request]` => Line-1 Fail-Fast Validation => Precondition Port Check => Domain Mutation => UnitOfWork Commit => Post-Commit Event Dispatch => `[Application DTO / Stream]`
@@ -52,6 +52,8 @@ ProactiveChallengeHeuristics:
     Action: Challenge immediately; uncommitted mutations cause silent data loss >> Ref: [TRAP-APP-003]
   - Trigger: UseCase parameter named request or input class suffixed with *Request instead of *Command or *Query
     Action: Enforce *Command with parameter command for mutations, and *Query with parameter query for queries >> Ref: [RULE-APP-CMD-001]
+  - Trigger: Declaring *Command, *Query, or *Validator inside *UseCase.cs, or placing validators in a shared Validators/ bucket folder
+    Action: Split into dedicated {TypeName}.cs files co-located inside Commands/{SliceName}/ or Queries/{SliceName}/ >> Ref: [RULE-CONV-005], [TRAP-APP-007]
 
 CoreExtensionSlots:
   RenderingEngines: Pluggable IRenderEngine strategy dispatch (Html, Docx, Excel)
@@ -83,6 +85,7 @@ CoreExtensionSlots:
 6. `TransactionIsolation`: Mutating use cases commit strictly via `IUnitOfWork.CommitAsync(ct)` at egress. Read queries never mutate state.
 7. `StreamingIntegrity`: Render/Preview operations MUST return live `Stream`. Prohibit buffering to `byte[]` or unbounded `MemoryStream`.
 8. `PaginationClamping`: Paginated queries MUST clamp `Page >= 1` and `1 <= PageSize <= 100` to prevent denial-of-service query exhaustion.
+9. `OnePrimaryTypePerSliceFile`: Every `*Command`, `*Query`, `*Validator`, `*UseCase`, `*EventHandler`, and Service/Interface MUST reside in its own `.cs` file (`{TypeName}.cs`) co-located inside its vertical slice folder (`Commands/{SliceName}/` or `Queries/{SliceName}/`). Prohibit declaring multiple primary public types inside `*UseCase.cs` or grouping validators in detached `Validators/` folders (only `*Dtos.cs` / `*ResultDto.cs` files may group immutable DTO records).
 
 ---
 
@@ -130,29 +133,26 @@ public interface IDomainEventDispatcher
 ### Archetype 1: Mutating Command Slice (`CreateTemplate`)
 >> CANONICAL RECIPE [RULE-APP-CMD-001]:
 * [MUST] Implement `IUseCase<TCommand, TResultDto>`.
-* [MUST] Group Command, Validator, UseCase, and DTO in a co-located folder slice under `Modules/{BoundedContext}/{Aggregate}/Commands/{CommandName}/`.
+* [MUST] Co-locate Command, Validator, and UseCase inside `Modules/{BoundedContext}/{Aggregate}/Commands/{CommandName}/` with **strictly 1 primary public type per `.cs` file** (`{CommandName}Command.cs`, `{CommandName}CommandValidator.cs`, `{CommandName}UseCase.cs`) and DTOs in `DTOs/`. Never bundle Command or Validator inside `*UseCase.cs`, and never dump validators into detached `Validators/` folders >> Ref: [RULE-CONV-005], [RULE-STRUCT-004].
 * [MUST] Resolve tenant identity strictly from mandatory injected `ICurrentProjectContext` as the single channel-agnostic ambient context (zero caller `ProjectId` parameter on tenant Commands; `IExecutionContext` is retired) >> Ref: [RULE-SEC-003].
 * [MUST] Follow strictly the 4-step PEMR execution pipeline.
-* [MUST] Validate line 1 via injected `IValidator<TCommand>` and throw strongly-typed `ValidationException` on failure.
-* [MUST] Dispatch domain events strictly post-commit.
+* [MUST] Register via `services.AddUseCase<TCommand, TResultDto, TUseCase>()` so `ValidatingUseCaseDecorator` executes all `IValidator<TCommand>` instances at Line 1 (prohibit manual `IValidator<T>` injection inside UseCases).
+* [MUST] Delegate transaction commit and fault-isolated post-commit domain event dispatch to `IUnitOfWork.CommitAsync(ct)`.
 ```csharp
+// --- File: Commands/CreateTemplate/CreateTemplateCommand.cs ---
 namespace SmkDoc.Application.Modules.Authoring.Templates.Commands.CreateTemplate;
 
-using FluentValidation;
-using SmkDoc.Application.Common.Exceptions;
-using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.Interfaces;
-using SmkDoc.Domain.ValueObjects;
-
-// 1. Positional Immutable Command (Zero caller ProjectId override)
 public sealed record CreateTemplateCommand(
     string Name,
     string Slug,
     string? Category);
+```
+```csharp
+// --- File: Commands/CreateTemplate/CreateTemplateCommandValidator.cs ---
+namespace SmkDoc.Application.Modules.Authoring.Templates.Commands.CreateTemplate;
 
-// 2. Strict Line-1 Validator
+using FluentValidation;
+
 public sealed class CreateTemplateCommandValidator : AbstractValidator<CreateTemplateCommand>
 {
     public CreateTemplateCommandValidator()
@@ -161,8 +161,11 @@ public sealed class CreateTemplateCommandValidator : AbstractValidator<CreateTem
         RuleFor(x => x.Slug).NotEmpty().MaximumLength(100).Matches("^[a-z0-9-]+$");
     }
 }
+```
+```csharp
+// --- File: DTOs/TemplateResultDto.cs ---
+namespace SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 
-// 3. Response DTO Record
 public sealed record TemplateResultDto(
     Guid Id,
     Guid ProjectId,
@@ -173,28 +176,33 @@ public sealed record TemplateResultDto(
     Guid? CurrentVersionId,
     DateTimeOffset CreatedAt,
     DateTimeOffset? UpdatedAt);
+```
+```csharp
+// --- File: Commands/CreateTemplate/CreateTemplateUseCase.cs ---
+namespace SmkDoc.Application.Modules.Authoring.Templates.Commands.CreateTemplate;
 
-// 4. Single-Responsibility UseCase Orchestrator
+using SmkDoc.Application.Common.Exceptions;
+using SmkDoc.Application.Common.Interfaces;
+using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
+using SmkDoc.Domain.Entities;
+using SmkDoc.Domain.Exceptions;
+using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects;
+
 public sealed class CreateTemplateUseCase(
-    ITemplateRepository templateRepo,
+    ITemplateRepository templateRepository,
     IUnitOfWork unitOfWork,
-    IValidator<CreateTemplateCommand> validator,
     ICurrentProjectContext projectContext,
-    TimeProvider timeProvider,
-    IDomainEventDispatcher eventDispatcher) : IUseCase<CreateTemplateCommand, TemplateResultDto>
+    TimeProvider timeProvider) : IUseCase<CreateTemplateCommand, TemplateResultDto>
 {
     public async Task<TemplateResultDto> ExecuteAsync(CreateTemplateCommand command, CancellationToken ct = default)
     {
-        // 1. Parse & Validate (Fail-Fast)
-        var validationResult = await validator.ValidateAsync(command, ct);
-        if (!validationResult.IsValid)
-            throw new ValidationException(validationResult.ToDictionary());
-
+        // 1. Tenant Guard (Schema/Format validation already executed by ValidatingUseCaseDecorator)
         if (!projectContext.IsResolved)
             throw new ForbiddenException("Active project context is required to create a template.");
 
         // 2. Execute Precondition Query
-        var slugExists = await templateRepo.SlugExistsAsync(command.Slug, ct);
+        var slugExists = await templateRepository.SlugExistsAsync(command.Slug, ct);
         if (slugExists)
             throw ConflictException.DuplicateSlug(command.Slug);
 
@@ -209,17 +217,10 @@ public sealed class CreateTemplateUseCase(
             command.Category,
             now);
 
-        await templateRepo.AddAsync(template, ct);
+        await templateRepository.AddAsync(template, ct);
 
-        // 4. Commit Transaction
+        // 4. Commit Transaction & Dispatch Post-Commit Domain Events via UnitOfWork
         await unitOfWork.CommitAsync(ct);
-
-        // 5. Post-Commit Domain Event Dispatching
-        if (template.DomainEvents.Count > 0)
-        {
-            await eventDispatcher.DispatchEventsAsync(template.DomainEvents, ct);
-            template.ClearDomainEvents();
-        }
 
         return new TemplateResultDto(
             template.Id.Value,
@@ -238,23 +239,19 @@ public sealed class CreateTemplateUseCase(
 ### Archetype 2: Zero-LOH Streaming Query Slice (`RenderDocument`)
 >> CANONICAL RECIPE [RULE-APP-STRM-002]:
 ```csharp
+// --- File: Queries/RenderDocument/RenderDocumentQuery.cs ---
 namespace SmkDoc.Application.Modules.Rendering.Documents.Queries.RenderDocument;
 
-using FluentValidation;
-using SmkDoc.Application.Common;
-using SmkDoc.Application.Common.Exceptions;
-using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Domain.Enums;
-using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.Interfaces;
-using SmkDoc.Domain.ValueObjects.Ids;
-
-// 1. Immutable Query Contract
 public sealed record RenderDocumentQuery(
     Guid TemplateId,
     string PayloadJson);
+```
+```csharp
+// --- File: Queries/RenderDocument/RenderDocumentQueryValidator.cs ---
+namespace SmkDoc.Application.Modules.Rendering.Documents.Queries.RenderDocument;
 
-// 2. Query Validator
+using FluentValidation;
+
 public sealed class RenderDocumentQueryValidator : AbstractValidator<RenderDocumentQuery>
 {
     public RenderDocumentQueryValidator()
@@ -263,25 +260,31 @@ public sealed class RenderDocumentQueryValidator : AbstractValidator<RenderDocum
         RuleFor(x => x.PayloadJson).NotEmpty();
     }
 }
+```
+```csharp
+// --- File: Queries/RenderDocument/RenderDocumentUseCase.cs ---
+namespace SmkDoc.Application.Modules.Rendering.Documents.Queries.RenderDocument;
 
-// 3. Streaming UseCase (Zero byte[] allocation, direct Stream return)
+using SmkDoc.Application.Common;
+using SmkDoc.Application.Common.Exceptions;
+using SmkDoc.Application.Common.Interfaces;
+using SmkDoc.Domain.Enums;
+using SmkDoc.Domain.Exceptions;
+using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects.Ids;
+
 public sealed class RenderDocumentUseCase(
-    ITemplateRepository templateRepo,
+    ITemplateRepository templateRepository,
     IStorageService storageService,
     IRenderEngineResolver engineResolver,
-    ICurrentProjectContext projectContext,
-    IValidator<RenderDocumentQuery> validator) : IUseCase<RenderDocumentQuery, Stream>
+    ICurrentProjectContext projectContext) : IUseCase<RenderDocumentQuery, Stream>
 {
     public async Task<Stream> ExecuteAsync(RenderDocumentQuery query, CancellationToken ct = default)
     {
-        var validationResult = await validator.ValidateAsync(query, ct);
-        if (!validationResult.IsValid)
-            throw new ValidationException(validationResult.ToDictionary());
-
         if (!projectContext.IsResolved)
             throw new ForbiddenException("Active project context is required.");
 
-        var template = await templateRepo.GetByIdAsync(new TemplateId(query.TemplateId), ct);
+        var template = await templateRepository.GetByIdAsync(new TemplateId(query.TemplateId), ct);
         if (template is null || template.CurrentVersion is null)
             throw new NotFoundException($"Published template '{query.TemplateId}' not found.");
 
@@ -299,18 +302,23 @@ public sealed class RenderDocumentUseCase(
 ### Archetype 3: Materialized Paged Query Slice (`ListTemplates`)
 >> CANONICAL RECIPE [RULE-APP-QRY-003]:
 ```csharp
+// --- File: Queries/ListTemplates/ListTemplatesQuery.cs ---
+namespace SmkDoc.Application.Modules.Authoring.Templates.Queries.ListTemplates;
+
+public sealed record ListTemplatesQuery(int Page = 1, int PageSize = 20);
+```
+```csharp
+// --- File: Queries/ListTemplates/ListTemplatesUseCase.cs ---
 namespace SmkDoc.Application.Modules.Authoring.Templates.Queries.ListTemplates;
 
 using SmkDoc.Application.Common.Interfaces;
+using SmkDoc.Application.Common.Models;
+using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 
-public sealed record ListTemplatesQuery(int Page = 1, int PageSize = 20);
-
-public sealed record PagedResultDto<T>(IReadOnlyList<T> Items, int TotalCount, int Page, int PageSize);
-
 public sealed class ListTemplatesUseCase(
-    ITemplateRepository templateRepo,
+    ITemplateRepository templateRepository,
     ICurrentProjectContext projectContext) : IUseCase<ListTemplatesQuery, PagedResultDto<TemplateResultDto>>
 {
     public async Task<PagedResultDto<TemplateResultDto>> ExecuteAsync(ListTemplatesQuery query, CancellationToken ct = default)
@@ -321,18 +329,18 @@ public sealed class ListTemplatesUseCase(
         var page = Math.Max(1, query.Page);
         var pageSize = Math.Clamp(query.PageSize, 1, 100);
 
-        var (items, totalCount) = await templateRepo.GetPagedByProjectAsync(projectContext.ProjectId, null, page, pageSize, ct);
+        var (items, totalCount) = await templateRepository.GetPagedByProjectAsync(projectContext.ProjectId, null, page, pageSize, ct);
 
-        var dtos = items.Select(t => new TemplateResultDto(
-            t.Id.Value,
-            t.ProjectId.Value,
-            t.Name.Value,
-            t.Slug.Value,
-            t.Category,
-            t.IsActive,
-            t.CurrentVersionId,
-            t.CreatedAt,
-            t.UpdatedAt)).ToList();
+        var dtos = items.Select(template => new TemplateResultDto(
+            template.Id.Value,
+            template.ProjectId.Value,
+            template.Name.Value,
+            template.Slug.Value,
+            template.Category,
+            template.IsActive,
+            template.CurrentVersionId,
+            template.CreatedAt,
+            template.UpdatedAt)).ToList();
 
         return new PagedResultDto<TemplateResultDto>(dtos, totalCount, page, pageSize);
     }
@@ -406,3 +414,13 @@ public sealed class CachedTemplateRenderer(
 + var pageSize = Math.Clamp(query.PageSize, 1, 100);
 ```
 *Rationale: Unclamped page sizes allow malicious or misconfigured callers to exhaust database memory and connection pools.*
+
+### [TRAP-APP-007]: Bundled Command/Validator in `*UseCase.cs` or Detached `Validators/` Bucket
+```diff
+- // RollbackTemplateVersionUseCase.cs (declaring Command + Validator + UseCase together)
+- // OR Validators/DocumentCommandValidators.cs (detached from slice namespace)
++ // Commands/RollbackTemplateVersion/RollbackTemplateVersionCommand.cs
++ // Commands/RollbackTemplateVersion/RollbackTemplateVersionCommandValidator.cs
++ // Commands/RollbackTemplateVersion/RollbackTemplateVersionUseCase.cs
+```
+*Rationale: Every `*Command`, `*Query`, `*Validator`, and `*UseCase` MUST live in its own `{TypeName}.cs` file co-located inside its vertical slice namespace.*

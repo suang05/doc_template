@@ -4,8 +4,6 @@ using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Modules.Integration.Datasets.Commands.DeleteDataset;
 
-public record DeleteDatasetCommand(Guid Id);
-
 public sealed class DeleteDatasetUseCase(
     IDatasetRepository datasetRepo,
     IUnitOfWork unitOfWork) : IUseCase<DeleteDatasetCommand, bool>

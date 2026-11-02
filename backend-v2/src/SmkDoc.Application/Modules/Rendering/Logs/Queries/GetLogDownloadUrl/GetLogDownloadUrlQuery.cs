@@ -1,3 +1,3 @@
 namespace SmkDoc.Application.Modules.Rendering.Logs.Queries.GetLogDownloadUrl;
 
-public record GetLogDownloadUrlQuery(Guid LogId);
+public sealed record GetLogDownloadUrlQuery(Guid LogId);

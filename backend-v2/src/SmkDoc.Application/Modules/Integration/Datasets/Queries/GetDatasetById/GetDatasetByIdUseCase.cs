@@ -5,8 +5,6 @@ using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Modules.Integration.Datasets.Queries.GetDatasetById;
 
-public record GetDatasetByIdQuery(Guid Id);
-
 public sealed class GetDatasetByIdUseCase(
     IDatasetRepository datasetRepo,
     IDataConnectionRepository connectionRepo) : IUseCase<GetDatasetByIdQuery, DatasetDto?>

@@ -2,9 +2,7 @@ using System.Text.Json;
 using SmkDoc.Application.Common;
 using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.Modules.Rendering.Documents.DTOs;
 using SmkDoc.Application.Modules.Rendering.Documents.Queries.PreviewDocument;
-using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 
@@ -19,31 +17,31 @@ public sealed class PreviewDocumentUseCase(
     IStorageService storageService,
     IEnumerable<IRenderEngine> engines) : IUseCase<PreviewDocumentQuery, Stream>
 {
-    public async Task<Stream> ExecuteAsync(PreviewDocumentQuery request, CancellationToken ct = default)
+    public async Task<Stream> ExecuteAsync(PreviewDocumentQuery query, CancellationToken ct = default)
     {
         Stream templateStream;
         RenderEngineType engineType;
 
         // If Monaco editor supplied the active HTML in the body, use it directly!
-        if (!string.IsNullOrWhiteSpace(request.Html))
+        if (!string.IsNullOrWhiteSpace(query.Html))
         {
-            templateStream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(request.Html));
+            templateStream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(query.Html));
             engineType = RenderEngineType.Html;
         }
         else
         {
-            if (string.IsNullOrWhiteSpace(request.Slug))
+            if (string.IsNullOrWhiteSpace(query.Slug))
                 throw new DomainValidationException("Template slug or HTML content is required for preview.");
 
-            var template = await templateRepo.GetBySlugAsync(request.Slug, ct)
-                ?? throw new NotFoundException($"Template '{request.Slug}' not found.");
+            var template = await templateRepo.GetBySlugAsync(query.Slug, ct)
+                ?? throw new NotFoundException($"Template '{query.Slug}' not found.");
 
             if (template.CurrentVersionId is null)
-                throw new BusinessRuleViolationException($"Template '{request.Slug}' has no published version.");
+                throw new BusinessRuleViolationException($"Template '{query.Slug}' has no published version.");
 
             var version = template.CurrentVersion
                 ?? await templateRepo.GetVersionByIdAsync(template.CurrentVersionId.Value, ct)
-                ?? throw new NotFoundException($"Current version for template '{request.Slug}' not found.");
+                ?? throw new NotFoundException($"Current version for template '{query.Slug}' not found.");
 
             engineType = version.GetRenderEngineType();
 
@@ -53,9 +51,9 @@ public sealed class PreviewDocumentUseCase(
         try
         {
             var engine = engines.FirstOrDefault(e => e.EngineType == engineType)
-                ?? throw new RenderException(request.Slug ?? "ephemeral", engineType.ToString(), $"No render engine registered for '{engineType}'.");
+                ?? throw new RenderException(query.Slug ?? "ephemeral", engineType.ToString(), $"No render engine registered for '{engineType}'.");
 
-            string dataJson = request.Payload.ValueKind != JsonValueKind.Undefined ? request.Payload.GetRawText() : "{}";
+            string dataJson = query.Payload.ValueKind != JsonValueKind.Undefined ? query.Payload.GetRawText() : "{}";
 
             // Always render to PDF for preview
             return await engine.RenderStreamAsync(templateStream, dataJson, OutputFormat.Pdf, ct);

@@ -1,43 +1,41 @@
 using System.Security.Cryptography;
 using System.Text;
 using HandlebarsDotNet;
+using Microsoft.Extensions.DependencyInjection;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Infrastructure.Engines.Html.Helpers;
 using SmkDoc.Infrastructure.Engines.Html.Pipeline;
-using SmkDoc.Infrastructure.Imaging;
 using SmkDoc.Infrastructure.Parsing;
 
 namespace SmkDoc.Infrastructure.Engines.Html;
 
-public class HtmlTemplateEngine : IRenderEngine
+public sealed class HtmlTemplateEngine : IRenderEngine
 {
-    private readonly IPdfRenderer              _pdfRenderer;
-    private readonly IJsonDataParser           _jsonDataParser;
-    private readonly IHtmlHelperRegistry       _helperRegistry;
+    private readonly IPdfRenderer _pdfRenderer;
+    private readonly IJsonHierarchyParser _jsonHierarchyParser;
     private readonly HtmlPlaceholderTransformer _placeholderTransformer;
-    private readonly HtmlLayoutProcessor        _layoutProcessor;
-    private readonly IHandlebars               _handlebars;
-    private readonly ICompiledTemplateCache?    _templateCache;
+    private readonly HtmlLayoutProcessor _layoutProcessor;
+    private readonly IHandlebars _handlebars;
+    private readonly ICompiledTemplateCache? _templateCache;
 
-    [Microsoft.Extensions.DependencyInjection.ActivatorUtilitiesConstructor]
+    [ActivatorUtilitiesConstructor]
     public HtmlTemplateEngine(
         IPdfRenderer pdfRenderer,
         IHtmlHelperRegistry helperRegistry,
         ICompiledTemplateCache? templateCache = null,
-        IJsonDataParser? jsonDataParser = null,
+        IJsonHierarchyParser? jsonHierarchyParser = null,
         HtmlPlaceholderTransformer? placeholderTransformer = null,
         HtmlLayoutProcessor? layoutProcessor = null)
     {
-        _pdfRenderer            = pdfRenderer;
-        _helperRegistry         = helperRegistry;
-        _templateCache          = templateCache;
-        _jsonDataParser         = jsonDataParser ?? new JsonDataParser();
+        _pdfRenderer = pdfRenderer;
+        _templateCache = templateCache;
+        _jsonHierarchyParser = jsonHierarchyParser ?? new JsonDataParser();
         _placeholderTransformer = placeholderTransformer ?? new HtmlPlaceholderTransformer();
-        _layoutProcessor        = layoutProcessor ?? new HtmlLayoutProcessor();
+        _layoutProcessor = layoutProcessor ?? new HtmlLayoutProcessor();
 
         _handlebars = Handlebars.Create();
-        _helperRegistry.RegisterHelpers(_handlebars);
+        helperRegistry.RegisterHelpers(_handlebars);
     }
 
     public RenderEngineType EngineType => RenderEngineType.Html;
@@ -52,14 +50,14 @@ public class HtmlTemplateEngine : IRenderEngine
         string rawHtml = await reader.ReadToEndAsync(ct);
 
         // 1. Parse JSON input into object hierarchy for Handlebars
-        var dataHierarchy = _jsonDataParser.ToHierarchy(inputDataJson);
+        var dataHierarchy = _jsonHierarchyParser.ToHierarchy(inputDataJson);
 
         // 2. Normalize template placeholders and media markers into Handlebars expressions
         string normalizedHtml = _placeholderTransformer.Transform(rawHtml);
 
         // 3. Compile and evaluate Handlebars template (using cache if available)
         Func<object, string> evaluate;
-        if (_templateCache != null)
+        if (_templateCache is not null)
         {
             string cacheKey = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(normalizedHtml)));
             evaluate = _templateCache.GetOrAdd(cacheKey, () =>
@@ -88,7 +86,7 @@ public class HtmlTemplateEngine : IRenderEngine
                 layoutResult.FooterHtml,
                 ct);
 
-            if (stream == null)
+            if (stream is null)
             {
                 var bytes = await _pdfRenderer.RenderHtmlToPdfAsync(
                     layoutResult.BodyHtml,

@@ -2,7 +2,7 @@ using FluentValidation;
 
 namespace SmkDoc.Application.Modules.IdentityAccess.Security.Commands.RefreshToken;
 
-public class RefreshTokenCommandValidator : AbstractValidator<RefreshTokenCommand>
+public sealed class RefreshTokenCommandValidator : AbstractValidator<RefreshTokenCommand>
 {
     public RefreshTokenCommandValidator()
     {

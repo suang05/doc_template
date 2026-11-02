@@ -1,4 +1,4 @@
-﻿using FluentAssertions;
+using FluentAssertions;
 using SmkDoc.Infrastructure.Schema;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -8,7 +8,7 @@ namespace SmkDoc.Tests.Infrastructure.Schema;
 
 public sealed class SchemaInferenceServiceTests
 {
-    private readonly SchemaInferenceService _service = new();
+    private readonly SchemaInferenceService _service = new(TestConstants.CreateFakeClock());
 
     [Fact]
     public void InferSchemaFromPlaceholders_WithVariousTypes_ShouldGenerateValidDraft07JsonSchema()

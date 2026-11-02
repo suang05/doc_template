@@ -5,8 +5,6 @@ using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Modules.Integration.DataConnections.Queries.GetDataConnectionById;
 
-public record GetDataConnectionByIdQuery(Guid Id);
-
 public sealed class GetDataConnectionByIdUseCase(
     IDataConnectionRepository repository) : IUseCase<GetDataConnectionByIdQuery, DataConnectionDto?>
 {

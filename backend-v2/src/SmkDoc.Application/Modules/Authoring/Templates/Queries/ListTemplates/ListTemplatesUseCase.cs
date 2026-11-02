@@ -19,15 +19,18 @@ public sealed class ListTemplatesUseCase(
             throw new ForbiddenException("Active project context is required to list templates.");
         }
 
+        int page = Math.Max(1, query.Page);
+        int pageSize = Math.Clamp(query.PageSize, 1, 100);
+
         var (items, totalCount) = await templateQueryService.ListPagedAsync(
             projectContext.ProjectId,
             query.SearchTerm,
             query.Category,
             query.IsActive,
-            query.Page,
-            query.PageSize,
+            page,
+            pageSize,
             ct);
 
-        return new TemplatePagedResultDto(items, totalCount, query.Page, query.PageSize);
+        return new TemplatePagedResultDto(items, totalCount, page, pageSize);
     }
 }

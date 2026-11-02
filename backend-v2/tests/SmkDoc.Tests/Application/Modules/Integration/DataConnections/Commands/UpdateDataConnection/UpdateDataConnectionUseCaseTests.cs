@@ -1,8 +1,7 @@
-using FluentValidation;
+using SmkDoc.Application.Common.Behaviors;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Integration.DataConnections.Commands.UpdateDataConnection;
 using SmkDoc.Application.Modules.Integration.DataConnections.DTOs;
-using SmkDoc.Application.Modules.Integration.DataConnections.Validators;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
@@ -16,27 +15,31 @@ public sealed class UpdateDataConnectionUseCaseTests
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
     private readonly IDataProtectionService _dataProtection = Substitute.For<IDataProtectionService>();
     private readonly ISqlConnectionValidator _sqlValidator = Substitute.For<ISqlConnectionValidator>();
+    private readonly FakeTimeProvider _timeProvider = TestConstants.CreateFakeClock();
 
     public UpdateDataConnectionUseCaseTests()
     {
         _unitOfWork.CommitAsync(Arg.Any<CancellationToken>()).Returns(1);
     }
 
-    private UpdateDataConnectionUseCase CreateSut(IValidator<UpdateDataConnectionCommand>? validator = null) => new(
+    private UpdateDataConnectionUseCase CreateSut() => new(
         _connectionRepo,
         _unitOfWork,
         _dataProtection,
-        validator ?? new UpdateDataConnectionCommandValidator(),
-        _sqlValidator);
+        _sqlValidator,
+        _timeProvider);
 
     [Fact]
     public async Task ExecuteAsync_WithInvalidCommand_ShouldThrowValidationException()
     {
         // Arrange
         var command = new UpdateDataConnectionCommand(Guid.Empty, "", "InvalidProvider", "");
+        var pipeline = new ValidatingUseCaseDecorator<UpdateDataConnectionCommand, DataConnectionDto?>(
+            CreateSut(),
+            [new UpdateDataConnectionCommandValidator()]);
 
         // Act
-        Func<Task> act = () => CreateSut().ExecuteAsync(command);
+        Func<Task> act = () => pipeline.ExecuteAsync(command);
 
         // Assert
         await act.Should().ThrowAsync<SmkDoc.Application.Common.Exceptions.ValidationException>();

@@ -1,4 +1,3 @@
-using FluentValidation;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Users.DTOs;
 using SmkDoc.Domain.Enums;
@@ -11,25 +10,13 @@ namespace SmkDoc.Application.Modules.IdentityAccess.Users.Commands.UpdateUserRol
 public sealed class UpdateUserRoleUseCase(
     IUserProjectRoleRepository roleRepo,
     IUserRepository userRepo,
-    IUnitOfWork uow,
-    IValidator<UpdateUserRoleCommand> validator) : IUseCase<UpdateUserRoleCommand, UserResultDto>
+    IUnitOfWork uow) : IUseCase<UpdateUserRoleCommand, UserResultDto>
 {
-    private readonly IUserProjectRoleRepository _roleRepo = roleRepo;
-    private readonly IUserRepository _userRepo = userRepo;
-    private readonly IUnitOfWork _uow = uow;
-    private readonly IValidator<UpdateUserRoleCommand> _validator = validator;
-
     public async Task<UserResultDto> ExecuteAsync(UpdateUserRoleCommand command, CancellationToken ct = default)
     {
-        var validationResult = await _validator.ValidateAsync(command, ct);
-        if (!validationResult.IsValid)
-        {
-            throw new ValidationException(validationResult.ToDictionary());
-        }
-
         var pId = new ProjectId(command.ProjectId);
         var uId = new UserId(command.UserId);
-        var roleEntry = await _roleRepo.GetAsync(pId, uId, ct)
+        var roleEntry = await roleRepo.GetAsync(pId, uId, ct)
             ?? throw new NotFoundException("User is not a member of this project.");
 
         var targetRole = RoleType.FromDisplayName<RoleType>(command.Role);
@@ -37,7 +24,7 @@ public sealed class UpdateUserRoleUseCase(
         // Guard: Cannot demote the last Admin of the project
         if (roleEntry.Role == RoleType.Admin && targetRole != RoleType.Admin)
         {
-            var adminCount = await _roleRepo.CountAdminsAsync(pId, ct);
+            var adminCount = await roleRepo.CountAdminsAsync(pId, ct);
             if (adminCount <= 1)
             {
                 throw new ConflictException("Cannot remove the last Admin from the project.");
@@ -45,10 +32,10 @@ public sealed class UpdateUserRoleUseCase(
         }
 
         roleEntry.UpdateRole(targetRole);
-        _roleRepo.Update(roleEntry);
-        await _uow.CommitAsync(ct);
+        roleRepo.Update(roleEntry);
+        await uow.CommitAsync(ct);
 
-        var user = await _userRepo.GetByIdAsync(uId, ct)
+        var user = await userRepo.GetByIdAsync(uId, ct)
             ?? throw new NotFoundException("User not found.");
 
         return new UserResultDto(

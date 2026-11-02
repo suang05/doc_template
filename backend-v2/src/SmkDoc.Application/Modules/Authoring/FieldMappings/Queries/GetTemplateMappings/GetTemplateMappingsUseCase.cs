@@ -5,16 +5,12 @@ using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Modules.Authoring.FieldMappings.Queries.GetTemplateMappings;
 
-public record GetTemplateMappingsQuery(Guid TemplateId);
-
 public sealed class GetTemplateMappingsUseCase(
     ITemplateRepository templateRepo) : IUseCase<GetTemplateMappingsQuery, List<FieldMappingDto>>
 {
-    private readonly ITemplateRepository _templateRepo = templateRepo;
-
     public async Task<List<FieldMappingDto>> ExecuteAsync(GetTemplateMappingsQuery query, CancellationToken ct = default)
     {
-        var template = await _templateRepo.GetByIdWithDetailsAsync(new TemplateId(query.TemplateId), ct);
+        var template = await templateRepo.GetByIdWithDetailsAsync(new TemplateId(query.TemplateId), ct);
         if (template == null) return [];
 
         return template.FieldMappings

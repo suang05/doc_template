@@ -27,6 +27,7 @@ UpstreamKernel: AGENTS.md
 | **[TRAP-AUDIT-009]** | Storage / OLTP | Unbounded JSON payloads stored in PostgreSQL OLTP | Threshold offload (>16KB) to MinIO + SHA-256 in DB | HIGH |
 | **[TRAP-EVENT-010]** | Consistency | Pre-commit domain event dispatching | Harvest, commit transaction, clear, dispatch post-commit | FATAL |
 | **[TRAP-SQL-011]** | Security / SSRF | Unchecked external `DataConnection` host or mutating SQL | Block Loopback/Link-Local/Self-DB; enforce single `SELECT`/`WITH` in `READ ONLY` tx | CRITICAL |
+| **[TRAP-SLICE-012]** | Architecture | Bundling Command/Validator in `*UseCase.cs` or shared `Validators/` folders | Enforce 1-Primary-Type-Per-File (`{TypeName}.cs`) co-located inside the CQRS slice folder | HIGH |
 
 ---
 
@@ -87,6 +88,10 @@ ProactiveFirewallInterceptors:
     Trigger: Event dispatcher invoked prior to database transaction commit
     CanonicalAction: Harvest events, commit SaveChangesAsync, clear events, dispatch strictly post-commit >> Ref: [RULE-EVENT-001]
 
+  - TrapId: [TRAP-SLICE-012]
+    Trigger: Bundling *Command/*Query/*Validator inside *UseCase.cs or dumping validators into detached Validators/ folders
+    CanonicalAction: Split into 1-Primary-Type-Per-File ({TypeName}.cs) co-located inside Commands/{SliceName}/ or Queries/{SliceName}/ >> Ref: [RULE-CONV-005], [RULE-STRUCT-004]
+
 CoreExtensionSlots:
   StorageOffloadSlot: IBucketStorageService (MinIO S3 adapter / Enterprise Cloud Storage)
   SanitizationSlot: IHtmlSanitizer (HtmlRuleProvider with SVG / CSS policy)
@@ -133,28 +138,33 @@ public async Task ProcessBatchAsync(IReadOnlyList<Guid> ids, IDbContextFactory<A
 
 ### Post-Commit Domain Event Dispatcher Archetype
 >> MANDATORY CANONICAL TEMPLATE [RULE-EVENT-001]:
-* [MUST] Harvest domain events from tracked entities prior to transaction commit.
-* [MUST] Clear entity domain events to prevent duplicate subsequent dispatches.
-* [MUST] Commit database transaction via `await dbContext.SaveChangesAsync(ct)` BEFORE dispatching events.
-* [MUST] Dispatch harvested domain events strictly post-commit to prevent phantom external side-effects.
+* [MUST] Centralize Domain Event harvesting, clearing, and dispatching exclusively in `UnitOfWork.CommitAsync(ct)` (`AppDbContext.SaveChangesAsync` MUST NOT clear events prematurely).
+* [MUST] Commit database transaction via `await dbContext.SaveChangesAsync(ct)` BEFORE clearing and dispatching events.
+* [MUST] Isolate exceptions per `IDomainEventHandler<T>` inside `DomainEventDispatcher` (catching and logging non-cancellation exceptions) so post-commit handler errors NEVER fail `CommitAsync` or trigger compensating MinIO storage deletes on already-committed DB records.
 ```csharp
-// >> CANONICAL: Post-commit domain event execution pipeline
-public async Task CommitAndDispatchEventsAsync(AppDbContext dbContext, IDomainEventDispatcher dispatcher, CancellationToken ct)
+// >> CANONICAL: Fault-isolated post-commit domain event execution in UnitOfWork
+public async Task<int> CommitAsync(CancellationToken ct = default)
 {
-    var entitiesWithEvents = dbContext.ChangeTracker.Entries<BaseEntity>()
+    var entitiesWithEvents = context.ChangeTracker.Entries<IHaveDomainEvents>()
         .Where(e => e.Entity.DomainEvents.Count > 0)
         .Select(e => e.Entity)
         .ToList();
 
     var pendingEvents = entitiesWithEvents.SelectMany(e => e.DomainEvents).ToList();
-    entitiesWithEvents.ForEach(e => e.ClearDomainEvents());
 
-    await dbContext.SaveChangesAsync(ct);
+    var affectedRows = await context.SaveChangesAsync(ct);
 
-    if (dispatcher != null && pendingEvents.Count > 0)
+    foreach (var entity in entitiesWithEvents)
+    {
+        entity.ClearDomainEvents();
+    }
+
+    if (dispatcher is not null && pendingEvents.Count > 0)
     {
         await dispatcher.DispatchEventsAsync(pendingEvents, ct);
     }
+
+    return affectedRows;
 }
 ```
 
@@ -313,3 +323,13 @@ public async Task<(string StoredPayload, string ChecksumSha256)> PrepareAuditPay
 + SqlConnectionTargetGuard.EnsureSafeExternalTarget(connStr, selfConnStr); SqlReadOnlyValidator.EnsureSingleSelectOrWith(rawSql); // Execute inside BEGIN TRANSACTION READ ONLY with 15s CommandTimeout & CancellationToken
 ```
 *Rationale: Unchecked external connection strings allow SSRF against Loopback (`127.0.0.0/8`, `::1`), cloud metadata (`169.254.0.0/16`), or SmkDoc's own OLTP database, while unguarded SQL permits stacked DDL/DML mutations on customer ERP databases.*
+
+### [TRAP-SLICE-012]: Bundling Command/Validator in `*UseCase.cs` or Shared `Validators/` Buckets
+```diff
+- // RollbackTemplateVersionUseCase.cs => RollbackTemplateVersionCommand + Validator + UseCase
+- // Validators/DataConnectionCommandValidators.cs => 4 unrelated Validators in 1 bucket file
++ // Commands/RollbackTemplateVersion/RollbackTemplateVersionCommand.cs
++ // Commands/RollbackTemplateVersion/RollbackTemplateVersionCommandValidator.cs
++ // Commands/RollbackTemplateVersion/RollbackTemplateVersionUseCase.cs
+```
+*Rationale: Multi-type slice files hide contracts and validators from file navigation and git history, while shared `Validators/` folders break vertical slice co-location.*

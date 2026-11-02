@@ -1,3 +1,4 @@
+using SmkDoc.Application.Common.Behaviors;
 using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.CreateApiKey;
@@ -16,7 +17,6 @@ public sealed class CreateApiKeyUseCaseTests
     private readonly IProjectRepository _projectRepo = Substitute.For<IProjectRepository>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
     private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
-    private readonly CreateApiKeyCommandValidator _validator = new();
     private readonly FakeTimeProvider _timeProvider = TestConstants.CreateFakeClock();
 
     public CreateApiKeyUseCaseTests()
@@ -27,7 +27,7 @@ public sealed class CreateApiKeyUseCaseTests
     }
 
     private CreateApiKeyUseCase CreateSut() =>
-        new(_apiKeyRepo, _projectRepo, _unitOfWork, _validator, _projectContext, _timeProvider);
+        new(_apiKeyRepo, _projectRepo, _unitOfWork, _projectContext, _timeProvider);
 
     [Fact]
     public async Task ExecuteAsync_WhenValidCommand_ReturnsPlainTextKeyAndPersistsHashedKeyForAmbientProject()
@@ -69,9 +69,12 @@ public sealed class CreateApiKeyUseCaseTests
     {
         // Arrange
         var command = new CreateApiKeyCommand("", "");
+        var pipeline = new ValidatingUseCaseDecorator<CreateApiKeyCommand, CreateApiKeyResultDto>(
+            CreateSut(),
+            [new CreateApiKeyCommandValidator()]);
 
         // Act
-        var act = () => CreateSut().ExecuteAsync(command);
+        var act = () => pipeline.ExecuteAsync(command);
 
         // Assert
         await act.Should().ThrowAsync<ValidationException>();

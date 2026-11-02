@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Common.Responses;
+using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Rendering.Logs.DTOs;
 using SmkDoc.Application.Modules.Rendering.Logs.Queries.GetLogMetrics;
 using SmkDoc.Application.Modules.Rendering.Logs.Queries.GetLogPayload;
@@ -17,10 +18,10 @@ namespace SmkDoc.Api.Controllers.Rendering;
 [Route("api/logs")]
 [Authorize]
 [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-public class AuditLogController(
-    ListGenerationLogsUseCase listUseCase,
-    GetLogMetricsUseCase metricsUseCase,
-    GetLogPayloadUseCase payloadUseCase) : ControllerBase
+public sealed class AuditLogController(
+    IUseCase<ListGenerationLogsQuery, GenerationLogPagedResult> listUseCase,
+    IUseCase<GetLogMetricsQuery, LogMetricsDto> metricsUseCase,
+    IUseCase<GetLogPayloadQuery, LogPayloadResultDto> payloadUseCase) : ControllerBase
 {
     /// <summary>List paginated document generation audit logs.</summary>
     [HttpGet]

@@ -66,4 +66,56 @@ public sealed class DomainEventDispatcherTests
         await handler1.Received(1).HandleAsync(domainEvent, Arg.Any<CancellationToken>());
         await handler2.Received(1).HandleAsync(domainEvent, Arg.Any<CancellationToken>());
     }
+
+    [Fact]
+    public async Task DispatchEventsAsync_WhenFirstHandlerThrowsException_IsolatesFaultAndExecutesSubsequentHandlers()
+    {
+        // Arrange
+        var failingHandler = Substitute.For<IDomainEventHandler<ApiKeyRevokedDomainEvent>>();
+        failingHandler.HandleAsync(Arg.Any<ApiKeyRevokedDomainEvent>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromException(new InvalidOperationException("Audit sink unavailable")));
+
+        var healthyHandler = Substitute.For<IDomainEventHandler<ApiKeyRevokedDomainEvent>>();
+
+        var services = new ServiceCollection();
+        services.AddSingleton(failingHandler);
+        services.AddSingleton(healthyHandler);
+        var serviceProvider = services.BuildServiceProvider();
+
+        var dispatcher = new DomainEventDispatcher(serviceProvider, NullLogger<DomainEventDispatcher>.Instance);
+        var domainEvent = new ApiKeyRevokedDomainEvent(ApiKeyId.New(), ProjectId.New(), TestConstants.BaselineTime);
+
+        // Act
+        var act = () => dispatcher.DispatchEventsAsync([domainEvent], CancellationToken.None);
+
+        // Assert
+        await act.Should().NotThrowAsync();
+        await failingHandler.Received(1).HandleAsync(domainEvent, Arg.Any<CancellationToken>());
+        await healthyHandler.Received(1).HandleAsync(domainEvent, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task DispatchEventsAsync_WhenHandlerThrowsOperationCanceledException_PropagatesCancellation()
+    {
+        // Arrange
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        var canceledHandler = Substitute.For<IDomainEventHandler<ApiKeyRevokedDomainEvent>>();
+        canceledHandler.HandleAsync(Arg.Any<ApiKeyRevokedDomainEvent>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromCanceled(cts.Token));
+
+        var services = new ServiceCollection();
+        services.AddSingleton(canceledHandler);
+        var serviceProvider = services.BuildServiceProvider();
+
+        var dispatcher = new DomainEventDispatcher(serviceProvider, NullLogger<DomainEventDispatcher>.Instance);
+        var domainEvent = new ApiKeyRevokedDomainEvent(ApiKeyId.New(), ProjectId.New(), TestConstants.BaselineTime);
+
+        // Act
+        var act = () => dispatcher.DispatchEventsAsync([domainEvent], cts.Token);
+
+        // Assert
+        await act.Should().ThrowAsync<OperationCanceledException>();
+    }
 }

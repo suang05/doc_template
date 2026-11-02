@@ -12,7 +12,7 @@ namespace SmkDoc.Infrastructure.Schema;
 /// Infrastructure adapter providing strict Standard JSON Schema (Draft-07) inference
 /// and mock data generation for HTML, Word (OpenXML), and Excel (ClosedXML) templates.
 /// </summary>
-public partial class SchemaInferenceService : ISchemaInferenceService
+public sealed partial class SchemaInferenceService(TimeProvider timeProvider) : ISchemaInferenceService
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -37,7 +37,7 @@ public partial class SchemaInferenceService : ISchemaInferenceService
     public string GenerateDefaultSamplePayload(IEnumerable<string> placeholders)
     {
         var grouped = GroupPlaceholders(placeholders, explicitArrayKeys: null);
-        return BuildSamplePayloadJson(grouped);
+        return BuildSamplePayloadJson(grouped, timeProvider.GetUtcNow());
     }
 
     public (string DataSchema, string SamplePayload) InferFromHtml(
@@ -48,7 +48,7 @@ public partial class SchemaInferenceService : ISchemaInferenceService
         var (tokens, explicitArrayKeys) = ExtractTokensFromHtml(htmlContent ?? string.Empty);
         var grouped = GroupPlaceholders(tokens, explicitArrayKeys);
 
-        string defaultPayload = BuildSamplePayloadJson(grouped);
+        string defaultPayload = BuildSamplePayloadJson(grouped, timeProvider.GetUtcNow());
         string finalPayload = MergeWithCustomPayload(defaultPayload, customSamplePayloadJson);
         string schema = BuildDraft07Schema(grouped, templateSlug);
 
@@ -249,7 +249,7 @@ public partial class SchemaInferenceService : ISchemaInferenceService
 
     // ─── Sample Payload Generation ──────────────────────────────────────────────
 
-    private static string BuildSamplePayloadJson(GroupedTokens grouped)
+    private static string BuildSamplePayloadJson(GroupedTokens grouped, DateTimeOffset now)
     {
         var root = new JsonObject();
 
@@ -259,7 +259,7 @@ public partial class SchemaInferenceService : ISchemaInferenceService
             var parsed = PlaceholderHelper.Parse(ph);
             if (!root.ContainsKey(parsed.Key))
             {
-                root[parsed.Key] = GenerateMockValue(parsed.Key, parsed.Extra, parsed.Kind);
+                root[parsed.Key] = GenerateMockValue(parsed.Key, parsed.Extra, parsed.Kind, now);
             }
         }
 
@@ -272,7 +272,7 @@ public partial class SchemaInferenceService : ISchemaInferenceService
                 var parsed = PlaceholderHelper.Parse(subPh);
                 if (!nested.ContainsKey(parsed.Key))
                 {
-                    nested[parsed.Key] = GenerateMockValue(parsed.Key, parsed.Extra, parsed.Kind);
+                    nested[parsed.Key] = GenerateMockValue(parsed.Key, parsed.Extra, parsed.Kind, now);
                 }
             }
             root[objKey] = nested;
@@ -432,7 +432,7 @@ public partial class SchemaInferenceService : ISchemaInferenceService
         return obj;
     }
 
-    private static JsonNode GenerateMockValue(string key, string? extra, PlaceholderHelper.PlaceholderKind kind)
+    private static JsonNode GenerateMockValue(string key, string? extra, PlaceholderHelper.PlaceholderKind kind, DateTimeOffset now)
     {
         switch (kind)
         {
@@ -449,11 +449,11 @@ public partial class SchemaInferenceService : ISchemaInferenceService
         if (IsThaiIdentityKey(lk)) return JsonValue.Create("0107536000123");
         if (IsIntegerKey(key, extra)) return JsonValue.Create(1);
         if (IsNumericKey(key, extra)) return JsonValue.Create(250000.00m);
-        if (IsDateKey(key, extra)) return JsonValue.Create(DateTime.UtcNow.ToString("yyyy-MM-dd"));
+        if (IsDateKey(key, extra)) return JsonValue.Create(now.UtcDateTime.ToString("yyyy-MM-dd"));
         if (lk.Contains("email")) return JsonValue.Create("contact@sammakorn.co.th");
         if (lk.Contains("phone") || lk.Contains("tel")) return JsonValue.Create("02-123-4567");
         if (lk.Contains("doc_no") || lk.Contains("inv_no") || lk.Contains("contract_no") || lk.Contains("receipt_no"))
-            return JsonValue.Create($"INV-{DateTime.UtcNow:yyyy}-0001");
+            return JsonValue.Create($"INV-{now.UtcDateTime:yyyy}-0001");
         if (lk.Contains("address"))
             return JsonValue.Create("123/45 ถนนพัฒนาการ แขวงสวนหลวง กรุงเทพมหานคร 10250");
         if (lk.Contains("name"))

@@ -1,10 +1,7 @@
-using FluentValidation;
 using SmkDoc.Application.Common.Constants;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Helpers;
-using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
@@ -17,42 +14,35 @@ public sealed class LoginUseCase(
     IPasswordHasher passwordHasher,
     IJwtTokenGenerator jwtTokenGenerator,
     IUserWorkspaceQueryService workspaceQueryService,
-    IValidator<LoginCommand> validator,
     IRefreshTokenRepository tokenRepo,
     IUnitOfWork unitOfWork,
     TimeProvider timeProvider,
     ICurrentProjectContext projectContext,
     ISecurityAuditService auditService) : IUseCase<LoginCommand, LoginResultDto>
 {
-    public async Task<LoginResultDto> ExecuteAsync(LoginCommand request, CancellationToken ct = default)
+    public async Task<LoginResultDto> ExecuteAsync(LoginCommand command, CancellationToken ct = default)
     {
-        var validationResult = await validator.ValidateAsync(request, ct);
-        if (!validationResult.IsValid)
-        {
-            throw new ValidationException(validationResult.ToDictionary());
-        }
-
-        var email = EmailAddress.Create(request.Email);
+        var email = EmailAddress.Create(command.Email);
         var user = await userRepo.GetByEmailAsync(email, ct);
 
         // Constant-time execution defense against user enumeration timing attacks (OWASP)
         if (user == null)
         {
-            passwordHasher.VerifyPassword(request.Password, AuthConstants.DummyPasswordHash);
-            auditService.LogLoginFailure(request.Email, "UserNotFound");
+            passwordHasher.VerifyPassword(command.Password, AuthConstants.DummyPasswordHash);
+            auditService.LogLoginFailure(command.Email, "UserNotFound");
             throw new UnauthorizedException("Invalid email or password.");
         }
 
         if (!user.IsActive)
         {
-            passwordHasher.VerifyPassword(request.Password, AuthConstants.DummyPasswordHash);
-            auditService.LogLoginFailure(request.Email, "UserInactive");
+            passwordHasher.VerifyPassword(command.Password, AuthConstants.DummyPasswordHash);
+            auditService.LogLoginFailure(command.Email, "UserInactive");
             throw new UnauthorizedException("Invalid email or password.");
         }
 
-        if (!passwordHasher.VerifyPassword(request.Password, user.PasswordHash))
+        if (!passwordHasher.VerifyPassword(command.Password, user.PasswordHash))
         {
-            auditService.LogLoginFailure(request.Email, "InvalidPassword");
+            auditService.LogLoginFailure(command.Email, "InvalidPassword");
             throw new UnauthorizedException("Invalid email or password.");
         }
 

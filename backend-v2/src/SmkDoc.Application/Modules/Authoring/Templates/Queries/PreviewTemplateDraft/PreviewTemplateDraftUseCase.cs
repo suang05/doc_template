@@ -13,12 +13,9 @@ public sealed class PreviewTemplateDraftUseCase(
     ITemplateDraftCache draftCache,
     IEnumerable<IRenderEngine> engines) : IUseCase<PreviewTemplateDraftQuery, Stream>
 {
-    private readonly ITemplateDraftCache _draftCache = draftCache;
-    private readonly IEnumerable<IRenderEngine> _engines = engines;
-
     public async Task<Stream> ExecuteAsync(PreviewTemplateDraftQuery query, CancellationToken ct = default)
     {
-        var draft = await _draftCache.GetAsync(query.DraftId, ct)
+        var draft = await draftCache.GetAsync(query.DraftId, ct)
             ?? throw new DraftExpiredException(query.DraftId);
 
         var engine = Engine(draft.FileExtension);
@@ -35,7 +32,7 @@ public sealed class PreviewTemplateDraftUseCase(
             ".docx" => RenderEngineType.Docx,
             _       => RenderEngineType.Html,
         };
-        return _engines.FirstOrDefault(e => e.EngineType == type)
+        return engines.FirstOrDefault(e => e.EngineType == type)
             ?? throw new RenderException("draft", type.ToString(), $"No render engine registered for '{ext}'.");
     }
 }

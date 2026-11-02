@@ -1,4 +1,3 @@
-using FluentValidation;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Domain.Exceptions;
@@ -15,36 +14,23 @@ namespace SmkDoc.Application.Modules.Authoring.Templates.Commands.UpdateTemplate
 public sealed class UpdateTemplateDetailsUseCase(
     ITemplateRepository templateRepo,
     IUnitOfWork unitOfWork,
-    IValidator<UpdateTemplateDetailsCommand> validator,
-    TimeProvider? timeProvider = null) : IUseCase<UpdateTemplateDetailsCommand, TemplateResultDto>
+    TimeProvider timeProvider) : IUseCase<UpdateTemplateDetailsCommand, TemplateResultDto>
 {
-    private readonly ITemplateRepository _templateRepo = templateRepo;
-    private readonly IUnitOfWork _unitOfWork = unitOfWork;
-    private readonly IValidator<UpdateTemplateDetailsCommand> _validator = validator;
-    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
-
     public async Task<TemplateResultDto> ExecuteAsync(UpdateTemplateDetailsCommand command, CancellationToken ct = default)
     {
-        // 1. Fail-Fast Validation
-        var validationResult = await _validator.ValidateAsync(command, ct);
-        if (!validationResult.IsValid)
-        {
-            throw new ValidationException(validationResult.ToDictionary());
-        }
-
-        // 2. Fetch Aggregate Root
-        var template = await _templateRepo.GetByIdAsync(new TemplateId(command.TemplateId), ct)
+        // 1. Fetch Aggregate Root
+        var template = await templateRepo.GetByIdAsync(new TemplateId(command.TemplateId), ct)
             ?? throw new NotFoundException($"Template '{command.TemplateId}' was not found.");
 
-        // 3. Domain Invariants Execution
-        var now = _timeProvider.GetUtcNow();
+        // 2. Domain Invariants Execution
+        var now = timeProvider.GetUtcNow();
         template.UpdateDetails(TemplateName.Create(command.Name), command.Category?.Trim(), now);
 
-        // 4. Persistence & Atomic Commit
-        _templateRepo.Update(template);
-        await _unitOfWork.CommitAsync(ct);
+        // 3. Persistence & Atomic Commit
+        templateRepo.Update(template);
+        await unitOfWork.CommitAsync(ct);
 
-        // 5. Return Safe DTO
+        // 4. Return Safe DTO
         return new TemplateResultDto(
             template.Id.Value,
             template.ProjectId.Value,

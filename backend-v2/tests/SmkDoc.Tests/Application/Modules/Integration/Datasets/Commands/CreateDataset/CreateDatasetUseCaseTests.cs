@@ -1,9 +1,8 @@
-using FluentValidation;
+using SmkDoc.Application.Common.Behaviors;
 using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Integration.Datasets.Commands.CreateDataset;
 using SmkDoc.Application.Modules.Integration.Datasets.DTOs;
-using SmkDoc.Application.Modules.Integration.Datasets.Validators;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
@@ -19,6 +18,7 @@ public sealed class CreateDatasetUseCaseTests
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
     private readonly ISqlConnectionValidator _sqlValidator = Substitute.For<ISqlConnectionValidator>();
     private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
+    private readonly FakeTimeProvider _timeProvider = TestConstants.CreateFakeClock();
     private readonly ProjectId _projectId = ProjectId.New();
 
     public CreateDatasetUseCaseTests()
@@ -28,22 +28,25 @@ public sealed class CreateDatasetUseCaseTests
         _projectContext.ProjectId.Returns(_projectId);
     }
 
-    private CreateDatasetUseCase CreateSut(IValidator<CreateDatasetCommand>? validator = null) => new(
+    private CreateDatasetUseCase CreateSut() => new(
         _datasetRepo,
         _connectionRepo,
         _unitOfWork,
-        validator ?? new CreateDatasetCommandValidator(),
         _sqlValidator,
-        _projectContext);
+        _projectContext,
+        _timeProvider);
 
     [Fact]
     public async Task ExecuteAsync_WithInvalidCommand_ShouldThrowValidationException()
     {
         // Arrange
         var command = new CreateDatasetCommand("", null, Guid.Empty, "", -1);
+        var pipeline = new ValidatingUseCaseDecorator<CreateDatasetCommand, DatasetDto>(
+            CreateSut(),
+            [new CreateDatasetCommandValidator()]);
 
         // Act
-        Func<Task> act = () => CreateSut().ExecuteAsync(command);
+        Func<Task> act = () => pipeline.ExecuteAsync(command);
 
         // Assert
         await act.Should().ThrowAsync<SmkDoc.Application.Common.Exceptions.ValidationException>();

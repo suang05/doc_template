@@ -1,18 +1,17 @@
+using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.Contracts.Rendering.Documents;
 using SmkDoc.Api.Filters;
-using SmkDoc.Application.Modules.Rendering.Documents;
+using SmkDoc.Application.Common.Interfaces;
+using SmkDoc.Application.Modules.Authoring.Templates.Queries.ValidateTemplatePayload;
 using SmkDoc.Application.Modules.Rendering.Documents.Commands.GenerateDocument;
+using SmkDoc.Application.Modules.Rendering.Documents.Commands.RenderStatelessDocument;
 using SmkDoc.Application.Modules.Rendering.Documents.DTOs;
 using SmkDoc.Application.Modules.Rendering.Documents.Queries.DownloadDocumentVersion;
 using SmkDoc.Application.Modules.Rendering.Documents.Queries.GetDocumentVersions;
 using SmkDoc.Application.Modules.Rendering.Documents.Queries.PreviewDocument;
 using SmkDoc.Application.Modules.Rendering.Logs.Queries.GetLogDownloadUrl;
-using System.Text.Json;
-
-using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
-using SmkDoc.Application.Modules.Authoring.Templates.Queries.ValidateTemplatePayload;
 using SmkDoc.Domain.Exceptions;
 
 namespace SmkDoc.Api.Controllers.Rendering;
@@ -24,14 +23,14 @@ namespace SmkDoc.Api.Controllers.Rendering;
 [ApiController]
 [Route("api/v1/documents")]
 [Route("api/documents")]
-public class DocumentController(
-    GenerateDocumentUseCase generateUseCase,
-    PreviewDocumentUseCase previewUseCase,
-    GetDocumentVersionsUseCase getVersionsUseCase,
-    DownloadDocumentVersionUseCase downloadVersionUseCase,
-    GetLogDownloadUrlUseCase getLogDownloadUrlUseCase,
-    RenderStatelessDocumentUseCase renderStatelessUseCase,
-    ValidateTemplatePayloadUseCase validatePayloadUseCase) : ControllerBase
+public sealed class DocumentController(
+    IUseCase<GenerateDocumentCommand, GenerateDocumentResultDto> generateUseCase,
+    IUseCase<PreviewDocumentQuery, Stream> previewUseCase,
+    IUseCase<GetDocumentVersionsQuery, List<DocumentVersionDto>> getVersionsUseCase,
+    IUseCase<DownloadDocumentVersionQuery, DownloadDocumentVersionResult> downloadVersionUseCase,
+    IUseCase<GetLogDownloadUrlQuery, string> getLogDownloadUrlUseCase,
+    IUseCase<RenderStatelessDocumentCommand, Stream> renderStatelessUseCase,
+    IUseCase<ValidateTemplatePayloadQuery, ValidateTemplatePayloadResult> validatePayloadUseCase) : ControllerBase
 {
     /// <summary>
     /// Generate a document from template slug and input JSON data
@@ -42,8 +41,14 @@ public class DocumentController(
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Generate([FromRoute] string slug, [FromBody] GenerateDocumentRequest request, CancellationToken ct)
     {
-        var command = new GenerateDocumentCommand(request.Payload, request.OutputFormat, request.DocumentRef, request.ChangeNote, request.SkipValidation);
-        var response = await generateUseCase.ExecuteAsync(slug, command, ct);
+        var command = new GenerateDocumentCommand(
+            slug,
+            request.Payload,
+            request.OutputFormat,
+            request.DocumentRef,
+            request.ChangeNote,
+            request.SkipValidation);
+        var response = await generateUseCase.ExecuteAsync(command, ct);
         return Ok(new ApiResponse<GenerateDocumentResultDto>(response));
     }
 
@@ -157,10 +162,10 @@ public class DocumentController(
             throw new DomainValidationException("File is required and must not be empty.");
         }
 
-        var command = new SmkDoc.Application.Modules.Rendering.Documents.Commands.RenderStatelessDocument.RenderStatelessDocumentCommand(
-            file.OpenReadStream(), file.FileName, jsonData);
+        await using var stream = file.OpenReadStream();
+        var command = new RenderStatelessDocumentCommand(stream, file.FileName, jsonData);
         var pdfStream = await renderStatelessUseCase.ExecuteAsync(command, ct);
-        
+
         Response.Headers.ContentDisposition = "inline";
         return File(pdfStream, "application/pdf");
     }

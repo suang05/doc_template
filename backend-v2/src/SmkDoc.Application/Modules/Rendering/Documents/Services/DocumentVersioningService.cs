@@ -10,10 +10,8 @@ namespace SmkDoc.Application.Modules.Rendering.Documents.Services;
 public sealed class DocumentVersioningService(
     IDocumentRepository documentRepo,
     ICurrentProjectContext projectContext,
-    TimeProvider? timeProvider = null) : IDocumentVersioningService
+    TimeProvider timeProvider) : IDocumentVersioningService
 {
-    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
-
     public async Task RecordVersionAsync(
         string documentRef,
         Guid templateId,
@@ -25,7 +23,7 @@ public sealed class DocumentVersioningService(
         var docRef = DocumentReference.Create(documentRef);
         var document = await documentRepo.GetByDocumentRefWithVersionsAsync(docRef, ct);
 
-        var now = _timeProvider.GetUtcNow();
+        var now = timeProvider.GetUtcNow();
 
         if (document is null)
         {

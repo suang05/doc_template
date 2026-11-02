@@ -1,37 +1,40 @@
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Common;
 using SmkDoc.Domain.Interfaces;
 
 namespace SmkDoc.Infrastructure.Persistence.Repositories;
 
+/// <summary>
+/// Single post-commit coordinator committing tracked EF Core mutations and dispatching
+/// harvested domain events strictly after database transaction durability is achieved.
+/// </summary>
 public sealed class UnitOfWork(
-    AppDbContext context,
-    IDomainEventDispatcher? dispatcher = null) : IUnitOfWork
+    AppDbContext dbContext,
+    IDomainEventDispatcher? domainEventDispatcher = null) : IUnitOfWork
 {
-    public async Task<int> CommitAsync(CancellationToken cancellationToken = default)
+    public async Task<int> CommitAsync(CancellationToken ct = default)
     {
-        var entitiesWithEvents = context.ChangeTracker
+        var entitiesWithEvents = dbContext.ChangeTracker
             .Entries<IHaveDomainEvents>()
-            .Where(e => e.Entity.DomainEvents.Count > 0)
-            .Select(e => e.Entity)
+            .Where(entry => entry.Entity.DomainEvents.Count > 0)
+            .Select(entry => entry.Entity)
             .ToList();
 
-        var domainEvents = entitiesWithEvents
-            .SelectMany(e => e.DomainEvents)
+        var pendingEvents = entitiesWithEvents
+            .SelectMany(entity => entity.DomainEvents)
             .ToList();
 
-        var result = await context.SaveChangesAsync(cancellationToken);
+        var affectedRows = await dbContext.SaveChangesAsync(ct);
 
         foreach (var entity in entitiesWithEvents)
         {
             entity.ClearDomainEvents();
         }
 
-        if (dispatcher != null && domainEvents.Count > 0)
+        if (domainEventDispatcher is not null && pendingEvents.Count > 0)
         {
-            await dispatcher.DispatchEventsAsync(domainEvents, cancellationToken);
+            await domainEventDispatcher.DispatchEventsAsync(pendingEvents, ct);
         }
 
-        return result;
+        return affectedRows;
     }
 }

@@ -11,9 +11,10 @@ public sealed class DocumentVersioningServiceTests
 {
     private readonly IDocumentRepository _documentRepo = Substitute.For<IDocumentRepository>();
     private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
+    private readonly FakeTimeProvider _timeProvider = TestConstants.CreateFakeClock();
 
     private DocumentVersioningService CreateSut() => new(
-        _documentRepo, _projectContext);
+        _documentRepo, _projectContext, _timeProvider);
 
     [Fact]
     public async Task RecordVersionAsync_WhenNewDocument_ShouldCreateDocumentAndFirstVersion()

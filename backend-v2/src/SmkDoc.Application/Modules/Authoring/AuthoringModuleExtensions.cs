@@ -1,26 +1,39 @@
 using Microsoft.Extensions.DependencyInjection;
+using SmkDoc.Application.Common.Behaviors;
+using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.Commands.SaveTemplateDatasets;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.Commands.SaveTemplateMappings;
+using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.Queries.GetTemplateDatasets;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.Queries.GetTemplateMappings;
+using SmkDoc.Application.Modules.Authoring.FieldMappings.Queries.PreviewMapping;
 using SmkDoc.Application.Modules.Authoring.Fonts.Commands.UploadFont;
 using SmkDoc.Application.Modules.Authoring.Fonts.Queries.GetFontBase64;
 using SmkDoc.Application.Modules.Authoring.Fonts.Queries.ListFonts;
-using SmkDoc.Application.Modules.Authoring.Schemas;
-using SmkDoc.Application.Modules.Authoring.Templates;
+using SmkDoc.Application.Modules.Authoring.Schemas.Commands.ValidateStandaloneSchema;
+using SmkDoc.Application.Modules.Authoring.Schemas.DTOs;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.CommitTemplateDraft;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.CreateTemplate;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.DeactivateTemplate;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.ParseTemplateDraft;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.RollbackTemplateVersion;
+using SmkDoc.Application.Modules.Authoring.Templates.Commands.SaveTemplateHtml;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.UpdateTemplateDetails;
+using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
+using SmkDoc.Application.Modules.Authoring.Templates.EventHandlers;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.DownloadTemplate;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.GetTemplateById;
+using SmkDoc.Application.Modules.Authoring.Templates.Queries.GetTemplateHtmlSource;
+using SmkDoc.Application.Modules.Authoring.Templates.Queries.GetTemplateSchema;
+using SmkDoc.Application.Modules.Authoring.Templates.Queries.GetTemplateStudioBundle;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.ListTemplates;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.ListTemplateVersions;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.PreviewTemplateDraft;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.ScanTemplatePlaceholders;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.ScanUploadedTemplate;
+using SmkDoc.Application.Modules.Authoring.Templates.Queries.ValidateTemplateHtml;
+using SmkDoc.Application.Modules.Authoring.Templates.Queries.ValidateTemplatePayload;
+using SmkDoc.Domain.Events;
 
 namespace SmkDoc.Application.Modules.Authoring;
 
@@ -28,46 +41,48 @@ public static class AuthoringModuleExtensions
 {
     public static IServiceCollection AddAuthoringModule(this IServiceCollection services)
     {
+        // Domain Event Handlers
+        services.AddScoped<IDomainEventHandler<TemplatePublishedDomainEvent>, TemplatePublishedEventHandler>();
+
         // Template Lifecycle Commands (Action-Centric Vertical Slice)
-        services.AddScoped<CreateTemplateUseCase>();
-        services.AddScoped<UpdateTemplateDetailsUseCase>();
-        services.AddScoped<DeactivateTemplateUseCase>();
-        services.AddScoped<RollbackTemplateVersionUseCase>();
+        services.AddUseCase<CreateTemplateCommand, TemplateResultDto, CreateTemplateUseCase>();
+        services.AddUseCase<UpdateTemplateDetailsCommand, TemplateResultDto, UpdateTemplateDetailsUseCase>();
+        services.AddUseCase<DeactivateTemplateCommand, DeactivateTemplateUseCase>();
+        services.AddUseCase<RollbackTemplateVersionCommand, int, RollbackTemplateVersionUseCase>();
 
         // Template Queries (Action-Centric Vertical Slice)
-        services.AddScoped<GetTemplateByIdUseCase>();
-        services.AddScoped<ListTemplatesUseCase>();
-        services.AddScoped<ListTemplateVersionsUseCase>();
-        services.AddScoped<DownloadTemplateUseCase>();
-        services.AddScoped<ScanTemplatePlaceholdersUseCase>();
-        services.AddScoped<ScanUploadedTemplateUseCase>();
+        services.AddUseCase<GetTemplateByIdQuery, TemplateResultDto, GetTemplateByIdUseCase>();
+        services.AddUseCase<ListTemplatesQuery, TemplatePagedResultDto, ListTemplatesUseCase>();
+        services.AddUseCase<ListTemplateVersionsQuery, List<TemplateVersionDto>, ListTemplateVersionsUseCase>();
+        services.AddUseCase<DownloadTemplateQuery, DownloadTemplateResult, DownloadTemplateUseCase>();
+        services.AddUseCase<ScanTemplatePlaceholdersQuery, List<string>, ScanTemplatePlaceholdersUseCase>();
+        services.AddUseCase<ScanUploadedTemplateQuery, List<string>, ScanUploadedTemplateUseCase>();
 
         // Monaco Studio & Draft Pipeline (Action-Centric Vertical Slice)
-        services.AddScoped<SmkDoc.Application.Modules.Authoring.Templates.Queries.GetTemplateHtmlSource.GetTemplateHtmlSourceUseCase>();
-        services.AddScoped<SmkDoc.Application.Modules.Authoring.Templates.Queries.GetTemplateStudioBundle.GetTemplateStudioBundleUseCase>();
-        services.AddScoped<SmkDoc.Application.Modules.Authoring.Templates.Queries.GetTemplateSchema.GetTemplateSchemaUseCase>();
-        services.AddScoped<SmkDoc.Application.Modules.Authoring.Templates.Queries.PreviewTemplateHtml.PreviewTemplateHtmlUseCase>();
-        services.AddScoped<SmkDoc.Application.Modules.Authoring.Templates.Commands.SaveTemplateHtml.SaveTemplateHtmlUseCase>();
-        services.AddScoped<ParseTemplateDraftUseCase>();
-        services.AddScoped<PreviewTemplateDraftUseCase>();
-        services.AddScoped<CommitTemplateDraftUseCase>();
-        services.AddScoped<SmkDoc.Application.Modules.Authoring.Templates.Queries.ValidateTemplateHtml.ValidateTemplateHtmlUseCase>();
-        services.AddScoped<SmkDoc.Application.Modules.Authoring.Templates.Queries.ValidateTemplatePayload.ValidateTemplatePayloadUseCase>();
+        services.AddUseCase<GetTemplateHtmlSourceQuery, string, GetTemplateHtmlSourceUseCase>();
+        services.AddUseCase<GetTemplateStudioBundleQuery, TemplateStudioDto, GetTemplateStudioBundleUseCase>();
+        services.AddUseCase<GetTemplateSchemaQuery, TemplateSchemaDto, GetTemplateSchemaUseCase>();
+        services.AddUseCase<SaveTemplateHtmlCommand, int, SaveTemplateHtmlUseCase>();
+        services.AddUseCase<ParseTemplateDraftCommand, ParseDraftResultDto, ParseTemplateDraftUseCase>();
+        services.AddUseCase<PreviewTemplateDraftQuery, Stream, PreviewTemplateDraftUseCase>();
+        services.AddUseCase<CommitTemplateDraftCommand, string, CommitTemplateDraftUseCase>();
+        services.AddUseCase<ValidateTemplateHtmlQuery, TemplateValidationResultDto, ValidateTemplateHtmlUseCase>();
+        services.AddUseCase<ValidateTemplatePayloadQuery, ValidateTemplatePayloadResult, ValidateTemplatePayloadUseCase>();
 
         // Field Mappings & Datasets (Action-Centric Vertical Slice)
-        services.AddScoped<SmkDoc.Application.Modules.Authoring.FieldMappings.Queries.PreviewMapping.PreviewMappingUseCase>();
-        services.AddScoped<GetTemplateMappingsUseCase>();
-        services.AddScoped<SaveTemplateMappingsUseCase>();
-        services.AddScoped<GetTemplateDatasetsUseCase>();
-        services.AddScoped<SaveTemplateDatasetsUseCase>();
+        services.AddUseCase<PreviewMappingQuery, Stream, PreviewMappingUseCase>();
+        services.AddUseCase<GetTemplateMappingsQuery, List<FieldMappingDto>, GetTemplateMappingsUseCase>();
+        services.AddUseCase<SaveTemplateMappingsCommand, SaveTemplateMappingsUseCase>();
+        services.AddUseCase<GetTemplateDatasetsQuery, List<TemplateDatasetDto>, GetTemplateDatasetsUseCase>();
+        services.AddUseCase<SaveTemplateDatasetsCommand, SaveTemplateDatasetsUseCase>();
 
         // Fonts (Action-Centric Vertical Slice)
-        services.AddScoped<ListFontsUseCase>();
-        services.AddScoped<UploadFontUseCase>();
-        services.AddScoped<GetFontBase64UseCase>();
+        services.AddUseCase<ListFontsQuery, List<string>, ListFontsUseCase>();
+        services.AddUseCase<UploadFontCommand, string, UploadFontUseCase>();
+        services.AddUseCase<GetFontBase64Query, string, GetFontBase64UseCase>();
 
         // Schemas
-        services.AddScoped<ValidateStandaloneSchemaUseCase>();
+        services.AddUseCase<ValidateStandaloneSchemaCommand, ValidateStandaloneSchemaResult, ValidateStandaloneSchemaUseCase>();
 
         return services;
     }

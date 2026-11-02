@@ -1,7 +1,4 @@
-using System.Text.Json;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
-using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
 
 namespace SmkDoc.Application.Modules.Authoring.Templates.Queries.ValidateTemplatePayload;
@@ -11,7 +8,7 @@ namespace SmkDoc.Application.Modules.Authoring.Templates.Queries.ValidateTemplat
 /// Validates incoming payload against published Draft-07 schema with multi-tenant scoping.
 /// Pure dry-run with zero side-effects.
 /// </summary>
-public class ValidateTemplatePayloadUseCase(
+public sealed class ValidateTemplatePayloadUseCase(
     ITemplateRepository templateRepo,
     IJsonSchemaValidationService schemaValidation) : IUseCase<ValidateTemplatePayloadQuery, ValidateTemplatePayloadResult>
 {

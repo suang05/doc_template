@@ -1,7 +1,6 @@
 using FluentAssertions;
 using SmkDoc.Application.Modules.Integration.Datasets.Commands.CreateDataset;
 using SmkDoc.Application.Modules.Integration.Datasets.Commands.UpdateDataset;
-using SmkDoc.Application.Modules.Integration.Datasets.Validators;
 using Xunit;
 
 namespace SmkDoc.Tests.Application.Modules.Integration.Datasets.Validators;

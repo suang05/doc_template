@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.Contracts.Integration.Datasets;
+using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Integration.Datasets.Commands.CreateDataset;
 using SmkDoc.Application.Modules.Integration.Datasets.Commands.DeleteDataset;
 using SmkDoc.Application.Modules.Integration.Datasets.Commands.UpdateDataset;
@@ -20,12 +21,12 @@ namespace SmkDoc.Api.Controllers.Integration;
 [Route("api/datasets")]
 [Authorize]
 [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-public class DatasetController(
-    ListDatasetsUseCase listUseCase,
-    GetDatasetByIdUseCase getByIdUseCase,
-    CreateDatasetUseCase createUseCase,
-    UpdateDatasetUseCase updateUseCase,
-    DeleteDatasetUseCase deleteUseCase) : ControllerBase
+public sealed class DatasetController(
+    IUseCase<ListDatasetsQuery, List<DatasetDto>> listUseCase,
+    IUseCase<GetDatasetByIdQuery, DatasetDto?> getByIdUseCase,
+    IUseCase<CreateDatasetCommand, DatasetDto> createUseCase,
+    IUseCase<UpdateDatasetCommand, DatasetDto?> updateUseCase,
+    IUseCase<DeleteDatasetCommand, bool> deleteUseCase) : ControllerBase
 {
     /// <summary>List all configured SQL datasets.</summary>
     [HttpGet]

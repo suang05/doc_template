@@ -5,7 +5,7 @@ namespace SmkDoc.Application.Modules.Rendering.Documents.Queries.PreviewDocument
 /// <summary>
 /// Query parameters for rendering a stateless preview document.
 /// </summary>
-public record PreviewDocumentQuery(
+public sealed record PreviewDocumentQuery(
     JsonElement Payload,
     string? Html = null,
     string? Slug = null

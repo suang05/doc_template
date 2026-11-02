@@ -36,7 +36,7 @@ public static class ServiceCollectionExtensions
     {
         var jsonEnumConverter = new JsonStringEnumConverter(JsonNamingPolicy.CamelCase);
 
-        services.AddControllers(options => { options.Filters.Add<ValidateCommandFilter>(); }).AddJsonOptions(options =>
+        services.AddControllers().AddJsonOptions(options =>
         {
             options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
             options.JsonSerializerOptions.Converters.Add(jsonEnumConverter);

@@ -5,8 +5,6 @@ using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Modules.Authoring.FieldMappings.Queries.GetTemplateDatasets;
 
-public record GetTemplateDatasetsQuery(Guid TemplateId);
-
 public sealed class GetTemplateDatasetsUseCase(
     ITemplateRepository templateRepo,
     IDatasetRepository datasetRepo) : IUseCase<GetTemplateDatasetsQuery, List<TemplateDatasetDto>>

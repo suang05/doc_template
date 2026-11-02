@@ -21,10 +21,10 @@ namespace SmkDoc.Api.Controllers.IdentityAccess;
 [Route("api/api-keys")]
 [Authorize]
 [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-public class ApiKeyController(
-    ListApiKeysUseCase listApiKeysUseCase,
-    CreateApiKeyUseCase createApiKeyUseCase,
-    RevokeApiKeyUseCase revokeApiKeyUseCase,
+public sealed class ApiKeyController(
+    IUseCase<ListApiKeysQuery, List<ApiKeyDto>> listApiKeysUseCase,
+    IUseCase<CreateApiKeyCommand, CreateApiKeyResultDto> createApiKeyUseCase,
+    IUseCase<RevokeApiKeyCommand> revokeApiKeyUseCase,
     ICurrentProjectContext projectContext) : ControllerBase
 {
     [HttpGet]

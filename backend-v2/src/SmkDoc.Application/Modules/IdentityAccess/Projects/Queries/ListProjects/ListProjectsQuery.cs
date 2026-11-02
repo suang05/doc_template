@@ -1,6 +1,6 @@
 namespace SmkDoc.Application.Modules.IdentityAccess.Projects.Queries.ListProjects;
 
-public record ListProjectsQuery(
+public sealed record ListProjectsQuery(
     Guid UserId,
     string? SearchTerm = null,
     int Page = 1,

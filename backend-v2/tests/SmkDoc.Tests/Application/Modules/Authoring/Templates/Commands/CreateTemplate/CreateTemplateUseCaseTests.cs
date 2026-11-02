@@ -1,5 +1,6 @@
 using System.Text;
 using SmkDoc.Application.Common;
+using SmkDoc.Application.Common.Behaviors;
 using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.CreateTemplate;
@@ -20,7 +21,6 @@ public sealed class CreateTemplateUseCaseTests
     private readonly IDocxSecurityScanner _securityScanner = Substitute.For<IDocxSecurityScanner>();
     private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
-    private readonly CreateTemplateCommandValidator _validator = new();
     private readonly FakeTimeProvider _timeProvider = TestConstants.CreateFakeClock();
 
     public CreateTemplateUseCaseTests()
@@ -38,7 +38,6 @@ public sealed class CreateTemplateUseCaseTests
         _securityScanner,
         _projectContext,
         _unitOfWork,
-        _validator,
         _timeProvider);
 
     [Fact]
@@ -46,9 +45,12 @@ public sealed class CreateTemplateUseCaseTests
     {
         // Arrange
         var invalidCommand = new CreateTemplateCommand("", "INVALID_SLUG", null);
+        var pipeline = new ValidatingUseCaseDecorator<CreateTemplateCommand, TemplateResultDto>(
+            CreateSut(),
+            [new CreateTemplateCommandValidator()]);
 
         // Act
-        var act = () => CreateSut().ExecuteAsync(invalidCommand);
+        var act = () => pipeline.ExecuteAsync(invalidCommand);
 
         // Assert
         await act.Should().ThrowAsync<ValidationException>();

@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.Contracts.IdentityAccess.Auth;
 using SmkDoc.Api.Extensions;
+using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.Login;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.RefreshToken;
 using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
@@ -16,10 +17,10 @@ namespace SmkDoc.Api.Controllers.IdentityAccess;
 [ApiController]
 [Route("api/v1/auth")]
 [Route("api/auth")]
-public class AuthController(
-    LoginUseCase loginUseCase,
-    RefreshTokenUseCase refreshTokenUseCase,
-    GetCurrentUserProfileUseCase getCurrentUserProfileUseCase) : ControllerBase
+public sealed class AuthController(
+    IUseCase<LoginCommand, LoginResultDto> loginUseCase,
+    IUseCase<RefreshTokenCommand, TokenResultDto> refreshTokenUseCase,
+    IUseCase<GetCurrentUserProfileQuery, CurrentUserProfileResultDto> getCurrentUserProfileUseCase) : ControllerBase
 {
     /// <summary>
     /// Authenticate a user and return a JWT access token alongside a refresh token.

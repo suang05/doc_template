@@ -4,6 +4,7 @@ using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.Constants;
 using SmkDoc.Api.Contracts.Authoring.Fonts;
 using SmkDoc.Api.Filters;
+using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Fonts.Commands.UploadFont;
 using SmkDoc.Application.Modules.Authoring.Fonts.Queries.ListFonts;
 using SmkDoc.Domain.Exceptions;
@@ -17,9 +18,9 @@ namespace SmkDoc.Api.Controllers.Authoring;
 [ApiController]
 [Route("api/v1/management/settings/fonts")]
 [Authorize]
-public class FontManagementController(
-    ListFontsUseCase listFontsUseCase,
-    UploadFontUseCase uploadFontUseCase) : ControllerBase
+public sealed class FontManagementController(
+    IUseCase<ListFontsQuery, List<string>> listFontsUseCase,
+    IUseCase<UploadFontCommand, string> uploadFontUseCase) : ControllerBase
 {
     /// <summary>List all available fonts for the active project.</summary>
     [HttpGet]

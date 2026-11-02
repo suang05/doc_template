@@ -1,8 +1,7 @@
-using FluentValidation;
+using SmkDoc.Application.Common.Behaviors;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Integration.Datasets.Commands.UpdateDataset;
 using SmkDoc.Application.Modules.Integration.Datasets.DTOs;
-using SmkDoc.Application.Modules.Integration.Datasets.Validators;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
@@ -17,27 +16,31 @@ public sealed class UpdateDatasetUseCaseTests
     private readonly IDataConnectionRepository _connectionRepo = Substitute.For<IDataConnectionRepository>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
     private readonly ISqlConnectionValidator _sqlValidator = Substitute.For<ISqlConnectionValidator>();
+    private readonly FakeTimeProvider _timeProvider = TestConstants.CreateFakeClock();
 
     public UpdateDatasetUseCaseTests()
     {
         _unitOfWork.CommitAsync(Arg.Any<CancellationToken>()).Returns(1);
     }
 
-    private UpdateDatasetUseCase CreateSut(IValidator<UpdateDatasetCommand>? validator = null) => new(
+    private UpdateDatasetUseCase CreateSut() => new(
         _datasetRepo,
         _connectionRepo,
         _unitOfWork,
-        validator ?? new UpdateDatasetCommandValidator(),
-        _sqlValidator);
+        _sqlValidator,
+        _timeProvider);
 
     [Fact]
     public async Task ExecuteAsync_WithInvalidCommand_ShouldThrowValidationException()
     {
         // Arrange
         var command = new UpdateDatasetCommand(Guid.Empty, "", null, Guid.Empty, "", -1);
+        var pipeline = new ValidatingUseCaseDecorator<UpdateDatasetCommand, DatasetDto?>(
+            CreateSut(),
+            [new UpdateDatasetCommandValidator()]);
 
         // Act
-        Func<Task> act = () => CreateSut().ExecuteAsync(command);
+        Func<Task> act = () => pipeline.ExecuteAsync(command);
 
         // Assert
         await act.Should().ThrowAsync<SmkDoc.Application.Common.Exceptions.ValidationException>();

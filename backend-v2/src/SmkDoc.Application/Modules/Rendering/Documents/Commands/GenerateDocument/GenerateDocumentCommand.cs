@@ -5,11 +5,11 @@ namespace SmkDoc.Application.Modules.Rendering.Documents.Commands.GenerateDocume
 /// <summary>
 /// Command for generating a document from a published template.
 /// </summary>
-public record GenerateDocumentCommand(
+public sealed record GenerateDocumentCommand(
+    string Slug,
     JsonElement Payload,
     string OutputFormat = "pdf",
     string? DocumentRef = null,
     string? ChangeNote = null,
-    bool SkipValidation = false,
-    string Slug = ""
+    bool SkipValidation = false
 );

@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.Contracts.Authoring.Templates;
-using SmkDoc.Application.Modules.Authoring.Templates;
+using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.SaveTemplateHtml;
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.GetTemplateHtmlSource;
@@ -18,12 +18,12 @@ namespace SmkDoc.Api.Controllers.Authoring;
 [ApiController]
 [Route("api/v1/templates/{id:guid}")]
 [Route("api/templates/{id:guid}")]
-public class TemplateHtmlController(
-    GetTemplateHtmlSourceUseCase getHtmlSourceUseCase,
-    GetTemplateStudioBundleUseCase getStudioBundleUseCase,
-    GetTemplateSchemaUseCase getSchemaUseCase,
-    SaveTemplateHtmlUseCase saveHtmlUseCase,
-    ValidateTemplateHtmlUseCase validateUseCase) : ControllerBase
+public sealed class TemplateHtmlController(
+    IUseCase<GetTemplateHtmlSourceQuery, string> getHtmlSourceUseCase,
+    IUseCase<GetTemplateStudioBundleQuery, TemplateStudioDto> getStudioBundleUseCase,
+    IUseCase<GetTemplateSchemaQuery, TemplateSchemaDto> getSchemaUseCase,
+    IUseCase<SaveTemplateHtmlCommand, int> saveHtmlUseCase,
+    IUseCase<ValidateTemplateHtmlQuery, TemplateValidationResultDto> validateUseCase) : ControllerBase
 {
     /// <summary>Get raw HTML source for the Monaco Editor.</summary>
     [HttpGet("html")]

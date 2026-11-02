@@ -1,6 +1,6 @@
 namespace SmkDoc.Application.Modules.Rendering.Logs.Queries.GetLogMetrics;
 
-public record GetLogMetricsQuery(
+public sealed record GetLogMetricsQuery(
     DateTimeOffset? StartDate = null,
     DateTimeOffset? EndDate = null
 );

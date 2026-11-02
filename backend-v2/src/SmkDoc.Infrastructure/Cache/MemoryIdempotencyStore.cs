@@ -7,9 +7,11 @@ namespace SmkDoc.Infrastructure.Cache;
 /// In-memory implementation of <see cref="IIdempotencyStore"/> using <see cref="IMemoryCache"/>.
 /// Thread-safe for atomic in-flight locking and response caching in single-node environments.
 /// </summary>
-public sealed class MemoryIdempotencyStore(IMemoryCache memoryCache) : IIdempotencyStore
+public sealed class MemoryIdempotencyStore(
+    IMemoryCache memoryCache,
+    TimeProvider timeProvider) : IIdempotencyStore
 {
-    private readonly object syncLock = new();
+    private readonly Lock _syncLock = new();
 
     public Task<IdempotencyAcquisitionResult> TryAcquireOrGetAsync(
         string cacheKey,
@@ -17,7 +19,7 @@ public sealed class MemoryIdempotencyStore(IMemoryCache memoryCache) : IIdempote
         TimeSpan inFlightTtl,
         CancellationToken ct = default)
     {
-        lock (syncLock)
+        lock (_syncLock)
         {
             if (memoryCache.TryGetValue(cacheKey, out IdempotencyRecord? existing) && existing is not null)
             {
@@ -25,6 +27,7 @@ public sealed class MemoryIdempotencyStore(IMemoryCache memoryCache) : IIdempote
                 return Task.FromResult(conflict);
             }
 
+            var now = timeProvider.GetUtcNow();
             var inFlightRecord = new IdempotencyRecord(
                 cacheKey,
                 requestFingerprint,
@@ -32,7 +35,7 @@ public sealed class MemoryIdempotencyStore(IMemoryCache memoryCache) : IIdempote
                 null,
                 null,
                 null,
-                DateTimeOffset.UtcNow);
+                now);
 
             var entryOptions = new MemoryCacheEntryOptions
             {
@@ -54,8 +57,9 @@ public sealed class MemoryIdempotencyStore(IMemoryCache memoryCache) : IIdempote
         TimeSpan completedTtl,
         CancellationToken ct = default)
     {
-        lock (syncLock)
+        lock (_syncLock)
         {
+            var now = timeProvider.GetUtcNow();
             var completedRecord = new IdempotencyRecord(
                 cacheKey,
                 requestFingerprint,
@@ -63,7 +67,7 @@ public sealed class MemoryIdempotencyStore(IMemoryCache memoryCache) : IIdempote
                 statusCode,
                 responseJson,
                 headers,
-                DateTimeOffset.UtcNow);
+                now);
 
             var entryOptions = new MemoryCacheEntryOptions
             {
@@ -77,7 +81,7 @@ public sealed class MemoryIdempotencyStore(IMemoryCache memoryCache) : IIdempote
 
     public Task RemoveAsync(string cacheKey, CancellationToken ct = default)
     {
-        lock (syncLock)
+        lock (_syncLock)
         {
             memoryCache.Remove(cacheKey);
             return Task.CompletedTask;

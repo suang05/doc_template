@@ -69,4 +69,45 @@ public sealed class ListTemplatesUseCaseTests
         result.Items[0].Name.Should().Be("Invoice");
         result.Items[1].Name.Should().Be("Receipt");
     }
+
+    [Theory]
+    [InlineData(0, 50000, 1, 100)]
+    [InlineData(-5, 0, 1, 1)]
+    [InlineData(3, 50, 3, 50)]
+    public async Task ExecuteAsync_WithOutOfBoundsPagination_ClampsPageAndPageSize(
+        int requestedPage,
+        int requestedPageSize,
+        int expectedPage,
+        int expectedPageSize)
+    {
+        // Arrange
+        var projectId = Guid.NewGuid();
+        _projectContext.IsResolved.Returns(true);
+        _projectContext.ProjectId.Returns(new ProjectId(projectId));
+        _templateQueryService.ListPagedAsync(
+            new ProjectId(projectId),
+            Arg.Any<string?>(),
+            Arg.Any<string?>(),
+            Arg.Any<bool?>(),
+            expectedPage,
+            expectedPageSize,
+            Arg.Any<CancellationToken>())
+            .Returns(([], 0));
+
+        // Act
+        var result = await CreateSut().ExecuteAsync(
+            new ListTemplatesQuery(Page: requestedPage, PageSize: requestedPageSize));
+
+        // Assert
+        result.Page.Should().Be(expectedPage);
+        result.PageSize.Should().Be(expectedPageSize);
+        await _templateQueryService.Received(1).ListPagedAsync(
+            new ProjectId(projectId),
+            null,
+            null,
+            null,
+            expectedPage,
+            expectedPageSize,
+            Arg.Any<CancellationToken>());
+    }
 }

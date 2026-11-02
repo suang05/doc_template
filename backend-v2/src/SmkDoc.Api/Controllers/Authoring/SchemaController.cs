@@ -1,10 +1,11 @@
+using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.Contracts.Authoring.Schemas;
-using SmkDoc.Application.Modules.Authoring.Schemas;
+using SmkDoc.Application.Common.Interfaces;
+using SmkDoc.Application.Modules.Authoring.Schemas.Commands.ValidateStandaloneSchema;
 using SmkDoc.Application.Modules.Authoring.Schemas.DTOs;
 using SmkDoc.Domain.Exceptions;
-using System.Text.Json;
 
 namespace SmkDoc.Api.Controllers.Authoring;
 
@@ -15,7 +16,8 @@ namespace SmkDoc.Api.Controllers.Authoring;
 [ApiController]
 [Route("api/v1/schemas")]
 [Route("api/schemas")]
-public class SchemaController(ValidateStandaloneSchemaUseCase validateUseCase) : ControllerBase
+public sealed class SchemaController(
+    IUseCase<ValidateStandaloneSchemaCommand, ValidateStandaloneSchemaResult> validateUseCase) : ControllerBase
 {
     /// <summary>
     /// Standalone validation of a JSON payload against a Draft-07 JSON Schema.

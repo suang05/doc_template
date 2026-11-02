@@ -17,32 +17,25 @@ public sealed class SaveTemplateHtmlUseCase(
     IUnitOfWork unitOfWork,
     ICurrentProjectContext projectContext,
     ISchemaInferenceService schemaInferenceService,
-    TimeProvider? timeProvider = null) : IUseCase<SaveTemplateHtmlCommand, int>
+    TimeProvider timeProvider) : IUseCase<SaveTemplateHtmlCommand, int>
 {
-    private readonly ITemplateRepository _templateRepo = templateRepo;
-    private readonly IStorageService _storageService = storageService;
-    private readonly IUnitOfWork _unitOfWork = unitOfWork;
-    private readonly ICurrentProjectContext _projectContext = projectContext;
-    private readonly ISchemaInferenceService _schemaInferenceService = schemaInferenceService;
-    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
-
-    public async Task<int> ExecuteAsync(SaveTemplateHtmlCommand request, CancellationToken ct = default)
+    public async Task<int> ExecuteAsync(SaveTemplateHtmlCommand command, CancellationToken ct = default)
     {
-        if (!_projectContext.IsResolved)
+        if (!projectContext.IsResolved)
         {
             throw new ForbiddenException("Saving template HTML requires an active project context.");
         }
 
-        var templateId = new TemplateId(request.TemplateId);
-        var template = await _templateRepo.GetByIdWithDetailsAsync(templateId, ct)
-            ?? await _templateRepo.GetByIdAsync(templateId, ct)
-            ?? throw new NotFoundException($"Template '{request.TemplateId}' not found.");
+        var templateId = new TemplateId(command.TemplateId);
+        var template = await templateRepo.GetByIdWithDetailsAsync(templateId, ct)
+            ?? await templateRepo.GetByIdAsync(templateId, ct)
+            ?? throw new NotFoundException($"Template '{command.TemplateId}' not found.");
 
         TemplateVersion? currentVersion = template.CurrentVersion;
         if (currentVersion is null && template.CurrentVersionId.HasValue)
         {
             currentVersion = template.FindVersion(template.CurrentVersionId.Value)
-                ?? await _templateRepo.GetVersionByIdAsync(template.CurrentVersionId.Value, ct);
+                ?? await templateRepo.GetVersionByIdAsync(template.CurrentVersionId.Value, ct);
         }
 
         int maxVersionNumber = template.Versions.Count > 0
@@ -51,7 +44,7 @@ public sealed class SaveTemplateHtmlUseCase(
 
         if (maxVersionNumber == 0)
         {
-            var history = await _templateRepo.ListVersionsAsync(templateId, ct);
+            var history = await templateRepo.ListVersionsAsync(templateId, ct);
             if (history is { Count: > 0 })
             {
                 maxVersionNumber = history.Max(v => v.Version);
@@ -65,28 +58,28 @@ public sealed class SaveTemplateHtmlUseCase(
 
         int nextVersionNumber = maxVersionNumber + 1;
         string versionedKey = StorageBuckets.TemplateVersionKey(template.ProjectId, template.Id, nextVersionNumber, ".html");
-        byte[] htmlBytes = Encoding.UTF8.GetBytes(request.Html ?? string.Empty);
+        byte[] htmlBytes = Encoding.UTF8.GetBytes(command.Html ?? string.Empty);
 
         // 1. Upload exclusively to immutable versioned key (zero mutable activeKey overwrite)
         using (var stream = new MemoryStream(htmlBytes))
         {
-            await _storageService.UploadAsync(StorageBuckets.Templates, versionedKey, stream, "text/html; charset=utf-8", ct);
+            await storageService.UploadAsync(StorageBuckets.Templates, versionedKey, stream, "text/html; charset=utf-8", ct);
         }
 
         try
         {
             // 2. Infer JSON Schema and determine final sample payload
-            var (inferredSchema, defaultSamplePayload) = _schemaInferenceService.InferFromHtml(
-                request.Html ?? string.Empty,
-                request.SamplePayload,
+            var (inferredSchema, defaultSamplePayload) = schemaInferenceService.InferFromHtml(
+                command.Html ?? string.Empty,
+                command.SamplePayload,
                 template.Slug);
 
-            string finalSamplePayload = string.IsNullOrWhiteSpace(request.SamplePayload) || request.SamplePayload.Trim() == "{}"
+            string finalSamplePayload = string.IsNullOrWhiteSpace(command.SamplePayload) || command.SamplePayload.Trim() == "{}"
                 ? defaultSamplePayload
-                : request.SamplePayload;
+                : command.SamplePayload;
 
             // 3. Create append-only database version record and archive previous Published version
-            var now = _timeProvider.GetUtcNow();
+            var now = timeProvider.GetUtcNow();
             if (currentVersion != null && currentVersion.Status == TemplateVersionStatus.Published)
             {
                 currentVersion.Archive(now);
@@ -96,9 +89,9 @@ public sealed class SaveTemplateHtmlUseCase(
                 nextVersionNumber,
                 versionedKey,
                 TemplateFormat.Html,
-                _projectContext.CallerIdentity ?? "developer",
+                projectContext.CallerIdentity ?? "developer",
                 now,
-                request.ChangeNote);
+                command.ChangeNote);
             newVersion.UpdateDataSchema(inferredSchema, finalSamplePayload, now);
 
             string? mappingsSnapshot = template.FieldMappings.Count > 0
@@ -112,8 +105,8 @@ public sealed class SaveTemplateHtmlUseCase(
             template.PublishVersion(newVersion, now);
 
             // 4. Persist aggregate update
-            _templateRepo.Update(template);
-            await _unitOfWork.CommitAsync(ct);
+            templateRepo.Update(template);
+            await unitOfWork.CommitAsync(ct);
 
             return nextVersionNumber;
         }
@@ -121,7 +114,7 @@ public sealed class SaveTemplateHtmlUseCase(
         {
             try
             {
-                await _storageService.DeleteAsync(StorageBuckets.Templates, versionedKey, CancellationToken.None);
+                await storageService.DeleteAsync(StorageBuckets.Templates, versionedKey, CancellationToken.None);
             }
             catch (Exception cleanupEx)
             {

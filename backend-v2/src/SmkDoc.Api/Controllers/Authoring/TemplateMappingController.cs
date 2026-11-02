@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.Contracts.Authoring.FieldMappings;
+using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.Commands.SaveTemplateMappings;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.Queries.GetTemplateMappings;
@@ -15,10 +16,10 @@ namespace SmkDoc.Api.Controllers.Authoring;
 [ApiController]
 [Route("api/v1/templates/{id:guid}/mappings")]
 [Route("api/templates/{id:guid}/mappings")]
-public class TemplateMappingController(
-    GetTemplateMappingsUseCase getMappingsUseCase,
-    SaveTemplateMappingsUseCase saveMappingsUseCase,
-    PreviewMappingUseCase previewMappingUseCase) : ControllerBase
+public sealed class TemplateMappingController(
+    IUseCase<GetTemplateMappingsQuery, List<FieldMappingDto>> getMappingsUseCase,
+    IUseCase<SaveTemplateMappingsCommand> saveMappingsUseCase,
+    IUseCase<PreviewMappingQuery, Stream> previewMappingUseCase) : ControllerBase
 {
     /// <summary>Get all field mappings for a template.</summary>
     [HttpGet]

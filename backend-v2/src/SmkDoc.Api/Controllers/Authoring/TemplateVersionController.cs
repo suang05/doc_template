@@ -1,12 +1,13 @@
 using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.Contracts.Authoring.Templates;
-using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
+using SmkDoc.Application.Common.Interfaces;
+using SmkDoc.Application.Modules.Authoring.FieldMappings.Commands.SaveTemplateDatasets;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.Queries.GetTemplateDatasets;
-using SmkDoc.Application.Modules.Authoring.FieldMappings.Commands.SaveTemplateDatasets;
-using SmkDoc.Application.Modules.Authoring.Templates.Queries.ListTemplateVersions;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.RollbackTemplateVersion;
+using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
+using SmkDoc.Application.Modules.Authoring.Templates.Queries.ListTemplateVersions;
 
 namespace SmkDoc.Api.Controllers.Authoring;
 
@@ -17,11 +18,11 @@ namespace SmkDoc.Api.Controllers.Authoring;
 [ApiController]
 [Route("api/v1/templates/{id:guid}")]
 [Route("api/templates/{id:guid}")]
-public class TemplateVersionController(
-    ListTemplateVersionsUseCase listVersionsUseCase,
-    RollbackTemplateVersionUseCase rollbackUseCase,
-    GetTemplateDatasetsUseCase getDatasetsUseCase,
-    SaveTemplateDatasetsUseCase saveDatasetsUseCase) : ControllerBase
+public sealed class TemplateVersionController(
+    IUseCase<ListTemplateVersionsQuery, List<TemplateVersionDto>> listVersionsUseCase,
+    IUseCase<RollbackTemplateVersionCommand, int> rollbackUseCase,
+    IUseCase<GetTemplateDatasetsQuery, List<TemplateDatasetDto>> getDatasetsUseCase,
+    IUseCase<SaveTemplateDatasetsCommand> saveDatasetsUseCase) : ControllerBase
 {
     // ── Versioning ────────────────────────────────────────────────────────────
 

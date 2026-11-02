@@ -24,7 +24,6 @@ public sealed class RefreshTokenUseCaseTests
     private readonly IJwtTokenGenerator _jwtGenerator = Substitute.For<IJwtTokenGenerator>();
     private readonly IUserWorkspaceQueryService _workspaceQueryService = Substitute.For<IUserWorkspaceQueryService>();
     private readonly IUnitOfWork _uow = Substitute.For<IUnitOfWork>();
-    private readonly RefreshTokenCommandValidator _validator = new();
     private readonly FakeTimeProvider _timeProvider = TestConstants.CreateFakeClock();
     private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
     private readonly ISecurityAuditService _auditService = Substitute.For<ISecurityAuditService>();
@@ -45,7 +44,6 @@ public sealed class RefreshTokenUseCaseTests
             _jwtGenerator,
             _workspaceQueryService,
             _uow,
-            _validator,
             _timeProvider,
             _projectContext,
             _auditService);

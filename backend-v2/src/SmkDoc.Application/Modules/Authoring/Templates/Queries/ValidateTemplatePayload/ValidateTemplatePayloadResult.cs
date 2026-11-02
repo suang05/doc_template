@@ -5,7 +5,7 @@ namespace SmkDoc.Application.Modules.Authoring.Templates.Queries.ValidateTemplat
 /// <summary>
 /// Result returned after pre-flight template payload schema validation.
 /// </summary>
-public record ValidateTemplatePayloadResult(
+public sealed record ValidateTemplatePayloadResult(
     bool Valid,
     string TemplateSlug,
     int Version,

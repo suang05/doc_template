@@ -8,10 +8,8 @@ using SmkDoc.Domain.Entities;
 
 namespace SmkDoc.Infrastructure.Security;
 
-public class JwtTokenGenerator(IConfiguration configuration, TimeProvider? timeProvider = null) : IJwtTokenGenerator
+public sealed class JwtTokenGenerator(IConfiguration configuration, TimeProvider timeProvider) : IJwtTokenGenerator
 {
-    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
-
     public string GenerateToken(User user, Guid? projectId = null, IEnumerable<string>? roles = null)
     {
         var secret = configuration["Jwt:Secret"] ?? throw new InvalidOperationException("JWT Secret is missing.");
@@ -40,7 +38,7 @@ public class JwtTokenGenerator(IConfiguration configuration, TimeProvider? timeP
             }
         }
 
-        var expires = _timeProvider.GetUtcNow().UtcDateTime.AddHours(24);
+        var expires = timeProvider.GetUtcNow().UtcDateTime.AddHours(24);
 
         var token = new JwtSecurityToken(
             issuer: configuration["Jwt:Issuer"],
@@ -52,4 +50,3 @@ public class JwtTokenGenerator(IConfiguration configuration, TimeProvider? timeP
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
 }
-

@@ -116,4 +116,46 @@ public sealed class ListProjectsUseCaseTests
         result.TotalCount.Should().Be(0);
         result.Items.Should().BeEmpty();
     }
+
+    [Theory]
+    [InlineData(0, 50000, 1, 100)]
+    [InlineData(-2, -10, 1, 1)]
+    [InlineData(4, 25, 4, 25)]
+    public async Task ExecuteAsync_WithOutOfBoundsPagination_ClampsPageAndPageSize(
+        int requestedPage,
+        int requestedPageSize,
+        int expectedPage,
+        int expectedPageSize)
+    {
+        // Arrange
+        var now = TestConstants.BaselineTime;
+        var userId = Guid.NewGuid();
+        User user = UserBuilder.AUser().WithSystemRole(SystemRole.Member).WithTime(now);
+        _userRepo.GetByIdAsync(new UserId(userId), Arg.Any<CancellationToken>())
+            .Returns(user);
+
+        _projectQueryService.ListPagedByUserAsync(
+                new UserId(userId),
+                false,
+                null,
+                expectedPage,
+                expectedPageSize,
+                Arg.Any<CancellationToken>())
+            .Returns(([], 0));
+
+        // Act
+        ProjectPagedResultDto result = await CreateSut().ExecuteAsync(
+            new ListProjectsQuery(userId, null, requestedPage, requestedPageSize));
+
+        // Assert
+        result.Page.Should().Be(expectedPage);
+        result.PageSize.Should().Be(expectedPageSize);
+        await _projectQueryService.Received(1).ListPagedByUserAsync(
+            new UserId(userId),
+            false,
+            null,
+            expectedPage,
+            expectedPageSize,
+            Arg.Any<CancellationToken>());
+    }
 }

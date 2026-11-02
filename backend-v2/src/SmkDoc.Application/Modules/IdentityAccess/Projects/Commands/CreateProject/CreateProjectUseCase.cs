@@ -1,4 +1,3 @@
-using FluentValidation;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Projects.DTOs;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Helpers;
@@ -16,30 +15,18 @@ public sealed class CreateProjectUseCase(
     IUserProjectRoleRepository userRoleRepo,
     ICompanyRepository companyRepo,
     IUnitOfWork unitOfWork,
-    IValidator<CreateProjectCommand>? validator = null,
-    TimeProvider? timeProvider = null,
+    TimeProvider timeProvider,
     IApiKeyRepository? apiKeyRepo = null) : IUseCase<CreateProjectCommand, ProjectResultDto>
 {
-    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
-
-    public async Task<ProjectResultDto> ExecuteAsync(CreateProjectCommand request, CancellationToken ct = default)
+    public async Task<ProjectResultDto> ExecuteAsync(CreateProjectCommand command, CancellationToken ct = default)
     {
-        if (validator != null)
-        {
-            var validationResult = await validator.ValidateAsync(request, ct);
-            if (!validationResult.IsValid)
-            {
-                throw new ValidationException(validationResult.ToDictionary());
-            }
-        }
-
-        var existing = await projectRepo.GetBySlugAsync(request.Slug, ct);
+        var existing = await projectRepo.GetBySlugAsync(command.Slug, ct);
         if (existing != null)
         {
-            throw new ConflictException($"Project with slug '{request.Slug}' already exists.");
+            throw new ConflictException($"Project with slug '{command.Slug}' already exists.");
         }
 
-        var now = _timeProvider.GetUtcNow();
+        var now = timeProvider.GetUtcNow();
 
         var defaultCompany = await companyRepo.GetFirstAsync(ct);
         if (defaultCompany == null)
@@ -48,10 +35,10 @@ public sealed class CreateProjectUseCase(
             await companyRepo.AddAsync(defaultCompany, ct);
         }
 
-        var project = Project.Create(defaultCompany.Id, ProjectName.Create(request.Name), ProjectSlug.Create(request.Slug), now);
+        var project = Project.Create(defaultCompany.Id, ProjectName.Create(command.Name), ProjectSlug.Create(command.Slug), now);
         await projectRepo.AddAsync(project, ct);
 
-        var role = UserProjectRole.Create(new UserId(request.UserId), project.Id, RoleType.Admin, now);
+        var role = UserProjectRole.Create(new UserId(command.UserId), project.Id, RoleType.Admin, now);
         await userRoleRepo.AddAsync(role, ct);
 
         string? readPlainKey = null;
@@ -60,11 +47,11 @@ public sealed class CreateProjectUseCase(
         if (apiKeyRepo != null)
         {
             // Auto-provision Read API Key
-            readPlainKey = $"smk_read_{request.Slug}_{Guid.NewGuid():N}";
+            readPlainKey = $"smk_read_{command.Slug}_{Guid.NewGuid():N}";
             var readHash = new Sha256Hash(ApiKeyHelper.ComputeHash(readPlainKey));
             var readKey = ApiKey.Issue(
                 project.Id,
-                ApiKeyName.Create($"{request.Name} Read"),
+                ApiKeyName.Create($"{command.Name} Read"),
                 "read-client",
                 readHash,
                 ExpirationPolicy.Never,
@@ -73,11 +60,11 @@ public sealed class CreateProjectUseCase(
             await apiKeyRepo.AddAsync(readKey, ct);
 
             // Auto-provision Write/Delete API Key
-            writePlainKey = $"smk_write_{request.Slug}_{Guid.NewGuid():N}";
+            writePlainKey = $"smk_write_{command.Slug}_{Guid.NewGuid():N}";
             var writeHash = new Sha256Hash(ApiKeyHelper.ComputeHash(writePlainKey));
             var writeKey = ApiKey.Issue(
                 project.Id,
-                ApiKeyName.Create($"{request.Name} Write"),
+                ApiKeyName.Create($"{command.Name} Write"),
                 "write-client",
                 writeHash,
                 ExpirationPolicy.Never,

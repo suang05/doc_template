@@ -4,8 +4,6 @@ using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Modules.Integration.DataConnections.Commands.DeleteDataConnection;
 
-public record DeleteDataConnectionCommand(Guid Id);
-
 public sealed class DeleteDataConnectionUseCase(
     IDataConnectionRepository repository,
     IUnitOfWork unitOfWork) : IUseCase<DeleteDataConnectionCommand, bool>

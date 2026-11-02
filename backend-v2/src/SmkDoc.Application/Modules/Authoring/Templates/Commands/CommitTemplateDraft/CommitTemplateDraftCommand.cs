@@ -1,5 +1,10 @@
-using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
+using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 
 namespace SmkDoc.Application.Modules.Authoring.Templates.Commands.CommitTemplateDraft;
 
-public record CommitTemplateDraftCommand(string DraftId, CommitDraftCommand Request);
+public sealed record CommitTemplateDraftCommand(
+    string DraftId,
+    string Name,
+    string Slug,
+    string? Category,
+    IReadOnlyList<SaveFieldMappingItemDto> Mappings);

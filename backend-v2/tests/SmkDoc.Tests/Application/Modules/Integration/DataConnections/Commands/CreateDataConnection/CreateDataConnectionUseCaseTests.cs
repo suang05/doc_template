@@ -1,9 +1,8 @@
-using FluentValidation;
+using SmkDoc.Application.Common.Behaviors;
 using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Integration.DataConnections.Commands.CreateDataConnection;
 using SmkDoc.Application.Modules.Integration.DataConnections.DTOs;
-using SmkDoc.Application.Modules.Integration.DataConnections.Validators;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Interfaces;
@@ -18,6 +17,7 @@ public sealed class CreateDataConnectionUseCaseTests
     private readonly IDataProtectionService _dataProtection = Substitute.For<IDataProtectionService>();
     private readonly ISqlConnectionValidator _sqlValidator = Substitute.For<ISqlConnectionValidator>();
     private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
+    private readonly FakeTimeProvider _timeProvider = TestConstants.CreateFakeClock();
     private readonly ProjectId _projectId = ProjectId.New();
 
     public CreateDataConnectionUseCaseTests()
@@ -28,22 +28,25 @@ public sealed class CreateDataConnectionUseCaseTests
         _projectContext.ProjectId.Returns(_projectId);
     }
 
-    private CreateDataConnectionUseCase CreateSut(IValidator<CreateDataConnectionCommand>? validator = null) => new(
+    private CreateDataConnectionUseCase CreateSut() => new(
         _connectionRepo,
         _unitOfWork,
         _dataProtection,
-        validator ?? new CreateDataConnectionCommandValidator(),
         _sqlValidator,
-        _projectContext);
+        _projectContext,
+        _timeProvider);
 
     [Fact]
     public async Task ExecuteAsync_WithInvalidCommand_ShouldThrowValidationException()
     {
         // Arrange
         var command = new CreateDataConnectionCommand("", "InvalidProvider", "");
+        var pipeline = new ValidatingUseCaseDecorator<CreateDataConnectionCommand, DataConnectionDto>(
+            CreateSut(),
+            [new CreateDataConnectionCommandValidator()]);
 
         // Act
-        Func<Task> act = () => CreateSut().ExecuteAsync(command);
+        Func<Task> act = () => pipeline.ExecuteAsync(command);
 
         // Assert
         await act.Should().ThrowAsync<SmkDoc.Application.Common.Exceptions.ValidationException>();

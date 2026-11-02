@@ -24,14 +24,14 @@ namespace SmkDoc.Api.Controllers.Authoring;
 [ApiController]
 [Route("api/v1/templates")]
 [Route("api/templates")]
-public class TemplateController(
-    ListTemplatesUseCase listTemplatesUseCase,
-    GetTemplateByIdUseCase getTemplateByIdUseCase,
-    CreateTemplateUseCase createTemplateUseCase,
-    UpdateTemplateDetailsUseCase updateTemplateDetailsUseCase,
-    DeactivateTemplateUseCase deactivateTemplateUseCase,
-    DownloadTemplateUseCase downloadTemplateUseCase,
-    ValidateTemplatePayloadUseCase validatePayloadUseCase,
+public sealed class TemplateController(
+    IUseCase<ListTemplatesQuery, TemplatePagedResultDto> listTemplatesUseCase,
+    IUseCase<GetTemplateByIdQuery, TemplateResultDto> getTemplateByIdUseCase,
+    IUseCase<CreateTemplateCommand, TemplateResultDto> createTemplateUseCase,
+    IUseCase<UpdateTemplateDetailsCommand, TemplateResultDto> updateTemplateDetailsUseCase,
+    IUseCase<DeactivateTemplateCommand> deactivateTemplateUseCase,
+    IUseCase<DownloadTemplateQuery, DownloadTemplateResult> downloadTemplateUseCase,
+    IUseCase<ValidateTemplatePayloadQuery, ValidateTemplatePayloadResult> validatePayloadUseCase,
     ICurrentProjectContext projectContext) : ControllerBase
 {
     /// <summary>List templates belonging to the active project with optional search, category filter, and server-side pagination.</summary>

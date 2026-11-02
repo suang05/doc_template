@@ -1,7 +1,7 @@
-using FluentValidation;
-using FluentValidation.Results;
 using NSubstitute;
+using SmkDoc.Application.Common.Behaviors;
 using SmkDoc.Application.Modules.IdentityAccess.Users.Commands.UpdateUserRole;
+using SmkDoc.Application.Modules.IdentityAccess.Users.DTOs;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
@@ -17,24 +17,23 @@ public sealed class UpdateUserRoleUseCaseTests
     private readonly IUserProjectRoleRepository _roleRepo = Substitute.For<IUserProjectRoleRepository>();
     private readonly IUserRepository _userRepo = Substitute.For<IUserRepository>();
     private readonly IUnitOfWork _uow = Substitute.For<IUnitOfWork>();
-    private readonly IValidator<UpdateUserRoleCommand> _validator = Substitute.For<IValidator<UpdateUserRoleCommand>>();
 
     private UpdateUserRoleUseCase CreateSut() => new(
         _roleRepo,
         _userRepo,
-        _uow,
-        _validator);
+        _uow);
 
     [Fact]
     public async Task ExecuteAsync_WhenCommandIsInvalid_ShouldFailFastWithoutTouchingPersistence()
     {
         // Arrange
         var command = new UpdateUserRoleCommand(Guid.Empty, Guid.Empty, "");
-        _validator.ValidateAsync(command, Arg.Any<CancellationToken>())
-            .Returns(new ValidationResult([new ValidationFailure("Role", "Role is required")]));
+        var pipeline = new ValidatingUseCaseDecorator<UpdateUserRoleCommand, UserResultDto>(
+            CreateSut(),
+            [new UpdateUserRoleCommandValidator()]);
 
         // Act
-        var act = () => CreateSut().ExecuteAsync(command);
+        var act = () => pipeline.ExecuteAsync(command);
 
         // Assert
         await act.Should().ThrowAsync<ValidationException>();
@@ -58,8 +57,6 @@ public sealed class UpdateUserRoleUseCaseTests
 
         var command = new UpdateUserRoleCommand(projectId, userId, "Developer");
 
-        _validator.ValidateAsync(command, Arg.Any<CancellationToken>())
-            .Returns(new ValidationResult());
         _roleRepo.GetAsync(new ProjectId(projectId), new UserId(userId), Arg.Any<CancellationToken>())
             .Returns(roleEntry);
         _userRepo.GetByIdAsync(new UserId(userId), Arg.Any<CancellationToken>())
@@ -91,8 +88,6 @@ public sealed class UpdateUserRoleUseCaseTests
 
         var command = new UpdateUserRoleCommand(projectId, userId, "Viewer");
 
-        _validator.ValidateAsync(command, Arg.Any<CancellationToken>())
-            .Returns(new ValidationResult());
         _roleRepo.GetAsync(new ProjectId(projectId), new UserId(userId), Arg.Any<CancellationToken>())
             .Returns(roleEntry);
         _roleRepo.CountAdminsAsync(new ProjectId(projectId), Arg.Any<CancellationToken>())
@@ -115,8 +110,6 @@ public sealed class UpdateUserRoleUseCaseTests
         var userId = Guid.NewGuid();
         var command = new UpdateUserRoleCommand(projectId, userId, "Developer");
 
-        _validator.ValidateAsync(command, Arg.Any<CancellationToken>())
-            .Returns(new ValidationResult());
         _roleRepo.GetAsync(new ProjectId(projectId), new UserId(userId), Arg.Any<CancellationToken>())
             .Returns((UserProjectRole?)null);
 

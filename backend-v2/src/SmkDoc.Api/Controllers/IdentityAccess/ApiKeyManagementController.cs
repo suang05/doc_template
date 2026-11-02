@@ -21,10 +21,10 @@ namespace SmkDoc.Api.Controllers.IdentityAccess;
 [Authorize(Roles = RoleConstants.AdminOrSuperAdmin)]
 [ProducesResponseType(StatusCodes.Status401Unauthorized)]
 [ProducesResponseType(StatusCodes.Status403Forbidden)]
-public class ApiKeyManagementController(
-    ListApiKeysUseCase listApiKeysUseCase,
-    CreateApiKeyUseCase createApiKeyUseCase,
-    RevokeApiKeyUseCase revokeApiKeyUseCase,
+public sealed class ApiKeyManagementController(
+    IUseCase<ListApiKeysQuery, List<ApiKeyDto>> listApiKeysUseCase,
+    IUseCase<CreateApiKeyCommand, CreateApiKeyResultDto> createApiKeyUseCase,
+    IUseCase<RevokeApiKeyCommand> revokeApiKeyUseCase,
     ICurrentProjectContext projectContext) : ControllerBase
 {
     /// <summary>List all API keys for the specified project. Admin only.</summary>

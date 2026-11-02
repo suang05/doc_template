@@ -1,7 +1,6 @@
 using FluentAssertions;
 using SmkDoc.Application.Modules.Integration.DataConnections.Commands.CreateDataConnection;
 using SmkDoc.Application.Modules.Integration.DataConnections.Commands.UpdateDataConnection;
-using SmkDoc.Application.Modules.Integration.DataConnections.Validators;
 using Xunit;
 
 namespace SmkDoc.Tests.Application.Modules.Integration.DataConnections.Validators;

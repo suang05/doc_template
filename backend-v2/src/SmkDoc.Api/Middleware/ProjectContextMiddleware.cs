@@ -21,7 +21,7 @@ namespace SmkDoc.Api.Middleware;
 /// tenant isolation resolution, M2M scope enforcement, and IDOR defense across all incoming HTTP traffic.
 /// Converges both X-API-Key (M2M) and Authorization Bearer (Web Studio) into <see cref="ICurrentProjectContextSetter"/>.
 /// </summary>
-public class ProjectContextMiddleware(
+public sealed class ProjectContextMiddleware(
     RequestDelegate next,
     ILogger<ProjectContextMiddleware> logger,
     IConfiguration configuration)
@@ -31,7 +31,7 @@ public class ProjectContextMiddleware(
     public async Task InvokeAsync(
         HttpContext context,
         ICurrentProjectContextSetter projectContextSetter,
-        ValidateApiKeyUseCase validateApiKeyUseCase,
+        IUseCase<ValidateApiKeyQuery, ValidatedApiKeyDto?> validateApiKeyUseCase,
         IUserProjectRoleRepository userProjectRoleRepo,
         IProjectRepository projectRepo)
     {
