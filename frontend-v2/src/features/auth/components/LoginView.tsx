@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Eye, EyeOff, Lock, Mail, FileText } from 'lucide-react';
+import { Eye, EyeOff, FileText } from 'lucide-react';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { useAuth } from '../hooks/useAuth';
@@ -74,7 +74,6 @@ export function LoginView() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               error={errors.email}
-              icon={Mail}
               autoComplete="email"
               autoFocus
             />
@@ -82,14 +81,13 @@ export function LoginView() {
             <div className="space-y-1">
               <label className="block text-xs font-medium text-textSecondary">รหัสผ่าน</label>
               <div className="relative flex items-center">
-                <Lock className="absolute left-2.5 w-3.5 h-3.5 text-textMuted pointer-events-none" />
                 <input
                   type={showPassword ? 'text' : 'password'}
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   autoComplete="current-password"
-                  className={`w-full h-8 pl-8 pr-8 rounded-sm bg-surface border text-xs text-textPrimary placeholder:text-textMuted transition-colors focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary ${
+                  className={`w-full h-8 px-2.5 pr-8 rounded-sm bg-surface border text-xs text-textPrimary placeholder:text-textMuted transition-colors focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary ${
                     errors.password ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : 'border-border'
                   }`}
                 />

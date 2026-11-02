@@ -53,6 +53,8 @@ public static class DependencyInjection
                 maxRetryCount: 5,
                 maxRetryDelay: TimeSpan.FromSeconds(10),
                 errorCodesToAdd: null));
+            options.ConfigureWarnings(warnings =>
+                warnings.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
             options.AddInterceptors(sp.GetRequiredService<TenantSecuritySaveChangesInterceptor>());
         });
 

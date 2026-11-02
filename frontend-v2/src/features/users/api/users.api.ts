@@ -1,30 +1,32 @@
 import { apiClient } from '@/lib/api/client';
-import type { UserListItem, InviteUserRequest, UpdateUserRoleRequest } from '@/types/api';
+import { ApiResponse, UserListItem, InviteUserRequest, UpdateUserRoleRequest } from '@/types/api';
 
-export function listUsers(): Promise<UserListItem[]> {
-  return apiClient<UserListItem[]>('/api/users');
+export async function listUsers(): Promise<UserListItem[]> {
+  const res = await apiClient<ApiResponse<UserListItem[]>>('/api/v1/users');
+  return res.data;
 }
 
-export function inviteUser(req: InviteUserRequest): Promise<UserListItem> {
-  return apiClient<UserListItem>('/api/users', {
+export async function inviteUser(req: InviteUserRequest): Promise<UserListItem> {
+  const res = await apiClient<ApiResponse<UserListItem>>('/api/v1/users', {
     method: 'POST',
     body: JSON.stringify(req),
   });
+  return res.data;
 }
 
 export function updateUserRole(userId: string, req: UpdateUserRoleRequest): Promise<void> {
-  return apiClient<void>(`/api/users/${userId}/role`, {
+  return apiClient<void>(`/api/v1/users/${userId}/role`, {
     method: 'PUT',
     body: JSON.stringify(req),
   });
 }
 
 export function removeUser(userId: string): Promise<void> {
-  return apiClient<void>(`/api/users/${userId}`, { method: 'DELETE' });
+  return apiClient<void>(`/api/v1/users/${userId}`, { method: 'DELETE' });
 }
 
 export function setUserStatus(userId: string, isActive: boolean): Promise<void> {
-  return apiClient<void>(`/api/users/${userId}/status`, {
+  return apiClient<void>(`/api/v1/users/${userId}/status`, {
     method: 'PATCH',
     body: JSON.stringify(isActive),
   });

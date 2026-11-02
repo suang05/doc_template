@@ -50,14 +50,15 @@ export function useGeneratorForm(templateId: string | undefined) {
     ]).then(([mappingsRes, schemaRes]) => {
       if (controller.signal.aborted) return;
       if (mappingsRes.status === 'fulfilled') {
-        setMappings(mappingsRes.value);
+        const mappingsList = Array.isArray(mappingsRes.value) ? mappingsRes.value : [];
+        setMappings(mappingsList);
         const initial: Record<string, string> = {};
-        for (const m of mappingsRes.value) {
+        for (const m of mappingsList) {
           initial[m.sourcePath] = m.defaultValue ?? '';
         }
         setFormValues(initial);
       }
-      if (schemaRes.status === 'fulfilled' && schemaRes.value.samplePayload) {
+      if (schemaRes.status === 'fulfilled' && schemaRes.value?.samplePayload) {
         setTemplateSchema(schemaRes.value);
         try {
           const parsed = JSON.parse(schemaRes.value.samplePayload);
@@ -72,7 +73,7 @@ export function useGeneratorForm(templateId: string | undefined) {
     return () => controller.abort();
   }, [templateId]);
 
-  const hasMappings = mappings.length > 0;
+  const hasMappings = Array.isArray(mappings) && mappings.length > 0;
 
   const setField = useCallback((sourcePath: string, value: string) => {
     setFormValues((prev) => ({ ...prev, [sourcePath]: value }));
@@ -114,7 +115,8 @@ export function useGeneratorForm(templateId: string | undefined) {
       }
     }
     const errors: Record<string, string> = {};
-    for (const m of mappings) {
+    const safeMappings = Array.isArray(mappings) ? mappings : [];
+    for (const m of safeMappings) {
       if (m.required && !formValues[m.sourcePath]?.trim()) {
         errors[m.sourcePath] = 'กรุณากรอกข้อมูลนี้';
       }
@@ -156,7 +158,8 @@ export function useGeneratorForm(templateId: string | undefined) {
     }
 
     const sampleData: Record<string, string> = { ...formValues };
-    for (const m of mappings) {
+    const safeMappings = Array.isArray(mappings) ? mappings : [];
+    for (const m of safeMappings) {
       if (sampleData[m.sourcePath]) continue;
 
       // samplePayload is keyed by placeholder; try that first, then sourcePath for compat

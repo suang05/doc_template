@@ -1,5 +1,6 @@
 import { apiClient } from '@/lib/api/client';
 import {
+  ApiResponse,
   ApiKeyItem,
   CreateApiKeyRequest,
   CreatedApiKeyResponse,
@@ -7,31 +8,33 @@ import {
 
 export const apiKeysApi = {
   /**
-   * List all API keys
+   * List all API keys (SSoT: GET /api/v1/api-keys)
    */
   async listKeys(): Promise<ApiKeyItem[]> {
-    const res = await apiClient<{ keys: ApiKeyItem[] }>('/api/api-keys', {
+    const res = await apiClient<ApiResponse<ApiKeyItem[]>>('/api/v1/api-keys', {
       method: 'GET',
     });
-    return res.keys;
+    return res.data;
   },
 
   /**
-   * Create new API key
+   * Create new API key (SSoT: POST /api/v1/api-keys)
    */
   async createKey(request: CreateApiKeyRequest): Promise<CreatedApiKeyResponse> {
-    return apiClient<CreatedApiKeyResponse>('/api/api-keys', {
+    const res = await apiClient<ApiResponse<CreatedApiKeyResponse>>('/api/v1/api-keys', {
       method: 'POST',
       body: JSON.stringify(request),
     });
+    return res.data;
   },
 
   /**
-   * Revoke an API key
+   * Revoke an API key (SSoT: DELETE /api/v1/api-keys/{id})
    */
   async revokeKey(id: string): Promise<{ success: boolean }> {
-    return apiClient<{ success: boolean }>(`/api/api-keys/${id}`, {
+    await apiClient<void>(`/api/v1/api-keys/${id}`, {
       method: 'DELETE',
     });
+    return { success: true };
   },
 };

@@ -60,7 +60,8 @@ export function useFieldMapping(selectedTemplateId: string): UseFieldMappingRetu
     setIsDirty(false);
     try {
       const data = await templatesApi.getTemplateMappings(templateId);
-      setRows(data.map(dtoToRow));
+      const safeData = Array.isArray(data) ? data : [];
+      setRows(safeData.map(dtoToRow));
     } catch {
       setRows([]);
     } finally {

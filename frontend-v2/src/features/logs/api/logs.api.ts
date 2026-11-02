@@ -3,7 +3,7 @@ import { PagedLogsResponse, LogPayloadResultDto, ApiResponse } from '@/types/api
 
 export const logsApi = {
   /**
-   * List generation logs with pagination and optional caller app filter
+   * List generation logs with pagination and optional caller app filter (SSoT: GET /api/v1/logs)
    */
   async listLogs(page = 1, limit = 50, app?: string): Promise<PagedLogsResponse> {
     const params = new URLSearchParams({
@@ -14,16 +14,16 @@ export const logsApi = {
       params.set('app', app.trim());
     }
 
-    return apiClient<PagedLogsResponse>(`/api/logs?${params.toString()}`, {
+    return apiClient<PagedLogsResponse>(`/api/v1/logs?${params.toString()}`, {
       method: 'GET',
     });
   },
 
   /**
-   * Get full input payload for an audit log entry (transparently resolving offloaded payloads)
+   * Get full input payload for an audit log entry (SSoT: GET /api/v1/logs/{id}/payload)
    */
   async getPayload(id: string): Promise<ApiResponse<LogPayloadResultDto>> {
-    return apiClient<ApiResponse<LogPayloadResultDto>>(`/api/logs/${id}/payload`, {
+    return apiClient<ApiResponse<LogPayloadResultDto>>(`/api/v1/logs/${id}/payload`, {
       method: 'GET',
     });
   },

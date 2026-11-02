@@ -1,29 +1,34 @@
 import { apiClient } from '@/lib/api/client';
-import type { Dataset, CreateDatasetRequest, UpdateDatasetRequest } from '@/types/api';
+import { ApiResponse, Dataset, CreateDatasetRequest, UpdateDatasetRequest } from '@/types/api';
 
 export const datasetsApi = {
-  getAll: () =>
-    apiClient<any>('/api/datasets', { method: 'GET' }).then(res => {
-      if (Array.isArray(res)) return res as Dataset[];
-      if (res && Array.isArray(res.data)) return res.data as Dataset[];
-      return [] as Dataset[];
-    }),
+  getAll: async (): Promise<Dataset[]> => {
+    const res = await apiClient<ApiResponse<Dataset[]>>('/api/v1/datasets', { method: 'GET' });
+    return res.data;
+  },
 
-  getById: (id: string) =>
-    apiClient<any>(`/api/datasets/${id}`, { method: 'GET' }).then(res => (res?.data ?? res) as Dataset),
+  getById: async (id: string): Promise<Dataset> => {
+    const res = await apiClient<ApiResponse<Dataset>>(`/api/v1/datasets/${id}`, { method: 'GET' });
+    return res.data;
+  },
 
-  create: (data: CreateDatasetRequest) =>
-    apiClient<any>('/api/datasets', {
+  create: async (data: CreateDatasetRequest): Promise<Dataset> => {
+    const res = await apiClient<ApiResponse<Dataset>>('/api/v1/datasets', {
       method: 'POST',
       body: JSON.stringify(data),
-    }).then(res => (res?.data ?? res) as Dataset),
+    });
+    return res.data;
+  },
 
-  update: (id: string, data: UpdateDatasetRequest) =>
-    apiClient<any>(`/api/datasets/${id}`, {
+  update: async (id: string, data: UpdateDatasetRequest): Promise<Dataset> => {
+    const res = await apiClient<ApiResponse<Dataset>>(`/api/v1/datasets/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
-    }).then(res => (res?.data ?? res) as Dataset),
+    });
+    return res.data;
+  },
 
-  delete: (id: string) =>
-    apiClient<void>(`/api/datasets/${id}`, { method: 'DELETE' }),
+  delete: async (id: string): Promise<void> => {
+    await apiClient<void>(`/api/v1/datasets/${id}`, { method: 'DELETE' });
+  },
 };

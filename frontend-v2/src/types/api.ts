@@ -10,3 +10,20 @@ export * from '../features/datasources/schemas/dataset.schema';
 export * from '../features/datasources/schemas/dataconnection.schema';
 export * from '../features/settings/schemas/health.schema';
 export * from '../features/users/schemas/users.schema';
+
+/**
+ * Canonical SSoT API Response envelope adhering to Level 1 Presentation Invariants and docs/openapi.json.
+ */
+export interface ApiResponse<T> {
+  data: T;
+}
+
+/**
+ * Canonical Paged API Response envelope for paginated collections.
+ */
+export interface PagedApiResponse<T> {
+  data: T[];
+  totalCount: number;
+  page: number;
+  limit: number;
+}

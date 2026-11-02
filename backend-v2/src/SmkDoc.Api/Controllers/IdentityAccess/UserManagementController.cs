@@ -4,6 +4,8 @@ using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.Constants;
 using SmkDoc.Api.Contracts.IdentityAccess.Users;
 using SmkDoc.Api.Extensions;
+using SmkDoc.Application.Common.Exceptions;
+using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Users.Commands.InviteUser;
 using SmkDoc.Application.Modules.IdentityAccess.Users.Commands.RemoveUser;
 using SmkDoc.Application.Modules.IdentityAccess.Users.Commands.SetUserStatus;
@@ -18,6 +20,8 @@ namespace SmkDoc.Api.Controllers.IdentityAccess;
 /// </summary>
 [ApiController]
 [Route("api/v1/management/projects/{projectId:guid}/users")]
+[Route("api/v1/users")]
+[Route("api/users")]
 [Authorize] // บังคับ JWT สำหรับทุก endpoint
 [ProducesResponseType(StatusCodes.Status401Unauthorized)]
 public class UserManagementController(
@@ -25,14 +29,23 @@ public class UserManagementController(
     InviteUserUseCase inviteUserUseCase,
     UpdateUserRoleUseCase updateUserRoleUseCase,
     RemoveUserUseCase removeUserUseCase,
-    SetUserStatusUseCase setUserStatusUseCase) : ControllerBase
+    SetUserStatusUseCase setUserStatusUseCase,
+    ICurrentProjectContext projectContext) : ControllerBase
 {
+    private Guid ResolveProjectId(Guid routeProjectId)
+    {
+        if (routeProjectId != Guid.Empty) return routeProjectId;
+        if (projectContext.IsResolved) return projectContext.ProjectId.Value;
+        throw new ForbiddenException("Active project context is required for user operations.");
+    }
+
     /// <summary>List all users in a project.</summary>
     [HttpGet]
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<UserResultDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> List([FromRoute] Guid projectId, CancellationToken ct)
     {
-        var query = new ListProjectUsersQuery(projectId);
+        var targetProjectId = ResolveProjectId(projectId);
+        var query = new ListProjectUsersQuery(targetProjectId);
         var users = await listProjectUsersUseCase.ExecuteAsync(query, ct);
         return Ok(new ApiResponse<IEnumerable<UserResultDto>>(users));
     }
@@ -49,7 +62,8 @@ public class UserManagementController(
         [FromBody] InviteUserRequest req,
         CancellationToken ct)
     {
-        var command = new InviteUserCommand(projectId, req.Email, req.Password, req.FirstName, req.LastName, req.Role);
+        var targetProjectId = ResolveProjectId(projectId);
+        var command = new InviteUserCommand(targetProjectId, req.Email, req.Password, req.FirstName, req.LastName, req.Role);
         var user = await inviteUserUseCase.ExecuteAsync(command, ct);
 
         return StatusCode(StatusCodes.Status201Created, new ApiResponse<UserResultDto>(user));
@@ -69,7 +83,8 @@ public class UserManagementController(
         [FromBody] UpdateUserRoleRequest req,
         CancellationToken ct)
     {
-        var command = new UpdateUserRoleCommand(projectId, userId, req.Role);
+        var targetProjectId = ResolveProjectId(projectId);
+        var command = new UpdateUserRoleCommand(targetProjectId, userId, req.Role);
         var user = await updateUserRoleUseCase.ExecuteAsync(command, ct);
         return Ok(new ApiResponse<UserResultDto>(user));
     }
@@ -87,8 +102,9 @@ public class UserManagementController(
         [FromRoute] Guid userId,
         CancellationToken ct)
     {
+        var targetProjectId = ResolveProjectId(projectId);
         var currentUserId = User.GetUserId();
-        var command = new RemoveUserCommand(projectId, userId, currentUserId);
+        var command = new RemoveUserCommand(targetProjectId, userId, currentUserId);
         await removeUserUseCase.ExecuteAsync(command, ct);
         return NoContent();
     }
@@ -106,7 +122,8 @@ public class UserManagementController(
         [FromBody] SetUserStatusRequest req,
         CancellationToken ct)
     {
-        var command = new SetUserStatusCommand(projectId, userId, req.IsActive);
+        var targetProjectId = ResolveProjectId(projectId);
+        var command = new SetUserStatusCommand(targetProjectId, userId, req.IsActive);
         var user = await setUserStatusUseCase.ExecuteAsync(command, ct);
         return Ok(new ApiResponse<UserResultDto>(user));
     }

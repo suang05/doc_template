@@ -277,7 +277,7 @@ export const CreateTemplateChoiceModal: React.FC<CreateTemplateChoiceModalProps>
             placeholder="เช่น condo-sales-agreement"
             value={slug}
             onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-_]/g, ''))}
-            helperText="ใช้ระบุตัวตนใน REST API เช่น /api/documents/generate/:slug"
+            helperText="ใช้ระบุตัวตนใน REST API เช่น /api/v1/documents/generate/:slug"
             required
           />
 

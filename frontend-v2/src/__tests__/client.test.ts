@@ -180,4 +180,13 @@ describe('apiClient and RFC 7807 Response Handling', () => {
     expect(headers['X-API-Key']).toBe('explicit-key-456');
     expect(headers['X-Project-Id']).toBe('proj-789');
   });
+
+  it('correctly maps canonical /api/v1 routes through /api/proxy/v1/*', async () => {
+    const mockFetch = setupMockFetch();
+
+    await apiClient('/api/v1/templates');
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(mockFetch.mock.calls[0][0]).toBe('/api/proxy/v1/templates');
+  });
 });

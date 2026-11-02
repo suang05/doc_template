@@ -1,4 +1,5 @@
 import { apiClient } from '@/lib/api/client';
+import { ApiResponse } from '@/types/api';
 import {
   DataConnection,
   CreateDataConnectionRequest,
@@ -8,43 +9,41 @@ import {
 } from '../schemas/dataconnection.schema';
 
 export const dataconnectionsApi = {
-  getAll: () =>
-    apiClient<any>('/api/data-connections', { method: 'GET' }).then(res => {
-      if (Array.isArray(res)) return res as DataConnection[];
-      if (res && Array.isArray(res.data)) return res.data as DataConnection[];
-      return [] as DataConnection[];
-    }),
+  getAll: async (): Promise<DataConnection[]> => {
+    const res = await apiClient<ApiResponse<DataConnection[]>>('/api/v1/data-connections', { method: 'GET' });
+    return res.data;
+  },
 
-  getById: (id: string) =>
-    apiClient<any>(`/api/data-connections/${id}`, { method: 'GET' }).then(res => {
-      if (res && res.data) return res.data as DataConnection;
-      return res as DataConnection;
-    }),
+  getById: async (id: string): Promise<DataConnection> => {
+    const res = await apiClient<ApiResponse<DataConnection>>(`/api/v1/data-connections/${id}`, { method: 'GET' });
+    return res.data;
+  },
 
-  create: (data: CreateDataConnectionRequest) =>
-    apiClient<any>('/api/data-connections', {
+  create: async (data: CreateDataConnectionRequest): Promise<DataConnection> => {
+    const res = await apiClient<ApiResponse<DataConnection>>('/api/v1/data-connections', {
       method: 'POST',
       body: JSON.stringify(data),
-    }).then(res => {
-      if (res && res.data) return res.data as DataConnection;
-      return res as DataConnection;
-    }),
+    });
+    return res.data;
+  },
 
-  update: (id: string, data: UpdateDataConnectionRequest) =>
-    apiClient<any>(`/api/data-connections/${id}`, {
+  update: async (id: string, data: UpdateDataConnectionRequest): Promise<DataConnection> => {
+    const res = await apiClient<ApiResponse<DataConnection>>(`/api/v1/data-connections/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
-    }).then(res => {
-      if (res && res.data) return res.data as DataConnection;
-      return res as DataConnection;
-    }),
+    });
+    return res.data;
+  },
 
-  delete: (id: string) =>
-    apiClient<void>(`/api/data-connections/${id}`, { method: 'DELETE' }),
+  delete: async (id: string): Promise<void> => {
+    await apiClient<void>(`/api/v1/data-connections/${id}`, { method: 'DELETE' });
+  },
 
-  test: (data: TestDataConnectionRequest) =>
-    apiClient<any>('/api/data-connections/test', {
+  test: async (data: TestDataConnectionRequest): Promise<TestDataConnectionResponse> => {
+    const res = await apiClient<ApiResponse<TestDataConnectionResponse>>('/api/v1/data-connections/test', {
       method: 'POST',
       body: JSON.stringify(data),
-    }).then(res => (res?.data ?? res) as TestDataConnectionResponse),
+    });
+    return res.data;
+  },
 };

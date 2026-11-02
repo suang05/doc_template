@@ -80,7 +80,7 @@ export const ApiDocsView: React.FC = () => {
                     POST
                   </span>
                   <span className="font-mono text-xs font-semibold text-textPrimary">
-                    /api/documents/generate/:slug
+                    /api/v1/documents/generate/:slug
                   </span>
                 </div>
                 <p className="text-xs text-textSecondary">
@@ -159,7 +159,7 @@ export const ApiDocsView: React.FC = () => {
 
                 {codeLang === 'curl' && (
                   <CodeBlock
-                    code={`curl -X POST "${API_BASE}/api/documents/generate/condo-sales-agreement" \\
+                    code={`curl -X POST "${API_BASE}/api/v1/documents/generate/condo-sales-agreement" \\
   -H "X-API-Key: YOUR_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{"payload":{"contractNo":"SMK-CONDO-2026-001","customerName":"นายสมชาย ใจดี"},"outputFormat":"pdf"}'`}
@@ -230,7 +230,7 @@ var result = await response.Content.ReadFromJsonAsync<DocumentResult>();`}
                     POST
                   </span>
                   <span className="font-mono text-xs font-semibold text-textPrimary">
-                    /api/documents/preview/:slug
+                    /api/v1/documents/preview/:slug
                   </span>
                 </div>
                 <p className="text-xs text-textSecondary">
@@ -271,7 +271,7 @@ var result = await response.Content.ReadFromJsonAsync<DocumentResult>();`}
                     GET
                   </span>
                   <span className="font-mono text-xs font-semibold text-textPrimary">
-                    /api/documents/:documentRef/versions
+                    /api/v1/documents/:documentRef/versions
                   </span>
                 </div>
                 <p className="text-xs text-textSecondary">

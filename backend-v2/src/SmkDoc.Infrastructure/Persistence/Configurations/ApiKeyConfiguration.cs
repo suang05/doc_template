@@ -23,8 +23,11 @@ public sealed class ApiKeyConfiguration : IEntityTypeConfiguration<ApiKey>
         builder.Property(e => e.KeyHash).IsRequired().HasMaxLength(255)
             .HasConversion(v => v.Value, v => new Sha256Hash(v));
         builder.Property(e => e.Expiration)
-            .HasColumnName("expires_at")
-            .HasConversion(v => v.ExpiresAt, v => ExpirationPolicy.FromExisting(v));
+            .HasColumnName("ExpiresAt")
+            .IsRequired(false)
+            .HasConversion(
+                v => v != null ? v.ExpiresAt : null,
+                v => ExpirationPolicy.FromExisting(v));
         builder.Property(e => e.Scope)
             .HasConversion(s => s.Name, v => ApiKeyScope.FromDisplayName<ApiKeyScope>(v))
             .HasMaxLength(20)
