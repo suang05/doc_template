@@ -29,6 +29,7 @@ public sealed class GenerateDocumentUseCaseTests
     private readonly IDocumentRepository _documentRepo = Substitute.For<IDocumentRepository>();
     private readonly IStorageService _storageService = Substitute.For<IStorageService>();
     private readonly IRenderEngine _engine = Substitute.For<IRenderEngine>();
+    private readonly IRenderEngineFactory _engineFactory = Substitute.For<IRenderEngineFactory>();
     private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
     private readonly IFieldMappingApplicatorService _applicator = Substitute.For<IFieldMappingApplicatorService>();
@@ -38,6 +39,7 @@ public sealed class GenerateDocumentUseCaseTests
 
     public GenerateDocumentUseCaseTests()
     {
+        _engineFactory.GetEngine(Arg.Any<RenderEngineType>()).Returns(_engine);
         _unitOfWork.CommitAsync(Arg.Any<CancellationToken>()).Returns(1);
         var projectId = Guid.NewGuid();
         _projectContext.IsResolved.Returns(true);
@@ -67,7 +69,7 @@ public sealed class GenerateDocumentUseCaseTests
         return new GenerateDocumentUseCase(
             _templateRepo,
             _storageService,
-            new[] { _engine },
+            _engineFactory,
             dataPrep,
             audit,
             versioning,

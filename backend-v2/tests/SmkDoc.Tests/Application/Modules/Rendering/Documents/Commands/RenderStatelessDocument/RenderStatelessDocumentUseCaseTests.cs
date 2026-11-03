@@ -11,15 +11,17 @@ namespace SmkDoc.Tests.Application.Modules.Rendering.Documents.Commands.RenderSt
 public sealed class RenderStatelessDocumentUseCaseTests
 {
     private readonly IRenderEngine _docxEngine = Substitute.For<IRenderEngine>();
+    private readonly IRenderEngineFactory _engineFactory = Substitute.For<IRenderEngineFactory>();
     private readonly IDocxSecurityScanner _securityScanner = Substitute.For<IDocxSecurityScanner>();
 
     public RenderStatelessDocumentUseCaseTests()
     {
         _docxEngine.EngineType.Returns(RenderEngineType.Docx);
+        _engineFactory.GetEngine(Arg.Any<RenderEngineType>()).Returns(_docxEngine);
         _securityScanner.Scan(Arg.Any<Stream>()).Returns(new DocxScanResult(true, []));
     }
 
-    private RenderStatelessDocumentUseCase CreateSut() => new([_docxEngine], _securityScanner);
+    private RenderStatelessDocumentUseCase CreateSut() => new(_engineFactory, _securityScanner);
 
     [Fact]
     public async Task ExecuteAsync_WithSafeDocxFile_ShouldScanAndCallDocxEngine()

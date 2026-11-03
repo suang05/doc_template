@@ -15,7 +15,7 @@ namespace SmkDoc.Application.Modules.Rendering.Documents;
 public sealed class GenerateDocumentUseCase(
     ITemplateRepository templateRepo,
     IStorageService storageService,
-    IEnumerable<IRenderEngine> engines,
+    IRenderEngineFactory engineFactory,
     IDocumentDataPreparationService dataPreparationService,
     IDocumentAuditService auditService,
     IDocumentVersioningService versioningService,
@@ -58,8 +58,7 @@ public sealed class GenerateDocumentUseCase(
         };
 
         var engineType = currentVersion.GetRenderEngineType();
-        var engine = engines.FirstOrDefault(e => e.EngineType == engineType)
-            ?? throw new RenderException(slug, engineType.ToString(), $"No render engine registered for engine type '{engineType}'.");
+        var engine = engineFactory.GetEngine(engineType);
 
         string? preparedDataJson = null;
         string ext = outputFormat.Extension;

@@ -20,7 +20,8 @@ public sealed class DomainEventHandlersTests
         var projectId = ProjectId.New();
         var versionId = Guid.NewGuid();
         var evt = new TemplatePublishedDomainEvent(templateId, projectId, versionId, 3, TestConstants.BaselineTime);
-        var sut = new TemplatePublishedEventHandler(_auditService);
+        var cacheBus = Substitute.For<ITemplateCacheInvalidationBus>();
+        var sut = new TemplatePublishedEventHandler(_auditService, cacheBus);
 
         // Act
         await sut.HandleAsync(evt);

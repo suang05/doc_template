@@ -16,16 +16,18 @@ public sealed class PreviewDocumentUseCaseTests
     private readonly ITemplateRepository _templateRepo = Substitute.For<ITemplateRepository>();
     private readonly IStorageService _storage = Substitute.For<IStorageService>();
     private readonly IRenderEngine _engine = Substitute.For<IRenderEngine>();
+    private readonly IRenderEngineFactory _engineFactory = Substitute.For<IRenderEngineFactory>();
 
     public PreviewDocumentUseCaseTests()
     {
         _engine.EngineType.Returns(RenderEngineType.Html);
+        _engineFactory.GetEngine(Arg.Any<RenderEngineType>()).Returns(_engine);
     }
 
     private PreviewDocumentUseCase CreateSut() => new(
         _templateRepo,
         _storage,
-        [_engine]
+        _engineFactory
     );
 
     [Fact]

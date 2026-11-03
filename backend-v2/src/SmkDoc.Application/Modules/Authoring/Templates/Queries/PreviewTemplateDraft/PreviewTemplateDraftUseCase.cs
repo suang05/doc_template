@@ -11,7 +11,7 @@ namespace SmkDoc.Application.Modules.Authoring.Templates.Queries.PreviewTemplate
 /// </summary>
 public sealed class PreviewTemplateDraftUseCase(
     ITemplateDraftCache draftCache,
-    IEnumerable<IRenderEngine> engines,
+    IRenderEngineFactory engineFactory,
     ICurrentProjectContext projectContext) : IUseCase<PreviewTemplateDraftQuery, Stream>
 {
     public async Task<Stream> ExecuteAsync(PreviewTemplateDraftQuery query, CancellationToken ct = default)
@@ -38,7 +38,6 @@ public sealed class PreviewTemplateDraftUseCase(
             ".docx" => RenderEngineType.Docx,
             _       => RenderEngineType.Html,
         };
-        return engines.FirstOrDefault(e => e.EngineType == type)
-            ?? throw new RenderException("draft", type.ToString(), $"No render engine registered for '{ext}'.");
+        return engineFactory.GetEngine(type);
     }
 }

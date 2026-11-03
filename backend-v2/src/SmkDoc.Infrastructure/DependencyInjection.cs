@@ -194,6 +194,7 @@ public static class DependencyInjection
         services.AddScoped<IRenderEngine, HtmlTemplateEngine>();
         services.AddScoped<IRenderEngine, DocxTemplateEngine>();
         services.AddScoped<IRenderEngine, ExcelTemplateEngine>();
+        services.AddScoped<IRenderEngineFactory, RenderEngineFactory>();
 
         // 8. Security Services
         services.AddSingleton<IPasswordHasher, BcryptPasswordHasher>();

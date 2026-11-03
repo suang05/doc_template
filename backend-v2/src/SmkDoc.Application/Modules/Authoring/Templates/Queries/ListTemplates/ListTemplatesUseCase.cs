@@ -23,7 +23,6 @@ public sealed class ListTemplatesUseCase(
         int pageSize = Math.Clamp(query.PageSize, 1, 100);
 
         var (items, totalCount) = await templateQueryService.ListPagedAsync(
-            projectContext.ProjectId,
             query.SearchTerm,
             query.Category,
             query.IsActive,

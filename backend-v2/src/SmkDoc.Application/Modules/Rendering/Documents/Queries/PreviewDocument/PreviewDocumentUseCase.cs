@@ -15,7 +15,7 @@ namespace SmkDoc.Application.Modules.Rendering.Documents;
 public sealed class PreviewDocumentUseCase(
     ITemplateRepository templateRepo,
     IStorageService storageService,
-    IEnumerable<IRenderEngine> engines) : IUseCase<PreviewDocumentQuery, Stream>
+    IRenderEngineFactory engineFactory) : IUseCase<PreviewDocumentQuery, Stream>
 {
     public async Task<Stream> ExecuteAsync(PreviewDocumentQuery query, CancellationToken ct = default)
     {
@@ -50,8 +50,7 @@ public sealed class PreviewDocumentUseCase(
 
         try
         {
-            var engine = engines.FirstOrDefault(e => e.EngineType == engineType)
-                ?? throw new RenderException(query.Slug ?? "ephemeral", engineType.ToString(), $"No render engine registered for '{engineType}'.");
+            var engine = engineFactory.GetEngine(engineType);
 
             string dataJson = query.Payload.ValueKind != JsonValueKind.Undefined ? query.Payload.GetRawText() : "{}";
 

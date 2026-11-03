@@ -30,7 +30,6 @@ public sealed class ListTemplatesUseCaseTests
         await act.Should().ThrowAsync<ForbiddenException>()
             .WithMessage("*Active project context is required*");
         await _templateQueryService.DidNotReceive().ListPagedAsync(
-            Arg.Any<ProjectId>(),
             Arg.Any<string?>(),
             Arg.Any<string?>(),
             Arg.Any<bool?>(),
@@ -51,7 +50,6 @@ public sealed class ListTemplatesUseCaseTests
         _projectContext.ProjectId.Returns(new ProjectId(projectId));
 
         _templateQueryService.ListPagedAsync(
-            new ProjectId(projectId),
             Arg.Any<string?>(),
             Arg.Any<string?>(),
             Arg.Any<bool?>(),
@@ -85,7 +83,6 @@ public sealed class ListTemplatesUseCaseTests
         _projectContext.IsResolved.Returns(true);
         _projectContext.ProjectId.Returns(new ProjectId(projectId));
         _templateQueryService.ListPagedAsync(
-            new ProjectId(projectId),
             Arg.Any<string?>(),
             Arg.Any<string?>(),
             Arg.Any<bool?>(),
@@ -102,7 +99,6 @@ public sealed class ListTemplatesUseCaseTests
         result.Page.Should().Be(expectedPage);
         result.PageSize.Should().Be(expectedPageSize);
         await _templateQueryService.Received(1).ListPagedAsync(
-            new ProjectId(projectId),
             null,
             null,
             null,

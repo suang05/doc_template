@@ -56,9 +56,9 @@ ProactiveChallengeHeuristics:
     Action: Split into dedicated {TypeName}.cs files co-located inside Commands/{SliceName}/ or Queries/{SliceName}/ >> Ref: [RULE-CONV-005], [TRAP-APP-007]
 
 CoreExtensionSlots:
-  RenderingEngines: Pluggable IRenderEngine strategy dispatch (Html, Docx, Excel)
+  RenderingEngines: Pluggable IRenderEngineFactory polymorphic dispatch (Html, Docx, Excel via FrozenDictionary)
   ValidationPipeline: Automatic IValidator<TCommand> fail-fast execution at line 1
-  QueryProjections: Materialized PagedResultDto<T> with boundary clamping and jsonb-free SQL projections (ITemplateQueryService, IGenerationLogQueryService)
+  QueryProjections: Materialized PagedResultDto<T> with boundary clamping, ambient tenant isolation, and jsonb-free SQL projections (ITemplateQueryService, IGenerationLogQueryService)
   CompiledTemplateCache: ICompiledTemplateCache + ITemplateCacheInvalidationBus (64-stripe compiled AST cache with post-commit Redis Pub/Sub cross-pod invalidation)
   DatasetResultCache: IDatasetResultCache (Tenant-isolated external SQL JSON result cache honoring Dataset.CacheSeconds via Redis/Memory)
   TemplateDraftCache: ITemplateDraftCache (Zero-LOH tenant-scoped draft metadata in Redis/Memory + binary stream in MinIO StorageBuckets.Drafts)

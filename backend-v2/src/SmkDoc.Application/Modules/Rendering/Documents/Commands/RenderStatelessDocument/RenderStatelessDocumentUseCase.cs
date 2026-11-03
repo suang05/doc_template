@@ -11,15 +11,14 @@ namespace SmkDoc.Application.Modules.Rendering.Documents;
 /// Rule: NEVER upload to MinIO, NEVER write to generation_logs, NEVER increment versions.
 /// </summary>
 public sealed class RenderStatelessDocumentUseCase(
-    IEnumerable<IRenderEngine> engines,
+    IRenderEngineFactory engineFactory,
     IDocxSecurityScanner securityScanner) : IUseCase<RenderStatelessDocumentCommand, Stream>
 {
     public async Task<Stream> ExecuteAsync(RenderStatelessDocumentCommand command, CancellationToken ct = default)
     {
         string ext = Path.GetExtension(command.FileName).ToLowerInvariant();
         var engineType = GetEngineTypeFromExtension(ext);
-        var engine = engines.FirstOrDefault(e => e.EngineType == engineType)
-            ?? throw new NotSupportedException($"No render engine found for {engineType}");
+        var engine = engineFactory.GetEngine(engineType);
 
         string payload = string.IsNullOrWhiteSpace(command.JsonData) ? "{}" : command.JsonData;
 

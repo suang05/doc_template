@@ -11,7 +11,6 @@ public sealed class TemplateQueryService(AppDbContext context) : ITemplateQueryS
     private readonly AppDbContext _context = context;
 
     public async Task<(IReadOnlyList<TemplateResultDto> Items, int TotalCount)> ListPagedAsync(
-        ProjectId projectId,
         string? searchTerm,
         string? category,
         bool? isActive,
@@ -20,8 +19,7 @@ public sealed class TemplateQueryService(AppDbContext context) : ITemplateQueryS
         CancellationToken ct = default)
     {
         IQueryable<Template> query = _context.Templates
-            .AsNoTracking()
-            .Where(t => t.ProjectId == projectId);
+            .AsNoTracking();
 
         if (isActive.HasValue)
         {
