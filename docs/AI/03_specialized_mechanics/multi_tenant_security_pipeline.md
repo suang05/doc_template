@@ -30,13 +30,20 @@ UpstreamKernel: AGENTS.md
 | **Dual Ambient Contexts** | Maintaining a separate `IExecutionContext` alongside `ICurrentProjectContext` | Retire `IExecutionContext`; inject unified channel-agnostic `ICurrentProjectContext` everywhere |
 | **Cross-Tenant Queries** | Manual `WHERE project_id = @id` clauses in repositories | EF Core fail-closed Global Query Filter (`IsTenantResolved && e.ProjectId == CurrentTenantId`) |
 | **Tenant Filter Bypass** | Invoking `.IgnoreQueryFilters()` in standard user routes | Strictly prohibited; ambient context scopes all queries automatically |
-| **Key Validation** | Variable-time string comparison (`key == storedHash`) | Constant-time comparison: `CryptographicOperations.FixedTimeEquals` |
-| **Parameter Spoofing** | Accepting caller `ProjectId` overrides in tenant Commands/Queries | Omit `ProjectId` from tenant payloads; reject conflicting legacy route/query params with `ForbiddenException` (403) |
+| **Key Validation** | Variable-time string comparison (`key == storedHash` or `rawKey == masterKey`) | Constant-time comparison: `CryptographicOperations.FixedTimeEquals` across all key checks |
+| **Parameter Spoofing** | Accepting caller `ProjectId` overrides in tenant Commands/Queries | Omit `ProjectId` from tenant payloads and Command records; resolve ambient `ICurrentProjectContext` directly inside UseCases |
+| **API Key Issuance** | Permitting tenant members or portal users to self-issue API keys | Centralized SuperAdmin issuance strictly via `POST /api/v1/management/projects/{projectId}/api-keys` |
+| **API Key Quota & Sprawl** | Unbounded key creation per project or duplicate scope allocation | Strict budget: max 2 active keys per tenant (1 `ReadOnly` + 1 `ReadWrite`), returning `409 Conflict` on duplicate |
+| **Key Exposure Wire Contract** | Returning `keyHash` or plaintext secret in `GET` responses | Return masked key (`smk_crm_****abcd`); emit raw secret once upon `POST` creation exclusively |
+| **User Management Routes** | Maintaining duplicate nested routes (`/management/projects/{projectId}/users`) alongside flat resource routes | Enforce canonical flat RESTful endpoints (`/api/v1/users`, `/api/v1/users/{userId}/role`); eliminate redundant Controller duplicates |
 | **Route Precedence** | Extracting tenant identifier strictly from headers | Route (`{projectId}`) => Header (`X-Project-Id`) => JWT Claim (`ProjectId`), rejecting Route vs Header conflicts (400) |
 | **Role Claim Hydration** | Ad-hoc controller role queries or skipping global SuperAdmin claims | Hydrate `SuperAdmin` + `Admin` claims unconditionally for SuperAdmins; hydrate project `RoleType` claim on tenant routes |
 | **M2M Scope Enforcement** | Allowing `ApiKeyScope.ReadOnly` keys to execute mutating HTTP verbs | Reject `POST`/`PUT`/`PATCH`/`DELETE` with `403 Forbidden` except zero-side-effect stateless `preview`/`validate` routes |
 | **Preview Bypass** | Whitelisting `/preview` endpoints as unauthenticated public paths | Require authenticated tenant context on all preview routes to resolve templates and protect Gotenberg |
 | **Idempotency Partition** | Keying idempotency store by shared `CallerApp` (`idempotency:portal:{key}`) | Partition strictly by resolved tenant: `idempotency:{ProjectId:N}:{IdempotencyKey}` |
+| **M2M Principal Hydration** | Leaving `HttpContext.User` unhydrated or empty on API key auth | Hydrate `ClaimsPrincipal` with `ApiKey` identity, `ProjectId`, `ApiKeyScope`, and `CallerApp` claims so `[Authorize(Policy = "...")]` treats M2M as first-class citizen |
+| **User Tenancy Scoping** | Adding `ProjectId` column to global `User` entity | `User` is a global identity (zero `ProjectId` column); multi-project access is mapped strictly through `UserProjectRole` |
+| **Route Sunset Strategy** | Hard-deleting legacy `/api/*` endpoints causing external ERP outages | Annotate with `[DeprecatedRoute]` emitting RFC 8594 `Sunset`, `Deprecation`, and `Link` headers before decommissioning |
 
 ---
 
@@ -50,6 +57,8 @@ UpstreamKernel: AGENTS.md
 * **Why Route Precedence with Conflict Rejection:** Administrative endpoints like `/api/v1/management/projects/{projectId}/users` define resource hierarchy in the URI; parsing `{projectId}` from route values and rejecting mismatches against `X-Project-Id` prevents cross-project header bleed.
 * **Why Unconditional SuperAdmin Claim Hydration:** Global endpoints such as `POST /api/v1/management/projects` execute before a target project exists; hydrating `SuperAdmin` and `Admin` role claims prior to tenant resolution allows `[Authorize(Roles = RoleConstants.AdminOrSuperAdmin)]` to succeed without weakening tenant checks on project-scoped routes.
 * **Why Perimeter Enforcement of `ApiKeyScope.ReadOnly`:** Blocking state-mutating HTTP methods at `ProjectContextMiddleware` prevents read-only integration keys from creating templates, uploading fonts, or persisting documents while still permitting stateless POST `preview` and `validate` calls without leaking M2M scope checks into UseCases.
+* **Why Centralized SuperAdmin Key Issuance & 2-Key Quota:** Delegating API key creation to tenant members causes uncontrolled key sprawl and shadow credentials; restricting issuance exclusively to `SuperAdmin` with a hard limit of 2 keys (`ReadOnly` and `ReadWrite`) bounds attack surface and enforces strict enterprise governance.
+* **Why Masked Key Wire Contract:** Exposing full SHA-256 hashes in API responses enables offline dictionary and rainbow-table attacks; returning masked prefixes with one-time raw secret delivery at creation time completely closes information disclosure.
 
 ### Cognitive Tenancy Optimization & Guard Engine
 ```yaml

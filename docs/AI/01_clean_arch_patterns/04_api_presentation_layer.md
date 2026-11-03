@@ -31,9 +31,15 @@ UpstreamKernel: AGENTS.md
 | **Response Formats** | Raw anonymous objects: `return Ok(new { data = ... })` | Strongly-typed `ApiResponse<T>` or `PagedApiResponse<T>` |
 | **Error Format** | Custom ad-hoc error JSON objects | RFC 9457 `ProblemDetails` dispatched via `GlobalExceptionHandler` |
 | **Validation Error Payload**| Omitting field error dictionary from validation response | Structured RFC 9457 `errors` dictionary populated in `problemDetails.Extensions["errors"]` |
-| **Mutating Routes** | Unprotected mutations without idempotency safeguards | `[Idempotent]` filter on `POST`, `PUT`, `DELETE` routes |
-| **Binary Downloads** | In-memory `byte[]` arrays returned via `File(byte[], ...)` | Direct streaming via `Response.Body` or `File(Stream, ...)` |
-| **Route Naming** | Inconsistent verb/camelCase routes: `/api/createTemplate` | RESTful plural kebab-case: `api/v1/templates`, `api/v1/data-sources` |
+| **POST Idempotency** | Unprotected POST mutations without idempotency safeguards | `[Idempotent]` filter on state-mutating `POST` endpoints (`Idempotency-Key` header) |
+| **PUT/DELETE Concurrency** | Applying Redis lock idempotency to naturally idempotent PUT/DELETE or allowing lost updates | Optimistic Concurrency Control (`ETag` / `If-Match`) via PostgreSQL `xmin` token; return `412 Precondition Failed` on mismatch |
+| **Connectivity Test Semantics** | Returning HTTP 400 for negative network reachability results | Return HTTP 200 OK with `{ success: false, message }`; reserve HTTP 4xx strictly for invalid payloads or SSRF blocks |
+| **SSRF Defense** | Probing internal networks via unvalidated database connection strings | Pre-flight `ConnectionHostValidator` blocking loopback, link-local, cloud metadata (`169.254.x.x`), and Docker aliases (`postgres`, `minio`, `redis`) |
+| **Binary Downloads** | In-memory `byte[]` arrays or raw MinIO 307 redirects to external clients | Server-side direct bounded streaming via `Response.Body` or `File(Stream, ...)` with `81,920` buffer |
+| **Route Naming** | Inconsistent verb/camelCase routes: `/api/createTemplate` | RESTful plural kebab-case: `api/v1/templates`, `api/v1/data-connections` (zero legacy `/api/*` aliases) |
+| **Validation SSoT** | Duplicating payload validation across template and document controllers | Canonical SSoT strictly at `POST /api/v1/documents/validate/{slug}`; Studio validate reserved for HTML syntax |
+| **Integration RBAC** | Unrestricted `[Authorize]` allowing general members to manage DB credentials | Restrict Data Connection CRUD/Test to `AdminOrSuperAdmin`; restrict Dataset CRUD to `AuthorOrAdmin` |
+| **Controller Topology** | Fragmenting sub-resources across uncontrolled ad-hoc controllers | Cohesive feature slices: `TemplateController` (Core & Scan), `TemplateDraftController` (RAM Pipeline), `TemplateStudioController` (HTML & Mappings), `TemplateVersionController` (Rollback), `TemplateDatasetController` |
 | **Top-Level Arrays** | Accepting raw array: `[FromBody] List<TItem>` | Wrapped batch envelope: `[FromBody] BatchRequest { Items = [...] }` |
 | **Timestamp Wire Format**| Unspecified/local datetime strings | Strict ISO-8601 UTC with `Z` suffix (`2026-10-21T15:30:00Z`) |
 | **OpenAPI Schema Metadata**| Action without `[ProducesResponseType]` metadata | Explicit `[ProducesResponseType(typeof(ApiResponse<T>), StatusCodes.Status200OK)]` |
@@ -96,6 +102,14 @@ CoreExtensionSlots:
   1. `apikey:{SHA-256(X-API-Key)}` (never store raw secret API keys in Redis)
   2. `user:{UserId}` (authenticated JWT `sub` / `NameIdentifier` so Web Studio users behind corporate NAT do not share one IP bucket)
   3. `ip:{RemoteIpAddress}` (unauthenticated/public routes)
+
+### Specialized Rate Limiting Policies Matrix
+| Policy Name | Target Endpoints | Limit & Window | Rejection Status | Primary Architectural Rationale |
+|---|---|---|---|---|
+| `auth-strict` | `POST /api/v1/auth/login`, `POST /api/v1/auth/refresh` | 5 permits / 1 min (by IP) | `429 Too Many Requests` | Defends against password brute-force and credential stuffing |
+| `rendering` | `POST /api/v1/documents/generate/*`, `preview*`, `render` | 30 permits / 1 min (by Tenant) | `429 Too Many Requests` | Protects Gotenberg Chromium pods from memory saturation and OOM crashes |
+| `test-conn` | `POST /api/v1/data-connections/test` | 10 permits / 1 min (by User/IP) | `429 Too Many Requests` | Mitigates internal network scanning, port enumeration, and SSRF probing |
+| `api` | All standard CRUD, query, and management endpoints | 60 permits / 1 min (by Partition) | `429 Too Many Requests` | Baseline API throttling for fair resource distribution |
 
 ### OWASP Top-Level Array Envelope
 ```csharp

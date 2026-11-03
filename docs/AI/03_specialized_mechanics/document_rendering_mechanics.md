@@ -33,6 +33,9 @@ UpstreamKernel: AGENTS.md
 | **Thai Formatting** | Inline date / Baht text conversions inside Handlebars | Centralized `ThaiDataTransformer` helper methods |
 | **Thai Font Marks** | Missing Thai tone marks or floating vowels in PDF | Automated Google Fonts Sarabun injection in `HtmlLayoutProcessor` |
 | **Synchronous Rendering**| Blocking on network/disk I/O (`.Result`, `.Wait()`) | 100% asynchronous execution with forwarded `CancellationToken` |
+| **Storage Perimeter Egress** | Emitting HTTP 307 redirects or raw MinIO URLs to clients | Enforce server-side bounded streaming pass-through (`81,920` buffer) to keep storage infrastructure isolated within private VPC |
+| **Resource Protection** | Allowing unthrottled rendering requests to saturate Gotenberg Chromium | Enforce dedicated `rendering` rate-limiting policy (30 req/min per tenant) returning RFC 9457 ProblemDetails (429) |
+| **Enterprise Batch Rendering** | Forcing high-volume batch renders through synchronous 30 req/min endpoint causing 429 rejections | 2-Track Architecture: 1) Sync Pipeline for Monaco Live Preview, 2) Async Queue (`POST /api/v1/documents/generate-async`, 202 Accepted, Redis worker with controlled Gotenberg backpressure) |
 
 ---
 
