@@ -1,9 +1,9 @@
+using System.Reflection;
 using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Helpers;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
-using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common;
@@ -33,12 +33,14 @@ public sealed class DatasetAliasMapBuilderTests
 
         // Assert
         result.Should().BeEmpty();
+        await _datasetRepo.DidNotReceive().GetByIdsAsync(Arg.Any<IEnumerable<DatasetId>>(), Arg.Any<CancellationToken>());
         await _datasetRepo.DidNotReceive().GetByIdAsync(Arg.Any<DatasetId>(), Arg.Any<CancellationToken>());
+        await _connectionRepo.DidNotReceive().GetByIdsAsync(Arg.Any<IEnumerable<DataConnectionId>>(), Arg.Any<CancellationToken>());
         await _connectionRepo.DidNotReceive().GetByIdAsync(Arg.Any<DataConnectionId>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task BuildAsync_WhenAssignmentsValid_ResolvesConnectionAndDecryptsQuery()
+    public async Task BuildAsync_WhenDatasetNavigationHydrated_UsesSingleBatchQueryWithoutCallingConnectionRepository()
     {
         // Arrange
         var datasetId = Guid.NewGuid();
@@ -49,21 +51,24 @@ public sealed class DatasetAliasMapBuilderTests
             .WithSortOrder(1)
             .WithTime(TestConstants.BaselineTime)
             .Build();
-        var dataset = new DatasetBuilder()
-            .WithId(datasetId)
-            .WithDataConnectionId(connectionId)
-            .WithSqlQuery("SELECT * FROM orders")
-            .Build();
         var connection = new DataConnectionBuilder()
             .WithId(connectionId)
             .WithProvider(DatabaseProvider.PostgreSQL)
             .WithConnectionString("enc:Host=pg")
             .Build();
+        var dataset = new DatasetBuilder()
+            .WithId(datasetId)
+            .WithDataConnectionId(connectionId)
+            .WithSqlQuery("SELECT * FROM orders")
+            .WithCacheSeconds(120)
+            .Build();
 
-        _datasetRepo.GetByIdAsync(new DatasetId(datasetId), Arg.Any<CancellationToken>())
-            .Returns(dataset);
-        _connectionRepo.GetByIdAsync(new DataConnectionId(connectionId), Arg.Any<CancellationToken>())
-            .Returns(connection);
+        typeof(Dataset)
+            .GetProperty(nameof(Dataset.DataConnection), BindingFlags.Public | BindingFlags.Instance)!
+            .SetValue(dataset, connection);
+
+        _datasetRepo.GetByIdsAsync(Arg.Any<IEnumerable<DatasetId>>(), Arg.Any<CancellationToken>())
+            .Returns([dataset]);
         _dataProtection.Decrypt("enc:Host=pg")
             .Returns("Host=pg;Port=5432");
 
@@ -80,6 +85,55 @@ public sealed class DatasetAliasMapBuilderTests
         result["ds1"].Provider.Should().Be("PostgreSQL");
         result["ds1"].ConnectionString.Should().Be("Host=pg;Port=5432");
         result["ds1"].SqlQuery.Should().Be("SELECT * FROM orders");
+        result["ds1"].DatasetId.Should().Be(datasetId);
+        result["ds1"].DataConnectionId.Should().Be(connectionId);
+        result["ds1"].CacheSeconds.Should().Be(120);
+
+        await _datasetRepo.Received(1).GetByIdsAsync(Arg.Any<IEnumerable<DatasetId>>(), Arg.Any<CancellationToken>());
+        await _datasetRepo.DidNotReceive().GetByIdAsync(Arg.Any<DatasetId>(), Arg.Any<CancellationToken>());
+        await _connectionRepo.DidNotReceive().GetByIdsAsync(Arg.Any<IEnumerable<DataConnectionId>>(), Arg.Any<CancellationToken>());
+        await _connectionRepo.DidNotReceive().GetByIdAsync(Arg.Any<DataConnectionId>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task BuildAsync_WhenMultipleAliasesShareDataConnection_BatchesAndDecryptsConnectionOnce()
+    {
+        // Arrange
+        var datasetId1 = Guid.NewGuid();
+        var datasetId2 = Guid.NewGuid();
+        var sharedConnectionId = Guid.NewGuid();
+
+        var td1 = new TemplateDatasetBuilder().WithDatasetId(datasetId1).WithAlias("orders").WithSortOrder(1).Build();
+        var td2 = new TemplateDatasetBuilder().WithDatasetId(datasetId2).WithAlias("items").WithSortOrder(2).Build();
+
+        var ds1 = new DatasetBuilder().WithId(datasetId1).WithDataConnectionId(sharedConnectionId).WithSqlQuery("SELECT 1").WithCacheSeconds(30).Build();
+        var ds2 = new DatasetBuilder().WithId(datasetId2).WithDataConnectionId(sharedConnectionId).WithSqlQuery("SELECT 2").WithCacheSeconds(60).Build();
+        var sharedConnection = new DataConnectionBuilder()
+            .WithId(sharedConnectionId)
+            .WithProvider(DatabaseProvider.PostgreSQL)
+            .WithConnectionString("enc:shared")
+            .Build();
+
+        _datasetRepo.GetByIdsAsync(Arg.Any<IEnumerable<DatasetId>>(), Arg.Any<CancellationToken>())
+            .Returns([ds1, ds2]);
+        _connectionRepo.GetByIdsAsync(Arg.Any<IEnumerable<DataConnectionId>>(), Arg.Any<CancellationToken>())
+            .Returns([sharedConnection]);
+        _dataProtection.Decrypt("enc:shared")
+            .Returns("Host=shared-db");
+
+        // Act
+        var result = await DatasetAliasMapBuilder.BuildAsync(
+            [td1, td2],
+            _datasetRepo,
+            _connectionRepo,
+            _dataProtection,
+            CancellationToken.None);
+
+        // Assert
+        result.Should().HaveCount(2);
+        result["orders"].CacheSeconds.Should().Be(30);
+        result["items"].CacheSeconds.Should().Be(60);
+        _dataProtection.Received(1).Decrypt("enc:shared");
     }
 
     [Fact]
@@ -94,8 +148,8 @@ public sealed class DatasetAliasMapBuilderTests
             .WithTime(TestConstants.BaselineTime)
             .Build();
 
-        _datasetRepo.GetByIdAsync(new DatasetId(datasetId), Arg.Any<CancellationToken>())
-            .Returns((Dataset?)null);
+        _datasetRepo.GetByIdsAsync(Arg.Any<IEnumerable<DatasetId>>(), Arg.Any<CancellationToken>())
+            .Returns(Array.Empty<Dataset>());
 
         // Act
         var result = await DatasetAliasMapBuilder.BuildAsync(
@@ -107,7 +161,7 @@ public sealed class DatasetAliasMapBuilderTests
 
         // Assert
         result.Should().BeEmpty();
-        await _connectionRepo.DidNotReceive().GetByIdAsync(Arg.Any<DataConnectionId>(), Arg.Any<CancellationToken>());
+        await _connectionRepo.DidNotReceive().GetByIdsAsync(Arg.Any<IEnumerable<DataConnectionId>>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -127,10 +181,10 @@ public sealed class DatasetAliasMapBuilderTests
             .WithDataConnectionId(connectionId)
             .Build();
 
-        _datasetRepo.GetByIdAsync(new DatasetId(datasetId), Arg.Any<CancellationToken>())
-            .Returns(dataset);
-        _connectionRepo.GetByIdAsync(new DataConnectionId(connectionId), Arg.Any<CancellationToken>())
-            .Returns((DataConnection?)null);
+        _datasetRepo.GetByIdsAsync(Arg.Any<IEnumerable<DatasetId>>(), Arg.Any<CancellationToken>())
+            .Returns([dataset]);
+        _connectionRepo.GetByIdsAsync(Arg.Any<IEnumerable<DataConnectionId>>(), Arg.Any<CancellationToken>())
+            .Returns(Array.Empty<DataConnection>());
 
         // Act
         var result = await DatasetAliasMapBuilder.BuildAsync(
@@ -155,10 +209,10 @@ public sealed class DatasetAliasMapBuilderTests
         var dataset = new DatasetBuilder().WithId(datasetId).WithDataConnectionId(connectionId).Build();
         var connection = new DataConnectionBuilder().WithId(connectionId).WithConnectionString("corrupted_secret").Build();
 
-        _datasetRepo.GetByIdAsync(new DatasetId(datasetId), Arg.Any<CancellationToken>())
-            .Returns(dataset);
-        _connectionRepo.GetByIdAsync(new DataConnectionId(connectionId), Arg.Any<CancellationToken>())
-            .Returns(connection);
+        _datasetRepo.GetByIdsAsync(Arg.Any<IEnumerable<DatasetId>>(), Arg.Any<CancellationToken>())
+            .Returns([dataset]);
+        _connectionRepo.GetByIdsAsync(Arg.Any<IEnumerable<DataConnectionId>>(), Arg.Any<CancellationToken>())
+            .Returns([connection]);
         _dataProtection.Decrypt("corrupted_secret")
             .Throws(new InvalidOperationException("Decryption error"));
 

@@ -4,10 +4,11 @@ using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
 using SmkDoc.Application.Common.Helpers;
 using SmkDoc.Application.Common.Interfaces;
+using SmkDoc.Application.Common.Streams;
 
 namespace SmkDoc.Infrastructure.Engines;
 
-public class TemplateScannerService : ITemplateScannerService
+public sealed class TemplateScannerService : ITemplateScannerService
 {
     public async Task<List<string>> ScanPlaceholdersAsync(Stream stream, string fileExtension, CancellationToken ct = default)
     {
@@ -17,7 +18,7 @@ public class TemplateScannerService : ITemplateScannerService
         {
             ".docx" => await ExtractDocxTextAsync(stream, ct),
             ".xlsx" => await ExtractXlsxTextAsync(stream, ct),
-            _       => await new StreamReader(stream, Encoding.UTF8).ReadToEndAsync(ct)
+            _       => await new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true, bufferSize: 8192, leaveOpen: true).ReadToEndAsync(ct)
         };
 
         return PlaceholderHelper.Pattern
@@ -34,11 +35,9 @@ public class TemplateScannerService : ITemplateScannerService
 
     private static async Task<string> ExtractDocxTextAsync(Stream stream, CancellationToken ct)
     {
-        using var ms = new MemoryStream();
-        await stream.CopyToAsync(ms, ct);
-        ms.Position = 0;
+        await using var spool = await HybridSpoolStream.SpoolFromAsync(stream, ct: ct);
 
-        using var doc = WordprocessingDocument.Open(ms, false);
+        using var doc = WordprocessingDocument.Open(spool, false);
         var sb = new StringBuilder();
 
         var body = doc.MainDocumentPart?.Document.Body;
@@ -59,11 +58,9 @@ public class TemplateScannerService : ITemplateScannerService
 
     private static async Task<string> ExtractXlsxTextAsync(Stream stream, CancellationToken ct)
     {
-        using var ms = new MemoryStream();
-        await stream.CopyToAsync(ms, ct);
-        ms.Position = 0;
+        await using var spool = await HybridSpoolStream.SpoolFromAsync(stream, ct: ct);
 
-        using var wb = new XLWorkbook(ms);
+        using var wb = new XLWorkbook(spool);
         var sb = new StringBuilder();
         foreach (var ws in wb.Worksheets)
             foreach (var row in ws.RowsUsed())

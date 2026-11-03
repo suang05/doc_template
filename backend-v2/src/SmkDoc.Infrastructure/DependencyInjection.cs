@@ -53,8 +53,6 @@ public static class DependencyInjection
                 maxRetryCount: 5,
                 maxRetryDelay: TimeSpan.FromSeconds(10),
                 errorCodesToAdd: null));
-            options.ConfigureWarnings(warnings =>
-                warnings.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
             options.AddInterceptors(sp.GetRequiredService<TenantSecuritySaveChangesInterceptor>());
         });
 
@@ -70,6 +68,7 @@ public static class DependencyInjection
         services.AddScoped<IDocumentRepository, DocumentRepository>();
         services.AddScoped<IGenerationLogRepository, GenerationLogRepository>();
         services.AddScoped<IGenerationLogMetricsRepository, GenerationLogMetricsRepository>();
+        services.AddScoped<IGenerationLogQueryService, GenerationLogQueryService>();
         services.AddScoped<IUserWorkspaceQueryService, UserWorkspaceQueryService>();
         services.AddScoped<IProjectQueryService, ProjectQueryService>();
         services.AddScoped<ITemplateQueryService, TemplateQueryService>();
@@ -179,8 +178,10 @@ public static class DependencyInjection
         services.AddSingleton<ITemplateScannerService, TemplateScannerService>();
         services.AddSingleton<ISchemaInferenceService, SchemaInferenceService>();
         services.AddSingleton<IJsonSchemaValidationService, JsonSchemaValidationService>();
+        services.AddMemoryCache();
         services.AddSingleton<ITemplateDraftCache, InMemoryTemplateDraftCache>();
         services.AddSingleton<ICompiledTemplateCache, MemoryCompiledTemplateCache>();
+        services.AddSingleton<IDatasetResultCache, MemoryDatasetResultCache>();
         services.AddSingleton<IIdempotencyStore, MemoryIdempotencyStore>();
         services.AddSingleton<IDocumentMetrics, DocumentMetrics>();
 

@@ -40,10 +40,11 @@ public sealed class ExcelFixtureTemplateTests
         using var templateStream = File.OpenRead(fixturePath);
 
         var engine = CreateEngine();
-        var result = await engine.RenderAsync(templateStream, json, OutputFormat.Xlsx);
+        await using var resultStream = await engine.RenderStreamAsync(templateStream, json, OutputFormat.Xlsx);
 
-        result.Should().NotBeNullOrEmpty();
-        using var wb = new XLWorkbook(new MemoryStream(result));
+        resultStream.Should().NotBeNull();
+        resultStream.Length.Should().BeGreaterThan(0);
+        using var wb = new XLWorkbook(resultStream);
 
         // 1. Sheet 1 - Main Info
         var wsMain = wb.Worksheet("ข้อมูลหลัก");

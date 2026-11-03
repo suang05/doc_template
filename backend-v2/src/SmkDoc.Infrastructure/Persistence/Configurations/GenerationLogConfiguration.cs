@@ -16,8 +16,10 @@ public sealed class GenerationLogConfiguration : IEntityTypeConfiguration<Genera
         builder.HasKey(e => e.Id);
         builder.Property(e => e.ProjectId)
             .HasConversion(DomainValueConverters.ProjectIdConverter);
-        builder.HasIndex(e => e.ProjectId);
-        builder.HasIndex(e => e.CreatedAt);
+        builder.HasIndex(e => new { e.ProjectId, e.CreatedAt })
+            .IsDescending(false, true);
+        builder.HasIndex(e => new { e.ProjectId, e.CallerApp, e.CreatedAt })
+            .IsDescending(false, false, true);
         builder.Property(e => e.TemplateId)
             .HasConversion(id => id.HasValue ? id.Value.Value : (Guid?)null, v => v.HasValue ? new TemplateId(v.Value) : null);
         builder.Property(e => e.ApiKeyId)

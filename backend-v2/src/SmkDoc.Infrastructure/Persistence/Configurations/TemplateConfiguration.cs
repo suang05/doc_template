@@ -23,6 +23,7 @@ public sealed class TemplateConfiguration : IEntityTypeConfiguration<Template>
             .HasConversion(s => s.Value, v => new TemplateSlug(v))
             .IsRequired()
             .HasMaxLength(100);
+        builder.Property(e => e.Category).HasMaxLength(50);
         builder.Property(e => e.IsActive).HasDefaultValue(true);
         builder.Property(e => e.CreatedAt).HasDefaultValueSql("NOW()");
         builder.Property(e => e.UpdatedAt).HasDefaultValueSql("NOW()");

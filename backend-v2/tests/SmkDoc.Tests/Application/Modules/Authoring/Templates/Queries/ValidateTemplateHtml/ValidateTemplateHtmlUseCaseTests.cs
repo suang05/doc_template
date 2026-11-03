@@ -15,8 +15,8 @@ public sealed class ValidateTemplateHtmlUseCaseTests
     {
         // Arrange
         const string html = "<html><body><h1>Hello</h1><Field name=\"customerName\" label=\"Customer Name\" /><Field name=\"totalAmount\" label=\"Total\" /></body></html>";
-        _renderer.RenderHtmlToPdfAsync(html, Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
-            .Returns([0x25, 0x50, 0x44, 0x46]);
+        _renderer.RenderHtmlToPdfStreamAsync(html, Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns(_ => new MemoryStream([0x25, 0x50, 0x44, 0x46]));
 
         // Act
         TemplateValidationResultDto result = await CreateSut().ExecuteAsync(new ValidateTemplateHtmlQuery(html));
@@ -46,7 +46,7 @@ public sealed class ValidateTemplateHtmlUseCaseTests
     {
         // Arrange
         const string html = "<html><body><h1>Broken Render</h1></body></html>";
-        _renderer.RenderHtmlToPdfAsync(html, Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+        _renderer.RenderHtmlToPdfStreamAsync(html, Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
             .ThrowsAsync(new InvalidOperationException("Gotenberg 503 Unavailable"));
 
         // Act

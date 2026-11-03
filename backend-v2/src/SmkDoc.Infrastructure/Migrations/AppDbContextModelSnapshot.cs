@@ -25,7 +25,6 @@ namespace SmkDoc.Infrastructure.Migrations
             modelBuilder.Entity("SmkDoc.Domain.Entities.ApiKey", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
                     b.Property<string>("CallerApp")
@@ -38,8 +37,9 @@ namespace SmkDoc.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasDefaultValueSql("NOW()");
 
-                    b.Property<DateTimeOffset?>("ExpiresAt")
-                        .HasColumnType("timestamp with time zone");
+                    b.Property<DateTimeOffset?>("Expiration")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("ExpiresAt");
 
                     b.Property<bool>("IsActive")
                         .ValueGeneratedOnAdd()
@@ -50,16 +50,6 @@ namespace SmkDoc.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)");
-
-                    b.Property<string>("Scope")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasDefaultValue("ReadWrite");
-
-                    b.Property<DateTimeOffset?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTimeOffset?>("LastUsedAt")
                         .HasColumnType("timestamp with time zone");
@@ -72,6 +62,16 @@ namespace SmkDoc.Infrastructure.Migrations
                     b.Property<Guid>("ProjectId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("Scope")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("ReadWrite");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ProjectId");
@@ -82,7 +82,6 @@ namespace SmkDoc.Infrastructure.Migrations
             modelBuilder.Entity("SmkDoc.Domain.Entities.Company", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
                     b.Property<DateTimeOffset>("CreatedAt")
@@ -98,14 +97,7 @@ namespace SmkDoc.Infrastructure.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
-                    b.Property<string>("SystemRole")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)")
-                        .HasDefaultValue("Member");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
+                    b.Property<DateTimeOffset?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
@@ -116,7 +108,6 @@ namespace SmkDoc.Infrastructure.Migrations
             modelBuilder.Entity("SmkDoc.Domain.Entities.DataConnection", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
                     b.Property<DateTimeOffset>("CreatedAt")
@@ -154,7 +145,6 @@ namespace SmkDoc.Infrastructure.Migrations
             modelBuilder.Entity("SmkDoc.Domain.Entities.Dataset", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
                     b.Property<int>("CacheSeconds")
@@ -201,7 +191,6 @@ namespace SmkDoc.Infrastructure.Migrations
             modelBuilder.Entity("SmkDoc.Domain.Entities.Document", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
                     b.Property<DateTimeOffset>("CreatedAt")
@@ -220,6 +209,9 @@ namespace SmkDoc.Infrastructure.Migrations
                     b.Property<Guid?>("TemplateId")
                         .HasColumnType("uuid");
 
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.HasKey("Id");
 
                     b.HasIndex("TemplateId");
@@ -233,7 +225,6 @@ namespace SmkDoc.Infrastructure.Migrations
             modelBuilder.Entity("SmkDoc.Domain.Entities.DocumentVersion", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
                     b.Property<string>("ChangeNote")
@@ -258,6 +249,9 @@ namespace SmkDoc.Infrastructure.Migrations
                     b.Property<Guid?>("TemplateVersionId")
                         .HasColumnType("uuid");
 
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<int>("Version")
                         .HasColumnType("integer");
 
@@ -276,8 +270,12 @@ namespace SmkDoc.Infrastructure.Migrations
             modelBuilder.Entity("SmkDoc.Domain.Entities.FieldMapping", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("NOW()");
 
                     b.Property<string>("DataSourceType")
                         .IsRequired()
@@ -328,6 +326,9 @@ namespace SmkDoc.Infrastructure.Migrations
                     b.Property<string>("Transform")
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
 
@@ -400,17 +401,22 @@ namespace SmkDoc.Infrastructure.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
 
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ApiKeyId");
 
-                    b.HasIndex("CreatedAt");
-
-                    b.HasIndex("ProjectId");
-
                     b.HasIndex("TemplateId");
 
                     b.HasIndex("TemplateVersionId");
+
+                    b.HasIndex("ProjectId", "CreatedAt")
+                        .IsDescending(false, true);
+
+                    b.HasIndex("ProjectId", "CallerApp", "CreatedAt")
+                        .IsDescending(false, false, true);
 
                     b.ToTable("generation_logs", (string)null);
                 });
@@ -418,7 +424,6 @@ namespace SmkDoc.Infrastructure.Migrations
             modelBuilder.Entity("SmkDoc.Domain.Entities.Project", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("CompanyId")
@@ -442,7 +447,7 @@ namespace SmkDoc.Infrastructure.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
-                    b.Property<DateTimeOffset>("UpdatedAt")
+                    b.Property<DateTimeOffset?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
@@ -453,148 +458,6 @@ namespace SmkDoc.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("projects", (string)null);
-                });
-
-            modelBuilder.Entity("SmkDoc.Domain.Entities.Template", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Category")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasDefaultValueSql("NOW()");
-
-                    b.Property<Guid?>("CurrentVersionId")
-                        .HasColumnType("uuid");
-
-                    b.Property<bool>("IsActive")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(true);
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<Guid>("ProjectId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Slug")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasDefaultValueSql("NOW()");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CurrentVersionId");
-
-                    b.HasIndex("ProjectId");
-
-                    b.HasIndex("Slug")
-                        .IsUnique();
-
-                    b.ToTable("templates", (string)null);
-                });
-
-            modelBuilder.Entity("SmkDoc.Domain.Entities.TemplateDataset", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Alias")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<Guid>("DatasetId")
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("SortOrder")
-                        .HasColumnType("integer");
-
-                    b.Property<Guid>("TemplateId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("DatasetId");
-
-                    b.HasIndex("TemplateId", "Alias")
-                        .IsUnique();
-
-                    b.ToTable("template_datasets", (string)null);
-                });
-
-            modelBuilder.Entity("SmkDoc.Domain.Entities.TemplateVersion", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("CommitMessage")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasDefaultValueSql("NOW()");
-
-                    b.Property<string>("CreatedBy")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<string>("DataSchema")
-                        .HasColumnType("jsonb");
-
-                    b.Property<string>("FileFormat")
-                        .HasMaxLength(10)
-                        .HasColumnType("character varying(10)");
-
-                    b.Property<string>("MappingsSnapshot")
-                        .HasColumnType("text");
-
-                    b.Property<string>("SamplePayload")
-                        .HasColumnType("jsonb");
-
-                    b.Property<int>("Status")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(0);
-
-                    b.Property<string>("StorageKey")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<Guid>("TemplateId")
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("Version")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TemplateId", "Version")
-                        .IsUnique();
-
-                    b.ToTable("template_versions", (string)null);
                 });
 
             modelBuilder.Entity("SmkDoc.Domain.Entities.RefreshToken", b =>
@@ -640,10 +503,154 @@ namespace SmkDoc.Infrastructure.Migrations
                     b.ToTable("refresh_tokens", (string)null);
                 });
 
+            modelBuilder.Entity("SmkDoc.Domain.Entities.Template", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Category")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("NOW()");
+
+                    b.Property<Guid?>("CurrentVersionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("NOW()");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CurrentVersionId");
+
+                    b.HasIndex("ProjectId", "Slug")
+                        .IsUnique();
+
+                    b.ToTable("templates", (string)null);
+                });
+
+            modelBuilder.Entity("SmkDoc.Domain.Entities.TemplateDataset", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Alias")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("NOW()");
+
+                    b.Property<Guid>("DatasetId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("TemplateId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DatasetId");
+
+                    b.HasIndex("TemplateId", "Alias")
+                        .IsUnique();
+
+                    b.ToTable("template_datasets", (string)null);
+                });
+
+            modelBuilder.Entity("SmkDoc.Domain.Entities.TemplateVersion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CommitMessage")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("NOW()");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("DataSchema")
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("FileFormat")
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<string>("MappingsSnapshot")
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("SamplePayload")
+                        .HasColumnType("jsonb");
+
+                    b.Property<int>("Status")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
+                    b.Property<string>("StorageKey")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<Guid>("TemplateId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TemplateId", "Version")
+                        .IsUnique();
+
+                    b.ToTable("template_versions", (string)null);
+                });
+
             modelBuilder.Entity("SmkDoc.Domain.Entities.User", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
                     b.Property<DateTimeOffset>("CreatedAt")
@@ -674,7 +681,14 @@ namespace SmkDoc.Infrastructure.Migrations
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)");
 
-                    b.Property<DateTimeOffset>("UpdatedAt")
+                    b.Property<string>("SystemRole")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasDefaultValue("Member");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
@@ -712,13 +726,11 @@ namespace SmkDoc.Infrastructure.Migrations
 
             modelBuilder.Entity("SmkDoc.Domain.Entities.ApiKey", b =>
                 {
-                    b.HasOne("SmkDoc.Domain.Entities.Project", "Project")
-                        .WithMany("ApiKeys")
+                    b.HasOne("SmkDoc.Domain.Entities.Project", null)
+                        .WithMany()
                         .HasForeignKey("ProjectId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-
-                    b.Navigation("Project");
                 });
 
             modelBuilder.Entity("SmkDoc.Domain.Entities.DataConnection", b =>
@@ -769,21 +781,17 @@ namespace SmkDoc.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("SmkDoc.Domain.Entities.GenerationLog", "GenerationLog")
+                    b.HasOne("SmkDoc.Domain.Entities.GenerationLog", null)
                         .WithMany()
                         .HasForeignKey("GenerationLogId")
                         .OnDelete(DeleteBehavior.SetNull);
 
-                    b.HasOne("SmkDoc.Domain.Entities.TemplateVersion", "TemplateVersion")
+                    b.HasOne("SmkDoc.Domain.Entities.TemplateVersion", null)
                         .WithMany()
                         .HasForeignKey("TemplateVersionId")
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("Document");
-
-                    b.Navigation("GenerationLog");
-
-                    b.Navigation("TemplateVersion");
                 });
 
             modelBuilder.Entity("SmkDoc.Domain.Entities.FieldMapping", b =>
@@ -799,19 +807,9 @@ namespace SmkDoc.Infrastructure.Migrations
 
             modelBuilder.Entity("SmkDoc.Domain.Entities.GenerationLog", b =>
                 {
-                    b.HasOne("SmkDoc.Domain.Entities.ApiKey", "ApiKey")
+                    b.HasOne("SmkDoc.Domain.Entities.ApiKey", null)
                         .WithMany()
                         .HasForeignKey("ApiKeyId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("SmkDoc.Domain.Entities.Template", "Template")
-                        .WithMany()
-                        .HasForeignKey("TemplateId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("SmkDoc.Domain.Entities.TemplateVersion", "TemplateVersion")
-                        .WithMany()
-                        .HasForeignKey("TemplateVersionId")
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.HasOne("SmkDoc.Domain.Entities.Project", null)
@@ -820,22 +818,33 @@ namespace SmkDoc.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.Navigation("ApiKey");
+                    b.HasOne("SmkDoc.Domain.Entities.Template", null)
+                        .WithMany()
+                        .HasForeignKey("TemplateId")
+                        .OnDelete(DeleteBehavior.SetNull);
 
-                    b.Navigation("Template");
-
-                    b.Navigation("TemplateVersion");
+                    b.HasOne("SmkDoc.Domain.Entities.TemplateVersion", null)
+                        .WithMany()
+                        .HasForeignKey("TemplateVersionId")
+                        .OnDelete(DeleteBehavior.SetNull);
                 });
 
             modelBuilder.Entity("SmkDoc.Domain.Entities.Project", b =>
                 {
-                    b.HasOne("SmkDoc.Domain.Entities.Company", "Company")
-                        .WithMany("Projects")
+                    b.HasOne("SmkDoc.Domain.Entities.Company", null)
+                        .WithMany()
                         .HasForeignKey("CompanyId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
 
-                    b.Navigation("Company");
+            modelBuilder.Entity("SmkDoc.Domain.Entities.RefreshToken", b =>
+                {
+                    b.HasOne("SmkDoc.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("SmkDoc.Domain.Entities.Template", b =>
@@ -845,20 +854,18 @@ namespace SmkDoc.Infrastructure.Migrations
                         .HasForeignKey("CurrentVersionId")
                         .OnDelete(DeleteBehavior.SetNull);
 
-                    b.HasOne("SmkDoc.Domain.Entities.Project", "Project")
-                        .WithMany("Templates")
+                    b.HasOne("SmkDoc.Domain.Entities.Project", null)
+                        .WithMany()
                         .HasForeignKey("ProjectId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.Navigation("CurrentVersion");
-
-                    b.Navigation("Project");
                 });
 
             modelBuilder.Entity("SmkDoc.Domain.Entities.TemplateDataset", b =>
                 {
-                    b.HasOne("SmkDoc.Domain.Entities.Dataset", "Dataset")
+                    b.HasOne("SmkDoc.Domain.Entities.Dataset", null)
                         .WithMany()
                         .HasForeignKey("DatasetId")
                         .OnDelete(DeleteBehavior.Restrict)
@@ -869,8 +876,6 @@ namespace SmkDoc.Infrastructure.Migrations
                         .HasForeignKey("TemplateId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-
-                    b.Navigation("Dataset");
 
                     b.Navigation("Template");
                 });
@@ -886,8 +891,14 @@ namespace SmkDoc.Infrastructure.Migrations
                     b.Navigation("Template");
                 });
 
-            modelBuilder.Entity("SmkDoc.Domain.Entities.RefreshToken", b =>
+            modelBuilder.Entity("SmkDoc.Domain.Entities.UserProjectRole", b =>
                 {
+                    b.HasOne("SmkDoc.Domain.Entities.Project", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.HasOne("SmkDoc.Domain.Entities.User", null)
                         .WithMany()
                         .HasForeignKey("UserId")
@@ -895,42 +906,9 @@ namespace SmkDoc.Infrastructure.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("SmkDoc.Domain.Entities.UserProjectRole", b =>
-                {
-                    b.HasOne("SmkDoc.Domain.Entities.Project", "Project")
-                        .WithMany("UserRoles")
-                        .HasForeignKey("ProjectId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("SmkDoc.Domain.Entities.User", "User")
-                        .WithMany("ProjectRoles")
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Project");
-
-                    b.Navigation("User");
-                });
-
-            modelBuilder.Entity("SmkDoc.Domain.Entities.Company", b =>
-                {
-                    b.Navigation("Projects");
-                });
-
             modelBuilder.Entity("SmkDoc.Domain.Entities.Document", b =>
                 {
                     b.Navigation("Versions");
-                });
-
-            modelBuilder.Entity("SmkDoc.Domain.Entities.Project", b =>
-                {
-                    b.Navigation("ApiKeys");
-
-                    b.Navigation("Templates");
-
-                    b.Navigation("UserRoles");
                 });
 
             modelBuilder.Entity("SmkDoc.Domain.Entities.Template", b =>
@@ -940,11 +918,6 @@ namespace SmkDoc.Infrastructure.Migrations
                     b.Navigation("TemplateDatasets");
 
                     b.Navigation("Versions");
-                });
-
-            modelBuilder.Entity("SmkDoc.Domain.Entities.User", b =>
-                {
-                    b.Navigation("ProjectRoles");
                 });
 #pragma warning restore 612, 618
         }

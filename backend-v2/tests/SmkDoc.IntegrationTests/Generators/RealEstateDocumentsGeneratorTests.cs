@@ -152,13 +152,15 @@ public sealed class RealEstateDocumentsGeneratorTests
         var docxEngine = new DocxTemplateEngine(Substitute.For<IPdfRenderer>(), mediaInjector);
 
         using var templateStream = File.OpenRead(docxPath);
-        var renderedBytes = await docxEngine.RenderAsync(templateStream, jsonString, OutputFormat.Docx);
+        await using var renderedStream = await docxEngine.RenderStreamAsync(templateStream, jsonString, OutputFormat.Docx);
 
         var outputDocxPath = Path.Combine(_outputDir, "output-06-sales-handover-letter.docx");
-        await File.WriteAllBytesAsync(outputDocxPath, renderedBytes);
+        await using (var outFs = File.Create(outputDocxPath))
+        {
+            await renderedStream.CopyToAsync(outFs, 81_920);
+        }
 
-        renderedBytes.Should().NotBeNullOrEmpty();
-        renderedBytes.Length.Should().BeGreaterThan(1000);
+        new FileInfo(outputDocxPath).Length.Should().BeGreaterThan(1000);
         File.Exists(outputDocxPath).Should().BeTrue();
     }
 
@@ -281,13 +283,15 @@ public sealed class RealEstateDocumentsGeneratorTests
         var excelEngine = new ExcelTemplateEngine(Substitute.For<IPdfRenderer>(), mediaInjector);
 
         using var templateStream = File.OpenRead(xlsxPath);
-        var renderedBytes = await excelEngine.RenderAsync(templateStream, jsonString, OutputFormat.Xlsx);
+        await using var renderedStream = await excelEngine.RenderStreamAsync(templateStream, jsonString, OutputFormat.Xlsx);
 
         var outputXlsxPath = Path.Combine(_outputDir, "output-07-finance-downpayment-plan.xlsx");
-        await File.WriteAllBytesAsync(outputXlsxPath, renderedBytes);
+        await using (var outFs = File.Create(outputXlsxPath))
+        {
+            await renderedStream.CopyToAsync(outFs, 81_920);
+        }
 
-        renderedBytes.Should().NotBeNullOrEmpty();
-        renderedBytes.Length.Should().BeGreaterThan(1000);
+        new FileInfo(outputXlsxPath).Length.Should().BeGreaterThan(1000);
         File.Exists(outputXlsxPath).Should().BeTrue();
     }
 }

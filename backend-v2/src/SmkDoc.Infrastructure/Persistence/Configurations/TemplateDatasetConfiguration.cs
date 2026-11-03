@@ -20,6 +20,7 @@ public sealed class TemplateDatasetConfiguration : IEntityTypeConfiguration<Temp
             .HasConversion(id => id.Value, v => new DatasetId(v));
         builder.Property(e => e.Alias).IsRequired().HasMaxLength(50)
             .HasConversion(a => a.Value, v => DatasetAlias.Create(v));
+        builder.Property(e => e.CreatedAt).HasDefaultValueSql("NOW()");
 
         builder.HasOne(e => e.Template)
             .WithMany(t => t.TemplateDatasets)

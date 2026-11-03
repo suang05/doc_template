@@ -6,7 +6,7 @@ using SmkDoc.Application.Common.Interfaces;
 
 namespace SmkDoc.Infrastructure.Pdf;
 
-public class GotenbergPdfRenderer(HttpClient httpClient, ILogger<GotenbergPdfRenderer> logger) : IPdfRenderer
+public sealed class GotenbergPdfRenderer(HttpClient httpClient, ILogger<GotenbergPdfRenderer> logger) : IPdfRenderer
 {
     private readonly HttpClient _httpClient = httpClient;
     private readonly ILogger<GotenbergPdfRenderer> _logger = logger;
@@ -61,14 +61,6 @@ public class GotenbergPdfRenderer(HttpClient httpClient, ILogger<GotenbergPdfRen
         }
     }
 
-    public async Task<byte[]> RenderHtmlToPdfAsync(string html, string? headerHtml = null, string? footerHtml = null, CancellationToken ct = default)
-    {
-        await using var stream = await RenderHtmlToPdfStreamAsync(html, headerHtml, footerHtml, ct);
-        using var ms = new MemoryStream();
-        await stream.CopyToAsync(ms, ct);
-        return ms.ToArray();
-    }
-
     public async Task<Stream> RenderOfficeToPdfStreamAsync(Stream officeStream, string fileName, CancellationToken ct = default)
     {
         using var content = new MultipartFormDataContent();
@@ -103,13 +95,5 @@ public class GotenbergPdfRenderer(HttpClient httpClient, ILogger<GotenbergPdfRen
             response.Dispose();
             throw;
         }
-    }
-
-    public async Task<byte[]> RenderOfficeToPdfAsync(Stream officeStream, string fileName, CancellationToken ct = default)
-    {
-        await using var stream = await RenderOfficeToPdfStreamAsync(officeStream, fileName, ct);
-        using var ms = new MemoryStream();
-        await stream.CopyToAsync(ms, ct);
-        return ms.ToArray();
     }
 }

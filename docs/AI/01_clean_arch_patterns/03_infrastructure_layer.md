@@ -36,8 +36,9 @@ UpstreamKernel: AGENTS.md
 | **Relationship Cascade**| Blind `Cascade` deletes on production documents/logs | `DeleteBehavior.Restrict` or `DeleteBehavior.SetNull` per Level 2 matrix |
 | **JSON Column Storage** | Storing structured payloads as plain escaped text | Native PostgreSQL `jsonb` column mapping |
 | **IQueryable Leakage** | Leaking `IQueryable<T>` outside Infrastructure | Repositories evaluate queries internally; return `Task<IReadOnlyList<T>>` or `Task<T?>` |
-| **Entity Tracking Policy**| Using `.AsNoTracking()` when fetching aggregates for mutation in Commands | Fetching with EF Tracking (`FindAsync` / query without `AsNoTracking`) in mutating UseCases |
-| **MinIO Stream Sizing** | Passing `ObjectSize(-1)` on unseekable streams or calling `BucketExistsAsync` per upload | Spool unseekable outputs to `DeleteOnClose` temp `FileStream` for exact `Length`, and cache bucket initialization in `ConcurrentDictionary` |
+| **Entity Tracking & JSONB List Projections** | Using `.AsNoTracking()` when mutating aggregates OR hydrating `jsonb` blobs (`InputData`, `DataSchema`, `SamplePayload`, `MappingsSnapshot`) on paged list queries | Fetch tracked aggregates in mutating Commands; use `.AsNoTracking()` + scalar SQL `.Select(...)` projections (`ITemplateQueryService`, `IGenerationLogQueryService`) and single-pass `GroupBy(_ => 1)` aggregates on read/metrics hot-paths |
+| **Tenant Composite Indexing** | Global unique `templates(Slug)` or single-column `generation_logs` indexes forcing heap sorts | Composite unique `(ProjectId, Slug)` on `templates` and composite descending `(ProjectId, CreatedAt DESC)` / `(ProjectId, CallerApp, CreatedAt DESC)` indexes on `generation_logs`, kept at 100% parity with `AppDbContextModelSnapshot` |
+| **MinIO Stream Sizing & Downloads** | Passing `ObjectSize(-1)` on uploads, buffering `DownloadAsync` into unbounded `MemoryStream`, or calling `BucketExistsAsync` per upload | Spool seekable streams via `HybridSpoolStream` (`<= 64 KB` `ArrayPool<byte>`; `> 64 KB` `DeleteOnClose` temp `FileStream`) so sockets release immediately with zero LOH allocations, and cache initialized buckets in `ConcurrentDictionary` |
 
 ---
 
@@ -329,7 +330,8 @@ public sealed class GotenbergClient(HttpClient httpClient)
 ### S3 Object Storage Service Archetype (MinIO)
 >> MANDATORY CANONICAL TEMPLATE [RULE-INFRA-005]:
 * [MUST] Implement `IStorageService` using MinIO S3 SDK with cached one-time bucket verification (`ConcurrentDictionary<string, bool>`).
-* [MUST] Require seekable known-size `Stream` on `UploadAsync` (callers spool unseekable render streams via `FileOptions.DeleteOnClose | FileOptions.Asynchronous` temp `FileStream` so `ObjectSize` is exact and MinIO SDK never allocates 5 MB+ multipart LOH buffers).
+* [MUST] Require seekable known-size `Stream` on `UploadAsync` (callers spool unseekable render streams via `FileOptions.DeleteOnClose | FileOptions.Asynchronous` temp `FileStream` or `HybridSpoolStream` so `ObjectSize` is exact and MinIO SDK never allocates 5 MB+ multipart LOH buffers).
+* [MUST] Spool `DownloadAsync` callbacks into `HybridSpoolStream` via `ArrayPool<byte>` (`81,920`-byte buffer) so payloads `<= 64 KB` stay in pooled memory, payloads `> 64 KB` spill to `DeleteOnClose` OS-cached temporary files with zero LOH allocations, and the MinIO HTTP socket releases immediately.
 * [MUST] Support prefix-scoped listing (`ListObjectsAsync`) for tenant-partitioned assets such as `fonts/{projectId:N}/`.
 ```csharp
 using System.Collections.Concurrent;

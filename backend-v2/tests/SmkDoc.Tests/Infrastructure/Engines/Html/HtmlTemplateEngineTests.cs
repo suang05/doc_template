@@ -1,4 +1,4 @@
-﻿using System.Text;
+using System.Text;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Infrastructure.Engines.Html;
@@ -38,7 +38,7 @@ public sealed class HtmlTemplateEngineTests
 
         var engine = CreateEngine(pdfRenderer, cache);
         using var stream = new MemoryStream(Encoding.UTF8.GetBytes(templateHtml));
-        var result = await engine.RenderAsync(stream, json, OutputFormat.Pdf);
+        await using var result = await engine.RenderStreamAsync(stream, json, OutputFormat.Pdf);
 
         result.Should().NotBeNull();
         return capturedHtml;

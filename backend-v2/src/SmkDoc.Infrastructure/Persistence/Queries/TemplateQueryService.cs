@@ -47,14 +47,26 @@ public sealed class TemplateQueryService(AppDbContext context) : ITemplateQueryS
         var safePage = page < 1 ? 1 : page;
         var safePageSize = pageSize < 1 ? 20 : (pageSize > 100 ? 100 : pageSize);
 
-        var templates = await query
-            .Include(t => t.CurrentVersion)
+        var rows = await query
             .OrderByDescending(t => t.UpdatedAt ?? t.CreatedAt)
             .Skip((safePage - 1) * safePageSize)
             .Take(safePageSize)
+            .Select(t => new
+            {
+                t.Id,
+                t.ProjectId,
+                t.Name,
+                t.Slug,
+                t.Category,
+                t.IsActive,
+                t.CurrentVersionId,
+                CurrentFileFormat = t.CurrentVersion != null ? t.CurrentVersion.FileFormat : null,
+                t.CreatedAt,
+                t.UpdatedAt
+            })
             .ToListAsync(ct);
 
-        var items = templates
+        var items = rows
             .Select(t => new TemplateResultDto(
                 t.Id.Value,
                 t.ProjectId.Value,
@@ -63,10 +75,9 @@ public sealed class TemplateQueryService(AppDbContext context) : ITemplateQueryS
                 t.Category,
                 t.IsActive,
                 t.CurrentVersionId,
-                t.CurrentVersion?.FileFormat?.Name,
+                t.CurrentFileFormat?.Name,
                 t.CreatedAt,
-                t.UpdatedAt
-            ))
+                t.UpdatedAt))
             .ToList();
 
         return (items, totalCount);

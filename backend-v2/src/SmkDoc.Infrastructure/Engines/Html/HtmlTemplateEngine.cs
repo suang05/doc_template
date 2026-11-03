@@ -3,6 +3,7 @@ using System.Text;
 using HandlebarsDotNet;
 using Microsoft.Extensions.DependencyInjection;
 using SmkDoc.Application.Common.Interfaces;
+using SmkDoc.Application.Common.Streams;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Infrastructure.Engines.Html.Helpers;
 using SmkDoc.Infrastructure.Engines.Html.Pipeline;
@@ -12,6 +13,8 @@ namespace SmkDoc.Infrastructure.Engines.Html;
 
 public sealed class HtmlTemplateEngine : IRenderEngine
 {
+    private static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
+
     private readonly IPdfRenderer _pdfRenderer;
     private readonly IJsonHierarchyParser _jsonHierarchyParser;
     private readonly HtmlPlaceholderTransformer _placeholderTransformer;
@@ -46,7 +49,7 @@ public sealed class HtmlTemplateEngine : IRenderEngine
         OutputFormat outputFormat,
         CancellationToken ct = default)
     {
-        using var reader = new StreamReader(templateStream, Encoding.UTF8);
+        using var reader = new StreamReader(templateStream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true, bufferSize: 8192, leaveOpen: true);
         string rawHtml = await reader.ReadToEndAsync(ct);
 
         // 1. Parse JSON input into object hierarchy for Handlebars
@@ -80,37 +83,29 @@ public sealed class HtmlTemplateEngine : IRenderEngine
         // 5. Render output format
         if (outputFormat == OutputFormat.Pdf)
         {
-            var stream = await _pdfRenderer.RenderHtmlToPdfStreamAsync(
+            return await _pdfRenderer.RenderHtmlToPdfStreamAsync(
                 layoutResult.BodyHtml,
                 layoutResult.HeaderHtml,
                 layoutResult.FooterHtml,
                 ct);
-
-            if (stream is null)
-            {
-                var bytes = await _pdfRenderer.RenderHtmlToPdfAsync(
-                    layoutResult.BodyHtml,
-                    layoutResult.HeaderHtml,
-                    layoutResult.FooterHtml,
-                    ct);
-                return new MemoryStream(bytes);
-            }
-
-            return stream;
         }
 
-        return new MemoryStream(Encoding.UTF8.GetBytes(layoutResult.BodyHtml));
-    }
+        var htmlSpool = new HybridSpoolStream();
+        try
+        {
+            await using (var writer = new StreamWriter(htmlSpool, Utf8NoBom, bufferSize: 8192, leaveOpen: true))
+            {
+                await writer.WriteAsync(layoutResult.BodyHtml.AsMemory(), ct);
+                await writer.FlushAsync(ct);
+            }
 
-    public async Task<byte[]> RenderAsync(
-        Stream templateStream,
-        string inputDataJson,
-        OutputFormat outputFormat,
-        CancellationToken ct = default)
-    {
-        await using var stream = await RenderStreamAsync(templateStream, inputDataJson, outputFormat, ct);
-        using var ms = new MemoryStream();
-        await stream.CopyToAsync(ms, ct);
-        return ms.ToArray();
+            htmlSpool.Position = 0;
+            return htmlSpool;
+        }
+        catch
+        {
+            await htmlSpool.DisposeAsync();
+            throw;
+        }
     }
 }

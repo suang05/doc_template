@@ -26,7 +26,7 @@ UpstreamKernel: AGENTS.md
 ### Document Rendering Invariants Matrix
 | Architectural Concern | Prohibited Pattern (! BANNED) | Canonical SSoT Pattern (>> MANDATORY) |
 |---|---|---|
-| **Buffer Allocations** | In-memory `byte[]` buffering of Gotenberg outputs | Direct streaming to `Response.Body` via `Stream.CopyToAsync(response.Body, 81920, ct)` |
+| **Buffer Allocations & Port Purity** | Exposing `byte[]` / `Task<byte[]>` on `IRenderEngine`/`IPdfRenderer` or copying DOCX/XLSX packages into unbounded `MemoryStream` | Pure `Task<Stream>` port contracts; direct HTTP response streaming (`81,920`-byte buffer), `Stream.Null` dry-run validation, and `HybridSpoolStream` (`<= 64 KB` pooled `ArrayPool<byte>`; `> 64 KB` `DeleteOnClose` temp `FileStream`) for seekable OpenXML/ClosedXML packages |
 | **Engine Resolution** | Hardcoded `if/else` or `switch` chains for engine selection | Polymorphic dispatch via `IRenderEngine` & `RenderEngineResolver` |
 | **OpenXML DrawingML** | Leaving graphic frame property IDs as default `0` | Explicit positive non-zero integers ($\ge 1$) via `DrawingMlIdFixer` |
 | **Excel Printing** | Spreadsheets clipping content on print or PDF export | Automatic A4 portrait fit: `worksheet.PageSetup.FitToPages(1, 0)` |

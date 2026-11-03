@@ -168,13 +168,15 @@ public sealed class MultiPageFixturesGeneratorTests
         var engine = new DocxTemplateEngine(Substitute.For<IPdfRenderer>(), mediaInjector);
 
         using var templateStream = File.OpenRead(docxPath);
-        var renderedBytes = await engine.RenderAsync(templateStream, jsonString, OutputFormat.Docx);
+        await using var renderedStream = await engine.RenderStreamAsync(templateStream, jsonString, OutputFormat.Docx);
 
         var outputDocxPath = Path.Combine(_outDir, "output-02-comprehensive-defect-report.docx");
-        await File.WriteAllBytesAsync(outputDocxPath, renderedBytes);
+        await using (var outFs = File.Create(outputDocxPath))
+        {
+            await renderedStream.CopyToAsync(outFs, 81_920);
+        }
 
-        renderedBytes.Should().NotBeNullOrEmpty();
-        renderedBytes.Length.Should().BeGreaterThan(2000);
+        new FileInfo(outputDocxPath).Length.Should().BeGreaterThan(2000);
         File.Exists(outputDocxPath).Should().BeTrue();
     }
 
@@ -302,13 +304,15 @@ public sealed class MultiPageFixturesGeneratorTests
         var engine = new ExcelTemplateEngine(Substitute.For<IPdfRenderer>(), mediaInjector);
 
         using var templateStream = File.OpenRead(xlsxPath);
-        var renderedBytes = await engine.RenderAsync(templateStream, jsonString, OutputFormat.Xlsx);
+        await using var renderedStream = await engine.RenderStreamAsync(templateStream, jsonString, OutputFormat.Xlsx);
 
         var outputXlsxPath = Path.Combine(_outDir, "output-03-project-cashflow-model.xlsx");
-        await File.WriteAllBytesAsync(outputXlsxPath, renderedBytes);
+        await using (var outFs = File.Create(outputXlsxPath))
+        {
+            await renderedStream.CopyToAsync(outFs, 81_920);
+        }
 
-        renderedBytes.Should().NotBeNullOrEmpty();
-        renderedBytes.Length.Should().BeGreaterThan(5000);
+        new FileInfo(outputXlsxPath).Length.Should().BeGreaterThan(5000);
         File.Exists(outputXlsxPath).Should().BeTrue();
     }
 }

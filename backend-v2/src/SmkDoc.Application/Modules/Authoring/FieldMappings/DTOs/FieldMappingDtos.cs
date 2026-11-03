@@ -60,4 +60,10 @@ public sealed record SaveTemplateDatasetItemDto(
 /// <summary>
 /// Pre-resolved dataset execution context passed to FieldMappingApplicatorService.
 /// </summary>
-public sealed record ResolvedDatasetContext(string Provider, string ConnectionString, string SqlQuery);
+public sealed record ResolvedDatasetContext(
+    string Provider,
+    string ConnectionString,
+    string SqlQuery,
+    Guid DatasetId = default,
+    Guid DataConnectionId = default,
+    int CacheSeconds = 0);

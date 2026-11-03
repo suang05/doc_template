@@ -26,6 +26,7 @@ public sealed class TemplateVersionConfiguration : IEntityTypeConfiguration<Temp
             .HasMaxLength(10);
         builder.Property(e => e.DataSchema).HasColumnType("jsonb");
         builder.Property(e => e.SamplePayload).HasColumnType("jsonb");
+        builder.Property(e => e.MappingsSnapshot).HasColumnType("jsonb");
         builder.Property(e => e.CommitMessage).HasMaxLength(500);
         builder.Property(e => e.CreatedBy).HasMaxLength(100);
         builder.Property(e => e.CreatedAt).HasDefaultValueSql("NOW()");

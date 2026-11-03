@@ -4,7 +4,7 @@ namespace SmkDoc.Application.Common.Interfaces;
 
 /// <summary>
 /// Port for document template render engines (HTML, Word, Excel).
-/// Implemented in the Infrastructure layer by specialized engines.
+/// Exposes pure Zero-LOH stream contracts only (no byte-array buffering).
 /// </summary>
 public interface IRenderEngine
 {
@@ -12,11 +12,6 @@ public interface IRenderEngine
     /// The template format / engine type handled by this implementation.
     /// </summary>
     RenderEngineType EngineType { get; }
-
-    /// <summary>
-    /// Renders the template with provided data into target output format as bytes.
-    /// </summary>
-    Task<byte[]> RenderAsync(Stream templateStream, string inputDataJson, OutputFormat outputFormat, CancellationToken ct = default);
 
     /// <summary>
     /// Renders the template with provided data directly into an output stream (Zero-LOH Buffering).

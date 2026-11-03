@@ -18,7 +18,13 @@ public sealed class DataConnectionRepository(AppDbContext context) : IDataConnec
     public async Task<IReadOnlyList<DataConnection>> GetByIdsAsync(IEnumerable<DataConnectionId> ids, CancellationToken ct = default)
     {
         var idSet = ids.ToHashSet();
+        if (idSet.Count == 0)
+        {
+            return [];
+        }
+
         return await _context.DataConnections
+            .AsNoTracking()
             .Where(c => idSet.Contains(c.Id))
             .ToListAsync(ct);
     }

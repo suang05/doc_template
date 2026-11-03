@@ -1,9 +1,11 @@
+using System.Buffers;
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Minio;
 using Minio.DataModel.Args;
 using SmkDoc.Application.Common.Interfaces;
+using SmkDoc.Application.Common.Streams;
 
 namespace SmkDoc.Infrastructure.Storage;
 
@@ -53,15 +55,38 @@ public class MinioStorageService : IStorageService
 
     public async Task<Stream> DownloadAsync(string bucket, string objectName, CancellationToken ct = default)
     {
-        var ms = new MemoryStream();
-        var args = new GetObjectArgs()
-            .WithBucket(bucket)
-            .WithObject(objectName)
-            .WithCallbackStream((stream, cancellationToken) => stream.CopyToAsync(ms, cancellationToken));
+        var spool = new HybridSpoolStream();
+        try
+        {
+            var args = new GetObjectArgs()
+                .WithBucket(bucket)
+                .WithObject(objectName)
+                .WithCallbackStream(async (stream, cancellationToken) =>
+                {
+                    byte[] copyBuffer = ArrayPool<byte>.Shared.Rent(HybridSpoolStream.PooledChunkSize);
+                    try
+                    {
+                        int bytesRead;
+                        while ((bytesRead = await stream.ReadAsync(copyBuffer.AsMemory(0, HybridSpoolStream.PooledChunkSize), cancellationToken)) > 0)
+                        {
+                            await spool.WriteAsync(copyBuffer.AsMemory(0, bytesRead), cancellationToken);
+                        }
+                    }
+                    finally
+                    {
+                        ArrayPool<byte>.Shared.Return(copyBuffer);
+                    }
+                });
 
-        await _client.GetObjectAsync(args, ct);
-        ms.Position = 0;
-        return ms;
+            await _client.GetObjectAsync(args, ct);
+            spool.Position = 0;
+            return spool;
+        }
+        catch
+        {
+            await spool.DisposeAsync();
+            throw;
+        }
     }
 
     public async Task<string> GetPresignedUrlAsync(string bucket, string objectName, TimeSpan expiry, CancellationToken ct = default)

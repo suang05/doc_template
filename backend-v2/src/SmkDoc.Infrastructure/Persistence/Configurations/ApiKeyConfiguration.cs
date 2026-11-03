@@ -35,5 +35,10 @@ public sealed class ApiKeyConfiguration : IEntityTypeConfiguration<ApiKey>
         builder.Ignore(e => e.IsRevoked);
         builder.Property(e => e.IsActive).HasDefaultValue(true);
         builder.Property(e => e.CreatedAt).HasDefaultValueSql("NOW()");
+
+        builder.HasOne<Project>()
+            .WithMany()
+            .HasForeignKey(e => e.ProjectId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

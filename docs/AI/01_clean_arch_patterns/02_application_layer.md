@@ -58,8 +58,10 @@ ProactiveChallengeHeuristics:
 CoreExtensionSlots:
   RenderingEngines: Pluggable IRenderEngine strategy dispatch (Html, Docx, Excel)
   ValidationPipeline: Automatic IValidator<TCommand> fail-fast execution at line 1
-  QueryProjections: Materialized PagedResultDto<T> with boundary clamping
+  QueryProjections: Materialized PagedResultDto<T> with boundary clamping and jsonb-free SQL projections (ITemplateQueryService, IGenerationLogQueryService)
   CompiledTemplateCache: ICompiledTemplateCache (In-memory compiled AST cache)
+  DatasetResultCache: IDatasetResultCache (Tenant-isolated external SQL JSON result cache honoring Dataset.CacheSeconds)
+  HybridStreamSpooler: HybridSpoolStream (<= 64 KB ArrayPool<byte> fast path + > 64 KB DeleteOnClose temp FileStream spillover)
   DomainEventDispatcher: IDomainEventDispatcher (Post-commit event broadcaster)
 ```
 
@@ -83,9 +85,10 @@ CoreExtensionSlots:
 4. `BoundaryFirewall`: Prohibit returning Domain Entities (`AggregateRoot`, `Entity`, `ValueObject`). Return immutable Application DTO records or `Stream`.
 5. `TemporalResolution`: System time queries MUST consume `TimeProvider.GetUtcNow()`. Prohibit ambient clock queries (`DateTime.UtcNow`).
 6. `TransactionIsolation`: Mutating use cases commit strictly via `IUnitOfWork.CommitAsync(ct)` at egress. Read queries never mutate state.
-7. `StreamingIntegrity`: Render/Preview operations MUST return live `Stream`. Prohibit buffering to `byte[]` or unbounded `MemoryStream`.
-8. `PaginationClamping`: Paginated queries MUST clamp `Page >= 1` and `1 <= PageSize <= 100` to prevent denial-of-service query exhaustion.
+7. `StreamingIntegrity`: Render/Preview/Dry-Run operations MUST consume and return live `Stream` (`IRenderEngine`, `IPdfRenderer`, and `IStorageService` expose zero `byte[]` / `Task<byte[]>` return types). Seekable intermediate copies (DOCX/XLSX security scans, OpenXML/ClosedXML packages) MUST spool through `HybridSpoolStream` (`<= 64 KB` pooled `ArrayPool<byte>`; `> 64 KB` `FileOptions.DeleteOnClose` temp `FileStream`), and HTML dry-runs MUST drain to `Stream.Null` (`81,920`-byte buffer).
+8. `PaginationClamping`: Paginated queries MUST clamp `Page >= 1` and bounded `PageSize` to prevent denial-of-service query exhaustion, and list hot-paths MUST project scalar DTO columns in SQL without hydrating multi-KB `jsonb` columns (`DataSchema`, `SamplePayload`, `MappingsSnapshot`, `InputData`).
 9. `OnePrimaryTypePerSliceFile`: Every `*Command`, `*Query`, `*Validator`, `*UseCase`, `*EventHandler`, and Service/Interface MUST reside in its own `.cs` file (`{TypeName}.cs`) co-located inside its vertical slice folder (`Commands/{SliceName}/` or `Queries/{SliceName}/`). Prohibit declaring multiple primary public types inside `*UseCase.cs` or grouping validators in detached `Validators/` folders (only `*Dtos.cs` / `*ResultDto.cs` files may group immutable DTO records).
+10. `BoundedMultiDatasetExecution`: `DatasetAliasMapBuilder` MUST batch-load datasets and connections (`IDatasetRepository.GetByIdsAsync` with `.AsNoTracking().Include(d => d.DataConnection)` — zero per-alias N+1 queries), and `FieldMappingApplicatorService` MUST execute distinct external SQL aliases with bounded `SemaphoreSlim(4)` concurrency, fail-fast linked `CancellationTokenSource`, and tenant-isolated SHA-256 `IDatasetResultCache` lookup when `Dataset.CacheSeconds > 0`.
 
 ---
 

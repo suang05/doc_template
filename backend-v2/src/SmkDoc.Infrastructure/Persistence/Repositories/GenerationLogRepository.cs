@@ -18,28 +18,4 @@ public sealed class GenerationLogRepository(AppDbContext context) : IGenerationL
     {
         await _context.GenerationLogs.AddAsync(log, ct);
     }
-
-    public async Task<(IReadOnlyList<GenerationLog> Items, int TotalCount)> ListPagedAsync(
-        string? callerApp,
-        int page,
-        int limit,
-        CancellationToken ct = default)
-    {
-        var query = _context.GenerationLogs.AsQueryable();
-
-        if (!string.IsNullOrWhiteSpace(callerApp))
-        {
-            query = query.Where(l => l.CallerApp == callerApp);
-        }
-
-        var totalCount = await query.CountAsync(ct);
-
-        var items = await query
-            .OrderByDescending(l => l.CreatedAt)
-            .Skip((page - 1) * limit)
-            .Take(limit)
-            .ToListAsync(ct);
-
-        return (items, totalCount);
-    }
 }

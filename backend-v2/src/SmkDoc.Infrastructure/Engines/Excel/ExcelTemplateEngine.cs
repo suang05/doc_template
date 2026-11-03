@@ -1,6 +1,7 @@
 using ClosedXML.Excel;
 using SmkDoc.Application.Common.Helpers;
 using SmkDoc.Application.Common.Interfaces;
+using SmkDoc.Application.Common.Streams;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Infrastructure.Parsing;
 using static SmkDoc.Application.Common.Helpers.PlaceholderHelper;
@@ -25,11 +26,8 @@ public sealed class ExcelTemplateEngine(
     {
         var (replacements, arrays) = _jsonNamedArrayParser.FlattenNamed(inputDataJson);
 
-        using var memoryStream = new MemoryStream();
-        await templateStream.CopyToAsync(memoryStream, ct);
-        memoryStream.Position = 0;
-
-        using var workbook = new XLWorkbook(memoryStream);
+        await using var inputSpool = await HybridSpoolStream.SpoolFromAsync(templateStream, ct: ct);
+        using var workbook = new XLWorkbook(inputSpool);
 
         foreach (var worksheet in workbook.Worksheets)
         {
@@ -73,36 +71,26 @@ public sealed class ExcelTemplateEngine(
             }
         }
 
-        var outputStream = new MemoryStream();
-        workbook.SaveAs(outputStream);
-        outputStream.Position = 0;
-
-        if (outputFormat == OutputFormat.Pdf)
+        var outputSpool = new HybridSpoolStream();
+        try
         {
-            await using (outputStream)
+            workbook.SaveAs(outputSpool);
+            outputSpool.Position = 0;
+
+            if (outputFormat == OutputFormat.Pdf)
             {
-                var pdfStream = await pdfRenderer.RenderOfficeToPdfStreamAsync(outputStream, "spreadsheet.xlsx", ct);
-                if (pdfStream is null)
+                await using (outputSpool)
                 {
-                    var bytes = await pdfRenderer.RenderOfficeToPdfAsync(outputStream, "spreadsheet.xlsx", ct);
-                    return new MemoryStream(bytes);
+                    return await pdfRenderer.RenderOfficeToPdfStreamAsync(outputSpool, "spreadsheet.xlsx", ct);
                 }
-                return pdfStream;
             }
+
+            return outputSpool;
         }
-
-        return outputStream;
-    }
-
-    public async Task<byte[]> RenderAsync(
-        Stream templateStream,
-        string inputDataJson,
-        OutputFormat outputFormat,
-        CancellationToken ct = default)
-    {
-        await using var stream = await RenderStreamAsync(templateStream, inputDataJson, outputFormat, ct);
-        using var ms = new MemoryStream();
-        await stream.CopyToAsync(ms, ct);
-        return ms.ToArray();
+        catch
+        {
+            await outputSpool.DisposeAsync();
+            throw;
+        }
     }
 }

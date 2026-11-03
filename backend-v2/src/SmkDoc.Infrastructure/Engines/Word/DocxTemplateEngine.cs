@@ -1,6 +1,7 @@
 using DocumentFormat.OpenXml.Packaging;
 using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
+using SmkDoc.Application.Common.Streams;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Infrastructure.Parsing;
 
@@ -25,55 +26,42 @@ public sealed class DocxTemplateEngine(
     {
         var (replacements, tables) = _jsonTableParser.Flatten(inputDataJson);
 
-        var memoryStream = new MemoryStream();
-        await templateStream.CopyToAsync(memoryStream, ct);
-        memoryStream.Position = 0;
-
-        using (var doc = WordprocessingDocument.Open(memoryStream, true))
+        var spoolStream = await HybridSpoolStream.SpoolFromAsync(templateStream, ct: ct);
+        try
         {
-            var mainPart = doc.MainDocumentPart
-                ?? throw new RenderException("document.docx", "OpenXml", "Template has no main document part.");
-
-            // 1. Inject QR / Barcode images (reads prefix from template, value from data)
-            mediaInjector.InjectMedia(mainPart, replacements);
-
-            // 2. Expand dynamic table rows
-            _tableExpander.ExpandTables(mainPart, tables);
-
-            // 3. Replace text placeholders and Thai transforms
-            _textReplacer.ReplaceTexts(mainPart, replacements);
-
-            mainPart.Document.Save();
-        }
-
-        memoryStream.Position = 0;
-
-        if (outputFormat == OutputFormat.Pdf)
-        {
-            await using (memoryStream)
+            using (var doc = WordprocessingDocument.Open(spoolStream, true))
             {
-                var pdfStream = await pdfRenderer.RenderOfficeToPdfStreamAsync(memoryStream, "document.docx", ct);
-                if (pdfStream is null)
-                {
-                    var bytes = await pdfRenderer.RenderOfficeToPdfAsync(memoryStream, "document.docx", ct);
-                    return new MemoryStream(bytes);
-                }
-                return pdfStream;
+                var mainPart = doc.MainDocumentPart
+                    ?? throw new RenderException("document.docx", "OpenXml", "Template has no main document part.");
+
+                // 1. Inject QR / Barcode images (reads prefix from template, value from data)
+                mediaInjector.InjectMedia(mainPart, replacements);
+
+                // 2. Expand dynamic table rows
+                _tableExpander.ExpandTables(mainPart, tables);
+
+                // 3. Replace text placeholders and Thai transforms
+                _textReplacer.ReplaceTexts(mainPart, replacements);
+
+                mainPart.Document.Save();
             }
+
+            spoolStream.Position = 0;
+
+            if (outputFormat == OutputFormat.Pdf)
+            {
+                await using (spoolStream)
+                {
+                    return await pdfRenderer.RenderOfficeToPdfStreamAsync(spoolStream, "document.docx", ct);
+                }
+            }
+
+            return spoolStream;
         }
-
-        return memoryStream;
-    }
-
-    public async Task<byte[]> RenderAsync(
-        Stream templateStream,
-        string inputDataJson,
-        OutputFormat outputFormat,
-        CancellationToken ct = default)
-    {
-        await using var stream = await RenderStreamAsync(templateStream, inputDataJson, outputFormat, ct);
-        using var ms = new MemoryStream();
-        await stream.CopyToAsync(ms, ct);
-        return ms.ToArray();
+        catch
+        {
+            await spoolStream.DisposeAsync();
+            throw;
+        }
     }
 }

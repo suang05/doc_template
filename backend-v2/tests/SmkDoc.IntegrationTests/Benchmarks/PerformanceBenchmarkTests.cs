@@ -48,6 +48,46 @@ public sealed class PerformanceBenchmarkTests
         return list;
     }
 
+    private static async Task<long> DrainAndMeasureLengthAsync(Stream stream)
+    {
+        await using (stream)
+        {
+            if (stream.CanSeek)
+            {
+                return stream.Length;
+            }
+
+            using var counter = new CountingSinkStream();
+            await stream.CopyToAsync(counter, 81_920);
+            return counter.BytesWritten;
+        }
+    }
+
+    private sealed class CountingSinkStream : Stream
+    {
+        public long BytesWritten { get; private set; }
+        public override bool CanRead => false;
+        public override bool CanSeek => false;
+        public override bool CanWrite => true;
+        public override long Length => BytesWritten;
+        public override long Position
+        {
+            get => BytesWritten;
+            set => throw new NotSupportedException();
+        }
+        public override void Flush() { }
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => BytesWritten += count;
+        public override void Write(ReadOnlySpan<byte> buffer) => BytesWritten += buffer.Length;
+        public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            BytesWritten += buffer.Length;
+            return ValueTask.CompletedTask;
+        }
+    }
+
     [Fact]
     public async Task Benchmark_Excel_1000Rows_Expansion_Performance()
     {
@@ -102,31 +142,31 @@ public sealed class PerformanceBenchmarkTests
         // Warm up
         using (var warmStream = new MemoryStream(templateBytes))
         {
-            await engine.RenderAsync(warmStream, payload, OutputFormat.Xlsx);
+            await using var warmResult = await engine.RenderStreamAsync(warmStream, payload, OutputFormat.Xlsx);
         }
 
         // Benchmark
         var sw = Stopwatch.StartNew();
-        byte[] resultBytes;
+        long outputLength;
         using (var testStream = new MemoryStream(templateBytes))
         {
-            resultBytes = await engine.RenderAsync(testStream, payload, OutputFormat.Xlsx);
+            var renderedStream = await engine.RenderStreamAsync(testStream, payload, OutputFormat.Xlsx);
+            outputLength = await DrainAndMeasureLengthAsync(renderedStream);
         }
         sw.Stop();
 
         var elapsedMs = sw.ElapsedMilliseconds;
-        var throughput = (double)rowCount / (elapsedMs / 1000.0);
+        var throughput = (double)rowCount / Math.Max(0.001, elapsedMs / 1000.0);
 
         _output.WriteLine($"==========================================================");
         _output.WriteLine($"[EXCEL BENCHMARK] 1,000 Rows Dynamic Expansion");
         _output.WriteLine($"  - Elapsed Time       : {elapsedMs} ms ({elapsedMs / 1000.0:F2} seconds)");
         _output.WriteLine($"  - Throughput         : {throughput:F0} rows/second (tx/sec)");
-        _output.WriteLine($"  - Output File Size   : {resultBytes.Length / 1024.0:F1} KB ({resultBytes.Length:N0} bytes)");
+        _output.WriteLine($"  - Output File Size   : {outputLength / 1024.0:F1} KB ({outputLength:N0} bytes)");
         _output.WriteLine($"==========================================================");
 
-        resultBytes.Should().NotBeNullOrEmpty();
-        resultBytes.Length.Should().BeGreaterThan(20000);
-        elapsedMs.Should().BeLessThan(5000); // Must be under 5s
+        outputLength.Should().BeGreaterThan(20000);
+        elapsedMs.Should().BeLessThan(5000);
     }
 
     [Fact]
@@ -183,31 +223,31 @@ public sealed class PerformanceBenchmarkTests
         // Warm up
         using (var warmStream = new MemoryStream(templateBytes))
         {
-            await engine.RenderAsync(warmStream, payload, OutputFormat.Docx);
+            await using var warmResult = await engine.RenderStreamAsync(warmStream, payload, OutputFormat.Docx);
         }
 
         // Benchmark
         var sw = Stopwatch.StartNew();
-        byte[] resultBytes;
+        long outputLength;
         using (var testStream = new MemoryStream(templateBytes))
         {
-            resultBytes = await engine.RenderAsync(testStream, payload, OutputFormat.Docx);
+            var renderedStream = await engine.RenderStreamAsync(testStream, payload, OutputFormat.Docx);
+            outputLength = await DrainAndMeasureLengthAsync(renderedStream);
         }
         sw.Stop();
 
         var elapsedMs = sw.ElapsedMilliseconds;
-        var throughput = (double)rowCount / (elapsedMs / 1000.0);
+        var throughput = (double)rowCount / Math.Max(0.001, elapsedMs / 1000.0);
 
         _output.WriteLine($"==========================================================");
         _output.WriteLine($"[WORD BENCHMARK] 1,000 Rows Dynamic Expansion");
         _output.WriteLine($"  - Elapsed Time       : {elapsedMs} ms ({elapsedMs / 1000.0:F2} seconds)");
         _output.WriteLine($"  - Throughput         : {throughput:F0} rows/second (tx/sec)");
-        _output.WriteLine($"  - Output File Size   : {resultBytes.Length / 1024.0:F1} KB ({resultBytes.Length:N0} bytes)");
+        _output.WriteLine($"  - Output File Size   : {outputLength / 1024.0:F1} KB ({outputLength:N0} bytes)");
         _output.WriteLine($"==========================================================");
 
-        resultBytes.Should().NotBeNullOrEmpty();
-        resultBytes.Length.Should().BeGreaterThan(2000);
-        elapsedMs.Should().BeLessThan(5000); // Must be under 5s
+        outputLength.Should().BeGreaterThan(2000);
+        elapsedMs.Should().BeLessThan(5000);
     }
 
     [Fact]
@@ -269,8 +309,8 @@ public sealed class PerformanceBenchmarkTests
 
         var templateBytes = Encoding.UTF8.GetBytes(htmlTemplate);
         var mockPdf = Substitute.For<IPdfRenderer>();
-        mockPdf.RenderHtmlToPdfAsync(Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
-            .Returns(callInfo => Task.FromResult(Encoding.UTF8.GetBytes(callInfo.ArgAt<string>(0))));
+        mockPdf.RenderHtmlToPdfStreamAsync(Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns(callInfo => Task.FromResult<Stream>(new MemoryStream(Encoding.UTF8.GetBytes(callInfo.ArgAt<string>(0)))));
 
         var htmlMediaService = new MediaGenerationService(Substitute.For<IQrCodeService>(), Substitute.For<IBarcodeService>());
         var engine = new HtmlTemplateEngine(mockPdf, new HtmlHelperRegistry(htmlMediaService));
@@ -278,31 +318,31 @@ public sealed class PerformanceBenchmarkTests
         // Warm up
         using (var warmStream = new MemoryStream(templateBytes))
         {
-            await engine.RenderAsync(warmStream, payload, OutputFormat.Pdf);
+            await using var warmResult = await engine.RenderStreamAsync(warmStream, payload, OutputFormat.Pdf);
         }
 
         // Benchmark
         var sw = Stopwatch.StartNew();
-        byte[] resultBytes;
+        long outputLength;
         using (var testStream = new MemoryStream(templateBytes))
         {
-            resultBytes = await engine.RenderAsync(testStream, payload, OutputFormat.Pdf);
+            var renderedStream = await engine.RenderStreamAsync(testStream, payload, OutputFormat.Pdf);
+            outputLength = await DrainAndMeasureLengthAsync(renderedStream);
         }
         sw.Stop();
 
         var elapsedMs = sw.ElapsedMilliseconds;
-        var throughput = (double)rowCount / (elapsedMs / 1000.0);
+        var throughput = (double)rowCount / Math.Max(0.001, elapsedMs / 1000.0);
 
         _output.WriteLine($"==========================================================");
         _output.WriteLine($"[HTML BENCHMARK] 1,000 Rows Handlebars Template Merge");
         _output.WriteLine($"  - Elapsed Time       : {elapsedMs} ms ({elapsedMs / 1000.0:F2} seconds)");
         _output.WriteLine($"  - Throughput         : {throughput:F0} rows/second (tx/sec)");
-        _output.WriteLine($"  - Merged Output Size : {resultBytes.Length / 1024.0:F1} KB ({resultBytes.Length:N0} bytes)");
+        _output.WriteLine($"  - Merged Output Size : {outputLength / 1024.0:F1} KB ({outputLength:N0} bytes)");
         _output.WriteLine($"==========================================================");
 
-        resultBytes.Should().NotBeNullOrEmpty();
-        resultBytes.Length.Should().BeGreaterThan(50000);
-        elapsedMs.Should().BeLessThan(1000); // Handlebars merge should be very fast (< 1s)
+        outputLength.Should().BeGreaterThan(50000);
+        elapsedMs.Should().BeLessThan(1000);
     }
 
     [Fact]
@@ -311,25 +351,29 @@ public sealed class PerformanceBenchmarkTests
         const int concurrentRequests = 50;
         var htmlTemplate = "<html><body><h1>Hello World</h1></body></html>";
         var templateBytes = Encoding.UTF8.GetBytes(htmlTemplate);
-        
+
         var mockPdf = Substitute.For<IPdfRenderer>();
-        mockPdf.RenderHtmlToPdfAsync(Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
-            .Returns(callInfo => Task.FromResult(Encoding.UTF8.GetBytes(callInfo.ArgAt<string>(0))));
+        mockPdf.RenderHtmlToPdfStreamAsync(Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns(callInfo => Task.FromResult<Stream>(new MemoryStream(Encoding.UTF8.GetBytes(callInfo.ArgAt<string>(0)))));
 
         var htmlMediaService = new MediaGenerationService(Substitute.For<IQrCodeService>(), Substitute.For<IBarcodeService>());
         var engine = new HtmlTemplateEngine(mockPdf, new HtmlHelperRegistry(htmlMediaService));
         var payload = "{}";
 
         var sw = Stopwatch.StartNew();
-        var tasks = new List<Task<byte[]>>();
+        var tasks = new List<Task<long>>(concurrentRequests);
 
         for (int i = 0; i < concurrentRequests; i++)
         {
-            var stream = new MemoryStream(templateBytes);
-            tasks.Add(engine.RenderAsync(stream, payload, OutputFormat.Pdf));
+            tasks.Add(Task.Run(async () =>
+            {
+                using var stream = new MemoryStream(templateBytes);
+                var renderedStream = await engine.RenderStreamAsync(stream, payload, OutputFormat.Pdf);
+                return await DrainAndMeasureLengthAsync(renderedStream);
+            }));
         }
 
-        var results = await Task.WhenAll(tasks);
+        var lengths = await Task.WhenAll(tasks);
         sw.Stop();
 
         _output.WriteLine($"==========================================================");
@@ -337,10 +381,10 @@ public sealed class PerformanceBenchmarkTests
         _output.WriteLine($"  - Elapsed Time       : {sw.ElapsedMilliseconds} ms");
         _output.WriteLine($"==========================================================");
 
-        results.Length.Should().Be(concurrentRequests);
-        foreach (var result in results)
+        lengths.Length.Should().Be(concurrentRequests);
+        foreach (var len in lengths)
         {
-            result.Should().NotBeNullOrEmpty();
+            len.Should().BeGreaterThan(0);
         }
     }
 }

@@ -28,6 +28,7 @@ public sealed class FieldMappingConfiguration : IEntityTypeConfiguration<FieldMa
             .HasConversion(a => a == null ? null : a.Value, v => v == null ? null : DatasetAlias.Create(v));
         builder.Property(e => e.ResultPath).HasMaxLength(300);
         builder.Property(e => e.MathExpression).HasMaxLength(500);
+        builder.Property(e => e.CreatedAt).HasDefaultValueSql("NOW()");
 
         builder.HasOne(e => e.Template)
             .WithMany(t => t.FieldMappings)

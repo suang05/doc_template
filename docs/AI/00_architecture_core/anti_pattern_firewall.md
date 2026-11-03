@@ -16,7 +16,7 @@ UpstreamKernel: AGENTS.md
 
 | Trap Identifier | Category | Prohibited Signature (! BANNED) | Canonical Remedy (>> CANONICAL) | Severity |
 |---|---|---|---|---|
-| **[TRAP-LOH-001]** | Memory Safety | `MemoryStream.ToArray()` / Buffer $\ge 85\text{KB}$ | Zero-LOH Stream-over-RAM direct response pipe | FATAL |
+| **[TRAP-LOH-001]** | Memory Safety | `MemoryStream.ToArray()`, `Task<byte[]>` render ports, or unbounded `MemoryStream` copies $\ge 85\text{KB}$ | Pure `Stream` ports + `HybridSpoolStream` (`<= 64 KB` `ArrayPool<byte>` / `> 64 KB` `DeleteOnClose` temp file) | FATAL |
 | **[TRAP-EF-002]** | Concurrency | Parallel consumption of scoped `AppDbContext` | `IDbContextFactory<AppDbContext>` per background task | FATAL |
 | **[TRAP-ASYNC-003]** | Thread Safety | `.Result`, `.Wait()`, `.GetAwaiter().GetResult()` | 100% `async`/`await` + forwarded `CancellationToken` | FATAL |
 | **[TRAP-SSRF-004]** | Security | Forwarding unsanitized user HTML to Gotenberg | `HtmlSanitizer` + Chromium disabled flags + isolation | CRITICAL |
@@ -28,6 +28,7 @@ UpstreamKernel: AGENTS.md
 | **[TRAP-EVENT-010]** | Consistency | Pre-commit domain event dispatching | Harvest, commit transaction, clear, dispatch post-commit | FATAL |
 | **[TRAP-SQL-011]** | Security / SSRF | Unchecked external `DataConnection` host or mutating SQL | Block Loopback/Link-Local/Self-DB; enforce single `SELECT`/`WITH` in `READ ONLY` tx | CRITICAL |
 | **[TRAP-SLICE-012]** | Architecture | Bundling Command/Validator in `*UseCase.cs` or shared `Validators/` folders | Enforce 1-Primary-Type-Per-File (`{TypeName}.cs`) co-located inside the CQRS slice folder | HIGH |
+| **[TRAP-SQL-013]** | Performance / DB Pool | Per-alias N+1 dataset lookups or unbounded parallel external SQL queries | 1-query `.Include(d => d.DataConnection)` batch lookup + `SemaphoreSlim(4)` + linked fail-fast cancellation + `IDatasetResultCache` | HIGH |
 
 ---
 
@@ -333,3 +334,12 @@ public async Task<(string StoredPayload, string ChecksumSha256)> PrepareAuditPay
 + // Commands/RollbackTemplateVersion/RollbackTemplateVersionUseCase.cs
 ```
 *Rationale: Multi-type slice files hide contracts and validators from file navigation and git history, while shared `Validators/` folders break vertical slice co-location.*
+
+### [TRAP-SQL-013]: Sequential N+1 Dataset Lookups & Unbounded External SQL Fan-Out
+```diff
+- foreach (var td in assignments) { var ds = await datasetRepo.GetByIdAsync(td.DatasetId, ct); ... }
+- foreach (var alias in sqlAliases) { await sqlExecutor.ExecuteQueryAsJsonAsync(...); }
++ var datasets = await datasetRepo.GetByIdsAsync(distinctIds, ct); // .AsNoTracking().Include(d => d.DataConnection)
++ // Execute distinct external SQL aliases via SemaphoreSlim(4) + linked fail-fast CancellationTokenSource + IDatasetResultCache
+```
+*Rationale: Sequential N+1 queries multiply latency per attached dataset, while unbounded `Task.WhenAll` without `SemaphoreSlim(4)` exhausts external customer ERP connection pools under load.*

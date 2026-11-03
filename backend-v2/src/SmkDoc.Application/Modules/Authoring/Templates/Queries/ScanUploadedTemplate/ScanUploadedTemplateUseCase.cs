@@ -1,4 +1,5 @@
 using SmkDoc.Application.Common.Interfaces;
+using SmkDoc.Application.Common.Streams;
 using SmkDoc.Domain.Exceptions;
 
 namespace SmkDoc.Application.Modules.Authoring.Templates.Queries.ScanUploadedTemplate;
@@ -21,23 +22,21 @@ public sealed class ScanUploadedTemplateUseCase(
         var ext = query.Extension.ToLowerInvariant();
         if (ext == ".docx" && securityScanner != null)
         {
-            using var ms = new MemoryStream();
-            await query.Stream.CopyToAsync(ms, ct);
-            if (ms.Length == 0)
+            await using var spool = await HybridSpoolStream.SpoolFromAsync(query.Stream, ct: ct);
+            if (spool.Length == 0)
             {
                 throw new DomainValidationException("Template file stream cannot be empty.");
             }
 
-            ms.Position = 0;
-            var scanResult = securityScanner.Scan(ms);
+            var scanResult = securityScanner.Scan(spool);
             if (scanResult is { IsSafe: false })
             {
                 throw new DomainValidationException(
                     $"DOCX file failed security scan: {string.Join("; ", scanResult.Threats)}");
             }
 
-            ms.Position = 0;
-            return await scanner.ScanPlaceholdersAsync(ms, ext, ct);
+            spool.Position = 0;
+            return await scanner.ScanPlaceholdersAsync(spool, ext, ct);
         }
 
         return await scanner.ScanPlaceholdersAsync(query.Stream, ext, ct);

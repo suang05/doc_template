@@ -555,6 +555,54 @@ public sealed class CleanArchitectureTests
             .Should().BeNull("2-level nested CommitDraftCommand was flattened into CommitTemplateDraftCommand.");
     }
 
+    [Fact]
+    public void Streaming_Ports_Must_Not_Expose_ByteArray_Return_Types()
+    {
+        var streamingPorts = new[]
+        {
+            typeof(IRenderEngine),
+            typeof(IPdfRenderer),
+            typeof(IStorageService)
+        };
+
+        var violations = new List<string>();
+
+        foreach (var port in streamingPorts)
+        {
+            foreach (var method in port.GetMethods(BindingFlags.Public | BindingFlags.Instance))
+            {
+                var returnType = method.ReturnType;
+                bool returnsByteArray =
+                    returnType == typeof(byte[]) ||
+                    (returnType.IsGenericType &&
+                     (returnType.GetGenericTypeDefinition() == typeof(Task<>) ||
+                      returnType.GetGenericTypeDefinition() == typeof(ValueTask<>)) &&
+                     returnType.GetGenericArguments()[0] == typeof(byte[]));
+
+                if (returnsByteArray)
+                {
+                    violations.Add($"{port.Name}.{method.Name} returns {returnType.Name}");
+                }
+            }
+        }
+
+        violations.Should().BeEmpty(
+            $"streaming ports must return Stream / Task<Stream> instead of buffering byte[] on the heap ([TRAP-LOH-001]). Violations: {string.Join(", ", violations)}");
+    }
+
+    [Fact]
+    public void GenerationLogRepository_Must_Not_Expose_Paged_List_Projections()
+    {
+        var methods = typeof(SmkDoc.Domain.Interfaces.IGenerationLogRepository)
+            .GetMethods(BindingFlags.Public | BindingFlags.Instance)
+            .Select(m => m.Name)
+            .ToList();
+
+        methods.Should().NotContain(
+            "ListPagedAsync",
+            "paged generation log read queries belong on IGenerationLogQueryService so JSONB InputData columns are never hydrated on list hot paths ([TRAP-SQL-013]).");
+    }
+
     private static readonly OpCode[] SingleByteOpCodes = BuildSingleByteOpCodes();
     private static readonly OpCode[] TwoByteOpCodes = BuildTwoByteOpCodes();
 

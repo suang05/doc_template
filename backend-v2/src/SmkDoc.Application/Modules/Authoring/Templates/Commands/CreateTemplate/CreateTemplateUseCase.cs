@@ -3,6 +3,7 @@ using System.Text;
 using SmkDoc.Application.Common;
 using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
+using SmkDoc.Application.Common.Streams;
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
@@ -70,9 +71,7 @@ public sealed class CreateTemplateUseCase(
 
             if (ext == ".docx")
             {
-                using var scanCopy = new MemoryStream();
-                await command.FileStream.CopyToAsync(scanCopy, ct);
-                scanCopy.Position = 0;
+                await using var scanCopy = await HybridSpoolStream.SpoolFromAsync(command.FileStream, ct: ct);
 
                 var scanResult = securityScanner.Scan(scanCopy);
                 if (scanResult is { IsSafe: false })

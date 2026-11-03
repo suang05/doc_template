@@ -1,4 +1,5 @@
 using SmkDoc.Application.Common.Interfaces;
+using SmkDoc.Application.Common.Streams;
 using SmkDoc.Application.Modules.Rendering.Documents.Commands.RenderStatelessDocument;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
@@ -24,9 +25,7 @@ public sealed class RenderStatelessDocumentUseCase(
 
         if (ext == ".docx")
         {
-            using var docxCopy = new MemoryStream();
-            await command.FileStream.CopyToAsync(docxCopy, ct);
-            docxCopy.Position = 0;
+            await using var docxCopy = await HybridSpoolStream.SpoolFromAsync(command.FileStream, ct: ct);
 
             var scanResult = securityScanner.Scan(docxCopy);
             if (scanResult is { IsSafe: false })

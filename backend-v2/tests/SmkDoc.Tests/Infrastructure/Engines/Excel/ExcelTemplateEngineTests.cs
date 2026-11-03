@@ -1,4 +1,4 @@
-﻿using ClosedXML.Excel;
+using ClosedXML.Excel;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Infrastructure.Engines.Excel;
@@ -46,9 +46,10 @@ public sealed class ExcelTemplateEngineTests
     {
         var engine = customEngine ?? CreateEngine();
         using var template = BuildWorkbook(setup);
-        var result = await engine.RenderAsync(template, json, OutputFormat.Xlsx);
-        result.Should().NotBeNullOrEmpty();
-        return new XLWorkbook(new MemoryStream(result));
+        await using var resultStream = await engine.RenderStreamAsync(template, json, OutputFormat.Xlsx);
+        resultStream.Should().NotBeNull();
+        resultStream.Length.Should().BeGreaterThan(0);
+        return new XLWorkbook(resultStream);
     }
 
     // ── Flat text replacement ─────────────────────────────────────────────────
@@ -192,7 +193,7 @@ public sealed class ExcelTemplateEngineTests
         });
 
         // JSON has no "serialNo" key
-        await engine.RenderAsync(template, "{\"other\": \"value\"}", OutputFormat.Xlsx);
+        await using var renderedStream = await engine.RenderStreamAsync(template, "{\"other\": \"value\"}", OutputFormat.Xlsx);
 
         bc.DidNotReceive().Generate(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<int>());
     }

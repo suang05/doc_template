@@ -19,7 +19,14 @@ public sealed class DatasetRepository(AppDbContext context) : IDatasetRepository
     public async Task<IReadOnlyList<Dataset>> GetByIdsAsync(IEnumerable<DatasetId> ids, CancellationToken ct = default)
     {
         var idSet = ids.ToHashSet();
+        if (idSet.Count == 0)
+        {
+            return [];
+        }
+
         return await _context.Datasets
+            .AsNoTracking()
+            .Include(d => d.DataConnection)
             .Where(d => idSet.Contains(d.Id))
             .ToListAsync(ct);
     }

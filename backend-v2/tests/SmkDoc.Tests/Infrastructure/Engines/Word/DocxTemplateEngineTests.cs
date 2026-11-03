@@ -1,4 +1,4 @@
-﻿using DocumentFormat.OpenXml;
+using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
 using SmkDoc.Application.Common.Interfaces;
@@ -61,10 +61,10 @@ public sealed class DocxTemplateEngineTests
         return ms;
     }
 
-    private static string ExtractText(byte[] docxBytes)
+    private static string ExtractText(Stream docxStream)
     {
-        using var ms = new MemoryStream(docxBytes);
-        using var doc = WordprocessingDocument.Open(ms, false);
+        docxStream.Position = 0;
+        using var doc = WordprocessingDocument.Open(docxStream, false);
         return doc.MainDocumentPart?.Document.Body?.InnerText ?? string.Empty;
     }
 
@@ -72,7 +72,7 @@ public sealed class DocxTemplateEngineTests
     {
         var engine = CreateEngine();
         using var stream = BuildDocx(paragraphText);
-        byte[] result = await engine.RenderAsync(stream, json, OutputFormat.Docx);
+        await using var result = await engine.RenderStreamAsync(stream, json, OutputFormat.Docx);
         return ExtractText(result);
     }
 
@@ -106,7 +106,7 @@ public sealed class DocxTemplateEngineTests
         }
         """;
 
-        byte[] result = await engine.RenderAsync(stream, data, OutputFormat.Docx);
+        await using var result = await engine.RenderStreamAsync(stream, data, OutputFormat.Docx);
 
         var text = ExtractText(result);
         text.Should().Contain("สมชาย");
@@ -123,9 +123,9 @@ public sealed class DocxTemplateEngineTests
         var engine = CreateEngine();
         using var stream = BuildDocx("เอกสาร: {{documentNo}}");
 
-        byte[] result = await engine.RenderAsync(stream, "", OutputFormat.Docx);
+        await using var result = await engine.RenderStreamAsync(stream, "", OutputFormat.Docx);
 
-        result.Should().NotBeNullOrEmpty();
+        result.Length.Should().BeGreaterThan(0);
         var text = ExtractText(result);
         text.Should().Contain("{{documentNo}}");
     }

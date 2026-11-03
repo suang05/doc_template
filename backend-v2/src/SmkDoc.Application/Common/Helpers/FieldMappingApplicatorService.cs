@@ -1,3 +1,7 @@
+using System.Collections.Concurrent;
+using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using SmkDoc.Application.Common.Exceptions;
@@ -11,8 +15,12 @@ namespace SmkDoc.Application.Common.Helpers;
 
 public sealed class FieldMappingApplicatorService(
     ISqlExecutorService sqlExecutor,
-    IMathExpressionResolver mathResolver) : IFieldMappingApplicatorService
+    IMathExpressionResolver mathResolver,
+    IDatasetResultCache? datasetCache = null,
+    ICurrentProjectContext? projectContext = null) : IFieldMappingApplicatorService
 {
+    public const int MaxConcurrentDatasetQueries = 4;
+
     private static readonly Regex SqlVariablePattern = new(@"@(\w+)", RegexOptions.Compiled);
     private static readonly Regex JsonPathArrayPattern = new(@"^([a-zA-Z0-9_-]+)\[(\d+)\]$", RegexOptions.Compiled);
 
@@ -45,34 +53,97 @@ public sealed class FieldMappingApplicatorService(
             dict[mapping.Placeholder] = val;
         }
 
-        // -- Pass 1b: sql -- group by alias, execute each query once --------
+        // -- Pass 1b: sql -- bounded parallel execution per distinct alias --
         var sqlMappings = ordered
             .Where(m => m.DataSourceType == DataSourceType.Sql && m.DatasetAlias != null)
             .ToList();
 
-        var aliasCache = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
+        var distinctAliases = sqlMappings
+            .Select(m => m.DatasetAlias!.Value)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Where(datasetAliases.ContainsKey)
+            .ToList();
 
-        foreach (var alias in sqlMappings.Select(m => m.DatasetAlias!.Value).Distinct(StringComparer.OrdinalIgnoreCase))
+        var aliasCache = new ConcurrentDictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
+
+        if (distinctAliases.Count > 0)
         {
-            if (!datasetAliases.TryGetValue(alias, out var ds)) continue;
+            using var semaphore = new SemaphoreSlim(MaxConcurrentDatasetQueries, MaxConcurrentDatasetQueries);
+            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            var linkedToken = linkedCts.Token;
 
-            try
+            var tasks = distinctAliases.Select(async alias =>
             {
-                var parameters = ExtractParameters(ds.SqlQuery, dict);
-                var json = await sqlExecutor.ExecuteQueryAsJsonAsync(
-                    provider: ds.Provider,
-                    connectionString: ds.ConnectionString,
-                    sqlQuery: ds.SqlQuery,
-                    parameters: parameters,
-                    ct: ct);
+                var ds = datasetAliases[alias];
+                bool acquired = false;
+                try
+                {
+                    await semaphore.WaitAsync(linkedToken);
+                    acquired = true;
 
-                if (!string.IsNullOrWhiteSpace(json))
-                    aliasCache[alias] = JsonDocument.Parse(json).RootElement.Clone();
-            }
-            catch (Exception ex) when (ex is not DatasetExecutionException and not OperationCanceledException and not ForbiddenException)
-            {
-                throw new DatasetExecutionException(alias, ds.Provider, ex.Message, ex);
-            }
+                    var parameters = ExtractParameters(ds.SqlQuery, dict);
+                    string? json = null;
+                    string? cacheKey = null;
+
+                    if (ds.CacheSeconds > 0 && datasetCache is not null)
+                    {
+                        cacheKey = BuildDatasetCacheKey(projectContext, alias, ds, parameters);
+                        json = await datasetCache.GetAsync(cacheKey, linkedToken);
+                    }
+
+                    if (json is null)
+                    {
+                        json = await sqlExecutor.ExecuteQueryAsJsonAsync(
+                            provider: ds.Provider,
+                            connectionString: ds.ConnectionString,
+                            sqlQuery: ds.SqlQuery,
+                            parameters: parameters,
+                            ct: linkedToken);
+
+                        if (cacheKey is not null && datasetCache is not null && !string.IsNullOrWhiteSpace(json))
+                        {
+                            await datasetCache.SetAsync(
+                                cacheKey,
+                                json,
+                                TimeSpan.FromSeconds(ds.CacheSeconds),
+                                linkedToken);
+                        }
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(json))
+                    {
+                        using var parsedDoc = JsonDocument.Parse(json);
+                        aliasCache[alias] = parsedDoc.RootElement.Clone();
+                    }
+                }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (OperationCanceledException) when (linkedToken.IsCancellationRequested)
+                {
+                    // Aborted due to fail-fast cancellation from a faulted sibling dataset query.
+                }
+                catch (Exception ex) when (ex is DatasetExecutionException or ForbiddenException)
+                {
+                    await linkedCts.CancelAsync();
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    await linkedCts.CancelAsync();
+                    throw new DatasetExecutionException(alias, ds.Provider, ex.Message, ex);
+                }
+                finally
+                {
+                    if (acquired)
+                    {
+                        semaphore.Release();
+                    }
+                }
+            });
+
+            await Task.WhenAll(tasks);
         }
 
         // Resolve per-field ResultPath from cached alias result
@@ -111,6 +182,36 @@ public sealed class FieldMappingApplicatorService(
         {
             Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
         });
+    }
+
+    private static string BuildDatasetCacheKey(
+        ICurrentProjectContext? projectContext,
+        string alias,
+        ResolvedDatasetContext ds,
+        Dictionary<string, object> parameters)
+    {
+        var tenantSegment = projectContext is { IsResolved: true }
+            ? projectContext.ProjectId.Value.ToString("N")
+            : "unscoped";
+        var datasetSegment = ds.DatasetId != Guid.Empty
+            ? ds.DatasetId.ToString("N")
+            : alias.ToLowerInvariant();
+        var connectionSegment = ds.DataConnectionId != Guid.Empty
+            ? ds.DataConnectionId.ToString("N")
+            : Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(ds.ConnectionString)))[..16];
+
+        var sb = new StringBuilder(256);
+        sb.Append(ds.Provider).Append('\n').Append(ds.SqlQuery);
+        foreach (var kvp in parameters.OrderBy(p => p.Key, StringComparer.OrdinalIgnoreCase))
+        {
+            sb.Append('\n')
+              .Append(kvp.Key.ToLowerInvariant())
+              .Append('=')
+              .Append(kvp.Value is DBNull ? "<null>" : Convert.ToString(kvp.Value, CultureInfo.InvariantCulture));
+        }
+
+        var fingerprint = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(sb.ToString())));
+        return $"dataset:{tenantSegment}:{datasetSegment}:{connectionSegment}:{fingerprint}";
     }
 
     private static string Finalize(string? val, FieldMapping mapping)
