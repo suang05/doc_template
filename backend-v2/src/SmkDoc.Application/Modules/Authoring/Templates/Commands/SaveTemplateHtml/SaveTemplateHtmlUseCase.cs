@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Text;
 using SmkDoc.Application.Common;
 using SmkDoc.Application.Common.Interfaces;
+using SmkDoc.Application.Common.Streams;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.Helpers;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
@@ -31,37 +32,10 @@ public sealed class SaveTemplateHtmlUseCase(
             ?? await templateRepo.GetByIdAsync(templateId, ct)
             ?? throw new NotFoundException($"Template '{command.TemplateId}' not found.");
 
-        TemplateVersion? currentVersion = template.CurrentVersion;
-        if (currentVersion is null && template.CurrentVersionId.HasValue)
-        {
-            currentVersion = template.FindVersion(template.CurrentVersionId.Value)
-                ?? await templateRepo.GetVersionByIdAsync(template.CurrentVersionId.Value, ct);
-        }
-
-        int maxVersionNumber = template.Versions.Count > 0
-            ? template.Versions.Max(v => v.Version)
-            : 0;
-
-        if (maxVersionNumber == 0)
-        {
-            var history = await templateRepo.ListVersionsAsync(templateId, ct);
-            if (history is { Count: > 0 })
-            {
-                maxVersionNumber = history.Max(v => v.Version);
-            }
-        }
-
-        if (currentVersion != null && currentVersion.Version > maxVersionNumber)
-        {
-            maxVersionNumber = currentVersion.Version;
-        }
-
-        int nextVersionNumber = maxVersionNumber + 1;
+        int nextVersionNumber = template.GetNextVersionNumber();
         string versionedKey = StorageBuckets.TemplateVersionKey(template.ProjectId, template.Id, nextVersionNumber, ".html");
-        byte[] htmlBytes = Encoding.UTF8.GetBytes(command.Html ?? string.Empty);
-
-        // 1. Upload exclusively to immutable versioned key (zero mutable activeKey overwrite)
-        using (var stream = new MemoryStream(htmlBytes))
+        // 1. Upload exclusively to immutable versioned key using Zero-LOH HybridSpoolStream
+        await using (var stream = await HybridSpoolStream.CreateFromUtf8StringAsync(command.Html, ct: ct))
         {
             await storageService.UploadAsync(StorageBuckets.Templates, versionedKey, stream, "text/html; charset=utf-8", ct);
         }
@@ -78,31 +52,29 @@ public sealed class SaveTemplateHtmlUseCase(
                 ? defaultSamplePayload
                 : command.SamplePayload;
 
-            // 3. Create append-only database version record and archive previous Published version
+            // 3. Create append-only database version record and publish atomically
             var now = timeProvider.GetUtcNow();
-            if (currentVersion != null && currentVersion.Status == TemplateVersionStatus.Published)
-            {
-                currentVersion.Archive(now);
-            }
+            TemplateVersion? priorPublishedVersion = template.CurrentVersionId.HasValue
+                ? (template.CurrentVersion ?? template.FindVersion(template.CurrentVersionId.Value))
+                : null;
 
-            var newVersion = template.CreateDraftVersion(
-                nextVersionNumber,
+            var newVersion = template.CreateNextVersion(
                 versionedKey,
                 TemplateFormat.Html,
                 projectContext.CallerIdentity ?? "developer",
                 now,
                 command.ChangeNote);
+
             newVersion.UpdateDataSchema(inferredSchema, finalSamplePayload, now);
 
             string? mappingsSnapshot = template.FieldMappings.Count > 0
                 ? FieldMappingSnapshotSerializer.Serialize(template.FieldMappings)
-                : currentVersion?.MappingsSnapshot;
+                : priorPublishedVersion?.MappingsSnapshot;
+
             if (!string.IsNullOrWhiteSpace(mappingsSnapshot))
             {
                 newVersion.UpdateMappingsSnapshot(mappingsSnapshot, now);
             }
-
-            template.PublishVersion(newVersion, now);
 
             // 4. Persist aggregate update
             templateRepo.Update(template);

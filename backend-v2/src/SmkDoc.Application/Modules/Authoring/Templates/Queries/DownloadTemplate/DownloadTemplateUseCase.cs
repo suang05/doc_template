@@ -18,12 +18,7 @@ public sealed class DownloadTemplateUseCase(
         var template = await templateRepo.GetByIdAsync(new TemplateId(query.Id), ct)
             ?? throw new NotFoundException($"Template '{query.Id}' was not found.");
 
-        if (template.CurrentVersionId is null)
-            throw new BusinessRuleViolationException($"Template '{template.Id}' has no published version.");
-
-        var version = template.CurrentVersion
-            ?? await templateRepo.GetVersionByIdAsync(template.CurrentVersionId.Value, ct)
-            ?? throw new NotFoundException($"Current version record for template '{template.Id}' not found.");
+        var version = template.GetPublishedVersion();
 
         var stream = await storageService.DownloadAsync(StorageBuckets.Templates, version.StorageKey, ct);
         string ext = Path.GetExtension(version.StorageKey).ToLowerInvariant();

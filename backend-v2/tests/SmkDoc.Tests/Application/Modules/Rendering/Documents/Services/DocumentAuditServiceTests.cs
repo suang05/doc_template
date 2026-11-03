@@ -15,7 +15,7 @@ namespace SmkDoc.Tests.Application.Modules.Rendering.Documents.Services;
 
 public sealed class DocumentAuditServiceTests
 {
-    private readonly IGenerationLogRepository _logRepo = Substitute.For<IGenerationLogRepository>();
+    private readonly IGenerationLogQueue _logQueue = Substitute.For<IGenerationLogQueue>();
     private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
     private readonly IStorageService _storageService = Substitute.For<IStorageService>();
     private readonly TimeProvider _timeProvider = TestConstants.CreateFakeClock();
@@ -27,7 +27,7 @@ public sealed class DocumentAuditServiceTests
     }
 
     private DocumentAuditService CreateSut(IStorageService? storage = null) => new(
-        _logRepo, _projectContext, _timeProvider, storage, null);
+        _logQueue, _projectContext, _timeProvider, storage, null);
 
     [Fact]
     public async Task LogValidationFailureAsync_ShouldAddValidationFailedLogWithoutPrematureCommit()
@@ -40,7 +40,7 @@ public sealed class DocumentAuditServiceTests
             Guid.NewGuid(), Guid.NewGuid(), "{}", OutputFormat.Pdf, 50, "Schema violation");
 
         // Assert
-        await _logRepo.Received(1).AddAsync(
+        await _logQueue.Received(1).EnqueueAsync(
             Arg.Is<GenerationLog>(l => l.Status == GenerationStatus.ValidationFailed && l.CallerApp == "crm-app"),
             Arg.Any<CancellationToken>());
     }
@@ -56,7 +56,7 @@ public sealed class DocumentAuditServiceTests
             Guid.NewGuid(), Guid.NewGuid(), "{\"doc\":1}", OutputFormat.Pdf, 180, "Gotenberg engine timeout");
 
         // Assert
-        await _logRepo.Received(1).AddAsync(
+        await _logQueue.Received(1).EnqueueAsync(
             Arg.Is<GenerationLog>(l =>
                 l.Status == GenerationStatus.Failed &&
                 l.CallerApp == "erp-worker" &&
@@ -76,7 +76,7 @@ public sealed class DocumentAuditServiceTests
             genId, Guid.NewGuid(), Guid.NewGuid(), "{}", "outputs/receipt.pdf", OutputFormat.Pdf, 1024, 150);
 
         // Assert
-        await _logRepo.Received(1).AddAsync(
+        await _logQueue.Received(1).EnqueueAsync(
             Arg.Is<GenerationLog>(l => l.Id == genId && l.Status == GenerationStatus.Success && l.OutputKey == "outputs/receipt.pdf"),
             Arg.Any<CancellationToken>());
     }
@@ -97,7 +97,7 @@ public sealed class DocumentAuditServiceTests
         await _storageService.DidNotReceive().UploadAsync(
             Arg.Any<string>(), Arg.Any<string>(), Arg.Any<Stream>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
 
-        await _logRepo.Received(1).AddAsync(
+        await _logQueue.Received(1).EnqueueAsync(
             Arg.Is<GenerationLog>(l =>
                 l.Id == genId &&
                 l.InputData == smallJson &&
@@ -129,7 +129,7 @@ public sealed class DocumentAuditServiceTests
             Arg.Is("application/json"),
             Arg.Any<CancellationToken>());
 
-        await _logRepo.Received(1).AddAsync(
+        await _logQueue.Received(1).EnqueueAsync(
             Arg.Is<GenerationLog>(l =>
                 l.Id == genId &&
                 l.InputData != null &&
@@ -152,7 +152,7 @@ public sealed class DocumentAuditServiceTests
             genId, Guid.NewGuid(), Guid.NewGuid(), largeJson, "outputs/fallback.pdf", OutputFormat.Pdf, 10000, 120);
 
         // Assert
-        await _logRepo.Received(1).AddAsync(
+        await _logQueue.Received(1).EnqueueAsync(
             Arg.Is<GenerationLog>(l =>
                 l.Id == genId &&
                 l.InputData == largeJson &&
@@ -183,7 +183,7 @@ public sealed class DocumentAuditServiceTests
             Arg.Is("application/json"),
             Arg.Any<CancellationToken>());
 
-        await _logRepo.Received(1).AddAsync(
+        await _logQueue.Received(1).EnqueueAsync(
             Arg.Is<GenerationLog>(l =>
                 l.Status == GenerationStatus.ValidationFailed &&
                 l.InputData != null &&

@@ -6,6 +6,7 @@ using Microsoft.Extensions.Http.Resilience;
 using Polly;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Infrastructure.BackgroundWorkers;
 using SmkDoc.Infrastructure.Cache;
 using SmkDoc.Infrastructure.Contexts;
 using SmkDoc.Infrastructure.Data;
@@ -26,6 +27,7 @@ using SmkDoc.Infrastructure.Persistence.Queries;
 using SmkDoc.Infrastructure.Persistence.Repositories;
 using SmkDoc.Infrastructure.Schema;
 using SmkDoc.Infrastructure.Security;
+using SmkDoc.Infrastructure.Services.Logging;
 using SmkDoc.Infrastructure.Storage;
 
 namespace SmkDoc.Infrastructure;
@@ -69,6 +71,8 @@ public static class DependencyInjection
         services.AddScoped<IGenerationLogRepository, GenerationLogRepository>();
         services.AddScoped<IGenerationLogMetricsRepository, GenerationLogMetricsRepository>();
         services.AddScoped<IGenerationLogQueryService, GenerationLogQueryService>();
+        services.AddSingleton<IGenerationLogQueue, ChannelGenerationLogQueue>();
+        services.AddHostedService<GenerationLogBatchWorker>();
         services.AddScoped<IUserWorkspaceQueryService, UserWorkspaceQueryService>();
         services.AddScoped<IProjectQueryService, ProjectQueryService>();
         services.AddScoped<ITemplateQueryService, TemplateQueryService>();

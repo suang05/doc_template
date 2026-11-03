@@ -30,7 +30,6 @@ public sealed class GetTemplateStudioBundleUseCaseTests
             .WithProjectId(Guid.NewGuid())
             .WithSlug("invoice-template")
             .WithName("invoice-template");
-        template.SetCurrentVersion(versionId, TestConstants.BaselineTime);
 
         TemplateVersion version = TemplateVersionBuilder.AVersion()
             .WithId(versionId)
@@ -39,6 +38,7 @@ public sealed class GetTemplateStudioBundleUseCaseTests
             .WithStorageKey("templates/invoice.html")
             .WithFormat(TemplateFormat.Html);
         version.UpdateDataSchema("{\"type\": \"object\"}", "{\"total\": 1000}", TestConstants.BaselineTime);
+        template.PublishVersion(version, TestConstants.BaselineTime);
 
         _templateRepo.GetByIdAsync(new TemplateId(templateId), Arg.Any<CancellationToken>())
             .Returns(template);

@@ -36,12 +36,7 @@ public sealed class PreviewDocumentUseCase(
             var template = await templateRepo.GetBySlugAsync(query.Slug, ct)
                 ?? throw new NotFoundException($"Template '{query.Slug}' not found.");
 
-            if (template.CurrentVersionId is null)
-                throw new BusinessRuleViolationException($"Template '{query.Slug}' has no published version.");
-
-            var version = template.CurrentVersion
-                ?? await templateRepo.GetVersionByIdAsync(template.CurrentVersionId.Value, ct)
-                ?? throw new NotFoundException($"Current version for template '{query.Slug}' not found.");
+            var version = template.GetPublishedVersion();
 
             engineType = version.GetRenderEngineType();
 

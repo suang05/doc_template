@@ -35,7 +35,6 @@ public sealed class ValidateTemplatePayloadUseCaseTests
             .WithProjectId(projectId)
             .WithName(name)
             .WithSlug(slug);
-        template.SetCurrentVersion(versionId, TestConstants.BaselineTime);
 
         TemplateVersion version = TemplateVersionBuilder.AVersion()
             .WithId(versionId)
@@ -50,6 +49,8 @@ public sealed class ValidateTemplatePayloadUseCaseTests
         {
             version.UpdateDataSchema(schema, "{}", TestConstants.BaselineTime);
         }
+
+        template.PublishVersion(version, TestConstants.BaselineTime);
 
         _templateRepo.GetBySlugAsync(slug, Arg.Any<CancellationToken>())
             .Returns(template);

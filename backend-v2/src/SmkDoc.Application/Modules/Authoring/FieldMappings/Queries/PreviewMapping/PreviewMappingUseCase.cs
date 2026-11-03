@@ -21,7 +21,7 @@ public sealed class PreviewMappingUseCase(
     IDatasetRepository datasetRepo,
     IDataConnectionRepository connectionRepo,
     IStorageService storageService,
-    IEnumerable<IRenderEngine> engines,
+    IRenderEngineFactory engineFactory,
     IFieldMappingApplicatorService fieldMappingApplicator,
     IDataProtectionService dataProtection) : IUseCase<PreviewMappingQuery, Stream>
 {
@@ -62,17 +62,17 @@ public sealed class PreviewMappingUseCase(
             dataJson = sampleData.ValueKind != JsonValueKind.Undefined ? sampleData.GetRawText() : "{}";
         }
 
-        if (template.CurrentVersionId is null)
-            throw new BusinessRuleViolationException($"Template '{templateId}' has no published version.");
-
-        var version = template.CurrentVersion
-            ?? await templateRepo.GetVersionByIdAsync(template.CurrentVersionId.Value, ct)
-            ?? throw new NotFoundException($"Current version for template '{templateId}' not found.");
-
+        var version = template.GetPublishedVersion();
         var engineType = version.GetRenderEngineType();
-
-        var engine = engines.FirstOrDefault(e => e.EngineType == engineType)
-            ?? throw new RenderException(templateId.ToString(), engineType.ToString(), $"No render engine registered for '{engineType}'.");
+        IRenderEngine engine;
+        try
+        {
+            engine = engineFactory.GetEngine(engineType);
+        }
+        catch (NotSupportedException ex)
+        {
+            throw new RenderException(templateId.ToString(), engineType.ToString(), ex.Message, ex);
+        }
 
         return (version, dataJson, engine);
     }

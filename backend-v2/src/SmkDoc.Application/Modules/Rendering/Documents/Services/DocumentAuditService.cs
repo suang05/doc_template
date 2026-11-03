@@ -10,7 +10,7 @@ using SmkDoc.Domain.ValueObjects.Ids;
 namespace SmkDoc.Application.Modules.Rendering.Documents.Services;
 
 public sealed class DocumentAuditService(
-    IGenerationLogRepository logRepo,
+    IGenerationLogQueue logQueue,
     ICurrentProjectContext projectContext,
     TimeProvider timeProvider,
     IStorageService? storageService = null,
@@ -48,7 +48,7 @@ public sealed class DocumentAuditService(
             errorMessage,
             now);
 
-        await logRepo.AddAsync(failLog, ct);
+        await logQueue.EnqueueAsync(failLog, ct);
 
         metrics?.RecordGenerationFailure("Unknown", outputFormat.Extension, elapsedMs, "VALIDATION_FAILED");
     }
@@ -83,7 +83,7 @@ public sealed class DocumentAuditService(
             errorMessage,
             now);
 
-        await logRepo.AddAsync(failLog, ct);
+        await logQueue.EnqueueAsync(failLog, ct);
 
         metrics?.RecordGenerationFailure("Engine", outputFormat.Extension, elapsedMs, "FAILED");
     }
@@ -122,7 +122,7 @@ public sealed class DocumentAuditService(
             logMetrics,
             now);
 
-        await logRepo.AddAsync(log, ct);
+        await logQueue.EnqueueAsync(log, ct);
 
         metrics?.RecordGenerationSuccess("Engine", outputFormat.Extension, elapsedMs, fileSizeBytes);
     }

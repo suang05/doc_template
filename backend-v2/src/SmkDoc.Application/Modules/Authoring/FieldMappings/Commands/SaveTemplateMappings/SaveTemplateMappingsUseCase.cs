@@ -46,12 +46,9 @@ public sealed class SaveTemplateMappingsUseCase(
 
         template.ReplaceFieldMappings(mappings, now);
 
-        TemplateVersion? activeVersion = template.CurrentVersion;
-        if (activeVersion is null && template.CurrentVersionId.HasValue)
-        {
-            activeVersion = template.FindVersion(template.CurrentVersionId.Value)
-                ?? await templateRepo.GetVersionByIdAsync(template.CurrentVersionId.Value, ct);
-        }
+        TemplateVersion? activeVersion = template.CurrentVersionId.HasValue
+            ? template.GetPublishedVersion()
+            : null;
 
         if (activeVersion != null && activeVersion.Status != TemplateVersionStatus.Archived)
         {

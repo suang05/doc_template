@@ -61,6 +61,7 @@ CoreExtensionSlots:
   QueryProjections: Materialized PagedResultDto<T> with boundary clamping, ambient tenant isolation, and jsonb-free SQL projections (ITemplateQueryService, IGenerationLogQueryService)
   CompiledTemplateCache: ICompiledTemplateCache + ITemplateCacheInvalidationBus (64-stripe compiled AST cache with post-commit Redis Pub/Sub cross-pod invalidation)
   DatasetResultCache: IDatasetResultCache (Tenant-isolated external SQL JSON result cache honoring Dataset.CacheSeconds via Redis/Memory)
+  AuditLoggingPipeline: IGenerationLogQueue (Bounded in-memory Channel<GenerationLog> with GenerationLogBatchWorker background flush and graceful drain, decoupling OLTP inserts from document generation requests)
   TemplateDraftCache: ITemplateDraftCache (Zero-LOH tenant-scoped draft metadata in Redis/Memory + binary stream in MinIO StorageBuckets.Drafts)
   HybridStreamSpooler: HybridSpoolStream (<= 64 KB ArrayPool<byte> fast path + > 64 KB DeleteOnClose temp FileStream spillover)
   DomainEventDispatcher: IDomainEventDispatcher (Post-commit event broadcaster)

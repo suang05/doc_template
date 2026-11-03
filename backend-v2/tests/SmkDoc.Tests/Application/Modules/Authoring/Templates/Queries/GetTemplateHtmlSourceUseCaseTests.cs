@@ -31,7 +31,6 @@ public sealed class GetTemplateHtmlSourceUseCaseTests
             .WithProjectId(Guid.NewGuid())
             .WithSlug("receipt-template")
             .WithName("receipt-template");
-        template.SetCurrentVersion(versionId, TestConstants.BaselineTime);
 
         TemplateVersion version = TemplateVersionBuilder.AVersion()
             .WithId(versionId)
@@ -39,6 +38,7 @@ public sealed class GetTemplateHtmlSourceUseCaseTests
             .WithVersion(1)
             .WithStorageKey("templates/receipt.html")
             .WithFormat(TemplateFormat.Html);
+        template.PublishVersion(version, TestConstants.BaselineTime);
 
         _templateRepo.GetByIdAsync(new TemplateId(templateId), Arg.Any<CancellationToken>())
             .Returns(template);
@@ -98,7 +98,7 @@ public sealed class GetTemplateHtmlSourceUseCaseTests
 
         // Assert
         await act.Should().ThrowAsync<BusinessRuleViolationException>()
-            .WithMessage($"Template '{templateId}' has no active published version.");
+            .WithMessage("Template '*' has no published version.");
     }
 
     [Fact]
@@ -113,7 +113,6 @@ public sealed class GetTemplateHtmlSourceUseCaseTests
             .WithProjectId(Guid.NewGuid())
             .WithSlug("docx-template")
             .WithName("docx-template");
-        template.SetCurrentVersion(versionId, TestConstants.BaselineTime);
 
         TemplateVersion version = TemplateVersionBuilder.AVersion()
             .WithId(versionId)
@@ -121,6 +120,7 @@ public sealed class GetTemplateHtmlSourceUseCaseTests
             .WithVersion(1)
             .WithStorageKey("templates/template.docx")
             .WithFormat(TemplateFormat.Docx);
+        template.PublishVersion(version, TestConstants.BaselineTime);
 
         _templateRepo.GetByIdAsync(new TemplateId(templateId), Arg.Any<CancellationToken>())
             .Returns(template);

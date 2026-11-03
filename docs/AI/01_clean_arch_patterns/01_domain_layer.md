@@ -33,7 +33,7 @@ UpstreamKernel: AGENTS.md
 | **Cross-Aggregate Boundaries**| Cross-aggregate navigation collections (`Project._templates`, `Company._projects`)| Reference other Aggregate Roots strictly by ID (`ProjectId`, `CompanyId`); unidirectional FK |
 | **Strongly-Typed Identity** | Raw `Guid`, primitive string obsession, implicit ID conversion | `readonly record struct TId(Guid Value)`, validated `sealed record class` VOs, `explicit operator` |
 | **Side-Effect Decoupling** | Direct I/O, HTTP client calls, messaging bus dispatch inside Domain | Entities append immutable `IDomainEvent` in-memory; dispatched post-commit via UseCases |
-| **Child Entity Lifecycle** | Creating child entities directly outside aggregate: `var v = TemplateVersion.Draft(...)` | Aggregate root encapsulates child creation & lifecycle: `template.CreateDraftVersion(...)` |
+| **Child Entity Lifecycle** | Creating child entities directly outside aggregate: `var v = TemplateVersion.Draft(...)` | Aggregate root encapsulates child creation & lifecycle: `template.CreateNextVersion(...)`, `template.RollbackToVersion(...)`, `template.GetPublishedVersion()` |
 | **Tenant Partitioning** | Default optional or unguarded ProjectId: `ProjectId projectId = default` | Mandatory fail-fast assertion: `ProjectId = Guard.NotEmpty(projectId, nameof(ProjectId));` |
 
 ---
@@ -339,6 +339,30 @@ public sealed class Template : BaseEntity<TemplateId>, IMustHaveProject
         SetUpdated(now);
         AddDomainEvent(new TemplatePublishedDomainEvent(Id, ProjectId, versionId, version.Version, now));
         return version;
+    }
+
+    public TemplateVersion GetPublishedVersion()
+    {
+        if (!CurrentVersionId.HasValue)
+            throw new BusinessRuleViolationException($"Template '{Slug.Value}' has no published version.", "NO_PUBLISHED_VERSION");
+
+        return CurrentVersion ?? FindVersion(CurrentVersionId.Value)
+            ?? throw new BusinessRuleViolationException($"Current version '{CurrentVersionId.Value}' for template '{Slug.Value}' was not found.", "PUBLISHED_VERSION_NOT_FOUND");
+    }
+
+    public int GetNextVersionNumber()
+    {
+        int max = _versions.Count > 0 ? _versions.Max(v => v.Version) : 0;
+        if (CurrentVersion is not null && CurrentVersion.Version > max) max = CurrentVersion.Version;
+        return max == 0 ? 1 : max + 1;
+    }
+
+    public TemplateVersion CreateNextVersion(string storageKey, TemplateFormat? fileFormat, string createdBy, DateTimeOffset now, string? changeNote = null)
+    {
+        int nextVersionNumber = GetNextVersionNumber();
+        var newVersion = CreateDraftVersion(nextVersionNumber, storageKey, fileFormat, createdBy, now, changeNote);
+        PublishVersion(newVersion, now);
+        return newVersion;
     }
 
     public void AddFieldMapping(string sourceField, string targetField, bool isRequired)

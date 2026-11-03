@@ -30,14 +30,7 @@ public sealed class ValidateTemplatePayloadUseCase(
             throw new NotFoundException($"Template '{query.Slug}' not found or inactive.");
         }
 
-        if (template.CurrentVersionId is null)
-        {
-            throw new BusinessRuleViolationException($"Template '{query.Slug}' has no published version.");
-        }
-
-        var currentVersion = template.CurrentVersion
-            ?? await templateRepo.GetVersionByIdAsync(template.CurrentVersionId.Value, ct)
-            ?? throw new NotFoundException($"Current version for template '{query.Slug}' not found.");
+        var currentVersion = template.GetPublishedVersion();
 
         // 2. If no schema is stored, treat as valid pass-through
         if (string.IsNullOrWhiteSpace(currentVersion.DataSchema))

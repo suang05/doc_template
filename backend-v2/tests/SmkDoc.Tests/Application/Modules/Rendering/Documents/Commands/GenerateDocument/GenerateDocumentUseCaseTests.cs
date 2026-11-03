@@ -25,7 +25,7 @@ public sealed class GenerateDocumentUseCaseTests
     private readonly ITemplateRepository _templateRepo = Substitute.For<ITemplateRepository>();
     private readonly IDatasetRepository _datasetRepo = Substitute.For<IDatasetRepository>();
     private readonly IDataConnectionRepository _connectionRepo = Substitute.For<IDataConnectionRepository>();
-    private readonly IGenerationLogRepository _logRepo = Substitute.For<IGenerationLogRepository>();
+    private readonly IGenerationLogQueue _logQueue = Substitute.For<IGenerationLogQueue>();
     private readonly IDocumentRepository _documentRepo = Substitute.For<IDocumentRepository>();
     private readonly IStorageService _storageService = Substitute.For<IStorageService>();
     private readonly IRenderEngine _engine = Substitute.For<IRenderEngine>();
@@ -57,7 +57,7 @@ public sealed class GenerateDocumentUseCaseTests
             _schemaValidation);
 
         var audit = new DocumentAuditService(
-            _logRepo,
+            _logQueue,
             _projectContext,
             _timeProvider);
 
@@ -66,11 +66,17 @@ public sealed class GenerateDocumentUseCaseTests
             _projectContext,
             _timeProvider);
 
+        var pipeline = new DocumentRenderPipeline(
+            _engineFactory,
+            dataPrep,
+            _storageService,
+            audit,
+            _unitOfWork);
+
         return new GenerateDocumentUseCase(
             _templateRepo,
             _storageService,
-            _engineFactory,
-            dataPrep,
+            pipeline,
             audit,
             versioning,
             _unitOfWork,
@@ -148,6 +154,7 @@ public sealed class GenerateDocumentUseCaseTests
 
     private void SetupTemplateWithVersion(Template template, TemplateVersion version, string htmlContent = "<html></html>")
     {
+        template.PublishVersion(version, version.CreatedAt);
         SetupTemplate(template);
         _templateRepo.GetVersionByIdAsync(version.Id, Arg.Any<CancellationToken>())
             .Returns(version);
@@ -198,7 +205,7 @@ public sealed class GenerateDocumentUseCaseTests
         result.OutputFormat.Should().Be("pdf");
         result.GenerationId.Version.Should().Be(7);
 
-        await _logRepo.Received(1).AddAsync(
+        await _logQueue.Received(1).EnqueueAsync(
             Arg.Is<GenerationLog>(l => l.TemplateId == templateId
                                    && l.TemplateVersionId == versionId
                                    && l.Status == "SUCCESS"
@@ -254,7 +261,7 @@ public sealed class GenerateDocumentUseCaseTests
 
         // Assert
         await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("Gotenberg container crashed");
-        await _logRepo.Received(1).AddAsync(
+        await _logQueue.Received(1).EnqueueAsync(
             Arg.Is<GenerationLog>(l =>
                 l.TemplateId == template.Id &&
                 l.TemplateVersionId == currentVersion.Id &&
@@ -450,7 +457,7 @@ public sealed class GenerateDocumentUseCaseTests
         ex.Which.Errors.Should().HaveCount(1);
         ex.Which.Errors[0].Rule.Should().Be("required");
 
-        await _logRepo.Received(1).AddAsync(
+        await _logQueue.Received(1).EnqueueAsync(
             Arg.Is<GenerationLog>(l => l.Status == "VALIDATION_FAILED"),
             Arg.Any<CancellationToken>());
         await _engine.DidNotReceive().RenderStreamAsync(

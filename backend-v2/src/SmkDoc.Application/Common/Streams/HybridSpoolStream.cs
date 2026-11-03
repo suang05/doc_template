@@ -114,6 +114,61 @@ public sealed class HybridSpoolStream : Stream
         }
     }
 
+    /// <summary>
+    /// Writes the UTF-8 encoded representation of <paramref name="text"/> into a new <see cref="HybridSpoolStream"/>
+    /// using pooled chunked encoding, avoiding unbounded byte[] LOH allocations.
+    /// Rewinds <see cref="Position"/> to 0 upon completion.
+    /// </summary>
+    public static async Task<HybridSpoolStream> CreateFromUtf8StringAsync(
+        string? text,
+        int inMemoryThresholdBytes = DefaultInMemoryThresholdBytes,
+        CancellationToken ct = default)
+    {
+        var spool = new HybridSpoolStream(inMemoryThresholdBytes);
+        if (string.IsNullOrEmpty(text))
+        {
+            return spool;
+        }
+
+        var encoder = System.Text.Encoding.UTF8.GetEncoder();
+        var chars = text.AsMemory();
+        byte[] buffer = ArrayPool<byte>.Shared.Rent(PooledChunkSize);
+
+        try
+        {
+            while (!chars.IsEmpty)
+            {
+                encoder.Convert(
+                    chars.Span,
+                    buffer.AsSpan(0, PooledChunkSize),
+                    flush: chars.Length <= PooledChunkSize,
+                    out int charsUsed,
+                    out int bytesUsed,
+                    out bool completed);
+
+                if (bytesUsed > 0)
+                {
+                    await spool.WriteAsync(buffer.AsMemory(0, bytesUsed), ct);
+                }
+
+                chars = chars[charsUsed..];
+                if (completed) break;
+            }
+
+            spool.Position = 0;
+            return spool;
+        }
+        catch
+        {
+            await spool.DisposeAsync();
+            throw;
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(buffer);
+        }
+    }
+
     public override void Flush()
     {
         EnsureNotDisposed();

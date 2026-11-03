@@ -32,21 +32,9 @@ public sealed class RollbackTemplateVersionUseCase(
             ?? await templateRepo.GetByIdAsync(templateId, ct)
             ?? throw new NotFoundException($"Template '{command.TemplateId}' was not found.");
 
-        if (template.CurrentVersionId is null)
-        {
-            throw new BusinessRuleViolationException($"Template '{template.Id}' has no published version.");
-        }
+        _ = template.GetPublishedVersion();
 
-        var currentVersion = template.CurrentVersion
-            ?? template.FindVersion(template.CurrentVersionId.Value)
-            ?? await templateRepo.GetVersionByIdAsync(template.CurrentVersionId.Value, ct)
-            ?? throw new NotFoundException($"Current version record for template '{template.Id}' not found.");
-
-        IReadOnlyCollection<TemplateVersion> allVersions = template.Versions.Count > 0
-            ? template.Versions
-            : (await templateRepo.ListVersionsAsync(templateId, ct) ?? []);
-
-        var targetVersion = allVersions.FirstOrDefault(v => v.Version == command.TargetVersion)
+        var targetVersion = template.FindVersion(command.TargetVersion)
             ?? throw new NotFoundException($"Version {command.TargetVersion} not found for template '{command.TemplateId}'.");
 
         if (string.IsNullOrWhiteSpace(targetVersion.StorageKey) ||
@@ -56,27 +44,8 @@ public sealed class RollbackTemplateVersionUseCase(
                 $"Storage asset '{targetVersion.StorageKey}' for template version {command.TargetVersion} was not found.");
         }
 
-        int maxVersion = allVersions.Count > 0
-            ? Math.Max(allVersions.Max(v => v.Version), currentVersion.Version)
-            : currentVersion.Version;
-        int nextVersionNumber = maxVersion + 1;
-
         var now = timeProvider.GetUtcNow();
-        if (currentVersion.Status == TemplateVersionStatus.Published)
-        {
-            currentVersion.Archive(now);
-        }
-
-        var newVersion = template.CreateDraftVersion(
-            nextVersionNumber,
-            targetVersion.StorageKey,
-            targetVersion.FileFormat,
-            projectContext.CallerIdentity ?? "system",
-            now,
-            $"Rollback to v{command.TargetVersion}");
-
-        newVersion.UpdateDataSchema(targetVersion.DataSchema, targetVersion.SamplePayload, now);
-        newVersion.UpdateMappingsSnapshot(targetVersion.MappingsSnapshot, now);
+        var newVersion = template.RollbackToVersion(command.TargetVersion, projectContext.CallerIdentity ?? "system", now);
 
         if (targetVersion.MappingsSnapshot is not null)
         {
@@ -84,10 +53,9 @@ public sealed class RollbackTemplateVersionUseCase(
             template.ReplaceFieldMappings(restoredMappings, now);
         }
 
-        template.PublishVersion(newVersion, now);
         templateRepo.Update(template);
-
         await unitOfWork.CommitAsync(ct);
-        return nextVersionNumber;
+
+        return newVersion.Version;
     }
 }

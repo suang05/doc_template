@@ -17,12 +17,16 @@ public sealed class PreviewMappingUseCaseTests
     private readonly IDataConnectionRepository _connectionRepo = Substitute.For<IDataConnectionRepository>();
     private readonly IStorageService _storage = Substitute.For<IStorageService>();
     private readonly IRenderEngine _htmlEngine = Substitute.For<IRenderEngine>();
+    private readonly IRenderEngineFactory _engineFactory = Substitute.For<IRenderEngineFactory>();
     private readonly IFieldMappingApplicatorService _applicator = Substitute.For<IFieldMappingApplicatorService>();
     private readonly IDataProtectionService _dataProtection = Substitute.For<IDataProtectionService>();
 
     public PreviewMappingUseCaseTests()
     {
         _htmlEngine.EngineType.Returns(RenderEngineType.Html);
+        _engineFactory.GetEngine(RenderEngineType.Html).Returns(_htmlEngine);
+        _engineFactory.GetEngine(Arg.Is<RenderEngineType>(t => t != RenderEngineType.Html))
+            .Throws(new NotSupportedException("No render engine registered for type"));
     }
 
     private PreviewMappingUseCase CreateSut() =>
@@ -31,7 +35,7 @@ public sealed class PreviewMappingUseCaseTests
             _datasetRepo,
             _connectionRepo,
             _storage,
-            [_htmlEngine],
+            _engineFactory,
             _applicator,
             _dataProtection
         );
@@ -49,14 +53,7 @@ public sealed class PreviewMappingUseCaseTests
             .WithName("T")
             .WithSlug("sample-template")
             .Build();
-        template.SetCurrentVersion(versionId, now);
-        if (mappings != null)
-        {
-            template.ReplaceFieldMappings(mappings, now);
-        }
 
-        _templateRepo.GetByIdWithDetailsAsync(new TemplateId(templateId), Arg.Any<CancellationToken>())
-            .Returns(template);
         var version = new TemplateVersionBuilder()
             .WithId(versionId)
             .WithTemplateId(templateId)
@@ -67,6 +64,16 @@ public sealed class PreviewMappingUseCaseTests
             .WithCommitMessage("Commit")
             .WithTime(now)
             .Build();
+
+        template.PublishVersion(version, now);
+
+        if (mappings != null)
+        {
+            template.ReplaceFieldMappings(mappings, now);
+        }
+
+        _templateRepo.GetByIdWithDetailsAsync(new TemplateId(templateId), Arg.Any<CancellationToken>())
+            .Returns(template);
         _templateRepo.GetVersionByIdAsync(versionId, Arg.Any<CancellationToken>())
             .Returns(version);
 

@@ -9,4 +9,5 @@ public interface IGenerationLogRepository
 {
     Task<GenerationLog?> GetByIdAsync(Guid id, CancellationToken ct = default);
     Task AddAsync(GenerationLog log, CancellationToken ct = default);
+    Task AddRangeAsync(IEnumerable<GenerationLog> logs, CancellationToken ct = default);
 }

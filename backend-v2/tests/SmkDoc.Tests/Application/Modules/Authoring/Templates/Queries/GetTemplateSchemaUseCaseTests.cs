@@ -26,7 +26,6 @@ public sealed class GetTemplateSchemaUseCaseTests
             .WithProjectId(Guid.NewGuid())
             .WithSlug("bill-template")
             .WithName("bill-template");
-        template.SetCurrentVersion(versionId, TestConstants.BaselineTime);
 
         TemplateVersion version = TemplateVersionBuilder.AVersion()
             .WithId(versionId)
@@ -34,6 +33,7 @@ public sealed class GetTemplateSchemaUseCaseTests
             .WithVersion(3)
             .WithFormat(TemplateFormat.Html);
         version.UpdateDataSchema("{\"type\":\"object\"}", "{\"amount\": 500}", TestConstants.BaselineTime);
+        template.PublishVersion(version, TestConstants.BaselineTime);
 
         _templateRepo.GetByIdAsync(new TemplateId(templateId), Arg.Any<CancellationToken>())
             .Returns(template);

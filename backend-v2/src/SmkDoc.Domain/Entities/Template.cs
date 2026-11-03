@@ -89,8 +89,75 @@ public sealed class Template : BaseEntity<TemplateId>, IMustHaveProject
     public TemplateVersion? FindVersion(Guid versionId) =>
         _versions.FirstOrDefault(v => v.Id == versionId);
 
-    public int GetNextVersionNumber() =>
-        _versions.Count == 0 ? 1 : _versions.Max(v => v.Version) + 1;
+    public TemplateVersion GetPublishedVersion()
+    {
+        if (CurrentVersionId is null)
+        {
+            throw new BusinessRuleViolationException(
+                $"Template '{Slug.Value}' has no published version.",
+                "NO_PUBLISHED_VERSION");
+        }
+
+        var version = CurrentVersion ?? FindVersion(CurrentVersionId.Value);
+        if (version is null)
+        {
+            throw new BusinessRuleViolationException(
+                $"Current version '{CurrentVersionId.Value}' for template '{Slug.Value}' was not found.",
+                "PUBLISHED_VERSION_NOT_FOUND");
+        }
+
+        return version;
+    }
+
+    public int GetNextVersionNumber()
+    {
+        int max = _versions.Count > 0 ? _versions.Max(v => v.Version) : 0;
+        if (CurrentVersion is not null && CurrentVersion.Version > max)
+        {
+            max = CurrentVersion.Version;
+        }
+
+        return max == 0 ? 1 : max + 1;
+    }
+
+    public TemplateVersion CreateNextVersion(
+        string storageKey,
+        TemplateFormat? fileFormat,
+        string createdBy,
+        DateTimeOffset now,
+        string? changeNote = null)
+    {
+        int nextVersionNumber = GetNextVersionNumber();
+        var newVersion = CreateDraftVersion(nextVersionNumber, storageKey, fileFormat, createdBy, now, changeNote);
+        PublishVersion(newVersion, now);
+        return newVersion;
+    }
+
+    public TemplateVersion RollbackToVersion(
+        int targetVersionNumber,
+        string createdBy,
+        DateTimeOffset now)
+    {
+        var targetVersion = FindVersion(targetVersionNumber)
+            ?? throw new BusinessRuleViolationException(
+                $"Version {targetVersionNumber} not found for template '{Slug.Value}'.",
+                "TARGET_VERSION_NOT_FOUND");
+
+        int nextVersionNumber = GetNextVersionNumber();
+        var newVersion = CreateDraftVersion(
+            nextVersionNumber,
+            targetVersion.StorageKey,
+            targetVersion.FileFormat,
+            createdBy,
+            now,
+            $"Rollback to v{targetVersionNumber}");
+
+        newVersion.UpdateDataSchema(targetVersion.DataSchema, targetVersion.SamplePayload, now);
+        newVersion.UpdateMappingsSnapshot(targetVersion.MappingsSnapshot, now);
+
+        PublishVersion(newVersion, now);
+        return newVersion;
+    }
 
     public void AddVersion(TemplateVersion version, DateTimeOffset now)
     {

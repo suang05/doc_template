@@ -119,6 +119,49 @@ public sealed class HybridSpoolStreamTests
         actual.Should().Equal(payload);
     }
 
+    [Fact]
+    public async Task CreateFromUtf8StringAsync_WhenSmallString_PreservesContentAndRemainsInMemory()
+    {
+        // Arrange
+        const string input = "<html><body><h1>ใบแจ้งหนี้ ภาษาไทย</h1></body></html>";
+
+        // Act
+        await using var stream = await HybridSpoolStream.CreateFromUtf8StringAsync(input);
+        using var reader = new StreamReader(stream, System.Text.Encoding.UTF8);
+        var result = await reader.ReadToEndAsync();
+
+        // Assert
+        stream.IsSpilledToDisk.Should().BeFalse();
+        result.Should().Be(input);
+    }
+
+    [Fact]
+    public async Task CreateFromUtf8StringAsync_WhenLargeStringExceedsThreshold_SpillsToDiskAndPreservesContent()
+    {
+        // Arrange
+        // Create 100 KB string
+        var input = new string('ก', 50_000); // In UTF-8, Thai char 'ก' is 3 bytes => 150 KB > 64 KB
+
+        // Act
+        await using var stream = await HybridSpoolStream.CreateFromUtf8StringAsync(input);
+        using var reader = new StreamReader(stream, System.Text.Encoding.UTF8);
+        var result = await reader.ReadToEndAsync();
+
+        // Assert
+        stream.IsSpilledToDisk.Should().BeTrue();
+        result.Should().Be(input);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    public async Task CreateFromUtf8StringAsync_WhenNullOrEmpty_ReturnsZeroLengthStream(string? input)
+    {
+        await using var stream = await HybridSpoolStream.CreateFromUtf8StringAsync(input);
+        stream.Length.Should().Be(0);
+        stream.IsSpilledToDisk.Should().BeFalse();
+    }
+
     [Theory]
     [InlineData(-1)]
     [InlineData(HybridSpoolStream.MaxInMemoryThresholdBytes + 1)]

@@ -19,12 +19,7 @@ public sealed class GetTemplateHtmlSourceUseCase(
         var template = await templateRepo.GetByIdAsync(new TemplateId(query.TemplateId), ct)
             ?? throw new NotFoundException($"Template '{query.TemplateId}' not found.");
 
-        if (template.CurrentVersionId == null)
-            throw new BusinessRuleViolationException($"Template '{query.TemplateId}' has no active published version.");
-
-        var version = template.CurrentVersion
-            ?? await templateRepo.GetVersionByIdAsync(template.CurrentVersionId.Value, ct)
-            ?? throw new NotFoundException($"Active version for template '{query.TemplateId}' not found.");
+        var version = template.GetPublishedVersion();
 
         if (version.FileFormat != null && version.FileFormat != TemplateFormat.Html)
             throw new BusinessRuleViolationException("Only HTML templates can be opened in the Monaco editor.");

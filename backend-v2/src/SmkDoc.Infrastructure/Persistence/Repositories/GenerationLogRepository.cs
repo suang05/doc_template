@@ -18,4 +18,9 @@ public sealed class GenerationLogRepository(AppDbContext context) : IGenerationL
     {
         await _context.GenerationLogs.AddAsync(log, ct);
     }
+
+    public async Task AddRangeAsync(IEnumerable<GenerationLog> logs, CancellationToken ct = default)
+    {
+        await _context.GenerationLogs.AddRangeAsync(logs, ct);
+    }
 }

@@ -48,7 +48,6 @@ public sealed class SaveTemplateHtmlUseCaseTests
             .WithProjectId(projectId)
             .WithSlug("official-contract")
             .WithName("official-contract");
-        template.SetCurrentVersion(currentVersionId, TestConstants.BaselineTime);
 
         TemplateVersion currentVersion = TemplateVersionBuilder.AVersion()
             .WithId(currentVersionId)
@@ -59,6 +58,7 @@ public sealed class SaveTemplateHtmlUseCaseTests
             .WithStatus("Published")
             .WithCreatedBy("author");
         currentVersion.UpdateMappingsSnapshot("[{\"placeholder\":\"customerName\"}]", TestConstants.BaselineTime);
+        template.PublishVersion(currentVersion, TestConstants.BaselineTime);
 
         _templateRepo.GetByIdWithDetailsAsync(new TemplateId(templateId), Arg.Any<CancellationToken>())
             .Returns(template);
