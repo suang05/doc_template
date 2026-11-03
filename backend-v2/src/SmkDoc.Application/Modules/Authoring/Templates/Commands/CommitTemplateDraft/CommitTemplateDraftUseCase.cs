@@ -28,7 +28,7 @@ public sealed class CommitTemplateDraftUseCase(
             throw new ForbiddenException("Committing a template draft requires an active project context.");
         }
 
-        var draft = await draftCache.GetAsync(command.DraftId, ct)
+        var draft = await draftCache.GetAsync(projectContext.ProjectId, command.DraftId, ct)
             ?? throw new DraftExpiredException(command.DraftId);
 
         if (projectRepo != null)
@@ -55,9 +55,9 @@ public sealed class CommitTemplateDraftUseCase(
         var contentType = ContentTypeFromExt(draft.FileExtension);
 
         string uploadedKey;
-        using (var ms = new MemoryStream(draft.FileBytes))
+        await using (var draftStream = await draftCache.OpenStreamAsync(draft, ct))
         {
-            var resultKey = await storageService.UploadAsync(StorageBuckets.Templates, storageKey, ms, contentType, ct);
+            var resultKey = await storageService.UploadAsync(StorageBuckets.Templates, storageKey, draftStream, contentType, ct);
             uploadedKey = string.IsNullOrWhiteSpace(resultKey) ? storageKey : resultKey;
         }
 
@@ -133,7 +133,7 @@ public sealed class CommitTemplateDraftUseCase(
             throw;
         }
 
-        await draftCache.RemoveAsync(command.DraftId, ct);
+        await draftCache.RemoveAsync(projectContext.ProjectId, command.DraftId, ct);
         return template.Id.Value.ToString();
     }
 

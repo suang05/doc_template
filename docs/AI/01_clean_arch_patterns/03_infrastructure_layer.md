@@ -39,6 +39,7 @@ UpstreamKernel: AGENTS.md
 | **Entity Tracking & JSONB List Projections** | Using `.AsNoTracking()` when mutating aggregates OR hydrating `jsonb` blobs (`InputData`, `DataSchema`, `SamplePayload`, `MappingsSnapshot`) on paged list queries | Fetch tracked aggregates in mutating Commands; use `.AsNoTracking()` + scalar SQL `.Select(...)` projections (`ITemplateQueryService`, `IGenerationLogQueryService`) and single-pass `GroupBy(_ => 1)` aggregates on read/metrics hot-paths |
 | **Tenant Composite Indexing** | Global unique `templates(Slug)` or single-column `generation_logs` indexes forcing heap sorts | Composite unique `(ProjectId, Slug)` on `templates` and composite descending `(ProjectId, CreatedAt DESC)` / `(ProjectId, CallerApp, CreatedAt DESC)` indexes on `generation_logs`, kept at 100% parity with `AppDbContextModelSnapshot` |
 | **MinIO Stream Sizing & Downloads** | Passing `ObjectSize(-1)` on uploads, buffering `DownloadAsync` into unbounded `MemoryStream`, or calling `BucketExistsAsync` per upload | Spool seekable streams via `HybridSpoolStream` (`<= 64 KB` `ArrayPool<byte>`; `> 64 KB` `DeleteOnClose` temp `FileStream`) so sockets release immediately with zero LOH allocations, and cache initialized buckets in `ConcurrentDictionary` |
+| **Multi-Pod Distributed State & Startup** | Process-local `IMemoryCache` idempotency/drafts, `byte[]` draft caching, unserialized `MigrateAsync()` across pods, or static-IV AES-CBC secrets | Dual-Mode `StackExchange.Redis` (`Redis*` when configured; `Memory*` fallback): Fail-Closed (`503`) atomic Lua `RedisIdempotencyStore`, Fail-Open `RedisDatasetResultCache` & Pub/Sub `ITemplateCacheInvalidationBus`, MinIO-backed `StorageBuckets.Drafts` (`drafts/{projectId:N}/{draftId}{ext}`), `pg_advisory_lock` startup serialization, and `v2:` AES-256-GCM `DataProtectionService` |
 
 ---
 
@@ -96,6 +97,7 @@ CoreExtensionSlots:
 | Bucket Constant | Bucket Name | Target Content | Key Path Partitioning Scheme |
 |---|---|---|---|
 | `StorageBuckets.Templates` | `templates` | Immutable HTML/DOCX/XLSX template versions | `templates/{projectId:N}/{templateId:N}/v{version}{ext}` |
+| `StorageBuckets.Drafts` | `drafts` | Temporary tenant-isolated draft binaries prior to commit | `drafts/{projectId:N}/{draftId}{ext}` |
 | `StorageBuckets.Outputs` | `outputs` | Generated production documents | `outputs/{projectId:N}/{yyyy/MM/dd}/{slug}_{generationId:N}.{ext}` |
 | `StorageBuckets.AuditPayloads` | `audit-payloads` | Large generation request payloads (>16KB) | `audit/{projectId:N}/{yyyy/MM/dd}/{payloadSha256}.json` |
 | `StorageBuckets.Fonts` | `fonts` | Tenant-isolated custom typography assets | `fonts/{projectId:N}/{safeFileName}` |

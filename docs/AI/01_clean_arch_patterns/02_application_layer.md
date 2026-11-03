@@ -59,8 +59,9 @@ CoreExtensionSlots:
   RenderingEngines: Pluggable IRenderEngine strategy dispatch (Html, Docx, Excel)
   ValidationPipeline: Automatic IValidator<TCommand> fail-fast execution at line 1
   QueryProjections: Materialized PagedResultDto<T> with boundary clamping and jsonb-free SQL projections (ITemplateQueryService, IGenerationLogQueryService)
-  CompiledTemplateCache: ICompiledTemplateCache (In-memory compiled AST cache)
-  DatasetResultCache: IDatasetResultCache (Tenant-isolated external SQL JSON result cache honoring Dataset.CacheSeconds)
+  CompiledTemplateCache: ICompiledTemplateCache + ITemplateCacheInvalidationBus (64-stripe compiled AST cache with post-commit Redis Pub/Sub cross-pod invalidation)
+  DatasetResultCache: IDatasetResultCache (Tenant-isolated external SQL JSON result cache honoring Dataset.CacheSeconds via Redis/Memory)
+  TemplateDraftCache: ITemplateDraftCache (Zero-LOH tenant-scoped draft metadata in Redis/Memory + binary stream in MinIO StorageBuckets.Drafts)
   HybridStreamSpooler: HybridSpoolStream (<= 64 KB ArrayPool<byte> fast path + > 64 KB DeleteOnClose temp FileStream spillover)
   DomainEventDispatcher: IDomainEventDispatcher (Post-commit event broadcaster)
 ```
@@ -128,6 +129,7 @@ public interface IDomainEventDispatcher
 | `ConflictException` | `409 Conflict` | Unique business key collision (Slug, Code, Concurrent edit) |
 | `DomainValidationException` | `422 Unprocessable`| Aggregate business invariant violated |
 | `DocumentRenderException` | `502 Bad Gateway` | Gotenberg rendering microservice pipeline failure |
+| `DistributedStateUnavailableException` | `503 Service Unavailable` | Distributed idempotency store unreachable (Fail-Closed mutation safety) |
 
 ---
 

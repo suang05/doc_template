@@ -83,6 +83,12 @@ public sealed class MemoryIdempotencyStore(
     {
         lock (_syncLock)
         {
+            if (memoryCache.TryGetValue(cacheKey, out IdempotencyRecord? existing) &&
+                existing?.Status == IdempotencyStatus.Completed)
+            {
+                return Task.CompletedTask;
+            }
+
             memoryCache.Remove(cacheKey);
             return Task.CompletedTask;
         }

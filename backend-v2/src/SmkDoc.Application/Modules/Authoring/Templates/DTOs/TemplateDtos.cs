@@ -54,10 +54,13 @@ public record TemplateValidationResultDto(
 );
 
 /// <summary>
-/// In-memory cache entry for uploaded template drafts.
+/// Tenant-scoped metadata entry for an uploaded template draft whose binary payload is stored in StorageBuckets.Drafts.
+/// Contains zero byte[] fields to guarantee zero Large Object Heap allocations ([TRAP-LOH-001]).
 /// </summary>
-public record TemplateDraftEntry(
-    byte[] FileBytes,
+public sealed record TemplateDraftEntry(
+    string DraftId,
+    Guid ProjectId,
+    string StorageKey,
     string FileName,
     string FileExtension,
     IReadOnlyList<string> Placeholders

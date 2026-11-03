@@ -87,6 +87,7 @@ public sealed class GlobalExceptionHandler(
             RenderException render               => (StatusCodes.Status500InternalServerError, "Render Failed", render.ErrorCode),
             DataConnectionDecryptionException decrypt => (StatusCodes.Status500InternalServerError, "Data Connection Decryption Failed", decrypt.ErrorCode),
             DatasetExecutionException datasetEx  => (StatusCodes.Status500InternalServerError, "Dataset Query Failed", datasetEx.ErrorCode),
+            DistributedStateUnavailableException unavailable => (StatusCodes.Status503ServiceUnavailable, "Distributed State Unavailable", unavailable.ErrorCode),
             UnauthorizedException unauthorized   => (StatusCodes.Status401Unauthorized, "Unauthorized", unauthorized.ErrorCode),
             ForbiddenException forbidden         => (StatusCodes.Status403Forbidden, "Forbidden", forbidden.ErrorCode),
             DomainValidationException domainVal  => (StatusCodes.Status400BadRequest, "Domain Validation Error", domainVal.ErrorCode),

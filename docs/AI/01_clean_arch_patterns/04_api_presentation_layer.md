@@ -88,7 +88,14 @@ CoreExtensionSlots:
 | `DomainValidationException` | `422 Unprocessable`| Domain Rule Violation | `https://tools.ietf.org/html/rfc9110#section-15.5.21` |
 | `DataConnectionDecryptionException` | `500 Internal Error`| Integration Error | `https://tools.ietf.org/html/rfc9110#section-15.6.1` |
 | `DatasetExecutionException` | `500 Internal Error`| Integration Error | `https://tools.ietf.org/html/rfc9110#section-15.6.1` |
+| `DistributedStateUnavailableException` | `503 Service Unavailable` | Distributed State Unavailable | `https://api.sammakorn.co.th/errors/distributed-state-unavailable` |
 | Unhandled Exceptions | `500 Internal Error`| Internal Server Error | `https://tools.ietf.org/html/rfc9110#section-15.6.1` |
+
+### Cluster-Wide Rate Limiting Partition Priority (`RateLimitPartitionKeyResolver`)
+* Multi-pod instances enforce cluster-wide fixed-window limits (`RedisFixedWindowRateLimiter`, Fail-Open to local `FixedWindowRateLimiter` on transient Redis outage) using strict partition priority:
+  1. `apikey:{SHA-256(X-API-Key)}` (never store raw secret API keys in Redis)
+  2. `user:{UserId}` (authenticated JWT `sub` / `NameIdentifier` so Web Studio users behind corporate NAT do not share one IP bucket)
+  3. `ip:{RemoteIpAddress}` (unauthenticated/public routes)
 
 ### OWASP Top-Level Array Envelope
 ```csharp

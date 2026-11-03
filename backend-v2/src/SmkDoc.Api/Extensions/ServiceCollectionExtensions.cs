@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
@@ -8,7 +9,10 @@ using Microsoft.OpenApi;
 using SmkDoc.Api.ExceptionHandlers;
 using SmkDoc.Api.Filters;
 using SmkDoc.Api.HealthChecks;
+using SmkDoc.Api.RateLimiting;
+using SmkDoc.Infrastructure.Cache;
 using SmkDoc.Infrastructure.Persistence;
+using StackExchange.Redis;
 
 namespace SmkDoc.Api.Extensions;
 
@@ -26,8 +30,8 @@ public static class ServiceCollectionExtensions
         services.AddApiCors(configuration);
         services.AddApiAuthentication(configuration);
         services.AddApiOpenApi();
-        services.AddApiRateLimiting();
-        services.AddApiHealthChecks();
+        services.AddApiRateLimiting(configuration);
+        services.AddApiHealthChecks(configuration);
 
         return services;
     }
@@ -170,36 +174,61 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
-    private static IServiceCollection AddApiRateLimiting(this IServiceCollection services)
+    private static IServiceCollection AddApiRateLimiting(
+        this IServiceCollection services,
+        IConfiguration configuration)
     {
+        bool useRedis = RedisConfigurationResolver.ResolveConnectionString(configuration) is not null;
+        string instancePrefix = RedisConfigurationResolver.ResolveInstancePrefix(configuration);
+
         services.AddRateLimiter(options =>
         {
             options.AddPolicy("api", context =>
             {
-                var apiKeyHeader = context.Request.Headers["X-API-Key"].ToString();
-                var partitionKey = string.IsNullOrEmpty(apiKeyHeader)
-                    ? context.Connection.RemoteIpAddress?.ToString() ?? "unknown"
-                    : apiKeyHeader;
-
-                return RateLimitPartition.GetFixedWindowLimiter(partitionKey, _ => new FixedWindowRateLimiterOptions
+                var partitionKey = RateLimitPartitionKeyResolver.Resolve(context);
+                var windowOptions = new FixedWindowRateLimiterOptions
                 {
                     PermitLimit = 60,
                     Window = TimeSpan.FromMinutes(1),
                     QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                    QueueLimit = 0
-                });
+                    QueueLimit = 0,
+                    AutoReplenishment = true
+                };
+
+                if (useRedis)
+                {
+                    var multiplexer = context.RequestServices.GetService<IConnectionMultiplexer>();
+                    if (multiplexer is not null)
+                    {
+                        var logger = context.RequestServices
+                            .GetRequiredService<ILoggerFactory>()
+                            .CreateLogger<RedisFixedWindowRateLimiter>();
+
+                        return RateLimitPartition.Get(
+                            partitionKey,
+                            key => new RedisFixedWindowRateLimiter(multiplexer, key, windowOptions, logger, instancePrefix));
+                    }
+                }
+
+                return RateLimitPartition.GetFixedWindowLimiter(partitionKey, _ => windowOptions);
             });
 
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
             options.OnRejected = async (context, ct) =>
             {
+                if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
+                {
+                    var seconds = Math.Max(1, (int)Math.Ceiling(retryAfter.TotalSeconds));
+                    context.HttpContext.Response.Headers.RetryAfter = seconds.ToString(CultureInfo.InvariantCulture);
+                }
+
                 context.HttpContext.Response.ContentType = "application/problem+json";
                 var problemDetails = new ProblemDetails
                 {
                     Status = StatusCodes.Status429TooManyRequests,
                     Title = "Too Many Requests",
                     Type = "https://datatracker.ietf.org/doc/html/rfc6585#section-4",
-                    Detail = "Rate limit exceeded. Maximum 60 requests per minute per API key."
+                    Detail = "Rate limit exceeded. Maximum 60 requests per minute per caller partition."
                 };
                 await context.HttpContext.Response.WriteAsJsonAsync(problemDetails, ct);
             };
@@ -208,12 +237,19 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
-    private static IServiceCollection AddApiHealthChecks(this IServiceCollection services)
+    private static IServiceCollection AddApiHealthChecks(
+        this IServiceCollection services,
+        IConfiguration configuration)
     {
-        services.AddHealthChecks()
+        var healthChecks = services.AddHealthChecks()
             .AddDbContextCheck<AppDbContext>("postgres", tags: ["db"])
             .AddCheck<GotenbergHealthCheck>("gotenberg", tags: ["deps"])
             .AddCheck<MinioHealthCheck>("minio", tags: ["deps"]);
+
+        if (RedisConfigurationResolver.ResolveConnectionString(configuration) is not null)
+        {
+            healthChecks.AddCheck<RedisHealthCheck>("redis", tags: ["deps"]);
+        }
 
         return services;
     }

@@ -37,20 +37,20 @@ graph TD
     Ingress --> Api["3. Presentation Gateway (SmkDoc.Api)"]
     Api --> Application["4. Application Orchestration (UseCases & ThaiTransformer)"]
     Application --> Domain["5. Domain Core (POCOs & Smart Enums)"]
-    Application --> Infra["6. Infrastructure Adapters (EF Core / MinIO / GotenbergClient)"]
-    Infra --> External["7. External Infrastructure Mesh (PostgreSQL / MinIO S3 / Gotenberg)"]
+    Application --> Infra["6. Infrastructure Adapters (EF Core / MinIO / Redis / GotenbergClient)"]
+    Infra --> External["7. External Infrastructure Mesh (PostgreSQL / MinIO S3 / Redis 7 / Gotenberg)"]
 ```
 
 ### The 7 Operational Tiers Matrix
 | Tier | Component Scope | Primary Responsibility | Isolation Invariant |
 |---|---|---|---|
 | **Tier 1** | Next.js 15 UI / Enterprise ERP | User template authoring & enterprise generation requests | Consumes standard HTTP REST endpoints |
-| **Tier 2** | Reverse Proxy / Dual-Auth | TLS termination, rate limiting, SHA-256 API key & JWT routing | Dispatches authenticated context headers |
+| **Tier 2** | Reverse Proxy / Dual-Auth | TLS termination, cluster rate limiting, SHA-256 API key & JWT routing | Dispatches authenticated context headers |
 | **Tier 3** | `SmkDoc.Api` (.NET 10) | RFC 9457 exceptions, security headers, thin controllers (<= 5 LOC) | Zero business logic in presentation |
 | **Tier 4** | `SmkDoc.Application` | Single-responsibility UseCases, `ThaiDataTransformer` SSoT, ports | Pure orchestrator, returns Application DTOs only |
 | **Tier 5** | `SmkDoc.Domain` | Pure C# 13 POCOs, Rich Entities, Smart Enums, Domain Events | Zero third-party dependencies, encapsulated state |
-| **Tier 6** | `SmkDoc.Infrastructure` | EF Core Npgsql repositories, Gotenberg client, MinIO S3 adapter | Implements Application ports, hides I/O details |
-| **Tier 7** | External Mesh | PostgreSQL 16+, MinIO S3, Gotenberg 8 Chromium cluster, OTel | Isolated scalable network services |
+| **Tier 6** | `SmkDoc.Infrastructure` | EF Core Npgsql repositories, Gotenberg client, MinIO S3 & Redis 7 adapters | Implements Application ports, hides I/O details |
+| **Tier 7** | External Mesh | PostgreSQL 16+, MinIO S3, Redis 7 (Idempotency/Draft/Cache/PubSub), Gotenberg 8, OTel | Isolated scalable network services |
 
 ---
 

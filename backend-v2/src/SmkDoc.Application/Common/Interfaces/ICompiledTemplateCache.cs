@@ -9,4 +9,9 @@ public interface ICompiledTemplateCache
     /// Gets a cached compiled template evaluation function or computes and adds it using the factory.
     /// </summary>
     Func<object, string> GetOrAdd(string key, Func<Func<object, string>> factory);
+
+    /// <summary>
+    /// Atomically invalidates all cached compiled template delegates on the current pod.
+    /// </summary>
+    void InvalidateAll();
 }

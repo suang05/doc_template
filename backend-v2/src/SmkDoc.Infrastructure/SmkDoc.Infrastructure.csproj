@@ -34,6 +34,7 @@
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" />
     <PackageReference Include="ZXing.Net.Bindings.SkiaSharp" />
     <PackageReference Include="Minio" />
+    <PackageReference Include="StackExchange.Redis" />
     <PackageReference Include="JsonSchema.Net" />
   </ItemGroup>
 

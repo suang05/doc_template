@@ -51,6 +51,21 @@ services:
       retries: 5
       start_period: 15s
 
+  redis:
+    image: redis:7-alpine
+    restart: always
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata-v2:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
   doc-server-v2:
     build:
       context: ./backend-v2
@@ -66,6 +81,8 @@ services:
       - Minio__AccessKey=${MINIO_ROOT_USER:-admin}
       - Minio__SecretKey=${MINIO_ROOT_PASSWORD:-password}
       - ConnectionStrings__DefaultConnection=Host=db;Port=5432;Database=${POSTGRES_DB:-smkdoc};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-password}
+      - ConnectionStrings__Redis=redis:6379,abortConnect=false
+      - EncryptionKey=${ENCRYPTION_KEY:-dev-smk-encryption-key-32-bytes!!}
       - MASTER_API_KEY=${MASTER_API_KEY:-secret-smk-key-2026}
       - Jwt__Secret=${JWT_SECRET:-dev-smk-jwt-secret-2026-must-be-at-least-32-chars}
       - Jwt__Issuer=${JWT_ISSUER:-smk-doc-server}
@@ -78,6 +95,8 @@ services:
       minio:
         condition: service_healthy
       gotenberg:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
@@ -115,3 +134,4 @@ services:
 volumes:
   pgdata-v2:
   miniodata-v2:
+  redisdata-v2:

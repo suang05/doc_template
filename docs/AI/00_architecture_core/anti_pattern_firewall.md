@@ -29,6 +29,7 @@ UpstreamKernel: AGENTS.md
 | **[TRAP-SQL-011]** | Security / SSRF | Unchecked external `DataConnection` host or mutating SQL | Block Loopback/Link-Local/Self-DB; enforce single `SELECT`/`WITH` in `READ ONLY` tx | CRITICAL |
 | **[TRAP-SLICE-012]** | Architecture | Bundling Command/Validator in `*UseCase.cs` or shared `Validators/` folders | Enforce 1-Primary-Type-Per-File (`{TypeName}.cs`) co-located inside the CQRS slice folder | HIGH |
 | **[TRAP-SQL-013]** | Performance / DB Pool | Per-alias N+1 dataset lookups or unbounded parallel external SQL queries | 1-query `.Include(d => d.DataConnection)` batch lookup + `SemaphoreSlim(4)` + linked fail-fast cancellation + `IDatasetResultCache` | HIGH |
+| **[TRAP-POD-014]** | Multi-Pod Statelessness / Security | Process-only idempotency/drafts, `byte[]` draft payloads, raw `X-API-Key` in Redis, static-IV AES-CBC, or unserialized multi-pod `MigrateAsync()` | Atomic Lua `RedisIdempotencyStore` (Fail-Closed `503`), MinIO-backed tenant `ITemplateDraftCache`, `SHA-256` rate-limit keys (Fail-Open), Redis Pub/Sub `ICompiledTemplateCache` invalidation, `pg_advisory_lock` startup, and `v2:` AES-256-GCM | CRITICAL |
 
 ---
 
@@ -343,3 +344,14 @@ public async Task<(string StoredPayload, string ChecksumSha256)> PrepareAuditPay
 + // Execute distinct external SQL aliases via SemaphoreSlim(4) + linked fail-fast CancellationTokenSource + IDatasetResultCache
 ```
 *Rationale: Sequential N+1 queries multiply latency per attached dataset, while unbounded `Task.WhenAll` without `SemaphoreSlim(4)` exhausts external customer ERP connection pools under load.*
+
+### [TRAP-POD-014]: Single-Pod In-Memory State, Unhashed Rate-Limit Keys & Static-IV Encryption
+```diff
+- public record TemplateDraftEntry(byte[] FileBytes, ...); // Per-pod RAM + 20MB LOH + missing ProjectId check
+- var partitionKey = context.Request.Headers["X-API-Key"].ToString(); // Raw secret API key & per-pod counter
+- aes.IV = new byte[16]; // Static zero IV AES-CBC
++ // Store draft binaries in StorageBuckets.Drafts (drafts/{projectId:N}/{draftId}{ext}) + metadata in Redis;
++ // Partition cluster rate-limits via apikey:{SHA256} => user:{UserId} => ip:{ClientIP} (Fail-Open);
++ // Fail-Closed (503) on RedisIdempotencyStore outage; serialize MigrateAsync() via pg_advisory_lock; encrypt secrets via v2: AES-256-GCM
+```
+*Rationale: Process-local state breaks round-robin multi-pod scaling (`410 Gone` drafts, duplicate financial documents, multiplied rate limits, stale compiled ASTs), while raw API keys in Redis and static-IV AES-CBC expose secrets.*
