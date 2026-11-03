@@ -98,20 +98,17 @@ public sealed class CreateTemplateUseCase(
             fileFormat = TemplateFormat.Html;
             storageKey = StorageBuckets.TemplateVersionKey(template.ProjectId, template.Id, 1, ".html");
             const string defaultHtml = "<!DOCTYPE html>\n<html lang=\"th\">\n<head>\n  <meta charset=\"UTF-8\" />\n</head>\n<body>\n  <h2>Template</h2>\n</body>\n</html>";
-            using var htmlStream = new MemoryStream(Encoding.UTF8.GetBytes(defaultHtml));
+            await using var htmlStream = await HybridSpoolStream.CreateFromUtf8StringAsync(defaultHtml, ct: ct);
             await storageService.UploadAsync(StorageBuckets.Templates, storageKey, htmlStream, "text/html; charset=utf-8", ct);
         }
 
         // 4. Append-Only Initial Version & Compensating Storage Cleanup on Persistence Failure
-        var initialVersion = template.CreateDraftVersion(
-            1,
+        var initialVersion = template.CreateNextVersion(
             storageKey,
             fileFormat,
             projectContext.CallerIdentity ?? "system",
             now,
             "Initial version");
-
-        template.PublishVersion(initialVersion, now);
 
         try
         {

@@ -15,9 +15,7 @@ public sealed class GetTemplateSchemaUseCase(
         var template = await templateRepo.GetByIdAsync(new TemplateId(query.TemplateId), ct)
             ?? throw new NotFoundException($"Template '{query.TemplateId}' not found.");
 
-        TemplateVersion? activeVersion = template.CurrentVersionId.HasValue
-            ? template.GetPublishedVersion()
-            : null;
+        TemplateVersion? activeVersion = template.FindPublishedVersion();
 
         return new TemplateSchemaDto(
             TemplateId: template.Id.Value,

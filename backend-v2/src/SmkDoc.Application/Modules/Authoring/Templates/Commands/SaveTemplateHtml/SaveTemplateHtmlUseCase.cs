@@ -54,9 +54,7 @@ public sealed class SaveTemplateHtmlUseCase(
 
             // 3. Create append-only database version record and publish atomically
             var now = timeProvider.GetUtcNow();
-            TemplateVersion? priorPublishedVersion = template.CurrentVersionId.HasValue
-                ? (template.CurrentVersion ?? template.FindVersion(template.CurrentVersionId.Value))
-                : null;
+            TemplateVersion? priorPublishedVersion = template.FindPublishedVersion();
 
             var newVersion = template.CreateNextVersion(
                 versionedKey,

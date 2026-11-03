@@ -89,6 +89,9 @@ public sealed class Template : BaseEntity<TemplateId>, IMustHaveProject
     public TemplateVersion? FindVersion(Guid versionId) =>
         _versions.FirstOrDefault(v => v.Id == versionId);
 
+    public TemplateVersion? FindPublishedVersion() =>
+        CurrentVersionId.HasValue ? (CurrentVersion ?? FindVersion(CurrentVersionId.Value)) : null;
+
     public TemplateVersion GetPublishedVersion()
     {
         if (CurrentVersionId is null)
@@ -98,7 +101,7 @@ public sealed class Template : BaseEntity<TemplateId>, IMustHaveProject
                 "NO_PUBLISHED_VERSION");
         }
 
-        var version = CurrentVersion ?? FindVersion(CurrentVersionId.Value);
+        var version = FindPublishedVersion();
         if (version is null)
         {
             throw new BusinessRuleViolationException(

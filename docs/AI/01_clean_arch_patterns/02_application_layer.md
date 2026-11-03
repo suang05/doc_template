@@ -63,7 +63,8 @@ CoreExtensionSlots:
   DatasetResultCache: IDatasetResultCache (Tenant-isolated external SQL JSON result cache honoring Dataset.CacheSeconds via Redis/Memory)
   AuditLoggingPipeline: IGenerationLogQueue (Bounded in-memory Channel<GenerationLog> with GenerationLogBatchWorker background flush and graceful drain, decoupling OLTP inserts from document generation requests)
   TemplateDraftCache: ITemplateDraftCache (Zero-LOH tenant-scoped draft metadata in Redis/Memory + binary stream in MinIO StorageBuckets.Drafts)
-  HybridStreamSpooler: HybridSpoolStream (<= 64 KB ArrayPool<byte> fast path + > 64 KB DeleteOnClose temp FileStream spillover)
+  HybridStreamSpooler: HybridSpoolStream (<= 64 KB ArrayPool<byte> fast path + > 64 KB DeleteOnClose temp FileStream spillover + CreateFromUtf8StringAsync pooled chunked encoding)
+  DocumentRenderingPipeline: IDocumentRenderPipeline (Encapsulates data preparation, Draft-07 schema gate, polymorphic engine render, spooling, MinIO upload, and failure audit logging)
   DomainEventDispatcher: IDomainEventDispatcher (Post-commit event broadcaster)
 ```
 

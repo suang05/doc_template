@@ -5,3 +5,4 @@ public sealed record DocumentRenderResult(
     long FileSizeBytes,
     string Sha256Hex,
     int ElapsedMilliseconds);
+

@@ -2,6 +2,7 @@ using System.Text.Json;
 using SmkDoc.Application.Common;
 using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
+using SmkDoc.Application.Common.Streams;
 using SmkDoc.Application.Modules.Rendering.Documents.Queries.PreviewDocument;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
@@ -25,7 +26,7 @@ public sealed class PreviewDocumentUseCase(
         // If Monaco editor supplied the active HTML in the body, use it directly!
         if (!string.IsNullOrWhiteSpace(query.Html))
         {
-            templateStream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(query.Html));
+            templateStream = await HybridSpoolStream.CreateFromUtf8StringAsync(query.Html, ct: ct);
             engineType = RenderEngineType.Html;
         }
         else

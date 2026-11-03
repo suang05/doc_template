@@ -1,5 +1,6 @@
 using SmkDoc.Application.Common;
 using SmkDoc.Application.Common.Interfaces;
+using SmkDoc.Application.Common.Streams;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
@@ -159,20 +160,24 @@ public sealed class DocumentAuditService(
             return (null, null);
         }
 
-        var bytes = System.Text.Encoding.UTF8.GetBytes(dataJson);
-        var hashBytes = System.Security.Cryptography.SHA256.HashData(bytes);
-        var hexHash = Convert.ToHexStringLower(hashBytes);
-        var payloadHash = new Sha256Hash(hexHash);
-
-        if (bytes.Length <= MaxInlinePayloadSizeBytes || storageService == null)
+        int byteCount = System.Text.Encoding.UTF8.GetByteCount(dataJson);
+        if (byteCount <= MaxInlinePayloadSizeBytes || storageService == null)
         {
-            return (dataJson, payloadHash);
+            var bytes = System.Text.Encoding.UTF8.GetBytes(dataJson);
+            var hashBytes = System.Security.Cryptography.SHA256.HashData(bytes);
+            var hexHash = Convert.ToHexStringLower(hashBytes);
+            return (dataJson, new Sha256Hash(hexHash));
         }
 
-        var objectKey = $"audit/{projectId.Value:N}/{now:yyyy/MM/dd}/{hexHash}.json";
-        using var stream = new MemoryStream(bytes);
+        await using var stream = await HybridSpoolStream.CreateFromUtf8StringAsync(dataJson, ct: ct);
+        byte[] hashBytesLarge = await System.Security.Cryptography.SHA256.HashDataAsync(stream, ct);
+        stream.Position = 0;
+        var hexHashLarge = Convert.ToHexStringLower(hashBytesLarge);
+        var payloadHashLarge = new Sha256Hash(hexHashLarge);
+
+        var objectKey = $"audit/{projectId.Value:N}/{now:yyyy/MM/dd}/{hexHashLarge}.json";
         await storageService.UploadAsync(StorageBuckets.AuditPayloads, objectKey, stream, "application/json", ct);
 
-        return ($"[OFFLOADED:{objectKey}]", payloadHash);
+        return ($"[OFFLOADED:{objectKey}]", payloadHashLarge);
     }
 }
