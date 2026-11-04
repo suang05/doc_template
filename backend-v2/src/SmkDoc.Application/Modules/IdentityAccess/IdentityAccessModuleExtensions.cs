@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using SmkDoc.Application.Common.Behaviors;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Projects.Commands.CreateProject;
+using SmkDoc.Application.Modules.IdentityAccess.Projects.Commands.TransferProjectOwner;
 using SmkDoc.Application.Modules.IdentityAccess.Projects.DTOs;
 using SmkDoc.Application.Modules.IdentityAccess.Projects.Queries.GetProjectById;
 using SmkDoc.Application.Modules.IdentityAccess.Projects.Queries.ListProjects;
@@ -42,6 +43,7 @@ public static class IdentityAccessModuleExtensions
 
         // Projects (Action-Centric Vertical Slice)
         services.AddUseCase<CreateProjectCommand, ProjectResultDto, CreateProjectUseCase>();
+        services.AddUseCase<TransferProjectOwnerCommand, TransferProjectOwnerUseCase>();
         services.AddUseCase<ListProjectsQuery, ProjectPagedResultDto, ListProjectsUseCase>();
         services.AddUseCase<GetProjectByIdQuery, ProjectResultDto, GetProjectByIdUseCase>();
 

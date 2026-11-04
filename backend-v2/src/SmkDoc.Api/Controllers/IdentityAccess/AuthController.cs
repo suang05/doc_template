@@ -1,8 +1,10 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.Contracts.IdentityAccess.Auth;
 using SmkDoc.Api.Extensions;
+using SmkDoc.Api.Filters;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.Login;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.RefreshToken;
@@ -16,7 +18,6 @@ namespace SmkDoc.Api.Controllers.IdentityAccess;
 /// </summary>
 [ApiController]
 [Route("api/v1/auth")]
-[Route("api/auth")]
 public sealed class AuthController(
     IUseCase<LoginCommand, LoginResultDto> loginUseCase,
     IUseCase<RefreshTokenCommand, TokenResultDto> refreshTokenUseCase,
@@ -26,6 +27,7 @@ public sealed class AuthController(
     /// Authenticate a user and return a JWT access token alongside a refresh token.
     /// </summary>
     [HttpPost("login")]
+    [EnableRateLimiting("auth-strict")]
     [ProducesResponseType(typeof(ApiResponse<LoginResultDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -40,6 +42,7 @@ public sealed class AuthController(
     /// Rotate and refresh access token using a valid refresh token.
     /// </summary>
     [HttpPost("refresh")]
+    [EnableRateLimiting("auth-strict")]
     [ProducesResponseType(typeof(ApiResponse<TokenResultDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -59,9 +62,8 @@ public sealed class AuthController(
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> GetMe(CancellationToken ct)
     {
-        var userId = User.GetUserId();
-        var query = new GetCurrentUserProfileQuery(userId);
-        var response = await getCurrentUserProfileUseCase.ExecuteAsync(query, ct);
+        var currentUserId = User.GetUserId();
+        var response = await getCurrentUserProfileUseCase.ExecuteAsync(new GetCurrentUserProfileQuery(currentUserId), ct);
         return Ok(new ApiResponse<CurrentUserProfileResultDto>(response));
     }
 }

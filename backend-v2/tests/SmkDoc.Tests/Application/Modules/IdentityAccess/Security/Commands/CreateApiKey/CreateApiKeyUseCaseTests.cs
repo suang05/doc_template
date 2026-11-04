@@ -5,6 +5,7 @@ using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.CreateApiKey;
 using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Helpers;
 using SmkDoc.Domain.Entities;
+using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common.Builders;
@@ -47,6 +48,8 @@ public sealed class CreateApiKeyUseCaseTests
 
         _projectRepo.GetByIdAsync(new ProjectId(projectId), Arg.Any<CancellationToken>())
             .Returns(project);
+        _apiKeyRepo.ListByProjectAsync(new ProjectId(projectId), Arg.Any<CancellationToken>())
+            .Returns(new List<ApiKey>());
 
         var command = new CreateApiKeyCommand("Sales App", "sales");
 
@@ -62,6 +65,57 @@ public sealed class CreateApiKeyUseCaseTests
         capturedKey.KeyHash.Value.Should().Be(ApiKeyHelper.ComputeHash(result.PlainTextKey));
 
         await _unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenQuotaReached2ActiveKeys_ThrowsConflictException()
+    {
+        // Arrange
+        var projectId = Guid.NewGuid();
+        _projectContext.ProjectId.Returns(new ProjectId(projectId));
+
+        Project project = ProjectBuilder.AProject().WithId(projectId);
+        _projectRepo.GetByIdAsync(new ProjectId(projectId), Arg.Any<CancellationToken>())
+            .Returns(project);
+
+        var key1 = ApiKeyBuilder.AKey().WithProjectId(projectId).WithScope(ApiKeyScope.ReadOnly).Build();
+        var key2 = ApiKeyBuilder.AKey().WithProjectId(projectId).WithScope(ApiKeyScope.ReadWrite).Build();
+        _apiKeyRepo.ListByProjectAsync(new ProjectId(projectId), Arg.Any<CancellationToken>())
+            .Returns(new List<ApiKey> { key1, key2 });
+
+        var command = new CreateApiKeyCommand("Third Key", "sales", "ReadOnly");
+
+        // Act
+        var act = () => CreateSut().ExecuteAsync(command);
+
+        // Assert
+        await act.Should().ThrowAsync<ConflictException>()
+            .WithMessage("*maximum quota of 2 active API keys*");
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenDuplicateScopeAlreadyActive_ThrowsConflictException()
+    {
+        // Arrange
+        var projectId = Guid.NewGuid();
+        _projectContext.ProjectId.Returns(new ProjectId(projectId));
+
+        Project project = ProjectBuilder.AProject().WithId(projectId);
+        _projectRepo.GetByIdAsync(new ProjectId(projectId), Arg.Any<CancellationToken>())
+            .Returns(project);
+
+        var existingKey = ApiKeyBuilder.AKey().WithProjectId(projectId).WithScope(ApiKeyScope.ReadWrite).Build();
+        _apiKeyRepo.ListByProjectAsync(new ProjectId(projectId), Arg.Any<CancellationToken>())
+            .Returns(new List<ApiKey> { existingKey });
+
+        var command = new CreateApiKeyCommand("Another Write Key", "sales", "ReadWrite");
+
+        // Act
+        var act = () => CreateSut().ExecuteAsync(command);
+
+        // Assert
+        await act.Should().ThrowAsync<ConflictException>()
+            .WithMessage("*already possesses an active ReadWrite API key*");
     }
 
     [Fact]

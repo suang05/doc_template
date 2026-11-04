@@ -1,3 +1,4 @@
+using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Users.DTOs;
 using SmkDoc.Domain.Enums;
@@ -10,11 +11,17 @@ namespace SmkDoc.Application.Modules.IdentityAccess.Users.Commands.UpdateUserRol
 public sealed class UpdateUserRoleUseCase(
     IUserProjectRoleRepository roleRepo,
     IUserRepository userRepo,
-    IUnitOfWork uow) : IUseCase<UpdateUserRoleCommand, UserResultDto>
+    IUnitOfWork uow,
+    ICurrentProjectContext projectContext) : IUseCase<UpdateUserRoleCommand, UserResultDto>
 {
     public async Task<UserResultDto> ExecuteAsync(UpdateUserRoleCommand command, CancellationToken ct = default)
     {
-        var pId = new ProjectId(command.ProjectId);
+        if (!projectContext.IsResolved)
+        {
+            throw new ForbiddenException("Active project context is required to update a user role.");
+        }
+
+        var pId = projectContext.ProjectId;
         var uId = new UserId(command.UserId);
         var roleEntry = await roleRepo.GetAsync(pId, uId, ct)
             ?? throw new NotFoundException("User is not a member of this project.");

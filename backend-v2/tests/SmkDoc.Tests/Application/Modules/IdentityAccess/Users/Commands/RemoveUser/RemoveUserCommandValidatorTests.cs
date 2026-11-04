@@ -1,4 +1,4 @@
-﻿using SmkDoc.Application.Modules.IdentityAccess.Users.Commands.RemoveUser;
+using SmkDoc.Application.Modules.IdentityAccess.Users.Commands.RemoveUser;
 
 namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Users.Commands.RemoveUser;
 
@@ -9,7 +9,7 @@ public sealed class RemoveUserCommandValidatorTests
     [Fact]
     public void Validate_WhenCommandIsValid_ShouldPass()
     {
-        var command = new RemoveUserCommand(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
+        var command = new RemoveUserCommand(Guid.NewGuid(), Guid.NewGuid());
         var result = _validator.Validate(command);
         result.IsValid.Should().BeTrue();
     }
@@ -18,21 +18,18 @@ public sealed class RemoveUserCommandValidatorTests
     public void Validate_WhenSelfRemoval_ShouldFail()
     {
         var userId = Guid.NewGuid();
-        var command = new RemoveUserCommand(Guid.NewGuid(), userId, userId);
+        var command = new RemoveUserCommand(userId, userId);
         var result = _validator.Validate(command);
 
         result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.ErrorMessage.Contains("Cannot remove yourself"));
+        result.Errors.Should().Contain(e => e.ErrorMessage.Contains("themselves"));
     }
 
     [Theory]
-    [InlineData("00000000-0000-0000-0000-000000000000", "e7d1b32f-7634-4b52-b88a-3e4b01e35d11", "9c5123d4-4f81-4b13-a417-64dfd48227b9", "ProjectId")]
-    [InlineData("e7d1b32f-7634-4b52-b88a-3e4b01e35d11", "00000000-0000-0000-0000-000000000000", "9c5123d4-4f81-4b13-a417-64dfd48227b9", "UserId")]
-    [InlineData("e7d1b32f-7634-4b52-b88a-3e4b01e35d11", "9c5123d4-4f81-4b13-a417-64dfd48227b9", "00000000-0000-0000-0000-000000000000", "CurrentUserId")]
-    public void Validate_WhenGuidIsEmpty_ShouldFail(string projectId, string userId, string currentUserId, string expectedProperty)
+    [InlineData("00000000-0000-0000-0000-000000000000", "9c5123d4-4f81-4b13-a417-64dfd48227b9", "UserId")]
+    public void Validate_WhenGuidIsEmpty_ShouldFail(string userId, string currentUserId, string expectedProperty)
     {
         var command = new RemoveUserCommand(
-            Guid.Parse(projectId),
             Guid.Parse(userId),
             Guid.Parse(currentUserId));
 

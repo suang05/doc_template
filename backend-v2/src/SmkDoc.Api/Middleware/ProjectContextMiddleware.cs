@@ -1,5 +1,7 @@
 using System;
 using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Text;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -186,8 +188,11 @@ public sealed class ProjectContextMiddleware(
             Guid? routeProjectIdGuid = ExtractRouteProjectId(context);
             Guid? headerProjectIdGuid = ExtractHeaderProjectId(context);
 
-            // Bootstrap Master Key Support
-            if (!string.IsNullOrEmpty(_masterApiKey) && rawKey == _masterApiKey)
+            // Bootstrap Master Key Support (Constant-time comparison)
+            if (!string.IsNullOrEmpty(_masterApiKey) &&
+                CryptographicOperations.FixedTimeEquals(
+                    Encoding.UTF8.GetBytes(rawKey),
+                    Encoding.UTF8.GetBytes(_masterApiKey)))
             {
                 projectContextSetter.SetActor(callerIdentity: "master");
                 var masterProjId = routeProjectIdGuid ?? headerProjectIdGuid;
@@ -195,6 +200,16 @@ public sealed class ProjectContextMiddleware(
                 {
                     projectContextSetter.SetProject(new ProjectId(masterProjId.Value), "master");
                 }
+
+                var masterIdentity = new ClaimsIdentity("ApiKeyScheme");
+                masterIdentity.AddClaim(new Claim(ClaimTypes.NameIdentifier, "master"));
+                masterIdentity.AddClaim(new Claim(ClaimTypes.Role, RoleConstants.SuperAdmin));
+                masterIdentity.AddClaim(new Claim(ClaimTypes.Role, RoleConstants.Admin));
+                masterIdentity.AddClaim(new Claim("SystemRole", RoleConstants.SuperAdmin));
+                masterIdentity.AddClaim(new Claim("ApiKeyScope", ApiKeyScope.ReadWrite.Name));
+                masterIdentity.AddClaim(new Claim("Scope", ApiKeyScope.ReadWrite.Name));
+                masterIdentity.AddClaim(new Claim("CallerApp", "master"));
+                context.User = new ClaimsPrincipal(masterIdentity);
 
                 await next(context);
                 return;
@@ -275,6 +290,26 @@ public sealed class ProjectContextMiddleware(
             var projectId = new ProjectId(key.ProjectId);
             projectContextSetter.SetActor(apiKeyId: new ApiKeyId(key.Id), callerIdentity: key.CallerApp);
             projectContextSetter.SetProject(projectId, key.CallerApp);
+
+            // Hydrate ClaimsPrincipal onto HttpContext.User for ASP.NET Core [Authorize] authorization
+            var claims = new List<Claim>
+            {
+                new(ClaimTypes.NameIdentifier, key.Id.ToString()),
+                new(ClaimTypes.Role, "M2MClient"),
+                new("Scope", key.Scope),
+                new("ApiKeyScope", key.Scope),
+                new("ProjectId", key.ProjectId.ToString()),
+                new("CallerApp", key.CallerApp)
+            };
+
+            if (string.Equals(key.Scope, ApiKeyScope.ReadWrite.Name, StringComparison.OrdinalIgnoreCase))
+            {
+                claims.Add(new Claim(ClaimTypes.Role, "Author"));
+            }
+            claims.Add(new Claim(ClaimTypes.Role, RoleConstants.Member));
+
+            var identity = new ClaimsIdentity(claims, "ApiKeyScheme");
+            context.User = new ClaimsPrincipal(identity);
 
             await next(context);
             return;

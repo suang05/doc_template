@@ -6,10 +6,6 @@ public sealed class SetUserStatusCommandValidator : AbstractValidator<SetUserSta
 {
     public SetUserStatusCommandValidator()
     {
-        RuleFor(x => x.ProjectId)
-            .NotEmpty()
-            .WithMessage("ProjectId is required.");
-
         RuleFor(x => x.UserId)
             .NotEmpty()
             .WithMessage("UserId is required.");

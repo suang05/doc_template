@@ -58,8 +58,8 @@ backend-v2/src/SmkDoc.Application/Modules/
     Queries/  # GetDataConnectionById, ExecuteDatasetQuery, ListDatasets
     DTOs/     # DataConnectionResultDto, DatasetResultDto, QueryPreviewDto
   IdentityAccess/
-    Commands/ # LoginUser, RefreshToken, CreateApiKey, SwitchProject
-    Queries/  # GetCurrentUser, ListProjects, ValidateApiKey
+    Commands/ # LoginUser, RefreshToken, CreateApiKey, RevokeApiKey, TransferProjectOwner, SwitchProject
+    Queries/  # GetCurrentUser, ListProjects, ValidateApiKey, ListApiKeys
     DTOs/     # AuthTokenResultDto, UserProfileResultDto, ApiKeyResultDto
 ```
 

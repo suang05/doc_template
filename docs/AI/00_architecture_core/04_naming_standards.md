@@ -28,6 +28,7 @@ All codebase interfaces, methods, commands, and queries MUST select names exclus
 | **Role / Perm Binding** | `Assign` | `Grant`, `Bind`, `Attach`, `SetRole` | `AssignRoleCommand`, `user.AssignRole(...)` |
 | **Token / Key Revocation**| `Revoke` | `Cancel`, `Invalidate`, `Kill`, `Expire` | `RevokeApiKeyCommand`, `apiKey.Revoke(...)` |
 | **State Publication** | `Publish` | `Deploy`, `Release`, `Activate`, `Promote` | `PublishVersionCommand`, `template.PublishVersion(...)` |
+| **Authority Reassignment** | `Transfer` | `Reassign`, `Handover`, `ChangeOwner` | `TransferProjectOwnerCommand`, `TransferProjectOwnerUseCase` |
 
 #### 1.1.1 Domain-Specific Pipeline Allowlist (Specialized Operations)
 Specialized document synthesis and infrastructure engines are strictly permitted to use the following domain-specific verbs:

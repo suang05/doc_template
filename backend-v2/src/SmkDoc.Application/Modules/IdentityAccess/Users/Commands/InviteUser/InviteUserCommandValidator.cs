@@ -12,10 +12,6 @@ public sealed class InviteUserCommandValidator : AbstractValidator<InviteUserCom
 
     public InviteUserCommandValidator()
     {
-        RuleFor(x => x.ProjectId)
-            .NotEmpty()
-            .WithMessage("ProjectId is required.");
-
         RuleFor(x => x.Email)
             .NotEmpty()
             .WithMessage("Email is required.")

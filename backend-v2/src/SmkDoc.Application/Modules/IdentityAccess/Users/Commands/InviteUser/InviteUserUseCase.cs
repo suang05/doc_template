@@ -1,3 +1,4 @@
+using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Users.DTOs;
 using SmkDoc.Domain.Common;
@@ -6,7 +7,6 @@ using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
-using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Modules.IdentityAccess.Users.Commands.InviteUser;
 
@@ -15,15 +15,21 @@ public sealed class InviteUserUseCase(
     IUserProjectRoleRepository roleRepo,
     IPasswordHasher passwordHasher,
     IUnitOfWork uow,
+    ICurrentProjectContext projectContext,
     TimeProvider timeProvider) : IUseCase<InviteUserCommand, UserResultDto>
 {
     public async Task<UserResultDto> ExecuteAsync(InviteUserCommand command, CancellationToken ct = default)
     {
+        if (!projectContext.IsResolved)
+        {
+            throw new ForbiddenException("Active project context is required to invite a user.");
+        }
+
         var roleType = Enumeration.FromDisplayName<RoleType>(command.Role);
         var normalizedEmail = command.Email.Trim().ToLowerInvariant();
         var now = timeProvider.GetUtcNow();
+        var pId = projectContext.ProjectId;
 
-        var pId = new ProjectId(command.ProjectId);
         var existingUser = await userRepo.GetByEmailAsync(normalizedEmail, ct);
         if (existingUser != null)
         {
@@ -50,8 +56,7 @@ public sealed class InviteUserUseCase(
 
         if (string.IsNullOrWhiteSpace(command.Password) || command.Password.Length < 8)
         {
-            throw new ValidationException("Password",
-                "Password must be at least 8 characters.");
+            throw new ValidationException("Password", "Password must be at least 8 characters.");
         }
 
         var newUser = User.Register(

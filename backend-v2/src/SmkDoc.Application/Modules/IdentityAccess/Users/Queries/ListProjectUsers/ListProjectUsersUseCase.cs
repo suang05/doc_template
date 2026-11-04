@@ -1,17 +1,23 @@
+using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Users.DTOs;
 using SmkDoc.Domain.Interfaces;
-using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Modules.IdentityAccess.Users.Queries.ListProjectUsers;
 
 public sealed class ListProjectUsersUseCase(
     IUserProjectRoleRepository roleRepo,
-    IUserRepository userRepo) : IUseCase<ListProjectUsersQuery, List<UserResultDto>>
+    IUserRepository userRepo,
+    ICurrentProjectContext projectContext) : IUseCase<ListProjectUsersQuery, List<UserResultDto>>
 {
     public async Task<List<UserResultDto>> ExecuteAsync(ListProjectUsersQuery query, CancellationToken ct = default)
     {
-        var roles = await roleRepo.ListByProjectAsync(new ProjectId(query.ProjectId), ct);
+        if (!projectContext.IsResolved)
+        {
+            throw new ForbiddenException("Active project context is required to list users.");
+        }
+
+        var roles = await roleRepo.ListByProjectAsync(projectContext.ProjectId, ct);
         var userIds = roles.Select(r => r.UserId).ToHashSet();
         var users = await userRepo.GetByIdsAsync(userIds, ct);
 

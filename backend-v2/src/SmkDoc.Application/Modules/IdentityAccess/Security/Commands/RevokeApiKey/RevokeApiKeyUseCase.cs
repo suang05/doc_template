@@ -1,5 +1,7 @@
 using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
+using SmkDoc.Domain.Entities;
+using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
@@ -14,13 +16,26 @@ public sealed class RevokeApiKeyUseCase(
 {
     public async Task ExecuteAsync(RevokeApiKeyCommand command, CancellationToken ct = default)
     {
-        if (!projectContext.IsResolved)
+        ApiKey? key;
+        var keyId = new ApiKeyId(command.Id);
+
+        if (projectContext.IsResolved)
+        {
+            key = await apiKeyRepo.GetByIdAsync(keyId, projectContext.ProjectId, ct);
+        }
+        else if (projectContext.SystemRole == SystemRole.SuperAdmin)
+        {
+            key = await apiKeyRepo.GetByIdWithoutProjectAsync(keyId, ct);
+        }
+        else
         {
             throw new ForbiddenException("Active project context is required to revoke an API key.");
         }
 
-        var key = await apiKeyRepo.GetByIdAsync(new ApiKeyId(command.Id), projectContext.ProjectId, ct)
-            ?? throw new NotFoundException($"API Key '{command.Id}' not found.");
+        if (key == null)
+        {
+            throw new NotFoundException($"API Key '{command.Id}' not found.");
+        }
 
         key.Revoke(timeProvider.GetUtcNow());
         apiKeyRepo.Update(key);

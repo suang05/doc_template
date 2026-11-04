@@ -3,6 +3,7 @@ using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Queries.ListApiKeys;
 using SmkDoc.Domain.Entities;
+using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.ValueObjects.Ids;
@@ -24,10 +25,11 @@ public sealed class ListApiKeysUseCaseTests
     private ListApiKeysUseCase CreateSut() => new(_apiKeyRepo, _projectContext);
 
     [Fact]
-    public async Task ExecuteAsync_WhenProjectContextUnresolved_ThrowsForbiddenException()
+    public async Task ExecuteAsync_WhenProjectContextUnresolvedAndNotSuperAdmin_ThrowsForbiddenException()
     {
         // Arrange
         _projectContext.IsResolved.Returns(false);
+        _projectContext.SystemRole.Returns(SystemRole.Member);
 
         // Act
         var act = () => CreateSut().ExecuteAsync(new ListApiKeysQuery());
@@ -38,7 +40,7 @@ public sealed class ListApiKeysUseCaseTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_WhenAmbientProjectResolved_ReturnsProjectScopedApiKeys()
+    public async Task ExecuteAsync_WhenAmbientProjectResolved_ReturnsProjectScopedApiKeysWithMaskedFormat()
     {
         // Arrange
         var projectId = Guid.NewGuid();
@@ -49,14 +51,14 @@ public sealed class ListApiKeysUseCaseTests
             .WithProjectId(projectId)
             .WithName("ERP Key")
             .WithCallerApp("erp")
-            .WithKeyHash(new Sha256Hash(new string('1', 64)))
+            .WithKeyHash(new Sha256Hash(new string('1', 60) + "abcd"))
             .WithExpiration(ExpirationPolicy.Never)
             .WithTime(now);
         ApiKey key2 = new ApiKeyBuilder()
             .WithProjectId(projectId)
             .WithName("CRM Key")
             .WithCallerApp("crm")
-            .WithKeyHash(new Sha256Hash(new string('2', 64)))
+            .WithKeyHash(new Sha256Hash(new string('2', 60) + "cdef"))
             .WithExpiration(ExpirationPolicy.Never)
             .WithTime(now);
 
@@ -69,8 +71,30 @@ public sealed class ListApiKeysUseCaseTests
         // Assert
         result.Should().HaveCount(2);
         result[0].Name.Should().Be("ERP Key");
+        result[0].MaskedKey.Should().Be("smk_erp_****abcd");
         result[1].Name.Should().Be("CRM Key");
+        result[1].MaskedKey.Should().Be("smk_crm_****cdef");
         await _apiKeyRepo.Received(1).ListByProjectAsync(new ProjectId(projectId), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenSuperAdminAndNoProjectSpecified_ReturnsAllKeys()
+    {
+        // Arrange
+        _projectContext.IsResolved.Returns(false);
+        _projectContext.SystemRole.Returns(SystemRole.SuperAdmin);
+
+        var key = new ApiKeyBuilder().WithName("Global Key").WithCallerApp("global").Build();
+        _apiKeyRepo.ListAllAsync(Arg.Any<CancellationToken>())
+            .Returns(new List<ApiKey> { key });
+
+        // Act
+        List<ApiKeyDto> result = await CreateSut().ExecuteAsync(new ListApiKeysQuery());
+
+        // Assert
+        result.Should().ContainSingle();
+        result[0].Name.Should().Be("Global Key");
+        await _apiKeyRepo.Received(1).ListAllAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]

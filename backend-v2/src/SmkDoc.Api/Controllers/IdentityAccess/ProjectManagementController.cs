@@ -1,11 +1,14 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.Constants;
 using SmkDoc.Api.Contracts.IdentityAccess.Projects;
 using SmkDoc.Api.Extensions;
+using SmkDoc.Api.Filters;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Projects.Commands.CreateProject;
+using SmkDoc.Application.Modules.IdentityAccess.Projects.Commands.TransferProjectOwner;
 using SmkDoc.Application.Modules.IdentityAccess.Projects.DTOs;
 using SmkDoc.Application.Modules.IdentityAccess.Projects.Queries.GetProjectById;
 using SmkDoc.Application.Modules.IdentityAccess.Projects.Queries.ListProjects;
@@ -18,11 +21,13 @@ namespace SmkDoc.Api.Controllers.IdentityAccess;
 [ApiController]
 [Route("api/v1/management/projects")]
 [Authorize]
+[EnableRateLimiting("api")]
 [ProducesResponseType(StatusCodes.Status401Unauthorized)]
 public sealed class ProjectManagementController(
     IUseCase<ListProjectsQuery, ProjectPagedResultDto> listProjectsUseCase,
     IUseCase<GetProjectByIdQuery, ProjectResultDto> getProjectByIdUseCase,
-    IUseCase<CreateProjectCommand, ProjectResultDto> createProjectUseCase) : ControllerBase
+    IUseCase<CreateProjectCommand, ProjectResultDto> createProjectUseCase,
+    IUseCase<TransferProjectOwnerCommand> transferOwnerUseCase) : ControllerBase
 {
     /// <summary>List all projects accessible to the authenticated user with server-side pagination and search.</summary>
     [HttpGet]
@@ -57,9 +62,10 @@ public sealed class ProjectManagementController(
         return Ok(new ApiResponse<ProjectResultDto>(project));
     }
 
-    /// <summary>Create a new project. Admin only.</summary>
+    /// <summary>Create a new project. SuperAdmin only.</summary>
     [HttpPost]
-    [Authorize(Roles = RoleConstants.AdminOrSuperAdmin)] // Declarative RBAC คืน 403 Forbidden อัตโนมัติเมื่อไม่มีสิทธิ์
+    [Authorize(Policy = SmkDocPolicies.RequireSuperAdmin)]
+    [ServiceFilter(typeof(IdempotencyFilter))]
     [ProducesResponseType(typeof(ApiResponse<ProjectResultDto>), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -77,5 +83,21 @@ public sealed class ProjectManagementController(
             nameof(GetProjectById),
             new { projectId = project.Id },
             new ApiResponse<ProjectResultDto>(project));
+    }
+
+    /// <summary>Transfer project ownership / Master Credential authority to a new IT Lead. SuperAdmin only.</summary>
+    [HttpPost("{projectId:guid}/transfer-owner")]
+    [Authorize(Policy = SmkDocPolicies.RequireSuperAdmin)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> TransferOwner(
+        [FromRoute] Guid projectId,
+        [FromBody] TransferProjectOwnerRequest req,
+        CancellationToken ct)
+    {
+        var command = new TransferProjectOwnerCommand(projectId, req.NewOwnerUserId);
+        await transferOwnerUseCase.ExecuteAsync(command, ct);
+        return NoContent();
     }
 }

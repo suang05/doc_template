@@ -1,3 +1,4 @@
+using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
@@ -8,11 +9,17 @@ namespace SmkDoc.Application.Modules.IdentityAccess.Users.Commands.RemoveUser;
 
 public sealed class RemoveUserUseCase(
     IUserProjectRoleRepository roleRepo,
-    IUnitOfWork uow) : IUseCase<RemoveUserCommand>
+    IUnitOfWork uow,
+    ICurrentProjectContext projectContext) : IUseCase<RemoveUserCommand>
 {
     public async Task ExecuteAsync(RemoveUserCommand command, CancellationToken ct = default)
     {
-        var pId = new ProjectId(command.ProjectId);
+        if (!projectContext.IsResolved)
+        {
+            throw new ForbiddenException("Active project context is required to remove a user.");
+        }
+
+        var pId = projectContext.ProjectId;
         var uId = new UserId(command.UserId);
         var roleEntry = await roleRepo.GetAsync(pId, uId, ct)
             ?? throw new NotFoundException("User is not a member of this project.");

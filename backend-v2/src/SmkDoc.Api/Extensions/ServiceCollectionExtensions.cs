@@ -2,10 +2,13 @@ using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
+using SmkDoc.Api.Authentication;
+using SmkDoc.Api.Constants;
 using SmkDoc.Api.ExceptionHandlers;
 using SmkDoc.Api.Filters;
 using SmkDoc.Api.HealthChecks;
@@ -104,8 +107,25 @@ public static class ServiceCollectionExtensions
 
         var signingKey = new SymmetricSecurityKey(System.Text.Encoding.UTF8.GetBytes(jwtSecret));
 
-        services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-            .AddJwtBearer(options =>
+        services.AddAuthentication(options =>
+            {
+                options.DefaultScheme = "SmartScheme";
+                options.DefaultAuthenticateScheme = "SmartScheme";
+                options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+            })
+            .AddPolicyScheme("SmartScheme", "Bearer or ApiKey", options =>
+            {
+                options.ForwardDefaultSelector = context =>
+                {
+                    if (context.Request.Headers.ContainsKey(HttpHeaderConstants.ApiKeyHeader))
+                    {
+                        return ApiKeyAuthenticationDefaults.AuthenticationScheme;
+                    }
+
+                    return JwtBearerDefaults.AuthenticationScheme;
+                };
+            })
+            .AddJwtBearer(JwtBearerDefaults.AuthenticationScheme, options =>
             {
                 options.TokenValidationParameters = new TokenValidationParameters
                 {
@@ -117,9 +137,42 @@ public static class ServiceCollectionExtensions
                     ValidAudience = configuration["Jwt:Audience"] ?? "SmkDoc.Portal",
                     IssuerSigningKey = signingKey
                 };
+            })
+            .AddScheme<AuthenticationSchemeOptions, ApiKeyAuthenticationHandler>(
+                ApiKeyAuthenticationDefaults.AuthenticationScheme, _ => { });
+
+        services.AddAuthorization(options =>
+        {
+            options.AddPolicy(SmkDocPolicies.RequireSuperAdmin, policy =>
+            {
+                policy.RequireAssertion(ctx =>
+                    ctx.User.HasClaim("SystemRole", RoleConstants.SuperAdmin) ||
+                    ctx.User.IsInRole(RoleConstants.SuperAdmin));
             });
 
-        services.AddAuthorization();
+            options.AddPolicy(SmkDocPolicies.RequireProjectAdmin, policy =>
+            {
+                policy.RequireAssertion(ctx =>
+                    ctx.User.IsInRole(RoleConstants.Admin) ||
+                    ctx.User.IsInRole(RoleConstants.SuperAdmin) ||
+                    (ctx.User.IsInRole("M2MClient") && ctx.User.HasClaim(c => c.Type is "Scope" or "ApiKeyScope" && c.Value == "ReadWrite")));
+            });
+
+            options.AddPolicy(SmkDocPolicies.CanManageTemplates, policy =>
+            {
+                policy.RequireAssertion(ctx =>
+                    ctx.User.IsInRole("Author") ||
+                    ctx.User.IsInRole("Developer") ||
+                    ctx.User.IsInRole(RoleConstants.Admin) ||
+                    ctx.User.IsInRole(RoleConstants.SuperAdmin) ||
+                    (ctx.User.IsInRole("M2MClient") && ctx.User.HasClaim(c => c.Type is "Scope" or "ApiKeyScope" && c.Value == "ReadWrite")));
+            });
+
+            options.AddPolicy(SmkDocPolicies.CanGenerateDocuments, policy =>
+            {
+                policy.RequireAssertion(ctx => ctx.User.Identity?.IsAuthenticated == true);
+            });
+        });
 
         return services;
     }
@@ -183,6 +236,21 @@ public static class ServiceCollectionExtensions
 
         services.AddRateLimiter(options =>
         {
+            options.AddPolicy("auth-strict", context =>
+            {
+                var ip = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+                var windowOptions = new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = 5,
+                    Window = TimeSpan.FromMinutes(1),
+                    QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                    QueueLimit = 0,
+                    AutoReplenishment = true
+                };
+
+                return RateLimitPartition.GetFixedWindowLimiter(ip, _ => windowOptions);
+            });
+
             options.AddPolicy("api", context =>
             {
                 var partitionKey = RateLimitPartitionKeyResolver.Resolve(context);

@@ -1,4 +1,5 @@
 using SmkDoc.Domain.Entities;
+using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.ValueObjects.Ids;
 
@@ -12,6 +13,7 @@ public class ApiKeyBuilder
     private string? _callerApp = "TestApp";
     private Sha256Hash _keyHash = Sha256Hash.Create(new string('a', 64));
     private ExpirationPolicy _expiration = ExpirationPolicy.Never;
+    private ApiKeyScope _scope = ApiKeyScope.ReadWrite;
     private DateTimeOffset _now = TestConstants.BaselineTime;
 
     public static ApiKeyBuilder AKey() => new();
@@ -55,6 +57,12 @@ public class ApiKeyBuilder
         return this;
     }
 
+    public ApiKeyBuilder WithScope(ApiKeyScope scope)
+    {
+        _scope = scope;
+        return this;
+    }
+
     public ApiKeyBuilder WithTime(DateTimeOffset now)
     {
         _now = now;
@@ -70,7 +78,8 @@ public class ApiKeyBuilder
             _callerApp,
             _keyHash,
             _expiration,
-            _now);
+            _now,
+            _scope);
     }
 
     public static implicit operator ApiKey(ApiKeyBuilder builder) => builder.Build();

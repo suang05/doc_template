@@ -23,11 +23,7 @@ public sealed class SetUserStatusUseCase(
             throw new ForbiddenException("Only global SuperAdmin accounts are authorized to change user account status.");
         }
 
-        var pId = new ProjectId(command.ProjectId);
         var uId = new UserId(command.UserId);
-        var hasRole = await roleRepo.GetAsync(pId, uId, ct)
-            ?? throw new NotFoundException("User is not a member of this project.");
-
         var user = await userRepo.GetByIdAsync(uId, ct)
             ?? throw new NotFoundException("User not found.");
 
@@ -63,12 +59,22 @@ public sealed class SetUserStatusUseCase(
         userRepo.Update(user);
         await uow.CommitAsync(ct);
 
+        var roleName = "Member";
+        if (projectContext.IsResolved)
+        {
+            var hasRole = await roleRepo.GetAsync(projectContext.ProjectId, uId, ct);
+            if (hasRole != null)
+            {
+                roleName = hasRole.Role.Name;
+            }
+        }
+
         return new UserResultDto(
             user.Id.Value,
             user.Email.Value,
             user.FirstName,
             user.LastName,
-            hasRole.Role.Name,
+            roleName,
             user.IsActive,
             user.CreatedAt
         );

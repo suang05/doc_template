@@ -1,8 +1,9 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Common.Responses;
+using SmkDoc.Api.Constants;
 using SmkDoc.Api.Contracts.IdentityAccess.ApiKeys;
-using SmkDoc.Application.Common.Exceptions;
+using SmkDoc.Api.Filters;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.CreateApiKey;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.RevokeApiKey;
@@ -12,71 +13,61 @@ using SmkDoc.Application.Modules.IdentityAccess.Security.Queries.ListApiKeys;
 namespace SmkDoc.Api.Controllers.IdentityAccess;
 
 /// <summary>
-/// API Key management endpoints for Portal UI.
-/// Canonical multi-tenant endpoints are in <see cref="ApiKeyManagementController"/>.
-/// Auth: Channel B (Bearer JWT).
+/// Tenant Sub-Key lifecycle management for Project Admins and Owners under ambient guardrails.
+/// Auth: JWT Bearer — ProjectAdmin role required. Operates strictly on ambient project context.
 /// </summary>
 [ApiController]
 [Route("api/v1/api-keys")]
-[Route("api/api-keys")]
-[Authorize]
+[Authorize(Policy = SmkDocPolicies.RequireProjectAdmin)]
 [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+[ProducesResponseType(StatusCodes.Status403Forbidden)]
 public sealed class ApiKeyController(
     IUseCase<ListApiKeysQuery, List<ApiKeyDto>> listApiKeysUseCase,
     IUseCase<CreateApiKeyCommand, CreateApiKeyResultDto> createApiKeyUseCase,
-    IUseCase<RevokeApiKeyCommand> revokeApiKeyUseCase,
-    ICurrentProjectContext projectContext) : ControllerBase
+    IUseCase<RevokeApiKeyCommand> revokeApiKeyUseCase) : ControllerBase
 {
+    /// <summary>List all active and inactive sub-keys for the current project.</summary>
     [HttpGet]
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<ApiKeyDto>>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> ListKeys(
-        [FromQuery] Guid? projectId,
-        CancellationToken ct)
+    public async Task<IActionResult> ListKeys(CancellationToken ct)
     {
-        EnsureMatchingProjectContext(projectId);
         var keys = await listApiKeysUseCase.ExecuteAsync(new ListApiKeysQuery(), ct);
         return Ok(new ApiResponse<IEnumerable<ApiKeyDto>>(keys));
     }
 
+    /// <summary>Generate a new sub-key for the current project under quota guardrails (Max 2 active keys).</summary>
     [HttpPost]
+    [ServiceFilter(typeof(IdempotencyFilter))]
     [ProducesResponseType(typeof(ApiResponse<ApiKeyResponseDto>), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> CreateKey([FromBody] CreateApiKeyRequest request, CancellationToken ct)
     {
-        EnsureMatchingProjectContext(request.ProjectId);
-        var command = new CreateApiKeyCommand(request.Name, request.CallerApp);
+        var scope = !string.IsNullOrWhiteSpace(request.Scope)
+            ? request.Scope
+            : (request.Scopes?.FirstOrDefault() ?? "ReadWrite");
+
+        var command = new CreateApiKeyCommand(request.Name, request.CallerApp, scope);
         var result = await createApiKeyUseCase.ExecuteAsync(command, ct);
         var dto = new ApiKeyResponseDto(
             result.Id,
             result.Name,
             result.CallerApp,
             result.PlainTextKey,
-            null);
+            scope,
+            request.ExpiresAt);
+
         return StatusCode(StatusCodes.Status201Created, new ApiResponse<ApiKeyResponseDto>(dto));
     }
 
+    /// <summary>Revoke a sub-key belonging to the current project (Self-service key rotation).</summary>
     [HttpDelete("{id:guid}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    public async Task<IActionResult> RevokeKey(
-        [FromRoute] Guid id,
-        [FromQuery] Guid? projectId,
-        CancellationToken ct)
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> RevokeKey([FromRoute] Guid id, CancellationToken ct)
     {
-        EnsureMatchingProjectContext(projectId);
         var command = new RevokeApiKeyCommand(id);
         await revokeApiKeyUseCase.ExecuteAsync(command, ct);
         return NoContent();
-    }
-
-    private void EnsureMatchingProjectContext(Guid? requestedProjectId)
-    {
-        if (!projectContext.IsResolved)
-        {
-            throw new ForbiddenException("Active project context is required for API key operations.");
-        }
-
-        if (requestedProjectId.HasValue && requestedProjectId.Value != Guid.Empty && requestedProjectId.Value != projectContext.ProjectId.Value)
-        {
-            throw new ForbiddenException("Access denied: requested projectId does not match the active project context.");
-        }
     }
 }

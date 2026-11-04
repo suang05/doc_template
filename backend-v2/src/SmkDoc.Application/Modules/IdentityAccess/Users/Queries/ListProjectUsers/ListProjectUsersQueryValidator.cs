@@ -6,8 +6,5 @@ public sealed class ListProjectUsersQueryValidator : AbstractValidator<ListProje
 {
     public ListProjectUsersQueryValidator()
     {
-        RuleFor(x => x.ProjectId)
-            .NotEmpty()
-            .WithMessage("ProjectId is required.");
     }
 }

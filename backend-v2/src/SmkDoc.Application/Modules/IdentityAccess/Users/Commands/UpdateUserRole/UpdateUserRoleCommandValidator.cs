@@ -12,10 +12,6 @@ public sealed class UpdateUserRoleCommandValidator : AbstractValidator<UpdateUse
 
     public UpdateUserRoleCommandValidator()
     {
-        RuleFor(x => x.ProjectId)
-            .NotEmpty()
-            .WithMessage("ProjectId is required.");
-
         RuleFor(x => x.UserId)
             .NotEmpty()
             .WithMessage("UserId is required.");

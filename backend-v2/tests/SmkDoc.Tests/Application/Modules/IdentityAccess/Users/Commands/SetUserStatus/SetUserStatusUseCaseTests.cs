@@ -43,7 +43,7 @@ public sealed class SetUserStatusUseCaseTests
     public async Task ExecuteAsync_WhenCommandIsInvalid_ShouldFailFastWithoutTouchingPersistence()
     {
         // Arrange
-        var command = new SetUserStatusCommand(Guid.Empty, Guid.Empty, false);
+        var command = new SetUserStatusCommand(Guid.Empty, false);
         var pipeline = new ValidatingUseCaseDecorator<SetUserStatusCommand, UserResultDto>(
             CreateSut(),
             [new SetUserStatusCommandValidator()]);
@@ -53,7 +53,6 @@ public sealed class SetUserStatusUseCaseTests
 
         // Assert
         await act.Should().ThrowAsync<ValidationException>();
-        await _roleRepo.DidNotReceive().GetAsync(Arg.Any<ProjectId>(), Arg.Any<UserId>(), Arg.Any<CancellationToken>());
         await _userRepo.DidNotReceive().GetByIdAsync(Arg.Any<UserId>(), Arg.Any<CancellationToken>());
         await _uow.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
     }
@@ -63,7 +62,7 @@ public sealed class SetUserStatusUseCaseTests
     {
         // Arrange
         _projectContext.SystemRole.Returns(SystemRole.Member);
-        var command = new SetUserStatusCommand(Guid.NewGuid(), Guid.NewGuid(), false);
+        var command = new SetUserStatusCommand(Guid.NewGuid(), false);
 
         // Act
         var act = () => CreateSut().ExecuteAsync(command);
@@ -80,6 +79,9 @@ public sealed class SetUserStatusUseCaseTests
     {
         // Arrange
         var projectId = Guid.NewGuid();
+        _projectContext.IsResolved.Returns(true);
+        _projectContext.ProjectId.Returns(new ProjectId(projectId));
+
         User user = aUser.Active();
         var userId = user.Id;
         var roleEntry = new UserProjectRoleBuilder()
@@ -88,7 +90,7 @@ public sealed class SetUserStatusUseCaseTests
             .AsDeveloper()
             .Build();
 
-        var command = new SetUserStatusCommand(projectId, userId.Value, false);
+        var command = new SetUserStatusCommand(userId.Value, false);
 
         _roleRepo.GetAsync(new ProjectId(projectId), userId, Arg.Any<CancellationToken>())
             .Returns(roleEntry);
@@ -112,18 +114,9 @@ public sealed class SetUserStatusUseCaseTests
     public async Task ExecuteAsync_WhenSuperAdminAttemptsSelfDeactivation_ThrowsBusinessRuleViolationException()
     {
         // Arrange
-        var projectId = Guid.NewGuid();
         User selfUser = aUser.Active().WithId(_actorSuperAdminId.Value).WithSystemRole(SystemRole.SuperAdmin);
-        var roleEntry = new UserProjectRoleBuilder()
-            .InProject(projectId)
-            .ForUser(_actorSuperAdminId)
-            .AsAdmin()
-            .Build();
+        var command = new SetUserStatusCommand(_actorSuperAdminId.Value, false);
 
-        var command = new SetUserStatusCommand(projectId, _actorSuperAdminId.Value, false);
-
-        _roleRepo.GetAsync(new ProjectId(projectId), _actorSuperAdminId, Arg.Any<CancellationToken>())
-            .Returns(roleEntry);
         _userRepo.GetByIdAsync(_actorSuperAdminId, Arg.Any<CancellationToken>())
             .Returns(selfUser);
 
@@ -140,18 +133,9 @@ public sealed class SetUserStatusUseCaseTests
     public async Task ExecuteAsync_WhenDeactivatingLastActiveSuperAdmin_ThrowsBusinessRuleViolationException()
     {
         // Arrange
-        var projectId = Guid.NewGuid();
         User targetSuperAdmin = aUser.Active().WithSystemRole(SystemRole.SuperAdmin);
-        var roleEntry = new UserProjectRoleBuilder()
-            .InProject(projectId)
-            .ForUser(targetSuperAdmin.Id)
-            .AsAdmin()
-            .Build();
+        var command = new SetUserStatusCommand(targetSuperAdmin.Id.Value, false);
 
-        var command = new SetUserStatusCommand(projectId, targetSuperAdmin.Id.Value, false);
-
-        _roleRepo.GetAsync(new ProjectId(projectId), targetSuperAdmin.Id, Arg.Any<CancellationToken>())
-            .Returns(roleEntry);
         _userRepo.GetByIdAsync(targetSuperAdmin.Id, Arg.Any<CancellationToken>())
             .Returns(targetSuperAdmin);
         _userRepo.CountActiveSuperAdminsAsync(Arg.Any<CancellationToken>())
@@ -167,15 +151,14 @@ public sealed class SetUserStatusUseCaseTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_WhenUserNotInProject_ThrowsNotFoundException()
+    public async Task ExecuteAsync_WhenUserNotFound_ThrowsNotFoundException()
     {
         // Arrange
-        var projectId = Guid.NewGuid();
         var userId = Guid.NewGuid();
-        var command = new SetUserStatusCommand(projectId, userId, true);
+        var command = new SetUserStatusCommand(userId, true);
 
-        _roleRepo.GetAsync(new ProjectId(projectId), new UserId(userId), Arg.Any<CancellationToken>())
-            .Returns((UserProjectRole?)null);
+        _userRepo.GetByIdAsync(new UserId(userId), Arg.Any<CancellationToken>())
+            .Returns((User?)null);
 
         // Act
         var act = () => CreateSut().ExecuteAsync(command);

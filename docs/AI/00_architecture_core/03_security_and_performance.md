@@ -22,6 +22,7 @@ TriggerSignals: [SIGNAL_SECURITY_MUTATION], [SIGNAL_TOPOLOGY_MUTATION]
 | **Download Egress** | ! HTTP 307 Redirects to internal MinIO S3 instances | >> Gateway reverse-proxy streaming via `File(stream, ...)` | `DocumentController` |
 | **SSRF Host Defense** | ! Unchecked database hosts or targeting loopback / metadata | >> Pre-flight DNS/IP validation via `ConnectionHostValidator` | Data Connection Services |
 | **Chromium Cluster** | ! Unthrottled render calls crashing Gotenberg pods | >> Dedicated rate limiter (`30 req/min`) + Async batch queue | Presentation Gateway |
+| **Key Governance** | ! Forcing SuperAdmin to issue every operational key (Bottleneck) OR unconstrained key sprawl | >> Master Key / Delegated Ownership: Project Admin self-services sub-keys (`/api/v1/api-keys`, max 2); SuperAdmin governs transfer/break-glass | IdentityAccess / API |
 
 ---
 
@@ -32,6 +33,7 @@ TriggerSignals: [SIGNAL_SECURITY_MUTATION], [SIGNAL_TOPOLOGY_MUTATION]
 * **Why `ClaimsPrincipal` Hydration for M2M**: ASP.NET Core `[Authorize]` attributes evaluate `HttpContext.User.Identity.IsAuthenticated`. Failing to set a `ClaimsPrincipal` on valid API keys causes `app.UseAuthorization()` to reject M2M requests with `401 Unauthorized`.
 * **Why 81,920-Byte Buffer Threshold**: Any memory allocation exceeding 85,000 bytes is placed on the Large Object Heap (LOH). The .NET Garbage Collector does not compact the LOH during Gen 0/1 sweeps, leading to Gen 2 GC pauses and server stalls under concurrent load.
 * **Why Banning HTTP 307 Redirects to MinIO**: MinIO runs inside an isolated Docker network. Returning a 307 redirect exposes private hostnames (`http://minio:9000/...`), fails for external callers, and violates Zero-Trust perimeter boundaries.
+* **Why Master Key / Delegated Ownership Pattern**: Eliminates operational bottlenecks by delegating routine application sub-key issuance and key rotation to Project Admins under strict quota guardrails (max 2 keys), while securing Master Credential authority and ownership transfer under formal SuperAdmin governance.
 
 ### 2.2 Cognitive Security & Performance Interceptors
 ```yaml

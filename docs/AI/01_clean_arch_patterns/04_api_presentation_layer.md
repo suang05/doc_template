@@ -39,6 +39,7 @@ TriggerSignals: [SIGNAL_API_MUTATION]
 | **Route Sunset Strategy** | ! Hard-deleting legacy `/api/*` endpoints causing external ERP outages | >> Annotate with `[DeprecatedRoute]` emitting RFC 8594 `Sunset`, `Deprecation`, and `Link` headers before decommissioning |
 | **Validation SSoT** | ! Duplicating payload validation across template and document controllers | >> Canonical SSoT strictly at `POST /api/v1/documents/validate/{slug}`; Studio validate reserved for HTML syntax |
 | **Integration RBAC** | ! Unrestricted `[Authorize]` allowing general members to manage DB credentials | >> Restrict Data Connection CRUD/Test to `AdminOrSuperAdmin`; restrict Dataset CRUD to `AuthorOrAdmin` |
+| **API Key Presentation Boundaries** | ! Merging SuperAdmin governance and tenant sub-key operations into duplicate ambiguous routes | >> Clear separation: Tenant Sub-Key lifecycle on `/api/v1/api-keys` (Project Admin) vs Platform Governance & Break-Glass on `/api/v1/management/api-keys` (SuperAdmin) |
 | **Top-Level Arrays** | ! Accepting raw array: `[FromBody] List<TItem>` | >> Wrapped batch envelope: `[FromBody] BatchRequest { Items = [...] }` |
 | **Timestamp Wire Format**| ! Unspecified/local datetime strings | >> Strict ISO-8601 UTC with `Z` suffix (`2026-10-21T15:30:00Z`) |
 | **OpenAPI Schema Metadata**| ! Action without `[ProducesResponseType]` metadata | >> Explicit `[ProducesResponseType(typeof(ApiResponse<T>), StatusCodes.Status200OK)]` |
@@ -53,6 +54,7 @@ TriggerSignals: [SIGNAL_API_MUTATION]
 * **Why HTTP 200 for Test Connection Probes:** When testing database connectivity (`POST /api/v1/data-connections/test`), an unreachable database or invalid password is a valid diagnostic business result, NOT an HTTP transport failure. Returning HTTP 400 violates REST semantics and breaks automated health check clients. HTTP 4xx is reserved strictly for syntactically malformed JSON (400) or SSRF security violations (403).
 * **Why Pre-Flight `ConnectionHostValidator` Defense:** Attacking internal services via SSRF (Server-Side Request Forgery) using customer database strings is a high-risk attack vector. Validating hostnames against blocked infrastructure and resolving DNS prior to opening TCP sockets prevents internal reconnaissance.
 * **Why Standard Response Envelopes (`ApiResponse<T>`):** Guarantees consistent client consumption contracts (`data`, `success`, `message`, `timestamp`) across all endpoints.
+* **Why Delegated Tenant Sub-Keys (`/api/v1/api-keys`) vs Platform Governance (`/api/v1/management/api-keys`):** Eliminates route ambiguity and operational bottlenecks. Tenant Project Admins manage operational application keys (ERP, CRM) via ambient project context under strict quota guardrails (max 2 keys), while SuperAdmin retains dedicated platform-wide oversight, quota adjustment, and emergency break-glass revocation on `/api/v1/management/...`.
 * **Why RFC 9457 Global Exception Handler:** Replaces ad-hoc error formats with an IETF standard, ensuring clients receive machine-parsable error codes and validation details without stack traces.
 
 ### Cognitive Presentation Optimization & Guard Engine

@@ -1,4 +1,4 @@
-﻿using SmkDoc.Application.Modules.IdentityAccess.Users.Commands.InviteUser;
+using SmkDoc.Application.Modules.IdentityAccess.Users.Commands.InviteUser;
 
 namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Users.Commands.InviteUser;
 
@@ -14,7 +14,7 @@ public sealed class InviteUserCommandValidatorTests
     [InlineData("DEVELOPER")]
     public void Validate_WhenRoleIsValid_ShouldPass(string role)
     {
-        var command = new InviteUserCommand(Guid.NewGuid(), "user@test.com", "Pass@1234", "First", "Last", role);
+        var command = new InviteUserCommand("user@test.com", "Pass@1234", "First", "Last", role);
         var result = _validator.Validate(command);
         result.IsValid.Should().BeTrue();
     }
@@ -25,7 +25,7 @@ public sealed class InviteUserCommandValidatorTests
     [InlineData("")]
     public void Validate_WhenRoleIsInvalid_ShouldFail(string role)
     {
-        var command = new InviteUserCommand(Guid.NewGuid(), "user@test.com", "Pass@1234", "First", "Last", role);
+        var command = new InviteUserCommand("user@test.com", "Pass@1234", "First", "Last", role);
         var result = _validator.Validate(command);
         result.IsValid.Should().BeFalse();
         result.Errors.Should().Contain(e => e.PropertyName == "Role");
@@ -37,7 +37,7 @@ public sealed class InviteUserCommandValidatorTests
     [InlineData("")]
     public void Validate_WhenEmailIsInvalid_ShouldFail(string email)
     {
-        var command = new InviteUserCommand(Guid.NewGuid(), email, "Pass@1234", "First", "Last", "Viewer");
+        var command = new InviteUserCommand(email, "Pass@1234", "First", "Last", "Viewer");
         var result = _validator.Validate(command);
         result.IsValid.Should().BeFalse();
         result.Errors.Should().Contain(e => e.PropertyName == "Email");

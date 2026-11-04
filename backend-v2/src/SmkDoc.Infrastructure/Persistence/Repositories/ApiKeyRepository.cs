@@ -15,6 +15,11 @@ public sealed class ApiKeyRepository(AppDbContext context) : IApiKeyRepository
         return await _context.ApiKeys.FirstOrDefaultAsync(k => k.Id == id && k.ProjectId == projectId, ct);
     }
 
+    public async Task<ApiKey?> GetByIdWithoutProjectAsync(ApiKeyId id, CancellationToken ct = default)
+    {
+        return await _context.ApiKeys.IgnoreQueryFilters().FirstOrDefaultAsync(k => k.Id == id, ct);
+    }
+
     public async Task<ApiKey?> GetByKeyHashAsync(Sha256Hash keyHash, CancellationToken ct = default)
     {
         return await _context.ApiKeys.IgnoreQueryFilters().FirstOrDefaultAsync(k => k.KeyHash == keyHash && k.IsActive, ct);
@@ -25,6 +30,15 @@ public sealed class ApiKeyRepository(AppDbContext context) : IApiKeyRepository
         return await _context.ApiKeys
             .AsNoTracking()
             .Where(k => k.ProjectId == projectId)
+            .OrderByDescending(k => k.CreatedAt)
+            .ToListAsync(ct);
+    }
+
+    public async Task<IReadOnlyList<ApiKey>> ListAllAsync(CancellationToken ct = default)
+    {
+        return await _context.ApiKeys
+            .AsNoTracking()
+            .IgnoreQueryFilters()
             .OrderByDescending(k => k.CreatedAt)
             .ToListAsync(ct);
     }

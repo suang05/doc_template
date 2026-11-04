@@ -18,6 +18,7 @@ public sealed class InviteUserUseCaseTests
     private readonly IUserProjectRoleRepository _roleRepo = Substitute.For<IUserProjectRoleRepository>();
     private readonly IPasswordHasher _passwordHasher = Substitute.For<IPasswordHasher>();
     private readonly IUnitOfWork _uow = Substitute.For<IUnitOfWork>();
+    private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
     private readonly FakeTimeProvider _timeProvider = TestConstants.CreateFakeClock();
 
     private InviteUserUseCase CreateSut() => new(
@@ -25,13 +26,17 @@ public sealed class InviteUserUseCaseTests
         _roleRepo,
         _passwordHasher,
         _uow,
+        _projectContext,
         _timeProvider);
 
     [Fact]
     public async Task ExecuteAsync_WhenCommandIsInvalid_ShouldFailFastWithoutTouchingPersistence()
     {
         // Arrange
-        var command = new InviteUserCommand(Guid.Empty, "invalid-email", "", "", "", "Viewer");
+        _projectContext.IsResolved.Returns(true);
+        _projectContext.ProjectId.Returns(new ProjectId(Guid.NewGuid()));
+
+        var command = new InviteUserCommand("invalid-email", "", "", "", "Viewer");
         var pipeline = new ValidatingUseCaseDecorator<InviteUserCommand, UserResultDto>(
             CreateSut(),
             [new InviteUserCommandValidator()]);
@@ -51,10 +56,13 @@ public sealed class InviteUserUseCaseTests
     {
         // Arrange
         var projectId = Guid.NewGuid();
+        _projectContext.IsResolved.Returns(true);
+        _projectContext.ProjectId.Returns(new ProjectId(projectId));
+
         var email = "new@test.com";
         var password = "Pass@1234";
         var roleStr = "Developer";
-        var command = new InviteUserCommand(projectId, email, password, "New", "User", roleStr);
+        var command = new InviteUserCommand(email, password, "New", "User", roleStr);
 
         _userRepo.GetByEmailAsync(email, Arg.Any<CancellationToken>())
             .Returns((User?)null);
@@ -77,6 +85,9 @@ public sealed class InviteUserUseCaseTests
     {
         // Arrange
         var projectId = Guid.NewGuid();
+        _projectContext.IsResolved.Returns(true);
+        _projectContext.ProjectId.Returns(new ProjectId(projectId));
+
         User existingUser = aUser.Active().WithEmail("exist@test.com");
         var existingRole = new UserProjectRoleBuilder()
             .ForUser(existingUser.Id)
@@ -84,7 +95,7 @@ public sealed class InviteUserUseCaseTests
             .AsViewer()
             .Build();
 
-        var command = new InviteUserCommand(projectId, "exist@test.com", "Pass@1234", "", "", "Viewer");
+        var command = new InviteUserCommand("exist@test.com", "Pass@1234", "", "", "Viewer");
 
         _userRepo.GetByEmailAsync("exist@test.com", Arg.Any<CancellationToken>())
             .Returns(existingUser);

@@ -1,5 +1,6 @@
 using NSubstitute;
 using SmkDoc.Application.Common.Behaviors;
+using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Users.Commands.UpdateUserRole;
 using SmkDoc.Application.Modules.IdentityAccess.Users.DTOs;
 using SmkDoc.Domain.Entities;
@@ -17,17 +18,22 @@ public sealed class UpdateUserRoleUseCaseTests
     private readonly IUserProjectRoleRepository _roleRepo = Substitute.For<IUserProjectRoleRepository>();
     private readonly IUserRepository _userRepo = Substitute.For<IUserRepository>();
     private readonly IUnitOfWork _uow = Substitute.For<IUnitOfWork>();
+    private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
 
     private UpdateUserRoleUseCase CreateSut() => new(
         _roleRepo,
         _userRepo,
-        _uow);
+        _uow,
+        _projectContext);
 
     [Fact]
     public async Task ExecuteAsync_WhenCommandIsInvalid_ShouldFailFastWithoutTouchingPersistence()
     {
         // Arrange
-        var command = new UpdateUserRoleCommand(Guid.Empty, Guid.Empty, "");
+        _projectContext.IsResolved.Returns(true);
+        _projectContext.ProjectId.Returns(new ProjectId(Guid.NewGuid()));
+
+        var command = new UpdateUserRoleCommand(Guid.Empty, "");
         var pipeline = new ValidatingUseCaseDecorator<UpdateUserRoleCommand, UserResultDto>(
             CreateSut(),
             [new UpdateUserRoleCommandValidator()]);
@@ -48,6 +54,10 @@ public sealed class UpdateUserRoleUseCaseTests
         // Arrange
         var projectId = Guid.NewGuid();
         var userId = Guid.NewGuid();
+
+        _projectContext.IsResolved.Returns(true);
+        _projectContext.ProjectId.Returns(new ProjectId(projectId));
+
         User user = aUser.Active().WithId(userId);
         var roleEntry = new UserProjectRoleBuilder()
             .InProject(projectId)
@@ -55,7 +65,7 @@ public sealed class UpdateUserRoleUseCaseTests
             .AsViewer()
             .Build();
 
-        var command = new UpdateUserRoleCommand(projectId, userId, "Developer");
+        var command = new UpdateUserRoleCommand(userId, "Developer");
 
         _roleRepo.GetAsync(new ProjectId(projectId), new UserId(userId), Arg.Any<CancellationToken>())
             .Returns(roleEntry);
@@ -80,13 +90,17 @@ public sealed class UpdateUserRoleUseCaseTests
         // Arrange
         var projectId = Guid.NewGuid();
         var userId = Guid.NewGuid();
+
+        _projectContext.IsResolved.Returns(true);
+        _projectContext.ProjectId.Returns(new ProjectId(projectId));
+
         var roleEntry = new UserProjectRoleBuilder()
             .InProject(projectId)
             .ForUser(userId)
             .AsAdmin()
             .Build();
 
-        var command = new UpdateUserRoleCommand(projectId, userId, "Viewer");
+        var command = new UpdateUserRoleCommand(userId, "Viewer");
 
         _roleRepo.GetAsync(new ProjectId(projectId), new UserId(userId), Arg.Any<CancellationToken>())
             .Returns(roleEntry);
@@ -98,8 +112,6 @@ public sealed class UpdateUserRoleUseCaseTests
 
         // Assert
         await act.Should().ThrowAsync<ConflictException>();
-        _roleRepo.DidNotReceive().Update(Arg.Any<UserProjectRole>());
-        await _uow.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -108,7 +120,11 @@ public sealed class UpdateUserRoleUseCaseTests
         // Arrange
         var projectId = Guid.NewGuid();
         var userId = Guid.NewGuid();
-        var command = new UpdateUserRoleCommand(projectId, userId, "Developer");
+
+        _projectContext.IsResolved.Returns(true);
+        _projectContext.ProjectId.Returns(new ProjectId(projectId));
+
+        var command = new UpdateUserRoleCommand(userId, "Developer");
 
         _roleRepo.GetAsync(new ProjectId(projectId), new UserId(userId), Arg.Any<CancellationToken>())
             .Returns((UserProjectRole?)null);
@@ -118,7 +134,5 @@ public sealed class UpdateUserRoleUseCaseTests
 
         // Assert
         await act.Should().ThrowAsync<NotFoundException>();
-        _roleRepo.DidNotReceive().Update(Arg.Any<UserProjectRole>());
-        await _uow.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
     }
 }

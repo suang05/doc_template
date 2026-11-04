@@ -1,7 +1,7 @@
 namespace SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
 
 /// <summary>
-/// DTO representing an API Key record.
+/// DTO representing an API Key record. MaskedKey exposes only the prefix and trailing hash characters.
 /// </summary>
 public record ApiKeyDto(
     Guid Id,
@@ -10,7 +10,8 @@ public record ApiKeyDto(
     bool IsActive,
     DateTimeOffset? LastUsedAt,
     DateTimeOffset CreatedAt,
-    string Scope = "ReadWrite"
+    string Scope = "ReadWrite",
+    string MaskedKey = ""
 );
 
 /// <summary>

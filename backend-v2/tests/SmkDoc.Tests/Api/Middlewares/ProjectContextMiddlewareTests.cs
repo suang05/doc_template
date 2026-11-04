@@ -179,6 +179,11 @@ public sealed class ProjectContextMiddlewareTests
         projectContext.ApiKeyId.Should().Be(apiKeyId);
         projectContext.CallerIdentity.Should().Be("crm-system");
         projectContext.UserId.Should().BeNull();
+        httpContext.User.Identity.Should().NotBeNull();
+        httpContext.User.Identity!.IsAuthenticated.Should().BeTrue();
+        httpContext.User.Identity.AuthenticationType.Should().Be("ApiKeyScheme");
+        httpContext.User.IsInRole("M2MClient").Should().BeTrue();
+        httpContext.User.FindFirst("ApiKeyScope")?.Value.Should().Be("ReadWrite");
     }
 
     [Fact]
@@ -299,6 +304,9 @@ public sealed class ProjectContextMiddlewareTests
         projectContext.IsResolved.Should().BeTrue();
         projectContext.ProjectId.Should().Be(targetProjectId);
         projectContext.CallerIdentity.Should().Be("master");
+        httpContext.User.Identity.Should().NotBeNull();
+        httpContext.User.Identity!.IsAuthenticated.Should().BeTrue();
+        httpContext.User.IsInRole(RoleConstants.SuperAdmin).Should().BeTrue();
     }
 
     [Fact]

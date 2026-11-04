@@ -1,8 +1,10 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.Constants;
 using SmkDoc.Api.Contracts.IdentityAccess.ApiKeys;
+using SmkDoc.Api.Filters;
 using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.CreateApiKey;
@@ -13,46 +15,52 @@ using SmkDoc.Application.Modules.IdentityAccess.Security.Queries.ListApiKeys;
 namespace SmkDoc.Api.Controllers.IdentityAccess;
 
 /// <summary>
-/// API Key lifecycle management within a project.
-/// Auth: JWT Bearer — Admin role required for all operations.
+/// Centralized SuperAdmin-only API Key governance, platform auditing, and break-glass lifecycle.
+/// Auth: JWT Bearer — SuperAdmin role strictly required for all operations.
 /// </summary>
 [ApiController]
-[Route("api/v1/management/projects/{projectId:guid}/api-keys")]
-[Authorize(Roles = RoleConstants.AdminOrSuperAdmin)]
+[Route("api/v1/management/api-keys")]
+[Authorize(Policy = SmkDocPolicies.RequireSuperAdmin)]
+[EnableRateLimiting("api")]
 [ProducesResponseType(StatusCodes.Status401Unauthorized)]
 [ProducesResponseType(StatusCodes.Status403Forbidden)]
 public sealed class ApiKeyManagementController(
     IUseCase<ListApiKeysQuery, List<ApiKeyDto>> listApiKeysUseCase,
     IUseCase<CreateApiKeyCommand, CreateApiKeyResultDto> createApiKeyUseCase,
-    IUseCase<RevokeApiKeyCommand> revokeApiKeyUseCase,
-    ICurrentProjectContext projectContext) : ControllerBase
+    IUseCase<RevokeApiKeyCommand> revokeApiKeyUseCase) : ControllerBase
 {
-    /// <summary>List all API keys for the specified project. Admin only.</summary>
+    /// <summary>List API keys across the platform, with optional filtering by project ID. SuperAdmin only.</summary>
     [HttpGet]
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<ApiKeyDto>>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> ListKeys([FromRoute] Guid projectId, CancellationToken ct)
+    public async Task<IActionResult> ListKeys(
+        [FromQuery] Guid? projectId,
+        CancellationToken ct)
     {
-        EnsureRouteMatchesProjectContext(projectId);
-        var keys = await listApiKeysUseCase.ExecuteAsync(new ListApiKeysQuery(), ct);
+        var keys = await listApiKeysUseCase.ExecuteAsync(new ListApiKeysQuery(projectId), ct);
         return Ok(new ApiResponse<IEnumerable<ApiKeyDto>>(keys));
     }
 
-    /// <summary>Create a new API key for the specified project. Admin only.</summary>
-    [HttpPost]
+    /// <summary>Provision an initial API key for a project during onboarding (Quota: Max 2 active keys). SuperAdmin only.</summary>
+    [HttpPost("/api/v1/management/projects/{projectId:guid}/api-keys")]
+    [ServiceFilter(typeof(IdempotencyFilter))]
     [ProducesResponseType(typeof(ApiResponse<ApiKeyResponseDto>), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> CreateKey(
         [FromRoute] Guid projectId,
         [FromBody] CreateApiKeyRequest request,
         CancellationToken ct)
     {
-        EnsureRouteMatchesProjectContext(projectId);
-        if (request.ProjectId.HasValue && request.ProjectId.Value != Guid.Empty && request.ProjectId.Value != projectContext.ProjectId.Value)
+        if (request.ProjectId.HasValue && request.ProjectId.Value != Guid.Empty && request.ProjectId.Value != projectId)
         {
-            throw new ForbiddenException("Access denied: payload projectId does not match the active project context.");
+            throw new ForbiddenException("Access denied: payload projectId does not match route projectId.");
         }
 
-        var command = new CreateApiKeyCommand(request.Name, request.CallerApp);
+        var scope = !string.IsNullOrWhiteSpace(request.Scope)
+            ? request.Scope
+            : (request.Scopes?.FirstOrDefault() ?? "ReadWrite");
+
+        var command = new CreateApiKeyCommand(request.Name, request.CallerApp, scope);
         var result = await createApiKeyUseCase.ExecuteAsync(command, ct);
 
         var dto = new ApiKeyResponseDto(
@@ -60,31 +68,22 @@ public sealed class ApiKeyManagementController(
             result.Name,
             result.CallerApp,
             result.PlainTextKey,
+            scope,
             request.ExpiresAt);
 
         return StatusCode(StatusCodes.Status201Created, new ApiResponse<ApiKeyResponseDto>(dto));
     }
 
-    /// <summary>Revoke (permanently delete) an API key. Admin only.</summary>
+    /// <summary>Break-glass immediate revocation of an API key across any project. SuperAdmin only.</summary>
     [HttpDelete("{keyId:guid}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> RevokeKey(
-        [FromRoute] Guid projectId,
         [FromRoute] Guid keyId,
         CancellationToken ct)
     {
-        EnsureRouteMatchesProjectContext(projectId);
         var command = new RevokeApiKeyCommand(keyId);
         await revokeApiKeyUseCase.ExecuteAsync(command, ct);
         return NoContent();
-    }
-
-    private void EnsureRouteMatchesProjectContext(Guid routeProjectId)
-    {
-        if (!projectContext.IsResolved || projectContext.ProjectId.Value != routeProjectId)
-        {
-            throw new ForbiddenException("Access denied: route projectId does not match the active project context.");
-        }
     }
 }

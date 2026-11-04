@@ -1,12 +1,12 @@
 using NSubstitute;
-using SmkDoc.Application.Common.Behaviors;
+using SmkDoc.Application.Common.Exceptions;
+using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Users.DTOs;
 using SmkDoc.Application.Modules.IdentityAccess.Users.Queries.ListProjectUsers;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common.Builders;
-using ValidationException = SmkDoc.Application.Common.Exceptions.ValidationException;
 
 namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Users.Queries.ListProjectUsers;
 
@@ -14,16 +14,21 @@ public sealed class ListProjectUsersUseCaseTests
 {
     private readonly IUserProjectRoleRepository _roleRepo = Substitute.For<IUserProjectRoleRepository>();
     private readonly IUserRepository _userRepo = Substitute.For<IUserRepository>();
+    private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
 
     private ListProjectUsersUseCase CreateSut() => new(
         _roleRepo,
-        _userRepo);
+        _userRepo,
+        _projectContext);
 
     [Fact]
     public async Task ExecuteAsync_WhenUsersExist_ShouldReturnProjectUserSummaries()
     {
         // Arrange
         var projectId = Guid.NewGuid();
+        _projectContext.IsResolved.Returns(true);
+        _projectContext.ProjectId.Returns(new ProjectId(projectId));
+
         var user = new UserBuilder()
             .WithEmail("admin@smkdoc.com")
             .WithName("Somchai", "Jaidee")
@@ -41,7 +46,7 @@ public sealed class ListProjectUsersUseCaseTests
         _userRepo.GetByIdsAsync(Arg.Any<IEnumerable<UserId>>(), Arg.Any<CancellationToken>())
             .Returns(new List<User> { user });
 
-        var query = new ListProjectUsersQuery(projectId);
+        var query = new ListProjectUsersQuery();
 
         // Act
         var result = await CreateSut().ExecuteAsync(query);
@@ -58,19 +63,17 @@ public sealed class ListProjectUsersUseCaseTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_WhenQueryIsInvalid_ShouldThrowValidationExceptionAndNotCallRepositories()
+    public async Task ExecuteAsync_WhenContextNotResolved_ShouldThrowForbiddenException()
     {
         // Arrange
-        var query = new ListProjectUsersQuery(Guid.Empty);
-        var pipeline = new ValidatingUseCaseDecorator<ListProjectUsersQuery, List<UserResultDto>>(
-            CreateSut(),
-            [new ListProjectUsersQueryValidator()]);
+        _projectContext.IsResolved.Returns(false);
+        var query = new ListProjectUsersQuery();
 
         // Act
-        var act = () => pipeline.ExecuteAsync(query);
+        var act = () => CreateSut().ExecuteAsync(query);
 
         // Assert
-        await act.Should().ThrowAsync<ValidationException>();
+        await act.Should().ThrowAsync<ForbiddenException>();
         await _roleRepo.DidNotReceive().ListByProjectAsync(Arg.Any<ProjectId>(), Arg.Any<CancellationToken>());
         await _userRepo.DidNotReceive().GetByIdsAsync(Arg.Any<IEnumerable<UserId>>(), Arg.Any<CancellationToken>());
     }
