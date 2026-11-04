@@ -28,5 +28,17 @@ public static class SmkDocPolicies
     /// Allows User Roles Viewer/Member/Author/Developer/Admin/SuperAdmin, OR any authenticated M2M key (ReadOnly/ReadWrite).
     /// </summary>
     public const string CanGenerateDocuments = "CanGenerateDocuments";
+
+    /// <summary>
+    /// Database connection management (Credentials, test connection).
+    /// Requires User Roles Admin/SuperAdmin.
+    /// </summary>
+    public const string CanManageDataConnections = "CanManageDataConnections";
+
+    /// <summary>
+    /// Dataset SQL query management.
+    /// Allows User Roles Author/Developer/Admin/SuperAdmin, OR M2M keys with ReadWrite scope.
+    /// </summary>
+    public const string CanManageDatasets = "CanManageDatasets";
 }
 

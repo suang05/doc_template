@@ -1053,6 +1053,26 @@
               }
             }
           },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
           "200": {
             "description": "OK",
             "content": {
@@ -1103,6 +1123,26 @@
         "responses": {
           "401": {
             "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
             "content": {
               "text/plain": {
                 "schema": {
@@ -1184,6 +1224,26 @@
         "responses": {
           "401": {
             "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
             "content": {
               "text/plain": {
                 "schema": {
@@ -1301,6 +1361,26 @@
               }
             }
           },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
           "200": {
             "description": "OK",
             "content": {
@@ -1400,6 +1480,26 @@
               }
             }
           },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
           "204": {
             "description": "No Content"
           },
@@ -1473,28 +1573,28 @@
               }
             }
           },
-          "200": {
-            "description": "OK",
+          "403": {
+            "description": "Forbidden",
             "content": {
               "text/plain": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfTestDataConnectionResponseDto"
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               },
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfTestDataConnectionResponseDto"
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               },
               "text/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfTestDataConnectionResponseDto"
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
           },
-          "400": {
-            "description": "Bad Request",
+          "200": {
+            "description": "OK",
             "content": {
               "text/plain": {
                 "schema": {
@@ -1543,6 +1643,26 @@
               }
             }
           },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
           "200": {
             "description": "OK",
             "content": {
@@ -1569,6 +1689,7 @@
         "tags": [
           "Dataset"
         ],
+        "summary": "Create a new SQL dataset definition.",
         "requestBody": {
           "content": {
             "application/json": {
@@ -1592,6 +1713,26 @@
         "responses": {
           "401": {
             "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
             "content": {
               "text/plain": {
                 "schema": {
@@ -1638,6 +1779,7 @@
         "tags": [
           "Dataset"
         ],
+        "summary": "Get a specific SQL dataset definition by its ID.",
         "parameters": [
           {
             "name": "id",
@@ -1652,6 +1794,26 @@
         "responses": {
           "401": {
             "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
             "content": {
               "text/plain": {
                 "schema": {
@@ -1716,6 +1878,7 @@
         "tags": [
           "Dataset"
         ],
+        "summary": "Update an existing SQL dataset definition.",
         "parameters": [
           {
             "name": "id",
@@ -1750,6 +1913,26 @@
         "responses": {
           "401": {
             "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
             "content": {
               "text/plain": {
                 "schema": {
@@ -1814,6 +1997,7 @@
         "tags": [
           "Dataset"
         ],
+        "summary": "Delete a SQL dataset definition.",
         "parameters": [
           {
             "name": "id",
@@ -1828,6 +2012,26 @@
         "responses": {
           "401": {
             "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
             "content": {
               "text/plain": {
                 "schema": {
@@ -4146,7 +4350,7 @@
         "tags": [
           "Template"
         ],
-        "summary": "Update template display name and category metadata.",
+        "summary": "Update template display name and category metadata with optimistic concurrency check.",
         "parameters": [
           {
             "name": "id",
@@ -4155,6 +4359,13 @@
             "schema": {
               "type": "string",
               "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "schema": {
+              "type": "string"
             }
           }
         ],
@@ -4238,6 +4449,26 @@
                 }
               }
             }
+          },
+          "412": {
+            "description": "Precondition Failed",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         }
       },
@@ -4304,6 +4535,132 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/templates/scan-fields": {
+      "post": {
+        "tags": [
+          "Template"
+        ],
+        "summary": "Stateless scan — upload any file and get its placeholders without creating a template.\r\nZero side-effects (no DB writes, no MinIO uploads).",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "$ref": "#/components/schemas/IFormFile"
+                  }
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfScanFieldsResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfScanFieldsResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfScanFieldsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/templates/{id}/scan-fields": {
+      "get": {
+        "tags": [
+          "Template"
+        ],
+        "summary": "Scan placeholders from a stored template file in MinIO.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfScanFieldsResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfScanFieldsResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfScanFieldsResponse"
+                }
+              }
+            }
           },
           "404": {
             "description": "Not Found",
@@ -4481,6 +4838,146 @@
               "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseOfValidateTemplatePayloadResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/templates/{id}/datasets": {
+      "get": {
+        "tags": [
+          "TemplateDataset"
+        ],
+        "summary": "Get datasets linked to this template.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfTemplateDatasetDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfTemplateDatasetDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfTemplateDatasetDto"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "TemplateDataset"
+        ],
+        "summary": "Save (replace-all) dataset links for a template.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveTemplateDatasetsRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveTemplateDatasetsRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveTemplateDatasetsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfTemplateDatasetDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfTemplateDatasetDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfTemplateDatasetDto"
                 }
               }
             }
@@ -4772,9 +5269,9 @@
     "/api/v1/templates/{id}/html": {
       "get": {
         "tags": [
-          "TemplateHtml"
+          "TemplateStudio"
         ],
-        "summary": "Get raw HTML source for the Monaco Editor.",
+        "summary": "Get raw HTML source for Monaco Editor.",
         "parameters": [
           {
             "name": "id",
@@ -4797,9 +5294,9 @@
       },
       "put": {
         "tags": [
-          "TemplateHtml"
+          "TemplateStudio"
         ],
-        "summary": "Save HTML from editor — auto-increments template version.",
+        "summary": "Save HTML from Monaco Editor — increments template version with optimistic concurrency check.",
         "parameters": [
           {
             "name": "id",
@@ -4808,6 +5305,13 @@
             "schema": {
               "type": "string",
               "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "schema": {
+              "type": "string"
             }
           }
         ],
@@ -4851,6 +5355,26 @@
                 }
               }
             }
+          },
+          "412": {
+            "description": "Precondition Failed",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         }
       }
@@ -4858,9 +5382,50 @@
     "/api/v1/templates/{id}/studio": {
       "get": {
         "tags": [
-          "TemplateHtml"
+          "TemplateStudio"
         ],
-        "summary": "Get the full Studio bundle: HTML source + field mappings + JSON schema.",
+        "summary": "Get full Studio bundle: HTML source + field mappings + JSON schema.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfTemplateStudioDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfTemplateStudioDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfTemplateStudioDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/templates/{id}/studio/bundle": {
+      "get": {
+        "tags": [
+          "TemplateStudio"
+        ],
+        "summary": "Get full Studio bundle: HTML source + field mappings + JSON schema.",
         "parameters": [
           {
             "name": "id",
@@ -4899,9 +5464,9 @@
     "/api/v1/templates/{id}/schema": {
       "get": {
         "tags": [
-          "TemplateHtml"
+          "TemplateStudio"
         ],
-        "summary": "Get the inferred JSON Schema Draft-07 for a template.",
+        "summary": "Get inferred JSON Schema Draft-07 for a template.",
         "parameters": [
           {
             "name": "id",
@@ -4940,9 +5505,9 @@
     "/api/v1/templates/{id}/validate": {
       "post": {
         "tags": [
-          "TemplateHtml"
+          "TemplateStudio"
         ],
-        "summary": "Validate HTML template syntax without saving.",
+        "summary": "Validate HTML template syntax and Handlebars tags without persisting.",
         "parameters": [
           {
             "name": "id",
@@ -5001,7 +5566,7 @@
     "/api/v1/templates/{id}/mappings": {
       "get": {
         "tags": [
-          "TemplateMapping"
+          "TemplateStudio"
         ],
         "summary": "Get all field mappings for a template.",
         "parameters": [
@@ -5040,7 +5605,7 @@
       },
       "put": {
         "tags": [
-          "TemplateMapping"
+          "TemplateStudio"
         ],
         "summary": "Save (replace-all) field mappings for a template.",
         "parameters": [
@@ -5141,7 +5706,7 @@
     "/api/v1/templates/{id}/mappings/preview": {
       "post": {
         "tags": [
-          "TemplateMapping"
+          "TemplateStudio"
         ],
         "summary": "Preview PDF rendered with field mapping sample data.\r\nZero side-effects — no DB writes, no MinIO uploads.",
         "parameters": [
@@ -5180,132 +5745,6 @@
             "description": "OK",
             "content": {
               "application/pdf": { }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/templates/scan-fields": {
-      "post": {
-        "tags": [
-          "TemplateScan"
-        ],
-        "summary": "Stateless scan — upload any file and get its placeholders without creating a template.\r\nZero side-effects (no DB writes, no MinIO uploads).",
-        "requestBody": {
-          "content": {
-            "multipart/form-data": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "file": {
-                    "$ref": "#/components/schemas/IFormFile"
-                  }
-                }
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfScanFieldsResponse"
-                }
-              },
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfScanFieldsResponse"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfScanFieldsResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              },
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/templates/{id}/scan-fields": {
-      "get": {
-        "tags": [
-          "TemplateScan"
-        ],
-        "summary": "Scan placeholders from a stored template file in MinIO.",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfScanFieldsResponse"
-                }
-              },
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfScanFieldsResponse"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfScanFieldsResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not Found",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              },
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
             }
           }
         }
@@ -5396,146 +5835,6 @@
               "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseOfRollbackVersionResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/templates/{id}/datasets": {
-      "get": {
-        "tags": [
-          "TemplateVersion"
-        ],
-        "summary": "Get datasets linked to this template.",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfTemplateDatasetDto"
-                }
-              },
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfTemplateDatasetDto"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfTemplateDatasetDto"
-                }
-              }
-            }
-          }
-        }
-      },
-      "put": {
-        "tags": [
-          "TemplateVersion"
-        ],
-        "summary": "Save (replace-all) dataset links for a template.",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SaveTemplateDatasetsRequest"
-              }
-            },
-            "text/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SaveTemplateDatasetsRequest"
-              }
-            },
-            "application/*+json": {
-              "schema": {
-                "$ref": "#/components/schemas/SaveTemplateDatasetsRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfTemplateDatasetDto"
-                }
-              },
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfTemplateDatasetDto"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfTemplateDatasetDto"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              },
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not Found",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              },
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
@@ -6364,13 +6663,6 @@
             "items": {
               "$ref": "#/components/schemas/SaveFieldMappingItemDto"
             }
-          },
-          "projectId": {
-            "type": [
-              "null",
-              "string"
-            ],
-            "format": "uuid"
           }
         },
         "description": "HTTP request contract for committing an uploaded template draft."
@@ -8536,16 +8828,13 @@
       "name": "Template"
     },
     {
+      "name": "TemplateDataset"
+    },
+    {
       "name": "TemplateDraft"
     },
     {
-      "name": "TemplateHtml"
-    },
-    {
-      "name": "TemplateMapping"
-    },
-    {
-      "name": "TemplateScan"
+      "name": "TemplateStudio"
     },
     {
       "name": "TemplateVersion"

@@ -9,6 +9,5 @@ public record CommitDraftRequest(
     string Name,
     string Slug,
     string? Category,
-    IReadOnlyList<SaveFieldMappingItemDto> Mappings,
-    Guid? ProjectId = null
+    IReadOnlyList<SaveFieldMappingItemDto> Mappings
 );

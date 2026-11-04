@@ -34,6 +34,11 @@ public sealed class SqlSecurityGuardTests
     [InlineData("PostgreSQL", "Host=fe80::1;Database=erp;Username=u;Password=p")]
     [InlineData("PostgreSQL", "Host=10.0.0.1,10.0.0.2;Database=erp;Username=u;Password=p")]
     [InlineData("PostgreSQL", "Host=10.20.30.40;Port=5432;Database=smk_doc_internal;Username=ro;Password=p")]
+    [InlineData("PostgreSQL", "Host=postgres;Database=erp;Username=u;Password=p")]
+    [InlineData("PostgreSQL", "Host=minio;Database=erp;Username=u;Password=p")]
+    [InlineData("PostgreSQL", "Host=redis;Database=erp;Username=u;Password=p")]
+    [InlineData("PostgreSQL", "Host=gotenberg;Database=erp;Username=u;Password=p")]
+    [InlineData("PostgreSQL", "Host=host.docker.internal;Database=erp;Username=u;Password=p")]
     public async Task ValidateConnectionTargetAsync_WithProhibitedSsrfOrSelfTarget_ThrowsForbiddenException(
         string provider,
         string connectionString)

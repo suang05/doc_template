@@ -7,5 +7,6 @@ public sealed record SaveTemplateHtmlCommand(
     Guid TemplateId,
     string Html,
     string? SamplePayload = null,
-    string? ChangeNote = null
+    string? ChangeNote = null,
+    string? IfMatch = null
 );

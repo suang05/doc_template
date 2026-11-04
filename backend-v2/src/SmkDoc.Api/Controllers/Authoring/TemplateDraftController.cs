@@ -81,11 +81,6 @@ public sealed class TemplateDraftController(
             throw new ForbiddenException("Active project context is required to commit a template draft.");
         }
 
-        if (request.ProjectId.HasValue && request.ProjectId.Value != Guid.Empty && request.ProjectId.Value != projectContext.ProjectId.Value)
-        {
-            throw new ForbiddenException("Access denied: requested projectId does not match the active project context.");
-        }
-
         var command = new CommitTemplateDraftCommand(
             draftId,
             request.Name,

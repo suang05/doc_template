@@ -172,6 +172,23 @@ public static class ServiceCollectionExtensions
             {
                 policy.RequireAssertion(ctx => ctx.User.Identity?.IsAuthenticated == true);
             });
+
+            options.AddPolicy(SmkDocPolicies.CanManageDataConnections, policy =>
+            {
+                policy.RequireAssertion(ctx =>
+                    ctx.User.IsInRole(RoleConstants.Admin) ||
+                    ctx.User.IsInRole(RoleConstants.SuperAdmin));
+            });
+
+            options.AddPolicy(SmkDocPolicies.CanManageDatasets, policy =>
+            {
+                policy.RequireAssertion(ctx =>
+                    ctx.User.IsInRole("Author") ||
+                    ctx.User.IsInRole("Developer") ||
+                    ctx.User.IsInRole(RoleConstants.Admin) ||
+                    ctx.User.IsInRole(RoleConstants.SuperAdmin) ||
+                    (ctx.User.IsInRole("M2MClient") && ctx.User.HasClaim(c => c.Type is "Scope" or "ApiKeyScope" && c.Value == "ReadWrite")));
+            });
         });
 
         return services;
@@ -287,6 +304,36 @@ public static class ServiceCollectionExtensions
                 var windowOptions = new FixedWindowRateLimiterOptions
                 {
                     PermitLimit = 30,
+                    Window = TimeSpan.FromMinutes(1),
+                    QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                    QueueLimit = 0,
+                    AutoReplenishment = true
+                };
+
+                if (useRedis)
+                {
+                    var multiplexer = context.RequestServices.GetService<IConnectionMultiplexer>();
+                    if (multiplexer is not null)
+                    {
+                        var logger = context.RequestServices
+                            .GetRequiredService<ILoggerFactory>()
+                            .CreateLogger<RedisFixedWindowRateLimiter>();
+
+                        return RateLimitPartition.Get(
+                            partitionKey,
+                            key => new RedisFixedWindowRateLimiter(multiplexer, key, windowOptions, logger, instancePrefix));
+                    }
+                }
+
+                return RateLimitPartition.GetFixedWindowLimiter(partitionKey, _ => windowOptions);
+            });
+
+            options.AddPolicy("test-conn", context =>
+            {
+                var partitionKey = RateLimitPartitionKeyResolver.Resolve(context);
+                var windowOptions = new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = 10,
                     Window = TimeSpan.FromMinutes(1),
                     QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
                     QueueLimit = 0,

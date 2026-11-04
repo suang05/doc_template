@@ -163,4 +163,89 @@ public sealed class SaveTemplateHtmlUseCaseTests
         await _storageService.DidNotReceive().UploadAsync(
             Arg.Any<string>(), Arg.Any<string>(), Arg.Any<Stream>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenIfMatchDoesNotMatch_ShouldThrowPreconditionFailedException()
+    {
+        // Arrange
+        var templateId = Guid.NewGuid();
+        var currentVersionId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+
+        Template template = TemplateBuilder.ATemplate()
+            .WithId(templateId)
+            .WithProjectId(projectId)
+            .WithSlug("official-contract")
+            .WithName("official-contract");
+
+        TemplateVersion currentVersion = TemplateVersionBuilder.AVersion()
+            .WithId(currentVersionId)
+            .WithTemplateId(templateId)
+            .WithVersion(3)
+            .WithStorageKey($"templates/{projectId:N}/{templateId:N}/v3.html")
+            .WithFormat(TemplateFormat.Html)
+            .WithStatus("Published")
+            .WithCreatedBy("author");
+        template.PublishVersion(currentVersion, TestConstants.BaselineTime);
+
+        _templateRepo.GetByIdWithDetailsAsync(new TemplateId(templateId), Arg.Any<CancellationToken>())
+            .Returns(template);
+
+        var request = new SaveTemplateHtmlCommand(
+            TemplateId: templateId,
+            Html: "<html><body>Hello</body></html>",
+            IfMatch: "\"2\"" // Current version is 3, mismatch!
+        );
+
+        // Act
+        var act = () => CreateSut().ExecuteAsync(request);
+
+        // Assert
+        await act.Should().ThrowAsync<PreconditionFailedException>();
+        await _storageService.DidNotReceive().UploadAsync(
+            Arg.Any<string>(), Arg.Any<string>(), Arg.Any<Stream>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenIfMatchMatches_ShouldSucceed()
+    {
+        // Arrange
+        var templateId = Guid.NewGuid();
+        var currentVersionId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+
+        Template template = TemplateBuilder.ATemplate()
+            .WithId(templateId)
+            .WithProjectId(projectId)
+            .WithSlug("official-contract")
+            .WithName("official-contract");
+
+        TemplateVersion currentVersion = TemplateVersionBuilder.AVersion()
+            .WithId(currentVersionId)
+            .WithTemplateId(templateId)
+            .WithVersion(3)
+            .WithStorageKey($"templates/{projectId:N}/{templateId:N}/v3.html")
+            .WithFormat(TemplateFormat.Html)
+            .WithStatus("Published")
+            .WithCreatedBy("author");
+        template.PublishVersion(currentVersion, TestConstants.BaselineTime);
+
+        _templateRepo.GetByIdWithDetailsAsync(new TemplateId(templateId), Arg.Any<CancellationToken>())
+            .Returns(template);
+
+        _schemaInference.InferFromHtml(Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<string?>())
+            .Returns(("{}", "{}"));
+
+        var request = new SaveTemplateHtmlCommand(
+            TemplateId: templateId,
+            Html: "<html><body>Hello</body></html>",
+            IfMatch: "\"3\"" // Matches version 3!
+        );
+
+        // Act
+        int nextVersion = await CreateSut().ExecuteAsync(request);
+
+        // Assert
+        nextVersion.Should().Be(4);
+    }
 }

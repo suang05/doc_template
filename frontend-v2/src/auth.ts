@@ -49,18 +49,9 @@ async function loginAgainstBackend(email: string, password: string): Promise<Bac
     body: JSON.stringify({ email, password }),
   }).catch(() => null);
 
-  // Fallback to /api/auth/login if /api/v1/auth/login fails with 404
-  const finalRes = res && res.status !== 404
-    ? res
-    : await fetch(`${BACKEND_INTERNAL_URL}/api/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      }).catch(() => null);
+  if (!res || !res.ok) return null;
 
-  if (!finalRes || !finalRes.ok) return null;
-
-  const json = (await finalRes.json()) as BackendApiResponse<BackendLoginData> & {
+  const json = (await res.json()) as BackendApiResponse<BackendLoginData> & {
     token?: string;
     accessToken?: string;
     refreshToken?: string;
@@ -94,19 +85,11 @@ async function refreshBackendToken(token: JWT): Promise<JWT> {
       body: JSON.stringify({ refreshToken: token.refreshToken }),
     }).catch(() => null);
 
-    const finalRes = res && res.status !== 404
-      ? res
-      : await fetch(`${BACKEND_INTERNAL_URL}/api/auth/refresh`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ refreshToken: token.refreshToken }),
-        }).catch(() => null);
-
-    if (!finalRes || !finalRes.ok) {
+    if (!res || !res.ok) {
       return { ...token, error: 'RefreshAccessTokenError' };
     }
 
-    const json = (await finalRes.json()) as BackendApiResponse<BackendRefreshData> & {
+    const json = (await res.json()) as BackendApiResponse<BackendRefreshData> & {
       accessToken?: string;
       refreshToken?: string;
       expiresIn?: number;

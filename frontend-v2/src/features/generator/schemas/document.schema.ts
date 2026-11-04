@@ -41,6 +41,20 @@ export const DocumentVersionDtoSchema = z.object({
 });
 export type DocumentVersionDto = z.infer<typeof DocumentVersionDtoSchema>;
 
+export const DocumentJobDtoSchema = z.object({
+  jobId: z.string().uuid(),
+  templateSlug: z.string(),
+  status: z.string(),
+  enqueuedAt: z.string(),
+  startedAt: z.string().nullable().optional(),
+  completedAt: z.string().nullable().optional(),
+  statusUrl: z.string(),
+  downloadUrl: z.string().nullable().optional(),
+  errorMessage: z.string().nullable().optional(),
+  errorCode: z.string().nullable().optional(),
+});
+export type DocumentJobDto = z.infer<typeof DocumentJobDtoSchema>;
+
 /** Generic API response envelope — used by adapters that unwrap `data` fields. */
 export interface ApiResponse<T> {
   data?: T;

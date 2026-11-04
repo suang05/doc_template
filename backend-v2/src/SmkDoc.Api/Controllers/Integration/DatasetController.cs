@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Common.Responses;
+using SmkDoc.Api.Constants;
 using SmkDoc.Api.Contracts.Integration.Datasets;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Integration.Datasets.Commands.CreateDataset;
@@ -14,12 +15,13 @@ namespace SmkDoc.Api.Controllers.Integration;
 
 /// <summary>
 /// SQL dataset definitions for query execution and template data binding.
-/// Auth: Channel B (Bearer JWT).
+/// Auth: Author, Developer, Admin, SuperAdmin, or M2M ReadWrite scope via SmkDocPolicies.CanManageDatasets.
 /// </summary>
 [ApiController]
 [Route("api/v1/datasets")]
-[Authorize]
+[Authorize(Policy = SmkDocPolicies.CanManageDatasets)]
 [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+[ProducesResponseType(StatusCodes.Status403Forbidden)]
 public sealed class DatasetController(
     IUseCase<ListDatasetsQuery, List<DatasetDto>> listUseCase,
     IUseCase<GetDatasetByIdQuery, DatasetDto?> getByIdUseCase,
@@ -37,6 +39,7 @@ public sealed class DatasetController(
         return Ok(new ApiResponse<IEnumerable<DatasetDto>>(result));
     }
 
+    /// <summary>Get a specific SQL dataset definition by its ID.</summary>
     [HttpGet("{id:guid}")]
     [ProducesResponseType(typeof(ApiResponse<DatasetDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -48,6 +51,7 @@ public sealed class DatasetController(
         return Ok(new ApiResponse<DatasetDto>(result));
     }
 
+    /// <summary>Create a new SQL dataset definition.</summary>
     [HttpPost]
     [ProducesResponseType(typeof(ApiResponse<DatasetDto>), StatusCodes.Status201Created)]
     public async Task<IActionResult> Create([FromBody] CreateDatasetRequest request, CancellationToken ct)
@@ -57,6 +61,7 @@ public sealed class DatasetController(
         return CreatedAtAction(nameof(GetById), new { id = result.Id }, new ApiResponse<DatasetDto>(result));
     }
 
+    /// <summary>Update an existing SQL dataset definition.</summary>
     [HttpPut("{id:guid}")]
     [ProducesResponseType(typeof(ApiResponse<DatasetDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -68,6 +73,7 @@ public sealed class DatasetController(
         return Ok(new ApiResponse<DatasetDto>(result));
     }
 
+    /// <summary>Delete a SQL dataset definition.</summary>
     [HttpDelete("{id:guid}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

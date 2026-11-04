@@ -12,13 +12,15 @@ using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.DownloadTemplate;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.GetTemplateById;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.ListTemplates;
+using SmkDoc.Application.Modules.Authoring.Templates.Queries.ScanTemplatePlaceholders;
+using SmkDoc.Application.Modules.Authoring.Templates.Queries.ScanUploadedTemplate;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.ValidateTemplatePayload;
 using SmkDoc.Domain.Exceptions;
 
 namespace SmkDoc.Api.Controllers.Authoring;
 
 /// <summary>
-/// Template lifecycle management: listing, creation, metadata updates, deactivation, and downloads.
+/// Template lifecycle management: listing, creation, metadata updates, deactivation, downloads, and placeholder scanning.
 /// Auth: Channel A (X-API-Key) or Channel B (Portal Bearer JWT) via ProjectContextMiddleware.
 /// </summary>
 [ApiController]
@@ -31,6 +33,8 @@ public sealed class TemplateController(
     IUseCase<DeactivateTemplateCommand> deactivateTemplateUseCase,
     IUseCase<DownloadTemplateQuery, DownloadTemplateResult> downloadTemplateUseCase,
     IUseCase<ValidateTemplatePayloadQuery, ValidateTemplatePayloadResult> validatePayloadUseCase,
+    IUseCase<ScanUploadedTemplateQuery, List<string>> scanUploadedUseCase,
+    IUseCase<ScanTemplatePlaceholdersQuery, List<string>> scanStoredUseCase,
     ICurrentProjectContext projectContext) : ControllerBase
 {
     /// <summary>List templates belonging to the active project with optional search, category filter, and server-side pagination.</summary>
@@ -73,6 +77,7 @@ public sealed class TemplateController(
     {
         var query = new GetTemplateByIdQuery(id);
         var template = await getTemplateByIdUseCase.ExecuteAsync(query, ct);
+        Response.Headers.ETag = $"\"{(template.UpdatedAt ?? template.CreatedAt).ToUnixTimeMilliseconds()}\"";
         return Ok(new ApiResponse<TemplateResultDto>(template));
     }
 
@@ -97,18 +102,21 @@ public sealed class TemplateController(
         return CreatedAtAction(nameof(GetById), new { id = created.Id }, new ApiResponse<TemplateResultDto>(created));
     }
 
-    /// <summary>Update template display name and category metadata.</summary>
+    /// <summary>Update template display name and category metadata with optimistic concurrency check.</summary>
     [HttpPut("{id:guid}")]
     [ProducesResponseType(typeof(ApiResponse<TemplateResultDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status412PreconditionFailed)]
     public async Task<IActionResult> UpdateMetadata(
         [FromRoute] Guid id,
         [FromBody] UpdateTemplateMetadataRequest request,
+        [FromHeader(Name = "If-Match")] string? ifMatch,
         CancellationToken ct)
     {
-        var command = new UpdateTemplateDetailsCommand(id, request.Name ?? string.Empty, request.Category);
+        var command = new UpdateTemplateDetailsCommand(id, request.Name ?? string.Empty, request.Category, ifMatch);
         var result = await updateTemplateDetailsUseCase.ExecuteAsync(command, ct);
+        Response.Headers.ETag = $"\"{(result.UpdatedAt ?? result.CreatedAt).ToUnixTimeMilliseconds()}\"";
         return Ok(new ApiResponse<TemplateResultDto>(result));
     }
 
@@ -132,6 +140,36 @@ public sealed class TemplateController(
         var query = new DownloadTemplateQuery(id);
         var result = await downloadTemplateUseCase.ExecuteAsync(query, ct);
         return File(result.Stream, result.ContentType, result.FileName);
+    }
+
+    /// <summary>
+    /// Stateless scan — upload any file and get its placeholders without creating a template.
+    /// Zero side-effects (no DB writes, no MinIO uploads).
+    /// </summary>
+    [HttpPost("scan-fields")]
+    [ProducesResponseType(typeof(ApiResponse<ScanFieldsResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ScanFieldsStateless(IFormFile file, CancellationToken ct)
+    {
+        if (file is not { Length: > 0 })
+            throw new DomainValidationException("File is required and must not be empty.");
+
+        var ext = Path.GetExtension(file.FileName);
+        await using var stream = file.OpenReadStream();
+        var query = new ScanUploadedTemplateQuery(stream, ext);
+        var placeholders = await scanUploadedUseCase.ExecuteAsync(query, ct);
+        return Ok(new ApiResponse<ScanFieldsResponse>(new ScanFieldsResponse(placeholders)));
+    }
+
+    /// <summary>Scan placeholders from a stored template file in MinIO.</summary>
+    [HttpGet("{id:guid}/scan-fields")]
+    [ProducesResponseType(typeof(ApiResponse<ScanFieldsResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ScanFieldsById([FromRoute] Guid id, CancellationToken ct)
+    {
+        var query = new ScanTemplatePlaceholdersQuery(id);
+        var placeholders = await scanStoredUseCase.ExecuteAsync(query, ct);
+        return Ok(new ApiResponse<ScanFieldsResponse>(new ScanFieldsResponse(placeholders)));
     }
 
     /// <summary>

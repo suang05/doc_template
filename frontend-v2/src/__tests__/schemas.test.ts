@@ -22,7 +22,7 @@ import {
   SaveTemplateDatasetItemSchema,
   TemplateDatasetDtoSchema,
 } from '@/features/datasources/schemas/templateDataset.schema';
-import { GenerateDocumentRequestSchema } from '@/features/generator/schemas/document.schema';
+import { GenerateDocumentRequestSchema, DocumentJobDtoSchema } from '@/features/generator/schemas/document.schema';
 import {
   SaveFieldMappingItemSchema,
   FieldMappingDtoSchema,
@@ -451,5 +451,39 @@ describe('loginResponseSchema', () => {
 
   it('rejects missing user fields', () => {
     expect(() => loginResponseSchema.parse({ ...valid, user: { email: 'a@b.com' } })).toThrow();
+  });
+});
+
+describe('DocumentJobDtoSchema', () => {
+  const valid = {
+    jobId: '123e4567-e89b-12d3-a456-426614174000',
+    templateSlug: 'invoice-template',
+    status: 'Completed',
+    enqueuedAt: '2026-11-04T12:00:00Z',
+    startedAt: '2026-11-04T12:00:01Z',
+    completedAt: '2026-11-04T12:00:03Z',
+    statusUrl: '/api/v1/documents/jobs/123e4567-e89b-12d3-a456-426614174000',
+    downloadUrl: '/api/v1/documents/download/123e4567-e89b-12d3-a456-426614174000',
+    errorMessage: null,
+    errorCode: null,
+  };
+
+  it('parses a valid document job response', () => {
+    const parsed = DocumentJobDtoSchema.parse(valid);
+    expect(parsed.jobId).toBe(valid.jobId);
+    expect(parsed.status).toBe('Completed');
+  });
+
+  it('parses queued document job without start/complete times', () => {
+    const queued = {
+      ...valid,
+      status: 'Queued',
+      startedAt: null,
+      completedAt: null,
+      downloadUrl: null,
+    };
+    const parsed = DocumentJobDtoSchema.parse(queued);
+    expect(parsed.status).toBe('Queued');
+    expect(parsed.downloadUrl).toBeNull();
   });
 });

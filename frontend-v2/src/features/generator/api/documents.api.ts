@@ -6,6 +6,8 @@ import {
   GenerateDocumentResponseSchema,
   PreviewDocumentRequest,
   DocumentVersionDto,
+  DocumentJobDto,
+  DocumentJobDtoSchema,
 } from '@/types/api';
 
 export const documentsApi = {
@@ -18,6 +20,27 @@ export const documentsApi = {
       body: JSON.stringify(request),
     });
     return GenerateDocumentResponseSchema.parse(res.data);
+  },
+
+  /**
+   * Enqueue asynchronous document generation job (SSoT: POST /api/v1/documents/generate-async)
+   */
+  async generateDocumentAsync(slug: string, request: GenerateDocumentRequest): Promise<DocumentJobDto> {
+    const res = await apiClient<ApiResponse<DocumentJobDto>>(`/api/v1/documents/generate-async?slug=${encodeURIComponent(slug)}`, {
+      method: 'POST',
+      body: JSON.stringify(request),
+    });
+    return DocumentJobDtoSchema.parse(res.data);
+  },
+
+  /**
+   * Poll document job status (SSoT: GET /api/v1/documents/jobs/{jobId})
+   */
+  async getDocumentJob(jobId: string): Promise<DocumentJobDto> {
+    const res = await apiClient<ApiResponse<DocumentJobDto>>(`/api/v1/documents/jobs/${jobId}`, {
+      method: 'GET',
+    });
+    return DocumentJobDtoSchema.parse(res.data);
   },
 
   /**

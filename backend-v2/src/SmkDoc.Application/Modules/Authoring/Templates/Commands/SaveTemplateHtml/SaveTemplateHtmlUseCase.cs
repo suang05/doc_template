@@ -32,6 +32,22 @@ public sealed class SaveTemplateHtmlUseCase(
             ?? await templateRepo.GetByIdAsync(templateId, ct)
             ?? throw new NotFoundException($"Template '{command.TemplateId}' not found.");
 
+        if (!string.IsNullOrWhiteSpace(command.IfMatch) && command.IfMatch != "*")
+        {
+            var sanitizedMatch = command.IfMatch.Trim('\"', 'W', '/', ' ');
+            var currentVersion = template.CurrentVersion?.Version.ToString()
+                ?? template.FindPublishedVersion()?.Version.ToString()
+                ?? "0";
+            var currentToken = (template.UpdatedAt ?? template.CreatedAt).ToUnixTimeMilliseconds().ToString();
+
+            if (!string.Equals(sanitizedMatch, currentVersion, StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(sanitizedMatch, currentToken, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new PreconditionFailedException(
+                    $"Precondition failed for template '{command.TemplateId}'. Version/ETag '{sanitizedMatch}' does not match current state.");
+            }
+        }
+
         int nextVersionNumber = template.GetNextVersionNumber();
         string versionedKey = StorageBuckets.TemplateVersionKey(template.ProjectId, template.Id, nextVersionNumber, ".html");
         // 1. Upload exclusively to immutable versioned key using Zero-LOH HybridSpoolStream

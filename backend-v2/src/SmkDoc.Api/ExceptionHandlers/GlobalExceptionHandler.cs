@@ -80,6 +80,7 @@ public sealed class GlobalExceptionHandler(
     private static (int Status, string Title, string ErrorCode) ResolveExceptionDetails(Exception exception) =>
         exception switch
         {
+            PreconditionFailedException precond  => (StatusCodes.Status412PreconditionFailed, "Precondition Failed", precond.ErrorCode),
             NotFoundException notFound           => (StatusCodes.Status404NotFound, "Not Found", notFound.ErrorCode),
             DraftExpiredException draftExpired   => (StatusCodes.Status410Gone, "Draft Expired", draftExpired.ErrorCode),
             ConflictException conflict           => (StatusCodes.Status409Conflict, "Conflict", conflict.ErrorCode),

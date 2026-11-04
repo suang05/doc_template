@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using SmkDoc.Api.Common.Responses;
+using SmkDoc.Api.Constants;
 using SmkDoc.Api.Contracts.Integration.DataConnections;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Integration.DataConnections.Commands.CreateDataConnection;
@@ -15,12 +17,13 @@ namespace SmkDoc.Api.Controllers.Integration;
 
 /// <summary>
 /// Database connection definitions for dynamic template data binding.
-/// Auth: Channel B (Bearer JWT).
+/// Auth: Admin or SuperAdmin via SmkDocPolicies.CanManageDataConnections.
 /// </summary>
 [ApiController]
 [Route("api/v1/data-connections")]
-[Authorize]
+[Authorize(Policy = SmkDocPolicies.CanManageDataConnections)]
 [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+[ProducesResponseType(StatusCodes.Status403Forbidden)]
 public sealed class DataConnectionsController(
     IUseCase<ListDataConnectionsQuery, List<DataConnectionDto>> listUseCase,
     IUseCase<GetDataConnectionByIdQuery, DataConnectionDto?> getByIdUseCase,
@@ -89,15 +92,14 @@ public sealed class DataConnectionsController(
 
     /// <summary>Test connection credentials and reachability.</summary>
     [HttpPost("test")]
+    [EnableRateLimiting("test-conn")]
     [ProducesResponseType(typeof(ApiResponse<TestDataConnectionResponseDto>), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(ApiResponse<TestDataConnectionResponseDto>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> TestConnection([FromBody] TestDataConnectionRequest request, CancellationToken ct)
     {
         var command = new TestDataConnectionCommand(request.Provider, request.ConnectionString);
         var success = await testUseCase.ExecuteAsync(command, ct);
-        if (success)
-            return Ok(new ApiResponse<TestDataConnectionResponseDto>(new TestDataConnectionResponseDto(true, "Connection successful.")));
-
-        return BadRequest(new ApiResponse<TestDataConnectionResponseDto>(new TestDataConnectionResponseDto(false, null, "Connection failed.")));
+        var message = success ? "Connection successful." : "Connection failed.";
+        return Ok(new ApiResponse<TestDataConnectionResponseDto>(new TestDataConnectionResponseDto(success, message)));
     }
 }

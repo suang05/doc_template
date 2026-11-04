@@ -70,6 +70,16 @@ public sealed partial class SqlSecurityGuard(
             throw new ForbiddenException("Connecting to loopback host 'localhost' is prohibited.");
         }
 
+        var blockedInternalHosts = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "postgres", "minio", "redis", "gotenberg", "db", "app", "host.docker.internal"
+        };
+
+        if (blockedInternalHosts.Contains(host))
+        {
+            throw new ForbiddenException($"Connecting to internal infrastructure host '{host}' is prohibited.");
+        }
+
         IPAddress[] targetAddresses = await ResolveAddressesAsync(host, ct);
         if (targetAddresses.Length == 0)
         {

@@ -2,9 +2,6 @@ using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.Contracts.Authoring.Templates;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.Modules.Authoring.FieldMappings.Commands.SaveTemplateDatasets;
-using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
-using SmkDoc.Application.Modules.Authoring.FieldMappings.Queries.GetTemplateDatasets;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.RollbackTemplateVersion;
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.ListTemplateVersions;
@@ -12,19 +9,15 @@ using SmkDoc.Application.Modules.Authoring.Templates.Queries.ListTemplateVersion
 namespace SmkDoc.Api.Controllers.Authoring;
 
 /// <summary>
-/// Template Versioning — list versions, rollback, and link/unlink datasets.
-/// Auth: X-API-Key via ApiKeyMiddleware.
+/// Template Versioning — list immutable versions and rollback to previous version.
+/// Auth: Channel A (X-API-Key via ApiKeyMiddleware) or Channel B (Bearer JWT).
 /// </summary>
 [ApiController]
 [Route("api/v1/templates/{id:guid}")]
 public sealed class TemplateVersionController(
     IUseCase<ListTemplateVersionsQuery, List<TemplateVersionDto>> listVersionsUseCase,
-    IUseCase<RollbackTemplateVersionCommand, int> rollbackUseCase,
-    IUseCase<GetTemplateDatasetsQuery, List<TemplateDatasetDto>> getDatasetsUseCase,
-    IUseCase<SaveTemplateDatasetsCommand> saveDatasetsUseCase) : ControllerBase
+    IUseCase<RollbackTemplateVersionCommand, int> rollbackUseCase) : ControllerBase
 {
-    // ── Versioning ────────────────────────────────────────────────────────────
-
     /// <summary>List all versions of a template.</summary>
     [HttpGet("versions")]
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<TemplateVersionDto>>), StatusCodes.Status200OK)]
@@ -48,36 +41,5 @@ public sealed class TemplateVersionController(
         var command = new RollbackTemplateVersionCommand(id, version);
         int newVersion = await rollbackUseCase.ExecuteAsync(command, ct);
         return Ok(new ApiResponse<RollbackVersionResponse>(new RollbackVersionResponse(newVersion)));
-    }
-
-    // ── Datasets ──────────────────────────────────────────────────────────────
-
-    /// <summary>Get datasets linked to this template.</summary>
-    [HttpGet("datasets")]
-    [ProducesResponseType(typeof(ApiResponse<IEnumerable<TemplateDatasetDto>>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetDatasets([FromRoute] Guid id, CancellationToken ct)
-    {
-        var query = new GetTemplateDatasetsQuery(id);
-        var datasets = await getDatasetsUseCase.ExecuteAsync(query, ct);
-        return Ok(new ApiResponse<IEnumerable<TemplateDatasetDto>>(datasets));
-    }
-
-    /// <summary>Save (replace-all) dataset links for a template.</summary>
-    [HttpPut("datasets")]
-    [ProducesResponseType(typeof(ApiResponse<IEnumerable<TemplateDatasetDto>>), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> SaveDatasets(
-        [FromRoute] Guid id,
-        [FromBody] SaveTemplateDatasetsRequest request,
-        CancellationToken ct)
-    {
-        var items = request.Datasets ?? [];
-        var dtos = items.Select(i => new SaveTemplateDatasetItemDto(i.DatasetId, i.Alias, i.SortOrder)).ToList();
-        var command = new SaveTemplateDatasetsCommand(id, dtos);
-        await saveDatasetsUseCase.ExecuteAsync(command, ct);
-
-        var updatedDatasets = await getDatasetsUseCase.ExecuteAsync(new GetTemplateDatasetsQuery(id), ct);
-        return Ok(new ApiResponse<IEnumerable<TemplateDatasetDto>>(updatedDatasets));
     }
 }
