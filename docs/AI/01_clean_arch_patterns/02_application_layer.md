@@ -1,13 +1,11 @@
 # [PATTERN-002]: 02_application_layer.md — Application Layer Design Patterns & PEMR Pipeline
 
 <context>
-Scope: Application Layer SSoT, CQRS Slices, Streaming Pipelines, Validation, Unit of Work, Domain Event Dispatching & Caching
-Target: `SmkDoc.Application/` (`Modules/{BoundedContext}/{Aggregate}/{Commands|Queries|DTOs}/`, `Common/`)
-Authority: Absolute SSoT Invariant for Application Orchestration
-Invariants: 100% IUseCase<TReq, TRes>, Zero-LOH Stream Pipeline, Fail-Fast Line 1 Validation, Post-Commit Event Dispatch
-Format: 100% English AST, Positive-First Archetypes (80/20 Rule), Canonical Keyboard Operators
+Scope: Application Layer SSoT, CQRS Slices, Streaming Pipelines, Validation, Unit of Work, Domain Event Dispatching & Caching.
+SSoT_For: Application Orchestration, IUseCase<TReq, TRes> Execution, Command/Query Vertical Slices, UnitOfWork Commit, and Post-Commit Event Dispatching.
+Out_Of_Scope: HTTP Controller routing and envelopes (see: 04_api_presentation_layer.md), Pure Domain Entities and Invariants (see: 01_domain_layer.md), EF Core persistence (see: 03_infrastructure_layer.md).
+Target: `SmkDoc.Application/` (`Modules/{BoundedContext}/{Aggregate}/{Commands|Queries|DTOs}/`, `Common/`).
 TriggerSignals: [SIGNAL_API_MUTATION], [SIGNAL_STRUCTURE_MUTATION]
-UpstreamKernel: AGENTS.md
 </context>
 
 ---

@@ -1,12 +1,11 @@
 # [MECH-002]: document_rendering_mechanics.md — Rendering Engines, OpenXML & Thai Formatting SSoT
 
 <context>
-Scope: Polymorphic Rendering Engines, Gotenberg Chromium Microservice, OpenXML DrawingML Fix, ClosedXML A4 Fit & ThaiDataTransformer SSoT
-Target: `SmkDoc.Infrastructure/Engines/` (`Gotenberg/`, `Word/`, `Excel/`, `Html/`) & `SmkDoc.Application/Common/Helpers/`
-Authority: Absolute SSoT Invariant (100% deterministic output, zero LibreOffice shift, zero multi-MB buffering)
-Format: 100% English AST, Positive-First Archetypes (80/20 Rule), Canonical Keyboard Operators
-TriggerSignals: [SIGNAL_TOPOLOGY_MUTATION]
-UpstreamKernel: AGENTS.md
+Scope: Polymorphic Rendering Engines, 2-Track Rendering Pipeline, Gotenberg Chromium Microservice, Zero-LOH Bounded Streaming, OpenXML & ClosedXML Mechanics.
+SSoT_For: Render Engine Resolution, Gotenberg Response Streaming, Storage Perimeter Egress, Thai Formatting, OpenXML DrawingML Fix, and ClosedXML Print Fit.
+Out_Of_Scope: Presentation layer routing and RFC 9457 exceptions (see: ../01_clean_arch_patterns/04_api_presentation_layer.md), General Security and Performance bounds (see: ../00_architecture_core/03_security_and_performance.md).
+Target: `backend-v2/` (`SmkDoc.Infrastructure/Engines/`, `SmkDoc.Infrastructure/Pdf/`, `SmkDoc.Application/Common/Helpers/`).
+TriggerSignals: [SIGNAL_TOPOLOGY_MUTATION], [SIGNAL_API_MUTATION]
 </context>
 
 ---
@@ -22,41 +21,48 @@ UpstreamKernel: AGENTS.md
 | **DOCX Synthesis** | OpenXML Document Package | Fixes DrawingML `nvPr.Id` graphic IDs | Native Word Document Stream |
 | **XLSX Synthesis** | ClosedXML Workbook Package | Configures A4 portrait 1-page fit | Native Excel Document Stream |
 | **Streaming Egress**| Engine Render Result | Direct Stream pass-through with bounded buffer | HTTP Wire Response (`Response.Body`) |
+| **Storage Egress** | MinIO S3 Object Store | Server-side reverse-proxy streaming via Gateway | Client Download (Zero 307 Redirects) |
 
 ### Document Rendering Invariants Matrix
 | Architectural Concern | Prohibited Pattern (! BANNED) | Canonical SSoT Pattern (>> MANDATORY) |
 |---|---|---|
-| **Buffer Allocations & Port Purity** | Exposing `byte[]` / `Task<byte[]>` on `IRenderEngine`/`IPdfRenderer` or copying DOCX/XLSX packages into unbounded `MemoryStream` | Pure `Task<Stream>` port contracts; direct HTTP response streaming (`81,920`-byte buffer), `Stream.Null` dry-run validation, and `HybridSpoolStream` (`<= 64 KB` pooled `ArrayPool<byte>`; `> 64 KB` `DeleteOnClose` temp `FileStream`) for seekable OpenXML/ClosedXML packages |
-| **Engine Resolution** | Hardcoded `if/else` or `switch` chains for engine selection | Polymorphic dispatch via `IRenderEngine` & `RenderEngineResolver` |
-| **OpenXML DrawingML** | Leaving graphic frame property IDs as default `0` | Explicit positive non-zero integers ($\ge 1$) via `DrawingMlIdFixer` |
-| **Excel Printing** | Spreadsheets clipping content on print or PDF export | Automatic A4 portrait fit: `worksheet.PageSetup.FitToPages(1, 0)` |
-| **Thai Formatting** | Inline date / Baht text conversions inside Handlebars | Centralized `ThaiDataTransformer` helper methods |
-| **Thai Font Marks** | Missing Thai tone marks or floating vowels in PDF | Automated Google Fonts Sarabun injection in `HtmlLayoutProcessor` |
-| **Synchronous Rendering**| Blocking on network/disk I/O (`.Result`, `.Wait()`) | 100% asynchronous execution with forwarded `CancellationToken` |
-| **Storage Perimeter Egress** | Emitting HTTP 307 redirects or raw MinIO URLs to clients | Enforce server-side bounded streaming pass-through (`81,920` buffer) to keep storage infrastructure isolated within private VPC |
-| **Resource Protection** | Allowing unthrottled rendering requests to saturate Gotenberg Chromium | Enforce dedicated `rendering` rate-limiting policy (30 req/min per tenant) returning RFC 9457 ProblemDetails (429) |
-| **Enterprise Batch Rendering** | Forcing high-volume batch renders through synchronous 30 req/min endpoint causing 429 rejections | 2-Track Architecture: 1) Sync Pipeline for Monaco Live Preview, 2) Async Queue (`POST /api/v1/documents/generate-async`, 202 Accepted, Redis worker with controlled Gotenberg backpressure) |
+| **Buffer Allocations & Port Purity** | ! Exposing `byte[]` / `Task<byte[]>` on `IRenderEngine`/`IPdfRenderer` or copying packages into unbounded `MemoryStream` | >> Pure `Task<Stream>` port contracts; direct HTTP response streaming (`81,920`-byte buffer), `Stream.Null` dry-run validation, and `HybridSpoolStream` (`<= 64 KB` pooled `ArrayPool<byte>`; `> 64 KB` `DeleteOnClose` temp `FileStream`) for seekable packages |
+| **Engine Resolution** | ! Hardcoded `if/else` or `switch` chains for engine selection | >> Polymorphic dispatch via `IRenderEngine` & `RenderEngineResolver` |
+| **Storage Perimeter Egress** | ! Emitting HTTP 307 redirects or raw MinIO URLs to clients | >> Server-side bounded streaming pass-through (`81,920` buffer) keeping MinIO private inside isolated Docker VPC |
+| **2-Track Rendering Pipeline**| ! Forcing high-volume batch renders through synchronous 30 req/min endpoint causing 429 rejections | >> 2-Track Architecture: 1) Sync Pipeline for Monaco Live Preview (`30 req/min`), 2) Async Queue (`POST /api/v1/documents/generate-async`, `202 Accepted` + `JobId`, Redis worker with controlled Gotenberg backpressure) |
+| **Resource Protection** | ! Allowing unthrottled rendering requests to saturate Gotenberg Chromium | >> Enforce dedicated `rendering` rate-limiting policy (`30 req/min` per tenant) returning RFC 9457 ProblemDetails (`429 Too Many Requests`) |
+| **OpenXML DrawingML** | ! Leaving graphic frame property IDs as default `0` | >> Explicit positive non-zero integers ($\ge 1$) via `DrawingMlIdFixer` |
+| **Excel Printing** | ! Spreadsheets clipping content on print or PDF export | >> Automatic A4 portrait fit: `worksheet.PageSetup.FitToPages(1, 0)` |
+| **Thai Formatting** | ! Inline date / Baht text conversions inside Handlebars | >> Centralized `ThaiDataTransformer` helper methods |
+| **Thai Font Marks** | ! Missing Thai tone marks or floating vowels in PDF | >> Automated Google Fonts Sarabun injection in `HtmlLayoutProcessor` |
+| **Synchronous Rendering**| ! Blocking on network/disk I/O (`.Result`, `.Wait()`) | >> 100% asynchronous execution with forwarded `CancellationToken` |
 
 ---
 
 ## 2. Level 2: Core Rendering SSoT ASTs & Cognitive Rendering Engine
 
 ### Engineering Rationale & Architectural Decisions
+* **Why 2-Track Rendering Architecture:** Live preview in Monaco Studio requires sub-second synchronous turnaround to provide instant visual feedback. High-volume ERP batch generation (e.g. 5,000 invoices at month-end) would exhaust Chromium memory pods if submitted synchronously. Decoupling batch into an asynchronous job queue (`202 Accepted`) allows background workers to drain tasks at a concurrency rate matched to Gotenberg pod capacity.
+* **Why Banning HTTP 307 Redirects to Internal MinIO:** MinIO operates inside an internal container network (`http://minio:9000`). Emitting a 307 redirect exposes private infrastructure endpoints to outside clients, breaks corporate firewalls, and leaks storage topology. Streaming through the API gateway enforces Zero-Trust isolation.
+* **Why 81,920-Byte Buffer Threshold:** The .NET runtime allocates objects $\ge 85,000$ bytes on the Large Object Heap (LOH). The LOH is never compacted during Gen 0/1 sweeps; continuous multi-MB PDF buffering produces severe LOH fragmentation and costly Gen 2 stop-the-world GC pauses. Direct streaming bounded at 81,920 bytes completely avoids LOH allocation.
 * **Why Polymorphic Engine Resolver over Switch Statements:** Allows new document engines (e.g., Markdown, Typst, PDF Forms) to be introduced by simply registering a new `IRenderEngine` implementation in DI, honoring the Open/Closed Principle.
-* **Why Direct Streaming with `ResponseHeadersRead`:** Multi-MB PDF documents generate significant GC pressure if loaded into `byte[]` arrays, pushing allocations into Large Object Heap (LOH) Gen 2 and inducing GC pauses. Direct streaming operates with bounded 81,920-byte buffers.
 * **Why OpenXML DrawingML Graphic Frame Non-Zero IDs:** Microsoft Word strictly rejects OpenXML packages where image or chart graphic frame IDs are `0` or duplicated, triggering file corruption warnings on user workstations.
 * **Why Centralized Thai Formatting:** Thai Buddhist Era dates and Baht text currency require specialized linguistic rules (tone mark positioning, grammatical edge cases, year +543); centralized transformers guarantee 100% deterministic outputs across PDF, DOCX, and XLSX exports.
 
 ### Cognitive Rendering Optimization & Guard Engine
 ```yaml
 OptimizationObjectives:
-  PrimaryObjective: High-Throughput Deterministic Rendering & Zero-LOH Memory Streaming
-  TradeOffPriority: MemorySafety (Zero-LOH) > TypographicDeterminism (Thai Fonts) > Extensibility > MicrosecondOverhead
+  PrimaryObjective: High-Throughput Deterministic Rendering, Zero-LOH Memory Bounds & Gotenberg Pod Resilience
+  TradeOffPriority: MemorySafety (Zero-LOH) > GotenbergPodResilience > TypographicDeterminism (Thai Fonts) > CustomEngineExtensibility
 
 ProactiveRenderingGuards:
   - Scope: SmkDoc.Infrastructure.Engines
     Trigger: Detection of MemoryStream.ToArray() or byte[] buffer on document outputs
     CanonicalAction: Enforce Stream pass-through with bounded 81,920 buffer >> Ref: [RULE-MECH-001]
+
+  - Scope: SmkDoc.Api.Controllers
+    Trigger: Returning HTTP 307 Redirect to internal MinIO storage URL
+    CanonicalAction: Reject redirect; stream content directly through gateway using File(stream, ...) >> Ref: [RULE-MECH-006]
 
   - Scope: SmkDoc.Infrastructure.Engines.Word
     Trigger: Assignment of nvPr.Id = 0 or missing non-zero ID enforcement
@@ -118,8 +124,8 @@ public interface IRenderEngineResolver
 ### Gotenberg Direct Response Streaming Archetype
 >> MANDATORY CANONICAL TEMPLATE [RULE-MECH-001]:
 * [MUST] Use `HttpCompletionOption.ResponseHeadersRead` when invoking external Gotenberg rendering endpoints.
-* [MUST] Wrap `response.Content.ReadAsStreamAsync(ct)` in a `ResponseDisposingStream` so `HttpResponseMessage` is deterministically disposed on stream close, and dispose `response` inside `finally`/`catch` on non-2xx or setup failure.
-* [MUST] For persistent production renders (`GenerateDocumentUseCase`), spool unseekable engine streams via `ArrayPool<byte>` (81,920 bytes) + `IncrementalHash` (`SHA256`) into a `FileOptions.DeleteOnClose | FileOptions.Asynchronous` temporary `FileStream` before MinIO upload (Zero Large Object Heap allocation).
+* [MUST] Wrap `response.Content.ReadAsStreamAsync(ct)` in a `ResponseDisposingStream` so `HttpResponseMessage` is deterministically disposed on stream close.
+* [MUST] Spool unseekable engine streams via `ArrayPool<byte>` (81,920 bytes) + `IncrementalHash` (`SHA256`) into a `FileOptions.DeleteOnClose | FileOptions.Asynchronous` temporary `FileStream` before MinIO upload (Zero Large Object Heap allocation).
 ```csharp
 using System.Net.Http;
 using System.Net.Http.Headers;
@@ -166,7 +172,7 @@ public sealed class GotenbergHtmlRenderer(HttpClient httpClient)
             try
             {
                 var errorDetail = await response.Content.ReadAsStringAsync(ct);
-                throw new RenderException("html", "GotenbergChromium", $"Gotenberg failed ({response.StatusCode}): {errorDetail}");
+                throw new DocumentRenderException($"Gotenberg rendering failed ({response.StatusCode}): {errorDetail}");
             }
             finally
             {
@@ -184,6 +190,88 @@ public sealed class GotenbergHtmlRenderer(HttpClient httpClient)
             response.Dispose();
             throw;
         }
+    }
+}
+
+public sealed class ResponseDisposingStream(Stream innerStream, HttpResponseMessage response) : Stream
+{
+    public override bool CanRead => innerStream.CanRead;
+    public override bool CanSeek => innerStream.CanSeek;
+    public override bool CanWrite => innerStream.CanWrite;
+    public override long Length => innerStream.Length;
+    public override long Position { get => innerStream.Position; set => innerStream.Position = value; }
+
+    public override void Flush() => innerStream.Flush();
+    public override int Read(byte[] buffer, int offset, int count) => innerStream.Read(buffer, offset, count);
+    public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken ct) => innerStream.ReadAsync(buffer, offset, count, ct);
+    public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken ct = default) => innerStream.ReadAsync(buffer, ct);
+    public override long Seek(long offset, SeekOrigin origin) => innerStream.Seek(offset, origin);
+    public override void SetLength(long value) => innerStream.SetLength(value);
+    public override void Write(byte[] buffer, int offset, int count) => innerStream.Write(buffer, offset, count);
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            innerStream.Dispose();
+            response.Dispose();
+        }
+        base.Dispose(disposing);
+    }
+}
+```
+
+### 2-Track Rendering Pipeline Presentation Archetype
+>> MANDATORY CANONICAL TEMPLATE [RULE-MECH-006]:
+* [MUST] Provide Track 1 (Live Preview): synchronous streaming return via `File(stream, "application/pdf")`.
+* [MUST] Provide Track 2 (Async Batch Queue): enqueue background render job and return `AcceptedAtAction` (`202 Accepted`) with `JobId` and polling status URL.
+* [MUST NOT] Return HTTP 307 redirects to internal MinIO S3 instances.
+```csharp
+using Microsoft.AspNetCore.Mvc;
+using SmkDoc.Api.Common.Responses;
+using SmkDoc.Api.Filters;
+using SmkDoc.Application.Common.Interfaces;
+using SmkDoc.Application.Modules.Rendering.Documents.Commands.EnqueueBatchRender;
+using SmkDoc.Application.Modules.Rendering.Documents.DTOs;
+using SmkDoc.Application.Modules.Rendering.Documents.Queries.GetRenderJobStatus;
+using SmkDoc.Application.Modules.Rendering.Documents.Queries.RenderDocument;
+
+namespace SmkDoc.Api.Controllers.Rendering;
+
+[ApiController]
+[Route("api/v1/documents")]
+public sealed class DocumentController(
+    IUseCase<RenderDocumentQuery, Stream> renderDocumentUseCase,
+    IUseCase<EnqueueBatchRenderCommand, BatchRenderEnqueuedDto> enqueueBatchRenderUseCase,
+    IUseCase<GetRenderJobStatusQuery, RenderJobStatusDto> getJobStatusUseCase) : ControllerBase
+{
+    // Track 1: Synchronous Live Preview (Dedicated 30 req/min rate limit)
+    [HttpPost("preview")]
+    [Idempotent]
+    [ProducesResponseType(typeof(FileStreamResult), StatusCodes.Status200OK)]
+    public async Task<IActionResult> Preview([FromBody] RenderDocumentQuery query, CancellationToken ct)
+    {
+        var stream = await renderDocumentUseCase.ExecuteAsync(query, ct);
+        return File(stream, "application/pdf", "preview.pdf");
+    }
+
+    // Track 2: Asynchronous High-Volume Batch Queue (202 Accepted + Job Queue)
+    [HttpPost("generate-async")]
+    [Idempotent]
+    [ProducesResponseType(typeof(ApiResponse<BatchRenderEnqueuedDto>), StatusCodes.Status202Accepted)]
+    public async Task<IActionResult> GenerateAsync([FromBody] EnqueueBatchRenderCommand command, CancellationToken ct)
+    {
+        var result = await enqueueBatchRenderUseCase.ExecuteAsync(command, ct);
+        return AcceptedAtAction(nameof(GetJobStatus), new { jobId = result.JobId }, new ApiResponse<BatchRenderEnqueuedDto>(result));
+    }
+
+    [HttpGet("jobs/{jobId:guid}")]
+    [ProducesResponseType(typeof(ApiResponse<RenderJobStatusDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetJobStatus([FromRoute] Guid jobId, CancellationToken ct)
+    {
+        var result = await getJobStatusUseCase.ExecuteAsync(new GetRenderJobStatusQuery(jobId), ct);
+        return Ok(new ApiResponse<RenderJobStatusDto>(result));
     }
 }
 ```
@@ -237,11 +325,10 @@ public static class ExcelPageSetupExtensions
 
 ### Centralized ThaiDataTransformer Implementation
 >> MANDATORY CANONICAL TEMPLATE [RULE-MECH-004]:
-* [MUST] Format dates with Buddhist Era offset (+543 years) and Thai month names, normalizing Buddhist Era input years (`year > 2400 => year - 543`) BEFORE Gregorian calendar validation so Buddhist leap-year dates (e.g. `29/02/2567` == `2024-02-29`) parse deterministically without failing on non-leap Gregorian year `2567`.
+* [MUST] Format dates with Buddhist Era offset (+543 years) and Thai month names, normalizing Buddhist Era input years (`year > 2400 => year - 543`) BEFORE Gregorian calendar validation.
 * [MUST] Convert numerical currency amounts to standardized Thai Baht text (`บาทถ้วน` or satang suffix).
 * [MUST] Format phone numbers to `0xx-xxx-xxxx` and national ID cards to `x-xxxx-xxxxx-xx-x`.
 ```csharp
-using System.Globalization;
 using System.Text;
 
 namespace SmkDoc.Application.Common.Helpers;
@@ -412,3 +499,11 @@ public sealed class RenderEngineResolver(IEnumerable<IRenderEngine> engines) : I
 + ExcelPageSetupExtensions.ApplyA4FitToWidth(worksheet);
 ```
 *Rationale: Without `FitToPages(1, 0)`, wide tables split columns across multiple pages, breaking executive readability.*
+
+### [TRAP-MECH-006]: HTTP 307 Redirect Leaking Internal MinIO Network URL
+```diff
+- return RedirectPreserveMethod("http://minio:9000/documents/doc-123.pdf");
++ var stream = await storageService.OpenReadStreamAsync(objectKey, ct);
++ return File(stream, "application/pdf", "doc-123.pdf");
+```
+*Rationale: Returning HTTP 307 redirects to internal Docker hostnames fails for external clients, violates Zero-Trust boundaries, and exposes private network infrastructure.*

@@ -1,12 +1,11 @@
 # [FRONT-001]: 01_app_router_and_data_fetching.md — Next.js 15 App Router & API Proxy SSoT
 
 <context>
-Scope: Next.js 15 App Router Architecture, Server/Client Component Boundaries, Route Handler Proxy & Live Preview Pipeline
-Target: `frontend-v2/` (`src/app/(app)/`, `src/features/`, `src/components/ui/`, `src/hooks/`, `src/lib/api/`)
-Authority: Absolute SSoT Invariant (Zero client-side JWT token access, 100% debounced streaming preview)
-Format: 100% English AST, Positive-First Archetypes (80/20 Rule), Canonical Keyboard Operators
+Scope: Next.js 15 App Router Architecture, Server/Client Component Boundaries, Route Handler Proxy & Live Preview Pipeline.
+SSoT_For: App Router Data Fetching, Next.js API Proxy Gateway (`/api/proxy/[...path]`), Live Document Preview Streaming, and TanStack Query Hydration.
+Out_Of_Scope: UI Design tokens and Tailwind styling (see: 02_ui_component_conventions.md), Backend API presentation (see: ../01_clean_arch_patterns/04_api_presentation_layer.md).
+Target: `frontend-v2/` (`src/app/(app)/`, `src/features/`, `src/hooks/`, `src/lib/api/`).
 TriggerSignals: [SIGNAL_UI_MUTATION]
-UpstreamKernel: AGENTS.md
 </context>
 
 ---

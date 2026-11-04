@@ -1,13 +1,11 @@
 # [PATTERN-003]: 03_infrastructure_layer.md — Infrastructure Layer Design Patterns & EF Core SSoT
 
 <context>
-Scope: Infrastructure Layer Patterns, EF Core Configurations, Strongly-Typed ID Converters, JSONB Mapping, Repositories, Tenancy Filter & S3 Storage
-Target: `SmkDoc.Infrastructure/` (`Persistence/Configurations/`, `Repositories/`, `Storage/`, `Gotenberg/`)
-Authority: Absolute SSoT Invariant (Hides all network and persistence I/O behind Application ports)
-Invariants: Bounded Memory Streaming (<=81,920 buffer), Ambient Tenancy HasQueryFilter, xmin Concurrency Token
-Format: 100% English AST, Positive-First Archetypes (80/20 Rule), Canonical Keyboard Operators
+Scope: Infrastructure Layer Patterns, EF Core Configurations, Strongly-Typed ID Converters, JSONB Mapping, Repositories, Tenancy Filter & S3 Storage.
+SSoT_For: Infrastructure Port Adapters, EF Core Mapping, Value Converters, AppDbContext ModelSnapshot, S3 Object Storage, and Redis Distributed State.
+Out_Of_Scope: Application UseCase orchestration (see: 02_application_layer.md), Pure Domain Entities (see: 01_domain_layer.md), HTTP Controllers (see: 04_api_presentation_layer.md).
+Target: `SmkDoc.Infrastructure/` (`Persistence/Configurations/`, `Repositories/`, `Storage/`, `Gotenberg/`).
 TriggerSignals: [SIGNAL_SCHEMA_MIGRATION], [SIGNAL_TOPOLOGY_MUTATION], [SIGNAL_SECURITY_MUTATION]
-UpstreamKernel: AGENTS.md
 </context>
 
 ---

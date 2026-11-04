@@ -1,13 +1,11 @@
 # [PATTERN-005]: 05_testing_archetypes.md — Testing Design Patterns & SSoT Test Archetypes
 
 <context>
-Scope: Testing Patterns, SSoT UseCase Tests, Aggregate Invariant Tests, Isolated FluentValidation Tests, FakeTimeProvider, Hybrid Builders, Integration Tests & Anti-Pattern Firewall
-Target: `SmkDoc.Tests/` & `SmkDoc.IntegrationTests/`
-Authority: Absolute SSoT Invariant (Zero disk/network I/O in unit test project, 100% deterministic, 1 behavior per test, Zero God Fixtures)
-Invariants: Class-Scoped CreateSut(), 100% Real POCOs in Domain, Deterministic FakeTimeProvider, Strict AAA Naming, Isolated Validator Testing
-Format: 100% English AST, Positive-First Archetypes (80/20 Rule), Canonical Keyboard Operators
+Scope: Testing Patterns, SSoT UseCase Tests, Aggregate Invariant Tests, Isolated FluentValidation Tests, FakeTimeProvider, Hybrid Builders, Integration Tests & Anti-Pattern Firewall.
+SSoT_For: Unit & Integration Test Standards, Test Naming Conventions (AAA), CreateSut() Pattern, Deterministic Clock Substitution, and Testcontainers Fixtures.
+Out_Of_Scope: Application UseCase implementations (see: 02_application_layer.md), Pure Domain Entities (see: 01_domain_layer.md).
+Target: `SmkDoc.Tests/` & `SmkDoc.IntegrationTests/`.
 TriggerSignals: [SIGNAL_TEST_MUTATION]
-UpstreamKernel: AGENTS.md
 </context>
 
 ---

@@ -1,12 +1,11 @@
 # [FRONT-002]: 02_ui_component_conventions.md — Design Tokens, UI Primitives & Zod SSoT
 
 <context>
-Scope: UI Component Conventions, Ice-White Design Tokens, CVA Component Variants, Lucide Icons, Zod Schemas & Vitest
-Target: `frontend-v2/` (`src/components/ui/`, `src/features/*/schemas/`, `src/__tests__/`)
-Authority: Absolute SSoT Invariant (Deterministic compact enterprise UI, zero raw HTML inputs, zero decorative emojis)
-Format: 100% English AST, Positive-First Archetypes (80/20 Rule), Canonical Keyboard Operators
+Scope: UI Component Conventions, Ice-White Design Tokens, CVA Component Variants, Lucide Icons, Zod Schemas & Vitest.
+SSoT_For: Frontend Component Design System, Tailwind CSS Tokens, Radix Primitives, Form Validation Schemas, and Vitest Component Testing.
+Out_Of_Scope: Next.js App Router data fetching and proxy architecture (see: 01_app_router_and_data_fetching.md), Backend API presentation (see: ../01_clean_arch_patterns/04_api_presentation_layer.md).
+Target: `frontend-v2/` (`src/components/ui/`, `src/features/*/schemas/`, `src/__tests__/`).
 TriggerSignals: [SIGNAL_UI_MUTATION]
-UpstreamKernel: AGENTS.md
 </context>
 
 ---

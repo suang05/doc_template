@@ -13,7 +13,7 @@ OperationalHeuristics:
   CanonicalPrimacy: Living specifications in `docs/AI/` represent the absolute North Star; prohibit mimicking legacy shortcuts.
   ZeroRegression: Enforce Clean Architecture, statelessness, and thread-safety invariants on every step.
   CodeSimplicity: Prioritize readable, cohesive, decoupled structures over unnecessary abstractions.
-  RefactorPolicy: IF code violates `docs/AI/00_architecture_core/dependency_and_folder_rules.md` THEN reject and propose canonical refactor ELSE maintain consistency.
+  RefactorPolicy: IF code violates `docs/AI/00_architecture_core/01_system_architecture.md` THEN reject and propose canonical refactor ELSE maintain consistency.
 </system_role>
 
 <core_mission_and_benchmarks>
@@ -174,23 +174,23 @@ CentralizedConfiguration:
 
 | Incoming Intent / Task Scope | Primary SSoT Leaf Specification | Mandatory Satellite Guards (Trigger When Applicable) |
 |---|---|---|
-| **System Strategy, Blueprint & Data Flow** | `docs/AI/00_architecture_core/00_system_blueprint_and_data_flow.md` | + `00_architecture_core/dependency_and_folder_rules.md` (Layer taxonomy) |
-| **Clean Architecture & Folder Taxonomy** | `docs/AI/00_architecture_core/dependency_and_folder_rules.md` | + `00_architecture_core/anti_pattern_firewall.md` (Boundary violations) |
-| **Anti-Patterns, Traps & Memory Firewall** | `docs/AI/00_architecture_core/anti_pattern_firewall.md` | + `01_clean_arch_patterns/03_infrastructure_layer.md` (EF / LOH traps) |
-| **Domain Entities, VOs & Smart Enums** | `docs/AI/01_clean_arch_patterns/01_domain_layer.md` | + `00_architecture_core/anti_pattern_firewall.md` (If adding async/time/allocation) |
-| **Application UseCases, Commands & PEMR** | `docs/AI/01_clean_arch_patterns/02_application_layer.md` | + `01_clean_arch_patterns/01_domain_layer.md` & `00_architecture_core/anti_pattern_firewall.md` |
+| **System Strategy, Blueprint & Data Flow** | `docs/AI/00_architecture_core/01_system_architecture.md` | + `00_architecture_core/02_coding_conventions.md` (Layer taxonomy) |
+| **Clean Architecture & Folder Taxonomy** | `docs/AI/00_architecture_core/01_system_architecture.md` | + `00_architecture_core/05_anti_pattern_firewall.md` (Boundary violations) |
+| **Anti-Patterns, Traps & Memory Firewall** | `docs/AI/00_architecture_core/05_anti_pattern_firewall.md` | + `01_clean_arch_patterns/03_infrastructure_layer.md` (EF / LOH traps) |
+| **Domain Entities, VOs & Smart Enums** | `docs/AI/01_clean_arch_patterns/01_domain_layer.md` | + `00_architecture_core/05_anti_pattern_firewall.md` (If adding async/time/allocation) |
+| **Application UseCases, Commands & PEMR** | `docs/AI/01_clean_arch_patterns/02_application_layer.md` | + `01_clean_arch_patterns/01_domain_layer.md` & `00_architecture_core/05_anti_pattern_firewall.md` |
 | **EF Core Mappings, Repos & Tenancy** | `docs/AI/01_clean_arch_patterns/03_infrastructure_layer.md` | + `03_specialized_mechanics/multi_tenant_security_pipeline.md` (If modifying queries) |
 | **API Controllers, Routes & RFC 9457** | `docs/AI/01_clean_arch_patterns/04_api_presentation_layer.md` | + `01_clean_arch_patterns/02_application_layer.md` (For DTO contracts) |
 | **Unit & Aggregate Testing Archetypes** | `docs/AI/01_clean_arch_patterns/05_testing_archetypes.md` | + `01_clean_arch_patterns/{target_layer}.md` |
-| **Universal Syntax, Lexicon & Conventions** | `docs/AI/00_architecture_core/coding_conventions.md` | + `00_architecture_core/anti_pattern_firewall.md` |
+| **Universal Syntax, Lexicon & Conventions** | `docs/AI/00_architecture_core/02_coding_conventions.md` | + `00_architecture_core/04_naming_standards.md` |
 | **Next.js App Router, Proxy & Live Preview** | `docs/AI/02_frontend_patterns/01_app_router_and_data_fetching.md` | + `02_frontend_patterns/02_ui_component_conventions.md` |
 | **Ice-White Tokens, CVA & Zod Schemas** | `docs/AI/02_frontend_patterns/02_ui_component_conventions.md` | + `02_frontend_patterns/01_app_router_and_data_fetching.md` |
 | **Multi-Tenant Dual-Auth & Project Context** | `docs/AI/03_specialized_mechanics/multi_tenant_security_pipeline.md` | + `01_clean_arch_patterns/03_infrastructure_layer.md` |
-| **Gotenberg, DrawingML & Thai Formatting** | `docs/AI/03_specialized_mechanics/document_rendering_mechanics.md` | + `00_architecture_core/anti_pattern_firewall.md` (Zero-LOH streaming) |
+| **Gotenberg, DrawingML & Thai Formatting** | `docs/AI/03_specialized_mechanics/document_rendering_mechanics.md` | + `00_architecture_core/05_anti_pattern_firewall.md` (Zero-LOH streaming) |
 
 TopologyMap:
 docs/AI/
-  00_architecture_core/ (00_system_blueprint_and_data_flow.md, dependency_and_folder_rules.md, anti_pattern_firewall.md, coding_conventions.md)
+  00_architecture_core/ (01_system_architecture.md .. 05_anti_pattern_firewall.md)
   01_clean_arch_patterns/ (01_domain_layer.md .. 05_testing_archetypes.md)
   02_frontend_patterns/ (01_app_router_and_data_fetching.md, 02_ui_component_conventions.md)
   03_specialized_mechanics/ (multi_tenant_security_pipeline.md, document_rendering_mechanics.md)
@@ -211,14 +211,14 @@ FourTierCognitiveHierarchy:
 SignalTriggerRegistry:
   | Trigger Signal Token | Source Mutation Event in Codebase | Target Document & Action |
   |---|---|---|
-  | `[SIGNAL_API_MUTATION]` | Controller, Route, Request/Response DTO | Update `docs/AI/01_clean_arch_patterns/04_api_presentation_layer.md` & `02_application_layer.md` |
-  | `[SIGNAL_DOMAIN_MUTATION]` | Entity, Aggregate Root, Strongly-Typed ID, Value Object | Update `docs/AI/01_clean_arch_patterns/01_domain_layer.md` |
-  | `[SIGNAL_DECEPTIVE_BUG]` | Runtime traps (LOH, concurrency, deadlock, SSRF) | Propose to `docs/AI/00_architecture_core/anti_pattern_firewall.md` |
+  | `[SIGNAL_API_MUTATION]` | Controller, Route, Request/Response DTO | Update `docs/AI/01_clean_arch_patterns/04_api_presentation_layer.md` & `00_architecture_core/04_naming_standards.md` |
+  | `[SIGNAL_DOMAIN_MUTATION]` | Entity, Aggregate Root, Strongly-Typed ID, Value Object | Update `docs/AI/01_clean_arch_patterns/01_domain_layer.md` & `00_architecture_core/01_system_architecture.md` |
+  | `[SIGNAL_DECEPTIVE_BUG]` | Runtime traps (LOH, concurrency, deadlock, SSRF) | Propose to `docs/AI/00_architecture_core/05_anti_pattern_firewall.md` |
   | `[SIGNAL_SCHEMA_MIGRATION]` | EF Core table, column, index, converter | Update `docs/AI/01_clean_arch_patterns/03_infrastructure_layer.md` |
-  | `[SIGNAL_STRUCTURE_MUTATION]` | UseCase, Interface, Service, Layer project | Update `docs/AI/00_architecture_core/dependency_and_folder_rules.md` & `coding_conventions.md` |
+  | `[SIGNAL_STRUCTURE_MUTATION]` | UseCase, Interface, Service, Layer project | Update `docs/AI/00_architecture_core/01_system_architecture.md` & `02_coding_conventions.md` |
   | `[SIGNAL_TEST_MUTATION]` | Unit/Integration tests, fixtures, builders (`SmkDoc.Tests/`, `frontend-v2/src/__tests__/`) | Update `docs/AI/01_clean_arch_patterns/05_testing_archetypes.md` |
-  | `[SIGNAL_TOPOLOGY_MUTATION]` | External services (Gotenberg, MinIO, Postgres) | Update `docs/AI/03_specialized_mechanics/document_rendering_mechanics.md` |
-  | `[SIGNAL_SECURITY_MUTATION]` | Auth handler, ApiKey, ProjectContext, tenant isolation | Update `docs/AI/03_specialized_mechanics/multi_tenant_security_pipeline.md` & `01_clean_arch_patterns/03_infrastructure_layer.md` |
+  | `[SIGNAL_TOPOLOGY_MUTATION]` | External services (Gotenberg, MinIO, Postgres) | Update `docs/AI/00_architecture_core/01_system_architecture.md` & `03_specialized_mechanics/document_rendering_mechanics.md` |
+  | `[SIGNAL_SECURITY_MUTATION]` | Auth handler, ApiKey, ProjectContext, tenant isolation | Update `docs/AI/00_architecture_core/03_security_and_performance.md` & `03_specialized_mechanics/multi_tenant_security_pipeline.md` |
   | `[SIGNAL_UI_MUTATION]` | Design tokens, atomic primitive, UI recipe | Update `docs/AI/02_frontend_patterns/02_ui_component_conventions.md` & `01_app_router_and_data_fetching.md` |
 
 UniversalFivePointSynchronization:
@@ -241,13 +241,16 @@ AuthoringInvariants:
 
 <cognitive_spec_evolution_guard>
 [COGNITIVE_ANATOMY_INTEGRITY_CHECK: Mandatory pre-commit gate before updating AGENTS.md or docs/AI/]
-Agent MUST verify all 6 Cognitive Health Invariants before proposing any documentation mutation:
-  1_PositiveRatioCheck: >= 80% Fully-Hydrated Positive Recipes vs <= 20% Condensed Micro-Diff Traps. Prohibit negative trap lists without concrete canonical code.
-  2_ZeroFluffCheck: 0% conversational prose, tutorial filler, pseudo-cyberpunk, or meta-role commentary. Strict Compiler-Grade AST (YAML/Markdown).
-  3_RepresentationCheck: 100% adherence to RepresentationHierarchy (Indented text for trees, Tables for 2D, Linear Arrows for pipelines, Minimal Mermaid for macros). Strictly prohibit all ASCII art, ASCII diagrams, and box-art.
-  4_CausalRationaleCheck: Every architectural decision MUST state its concrete "Why" (failure mode prevented, latency/memory trade-off) alongside the "What".
-  5_SingleSsotCheck: Zero duplicate copy-pasting of rules across files. Use pointer anchors (`>> Ref: [RULE-*]`).
-  6_SymbolicDictionaryCheck: Zero decorative emojis. Canonical keyboard operators exclusively (=>, !, ::, >>, &, |, >, <). Zero ASCII drawings.
+Agent MUST verify all Cognitive Health Invariants before proposing any documentation mutation:
+  1_ScopeConfinementCheck: Modify content strictly within the file's declared SSoT Domain. Prohibit cross-domain scope creep or moving rules into arbitrary files.
+  2_StructuralImmutabilityCheck: Never dismantle Clean Architecture layers (Domain/Application/Infrastructure/Api), ambient multi-tenancy, or public contracts without explicit user approval.
+  3_FastTriagingHeaderCheck: Retain the <context> header at the top of every documentation file (Scope, SSoT_For, Out_Of_Scope, Target) for rapid search triaging.
+  4_SingleSsotCheck: Zero duplicate copy-pasting of rules across files. Use pointer anchors (`>> Ref: [RULE-*]`) and relative Markdown links to the authoritative SSoT file.
+  5_PositiveRatioCheck: >= 80% Fully-Hydrated Positive Recipes vs <= 20% Condensed Micro-Diff Traps. Prohibit negative trap lists without concrete canonical code.
+  6_ZeroFluffCheck: 0% conversational prose, tutorial filler, pseudo-cyberpunk, or meta-role commentary. Strict Compiler-Grade AST (YAML/Markdown).
+  7_RepresentationCheck: 100% adherence to RepresentationHierarchy (Indented text for trees, Tables for 2D, Linear Arrows for pipelines, Minimal Mermaid for macros). Strictly prohibit all ASCII art, ASCII diagrams, and box-art.
+  8_CausalRationaleCheck: Every architectural decision MUST state its concrete "Why" (failure mode prevented, latency/memory trade-off) alongside the "What".
+  9_SymbolicDictionaryCheck: Zero decorative emojis. Canonical keyboard operators exclusively (=>, !, ::, >>, &, |, >, <).
 IF any check fails => REJECT mutation and restructure to meet Cognitive Anatomy standards.
 </cognitive_spec_evolution_guard>
 
