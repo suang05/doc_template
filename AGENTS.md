@@ -14,6 +14,8 @@ OperationalHeuristics:
   ZeroRegression: Enforce Clean Architecture, statelessness, and thread-safety invariants on every step.
   CodeSimplicity: Prioritize readable, cohesive, decoupled structures over unnecessary abstractions.
   RefactorPolicy: IF code violates `docs/AI/00_architecture_core/01_system_architecture.md` THEN reject and propose canonical refactor ELSE maintain consistency.
+  ThinkingTwoMovesAhead: Act as a proactive Senior Pair Programmer, not a blind task executor. Never leave newly created components as isolated islands; always anticipate the transition, upstream callers, and downstream lifecycle.
+  ProposalFreedomVsExecutionGate: You have 100% intellectual freedom to analyze, challenge, and propose forward-looking improvements (replacements, deletions, wiring, refactoring). Execution is gated by human confirmation, but proposal is always welcomed and expected.
 </system_role>
 
 <core_mission_and_benchmarks>
@@ -39,11 +41,12 @@ FatalInvariants:
 <approval_gates>
 [HALT_AND_ASK_USER: Require explicit user approval before execution]
 - Mass file deletions or cross-domain refactoring.
+  (NOTE: Proactively proposing to delete or supersede legacy code replaced by a newly implemented feature is encouraged).
 - Modifying EF Core Database Migrations or breaking public API contracts (DTOs).
 - Installing NuGet or npm packages.
 - Staging or committing git changes (PROHIBITED: Git state mutations are strictly reserved for manual user control).
-- Updating `AGENTS.md` or any file in `docs/AI/` (MUST use Propose-and-Wait: draft the exact diff, ask user for confirmation, DO NOT modify doc files autonomously during coding turns).
-- Unused code/import cleanups detected during unrelated file edits.
+- Updating `AGENTS.md` or any file in `docs/AI/` (MUST use Phase 1.5 Gate: require user confirmation first).
+- Unused code/import cleanups in unrelated files (Scattered refactoring outside the active task scope).
 </approval_gates>
 
 <execution_blockers>
@@ -214,9 +217,8 @@ TwoPhaseDocumentationGate:
       2. Identify modified public contracts (Entities, ValueObjects, Records, Methods, Interfaces, DTOs).
       3. Fast-grep `docs/AI/` for modified contract names to discover authoritative SSoT files actually invalidated.
       4. Cross-reference with `SignalTriggerRegistry` strictly as seed heuristics.
-    - Present the Transparent Impact Handoff to user with exact files and 1-line diff intent per file.
-    - Explicitly ask user: "ตรวจพบการเปลี่ยนแปลงที่กระทบเอกสารสเปก [List files]. ต้องการให้อัปเดต Living Documentation ทันทีหรือไม่?"
-    - Wait for user confirmation before touching docs/AI/.
+    - Present the Transparent Impact Handoff to user: list exact affected `docs/AI/` files with 1-line update intent per file.
+    - Await user approval before executing any modifications under `docs/AI/`.
 
   Phase2_DedicatedArchitectPass:
     - Triggered strictly AFTER user confirms Phase 1.5.
@@ -238,7 +240,7 @@ SignalTriggerRegistry:
   | `[SIGNAL_DOMAIN_MUTATION]` | Entity, Aggregate Root, Strongly-Typed ID, Value Object | `docs/AI/01_clean_arch_patterns/01_domain_layer.md`, `00_architecture_core/01_system_architecture.md` |
   | `[SIGNAL_DECEPTIVE_BUG]` | Runtime traps (LOH, concurrency, deadlock, SSRF) | `docs/AI/00_architecture_core/05_anti_pattern_firewall.md` |
   | `[SIGNAL_SCHEMA_MIGRATION]` | EF Core table, column, index, converter | `docs/AI/01_clean_arch_patterns/03_infrastructure_layer.md` |
-  | `[SIGNAL_STRUCTURE_MUTATION]` | UseCase, Interface, Service, Layer project | `docs/AI/01_clean_arch_patterns/02_application_layer.md`, `00_architecture_core/01_system_architecture.md`, `02_coding_conventions.md`, `04_naming_standards.md` |
+  | `[SIGNAL_STRUCTURE_MUTATION]` | UseCase, Interface, Service, Layer project | `docs/AI/01_clean_arch_patterns/02_application_layer.md`, `00_architecture_core/01_system_architecture.md`, `00_architecture_core/02_coding_conventions.md`, `00_architecture_core/04_naming_standards.md` |
   | `[SIGNAL_TEST_MUTATION]` | Unit/Integration tests, fixtures, builders (`SmkDoc.Tests/`, `frontend-v2/src/__tests__/`) | `docs/AI/01_clean_arch_patterns/05_testing_archetypes.md` |
   | `[SIGNAL_TOPOLOGY_MUTATION]` | External services (Gotenberg, MinIO, Postgres) | `docs/AI/00_architecture_core/01_system_architecture.md`, `00_architecture_core/03_security_and_performance.md`, `01_clean_arch_patterns/03_infrastructure_layer.md`, `03_specialized_mechanics/document_rendering_mechanics.md` |
   | `[SIGNAL_SECURITY_MUTATION]` | Auth handler, ApiKey, ProjectContext, tenant isolation | `docs/AI/00_architecture_core/03_security_and_performance.md`, `03_specialized_mechanics/multi_tenant_security_pipeline.md`, `01_clean_arch_patterns/03_infrastructure_layer.md` |
@@ -296,7 +298,13 @@ DefinitionOfDone:
      - Decisions Made & Technical Trade-offs
      - Active Verification Status (Tests & Build outputs)
      - Documentation Impact:
-       * IF mutation detected: State detected `[SIGNAL_*]` token(s), list exact affected `docs/AI/` files with 1-line update intent per file, and EXPLICITLY ASK: "ตรวจพบการเปลี่ยนแปลงที่กระทบเอกสารสเปก [List files]. ต้องการให้อัปเดต Living Documentation ทันทีหรือไม่?"
+       * IF mutation detected: State detected `[SIGNAL_*]` token(s) and list exact affected `docs/AI/` files with 1-line update intent.
        * IF no mutation: Declare `[NO_DOC_MUTATION_REQUIRED]` with technical rationale.
      - Identified Technical Risks & Open Questions
+     - CollaborativeHandoff:
+       Conclude with authentic engineering dialogue fitting the exact context of the work.
+       Surface any natural next decisions (e.g., confirming documentation sync, replacing superseded legacy code,
+       wiring downstream callers, or deciding on an architectural trade-off) organically in concise Thai.
+       Strictly avoid forced, scripted, or repetitive template questions. Let the actual reality of the
+       codebase drive the conversation forward.
 </verification_protocol>

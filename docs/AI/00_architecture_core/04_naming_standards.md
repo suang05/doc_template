@@ -2,9 +2,9 @@
 
 <context>
 Scope: Lexical Verbs, Payload Variable Naming, Anti-Abbreviation Policy, RESTful Route Syntax, and C# PascalCase to JSON camelCase Wire Matching.
-SSoT_For: Method Verb Conventions, DTO Casing, Route Segment Formatting, and CQRS Variable Standard.
-Out_Of_Scope: C# 13 language syntax (see: 02_coding_conventions.md), System Architecture tiers (see: 01_system_architecture.md).
-Target: `backend-v2/` and `frontend-v2/`.
+SSoT_For: Method Verb Conventions, DTO Casing, Route Segment Formatting, and CQRS Variable Standard in Source Code.
+Out_Of_Scope: Documentation prose, Markdown content/headings, architectural narratives, and chat dialogue. Governs STRICTLY Source Code Identifiers (Class, Record, Method, Property, and Variable AST tokens) inside backend-v2/ and frontend-v2/. Also out of scope: C# 13 language syntax (see: 02_coding_conventions.md), System Architecture tiers (see: 01_system_architecture.md).
+Target: Source Code Identifiers in `backend-v2/` and `frontend-v2/` (Rules govern code only; strictly prohibited from restricting markdown documentation text or chat dialogue).
 TriggerSignals: [SIGNAL_API_MUTATION], [SIGNAL_STRUCTURE_MUTATION]
 </context>
 
