@@ -21,13 +21,22 @@ All codebase interfaces, methods, commands, and queries MUST select names exclus
 | **Collection Read** | `List` | `GetAll`, `FetchAll`, `Filter`, `Browse`, `Search` | `ListByProjectIdAsync(projectId, ct)`, `ListTemplatesQuery` |
 | **Existence Check** | `Exists` | `Check`, `Has`, `IsPresent`, `Validate` | `SlugExistsAsync(slug, ct)`, `IsActive` |
 | **Count Calculation** | `Count` | `GetTotal`, `Size`, `Length`, `TotalCount` | `CountByProjectIdAsync(projectId, ct)` |
-| **Resource Creation** | `Create` | `Add`, `Insert`, `Generate`, `New`, `Register` | `CreateTemplateCommand`, `Template.Create(...)` |
+| **Resource Creation** | `Create` | `Add`, `Insert`, `New`, `Register` (Use `Generate` exclusively for Document synthesis) | `CreateTemplateCommand`, `Template.Create(...)` |
 | **Resource Update** | `Update` | `Modify`, `Edit`, `Change`, `Patch`, `Mutate` | `UpdateTemplateCommand`, `template.Update(...)` |
 | **Soft Deletion** | `Deactivate` | `Delete`, `Remove`, `Disable`, `Archive`, `Drop` | `DeactivateTemplateCommand`, `template.Deactivate(...)` |
 | **Child Collection Add**| `Add` | `Attach`, `Append`, `Insert`, `Push` | `template.AddFieldMapping(...)`, `template.AddDataset(...)` |
 | **Role / Perm Binding** | `Assign` | `Grant`, `Bind`, `Attach`, `SetRole` | `AssignRoleCommand`, `user.AssignRole(...)` |
 | **Token / Key Revocation**| `Revoke` | `Cancel`, `Invalidate`, `Kill`, `Expire` | `RevokeApiKeyCommand`, `apiKey.Revoke(...)` |
 | **State Publication** | `Publish` | `Deploy`, `Release`, `Activate`, `Promote` | `PublishVersionCommand`, `template.PublishVersion(...)` |
+
+#### 1.1.1 Domain-Specific Pipeline Allowlist (Specialized Operations)
+Specialized document synthesis and infrastructure engines are strictly permitted to use the following domain-specific verbs:
+* **`Render` / `Generate`**: Document synthesis pipelines (`RenderDocumentCommand`, `GenerateDocumentUseCase`, `IRenderEngine.RenderStreamAsync`).
+* **`Preview`**: Interactive draft rendering (`PreviewDocumentUseCase`, `PreviewMappingUseCase`).
+* **`Extract`**: External data extraction (`IDatasetExtractor.ExtractAsync`, `ExecuteDatasetQueryUseCase`).
+* **`Spool` / `Stream`**: High-throughput zero-LOH I/O streams (`HybridSpoolStream`, `StreamDocumentQuery`).
+* **`Parse` / `Scan`**: Template placeholders and syntax validation (`ScanTemplatePlaceholdersUseCase`, `ParseTemplateDraftUseCase`).
+* **`Test`**: Network connectivity and diagnostic health verification (`TestDataConnectionUseCase`, `TestConnectionCommand`).
 
 ### 1.2 Standard Recurring Payload Variables Matrix
 | Scope / Role | Mandatory Variable Name (>> MANDATORY) | Banned Synonyms (! REJECTED) | Example Method Signature |
