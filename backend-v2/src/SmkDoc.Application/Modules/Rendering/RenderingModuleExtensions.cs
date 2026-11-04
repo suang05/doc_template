@@ -4,7 +4,6 @@ using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Rendering.Documents;
 using SmkDoc.Application.Modules.Rendering.Documents.Commands.EnqueueDocumentGeneration;
 using SmkDoc.Application.Modules.Rendering.Documents.Commands.GenerateDocument;
-using SmkDoc.Application.Modules.Rendering.Documents.Commands.RenderStatelessDocument;
 using SmkDoc.Application.Modules.Rendering.Documents.DTOs;
 using SmkDoc.Application.Modules.Rendering.Documents.EventHandlers;
 using SmkDoc.Application.Modules.Rendering.Documents.Queries.DownloadDocumentVersion;
@@ -30,6 +29,7 @@ public static class RenderingModuleExtensions
         services.AddScoped<IDocumentDataPreparationService, DocumentDataPreparationService>();
         services.AddScoped<IDocumentAuditService, DocumentAuditService>();
         services.AddScoped<IDocumentVersioningService, DocumentVersioningService>();
+        services.AddScoped<IDocumentRetentionService, DocumentRetentionService>();
         services.AddScoped<IDocumentRenderPipeline, DocumentRenderPipeline>();
 
         // Domain Event Handlers
@@ -38,7 +38,6 @@ public static class RenderingModuleExtensions
         // High-Throughput & Stateless Document Generation Pipeline (Action-Centric Vertical Slice)
         services.AddUseCase<GenerateDocumentCommand, GenerateDocumentResultDto, GenerateDocumentUseCase>();
         services.AddUseCase<PreviewDocumentQuery, Stream, PreviewDocumentUseCase>();
-        services.AddUseCase<RenderStatelessDocumentCommand, Stream, RenderStatelessDocumentUseCase>();
         services.AddUseCase<GetDocumentVersionsQuery, List<DocumentVersionDto>, GetDocumentVersionsUseCase>();
         services.AddUseCase<DownloadDocumentVersionQuery, DownloadDocumentVersionResult, DownloadDocumentVersionUseCase>();
 

@@ -30,6 +30,7 @@ using SmkDoc.Infrastructure.Schema;
 using SmkDoc.Infrastructure.Security;
 using SmkDoc.Infrastructure.Services.Logging;
 using SmkDoc.Infrastructure.Storage;
+using SmkDoc.Application.Modules.Rendering.Documents.Services;
 using StackExchange.Redis;
 
 namespace SmkDoc.Infrastructure;
@@ -226,6 +227,10 @@ public static class DependencyInjection
             services.AddSingleton<IDocumentRenderQueue, MemoryDocumentRenderQueue>();
         }
         services.AddHostedService<DocumentRenderQueueWorker>();
+
+        // 9b. Document Ephemeral Retention Worker
+        services.Configure<DocumentRetentionWorkerOptions>(configuration.GetSection("DocumentRetentionWorker"));
+        services.AddHostedService<DocumentRetentionWorker>();
 
         return services;
     }

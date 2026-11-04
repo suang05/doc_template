@@ -35,6 +35,8 @@ TriggerSignals: [SIGNAL_TOPOLOGY_MUTATION], [SIGNAL_API_MUTATION]
 | **Excel Printing** | ! Spreadsheets clipping content on print or PDF export | >> Automatic A4 portrait fit: `worksheet.PageSetup.FitToPages(1, 0)` |
 | **Thai Formatting** | ! Inline date / Baht text conversions inside Handlebars | >> Centralized `ThaiDataTransformer` helper methods |
 | **Thai Font Marks** | ! Missing Thai tone marks or floating vowels in PDF | >> Automated Google Fonts Sarabun injection in `HtmlLayoutProcessor` |
+| **Storage Retention & Auto-Purge** | ! Retaining generated document outputs in MinIO indefinitely, causing unbounded storage growth | >> Periodic background batch purging via `DocumentRetentionWorker` consuming `TimeProvider` to delete expired MinIO objects from `StorageBuckets.Outputs` and mark logs as purged |
+| **Immutable Payload Validation** | ! Mutating, computing, or transforming JSON payloads during rendering pipeline | >> Pure payload ingestion: JSON Schema Draft-07 validation with exact RFC 9457 error details; zero payload mutation |
 | **Synchronous Rendering**| ! Blocking on network/disk I/O (`.Result`, `.Wait()`) | >> 100% asynchronous execution with forwarded `CancellationToken` |
 
 ---
@@ -223,15 +225,12 @@ public sealed class ResponseDisposingStream(Stream innerStream, HttpResponseMess
 
 ### 2-Track Rendering Pipeline Presentation Archetype
 >> MANDATORY CANONICAL TEMPLATE [RULE-MECH-006]:
-* [MUST] Provide Track 1 (Live Preview): synchronous streaming return via `File(stream, "application/pdf")`.
+* [MUST] Provide Track 1 (Live Preview & Sync Generation) via `DocumentGenerationController`: synchronous streaming return via `File(stream, "application/pdf")`.
 * [MUST] Provide Track 2 (Async Batch Queue): enqueue background render job and return `AcceptedAtAction` (`202 Accepted`) with `JobId` and polling status URL.
+* [MUST] Provide Artifact Egress via `DocumentArtifactController`: pre-signed download URLs (`/download/{logId}/url`) or direct bounded stream pass-through (`/download/{logId}/file`).
 * [MUST NOT] Return HTTP 307 redirects to internal MinIO S3 instances.
+* [MUST NOT] Bundle generation, download, and version history into a single monolithic controller.
 ```csharp
-using Microsoft.AspNetCore.Mvc;
-using SmkDoc.Api.Common.Responses;
-using SmkDoc.Api.Filters;
-using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.Modules.Rendering.Documents.Commands.EnqueueBatchRender;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -245,7 +244,6 @@ using SmkDoc.Application.Modules.Rendering.Documents.Commands.GenerateDocument;
 using SmkDoc.Application.Modules.Rendering.Documents.DTOs;
 using SmkDoc.Application.Modules.Rendering.Documents.Queries.GetDocumentJob;
 using SmkDoc.Application.Modules.Rendering.Documents.Queries.PreviewDocument;
-using SmkDoc.Application.Modules.Rendering.Logs.Queries.DownloadGenerationLogDocument;
 using SmkDoc.Domain.Exceptions;
 
 namespace SmkDoc.Api.Controllers.Rendering;
@@ -253,12 +251,11 @@ namespace SmkDoc.Api.Controllers.Rendering;
 [ApiController]
 [Route("api/v1/documents")]
 [Authorize(Policy = SmkDocPolicies.CanGenerateDocuments)]
-public sealed class DocumentController(
+public sealed class DocumentGenerationController(
     IUseCase<GenerateDocumentCommand, GenerateDocumentResultDto> generateUseCase,
     IUseCase<PreviewDocumentQuery, Stream> previewUseCase,
     IUseCase<EnqueueDocumentGenerationCommand, DocumentJobDto> enqueueJobUseCase,
-    IUseCase<GetDocumentJobQuery, DocumentJobDto> getJobUseCase,
-    IUseCase<DownloadGenerationLogDocumentQuery, DownloadGenerationLogDocumentResult> downloadLogDocumentUseCase) : ControllerBase
+    IUseCase<GetDocumentJobQuery, DocumentJobDto> getJobUseCase) : ControllerBase
 {
     // Track 1: Synchronous Live Preview & Instant Generation (Dedicated 30 req/min rate limit)
     [HttpPost("generate/{slug}")]
@@ -308,17 +305,59 @@ public sealed class DocumentController(
         var job = await getJobUseCase.ExecuteAsync(query, ct);
         return Ok(new ApiResponse<DocumentJobDto>(job));
     }
+}
+```
 
-    // Storage Perimeter Egress: Bounded Stream Pass-Through (Hiding MinIO inside Private VPC)
-    [HttpGet("download/{logId:guid}")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> Download([FromRoute] Guid logId, CancellationToken ct)
+### Ephemeral Storage Retention & Auto-Purge Worker Archetype
+>> MANDATORY CANONICAL TEMPLATE [RULE-MECH-007]:
+* [MUST] Purge expired output files from MinIO `StorageBuckets.Outputs` on a background schedule (default 24h TTL, 30m worker interval).
+* [MUST] Injected `TimeProvider` must be used for all timestamp evaluations (`timeProvider.GetUtcNow()`).
+* [MUST] Repository query must bypass tenant filter via `.IgnoreQueryFilters()` to allow system-wide cross-tenant purging.
+* [MUST] Mark log entity state via expressive domain verb `log.MarkOutputPurged(now)`.
+```csharp
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using SmkDoc.Application.Modules.Rendering.Documents.Services;
+
+namespace SmkDoc.Infrastructure.BackgroundWorkers;
+
+public sealed class DocumentRetentionWorker(
+    IServiceScopeFactory scopeFactory,
+    IOptions<DocumentRetentionWorkerOptions> options,
+    TimeProvider timeProvider,
+    ILogger<DocumentRetentionWorker> logger) : BackgroundService
+{
+    private readonly DocumentRetentionWorkerOptions _options = options.Value;
+
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        var result = await downloadLogDocumentUseCase.ExecuteAsync(new DownloadGenerationLogDocumentQuery(logId), ct);
-        return File(result.Stream, result.ContentType, result.FileName);
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            try
+            {
+                using var scope = scopeFactory.CreateScope();
+                var retentionService = scope.ServiceProvider.GetRequiredService<IDocumentRetentionService>();
+                var purgedCount = await retentionService.PurgeExpiredOutputsAsync(
+                    _options.RetentionPeriod,
+                    _options.BatchSize,
+                    stoppingToken);
+
+                if (purgedCount > 0)
+                {
+                    logger.LogInformation("Purged {Count} expired document outputs.", purgedCount);
+                }
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                logger.LogError(ex, "Error occurred during document retention purge cycle.");
+            }
+
+            await Task.Delay(_options.CheckInterval, timeProvider, stoppingToken);
+        }
     }
 }
+```
 ```
 
 ### OpenXML DrawingML Non-Zero ID Fix Archetype

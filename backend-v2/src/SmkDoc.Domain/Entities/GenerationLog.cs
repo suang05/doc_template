@@ -138,4 +138,13 @@ public sealed class GenerationLog : BaseEntity, IMustHaveProject
         string errorMessage,
         DateTimeOffset now) =>
         new(null, projectId, target, context, GenerationMetrics.ForDuration(durationMs, 0), GenerationStatus.Failed, errorMessage, now);
+
+    /// <summary>
+    /// Marks the generated document output file as purged from storage upon retention expiration.
+    /// </summary>
+    public void MarkOutputPurged(DateTimeOffset now)
+    {
+        OutputKey = null;
+        SetUpdated(now);
+    }
 }

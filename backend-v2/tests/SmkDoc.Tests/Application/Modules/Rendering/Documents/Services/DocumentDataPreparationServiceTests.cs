@@ -24,7 +24,7 @@ public sealed class DocumentDataPreparationServiceTests
         using var jsonDoc = JsonDocument.Parse("""{"key":"value","nested":{"count":42}}""");
 
         // Act
-        var result = await CreateSut().PrepareDataAsync(template, version, jsonDoc.RootElement, skipValidation: true);
+        var result = await CreateSut().PrepareDataAsync(version, jsonDoc.RootElement, skipValidation: true);
 
         // Assert
         result.DataJson.Should().Be("""{"key":"value","nested":{"count":42}}""");
@@ -47,7 +47,7 @@ public sealed class DocumentDataPreparationServiceTests
         using var jsonDoc = JsonDocument.Parse("""{}""");
 
         // Act
-        var result = await CreateSut().PrepareDataAsync(template, version, jsonDoc.RootElement, skipValidation: false);
+        var result = await CreateSut().PrepareDataAsync(version, jsonDoc.RootElement, skipValidation: false);
 
         // Assert
         result.ValidationResult.Should().NotBeNull();

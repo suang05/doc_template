@@ -32,6 +32,8 @@ public sealed class DocumentHistoryController(
 
     /// <summary>Download specific historical version of a legal document.</summary>
     [HttpGet("{documentRef}/versions/{version:int}/download")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> DownloadVersion([FromRoute] string documentRef, [FromRoute] int version, CancellationToken ct)
     {
         var result = await downloadVersionUseCase.ExecuteAsync(new DownloadDocumentVersionQuery(documentRef, version), ct);

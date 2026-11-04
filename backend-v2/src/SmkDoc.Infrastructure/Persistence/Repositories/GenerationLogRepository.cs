@@ -23,4 +23,14 @@ public sealed class GenerationLogRepository(AppDbContext context) : IGenerationL
     {
         await _context.GenerationLogs.AddRangeAsync(logs, ct);
     }
+
+    public async Task<IReadOnlyList<GenerationLog>> GetExpiredLogsWithOutputsAsync(DateTimeOffset cutoffTime, int maxBatchSize, CancellationToken ct = default)
+    {
+        return await _context.GenerationLogs
+            .IgnoreQueryFilters()
+            .Where(l => l.OutputKey != null && l.OutputKey != "" && l.CreatedAt <= cutoffTime)
+            .OrderBy(l => l.CreatedAt)
+            .Take(maxBatchSize)
+            .ToListAsync(ct);
+    }
 }

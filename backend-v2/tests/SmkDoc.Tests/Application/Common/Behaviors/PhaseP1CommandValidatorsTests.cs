@@ -14,22 +14,11 @@ using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.RevokeApiKey;
 using SmkDoc.Application.Modules.Integration.DataConnections.Commands.DeleteDataConnection;
 using SmkDoc.Application.Modules.Integration.DataConnections.Commands.TestDataConnection;
 using SmkDoc.Application.Modules.Integration.Datasets.Commands.DeleteDataset;
-using SmkDoc.Application.Modules.Rendering.Documents.Commands.RenderStatelessDocument;
 
 namespace SmkDoc.Tests.Application.Common.Behaviors;
 
 public sealed class PhaseP1CommandValidatorsTests
 {
-    [Fact]
-    public async Task RenderStatelessDocumentCommandValidator_ValidatesStreamAndFileName()
-    {
-        var validator = new RenderStatelessDocumentCommandValidator();
-        using var stream = new MemoryStream(Encoding.UTF8.GetBytes("<h1>Hello</h1>"));
-
-        (await validator.ValidateAsync(new RenderStatelessDocumentCommand(stream, "invoice.html"))).IsValid.Should().BeTrue();
-        (await validator.ValidateAsync(new RenderStatelessDocumentCommand(null!, ""))).IsValid.Should().BeFalse();
-    }
-
     [Fact]
     public async Task DeleteDataConnectionCommandValidator_ValidatesNonEmptyId()
     {

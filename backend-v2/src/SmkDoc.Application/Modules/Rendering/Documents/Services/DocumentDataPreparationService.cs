@@ -13,7 +13,6 @@ public sealed class DocumentDataPreparationService(
     IJsonSchemaValidationService schemaValidation) : IDocumentDataPreparationService
 {
     public Task<PreparedDocumentData> PrepareDataAsync(
-        Template template,
         TemplateVersion currentVersion,
         JsonElement rawData,
         bool skipValidation,

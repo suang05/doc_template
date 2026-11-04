@@ -19,7 +19,7 @@ TriggerSignals: [SIGNAL_SECURITY_MUTATION], [SIGNAL_TOPOLOGY_MUTATION]
 | **User Tenancy** | ! Storing `project_id` or `tenant_id` in `users` table | >> `User` is Global Identity; tenancy scoped strictly via `UserProjectRole` | Domain / EF Schema |
 | **Multi-Tenant Filter**| ! Manual `WHERE project_id = @id` queries | >> Compile-time EF Core `HasQueryFilter` on `ICurrentProjectContext` | `AppDbContext` |
 | **Memory Buffer** | ! `MemoryStream.ToArray()` or in-memory buffer $\ge 85\text{KB}$ | >> Direct stream pipe to `Response.Body` with bounded buffer $\le 81,920$ bytes | Render / Download Egress |
-| **Download Egress** | ! HTTP 307 Redirects to internal MinIO S3 instances | >> Gateway reverse-proxy streaming via `File(stream, ...)` | `DocumentController` |
+| **Download Egress** | ! HTTP 307 Redirects to internal MinIO S3 instances | >> Gateway reverse-proxy streaming via `File(stream, ...)` | `DocumentArtifactController` |
 | **SSRF Host Defense** | ! Unchecked database hosts or targeting loopback / metadata | >> Pre-flight DNS/IP validation via `ConnectionHostValidator` | Data Connection Services |
 | **Chromium Cluster** | ! Unthrottled render calls crashing Gotenberg pods | >> Dedicated rate limiter (`30 req/min`) + Async batch queue | Presentation Gateway |
 | **Key Governance** | ! Forcing SuperAdmin to issue every operational key (Bottleneck) OR unconstrained key sprawl | >> Master Key / Delegated Ownership: Project Admin self-services sub-keys (`/api/v1/api-keys`, max 2); SuperAdmin governs transfer/break-glass | IdentityAccess / API |
