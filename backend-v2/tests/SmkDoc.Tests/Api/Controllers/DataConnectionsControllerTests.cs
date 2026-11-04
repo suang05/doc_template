@@ -26,7 +26,7 @@ public sealed class DataConnectionsControllerTests
     private readonly IUseCase<CreateDataConnectionCommand, DataConnectionDto> _createUseCase = Substitute.For<IUseCase<CreateDataConnectionCommand, DataConnectionDto>>();
     private readonly IUseCase<UpdateDataConnectionCommand, DataConnectionDto?> _updateUseCase = Substitute.For<IUseCase<UpdateDataConnectionCommand, DataConnectionDto?>>();
     private readonly IUseCase<DeleteDataConnectionCommand, bool> _deleteUseCase = Substitute.For<IUseCase<DeleteDataConnectionCommand, bool>>();
-    private readonly IUseCase<TestDataConnectionCommand, bool> _testUseCase = Substitute.For<IUseCase<TestDataConnectionCommand, bool>>();
+    private readonly IUseCase<TestDataConnectionCommand, TestDataConnectionResultDto> _testUseCase = Substitute.For<IUseCase<TestDataConnectionCommand, TestDataConnectionResultDto>>();
 
     private DataConnectionsController CreateSut()
     {
@@ -150,7 +150,7 @@ public sealed class DataConnectionsControllerTests
         // Arrange
         var sut = CreateSut();
         _testUseCase.ExecuteAsync(Arg.Any<TestDataConnectionCommand>(), Arg.Any<CancellationToken>())
-            .Returns(true);
+            .Returns(new TestDataConnectionResultDto(true, "Connection successful."));
 
         var request = new TestDataConnectionRequest("PostgreSQL", "Host=db.prod;Database=erp");
 
@@ -160,7 +160,7 @@ public sealed class DataConnectionsControllerTests
         // Assert
         var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
         okResult.StatusCode.Should().Be(StatusCodes.Status200OK);
-        var body = okResult.Value.Should().BeOfType<ApiResponse<TestDataConnectionResponseDto>>().Subject;
+        var body = okResult.Value.Should().BeOfType<ApiResponse<TestDataConnectionResultDto>>().Subject;
         body.Data.Success.Should().BeTrue();
         body.Data.Message.Should().Be("Connection successful.");
     }
@@ -171,7 +171,7 @@ public sealed class DataConnectionsControllerTests
         // Arrange
         var sut = CreateSut();
         _testUseCase.ExecuteAsync(Arg.Any<TestDataConnectionCommand>(), Arg.Any<CancellationToken>())
-            .Returns(false);
+            .Returns(new TestDataConnectionResultDto(false, "Connection failed."));
 
         var request = new TestDataConnectionRequest("PostgreSQL", "Host=unreachable.prod;Database=erp");
 
@@ -181,7 +181,7 @@ public sealed class DataConnectionsControllerTests
         // Assert
         var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
         okResult.StatusCode.Should().Be(StatusCodes.Status200OK);
-        var body = okResult.Value.Should().BeOfType<ApiResponse<TestDataConnectionResponseDto>>().Subject;
+        var body = okResult.Value.Should().BeOfType<ApiResponse<TestDataConnectionResultDto>>().Subject;
         body.Data.Success.Should().BeFalse();
         body.Data.Message.Should().Be("Connection failed.");
     }

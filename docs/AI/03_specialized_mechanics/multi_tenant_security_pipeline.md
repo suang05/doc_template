@@ -347,13 +347,14 @@ public sealed class ProjectContextMiddleware(RequestDelegate next)
     {
         context.Response.StatusCode = status;
         context.Response.ContentType = "application/problem+json";
-        return context.Response.WriteAsJsonAsync(new ProblemDetails
+        var problem = new ProblemDetails
         {
             Status = status,
             Title = title,
             Detail = detail,
             Instance = context.Request.Path
-        });
+        };
+        return context.Response.WriteAsJsonAsync(problem);
     }
 }
 ```

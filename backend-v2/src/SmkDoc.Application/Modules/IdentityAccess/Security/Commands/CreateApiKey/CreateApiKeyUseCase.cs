@@ -60,6 +60,6 @@ public sealed class CreateApiKeyUseCase(
         await apiKeyRepo.AddAsync(key, ct);
         await unitOfWork.CommitAsync(ct);
 
-        return new CreateApiKeyResultDto(key.Id.Value, key.Name.Value, key.CallerApp, rawSecret);
+        return new CreateApiKeyResultDto(key.Id.Value, key.Name.Value, key.CallerApp, rawSecret, key.Scope.Name, key.ExpiresAt);
     }
 }

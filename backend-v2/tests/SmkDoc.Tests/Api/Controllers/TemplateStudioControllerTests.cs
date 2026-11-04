@@ -24,7 +24,7 @@ public sealed class TemplateStudioControllerTests
     private readonly IUseCase<GetTemplateHtmlSourceQuery, string> _getHtmlSourceUseCase = Substitute.For<IUseCase<GetTemplateHtmlSourceQuery, string>>();
     private readonly IUseCase<GetTemplateStudioBundleQuery, TemplateStudioDto> _getStudioBundleUseCase = Substitute.For<IUseCase<GetTemplateStudioBundleQuery, TemplateStudioDto>>();
     private readonly IUseCase<GetTemplateSchemaQuery, TemplateSchemaDto> _getSchemaUseCase = Substitute.For<IUseCase<GetTemplateSchemaQuery, TemplateSchemaDto>>();
-    private readonly IUseCase<SaveTemplateHtmlCommand, int> _saveHtmlUseCase = Substitute.For<IUseCase<SaveTemplateHtmlCommand, int>>();
+    private readonly IUseCase<SaveTemplateHtmlCommand, SaveHtmlResultDto> _saveHtmlUseCase = Substitute.For<IUseCase<SaveTemplateHtmlCommand, SaveHtmlResultDto>>();
     private readonly IUseCase<ValidateTemplateHtmlQuery, TemplateValidationResultDto> _validateUseCase = Substitute.For<IUseCase<ValidateTemplateHtmlQuery, TemplateValidationResultDto>>();
     private readonly IUseCase<GetTemplateMappingsQuery, List<FieldMappingDto>> _getMappingsUseCase = Substitute.For<IUseCase<GetTemplateMappingsQuery, List<FieldMappingDto>>>();
     private readonly IUseCase<SaveTemplateMappingsCommand> _saveMappingsUseCase = Substitute.For<IUseCase<SaveTemplateMappingsCommand>>();
@@ -100,7 +100,7 @@ public sealed class TemplateStudioControllerTests
         var sut = CreateSut();
         var templateId = Guid.NewGuid();
         _saveHtmlUseCase.ExecuteAsync(Arg.Is<SaveTemplateHtmlCommand>(c => c.TemplateId == templateId && c.IfMatch == "\"1\""), Arg.Any<CancellationToken>())
-            .Returns(2);
+            .Returns(new SaveHtmlResultDto(2));
 
         var request = new SaveHtmlRequest("<html>updated</html>", "{}", "Increment note");
 
@@ -109,7 +109,7 @@ public sealed class TemplateStudioControllerTests
 
         // Assert
         var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
-        var body = okResult.Value.Should().BeOfType<ApiResponse<SaveHtmlResponse>>().Subject;
+        var body = okResult.Value.Should().BeOfType<ApiResponse<SaveHtmlResultDto>>().Subject;
         body.Data.Version.Should().Be(2);
         sut.Response.Headers.ETag.ToString().Should().Be("\"2\"");
     }

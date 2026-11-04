@@ -3,7 +3,7 @@ namespace SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
 /// <summary>
 /// User profile data embedded in login tokens and responses.
 /// </summary>
-public record UserProfileDto(
+public sealed record UserProfileDto(
     Guid Id,
     string Email,
     string FirstName,

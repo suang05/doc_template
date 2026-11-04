@@ -22,7 +22,8 @@ public sealed class TestDataConnectionUseCaseTests
         var result = await CreateSut().ExecuteAsync(command);
 
         // Assert
-        result.Should().BeTrue();
+        result.Success.Should().BeTrue();
+        result.Message.Should().Be("Connection successful.");
     }
 
     [Fact]
@@ -37,7 +38,8 @@ public sealed class TestDataConnectionUseCaseTests
         var result = await CreateSut().ExecuteAsync(command);
 
         // Assert
-        result.Should().BeFalse();
+        result.Success.Should().BeFalse();
+        result.Message.Should().Be("Connection failed.");
     }
 
     [Fact]

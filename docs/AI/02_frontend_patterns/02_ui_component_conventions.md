@@ -251,13 +251,20 @@ CardFooter.displayName = 'CardFooter';
 ```typescript
 import { z } from 'zod';
 
-export const templateSchema = z.object({
+export const slugSchema = z
+  .string()
+  .min(2, 'Slug must be at least 2 characters')
+  .max(100, 'Slug must not exceed 100 characters')
+  .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, 'Slug must be lowercase alphanumeric and hyphens');
+
+export const CreateTemplateRequestSchema = z.object({
   name: z.string().min(1, 'Template name is required').max(100),
-  slug: z.string().min(1, 'Slug is required').max(100).regex(/^[a-z0-9-]+$/, 'Lowercase letters, numbers, and hyphens only'),
-  category: z.string().max(50).optional(),
+  slug: slugSchema,
+  category: z.string().max(50).optional().nullable(),
+  htmlContent: z.string().optional().nullable(),
 });
 
-export type TemplateFormData = z.infer<typeof templateSchema>;
+export type CreateTemplateRequest = z.infer<typeof CreateTemplateRequestSchema>;
 ```
 
 ### Co-Located Vitest Spec Archetype (`src/__tests__/schemas.test.ts`)

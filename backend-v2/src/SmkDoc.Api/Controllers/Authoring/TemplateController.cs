@@ -33,8 +33,8 @@ public sealed class TemplateController(
     IUseCase<DeactivateTemplateCommand> deactivateTemplateUseCase,
     IUseCase<DownloadTemplateQuery, DownloadTemplateResult> downloadTemplateUseCase,
     IUseCase<ValidateTemplatePayloadQuery, ValidateTemplatePayloadResult> validatePayloadUseCase,
-    IUseCase<ScanUploadedTemplateQuery, List<string>> scanUploadedUseCase,
-    IUseCase<ScanTemplatePlaceholdersQuery, List<string>> scanStoredUseCase,
+    IUseCase<ScanUploadedTemplateQuery, ScanFieldsResultDto> scanUploadedUseCase,
+    IUseCase<ScanTemplatePlaceholdersQuery, ScanFieldsResultDto> scanStoredUseCase,
     ICurrentProjectContext projectContext) : ControllerBase
 {
     /// <summary>List templates belonging to the active project with optional search, category filter, and server-side pagination.</summary>
@@ -66,7 +66,8 @@ public sealed class TemplateController(
         Response.Headers["X-Page"] = pagedResult.Page.ToString();
         Response.Headers["X-Page-Size"] = pagedResult.PageSize.ToString();
 
-        return Ok(new ApiResponse<IEnumerable<TemplateResultDto>>(pagedResult.Items));
+        var result = pagedResult.Items;
+        return Ok(new ApiResponse<IEnumerable<TemplateResultDto>>(result));
     }
 
     /// <summary>Get template details by unique identifier.</summary>
@@ -76,9 +77,9 @@ public sealed class TemplateController(
     public async Task<IActionResult> GetById([FromRoute] Guid id, CancellationToken ct)
     {
         var query = new GetTemplateByIdQuery(id);
-        var template = await getTemplateByIdUseCase.ExecuteAsync(query, ct);
-        Response.Headers.ETag = $"\"{(template.UpdatedAt ?? template.CreatedAt).ToUnixTimeMilliseconds()}\"";
-        return Ok(new ApiResponse<TemplateResultDto>(template));
+        var result = await getTemplateByIdUseCase.ExecuteAsync(query, ct);
+        Response.Headers.ETag = $"\"{(result.UpdatedAt ?? result.CreatedAt).ToUnixTimeMilliseconds()}\"";
+        return Ok(new ApiResponse<TemplateResultDto>(result));
     }
 
     /// <summary>Create a new document template with optional initial file upload.</summary>
@@ -97,9 +98,9 @@ public sealed class TemplateController(
         await using var stream = file?.Length > 0 ? file.OpenReadStream() : null;
         var fileName = file?.Length > 0 ? file.FileName : null;
         var command = new CreateTemplateCommand(name, slug, category, stream, fileName);
-        var created = await createTemplateUseCase.ExecuteAsync(command, ct);
+        var result = await createTemplateUseCase.ExecuteAsync(command, ct);
 
-        return CreatedAtAction(nameof(GetById), new { id = created.Id }, new ApiResponse<TemplateResultDto>(created));
+        return CreatedAtAction(nameof(GetById), new { id = result.Id }, new ApiResponse<TemplateResultDto>(result));
     }
 
     /// <summary>Update template display name and category metadata with optimistic concurrency check.</summary>
@@ -147,7 +148,7 @@ public sealed class TemplateController(
     /// Zero side-effects (no DB writes, no MinIO uploads).
     /// </summary>
     [HttpPost("scan-fields")]
-    [ProducesResponseType(typeof(ApiResponse<ScanFieldsResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<ScanFieldsResultDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> ScanFieldsStateless(IFormFile file, CancellationToken ct)
     {
@@ -157,19 +158,19 @@ public sealed class TemplateController(
         var ext = Path.GetExtension(file.FileName);
         await using var stream = file.OpenReadStream();
         var query = new ScanUploadedTemplateQuery(stream, ext);
-        var placeholders = await scanUploadedUseCase.ExecuteAsync(query, ct);
-        return Ok(new ApiResponse<ScanFieldsResponse>(new ScanFieldsResponse(placeholders)));
+        var result = await scanUploadedUseCase.ExecuteAsync(query, ct);
+        return Ok(new ApiResponse<ScanFieldsResultDto>(result));
     }
 
     /// <summary>Scan placeholders from a stored template file in MinIO.</summary>
     [HttpGet("{id:guid}/scan-fields")]
-    [ProducesResponseType(typeof(ApiResponse<ScanFieldsResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<ScanFieldsResultDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> ScanFieldsById([FromRoute] Guid id, CancellationToken ct)
     {
         var query = new ScanTemplatePlaceholdersQuery(id);
-        var placeholders = await scanStoredUseCase.ExecuteAsync(query, ct);
-        return Ok(new ApiResponse<ScanFieldsResponse>(new ScanFieldsResponse(placeholders)));
+        var result = await scanStoredUseCase.ExecuteAsync(query, ct);
+        return Ok(new ApiResponse<ScanFieldsResultDto>(result));
     }
 
     /// <summary>

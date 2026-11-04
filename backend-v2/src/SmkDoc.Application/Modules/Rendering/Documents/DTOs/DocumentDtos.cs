@@ -8,7 +8,7 @@ namespace SmkDoc.Application.Modules.Rendering.Documents.DTOs;
 /// <summary>
 /// Result returned after document generation and MinIO persistence.
 /// </summary>
-public record GenerateDocumentResultDto(
+public sealed record GenerateDocumentResultDto(
     Guid GenerationId,
     string? DocumentRef,
     string OutputFormat,
@@ -21,7 +21,7 @@ public record GenerateDocumentResultDto(
 /// <summary>
 /// DTO representing an immutable document version in the legal audit trail.
 /// </summary>
-public record DocumentVersionDto(
+public sealed record DocumentVersionDto(
     Guid Id,
     Guid DocumentId,
     string DocumentRef,
@@ -36,7 +36,7 @@ public record DocumentVersionDto(
 /// <summary>
 /// Result DTO for pre-flight JSON schema validation.
 /// </summary>
-public record PayloadValidationResultDto(
+public sealed record PayloadValidationResultDto(
     bool IsValid,
     string TemplateSlug,
     int SchemaVersion,

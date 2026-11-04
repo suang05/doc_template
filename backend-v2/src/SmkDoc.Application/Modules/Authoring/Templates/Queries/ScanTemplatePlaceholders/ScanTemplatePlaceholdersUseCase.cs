@@ -1,5 +1,6 @@
 using SmkDoc.Application.Common;
 using SmkDoc.Application.Common.Interfaces;
+using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
@@ -12,9 +13,9 @@ namespace SmkDoc.Application.Modules.Authoring.Templates.Queries.ScanTemplatePla
 public sealed class ScanTemplatePlaceholdersUseCase(
     ITemplateRepository templateRepo,
     IStorageService storageService,
-    ITemplateScannerService scanner) : IUseCase<ScanTemplatePlaceholdersQuery, List<string>>
+    ITemplateScannerService scanner) : IUseCase<ScanTemplatePlaceholdersQuery, ScanFieldsResultDto>
 {
-    public async Task<List<string>> ExecuteAsync(ScanTemplatePlaceholdersQuery query, CancellationToken ct = default)
+    public async Task<ScanFieldsResultDto> ExecuteAsync(ScanTemplatePlaceholdersQuery query, CancellationToken ct = default)
     {
         var template = await templateRepo.GetByIdAsync(new TemplateId(query.Id), ct)
             ?? throw new NotFoundException($"Template '{query.Id}' was not found.");
@@ -23,6 +24,7 @@ public sealed class ScanTemplatePlaceholdersUseCase(
 
         using var stream = await storageService.DownloadAsync(StorageBuckets.Templates, version.StorageKey, ct);
         string ext = Path.GetExtension(version.StorageKey).ToLowerInvariant();
-        return await scanner.ScanPlaceholdersAsync(stream, ext, ct);
+        var placeholders = await scanner.ScanPlaceholdersAsync(stream, ext, ct);
+        return new ScanFieldsResultDto(placeholders);
     }
 }

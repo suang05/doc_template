@@ -112,11 +112,11 @@ CoreExtensionSlots:
 
 ```
 Modules/Authoring/Templates/Commands/CreateTemplate/
-  ├── CreateTemplateCommand.cs          # 1. Positional input record
-  ├── CreateTemplateCommandValidator.cs # 2. FluentValidation rules
-  ├── CreateTemplateUseCase.cs          # 3. Single-responsibility orchestrator
-  ├── CreateTemplateResultDto.cs        # 4. Immutable output record
-  └── CreateTemplateErrors.cs           # 5. Strongly-typed slice domain errors
+  CreateTemplateCommand.cs          # 1. Positional input record
+  CreateTemplateCommandValidator.cs # 2. FluentValidation rules
+  CreateTemplateUseCase.cs          # 3. Single-responsibility orchestrator
+  TemplateResultDto.cs              # 4. Immutable output record
+  CreateTemplateErrors.cs           # 5. Strongly-typed slice domain errors
 ```
 
 ```csharp
@@ -126,8 +126,7 @@ namespace SmkDoc.Application.Modules.Authoring.Templates.Commands.CreateTemplate
 public sealed record CreateTemplateCommand(
     string Name,
     string Slug,
-    string EngineType,
-    string? Description) : ICommand<CreateTemplateResultDto>;
+    string? Category = null);
 
 // 2. CreateTemplateUseCase.cs
 namespace SmkDoc.Application.Modules.Authoring.Templates.Commands.CreateTemplate;
@@ -136,18 +135,27 @@ public sealed class CreateTemplateUseCase(
     ITemplateRepository templateRepository,
     ICurrentProjectContext projectContext,
     IUnitOfWork unitOfWork,
-    TimeProvider timeProvider) : IUseCase<CreateTemplateCommand, CreateTemplateResultDto>
+    TimeProvider timeProvider) : IUseCase<CreateTemplateCommand, TemplateResultDto>
 {
-    public async Task<CreateTemplateResultDto> ExecuteAsync(CreateTemplateCommand command, CancellationToken ct)
+    public async Task<TemplateResultDto> ExecuteAsync(CreateTemplateCommand command, CancellationToken ct = default)
     {
-        var projectId = projectContext.ProjectId ?? throw new ForbiddenException("Project context is required.");
-        var now = timeProvider.GetUtcNow();
+        if (!projectContext.IsResolved)
+        {
+            throw new ForbiddenException("Project context is required to create a template.");
+        }
 
-        var template = Template.Create(projectId, command.Name, command.Slug, command.EngineType, now);
+        var now = timeProvider.GetUtcNow();
+        var template = Template.Create(
+            projectContext.ProjectId,
+            TemplateName.Create(command.Name),
+            TemplateSlug.Create(command.Slug),
+            command.Category,
+            now);
+
         await templateRepository.AddAsync(template, ct);
         await unitOfWork.CommitAsync(ct);
 
-        return new CreateTemplateResultDto(template.Id.Value, template.Name, template.Slug);
+        return new TemplateResultDto(template.Id.Value, template.Name.Value, template.Slug.Value, template.Category);
     }
 }
 ```
@@ -199,7 +207,7 @@ public readonly record struct TemplateId(Guid Value) : IComparable<TemplateId>
 ### [TRAP-ARCH-002]: Bundling Multiple Primary Types Inside UseCase File
 ```diff
 - // Inside CreateTemplateUseCase.cs:
-- public sealed record CreateTemplateCommand(...) : ICommand<TemplateResultDto>;
+- public sealed record CreateTemplateCommand(...);
 - public sealed class CreateTemplateValidator : AbstractValidator<CreateTemplateCommand> { ... }
 - public sealed class CreateTemplateUseCase(...) { ... }
 + // Split into separate 1-Primary-Type-Per-File co-located records:

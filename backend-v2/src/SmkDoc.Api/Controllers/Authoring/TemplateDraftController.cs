@@ -21,7 +21,7 @@ namespace SmkDoc.Api.Controllers.Authoring;
 public sealed class TemplateDraftController(
     IUseCase<ParseTemplateDraftCommand, ParseDraftResultDto> parseUseCase,
     IUseCase<PreviewTemplateDraftQuery, Stream> previewUseCase,
-    IUseCase<CommitTemplateDraftCommand, string> commitUseCase,
+    IUseCase<CommitTemplateDraftCommand, CommitDraftResultDto> commitUseCase,
     ICurrentProjectContext projectContext) : ControllerBase
 {
     /// <summary>
@@ -29,7 +29,7 @@ public sealed class TemplateDraftController(
     /// Zero side-effects (no DB or MinIO writes).
     /// </summary>
     [HttpPost("parse")]
-    [ProducesResponseType(typeof(ApiResponse<ParseDraftResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<ParseDraftResultDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> ParseDraft(IFormFile file, CancellationToken ct)
     {
@@ -39,7 +39,7 @@ public sealed class TemplateDraftController(
         await using var stream = file.OpenReadStream();
         var command = new ParseTemplateDraftCommand(stream, file.FileName);
         var result = await parseUseCase.ExecuteAsync(command, ct);
-        return Ok(new ApiResponse<ParseDraftResponse>(new ParseDraftResponse(result.DraftId, result.Placeholders)));
+        return Ok(new ApiResponse<ParseDraftResultDto>(result));
     }
 
     /// <summary>
@@ -67,7 +67,7 @@ public sealed class TemplateDraftController(
     /// </summary>
     [HttpPost("{draftId}/commit")]
     [Idempotent]
-    [ProducesResponseType(typeof(ApiResponse<CommitDraftResponse>), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ApiResponse<CommitDraftResultDto>), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     [ProducesResponseType(StatusCodes.Status410Gone)]
@@ -87,7 +87,7 @@ public sealed class TemplateDraftController(
             request.Slug,
             request.Category,
             request.Mappings ?? []);
-        var templateId = await commitUseCase.ExecuteAsync(command, ct);
-        return StatusCode(StatusCodes.Status201Created, new ApiResponse<CommitDraftResponse>(new CommitDraftResponse(Guid.Parse(templateId))));
+        var result = await commitUseCase.ExecuteAsync(command, ct);
+        return StatusCode(StatusCodes.Status201Created, new ApiResponse<CommitDraftResultDto>(result));
     }
 }

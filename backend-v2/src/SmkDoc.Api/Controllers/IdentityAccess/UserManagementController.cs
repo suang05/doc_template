@@ -37,8 +37,9 @@ public sealed class UserManagementController(
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<UserResultDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> List(CancellationToken ct)
     {
-        var users = await listProjectUsersUseCase.ExecuteAsync(new ListProjectUsersQuery(), ct);
-        return Ok(new ApiResponse<IEnumerable<UserResultDto>>(users));
+        var query = new ListProjectUsersQuery();
+        var result = await listProjectUsersUseCase.ExecuteAsync(query, ct);
+        return Ok(new ApiResponse<IEnumerable<UserResultDto>>(result));
     }
 
     /// <summary>Invite a new user to the active project.</summary>
@@ -50,13 +51,13 @@ public sealed class UserManagementController(
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> AddUser(
-        [FromBody] InviteUserRequest req,
+        [FromBody] InviteUserRequest request,
         CancellationToken ct)
     {
-        var command = new InviteUserCommand(req.Email, req.Password, req.FirstName, req.LastName, req.Role);
-        var user = await inviteUserUseCase.ExecuteAsync(command, ct);
+        var command = new InviteUserCommand(request.Email, request.Password, request.FirstName, request.LastName, request.Role);
+        var result = await inviteUserUseCase.ExecuteAsync(command, ct);
 
-        return StatusCode(StatusCodes.Status201Created, new ApiResponse<UserResultDto>(user));
+        return StatusCode(StatusCodes.Status201Created, new ApiResponse<UserResultDto>(result));
     }
 
     /// <summary>Update a user's role within the active project.</summary>
@@ -69,12 +70,12 @@ public sealed class UserManagementController(
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> UpdateRole(
         [FromRoute] Guid userId,
-        [FromBody] UpdateUserRoleRequest req,
+        [FromBody] UpdateUserRoleRequest request,
         CancellationToken ct)
     {
-        var command = new UpdateUserRoleCommand(userId, req.Role);
-        var user = await updateUserRoleUseCase.ExecuteAsync(command, ct);
-        return Ok(new ApiResponse<UserResultDto>(user));
+        var command = new UpdateUserRoleCommand(userId, request.Role);
+        var result = await updateUserRoleUseCase.ExecuteAsync(command, ct);
+        return Ok(new ApiResponse<UserResultDto>(result));
     }
 
     /// <summary>Remove a user from the active project.</summary>
@@ -104,11 +105,11 @@ public sealed class UserManagementController(
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> SetStatus(
         [FromRoute] Guid userId,
-        [FromBody] SetUserStatusRequest req,
+        [FromBody] SetUserStatusRequest request,
         CancellationToken ct)
     {
-        var command = new SetUserStatusCommand(userId, req.IsActive);
-        var user = await setUserStatusUseCase.ExecuteAsync(command, ct);
-        return Ok(new ApiResponse<UserResultDto>(user));
+        var command = new SetUserStatusCommand(userId, request.IsActive);
+        var result = await setUserStatusUseCase.ExecuteAsync(command, ct);
+        return Ok(new ApiResponse<UserResultDto>(result));
     }
 }

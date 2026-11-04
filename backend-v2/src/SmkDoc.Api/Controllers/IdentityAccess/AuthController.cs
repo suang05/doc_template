@@ -34,8 +34,8 @@ public sealed class AuthController(
     public async Task<IActionResult> Login([FromBody] LoginRequest request, CancellationToken ct)
     {
         var command = new LoginCommand(request.Email, request.Password);
-        var response = await loginUseCase.ExecuteAsync(command, ct);
-        return Ok(new ApiResponse<LoginResultDto>(response));
+        var result = await loginUseCase.ExecuteAsync(command, ct);
+        return Ok(new ApiResponse<LoginResultDto>(result));
     }
 
     /// <summary>
@@ -49,8 +49,8 @@ public sealed class AuthController(
     public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenRequest request, CancellationToken ct)
     {
         var command = new RefreshTokenCommand(request.RefreshToken);
-        var response = await refreshTokenUseCase.ExecuteAsync(command, ct);
-        return Ok(new ApiResponse<TokenResultDto>(response));
+        var result = await refreshTokenUseCase.ExecuteAsync(command, ct);
+        return Ok(new ApiResponse<TokenResultDto>(result));
     }
 
     /// <summary>
@@ -63,7 +63,8 @@ public sealed class AuthController(
     public async Task<IActionResult> GetMe(CancellationToken ct)
     {
         var currentUserId = User.GetUserId();
-        var response = await getCurrentUserProfileUseCase.ExecuteAsync(new GetCurrentUserProfileQuery(currentUserId), ct);
-        return Ok(new ApiResponse<CurrentUserProfileResultDto>(response));
+        var query = new GetCurrentUserProfileQuery(currentUserId);
+        var result = await getCurrentUserProfileUseCase.ExecuteAsync(query, ct);
+        return Ok(new ApiResponse<CurrentUserProfileResultDto>(result));
     }
 }

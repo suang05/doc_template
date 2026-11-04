@@ -6,7 +6,7 @@ namespace SmkDoc.Application.Modules.Rendering.Logs.DTOs;
 /// <summary>
 /// DTO representing an execution log entry for document generation.
 /// </summary>
-public record GenerationLogDto(
+public sealed record GenerationLogDto(
     Guid Id,
     Guid? TemplateId,
     Guid? TemplateVersionId,
@@ -25,7 +25,7 @@ public record GenerationLogDto(
 /// <summary>
 /// Aggregated usage and performance metrics for document generations.
 /// </summary>
-public record LogMetricsDto(
+public sealed record LogMetricsDto(
     int TotalGenerations,
     int SuccessfulGenerations,
     int FailedGenerations,
@@ -37,7 +37,7 @@ public record LogMetricsDto(
 /// <summary>
 /// Metric entry for per-application generation count.
 /// </summary>
-public record AppUsageMetricDto(
+public sealed record AppUsageMetricDto(
     string CallerApp,
     int GenerationCount
 );
@@ -52,9 +52,14 @@ public record GenerationLogPagedResultDto(
     int Limit
 );
 
-public record GenerationLogPagedResult(
+public sealed record GenerationLogPagedResult(
     IEnumerable<GenerationLogDto> Logs,
     int Total,
     int Page,
     int Limit
 ) : GenerationLogPagedResultDto(Logs, Total, Page, Limit);
+
+/// <summary>
+/// Pre-signed document download URL and validity window.
+/// </summary>
+public sealed record DownloadUrlResultDto(string Url, int ExpiresInSeconds = 3600);

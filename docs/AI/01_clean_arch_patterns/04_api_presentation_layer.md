@@ -32,7 +32,7 @@ TriggerSignals: [SIGNAL_API_MUTATION]
 | **Validation Error Payload**| ! Omitting field error dictionary from validation response | >> Structured RFC 9457 `errors` dictionary populated in `problemDetails.Extensions["errors"]` |
 | **POST Mutation Semantics** | ! Unprotected POST mutations without idempotency safeguards | >> `[Idempotent]` filter on state-mutating `POST` endpoints (`Idempotency-Key` header) |
 | **PUT/DELETE Concurrency** | ! Applying Redis lock idempotency to naturally idempotent PUT/DELETE or allowing lost updates | >> Optimistic Concurrency Control (`ETag` / `If-Match`) via PostgreSQL `xmin` concurrency token; return `412 Precondition Failed` on mismatch |
-| **Connectivity Test Semantics**| ! Returning HTTP 400 for negative network reachability results | >> Return HTTP 200 OK with `ApiResponse<ConnectionTestResultDto>` (`{ success: false, message }`); reserve HTTP 4xx strictly for malformed payloads or SSRF blocks (`403 Forbidden`) |
+| **Connectivity Test Semantics**| ! Returning HTTP 400 for negative network reachability results | >> Return HTTP 200 OK with `ApiResponse<TestDataConnectionResultDto>` (`{ success: false, message }`); reserve HTTP 4xx strictly for malformed payloads or SSRF blocks (`403 Forbidden`) |
 | **SSRF Defense** | ! Probing internal networks via unvalidated database connection strings | >> Pre-flight `ConnectionHostValidator` blocking loopback, link-local, cloud metadata (`169.254.x.x`), and Docker aliases (`postgres`, `minio`, `redis`, `gotenberg`) |
 | **Binary Downloads** | ! In-memory `byte[]` arrays or raw MinIO 307 redirects to external clients | >> Server-side direct bounded streaming via `Response.Body` or `File(Stream, ...)` with `81,920` buffer |
 | **Route Taxonomy & SSoT** | ! Declaring duplicate routes (`/api/*` alongside `/api/v1/*`) or verb-based paths (`/api/createTemplate`) | >> Strict SSoT on RESTful plural kebab-case `api/v1/{resource}`; immediate deletion of legacy `/api/*` routes across all controllers |
@@ -78,7 +78,7 @@ ProactiveApiGuards:
 
   - Scope: SmkDoc.Api.Controllers
     Trigger: Returning HTTP 400 for negative network reachability probe
-    CanonicalAction: Return HTTP 200 OK with ApiResponse<ConnectionTestResultDto> >> Ref: [RULE-API-004]
+    CanonicalAction: Return HTTP 200 OK with ApiResponse<TestDataConnectionResultDto> >> Ref: [RULE-API-004]
 
   - Scope: SmkDoc.Api.Responses
     Trigger: Returning raw domain entity or anonymous object new { ... }
@@ -135,6 +135,7 @@ CoreExtensionSlots:
 * [MUST] Inherit from `ControllerBase`, apply `[ApiController]`, mark class `sealed`, and define route as `[Route("api/v1/{plural-kebab-resource}")]`.
 * [MUST] Inject single-responsibility `IUseCase<TRequest, TResponse>` / `IUseCase<TRequest>` abstractions via C# 13 primary constructor.
 * [MUST] Keep action methods thin (<= 5 lines per action): delegate directly to UseCase and envelope result in `ApiResponse<T>`.
+* [MUST] Declare Command or Query as an explicit local variable (`command`, `query`) prior to UseCase invocation (prohibit inline instantiation).
 * [MUST] Apply `[Idempotent]` attribute strictly on state-mutating `POST` endpoints.
 * [MUST] Enforce Optimistic Concurrency via `[FromHeader(Name = "If-Match")] string? ifMatch` on `PUT` and `DELETE` endpoints (prohibit `[Idempotent]` on PUT/DELETE).
 * [MUST] Return `CreatedAtAction` with `201 Created` for resource creation, `Ok(new ApiResponse<T>(result))` for reads/updates, `NoContent()` for deletions, and `File(stream, contentType, fileName)` for binary streaming.
@@ -177,7 +178,8 @@ public sealed class TemplateController(
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetById([FromRoute] Guid id, CancellationToken ct)
     {
-        var result = await getTemplateByIdUseCase.ExecuteAsync(new GetTemplateByIdQuery(id), ct);
+        var query = new GetTemplateByIdQuery(id);
+        var result = await getTemplateByIdUseCase.ExecuteAsync(query, ct);
         Response.Headers.ETag = $"\"{result.ConcurrencyToken}\"";
         return Ok(new ApiResponse<TemplateResultDto>(result));
     }
@@ -187,8 +189,9 @@ public sealed class TemplateController(
     [ProducesResponseType(typeof(ApiResponse<TemplateResultDto>), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
-    public async Task<IActionResult> Create([FromBody] CreateTemplateCommand command, CancellationToken ct)
+    public async Task<IActionResult> Create([FromBody] CreateTemplateRequest request, CancellationToken ct)
     {
+        var command = new CreateTemplateCommand(request.Name, request.Slug, request.Category);
         var result = await createTemplateUseCase.ExecuteAsync(command, ct);
         return CreatedAtAction(nameof(GetById), new { id = result.Id }, new ApiResponse<TemplateResultDto>(result));
     }
@@ -196,9 +199,9 @@ public sealed class TemplateController(
     [HttpPut("{id:guid}")]
     [ProducesResponseType(typeof(ApiResponse<TemplateResultDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status412PreconditionFailed)]
-    public async Task<IActionResult> Update([FromRoute] Guid id, [FromBody] UpdateTemplateDto dto, [FromHeader(Name = "If-Match")] string? ifMatch, CancellationToken ct)
+    public async Task<IActionResult> Update([FromRoute] Guid id, [FromBody] UpdateTemplateRequest request, [FromHeader(Name = "If-Match")] string? ifMatch, CancellationToken ct)
     {
-        var command = new UpdateTemplateCommand(id, dto.Name, dto.Category, ifMatch);
+        var command = new UpdateTemplateCommand(id, request.Name, request.Category, ifMatch);
         var result = await updateTemplateUseCase.ExecuteAsync(command, ct);
         Response.Headers.ETag = $"\"{result.ConcurrencyToken}\"";
         return Ok(new ApiResponse<TemplateResultDto>(result));
@@ -209,7 +212,8 @@ public sealed class TemplateController(
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status412PreconditionFailed)]
     public async Task<IActionResult> Deactivate([FromRoute] Guid id, [FromHeader(Name = "If-Match")] string? ifMatch, CancellationToken ct)
     {
-        await deactivateTemplateUseCase.ExecuteAsync(new DeactivateTemplateCommand(id, ifMatch), ct);
+        var command = new DeactivateTemplateCommand(id, ifMatch);
+        await deactivateTemplateUseCase.ExecuteAsync(command, ct);
         return NoContent();
     }
 
@@ -315,11 +319,15 @@ public sealed record PagedApiResponse<T>(
 
 ### Diagnostic Connection Test Controller Archetype
 >> MANDATORY CANONICAL TEMPLATE [RULE-API-004]:
-* [MUST] Return HTTP `200 OK` with `ApiResponse<ConnectionTestResultDto>` containing `{ success: false, message: ... }` when network reachability fails.
+* [MUST] Return HTTP `200 OK` with `ApiResponse<TestDataConnectionResultDto>` containing `{ success: false, message: ... }` when network reachability fails.
 * [MUST] Invoke pre-flight `ConnectionHostValidator.EnsureSafeTarget(host)` throwing `SecurityViolationException` (`403 Forbidden`) on SSRF target attempts.
 ```csharp
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using SmkDoc.Api.Common.Responses;
+using SmkDoc.Api.Constants;
+using SmkDoc.Api.Contracts.Integration.DataConnections;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Integration.DataConnections.Commands.TestDataConnection;
 using SmkDoc.Application.Modules.Integration.DataConnections.DTOs;
@@ -328,16 +336,19 @@ namespace SmkDoc.Api.Controllers.Integration;
 
 [ApiController]
 [Route("api/v1/data-connections")]
-public sealed class DataConnectionController(
-    IUseCase<TestDataConnectionCommand, ConnectionTestResultDto> testConnectionUseCase) : ControllerBase
+[Authorize(Policy = SmkDocPolicies.CanManageDataConnections)]
+public sealed class DataConnectionsController(
+    IUseCase<TestDataConnectionCommand, TestDataConnectionResultDto> testUseCase) : ControllerBase
 {
     [HttpPost("test")]
-    [ProducesResponseType(typeof(ApiResponse<ConnectionTestResultDto>), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
-    public async Task<IActionResult> TestConnection([FromBody] TestDataConnectionCommand command, CancellationToken ct)
+    [EnableRateLimiting("test-conn")]
+    [ProducesResponseType(typeof(ApiResponse<TestDataConnectionResultDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> TestConnection([FromBody] TestDataConnectionRequest request, CancellationToken ct)
     {
-        var result = await testConnectionUseCase.ExecuteAsync(command, ct);
-        return Ok(new ApiResponse<ConnectionTestResultDto>(result, Success: result.IsSuccessful, Message: result.FailureReason));
+        var command = new TestDataConnectionCommand(request.Provider, request.ConnectionString);
+        var result = await testUseCase.ExecuteAsync(command, ct);
+        return Ok(new ApiResponse<TestDataConnectionResultDto>(result));
     }
 }
 ```
@@ -349,14 +360,14 @@ public sealed class DataConnectionController(
 ### [TRAP-API-001]: Fat Controller Action & Business Logic Leakage
 ```diff
 - [HttpPost] public async Task<IActionResult> Create(CreateTemplateRequest req) { if (string.IsNullOrEmpty(req.Name)) return BadRequest(); var t = Template.Create(...); await repo.AddAsync(t); await uow.CommitAsync(); return Ok(t); }
-+ [HttpPost] [Idempotent] public async Task<IActionResult> Create([FromBody] CreateTemplateCommand cmd, CancellationToken ct) { var result = await useCase.ExecuteAsync(cmd, ct); return CreatedAtAction(nameof(GetById), new { id = result.Id }, new ApiResponse<TemplateResultDto>(result)); }
++ [HttpPost] [Idempotent] public async Task<IActionResult> Create([FromBody] CreateTemplateRequest request, CancellationToken ct) { var command = new CreateTemplateCommand(request.Name, request.Slug); var result = await useCase.ExecuteAsync(command, ct); return CreatedAtAction(nameof(GetById), new { id = result.Id }, new ApiResponse<TemplateResultDto>(result)); }
 ```
 *Rationale: Placing business logic in controllers violates single responsibility, bypasses application pipelines, and makes endpoint testing cumbersome.*
 
 ### [TRAP-API-002]: Ad-Hoc Anonymous Response Envelope
 ```diff
 - return Ok(new { success = true, result = templateDto });
-+ return Ok(new ApiResponse<TemplateResultDto>(templateDto));
++ return Ok(new ApiResponse<TemplateResultDto>(result));
 ```
 *Rationale: Anonymous object returns produce untyped OpenAPI schemas and break client code-generator typing.*
 
@@ -364,30 +375,34 @@ public sealed class DataConnectionController(
 ```diff
 - [HttpPut("{id:guid}")]
 - [Idempotent]
-- public async Task<IActionResult> Update([FromRoute] Guid id, [FromBody] UpdateTemplateDto dto)
+- public async Task<IActionResult> Update([FromRoute] Guid id, [FromBody] UpdateTemplateRequest request)
 + [HttpPut("{id:guid}")]
-+ public async Task<IActionResult> Update([FromRoute] Guid id, [FromBody] UpdateTemplateDto dto, [FromHeader(Name = "If-Match")] string? ifMatch, CancellationToken ct)
++ public async Task<IActionResult> Update([FromRoute] Guid id, [FromBody] UpdateTemplateRequest request, [FromHeader(Name = "If-Match")] string? ifMatch, CancellationToken ct)
 ```
 *Rationale: PUT and DELETE are naturally idempotent by HTTP specification; applying Redis-lock idempotency introduces distributed lock overhead while failing to prevent lost-update concurrency anomalies.*
 
 ### [TRAP-API-004]: Multi-MB File Download via RAM Byte Array
 ```diff
 - var bytes = await storage.DownloadAsync(id, ct); return File(bytes, "application/pdf", "output.pdf");
-+ response.ContentType = "application/pdf"; await storageStream.CopyToAsync(response.Body, 81920, ct);
++ Response.ContentType = "application/pdf"; await storageStream.CopyToAsync(Response.Body, 81920, ct);
 ```
 *Rationale: Buffering binary documents into `byte[]` arrays causes Large Object Heap fragmentation under concurrent downloads.*
 
 ### [TRAP-API-005]: Direct Domain Entity Egress Across Controller Boundary
 ```diff
 - [HttpGet("{id}")] public async Task<ActionResult<Template>> Get(Guid id) => Ok(await repo.GetByIdAsync(new TemplateId(id)));
-+ [HttpGet("{id:guid}")] public async Task<IActionResult> GetById([FromRoute] Guid id, CancellationToken ct) => Ok(new ApiResponse<TemplateResultDto>(await useCase.ExecuteAsync(new GetTemplateByIdQuery(id), ct)));
++ [HttpGet("{id:guid}")] public async Task<IActionResult> GetById([FromRoute] Guid id, CancellationToken ct) {
++     var query = new GetTemplateByIdQuery(id);
++     var result = await useCase.ExecuteAsync(query, ct);
++     return Ok(new ApiResponse<TemplateResultDto>(result));
++ }
 ```
 *Rationale: Returning Domain Entities directly exposes internal data models, navigation proxies, and private domain invariants to outside callers.*
 
 ### [TRAP-API-006]: HTTP 400 Returned on Negative Connection Reachability Test
 ```diff
-- if (!testResult.IsSuccess) return BadRequest(new { error = testResult.Error });
-+ return Ok(new ApiResponse<ConnectionTestResultDto>(testResult, Success: testResult.IsSuccess, Message: testResult.Error));
+- if (!result.Success) return BadRequest(new { error = result.Error });
++ return Ok(new ApiResponse<TestDataConnectionResultDto>(result));
 ```
 *Rationale: An unreachable remote host during connection testing is a normal diagnostic result, NOT an HTTP client error. Returning HTTP 400 confuses automated monitoring tools.*
 

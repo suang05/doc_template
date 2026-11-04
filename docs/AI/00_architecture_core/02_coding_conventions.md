@@ -20,7 +20,7 @@ TriggerSignals: [SIGNAL_STRUCTURE_MUTATION]
 | **One Type Per File** | ! Bundling `*Command` and `*Validator` inside `*UseCase.cs` | >> Strict 1-Primary-Type-Per-File (`{TypeName}.cs`) per CQRS slice | Filesystem |
 | **Async Operations** | ! Blocking calls: `.Result`, `.Wait()`, `.GetAwaiter().GetResult()`| >> 100% `async`/`await` pipeline with forwarded `ct` | Method body |
 | **Cancellation Token** | ! Inconsistent names: `cancellationToken`, `cancelToken`, `token` | >> Parameter name strictly `ct`: `CancellationToken ct = default` | Method signature |
-| **Local Variables** | ! Chained instantiation: `repo.Add(Template.Create(...))` | >> Explicit local variable assignment before passing into method | Method body |
+| **Local Variables** | ! Inline/chained parameter instantiation: `method(new Foo(...))` | >> Explicit intermediate local variable assignment before passing into method | Everywhere (Global) |
 | **Clock Queries** | ! Direct system clock: `DateTime.UtcNow`, `DateTime.Now` | >> Parameterized `TimeProvider` or explicit `DateTimeOffset now` | Temporal logic |
 | **Test Structure** | ! God fixtures, opaque shared state, over-abstracted DRY helper chains | >> DAMP (Descriptive And Meaningful Phrases) Arrange-Act-Assert | Unit / Integration |
 
@@ -56,6 +56,10 @@ ProactiveConventionsGuards:
   - Scope: Global
     Trigger: Synchronous blocking call (.Result, .Wait())
     CanonicalAction: Enforce 100% async/await pipeline with ct >> Ref: [RULE-CONV-004]
+
+  - Scope: Global
+    Trigger: Inline/chained object instantiation inside method call argument (e.g. ExecuteAsync(new ...), method(new ...))
+    CanonicalAction: Enforce explicit local variable assignment before passing into method >> Ref: [RULE-CONV-006]
 
   - Scope: SmkDoc.Tests
     Trigger: Direct clock query via DateTime.UtcNow in test setup
@@ -115,7 +119,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
-using Moq;
+using NSubstitute;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.PublishTemplate;
 using SmkDoc.Domain.Entities;
@@ -126,18 +130,12 @@ namespace SmkDoc.Tests.Unit.Authoring.Templates;
 
 public sealed class PublishTemplateUseCaseTests
 {
-    private readonly Mock<ITemplateRepository> _templateRepositoryMock = new();
-    private readonly Mock<IUnitOfWork> _unitOfWorkMock = new();
+    private readonly ITemplateRepository _templateRepository = Substitute.For<ITemplateRepository>();
+    private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
     private readonly TimeProvider _timeProvider = TimeProvider.System;
-    private readonly PublishTemplateUseCase _sut;
 
-    public PublishTemplateUseCaseTests()
-    {
-        _sut = new PublishTemplateUseCase(
-            _templateRepositoryMock.Object,
-            _unitOfWorkMock.Object,
-            _timeProvider);
-    }
+    private PublishTemplateUseCase CreateSut() =>
+        new(_templateRepository, _unitOfWork, _timeProvider);
 
     [Fact]
     public async Task ExecuteAsync_WhenTemplateExists_PublishesVersionAndCommits()
@@ -145,18 +143,40 @@ public sealed class PublishTemplateUseCaseTests
         // Arrange
         var templateId = Guid.NewGuid();
         var template = Template.Create(Guid.NewGuid(), "Invoice", "inv", "html", DateTimeOffset.UtcNow);
-        _templateRepositoryMock.Setup(r => r.GetByIdAsync(templateId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(template);
+        _templateRepository.GetByIdAsync(templateId, Arg.Any<CancellationToken>())
+            .Returns(template);
         var command = new PublishTemplateCommand(templateId, "Initial Release");
 
         // Act
-        var result = await _sut.ExecuteAsync(command, CancellationToken.None);
+        var result = await CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         result.VersionNumber.Should().Be(1);
-        _unitOfWorkMock.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
+        await _unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
     }
 }
+```
+
+### 3.3 Canonical Explicit Local Variable Instantiation Archetype
+>> MANDATORY CANONICAL TEMPLATE [RULE-CONV-006]:
+* [MUST] Instantiate Command, Query, Entity, or complex arguments into an explicit local variable before passing to any method or UseCase invocation.
+* [MUST NOT] Inline instantiation directly into method arguments (e.g. `useCase.ExecuteAsync(new Query(...), ct)`).
+* [MUST] Name the execution output and return payload strictly as `result` (strictly PROHIBIT declaring local variables named `response`).
+* [MUST] Standardize controller envelope returns as `return Ok(new ApiResponse<TDto>(result));` (or `StatusCode(..., new ApiResponse<TDto>(result))`).
+* [MUST NOT] Inline nested constructor instantiations inside return statements (e.g. prohibit `return Ok(new ApiResponse<TDto>(new TDto(...)));`; instantiate `var result = new TDto(...);` first).
+* [MUST] Fully hydrate and return `*ResultDto` directly from the Application UseCase; strictly PROHIBIT returning raw primitives (`string`, `int`, `bool`) that force Controllers to assemble presentation DTOs.
+* [MUST] Suffix all UseCase return DTO records with `ResultDto` (e.g. `TemplateResultDto`, `CreateApiKeyResultDto`, `ScanFieldsResultDto`, `SaveHtmlResultDto`, `RollbackVersionResultDto`, `TestDataConnectionResultDto`, `DownloadUrlResultDto`); strictly PROHIBIT creating or referencing `*Response` records in Application and Presentation contracts.
+* [MUST] Enforce pure 3-step Controller dispatching: (1) Translate HTTP request to Command/Query, (2) Execute UseCase (`var result = await useCase.ExecuteAsync(command, ct);`), (3) Return envelope (`return Ok(new ApiResponse<TResultDto>(result));`).
+
+```csharp
+// 1. Explicit variable declaration
+var query = new GetDocumentJobQuery(jobId);
+
+// 2. Clean method invocation passing named reference
+var result = await getJobUseCase.ExecuteAsync(query, ct);
+
+// 3. Clean standard envelope return
+return Ok(new ApiResponse<DocumentJobDto>(result));
 ```
 
 ---
@@ -202,3 +222,11 @@ public sealed class PublishTemplateUseCaseTests
 + int[] codes = [200, 404];
 ```
 *Rationale: Collection expressions `[]` provide a unified, highly optimized C# 12+ allocation syntax recognized by Roslyn.*
+
+### [TRAP-CONV-004]: Inlined Argument Instantiation Obscuring Debugging and Execution Boundaries
+```diff
+- var result = await getJobUseCase.ExecuteAsync(new GetDocumentJobQuery(jobId), ct);
++ var query = new GetDocumentJobQuery(jobId);
++ var result = await getJobUseCase.ExecuteAsync(query, ct);
+```
+*Rationale: Inlining object instantiation inside method arguments obscures layer boundaries, hinders breakpoint inspection, and degrades stack trace debuggability.*

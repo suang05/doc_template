@@ -32,7 +32,8 @@ public sealed class UploadFontUseCaseTests
         var result = await CreateSut().ExecuteAsync(command);
 
         // Assert
-        result.Should().Be("Custom_Font.ttf");
+        result.FontName.Should().Be("Custom_Font.ttf");
+        result.Message.Should().Be("Font uploaded successfully.");
         await _storageService.Received(1).UploadAsync(
             StorageBuckets.Fonts,
             $"fonts/{_projectId.Value:N}/Custom_Font.ttf",

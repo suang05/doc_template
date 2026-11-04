@@ -3,6 +3,7 @@ using SmkDoc.Application.Common;
 using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.Helpers;
+using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
@@ -19,9 +20,9 @@ public sealed class CommitTemplateDraftUseCase(
     IProjectRepository projectRepo,
     ISchemaInferenceService schemaInferenceService,
     ICurrentProjectContext projectContext,
-    TimeProvider timeProvider) : IUseCase<CommitTemplateDraftCommand, string>
+    TimeProvider timeProvider) : IUseCase<CommitTemplateDraftCommand, CommitDraftResultDto>
 {
-    public async Task<string> ExecuteAsync(CommitTemplateDraftCommand command, CancellationToken ct = default)
+    public async Task<CommitDraftResultDto> ExecuteAsync(CommitTemplateDraftCommand command, CancellationToken ct = default)
     {
         if (!projectContext.IsResolved)
         {
@@ -134,7 +135,7 @@ public sealed class CommitTemplateDraftUseCase(
         }
 
         await draftCache.RemoveAsync(projectContext.ProjectId, command.DraftId, ct);
-        return template.Id.Value.ToString();
+        return new CommitDraftResultDto(template.Id.Value);
     }
 
     private static TemplateFormat FormatFromExt(string ext) => ext switch

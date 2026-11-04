@@ -26,8 +26,9 @@ public sealed class DocumentHistoryController(
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<DocumentVersionDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetVersions([FromRoute] string documentRef, CancellationToken ct)
     {
-        var versions = await getVersionsUseCase.ExecuteAsync(new GetDocumentVersionsQuery(documentRef), ct);
-        return Ok(new ApiResponse<IEnumerable<DocumentVersionDto>>(versions));
+        var query = new GetDocumentVersionsQuery(documentRef);
+        var result = await getVersionsUseCase.ExecuteAsync(query, ct);
+        return Ok(new ApiResponse<IEnumerable<DocumentVersionDto>>(result));
     }
 
     /// <summary>Download specific historical version of a legal document.</summary>
@@ -36,7 +37,8 @@ public sealed class DocumentHistoryController(
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> DownloadVersion([FromRoute] string documentRef, [FromRoute] int version, CancellationToken ct)
     {
-        var result = await downloadVersionUseCase.ExecuteAsync(new DownloadDocumentVersionQuery(documentRef, version), ct);
+        var query = new DownloadDocumentVersionQuery(documentRef, version);
+        var result = await downloadVersionUseCase.ExecuteAsync(query, ct);
         return File(result.Stream, result.ContentType, result.FileName);
     }
 }

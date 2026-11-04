@@ -83,7 +83,8 @@ if (context.Request.Headers.TryGetValue("X-API-Key", out var extractedKey) &&
     !string.IsNullOrWhiteSpace(extractedKey))
 {
     var rawKey = extractedKey.ToString();
-    var validatedKey = await validateApiKeyUseCase.ExecuteAsync(new ValidateApiKeyQuery(rawKey), context.RequestAborted);
+    var query = new ValidateApiKeyQuery(rawKey);
+    var validatedKey = await validateApiKeyUseCase.ExecuteAsync(query, context.RequestAborted);
 
     if (validatedKey == null)
     {
@@ -171,7 +172,8 @@ public static class ConnectionHostValidator
 ```diff
 - var preSignedUrl = await storageService.GetDownloadUrlAsync(documentId);
 - return Redirect(preSignedUrl);
-+ var streamResult = await downloadUseCase.ExecuteAsync(new DownloadQuery(documentId), ct);
++ var query = new DownloadQuery(documentId);
++ var streamResult = await downloadUseCase.ExecuteAsync(query, ct);
 + return File(streamResult.Stream, streamResult.ContentType, streamResult.FileName);
 ```
 *Rationale: Redirecting to internal storage reveals private Docker topology and fails for external clients outside the container network.*

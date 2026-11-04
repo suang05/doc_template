@@ -24,8 +24,8 @@ public sealed class TemplateDatasetController(
     public async Task<IActionResult> GetDatasets([FromRoute] Guid id, CancellationToken ct)
     {
         var query = new GetTemplateDatasetsQuery(id);
-        var datasets = await getDatasetsUseCase.ExecuteAsync(query, ct);
-        return Ok(new ApiResponse<IEnumerable<TemplateDatasetDto>>(datasets));
+        var result = await getDatasetsUseCase.ExecuteAsync(query, ct);
+        return Ok(new ApiResponse<IEnumerable<TemplateDatasetDto>>(result));
     }
 
     /// <summary>Save (replace-all) dataset links for a template.</summary>
@@ -43,8 +43,9 @@ public sealed class TemplateDatasetController(
         var command = new SaveTemplateDatasetsCommand(id, dtos);
         await saveDatasetsUseCase.ExecuteAsync(command, ct);
 
-        var updatedDatasets = await getDatasetsUseCase.ExecuteAsync(new GetTemplateDatasetsQuery(id), ct);
-        return Ok(new ApiResponse<IEnumerable<TemplateDatasetDto>>(updatedDatasets));
+        var query = new GetTemplateDatasetsQuery(id);
+        var result = await getDatasetsUseCase.ExecuteAsync(query, ct);
+        return Ok(new ApiResponse<IEnumerable<TemplateDatasetDto>>(result));
     }
 }
 

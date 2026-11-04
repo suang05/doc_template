@@ -6,7 +6,7 @@ namespace SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 /// <summary>
 /// DTO representing an immutable version of a template file and its configuration snapshot.
 /// </summary>
-public record TemplateVersionDto(
+public sealed record TemplateVersionDto(
     Guid Id,
     Guid TemplateId,
     int Version,
@@ -25,7 +25,7 @@ public record TemplateVersionDto(
 /// <summary>
 /// Bundle DTO loaded by the Monaco Web Studio editor.
 /// </summary>
-public record TemplateStudioDto(
+public sealed record TemplateStudioDto(
     string Html,
     string? SamplePayload,
     string? DataSchema,
@@ -35,7 +35,7 @@ public record TemplateStudioDto(
 /// <summary>
 /// Schema contract DTO for external API consumers and form builders.
 /// </summary>
-public record TemplateSchemaDto(
+public sealed record TemplateSchemaDto(
     Guid TemplateId,
     string Slug,
     TemplateFormat? Format,
@@ -47,7 +47,7 @@ public record TemplateSchemaDto(
 /// <summary>
 /// Syntax validation and placeholder extraction result.
 /// </summary>
-public record TemplateValidationResultDto(
+public sealed record TemplateValidationResultDto(
     bool Valid,
     List<string> Fields,
     List<string> Errors
@@ -69,7 +69,35 @@ public sealed record TemplateDraftEntry(
 /// <summary>
 /// Result returned after step 1 (parsing) of draft upload.
 /// </summary>
-public record ParseDraftResultDto(
+public sealed record ParseDraftResultDto(
     string DraftId,
     IReadOnlyList<string> Placeholders
+);
+
+/// <summary>
+/// Result returned after scanning placeholders from a template stream or stored template.
+/// </summary>
+public sealed record ScanFieldsResultDto(
+    IReadOnlyList<string> Placeholders
+);
+
+/// <summary>
+/// Result returned after committing a template draft to permanent storage.
+/// </summary>
+public sealed record CommitDraftResultDto(
+    Guid TemplateId
+);
+
+/// <summary>
+/// Result returned after saving HTML in Monaco Studio.
+/// </summary>
+public sealed record SaveHtmlResultDto(
+    int Version
+);
+
+/// <summary>
+/// Result returned after rolling back a template version.
+/// </summary>
+public sealed record RollbackVersionResultDto(
+    int Version
 );

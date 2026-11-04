@@ -1,13 +1,14 @@
 using System.Text.RegularExpressions;
 using SmkDoc.Application.Common;
 using SmkDoc.Application.Common.Interfaces;
+using SmkDoc.Application.Modules.Authoring.Fonts.DTOs;
 using SmkDoc.Domain.Exceptions;
 
 namespace SmkDoc.Application.Modules.Authoring.Fonts.Commands.UploadFont;
 
 public sealed partial class UploadFontUseCase(
     IStorageService storageService,
-    ICurrentProjectContext projectContext) : IUseCase<UploadFontCommand, string>
+    ICurrentProjectContext projectContext) : IUseCase<UploadFontCommand, UploadFontResultDto>
 {
     private static readonly HashSet<string> AllowedContentTypes = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -29,7 +30,7 @@ public sealed partial class UploadFontUseCase(
     [GeneratedRegex(@"^[a-zA-Z0-9._-]+$")]
     private static partial Regex SafeFileNameRegex();
 
-    public async Task<string> ExecuteAsync(UploadFontCommand command, CancellationToken ct = default)
+    public async Task<UploadFontResultDto> ExecuteAsync(UploadFontCommand command, CancellationToken ct = default)
     {
         if (!projectContext.IsResolved)
         {
@@ -62,7 +63,7 @@ public sealed partial class UploadFontUseCase(
         buffer.Position = 0;
         var objectKey = StorageBuckets.TenantFontKey(projectContext.ProjectId, safeFileName);
         await storageService.UploadAsync(StorageBuckets.Fonts, objectKey, buffer, command.ContentType.Trim(), ct);
-        return safeFileName;
+        return new UploadFontResultDto("Font uploaded successfully.", safeFileName);
     }
 
     internal static string SanitizeAndValidateFileName(string? rawFileName)

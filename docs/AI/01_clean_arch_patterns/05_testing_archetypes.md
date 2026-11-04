@@ -424,12 +424,12 @@ public sealed class TemplateEndpointIntegrationTests(SmkDocApiFactory factory) :
     [Fact]
     public async Task CreateTemplate_WhenPayloadIsValid_ShouldReturn201CreatedAndPersistToPostgres()
     {
-        var command = new CreateTemplateCommand("Integration Template", "integration-template", "Testing");
+        var request = new CreateTemplateRequest("Integration Template", "integration-template", "Testing");
 
-        var response = await _client.PostAsJsonAsync("api/v1/templates", command);
+        var httpResponse = await _client.PostAsJsonAsync("api/v1/templates", request);
 
-        response.StatusCode.Should().Be(HttpStatusCode.Created);
-        var envelope = await response.Content.ReadFromJsonAsync<ApiResponse<TemplateResultDto>>();
+        httpResponse.StatusCode.Should().Be(HttpStatusCode.Created);
+        var envelope = await httpResponse.Content.ReadFromJsonAsync<ApiResponse<TemplateResultDto>>();
         envelope.Should().NotBeNull();
         envelope!.Data.Name.Should().Be("Integration Template");
         envelope.Data.Slug.Should().Be("integration-template");
@@ -458,14 +458,14 @@ public sealed class TemplateEndpointIntegrationTests(SmkDocApiFactory factory) :
 ### [TRAP-TEST-003]: Validation Logic Duplication in UseCase Slices
 ```diff
 - [Fact] public async Task Execute_WhenSlugHasUppercase_Throws() { ... } // Duplicate field permutation in UseCase test
-+ [Fact] public void Validate_WhenSlugHasUppercase_ShouldHaveError() => validator.TestValidate(cmd).ShouldHaveValidationErrorFor(c => c.Slug);
++ [Fact] public void Validate_WhenSlugHasUppercase_ShouldHaveError() => validator.TestValidate(command).ShouldHaveValidationErrorFor(c => c.Slug);
 ```
 *Rationale: Duplicating field-level regex/boundary permutations inside UseCase tests slows test execution; test property rules in isolation via `TestValidate()` and keep exactly 1 fail-fast orchestration test in the UseCase suite.*
 
 ### [TRAP-TEST-004]: Ambient Clock Flakiness
 ```diff
-- var result = await sut.ExecuteAsync(cmd, ct); result.CreatedAt.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromSeconds(1));
-+ var result = await sut.ExecuteAsync(cmd, ct); result.CreatedAt.Should().Be(fakeTimeProvider.GetUtcNow());
+- var result = await sut.ExecuteAsync(command, ct); result.CreatedAt.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromSeconds(1));
++ var result = await sut.ExecuteAsync(command, ct); result.CreatedAt.Should().Be(fakeTimeProvider.GetUtcNow());
 ```
 *Rationale: Asserting against non-deterministic system clocks causes flaky CI failures under CPU scheduling delays.*
 

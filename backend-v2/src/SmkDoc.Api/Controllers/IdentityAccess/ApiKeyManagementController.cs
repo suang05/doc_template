@@ -36,14 +36,15 @@ public sealed class ApiKeyManagementController(
         [FromRoute] Guid projectId,
         CancellationToken ct)
     {
-        var keys = await listApiKeysUseCase.ExecuteAsync(new ListApiKeysQuery(projectId), ct);
-        return Ok(new ApiResponse<IEnumerable<ApiKeyDto>>(keys));
+        var query = new ListApiKeysQuery(projectId);
+        var result = await listApiKeysUseCase.ExecuteAsync(query, ct);
+        return Ok(new ApiResponse<IEnumerable<ApiKeyDto>>(result));
     }
 
     /// <summary>Issue a new API key for the specified project (Quota: Max 2 active keys). SuperAdmin only.</summary>
     [HttpPost]
     [ServiceFilter(typeof(IdempotencyFilter))]
-    [ProducesResponseType(typeof(ApiResponse<ApiKeyResponseDto>), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ApiResponse<CreateApiKeyResultDto>), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> CreateKey(
@@ -62,16 +63,7 @@ public sealed class ApiKeyManagementController(
 
         var command = new CreateApiKeyCommand(request.Name, request.CallerApp, scope);
         var result = await createApiKeyUseCase.ExecuteAsync(command, ct);
-
-        var dto = new ApiKeyResponseDto(
-            result.Id,
-            result.Name,
-            result.CallerApp,
-            result.PlainTextKey,
-            scope,
-            request.ExpiresAt);
-
-        return StatusCode(StatusCodes.Status201Created, new ApiResponse<ApiKeyResponseDto>(dto));
+        return StatusCode(StatusCodes.Status201Created, new ApiResponse<CreateApiKeyResultDto>(result));
     }
 
     /// <summary>Revoke an API key belonging to the specified project. SuperAdmin only.</summary>

@@ -49,9 +49,9 @@ public sealed class DocumentGenerationController(
     public async Task<IActionResult> GenerateAsync([FromRoute] string slug, [FromBody] GenerateDocumentRequest request, CancellationToken ct)
     {
         var command = new EnqueueDocumentGenerationCommand(slug, request.Payload, request.OutputFormat, request.DocumentRef, request.ChangeNote, request.SkipValidation);
-        var job = await enqueueJobUseCase.ExecuteAsync(command, ct);
-        Response.Headers.Location = $"/api/v1/documents/jobs/{job.JobId}";
-        return StatusCode(StatusCodes.Status202Accepted, new ApiResponse<DocumentJobDto>(job));
+        var result = await enqueueJobUseCase.ExecuteAsync(command, ct);
+        Response.Headers.Location = $"/api/v1/documents/jobs/{result.JobId}";
+        return StatusCode(StatusCodes.Status202Accepted, new ApiResponse<DocumentJobDto>(result));
     }
 
     /// <summary>Track 2: Observability &amp; Polling endpoint to check status of an asynchronous document job.</summary>
@@ -60,7 +60,8 @@ public sealed class DocumentGenerationController(
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetJobStatus([FromRoute] Guid jobId, CancellationToken ct)
     {
-        var result = await getJobUseCase.ExecuteAsync(new GetDocumentJobQuery(jobId), ct);
+        var query = new GetDocumentJobQuery(jobId);
+        var result = await getJobUseCase.ExecuteAsync(query, ct);
         return Ok(new ApiResponse<DocumentJobDto>(result));
     }
 
@@ -70,7 +71,8 @@ public sealed class DocumentGenerationController(
     [Produces("application/pdf")]
     public async Task<IActionResult> PreviewRaw([FromBody] PreviewDocumentRequest request, CancellationToken ct)
     {
-        var pdfStream = await previewUseCase.ExecuteAsync(new PreviewDocumentQuery(request.Payload, request.Html, null), ct);
+        var query = new PreviewDocumentQuery(request.Payload, request.Html, null);
+        var pdfStream = await previewUseCase.ExecuteAsync(query, ct);
         Response.Headers.ContentDisposition = "inline";
         return File(pdfStream, "application/pdf");
     }
@@ -81,7 +83,8 @@ public sealed class DocumentGenerationController(
     [Produces("application/pdf")]
     public async Task<IActionResult> PreviewBySlug([FromRoute] string slug, [FromBody] PreviewDocumentRequest request, CancellationToken ct)
     {
-        var pdfStream = await previewUseCase.ExecuteAsync(new PreviewDocumentQuery(request.Payload, request.Html, slug), ct);
+        var query = new PreviewDocumentQuery(request.Payload, request.Html, slug);
+        var pdfStream = await previewUseCase.ExecuteAsync(query, ct);
         Response.Headers.ContentDisposition = "inline";
         return File(pdfStream, "application/pdf");
     }

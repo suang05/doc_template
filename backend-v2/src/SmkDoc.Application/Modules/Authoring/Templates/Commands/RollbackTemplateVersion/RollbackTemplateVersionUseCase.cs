@@ -1,6 +1,7 @@
 using SmkDoc.Application.Common;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.Helpers;
+using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
@@ -18,9 +19,9 @@ public sealed class RollbackTemplateVersionUseCase(
     IStorageService storageService,
     ICurrentProjectContext projectContext,
     IUnitOfWork unitOfWork,
-    TimeProvider timeProvider) : IUseCase<RollbackTemplateVersionCommand, int>
+    TimeProvider timeProvider) : IUseCase<RollbackTemplateVersionCommand, RollbackVersionResultDto>
 {
-    public async Task<int> ExecuteAsync(RollbackTemplateVersionCommand command, CancellationToken ct = default)
+    public async Task<RollbackVersionResultDto> ExecuteAsync(RollbackTemplateVersionCommand command, CancellationToken ct = default)
     {
         if (!projectContext.IsResolved)
         {
@@ -56,6 +57,6 @@ public sealed class RollbackTemplateVersionUseCase(
         templateRepo.Update(template);
         await unitOfWork.CommitAsync(ct);
 
-        return newVersion.Version;
+        return new RollbackVersionResultDto(newVersion.Version);
     }
 }

@@ -156,13 +156,13 @@ const BACKEND_INTERNAL_URL =
 
 const HOP_BY_HOP_HEADERS = ['host', 'connection', 'content-length', 'transfer-encoding'];
 
-async function proxy(req: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
+async function proxy(request: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
   const { path } = await params;
   const session = await auth();
 
-  const targetUrl = `${BACKEND_INTERNAL_URL}/api/${path.join('/')}${req.nextUrl.search}`;
+  const targetUrl = `${BACKEND_INTERNAL_URL}/api/${path.join('/')}${request.nextUrl.search}`;
 
-  const headers = new Headers(req.headers);
+  const headers = new Headers(request.headers);
   for (const name of HOP_BY_HOP_HEADERS) headers.delete(name);
 
   // Inject backend Bearer token securely from httpOnly session
@@ -177,22 +177,22 @@ async function proxy(req: NextRequest, { params }: { params: Promise<{ path: str
     headers.set('x-project-id', session.user.projectId);
   }
 
-  const hasBody = req.method !== 'GET' && req.method !== 'HEAD';
+  const hasBody = request.method !== 'GET' && request.method !== 'HEAD';
 
-  const backendRes = await fetch(targetUrl, {
-    method: req.method,
+  const backendResponse = await fetch(targetUrl, {
+    method: request.method,
     headers,
-    body: hasBody ? req.body : undefined,
+    body: hasBody ? request.body : undefined,
     duplex: hasBody ? 'half' : undefined,
   } as RequestInit);
 
-  const resHeaders = new Headers(backendRes.headers);
-  resHeaders.delete('content-encoding');
-  resHeaders.delete('content-length');
+  const responseHeaders = new Headers(backendResponse.headers);
+  responseHeaders.delete('content-encoding');
+  responseHeaders.delete('content-length');
 
-  return new Response(backendRes.body, {
-    status: backendRes.status,
-    headers: resHeaders,
+  return new Response(backendResponse.body, {
+    status: backendResponse.status,
+    headers: responseHeaders,
   });
 }
 
@@ -541,8 +541,8 @@ export function MetricsDashboardPage({ stats, recentLogs }: DashboardProps) {
 
 ### [TRAP-FRONT-002]: Direct Backend Access vs Secure Server Proxy
 ```diff
-- const res = await fetch('http://localhost:8080/api/v1/templates');
-+ const res = await fetch('/api/proxy/v1/templates');
+- const httpResponse = await fetch('http://localhost:8080/api/v1/templates');
++ const httpResponse = await fetch('/api/proxy/v1/templates');
 ```
 *Rationale: Direct browser calls to internal backend endpoints trigger CORS failures and expose authorization tokens on the client.*
 

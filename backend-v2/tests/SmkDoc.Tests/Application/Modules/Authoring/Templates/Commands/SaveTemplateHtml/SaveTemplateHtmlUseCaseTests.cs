@@ -79,10 +79,10 @@ public sealed class SaveTemplateHtmlUseCaseTests
         );
 
         // Act
-        int nextVersion = await CreateSut().ExecuteAsync(request);
+        var result = await CreateSut().ExecuteAsync(request);
 
         // Assert
-        nextVersion.Should().Be(4);
+        result.Version.Should().Be(4);
         var expectedImmutableKey = $"templates/{projectId:N}/{templateId:N}/v4.html";
 
         // Verify ONLY ONE immutable upload (no mutable activeKey overwrite)
@@ -243,9 +243,9 @@ public sealed class SaveTemplateHtmlUseCaseTests
         );
 
         // Act
-        int nextVersion = await CreateSut().ExecuteAsync(request);
+        var result = await CreateSut().ExecuteAsync(request);
 
         // Assert
-        nextVersion.Should().Be(4);
+        result.Version.Should().Be(4);
     }
 }

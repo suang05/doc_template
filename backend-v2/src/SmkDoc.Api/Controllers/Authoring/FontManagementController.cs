@@ -2,10 +2,10 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.Constants;
-using SmkDoc.Api.Contracts.Authoring.Fonts;
 using SmkDoc.Api.Filters;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Fonts.Commands.UploadFont;
+using SmkDoc.Application.Modules.Authoring.Fonts.DTOs;
 using SmkDoc.Application.Modules.Authoring.Fonts.Queries.ListFonts;
 using SmkDoc.Domain.Exceptions;
 
@@ -20,7 +20,7 @@ namespace SmkDoc.Api.Controllers.Authoring;
 [Authorize]
 public sealed class FontManagementController(
     IUseCase<ListFontsQuery, List<string>> listFontsUseCase,
-    IUseCase<UploadFontCommand, string> uploadFontUseCase) : ControllerBase
+    IUseCase<UploadFontCommand, UploadFontResultDto> uploadFontUseCase) : ControllerBase
 {
     /// <summary>List all available fonts for the active project.</summary>
     [HttpGet]
@@ -28,8 +28,8 @@ public sealed class FontManagementController(
     public async Task<IActionResult> ListFonts(CancellationToken ct)
     {
         var query = new ListFontsQuery();
-        var fonts = await listFontsUseCase.ExecuteAsync(query, ct);
-        return Ok(new ApiResponse<IEnumerable<string>>(fonts));
+        var result = await listFontsUseCase.ExecuteAsync(query, ct);
+        return Ok(new ApiResponse<IEnumerable<string>>(result));
     }
 
     /// <summary>Upload a new font file (.ttf, .otf, .woff, .woff2). Max 10 MB. Author or Admin role required.</summary>
@@ -37,7 +37,7 @@ public sealed class FontManagementController(
     [Authorize(Roles = RoleConstants.AuthorOrAdmin)]
     [Idempotent]
     [RequestSizeLimit(10 * 1024 * 1024)]
-    [ProducesResponseType(typeof(ApiResponse<UploadFontResponse>), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ApiResponse<UploadFontResultDto>), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> UploadFont(IFormFile file, CancellationToken ct)
@@ -47,7 +47,7 @@ public sealed class FontManagementController(
 
         await using var stream = file.OpenReadStream();
         var command = new UploadFontCommand(stream, file.FileName, file.ContentType);
-        var fontName = await uploadFontUseCase.ExecuteAsync(command, ct);
-        return StatusCode(StatusCodes.Status201Created, new ApiResponse<UploadFontResponse>(new UploadFontResponse("Font uploaded successfully.", fontName)));
+        var result = await uploadFontUseCase.ExecuteAsync(command, ct);
+        return StatusCode(StatusCodes.Status201Created, new ApiResponse<UploadFontResultDto>(result));
     }
 }

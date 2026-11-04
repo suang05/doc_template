@@ -90,10 +90,10 @@ public sealed class RollbackTemplateVersionUseCaseTests
             .Returns(true);
 
         // Act
-        int nextVersionNumber = await CreateSut().ExecuteAsync(new RollbackTemplateVersionCommand(template.Id.Value, 1));
+        var result = await CreateSut().ExecuteAsync(new RollbackTemplateVersionCommand(template.Id.Value, 1));
 
         // Assert
-        nextVersionNumber.Should().Be(3);
+        result.Version.Should().Be(3);
 
         // Zero-copy storage invariant: NEVER download or re-upload bytes
         await _storageService.Received(1).ExistsAsync(StorageBuckets.Templates, v1Key, Arg.Any<CancellationToken>());

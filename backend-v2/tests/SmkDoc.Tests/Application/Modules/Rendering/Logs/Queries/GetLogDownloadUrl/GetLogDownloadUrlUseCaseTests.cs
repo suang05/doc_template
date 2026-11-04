@@ -28,9 +28,10 @@ public sealed class GetLogDownloadUrlUseCaseTests
             .Returns("https://minio.sammakorn.co.th/outputs/doc.pdf?token=abc");
 
         // Act
-        var url = await CreateSut().ExecuteAsync(new GetLogDownloadUrlQuery(logId));
+        var result = await CreateSut().ExecuteAsync(new GetLogDownloadUrlQuery(logId));
 
         // Assert
-        url.Should().Contain("minio.sammakorn.co.th");
+        result.Url.Should().Contain("minio.sammakorn.co.th");
+        result.ExpiresInSeconds.Should().Be(3600);
     }
 }

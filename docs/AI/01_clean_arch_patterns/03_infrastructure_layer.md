@@ -299,28 +299,29 @@ public sealed class GotenbergClient(HttpClient httpClient)
     public async Task<Stream> ConvertHtmlToPdfStreamAsync(string htmlContent, CancellationToken ct)
     {
         using var form = new MultipartFormDataContent();
-        form.Add(new StringContent(htmlContent), "files", "index.html");
+        var content = new StringContent(htmlContent);
+        form.Add(content, "files", "index.html");
 
         using var request = new HttpRequestMessage(HttpMethod.Post, "/forms/chromium/convert/html")
         {
             Content = form
         };
 
-        var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+        var httpResponse = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
         try
         {
-            response.EnsureSuccessStatusCode();
-            var innerStream = await response.Content.ReadAsStreamAsync(ct);
-            return new ResponseDisposingStream(innerStream, response);
+            httpResponse.EnsureSuccessStatusCode();
+            var innerStream = await httpResponse.Content.ReadAsStreamAsync(ct);
+            return new ResponseDisposingStream(innerStream, httpResponse);
         }
         catch (HttpRequestException ex)
         {
-            response.Dispose();
+            httpResponse.Dispose();
             throw new DocumentRenderException($"Gotenberg cluster unreachable or returned error: {ex.Message}", ex);
         }
         catch
         {
-            response.Dispose();
+            httpResponse.Dispose();
             throw;
         }
     }
@@ -383,9 +384,13 @@ public sealed class MinioStorageService(
     private async Task EnsureBucketInitializedOnceAsync(string bucket, CancellationToken ct)
     {
         if (initializedBuckets.ContainsKey(bucket)) return;
-        bool exists = await client.BucketExistsAsync(new BucketExistsArgs().WithBucket(bucket), ct);
+        var existsArgs = new BucketExistsArgs().WithBucket(bucket);
+        bool exists = await client.BucketExistsAsync(existsArgs, ct);
         if (!exists)
-            await client.MakeBucketAsync(new MakeBucketArgs().WithBucket(bucket), ct);
+        {
+            var makeArgs = new MakeBucketArgs().WithBucket(bucket);
+            await client.MakeBucketAsync(makeArgs, ct);
+        }
         initializedBuckets.TryAdd(bucket, true);
     }
 }

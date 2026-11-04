@@ -80,8 +80,8 @@ public sealed class DatasetController(
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
         var command = new DeleteDatasetCommand(id);
-        var success = await deleteUseCase.ExecuteAsync(command, ct);
-        if (!success) return NotFound();
+        var result = await deleteUseCase.ExecuteAsync(command, ct);
+        if (!result) return NotFound();
         return NoContent();
     }
 }

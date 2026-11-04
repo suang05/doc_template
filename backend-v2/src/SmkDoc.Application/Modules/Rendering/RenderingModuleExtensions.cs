@@ -44,7 +44,7 @@ public static class RenderingModuleExtensions
         // Observability & Generation Logs (Action-Centric Vertical Slice)
         services.AddUseCase<ListGenerationLogsQuery, GenerationLogPagedResult, ListGenerationLogsUseCase>();
         services.AddUseCase<GetLogMetricsQuery, LogMetricsDto, GetLogMetricsUseCase>();
-        services.AddUseCase<GetLogDownloadUrlQuery, string, GetLogDownloadUrlUseCase>();
+        services.AddUseCase<GetLogDownloadUrlQuery, DownloadUrlResultDto, GetLogDownloadUrlUseCase>();
         services.AddUseCase<GetLogPayloadQuery, LogPayloadResultDto, GetLogPayloadUseCase>();
         services.AddUseCase<DownloadGenerationLogDocumentQuery, DownloadGenerationLogDocumentResult, DownloadGenerationLogDocumentUseCase>();
 

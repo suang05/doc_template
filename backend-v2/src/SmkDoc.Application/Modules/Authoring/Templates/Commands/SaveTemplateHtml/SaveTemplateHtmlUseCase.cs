@@ -4,6 +4,7 @@ using SmkDoc.Application.Common;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Common.Streams;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.Helpers;
+using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
@@ -18,9 +19,9 @@ public sealed class SaveTemplateHtmlUseCase(
     IUnitOfWork unitOfWork,
     ICurrentProjectContext projectContext,
     ISchemaInferenceService schemaInferenceService,
-    TimeProvider timeProvider) : IUseCase<SaveTemplateHtmlCommand, int>
+    TimeProvider timeProvider) : IUseCase<SaveTemplateHtmlCommand, SaveHtmlResultDto>
 {
-    public async Task<int> ExecuteAsync(SaveTemplateHtmlCommand command, CancellationToken ct = default)
+    public async Task<SaveHtmlResultDto> ExecuteAsync(SaveTemplateHtmlCommand command, CancellationToken ct = default)
     {
         if (!projectContext.IsResolved)
         {
@@ -94,7 +95,7 @@ public sealed class SaveTemplateHtmlUseCase(
             templateRepo.Update(template);
             await unitOfWork.CommitAsync(ct);
 
-            return nextVersionNumber;
+            return new SaveHtmlResultDto(nextVersionNumber);
         }
         catch (Exception primaryEx)
         {

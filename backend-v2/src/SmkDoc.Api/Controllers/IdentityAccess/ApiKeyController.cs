@@ -31,14 +31,15 @@ public sealed class ApiKeyController(
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<ApiKeyDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> ListKeys(CancellationToken ct)
     {
-        var keys = await listApiKeysUseCase.ExecuteAsync(new ListApiKeysQuery(), ct);
-        return Ok(new ApiResponse<IEnumerable<ApiKeyDto>>(keys));
+        var query = new ListApiKeysQuery();
+        var result = await listApiKeysUseCase.ExecuteAsync(query, ct);
+        return Ok(new ApiResponse<IEnumerable<ApiKeyDto>>(result));
     }
 
     /// <summary>Generate a new sub-key for the current project under quota guardrails (Max 2 active keys).</summary>
     [HttpPost]
     [ServiceFilter(typeof(IdempotencyFilter))]
-    [ProducesResponseType(typeof(ApiResponse<ApiKeyResponseDto>), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ApiResponse<CreateApiKeyResultDto>), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> CreateKey([FromBody] CreateApiKeyRequest request, CancellationToken ct)
@@ -49,15 +50,7 @@ public sealed class ApiKeyController(
 
         var command = new CreateApiKeyCommand(request.Name, request.CallerApp, scope);
         var result = await createApiKeyUseCase.ExecuteAsync(command, ct);
-        var dto = new ApiKeyResponseDto(
-            result.Id,
-            result.Name,
-            result.CallerApp,
-            result.PlainTextKey,
-            scope,
-            request.ExpiresAt);
-
-        return StatusCode(StatusCodes.Status201Created, new ApiResponse<ApiKeyResponseDto>(dto));
+        return StatusCode(StatusCodes.Status201Created, new ApiResponse<CreateApiKeyResultDto>(result));
     }
 
     /// <summary>Revoke a sub-key belonging to the current project (Self-service key rotation).</summary>

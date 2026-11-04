@@ -30,7 +30,7 @@ public sealed class DataConnectionsController(
     IUseCase<CreateDataConnectionCommand, DataConnectionDto> createUseCase,
     IUseCase<UpdateDataConnectionCommand, DataConnectionDto?> updateUseCase,
     IUseCase<DeleteDataConnectionCommand, bool> deleteUseCase,
-    IUseCase<TestDataConnectionCommand, bool> testUseCase) : ControllerBase
+    IUseCase<TestDataConnectionCommand, TestDataConnectionResultDto> testUseCase) : ControllerBase
 {
     /// <summary>List all configured database connections.</summary>
     [HttpGet]
@@ -85,21 +85,20 @@ public sealed class DataConnectionsController(
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
         var command = new DeleteDataConnectionCommand(id);
-        var success = await deleteUseCase.ExecuteAsync(command, ct);
-        if (!success) return NotFound();
+        var result = await deleteUseCase.ExecuteAsync(command, ct);
+        if (!result) return NotFound();
         return NoContent();
     }
 
     /// <summary>Test connection credentials and reachability.</summary>
     [HttpPost("test")]
     [EnableRateLimiting("test-conn")]
-    [ProducesResponseType(typeof(ApiResponse<TestDataConnectionResponseDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<TestDataConnectionResultDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> TestConnection([FromBody] TestDataConnectionRequest request, CancellationToken ct)
     {
         var command = new TestDataConnectionCommand(request.Provider, request.ConnectionString);
-        var success = await testUseCase.ExecuteAsync(command, ct);
-        var message = success ? "Connection successful." : "Connection failed.";
-        return Ok(new ApiResponse<TestDataConnectionResponseDto>(new TestDataConnectionResponseDto(success, message)));
+        var result = await testUseCase.ExecuteAsync(command, ct);
+        return Ok(new ApiResponse<TestDataConnectionResultDto>(result));
     }
 }

@@ -168,28 +168,28 @@ public sealed class GotenbergHtmlRenderer(HttpClient httpClient)
             Content = content
         };
 
-        var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
-        if (!response.IsSuccessStatusCode)
+        var httpResponse = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+        if (!httpResponse.IsSuccessStatusCode)
         {
             try
             {
-                var errorDetail = await response.Content.ReadAsStringAsync(ct);
-                throw new DocumentRenderException($"Gotenberg rendering failed ({response.StatusCode}): {errorDetail}");
+                var errorDetail = await httpResponse.Content.ReadAsStringAsync(ct);
+                throw new DocumentRenderException($"Gotenberg rendering failed ({httpResponse.StatusCode}): {errorDetail}");
             }
             finally
             {
-                response.Dispose();
+                httpResponse.Dispose();
             }
         }
 
         try
         {
-            var innerStream = await response.Content.ReadAsStreamAsync(ct);
-            return new ResponseDisposingStream(innerStream, response);
+            var innerStream = await httpResponse.Content.ReadAsStreamAsync(ct);
+            return new ResponseDisposingStream(innerStream, httpResponse);
         }
         catch
         {
-            response.Dispose();
+            httpResponse.Dispose();
             throw;
         }
     }
@@ -265,8 +265,8 @@ public sealed class DocumentGenerationController(
     public async Task<IActionResult> Generate([FromRoute] string slug, [FromBody] GenerateDocumentRequest request, CancellationToken ct)
     {
         var command = new GenerateDocumentCommand(slug, request.Payload, request.OutputFormat, request.DocumentRef, request.ChangeNote, request.SkipValidation);
-        var response = await generateUseCase.ExecuteAsync(command, ct);
-        return Ok(new ApiResponse<GenerateDocumentResultDto>(response));
+        var result = await generateUseCase.ExecuteAsync(command, ct);
+        return Ok(new ApiResponse<GenerateDocumentResultDto>(result));
     }
 
     [HttpPost("preview")]
@@ -291,9 +291,9 @@ public sealed class DocumentGenerationController(
         var finalSlug = !string.IsNullOrWhiteSpace(slug) ? slug : templateSlug;
         if (string.IsNullOrWhiteSpace(finalSlug)) throw new DomainValidationException("Template slug is required.");
         var command = new EnqueueDocumentGenerationCommand(finalSlug, request.Payload, request.OutputFormat, request.DocumentRef, request.ChangeNote, request.SkipValidation);
-        var job = await enqueueJobUseCase.ExecuteAsync(command, ct);
-        Response.Headers.Location = $"/api/v1/documents/jobs/{job.JobId}";
-        return StatusCode(StatusCodes.Status202Accepted, new ApiResponse<DocumentJobDto>(job));
+        var result = await enqueueJobUseCase.ExecuteAsync(command, ct);
+        Response.Headers.Location = $"/api/v1/documents/jobs/{result.JobId}";
+        return StatusCode(StatusCodes.Status202Accepted, new ApiResponse<DocumentJobDto>(result));
     }
 
     [HttpGet("jobs/{jobId:guid}")]
@@ -302,8 +302,8 @@ public sealed class DocumentGenerationController(
     public async Task<IActionResult> GetJobStatus([FromRoute] Guid jobId, CancellationToken ct)
     {
         var query = new GetDocumentJobQuery(jobId);
-        var job = await getJobUseCase.ExecuteAsync(query, ct);
-        return Ok(new ApiResponse<DocumentJobDto>(job));
+        var result = await getJobUseCase.ExecuteAsync(query, ct);
+        return Ok(new ApiResponse<DocumentJobDto>(result));
     }
 }
 ```

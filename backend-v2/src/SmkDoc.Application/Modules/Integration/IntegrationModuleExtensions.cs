@@ -31,7 +31,7 @@ public static class IntegrationModuleExtensions
         services.AddUseCase<CreateDataConnectionCommand, DataConnectionDto, CreateDataConnectionUseCase>();
         services.AddUseCase<UpdateDataConnectionCommand, DataConnectionDto?, UpdateDataConnectionUseCase>();
         services.AddUseCase<DeleteDataConnectionCommand, bool, DeleteDataConnectionUseCase>();
-        services.AddUseCase<TestDataConnectionCommand, bool, TestDataConnectionUseCase>();
+        services.AddUseCase<TestDataConnectionCommand, TestDataConnectionResultDto, TestDataConnectionUseCase>();
         services.AddUseCase<GetDataConnectionByIdQuery, DataConnectionDto?, GetDataConnectionByIdUseCase>();
         services.AddUseCase<ListDataConnectionsQuery, List<DataConnectionDto>, ListDataConnectionsUseCase>();
 

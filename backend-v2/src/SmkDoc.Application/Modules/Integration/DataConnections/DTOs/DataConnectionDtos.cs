@@ -9,3 +9,11 @@ public sealed record DataConnectionDto(
     string Provider,
     DateTimeOffset CreatedAt,
     DateTimeOffset? UpdatedAt);
+
+/// <summary>
+/// Result returned after testing connectivity to an external database.
+/// </summary>
+public sealed record TestDataConnectionResultDto(
+    bool Success,
+    string? Message = null,
+    string? Error = null);

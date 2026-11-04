@@ -3,7 +3,7 @@ namespace SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
 /// <summary>
 /// DTO representing an API Key record. MaskedKey exposes only the prefix and trailing hash characters.
 /// </summary>
-public record ApiKeyDto(
+public sealed record ApiKeyDto(
     Guid Id,
     string Name,
     string CallerApp,
@@ -17,17 +17,22 @@ public record ApiKeyDto(
 /// <summary>
 /// Result returned immediately after creating an API key, containing the one-time plain-text key.
 /// </summary>
-public record CreateApiKeyResultDto(
+public sealed record CreateApiKeyResultDto(
     Guid Id,
     string Name,
     string CallerApp,
-    string PlainTextKey
-);
+    string PlainTextKey,
+    string Scope = "ReadWrite",
+    DateTimeOffset? ExpiresAt = null
+)
+{
+    public string Key => PlainTextKey;
+}
 
 /// <summary>
 /// DTO representing an API key provisioned for a workspace.
 /// </summary>
-public record ProvisionedApiKeyDto(
+public sealed record ProvisionedApiKeyDto(
     string Name,
     string Scope,
     string PlainTextKey
@@ -36,7 +41,7 @@ public record ProvisionedApiKeyDto(
 /// <summary>
 /// DTO returned after validating an API key.
 /// </summary>
-public record ValidatedApiKeyDto(
+public sealed record ValidatedApiKeyDto(
     Guid Id,
     string CallerApp,
     Guid ProjectId,

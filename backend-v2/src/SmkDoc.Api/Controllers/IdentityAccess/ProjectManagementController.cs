@@ -40,10 +40,10 @@ public sealed class ProjectManagementController(
     {
         var userId = User.GetUserId();
         var query = new ListProjectsQuery(userId, search, page, pageSize);
-        var result = await listProjectsUseCase.ExecuteAsync(query, ct);
+        var pagedResult = await listProjectsUseCase.ExecuteAsync(query, ct);
 
-        var response = new PagedApiResponse<ProjectResultDto>(result.Items, result.TotalCount, result.Page, result.PageSize);
-        return Ok(response);
+        var result = new PagedApiResponse<ProjectResultDto>(pagedResult.Items, pagedResult.TotalCount, pagedResult.Page, pagedResult.PageSize);
+        return Ok(result);
     }
 
     /// <summary>Get a specific project by its ID.</summary>
@@ -53,13 +53,13 @@ public sealed class ProjectManagementController(
     public async Task<IActionResult> GetProjectById([FromRoute] Guid projectId, CancellationToken ct)
     {
         var query = new GetProjectByIdQuery(projectId);
-        var project = await getProjectByIdUseCase.ExecuteAsync(query, ct);
-        if (project is null)
+        var result = await getProjectByIdUseCase.ExecuteAsync(query, ct);
+        if (result is null)
         {
             return NotFound();
         }
 
-        return Ok(new ApiResponse<ProjectResultDto>(project));
+        return Ok(new ApiResponse<ProjectResultDto>(result));
     }
 
     /// <summary>Create a new project. SuperAdmin only.</summary>
@@ -71,18 +71,18 @@ public sealed class ProjectManagementController(
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> CreateProject(
-        [FromBody] CreateProjectRequest req,
+        [FromBody] CreateProjectRequest request,
         CancellationToken ct)
     {
         var userId = User.GetUserId();
-        var command = new CreateProjectCommand(userId, req.Name, req.Slug);
-        var project = await createProjectUseCase.ExecuteAsync(command, ct);
+        var command = new CreateProjectCommand(userId, request.Name, request.Slug);
+        var result = await createProjectUseCase.ExecuteAsync(command, ct);
 
         // ชี้ Location Header ไปยัง GetProjectById ที่สร้างขึ้นจริงอย่างถูกต้องตาม RFC 7231
         return CreatedAtAction(
             nameof(GetProjectById),
-            new { projectId = project.Id },
-            new ApiResponse<ProjectResultDto>(project));
+            new { projectId = result.Id },
+            new ApiResponse<ProjectResultDto>(result));
     }
 
     /// <summary>Transfer project ownership / Master Credential authority to a new IT Lead. SuperAdmin only.</summary>
@@ -93,10 +93,10 @@ public sealed class ProjectManagementController(
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> TransferOwner(
         [FromRoute] Guid projectId,
-        [FromBody] TransferProjectOwnerRequest req,
+        [FromBody] TransferProjectOwnerRequest request,
         CancellationToken ct)
     {
-        var command = new TransferProjectOwnerCommand(projectId, req.NewOwnerUserId);
+        var command = new TransferProjectOwnerCommand(projectId, request.NewOwnerUserId);
         await transferOwnerUseCase.ExecuteAsync(command, ct);
         return NoContent();
     }

@@ -27,7 +27,7 @@ public sealed class TemplateStudioController(
     IUseCase<GetTemplateHtmlSourceQuery, string> getHtmlSourceUseCase,
     IUseCase<GetTemplateStudioBundleQuery, TemplateStudioDto> getStudioBundleUseCase,
     IUseCase<GetTemplateSchemaQuery, TemplateSchemaDto> getSchemaUseCase,
-    IUseCase<SaveTemplateHtmlCommand, int> saveHtmlUseCase,
+    IUseCase<SaveTemplateHtmlCommand, SaveHtmlResultDto> saveHtmlUseCase,
     IUseCase<ValidateTemplateHtmlQuery, TemplateValidationResultDto> validateUseCase,
     IUseCase<GetTemplateMappingsQuery, List<FieldMappingDto>> getMappingsUseCase,
     IUseCase<SaveTemplateMappingsCommand> saveMappingsUseCase,
@@ -39,8 +39,8 @@ public sealed class TemplateStudioController(
     public async Task<IActionResult> GetHtml([FromRoute] Guid id, CancellationToken ct)
     {
         var query = new GetTemplateHtmlSourceQuery(id);
-        string html = await getHtmlSourceUseCase.ExecuteAsync(query, ct);
-        return Content(html, "text/html; charset=utf-8");
+        var result = await getHtmlSourceUseCase.ExecuteAsync(query, ct);
+        return Content(result, "text/html; charset=utf-8");
     }
 
     /// <summary>Get full Studio bundle: HTML source + field mappings + JSON schema.</summary>
@@ -50,8 +50,8 @@ public sealed class TemplateStudioController(
     public async Task<IActionResult> GetStudioBundle([FromRoute] Guid id, CancellationToken ct)
     {
         var query = new GetTemplateStudioBundleQuery(id);
-        var bundle = await getStudioBundleUseCase.ExecuteAsync(query, ct);
-        return Ok(new ApiResponse<TemplateStudioDto>(bundle));
+        var result = await getStudioBundleUseCase.ExecuteAsync(query, ct);
+        return Ok(new ApiResponse<TemplateStudioDto>(result));
     }
 
     /// <summary>Get inferred JSON Schema Draft-07 for a template.</summary>
@@ -60,13 +60,13 @@ public sealed class TemplateStudioController(
     public async Task<IActionResult> GetSchema([FromRoute] Guid id, CancellationToken ct)
     {
         var query = new GetTemplateSchemaQuery(id);
-        var schemaDto = await getSchemaUseCase.ExecuteAsync(query, ct);
-        return Ok(new ApiResponse<TemplateSchemaDto>(schemaDto));
+        var result = await getSchemaUseCase.ExecuteAsync(query, ct);
+        return Ok(new ApiResponse<TemplateSchemaDto>(result));
     }
 
     /// <summary>Save HTML from Monaco Editor — increments template version with optimistic concurrency check.</summary>
     [HttpPut("html")]
-    [ProducesResponseType(typeof(ApiResponse<SaveHtmlResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<SaveHtmlResultDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status412PreconditionFailed)]
     public async Task<IActionResult> SaveHtml(
         [FromRoute] Guid id,
@@ -75,9 +75,9 @@ public sealed class TemplateStudioController(
         CancellationToken ct)
     {
         var command = new SaveTemplateHtmlCommand(id, request.Html, request.SamplePayload, request.ChangeNote, ifMatch);
-        int newVersion = await saveHtmlUseCase.ExecuteAsync(command, ct);
-        Response.Headers.ETag = $"\"{newVersion}\"";
-        return Ok(new ApiResponse<SaveHtmlResponse>(new SaveHtmlResponse(newVersion)));
+        var result = await saveHtmlUseCase.ExecuteAsync(command, ct);
+        Response.Headers.ETag = $"\"{result.Version}\"";
+        return Ok(new ApiResponse<SaveHtmlResultDto>(result));
     }
 
     /// <summary>Validate HTML template syntax and Handlebars tags without persisting.</summary>
@@ -99,8 +99,8 @@ public sealed class TemplateStudioController(
     public async Task<IActionResult> GetMappings([FromRoute] Guid id, CancellationToken ct)
     {
         var query = new GetTemplateMappingsQuery(id);
-        var mappings = await getMappingsUseCase.ExecuteAsync(query, ct);
-        return Ok(new ApiResponse<IEnumerable<FieldMappingDto>>(mappings));
+        var result = await getMappingsUseCase.ExecuteAsync(query, ct);
+        return Ok(new ApiResponse<IEnumerable<FieldMappingDto>>(result));
     }
 
     /// <summary>Save (replace-all) field mappings for a template.</summary>
@@ -120,8 +120,9 @@ public sealed class TemplateStudioController(
         var command = new SaveTemplateMappingsCommand(id, dtos);
         await saveMappingsUseCase.ExecuteAsync(command, ct);
 
-        var updatedMappings = await getMappingsUseCase.ExecuteAsync(new GetTemplateMappingsQuery(id), ct);
-        return Ok(new ApiResponse<IEnumerable<FieldMappingDto>>(updatedMappings));
+        var query = new GetTemplateMappingsQuery(id);
+        var result = await getMappingsUseCase.ExecuteAsync(query, ct);
+        return Ok(new ApiResponse<IEnumerable<FieldMappingDto>>(result));
     }
 
     /// <summary>

@@ -161,7 +161,8 @@ public sealed class TransactionalUnitOfWork(
 ```diff
 - public async Task<ActionResult<Template>> Get(Guid id) => Ok(await _repo.GetByIdAsync(id));
 + public async Task<IActionResult> Get([FromRoute] Guid id, CancellationToken ct) {
-+     var result = await _useCase.ExecuteAsync(new GetTemplateQuery(id), ct);
++     var query = new GetTemplateQuery(id);
++     var result = await _useCase.ExecuteAsync(query, ct);
 +     return Ok(new ApiResponse<TemplateResultDto>(result));
 + }
 ```
@@ -198,9 +199,9 @@ public sealed class TransactionalUnitOfWork(
 
 ### [TRAP-SSRF-004]: Unsanitized HTML Forwarded to Gotenberg
 ```diff
-- var response = await gotenbergClient.SendAsync(new StringContent(userHtml));
+- var httpResponse = await gotenbergClient.SendAsync(new StringContent(userHtml));
 + var sanitizedHtml = _htmlSanitizer.Sanitize(userHtml);
-+ var response = await gotenbergClient.SendAsync(new StringContent(sanitizedHtml));
++ var httpResponse = await gotenbergClient.SendAsync(new StringContent(sanitizedHtml));
 ```
 
 ### [TRAP-AUDIT-009]: Unbounded JSON Stored in Relational OLTP Rows
@@ -234,6 +235,6 @@ public sealed class TransactionalUnitOfWork(
 
 ### [TRAP-POD-014]: In-Memory Process-Only Idempotency
 ```diff
-- _memoryCache.Set(idempotencyKey, response, TimeSpan.FromHours(24));
+- _memoryCache.Set(idempotencyKey, cachedResult, TimeSpan.FromHours(24));
 + await redisDatabase.ScriptEvaluateAsync(LuaIdempotencyAcquireScript, [key], [ttl]);
 ```

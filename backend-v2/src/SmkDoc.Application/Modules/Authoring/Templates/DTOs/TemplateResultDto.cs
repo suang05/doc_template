@@ -3,7 +3,7 @@ namespace SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 /// <summary>
 /// Safe immutable Result DTO for templates, strictly isolating Domain Entities from Presentation.
 /// </summary>
-public record TemplateResultDto(
+public sealed record TemplateResultDto(
     Guid Id,
     Guid ProjectId,
     string Name,
@@ -19,7 +19,7 @@ public record TemplateResultDto(
 /// <summary>
 /// Paged query result for templates.
 /// </summary>
-public record TemplatePagedResultDto(
+public sealed record TemplatePagedResultDto(
     IReadOnlyList<TemplateResultDto> Items,
     int TotalCount,
     int Page,

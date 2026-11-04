@@ -69,7 +69,7 @@ CoreExtensionSlots:
 ### Deterministic State Machine Contract
 | Step | Phase Name | Execution Contract | Failure Mechanics |
 |---|---|---|---|
-| **1** | **Parse & Validate** | `await validator.ValidateAsync(req, ct)` | Throws `ValidationException` (HTTP 400) |
+| **1** | **Parse & Validate** | `await validator.ValidateAsync(command, ct)` | Throws `ValidationException` (HTTP 400) |
 | **2** | **Precondition Query**| Check aggregate state or slug uniqueness | Throws `ConflictException` (409) or `NotFoundException` (404) |
 | **3** | **Domain Mutation** | Invoke Domain Factory or Aggregate business verb | Throws `DomainValidationException` (422) |
 | **4** | **Commit & Egress** | `await unitOfWork.CommitAsync(ct)` & Map DTO | Atomic rollback via DbContext on exception |
@@ -83,7 +83,7 @@ CoreExtensionSlots:
 1. `ClassTopology`: Exactly one public execution method per class: `Task<TResponse> ExecuteAsync(TRequest request, CancellationToken ct)`.
 2. `InterfaceContract`: Every use case MUST implement `IUseCase<TRequest, TResponse>` or `IUseCase<TRequest>`.
 3. `CQRSNamingAndImmutability`: Mutating inputs MUST be suffixed with `Command` (parameter named `command`); Read/Stream inputs MUST be suffixed with `Query` (parameter named `query`). Strictly prohibit `*Request` suffix in Application layer (`*Request` is reserved for Presentation HTTP wire models). All Commands and Queries MUST be `sealed record` with positional primary constructor parameters.
-4. `BoundaryFirewall`: Prohibit returning Domain Entities (`AggregateRoot`, `Entity`, `ValueObject`). Return immutable Application DTO records or `Stream`.
+4. `BoundaryFirewall`: Prohibit returning Domain Entities (`AggregateRoot`, `Entity`, `ValueObject`) or raw unhydrated primitives (`string`, `int`, `bool`) that force Presentation Controllers to assemble presentation models. Every UseCase MUST fully hydrate and return its dedicated immutable `*ResultDto` record (or `Stream`). All UseCase return DTO records MUST be suffixed with `ResultDto` (e.g. `TemplateResultDto`, `CreateApiKeyResultDto`, `ScanFieldsResultDto`, `SaveHtmlResultDto`, `RollbackVersionResultDto`, `TestDataConnectionResultDto`, `DownloadUrlResultDto`), strictly prohibiting `*Response` record definitions in Application and Presentation contracts.
 5. `TemporalResolution`: System time queries MUST consume `TimeProvider.GetUtcNow()`. Prohibit ambient clock queries (`DateTime.UtcNow`).
 6. `TransactionIsolation`: Mutating use cases commit strictly via `IUnitOfWork.CommitAsync(ct)` at egress. Read queries never mutate state.
 7. `StreamingIntegrity`: Render/Preview/Dry-Run operations MUST consume and return live `Stream` (`IRenderEngine`, `IPdfRenderer`, and `IStorageService` expose zero `byte[]` / `Task<byte[]>` return types). Seekable intermediate copies (DOCX/XLSX security scans, OpenXML/ClosedXML packages) MUST spool through `HybridSpoolStream` (`<= 64 KB` pooled `ArrayPool<byte>`; `> 64 KB` `FileOptions.DeleteOnClose` temp `FileStream`), and HTML dry-runs MUST drain to `Stream.Null` (`81,920`-byte buffer).
@@ -380,8 +380,8 @@ public sealed class CachedTemplateRenderer(
 
 ### [TRAP-APP-001]: Entity Leakage vs Application DTO
 ```diff
-- public async Task<Template> ExecuteAsync(GetTemplateQuery q, CancellationToken ct)
-+ public async Task<TemplateResultDto> ExecuteAsync(GetTemplateQuery q, CancellationToken ct)
+- public async Task<Template> ExecuteAsync(GetTemplateQuery query, CancellationToken ct)
++ public async Task<TemplateResultDto> ExecuteAsync(GetTemplateQuery query, CancellationToken ct)
 ```
 *Rationale: Domain entities leak navigation proxies, internal business states, and EF Core change tracking state.*
 

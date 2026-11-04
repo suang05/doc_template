@@ -1,5 +1,6 @@
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Common.Streams;
+using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Domain.Exceptions;
 
 namespace SmkDoc.Application.Modules.Authoring.Templates.Queries.ScanUploadedTemplate;
@@ -10,9 +11,9 @@ namespace SmkDoc.Application.Modules.Authoring.Templates.Queries.ScanUploadedTem
 /// </summary>
 public sealed class ScanUploadedTemplateUseCase(
     ITemplateScannerService scanner,
-    IDocxSecurityScanner? securityScanner = null) : IUseCase<ScanUploadedTemplateQuery, List<string>>
+    IDocxSecurityScanner? securityScanner = null) : IUseCase<ScanUploadedTemplateQuery, ScanFieldsResultDto>
 {
-    public async Task<List<string>> ExecuteAsync(ScanUploadedTemplateQuery query, CancellationToken ct = default)
+    public async Task<ScanFieldsResultDto> ExecuteAsync(ScanUploadedTemplateQuery query, CancellationToken ct = default)
     {
         if (query.Stream == null || (query.Stream.CanSeek && query.Stream.Length == 0))
         {
@@ -36,9 +37,11 @@ public sealed class ScanUploadedTemplateUseCase(
             }
 
             spool.Position = 0;
-            return await scanner.ScanPlaceholdersAsync(spool, ext, ct);
+            var docxPlaceholders = await scanner.ScanPlaceholdersAsync(spool, ext, ct);
+            return new ScanFieldsResultDto(docxPlaceholders);
         }
 
-        return await scanner.ScanPlaceholdersAsync(query.Stream, ext, ct);
+        var placeholders = await scanner.ScanPlaceholdersAsync(query.Stream, ext, ct);
+        return new ScanFieldsResultDto(placeholders);
     }
 }

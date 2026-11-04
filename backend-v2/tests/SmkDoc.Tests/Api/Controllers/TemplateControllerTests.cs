@@ -27,8 +27,8 @@ public sealed class TemplateControllerTests
     private readonly IUseCase<DeactivateTemplateCommand> _deactivateTemplateUseCase = Substitute.For<IUseCase<DeactivateTemplateCommand>>();
     private readonly IUseCase<DownloadTemplateQuery, DownloadTemplateResult> _downloadTemplateUseCase = Substitute.For<IUseCase<DownloadTemplateQuery, DownloadTemplateResult>>();
     private readonly IUseCase<ValidateTemplatePayloadQuery, ValidateTemplatePayloadResult> _validatePayloadUseCase = Substitute.For<IUseCase<ValidateTemplatePayloadQuery, ValidateTemplatePayloadResult>>();
-    private readonly IUseCase<ScanUploadedTemplateQuery, List<string>> _scanUploadedUseCase = Substitute.For<IUseCase<ScanUploadedTemplateQuery, List<string>>>();
-    private readonly IUseCase<ScanTemplatePlaceholdersQuery, List<string>> _scanStoredUseCase = Substitute.For<IUseCase<ScanTemplatePlaceholdersQuery, List<string>>>();
+    private readonly IUseCase<ScanUploadedTemplateQuery, ScanFieldsResultDto> _scanUploadedUseCase = Substitute.For<IUseCase<ScanUploadedTemplateQuery, ScanFieldsResultDto>>();
+    private readonly IUseCase<ScanTemplatePlaceholdersQuery, ScanFieldsResultDto> _scanStoredUseCase = Substitute.For<IUseCase<ScanTemplatePlaceholdersQuery, ScanFieldsResultDto>>();
     private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
 
     private TemplateController CreateSut()
@@ -65,14 +65,14 @@ public sealed class TemplateControllerTests
         formFile.OpenReadStream().Returns(new MemoryStream([1, 2, 3]));
 
         _scanUploadedUseCase.ExecuteAsync(Arg.Any<ScanUploadedTemplateQuery>(), Arg.Any<CancellationToken>())
-            .Returns(["customerName", "totalAmount"]);
+            .Returns(new ScanFieldsResultDto(["customerName", "totalAmount"]));
 
         // Act
         var result = await sut.ScanFieldsStateless(formFile, CancellationToken.None);
 
         // Assert
         var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
-        var body = okResult.Value.Should().BeOfType<ApiResponse<ScanFieldsResponse>>().Subject;
+        var body = okResult.Value.Should().BeOfType<ApiResponse<ScanFieldsResultDto>>().Subject;
         body.Data.Placeholders.Should().Contain("customerName");
         body.Data.Placeholders.Should().Contain("totalAmount");
     }
@@ -99,14 +99,14 @@ public sealed class TemplateControllerTests
         var sut = CreateSut();
         var templateId = Guid.NewGuid();
         _scanStoredUseCase.ExecuteAsync(Arg.Is<ScanTemplatePlaceholdersQuery>(q => q.Id == templateId), Arg.Any<CancellationToken>())
-            .Returns(["invoiceDate", "lineItems"]);
+            .Returns(new ScanFieldsResultDto(["invoiceDate", "lineItems"]));
 
         // Act
         var result = await sut.ScanFieldsById(templateId, CancellationToken.None);
 
         // Assert
         var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
-        var body = okResult.Value.Should().BeOfType<ApiResponse<ScanFieldsResponse>>().Subject;
+        var body = okResult.Value.Should().BeOfType<ApiResponse<ScanFieldsResultDto>>().Subject;
         body.Data.Placeholders.Should().Contain("invoiceDate");
     }
 

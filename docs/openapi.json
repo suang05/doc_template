@@ -287,17 +287,17 @@
             "content": {
               "text/plain": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfDownloadUrlResponseDto"
+                  "$ref": "#/components/schemas/ApiResponseOfDownloadUrlResultDto"
                 }
               },
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfDownloadUrlResponseDto"
+                  "$ref": "#/components/schemas/ApiResponseOfDownloadUrlResultDto"
                 }
               },
               "text/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfDownloadUrlResponseDto"
+                  "$ref": "#/components/schemas/ApiResponseOfDownloadUrlResultDto"
                 }
               }
             }
@@ -1421,17 +1421,17 @@
             "content": {
               "text/plain": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfTestDataConnectionResponseDto"
+                  "$ref": "#/components/schemas/ApiResponseOfTestDataConnectionResultDto"
                 }
               },
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfTestDataConnectionResponseDto"
+                  "$ref": "#/components/schemas/ApiResponseOfTestDataConnectionResultDto"
                 }
               },
               "text/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfTestDataConnectionResponseDto"
+                  "$ref": "#/components/schemas/ApiResponseOfTestDataConnectionResultDto"
                 }
               }
             }
@@ -2039,17 +2039,17 @@
             "content": {
               "text/plain": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfApiKeyResponseDto"
+                  "$ref": "#/components/schemas/ApiResponseOfCreateApiKeyResultDto"
                 }
               },
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfApiKeyResponseDto"
+                  "$ref": "#/components/schemas/ApiResponseOfCreateApiKeyResultDto"
                 }
               },
               "text/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfApiKeyResponseDto"
+                  "$ref": "#/components/schemas/ApiResponseOfCreateApiKeyResultDto"
                 }
               }
             }
@@ -2343,17 +2343,17 @@
             "content": {
               "text/plain": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfApiKeyResponseDto"
+                  "$ref": "#/components/schemas/ApiResponseOfCreateApiKeyResultDto"
                 }
               },
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfApiKeyResponseDto"
+                  "$ref": "#/components/schemas/ApiResponseOfCreateApiKeyResultDto"
                 }
               },
               "text/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfApiKeyResponseDto"
+                  "$ref": "#/components/schemas/ApiResponseOfCreateApiKeyResultDto"
                 }
               }
             }
@@ -3781,17 +3781,17 @@
             "content": {
               "text/plain": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfUploadFontResponse"
+                  "$ref": "#/components/schemas/ApiResponseOfUploadFontResultDto"
                 }
               },
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfUploadFontResponse"
+                  "$ref": "#/components/schemas/ApiResponseOfUploadFontResultDto"
                 }
               },
               "text/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfUploadFontResponse"
+                  "$ref": "#/components/schemas/ApiResponseOfUploadFontResultDto"
                 }
               }
             }
@@ -4409,17 +4409,17 @@
             "content": {
               "text/plain": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfScanFieldsResponse"
+                  "$ref": "#/components/schemas/ApiResponseOfScanFieldsResultDto"
                 }
               },
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfScanFieldsResponse"
+                  "$ref": "#/components/schemas/ApiResponseOfScanFieldsResultDto"
                 }
               },
               "text/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfScanFieldsResponse"
+                  "$ref": "#/components/schemas/ApiResponseOfScanFieldsResultDto"
                 }
               }
             }
@@ -4470,17 +4470,17 @@
             "content": {
               "text/plain": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfScanFieldsResponse"
+                  "$ref": "#/components/schemas/ApiResponseOfScanFieldsResultDto"
                 }
               },
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfScanFieldsResponse"
+                  "$ref": "#/components/schemas/ApiResponseOfScanFieldsResultDto"
                 }
               },
               "text/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfScanFieldsResponse"
+                  "$ref": "#/components/schemas/ApiResponseOfScanFieldsResultDto"
                 }
               }
             }
@@ -4875,17 +4875,17 @@
             "content": {
               "text/plain": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfParseDraftResponse"
+                  "$ref": "#/components/schemas/ApiResponseOfParseDraftResultDto"
                 }
               },
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfParseDraftResponse"
+                  "$ref": "#/components/schemas/ApiResponseOfParseDraftResultDto"
                 }
               },
               "text/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfParseDraftResponse"
+                  "$ref": "#/components/schemas/ApiResponseOfParseDraftResultDto"
                 }
               }
             }
@@ -5011,17 +5011,17 @@
             "content": {
               "text/plain": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfCommitDraftResponse"
+                  "$ref": "#/components/schemas/ApiResponseOfCommitDraftResultDto"
                 }
               },
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfCommitDraftResponse"
+                  "$ref": "#/components/schemas/ApiResponseOfCommitDraftResultDto"
                 }
               },
               "text/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfCommitDraftResponse"
+                  "$ref": "#/components/schemas/ApiResponseOfCommitDraftResultDto"
                 }
               }
             }
@@ -5164,17 +5164,17 @@
             "content": {
               "text/plain": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfSaveHtmlResponse"
+                  "$ref": "#/components/schemas/ApiResponseOfSaveHtmlResultDto"
                 }
               },
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfSaveHtmlResponse"
+                  "$ref": "#/components/schemas/ApiResponseOfSaveHtmlResultDto"
                 }
               },
               "text/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfSaveHtmlResponse"
+                  "$ref": "#/components/schemas/ApiResponseOfSaveHtmlResultDto"
                 }
               }
             }
@@ -5647,17 +5647,17 @@
             "content": {
               "text/plain": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfRollbackVersionResponse"
+                  "$ref": "#/components/schemas/ApiResponseOfRollbackVersionResultDto"
                 }
               },
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfRollbackVersionResponse"
+                  "$ref": "#/components/schemas/ApiResponseOfRollbackVersionResultDto"
                 }
               },
               "text/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfRollbackVersionResponse"
+                  "$ref": "#/components/schemas/ApiResponseOfRollbackVersionResultDto"
                 }
               }
             }
@@ -5739,42 +5739,7 @@
         },
         "description": "DTO representing an API Key record. MaskedKey exposes only the prefix and trailing hash characters."
       },
-      "ApiKeyResponseDto": {
-        "required": [
-          "id",
-          "name",
-          "callerApp",
-          "key"
-        ],
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "name": {
-            "type": "string"
-          },
-          "callerApp": {
-            "type": "string"
-          },
-          "key": {
-            "type": "string"
-          },
-          "scope": {
-            "type": "string",
-            "default": "ReadWrite"
-          },
-          "expiresAt": {
-            "type": [
-              "null",
-              "string"
-            ],
-            "format": "date-time"
-          }
-        }
-      },
-      "ApiResponseOfApiKeyResponseDto": {
+      "ApiResponseOfCommitDraftResultDto": {
         "required": [
           "data"
         ],
@@ -5786,14 +5751,14 @@
                 "type": "null"
               },
               {
-                "$ref": "#/components/schemas/ApiKeyResponseDto"
+                "$ref": "#/components/schemas/CommitDraftResultDto"
               }
             ]
           }
         },
         "description": "Standard API Response wrapper for successful requests that return data.\r\nEnforces the \"Envelope Pattern\" for consistent JSON schemas."
       },
-      "ApiResponseOfCommitDraftResponse": {
+      "ApiResponseOfCreateApiKeyResultDto": {
         "required": [
           "data"
         ],
@@ -5805,7 +5770,7 @@
                 "type": "null"
               },
               {
-                "$ref": "#/components/schemas/CommitDraftResponse"
+                "$ref": "#/components/schemas/CreateApiKeyResultDto"
               }
             ]
           }
@@ -5888,7 +5853,7 @@
         },
         "description": "Standard API Response wrapper for successful requests that return data.\r\nEnforces the \"Envelope Pattern\" for consistent JSON schemas."
       },
-      "ApiResponseOfDownloadUrlResponseDto": {
+      "ApiResponseOfDownloadUrlResultDto": {
         "required": [
           "data"
         ],
@@ -5900,7 +5865,7 @@
                 "type": "null"
               },
               {
-                "$ref": "#/components/schemas/DownloadUrlResponseDto"
+                "$ref": "#/components/schemas/DownloadUrlResultDto"
               }
             ]
           }
@@ -6173,7 +6138,7 @@
         },
         "description": "Standard API Response wrapper for successful requests that return data.\r\nEnforces the \"Envelope Pattern\" for consistent JSON schemas."
       },
-      "ApiResponseOfParseDraftResponse": {
+      "ApiResponseOfParseDraftResultDto": {
         "required": [
           "data"
         ],
@@ -6185,7 +6150,7 @@
                 "type": "null"
               },
               {
-                "$ref": "#/components/schemas/ParseDraftResponse"
+                "$ref": "#/components/schemas/ParseDraftResultDto"
               }
             ]
           }
@@ -6211,7 +6176,7 @@
         },
         "description": "Standard API Response wrapper for successful requests that return data.\r\nEnforces the \"Envelope Pattern\" for consistent JSON schemas."
       },
-      "ApiResponseOfRollbackVersionResponse": {
+      "ApiResponseOfRollbackVersionResultDto": {
         "required": [
           "data"
         ],
@@ -6223,14 +6188,14 @@
                 "type": "null"
               },
               {
-                "$ref": "#/components/schemas/RollbackVersionResponse"
+                "$ref": "#/components/schemas/RollbackVersionResultDto"
               }
             ]
           }
         },
         "description": "Standard API Response wrapper for successful requests that return data.\r\nEnforces the \"Envelope Pattern\" for consistent JSON schemas."
       },
-      "ApiResponseOfSaveHtmlResponse": {
+      "ApiResponseOfSaveHtmlResultDto": {
         "required": [
           "data"
         ],
@@ -6242,14 +6207,14 @@
                 "type": "null"
               },
               {
-                "$ref": "#/components/schemas/SaveHtmlResponse"
+                "$ref": "#/components/schemas/SaveHtmlResultDto"
               }
             ]
           }
         },
         "description": "Standard API Response wrapper for successful requests that return data.\r\nEnforces the \"Envelope Pattern\" for consistent JSON schemas."
       },
-      "ApiResponseOfScanFieldsResponse": {
+      "ApiResponseOfScanFieldsResultDto": {
         "required": [
           "data"
         ],
@@ -6261,7 +6226,7 @@
                 "type": "null"
               },
               {
-                "$ref": "#/components/schemas/ScanFieldsResponse"
+                "$ref": "#/components/schemas/ScanFieldsResultDto"
               }
             ]
           }
@@ -6344,7 +6309,7 @@
         },
         "description": "Standard API Response wrapper for successful requests that return data.\r\nEnforces the \"Envelope Pattern\" for consistent JSON schemas."
       },
-      "ApiResponseOfTestDataConnectionResponseDto": {
+      "ApiResponseOfTestDataConnectionResultDto": {
         "required": [
           "data"
         ],
@@ -6356,7 +6321,7 @@
                 "type": "null"
               },
               {
-                "$ref": "#/components/schemas/TestDataConnectionResponseDto"
+                "$ref": "#/components/schemas/TestDataConnectionResultDto"
               }
             ]
           }
@@ -6382,7 +6347,7 @@
         },
         "description": "Standard API Response wrapper for successful requests that return data.\r\nEnforces the \"Envelope Pattern\" for consistent JSON schemas."
       },
-      "ApiResponseOfUploadFontResponse": {
+      "ApiResponseOfUploadFontResultDto": {
         "required": [
           "data"
         ],
@@ -6394,7 +6359,7 @@
                 "type": "null"
               },
               {
-                "$ref": "#/components/schemas/UploadFontResponse"
+                "$ref": "#/components/schemas/UploadFontResultDto"
               }
             ]
           }
@@ -6509,7 +6474,7 @@
         },
         "description": "HTTP request contract for committing an uploaded template draft."
       },
-      "CommitDraftResponse": {
+      "CommitDraftResultDto": {
         "required": [
           "templateId"
         ],
@@ -6519,7 +6484,8 @@
             "type": "string",
             "format": "uuid"
           }
-        }
+        },
+        "description": "Result returned after committing a template draft to permanent storage."
       },
       "CreateApiKeyRequest": {
         "required": [
@@ -6562,6 +6528,48 @@
             "format": "uuid"
           }
         }
+      },
+      "CreateApiKeyResultDto": {
+        "required": [
+          "id",
+          "name",
+          "callerApp",
+          "plainTextKey"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "callerApp": {
+            "type": "string"
+          },
+          "plainTextKey": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string",
+            "default": "ReadWrite"
+          },
+          "expiresAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "key": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "Result returned immediately after creating an API key, containing the one-time plain-text key."
       },
       "CreateDataConnectionRequest": {
         "required": [
@@ -6917,7 +6925,7 @@
         },
         "description": "DTO representing an immutable document version in the legal audit trail."
       },
-      "DownloadUrlResponseDto": {
+      "DownloadUrlResultDto": {
         "required": [
           "url"
         ],
@@ -6936,7 +6944,7 @@
             "default": 3600
           }
         },
-        "description": "Response payload containing pre-signed document download URL and its validity window."
+        "description": "Pre-signed document download URL and validity window."
       },
       "FieldMappingDto": {
         "required": [
@@ -7480,7 +7488,7 @@
         },
         "description": "Standard pagination telemetry metadata envelope conforming to global REST API standards."
       },
-      "ParseDraftResponse": {
+      "ParseDraftResultDto": {
         "required": [
           "draftId",
           "placeholders"
@@ -7496,7 +7504,8 @@
               "type": "string"
             }
           }
-        }
+        },
+        "description": "Result returned after step 1 (parsing) of draft upload."
       },
       "PreviewDocumentRequest": {
         "required": [
@@ -7650,7 +7659,7 @@
           }
         }
       },
-      "RollbackVersionResponse": {
+      "RollbackVersionResultDto": {
         "required": [
           "version"
         ],
@@ -7664,7 +7673,8 @@
             ],
             "format": "int32"
           }
-        }
+        },
+        "description": "Result returned after rolling back a template version."
       },
       "SaveFieldMappingItemDto": {
         "required": [
@@ -7825,7 +7835,7 @@
         },
         "description": "HTTP request contract for saving updated template HTML."
       },
-      "SaveHtmlResponse": {
+      "SaveHtmlResultDto": {
         "required": [
           "version"
         ],
@@ -7839,7 +7849,8 @@
             ],
             "format": "int32"
           }
-        }
+        },
+        "description": "Result returned after saving HTML in Monaco Studio."
       },
       "SaveTemplateDatasetItemRequest": {
         "required": [
@@ -7896,7 +7907,7 @@
         },
         "description": "HTTP request contract for saving (replacing) all field mappings of a template.\r\nConforms to OWASP and REST standards by wrapping collection items in a top-level object."
       },
-      "ScanFieldsResponse": {
+      "ScanFieldsResultDto": {
         "required": [
           "placeholders"
         ],
@@ -7908,7 +7919,8 @@
               "type": "string"
             }
           }
-        }
+        },
+        "description": "Result returned after scanning placeholders from a template stream or stored template."
       },
       "SetUserStatusRequest": {
         "required": [
@@ -8277,7 +8289,7 @@
           }
         }
       },
-      "TestDataConnectionResponseDto": {
+      "TestDataConnectionResultDto": {
         "required": [
           "success"
         ],
@@ -8299,7 +8311,7 @@
             ]
           }
         },
-        "description": "Response payload for database connection connectivity test."
+        "description": "Result returned after testing connectivity to an external database."
       },
       "TokenResultDto": {
         "required": [
@@ -8437,7 +8449,7 @@
           }
         }
       },
-      "UploadFontResponse": {
+      "UploadFontResultDto": {
         "required": [
           "message",
           "fontName"
@@ -8450,7 +8462,8 @@
           "fontName": {
             "type": "string"
           }
-        }
+        },
+        "description": "Result DTO returned after successfully uploading a font file to storage."
       },
       "UserProfileDto": {
         "required": [

@@ -218,7 +218,8 @@ public sealed class ProjectContextMiddleware(
             ValidatedApiKeyDto? key;
             try
             {
-                key = await validateApiKeyUseCase.ExecuteAsync(new ValidateApiKeyQuery(rawKey), context.RequestAborted);
+                var query = new ValidateApiKeyQuery(rawKey);
+                key = await validateApiKeyUseCase.ExecuteAsync(query, context.RequestAborted);
             }
             catch (ProjectDeactivatedException ex)
             {

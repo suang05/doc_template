@@ -8,6 +8,7 @@ using SmkDoc.Application.Modules.Authoring.FieldMappings.Queries.GetTemplateData
 using SmkDoc.Application.Modules.Authoring.FieldMappings.Queries.GetTemplateMappings;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.Queries.PreviewMapping;
 using SmkDoc.Application.Modules.Authoring.Fonts.Commands.UploadFont;
+using SmkDoc.Application.Modules.Authoring.Fonts.DTOs;
 using SmkDoc.Application.Modules.Authoring.Fonts.Queries.GetFontBase64;
 using SmkDoc.Application.Modules.Authoring.Fonts.Queries.ListFonts;
 using SmkDoc.Application.Modules.Authoring.Schemas.Commands.ValidateStandaloneSchema;
@@ -48,24 +49,24 @@ public static class AuthoringModuleExtensions
         services.AddUseCase<CreateTemplateCommand, TemplateResultDto, CreateTemplateUseCase>();
         services.AddUseCase<UpdateTemplateDetailsCommand, TemplateResultDto, UpdateTemplateDetailsUseCase>();
         services.AddUseCase<DeactivateTemplateCommand, DeactivateTemplateUseCase>();
-        services.AddUseCase<RollbackTemplateVersionCommand, int, RollbackTemplateVersionUseCase>();
+        services.AddUseCase<RollbackTemplateVersionCommand, RollbackVersionResultDto, RollbackTemplateVersionUseCase>();
 
         // Template Queries (Action-Centric Vertical Slice)
         services.AddUseCase<GetTemplateByIdQuery, TemplateResultDto, GetTemplateByIdUseCase>();
         services.AddUseCase<ListTemplatesQuery, TemplatePagedResultDto, ListTemplatesUseCase>();
         services.AddUseCase<ListTemplateVersionsQuery, List<TemplateVersionDto>, ListTemplateVersionsUseCase>();
         services.AddUseCase<DownloadTemplateQuery, DownloadTemplateResult, DownloadTemplateUseCase>();
-        services.AddUseCase<ScanTemplatePlaceholdersQuery, List<string>, ScanTemplatePlaceholdersUseCase>();
-        services.AddUseCase<ScanUploadedTemplateQuery, List<string>, ScanUploadedTemplateUseCase>();
+        services.AddUseCase<ScanTemplatePlaceholdersQuery, ScanFieldsResultDto, ScanTemplatePlaceholdersUseCase>();
+        services.AddUseCase<ScanUploadedTemplateQuery, ScanFieldsResultDto, ScanUploadedTemplateUseCase>();
 
         // Monaco Studio & Draft Pipeline (Action-Centric Vertical Slice)
         services.AddUseCase<GetTemplateHtmlSourceQuery, string, GetTemplateHtmlSourceUseCase>();
         services.AddUseCase<GetTemplateStudioBundleQuery, TemplateStudioDto, GetTemplateStudioBundleUseCase>();
         services.AddUseCase<GetTemplateSchemaQuery, TemplateSchemaDto, GetTemplateSchemaUseCase>();
-        services.AddUseCase<SaveTemplateHtmlCommand, int, SaveTemplateHtmlUseCase>();
+        services.AddUseCase<SaveTemplateHtmlCommand, SaveHtmlResultDto, SaveTemplateHtmlUseCase>();
         services.AddUseCase<ParseTemplateDraftCommand, ParseDraftResultDto, ParseTemplateDraftUseCase>();
         services.AddUseCase<PreviewTemplateDraftQuery, Stream, PreviewTemplateDraftUseCase>();
-        services.AddUseCase<CommitTemplateDraftCommand, string, CommitTemplateDraftUseCase>();
+        services.AddUseCase<CommitTemplateDraftCommand, CommitDraftResultDto, CommitTemplateDraftUseCase>();
         services.AddUseCase<ValidateTemplateHtmlQuery, TemplateValidationResultDto, ValidateTemplateHtmlUseCase>();
         services.AddUseCase<ValidateTemplatePayloadQuery, ValidateTemplatePayloadResult, ValidateTemplatePayloadUseCase>();
 
@@ -78,7 +79,7 @@ public static class AuthoringModuleExtensions
 
         // Fonts (Action-Centric Vertical Slice)
         services.AddUseCase<ListFontsQuery, List<string>, ListFontsUseCase>();
-        services.AddUseCase<UploadFontCommand, string, UploadFontUseCase>();
+        services.AddUseCase<UploadFontCommand, UploadFontResultDto, UploadFontUseCase>();
         services.AddUseCase<GetFontBase64Query, string, GetFontBase64UseCase>();
 
         // Schemas

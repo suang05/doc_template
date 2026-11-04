@@ -8,11 +8,3 @@ public record CreateApiKeyRequest(
     DateTimeOffset? ExpiresAt = null,
     Guid? ProjectId = null
 );
-
-public record ApiKeyResponseDto(
-    Guid Id,
-    string Name,
-    string CallerApp,
-    string Key,
-    string Scope = "ReadWrite",
-    DateTimeOffset? ExpiresAt = null);

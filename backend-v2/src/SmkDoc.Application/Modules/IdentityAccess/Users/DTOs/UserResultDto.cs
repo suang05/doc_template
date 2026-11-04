@@ -3,7 +3,7 @@ namespace SmkDoc.Application.Modules.IdentityAccess.Users.DTOs;
 /// <summary>
 /// DTO representing user membership in a project.
 /// </summary>
-public record UserResultDto(
+public sealed record UserResultDto(
     Guid Id,
     string Email,
     string FirstName,

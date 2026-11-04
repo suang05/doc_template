@@ -67,7 +67,7 @@ public sealed class ApiKeyControllerTests
         // Assert
         var statusResult = result.Should().BeOfType<ObjectResult>().Subject;
         statusResult.StatusCode.Should().Be(StatusCodes.Status201Created);
-        var response = statusResult.Value.Should().BeOfType<ApiResponse<ApiKeyResponseDto>>().Subject;
+        var response = statusResult.Value.Should().BeOfType<ApiResponse<CreateApiKeyResultDto>>().Subject;
         response.Data.Key.Should().Be("smk_erp_plain_secret_12345");
         response.Data.Scope.Should().Be("ReadWrite");
     }

@@ -66,11 +66,11 @@ public sealed class CommitTemplateDraftUseCaseTests
             .Returns(ci => ci.ArgAt<string>(1));
 
         // Act
-        var templateIdStr = await CreateSut().ExecuteAsync(command, CancellationToken.None);
+        var result = await CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
-        templateIdStr.Should().NotBeEmpty();
-        var templateGuid = Guid.Parse(templateIdStr);
+        result.TemplateId.Should().NotBeEmpty();
+        var templateGuid = result.TemplateId;
         var expectedKey = $"templates/{_defaultProjectId.Value:N}/{templateGuid:N}/v1.xlsx";
 
         await _storageService.Received(1).UploadAsync(

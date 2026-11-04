@@ -45,8 +45,7 @@ Specialized document synthesis and infrastructure engines are strictly permitted
 | **Controller HTTP Body Payload** | `request` | `body`, `payload`, `data`, `dto`, `req` | `Task<IActionResult> Create([FromBody] CreateTemplateRequest request, CancellationToken ct)` |
 | **Application Command Payload** | `command` | `request` (inside UseCase), `cmd`, `req`, `c`, `payload` | `ExecuteAsync(CreateTemplateCommand command, CancellationToken ct)` |
 | **Application Query Payload** | `query` | `request` (inside UseCase), `q`, `qry`, `req`, `payload` | `ExecuteAsync(ListTemplatesQuery query, CancellationToken ct)` |
-| **UseCase Execution Output**| `result` | `res`, `output`, `data`, `dto`, `response` | `var result = await useCase.ExecuteAsync(command, ct);` |
-| **Controller Action Output**| `response` | `resp`, `res`, `result` | `return Ok(new ApiResponse<TemplateResultDto>(result));` |
+| **UseCase Execution Output & Controller Payload** | `result` | `response`, `res`, `output`, `data`, `dto`, `job`, `entity` | `var result = await useCase.ExecuteAsync(command, ct); return Ok(new ApiResponse<TDto>(result));` |
 | **Temporal Parameter** | `now` | `currentTime`, `utc`, `time`, `dt`, `dateTime` | `Template.Create(projectId, name, slug, category, now)` |
 | **Cancellation Token** | `ct` | `cancellationToken`, `cancelToken`, `token` | `Task<Template?> GetByIdAsync(TemplateId id, CancellationToken ct)` |
 
@@ -69,7 +68,7 @@ The codebase strictly prohibits lazy, clipped, or single-letter variable names. 
 | `msg` | `message` | Communication / Events |
 | `ex` | `exception`, `validationException` | Catch Blocks (use descriptive name) |
 | `req` | `request` (in Controller `[FromBody]`) or `command`/`query` (in Application UseCases) | Method Parameters |
-| `res` | `result` or `response` | Return Values |
+| `res`, `response` | `result` | Return Values & Local Payloads |
 
 ### 1.4 Symmetrical Casing & Wire Format Matrix
 | Layer & Language | Construct Category | Casing Convention | Concrete Code Example |
@@ -125,8 +124,14 @@ ProactiveNamingGuards:
 
 ### 3.1 Canonical CQRS Layered Action Archetype
 >> MANDATORY CANONICAL TEMPLATE [RULE-NAME-003]:
-* [MUST] Use `request` for `[FromBody]`, `command` for Application Command, and `result` for Application Output.
-* [MUST NOT] Use clipped abbreviations (`req`, `cmd`, `dto`).
+* [MUST] Use `request` for `[FromBody]`, `command` for Application Command, `query` for Application Query, and `result` for Application Output and Controller return data.
+* [MUST] Explicitly declare Command or Query as a local variable (`command`, `query`) prior to invoking `useCase.ExecuteAsync(...)`; strictly PROHIBIT inline instantiation like `ExecuteAsync(new Query(...), ct)`.
+* [MUST] Name UseCase execution output and mapped presentation DTOs strictly as `result` across all controller actions (strictly PROHIBIT role/entity synonyms: `template`, `job`, `user`, `keys`, `versions`, `project`, `fonts`, `datasets`, and strictly PROHIBIT declaring local variables named `response`).
+* [MUST] Return standard success response uniformly as `return Ok(new ApiResponse<TDto>(result));`.
+* [MUST] Suffix all UseCase return DTO records strictly with `ResultDto` (e.g. `TemplateResultDto`, `CreateApiKeyResultDto`, `ScanFieldsResultDto`, `SaveHtmlResultDto`, `RollbackVersionResultDto`, `TestDataConnectionResultDto`, `DownloadUrlResultDto`), strictly banning `*Response` record definitions in Application and Presentation layers.
+* [MUST NOT] Declare local variables named `response` (e.g. `var response = ...`); all execution outputs and return payloads must be named `result`.
+* [MUST NOT] Inline nested DTO or object instantiations inside the return statement (e.g. prohibit `return Ok(new ApiResponse<TDto>(new TDto(...)));`; explicitly instantiate `var result = new TDto(...);` first).
+* [MUST NOT] Use clipped abbreviations (`req`, `cmd`, `dto`, `res`).
 
 ```csharp
 using System.Threading;
