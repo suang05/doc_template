@@ -15,11 +15,11 @@ using SmkDoc.Application.Modules.IdentityAccess.Security.Queries.ListApiKeys;
 namespace SmkDoc.Api.Controllers.IdentityAccess;
 
 /// <summary>
-/// Centralized SuperAdmin-only API Key governance, platform auditing, and break-glass lifecycle.
+/// Centralized SuperAdmin-only API Key lifecycle management within a project context.
 /// Auth: JWT Bearer — SuperAdmin role strictly required for all operations.
 /// </summary>
 [ApiController]
-[Route("api/v1/management/api-keys")]
+[Route("api/v1/management/projects/{projectId:guid}/api-keys")]
 [Authorize(Policy = SmkDocPolicies.RequireSuperAdmin)]
 [EnableRateLimiting("api")]
 [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -29,19 +29,19 @@ public sealed class ApiKeyManagementController(
     IUseCase<CreateApiKeyCommand, CreateApiKeyResultDto> createApiKeyUseCase,
     IUseCase<RevokeApiKeyCommand> revokeApiKeyUseCase) : ControllerBase
 {
-    /// <summary>List API keys across the platform, with optional filtering by project ID. SuperAdmin only.</summary>
+    /// <summary>List all API keys for the specified project. SuperAdmin only.</summary>
     [HttpGet]
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<ApiKeyDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> ListKeys(
-        [FromQuery] Guid? projectId,
+        [FromRoute] Guid projectId,
         CancellationToken ct)
     {
         var keys = await listApiKeysUseCase.ExecuteAsync(new ListApiKeysQuery(projectId), ct);
         return Ok(new ApiResponse<IEnumerable<ApiKeyDto>>(keys));
     }
 
-    /// <summary>Provision an initial API key for a project during onboarding (Quota: Max 2 active keys). SuperAdmin only.</summary>
-    [HttpPost("/api/v1/management/projects/{projectId:guid}/api-keys")]
+    /// <summary>Issue a new API key for the specified project (Quota: Max 2 active keys). SuperAdmin only.</summary>
+    [HttpPost]
     [ServiceFilter(typeof(IdempotencyFilter))]
     [ProducesResponseType(typeof(ApiResponse<ApiKeyResponseDto>), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -74,11 +74,12 @@ public sealed class ApiKeyManagementController(
         return StatusCode(StatusCodes.Status201Created, new ApiResponse<ApiKeyResponseDto>(dto));
     }
 
-    /// <summary>Break-glass immediate revocation of an API key across any project. SuperAdmin only.</summary>
+    /// <summary>Revoke an API key belonging to the specified project. SuperAdmin only.</summary>
     [HttpDelete("{keyId:guid}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> RevokeKey(
+        [FromRoute] Guid projectId,
         [FromRoute] Guid keyId,
         CancellationToken ct)
     {

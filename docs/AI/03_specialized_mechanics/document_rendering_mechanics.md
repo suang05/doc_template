@@ -29,7 +29,7 @@ TriggerSignals: [SIGNAL_TOPOLOGY_MUTATION], [SIGNAL_API_MUTATION]
 | **Buffer Allocations & Port Purity** | ! Exposing `byte[]` / `Task<byte[]>` on `IRenderEngine`/`IPdfRenderer` or copying packages into unbounded `MemoryStream` | >> Pure `Task<Stream>` port contracts; direct HTTP response streaming (`81,920`-byte buffer), `Stream.Null` dry-run validation, and `HybridSpoolStream` (`<= 64 KB` pooled `ArrayPool<byte>`; `> 64 KB` `DeleteOnClose` temp `FileStream`) for seekable packages |
 | **Engine Resolution** | ! Hardcoded `if/else` or `switch` chains for engine selection | >> Polymorphic dispatch via `IRenderEngine` & `RenderEngineResolver` |
 | **Storage Perimeter Egress** | ! Emitting HTTP 307 redirects or raw MinIO URLs to clients | >> Server-side bounded streaming pass-through (`81,920` buffer) keeping MinIO private inside isolated Docker VPC |
-| **2-Track Rendering Pipeline**| ! Forcing high-volume batch renders through synchronous 30 req/min endpoint causing 429 rejections | >> 2-Track Architecture: 1) Sync Pipeline for Monaco Live Preview (`30 req/min`), 2) Async Queue (`POST /api/v1/documents/generate-async`, `202 Accepted` + `JobId`, Redis worker with controlled Gotenberg backpressure) |
+| **2-Track Rendering Pipeline**| ! Forcing high-volume batch renders through synchronous 30 req/min endpoint causing 429 rejections | >> 2-Track Architecture: 1) Sync Pipeline for Monaco Live Preview (`30 req/min`), 2) Async Queue (`POST /api/v1/documents/generate-async`, `202 Accepted` + `Location: /api/v1/documents/jobs/{jobId}`, `DocumentRenderQueueWorker` with `SemaphoreSlim(4)` Gotenberg backpressure and Redis/Memory `IDocumentRenderQueue`) |
 | **Resource Protection** | ! Allowing unthrottled rendering requests to saturate Gotenberg Chromium | >> Enforce dedicated `rendering` rate-limiting policy (`30 req/min` per tenant) returning RFC 9457 ProblemDetails (`429 Too Many Requests`) |
 | **OpenXML DrawingML** | ! Leaving graphic frame property IDs as default `0` | >> Explicit positive non-zero integers ($\ge 1$) via `DrawingMlIdFixer` |
 | **Excel Printing** | ! Spreadsheets clipping content on print or PDF export | >> Automatic A4 portrait fit: `worksheet.PageSetup.FitToPages(1, 0)` |
@@ -232,46 +232,91 @@ using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.Filters;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Rendering.Documents.Commands.EnqueueBatchRender;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
+using SmkDoc.Api.Common.Responses;
+using SmkDoc.Api.Constants;
+using SmkDoc.Api.Contracts.Rendering.Documents;
+using SmkDoc.Api.Filters;
+using SmkDoc.Application.Common.Interfaces;
+using SmkDoc.Application.Modules.Rendering.Documents.Commands.EnqueueDocumentGeneration;
+using SmkDoc.Application.Modules.Rendering.Documents.Commands.GenerateDocument;
 using SmkDoc.Application.Modules.Rendering.Documents.DTOs;
-using SmkDoc.Application.Modules.Rendering.Documents.Queries.GetRenderJobStatus;
-using SmkDoc.Application.Modules.Rendering.Documents.Queries.RenderDocument;
+using SmkDoc.Application.Modules.Rendering.Documents.Queries.GetDocumentJob;
+using SmkDoc.Application.Modules.Rendering.Documents.Queries.PreviewDocument;
+using SmkDoc.Application.Modules.Rendering.Logs.Queries.DownloadGenerationLogDocument;
+using SmkDoc.Domain.Exceptions;
 
 namespace SmkDoc.Api.Controllers.Rendering;
 
 [ApiController]
 [Route("api/v1/documents")]
+[Authorize(Policy = SmkDocPolicies.CanGenerateDocuments)]
 public sealed class DocumentController(
-    IUseCase<RenderDocumentQuery, Stream> renderDocumentUseCase,
-    IUseCase<EnqueueBatchRenderCommand, BatchRenderEnqueuedDto> enqueueBatchRenderUseCase,
-    IUseCase<GetRenderJobStatusQuery, RenderJobStatusDto> getJobStatusUseCase) : ControllerBase
+    IUseCase<GenerateDocumentCommand, GenerateDocumentResultDto> generateUseCase,
+    IUseCase<PreviewDocumentQuery, Stream> previewUseCase,
+    IUseCase<EnqueueDocumentGenerationCommand, DocumentJobDto> enqueueJobUseCase,
+    IUseCase<GetDocumentJobQuery, DocumentJobDto> getJobUseCase,
+    IUseCase<DownloadGenerationLogDocumentQuery, DownloadGenerationLogDocumentResult> downloadLogDocumentUseCase) : ControllerBase
 {
-    // Track 1: Synchronous Live Preview (Dedicated 30 req/min rate limit)
-    [HttpPost("preview")]
+    // Track 1: Synchronous Live Preview & Instant Generation (Dedicated 30 req/min rate limit)
+    [HttpPost("generate/{slug}")]
     [Idempotent]
-    [ProducesResponseType(typeof(FileStreamResult), StatusCodes.Status200OK)]
-    public async Task<IActionResult> Preview([FromBody] RenderDocumentQuery query, CancellationToken ct)
+    [EnableRateLimiting("rendering")]
+    [ProducesResponseType(typeof(ApiResponse<GenerateDocumentResultDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> Generate([FromRoute] string slug, [FromBody] GenerateDocumentRequest request, CancellationToken ct)
     {
-        var stream = await renderDocumentUseCase.ExecuteAsync(query, ct);
-        return File(stream, "application/pdf", "preview.pdf");
+        var command = new GenerateDocumentCommand(slug, request.Payload, request.OutputFormat, request.DocumentRef, request.ChangeNote, request.SkipValidation);
+        var response = await generateUseCase.ExecuteAsync(command, ct);
+        return Ok(new ApiResponse<GenerateDocumentResultDto>(response));
     }
 
-    // Track 2: Asynchronous High-Volume Batch Queue (202 Accepted + Job Queue)
+    [HttpPost("preview")]
+    [EnableRateLimiting("rendering")]
+    [Produces("application/pdf")]
+    public async Task<IActionResult> Preview([FromBody] PreviewDocumentRequest request, CancellationToken ct)
+    {
+        var query = new PreviewDocumentQuery(request.Payload, request.Html, null);
+        var pdfStream = await previewUseCase.ExecuteAsync(query, ct);
+        Response.Headers.ContentDisposition = "inline";
+        return File(pdfStream, "application/pdf");
+    }
+
+    // Track 2: Asynchronous High-Volume Batch Queue (202 Accepted + Location Header)
+    [HttpPost("generate-async/{slug}")]
     [HttpPost("generate-async")]
     [Idempotent]
-    [ProducesResponseType(typeof(ApiResponse<BatchRenderEnqueuedDto>), StatusCodes.Status202Accepted)]
-    public async Task<IActionResult> GenerateAsync([FromBody] EnqueueBatchRenderCommand command, CancellationToken ct)
+    [EnableRateLimiting("rendering")]
+    [ProducesResponseType(typeof(ApiResponse<DocumentJobDto>), StatusCodes.Status202Accepted)]
+    public async Task<IActionResult> GenerateAsync([FromBody] GenerateDocumentRequest request, [FromRoute] string? slug, [FromQuery] string? templateSlug, CancellationToken ct)
     {
-        var result = await enqueueBatchRenderUseCase.ExecuteAsync(command, ct);
-        return AcceptedAtAction(nameof(GetJobStatus), new { jobId = result.JobId }, new ApiResponse<BatchRenderEnqueuedDto>(result));
+        var finalSlug = !string.IsNullOrWhiteSpace(slug) ? slug : templateSlug;
+        if (string.IsNullOrWhiteSpace(finalSlug)) throw new DomainValidationException("Template slug is required.");
+        var command = new EnqueueDocumentGenerationCommand(finalSlug, request.Payload, request.OutputFormat, request.DocumentRef, request.ChangeNote, request.SkipValidation);
+        var job = await enqueueJobUseCase.ExecuteAsync(command, ct);
+        Response.Headers.Location = $"/api/v1/documents/jobs/{job.JobId}";
+        return StatusCode(StatusCodes.Status202Accepted, new ApiResponse<DocumentJobDto>(job));
     }
 
     [HttpGet("jobs/{jobId:guid}")]
-    [ProducesResponseType(typeof(ApiResponse<RenderJobStatusDto>), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ApiResponse<DocumentJobDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetJobStatus([FromRoute] Guid jobId, CancellationToken ct)
     {
-        var result = await getJobStatusUseCase.ExecuteAsync(new GetRenderJobStatusQuery(jobId), ct);
-        return Ok(new ApiResponse<RenderJobStatusDto>(result));
+        var query = new GetDocumentJobQuery(jobId);
+        var job = await getJobUseCase.ExecuteAsync(query, ct);
+        return Ok(new ApiResponse<DocumentJobDto>(job));
+    }
+
+    // Storage Perimeter Egress: Bounded Stream Pass-Through (Hiding MinIO inside Private VPC)
+    [HttpGet("download/{logId:guid}")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> Download([FromRoute] Guid logId, CancellationToken ct)
+    {
+        var result = await downloadLogDocumentUseCase.ExecuteAsync(new DownloadGenerationLogDocumentQuery(logId), ct);
+        return File(result.Stream, result.ContentType, result.FileName);
     }
 }
 ```

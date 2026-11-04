@@ -203,6 +203,27 @@ DocumentationMandate:
   DualContent: Preserve architectural "Why" (failure modes, trade-offs) with "What" (SSoT ASTs).
   PruningPolicy: Strictly prohibit destructive pruning of working production recipes or real-world edge cases.
 
+TwoPhaseDocumentationGate:
+  Phase1_CodeExclusivity:
+    - During coding, refactoring, debugging, or test execution, strictly PROHIBIT mutating files under docs/AI/.
+    - Dedicate 100% of cognitive attention budget to code correctness, type safety, and test passing.
+  
+  Phase1_5_HumanApprovalGate:
+    - [MANDATORY] At the conclusion of code verification, compute Empirical Blast Radius (do NOT guess from static tables alone):
+      1. Inspect `git diff --name-only` across backend-v2/ and frontend-v2/.
+      2. Identify modified public contracts (Entities, ValueObjects, Records, Methods, Interfaces, DTOs).
+      3. Fast-grep `docs/AI/` for modified contract names to discover authoritative SSoT files actually invalidated.
+      4. Cross-reference with `SignalTriggerRegistry` strictly as seed heuristics.
+    - Present the Transparent Impact Handoff to user with exact files and 1-line diff intent per file.
+    - Explicitly ask user: "ตรวจพบการเปลี่ยนแปลงที่กระทบเอกสารสเปก [List files]. ต้องการให้อัปเดต Living Documentation ทันทีหรือไม่?"
+    - Wait for user confirmation before touching docs/AI/.
+
+  Phase2_DedicatedArchitectPass:
+    - Triggered strictly AFTER user confirms Phase 1.5.
+    - Enter dedicated System Architect mode (clean context, zero compiler/terminal noise distractions).
+    - BatchingConstraint: Max 2-3 files per synchronization pass. If blast radius > 3 files, sequence Primary Leaf SSoT first, then Satellite Guards.
+    - Execute UniversalFivePointSynchronization across the target document batch.
+
 FourTierCognitiveHierarchy:
   Level1_Top: <context> block with TriggerSignals + Positive Invariants Matrix (Max Attention)
   Level2_Middle: Core SSoT AST & Data Contracts + Dedicated `## Engineering Rationale & Architectural Decisions`
@@ -210,24 +231,25 @@ FourTierCognitiveHierarchy:
   Level4_Bottom: Condensed Traps & High-Salience Micro-Diffs ([TRAP-*] unified diffs with concrete mechanics)
 
 SignalTriggerRegistry:
-  | Trigger Signal Token | Source Mutation Event in Codebase | Target Document & Action |
+  [ROLE: Heuristic Seed Discovery ONLY — Never a Closed-World Restriction]
+  | Trigger Signal Token | Source Mutation Event in Codebase | Target Seed Documents (Validate via Empirical Grep) |
   |---|---|---|
-  | `[SIGNAL_API_MUTATION]` | Controller, Route, Request/Response DTO | Update `docs/AI/01_clean_arch_patterns/04_api_presentation_layer.md`, `01_clean_arch_patterns/02_application_layer.md` & `00_architecture_core/04_naming_standards.md` |
-  | `[SIGNAL_DOMAIN_MUTATION]` | Entity, Aggregate Root, Strongly-Typed ID, Value Object | Update `docs/AI/01_clean_arch_patterns/01_domain_layer.md` & `00_architecture_core/01_system_architecture.md` |
-  | `[SIGNAL_DECEPTIVE_BUG]` | Runtime traps (LOH, concurrency, deadlock, SSRF) | Propose to `docs/AI/00_architecture_core/05_anti_pattern_firewall.md` |
-  | `[SIGNAL_SCHEMA_MIGRATION]` | EF Core table, column, index, converter | Update `docs/AI/01_clean_arch_patterns/03_infrastructure_layer.md` |
-  | `[SIGNAL_STRUCTURE_MUTATION]` | UseCase, Interface, Service, Layer project | Update `docs/AI/01_clean_arch_patterns/02_application_layer.md`, `00_architecture_core/01_system_architecture.md`, `02_coding_conventions.md` & `04_naming_standards.md` |
-  | `[SIGNAL_TEST_MUTATION]` | Unit/Integration tests, fixtures, builders (`SmkDoc.Tests/`, `frontend-v2/src/__tests__/`) | Update `docs/AI/01_clean_arch_patterns/05_testing_archetypes.md` |
-  | `[SIGNAL_TOPOLOGY_MUTATION]` | External services (Gotenberg, MinIO, Postgres) | Update `docs/AI/00_architecture_core/01_system_architecture.md`, `00_architecture_core/03_security_and_performance.md`, `01_clean_arch_patterns/03_infrastructure_layer.md` & `03_specialized_mechanics/document_rendering_mechanics.md` |
-  | `[SIGNAL_SECURITY_MUTATION]` | Auth handler, ApiKey, ProjectContext, tenant isolation | Update `docs/AI/00_architecture_core/03_security_and_performance.md`, `03_specialized_mechanics/multi_tenant_security_pipeline.md` & `01_clean_arch_patterns/03_infrastructure_layer.md` |
-  | `[SIGNAL_UI_MUTATION]` | Design tokens, atomic primitive, UI recipe | Update `docs/AI/02_frontend_patterns/02_ui_component_conventions.md` & `01_app_router_and_data_fetching.md` |
+  | `[SIGNAL_API_MUTATION]` | Controller, Route, Request/Response DTO | `docs/AI/01_clean_arch_patterns/04_api_presentation_layer.md`, `01_clean_arch_patterns/02_application_layer.md`, `00_architecture_core/04_naming_standards.md` |
+  | `[SIGNAL_DOMAIN_MUTATION]` | Entity, Aggregate Root, Strongly-Typed ID, Value Object | `docs/AI/01_clean_arch_patterns/01_domain_layer.md`, `00_architecture_core/01_system_architecture.md` |
+  | `[SIGNAL_DECEPTIVE_BUG]` | Runtime traps (LOH, concurrency, deadlock, SSRF) | `docs/AI/00_architecture_core/05_anti_pattern_firewall.md` |
+  | `[SIGNAL_SCHEMA_MIGRATION]` | EF Core table, column, index, converter | `docs/AI/01_clean_arch_patterns/03_infrastructure_layer.md` |
+  | `[SIGNAL_STRUCTURE_MUTATION]` | UseCase, Interface, Service, Layer project | `docs/AI/01_clean_arch_patterns/02_application_layer.md`, `00_architecture_core/01_system_architecture.md`, `02_coding_conventions.md`, `04_naming_standards.md` |
+  | `[SIGNAL_TEST_MUTATION]` | Unit/Integration tests, fixtures, builders (`SmkDoc.Tests/`, `frontend-v2/src/__tests__/`) | `docs/AI/01_clean_arch_patterns/05_testing_archetypes.md` |
+  | `[SIGNAL_TOPOLOGY_MUTATION]` | External services (Gotenberg, MinIO, Postgres) | `docs/AI/00_architecture_core/01_system_architecture.md`, `00_architecture_core/03_security_and_performance.md`, `01_clean_arch_patterns/03_infrastructure_layer.md`, `03_specialized_mechanics/document_rendering_mechanics.md` |
+  | `[SIGNAL_SECURITY_MUTATION]` | Auth handler, ApiKey, ProjectContext, tenant isolation | `docs/AI/00_architecture_core/03_security_and_performance.md`, `03_specialized_mechanics/multi_tenant_security_pipeline.md`, `01_clean_arch_patterns/03_infrastructure_layer.md` |
+  | `[SIGNAL_UI_MUTATION]` | Design tokens, atomic primitive, UI recipe | `docs/AI/02_frontend_patterns/02_ui_component_conventions.md`, `01_app_router_and_data_fetching.md` |
 
 UniversalFivePointSynchronization:
-  1. IMPACT_ANALYSIS_REASONING: Analyze causal driver and blast radius across contracts; zero destructive pruning.
-  2. UPSTREAM_BREADCRUMB_SYNC: Update high-level roadmap/header at file top.
-  3. MATRIX_AND_CATALOG_SYNC: Update summary row in corresponding matrix.
-  4. BIDIRECTIONAL_SSOT_LINK: Ensure cross-references are mutually linked.
-  5. CONTRADICTION_SWEEP: Grep for legacy syntax across `docs/AI/` and eliminate conflicts.
+  1. EMPIRICAL_BLAST_RADIUS: Combine Seed signals with `git grep` on modified contracts; confirm exact target set.
+  2. BATCHED_SSOT_MUTATION: Mutate at most 2-3 target documents per pass (Primary SSoT first).
+  3. UPSTREAM_BREADCRUMB_AND_MATRIX_SYNC: Update headers, matrices, and tables with canonical symbols.
+  4. BIDIRECTIONAL_SSOT_LINK: Ensure cross-references are mutually linked with relative markdown paths.
+  5. CONTRADICTION_SWEEP: Grep for legacy syntax or conflicting rules across `docs/AI/` and eliminate discrepancies.
 
 AuthoringInvariants:
   - TWO_TRACK_DISCIPLINE: Chat responses to the user MUST be in concise Thai. All files under `docs/AI/` and codebase MUST be strictly 100% English AST (Zero Thai characters in `docs/AI/`).
@@ -266,12 +288,15 @@ IF any check fails => REJECT mutation and restructure to meet Cognitive Anatomy 
 DefinitionOfDone:
   1. TEST_EXECUTION: Run terminal build/test commands. Tests must execute and report 100% pass rate.
   2. CODE_INSPECTION: Verify all newly declared parameters, variables, and dependencies are actively utilized.
-  3. DOC_IMPACT_ANALYSIS: Actively cross-reference all code mutations against `<doc_drift_protocol>`. If changes match any `[SIGNAL_*]`, verify proposed changes pass `<cognitive_spec_evolution_guard>` and prepare exact documentation delta (DO NOT write to disk yet).
-  4. STRUCTURED_HANDOFF: Conclude with concise architectural summary containing exact fields:
+  3. EMPIRICAL_DOC_IMPACT_ANALYSIS:
+     - Cross-reference `git diff --name-only` against codebase contracts.
+     - Grep `docs/AI/` for modified symbol names and combine with `SignalTriggerRegistry` seeds to identify truly invalidated specifications.
+     - Strictly PROHIBIT writing to `docs/AI/` during Phase 1 code implementation.
+  4. STRUCTURED_HANDOFF (Phase 1.5 Gate): Conclude with concise architectural summary containing exact fields:
      - Decisions Made & Technical Trade-offs
      - Active Verification Status (Tests & Build outputs)
      - Documentation Impact:
-       * IF mutation detected: State `[SIGNAL_*]` token, target `docs/AI/` file, show exact micro-diff, and EXPLICITLY ASK: "Would you like me to apply this documentation update now?"
+       * IF mutation detected: State detected `[SIGNAL_*]` token(s), list exact affected `docs/AI/` files with 1-line update intent per file, and EXPLICITLY ASK: "ตรวจพบการเปลี่ยนแปลงที่กระทบเอกสารสเปก [List files]. ต้องการให้อัปเดต Living Documentation ทันทีหรือไม่?"
        * IF no mutation: Declare `[NO_DOC_MUTATION_REQUIRED]` with technical rationale.
      - Identified Technical Risks & Open Questions
 </verification_protocol>

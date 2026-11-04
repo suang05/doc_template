@@ -15,7 +15,6 @@ namespace SmkDoc.Api.Controllers.Authoring;
 /// </summary>
 [ApiController]
 [Route("api/v1/templates/{id:guid}/mappings")]
-[Route("api/templates/{id:guid}/mappings")]
 public sealed class TemplateMappingController(
     IUseCase<GetTemplateMappingsQuery, List<FieldMappingDto>> getMappingsUseCase,
     IUseCase<SaveTemplateMappingsCommand> saveMappingsUseCase,

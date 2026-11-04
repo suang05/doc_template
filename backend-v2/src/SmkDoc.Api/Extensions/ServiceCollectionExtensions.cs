@@ -281,6 +281,36 @@ public static class ServiceCollectionExtensions
                 return RateLimitPartition.GetFixedWindowLimiter(partitionKey, _ => windowOptions);
             });
 
+            options.AddPolicy("rendering", context =>
+            {
+                var partitionKey = RateLimitPartitionKeyResolver.Resolve(context);
+                var windowOptions = new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = 30,
+                    Window = TimeSpan.FromMinutes(1),
+                    QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                    QueueLimit = 0,
+                    AutoReplenishment = true
+                };
+
+                if (useRedis)
+                {
+                    var multiplexer = context.RequestServices.GetService<IConnectionMultiplexer>();
+                    if (multiplexer is not null)
+                    {
+                        var logger = context.RequestServices
+                            .GetRequiredService<ILoggerFactory>()
+                            .CreateLogger<RedisFixedWindowRateLimiter>();
+
+                        return RateLimitPartition.Get(
+                            partitionKey,
+                            key => new RedisFixedWindowRateLimiter(multiplexer, key, windowOptions, logger, instancePrefix));
+                    }
+                }
+
+                return RateLimitPartition.GetFixedWindowLimiter(partitionKey, _ => windowOptions);
+            });
+
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
             options.OnRejected = async (context, ct) =>
             {

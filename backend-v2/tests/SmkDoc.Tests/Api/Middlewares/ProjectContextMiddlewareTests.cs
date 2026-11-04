@@ -122,14 +122,12 @@ public sealed class ProjectContextMiddlewareTests
         httpContext.Response.StatusCode.Should().Be(StatusCodes.Status200OK);
     }
 
-    [Theory]
-    [InlineData("/api/documents/preview")]
-    [InlineData("/api/v1/documents/preview")]
-    public async Task InvokeAsync_UnauthenticatedDocumentPreview_Returns401Unauthorized(string path)
+    [Fact]
+    public async Task InvokeAsync_UnauthenticatedDocumentPreview_Returns401Unauthorized()
     {
         // Arrange
         var sut = CreateSut();
-        var (httpContext, projectContext) = CreateContexts(path, "POST");
+        var (httpContext, projectContext) = CreateContexts("/api/v1/documents/preview", "POST");
 
         // Act
         await sut.InvokeAsync(

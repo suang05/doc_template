@@ -14,7 +14,6 @@ namespace SmkDoc.Api.Controllers.Authoring;
 /// </summary>
 [ApiController]
 [Route("api/v1/templates")]
-[Route("api/templates")]
 public sealed class TemplateScanController(
     IUseCase<ScanUploadedTemplateQuery, List<string>> scanUploadedUseCase,
     IUseCase<ScanTemplatePlaceholdersQuery, List<string>> scanStoredUseCase) : ControllerBase

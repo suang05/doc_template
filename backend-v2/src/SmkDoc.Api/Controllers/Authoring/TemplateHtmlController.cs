@@ -17,7 +17,6 @@ namespace SmkDoc.Api.Controllers.Authoring;
 /// </summary>
 [ApiController]
 [Route("api/v1/templates/{id:guid}")]
-[Route("api/templates/{id:guid}")]
 public sealed class TemplateHtmlController(
     IUseCase<GetTemplateHtmlSourceQuery, string> getHtmlSourceUseCase,
     IUseCase<GetTemplateStudioBundleQuery, TemplateStudioDto> getStudioBundleUseCase,

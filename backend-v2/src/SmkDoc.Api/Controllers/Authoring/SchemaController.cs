@@ -15,7 +15,6 @@ namespace SmkDoc.Api.Controllers.Authoring;
 /// </summary>
 [ApiController]
 [Route("api/v1/schemas")]
-[Route("api/schemas")]
 public sealed class SchemaController(
     IUseCase<ValidateStandaloneSchemaCommand, ValidateStandaloneSchemaResult> validateUseCase) : ControllerBase
 {

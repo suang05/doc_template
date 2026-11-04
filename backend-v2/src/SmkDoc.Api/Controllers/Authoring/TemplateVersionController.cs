@@ -17,7 +17,6 @@ namespace SmkDoc.Api.Controllers.Authoring;
 /// </summary>
 [ApiController]
 [Route("api/v1/templates/{id:guid}")]
-[Route("api/templates/{id:guid}")]
 public sealed class TemplateVersionController(
     IUseCase<ListTemplateVersionsQuery, List<TemplateVersionDto>> listVersionsUseCase,
     IUseCase<RollbackTemplateVersionCommand, int> rollbackUseCase,

@@ -42,7 +42,7 @@ TriggerSignals: [SIGNAL_SECURITY_MUTATION], [SIGNAL_API_MUTATION]
 | **M2M Scope Enforcement** | ! Allowing `ApiKeyScope.ReadOnly` keys to execute mutating HTTP verbs | >> Reject `POST`/`PUT`/`PATCH`/`DELETE` with `403 Forbidden` at perimeter except zero-side-effect stateless `/preview` and `/validate` routes |
 | **Preview Route Protection** | ! Whitelisting `/preview` endpoints as unauthenticated public paths | >> Require authenticated tenant context on all preview routes to resolve templates and protect Gotenberg |
 | **Idempotency Partition** | ! Keying idempotency store by shared `CallerApp` (`idempotency:portal:{key}`) | >> Partition strictly by resolved tenant: `idempotency:{ProjectId:N}:{IdempotencyKey}` |
-| **Route Sunset Strategy** | ! Hard-deleting legacy `/api/*` endpoints causing external ERP outages | >> Annotate with `[DeprecatedRoute]` emitting RFC 8594 `Sunset`, `Deprecation`, and `Link` headers before decommissioning |
+| **Route Taxonomy & SSoT** | ! Declaring duplicate routes (`/api/*` alongside `/api/v1/*`) or retaining legacy endpoints | >> Strict SSoT on `api/v1/*`; complete and immediate deletion of legacy `/api/*` routes across all perimeter security checks and controllers |
 
 ---
 

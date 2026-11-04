@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Common.Responses;
+using SmkDoc.Api.Constants;
+using SmkDoc.Api.Filters;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Rendering.Logs.DTOs;
 using SmkDoc.Application.Modules.Rendering.Logs.Queries.GetLogMetrics;
@@ -11,12 +13,11 @@ namespace SmkDoc.Api.Controllers.Rendering;
 
 /// <summary>
 /// Document generation audit logging and rendering performance metrics.
-/// Auth: Channel B (Bearer JWT).
+/// Auth: Requires Project Admin role or M2M ReadWrite scope.
 /// </summary>
 [ApiController]
 [Route("api/v1/logs")]
-[Route("api/logs")]
-[Authorize]
+[Authorize(Policy = SmkDocPolicies.RequireProjectAdmin)]
 [ProducesResponseType(StatusCodes.Status401Unauthorized)]
 public sealed class AuditLogController(
     IUseCase<ListGenerationLogsQuery, GenerationLogPagedResult> listUseCase,

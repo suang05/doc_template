@@ -1,0 +1,54 @@
+using SmkDoc.Application.Common.Exceptions;
+using SmkDoc.Application.Common.Interfaces;
+using SmkDoc.Application.Modules.Rendering.Documents.DTOs;
+using SmkDoc.Application.Modules.Rendering.Documents.Models;
+using SmkDoc.Domain.Exceptions;
+using SmkDoc.Domain.Interfaces;
+
+namespace SmkDoc.Application.Modules.Rendering.Documents.Commands.EnqueueDocumentGeneration;
+
+public sealed class EnqueueDocumentGenerationUseCase(
+    ITemplateRepository templateRepo,
+    IDocumentRenderQueue renderQueue,
+    ICurrentProjectContext projectContext,
+    TimeProvider timeProvider) : IUseCase<EnqueueDocumentGenerationCommand, DocumentJobDto>
+{
+    public async Task<DocumentJobDto> ExecuteAsync(EnqueueDocumentGenerationCommand command, CancellationToken ct = default)
+    {
+        if (!projectContext.IsResolved)
+        {
+            throw new ForbiddenException("Active project context is required to enqueue a document generation job.");
+        }
+
+        var template = await templateRepo.GetBySlugWithDetailsAsync(command.Slug, ct);
+        if (template == null || !template.IsActive)
+        {
+            throw new NotFoundException($"Template '{command.Slug}' not found or inactive.");
+        }
+
+        _ = template.GetPublishedVersion();
+
+        var now = timeProvider.GetUtcNow();
+        var jobId = Guid.CreateVersion7();
+        string payloadJson = command.Payload.ValueKind is System.Text.Json.JsonValueKind.Undefined or System.Text.Json.JsonValueKind.Null
+            ? "{}"
+            : command.Payload.GetRawText();
+
+        var job = new DocumentJob(
+            jobId,
+            projectContext.ProjectId.Value,
+            projectContext.CallerIdentity ?? "m2m-client",
+            command.Slug,
+            payloadJson,
+            command.OutputFormat,
+            command.DocumentRef,
+            command.ChangeNote,
+            command.SkipValidation,
+            now);
+
+        await renderQueue.EnqueueAsync(job, ct);
+
+        return DocumentJobDto.FromJob(job);
+    }
+}
+

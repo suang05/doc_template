@@ -391,9 +391,7 @@ public sealed class ProjectContextMiddleware(
         {
             bool isStatelessPreviewOrValidate =
                 normalizedLowerPath.StartsWith("/api/v1/documents/preview", StringComparison.Ordinal)
-                || normalizedLowerPath.StartsWith("/api/documents/preview", StringComparison.Ordinal)
                 || normalizedLowerPath.StartsWith("/api/v1/rendering/preview", StringComparison.Ordinal)
-                || normalizedLowerPath.StartsWith("/api/rendering/preview", StringComparison.Ordinal)
                 || normalizedLowerPath.EndsWith("/validate", StringComparison.Ordinal)
                 || normalizedLowerPath.EndsWith("/validate-payload", StringComparison.Ordinal);
 
@@ -419,8 +417,7 @@ public sealed class ProjectContextMiddleware(
             || path.StartsWith("/docs", StringComparison.OrdinalIgnoreCase)
             || path.StartsWith("/api/v1/auth/login", StringComparison.OrdinalIgnoreCase)
             || path.StartsWith("/api/v1/auth/refresh", StringComparison.OrdinalIgnoreCase)
-            || path.StartsWith("/api/v1/schemas/validate", StringComparison.OrdinalIgnoreCase)
-            || path.StartsWith("/api/schemas/validate", StringComparison.OrdinalIgnoreCase);
+            || path.StartsWith("/api/v1/schemas/validate", StringComparison.OrdinalIgnoreCase);
     }
 
     private static async Task WriteProblemDetailsAsync(

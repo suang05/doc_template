@@ -18,7 +18,6 @@ namespace SmkDoc.Api.Controllers.Integration;
 /// </summary>
 [ApiController]
 [Route("api/v1/datasets")]
-[Route("api/datasets")]
 [Authorize]
 [ProducesResponseType(StatusCodes.Status401Unauthorized)]
 public sealed class DatasetController(

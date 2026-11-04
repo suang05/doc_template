@@ -19,7 +19,6 @@ namespace SmkDoc.Api.Controllers.Integration;
 /// </summary>
 [ApiController]
 [Route("api/v1/data-connections")]
-[Route("api/data-connections")]
 [Authorize]
 [ProducesResponseType(StatusCodes.Status401Unauthorized)]
 public sealed class DataConnectionsController(

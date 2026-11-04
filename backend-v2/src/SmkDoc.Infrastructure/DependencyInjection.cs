@@ -25,10 +25,12 @@ using SmkDoc.Infrastructure.Persistence;
 using SmkDoc.Infrastructure.Persistence.Interceptors;
 using SmkDoc.Infrastructure.Persistence.Queries;
 using SmkDoc.Infrastructure.Persistence.Repositories;
+using SmkDoc.Infrastructure.Queue;
 using SmkDoc.Infrastructure.Schema;
 using SmkDoc.Infrastructure.Security;
 using SmkDoc.Infrastructure.Services.Logging;
 using SmkDoc.Infrastructure.Storage;
+using StackExchange.Redis;
 
 namespace SmkDoc.Infrastructure;
 
@@ -204,6 +206,26 @@ public static class DependencyInjection
         services.AddSingleton<IPasswordHasher, BcryptPasswordHasher>();
         services.AddSingleton<IJwtTokenGenerator, JwtTokenGenerator>();
         services.AddSingleton<ISecurityAuditService, SecurityAuditService>();
+
+        // 9. Document Render Queue & Gotenberg Backpressure Worker (Track 2)
+        services.Configure<DocumentRenderWorkerOptions>(configuration.GetSection("DocumentRenderWorker"));
+        var redisConn = RedisConfigurationResolver.ResolveConnectionString(configuration);
+        if (redisConn is not null)
+        {
+            services.AddSingleton<IConnectionMultiplexer>(_ => ConnectionMultiplexer.Connect(redisConn));
+            services.AddSingleton<IDocumentRenderQueue>(sp =>
+            {
+                var multiplexer = sp.GetRequiredService<IConnectionMultiplexer>();
+                var logger = sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<RedisDocumentRenderQueue>>();
+                var prefix = RedisConfigurationResolver.ResolveInstancePrefix(configuration);
+                return new RedisDocumentRenderQueue(multiplexer, logger, prefix);
+            });
+        }
+        else
+        {
+            services.AddSingleton<IDocumentRenderQueue, MemoryDocumentRenderQueue>();
+        }
+        services.AddHostedService<DocumentRenderQueueWorker>();
 
         return services;
     }

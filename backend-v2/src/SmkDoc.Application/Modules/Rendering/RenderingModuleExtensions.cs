@@ -2,15 +2,18 @@ using Microsoft.Extensions.DependencyInjection;
 using SmkDoc.Application.Common.Behaviors;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Rendering.Documents;
+using SmkDoc.Application.Modules.Rendering.Documents.Commands.EnqueueDocumentGeneration;
 using SmkDoc.Application.Modules.Rendering.Documents.Commands.GenerateDocument;
 using SmkDoc.Application.Modules.Rendering.Documents.Commands.RenderStatelessDocument;
 using SmkDoc.Application.Modules.Rendering.Documents.DTOs;
 using SmkDoc.Application.Modules.Rendering.Documents.EventHandlers;
 using SmkDoc.Application.Modules.Rendering.Documents.Queries.DownloadDocumentVersion;
+using SmkDoc.Application.Modules.Rendering.Documents.Queries.GetDocumentJob;
 using SmkDoc.Application.Modules.Rendering.Documents.Queries.GetDocumentVersions;
 using SmkDoc.Application.Modules.Rendering.Documents.Queries.PreviewDocument;
 using SmkDoc.Application.Modules.Rendering.Documents.Services;
 using SmkDoc.Application.Modules.Rendering.Logs.DTOs;
+using SmkDoc.Application.Modules.Rendering.Logs.Queries.DownloadGenerationLogDocument;
 using SmkDoc.Application.Modules.Rendering.Logs.Queries.GetLogDownloadUrl;
 using SmkDoc.Application.Modules.Rendering.Logs.Queries.GetLogMetrics;
 using SmkDoc.Application.Modules.Rendering.Logs.Queries.GetLogPayload;
@@ -44,6 +47,11 @@ public static class RenderingModuleExtensions
         services.AddUseCase<GetLogMetricsQuery, LogMetricsDto, GetLogMetricsUseCase>();
         services.AddUseCase<GetLogDownloadUrlQuery, string, GetLogDownloadUrlUseCase>();
         services.AddUseCase<GetLogPayloadQuery, LogPayloadResultDto, GetLogPayloadUseCase>();
+        services.AddUseCase<DownloadGenerationLogDocumentQuery, DownloadGenerationLogDocumentResult, DownloadGenerationLogDocumentUseCase>();
+
+        // Async Job Queue (Track 2)
+        services.AddUseCase<EnqueueDocumentGenerationCommand, DocumentJobDto, EnqueueDocumentGenerationUseCase>();
+        services.AddUseCase<GetDocumentJobQuery, DocumentJobDto, GetDocumentJobUseCase>();
 
         return services;
     }

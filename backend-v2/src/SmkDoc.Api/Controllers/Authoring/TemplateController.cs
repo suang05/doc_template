@@ -23,7 +23,6 @@ namespace SmkDoc.Api.Controllers.Authoring;
 /// </summary>
 [ApiController]
 [Route("api/v1/templates")]
-[Route("api/templates")]
 public sealed class TemplateController(
     IUseCase<ListTemplatesQuery, TemplatePagedResultDto> listTemplatesUseCase,
     IUseCase<GetTemplateByIdQuery, TemplateResultDto> getTemplateByIdUseCase,
