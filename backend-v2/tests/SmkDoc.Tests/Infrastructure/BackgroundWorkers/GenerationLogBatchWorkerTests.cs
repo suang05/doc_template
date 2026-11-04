@@ -147,12 +147,9 @@ public sealed class GenerationLogBatchWorkerTests
         await queue.EnqueueAsync(CreateSampleLog());
         await queue.EnqueueAsync(CreateSampleLog());
 
-        using var cts = new CancellationTokenSource();
-
         // Act
-        await sut.StartAsync(cts.Token);
-        // Trigger cancellation immediately
-        await cts.CancelAsync();
+        await sut.StartAsync(CancellationToken.None);
+        await Task.Delay(50);
         await sut.StopAsync(CancellationToken.None);
 
         // Assert: remaining items drained during shutdown

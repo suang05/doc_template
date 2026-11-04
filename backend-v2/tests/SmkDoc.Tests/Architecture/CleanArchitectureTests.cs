@@ -141,7 +141,7 @@ public sealed class CleanArchitectureTests
     public void Controllers_Should_Not_Reference_DbContext_Or_Repositories_Directly()
     {
         // Arrange
-        var apiAssembly = typeof(SmkDoc.Api.Controllers.Rendering.DocumentController).Assembly;
+        var apiAssembly = typeof(SmkDoc.Api.Controllers.Rendering.DocumentGenerationController).Assembly;
         var controllerTypes = apiAssembly.GetTypes()
             .Where(t => t.IsClass && !t.IsAbstract && typeof(ControllerBase).IsAssignableFrom(t))
             .ToList();
@@ -461,7 +461,7 @@ public sealed class CleanArchitectureTests
     [Fact]
     public void Api_Controllers_And_Middleware_Should_Be_Sealed_And_Not_Depend_On_Concrete_UseCases()
     {
-        var apiAssembly = typeof(SmkDoc.Api.Controllers.Rendering.DocumentController).Assembly;
+        var apiAssembly = typeof(SmkDoc.Api.Controllers.Rendering.DocumentGenerationController).Assembly;
         var boundaryTypes = apiAssembly.GetTypes()
             .Where(t => t.IsClass && !t.IsAbstract && typeof(ControllerBase).IsAssignableFrom(t))
             .Append(typeof(ProjectContextMiddleware))
@@ -541,8 +541,10 @@ public sealed class CleanArchitectureTests
     public void Retired_Phase_P1_Types_Must_Not_Exist()
     {
         var appAssembly = typeof(ICurrentProjectContext).Assembly;
-        var apiAssembly = typeof(SmkDoc.Api.Controllers.Rendering.DocumentController).Assembly;
+        var apiAssembly = typeof(SmkDoc.Api.Controllers.Rendering.DocumentGenerationController).Assembly;
 
+        apiAssembly.GetType("SmkDoc.Api.Controllers.Rendering.DocumentController")
+            .Should().BeNull("Monolithic DocumentController was decomposed into DocumentGenerationController, DocumentArtifactController, and DocumentHistoryController.");
         apiAssembly.GetType("SmkDoc.Api.Filters.ValidateCommandFilter")
             .Should().BeNull("ValidateCommandFilter was retired in favor of ValidatingUseCaseDecorator.");
         appAssembly.GetType("SmkDoc.Application.Common.Interfaces.IJsonDataParser")

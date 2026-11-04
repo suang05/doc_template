@@ -8,62 +8,41 @@ using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.Constants;
 using SmkDoc.Api.Contracts.Rendering.Documents;
 using SmkDoc.Api.Controllers.Rendering;
-using SmkDoc.Api.Filters;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.Modules.Authoring.Templates.Queries.ValidateTemplatePayload;
 using SmkDoc.Application.Modules.Rendering.Documents.Commands.EnqueueDocumentGeneration;
 using SmkDoc.Application.Modules.Rendering.Documents.Commands.GenerateDocument;
-using SmkDoc.Application.Modules.Rendering.Documents.Commands.RenderStatelessDocument;
 using SmkDoc.Application.Modules.Rendering.Documents.DTOs;
-using SmkDoc.Application.Modules.Rendering.Documents.Queries.DownloadDocumentVersion;
 using SmkDoc.Application.Modules.Rendering.Documents.Queries.GetDocumentJob;
-using SmkDoc.Application.Modules.Rendering.Documents.Queries.GetDocumentVersions;
 using SmkDoc.Application.Modules.Rendering.Documents.Queries.PreviewDocument;
-using SmkDoc.Application.Modules.Rendering.Logs.Queries.DownloadGenerationLogDocument;
-using SmkDoc.Application.Modules.Rendering.Logs.Queries.GetLogDownloadUrl;
 
 namespace SmkDoc.Tests.Api.Controllers;
 
-public sealed class DocumentControllerTests
+public sealed class DocumentGenerationControllerTests
 {
     private readonly IUseCase<GenerateDocumentCommand, GenerateDocumentResultDto> _generateUseCase = Substitute.For<IUseCase<GenerateDocumentCommand, GenerateDocumentResultDto>>();
-    private readonly IUseCase<PreviewDocumentQuery, Stream> _previewUseCase = Substitute.For<IUseCase<PreviewDocumentQuery, Stream>>();
-    private readonly IUseCase<GetDocumentVersionsQuery, List<DocumentVersionDto>> _getVersionsUseCase = Substitute.For<IUseCase<GetDocumentVersionsQuery, List<DocumentVersionDto>>>();
-    private readonly IUseCase<DownloadDocumentVersionQuery, DownloadDocumentVersionResult> _downloadVersionUseCase = Substitute.For<IUseCase<DownloadDocumentVersionQuery, DownloadDocumentVersionResult>>();
-    private readonly IUseCase<GetLogDownloadUrlQuery, string> _getLogDownloadUrlUseCase = Substitute.For<IUseCase<GetLogDownloadUrlQuery, string>>();
-    private readonly IUseCase<RenderStatelessDocumentCommand, Stream> _renderStatelessUseCase = Substitute.For<IUseCase<RenderStatelessDocumentCommand, Stream>>();
-    private readonly IUseCase<ValidateTemplatePayloadQuery, ValidateTemplatePayloadResult> _validatePayloadUseCase = Substitute.For<IUseCase<ValidateTemplatePayloadQuery, ValidateTemplatePayloadResult>>();
     private readonly IUseCase<EnqueueDocumentGenerationCommand, DocumentJobDto> _enqueueJobUseCase = Substitute.For<IUseCase<EnqueueDocumentGenerationCommand, DocumentJobDto>>();
     private readonly IUseCase<GetDocumentJobQuery, DocumentJobDto> _getJobUseCase = Substitute.For<IUseCase<GetDocumentJobQuery, DocumentJobDto>>();
-    private readonly IUseCase<DownloadGenerationLogDocumentQuery, DownloadGenerationLogDocumentResult> _downloadLogDocumentUseCase = Substitute.For<IUseCase<DownloadGenerationLogDocumentQuery, DownloadGenerationLogDocumentResult>>();
+    private readonly IUseCase<PreviewDocumentQuery, Stream> _previewUseCase = Substitute.For<IUseCase<PreviewDocumentQuery, Stream>>();
 
-    private DocumentController CreateSut()
+    private DocumentGenerationController CreateSut()
     {
-        var controller = new DocumentController(
+        return new DocumentGenerationController(
             _generateUseCase,
-            _previewUseCase,
-            _getVersionsUseCase,
-            _downloadVersionUseCase,
-            _getLogDownloadUrlUseCase,
-            _renderStatelessUseCase,
-            _validatePayloadUseCase,
             _enqueueJobUseCase,
             _getJobUseCase,
-            _downloadLogDocumentUseCase)
+            _previewUseCase)
         {
             ControllerContext = new ControllerContext
             {
                 HttpContext = new DefaultHttpContext()
             }
         };
-
-        return controller;
     }
 
     [Fact]
-    public void DocumentController_ShouldBeDecoratedWithSecurityAndRoutingAttributes()
+    public void DocumentGenerationController_ShouldBeDecoratedWithSecurityAndRoutingAttributes()
     {
-        var type = typeof(DocumentController);
+        var type = typeof(DocumentGenerationController);
 
         var authAttr = type.GetCustomAttribute<AuthorizeAttribute>();
         authAttr.Should().NotBeNull();
@@ -76,19 +55,41 @@ public sealed class DocumentControllerTests
     [Fact]
     public void CriticalEndpoints_ShouldBeDecoratedWithRateLimiting()
     {
-        var type = typeof(DocumentController);
+        var type = typeof(DocumentGenerationController);
 
-        var generateMethod = type.GetMethod(nameof(DocumentController.Generate));
+        var generateMethod = type.GetMethod(nameof(DocumentGenerationController.Generate));
         generateMethod!.GetCustomAttribute<EnableRateLimitingAttribute>()?.PolicyName.Should().Be("rendering");
 
-        var generateAsyncMethod = type.GetMethod(nameof(DocumentController.GenerateAsync));
+        var generateAsyncMethod = type.GetMethod(nameof(DocumentGenerationController.GenerateAsync));
         generateAsyncMethod!.GetCustomAttribute<EnableRateLimitingAttribute>()?.PolicyName.Should().Be("rendering");
 
-        var previewRawMethod = type.GetMethod(nameof(DocumentController.PreviewRaw));
+        var previewRawMethod = type.GetMethod(nameof(DocumentGenerationController.PreviewRaw));
         previewRawMethod!.GetCustomAttribute<EnableRateLimitingAttribute>()?.PolicyName.Should().Be("rendering");
 
-        var previewBySlugMethod = type.GetMethod(nameof(DocumentController.PreviewBySlug));
+        var previewBySlugMethod = type.GetMethod(nameof(DocumentGenerationController.PreviewBySlug));
         previewBySlugMethod!.GetCustomAttribute<EnableRateLimitingAttribute>()?.PolicyName.Should().Be("rendering");
+    }
+
+    [Fact]
+    public async Task Generate_ShouldReturnOkWithResult()
+    {
+        // Arrange
+        var sut = CreateSut();
+        var expectedDto = new GenerateDocumentResultDto(
+            Guid.NewGuid(), "INV-001", "pdf", 1024, "hash", "https://url", DateTimeOffset.UtcNow.AddHours(24));
+
+        _generateUseCase.ExecuteAsync(Arg.Any<GenerateDocumentCommand>(), Arg.Any<CancellationToken>())
+            .Returns(expectedDto);
+
+        var request = new GenerateDocumentRequest(JsonDocument.Parse("{}").RootElement);
+
+        // Act
+        var result = await sut.Generate("invoice", request, CancellationToken.None);
+
+        // Assert
+        var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
+        var body = okResult.Value.Should().BeOfType<ApiResponse<GenerateDocumentResultDto>>().Subject;
+        body.Data.DocumentRef.Should().Be("INV-001");
     }
 
     [Fact]
@@ -115,7 +116,7 @@ public sealed class DocumentControllerTests
         var request = new GenerateDocumentRequest(JsonDocument.Parse("{}").RootElement);
 
         // Act
-        var result = await sut.GenerateAsync(request, "invoice", null, CancellationToken.None);
+        var result = await sut.GenerateAsync("invoice", request, CancellationToken.None);
 
         // Assert
         var objectResult = result.Should().BeOfType<ObjectResult>().Subject;
@@ -158,46 +159,23 @@ public sealed class DocumentControllerTests
     }
 
     [Fact]
-    public async Task DownloadByLogId_WhenAcceptHeaderIsJson_ShouldReturnPresignedUrlEnvelope()
+    public async Task PreviewBySlug_ShouldReturnPdfFileResult()
     {
         // Arrange
         var sut = CreateSut();
-        sut.Request.Headers.Accept = "application/json";
-        var logId = Guid.NewGuid();
-
-        _getLogDownloadUrlUseCase.ExecuteAsync(Arg.Is<GetLogDownloadUrlQuery>(q => q.LogId == logId), Arg.Any<CancellationToken>())
-            .Returns("https://minio/outputs/doc.pdf");
-
-        // Act
-        var result = await sut.DownloadByLogId(logId, CancellationToken.None);
-
-        // Assert
-        var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
-        var body = okResult.Value.Should().BeOfType<ApiResponse<DownloadUrlResponseDto>>().Subject;
-        body.Data.Url.Should().Be("https://minio/outputs/doc.pdf");
-        body.Data.ExpiresInSeconds.Should().Be(3600);
-    }
-
-    [Fact]
-    public async Task DownloadByLogId_WhenAcceptHeaderIsNotJson_ShouldStreamDirectFile()
-    {
-        // Arrange
-        var sut = CreateSut();
-        sut.Request.Headers.Accept = "application/pdf";
-        var logId = Guid.NewGuid();
         using var stream = new MemoryStream([1, 2, 3]);
+        _previewUseCase.ExecuteAsync(Arg.Any<PreviewDocumentQuery>(), Arg.Any<CancellationToken>())
+            .Returns(stream);
 
-        _downloadLogDocumentUseCase.ExecuteAsync(Arg.Is<DownloadGenerationLogDocumentQuery>(q => q.LogId == logId), Arg.Any<CancellationToken>())
-            .Returns(new DownloadGenerationLogDocumentResult(stream, "application/pdf", "sample.pdf"));
+        var request = new PreviewDocumentRequest(JsonDocument.Parse("{}").RootElement);
 
         // Act
-        var result = await sut.DownloadByLogId(logId, CancellationToken.None);
+        var result = await sut.PreviewBySlug("invoice", request, CancellationToken.None);
 
         // Assert
         var fileResult = result.Should().BeOfType<FileStreamResult>().Subject;
         fileResult.ContentType.Should().Be("application/pdf");
-        fileResult.FileDownloadName.Should().Be("sample.pdf");
-        fileResult.FileStream.Should().BeSameAs(stream);
+        sut.Response.Headers.ContentDisposition.ToString().Should().Be("inline");
     }
 }
 

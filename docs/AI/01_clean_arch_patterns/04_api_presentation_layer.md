@@ -116,6 +116,16 @@ CoreExtensionSlots:
 | `test-conn` | `POST /api/v1/data-connections/test` | 10 permits / 1 min (by User/IP) | `429 Too Many Requests` | Mitigates internal network scanning, port enumeration, and SSRF probing |
 | `api` | All standard CRUD, query, and management endpoints | 60 permits / 1 min (by Partition) | `429 Too Many Requests` | Baseline API throttling for fair resource distribution |
 
+### Declarative Authorization Policies Matrix (`SmkDocPolicies`)
+| Policy Name | Target Endpoints & Controller Scope | Allowed Subject Identities | Policy Enforcement Criteria |
+|---|---|---|---|
+| `RequireSuperAdmin` | `api/v1/management/api-keys`, `api/v1/management/projects/*` | Platform SuperAdmin exclusively | `ctx.User.IsInRole(RoleConstants.SuperAdmin)` \| `ctx.User.HasClaim("SystemRole", SuperAdmin)` |
+| `RequireProjectAdmin` | `api/v1/api-keys`, `api/v1/audit-logs`, `api/v1/users` | Project Admin, SuperAdmin, or M2M ReadWrite | `ctx.User.IsInRole(Admin)` \| `ctx.User.IsInRole(SuperAdmin)` \| `(IsInRole("M2MClient") & Scope == "ReadWrite")` |
+| `CanManageTemplates` | `api/v1/templates`, `api/v1/templates/{id}/studio/*`, `mappings`, `datasets` | Template Designer, Admin, SuperAdmin, or M2M ReadWrite | `IsInRole("Author")` \| `IsInRole("Developer")` \| `IsInRole(Admin)` \| `IsInRole(SuperAdmin)` \| `Scope == "ReadWrite"` |
+| `CanGenerateDocuments` | `api/v1/documents/*` (`generate`, `generate-async`, `preview`, `validate`) | Any authenticated user or M2M key (ReadOnly/ReadWrite) | `ctx.User.Identity.IsAuthenticated == true` |
+| `CanManageDataConnections`| `api/v1/data-connections/*` (`GET`, `POST`, `PUT`, `DELETE`, `test`) | Project Admin or SuperAdmin | `ctx.User.IsInRole(RoleConstants.Admin)` \| `ctx.User.IsInRole(RoleConstants.SuperAdmin)` |
+| `CanManageDatasets` | `api/v1/datasets/*` (`GET`, `POST`, `PUT`, `DELETE`) | Author, Developer, Admin, SuperAdmin, or M2M ReadWrite | `IsInRole("Author")` \| `IsInRole("Developer")` \| `IsInRole(Admin)` \| `IsInRole(SuperAdmin)` \| `Scope == "ReadWrite"` |
+
 ---
 
 ## 3. Level 3: Canonical Presentation Archetypes

@@ -23,8 +23,6 @@ namespace SmkDoc.Tests.Application.Modules.Rendering.Documents.Commands.Generate
 public sealed class GenerateDocumentUseCaseTests
 {
     private readonly ITemplateRepository _templateRepo = Substitute.For<ITemplateRepository>();
-    private readonly IDatasetRepository _datasetRepo = Substitute.For<IDatasetRepository>();
-    private readonly IDataConnectionRepository _connectionRepo = Substitute.For<IDataConnectionRepository>();
     private readonly IGenerationLogQueue _logQueue = Substitute.For<IGenerationLogQueue>();
     private readonly IDocumentRepository _documentRepo = Substitute.For<IDocumentRepository>();
     private readonly IStorageService _storageService = Substitute.For<IStorageService>();
@@ -32,8 +30,6 @@ public sealed class GenerateDocumentUseCaseTests
     private readonly IRenderEngineFactory _engineFactory = Substitute.For<IRenderEngineFactory>();
     private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
-    private readonly IFieldMappingApplicatorService _applicator = Substitute.For<IFieldMappingApplicatorService>();
-    private readonly IDataProtectionService _dataProtection = Substitute.For<IDataProtectionService>();
     private readonly IJsonSchemaValidationService _schemaValidation = Substitute.For<IJsonSchemaValidationService>();
     private readonly FakeTimeProvider _timeProvider = TestConstants.CreateFakeClock();
 
@@ -49,12 +45,7 @@ public sealed class GenerateDocumentUseCaseTests
 
     private GenerateDocumentUseCase CreateSut()
     {
-        var dataPrep = new DocumentDataPreparationService(
-            _datasetRepo,
-            _connectionRepo,
-            _dataProtection,
-            _applicator,
-            _schemaValidation);
+        var dataPrep = new DocumentDataPreparationService(_schemaValidation);
 
         var audit = new DocumentAuditService(
             _logQueue,
@@ -324,31 +315,15 @@ public sealed class GenerateDocumentUseCaseTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_WithFieldMappings_ShouldTransformAndMergeData()
+    public async Task ExecuteAsync_WhenPayloadProvided_ShouldPassRawPayloadDirectlyToEngineWithoutMutation()
     {
         // Arrange
         var now = TestConstants.BaselineTime;
         var (template, _) = SetupActiveHtmlTemplate(
-            slug: "contract-mapped",
-            name: "Contract With Mappings",
-            htmlContent: "<html><body>{{amount_baht}}</body></html>",
+            slug: "contract-direct",
+            name: "Contract With Direct Data",
+            htmlContent: "<html><body>{{contract.price}}</body></html>",
             now: now);
-        var templateId = template.Id;
-
-        var mappings = new List<FieldMapping>
-        {
-            FieldMapping.Create(templateId, "amount_baht", "contract.price", "Price in Baht Text", true, 1, now, DataSourceType.Json)
-        };
-
-        mappings[0].UpdateMappingDetails("contract.price", "Price in Baht Text", true, null, "baht", 1, now);
-        template.ReplaceFieldMappings(mappings, now);
-
-        _applicator.ApplyAsync(
-                Arg.Any<JsonElement>(),
-                Arg.Any<IEnumerable<FieldMapping>>(),
-                Arg.Any<IReadOnlyDictionary<string, ResolvedDatasetContext>>(),
-                Arg.Any<CancellationToken>())
-            .Returns("{\"amount_baht\":\"สองล้านห้าแสนบาทถ้วน\"}");
 
         string capturedDataJson = string.Empty;
         _engine.EngineType.Returns(RenderEngineType.Html);
@@ -361,8 +336,8 @@ public sealed class GenerateDocumentUseCaseTests
 
         SetupPresignedUrl("https://minio.sammakorn.co.th/outputs/sample.pdf");
 
-        using var jsonDoc = JsonDocument.Parse("{\"contract\": {\"price\": \"2500000\"}}");
-        var request = new GenerateDocumentCommand("contract-mapped", jsonDoc.RootElement);
+        using var jsonDoc = JsonDocument.Parse("{\"contract\":{\"price\":\"2500000\"}}");
+        var request = new GenerateDocumentCommand("contract-direct", jsonDoc.RootElement);
 
         // Act
         GenerateDocumentResultDto result = await CreateSut().ExecuteAsync(request);
@@ -371,8 +346,7 @@ public sealed class GenerateDocumentUseCaseTests
         result.Should().NotBeNull();
         result.Sha256.Should().NotBeNullOrEmpty();
         result.FileSizeBytes.Should().BeGreaterThan(0);
-        capturedDataJson.Should().Contain("สองล้านห้าแสนบาทถ้วน");
-        capturedDataJson.Should().Contain("amount_baht");
+        capturedDataJson.Should().Be("{\"contract\":{\"price\":\"2500000\"}}");
     }
 
     [Fact]

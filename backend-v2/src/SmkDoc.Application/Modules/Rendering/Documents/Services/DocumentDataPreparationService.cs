@@ -1,47 +1,36 @@
 using System.Text.Json;
-using SmkDoc.Application.Common.Helpers;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Validation;
 
 namespace SmkDoc.Application.Modules.Rendering.Documents.Services;
 
+/// <summary>
+/// Prepares and validates document data for rendering without mutating input fields.
+/// Invariant: Zero field mutation. Payload flows untouched to JSON schema validator and rendering engine.
+/// </summary>
 public sealed class DocumentDataPreparationService(
-    IDatasetRepository datasetRepo,
-    IDataConnectionRepository connectionRepo,
-    IDataProtectionService dataProtection,
-    IFieldMappingApplicatorService fieldMappingApplicator,
     IJsonSchemaValidationService schemaValidation) : IDocumentDataPreparationService
 {
-    public async Task<PreparedDocumentData> PrepareDataAsync(
+    public Task<PreparedDocumentData> PrepareDataAsync(
         Template template,
         TemplateVersion currentVersion,
         JsonElement rawData,
         bool skipValidation,
         CancellationToken ct = default)
     {
-        var mappings = template.FieldMappings.ToList();
-        string dataJson;
+        // 1. Raw Payload Invariant: Do NOT mutate, map, or alter fields.
+        string dataJson = rawData.ValueKind != JsonValueKind.Undefined
+            ? rawData.GetRawText()
+            : "{}";
 
-        if (mappings.Count > 0)
-        {
-            var aliasMap = await DatasetAliasMapBuilder.BuildAsync(
-                template.TemplateDatasets, datasetRepo, connectionRepo, dataProtection, ct);
-            dataJson = await fieldMappingApplicator.ApplyAsync(rawData, mappings, aliasMap, ct);
-        }
-        else
-        {
-            dataJson = rawData.ValueKind != JsonValueKind.Undefined ? rawData.GetRawText() : "{}";
-        }
-
-        // Schema Validation Gate (Draft-07)
+        // 2. Fail-Fast Draft-07 Schema Validation Gate
         SchemaValidationResult? validationResult = null;
         if (!skipValidation && !string.IsNullOrWhiteSpace(currentVersion.DataSchema))
         {
             validationResult = schemaValidation.Validate(currentVersion.DataSchema, dataJson);
         }
 
-        return new PreparedDocumentData(dataJson, validationResult);
+        return Task.FromResult(new PreparedDocumentData(dataJson, validationResult));
     }
 }

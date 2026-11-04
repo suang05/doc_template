@@ -264,12 +264,161 @@
         }
       }
     },
+    "/api/v1/documents/download/{logId}/url": {
+      "get": {
+        "tags": [
+          "DocumentArtifact"
+        ],
+        "summary": "Get fresh pre-signed download URL with 1-hour expiration window.",
+        "parameters": [
+          {
+            "name": "logId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfDownloadUrlResponseDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfDownloadUrlResponseDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfDownloadUrlResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/documents/download/{logId}/file": {
+      "get": {
+        "tags": [
+          "DocumentArtifact"
+        ],
+        "summary": "Stream document binary file directly through server pass-through buffer.",
+        "parameters": [
+          {
+            "name": "logId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/documents/download/{logId}": {
+      "get": {
+        "tags": [
+          "DocumentArtifact"
+        ],
+        "summary": "Transitional dual-mode download for backward compatibility with legacy clients.",
+        "parameters": [
+          {
+            "name": "logId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/documents/generate/{slug}": {
       "post": {
         "tags": [
-          "Document"
+          "DocumentGeneration"
         ],
-        "summary": "Track 1: Synchronous document generation from template slug and input JSON data.\r\nProtected by fixed-window rendering rate limiter to safeguard Gotenberg Chromium instances.",
+        "summary": "Track 1: Synchronous document generation from template slug and input JSON data.",
         "parameters": [
           {
             "name": "slug",
@@ -347,21 +496,14 @@
     "/api/v1/documents/generate-async/{slug}": {
       "post": {
         "tags": [
-          "Document"
+          "DocumentGeneration"
         ],
-        "summary": "Track 2: Asynchronous document generation queue for high-volume enterprise batches.\r\nEnqueues the job and immediately returns HTTP 202 Accepted with Location header for status polling.\r\nBackground worker throttles Gotenberg execution to prevent memory spikes and thread starvation.",
+        "summary": "Track 2: Asynchronous document generation queue for high-volume enterprise batches (HTTP 202).",
         "parameters": [
           {
             "name": "slug",
             "in": "path",
             "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "templateSlug",
-            "in": "query",
             "schema": {
               "type": "string"
             }
@@ -410,133 +552,6 @@
           },
           "400": {
             "description": "Bad Request",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              },
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Conflict",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              },
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/documents/generate-async": {
-      "post": {
-        "tags": [
-          "Document"
-        ],
-        "summary": "Track 2: Asynchronous document generation queue for high-volume enterprise batches.\r\nEnqueues the job and immediately returns HTTP 202 Accepted with Location header for status polling.\r\nBackground worker throttles Gotenberg execution to prevent memory spikes and thread starvation.",
-        "parameters": [
-          {
-            "name": "slug",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "templateSlug",
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/GenerateDocumentRequest"
-              }
-            },
-            "text/json": {
-              "schema": {
-                "$ref": "#/components/schemas/GenerateDocumentRequest"
-              }
-            },
-            "application/*+json": {
-              "schema": {
-                "$ref": "#/components/schemas/GenerateDocumentRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "202": {
-            "description": "Accepted",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfDocumentJobDto"
-                }
-              },
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfDocumentJobDto"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfDocumentJobDto"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              },
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Conflict",
             "content": {
               "text/plain": {
                 "schema": {
@@ -561,9 +576,9 @@
     "/api/v1/documents/jobs/{jobId}": {
       "get": {
         "tags": [
-          "Document"
+          "DocumentGeneration"
         ],
-        "summary": "Track 2: Observability &amp; Polling endpoint to check status of an asynchronous document job.\r\nMulti-tenant scoped to ensure isolation between projects.",
+        "summary": "Track 2: Observability &amp; Polling endpoint to check status of an asynchronous document job.",
         "parameters": [
           {
             "name": "jobId",
@@ -619,112 +634,12 @@
         }
       }
     },
-    "/api/v1/documents/validate/{slug}": {
-      "post": {
-        "tags": [
-          "Document"
-        ],
-        "summary": "Pre-flight schema validation — checks payload against the template's Draft-07 schema\r\nwithout generating any document. Multi-tenant scoped. Zero side-effects (no DB writes, no MinIO uploads).",
-        "parameters": [
-          {
-            "name": "slug",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/JsonElement"
-              }
-            },
-            "text/json": {
-              "schema": {
-                "$ref": "#/components/schemas/JsonElement"
-              }
-            },
-            "application/*+json": {
-              "schema": {
-                "$ref": "#/components/schemas/JsonElement"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfValidateTemplatePayloadResult"
-                }
-              },
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfValidateTemplatePayloadResult"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfValidateTemplatePayloadResult"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              },
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not Found",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              },
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/documents/preview": {
       "post": {
         "tags": [
-          "Document"
+          "DocumentGeneration"
         ],
-        "summary": "Ephemeral live preview for Monaco Editor / Form with zero side-effects.\r\nRate limited to protect Gotenberg from interactive denial-of-service.",
+        "summary": "Ephemeral live preview for Monaco Editor / Form with zero side-effects (Raw HTML).",
         "requestBody": {
           "content": {
             "application/json": {
@@ -758,9 +673,9 @@
     "/api/v1/documents/preview/{slug}": {
       "post": {
         "tags": [
-          "Document"
+          "DocumentGeneration"
         ],
-        "summary": "Ephemeral live preview for a specific template slug with zero side-effects.\r\nRate limited to protect Gotenberg from interactive denial-of-service.",
+        "summary": "Ephemeral live preview for a specific template slug with zero side-effects.",
         "parameters": [
           {
             "name": "slug",
@@ -804,9 +719,49 @@
     "/api/v1/documents/{documentRef}/versions": {
       "get": {
         "tags": [
-          "Document"
+          "DocumentHistory"
         ],
-        "summary": "Get legal document version history",
+        "summary": "Get legal document version history by document reference.",
+        "parameters": [
+          {
+            "name": "documentRef",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfDocumentVersionDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfDocumentVersionDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfDocumentVersionDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/documents/{documentRef}/history": {
+      "get": {
+        "tags": [
+          "DocumentHistory"
+        ],
+        "summary": "Get legal document version history by document reference.",
         "parameters": [
           {
             "name": "documentRef",
@@ -844,9 +799,9 @@
     "/api/v1/documents/{documentRef}/versions/{version}/download": {
       "get": {
         "tags": [
-          "Document"
+          "DocumentHistory"
         ],
-        "summary": "Download specific historical version of a document",
+        "summary": "Download specific historical version of a legal document.",
         "parameters": [
           {
             "name": "documentRef",
@@ -870,158 +825,6 @@
         "responses": {
           "200": {
             "description": "OK"
-          }
-        }
-      }
-    },
-    "/api/v1/documents/download/{logId}": {
-      "get": {
-        "tags": [
-          "Document"
-        ],
-        "summary": "Download or get pre-signed URL for a generated document.\r\nDual-mode: returns JSON when Accept contains application/json, or bounded stream pass-through for direct download.\r\nKeeps MinIO strictly internal to the private VPC, eliminating network routing failures for external clients.",
-        "parameters": [
-          {
-            "name": "logId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "404": {
-            "description": "Not Found",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              },
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/documents/render": {
-      "post": {
-        "tags": [
-          "Document"
-        ],
-        "summary": "Render any document to PDF directly from an uploaded file stream and JSON payload.\r\nProtected by rate limiting.",
-        "requestBody": {
-          "content": {
-            "multipart/form-data": {
-              "schema": {
-                "type": "object",
-                "allOf": [
-                  {
-                    "type": "object",
-                    "properties": {
-                      "file": {
-                        "$ref": "#/components/schemas/IFormFile"
-                      }
-                    }
-                  },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "jsonData": {
-                        "type": "string"
-                      }
-                    }
-                  }
-                ]
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/pdf": { }
-            }
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/pdf": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/documents/render/stateless": {
-      "post": {
-        "tags": [
-          "Document"
-        ],
-        "summary": "Render any document to PDF directly from an uploaded file stream and JSON payload.\r\nProtected by rate limiting.",
-        "requestBody": {
-          "content": {
-            "multipart/form-data": {
-              "schema": {
-                "type": "object",
-                "allOf": [
-                  {
-                    "type": "object",
-                    "properties": {
-                      "file": {
-                        "$ref": "#/components/schemas/IFormFile"
-                      }
-                    }
-                  },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "jsonData": {
-                        "type": "string"
-                      }
-                    }
-                  }
-                ]
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/pdf": { }
-            }
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/pdf": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
           }
         }
       }
@@ -6065,6 +5868,25 @@
         },
         "description": "Standard API Response wrapper for successful requests that return data.\r\nEnforces the \"Envelope Pattern\" for consistent JSON schemas."
       },
+      "ApiResponseOfDownloadUrlResponseDto": {
+        "required": [
+          "data"
+        ],
+        "type": "object",
+        "properties": {
+          "data": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DownloadUrlResponseDto"
+              }
+            ]
+          }
+        },
+        "description": "Standard API Response wrapper for successful requests that return data.\r\nEnforces the \"Envelope Pattern\" for consistent JSON schemas."
+      },
       "ApiResponseOfGenerateDocumentResultDto": {
         "required": [
           "data"
@@ -7074,6 +6896,27 @@
           }
         },
         "description": "DTO representing an immutable document version in the legal audit trail."
+      },
+      "DownloadUrlResponseDto": {
+        "required": [
+          "url"
+        ],
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string"
+          },
+          "expiresInSeconds": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32",
+            "default": 3600
+          }
+        },
+        "description": "Response payload containing pre-signed document download URL and its validity window."
       },
       "FieldMappingDto": {
         "required": [
@@ -8795,7 +8638,13 @@
       "name": "AuditLog"
     },
     {
-      "name": "Document"
+      "name": "DocumentArtifact"
+    },
+    {
+      "name": "DocumentGeneration"
+    },
+    {
+      "name": "DocumentHistory"
     },
     {
       "name": "DataConnections"
