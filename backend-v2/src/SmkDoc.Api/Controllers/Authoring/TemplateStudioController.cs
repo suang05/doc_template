@@ -30,7 +30,7 @@ public sealed class TemplateStudioController(
     IUseCase<SaveTemplateHtmlCommand, SaveHtmlResultDto> saveHtmlUseCase,
     IUseCase<ValidateTemplateHtmlQuery, TemplateValidationResultDto> validateUseCase,
     IUseCase<GetTemplateMappingsQuery, List<FieldMappingDto>> getMappingsUseCase,
-    IUseCase<SaveTemplateMappingsCommand> saveMappingsUseCase,
+    IUseCase<SaveTemplateMappingsCommand, List<FieldMappingDto>> saveMappingsUseCase,
     IUseCase<PreviewMappingQuery, Stream> previewMappingUseCase) : ControllerBase
 {
     /// <summary>Get raw HTML source for Monaco Editor.</summary>
@@ -108,20 +108,18 @@ public sealed class TemplateStudioController(
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<FieldMappingDto>>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status412PreconditionFailed)]
     public async Task<IActionResult> SaveMappings(
         [FromRoute] Guid id,
         [FromBody] SaveTemplateMappingsRequest request,
+        [FromHeader(Name = "If-Match")] string? ifMatch,
         CancellationToken ct)
     {
-        var mappings = request.Mappings ?? [];
-        var dtos = mappings.Select(m => new SaveFieldMappingItemDto(
+        var mappings = (request.Mappings ?? []).Select(m => new SaveFieldMappingItemDto(
             m.Placeholder, m.SourcePath, m.Label, m.Required, m.DefaultValue, m.Transform,
             m.SortOrder, m.DataSourceType, m.DatasetAlias, m.ResultPath, m.MathExpression)).ToList();
-        var command = new SaveTemplateMappingsCommand(id, dtos);
-        await saveMappingsUseCase.ExecuteAsync(command, ct);
-
-        var query = new GetTemplateMappingsQuery(id);
-        var result = await getMappingsUseCase.ExecuteAsync(query, ct);
+        var command = new SaveTemplateMappingsCommand(id, mappings, ifMatch);
+        var result = await saveMappingsUseCase.ExecuteAsync(command, ct);
         return Ok(new ApiResponse<IEnumerable<FieldMappingDto>>(result));
     }
 
@@ -138,9 +136,9 @@ public sealed class TemplateStudioController(
         CancellationToken ct)
     {
         var query = new PreviewMappingQuery(id, request.SampleData);
-        var pdfStream = await previewMappingUseCase.ExecuteAsync(query, ct);
+        var result = await previewMappingUseCase.ExecuteAsync(query, ct);
         Response.Headers.ContentDisposition = "inline";
-        return File(pdfStream, "application/pdf");
+        return File(result, "application/pdf");
     }
 }
 

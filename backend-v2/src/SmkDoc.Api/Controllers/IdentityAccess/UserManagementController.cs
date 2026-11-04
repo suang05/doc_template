@@ -45,7 +45,7 @@ public sealed class UserManagementController(
     /// <summary>Invite a new user to the active project.</summary>
     [HttpPost]
     [Authorize(Policy = SmkDocPolicies.RequireProjectAdmin)]
-    [ServiceFilter(typeof(IdempotencyFilter))]
+    [Idempotent]
     [ProducesResponseType(typeof(ApiResponse<UserResultDto>), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -57,7 +57,7 @@ public sealed class UserManagementController(
         var command = new InviteUserCommand(request.Email, request.Password, request.FirstName, request.LastName, request.Role);
         var result = await inviteUserUseCase.ExecuteAsync(command, ct);
 
-        return StatusCode(StatusCodes.Status201Created, new ApiResponse<UserResultDto>(result));
+        return CreatedAtAction(nameof(List), new ApiResponse<UserResultDto>(result));
     }
 
     /// <summary>Update a user's role within the active project.</summary>
@@ -68,9 +68,11 @@ public sealed class UserManagementController(
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status412PreconditionFailed)]
     public async Task<IActionResult> UpdateRole(
         [FromRoute] Guid userId,
         [FromBody] UpdateUserRoleRequest request,
+        [FromHeader(Name = "If-Match")] string? ifMatch,
         CancellationToken ct)
     {
         var command = new UpdateUserRoleCommand(userId, request.Role);
@@ -86,8 +88,10 @@ public sealed class UserManagementController(
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status412PreconditionFailed)]
     public async Task<IActionResult> Remove(
         [FromRoute] Guid userId,
+        [FromHeader(Name = "If-Match")] string? ifMatch,
         CancellationToken ct)
     {
         var currentUserId = User.GetUserId();

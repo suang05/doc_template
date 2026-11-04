@@ -39,7 +39,7 @@ public sealed class TemplateController(
 {
     /// <summary>List templates belonging to the active project with optional search, category filter, and server-side pagination.</summary>
     [HttpGet]
-    [ProducesResponseType(typeof(ApiResponse<IEnumerable<TemplateResultDto>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(PagedApiResponse<TemplateResultDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> ListTemplates(
         [FromQuery] Guid? projectId,
         [FromQuery] string? search,
@@ -60,14 +60,8 @@ public sealed class TemplateController(
         }
 
         var query = new ListTemplatesQuery(search, category, isActive, page, pageSize);
-        var pagedResult = await listTemplatesUseCase.ExecuteAsync(query, ct);
-
-        Response.Headers["X-Total-Count"] = pagedResult.TotalCount.ToString();
-        Response.Headers["X-Page"] = pagedResult.Page.ToString();
-        Response.Headers["X-Page-Size"] = pagedResult.PageSize.ToString();
-
-        var result = pagedResult.Items;
-        return Ok(new ApiResponse<IEnumerable<TemplateResultDto>>(result));
+        var result = await listTemplatesUseCase.ExecuteAsync(query, ct);
+        return Ok(new PagedApiResponse<TemplateResultDto>(result.Items, result.TotalCount, result.Page, result.PageSize));
     }
 
     /// <summary>Get template details by unique identifier.</summary>
@@ -78,7 +72,7 @@ public sealed class TemplateController(
     {
         var query = new GetTemplateByIdQuery(id);
         var result = await getTemplateByIdUseCase.ExecuteAsync(query, ct);
-        Response.Headers.ETag = $"\"{(result.UpdatedAt ?? result.CreatedAt).ToUnixTimeMilliseconds()}\"";
+        Response.Headers.ETag = $"\"{result.ConcurrencyToken}\"";
         return Ok(new ApiResponse<TemplateResultDto>(result));
     }
 
@@ -117,7 +111,7 @@ public sealed class TemplateController(
     {
         var command = new UpdateTemplateDetailsCommand(id, request.Name ?? string.Empty, request.Category, ifMatch);
         var result = await updateTemplateDetailsUseCase.ExecuteAsync(command, ct);
-        Response.Headers.ETag = $"\"{(result.UpdatedAt ?? result.CreatedAt).ToUnixTimeMilliseconds()}\"";
+        Response.Headers.ETag = $"\"{result.ConcurrencyToken}\"";
         return Ok(new ApiResponse<TemplateResultDto>(result));
     }
 
@@ -125,7 +119,11 @@ public sealed class TemplateController(
     [HttpDelete("{id:guid}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> Deactivate([FromRoute] Guid id, CancellationToken ct)
+    [ProducesResponseType(StatusCodes.Status412PreconditionFailed)]
+    public async Task<IActionResult> Deactivate(
+        [FromRoute] Guid id,
+        [FromHeader(Name = "If-Match")] string? ifMatch,
+        CancellationToken ct)
     {
         var command = new DeactivateTemplateCommand(id);
         await deactivateTemplateUseCase.ExecuteAsync(command, ct);

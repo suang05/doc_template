@@ -50,8 +50,10 @@ public sealed class DocumentGenerationController(
     {
         var command = new EnqueueDocumentGenerationCommand(slug, request.Payload, request.OutputFormat, request.DocumentRef, request.ChangeNote, request.SkipValidation);
         var result = await enqueueJobUseCase.ExecuteAsync(command, ct);
-        Response.Headers.Location = $"/api/v1/documents/jobs/{result.JobId}";
-        return StatusCode(StatusCodes.Status202Accepted, new ApiResponse<DocumentJobDto>(result));
+        return AcceptedAtAction(
+            nameof(GetJobStatus),
+            new { jobId = result.JobId },
+            new ApiResponse<DocumentJobDto>(result));
     }
 
     /// <summary>Track 2: Observability &amp; Polling endpoint to check status of an asynchronous document job.</summary>
@@ -72,9 +74,9 @@ public sealed class DocumentGenerationController(
     public async Task<IActionResult> PreviewRaw([FromBody] PreviewDocumentRequest request, CancellationToken ct)
     {
         var query = new PreviewDocumentQuery(request.Payload, request.Html, null);
-        var pdfStream = await previewUseCase.ExecuteAsync(query, ct);
+        var result = await previewUseCase.ExecuteAsync(query, ct);
         Response.Headers.ContentDisposition = "inline";
-        return File(pdfStream, "application/pdf");
+        return File(result, "application/pdf");
     }
 
     /// <summary>Ephemeral live preview for a specific template slug with zero side-effects.</summary>
@@ -84,9 +86,9 @@ public sealed class DocumentGenerationController(
     public async Task<IActionResult> PreviewBySlug([FromRoute] string slug, [FromBody] PreviewDocumentRequest request, CancellationToken ct)
     {
         var query = new PreviewDocumentQuery(request.Payload, request.Html, slug);
-        var pdfStream = await previewUseCase.ExecuteAsync(query, ct);
+        var result = await previewUseCase.ExecuteAsync(query, ct);
         Response.Headers.ContentDisposition = "inline";
-        return File(pdfStream, "application/pdf");
+        return File(result, "application/pdf");
     }
 }
 

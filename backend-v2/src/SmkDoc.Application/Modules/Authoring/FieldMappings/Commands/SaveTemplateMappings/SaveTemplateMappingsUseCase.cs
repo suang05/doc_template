@@ -1,4 +1,5 @@
 using SmkDoc.Application.Common.Interfaces;
+using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.Helpers;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
@@ -12,14 +13,25 @@ namespace SmkDoc.Application.Modules.Authoring.FieldMappings.Commands.SaveTempla
 public sealed class SaveTemplateMappingsUseCase(
     ITemplateRepository templateRepo,
     IUnitOfWork unitOfWork,
-    TimeProvider timeProvider) : IUseCase<SaveTemplateMappingsCommand>
+    TimeProvider timeProvider) : IUseCase<SaveTemplateMappingsCommand, List<FieldMappingDto>>
 {
-    public async Task ExecuteAsync(SaveTemplateMappingsCommand command, CancellationToken ct = default)
+    public async Task<List<FieldMappingDto>> ExecuteAsync(SaveTemplateMappingsCommand command, CancellationToken ct = default)
     {
         var templateId = new TemplateId(command.TemplateId);
         var template = await templateRepo.GetByIdWithDetailsAsync(templateId, ct)
             ?? await templateRepo.GetByIdAsync(templateId, ct)
             ?? throw new NotFoundException($"Template '{command.TemplateId}' not found.");
+
+        if (!string.IsNullOrWhiteSpace(command.IfMatch) && command.IfMatch != "*")
+        {
+            var sanitizedMatch = command.IfMatch.Trim('\"', 'W', '/', ' ');
+            var currentToken = (template.UpdatedAt ?? template.CreatedAt).ToUnixTimeMilliseconds().ToString();
+            if (!string.Equals(sanitizedMatch, currentToken, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new PreconditionFailedException(
+                    $"Precondition failed for template '{command.TemplateId}'. ETag '{sanitizedMatch}' does not match current state.");
+            }
+        }
 
         var now = timeProvider.GetUtcNow();
         var mappings = command.Items.Select(item =>
@@ -55,5 +67,24 @@ public sealed class SaveTemplateMappingsUseCase(
 
         templateRepo.Update(template);
         await unitOfWork.CommitAsync(ct);
+
+        return template.FieldMappings
+            .OrderBy(m => m.SortOrder)
+            .Select(m => new FieldMappingDto(
+                m.Id,
+                m.TemplateId.Value,
+                m.Placeholder,
+                m.SourcePath,
+                m.Label,
+                m.Required,
+                m.DefaultValue,
+                m.Transform,
+                m.SortOrder,
+                m.DataSourceType.Value,
+                m.DatasetAlias,
+                m.ResultPath,
+                m.MathExpression
+            ))
+            .ToList();
     }
 }

@@ -275,9 +275,9 @@ public sealed class DocumentGenerationController(
     public async Task<IActionResult> Preview([FromBody] PreviewDocumentRequest request, CancellationToken ct)
     {
         var query = new PreviewDocumentQuery(request.Payload, request.Html, null);
-        var pdfStream = await previewUseCase.ExecuteAsync(query, ct);
+        var result = await previewUseCase.ExecuteAsync(query, ct);
         Response.Headers.ContentDisposition = "inline";
-        return File(pdfStream, "application/pdf");
+        return File(result, "application/pdf");
     }
 
     // Track 2: Asynchronous High-Volume Batch Queue (202 Accepted + Location Header)
@@ -292,8 +292,7 @@ public sealed class DocumentGenerationController(
         if (string.IsNullOrWhiteSpace(finalSlug)) throw new DomainValidationException("Template slug is required.");
         var command = new EnqueueDocumentGenerationCommand(finalSlug, request.Payload, request.OutputFormat, request.DocumentRef, request.ChangeNote, request.SkipValidation);
         var result = await enqueueJobUseCase.ExecuteAsync(command, ct);
-        Response.Headers.Location = $"/api/v1/documents/jobs/{result.JobId}";
-        return StatusCode(StatusCodes.Status202Accepted, new ApiResponse<DocumentJobDto>(result));
+        return AcceptedAtAction(nameof(GetJobStatus), new { jobId = result.JobId }, new ApiResponse<DocumentJobDto>(result));
     }
 
     [HttpGet("jobs/{jobId:guid}")]

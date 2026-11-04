@@ -13,11 +13,12 @@ namespace SmkDoc.Tests.Application.Modules.Authoring.FieldMappings.Commands.Save
 public sealed class SaveTemplateDatasetsUseCaseTests
 {
     private readonly ITemplateRepository _templateRepo = Substitute.For<ITemplateRepository>();
+    private readonly IDatasetRepository _datasetRepo = Substitute.For<IDatasetRepository>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
     private readonly TimeProvider _timeProvider = TestConstants.CreateFakeClock();
 
     private SaveTemplateDatasetsUseCase CreateSut() =>
-        new(_templateRepo, _unitOfWork, _timeProvider);
+        new(_templateRepo, _datasetRepo, _unitOfWork, _timeProvider);
 
     [Fact]
     public async Task ExecuteAsync_WhenValidCommand_ReplacesDatasetsAndCommits()

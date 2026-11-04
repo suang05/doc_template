@@ -33,9 +33,8 @@ public sealed class AuditLogController(
         CancellationToken ct = default)
     {
         var query = new ListGenerationLogsQuery(page, limit, app);
-        var pagedLogs = await listUseCase.ExecuteAsync(query, ct);
-        var result = new PagedApiResponse<GenerationLogDto>(pagedLogs.Logs, pagedLogs.Total, pagedLogs.Page, pagedLogs.Limit);
-        return Ok(result);
+        var result = await listUseCase.ExecuteAsync(query, ct);
+        return Ok(new PagedApiResponse<GenerationLogDto>(result.Logs, result.Total, result.Page, result.Limit));
     }
 
     /// <summary>Get document generation aggregate performance metrics.</summary>

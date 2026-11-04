@@ -13,7 +13,8 @@ public sealed record TemplateResultDto(
     Guid? CurrentVersionId,
     string? FileFormat,
     DateTimeOffset CreatedAt,
-    DateTimeOffset? UpdatedAt
+    DateTimeOffset? UpdatedAt,
+    string? ConcurrencyToken = null
 );
 
 /// <summary>

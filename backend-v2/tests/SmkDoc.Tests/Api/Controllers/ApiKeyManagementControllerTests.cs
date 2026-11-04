@@ -62,27 +62,10 @@ public sealed class ApiKeyManagementControllerTests
         var result = await controller.CreateKey(projId, request, CancellationToken.None);
 
         // Assert
-        var statusResult = result.Should().BeOfType<ObjectResult>().Subject;
-        statusResult.StatusCode.Should().Be(StatusCodes.Status201Created);
-        var response = statusResult.Value.Should().BeOfType<ApiResponse<CreateApiKeyResultDto>>().Subject;
+        var createdResult = result.Should().BeOfType<CreatedAtActionResult>().Subject;
+        createdResult.StatusCode.Should().Be(StatusCodes.Status201Created);
+        var response = createdResult.Value.Should().BeOfType<ApiResponse<CreateApiKeyResultDto>>().Subject;
         response.Data.Key.Should().Be("smk_mgmt_plain_secret_123");
-    }
-
-    [Fact]
-    public async Task CreateKey_RouteAndBodyProjectIdMismatch_ThrowsForbiddenException()
-    {
-        // Arrange
-        var routeProjId = Guid.NewGuid();
-        var bodyProjId = Guid.NewGuid();
-        var controller = CreateSut();
-        var request = new CreateApiKeyRequest("Mismatch Key", "app", ProjectId: bodyProjId);
-
-        // Act
-        var act = () => controller.CreateKey(routeProjId, request, CancellationToken.None);
-
-        // Assert
-        await act.Should().ThrowAsync<ForbiddenException>()
-            .WithMessage("*payload projectId does not match route projectId*");
     }
 
     [Fact]
@@ -97,7 +80,7 @@ public sealed class ApiKeyManagementControllerTests
         var controller = CreateSut();
 
         // Act
-        var result = await controller.RevokeKey(projId, keyId, CancellationToken.None);
+        var result = await controller.RevokeKey(projId, keyId, null, CancellationToken.None);
 
         // Assert
         result.Should().BeOfType<NoContentResult>();

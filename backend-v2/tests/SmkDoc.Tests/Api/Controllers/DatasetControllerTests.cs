@@ -19,9 +19,9 @@ namespace SmkDoc.Tests.Api.Controllers;
 public sealed class DatasetControllerTests
 {
     private readonly IUseCase<ListDatasetsQuery, List<DatasetDto>> _listUseCase = Substitute.For<IUseCase<ListDatasetsQuery, List<DatasetDto>>>();
-    private readonly IUseCase<GetDatasetByIdQuery, DatasetDto?> _getByIdUseCase = Substitute.For<IUseCase<GetDatasetByIdQuery, DatasetDto?>>();
+    private readonly IUseCase<GetDatasetByIdQuery, DatasetDto> _getByIdUseCase = Substitute.For<IUseCase<GetDatasetByIdQuery, DatasetDto>>();
     private readonly IUseCase<CreateDatasetCommand, DatasetDto> _createUseCase = Substitute.For<IUseCase<CreateDatasetCommand, DatasetDto>>();
-    private readonly IUseCase<UpdateDatasetCommand, DatasetDto?> _updateUseCase = Substitute.For<IUseCase<UpdateDatasetCommand, DatasetDto?>>();
+    private readonly IUseCase<UpdateDatasetCommand, DatasetDto> _updateUseCase = Substitute.For<IUseCase<UpdateDatasetCommand, DatasetDto>>();
     private readonly IUseCase<DeleteDatasetCommand, bool> _deleteUseCase = Substitute.For<IUseCase<DeleteDatasetCommand, bool>>();
 
     private DatasetController CreateSut()
@@ -129,7 +129,7 @@ public sealed class DatasetControllerTests
             .Returns(true);
 
         // Act
-        var result = await sut.Delete(id, CancellationToken.None);
+        var result = await sut.Delete(id, null, CancellationToken.None);
 
         // Assert
         result.Should().BeOfType<NoContentResult>();

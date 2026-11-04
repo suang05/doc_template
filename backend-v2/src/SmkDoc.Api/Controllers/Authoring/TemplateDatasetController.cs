@@ -16,7 +16,7 @@ namespace SmkDoc.Api.Controllers.Authoring;
 [Route("api/v1/templates/{id:guid}/datasets")]
 public sealed class TemplateDatasetController(
     IUseCase<GetTemplateDatasetsQuery, List<TemplateDatasetDto>> getDatasetsUseCase,
-    IUseCase<SaveTemplateDatasetsCommand> saveDatasetsUseCase) : ControllerBase
+    IUseCase<SaveTemplateDatasetsCommand, List<TemplateDatasetDto>> saveDatasetsUseCase) : ControllerBase
 {
     /// <summary>Get datasets linked to this template.</summary>
     [HttpGet]
@@ -33,18 +33,16 @@ public sealed class TemplateDatasetController(
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<TemplateDatasetDto>>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status412PreconditionFailed)]
     public async Task<IActionResult> SaveDatasets(
         [FromRoute] Guid id,
         [FromBody] SaveTemplateDatasetsRequest request,
+        [FromHeader(Name = "If-Match")] string? ifMatch,
         CancellationToken ct)
     {
-        var items = request.Datasets ?? [];
-        var dtos = items.Select(i => new SaveTemplateDatasetItemDto(i.DatasetId, i.Alias, i.SortOrder)).ToList();
-        var command = new SaveTemplateDatasetsCommand(id, dtos);
-        await saveDatasetsUseCase.ExecuteAsync(command, ct);
-
-        var query = new GetTemplateDatasetsQuery(id);
-        var result = await getDatasetsUseCase.ExecuteAsync(query, ct);
+        var items = (request.Datasets ?? []).Select(i => new SaveTemplateDatasetItemDto(i.DatasetId, i.Alias, i.SortOrder)).ToList();
+        var command = new SaveTemplateDatasetsCommand(id, items, ifMatch);
+        var result = await saveDatasetsUseCase.ExecuteAsync(command, ct);
         return Ok(new ApiResponse<IEnumerable<TemplateDatasetDto>>(result));
     }
 }

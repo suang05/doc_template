@@ -48,6 +48,6 @@ public sealed class FontManagementController(
         await using var stream = file.OpenReadStream();
         var command = new UploadFontCommand(stream, file.FileName, file.ContentType);
         var result = await uploadFontUseCase.ExecuteAsync(command, ct);
-        return StatusCode(StatusCodes.Status201Created, new ApiResponse<UploadFontResultDto>(result));
+        return CreatedAtAction(nameof(ListFonts), new ApiResponse<UploadFontResultDto>(result));
     }
 }

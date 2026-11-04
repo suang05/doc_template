@@ -12,14 +12,14 @@ public sealed class UpdateDatasetUseCase(
     IDataConnectionRepository connectionRepo,
     IUnitOfWork unitOfWork,
     ISqlConnectionValidator sqlValidator,
-    TimeProvider timeProvider) : IUseCase<UpdateDatasetCommand, DatasetDto?>
+    TimeProvider timeProvider) : IUseCase<UpdateDatasetCommand, DatasetDto>
 {
-    public async Task<DatasetDto?> ExecuteAsync(UpdateDatasetCommand command, CancellationToken ct = default)
+    public async Task<DatasetDto> ExecuteAsync(UpdateDatasetCommand command, CancellationToken ct = default)
     {
         sqlValidator.ValidateReadOnlySql(command.SqlQuery);
 
-        var entity = await datasetRepo.GetByIdAsync(new DatasetId(command.Id), ct);
-        if (entity == null) return null;
+        var entity = await datasetRepo.GetByIdAsync(new DatasetId(command.Id), ct)
+            ?? throw new NotFoundException("Dataset", command.Id);
 
         var connection = await connectionRepo.GetByIdAsync(new DataConnectionId(command.DataConnectionId), ct)
             ?? throw new NotFoundException($"DataConnection '{command.DataConnectionId}' not found.");

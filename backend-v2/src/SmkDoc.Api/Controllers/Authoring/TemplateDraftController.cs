@@ -56,9 +56,9 @@ public sealed class TemplateDraftController(
         CancellationToken ct)
     {
         var query = new PreviewTemplateDraftQuery(draftId, request.DataJson);
-        var pdfStream = await previewUseCase.ExecuteAsync(query, ct);
+        var result = await previewUseCase.ExecuteAsync(query, ct);
         Response.Headers.ContentDisposition = "inline";
-        return File(pdfStream, "application/pdf");
+        return File(result, "application/pdf");
     }
 
     /// <summary>
@@ -88,6 +88,6 @@ public sealed class TemplateDraftController(
             request.Category,
             request.Mappings ?? []);
         var result = await commitUseCase.ExecuteAsync(command, ct);
-        return StatusCode(StatusCodes.Status201Created, new ApiResponse<CommitDraftResultDto>(result));
+        return CreatedAtAction(nameof(TemplateController.GetById), "Template", new { id = result.TemplateId }, new ApiResponse<CommitDraftResultDto>(result));
     }
 }

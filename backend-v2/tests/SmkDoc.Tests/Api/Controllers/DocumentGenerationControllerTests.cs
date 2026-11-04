@@ -119,11 +119,11 @@ public sealed class DocumentGenerationControllerTests
         var result = await sut.GenerateAsync("invoice", request, CancellationToken.None);
 
         // Assert
-        var objectResult = result.Should().BeOfType<ObjectResult>().Subject;
-        objectResult.StatusCode.Should().Be(StatusCodes.Status202Accepted);
-        sut.Response.Headers.Location.ToString().Should().Be($"/api/v1/documents/jobs/{jobId}");
+        var acceptedResult = result.Should().BeOfType<AcceptedAtActionResult>().Subject;
+        acceptedResult.StatusCode.Should().Be(StatusCodes.Status202Accepted);
+        acceptedResult.ActionName.Should().Be(nameof(DocumentGenerationController.GetJobStatus));
 
-        var body = objectResult.Value.Should().BeOfType<ApiResponse<DocumentJobDto>>().Subject;
+        var body = acceptedResult.Value.Should().BeOfType<ApiResponse<DocumentJobDto>>().Subject;
         body.Data.JobId.Should().Be(jobId);
     }
 

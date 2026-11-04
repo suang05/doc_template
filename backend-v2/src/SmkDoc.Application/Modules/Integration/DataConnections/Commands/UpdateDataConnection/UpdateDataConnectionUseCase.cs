@@ -1,3 +1,4 @@
+using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Integration.DataConnections.DTOs;
 using SmkDoc.Domain.Common;
@@ -13,12 +14,12 @@ public sealed class UpdateDataConnectionUseCase(
     IUnitOfWork unitOfWork,
     IDataProtectionService dataProtection,
     ISqlConnectionValidator sqlValidator,
-    TimeProvider timeProvider) : IUseCase<UpdateDataConnectionCommand, DataConnectionDto?>
+    TimeProvider timeProvider) : IUseCase<UpdateDataConnectionCommand, DataConnectionDto>
 {
-    public async Task<DataConnectionDto?> ExecuteAsync(UpdateDataConnectionCommand command, CancellationToken ct = default)
+    public async Task<DataConnectionDto> ExecuteAsync(UpdateDataConnectionCommand command, CancellationToken ct = default)
     {
-        var entity = await repository.GetByIdAsync(new DataConnectionId(command.Id), ct);
-        if (entity == null) return null;
+        var entity = await repository.GetByIdAsync(new DataConnectionId(command.Id), ct)
+            ?? throw new NotFoundException("DataConnection", command.Id);
 
         EncryptedConnectionString encryptedCs;
         if (string.IsNullOrEmpty(command.ConnectionString))

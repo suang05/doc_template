@@ -65,9 +65,9 @@ public sealed class ApiKeyControllerTests
         var result = await controller.CreateKey(request, CancellationToken.None);
 
         // Assert
-        var statusResult = result.Should().BeOfType<ObjectResult>().Subject;
-        statusResult.StatusCode.Should().Be(StatusCodes.Status201Created);
-        var response = statusResult.Value.Should().BeOfType<ApiResponse<CreateApiKeyResultDto>>().Subject;
+        var createdResult = result.Should().BeOfType<CreatedAtActionResult>().Subject;
+        createdResult.StatusCode.Should().Be(StatusCodes.Status201Created);
+        var response = createdResult.Value.Should().BeOfType<ApiResponse<CreateApiKeyResultDto>>().Subject;
         response.Data.Key.Should().Be("smk_erp_plain_secret_12345");
         response.Data.Scope.Should().Be("ReadWrite");
     }
@@ -83,7 +83,7 @@ public sealed class ApiKeyControllerTests
         var controller = CreateSut();
 
         // Act
-        var result = await controller.RevokeKey(keyId, CancellationToken.None);
+        var result = await controller.RevokeKey(keyId, null, CancellationToken.None);
 
         // Assert
         result.Should().BeOfType<NoContentResult>();

@@ -69,12 +69,36 @@ ProactiveApiGuards:
     CanonicalAction: Delegate directly to single-responsibility IUseCase<TReq, TRes> >> Ref: [RULE-API-001]
 
   - Scope: SmkDoc.Api.Controllers
+    Trigger: Assigning UseCase execution result to non-standard variable (e.g. pagedResult, pagedLogs, pdfStream, response)
+    CanonicalAction: Assign strictly to var result = await useCase.ExecuteAsync(...) >> Ref: [RULE-API-001]
+
+  - Scope: SmkDoc.Api.Controllers
     Trigger: State-mutating POST endpoint declared without [Idempotent] filter
     CanonicalAction: Apply [Idempotent] attribute to ensure deterministic deduplication >> Ref: [TRAP-API-003]
 
   - Scope: SmkDoc.Api.Controllers
     Trigger: State-mutating PUT or DELETE endpoint declared with [Idempotent] or without If-Match concurrency
     CanonicalAction: Enforce If-Match header and ETag validation via PostgreSQL xmin >> Ref: [RULE-API-001]
+
+  - Scope: SmkDoc.Api.Controllers
+    Trigger: Controller or endpoint declared without [EnableRateLimiting] policy attribute
+    CanonicalAction: Decorate with [EnableRateLimiting("...")] matching the Specialized Rate Limiting Policies Matrix >> Ref: [RULE-API-001]
+
+  - Scope: SmkDoc.Api.Controllers
+    Trigger: Returning 201 Created or 202 Accepted via raw StatusCode(...) or manual Location header assignment
+    CanonicalAction: Use typed CreatedAtAction or AcceptedAtAction helpers with RFC 7231 / 9110 Location headers >> Ref: [RULE-API-001]
+
+  - Scope: SmkDoc.Api.Controllers
+    Trigger: Action invoking multiple UseCases to re-query or mutate secondary state
+    CanonicalAction: Single UseCase invocation per action; return updated collection/aggregate directly from command UseCase >> Ref: [TRAP-API-008]
+
+  - Scope: SmkDoc.Api.Controllers
+    Trigger: Manual if (result == null) return NotFound() inside controller action
+    CanonicalAction: Eliminate manual NotFound checks; UseCase must throw strongly-typed NotFoundException >> Ref: [TRAP-API-009]
+
+  - Scope: SmkDoc.Api.Contracts
+    Trigger: Request body contract containing ambient route/tenant parameters (e.g. ProjectId)
+    CanonicalAction: Strip route/tenant IDs from request body; bind exclusively from [FromRoute] or ICurrentProjectContext >> Ref: [RULE-API-001]
 
   - Scope: SmkDoc.Api.Controllers
     Trigger: Returning HTTP 400 for negative network reachability probe
@@ -136,11 +160,18 @@ CoreExtensionSlots:
 * [MUST] Inject single-responsibility `IUseCase<TRequest, TResponse>` / `IUseCase<TRequest>` abstractions via C# 13 primary constructor.
 * [MUST] Keep action methods thin (<= 5 lines per action): delegate directly to UseCase and envelope result in `ApiResponse<T>`.
 * [MUST] Declare Command or Query as an explicit local variable (`command`, `query`) prior to UseCase invocation (prohibit inline instantiation).
+* [MUST] Standardize all UseCase execution outputs to `var result = await useCase.ExecuteAsync(...)`; strictly prohibit entity-specific synonyms (`pagedResult`, `pagedLogs`, `pdfStream`) or shadowing `ControllerBase.Response` (`var response = ...`).
+* [MUST] Apply `[EnableRateLimiting("...")]` policy attribute according to the Specialized Rate Limiting Policies Matrix (e.g. `[EnableRateLimiting("api")]` at class level for management/CRUD controllers, `[EnableRateLimiting("rendering")]` for document generation, `[EnableRateLimiting("auth-strict")]` for authentication, and `[EnableRateLimiting("test-conn")]` for diagnostics).
 * [MUST] Apply `[Idempotent]` attribute strictly on state-mutating `POST` endpoints.
 * [MUST] Enforce Optimistic Concurrency via `[FromHeader(Name = "If-Match")] string? ifMatch` on `PUT` and `DELETE` endpoints (prohibit `[Idempotent]` on PUT/DELETE).
-* [MUST] Return `CreatedAtAction` with `201 Created` for resource creation, `Ok(new ApiResponse<T>(result))` for reads/updates, `NoContent()` for deletions, and `File(stream, contentType, fileName)` for binary streaming.
+* [MUST] Return `CreatedAtAction` with `201 Created` for resource creation and `AcceptedAtAction` with `202 Accepted` for async jobs (prohibit raw `StatusCode(201, ...)`, `StatusCode(202, ...)`, or manual `Response.Headers.Location` assignments).
+* [MUST] Return `Ok(new ApiResponse<T>(result))` for reads/updates, `Ok(new PagedApiResponse<T>(...))` for pagination, `NoContent()` for deletions, and `File(result, contentType, fileName)` for binary streaming.
+* [MUST] Prohibit manual `return NotFound()` checks in controllers; UseCases must throw strongly-typed `NotFoundException`, translated globally to RFC 9457 `ProblemDetails`.
+* [MUST] Strictly limit to one UseCase invocation per controller action; command UseCases must return the updated collection or resource directly instead of re-querying in the controller.
+* [MUST] Prohibit ambient route/tenant parameters (such as `ProjectId`) inside body request contracts to prevent confused-deputy parameter spoofing.
 ```csharp
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.Filters;
 using SmkDoc.Application.Common.Interfaces;
@@ -156,6 +187,7 @@ namespace SmkDoc.Api.Controllers.Authoring;
 
 [ApiController]
 [Route("api/v1/templates")]
+[EnableRateLimiting("api")]
 public sealed class TemplateController(
     IUseCase<ListTemplatesQuery, TemplatePagedResultDto> listTemplatesUseCase,
     IUseCase<GetTemplateByIdQuery, TemplateResultDto> getTemplateByIdUseCase,
@@ -223,8 +255,8 @@ public sealed class TemplateController(
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Render([FromRoute] Guid id, [FromBody] RenderDocumentQuery query, CancellationToken ct)
     {
-        var stream = await renderDocumentUseCase.ExecuteAsync(query, ct);
-        return File(stream, "application/pdf", $"{id}.pdf");
+        var result = await renderDocumentUseCase.ExecuteAsync(query, ct);
+        return File(result, "application/pdf", $"{id}.pdf");
     }
 }
 ```
@@ -415,3 +447,56 @@ public sealed class DataConnectionsController(
 + await connection.OpenAsync(ct);
 ```
 *Rationale: Directly opening database connections without pre-flight validation allows SSRF attacks targeting container network aliases or cloud metadata endpoints.*
+
+### [TRAP-API-008]: Double UseCase Calls & Manual Re-Querying in Controller Action
+```diff
+- [HttpPost("{id:guid}/items")]
+- public async Task<IActionResult> AddItem([FromRoute] Guid id, [FromBody] AddItemRequest request, CancellationToken ct)
+- {
+-     var command = new AddItemCommand(id, request.Name);
+-     await addItemUseCase.ExecuteAsync(command, ct);
+-     var query = new GetItemsQuery(id);
+-     var result = await getItemsUseCase.ExecuteAsync(query, ct);
+-     return Ok(new ApiResponse<IReadOnlyList<ItemDto>>(result));
+- }
++ [HttpPost("{id:guid}/items")]
++ [Idempotent]
++ public async Task<IActionResult> AddItem([FromRoute] Guid id, [FromBody] AddItemRequest request, CancellationToken ct)
++ {
++     var command = new AddItemCommand(id, request.Name);
++     var result = await addItemUseCase.ExecuteAsync(command, ct);
++     return Ok(new ApiResponse<IReadOnlyList<ItemDto>>(result));
++ }
+```
+*Rationale: Calling a command UseCase followed by a query UseCase in a single controller action creates distributed transaction/isolation anomalies, breaks thin controller invariants (<= 5 LOC), and doubles database roundtrips. Command UseCases must return the updated collection or resource directly.*
+
+### [TRAP-API-009]: Manual return NotFound() Bypassing RFC 9457 Global Exception Handler
+```diff
+- var result = await getTemplateByIdUseCase.ExecuteAsync(query, ct);
+- if (result == null) return NotFound();
+- return Ok(new ApiResponse<TemplateResultDto>(result));
++ var result = await getTemplateByIdUseCase.ExecuteAsync(query, ct);
++ return Ok(new ApiResponse<TemplateResultDto>(result));
+```
+*Rationale: Manual null-checks returning raw NotFound() produce inconsistent error schemas and bypass the centralized RFC 9457 ProblemDetails pipeline. Application UseCases must throw strongly-typed NotFoundException.*
+
+### [TRAP-API-010]: Raw StatusCode(201/202) Returns Violating REST Location Contracts
+```diff
+- var result = await createTemplateUseCase.ExecuteAsync(command, ct);
+- return StatusCode(StatusCodes.Status201Created, new ApiResponse<TemplateResultDto>(result));
++ var result = await createTemplateUseCase.ExecuteAsync(command, ct);
++ return CreatedAtAction(nameof(GetById), new { id = result.Id }, new ApiResponse<TemplateResultDto>(result));
+```
+*Rationale: Using raw StatusCode(201, ...) or StatusCode(202, ...) omits the mandatory RFC 7231 / RFC 9110 Location header. Typed helpers CreatedAtAction and AcceptedAtAction ensure standard discoverability for downstream REST clients.*
+
+### [TRAP-API-011]: Unthrottled Public Controller Endpoint Missing [EnableRateLimiting]
+```diff
+- [ApiController]
+- [Route("api/v1/templates")]
+- public sealed class TemplateController : ControllerBase
++ [ApiController]
++ [Route("api/v1/templates")]
++ [EnableRateLimiting("api")]
++ public sealed class TemplateController : ControllerBase
+```
+*Rationale: Exposing public API controllers without declarative rate limiting leaves services vulnerable to volumetric denial-of-service, runaway automation scripts, and cross-tenant resource starvation. Controllers and sensitive endpoints must be bound to their designated rate limiting policy.*

@@ -22,6 +22,7 @@ TriggerSignals: [SIGNAL_SECURITY_MUTATION], [SIGNAL_TOPOLOGY_MUTATION]
 | **Download Egress** | ! HTTP 307 Redirects to internal MinIO S3 instances | >> Gateway reverse-proxy streaming via `File(stream, ...)` | `DocumentArtifactController` |
 | **SSRF Host Defense** | ! Unchecked database hosts or targeting loopback / metadata | >> Pre-flight DNS/IP validation via `ConnectionHostValidator` | Data Connection Services |
 | **Chromium Cluster** | ! Unthrottled render calls crashing Gotenberg pods | >> Dedicated rate limiter (`30 req/min`) + Async batch queue | Presentation Gateway |
+| **API Throttling & DDoS** | ! Unthrottled endpoints susceptible to volumetric DoS / brute-force | >> Declarative rate limiting via `[EnableRateLimiting("...")]` (`api`: 60/m, `auth-strict`: 5/m, `rendering`: 30/m, `test-conn`: 10/m) | Presentation Layer Controllers |
 | **Key Governance** | ! Forcing SuperAdmin to issue every operational key (Bottleneck) OR unconstrained key sprawl | >> Master Key / Delegated Ownership: Project Admin self-services sub-keys (`/api/v1/api-keys`, max 2); SuperAdmin governs transfer/break-glass | IdentityAccess / API |
 
 ---
@@ -62,7 +63,12 @@ ProactiveSecurityGuards:
     Trigger: External database connection targeting loopback, link-local, or container network alias
     CanonicalAction: Throw SecurityViolationException via ConnectionHostValidator >> Ref: [RULE-SEC-005]
 
+  - Scope: SmkDoc.Api.Controllers
+    Trigger: Controller or endpoint exposed without declarative rate limiting policy
+    CanonicalAction: Decorate with [EnableRateLimiting("...")] matching designated policy >> Ref: [RULE-API-001]
+
 CoreExtensionSlots:
+  RateLimitingSlot: Microsoft.AspNetCore.RateLimiting (auth-strict, rendering, test-conn, api)
   ApiKeyValidatorSlot: Cryptographic hash generator and verification engine
   StorageProviderSlot: IBucketStorageService (MinIO S3 / AWS S3 / Azure Blob Storage)
   RenderingEngineSlot: IRenderEngine (Gotenberg Chromium / OpenXML Word / ClosedXML Excel)
@@ -84,25 +90,25 @@ if (context.Request.Headers.TryGetValue("X-API-Key", out var extractedKey) &&
 {
     var rawKey = extractedKey.ToString();
     var query = new ValidateApiKeyQuery(rawKey);
-    var validatedKey = await validateApiKeyUseCase.ExecuteAsync(query, context.RequestAborted);
+    var result = await validateApiKeyUseCase.ExecuteAsync(query, context.RequestAborted);
 
-    if (validatedKey == null)
+    if (result == null)
     {
         await WriteUnauthorizedResponseAsync(context, "Invalid or inactive API Key.");
         return;
     }
 
     // 1. Hydrate Ambient Scoped Project Context
-    var projectId = new ProjectId(validatedKey.ProjectId);
-    projectContextSetter.SetProject(projectId, validatedKey.CallerApp);
+    var projectId = new ProjectId(result.ProjectId);
+    projectContextSetter.SetProject(projectId, result.CallerApp);
 
     // 2. Hydrate ASP.NET Core ClaimsPrincipal to pass [Authorize] policies
     var claims = new[]
     {
-        new Claim(ClaimTypes.NameIdentifier, validatedKey.Id.ToString()),
+        new Claim(ClaimTypes.NameIdentifier, result.Id.ToString()),
         new Claim(ClaimTypes.Role, "M2MClient"),
-        new Claim("Scope", validatedKey.Scope),
-        new Claim("ProjectId", validatedKey.ProjectId.ToString())
+        new Claim("Scope", result.Scope),
+        new Claim("ProjectId", result.ProjectId.ToString())
     };
     var identity = new ClaimsIdentity(claims, "ApiKeyScheme");
     context.User = new ClaimsPrincipal(identity);
@@ -162,9 +168,9 @@ public static class ConnectionHostValidator
 ```diff
 - byte[] pdfBytes = await gotenbergClient.RenderToBytesAsync(htmlPayload, ct);
 - return File(pdfBytes, "application/pdf");
-+ await using Stream pdfStream = await gotenbergClient.RenderToStreamAsync(htmlPayload, ct);
++ await using Stream result = await gotenbergClient.RenderToStreamAsync(htmlPayload, ct);
 + Response.Headers.ContentDisposition = "inline";
-+ return File(pdfStream, "application/pdf");
++ return File(result, "application/pdf");
 ```
 *Rationale: `byte[]` allocations $\ge 85\text{KB}$ land directly on the Large Object Heap, triggering uncompacted memory fragmentation and Gen 2 GC pauses.*
 
@@ -173,7 +179,7 @@ public static class ConnectionHostValidator
 - var preSignedUrl = await storageService.GetDownloadUrlAsync(documentId);
 - return Redirect(preSignedUrl);
 + var query = new DownloadQuery(documentId);
-+ var streamResult = await downloadUseCase.ExecuteAsync(query, ct);
-+ return File(streamResult.Stream, streamResult.ContentType, streamResult.FileName);
++ var result = await downloadUseCase.ExecuteAsync(query, ct);
++ return File(result.Stream, result.ContentType, result.FileName);
 ```
 *Rationale: Redirecting to internal storage reveals private Docker topology and fails for external clients outside the container network.*

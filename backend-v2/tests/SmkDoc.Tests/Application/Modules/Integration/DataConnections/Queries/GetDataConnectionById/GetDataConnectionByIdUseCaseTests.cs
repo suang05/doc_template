@@ -1,3 +1,4 @@
+using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Modules.Integration.DataConnections.DTOs;
 using SmkDoc.Application.Modules.Integration.DataConnections.Queries.GetDataConnectionById;
 using SmkDoc.Domain.Entities;
@@ -24,16 +25,16 @@ public sealed class GetDataConnectionByIdUseCaseTests
             .Returns(conn);
 
         // Act
-        DataConnectionDto? result = await CreateSut().ExecuteAsync(new GetDataConnectionByIdQuery(id));
+        DataConnectionDto result = await CreateSut().ExecuteAsync(new GetDataConnectionByIdQuery(id));
 
         // Assert
         result.Should().NotBeNull();
-        result!.Id.Should().Be(id);
+        result.Id.Should().Be(id);
         result.Name.Should().Be("Production DB");
     }
 
     [Fact]
-    public async Task ExecuteAsync_WhenConnectionNotFound_ReturnsNull()
+    public async Task ExecuteAsync_WhenConnectionNotFound_ThrowsNotFoundException()
     {
         // Arrange
         var id = Guid.NewGuid();
@@ -41,9 +42,9 @@ public sealed class GetDataConnectionByIdUseCaseTests
             .Returns((DataConnection?)null);
 
         // Act
-        DataConnectionDto? result = await CreateSut().ExecuteAsync(new GetDataConnectionByIdQuery(id));
+        var act = () => CreateSut().ExecuteAsync(new GetDataConnectionByIdQuery(id));
 
         // Assert
-        result.Should().BeNull();
+        await act.Should().ThrowAsync<NotFoundException>();
     }
 }

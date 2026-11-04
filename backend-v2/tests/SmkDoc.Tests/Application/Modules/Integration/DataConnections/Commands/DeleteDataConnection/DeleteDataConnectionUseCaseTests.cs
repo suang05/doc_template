@@ -1,3 +1,4 @@
+using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Modules.Integration.DataConnections.Commands.DeleteDataConnection;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Interfaces;
@@ -42,7 +43,7 @@ public sealed class DeleteDataConnectionUseCaseTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_WhenNotFound_ReturnsFalse()
+    public async Task ExecuteAsync_WhenNotFound_ThrowsNotFoundException()
     {
         // Arrange
         var id = Guid.NewGuid();
@@ -52,10 +53,10 @@ public sealed class DeleteDataConnectionUseCaseTests
         var command = new DeleteDataConnectionCommand(id);
 
         // Act
-        var result = await CreateSut().ExecuteAsync(command);
+        var act = () => CreateSut().ExecuteAsync(command);
 
         // Assert
-        result.Should().BeFalse();
+        await act.Should().ThrowAsync<NotFoundException>();
         _connectionRepo.DidNotReceive().Remove(Arg.Any<DataConnection>());
         await _unitOfWork.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
     }

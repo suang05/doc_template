@@ -1,3 +1,4 @@
+using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Modules.Integration.Datasets.DTOs;
 using SmkDoc.Application.Modules.Integration.Datasets.Queries.GetDatasetById;
 using SmkDoc.Domain.Entities;
@@ -38,17 +39,17 @@ public sealed class GetDatasetByIdUseCaseTests
             .Returns(conn);
 
         // Act
-        DatasetDto? result = await CreateSut().ExecuteAsync(new GetDatasetByIdQuery(id));
+        DatasetDto result = await CreateSut().ExecuteAsync(new GetDatasetByIdQuery(id));
 
         // Assert
         result.Should().NotBeNull();
-        result!.Id.Should().Be(id);
+        result.Id.Should().Be(id);
         result.Name.Should().Be("SalesMetrics");
         result.DataConnectionName.Should().Be("AnalyticsDB");
     }
 
     [Fact]
-    public async Task ExecuteAsync_WhenNotFound_ReturnsNull()
+    public async Task ExecuteAsync_WhenNotFound_ThrowsNotFoundException()
     {
         // Arrange
         var id = Guid.NewGuid();
@@ -56,9 +57,9 @@ public sealed class GetDatasetByIdUseCaseTests
             .Returns((Dataset?)null);
 
         // Act
-        DatasetDto? result = await CreateSut().ExecuteAsync(new GetDatasetByIdQuery(id));
+        var act = () => CreateSut().ExecuteAsync(new GetDatasetByIdQuery(id));
 
         // Assert
-        result.Should().BeNull();
+        await act.Should().ThrowAsync<NotFoundException>();
     }
 }

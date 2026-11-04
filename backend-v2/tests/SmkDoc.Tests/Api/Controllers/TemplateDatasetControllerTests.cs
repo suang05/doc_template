@@ -13,7 +13,7 @@ namespace SmkDoc.Tests.Api.Controllers;
 public sealed class TemplateDatasetControllerTests
 {
     private readonly IUseCase<GetTemplateDatasetsQuery, List<TemplateDatasetDto>> _getDatasetsUseCase = Substitute.For<IUseCase<GetTemplateDatasetsQuery, List<TemplateDatasetDto>>>();
-    private readonly IUseCase<SaveTemplateDatasetsCommand> _saveDatasetsUseCase = Substitute.For<IUseCase<SaveTemplateDatasetsCommand>>();
+    private readonly IUseCase<SaveTemplateDatasetsCommand, List<TemplateDatasetDto>> _saveDatasetsUseCase = Substitute.For<IUseCase<SaveTemplateDatasetsCommand, List<TemplateDatasetDto>>>();
 
     private TemplateDatasetController CreateSut()
     {
@@ -63,7 +63,7 @@ public sealed class TemplateDatasetControllerTests
             new(Guid.NewGuid(), templateId, datasetId, "CustData", "Customer Dataset", 1)
         };
 
-        _getDatasetsUseCase.ExecuteAsync(Arg.Is<GetTemplateDatasetsQuery>(q => q.TemplateId == templateId), Arg.Any<CancellationToken>())
+        _saveDatasetsUseCase.ExecuteAsync(Arg.Is<SaveTemplateDatasetsCommand>(c => c.TemplateId == templateId), Arg.Any<CancellationToken>())
             .Returns(datasets);
 
         var request = new SaveTemplateDatasetsRequest([
@@ -71,7 +71,7 @@ public sealed class TemplateDatasetControllerTests
         ]);
 
         // Act
-        var result = await sut.SaveDatasets(templateId, request, CancellationToken.None);
+        var result = await sut.SaveDatasets(templateId, request, null, CancellationToken.None);
 
         // Assert
         await _saveDatasetsUseCase.Received(1).ExecuteAsync(Arg.Is<SaveTemplateDatasetsCommand>(c => c.TemplateId == templateId), Arg.Any<CancellationToken>());

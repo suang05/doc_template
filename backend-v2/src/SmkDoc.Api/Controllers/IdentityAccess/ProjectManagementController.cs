@@ -40,10 +40,8 @@ public sealed class ProjectManagementController(
     {
         var userId = User.GetUserId();
         var query = new ListProjectsQuery(userId, search, page, pageSize);
-        var pagedResult = await listProjectsUseCase.ExecuteAsync(query, ct);
-
-        var result = new PagedApiResponse<ProjectResultDto>(pagedResult.Items, pagedResult.TotalCount, pagedResult.Page, pagedResult.PageSize);
-        return Ok(result);
+        var result = await listProjectsUseCase.ExecuteAsync(query, ct);
+        return Ok(new PagedApiResponse<ProjectResultDto>(result.Items, result.TotalCount, result.Page, result.PageSize));
     }
 
     /// <summary>Get a specific project by its ID.</summary>
@@ -54,18 +52,13 @@ public sealed class ProjectManagementController(
     {
         var query = new GetProjectByIdQuery(projectId);
         var result = await getProjectByIdUseCase.ExecuteAsync(query, ct);
-        if (result is null)
-        {
-            return NotFound();
-        }
-
         return Ok(new ApiResponse<ProjectResultDto>(result));
     }
 
     /// <summary>Create a new project. SuperAdmin only.</summary>
     [HttpPost]
     [Authorize(Policy = SmkDocPolicies.RequireSuperAdmin)]
-    [ServiceFilter(typeof(IdempotencyFilter))]
+    [Idempotent]
     [ProducesResponseType(typeof(ApiResponse<ProjectResultDto>), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]

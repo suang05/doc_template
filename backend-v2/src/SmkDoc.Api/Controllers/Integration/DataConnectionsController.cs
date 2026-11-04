@@ -26,9 +26,9 @@ namespace SmkDoc.Api.Controllers.Integration;
 [ProducesResponseType(StatusCodes.Status403Forbidden)]
 public sealed class DataConnectionsController(
     IUseCase<ListDataConnectionsQuery, List<DataConnectionDto>> listUseCase,
-    IUseCase<GetDataConnectionByIdQuery, DataConnectionDto?> getByIdUseCase,
+    IUseCase<GetDataConnectionByIdQuery, DataConnectionDto> getByIdUseCase,
     IUseCase<CreateDataConnectionCommand, DataConnectionDto> createUseCase,
-    IUseCase<UpdateDataConnectionCommand, DataConnectionDto?> updateUseCase,
+    IUseCase<UpdateDataConnectionCommand, DataConnectionDto> updateUseCase,
     IUseCase<DeleteDataConnectionCommand, bool> deleteUseCase,
     IUseCase<TestDataConnectionCommand, TestDataConnectionResultDto> testUseCase) : ControllerBase
 {
@@ -46,11 +46,10 @@ public sealed class DataConnectionsController(
     [HttpGet("{id:guid}")]
     [ProducesResponseType(typeof(ApiResponse<DataConnectionDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetById(Guid id, CancellationToken ct)
+    public async Task<IActionResult> GetById([FromRoute] Guid id, CancellationToken ct)
     {
         var query = new GetDataConnectionByIdQuery(id);
         var result = await getByIdUseCase.ExecuteAsync(query, ct);
-        if (result == null) return NotFound();
         return Ok(new ApiResponse<DataConnectionDto>(result));
     }
 
@@ -70,11 +69,15 @@ public sealed class DataConnectionsController(
     [ProducesResponseType(typeof(ApiResponse<DataConnectionDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> Update(Guid id, [FromBody] UpdateDataConnectionRequest request, CancellationToken ct)
+    [ProducesResponseType(StatusCodes.Status412PreconditionFailed)]
+    public async Task<IActionResult> Update(
+        [FromRoute] Guid id,
+        [FromBody] UpdateDataConnectionRequest request,
+        [FromHeader(Name = "If-Match")] string? ifMatch,
+        CancellationToken ct)
     {
         var command = new UpdateDataConnectionCommand(id, request.Name, request.Provider, request.ConnectionString);
         var result = await updateUseCase.ExecuteAsync(command, ct);
-        if (result == null) return NotFound();
         return Ok(new ApiResponse<DataConnectionDto>(result));
     }
 
@@ -82,11 +85,14 @@ public sealed class DataConnectionsController(
     [HttpDelete("{id:guid}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
+    [ProducesResponseType(StatusCodes.Status412PreconditionFailed)]
+    public async Task<IActionResult> Delete(
+        [FromRoute] Guid id,
+        [FromHeader(Name = "If-Match")] string? ifMatch,
+        CancellationToken ct)
     {
         var command = new DeleteDataConnectionCommand(id);
-        var result = await deleteUseCase.ExecuteAsync(command, ct);
-        if (!result) return NotFound();
+        await deleteUseCase.ExecuteAsync(command, ct);
         return NoContent();
     }
 

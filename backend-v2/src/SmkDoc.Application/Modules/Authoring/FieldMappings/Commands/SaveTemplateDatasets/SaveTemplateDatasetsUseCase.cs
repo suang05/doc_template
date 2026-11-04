@@ -1,4 +1,5 @@
 using SmkDoc.Application.Common.Interfaces;
+using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
@@ -9,15 +10,27 @@ namespace SmkDoc.Application.Modules.Authoring.FieldMappings.Commands.SaveTempla
 
 public sealed class SaveTemplateDatasetsUseCase(
     ITemplateRepository templateRepo,
+    IDatasetRepository datasetRepo,
     IUnitOfWork unitOfWork,
-    TimeProvider timeProvider) : IUseCase<SaveTemplateDatasetsCommand>
+    TimeProvider timeProvider) : IUseCase<SaveTemplateDatasetsCommand, List<TemplateDatasetDto>>
 {
-    public async Task ExecuteAsync(SaveTemplateDatasetsCommand command, CancellationToken ct = default)
+    public async Task<List<TemplateDatasetDto>> ExecuteAsync(SaveTemplateDatasetsCommand command, CancellationToken ct = default)
     {
         var templateId = new TemplateId(command.TemplateId);
         var template = await templateRepo.GetByIdWithDetailsAsync(templateId, ct)
             ?? await templateRepo.GetByIdAsync(templateId, ct)
             ?? throw new NotFoundException($"Template '{command.TemplateId}' not found.");
+
+        if (!string.IsNullOrWhiteSpace(command.IfMatch) && command.IfMatch != "*")
+        {
+            var sanitizedMatch = command.IfMatch.Trim('\"', 'W', '/', ' ');
+            var currentToken = (template.UpdatedAt ?? template.CreatedAt).ToUnixTimeMilliseconds().ToString();
+            if (!string.Equals(sanitizedMatch, currentToken, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new PreconditionFailedException(
+                    $"Precondition failed for template '{command.TemplateId}'. ETag '{sanitizedMatch}' does not match current state.");
+            }
+        }
 
         var now = timeProvider.GetUtcNow();
         var datasets = command.Items.Select(item =>
@@ -26,5 +39,20 @@ public sealed class SaveTemplateDatasetsUseCase(
 
         template.ReplaceDatasets(datasets, now);
         await unitOfWork.CommitAsync(ct);
+
+        var datasetIds = datasets.Select(r => r.DatasetId).Distinct().ToList();
+        var dsEntities = await datasetRepo.GetByIdsAsync(datasetIds, ct);
+        var dsMap = dsEntities.ToDictionary(d => d.Id, d => d.Name.Value);
+
+        return datasets
+            .OrderBy(r => r.SortOrder)
+            .Select(r => new TemplateDatasetDto(
+                r.Id,
+                r.TemplateId.Value,
+                r.DatasetId.Value,
+                dsMap.GetValueOrDefault(r.DatasetId, "(unknown)"),
+                r.Alias.Value,
+                r.SortOrder))
+            .ToList();
     }
 }

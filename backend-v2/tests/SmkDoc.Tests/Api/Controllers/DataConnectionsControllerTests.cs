@@ -22,9 +22,9 @@ namespace SmkDoc.Tests.Api.Controllers;
 public sealed class DataConnectionsControllerTests
 {
     private readonly IUseCase<ListDataConnectionsQuery, List<DataConnectionDto>> _listUseCase = Substitute.For<IUseCase<ListDataConnectionsQuery, List<DataConnectionDto>>>();
-    private readonly IUseCase<GetDataConnectionByIdQuery, DataConnectionDto?> _getByIdUseCase = Substitute.For<IUseCase<GetDataConnectionByIdQuery, DataConnectionDto?>>();
+    private readonly IUseCase<GetDataConnectionByIdQuery, DataConnectionDto> _getByIdUseCase = Substitute.For<IUseCase<GetDataConnectionByIdQuery, DataConnectionDto>>();
     private readonly IUseCase<CreateDataConnectionCommand, DataConnectionDto> _createUseCase = Substitute.For<IUseCase<CreateDataConnectionCommand, DataConnectionDto>>();
-    private readonly IUseCase<UpdateDataConnectionCommand, DataConnectionDto?> _updateUseCase = Substitute.For<IUseCase<UpdateDataConnectionCommand, DataConnectionDto?>>();
+    private readonly IUseCase<UpdateDataConnectionCommand, DataConnectionDto> _updateUseCase = Substitute.For<IUseCase<UpdateDataConnectionCommand, DataConnectionDto>>();
     private readonly IUseCase<DeleteDataConnectionCommand, bool> _deleteUseCase = Substitute.For<IUseCase<DeleteDataConnectionCommand, bool>>();
     private readonly IUseCase<TestDataConnectionCommand, TestDataConnectionResultDto> _testUseCase = Substitute.For<IUseCase<TestDataConnectionCommand, TestDataConnectionResultDto>>();
 
@@ -107,19 +107,19 @@ public sealed class DataConnectionsControllerTests
     }
 
     [Fact]
-    public async Task GetById_WhenNotFound_ShouldReturn404()
+    public async Task GetById_WhenNotFound_ShouldBubbleNotFoundException()
     {
         // Arrange
         var sut = CreateSut();
         var id = Guid.NewGuid();
         _getByIdUseCase.ExecuteAsync(Arg.Is<GetDataConnectionByIdQuery>(q => q.Id == id), Arg.Any<CancellationToken>())
-            .Returns((DataConnectionDto?)null);
+            .ThrowsAsync(new NotFoundException("DataConnection", id));
 
         // Act
-        var result = await sut.GetById(id, CancellationToken.None);
+        var act = () => sut.GetById(id, CancellationToken.None);
 
         // Assert
-        result.Should().BeOfType<NotFoundResult>();
+        await act.Should().ThrowAsync<NotFoundException>();
     }
 
     [Fact]

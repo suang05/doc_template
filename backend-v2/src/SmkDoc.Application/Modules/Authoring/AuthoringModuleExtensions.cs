@@ -73,9 +73,9 @@ public static class AuthoringModuleExtensions
         // Field Mappings & Datasets (Action-Centric Vertical Slice)
         services.AddUseCase<PreviewMappingQuery, Stream, PreviewMappingUseCase>();
         services.AddUseCase<GetTemplateMappingsQuery, List<FieldMappingDto>, GetTemplateMappingsUseCase>();
-        services.AddUseCase<SaveTemplateMappingsCommand, SaveTemplateMappingsUseCase>();
+        services.AddUseCase<SaveTemplateMappingsCommand, List<FieldMappingDto>, SaveTemplateMappingsUseCase>();
         services.AddUseCase<GetTemplateDatasetsQuery, List<TemplateDatasetDto>, GetTemplateDatasetsUseCase>();
-        services.AddUseCase<SaveTemplateDatasetsCommand, SaveTemplateDatasetsUseCase>();
+        services.AddUseCase<SaveTemplateDatasetsCommand, List<TemplateDatasetDto>, SaveTemplateDatasetsUseCase>();
 
         // Fonts (Action-Centric Vertical Slice)
         services.AddUseCase<ListFontsQuery, List<string>, ListFontsUseCase>();

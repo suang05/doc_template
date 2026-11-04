@@ -1,4 +1,5 @@
 using SmkDoc.Application.Common.Behaviors;
+using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Integration.DataConnections.Commands.UpdateDataConnection;
 using SmkDoc.Application.Modules.Integration.DataConnections.DTOs;
@@ -34,7 +35,7 @@ public sealed class UpdateDataConnectionUseCaseTests
     {
         // Arrange
         var command = new UpdateDataConnectionCommand(Guid.Empty, "", "InvalidProvider", "");
-        var pipeline = new ValidatingUseCaseDecorator<UpdateDataConnectionCommand, DataConnectionDto?>(
+        var pipeline = new ValidatingUseCaseDecorator<UpdateDataConnectionCommand, DataConnectionDto>(
             CreateSut(),
             [new UpdateDataConnectionCommandValidator()]);
 
@@ -101,7 +102,7 @@ public sealed class UpdateDataConnectionUseCaseTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_WhenEntityNotFound_ReturnsNull()
+    public async Task ExecuteAsync_WhenEntityNotFound_ThrowsNotFoundException()
     {
         // Arrange
         var id = Guid.NewGuid();
@@ -111,10 +112,10 @@ public sealed class UpdateDataConnectionUseCaseTests
         var command = new UpdateDataConnectionCommand(id, "X", "PostgreSQL", "conn");
 
         // Act
-        DataConnectionDto? result = await CreateSut().ExecuteAsync(command);
+        var act = () => CreateSut().ExecuteAsync(command);
 
         // Assert
-        result.Should().BeNull();
+        await act.Should().ThrowAsync<NotFoundException>();
         _connectionRepo.DidNotReceive().Update(Arg.Any<DataConnection>());
         await _unitOfWork.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
     }

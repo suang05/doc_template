@@ -24,9 +24,9 @@ namespace SmkDoc.Api.Controllers.Integration;
 [ProducesResponseType(StatusCodes.Status403Forbidden)]
 public sealed class DatasetController(
     IUseCase<ListDatasetsQuery, List<DatasetDto>> listUseCase,
-    IUseCase<GetDatasetByIdQuery, DatasetDto?> getByIdUseCase,
+    IUseCase<GetDatasetByIdQuery, DatasetDto> getByIdUseCase,
     IUseCase<CreateDatasetCommand, DatasetDto> createUseCase,
-    IUseCase<UpdateDatasetCommand, DatasetDto?> updateUseCase,
+    IUseCase<UpdateDatasetCommand, DatasetDto> updateUseCase,
     IUseCase<DeleteDatasetCommand, bool> deleteUseCase) : ControllerBase
 {
     /// <summary>List all configured SQL datasets.</summary>
@@ -43,11 +43,10 @@ public sealed class DatasetController(
     [HttpGet("{id:guid}")]
     [ProducesResponseType(typeof(ApiResponse<DatasetDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetById(Guid id, CancellationToken ct)
+    public async Task<IActionResult> GetById([FromRoute] Guid id, CancellationToken ct)
     {
         var query = new GetDatasetByIdQuery(id);
         var result = await getByIdUseCase.ExecuteAsync(query, ct);
-        if (result == null) return NotFound();
         return Ok(new ApiResponse<DatasetDto>(result));
     }
 
@@ -65,11 +64,15 @@ public sealed class DatasetController(
     [HttpPut("{id:guid}")]
     [ProducesResponseType(typeof(ApiResponse<DatasetDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> Update(Guid id, [FromBody] UpdateDatasetRequest request, CancellationToken ct)
+    [ProducesResponseType(StatusCodes.Status412PreconditionFailed)]
+    public async Task<IActionResult> Update(
+        [FromRoute] Guid id,
+        [FromBody] UpdateDatasetRequest request,
+        [FromHeader(Name = "If-Match")] string? ifMatch,
+        CancellationToken ct)
     {
         var command = new UpdateDatasetCommand(id, request.Name, request.Description, request.DataConnectionId, request.SqlQuery, request.CacheSeconds);
         var result = await updateUseCase.ExecuteAsync(command, ct);
-        if (result == null) return NotFound();
         return Ok(new ApiResponse<DatasetDto>(result));
     }
 
@@ -77,11 +80,14 @@ public sealed class DatasetController(
     [HttpDelete("{id:guid}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
+    [ProducesResponseType(StatusCodes.Status412PreconditionFailed)]
+    public async Task<IActionResult> Delete(
+        [FromRoute] Guid id,
+        [FromHeader(Name = "If-Match")] string? ifMatch,
+        CancellationToken ct)
     {
         var command = new DeleteDatasetCommand(id);
-        var result = await deleteUseCase.ExecuteAsync(command, ct);
-        if (!result) return NotFound();
+        await deleteUseCase.ExecuteAsync(command, ct);
         return NoContent();
     }
 }

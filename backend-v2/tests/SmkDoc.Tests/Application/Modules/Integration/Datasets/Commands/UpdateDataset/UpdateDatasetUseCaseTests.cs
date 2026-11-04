@@ -35,7 +35,7 @@ public sealed class UpdateDatasetUseCaseTests
     {
         // Arrange
         var command = new UpdateDatasetCommand(Guid.Empty, "", null, Guid.Empty, "", -1);
-        var pipeline = new ValidatingUseCaseDecorator<UpdateDatasetCommand, DatasetDto?>(
+        var pipeline = new ValidatingUseCaseDecorator<UpdateDatasetCommand, DatasetDto>(
             CreateSut(),
             [new UpdateDatasetCommandValidator()]);
 
@@ -85,7 +85,7 @@ public sealed class UpdateDatasetUseCaseTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_WhenEntityNotFound_ReturnsNull()
+    public async Task ExecuteAsync_WhenEntityNotFound_ThrowsNotFoundException()
     {
         // Arrange
         var id = Guid.NewGuid();
@@ -95,10 +95,10 @@ public sealed class UpdateDatasetUseCaseTests
         var command = new UpdateDatasetCommand(id, "Name", null, Guid.NewGuid(), "SELECT 1");
 
         // Act
-        DatasetDto? result = await CreateSut().ExecuteAsync(command);
+        var act = () => CreateSut().ExecuteAsync(command);
 
         // Assert
-        result.Should().BeNull();
+        await act.Should().ThrowAsync<NotFoundException>();
         _datasetRepo.DidNotReceive().Update(Arg.Any<Dataset>());
         await _unitOfWork.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
     }

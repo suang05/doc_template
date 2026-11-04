@@ -22,6 +22,8 @@ TriggerSignals: [SIGNAL_STRUCTURE_MUTATION]
 | **Cancellation Token** | ! Inconsistent names: `cancellationToken`, `cancelToken`, `token` | >> Parameter name strictly `ct`: `CancellationToken ct = default` | Method signature |
 | **Local Variables** | ! Inline/chained parameter instantiation: `method(new Foo(...))` | >> Explicit intermediate local variable assignment before passing into method | Everywhere (Global) |
 | **Clock Queries** | ! Direct system clock: `DateTime.UtcNow`, `DateTime.Now` | >> Parameterized `TimeProvider` or explicit `DateTimeOffset now` | Temporal logic |
+| **PUT/DELETE Concurrency** | ! Missing concurrency token or using Redis lock on PUT/DELETE | >> Enforce optimistic concurrency via `[FromHeader(Name = "If-Match")] string? ifMatch` returning `412 Precondition Failed` | Controller Action |
+| **Declarative Rate Limiting** | ! Unthrottled public or high-cost controllers/actions | >> Protect with `[EnableRateLimiting("...")]` matching designated policy (`api`, `rendering`, `auth-strict`, `test-conn`) | Controller / Action |
 | **Test Structure** | ! God fixtures, opaque shared state, over-abstracted DRY helper chains | >> DAMP (Descriptive And Meaningful Phrases) Arrange-Act-Assert | Unit / Integration |
 
 ---
@@ -60,6 +62,14 @@ ProactiveConventionsGuards:
   - Scope: Global
     Trigger: Inline/chained object instantiation inside method call argument (e.g. ExecuteAsync(new ...), method(new ...))
     CanonicalAction: Enforce explicit local variable assignment before passing into method >> Ref: [RULE-CONV-006]
+
+  - Scope: SmkDoc.Api.Controllers
+    Trigger: State-mutating PUT/DELETE action missing [FromHeader(Name = "If-Match")] string? ifMatch
+    CanonicalAction: Add [FromHeader(Name = "If-Match")] string? ifMatch to method signature and pass to command >> Ref: [RULE-CONV-006]
+
+  - Scope: SmkDoc.Api.Controllers
+    Trigger: Controller or endpoint missing declarative [EnableRateLimiting("...")] attribute
+    CanonicalAction: Apply [EnableRateLimiting("...")] per designated policy >> Ref: [RULE-CONV-006]
 
   - Scope: SmkDoc.Tests
     Trigger: Direct clock query via DateTime.UtcNow in test setup
@@ -162,11 +172,13 @@ public sealed class PublishTemplateUseCaseTests
 * [MUST] Instantiate Command, Query, Entity, or complex arguments into an explicit local variable before passing to any method or UseCase invocation.
 * [MUST NOT] Inline instantiation directly into method arguments (e.g. `useCase.ExecuteAsync(new Query(...), ct)`).
 * [MUST] Name the execution output and return payload strictly as `result` (strictly PROHIBIT declaring local variables named `response`).
-* [MUST] Standardize controller envelope returns as `return Ok(new ApiResponse<TDto>(result));` (or `StatusCode(..., new ApiResponse<TDto>(result))`).
+* [MUST] Standardize controller envelope returns: `return Ok(new ApiResponse<TDto>(result))` for queries/updates, `CreatedAtAction` for resource creation (201 Created), `AcceptedAtAction` for async operations (202 Accepted), and `NoContent()` for deletions; strictly PROHIBIT raw `StatusCode(201, ...)`, `StatusCode(202, ...)`, or manual `Location` header assignments.
 * [MUST NOT] Inline nested constructor instantiations inside return statements (e.g. prohibit `return Ok(new ApiResponse<TDto>(new TDto(...)));`; instantiate `var result = new TDto(...);` first).
 * [MUST] Fully hydrate and return `*ResultDto` directly from the Application UseCase; strictly PROHIBIT returning raw primitives (`string`, `int`, `bool`) that force Controllers to assemble presentation DTOs.
 * [MUST] Suffix all UseCase return DTO records with `ResultDto` (e.g. `TemplateResultDto`, `CreateApiKeyResultDto`, `ScanFieldsResultDto`, `SaveHtmlResultDto`, `RollbackVersionResultDto`, `TestDataConnectionResultDto`, `DownloadUrlResultDto`); strictly PROHIBIT creating or referencing `*Response` records in Application and Presentation contracts.
 * [MUST] Enforce pure 3-step Controller dispatching: (1) Translate HTTP request to Command/Query, (2) Execute UseCase (`var result = await useCase.ExecuteAsync(command, ct);`), (3) Return envelope (`return Ok(new ApiResponse<TResultDto>(result));`).
+* [MUST] Enforce Optimistic Concurrency on state-mutating PUT and DELETE actions using `[FromHeader(Name = "If-Match")] string? ifMatch`, passing `ifMatch` to the command and returning `412 Precondition Failed` on concurrency mismatch.
+* [MUST] Protect API controllers and sensitive endpoints with declarative rate limiting using `[EnableRateLimiting("...")]` matching designated traffic policies (`api`, `rendering`, `auth-strict`, `test-conn`).
 
 ```csharp
 // 1. Explicit variable declaration

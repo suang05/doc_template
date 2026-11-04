@@ -117,6 +117,7 @@ public sealed class TemplateControllerTests
         var sut = CreateSut();
         var templateId = Guid.NewGuid();
         var now = DateTimeOffset.UtcNow;
+        var token = now.ToUnixTimeMilliseconds().ToString();
         var resultDto = new TemplateResultDto(
             templateId,
             Guid.NewGuid(),
@@ -127,7 +128,8 @@ public sealed class TemplateControllerTests
             null,
             "html",
             now.AddDays(-1),
-            now);
+            now,
+            token);
 
         _updateTemplateDetailsUseCase.ExecuteAsync(
             Arg.Is<UpdateTemplateDetailsCommand>(c => c.TemplateId == templateId && c.IfMatch == "\"12345\""),
@@ -153,6 +155,7 @@ public sealed class TemplateControllerTests
         var sut = CreateSut();
         var templateId = Guid.NewGuid();
         var now = DateTimeOffset.UtcNow;
+        var token = now.ToUnixTimeMilliseconds().ToString();
         var resultDto = new TemplateResultDto(
             templateId,
             Guid.NewGuid(),
@@ -163,7 +166,8 @@ public sealed class TemplateControllerTests
             null,
             "html",
             now,
-            null);
+            null,
+            token);
 
         _getTemplateByIdUseCase.ExecuteAsync(Arg.Is<GetTemplateByIdQuery>(q => q.Id == templateId), Arg.Any<CancellationToken>())
             .Returns(resultDto);

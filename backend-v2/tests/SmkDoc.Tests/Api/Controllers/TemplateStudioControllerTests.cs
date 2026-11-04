@@ -27,7 +27,7 @@ public sealed class TemplateStudioControllerTests
     private readonly IUseCase<SaveTemplateHtmlCommand, SaveHtmlResultDto> _saveHtmlUseCase = Substitute.For<IUseCase<SaveTemplateHtmlCommand, SaveHtmlResultDto>>();
     private readonly IUseCase<ValidateTemplateHtmlQuery, TemplateValidationResultDto> _validateUseCase = Substitute.For<IUseCase<ValidateTemplateHtmlQuery, TemplateValidationResultDto>>();
     private readonly IUseCase<GetTemplateMappingsQuery, List<FieldMappingDto>> _getMappingsUseCase = Substitute.For<IUseCase<GetTemplateMappingsQuery, List<FieldMappingDto>>>();
-    private readonly IUseCase<SaveTemplateMappingsCommand> _saveMappingsUseCase = Substitute.For<IUseCase<SaveTemplateMappingsCommand>>();
+    private readonly IUseCase<SaveTemplateMappingsCommand, List<FieldMappingDto>> _saveMappingsUseCase = Substitute.For<IUseCase<SaveTemplateMappingsCommand, List<FieldMappingDto>>>();
     private readonly IUseCase<PreviewMappingQuery, Stream> _previewMappingUseCase = Substitute.For<IUseCase<PreviewMappingQuery, Stream>>();
 
     private TemplateStudioController CreateSut()
@@ -168,13 +168,13 @@ public sealed class TemplateStudioControllerTests
         {
             new(Guid.NewGuid(), templateId, "company", "req.company", "Company", false, null, null, 1, "direct", null, null, null)
         };
-        _getMappingsUseCase.ExecuteAsync(Arg.Is<GetTemplateMappingsQuery>(q => q.TemplateId == templateId), Arg.Any<CancellationToken>())
+        _saveMappingsUseCase.ExecuteAsync(Arg.Is<SaveTemplateMappingsCommand>(c => c.TemplateId == templateId), Arg.Any<CancellationToken>())
             .Returns(mappings);
 
         var request = new SaveTemplateMappingsRequest([]);
 
         // Act
-        var result = await sut.SaveMappings(templateId, request, CancellationToken.None);
+        var result = await sut.SaveMappings(templateId, request, null, CancellationToken.None);
 
         // Assert
         await _saveMappingsUseCase.Received(1).ExecuteAsync(Arg.Is<SaveTemplateMappingsCommand>(c => c.TemplateId == templateId), Arg.Any<CancellationToken>());

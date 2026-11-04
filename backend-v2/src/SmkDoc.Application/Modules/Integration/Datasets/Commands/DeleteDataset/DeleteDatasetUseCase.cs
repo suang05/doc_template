@@ -1,3 +1,4 @@
+using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
@@ -10,8 +11,8 @@ public sealed class DeleteDatasetUseCase(
 {
     public async Task<bool> ExecuteAsync(DeleteDatasetCommand command, CancellationToken ct = default)
     {
-        var entity = await datasetRepo.GetByIdAsync(new DatasetId(command.Id), ct);
-        if (entity == null) return false;
+        var entity = await datasetRepo.GetByIdAsync(new DatasetId(command.Id), ct)
+            ?? throw new NotFoundException("Dataset", command.Id);
 
         datasetRepo.Remove(entity);
         await unitOfWork.CommitAsync(ct);

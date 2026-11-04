@@ -22,17 +22,17 @@ public static class IntegrationModuleExtensions
     {
         // Single-Responsibility UseCases - Datasets
         services.AddUseCase<CreateDatasetCommand, DatasetDto, CreateDatasetUseCase>();
-        services.AddUseCase<UpdateDatasetCommand, DatasetDto?, UpdateDatasetUseCase>();
+        services.AddUseCase<UpdateDatasetCommand, DatasetDto, UpdateDatasetUseCase>();
         services.AddUseCase<DeleteDatasetCommand, bool, DeleteDatasetUseCase>();
-        services.AddUseCase<GetDatasetByIdQuery, DatasetDto?, GetDatasetByIdUseCase>();
+        services.AddUseCase<GetDatasetByIdQuery, DatasetDto, GetDatasetByIdUseCase>();
         services.AddUseCase<ListDatasetsQuery, List<DatasetDto>, ListDatasetsUseCase>();
 
         // Single-Responsibility UseCases - DataConnections
         services.AddUseCase<CreateDataConnectionCommand, DataConnectionDto, CreateDataConnectionUseCase>();
-        services.AddUseCase<UpdateDataConnectionCommand, DataConnectionDto?, UpdateDataConnectionUseCase>();
+        services.AddUseCase<UpdateDataConnectionCommand, DataConnectionDto, UpdateDataConnectionUseCase>();
         services.AddUseCase<DeleteDataConnectionCommand, bool, DeleteDataConnectionUseCase>();
         services.AddUseCase<TestDataConnectionCommand, TestDataConnectionResultDto, TestDataConnectionUseCase>();
-        services.AddUseCase<GetDataConnectionByIdQuery, DataConnectionDto?, GetDataConnectionByIdUseCase>();
+        services.AddUseCase<GetDataConnectionByIdQuery, DataConnectionDto, GetDataConnectionByIdUseCase>();
         services.AddUseCase<ListDataConnectionsQuery, List<DataConnectionDto>, ListDataConnectionsUseCase>();
 
         return services;

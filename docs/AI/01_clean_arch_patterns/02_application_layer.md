@@ -56,7 +56,7 @@ ProactiveChallengeHeuristics:
 CoreExtensionSlots:
   RenderingEngines: Pluggable IRenderEngineFactory polymorphic dispatch (Html, Docx, Excel via FrozenDictionary)
   ValidationPipeline: Automatic IValidator<TCommand> fail-fast execution at line 1
-  QueryProjections: Materialized PagedResultDto<T> with boundary clamping, ambient tenant isolation, and jsonb-free SQL projections (ITemplateQueryService, IGenerationLogQueryService)
+  QueryProjections: Materialized *PagedResultDto (e.g. TemplatePagedResultDto) with boundary clamping, ambient tenant isolation, and jsonb-free SQL projections (ITemplateQueryService, IGenerationLogQueryService)
   CompiledTemplateCache: ICompiledTemplateCache + ITemplateCacheInvalidationBus (64-stripe compiled AST cache with post-commit Redis Pub/Sub cross-pod invalidation)
   DatasetResultCache: IDatasetResultCache (Tenant-isolated external SQL JSON result cache honoring Dataset.CacheSeconds via Redis/Memory)
   AuditLoggingPipeline: IGenerationLogQueue (Bounded in-memory Channel<GenerationLog> with GenerationLogBatchWorker background flush and graceful drain, decoupling OLTP inserts from document generation requests)
@@ -316,38 +316,31 @@ public sealed record ListTemplatesQuery(int Page = 1, int PageSize = 20);
 // --- File: Queries/ListTemplates/ListTemplatesUseCase.cs ---
 namespace SmkDoc.Application.Modules.Authoring.Templates.Queries.ListTemplates;
 
+using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.Common.Models;
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
-using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.Interfaces;
 
 public sealed class ListTemplatesUseCase(
-    ITemplateRepository templateRepository,
-    ICurrentProjectContext projectContext) : IUseCase<ListTemplatesQuery, PagedResultDto<TemplateResultDto>>
+    ITemplateQueryService templateQueryService,
+    ICurrentProjectContext projectContext) : IUseCase<ListTemplatesQuery, TemplatePagedResultDto>
 {
-    public async Task<PagedResultDto<TemplateResultDto>> ExecuteAsync(ListTemplatesQuery query, CancellationToken ct = default)
+    public async Task<TemplatePagedResultDto> ExecuteAsync(ListTemplatesQuery query, CancellationToken ct = default)
     {
         if (!projectContext.IsResolved)
-            throw new ForbiddenException("Active project context is required.");
+            throw new ForbiddenException("Active project context is required to list templates.");
 
         var page = Math.Max(1, query.Page);
         var pageSize = Math.Clamp(query.PageSize, 1, 100);
 
-        var (items, totalCount) = await templateRepository.GetPagedByProjectAsync(projectContext.ProjectId, null, page, pageSize, ct);
+        var (items, totalCount) = await templateQueryService.ListPagedAsync(
+            query.SearchTerm,
+            query.Category,
+            query.IsActive,
+            page,
+            pageSize,
+            ct);
 
-        var dtos = items.Select(template => new TemplateResultDto(
-            template.Id.Value,
-            template.ProjectId.Value,
-            template.Name.Value,
-            template.Slug.Value,
-            template.Category,
-            template.IsActive,
-            template.CurrentVersionId,
-            template.CreatedAt,
-            template.UpdatedAt)).ToList();
-
-        return new PagedResultDto<TemplateResultDto>(dtos, totalCount, page, pageSize);
+        return new TemplatePagedResultDto(items, totalCount, page, pageSize);
     }
 }
 ```

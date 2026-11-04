@@ -38,7 +38,7 @@ public sealed class ApiKeyController(
 
     /// <summary>Generate a new sub-key for the current project under quota guardrails (Max 2 active keys).</summary>
     [HttpPost]
-    [ServiceFilter(typeof(IdempotencyFilter))]
+    [Idempotent]
     [ProducesResponseType(typeof(ApiResponse<CreateApiKeyResultDto>), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
@@ -50,14 +50,18 @@ public sealed class ApiKeyController(
 
         var command = new CreateApiKeyCommand(request.Name, request.CallerApp, scope);
         var result = await createApiKeyUseCase.ExecuteAsync(command, ct);
-        return StatusCode(StatusCodes.Status201Created, new ApiResponse<CreateApiKeyResultDto>(result));
+        return CreatedAtAction(nameof(ListKeys), new ApiResponse<CreateApiKeyResultDto>(result));
     }
 
     /// <summary>Revoke a sub-key belonging to the current project (Self-service key rotation).</summary>
     [HttpDelete("{id:guid}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> RevokeKey([FromRoute] Guid id, CancellationToken ct)
+    [ProducesResponseType(StatusCodes.Status412PreconditionFailed)]
+    public async Task<IActionResult> RevokeKey(
+        [FromRoute] Guid id,
+        [FromHeader(Name = "If-Match")] string? ifMatch,
+        CancellationToken ct)
     {
         var command = new RevokeApiKeyCommand(id);
         await revokeApiKeyUseCase.ExecuteAsync(command, ct);

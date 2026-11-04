@@ -5,6 +5,5 @@ public record CreateApiKeyRequest(
     string CallerApp,
     string Scope = "ReadWrite",
     string[]? Scopes = null,
-    DateTimeOffset? ExpiresAt = null,
-    Guid? ProjectId = null
+    DateTimeOffset? ExpiresAt = null
 );

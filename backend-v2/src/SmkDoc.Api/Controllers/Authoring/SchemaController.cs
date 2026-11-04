@@ -1,11 +1,9 @@
-using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.Contracts.Authoring.Schemas;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Schemas.Commands.ValidateStandaloneSchema;
 using SmkDoc.Application.Modules.Authoring.Schemas.DTOs;
-using SmkDoc.Domain.Exceptions;
 
 namespace SmkDoc.Api.Controllers.Authoring;
 
@@ -30,14 +28,6 @@ public sealed class SchemaController(
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Validate([FromBody] ValidateSchemaRequest request, CancellationToken ct)
     {
-        if (request == null ||
-            request.Schema.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null ||
-            request.Payload.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null)
-        {
-            throw new DomainValidationException(
-                "Both 'schema' and 'payload' must be provided in the request body.");
-        }
-
         var command = new ValidateStandaloneSchemaCommand(request.Schema, request.Payload);
         var result = await validateUseCase.ExecuteAsync(command, ct);
         return Ok(new ApiResponse<ValidateStandaloneSchemaResult>(result));

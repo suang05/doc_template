@@ -43,7 +43,7 @@ public sealed class ApiKeyManagementController(
 
     /// <summary>Issue a new API key for the specified project (Quota: Max 2 active keys). SuperAdmin only.</summary>
     [HttpPost]
-    [ServiceFilter(typeof(IdempotencyFilter))]
+    [Idempotent]
     [ProducesResponseType(typeof(ApiResponse<CreateApiKeyResultDto>), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
@@ -52,27 +52,24 @@ public sealed class ApiKeyManagementController(
         [FromBody] CreateApiKeyRequest request,
         CancellationToken ct)
     {
-        if (request.ProjectId.HasValue && request.ProjectId.Value != Guid.Empty && request.ProjectId.Value != projectId)
-        {
-            throw new ForbiddenException("Access denied: payload projectId does not match route projectId.");
-        }
-
         var scope = !string.IsNullOrWhiteSpace(request.Scope)
             ? request.Scope
             : (request.Scopes?.FirstOrDefault() ?? "ReadWrite");
 
         var command = new CreateApiKeyCommand(request.Name, request.CallerApp, scope);
         var result = await createApiKeyUseCase.ExecuteAsync(command, ct);
-        return StatusCode(StatusCodes.Status201Created, new ApiResponse<CreateApiKeyResultDto>(result));
+        return CreatedAtAction(nameof(ListKeys), new { projectId }, new ApiResponse<CreateApiKeyResultDto>(result));
     }
 
     /// <summary>Revoke an API key belonging to the specified project. SuperAdmin only.</summary>
     [HttpDelete("{keyId:guid}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status412PreconditionFailed)]
     public async Task<IActionResult> RevokeKey(
         [FromRoute] Guid projectId,
         [FromRoute] Guid keyId,
+        [FromHeader(Name = "If-Match")] string? ifMatch,
         CancellationToken ct)
     {
         var command = new RevokeApiKeyCommand(keyId);

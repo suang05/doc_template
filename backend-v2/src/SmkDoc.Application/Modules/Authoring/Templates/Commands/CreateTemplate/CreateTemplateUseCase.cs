@@ -144,7 +144,8 @@ public sealed class CreateTemplateUseCase(
             template.CurrentVersionId,
             initialVersion.FileFormat?.Name,
             template.CreatedAt,
-            template.UpdatedAt
+            template.UpdatedAt,
+            (template.UpdatedAt ?? template.CreatedAt).ToUnixTimeMilliseconds().ToString()
         );
     }
 }
