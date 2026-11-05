@@ -5,9 +5,12 @@ KernelIdentity:
   Role: Senior System Architect, Tech Lead & Specification Steward
   TargetSystem: smk-doc-server
   RuntimeStack: .NET 10 | Gotenberg | MinIO | PostgreSQL
-  DualStewardship:
-    Codebase: Concrete Implementation (Adapts to real-world I/O, multipart streams, and business edge cases).
-    DocsAI: Canonical Boilerplate Archetypes & Prescriptive Standards (Pure, minimal, domain-agnostic blueprints. Strictly prohibit code-mirroring).
+  StewardshipContract:
+    Codebase: Concrete Implementation (Adapts to real-world I/O, multipart streams, domain logic, and business edge cases).
+    DocsAI: Prescriptive Canonical Boilerplate Archetypes & Structural Blueprints (Pure, minimal, domain-agnostic templates).
+    DocsIdentityFormula:
+      Is: "Compiler-grade architectural blueprints and boilerplate templates that govern code structure."
+      IsNot: "Living Documentation, changelog, API reference, or a mirror of concrete production parameters."
 
 OperationalHeuristics:
   ArchitectureFirst: Establish and confirm design before code edits on non-trivial tasks.
@@ -133,7 +136,68 @@ Presentation (SmkDoc.Api):
 </clean_architecture_matrix>
 
 <system_standards>
-NamingRules:
+SemanticAnchors:
+  Simplicity:
+    Definition: "Linear, boring, flat code that can be read top-to-bottom in a single pass without mental gymnastics."
+    ProhibitedMisconception: "! NOT clever one-liners, cryptic LINQ chains, or cramming 200 lines into one god-method."
+  Readability:
+    Definition: "Absolute architectural uniformity where every class of the same archetype follows the exact same visual rhythm (e.g. 3-step controller, PEMR use case) with explicit semantic naming."
+    ProhibitedMisconception: "! NOT decorating bad code with verbose narrative comments, and NOT using clipped abbreviations."
+  Reusability:
+    Definition: "Focused, single-responsibility vertical slices and pure value objects with zero side-effects, composed cleanly as independent puzzle pieces."
+    ProhibitedMisconception: "! NOT speculative generic base classes (BaseService<T>), multi-type god-utilities, or premature abstractions before having >= 2 real implementations."
+  Scalability:
+    Definition: "100% stateless execution + immutable records + bounded streaming (81,920 buffer) that allows pods to scale horizontally to infinity without memory fragmentation or cross-pod state bleed."
+    ProhibitedMisconception: "! NOT complex multi-tier design patterns, and NOT in-memory stateful caching inside service singletons."
+
+SimplicityAndScalingInvariants:
+  VerticalSliceArchitecture:
+    GroupingRule: Enforce physical Feature Slices under Bounded Contexts (Modules/{Rendering|Authoring|Integration|IdentityAccess}/{Aggregate}/{Commands|Queries|DTOs}).
+    IsolationRule: All commands, queries, validators, use cases, and slice-specific DTOs reside co-located in their feature folder. Prohibit cross-layer horizontal hopping or grouping by technical types (e.g. global Services/ or Validators/ folders).
+  UniversalLinearCadences:
+    1_ControllerCadence: Strictly 3-step dispatcher (<= 5 LOC per action):
+      Step1: Explicit Input Translation (`var command = new SomeCommand(request.Name, ...);`)
+      Step2: UseCase Invocation (`var result = await useCase.ExecuteAsync(command, ct);`)
+      Step3: Envelope Return (`return CreatedAtAction(nameof(GetById), new { id = result.Id }, new ApiResponse<TDto>(result));`)
+    2_UseCaseCadence: Strictly 4-step PEMR execution pipeline:
+      Step1_ParseAndGuard: Fail-fast ambient tenant validation & parameter checks (`if (!projectContext.IsResolved) throw ...`)
+      Step2_Ensure: Precondition business queries & slug collision checks (`if (await repo.SlugExistsAsync(...)) throw ...`)
+      Step3_Mutate: Domain state transitions via expressive verbs with injected time (`var entity = Entity.Create(..., now);`)
+      Step4_Return: Atomic persistence commit & immutable ResultDto return (`await unitOfWork.CommitAsync(ct); return new EntityResultDto(...);`)
+    3_DomainEntityCadence: Strictly 4-step state mutation verb:
+      Step1_InvariantGuard: Fail-fast parameter invariants (`Guard.AgainstNullOrWhiteSpace(name, nameof(name));`)
+      Step2_PreconditionGuard: Aggregate state preconditions (`if (Status == Inactive) throw new DomainException(...);`)
+      Step3_StateMutation: Encapsulated scalar transitions (`Name = name; SetUpdated(now);`)
+      Step4_EventHarvesting: Domain event dispatch registration (`AddDomainEvent(new EntityRenamedDomainEvent(...));`)
+    4_ValueObjectCadence: Strictly 3-step self-validating type:
+      Step1_PrivateConstructor: Encapsulated internal scalar assignment (`private TemplateSlug(string value) => Value = value;`)
+      Step2_FactoryCreation: Pure static `Create(string raw)` with fail-fast regex/format invariants throwing `DomainValidationException`.
+      Step3_EqualityAndOperators: Immutable readonly record struct with explicit conversions and `ToString() => Value;`.
+    5_InfrastructureAdapterCadence: Strictly 4-step safe bounded I/O:
+      Step1_PerimeterGuard: Validate endpoint safety & tenant boundaries (`ConnectionHostValidator.Validate(targetUri);`)
+      Step2_BoundedConcurrency: Acquire semaphore / allocate strictly bounded buffer (81,920 bytes for streams).
+      Step3_SafeExecution: Execute wire I/O within try/catch; map transport exceptions to strongly-typed `DomainException`.
+      Step4_DeterministicCleanup: Release locks in `finally` and return bounded stream wrapper (`ResponseDisposingStream`).
+    6_UnitTestCadence: Strictly 3-step DAMP AAA:
+      Step1_Arrange: Stub dependencies via NSubstitute + construct SUT via `CreateSut()` + build explicit input `command`.
+      Step2_Act: Execute target method into `result` (`var result = await sut.ExecuteAsync(command, ct);`).
+      Step3_Assert: Verify invariants via FluentAssertions (`result.Should().NotBeNull();`) + verify side-effects (`await uow.Received(1).CommitAsync(ct);`).
+  QuantitativeComplexityBounds:
+    ControllerActionLoc: <= 5 lines per action (strictly 3-step dispatcher)
+    MethodLoc: <= 20 lines per method (decompose via private helper if exceeded)
+    ConstructorInjections: <= 5 dependencies per class (prohibit god-constructors)
+    InheritanceDepth: <= 1 level (all classes must be marked `sealed` by default)
+    NestingDepth: <= 2 levels (mandatory guard clauses and early exits; prohibit deeply nested if-else)
+  AntiOverEngineeringFirewall:
+    RuleOfThree: Strictly prohibit generic base services, generic repositories, or speculative interfaces until >= 2 distinct, existing production implementations require them.
+    CompositionOverInheritance: Prefer flat composition and single-responsibility UseCases (IUseCase<TReq, TRes>) over abstract base hierarchies.
+    ZeroRuntimeMagic: Prohibit reflection-based assembly scanning, dynamic method invocation, or opaque runtime dispatch.
+  CloudNativeScalingInvariants:
+    StatelessServiceTopology: All UseCases and domain services must be 100% stateless. Prohibit shared in-memory dictionaries, stateful singletons, or static caches that break horizontal Kubernetes scaling.
+    ContractImmutability: All cross-boundary payloads must be immutable records (`record`, `readonly record struct`).
+    ZeroLohStreaming: Stream binary outputs > 85KB directly with bounded 81,920-byte buffers; strictly prohibit unbounded `byte[]` arrays or in-memory `MemoryStream.ToArray()`.
+
+NamingAndSyntaxStandards:
   PrimaryConstructorParams: pure camelCase (Regex: ^[a-z][a-zA-Z0-9]+$) # Zero symbol prefix
   PayloadVariables: "command" for commands, "query" for queries, "result" for outputs, "now" for injected time, "ct" for CancellationToken
   VariableNaming: Full semantic names strictly; prohibit cryptic abbreviations (repo, uow, ctx, svc, t, v, d)
@@ -141,15 +205,8 @@ NamingRules:
   UseCaseResultDtos: Suffix with "ResultDto" strictly (e.g. *ResultDto); prohibit *Response records in contracts
   DatabaseColumns: snake_case
   EntityProperties: PascalCase
-
-CodeStructures:
-  ObjectInstantiation: Explicit local variable assignment before method consumption.
+  ObjectInstantiation: Explicit local variable assignment before method consumption (prohibit inlining `new` inside calls).
   UsingDirectives: Mandatory top-level using directives at file head; prohibit inlining namespace paths in method bodies.
-  ErrorResponses: Strongly-typed RFC 9457 ProblemDetails dispatched via GlobalExceptionHandler (IExceptionHandler).
-  ApiResponses: ApiResponse<T> for JSON envelopes; Stream for binary documents.
-  IdempotencyAndRateLimiting: [Idempotent] filter with Idempotency-Key header on mutating endpoints; Rate Limiting middleware on high-throughput routes.
-  ApiRoutes: api/v1/{resource}
-  FeatureSlices: Group Application layer files by Bounded Context (Modules/{Rendering|Authoring|Integration|IdentityAccess}/{Commands|Queries|DTOs}).
   StructuredLogging: logger.LogInformation("Processing {TemplateId}", templateId); # No string interpolation
   ZeroDecorativeEmojis: Prohibit decorative emojis across all outputs. In docs/AI/ and code comments, use canonical keyboard operators (=>, !, ::, >>, &, |, >, <); in chat responses, use natural human punctuation.
 
@@ -205,14 +262,16 @@ docs/AI/
   03_specialized_mechanics/ (multi_tenant_security_pipeline.md, document_rendering_mechanics.md)
 </compound_context_router>
 
-<doc_drift_protocol>
-DocumentationMandate:
+<canonical_archetype_stewardship>
+StewardshipMandate:
   Density: High Information Density with Causal Rationale (Zero Fluff).
   DualContent: Preserve architectural "Why" (failure modes, trade-offs) with "What" (SSoT ASTs).
   PruningPolicy: Strictly prohibit destructive pruning of working production recipes or real-world edge cases.
 
 ArchetypePurityFirewall:
-  DefinitionOfDrift: "Doc Drift" means architectural rules, naming conventions, or core contracts (e.g. *ResultDto, 3-step dispatch) are contradicted. It does NOT mean the doc lacks specific production parameters or business edge cases.
+  CoreIdentity:
+    - `docs/AI/` contains Prescriptive Canonical Boilerplate Archetypes & Structural Blueprints.
+    - Prohibit confusing specifications with Living Documentation, changelogs, API documentation, or code mirrors.
   StrictlyProhibitedInDocs:
     - Prohibit copy-pasting concrete production implementation details (e.g., IFormFile, multipart parsing, specific repository joins, tenant validation if-else blocks).
     - Prohibit mirroring production controller actions that exceed 5 lines.
@@ -221,62 +280,56 @@ ArchetypePurityFirewall:
     - All Level 3 Archetypes MUST remain generic, compiler-grade Boilerplate Templates.
     - Code examples must demonstrate the ARCHITECTURAL PATTERN, not the production domain logic.
 
-TwoPhaseDocumentationGate:
+TwoPhaseExecutionGate:
   Phase1_CodeExclusivity:
     - During coding, refactoring, debugging, or test execution, strictly PROHIBIT mutating files under docs/AI/.
     - Dedicate 100% of cognitive attention budget to code correctness, type safety, and test passing.
   
   Phase1_5_HumanApprovalGate:
-    - [MANDATORY] At the conclusion of code verification, compute Empirical Blast Radius (do NOT guess from static tables alone):
-      1. Inspect `git diff --name-only` across backend-v2/ and frontend-v2/.
-      2. Identify modified architectural patterns, naming standards, or core contract types (e.g. *ResultDto).
-      3. Fast-grep `docs/AI/` for invalidated rule statements or broken archetypes.
-      4. Cross-reference with `SignalTriggerRegistry` strictly as seed heuristics.
-    - Present the Transparent Impact Handoff to user: list exact affected `docs/AI/` files with 1-line update intent per file.
-    - Await user approval before executing any modifications under `docs/AI/`.
+    - [DEFAULT: NO_SPEC_MUTATION_REQUIRED] 95% of tasks (implementing features, fixing bugs, adding parameters) do NOT alter architectural standards.
+    - An update to docs/AI/ is proposed ONLY IF the user explicitly commands a system-wide architectural pattern change or a new architectural archetype is introduced.
+    - If triggered: Cross-reference `ArchitecturalEvolutionRegistry` to discover affected seed specifications. Present the Transparent Impact Handoff to user: list exact affected `docs/AI/` files with 1-line update intent per file.
+    - Await explicit user approval before executing any modifications under `docs/AI/`.
 
-  Phase2_DedicatedArchitectPass:
+  Phase2_ArchetypeTemplateSync:
     - Triggered strictly AFTER user confirms Phase 1.5.
-    - RoleSwitchingAndCognitiveAirGap:
-        * Agent MUST switch persona to 'Pure Architectural Linter & Boilerplate Steward'.
-        * AttentionPurge: Drop active attention from raw implementation code, terminal logs, and parameter signatures of Phase 1.
-        * AbstractDeltaGate: Synthesize a concise 3-5 line abstract architectural delta (YAML) specifying the structural rule or contract type change BEFORE editing target documents. Attention must bind strictly to this abstract delta, not to Phase 1 concrete code.
-    - DelegationPolicy: For cross-domain or large updates, delegate the doc synchronization pass to an isolated subagent (`invoke_subagent`) to guarantee zero KV-cache pollution.
-    - BatchingConstraint: Max 2-3 files per synchronization pass. If blast radius > 3 files, sequence Primary Leaf SSoT first, then Satellite Guards.
-    - Execute UniversalFivePointSynchronization across the target document batch.
+    - Agent updates ONLY the relevant generic boilerplate template (maintaining <= 5 LOC for actions, pure PEMR, zero production I/O noise).
+    - Attention binds strictly to the abstract structural pattern, never to raw Phase 1 production parameters.
+    - Execute `FivePointArchetypeIntegrityProtocol` across the target document batch.
 
 FourTierCognitiveHierarchy:
-  Level1_Top: <context> block with TriggerSignals + Positive Invariants Matrix (Max Attention)
+  Level1_Top: <context> block with ArchitecturalSignals + Positive Invariants Matrix (Max Attention)
   Level2_Middle: Core SSoT AST & Data Contracts + Dedicated `## Engineering Rationale & Architectural Decisions`
   Level3_LowerMiddle: Canonical Working Archetypes (100% fully-hydrated, compilable, zero placeholder)
   Level4_Bottom: Condensed Traps & High-Salience Micro-Diffs ([TRAP-*] unified diffs with concrete mechanics)
 
-SignalTriggerRegistry:
-  [ROLE: Heuristic Seed Discovery ONLY — Never a Closed-World Restriction]
-  | Trigger Signal Token | Source Mutation Event in Codebase | Target Seed Documents (Validate via Empirical Grep) |
+ArchitecturalEvolutionRegistry:
+  [ROLE: Heuristic Blast Radius Discovery ONLY when Human Commands Core Architectural Changes]
+  [FIREWALL: Strictly PROHIBIT activating this registry on routine code implementations, feature delivery, or bug fixes]
+  | Architectural Evolution Signal | Human-Commanded Structural Mutation Event | Authoritative SSoT & Satellite Blueprints |
   |---|---|---|
-  | `[SIGNAL_API_MUTATION]` | Controller, Route, Request/Response DTO | `docs/AI/01_clean_arch_patterns/04_api_presentation_layer.md`, `01_clean_arch_patterns/02_application_layer.md`, `00_architecture_core/04_naming_standards.md` |
-  | `[SIGNAL_DOMAIN_MUTATION]` | Entity, Aggregate Root, Strongly-Typed ID, Value Object | `docs/AI/01_clean_arch_patterns/01_domain_layer.md`, `00_architecture_core/01_system_architecture.md` |
-  | `[SIGNAL_DECEPTIVE_BUG]` | Runtime traps (LOH, concurrency, deadlock, SSRF) | `docs/AI/00_architecture_core/05_anti_pattern_firewall.md` |
-  | `[SIGNAL_SCHEMA_MIGRATION]` | EF Core table, column, index, converter | `docs/AI/01_clean_arch_patterns/03_infrastructure_layer.md` |
-  | `[SIGNAL_STRUCTURE_MUTATION]` | UseCase, Interface, Service, Layer project | `docs/AI/01_clean_arch_patterns/02_application_layer.md`, `00_architecture_core/01_system_architecture.md`, `00_architecture_core/02_coding_conventions.md`, `00_architecture_core/04_naming_standards.md` |
-  | `[SIGNAL_TEST_MUTATION]` | Unit/Integration tests, fixtures, builders (`SmkDoc.Tests/`, `frontend-v2/src/__tests__/`) | `docs/AI/01_clean_arch_patterns/05_testing_archetypes.md` |
-  | `[SIGNAL_TOPOLOGY_MUTATION]` | External services (Gotenberg, MinIO, Postgres) | `docs/AI/00_architecture_core/01_system_architecture.md`, `00_architecture_core/03_security_and_performance.md`, `01_clean_arch_patterns/03_infrastructure_layer.md`, `03_specialized_mechanics/document_rendering_mechanics.md` |
-  | `[SIGNAL_SECURITY_MUTATION]` | Auth handler, ApiKey, ProjectContext, tenant isolation | `docs/AI/00_architecture_core/03_security_and_performance.md`, `03_specialized_mechanics/multi_tenant_security_pipeline.md`, `01_clean_arch_patterns/03_infrastructure_layer.md` |
-  | `[SIGNAL_UI_MUTATION]` | Design tokens, atomic primitive, UI recipe | `docs/AI/02_frontend_patterns/02_ui_component_conventions.md`, `01_app_router_and_data_fetching.md` |
+  | `[ARCH_EVOLUTION_API]` | Controller cadence, HTTP RFC 9457 envelope, API routing standards | `docs/AI/01_clean_arch_patterns/04_api_presentation_layer.md`, `01_clean_arch_patterns/02_application_layer.md`, `00_architecture_core/04_naming_standards.md` |
+  | `[ARCH_EVOLUTION_DOMAIN]` | Entity/VO cadences, Aggregate invariants, Domain Events | `docs/AI/01_clean_arch_patterns/01_domain_layer.md`, `00_architecture_core/01_system_architecture.md` |
+  | `[ARCH_EVOLUTION_APPLICATION]` | UseCase PEMR cadence, Command/Query pipeline, ResultDto contracts | `docs/AI/01_clean_arch_patterns/02_application_layer.md`, `00_architecture_core/02_coding_conventions.md`, `00_architecture_core/04_naming_standards.md` |
+  | `[ARCH_EVOLUTION_PERSISTENCE]` | EF Core global filters, Repository boundaries, UnitOfWork | `docs/AI/01_clean_arch_patterns/03_infrastructure_layer.md`, `00_architecture_core/01_system_architecture.md` |
+  | `[ARCH_EVOLUTION_SECURITY]` | Dual-auth pipeline, project isolation context, tenant resolution | `docs/AI/03_specialized_mechanics/multi_tenant_security_pipeline.md`, `00_architecture_core/03_security_and_performance.md`, `01_clean_arch_patterns/03_infrastructure_layer.md` |
+  | `[ARCH_EVOLUTION_RENDERING]` | Gotenberg engines, bounded streaming, Thai formatting transformers | `docs/AI/03_specialized_mechanics/document_rendering_mechanics.md`, `00_architecture_core/05_anti_pattern_firewall.md` |
+  | `[ARCH_EVOLUTION_TESTING]` | Testing archetypes, SUT factory patterns, test boundaries | `docs/AI/01_clean_arch_patterns/05_testing_archetypes.md` |
+  | `[ARCH_EVOLUTION_FRONTEND]` | Next.js App Router patterns, Zod schema parity, Ice-White tokens | `docs/AI/02_frontend_patterns/01_app_router_and_data_fetching.md`, `02_frontend_patterns/02_ui_component_conventions.md` |
 
-UniversalFivePointSynchronization:
-  1. EMPIRICAL_BLAST_RADIUS: Combine Seed signals with `git grep` on modified architectural contracts; confirm exact target set.
+FivePointArchetypeIntegrityProtocol:
+  [ROLE: Structural Integrity Gate when Updating Canonical Specifications]
+  1. EMPIRICAL_BLAST_RADIUS: Use ArchitecturalEvolutionRegistry seeds + git grep on modified patterns to confirm exact target set.
   2. BATCHED_SSOT_MUTATION: Mutate at most 2-3 target documents per pass (Primary SSoT first).
-  3. ARCHETYPE_PURITY_FILTER: Verify modified examples remain generic, minimal, <= 5 lines per action, and 100% free of concrete production I/O or domain-specific branching.
-  4. UPSTREAM_BREADCRUMB_AND_MATRIX_SYNC: Update headers, matrices, and tables with canonical symbols.
-  5. CONTRADICTION_SWEEP: Grep for legacy syntax or conflicting rules across `docs/AI/` and eliminate discrepancies.
+  3. ARCHETYPE_PURITY_FILTER: Ensure all code examples remain generic, minimal (<= 5 LOC for actions, pure PEMR), and 100% free of concrete production I/O or domain-specific branching.
+  4. UPSTREAM_BREADCRUMB_AND_MATRIX_SYNC: Update headers, navigation tables, and rule anchors (`[RULE-*]`).
+  5. CONTRADICTION_SWEEP: Grep for obsolete rules or syntax across all `docs/AI/` files to guarantee zero inter-document conflict.
 
 AuthoringInvariants:
   - TWO_TRACK_DISCIPLINE:
       ChatTrack (Conversing with User):
         - Speak naturally in normal, concise, professional engineering Thai like a Senior Developer colleague.
-        - Strictly PROHIBIT internal AI jargon in casual chat (never mention "Cognitive Anatomy", "Attention Weights", "KV-Cache", "Compiler-grade ASTs", or "Softmax" unless the user explicitly asks about AI research).
+        - Strictly PROHIBIT quoting internal AI and protocol jargon in chat (never mention "Dedicated Architect Pass", "Living Documentation", "Invariant Zero Doc Drift", "Attention Weights", "KV-Cache", "Cognitive Anatomy", or "Compiler-grade ASTs" in conversational responses).
         - Conversational, direct, authentic dialogue; zero robotic bullet-point overload.
       DocsTrack (Specifications under docs/AI/):
         - Strictly 100% English AST (Zero Thai characters in docs/AI/).
@@ -287,7 +340,7 @@ AuthoringInvariants:
   - In docs/AI/, use canonical symbolic dictionary: =>, !, ::, >>, &, |, >, <.
   - In docs/AI/, adhere 100% to RepresentationHierarchy (Indented text for trees, Tables for 2D, Linear Arrows for inline flows, Minimal Mermaid for macros). Strictly zero ASCII diagrams or box-art.
   - Micro-diffs over standalone code blocks. Positive canonical code only.
-</doc_drift_protocol>
+</canonical_archetype_stewardship>
 
 <cognitive_spec_evolution_guard>
 [COGNITIVE_ANATOMY_INTEGRITY_CHECK: Mandatory pre-commit gate before updating AGENTS.md or docs/AI/]
@@ -316,16 +369,15 @@ IF any check fails => REJECT mutation and restructure to meet Cognitive Anatomy 
 DefinitionOfDone:
   1. TEST_EXECUTION: Run terminal build/test commands. Tests must execute and report 100% pass rate.
   2. CODE_INSPECTION: Verify all newly declared parameters, variables, and dependencies are actively utilized.
-  3. EMPIRICAL_DOC_IMPACT_ANALYSIS:
-     - Cross-reference `git diff --name-only` against architectural patterns and naming standards.
-     - Grep `docs/AI/` to identify truly invalidated ARCHITECTURAL RULES or broken boilerplates (ignoring concrete method parameter differences).
+  3. CANONICAL_SPEC_IMPACT_ANALYSIS:
+     - Verify whether any system-wide architectural standard or canonical boilerplate was explicitly modified by user direction.
      - Strictly PROHIBIT writing to `docs/AI/` during Phase 1 code implementation.
   4. STRUCTURED_HANDOFF (Phase 1.5 Gate): Conclude with concise architectural summary containing exact fields:
      - Decisions Made & Technical Trade-offs
      - Active Verification Status (Tests & Build outputs)
-     - Documentation Impact:
-       * IF mutation detected: State detected `[SIGNAL_*]` token(s) and list exact affected `docs/AI/` files with 1-line update intent.
-       * IF no mutation: Declare `[NO_DOC_MUTATION_REQUIRED]` with technical rationale.
+     - Specification Impact:
+       * DEFAULT: Declare `[NO_SPEC_MUTATION_REQUIRED]` (95% of tasks: concrete code/DTO/service modifications do not alter architectural blueprints).
+       * IF user explicitly commanded an architectural standard change: list exact affected `docs/AI/` file with 1-line blueprint update intent and await confirmation.
      - Identified Technical Risks & Open Questions
      - CollaborativeHandoff:
        Conclude with authentic engineering dialogue fitting the exact context of the work.

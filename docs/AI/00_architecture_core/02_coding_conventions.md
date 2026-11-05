@@ -1,11 +1,11 @@
 # [CORE-002]: 02_coding_conventions.md — Language Idioms, Syntax Grammar & Clean Code Standards
 
 <context>
-Scope: C# 13 & TypeScript Coding Idioms, Primary Constructors, Collection Expressions, File-Scoped Namespaces, 1-Type-Per-File Rule, Async/Await, and DAMP Testing.
-SSoT_For: Language Grammar, Syntax Layout, Method Signatures, Constructor Dependency Injection, and Test Structure.
-Out_Of_Scope: Variable naming and Lexicon verbs (see: 04_naming_standards.md), System Architecture (see: 01_system_architecture.md), Security & Performance (see: 03_security_and_performance.md).
+Scope: C# 13 & TypeScript Coding Idioms, 6 Universal Linear Cadences, Primary Constructors, Collection Expressions, File-Scoped Namespaces, 1-Type-Per-File Rule, and Async/Await Invariants.
+SSoT_For: Language Grammar, Syntax Layout, Method Signatures, Constructor Dependency Injection, and Linear Execution Cadences.
+Out_Of_Scope: Variable naming and Lexicon verbs (see: 04_naming_standards.md), System Architecture tiers (see: 01_system_architecture.md), Security & Performance bounds (see: 03_security_and_performance.md), Comprehensive Testing Archetypes & Testcontainers (see: ../01_clean_arch_patterns/05_testing_archetypes.md).
 Target: `backend-v2/` and `frontend-v2/`.
-TriggerSignals: [SIGNAL_STRUCTURE_MUTATION]
+ArchitecturalSignals: [ARCH_EVOLUTION_APPLICATION]
 </context>
 
 ---
@@ -18,6 +18,11 @@ TriggerSignals: [SIGNAL_STRUCTURE_MUTATION]
 | **Constructor DI** | ! Block constructors with manual field assignments (`_repo = repo;`) | >> C# 13 Primary Constructors: `public sealed class Foo(IBar bar)` | Class declaration |
 | **Collection Allocation**| ! Legacy initializers: `new List<T>()`, `Array.Empty<T>()`, `new()` | >> C# 12+ Collection Expressions: `[]` | Everywhere |
 | **One Type Per File** | ! Bundling `*Command` and `*Validator` inside `*UseCase.cs` | >> Strict 1-Primary-Type-Per-File (`{TypeName}.cs`) per CQRS slice | Filesystem |
+| **Architecture Partitioning**| ! Layered folder sprawl (global `Services/`, `Validators/`) | >> Vertical Slice Architecture: feature folders under Bounded Contexts (`Modules/{Context}/{Aggregate}/{Commands\|Queries}`) | Architecture |
+| **Execution Flow** | ! Deeply nested if-else ladders ($\ge 3$ levels) | >> Linear Cadence: flat guard clauses with early returns (nesting $\le 2$ levels) | Method Body |
+| **Controller Cadence** | ! Complex multi-step actions or business checks (> 5 LOC) | >> Pure 3-Step Dispatcher (<= 5 LOC): Explicit Input -> UseCase -> Envelope | Presentation |
+| **UseCase Cadence** | ! Ad-hoc sequence or missing invariant checks | >> Pure 4-Step PEMR Cadence: 1. Parse/Guard -> 2. Ensure -> 3. Mutate -> 4. Return | Application |
+| **Abstraction Timing** | ! Speculative generic base classes ("เผื่ออนาคต") | >> Rule of Three: concrete classes until $\ge 2$ real implementations exist | Design |
 | **Async Operations** | ! Blocking calls: `.Result`, `.Wait()`, `.GetAwaiter().GetResult()`| >> 100% `async`/`await` pipeline with forwarded `ct` | Method body |
 | **Cancellation Token** | ! Inconsistent names: `cancellationToken`, `cancelToken`, `token` | >> Parameter name strictly `ct`: `CancellationToken ct = default` | Method signature |
 | **Local Variables** | ! Inline/chained parameter instantiation: `method(new Foo(...))` | >> Explicit intermediate local variable assignment before passing into method | Everywhere (Global) |
@@ -191,6 +196,180 @@ var result = await getJobUseCase.ExecuteAsync(query, ct);
 return Ok(new ApiResponse<DocumentJobDto>(result));
 ```
 
+### 3.4 Canonical Linear Execution Cadence Archetype (Controller 3-Step & UseCase PEMR)
+>> MANDATORY CANONICAL TEMPLATE [RULE-CONV-007]:
+* [MUST] Follow the 6 Universal Linear Cadences across all components:
+  1. Controller: 3-Step Dispatcher ($\le 5$ LOC)
+  2. UseCase: 4-Step PEMR (Parse & Guard => Ensure => Mutate => Return)
+  3. Domain Entity: 4-Step State Mutation Verb (Invariant Guard => Precondition Guard => State Mutation => Event Harvesting)
+  4. Value Object: 3-Step Self-Validating Type (Private Constructor => Static Factory `Create` => Operators/ToString)
+  5. Infrastructure Adapter: 4-Step Safe Bounded I/O (Perimeter Guard => Bounded Concurrency/Buffer => Safe I/O & Exception Mapping => Deterministic Cleanup)
+  6. Unit Test: 3-Step DAMP AAA (Arrange => Act => Assert)
+* [MUST] Mark classes `sealed` by default; prohibit inheritance hierarchies exceeding 1 level.
+* [MUST] Restrict method nesting depth to $\le 2$ levels using early exit guard clauses.
+
+```csharp
+// --- Part A: Controller 3-Step Dispatcher Cadence (<= 5 LOC) ---
+[HttpPost]
+[Idempotent]
+[ProducesResponseType(typeof(ApiResponse<TemplateResultDto>), StatusCodes.Status201Created)]
+public async Task<IActionResult> Create([FromBody] CreateTemplateRequest request, CancellationToken ct)
+{
+    // Step 1: Explicit Input Mapping (Request -> Command)
+    var command = new CreateTemplateCommand(request.Name, request.Slug, request.Category);
+
+    // Step 2: UseCase Invocation (Variable named 'result', strictly no 'response')
+    var result = await createTemplateUseCase.ExecuteAsync(command, ct);
+
+    // Step 3: Envelope Return (Location header + ApiResponse<T>)
+    return CreatedAtAction(nameof(GetById), new { id = result.Id }, new ApiResponse<TemplateResultDto>(result));
+}
+
+// --- Part B: UseCase 4-Step PEMR Execution Cadence ---
+public sealed class CreateTemplateUseCase(
+    ITemplateRepository templateRepository,
+    ICurrentProjectContext projectContext,
+    IUnitOfWork unitOfWork,
+    TimeProvider timeProvider) : IUseCase<CreateTemplateCommand, TemplateResultDto>
+{
+    public async Task<TemplateResultDto> ExecuteAsync(CreateTemplateCommand command, CancellationToken ct = default)
+    {
+        // 1. Parse & Guard (Fail-fast ambient tenant check)
+        if (!projectContext.IsResolved)
+            throw new ForbiddenException("Active project context is required.");
+
+        // 2. Ensure (Precondition query & business key conflict check)
+        if (await templateRepository.SlugExistsAsync(command.Slug, ct))
+            throw ConflictException.DuplicateSlug(command.Slug);
+
+        // 3. Mutate (Domain state transition via expressive verb with injected time)
+        var now = timeProvider.GetUtcNow();
+        var template = Template.Create(projectContext.ProjectId, TemplateName.Create(command.Name), new TemplateSlug(command.Slug), command.Category, now);
+        await templateRepository.AddAsync(template, ct);
+
+        // 4. Return (Atomic commit & immutable ResultDto return)
+        await unitOfWork.CommitAsync(ct);
+        return new TemplateResultDto(template.Id.Value, template.Name.Value, template.Slug.Value, template.Category);
+    }
+}
+
+// --- Part C: Domain Entity 4-Step State Mutation Verb Cadence ---
+public sealed class Template : AggregateRoot<TemplateId>
+{
+    public TemplateName Name { get; private set; }
+    public TemplateStatus Status { get; private set; }
+    public DateTimeOffset UpdatedAt { get; private set; }
+
+    public void Rename(TemplateName newName, DateTimeOffset now)
+    {
+        // 1. Invariant Guard
+        Guard.AgainstNull(newName, nameof(newName));
+
+        // 2. Precondition Guard
+        if (Status == TemplateStatus.Archived)
+            throw new DomainRuleViolationException("Cannot rename an archived template.");
+
+        // 3. State Mutation
+        Name = newName;
+        UpdatedAt = now;
+
+        // 4. Event Harvesting
+        AddDomainEvent(new TemplateRenamedDomainEvent(Id, Name, now));
+    }
+}
+
+// --- Part D: Value Object 3-Step Self-Validating Cadence ---
+public readonly record struct TemplateSlug
+{
+    private static readonly Regex SlugRegex = new(@"^[a-z0-9]+(?:-[a-z0-9]+)*$", RegexOptions.Compiled);
+
+    // 1. Private Parameterized Constructor
+    private TemplateSlug(string value) => Value = value;
+
+    public string Value { get; }
+
+    // 2. Pure Static Factory with Fail-Fast Validation
+    public static TemplateSlug Create(string raw)
+    {
+        Guard.AgainstNullOrWhiteSpace(raw, nameof(raw));
+        var trimmed = raw.Trim().ToLowerInvariant();
+        if (!SlugRegex.IsMatch(trimmed))
+            throw new DomainValidationException($"Invalid slug format: '{raw}'.");
+        return new TemplateSlug(trimmed);
+    }
+
+    // 3. Value Equality & Explicit String Conversions
+    public override string ToString() => Value;
+    public static implicit operator string(TemplateSlug slug) => slug.Value;
+}
+
+// --- Part E: Infrastructure Adapter 4-Step Safe Bounded I/O Cadence ---
+public sealed class GotenbergPdfClient(
+    HttpClient httpClient,
+    IHostValidator hostValidator,
+    ILogger<GotenbergPdfClient> logger) : IPdfClient
+{
+    private readonly SemaphoreSlim _throttler = new(10, 10);
+
+    public async Task<Stream> RenderHtmlAsync(string html, CancellationToken ct = default)
+    {
+        // 1. Perimeter Guard
+        hostValidator.ValidateHost(httpClient.BaseAddress);
+
+        // 2. Bounded Concurrency Acquisition
+        await _throttler.WaitAsync(ct);
+        try
+        {
+            // 3. Safe I/O & Exception Mapping
+            using var request = new HttpRequestMessage(HttpMethod.Post, "/forms/chromium/convert/html");
+            var httpResponse = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+            if (!httpResponse.IsSuccessStatusCode)
+                throw new ExternalServiceException($"Gotenberg returned HTTP {httpResponse.StatusCode}");
+
+            // 4. Bounded Stream Pass-Through & Deterministic Cleanup
+            return await httpResponse.Content.ReadAsStreamAsync(ct);
+        }
+        catch (HttpRequestException ex)
+        {
+            logger.LogError(ex, "Gotenberg connection failed.");
+            throw new ExternalServiceUnavailableException("Gotenberg rendering service is unavailable.", ex);
+        }
+        finally
+        {
+            _throttler.Release();
+        }
+    }
+}
+
+// --- Part F: Unit Test 3-Step DAMP AAA Cadence ---
+public sealed class CreateTemplateUseCaseTests
+{
+    [Fact]
+    public async Task ExecuteAsync_WhenValidCommand_ReturnsResultDtoAndCommits()
+    {
+        // 1. Arrange (Stubs + SUT + Explicit Command)
+        var repository = Substitute.For<ITemplateRepository>();
+        var projectContext = Substitute.For<ICurrentProjectContext>();
+        projectContext.IsResolved.Returns(true);
+        projectContext.ProjectId.Returns(Guid.NewGuid());
+        var unitOfWork = Substitute.For<IUnitOfWork>();
+        var fakeClock = TestConstants.CreateFakeClock();
+
+        var sut = new CreateTemplateUseCase(repository, projectContext, unitOfWork, fakeClock);
+        var command = new CreateTemplateCommand("Invoice Template", "invoice-template", TemplateCategory.Standard);
+
+        // 2. Act
+        var result = await sut.ExecuteAsync(command, CancellationToken.None);
+
+        // 3. Assert (State assertions + Mock verification)
+        result.Should().NotBeNull();
+        result.Slug.Should().Be("invoice-template");
+        await repository.Received(1).AddAsync(Arg.Any<Template>(), Arg.Any<CancellationToken>());
+        await unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
+    }
+}
+```
+
 ---
 
 ## 4. Level 4: Anti-Patterns & Unified Micro-Diffs
@@ -242,3 +421,19 @@ return Ok(new ApiResponse<DocumentJobDto>(result));
 + var result = await getJobUseCase.ExecuteAsync(query, ct);
 ```
 *Rationale: Inlining object instantiation inside method arguments obscures layer boundaries, hinders breakpoint inspection, and degrades stack trace debuggability.*
+
+### [TRAP-CONV-005]: Deeply Nested Conditionals vs Linear Guard Cadence
+```diff
+- if (user != null) {
+-     if (user.IsActive) {
+-         if (user.HasPermission("edit")) {
+-             return ExecuteInternal();
+-         }
+-     }
+- }
+- throw new ForbiddenException();
++ if (user == null || !user.IsActive) throw new UnauthorizedException();
++ if (!user.HasPermission("edit")) throw new ForbiddenException();
++ return ExecuteInternal();
+```
+*Rationale: Deeply nested indentation structures increase cyclomatic complexity, waste context tokens, and hinder linear readability. Early guard clauses guarantee flat, fail-fast execution.*

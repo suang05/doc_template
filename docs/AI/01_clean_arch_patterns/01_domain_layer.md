@@ -5,7 +5,7 @@ Scope: Domain Layer Patterns, Aggregate Roots, Child Entities, Value Objects, Sm
 SSoT_For: Domain Entity Encapsulation, BaseEntity<TId>, UUIDv7 Identifiers, Domain Event Harvesting, Smart Enums, Value Objects, and Global Identity Scoping.
 Out_Of_Scope: EF Core DbContext mapping and persistence configurations (see: 03_infrastructure_layer.md), UseCase orchestration (see: 02_application_layer.md).
 Target: `SmkDoc.Domain/` (`Entities/`, `ValueObjects/`, `Enums/`, `Common/`, `Exceptions/`, `Events/`, `Interfaces/`).
-TriggerSignals: [SIGNAL_DOMAIN_MUTATION]
+ArchitecturalSignals: [ARCH_EVOLUTION_DOMAIN]
 </context>
 
 ---

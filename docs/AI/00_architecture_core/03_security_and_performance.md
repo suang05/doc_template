@@ -1,11 +1,11 @@
 # [CORE-003]: 03_security_and_performance.md — M2M Security, Tenant Isolation & High-Throughput Performance SSoT
 
 <context>
-Scope: M2M Dual-Channel Authentication, ClaimsPrincipal Hydration, Global User vs Tenant Scoping, Zero-LOH Memory Invariants, Gotenberg Protection, SSRF Defense, and Constant-Time Hashing.
-SSoT_For: Authentication Schemes, Role Claims Transformation, Ambient Tenancy Resolution, Stream Buffer Limits (<=81,920), and SSRF Host Validation.
-Out_Of_Scope: Controller route attributes and RFC 9457 error translation (see: 01_clean_arch_patterns/04_api_presentation_layer.md), General coding idioms (see: 02_coding_conventions.md).
+Scope: Cross-Cutting Security Standards, High-Throughput Performance Limits, Zero-LOH Memory Thresholds (<=81,920 buffer), SSRF IP/Host Perimeter Validation, and Constant-Time Hashing.
+SSoT_For: Performance Thresholds, Stream Buffer Limits (<=81,920 bytes), Constant-Time Comparison, and SSRF Network Boundary Invariants.
+Out_Of_Scope: Concrete multi-tenant middleware execution and dual-auth pipeline (see: ../03_specialized_mechanics/multi_tenant_security_pipeline.md), Presentation layer routing and RFC 9457 error translation (see: ../01_clean_arch_patterns/04_api_presentation_layer.md).
 Target: `backend-v2/` (`SmkDoc.Infrastructure/`, `SmkDoc.Api/Middleware/`, and `SmkDoc.Domain/Entities/`).
-TriggerSignals: [SIGNAL_SECURITY_MUTATION], [SIGNAL_TOPOLOGY_MUTATION]
+ArchitecturalSignals: [ARCH_EVOLUTION_SECURITY], [ARCH_EVOLUTION_RENDERING]
 </context>
 
 ---

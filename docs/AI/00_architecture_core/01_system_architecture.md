@@ -3,9 +3,9 @@
 <context>
 Scope: Macro Container Topology, 4 Bounded Contexts Collaboration, Tier Matrix, 2 Execution Pipelines, Clean Architecture Layer Boundaries, and System Structural Interceptors.
 SSoT_For: Overall System Architecture, Layer Dependency Invariants, Container Topology, and Execution Pipeline Lifecycles.
-Out_Of_Scope: C# 13 syntax and coding idioms (see: 02_coding_conventions.md), M2M auth and performance buffers (see: 03_security_and_performance.md), Lexical naming (see: 04_naming_standards.md).
+Out_Of_Scope: C# 13 syntax and linear cadences (see: 02_coding_conventions.md), M2M security and performance limits (see: 03_security_and_performance.md), Lexical naming (see: 04_naming_standards.md), Anti-patterns (see: 05_anti_pattern_firewall.md).
 Target: `backend-v2/` (`SmkDoc.Domain`, `SmkDoc.Application`, `SmkDoc.Infrastructure`, `SmkDoc.Api`) and `frontend-v2/`.
-TriggerSignals: [SIGNAL_TOPOLOGY_MUTATION], [SIGNAL_STRUCTURE_MUTATION], [SIGNAL_DOMAIN_MUTATION]
+ArchitecturalSignals: [ARCH_EVOLUTION_APPLICATION], [ARCH_EVOLUTION_DOMAIN], [ARCH_EVOLUTION_RENDERING]
 </context>
 
 ---

@@ -2,10 +2,10 @@
 
 <context>
 Scope: Fatal Production Traps, Memory Safety Interceptors, Security Hardening, and Diagnostic Remediation Cards.
-SSoT_For: System-Wide Anti-Pattern Traps (TRAP-001 to TRAP-014), Interceptor Triggers, and Critical Failure Modes.
+SSoT_For: System-Wide Anti-Pattern Traps (TRAP-001 to TRAP-016), Interceptor Triggers, and Critical Failure Modes.
 Out_Of_Scope: Basic language syntax (see: 02_coding_conventions.md), System Architecture layers (see: 01_system_architecture.md).
 Target: Full Stack (`backend-v2/` and `frontend-v2/`).
-TriggerSignals: [SIGNAL_DECEPTIVE_BUG]
+ArchitecturalSignals: [ARCH_EVOLUTION_RENDERING], [ARCH_EVOLUTION_SECURITY]
 </context>
 
 ---
@@ -238,3 +238,33 @@ public sealed class TransactionalUnitOfWork(
 - _memoryCache.Set(idempotencyKey, cachedResult, TimeSpan.FromHours(24));
 + await redisDatabase.ScriptEvaluateAsync(LuaIdempotencyAcquireScript, [key], [ttl]);
 ```
+
+### [TRAP-ARCH-015]: Premature Generic Base Class Over-Engineering
+```diff
+- // BANNED: Over-engineered generic CRUD base class
+- public abstract class CrudServiceBase<TEntity, TDto, TId> : ICrudService<TDto, TId> {
+-     protected abstract Task<TEntity> MapToEntity(TDto dto);
+-     public virtual async Task<TDto> CreateAsync(TDto dto) { ... }
+- }
+- public class TemplateService : CrudServiceBase<Template, TemplateDto, Guid> { ... }
++ // MANDATORY: Flat, single-responsibility vertical slice
++ public sealed class CreateTemplateUseCase(
++     ITemplateRepository templateRepository,
++     IUnitOfWork unitOfWork) : IUseCase<CreateTemplateCommand, TemplateResultDto> {
++     public async Task<TemplateResultDto> ExecuteAsync(CreateTemplateCommand command, CancellationToken ct) { ... }
++ }
+```
+*Rationale: Generic CRUD base services obscure business logic, force awkward inheritance overrides, and create tight coupling across disparate domain entities. Flat single-responsibility UseCases maximize readability and isolate changes.*
+
+### [TRAP-SCALE-016]: Stateful In-Memory Singleton Preventing Horizontal Scaling
+```diff
+- // BANNED: In-memory state breaks when scaling to multiple pods
+- public sealed class DocumentRateLimiter {
+-     private readonly ConcurrentDictionary<string, int> _tenantCounters = new();
+-     public bool Allow(string tenantId) => _tenantCounters.AddOrUpdate(...) < 100;
+- }
++ // MANDATORY: External distributed state (Redis / RateLimiterMiddleware)
++ [EnableRateLimiting("rendering")] // Backed by distributed partition key
++ public sealed class DocumentGenerationController(...) : ControllerBase { ... }
+```
+*Rationale: In-memory state in singletons is invisible to other pod replicas in a Kubernetes cluster, leading to rate-limiting bypasses and inconsistent application state across instances.*

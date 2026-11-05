@@ -1,11 +1,11 @@
 # [PATTERN-004]: 04_api_presentation_layer.md — Presentation Layer Design Patterns & HTTP SSoT
 
 <context>
-Scope: Presentation Layer Patterns, Thin Controllers, ApiResponse Envelopes, Mutation Semantics (POST Idempotency vs PUT/DELETE ETag), SSRF Defense, and RFC 9457 Exceptions.
-SSoT_For: Controller Action Contracts, HTTP Status Mapping, ProblemDetails Translation, Mutation Concurrency Standard, and Connection Test Semantics.
-Out_Of_Scope: Application UseCase orchestration (see: 02_application_layer.md), Security authentication middleware (see: ../03_specialized_mechanics/multi_tenant_security_pipeline.md).
+Scope: Presentation Layer Patterns, Thin Controllers (<= 5 LOC), 3-Step Dispatcher, ApiResponse Envelopes, Mutation Semantics (POST Idempotency vs PUT/DELETE ETag), and RFC 9457 Exceptions.
+SSoT_For: Controller Action Contracts, 3-Step Dispatcher Pattern, HTTP Status Mapping, and RFC 9457 ProblemDetails Translation.
+Out_Of_Scope: Application UseCase orchestration (see: 02_application_layer.md), Multi-tenant dual-auth middleware (see: ../03_specialized_mechanics/multi_tenant_security_pipeline.md), SSRF network validator mechanics (see: ../00_architecture_core/03_security_and_performance.md).
 Target: `backend-v2/` (`SmkDoc.Api/Controllers/`, `SmkDoc.Api/Common/Responses/`, `SmkDoc.Api/Filters/`, `SmkDoc.Api/Middleware/`).
-TriggerSignals: [SIGNAL_API_MUTATION]
+ArchitecturalSignals: [ARCH_EVOLUTION_API]
 </context>
 
 ---

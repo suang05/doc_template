@@ -1,11 +1,11 @@
 # [MECH-001]: multi_tenant_security_pipeline.md — Multi-Tenant Security & Dual-Auth Pipeline SSoT
 
 <context>
-Scope: Multi-Tenant Architecture, Dual-Channel Authentication (M2M API-Key & Web JWT), Ambient Project Context & EF Core Global Query Filters.
-SSoT_For: Dual-Authentication Pipeline, M2M ClaimsPrincipal Hydration, ProjectContextMiddleware, Ambient Tenancy Resolution, and API Key Governance.
-Out_Of_Scope: Presentation layer routing and RFC 9457 exceptions (see: ../01_clean_arch_patterns/04_api_presentation_layer.md), General Security and Performance bounds (see: ../00_architecture_core/03_security_and_performance.md).
+Scope: Concrete Multi-Tenant Isolation Mechanics, Dual-Channel Authentication Pipeline (M2M API-Key & Web JWT), ProjectContextMiddleware, and EF Core Global Query Filter Resolution.
+SSoT_For: Dual-Authentication Pipeline Execution, M2M ClaimsPrincipal Hydration, ProjectContextMiddleware, Ambient Tenancy Resolution, and API Key Verification.
+Out_Of_Scope: Cross-cutting security limits and performance thresholds (see: ../00_architecture_core/03_security_and_performance.md), Presentation layer routing and RFC 9457 exceptions (see: ../01_clean_arch_patterns/04_api_presentation_layer.md).
 Target: `backend-v2/` (`SmkDoc.Api/Middleware/`, `SmkDoc.Infrastructure/Security/`, `SmkDoc.Application/Common/Interfaces/`).
-TriggerSignals: [SIGNAL_SECURITY_MUTATION], [SIGNAL_API_MUTATION]
+ArchitecturalSignals: [ARCH_EVOLUTION_SECURITY], [ARCH_EVOLUTION_API]
 </context>
 
 ---

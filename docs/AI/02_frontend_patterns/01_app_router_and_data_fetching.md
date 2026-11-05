@@ -5,7 +5,7 @@ Scope: Next.js 15 App Router Architecture, Server/Client Component Boundaries, R
 SSoT_For: App Router Data Fetching, Next.js API Proxy Gateway (`/api/proxy/[...path]`), Live Document Preview Streaming, and TanStack Query Hydration.
 Out_Of_Scope: UI Design tokens and Tailwind styling (see: 02_ui_component_conventions.md), Backend API presentation (see: ../01_clean_arch_patterns/04_api_presentation_layer.md).
 Target: `frontend-v2/` (`src/app/(app)/`, `src/features/`, `src/hooks/`, `src/lib/api/`).
-TriggerSignals: [SIGNAL_UI_MUTATION]
+ArchitecturalSignals: [ARCH_EVOLUTION_FRONTEND]
 </context>
 
 ---

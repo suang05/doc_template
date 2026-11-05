@@ -1,11 +1,11 @@
 # [MECH-002]: document_rendering_mechanics.md — Rendering Engines, OpenXML & Thai Formatting SSoT
 
 <context>
-Scope: Polymorphic Rendering Engines, 2-Track Rendering Pipeline, Gotenberg Chromium Microservice, Zero-LOH Bounded Streaming, OpenXML & ClosedXML Mechanics.
+Scope: Polymorphic Rendering Engines, 2-Track Rendering Pipeline, Gotenberg Chromium Microservice, Zero-LOH Bounded Streaming, OpenXML DrawingML Fix, Thai Formatting Transformers, and ClosedXML Print Fit.
 SSoT_For: Render Engine Resolution, Gotenberg Response Streaming, Storage Perimeter Egress, Thai Formatting, OpenXML DrawingML Fix, and ClosedXML Print Fit.
 Out_Of_Scope: Presentation layer routing and RFC 9457 exceptions (see: ../01_clean_arch_patterns/04_api_presentation_layer.md), General Security and Performance bounds (see: ../00_architecture_core/03_security_and_performance.md).
 Target: `backend-v2/` (`SmkDoc.Infrastructure/Engines/`, `SmkDoc.Infrastructure/Pdf/`, `SmkDoc.Application/Common/Helpers/`).
-TriggerSignals: [SIGNAL_TOPOLOGY_MUTATION], [SIGNAL_API_MUTATION]
+ArchitecturalSignals: [ARCH_EVOLUTION_RENDERING], [ARCH_EVOLUTION_API]
 </context>
 
 ---
