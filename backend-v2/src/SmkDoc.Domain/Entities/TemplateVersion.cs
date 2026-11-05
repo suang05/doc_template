@@ -1,6 +1,8 @@
+using System.Text.Json;
 using SmkDoc.Domain.Common;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
+using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Domain.Entities;
@@ -18,6 +20,7 @@ public sealed class TemplateVersion : BaseEntity
     public string? DataSchema { get; private set; }
     public string? SamplePayload { get; private set; }
     public string? MappingsSnapshot { get; private set; }
+    public string? PageSettingsJson { get; private set; }
     public string? CommitMessage { get; private set; }
     public string? CreatedBy { get; private set; }
 
@@ -99,6 +102,33 @@ public sealed class TemplateVersion : BaseEntity
         EnsureNotArchived("UpdateMappingsSnapshot");
         MappingsSnapshot = snapshot;
         SetUpdated(now);
+    }
+
+    public void UpdatePageSettings(TemplatePageSettings? settings, DateTimeOffset now)
+    {
+        EnsureNotArchived("UpdatePageSettings");
+        PageSettingsJson = settings != null
+            ? JsonSerializer.Serialize(settings)
+            : null;
+        SetUpdated(now);
+    }
+
+    public TemplatePageSettings GetPageSettings()
+    {
+        if (string.IsNullOrWhiteSpace(PageSettingsJson))
+        {
+            return TemplatePageSettings.Default;
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<TemplatePageSettings>(PageSettingsJson)
+                ?? TemplatePageSettings.Default;
+        }
+        catch (JsonException)
+        {
+            return TemplatePageSettings.Default;
+        }
     }
 
     private void EnsureNotArchived(string operation)

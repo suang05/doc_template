@@ -1,4 +1,5 @@
 using SmkDoc.Domain.Enums;
+using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 
 namespace SmkDoc.Application.Modules.Authoring.Templates.DTOs;
@@ -29,7 +30,8 @@ public sealed record TemplateStudioDto(
     string Html,
     string? SamplePayload,
     string? DataSchema,
-    int Version
+    int Version,
+    TemplatePageSettings? PageSettings = null
 );
 
 /// <summary>

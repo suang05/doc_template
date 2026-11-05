@@ -1,8 +1,9 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Common.Responses;
+using SmkDoc.Api.Constants;
 using SmkDoc.Api.Contracts.Authoring.Templates;
 using SmkDoc.Api.Filters;
-using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.CommitTemplateDraft;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.ParseTemplateDraft;
@@ -18,11 +19,11 @@ namespace SmkDoc.Api.Controllers.Authoring;
 /// </summary>
 [ApiController]
 [Route("api/v1/templates/draft")]
+[Authorize(Policy = SmkDocPolicies.CanManageTemplates)]
 public sealed class TemplateDraftController(
     IUseCase<ParseTemplateDraftCommand, ParseDraftResultDto> parseUseCase,
     IUseCase<PreviewTemplateDraftQuery, Stream> previewUseCase,
-    IUseCase<CommitTemplateDraftCommand, CommitDraftResultDto> commitUseCase,
-    ICurrentProjectContext projectContext) : ControllerBase
+    IUseCase<CommitTemplateDraftCommand, CommitDraftResultDto> commitUseCase) : ControllerBase
 {
     /// <summary>
     /// Step 1 — Parse: upload file to RAM cache, return draftId + discovered placeholders.
@@ -76,11 +77,6 @@ public sealed class TemplateDraftController(
         [FromBody] CommitDraftRequest request,
         CancellationToken ct)
     {
-        if (!projectContext.IsResolved)
-        {
-            throw new ForbiddenException("Active project context is required to commit a template draft.");
-        }
-
         var command = new CommitTemplateDraftCommand(
             draftId,
             request.Name,

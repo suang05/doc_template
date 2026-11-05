@@ -2,6 +2,7 @@ using FluentAssertions;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
+using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common;
 using Xunit;
@@ -138,5 +139,44 @@ public sealed class TemplateVersionTests
 
         act.Should().Throw<DomainValidationException>()
             .WithMessage("*greater than zero*");
+    }
+
+    [Fact]
+    public void UpdatePageSettings_WhenDraft_SetsPageSettingsJsonAndGetPageSettingsReturnsMatchingObject()
+    {
+        var version = TemplateVersion.Draft(TemplateId.New(), 1, "key", TemplateFormat.Html, "author", Now);
+        var settings = new TemplatePageSettings(
+            PaperSize: "A3",
+            Orientation: "landscape",
+            MarginTopMm: 20.0,
+            MarginBottomMm: 20.0,
+            MarginLeftMm: 15.0,
+            MarginRightMm: 15.0,
+            ShowPageNumber: false,
+            HeaderHtml: "<div>Header</div>",
+            FooterHtml: "<div>Footer</div>");
+
+        version.UpdatePageSettings(settings, Now.AddMinutes(5));
+
+        version.PageSettingsJson.Should().NotBeNullOrEmpty();
+        var retrieved = version.GetPageSettings();
+        retrieved.Should().BeEquivalentTo(settings);
+    }
+
+    [Fact]
+    public void GetPageSettings_WhenPageSettingsJsonIsNull_ReturnsDefaultSettings()
+    {
+        var version = TemplateVersion.Draft(TemplateId.New(), 1, "key", TemplateFormat.Html, "author", Now);
+        version.GetPageSettings().Should().BeEquivalentTo(TemplatePageSettings.Default);
+    }
+
+    [Fact]
+    public void UpdatePageSettings_WhenArchived_ThrowsArchivedVersionImmutableException()
+    {
+        var version = CreateArchivedVersion();
+        var act = () => version.UpdatePageSettings(new TemplatePageSettings(), Now.AddMinutes(5));
+
+        act.Should().Throw<ArchivedVersionImmutableException>()
+            .Which.ErrorCode.Should().Be("ARCHIVED_VERSION_IMMUTABLE");
     }
 }

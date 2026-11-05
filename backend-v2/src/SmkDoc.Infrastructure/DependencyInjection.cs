@@ -30,7 +30,9 @@ using SmkDoc.Infrastructure.Schema;
 using SmkDoc.Infrastructure.Security;
 using SmkDoc.Infrastructure.Services.Logging;
 using SmkDoc.Infrastructure.Storage;
+using SmkDoc.Application.Modules.Authoring.Templates.Services;
 using SmkDoc.Application.Modules.Rendering.Documents.Services;
+using SmkDoc.Infrastructure.Engines.DraftHandlers;
 using StackExchange.Redis;
 
 namespace SmkDoc.Infrastructure;
@@ -202,6 +204,12 @@ public static class DependencyInjection
         services.AddScoped<IRenderEngine, DocxTemplateEngine>();
         services.AddScoped<IRenderEngine, ExcelTemplateEngine>();
         services.AddScoped<IRenderEngineFactory, RenderEngineFactory>();
+
+        // 6c. Template Draft Handlers
+        services.AddScoped<ITemplateDraftHandler, DocxDraftHandler>();
+        services.AddScoped<ITemplateDraftHandler, HtmlDraftHandler>();
+        services.AddScoped<ITemplateDraftHandler, XlsxDraftHandler>();
+        services.AddScoped<ITemplateDraftHandlerRegistry, TemplateDraftHandlerRegistry>();
 
         // 8. Security Services
         services.AddSingleton<IPasswordHasher, BcryptPasswordHasher>();

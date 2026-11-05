@@ -157,6 +157,10 @@ public sealed class Template : BaseEntity<TemplateId>, IMustHaveProject
 
         newVersion.UpdateDataSchema(targetVersion.DataSchema, targetVersion.SamplePayload, now);
         newVersion.UpdateMappingsSnapshot(targetVersion.MappingsSnapshot, now);
+        if (!string.IsNullOrWhiteSpace(targetVersion.PageSettingsJson))
+        {
+            newVersion.UpdatePageSettings(targetVersion.GetPageSettings(), now);
+        }
 
         PublishVersion(newVersion, now);
         return newVersion;

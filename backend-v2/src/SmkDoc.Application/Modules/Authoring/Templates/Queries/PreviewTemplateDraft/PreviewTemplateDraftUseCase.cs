@@ -24,20 +24,14 @@ public sealed class PreviewTemplateDraftUseCase(
         var draft = await draftCache.GetAsync(projectContext.ProjectId, query.DraftId, ct)
             ?? throw new DraftExpiredException(query.DraftId);
 
-        var engine = Engine(draft.FileExtension);
+        if (!TemplateFormat.TryFromExtension(draft.FileExtension, out var format))
+        {
+            throw new DomainValidationException($"Unsupported template file format: '{draft.FileExtension}'.");
+        }
+
+        var engine = engineFactory.GetEngine(format.DefaultEngineType);
 
         await using var draftStream = await draftCache.OpenStreamAsync(draft, ct);
         return await engine.RenderStreamAsync(draftStream, query.DataJson, OutputFormat.Pdf, ct);
-    }
-
-    private IRenderEngine Engine(string ext)
-    {
-        var type = ext switch
-        {
-            ".xlsx" => RenderEngineType.Excel,
-            ".docx" => RenderEngineType.Docx,
-            _       => RenderEngineType.Html,
-        };
-        return engineFactory.GetEngine(type);
     }
 }

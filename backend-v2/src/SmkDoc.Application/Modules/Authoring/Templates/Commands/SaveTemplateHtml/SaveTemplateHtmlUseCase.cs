@@ -9,6 +9,7 @@ using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Modules.Authoring.Templates.Commands.SaveTemplateHtml;
@@ -81,6 +82,11 @@ public sealed class SaveTemplateHtmlUseCase(
                 command.ChangeNote);
 
             newVersion.UpdateDataSchema(inferredSchema, finalSamplePayload, now);
+
+            var effectivePageSettings = command.PageSettings
+                ?? priorPublishedVersion?.GetPageSettings()
+                ?? TemplatePageSettings.Default;
+            newVersion.UpdatePageSettings(effectivePageSettings, now);
 
             string? mappingsSnapshot = template.FieldMappings.Count > 0
                 ? FieldMappingSnapshotSerializer.Serialize(template.FieldMappings)

@@ -6,6 +6,7 @@ using SmkDoc.Application.Modules.Authoring.Templates.Queries.GetTemplateStudioBu
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common.Builders;
 
@@ -31,6 +32,14 @@ public sealed class GetTemplateStudioBundleUseCaseTests
             .WithSlug("invoice-template")
             .WithName("invoice-template");
 
+        var customSettings = new TemplatePageSettings(
+            PaperSize: "A3",
+            Orientation: "landscape",
+            MarginTopMm: 20.0,
+            MarginBottomMm: 20.0,
+            MarginLeftMm: 15.0,
+            MarginRightMm: 15.0);
+
         TemplateVersion version = TemplateVersionBuilder.AVersion()
             .WithId(versionId)
             .WithTemplateId(templateId)
@@ -38,6 +47,7 @@ public sealed class GetTemplateStudioBundleUseCaseTests
             .WithStorageKey("templates/invoice.html")
             .WithFormat(TemplateFormat.Html);
         version.UpdateDataSchema("{\"type\": \"object\"}", "{\"total\": 1000}", TestConstants.BaselineTime);
+        version.UpdatePageSettings(customSettings, TestConstants.BaselineTime);
         template.PublishVersion(version, TestConstants.BaselineTime);
 
         _templateRepo.GetByIdAsync(new TemplateId(templateId), Arg.Any<CancellationToken>())
@@ -61,5 +71,9 @@ public sealed class GetTemplateStudioBundleUseCaseTests
         result.SamplePayload.Should().Be("{\"total\": 1000}");
         result.DataSchema.Should().Be("{\"type\": \"object\"}");
         result.Version.Should().Be(2);
+        result.PageSettings.Should().NotBeNull();
+        result.PageSettings!.PaperSize.Should().Be("A3");
+        result.PageSettings.Orientation.Should().Be("landscape");
+        result.PageSettings.MarginTopMm.Should().Be(20.0);
     }
 }

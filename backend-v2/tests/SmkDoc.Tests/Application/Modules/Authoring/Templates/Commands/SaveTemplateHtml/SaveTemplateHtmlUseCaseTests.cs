@@ -5,6 +5,7 @@ using SmkDoc.Application.Modules.Authoring.Templates.Commands.SaveTemplateHtml;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common.Builders;
 
@@ -247,5 +248,118 @@ public sealed class SaveTemplateHtmlUseCaseTests
 
         // Assert
         result.Version.Should().Be(4);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithCustomPageSettings_ShouldPersistPageSettingsOnNewVersion()
+    {
+        // Arrange
+        var templateId = Guid.NewGuid();
+        var currentVersionId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+
+        Template template = TemplateBuilder.ATemplate()
+            .WithId(templateId)
+            .WithProjectId(projectId)
+            .WithSlug("custom-layout")
+            .WithName("custom-layout");
+
+        TemplateVersion currentVersion = TemplateVersionBuilder.AVersion()
+            .WithId(currentVersionId)
+            .WithTemplateId(templateId)
+            .WithVersion(1)
+            .WithStorageKey($"templates/{projectId:N}/{templateId:N}/v1.html")
+            .WithFormat(TemplateFormat.Html)
+            .WithStatus("Published")
+            .WithCreatedBy("author");
+        template.PublishVersion(currentVersion, TestConstants.BaselineTime);
+
+        _templateRepo.GetByIdWithDetailsAsync(new TemplateId(templateId), Arg.Any<CancellationToken>())
+            .Returns(template);
+        _schemaInference.InferFromHtml(Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<string?>())
+            .Returns(("{}", "{}"));
+
+        var customSettings = new TemplatePageSettings(
+            PaperSize: "A5",
+            Orientation: "landscape",
+            MarginTopMm: 10.0,
+            MarginBottomMm: 10.0,
+            MarginLeftMm: 8.0,
+            MarginRightMm: 8.0,
+            HeaderHtml: "<div>Top</div>",
+            FooterHtml: "<div>Bottom</div>");
+
+        var request = new SaveTemplateHtmlCommand(
+            TemplateId: templateId,
+            Html: "<html><body>A5 Landscape Document</body></html>",
+            PageSettings: customSettings
+        );
+
+        // Act
+        var result = await CreateSut().ExecuteAsync(request);
+
+        // Assert
+        result.Version.Should().Be(2);
+
+        _templateRepo.Received(1).Update(
+            Arg.Is<Template>(t => t.Versions.Any(v =>
+                v.Version == 2 &&
+                v.GetPageSettings() == customSettings)));
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithoutCustomPageSettings_ShouldInheritPriorVersionPageSettings()
+    {
+        // Arrange
+        var templateId = Guid.NewGuid();
+        var currentVersionId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+
+        Template template = TemplateBuilder.ATemplate()
+            .WithId(templateId)
+            .WithProjectId(projectId)
+            .WithSlug("inherited-layout")
+            .WithName("inherited-layout");
+
+        var priorSettings = new TemplatePageSettings(
+            PaperSize: "Letter",
+            Orientation: "portrait",
+            MarginTopMm: 12.0,
+            MarginBottomMm: 12.0,
+            MarginLeftMm: 10.0,
+            MarginRightMm: 10.0);
+
+        TemplateVersion currentVersion = TemplateVersionBuilder.AVersion()
+            .WithId(currentVersionId)
+            .WithTemplateId(templateId)
+            .WithVersion(1)
+            .WithStorageKey($"templates/{projectId:N}/{templateId:N}/v1.html")
+            .WithFormat(TemplateFormat.Html)
+            .WithStatus("Published")
+            .WithCreatedBy("author");
+        currentVersion.UpdatePageSettings(priorSettings, TestConstants.BaselineTime);
+        template.PublishVersion(currentVersion, TestConstants.BaselineTime);
+
+        _templateRepo.GetByIdWithDetailsAsync(new TemplateId(templateId), Arg.Any<CancellationToken>())
+            .Returns(template);
+        _schemaInference.InferFromHtml(Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<string?>())
+            .Returns(("{}", "{}"));
+
+        var request = new SaveTemplateHtmlCommand(
+            TemplateId: templateId,
+            Html: "<html><body>Inherited Layout Document</body></html>",
+            PageSettings: null
+        );
+
+        // Act
+        var result = await CreateSut().ExecuteAsync(request);
+
+        // Assert
+        result.Version.Should().Be(2);
+
+        _templateRepo.Received(1).Update(
+            Arg.Is<Template>(t => t.Versions.Any(v =>
+                v.Version == 2 &&
+                v.GetPageSettings() == priorSettings)));
     }
 }

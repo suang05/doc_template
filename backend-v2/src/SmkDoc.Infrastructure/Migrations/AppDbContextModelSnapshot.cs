@@ -618,6 +618,9 @@ namespace SmkDoc.Infrastructure.Migrations
                     b.Property<string>("MappingsSnapshot")
                         .HasColumnType("jsonb");
 
+                    b.Property<string>("PageSettingsJson")
+                        .HasColumnType("jsonb");
+
                     b.Property<string>("SamplePayload")
                         .HasColumnType("jsonb");
 

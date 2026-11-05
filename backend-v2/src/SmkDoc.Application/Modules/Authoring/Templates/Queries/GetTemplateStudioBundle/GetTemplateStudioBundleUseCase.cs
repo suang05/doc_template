@@ -33,7 +33,8 @@ public sealed class GetTemplateStudioBundleUseCase(
             Html: html,
             SamplePayload: version.SamplePayload,
             DataSchema: version.DataSchema,
-            Version: version.Version
+            Version: version.Version,
+            PageSettings: version.GetPageSettings()
         );
     }
 }

@@ -51,9 +51,13 @@ public sealed class CommitTemplateDraftUseCase(
             command.Category,
             now);
 
-        var format = FormatFromExt(draft.FileExtension);
-        var storageKey = StorageBuckets.TemplateVersionKey(template.ProjectId, template.Id, 1, draft.FileExtension);
-        var contentType = ContentTypeFromExt(draft.FileExtension);
+        if (!TemplateFormat.TryFromExtension(draft.FileExtension, out var format))
+        {
+            throw new DomainValidationException($"Unsupported template file format: '{draft.FileExtension}'.");
+        }
+
+        var storageKey = StorageBuckets.TemplateVersionKey(template.ProjectId, template.Id, 1, format.Extension);
+        var contentType = format == TemplateFormat.Html ? "text/html; charset=utf-8" : format.MimeType;
 
         string uploadedKey;
         await using (var draftStream = await draftCache.OpenStreamAsync(draft, ct))
@@ -137,18 +141,4 @@ public sealed class CommitTemplateDraftUseCase(
         await draftCache.RemoveAsync(projectContext.ProjectId, command.DraftId, ct);
         return new CommitDraftResultDto(template.Id.Value);
     }
-
-    private static TemplateFormat FormatFromExt(string ext) => ext switch
-    {
-        ".xlsx" => TemplateFormat.Xlsx,
-        ".docx" => TemplateFormat.Docx,
-        _ => TemplateFormat.Html,
-    };
-
-    private static string ContentTypeFromExt(string ext) => ext switch
-    {
-        ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        ".xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        _ => "text/html; charset=utf-8",
-    };
 }

@@ -2,14 +2,14 @@ using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Common.Streams;
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
+using SmkDoc.Application.Modules.Authoring.Templates.Services;
 using SmkDoc.Domain.Exceptions;
 
 namespace SmkDoc.Application.Modules.Authoring.Templates.Commands.ParseTemplateDraft;
 
 public sealed class ParseTemplateDraftUseCase(
-    ITemplateScannerService scanner,
+    ITemplateDraftHandlerRegistry draftHandlerRegistry,
     ITemplateDraftCache draftCache,
-    IDocxSecurityScanner securityScanner,
     ICurrentProjectContext projectContext) : IUseCase<ParseTemplateDraftCommand, ParseDraftResultDto>
 {
     private const long MaxDraftFileSizeBytes = 20L * 1024 * 1024;
@@ -22,6 +22,7 @@ public sealed class ParseTemplateDraftUseCase(
         }
 
         var ext = Path.GetExtension(command.FileName).ToLowerInvariant();
+        var handler = draftHandlerRegistry.GetHandler(ext);
 
         await using var spooled = await HybridSpoolStream.SpoolFromAsync(command.FileStream, ct: ct);
         if (spooled.Length > MaxDraftFileSizeBytes)
@@ -30,19 +31,11 @@ public sealed class ParseTemplateDraftUseCase(
                 $"Draft file size ({spooled.Length / (1024 * 1024)} MB) exceeds the 20 MB limit.");
         }
 
-        if (ext == ".docx")
-        {
-            spooled.Position = 0;
-            var scanResult = securityScanner.Scan(spooled);
-            if (scanResult is { IsSafe: false })
-            {
-                throw new DomainValidationException(
-                    $"DOCX file failed security scan: {string.Join("; ", scanResult.Threats)}");
-            }
-        }
+        spooled.Position = 0;
+        await handler.ValidateSecurityAsync(spooled, ct);
 
         spooled.Position = 0;
-        var placeholders = await scanner.ScanPlaceholdersAsync(spooled, ext, ct);
+        var placeholders = await handler.ExtractPlaceholdersAsync(spooled, ct);
 
         spooled.Position = 0;
         var draftId = await draftCache.StoreAsync(

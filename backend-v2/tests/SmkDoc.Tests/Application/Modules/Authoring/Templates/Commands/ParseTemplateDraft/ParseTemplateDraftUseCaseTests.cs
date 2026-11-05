@@ -1,8 +1,7 @@
 using System.Text;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.ParseTemplateDraft;
-using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
-using SmkDoc.Application.Modules.Rendering.Documents.DTOs;
+using SmkDoc.Application.Modules.Authoring.Templates.Services;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects.Ids;
 
@@ -10,9 +9,9 @@ namespace SmkDoc.Tests.Application.Modules.Authoring.Templates.Commands.ParseTem
 
 public sealed class ParseTemplateDraftUseCaseTests
 {
-    private readonly ITemplateScannerService _scanner = Substitute.For<ITemplateScannerService>();
+    private readonly ITemplateDraftHandlerRegistry _registry = Substitute.For<ITemplateDraftHandlerRegistry>();
+    private readonly ITemplateDraftHandler _handler = Substitute.For<ITemplateDraftHandler>();
     private readonly ITemplateDraftCache _cache = Substitute.For<ITemplateDraftCache>();
-    private readonly IDocxSecurityScanner _securityScanner = Substitute.For<IDocxSecurityScanner>();
     private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
     private readonly ProjectId _projectId = ProjectId.New();
 
@@ -20,17 +19,17 @@ public sealed class ParseTemplateDraftUseCaseTests
     {
         _projectContext.IsResolved.Returns(true);
         _projectContext.ProjectId.Returns(_projectId);
-        _securityScanner.Scan(Arg.Any<Stream>()).Returns(new DocxScanResult(true, []));
+        _registry.GetHandler(Arg.Any<string>()).Returns(_handler);
     }
 
-    private ParseTemplateDraftUseCase CreateSut() => new(_scanner, _cache, _securityScanner, _projectContext);
+    private ParseTemplateDraftUseCase CreateSut() => new(_registry, _cache, _projectContext);
 
     [Fact]
-    public async Task ExecuteAsync_WhenValidFile_ShouldScanDocxStoreDraftAndReturnPlaceholders()
+    public async Task ExecuteAsync_WhenValidFile_ShouldScanStoreDraftAndReturnPlaceholders()
     {
         // Arrange
         var placeholders = new List<string> { "customer.name", "invoice.total" };
-        _scanner.ScanPlaceholdersAsync(Arg.Any<Stream>(), ".docx", Arg.Any<CancellationToken>())
+        _handler.ExtractPlaceholdersAsync(Arg.Any<Stream>(), Arg.Any<CancellationToken>())
             .Returns(placeholders);
         _cache.StoreAsync(_projectId, Arg.Any<Stream>(), "invoice.docx", ".docx", Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>())
             .Returns("draft-abc");
@@ -43,7 +42,7 @@ public sealed class ParseTemplateDraftUseCaseTests
         // Assert
         result.DraftId.Should().Be("draft-abc");
         result.Placeholders.Should().BeEquivalentTo(placeholders);
-        _securityScanner.Received(1).Scan(Arg.Any<Stream>());
+        await _handler.Received(1).ValidateSecurityAsync(Arg.Any<Stream>(), Arg.Any<CancellationToken>());
         await _cache.Received(1).StoreAsync(
             _projectId,
             Arg.Any<Stream>(),
@@ -54,11 +53,11 @@ public sealed class ParseTemplateDraftUseCaseTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_WhenUnsafeDocx_ShouldThrowDomainValidationExceptionWithoutCaching()
+    public async Task ExecuteAsync_WhenHandlerFailsSecurity_ShouldThrowDomainValidationExceptionWithoutCaching()
     {
         // Arrange
-        _securityScanner.Scan(Arg.Any<Stream>())
-            .Returns(new DocxScanResult(false, ["VBA macro project detected."]));
+        _handler.ValidateSecurityAsync(Arg.Any<Stream>(), Arg.Any<CancellationToken>())
+            .ThrowsAsync(new DomainValidationException("VBA macro project detected."));
 
         using var stream = new MemoryStream(Encoding.UTF8.GetBytes("macro-docx"));
 
@@ -68,7 +67,7 @@ public sealed class ParseTemplateDraftUseCaseTests
         // Assert
         await act.Should().ThrowAsync<DomainValidationException>()
             .WithMessage("*VBA macro project detected*");
-        await _scanner.DidNotReceive().ScanPlaceholdersAsync(Arg.Any<Stream>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await _handler.DidNotReceive().ExtractPlaceholdersAsync(Arg.Any<Stream>(), Arg.Any<CancellationToken>());
         await _cache.DidNotReceive().StoreAsync(Arg.Any<ProjectId>(), Arg.Any<Stream>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>());
     }
 
@@ -76,7 +75,7 @@ public sealed class ParseTemplateDraftUseCaseTests
     public async Task ExecuteAsync_WhenScannerReturnsEmpty_ShouldStoreEntryWithEmptyPlaceholders()
     {
         // Arrange
-        _scanner.ScanPlaceholdersAsync(Arg.Any<Stream>(), ".html", Arg.Any<CancellationToken>())
+        _handler.ExtractPlaceholdersAsync(Arg.Any<Stream>(), Arg.Any<CancellationToken>())
             .Returns([]);
         _cache.StoreAsync(_projectId, Arg.Any<Stream>(), "empty.html", ".html", Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>())
             .Returns("draft-empty");

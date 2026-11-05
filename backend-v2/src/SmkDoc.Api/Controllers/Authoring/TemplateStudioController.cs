@@ -74,7 +74,7 @@ public sealed class TemplateStudioController(
         [FromHeader(Name = "If-Match")] string? ifMatch,
         CancellationToken ct)
     {
-        var command = new SaveTemplateHtmlCommand(id, request.Html, request.SamplePayload, request.ChangeNote, ifMatch);
+        var command = new SaveTemplateHtmlCommand(id, request.Html, request.SamplePayload, request.ChangeNote, ifMatch, request.PageSettings);
         var result = await saveHtmlUseCase.ExecuteAsync(command, ct);
         Response.Headers.ETag = $"\"{result.Version}\"";
         return Ok(new ApiResponse<SaveHtmlResultDto>(result));
