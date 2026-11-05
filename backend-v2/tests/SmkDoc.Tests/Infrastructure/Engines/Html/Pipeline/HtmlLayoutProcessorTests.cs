@@ -135,4 +135,18 @@ public sealed class HtmlLayoutProcessorTests
 
         result.Should().Be(fullDocument);
     }
+
+    [Fact]
+    public void InjectCustomFontFace_WithValidData_ShouldInjectFontFaceInHead()
+    {
+        string html = "<html><head><title>Test</title></head><body><h1>Content</h1></body></html>";
+        string base64Data = "AAEAAAASAQA...";
+
+        var result = _sut.InjectCustomFontFace(html, "MyCustomFont", base64Data, "truetype");
+
+        result.Should().Contain("@font-face");
+        result.Should().Contain("font-family: 'MyCustomFont';");
+        result.Should().Contain("src: url('data:font/truetype;charset=utf-8;base64,AAEAAAASAQA...') format('truetype');");
+        result.Should().Contain("<head>\n<style>\n@font-face");
+    }
 }

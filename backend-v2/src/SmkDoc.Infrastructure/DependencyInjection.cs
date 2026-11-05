@@ -30,9 +30,11 @@ using SmkDoc.Infrastructure.Schema;
 using SmkDoc.Infrastructure.Security;
 using SmkDoc.Infrastructure.Services.Logging;
 using SmkDoc.Infrastructure.Storage;
+using SmkDoc.Application.Modules.Authoring.Fonts.Services;
 using SmkDoc.Application.Modules.Authoring.Templates.Services;
 using SmkDoc.Application.Modules.Rendering.Documents.Services;
 using SmkDoc.Infrastructure.Engines.DraftHandlers;
+using SmkDoc.Infrastructure.Engines.Fonts;
 using StackExchange.Redis;
 
 namespace SmkDoc.Infrastructure;
@@ -185,6 +187,7 @@ public static class DependencyInjection
         services.AddSingleton<IJsonTableParser>(sp => sp.GetRequiredService<JsonDataParser>());
         services.AddSingleton<IJsonNamedArrayParser>(sp => sp.GetRequiredService<JsonDataParser>());
         services.AddSingleton<ITemplateScannerService, TemplateScannerService>();
+        services.AddScoped<IFontCatalogService, FontCatalogService>();
         services.AddSingleton<ISchemaInferenceService, SchemaInferenceService>();
         services.AddSingleton<IJsonSchemaValidationService, JsonSchemaValidationService>();
         services.AddMemoryCache();

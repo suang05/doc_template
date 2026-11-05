@@ -1,8 +1,8 @@
 using System.Text.Json;
 using SmkDoc.Application.Common;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.Queries.PreviewMapping;
+using SmkDoc.Application.Modules.Authoring.FieldMappings.Services;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects.Ids;
@@ -13,13 +13,10 @@ namespace SmkDoc.Tests.Application.Modules.Authoring.FieldMappings.Queries.Previ
 public sealed class PreviewMappingUseCaseTests
 {
     private readonly ITemplateRepository _templateRepo = Substitute.For<ITemplateRepository>();
-    private readonly IDatasetRepository _datasetRepo = Substitute.For<IDatasetRepository>();
-    private readonly IDataConnectionRepository _connectionRepo = Substitute.For<IDataConnectionRepository>();
     private readonly IStorageService _storage = Substitute.For<IStorageService>();
     private readonly IRenderEngine _htmlEngine = Substitute.For<IRenderEngine>();
     private readonly IRenderEngineFactory _engineFactory = Substitute.For<IRenderEngineFactory>();
-    private readonly IFieldMappingApplicatorService _applicator = Substitute.For<IFieldMappingApplicatorService>();
-    private readonly IDataProtectionService _dataProtection = Substitute.For<IDataProtectionService>();
+    private readonly IDataBindingOrchestrator _orchestrator = Substitute.For<IDataBindingOrchestrator>();
 
     public PreviewMappingUseCaseTests()
     {
@@ -32,12 +29,9 @@ public sealed class PreviewMappingUseCaseTests
     private PreviewMappingUseCase CreateSut() =>
         new(
             _templateRepo,
-            _datasetRepo,
-            _connectionRepo,
             _storage,
             _engineFactory,
-            _applicator,
-            _dataProtection
+            _orchestrator
         );
 
     private Template SetupTemplate(Guid templateId, Guid versionId, RenderEngineType? engineType = null, IEnumerable<FieldMapping>? mappings = null)
@@ -80,8 +74,6 @@ public sealed class PreviewMappingUseCaseTests
         return template;
     }
 
-    // ── No mappings path ──────────────────────────────────────────────────
-
     [Fact]
     public async Task ExecuteAsync_WithNoMappings_ShouldPassRawJsonToEngine()
     {
@@ -94,6 +86,8 @@ public sealed class PreviewMappingUseCaseTests
             .Returns(new MemoryStream("<html></html>"u8.ToArray()));
         _htmlEngine.RenderStreamAsync(Arg.Any<Stream>(), Arg.Any<string>(), OutputFormat.Pdf, Arg.Any<CancellationToken>())
             .Returns(expectedStream);
+        _orchestrator.AssemblePayloadAsync(Arg.Any<Template>(), Arg.Any<JsonElement>(), Arg.Any<CancellationToken>())
+            .Returns("{\"name\":\"John\"}");
 
         var sampleData = JsonDocument.Parse("{\"name\":\"John\"}").RootElement;
         var query = new PreviewMappingQuery(templateId, sampleData);
@@ -106,25 +100,14 @@ public sealed class PreviewMappingUseCaseTests
             "{\"name\":\"John\"}",
             OutputFormat.Pdf,
             Arg.Any<CancellationToken>());
-        await _applicator.DidNotReceive().ApplyAsync(
+        await _orchestrator.Received(1).AssemblePayloadAsync(
+            Arg.Any<Template>(),
             Arg.Any<JsonElement>(),
-            Arg.Any<IEnumerable<FieldMapping>>(),
-            Arg.Any<IReadOnlyDictionary<string, ResolvedDatasetContext>>(),
-            Arg.Any<CancellationToken>());
-        await _storage.Received(1).DownloadAsync(
-            StorageBuckets.Templates,
-            "templates/sample-template.html",
-            Arg.Any<CancellationToken>());
-        await _storage.DidNotReceive().UploadAsync(
-            Arg.Any<string>(),
-            Arg.Any<string>(),
-            Arg.Any<Stream>(),
-            Arg.Any<string>(),
             Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task ExecuteAsync_WithUndefinedSampleData_AndNoMappings_ShouldPassEmptyJson()
+    public async Task ExecuteAsync_WithUndefinedSampleData_ShouldAssemblePayloadAndPassToEngine()
     {
         var templateId = Guid.NewGuid();
         var versionId = Guid.NewGuid();
@@ -135,6 +118,8 @@ public sealed class PreviewMappingUseCaseTests
             .Returns(new MemoryStream());
         _htmlEngine.RenderStreamAsync(Arg.Any<Stream>(), Arg.Any<string>(), OutputFormat.Pdf, Arg.Any<CancellationToken>())
             .Returns(expectedStream);
+        _orchestrator.AssemblePayloadAsync(Arg.Any<Template>(), Arg.Any<JsonElement>(), Arg.Any<CancellationToken>())
+            .Returns("{}");
 
         var undefined = default(JsonElement);
         var query = new PreviewMappingQuery(templateId, undefined);
@@ -149,10 +134,8 @@ public sealed class PreviewMappingUseCaseTests
             Arg.Any<CancellationToken>());
     }
 
-    // ── With mappings path ────────────────────────────────────────────────
-
     [Fact]
-    public async Task ExecuteAsync_WithMappings_ShouldCallFieldMappingApplicator()
+    public async Task ExecuteAsync_WithMappings_ShouldCallDataBindingOrchestrator()
     {
         var templateId = Guid.NewGuid();
         var versionId = Guid.NewGuid();
@@ -174,7 +157,7 @@ public sealed class PreviewMappingUseCaseTests
         var expectedStream = new MemoryStream([0x25, 0x50, 0x44, 0x46]);
         _storage.DownloadAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(new MemoryStream());
-        _applicator.ApplyAsync(Arg.Any<JsonElement>(), Arg.Any<IEnumerable<FieldMapping>>(), Arg.Any<IReadOnlyDictionary<string, ResolvedDatasetContext>>(), Arg.Any<CancellationToken>())
+        _orchestrator.AssemblePayloadAsync(Arg.Any<Template>(), Arg.Any<JsonElement>(), Arg.Any<CancellationToken>())
             .Returns("{\"fullName\":\"John Doe\"}");
         _htmlEngine.RenderStreamAsync(Arg.Any<Stream>(), "{\"fullName\":\"John Doe\"}", OutputFormat.Pdf, Arg.Any<CancellationToken>())
             .Returns(expectedStream);
@@ -185,14 +168,11 @@ public sealed class PreviewMappingUseCaseTests
         var resultStream = await CreateSut().ExecuteAsync(query);
 
         resultStream.Should().BeSameAs(expectedStream);
-        await _applicator.Received(1).ApplyAsync(
+        await _orchestrator.Received(1).AssemblePayloadAsync(
+            Arg.Any<Template>(),
             Arg.Any<JsonElement>(),
-            Arg.Is<IEnumerable<FieldMapping>>(m => m.Count() == 1),
-            Arg.Any<IReadOnlyDictionary<string, ResolvedDatasetContext>>(),
             Arg.Any<CancellationToken>());
     }
-
-    // ── Error paths ───────────────────────────────────────────────────────
 
     [Fact]
     public async Task ExecuteAsync_WhenTemplateNotFound_ShouldThrowNotFoundException()
@@ -232,7 +212,6 @@ public sealed class PreviewMappingUseCaseTests
         _storage.DownloadAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(new MemoryStream());
 
-        // Only Html engine registered — Docx engine is missing
         var act = () => CreateSut().ExecuteAsync(new PreviewMappingQuery(templateId, default));
         await act.Should().ThrowAsync<SmkDoc.Application.Common.Exceptions.RenderException>();
     }

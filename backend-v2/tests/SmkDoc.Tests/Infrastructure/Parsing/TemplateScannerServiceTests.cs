@@ -1,5 +1,6 @@
-﻿using System.Text;
+using System.Text;
 using FluentAssertions;
+using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Infrastructure.Engines;
 using Xunit;
 
@@ -58,5 +59,36 @@ public sealed class TemplateScannerServiceTests
         placeholders.Should().NotContain("else");
         placeholders.Should().NotContain("@index");
         placeholders.Should().NotContain("addOne @index");
+    }
+
+    [Fact]
+    public async Task ScanDetailedPlaceholdersAsync_ShouldReturnCategorizedPlaceholders()
+    {
+        var scanner = new TemplateScannerService();
+
+        string html = @"
+            <html>
+            <body>
+                <h1>{{companyName}}</h1>
+                <div>{{customer.fullName}}</div>
+                {{#each items}}
+                    <div>{{@index}}: {{productName}} - {{formatCurrency price}}</div>
+                {{/each}}
+                {{#if hasDiscount}}
+                    <div>Discount Applied</div>
+                {{/if}}
+            </body>
+            </html>";
+
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(html));
+        var detailed = await scanner.ScanDetailedPlaceholdersAsync(stream, ".html");
+
+        detailed.Should().Contain(p => p.Name == "companyName" && p.Category == PlaceholderCategory.Scalar);
+        detailed.Should().Contain(p => p.Name == "customer.fullName" && p.Category == PlaceholderCategory.Object);
+        detailed.Should().Contain(p => p.Name == "items" && p.Category == PlaceholderCategory.Tabular && p.DataType == "array");
+        detailed.Should().Contain(p => p.Name == "productName" && p.Category == PlaceholderCategory.Tabular && p.ParentCollection == "items");
+        detailed.Should().Contain(p => p.Name == "price" && p.Category == PlaceholderCategory.Tabular && p.ParentCollection == "items" && p.DataType == "number");
+        detailed.Should().Contain(p => p.Name == "@index" && p.Category == PlaceholderCategory.System);
+        detailed.Should().Contain(p => p.Name == "hasDiscount" && p.Category == PlaceholderCategory.Scalar && p.DataType == "boolean");
     }
 }

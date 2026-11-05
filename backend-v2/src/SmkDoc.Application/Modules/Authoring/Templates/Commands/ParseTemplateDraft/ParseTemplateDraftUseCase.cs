@@ -35,7 +35,8 @@ public sealed class ParseTemplateDraftUseCase(
         await handler.ValidateSecurityAsync(spooled, ct);
 
         spooled.Position = 0;
-        var placeholders = await handler.ExtractPlaceholdersAsync(spooled, ct);
+        var detailedPlaceholders = await handler.ExtractDetailedPlaceholdersAsync(spooled, ct);
+        var placeholders = detailedPlaceholders.Select(p => p.Name).Distinct().ToList();
 
         spooled.Position = 0;
         var draftId = await draftCache.StoreAsync(
@@ -46,6 +47,6 @@ public sealed class ParseTemplateDraftUseCase(
             placeholders,
             ct);
 
-        return new ParseDraftResultDto(draftId, placeholders);
+        return new ParseDraftResultDto(draftId, placeholders, detailedPlaceholders);
     }
 }

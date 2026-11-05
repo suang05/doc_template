@@ -24,7 +24,8 @@ public sealed class ScanTemplatePlaceholdersUseCase(
 
         using var stream = await storageService.DownloadAsync(StorageBuckets.Templates, version.StorageKey, ct);
         string ext = Path.GetExtension(version.StorageKey).ToLowerInvariant();
-        var placeholders = await scanner.ScanPlaceholdersAsync(stream, ext, ct);
-        return new ScanFieldsResultDto(placeholders);
+        var detailed = await scanner.ScanDetailedPlaceholdersAsync(stream, ext, ct);
+        var placeholders = detailed.Select(p => p.Name).Distinct().ToList();
+        return new ScanFieldsResultDto(placeholders, detailed);
     }
 }

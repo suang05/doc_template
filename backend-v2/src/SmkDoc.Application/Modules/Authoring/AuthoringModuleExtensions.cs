@@ -7,9 +7,11 @@ using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.Queries.GetTemplateDatasets;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.Queries.GetTemplateMappings;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.Queries.PreviewMapping;
+using SmkDoc.Application.Modules.Authoring.FieldMappings.Services;
 using SmkDoc.Application.Modules.Authoring.Fonts.Commands.UploadFont;
 using SmkDoc.Application.Modules.Authoring.Fonts.DTOs;
 using SmkDoc.Application.Modules.Authoring.Fonts.Queries.GetFontBase64;
+using SmkDoc.Application.Modules.Authoring.Fonts.Queries.GetFontCatalog;
 using SmkDoc.Application.Modules.Authoring.Fonts.Queries.ListFonts;
 using SmkDoc.Application.Modules.Authoring.Schemas.Commands.ValidateStandaloneSchema;
 using SmkDoc.Application.Modules.Authoring.Schemas.DTOs;
@@ -71,6 +73,7 @@ public static class AuthoringModuleExtensions
         services.AddUseCase<ValidateTemplatePayloadQuery, ValidateTemplatePayloadResult, ValidateTemplatePayloadUseCase>();
 
         // Field Mappings & Datasets (Action-Centric Vertical Slice)
+        services.AddScoped<IDataBindingOrchestrator, DataBindingOrchestrator>();
         services.AddUseCase<PreviewMappingQuery, Stream, PreviewMappingUseCase>();
         services.AddUseCase<GetTemplateMappingsQuery, List<FieldMappingDto>, GetTemplateMappingsUseCase>();
         services.AddUseCase<SaveTemplateMappingsCommand, List<FieldMappingDto>, SaveTemplateMappingsUseCase>();
@@ -79,6 +82,7 @@ public static class AuthoringModuleExtensions
 
         // Fonts (Action-Centric Vertical Slice)
         services.AddUseCase<ListFontsQuery, List<string>, ListFontsUseCase>();
+        services.AddUseCase<GetFontCatalogQuery, FontCatalogDto, GetFontCatalogUseCase>();
         services.AddUseCase<UploadFontCommand, UploadFontResultDto, UploadFontUseCase>();
         services.AddUseCase<GetFontBase64Query, string, GetFontBase64UseCase>();
 

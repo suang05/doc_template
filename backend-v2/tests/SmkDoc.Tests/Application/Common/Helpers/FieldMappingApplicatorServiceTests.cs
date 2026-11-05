@@ -404,4 +404,60 @@ public sealed class FieldMappingApplicatorServiceTests
             Arg.Any<IDictionary<string, object>?>(),
             Arg.Any<CancellationToken>());
     }
+
+    [Fact]
+    public async Task ApplyAsync_WithTabularSqlDataset_PreservesArrayAndAutoBindsAlias()
+    {
+        // Arrange
+        var sut = CreateSut();
+        var rootJson = JsonSerializer.Deserialize<JsonElement>("{\"invoiceId\":101}");
+
+        var datasetResultJson = "[{\"sku\":\"SKU-01\",\"qty\":2,\"price\":100.5},{\"sku\":\"SKU-02\",\"qty\":1,\"price\":50.0}]";
+
+        _sqlExecutor.ExecuteQueryAsJsonAsync(
+                Arg.Any<string>(),
+                Arg.Any<string>(),
+                Arg.Any<string>(),
+                Arg.Any<IDictionary<string, object>?>(),
+                Arg.Any<CancellationToken>())
+            .Returns(datasetResultJson);
+
+        var aliases = new Dictionary<string, ResolvedDatasetContext>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["lineItems"] = new(
+                Provider: "PostgreSQL",
+                ConnectionString: "Host=localhost",
+                SqlQuery: "SELECT sku, qty, price FROM items WHERE invoice_id = @invoiceId",
+                CacheSeconds: 0)
+        };
+
+        var mapping = new FieldMappingBuilder()
+            .WithPlaceholder("items")
+            .WithDatasetAlias("lineItems")
+            .WithSourcePath(string.Empty)
+            .WithLabel("Items")
+            .WithRequired(false)
+            .WithSortOrder(1)
+            .WithDataSourceType(DataSourceType.Sql)
+            .Build();
+
+        // Act
+        var resultJson = await sut.ApplyAsync(rootJson, [mapping], aliases);
+
+        // Assert
+        using var doc = JsonDocument.Parse(resultJson);
+        var root = doc.RootElement;
+
+        // 1. Caller parameters preserved
+        root.GetProperty("invoiceId").GetInt32().Should().Be(101);
+
+        // 2. Tabular mapping preserved as Array (NOT flattened to scalar)
+        root.GetProperty("items").ValueKind.Should().Be(JsonValueKind.Array);
+        root.GetProperty("items").GetArrayLength().Should().Be(2);
+        root.GetProperty("items")[0].GetProperty("sku").GetString().Should().Be("SKU-01");
+
+        // 3. Dataset alias auto-bound directly
+        root.GetProperty("lineitems").ValueKind.Should().Be(JsonValueKind.Array);
+        root.GetProperty("lineitems").GetArrayLength().Should().Be(2);
+    }
 }

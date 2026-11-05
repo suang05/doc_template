@@ -1,3 +1,5 @@
+using SmkDoc.Domain.ValueObjects;
+
 namespace SmkDoc.Application.Common.Interfaces;
 
 public interface ITemplateScannerService
@@ -7,4 +9,9 @@ public interface ITemplateScannerService
     /// Extension determines parsing strategy: .docx / .xlsx / anything else (HTML).
     /// </summary>
     Task<List<string>> ScanPlaceholdersAsync(Stream stream, string fileExtension, CancellationToken ct = default);
+
+    /// <summary>
+    /// Scans a template file stream and returns rich categorized placeholders (Scalar, Tabular, Object, System).
+    /// </summary>
+    Task<List<TemplatePlaceholder>> ScanDetailedPlaceholdersAsync(Stream stream, string fileExtension, CancellationToken ct = default);
 }

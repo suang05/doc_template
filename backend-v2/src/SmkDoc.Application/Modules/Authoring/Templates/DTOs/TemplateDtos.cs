@@ -73,14 +73,16 @@ public sealed record TemplateDraftEntry(
 /// </summary>
 public sealed record ParseDraftResultDto(
     string DraftId,
-    IReadOnlyList<string> Placeholders
+    IReadOnlyList<string> Placeholders,
+    IReadOnlyList<TemplatePlaceholder>? DetailedPlaceholders = null
 );
 
 /// <summary>
 /// Result returned after scanning placeholders from a template stream or stored template.
 /// </summary>
 public sealed record ScanFieldsResultDto(
-    IReadOnlyList<string> Placeholders
+    IReadOnlyList<string> Placeholders,
+    IReadOnlyList<TemplatePlaceholder>? DetailedPlaceholders = null
 );
 
 /// <summary>

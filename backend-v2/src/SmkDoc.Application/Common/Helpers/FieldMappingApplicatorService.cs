@@ -149,14 +149,33 @@ public sealed class FieldMappingApplicatorService(
         // Resolve per-field ResultPath from cached alias result
         foreach (var mapping in sqlMappings)
         {
-            string? val = null;
             if (mapping.DatasetAlias != null && aliasCache.TryGetValue(mapping.DatasetAlias.Value, out var resultEl))
             {
-                val = string.IsNullOrWhiteSpace(mapping.ResultPath)
+                if (string.IsNullOrWhiteSpace(mapping.ResultPath) && (resultEl.ValueKind == JsonValueKind.Array || resultEl.ValueKind == JsonValueKind.Object))
+                {
+                    dict[mapping.Placeholder] = resultEl.Clone();
+                    continue;
+                }
+
+                string? val = string.IsNullOrWhiteSpace(mapping.ResultPath)
                     ? ExtractFirstScalar(resultEl)
                     : ResolveJsonPath(resultEl, mapping.ResultPath);
+
+                dict[mapping.Placeholder] = Finalize(val, mapping);
             }
-            dict[mapping.Placeholder] = Finalize(val, mapping);
+            else
+            {
+                dict[mapping.Placeholder] = Finalize(null, mapping);
+            }
+        }
+
+        // Auto-bind dataset aliases (SSRS/JasperReports model: datasets exposed directly by alias)
+        foreach (var (alias, resultEl) in aliasCache)
+        {
+            if (!dict.ContainsKey(alias))
+            {
+                dict[alias] = resultEl.Clone();
+            }
         }
 
         // -- Pass 2: MathExpression -- applied after all json/sql settled ---

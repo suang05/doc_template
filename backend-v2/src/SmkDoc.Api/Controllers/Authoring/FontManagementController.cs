@@ -6,23 +6,25 @@ using SmkDoc.Api.Filters;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Fonts.Commands.UploadFont;
 using SmkDoc.Application.Modules.Authoring.Fonts.DTOs;
+using SmkDoc.Application.Modules.Authoring.Fonts.Queries.GetFontCatalog;
 using SmkDoc.Application.Modules.Authoring.Fonts.Queries.ListFonts;
 using SmkDoc.Domain.Exceptions;
 
 namespace SmkDoc.Api.Controllers.Authoring;
 
 /// <summary>
-/// Font management — list and upload custom tenant-scoped fonts for PDF rendering.
-/// Auth: JWT Bearer via default authentication scheme + ProjectContextMiddleware.
+/// Font management — dual-source font catalog (Google Fonts + MinIO custom fonts) and upload.
 /// </summary>
 [ApiController]
+[Route("api/v1/fonts")]
 [Route("api/v1/management/settings/fonts")]
 [Authorize]
 public sealed class FontManagementController(
     IUseCase<ListFontsQuery, List<string>> listFontsUseCase,
+    IUseCase<GetFontCatalogQuery, FontCatalogDto> getFontCatalogUseCase,
     IUseCase<UploadFontCommand, UploadFontResultDto> uploadFontUseCase) : ControllerBase
 {
-    /// <summary>List all available fonts for the active project.</summary>
+    /// <summary>List all available fonts for the active project (legacy flat list).</summary>
     [HttpGet]
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<string>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> ListFonts(CancellationToken ct)
@@ -32,9 +34,19 @@ public sealed class FontManagementController(
         return Ok(new ApiResponse<IEnumerable<string>>(result));
     }
 
+    /// <summary>Get dual-source font catalog (Google Fonts + MinIO Custom Fonts).</summary>
+    [HttpGet("catalog")]
+    [ProducesResponseType(typeof(ApiResponse<FontCatalogDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetCatalog(CancellationToken ct)
+    {
+        var query = new GetFontCatalogQuery();
+        var result = await getFontCatalogUseCase.ExecuteAsync(query, ct);
+        return Ok(new ApiResponse<FontCatalogDto>(result));
+    }
+
     /// <summary>Upload a new font file (.ttf, .otf, .woff, .woff2). Max 10 MB. Author or Admin role required.</summary>
     [HttpPost]
-    [Authorize(Roles = RoleConstants.AuthorOrAdmin)]
+    [Authorize(Policy = SmkDocPolicies.CanManageTemplates)]
     [Idempotent]
     [RequestSizeLimit(10 * 1024 * 1024)]
     [ProducesResponseType(typeof(ApiResponse<UploadFontResultDto>), StatusCodes.Status201Created)]

@@ -1,4 +1,5 @@
 using SmkDoc.Domain.Enums;
+using SmkDoc.Domain.ValueObjects;
 
 namespace SmkDoc.Application.Modules.Authoring.Templates.Services;
 
@@ -13,5 +14,6 @@ public interface ITemplateDraftHandler
     Task ValidateSecurityAsync(Stream stream, CancellationToken ct = default);
 
     Task<List<string>> ExtractPlaceholdersAsync(Stream stream, CancellationToken ct = default);
-}
 
+    Task<List<TemplatePlaceholder>> ExtractDetailedPlaceholdersAsync(Stream stream, CancellationToken ct = default);
+}

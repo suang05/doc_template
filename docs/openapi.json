@@ -3942,12 +3942,12 @@
         }
       }
     },
-    "/api/v1/management/settings/fonts": {
+    "/api/v1/fonts": {
       "get": {
         "tags": [
           "FontManagement"
         ],
-        "summary": "List all available fonts for the active project.",
+        "summary": "List all available fonts for the active project (legacy flat list).",
         "responses": {
           "200": {
             "description": "OK",
@@ -4048,6 +4048,179 @@
               "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/management/settings/fonts": {
+      "get": {
+        "tags": [
+          "FontManagement"
+        ],
+        "summary": "List all available fonts for the active project (legacy flat list).",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfstring"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfstring"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfstring"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "FontManagement"
+        ],
+        "summary": "Upload a new font file (.ttf, .otf, .woff, .woff2). Max 10 MB. Author or Admin role required.",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "$ref": "#/components/schemas/IFormFile"
+                  }
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfUploadFontResultDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfUploadFontResultDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfUploadFontResultDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/fonts/catalog": {
+      "get": {
+        "tags": [
+          "FontManagement"
+        ],
+        "summary": "Get dual-source font catalog (Google Fonts + MinIO Custom Fonts).",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfFontCatalogDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfFontCatalogDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfFontCatalogDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/management/settings/fonts/catalog": {
+      "get": {
+        "tags": [
+          "FontManagement"
+        ],
+        "summary": "Get dual-source font catalog (Google Fonts + MinIO Custom Fonts).",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfFontCatalogDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfFontCatalogDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfFontCatalogDto"
                 }
               }
             }
@@ -6169,6 +6342,25 @@
         },
         "description": "Standard API Response wrapper for successful requests that return data.\r\nEnforces the \"Envelope Pattern\" for consistent JSON schemas."
       },
+      "ApiResponseOfFontCatalogDto": {
+        "required": [
+          "data"
+        ],
+        "type": "object",
+        "properties": {
+          "data": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/FontCatalogDto"
+              }
+            ]
+          }
+        },
+        "description": "Standard API Response wrapper for successful requests that return data.\r\nEnforces the \"Envelope Pattern\" for consistent JSON schemas."
+      },
       "ApiResponseOfGenerateDocumentResultDto": {
         "required": [
           "data"
@@ -7300,6 +7492,77 @@
         },
         "description": "DTO representing an individual template placeholder-to-datasource mapping rule."
       },
+      "FontCatalogDto": {
+        "required": [
+          "googleFonts",
+          "customFonts",
+          "allFontNames"
+        ],
+        "type": "object",
+        "properties": {
+          "googleFonts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FontDescriptorDto"
+            }
+          },
+          "customFonts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FontDescriptorDto"
+            }
+          },
+          "allFontNames": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "FontDescriptorDto": {
+        "required": [
+          "fontFamily",
+          "displayName",
+          "source"
+        ],
+        "type": "object",
+        "properties": {
+          "fontFamily": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "source": {
+            "$ref": "#/components/schemas/FontSource"
+          },
+          "fileName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "googleFontUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "availableWeights": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "FontSource": {
+        "type": "integer"
+      },
       "GenerateDocumentRequest": {
         "required": [
           "payload"
@@ -7793,9 +8056,21 @@
             "items": {
               "type": "string"
             }
+          },
+          "detailedPlaceholders": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/TemplatePlaceholder"
+            }
           }
         },
         "description": "Result returned after step 1 (parsing) of draft upload."
+      },
+      "PlaceholderCategory": {
+        "type": "integer"
       },
       "PreviewDocumentRequest": {
         "required": [
@@ -8218,6 +8493,15 @@
             "items": {
               "type": "string"
             }
+          },
+          "detailedPlaceholders": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/TemplatePlaceholder"
+            }
           }
         },
         "description": "Result returned after scanning placeholders from a template stream or stored template."
@@ -8372,6 +8656,40 @@
           }
         },
         "description": "Value object defining paper geometry, orientation, margins, and header/footer definitions for templates.\r\nDefaults to standard A4 portrait with 15mm top/bottom and 10mm left/right margins."
+      },
+      "TemplatePlaceholder": {
+        "required": [
+          "name",
+          "category"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "category": {
+            "$ref": "#/components/schemas/PlaceholderCategory"
+          },
+          "parentCollection": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "dataType": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "default": "string"
+          },
+          "sampleValue": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
       },
       "TemplateResultDto": {
         "required": [

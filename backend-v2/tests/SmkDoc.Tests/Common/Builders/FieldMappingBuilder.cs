@@ -14,6 +14,9 @@ public class FieldMappingBuilder
     private bool _required = false;
     private int _sortOrder = 1;
     private DataSourceType _dataSourceType = DataSourceType.Json;
+    private DatasetAlias? _datasetAlias;
+    private string? _resultPath;
+    private string? _mathExpression;
     private string? _defaultValue;
     private string? _transform;
     private DateTimeOffset _now = TestConstants.BaselineTime;
@@ -88,9 +91,27 @@ public class FieldMappingBuilder
         return this;
     }
 
+    public FieldMappingBuilder WithDatasetAlias(string? alias)
+    {
+        _datasetAlias = !string.IsNullOrWhiteSpace(alias) ? DatasetAlias.Create(alias) : null;
+        return this;
+    }
+
+    public FieldMappingBuilder WithResultPath(string? resultPath)
+    {
+        _resultPath = resultPath;
+        return this;
+    }
+
+    public FieldMappingBuilder WithMathExpression(string? mathExpression)
+    {
+        _mathExpression = mathExpression;
+        return this;
+    }
+
     public FieldMapping Build()
     {
-        return new FieldMapping(
+        var mapping = new FieldMapping(
             _id,
             new SmkDoc.Domain.ValueObjects.Ids.TemplateId(_templateId),
             _placeholder,
@@ -102,6 +123,13 @@ public class FieldMappingBuilder
             _defaultValue,
             _transform,
             _now);
+
+        if (_datasetAlias != null || _resultPath != null || _mathExpression != null)
+        {
+            mapping.ConfigureDataSource(_dataSourceType, _datasetAlias, _resultPath, _mathExpression, _now);
+        }
+
+        return mapping;
     }
 
     public static implicit operator FieldMapping(FieldMappingBuilder builder) => builder.Build();

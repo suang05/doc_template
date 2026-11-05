@@ -37,11 +37,13 @@ public sealed class ScanUploadedTemplateUseCase(
             }
 
             spool.Position = 0;
-            var docxPlaceholders = await scanner.ScanPlaceholdersAsync(spool, ext, ct);
-            return new ScanFieldsResultDto(docxPlaceholders);
+            var docxDetailed = await scanner.ScanDetailedPlaceholdersAsync(spool, ext, ct);
+            var docxPlaceholders = docxDetailed.Select(p => p.Name).Distinct().ToList();
+            return new ScanFieldsResultDto(docxPlaceholders, docxDetailed);
         }
 
-        var placeholders = await scanner.ScanPlaceholdersAsync(query.Stream, ext, ct);
-        return new ScanFieldsResultDto(placeholders);
+        var detailed = await scanner.ScanDetailedPlaceholdersAsync(query.Stream, ext, ct);
+        var placeholders = detailed.Select(p => p.Name).Distinct().ToList();
+        return new ScanFieldsResultDto(placeholders, detailed);
     }
 }

@@ -3,6 +3,7 @@ using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.ParseTemplateDraft;
 using SmkDoc.Application.Modules.Authoring.Templates.Services;
 using SmkDoc.Domain.Exceptions;
+using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Tests.Application.Modules.Authoring.Templates.Commands.ParseTemplateDraft;
@@ -28,9 +29,13 @@ public sealed class ParseTemplateDraftUseCaseTests
     public async Task ExecuteAsync_WhenValidFile_ShouldScanStoreDraftAndReturnPlaceholders()
     {
         // Arrange
-        var placeholders = new List<string> { "customer.name", "invoice.total" };
-        _handler.ExtractPlaceholdersAsync(Arg.Any<Stream>(), Arg.Any<CancellationToken>())
-            .Returns(placeholders);
+        var detailedPlaceholders = new List<TemplatePlaceholder>
+        {
+            TemplatePlaceholder.Object("customer.name"),
+            TemplatePlaceholder.Object("invoice.total")
+        };
+        _handler.ExtractDetailedPlaceholdersAsync(Arg.Any<Stream>(), Arg.Any<CancellationToken>())
+            .Returns(detailedPlaceholders);
         _cache.StoreAsync(_projectId, Arg.Any<Stream>(), "invoice.docx", ".docx", Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>())
             .Returns("draft-abc");
 
@@ -41,7 +46,8 @@ public sealed class ParseTemplateDraftUseCaseTests
 
         // Assert
         result.DraftId.Should().Be("draft-abc");
-        result.Placeholders.Should().BeEquivalentTo(placeholders);
+        result.Placeholders.Should().BeEquivalentTo(new[] { "customer.name", "invoice.total" });
+        result.DetailedPlaceholders.Should().BeEquivalentTo(detailedPlaceholders);
         await _handler.Received(1).ValidateSecurityAsync(Arg.Any<Stream>(), Arg.Any<CancellationToken>());
         await _cache.Received(1).StoreAsync(
             _projectId,
@@ -67,7 +73,7 @@ public sealed class ParseTemplateDraftUseCaseTests
         // Assert
         await act.Should().ThrowAsync<DomainValidationException>()
             .WithMessage("*VBA macro project detected*");
-        await _handler.DidNotReceive().ExtractPlaceholdersAsync(Arg.Any<Stream>(), Arg.Any<CancellationToken>());
+        await _handler.DidNotReceive().ExtractDetailedPlaceholdersAsync(Arg.Any<Stream>(), Arg.Any<CancellationToken>());
         await _cache.DidNotReceive().StoreAsync(Arg.Any<ProjectId>(), Arg.Any<Stream>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>());
     }
 
@@ -75,7 +81,7 @@ public sealed class ParseTemplateDraftUseCaseTests
     public async Task ExecuteAsync_WhenScannerReturnsEmpty_ShouldStoreEntryWithEmptyPlaceholders()
     {
         // Arrange
-        _handler.ExtractPlaceholdersAsync(Arg.Any<Stream>(), Arg.Any<CancellationToken>())
+        _handler.ExtractDetailedPlaceholdersAsync(Arg.Any<Stream>(), Arg.Any<CancellationToken>())
             .Returns([]);
         _cache.StoreAsync(_projectId, Arg.Any<Stream>(), "empty.html", ".html", Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>())
             .Returns("draft-empty");
@@ -88,5 +94,6 @@ public sealed class ParseTemplateDraftUseCaseTests
         // Assert
         result.DraftId.Should().Be("draft-empty");
         result.Placeholders.Should().BeEmpty();
+        result.DetailedPlaceholders.Should().BeEmpty();
     }
 }

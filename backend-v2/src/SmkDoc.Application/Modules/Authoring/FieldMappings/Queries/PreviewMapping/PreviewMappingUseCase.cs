@@ -1,8 +1,8 @@
 using System.Text.Json;
 using SmkDoc.Application.Common;
 using SmkDoc.Application.Common.Exceptions;
-using SmkDoc.Application.Common.Helpers;
 using SmkDoc.Application.Common.Interfaces;
+using SmkDoc.Application.Modules.Authoring.FieldMappings.Services;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
@@ -18,12 +18,9 @@ namespace SmkDoc.Application.Modules.Authoring.FieldMappings.Queries.PreviewMapp
 /// </summary>
 public sealed class PreviewMappingUseCase(
     ITemplateRepository templateRepo,
-    IDatasetRepository datasetRepo,
-    IDataConnectionRepository connectionRepo,
     IStorageService storageService,
     IRenderEngineFactory engineFactory,
-    IFieldMappingApplicatorService fieldMappingApplicator,
-    IDataProtectionService dataProtection) : IUseCase<PreviewMappingQuery, Stream>
+    IDataBindingOrchestrator dataBindingOrchestrator) : IUseCase<PreviewMappingQuery, Stream>
 {
     public async Task<Stream> ExecuteAsync(PreviewMappingQuery query, CancellationToken ct = default)
     {
@@ -48,19 +45,7 @@ public sealed class PreviewMappingUseCase(
             ?? await templateRepo.GetByIdAsync(tId, ct)
             ?? throw new NotFoundException($"Template '{templateId}' not found.");
 
-        var mappings = template.FieldMappings.ToList();
-
-        string dataJson;
-        if (mappings.Count > 0)
-        {
-            var aliasMap = await DatasetAliasMapBuilder.BuildAsync(
-                template.TemplateDatasets, datasetRepo, connectionRepo, dataProtection, ct);
-            dataJson = await fieldMappingApplicator.ApplyAsync(sampleData, mappings, aliasMap, ct);
-        }
-        else
-        {
-            dataJson = sampleData.ValueKind != JsonValueKind.Undefined ? sampleData.GetRawText() : "{}";
-        }
+        string dataJson = await dataBindingOrchestrator.AssemblePayloadAsync(template, sampleData, ct);
 
         var version = template.GetPublishedVersion();
         var engineType = version.GetRenderEngineType();

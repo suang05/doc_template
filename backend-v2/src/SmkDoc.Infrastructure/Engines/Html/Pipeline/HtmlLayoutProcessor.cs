@@ -94,4 +94,16 @@ public class HtmlLayoutProcessor
 </html>
 """;
     }
+
+    public string InjectCustomFontFace(string html, string fontFamily, string base64FontData, string format = "truetype")
+    {
+        if (string.IsNullOrWhiteSpace(html) || string.IsNullOrWhiteSpace(base64FontData))
+            return html;
+
+        string fontFaceCss = $"<style>\n@font-face {{\n  font-family: '{fontFamily}';\n  src: url('data:font/{format};charset=utf-8;base64,{base64FontData}') format('{format}');\n}}\n</style>";
+
+        return html.Contains("<head>", StringComparison.OrdinalIgnoreCase)
+            ? html.Replace("<head>", $"<head>\n{fontFaceCss}", StringComparison.OrdinalIgnoreCase)
+            : $"{fontFaceCss}\n{html}";
+    }
 }
