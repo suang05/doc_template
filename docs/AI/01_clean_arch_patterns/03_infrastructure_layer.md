@@ -436,6 +436,37 @@ public sealed class MinioStorageService(
 }
 ```
 
+### Polymorphic SQL Driver Strategy Archetype
+>> MANDATORY CANONICAL TEMPLATE [RULE-INFRA-006]:
+* [MUST] Select SQL execution drivers via Polymorphic Strategy / Factory Pattern (`ISqlDriverStrategy` & `ISqlDriverFactory`) based on `DatabaseProvider`; strictly prohibit hardcoded driver instantiation or `if/else` provider switching.
+* [MUST] Enforce double read-only isolation: 1) AST token validation (`SELECT` / `WITH` only), and 2) Transactional read-only engine commands (e.g. `SET TRANSACTION READ ONLY;`).
+* [MUST] Provide dry-run schema discovery via ADO.NET `GetColumnSchemaAsync` and bounded sample rows ($\le 5$) without loading full tables into memory.
+
+```csharp
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using SmkDoc.Application.Common.Interfaces;
+
+namespace SmkDoc.Infrastructure.Data.Drivers;
+
+public sealed class SqlDriverFactory(IEnumerable<ISqlDriverStrategy> strategies) : ISqlDriverFactory
+{
+    private readonly Dictionary<string, ISqlDriverStrategy> _strategies =
+        strategies.ToDictionary(s => s.Provider, s => s, StringComparer.OrdinalIgnoreCase);
+
+    public ISqlDriverStrategy GetStrategy(string provider)
+    {
+        if (_strategies.TryGetValue(provider, out var strategy))
+        {
+            return strategy;
+        }
+
+        throw new NotSupportedException($"Database provider '{provider}' is not supported.");
+    }
+}
+```
+
 ---
 
 ## 4. Level 4: Anti-Patterns & Unified Micro-Diffs

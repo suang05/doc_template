@@ -164,10 +164,16 @@ Controllers under `SmkDoc.Api.Controllers.Authoring` adhere to strict domain par
 | `TemplateAssetController` | `api/v1/templates` | File downloads (`/{id}/download`), stateless scanning (`/scan-fields`), stored placeholder inspection, and payload dry-run validation (`/{slug}/validate-payload`). |
 | `TemplateDraftController` | `api/v1/templates/draft` | 3-Step RAM-only draft lifecycle: upload parsing (`/parse`), in-memory preview (`/{draftId}/preview`), and atomic commit (`/{draftId}/commit`). |
 | `TemplateStudioController` | `api/v1/templates/{id}` | Monaco Studio authoring: raw HTML editing (`/html`), studio bundle (`/studio/bundle`), schema retrieval (`/schema`), and HTML syntax validation (`/validate`). |
-| `TemplateMappingController` | `api/v1/templates/{id}/mappings` | Field mappings management (`GET`/`PUT` `/mappings`) and live PDF preview mapping (`/preview`). |
-| `TemplateVersionController` | `api/v1/templates/{id}/versions` | Version history inspection and zero-copy version rollbacks (`/rollback/{version}`). |
-| `TemplateDatasetController` | `api/v1/templates/{id}/datasets` | Linked SQL dataset configuration for parameterized report rendering. |
-| `FontManagementController` | `api/v1/fonts` | Dual-source font management: Google Fonts catalog and tenant MinIO custom fonts. |
+### Controller Partitioning & Companion Diagnostics Pattern
+When an aggregate's capabilities exceed 5 UseCases, or encompass specialized operational concerns (e.g. diagnostics, reachability tests, dry-run schema introspection), enforce single-responsibility by decomposing into cohesive companion controllers sharing the same route prefix:
+* **Primary Resource Controller**: `{Resources}Controller` handles standard state mutations and queries (List, Get, Create, Update, Deactivate) decorated with `[EnableRateLimiting("api")]`.
+* **Companion Diagnostics Controller**: `{Resource}DiagnosticsController` isolates network reachability, test probes, or dry-run introspection calls decorated with dedicated `[EnableRateLimiting("test-conn")]`.
+
+| Partitioning Strategy | Route Scope | Typical Invariants & Policies | Canonical Example |
+|---|---|---|---|
+| **Primary Resource CRUD** | `api/v1/{resources}` | Standard 3-step dispatcher, `[EnableRateLimiting("api")]`, `[Idempotent]` on POST, `If-Match` on PUT/DELETE | `TemplatesController`, `DataConnectionsController` |
+| **Companion Diagnostics** | `api/v1/{resources}` | Reachability checks, dry-run schema introspection, `[EnableRateLimiting("test-conn")]` (10 req/min) | `DataConnectionDiagnosticsController`, `DatasetDiagnosticsController` |
+| **Interactive Studio Draft**| `api/v1/{resources}/draft` | RAM-only preview lifecycle, ephemeral streaming, Monaco syntax validation | `TemplateDraftController`, `TemplateStudioController` |
 
 ### Thin Controller Archetype (`TemplateController`)
 >> MANDATORY CANONICAL TEMPLATE [RULE-API-001]:
@@ -363,10 +369,12 @@ public sealed record PagedApiResponse<T>(
 }
 ```
 
-### Diagnostic Connection Test Controller Archetype
+### Companion Diagnostics Controller Archetype (`DataConnectionDiagnosticsController`)
 >> MANDATORY CANONICAL TEMPLATE [RULE-API-004]:
+* [MUST] Separate diagnostic, reachability, or schema introspection endpoints from primary CRUD controllers into companion controllers (`*DiagnosticsController`) to strictly uphold the $\le 5$ use cases limit.
+* [MUST] Apply dedicated rate limiting (e.g. `[EnableRateLimiting("test-conn")]`) on diagnostic routes to prevent SSRF scanning or denial-of-service.
 * [MUST] Return HTTP `200 OK` with `ApiResponse<TestDataConnectionResultDto>` containing `{ success: false, message: ... }` when network reachability fails.
-* [MUST] Invoke pre-flight `ConnectionHostValidator.EnsureSafeTarget(host)` throwing `SecurityViolationException` (`403 Forbidden`) on SSRF target attempts.
+* [MUST] Invoke pre-flight `ConnectionHostValidator.EnsureSafeTarget(host)` throwing `ForbiddenException` (`403 Forbidden`) on SSRF target attempts.
 ```csharp
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -383,12 +391,13 @@ namespace SmkDoc.Api.Controllers.Integration;
 [ApiController]
 [Route("api/v1/data-connections")]
 [Authorize(Policy = SmkDocPolicies.CanManageDataConnections)]
-public sealed class DataConnectionsController(
+public sealed class DataConnectionDiagnosticsController(
     IUseCase<TestDataConnectionCommand, TestDataConnectionResultDto> testUseCase) : ControllerBase
 {
     [HttpPost("test")]
     [EnableRateLimiting("test-conn")]
     [ProducesResponseType(typeof(ApiResponse<TestDataConnectionResultDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> TestConnection([FromBody] TestDataConnectionRequest request, CancellationToken ct)
     {

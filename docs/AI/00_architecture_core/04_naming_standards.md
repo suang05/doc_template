@@ -81,6 +81,7 @@ The codebase strictly prohibits lazy, clipped, or single-letter variable names. 
 | **C# (Backend)** | Cancellation Token Param | strictly `ct` | `CancellationToken ct = default` |
 | **HTTP Wire (JSON)** | Object Property Key | `camelCase` | `{"projectId": "...", "templateName": "..."}` |
 | **HTTP Wire (REST)** | Route Path Resource | `kebab-case` plural | `/api/v1/templates`, `/api/v1/data-connections` |
+| **Presentation (API)**| Controller Class Name | `PascalCase` plural / `*DiagnosticsController` | `TemplatesController`, `DataConnectionsController`, `DataConnectionDiagnosticsController` |
 | **PostgreSQL (DB)** | Table Name & Column Name | `snake_case` | `template_versions`, `current_version_id` |
 | **TypeScript (FE)** | React Component & File | `PascalCase` | `TemplateEditorSplitLayout.tsx`, `Button.tsx` |
 | **TypeScript (FE)** | Hook & Utility File | `kebab-case` | `use-live-preview.ts`, `mapping-mapper.ts` |
@@ -130,7 +131,8 @@ ProactiveNamingGuards:
 * [MUST] Name UseCase execution output and mapped presentation DTOs strictly as `result` across all controller actions (strictly PROHIBIT role/entity synonyms: `template`, `job`, `user`, `keys`, `versions`, `project`, `fonts`, `datasets`, `pagedResult`, `pagedLogs`, `pdfStream`, and strictly PROHIBIT declaring local variables named `response` which shadow `ControllerBase.Response`).
 * [MUST] Name the HTTP optimistic concurrency header parameter strictly as `ifMatch` when binding `[FromHeader(Name = "If-Match")] string? ifMatch` on PUT and DELETE actions.
 * [MUST] Return standard success response uniformly as `return Ok(new ApiResponse<TDto>(result));`.
-* [MUST] Suffix all UseCase return DTO records strictly with `ResultDto` (e.g. `TemplateResultDto`, `CreateApiKeyResultDto`, `ScanFieldsResultDto`, `SaveHtmlResultDto`, `RollbackVersionResultDto`, `TestDataConnectionResultDto`, `DownloadUrlResultDto`), strictly banning `*Response` record definitions in Application and Presentation layers.
+* [MUST] Suffix all UseCase return DTO records strictly with `ResultDto` (e.g. `TemplateResultDto`, `CreateApiKeyResultDto`, `ScanFieldsResultDto`, `*ResultDto`), strictly banning `*Response` record definitions in Application and Presentation layers.
+* [MUST] Pluralize resource controller class names matching the RESTful collection (e.g. `TemplatesController`, `DataConnectionsController`). Companion diagnostic or rate-limited health operations MUST be isolated into separate companion controllers named `{Resource}DiagnosticsController` (e.g. `DataConnectionDiagnosticsController`).
 * [MUST NOT] Declare local variables named `response` (e.g. `var response = ...`); all execution outputs and return payloads must be named `result`.
 * [MUST NOT] Inline nested DTO or object instantiations inside the return statement (e.g. prohibit `return Ok(new ApiResponse<TDto>(new TDto(...)));`; explicitly instantiate `var result = new TDto(...);` first).
 * [MUST NOT] Use clipped abbreviations (`req`, `cmd`, `dto`, `res`).
