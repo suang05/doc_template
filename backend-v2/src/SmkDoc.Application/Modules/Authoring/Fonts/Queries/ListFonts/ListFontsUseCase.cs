@@ -1,41 +1,15 @@
-using SmkDoc.Application.Common;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Domain.Exceptions;
+using SmkDoc.Application.Modules.Authoring.Fonts.Services;
 
 namespace SmkDoc.Application.Modules.Authoring.Fonts.Queries.ListFonts;
 
-public sealed class ListFontsUseCase(
-    IStorageService storageService,
-    ICurrentProjectContext projectContext) : IUseCase<ListFontsQuery, List<string>>
+public sealed class ListFontsUseCase(IFontCatalogService fontCatalogService) : IUseCase<ListFontsQuery, List<string>>
 {
     public const string BuiltInDefaultFont = "Sarabun-Regular.ttf";
 
     public async Task<List<string>> ExecuteAsync(ListFontsQuery query, CancellationToken ct = default)
     {
-        if (!projectContext.IsResolved)
-        {
-            throw new ForbiddenException("Listing custom fonts requires an active project context.");
-        }
-
-        string tenantPrefix = $"fonts/{projectContext.ProjectId.Value:N}/";
-        var objectKeys = await storageService.ListObjectsAsync(StorageBuckets.Fonts, tenantPrefix, ct) ?? [];
-
-        var fontNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            BuiltInDefaultFont
-        };
-
-        foreach (var key in objectKeys)
-        {
-            var fileName = Path.GetFileName(key);
-            if (!string.IsNullOrWhiteSpace(fileName))
-            {
-                fontNames.Add(fileName);
-            }
-        }
-
-        return fontNames
-            .OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        var catalog = await fontCatalogService.GetCatalogAsync(ct);
+        return catalog.AllFontNames.ToList();
     }
 }

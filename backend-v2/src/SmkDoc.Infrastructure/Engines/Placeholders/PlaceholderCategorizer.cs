@@ -55,13 +55,7 @@ public static class PlaceholderCategorizer
     {
         string expr = rawExpression.Trim();
 
-        // 1. System variable
-        if (IsSystemIdentifier(expr))
-        {
-            return TemplatePlaceholder.System(expr);
-        }
-
-        // 2. Helper invocation check (e.g., "formatDate orderDate 'dd/MM/yyyy'")
+        // 1. Helper invocation check (e.g., "formatDate orderDate 'dd/MM/yyyy'", "addOne @index")
         string inferredType = forcedType ?? "string";
         if (expr.Contains(' '))
         {
@@ -71,6 +65,12 @@ public static class PlaceholderCategorizer
             {
                 inferredType = helperType;
             }
+        }
+
+        // 2. System variable (e.g. "@index", "pageNumber", "@first")
+        if (IsSystemIdentifier(expr))
+        {
+            return TemplatePlaceholder.System(expr);
         }
 
         // Clean parent traversal if any (e.g. "../orderId")

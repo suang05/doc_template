@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.RegularExpressions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
@@ -5,10 +6,11 @@ using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 namespace SmkDoc.Application.Modules.Authoring.Templates.Queries.ValidateTemplateHtml;
 
 /// <summary>
-/// Validates HTML template syntax, detects &lt;Field&gt; tags, and performs a Gotenberg dry-run render.
+/// Validates HTML template syntax, extracts Handlebars and &lt;Field&gt; placeholders, and performs a Gotenberg dry-run render.
 /// </summary>
-public sealed partial class ValidateTemplateHtmlUseCase(IPdfRenderer pdfRenderer)
-    : IUseCase<ValidateTemplateHtmlQuery, TemplateValidationResultDto>
+public sealed partial class ValidateTemplateHtmlUseCase(
+    IPdfRenderer pdfRenderer,
+    ITemplateScannerService scanner) : IUseCase<ValidateTemplateHtmlQuery, TemplateValidationResultDto>
 {
     [GeneratedRegex(@"<Field\s+([^>]+?)\s*\/?>", RegexOptions.IgnoreCase)]
     private static partial Regex FieldTagRegex();
@@ -27,18 +29,27 @@ public sealed partial class ValidateTemplateHtmlUseCase(IPdfRenderer pdfRenderer
             );
         }
 
-        var (fields, errors) = ExtractFields(query.Html);
+        var (fields, errors) = await ExtractFieldsAsync(query.Html, ct);
         await ValidateRenderAsync(query.Html, errors, ct);
 
         bool isValid = errors.Count == 0;
         return new TemplateValidationResultDto(isValid, fields, errors);
     }
 
-    private static (List<string> Fields, List<string> Errors) ExtractFields(string html)
+    private async Task<(List<string> Fields, List<string> Errors)> ExtractFieldsAsync(string html, CancellationToken ct)
     {
-        var fields = new List<string>();
+        var fields = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var errors = new List<string>();
 
+        // 1. Scan Handlebars {{placeholders}} using SSoT TemplateScannerService
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(html));
+        var scannedPlaceholders = await scanner.ScanPlaceholdersAsync(stream, ".html", ct);
+        foreach (var placeholder in scannedPlaceholders)
+        {
+            fields.Add(placeholder);
+        }
+
+        // 2. Scan legacy <Field name="..."> tags for backward-compatibility
         foreach (Match match in FieldTagRegex().Matches(html))
         {
             string attributes = match.Groups[1].Value;
@@ -50,13 +61,10 @@ public sealed partial class ValidateTemplateHtmlUseCase(IPdfRenderer pdfRenderer
             }
 
             string fieldName = nameMatch.Groups[1].Value;
-            if (!fields.Contains(fieldName))
-            {
-                fields.Add(fieldName);
-            }
+            fields.Add(fieldName);
         }
 
-        return (fields, errors);
+        return (fields.ToList(), errors);
     }
 
     private async Task ValidateRenderAsync(string html, List<string> errors, CancellationToken ct)

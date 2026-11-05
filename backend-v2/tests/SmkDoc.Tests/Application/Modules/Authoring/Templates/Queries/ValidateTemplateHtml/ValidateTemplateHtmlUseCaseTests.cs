@@ -7,14 +7,17 @@ namespace SmkDoc.Tests.Application.Modules.Authoring.Templates.Queries.ValidateT
 public sealed class ValidateTemplateHtmlUseCaseTests
 {
     private readonly IPdfRenderer _renderer = Substitute.For<IPdfRenderer>();
+    private readonly ITemplateScannerService _scanner = Substitute.For<ITemplateScannerService>();
 
-    private ValidateTemplateHtmlUseCase CreateSut() => new(_renderer);
+    private ValidateTemplateHtmlUseCase CreateSut() => new(_renderer, _scanner);
 
     [Fact]
     public async Task ExecuteAsync_WithValidTags_ShouldDetectFieldsAndReturnValidTrue()
     {
         // Arrange
         const string html = "<html><body><h1>Hello</h1><Field name=\"customerName\" label=\"Customer Name\" /><Field name=\"totalAmount\" label=\"Total\" /></body></html>";
+        _scanner.ScanPlaceholdersAsync(Arg.Any<Stream>(), ".html", Arg.Any<CancellationToken>())
+            .Returns([]);
         _renderer.RenderHtmlToPdfStreamAsync(html, Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
             .Returns(_ => new MemoryStream([0x25, 0x50, 0x44, 0x46]));
 
@@ -28,10 +31,31 @@ public sealed class ValidateTemplateHtmlUseCaseTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_WithHandlebarsPlaceholders_ShouldDetectFieldsViaScannerAndReturnValidTrue()
+    {
+        // Arrange
+        const string html = "<html><body><h1>Hello {{userName}}</h1><p>{{orderTotal}}</p></body></html>";
+        _scanner.ScanPlaceholdersAsync(Arg.Any<Stream>(), ".html", Arg.Any<CancellationToken>())
+            .Returns(["userName", "orderTotal"]);
+        _renderer.RenderHtmlToPdfStreamAsync(html, Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns(_ => new MemoryStream([0x25, 0x50, 0x44, 0x46]));
+
+        // Act
+        TemplateValidationResultDto result = await CreateSut().ExecuteAsync(new ValidateTemplateHtmlQuery(html));
+
+        // Assert
+        result.Valid.Should().BeTrue();
+        result.Fields.Should().Contain(["userName", "orderTotal"]);
+        result.Errors.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task ExecuteAsync_WithMissingNameAttribute_ShouldReportErrorAndReturnValidFalse()
     {
         // Arrange
         const string html = "<html><body><Field label=\"Missing Name\" /></body></html>";
+        _scanner.ScanPlaceholdersAsync(Arg.Any<Stream>(), ".html", Arg.Any<CancellationToken>())
+            .Returns([]);
 
         // Act
         TemplateValidationResultDto result = await CreateSut().ExecuteAsync(new ValidateTemplateHtmlQuery(html));
@@ -46,6 +70,8 @@ public sealed class ValidateTemplateHtmlUseCaseTests
     {
         // Arrange
         const string html = "<html><body><h1>Broken Render</h1></body></html>";
+        _scanner.ScanPlaceholdersAsync(Arg.Any<Stream>(), ".html", Arg.Any<CancellationToken>())
+            .Returns([]);
         _renderer.RenderHtmlToPdfStreamAsync(html, Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
             .ThrowsAsync(new InvalidOperationException("Gotenberg 503 Unavailable"));
 

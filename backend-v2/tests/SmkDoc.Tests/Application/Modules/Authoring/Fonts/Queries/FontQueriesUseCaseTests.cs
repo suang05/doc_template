@@ -1,8 +1,10 @@
 using SmkDoc.Application.Common;
 using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
+using SmkDoc.Application.Modules.Authoring.Fonts.DTOs;
 using SmkDoc.Application.Modules.Authoring.Fonts.Queries.GetFontBase64;
 using SmkDoc.Application.Modules.Authoring.Fonts.Queries.ListFonts;
+using SmkDoc.Application.Modules.Authoring.Fonts.Services;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects.Ids;
 
@@ -12,6 +14,7 @@ public sealed class FontQueriesUseCaseTests
 {
     private readonly IStorageService _storage = Substitute.For<IStorageService>();
     private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
+    private readonly IFontCatalogService _fontCatalog = Substitute.For<IFontCatalogService>();
     private readonly ProjectId _projectId = ProjectId.New();
 
     public FontQueriesUseCaseTests()
@@ -21,14 +24,17 @@ public sealed class FontQueriesUseCaseTests
     }
 
     [Fact]
-    public async Task ListFonts_WhenResolved_ListsDynamicTenantPrefixPlusBuiltInDefault()
+    public async Task ListFonts_WhenResolved_ListsAllFontNamesFromCatalogService()
     {
         // Arrange
-        var prefix = $"fonts/{_projectId.Value:N}/";
-        _storage.ListObjectsAsync(StorageBuckets.Fonts, prefix, Arg.Any<CancellationToken>())
-            .Returns([$"fonts/{_projectId.Value:N}/Kanit-Bold.ttf", $"fonts/{_projectId.Value:N}/Prompt-Regular.woff2"]);
+        var catalogDto = new FontCatalogDto(
+            [],
+            [],
+            ["Kanit-Bold.ttf", "Prompt-Regular.woff2", "Sarabun-Regular.ttf"]);
+        _fontCatalog.GetCatalogAsync(Arg.Any<CancellationToken>())
+            .Returns(catalogDto);
 
-        var sut = new ListFontsUseCase(_storage, _projectContext);
+        var sut = new ListFontsUseCase(_fontCatalog);
 
         // Act
         var fonts = await sut.ExecuteAsync(new ListFontsQuery());
@@ -75,7 +81,10 @@ public sealed class FontQueriesUseCaseTests
     {
         // Arrange
         _projectContext.IsResolved.Returns(false);
-        var listSut = new ListFontsUseCase(_storage, _projectContext);
+        _fontCatalog.GetCatalogAsync(Arg.Any<CancellationToken>())
+            .ThrowsAsync(new ForbiddenException("Listing font catalog requires an active project context."));
+
+        var listSut = new ListFontsUseCase(_fontCatalog);
         var getSut = new GetFontBase64UseCase(_storage, _projectContext);
 
         // Act & Assert

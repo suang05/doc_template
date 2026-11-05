@@ -60,12 +60,9 @@ public sealed class CreateTemplateUseCase(
                 ext = ".html";
             }
 
-            fileFormat = ext switch
-            {
-                ".docx" => TemplateFormat.Docx,
-                ".xlsx" => TemplateFormat.Xlsx,
-                _ => TemplateFormat.Html
-            };
+            fileFormat = TemplateFormat.TryFromExtension(ext, out var format) && format != null
+                ? format
+                : TemplateFormat.Html;
 
             storageKey = StorageBuckets.TemplateVersionKey(template.ProjectId, template.Id, 1, ext);
 
