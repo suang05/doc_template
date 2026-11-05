@@ -100,7 +100,7 @@ All Aggregate Root strongly-typed IDs are defined as `readonly record struct` un
 Child entities utilize standard `Guid` identities scoped strictly under their parent Aggregate Root ID, avoiding artificial abstraction overhead:
 | Child / Association Entity | Parent Aggregate Root | Identity Type | Lifecycle Controller | Tenancy Bridge Role |
 |---|---|---|---|---|
-| `TemplateVersion` | `Template` | `Guid` | `Template.CreateNextVersion(...)`, `Template.PublishVersion(...)` | Scoped via Parent Template |
+| `TemplateVersion` | `Template` | `Guid` | `Template.CreateNextVersion(...)`, `Template.PublishVersion(...)` | Scoped via Parent Template. Persists `PageSettingsJson` (JSONB) and `MappingsSnapshot` (JSONB); version rollback deterministically restores layout & mappings. |
 | `FieldMapping` | `Template` | `Guid` | `Template.AddFieldMapping(...)` | Scoped via Parent Template |
 | `TemplateDataset` | `Template` | `Guid` | `Template.AddDataset(...)` | Scoped via Parent Template |
 | `DocumentVersion` | `Document` | `Guid` | `Document.CreateVersion(...)` | Scoped via Parent Document |
@@ -142,6 +142,8 @@ All Value Objects encapsulate validation rules and enforce immutability:
 | `SqlQuery` | Integration Payload | `sealed record class` | Not empty, sanitized query string |
 | `PageDimension` | Layout / Geometry | `readonly record struct` | WidthMm > 0, HeightMm > 0 |
 | `PageMargin` | Layout / Geometry | `readonly record struct` | TopMm, BottomMm, LeftMm, RightMm >= 0 |
+| `TemplatePageSettings` | Layout / Geometry | `sealed record class` | Encapsulates PaperSize, Orientation, Margins (mm), and Gotenberg Header/Footer HTML. SSoT for CSS `@page` generation. |
+| `TemplatePlaceholder` | Authoring AST | `sealed record class` | Rich template placeholder token (`Scalar`, `Tabular`, `Object`, `System`) with `Name`, `Category`, `ParentCollection`, and `InferredType`. |
 | `DateRange` | Temporal Range | `readonly record struct` | StartDate <= EndDate |
 | `ExpirationPolicy` | Lifecycle Policy | `sealed record class` | Expiration date must be future |
 | `DocumentReference` | Reference Token | `sealed record class` | Not blank, structured reference format |

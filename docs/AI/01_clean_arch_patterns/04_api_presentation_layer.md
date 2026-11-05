@@ -154,10 +154,25 @@ CoreExtensionSlots:
 
 ## 3. Level 3: Canonical Presentation Archetypes
 
+### Authoring Controller Taxonomy & Single-Responsibility Partitioning
+
+Controllers under `SmkDoc.Api.Controllers.Authoring` adhere to strict domain partitioning with $\le 5$ UseCase dependencies:
+
+| Controller | Route Scope | Responsibilities & Invariants |
+|---|---|---|
+| `TemplateLifecycleController` | `api/v1/templates` | Template CRUD, listing with tenant filtering, metadata updates, and soft-deactivation. |
+| `TemplateAssetController` | `api/v1/templates` | File downloads (`/{id}/download`), stateless scanning (`/scan-fields`), stored placeholder inspection, and payload dry-run validation (`/{slug}/validate-payload`). |
+| `TemplateDraftController` | `api/v1/templates/draft` | 3-Step RAM-only draft lifecycle: upload parsing (`/parse`), in-memory preview (`/{draftId}/preview`), and atomic commit (`/{draftId}/commit`). |
+| `TemplateStudioController` | `api/v1/templates/{id}` | Monaco Studio authoring: raw HTML editing (`/html`), studio bundle (`/studio/bundle`), schema retrieval (`/schema`), and HTML syntax validation (`/validate`). |
+| `TemplateMappingController` | `api/v1/templates/{id}/mappings` | Field mappings management (`GET`/`PUT` `/mappings`) and live PDF preview mapping (`/preview`). |
+| `TemplateVersionController` | `api/v1/templates/{id}/versions` | Version history inspection and zero-copy version rollbacks (`/rollback/{version}`). |
+| `TemplateDatasetController` | `api/v1/templates/{id}/datasets` | Linked SQL dataset configuration for parameterized report rendering. |
+| `FontManagementController` | `api/v1/fonts` | Dual-source font management: Google Fonts catalog and tenant MinIO custom fonts. |
+
 ### Thin Controller Archetype (`TemplateController`)
 >> MANDATORY CANONICAL TEMPLATE [RULE-API-001]:
 * [MUST] Inherit from `ControllerBase`, apply `[ApiController]`, mark class `sealed`, and define route as `[Route("api/v1/{plural-kebab-resource}")]`.
-* [MUST] Inject single-responsibility `IUseCase<TRequest, TResponse>` / `IUseCase<TRequest>` abstractions via C# 13 primary constructor.
+* [MUST] Inject single-responsibility `IUseCase<TRequest, TResponse>` / `IUseCase<TRequest>` abstractions via C# 13 primary constructor (strictly $\le 5$ dependencies per controller).
 * [MUST] Keep action methods thin (<= 5 lines per action): delegate directly to UseCase and envelope result in `ApiResponse<T>`.
 * [MUST] Declare Command or Query as an explicit local variable (`command`, `query`) prior to UseCase invocation (prohibit inline instantiation).
 * [MUST] Standardize all UseCase execution outputs to `var result = await useCase.ExecuteAsync(...)`; strictly prohibit entity-specific synonyms (`pagedResult`, `pagedLogs`, `pdfStream`) or shadowing `ControllerBase.Response` (`var response = ...`).
@@ -173,6 +188,7 @@ CoreExtensionSlots:
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using SmkDoc.Api.Common.Responses;
+using SmkDoc.Api.Contracts.Authoring.Templates;
 using SmkDoc.Api.Filters;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.CreateTemplate;
@@ -181,7 +197,6 @@ using SmkDoc.Application.Modules.Authoring.Templates.Commands.UpdateTemplate;
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.GetTemplateById;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.ListTemplates;
-using SmkDoc.Application.Modules.Rendering.Documents.Queries.RenderDocument;
 
 namespace SmkDoc.Api.Controllers.Authoring;
 
@@ -193,8 +208,7 @@ public sealed class TemplateController(
     IUseCase<GetTemplateByIdQuery, TemplateResultDto> getTemplateByIdUseCase,
     IUseCase<CreateTemplateCommand, TemplateResultDto> createTemplateUseCase,
     IUseCase<UpdateTemplateCommand, TemplateResultDto> updateTemplateUseCase,
-    IUseCase<DeactivateTemplateCommand> deactivateTemplateUseCase,
-    IUseCase<RenderDocumentQuery, Stream> renderDocumentUseCase) : ControllerBase
+    IUseCase<DeactivateTemplateCommand> deactivateTemplateUseCase) : ControllerBase
 {
     [HttpGet]
     [ProducesResponseType(typeof(PagedApiResponse<TemplateResultDto>), StatusCodes.Status200OK)]
@@ -230,8 +244,14 @@ public sealed class TemplateController(
 
     [HttpPut("{id:guid}")]
     [ProducesResponseType(typeof(ApiResponse<TemplateResultDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status412PreconditionFailed)]
-    public async Task<IActionResult> Update([FromRoute] Guid id, [FromBody] UpdateTemplateRequest request, [FromHeader(Name = "If-Match")] string? ifMatch, CancellationToken ct)
+    public async Task<IActionResult> Update(
+        [FromRoute] Guid id,
+        [FromBody] UpdateTemplateRequest request,
+        [FromHeader(Name = "If-Match")] string? ifMatch,
+        CancellationToken ct)
     {
         var command = new UpdateTemplateCommand(id, request.Name, request.Category, ifMatch);
         var result = await updateTemplateUseCase.ExecuteAsync(command, ct);
@@ -241,22 +261,16 @@ public sealed class TemplateController(
 
     [HttpDelete("{id:guid}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status412PreconditionFailed)]
-    public async Task<IActionResult> Deactivate([FromRoute] Guid id, [FromHeader(Name = "If-Match")] string? ifMatch, CancellationToken ct)
+    public async Task<IActionResult> Deactivate(
+        [FromRoute] Guid id,
+        [FromHeader(Name = "If-Match")] string? ifMatch,
+        CancellationToken ct)
     {
         var command = new DeactivateTemplateCommand(id, ifMatch);
         await deactivateTemplateUseCase.ExecuteAsync(command, ct);
         return NoContent();
-    }
-
-    [HttpPost("{id:guid}/render")]
-    [Idempotent]
-    [ProducesResponseType(typeof(FileStreamResult), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> Render([FromRoute] Guid id, [FromBody] RenderDocumentQuery query, CancellationToken ct)
-    {
-        var result = await renderDocumentUseCase.ExecuteAsync(query, ct);
-        return File(result, "application/pdf", $"{id}.pdf");
     }
 }
 ```

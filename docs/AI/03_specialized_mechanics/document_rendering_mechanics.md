@@ -282,15 +282,12 @@ public sealed class DocumentGenerationController(
 
     // Track 2: Asynchronous High-Volume Batch Queue (202 Accepted + Location Header)
     [HttpPost("generate-async/{slug}")]
-    [HttpPost("generate-async")]
     [Idempotent]
     [EnableRateLimiting("rendering")]
     [ProducesResponseType(typeof(ApiResponse<DocumentJobDto>), StatusCodes.Status202Accepted)]
-    public async Task<IActionResult> GenerateAsync([FromBody] GenerateDocumentRequest request, [FromRoute] string? slug, [FromQuery] string? templateSlug, CancellationToken ct)
+    public async Task<IActionResult> GenerateAsync([FromRoute] string slug, [FromBody] GenerateDocumentRequest request, CancellationToken ct)
     {
-        var finalSlug = !string.IsNullOrWhiteSpace(slug) ? slug : templateSlug;
-        if (string.IsNullOrWhiteSpace(finalSlug)) throw new DomainValidationException("Template slug is required.");
-        var command = new EnqueueDocumentGenerationCommand(finalSlug, request.Payload, request.OutputFormat, request.DocumentRef, request.ChangeNote, request.SkipValidation);
+        var command = new EnqueueDocumentGenerationCommand(slug, request.Payload, request.OutputFormat, request.DocumentRef, request.ChangeNote, request.SkipValidation);
         var result = await enqueueJobUseCase.ExecuteAsync(command, ct);
         return AcceptedAtAction(nameof(GetJobStatus), new { jobId = result.JobId }, new ApiResponse<DocumentJobDto>(result));
     }

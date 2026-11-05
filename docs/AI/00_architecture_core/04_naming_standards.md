@@ -168,7 +168,7 @@ public sealed class TemplateController(
         var result = await createTemplateUseCase.ExecuteAsync(command, ct);
 
         // 3. Layer boundary translation: result -> HTTP envelope
-        return CreatedAtAction(nameof(Create), new { id = result.Id }, new ApiResponse<TemplateResultDto>(result));
+        return CreatedAtAction("GetById", new { id = result.Id }, new ApiResponse<TemplateResultDto>(result));
     }
 }
 ```
