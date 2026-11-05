@@ -10,6 +10,7 @@ using SmkDoc.Infrastructure.BackgroundWorkers;
 using SmkDoc.Infrastructure.Cache;
 using SmkDoc.Infrastructure.Contexts;
 using SmkDoc.Infrastructure.Data;
+using SmkDoc.Infrastructure.Data.Drivers;
 using SmkDoc.Infrastructure.Engines;
 using SmkDoc.Infrastructure.Engines.Excel;
 using SmkDoc.Infrastructure.Engines.Html;
@@ -103,6 +104,8 @@ public static class DependencyInjection
         services.AddSingleton<IDataProtectionService, DataProtectionService>();
         services.AddSingleton<IDocxSecurityScanner, DocxSecurityScannerService>();
         services.AddSingleton<ISqlConnectionValidator, SqlSecurityGuard>();
+        services.AddSingleton<ISqlDriverStrategy, PostgreSqlDriverStrategy>();
+        services.AddSingleton<ISqlDriverFactory, SqlDriverFactory>();
         services.AddScoped<ISqlExecutorService, SqlExecutorService>();
 
         // 5. PDF Converter (Gotenberg 8)

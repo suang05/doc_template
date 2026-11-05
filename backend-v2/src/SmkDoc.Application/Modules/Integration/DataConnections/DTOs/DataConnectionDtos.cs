@@ -1,14 +1,18 @@
+// SSoT backward compatibility alias for external contracts
+global using DataConnectionDto = SmkDoc.Application.Modules.Integration.DataConnections.DTOs.DataConnectionResultDto;
+
 namespace SmkDoc.Application.Modules.Integration.DataConnections.DTOs;
 
 /// <summary>
-/// DTO representing a safe database connection definition (connection string omitted).
+/// Result DTO representing a safe database connection definition (connection string omitted).
 /// </summary>
-public sealed record DataConnectionDto(
+public sealed record DataConnectionResultDto(
     Guid Id,
     string Name,
     string Provider,
     DateTimeOffset CreatedAt,
-    DateTimeOffset? UpdatedAt);
+    DateTimeOffset? UpdatedAt,
+    string? ConcurrencyToken = null);
 
 /// <summary>
 /// Result returned after testing connectivity to an external database.

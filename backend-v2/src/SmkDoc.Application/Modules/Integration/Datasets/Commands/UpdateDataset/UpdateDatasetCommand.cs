@@ -6,4 +6,5 @@ public sealed record UpdateDatasetCommand(
     string? Description,
     Guid DataConnectionId,
     string SqlQuery,
-    int CacheSeconds = 0);
+    int CacheSeconds = 0,
+    string? IfMatch = null);

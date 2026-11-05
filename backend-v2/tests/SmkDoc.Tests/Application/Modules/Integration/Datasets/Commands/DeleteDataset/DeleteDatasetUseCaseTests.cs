@@ -63,4 +63,54 @@ public sealed class DeleteDatasetUseCaseTests
         _datasetRepo.DidNotReceive().Remove(Arg.Any<Dataset>());
         await _unitOfWork.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
     }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenIfMatchMatches_RemovesAndReturnsTrue()
+    {
+        // Arrange
+        Dataset entity = new DatasetBuilder()
+            .WithName("DS")
+            .WithDataConnectionId(Guid.NewGuid())
+            .WithSqlQuery("SELECT 1")
+            .WithCacheSeconds(0);
+
+        _datasetRepo.GetByIdAsync(entity.Id, Arg.Any<CancellationToken>())
+            .Returns(entity);
+
+        var token = (entity.UpdatedAt ?? entity.CreatedAt).ToUnixTimeMilliseconds().ToString();
+        var command = new DeleteDatasetCommand(entity.Id.Value, $"\"{token}\"");
+
+        // Act
+        var result = await CreateSut().ExecuteAsync(command);
+
+        // Assert
+        result.Should().BeTrue();
+        _datasetRepo.Received(1).Remove(entity);
+        await _unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenIfMatchMismatched_ThrowsPreconditionFailedException()
+    {
+        // Arrange
+        Dataset entity = new DatasetBuilder()
+            .WithName("DS")
+            .WithDataConnectionId(Guid.NewGuid())
+            .WithSqlQuery("SELECT 1")
+            .WithCacheSeconds(0);
+
+        _datasetRepo.GetByIdAsync(entity.Id, Arg.Any<CancellationToken>())
+            .Returns(entity);
+
+        var command = new DeleteDatasetCommand(entity.Id.Value, "\"bad_etag\"");
+
+        // Act
+        var act = () => CreateSut().ExecuteAsync(command);
+
+        // Assert
+        await act.Should().ThrowAsync<PreconditionFailedException>()
+            .WithMessage("*Precondition failed for dataset*");
+        _datasetRepo.DidNotReceive().Remove(Arg.Any<Dataset>());
+        await _unitOfWork.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
+    }
 }

@@ -6,6 +6,7 @@ using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.Constants;
 using SmkDoc.Api.Contracts.Integration.Datasets;
 using SmkDoc.Api.Controllers.Integration;
+using SmkDoc.Api.Filters;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Integration.Datasets.Commands.CreateDataset;
 using SmkDoc.Application.Modules.Integration.Datasets.Commands.DeleteDataset;
@@ -18,10 +19,10 @@ namespace SmkDoc.Tests.Api.Controllers;
 
 public sealed class DatasetControllerTests
 {
-    private readonly IUseCase<ListDatasetsQuery, List<DatasetDto>> _listUseCase = Substitute.For<IUseCase<ListDatasetsQuery, List<DatasetDto>>>();
-    private readonly IUseCase<GetDatasetByIdQuery, DatasetDto> _getByIdUseCase = Substitute.For<IUseCase<GetDatasetByIdQuery, DatasetDto>>();
-    private readonly IUseCase<CreateDatasetCommand, DatasetDto> _createUseCase = Substitute.For<IUseCase<CreateDatasetCommand, DatasetDto>>();
-    private readonly IUseCase<UpdateDatasetCommand, DatasetDto> _updateUseCase = Substitute.For<IUseCase<UpdateDatasetCommand, DatasetDto>>();
+    private readonly IUseCase<ListDatasetsQuery, List<DatasetResultDto>> _listUseCase = Substitute.For<IUseCase<ListDatasetsQuery, List<DatasetResultDto>>>();
+    private readonly IUseCase<GetDatasetByIdQuery, DatasetResultDto> _getByIdUseCase = Substitute.For<IUseCase<GetDatasetByIdQuery, DatasetResultDto>>();
+    private readonly IUseCase<CreateDatasetCommand, DatasetResultDto> _createUseCase = Substitute.For<IUseCase<CreateDatasetCommand, DatasetResultDto>>();
+    private readonly IUseCase<UpdateDatasetCommand, DatasetResultDto> _updateUseCase = Substitute.For<IUseCase<UpdateDatasetCommand, DatasetResultDto>>();
     private readonly IUseCase<DeleteDatasetCommand, bool> _deleteUseCase = Substitute.For<IUseCase<DeleteDatasetCommand, bool>>();
 
     private DatasetController CreateSut()
@@ -61,9 +62,9 @@ public sealed class DatasetControllerTests
     {
         // Arrange
         var sut = CreateSut();
-        var dtos = new List<DatasetDto>
+        var dtos = new List<DatasetResultDto>
         {
-            new(Guid.NewGuid(), "Invoices", "Monthly customer invoices", Guid.NewGuid(), "ERP DB", "SELECT * FROM invoices", 300, DateTimeOffset.UtcNow, null)
+            new(Guid.NewGuid(), "Invoices", "Monthly customer invoices", Guid.NewGuid(), "ERP DB", "SELECT * FROM invoices", 300, DateTimeOffset.UtcNow, null, "1111")
         };
         _listUseCase.ExecuteAsync(Arg.Any<ListDatasetsQuery>(), Arg.Any<CancellationToken>())
             .Returns(dtos);
@@ -73,17 +74,17 @@ public sealed class DatasetControllerTests
 
         // Assert
         var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
-        var body = okResult.Value.Should().BeOfType<ApiResponse<IEnumerable<DatasetDto>>>().Subject;
+        var body = okResult.Value.Should().BeOfType<ApiResponse<IEnumerable<DatasetResultDto>>>().Subject;
         body.Data.Should().HaveCount(1);
     }
 
     [Fact]
-    public async Task GetById_WhenFound_ShouldReturnDataset()
+    public async Task GetById_WhenFound_ShouldReturnDatasetAndSetETag()
     {
         // Arrange
         var sut = CreateSut();
         var id = Guid.NewGuid();
-        var dto = new DatasetDto(id, "Invoices", "Monthly customer invoices", Guid.NewGuid(), "ERP DB", "SELECT * FROM invoices", 300, DateTimeOffset.UtcNow, null);
+        var dto = new DatasetResultDto(id, "Invoices", "Monthly customer invoices", Guid.NewGuid(), "ERP DB", "SELECT * FROM invoices", 300, DateTimeOffset.UtcNow, null, "2222");
         _getByIdUseCase.ExecuteAsync(Arg.Is<GetDatasetByIdQuery>(q => q.Id == id), Arg.Any<CancellationToken>())
             .Returns(dto);
 
@@ -92,18 +93,19 @@ public sealed class DatasetControllerTests
 
         // Assert
         var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
-        var body = okResult.Value.Should().BeOfType<ApiResponse<DatasetDto>>().Subject;
+        var body = okResult.Value.Should().BeOfType<ApiResponse<DatasetResultDto>>().Subject;
         body.Data.Id.Should().Be(id);
+        sut.Response.Headers.ETag.ToString().Should().Be("\"2222\"");
     }
 
     [Fact]
-    public async Task Create_ShouldReturn201Created()
+    public async Task Create_ShouldReturn201CreatedAndBeDecoratedWithIdempotent()
     {
         // Arrange
         var sut = CreateSut();
         var id = Guid.NewGuid();
         var connId = Guid.NewGuid();
-        var dto = new DatasetDto(id, "Invoices", "Monthly customer invoices", connId, "ERP DB", "SELECT * FROM invoices", 300, DateTimeOffset.UtcNow, null);
+        var dto = new DatasetResultDto(id, "Invoices", "Monthly customer invoices", connId, "ERP DB", "SELECT * FROM invoices", 300, DateTimeOffset.UtcNow, null, "3333");
         _createUseCase.ExecuteAsync(Arg.Any<CreateDatasetCommand>(), Arg.Any<CancellationToken>())
             .Returns(dto);
 
@@ -115,21 +117,47 @@ public sealed class DatasetControllerTests
         // Assert
         var createdResult = result.Should().BeOfType<CreatedAtActionResult>().Subject;
         createdResult.StatusCode.Should().Be(StatusCodes.Status201Created);
-        var body = createdResult.Value.Should().BeOfType<ApiResponse<DatasetDto>>().Subject;
+        var body = createdResult.Value.Should().BeOfType<ApiResponse<DatasetResultDto>>().Subject;
         body.Data.Id.Should().Be(id);
+
+        var method = typeof(DatasetController).GetMethod(nameof(DatasetController.Create));
+        method!.GetCustomAttribute<IdempotentAttribute>().Should().NotBeNull();
     }
 
     [Fact]
-    public async Task Delete_WhenSuccessful_ShouldReturn204NoContent()
+    public async Task Update_ShouldForwardIfMatchAndSetETagHeader()
     {
         // Arrange
         var sut = CreateSut();
         var id = Guid.NewGuid();
-        _deleteUseCase.ExecuteAsync(Arg.Is<DeleteDatasetCommand>(c => c.Id == id), Arg.Any<CancellationToken>())
+        var connId = Guid.NewGuid();
+        var dto = new DatasetResultDto(id, "Invoices", "Monthly customer invoices", connId, "ERP DB", "SELECT * FROM invoices", 300, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "4444");
+        _updateUseCase.ExecuteAsync(Arg.Is<UpdateDatasetCommand>(c => c.Id == id && c.IfMatch == "\"3333\""), Arg.Any<CancellationToken>())
+            .Returns(dto);
+
+        var request = new UpdateDatasetRequest("Invoices", "Monthly customer invoices", connId, "SELECT * FROM invoices", 300);
+
+        // Act
+        var result = await sut.Update(id, request, "\"3333\"", CancellationToken.None);
+
+        // Assert
+        var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
+        var body = okResult.Value.Should().BeOfType<ApiResponse<DatasetResultDto>>().Subject;
+        body.Data.Id.Should().Be(id);
+        sut.Response.Headers.ETag.ToString().Should().Be("\"4444\"");
+    }
+
+    [Fact]
+    public async Task Delete_ShouldForwardIfMatch()
+    {
+        // Arrange
+        var sut = CreateSut();
+        var id = Guid.NewGuid();
+        _deleteUseCase.ExecuteAsync(Arg.Is<DeleteDatasetCommand>(c => c.Id == id && c.IfMatch == "\"3333\""), Arg.Any<CancellationToken>())
             .Returns(true);
 
         // Act
-        var result = await sut.Delete(id, null, CancellationToken.None);
+        var result = await sut.Delete(id, "\"3333\"", CancellationToken.None);
 
         // Assert
         result.Should().BeOfType<NoContentResult>();

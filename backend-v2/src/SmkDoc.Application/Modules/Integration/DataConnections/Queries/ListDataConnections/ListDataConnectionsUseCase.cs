@@ -5,16 +5,17 @@ using SmkDoc.Domain.Interfaces;
 namespace SmkDoc.Application.Modules.Integration.DataConnections.Queries.ListDataConnections;
 
 public sealed class ListDataConnectionsUseCase(
-    IDataConnectionRepository repository) : IUseCase<ListDataConnectionsQuery, List<DataConnectionDto>>
+    IDataConnectionRepository repository) : IUseCase<ListDataConnectionsQuery, List<DataConnectionResultDto>>
 {
-    public async Task<List<DataConnectionDto>> ExecuteAsync(ListDataConnectionsQuery query, CancellationToken ct = default)
+    public async Task<List<DataConnectionResultDto>> ExecuteAsync(ListDataConnectionsQuery query, CancellationToken ct = default)
     {
         var connections = await repository.ListAsync(ct);
-        return connections.Select(c => new DataConnectionDto(
+        return connections.Select(c => new DataConnectionResultDto(
             c.Id.Value,
             c.Name.Value,
             c.Provider.Name,
             c.CreatedAt,
-            c.UpdatedAt)).ToList();
+            c.UpdatedAt,
+            (c.UpdatedAt ?? c.CreatedAt).ToUnixTimeMilliseconds().ToString())).ToList();
     }
 }

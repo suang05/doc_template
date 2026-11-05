@@ -7,6 +7,7 @@ using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.Constants;
 using SmkDoc.Api.Contracts.Integration.DataConnections;
 using SmkDoc.Api.Controllers.Integration;
+using SmkDoc.Api.Filters;
 using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Integration.DataConnections.Commands.CreateDataConnection;
@@ -21,10 +22,10 @@ namespace SmkDoc.Tests.Api.Controllers;
 
 public sealed class DataConnectionsControllerTests
 {
-    private readonly IUseCase<ListDataConnectionsQuery, List<DataConnectionDto>> _listUseCase = Substitute.For<IUseCase<ListDataConnectionsQuery, List<DataConnectionDto>>>();
-    private readonly IUseCase<GetDataConnectionByIdQuery, DataConnectionDto> _getByIdUseCase = Substitute.For<IUseCase<GetDataConnectionByIdQuery, DataConnectionDto>>();
-    private readonly IUseCase<CreateDataConnectionCommand, DataConnectionDto> _createUseCase = Substitute.For<IUseCase<CreateDataConnectionCommand, DataConnectionDto>>();
-    private readonly IUseCase<UpdateDataConnectionCommand, DataConnectionDto> _updateUseCase = Substitute.For<IUseCase<UpdateDataConnectionCommand, DataConnectionDto>>();
+    private readonly IUseCase<ListDataConnectionsQuery, List<DataConnectionResultDto>> _listUseCase = Substitute.For<IUseCase<ListDataConnectionsQuery, List<DataConnectionResultDto>>>();
+    private readonly IUseCase<GetDataConnectionByIdQuery, DataConnectionResultDto> _getByIdUseCase = Substitute.For<IUseCase<GetDataConnectionByIdQuery, DataConnectionResultDto>>();
+    private readonly IUseCase<CreateDataConnectionCommand, DataConnectionResultDto> _createUseCase = Substitute.For<IUseCase<CreateDataConnectionCommand, DataConnectionResultDto>>();
+    private readonly IUseCase<UpdateDataConnectionCommand, DataConnectionResultDto> _updateUseCase = Substitute.For<IUseCase<UpdateDataConnectionCommand, DataConnectionResultDto>>();
     private readonly IUseCase<DeleteDataConnectionCommand, bool> _deleteUseCase = Substitute.For<IUseCase<DeleteDataConnectionCommand, bool>>();
     private readonly IUseCase<TestDataConnectionCommand, TestDataConnectionResultDto> _testUseCase = Substitute.For<IUseCase<TestDataConnectionCommand, TestDataConnectionResultDto>>();
 
@@ -71,9 +72,9 @@ public sealed class DataConnectionsControllerTests
     {
         // Arrange
         var sut = CreateSut();
-        var dtos = new List<DataConnectionDto>
+        var dtos = new List<DataConnectionResultDto>
         {
-            new(Guid.NewGuid(), "ERP DB", "PostgreSQL", DateTimeOffset.UtcNow, null)
+            new(Guid.NewGuid(), "ERP DB", "PostgreSQL", DateTimeOffset.UtcNow, null, "12345")
         };
         _listUseCase.ExecuteAsync(Arg.Any<ListDataConnectionsQuery>(), Arg.Any<CancellationToken>())
             .Returns(dtos);
@@ -83,17 +84,17 @@ public sealed class DataConnectionsControllerTests
 
         // Assert
         var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
-        var body = okResult.Value.Should().BeOfType<ApiResponse<IEnumerable<DataConnectionDto>>>().Subject;
+        var body = okResult.Value.Should().BeOfType<ApiResponse<IEnumerable<DataConnectionResultDto>>>().Subject;
         body.Data.Should().HaveCount(1);
     }
 
     [Fact]
-    public async Task GetById_WhenFound_ShouldReturnConnection()
+    public async Task GetById_WhenFound_ShouldReturnConnectionAndSetETag()
     {
         // Arrange
         var sut = CreateSut();
         var id = Guid.NewGuid();
-        var dto = new DataConnectionDto(id, "ERP DB", "PostgreSQL", DateTimeOffset.UtcNow, null);
+        var dto = new DataConnectionResultDto(id, "ERP DB", "PostgreSQL", DateTimeOffset.UtcNow, null, "12345");
         _getByIdUseCase.ExecuteAsync(Arg.Is<GetDataConnectionByIdQuery>(q => q.Id == id), Arg.Any<CancellationToken>())
             .Returns(dto);
 
@@ -102,8 +103,9 @@ public sealed class DataConnectionsControllerTests
 
         // Assert
         var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
-        var body = okResult.Value.Should().BeOfType<ApiResponse<DataConnectionDto>>().Subject;
+        var body = okResult.Value.Should().BeOfType<ApiResponse<DataConnectionResultDto>>().Subject;
         body.Data.Id.Should().Be(id);
+        sut.Response.Headers.ETag.ToString().Should().Be("\"12345\"");
     }
 
     [Fact]
@@ -123,12 +125,12 @@ public sealed class DataConnectionsControllerTests
     }
 
     [Fact]
-    public async Task Create_ShouldReturn201Created()
+    public async Task Create_ShouldReturn201CreatedAndBeDecoratedWithIdempotent()
     {
         // Arrange
         var sut = CreateSut();
         var id = Guid.NewGuid();
-        var dto = new DataConnectionDto(id, "New Connection", "PostgreSQL", DateTimeOffset.UtcNow, null);
+        var dto = new DataConnectionResultDto(id, "New Connection", "PostgreSQL", DateTimeOffset.UtcNow, null, "9999");
         _createUseCase.ExecuteAsync(Arg.Any<CreateDataConnectionCommand>(), Arg.Any<CancellationToken>())
             .Returns(dto);
 
@@ -140,8 +142,49 @@ public sealed class DataConnectionsControllerTests
         // Assert
         var createdResult = result.Should().BeOfType<CreatedAtActionResult>().Subject;
         createdResult.StatusCode.Should().Be(StatusCodes.Status201Created);
-        var body = createdResult.Value.Should().BeOfType<ApiResponse<DataConnectionDto>>().Subject;
+        var body = createdResult.Value.Should().BeOfType<ApiResponse<DataConnectionResultDto>>().Subject;
         body.Data.Id.Should().Be(id);
+
+        var method = typeof(DataConnectionsController).GetMethod(nameof(DataConnectionsController.Create));
+        method!.GetCustomAttribute<IdempotentAttribute>().Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task Update_ShouldForwardIfMatchAndSetETagHeader()
+    {
+        // Arrange
+        var sut = CreateSut();
+        var id = Guid.NewGuid();
+        var dto = new DataConnectionResultDto(id, "Updated Connection", "PostgreSQL", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "8888");
+        _updateUseCase.ExecuteAsync(Arg.Is<UpdateDataConnectionCommand>(c => c.Id == id && c.IfMatch == "\"7777\""), Arg.Any<CancellationToken>())
+            .Returns(dto);
+
+        var request = new UpdateDataConnectionRequest("Updated Connection", "PostgreSQL", "Host=db;Database=erp");
+
+        // Act
+        var result = await sut.Update(id, request, "\"7777\"", CancellationToken.None);
+
+        // Assert
+        var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
+        var body = okResult.Value.Should().BeOfType<ApiResponse<DataConnectionResultDto>>().Subject;
+        body.Data.Id.Should().Be(id);
+        sut.Response.Headers.ETag.ToString().Should().Be("\"8888\"");
+    }
+
+    [Fact]
+    public async Task Delete_ShouldForwardIfMatch()
+    {
+        // Arrange
+        var sut = CreateSut();
+        var id = Guid.NewGuid();
+        _deleteUseCase.ExecuteAsync(Arg.Is<DeleteDataConnectionCommand>(c => c.Id == id && c.IfMatch == "\"7777\""), Arg.Any<CancellationToken>())
+            .Returns(true);
+
+        // Act
+        var result = await sut.Delete(id, "\"7777\"", CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<NoContentResult>();
     }
 
     [Fact]

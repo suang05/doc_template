@@ -1,3 +1,5 @@
 namespace SmkDoc.Application.Modules.Integration.DataConnections.Commands.DeleteDataConnection;
 
-public sealed record DeleteDataConnectionCommand(Guid Id);
+public sealed record DeleteDataConnectionCommand(
+    Guid Id,
+    string? IfMatch = null);

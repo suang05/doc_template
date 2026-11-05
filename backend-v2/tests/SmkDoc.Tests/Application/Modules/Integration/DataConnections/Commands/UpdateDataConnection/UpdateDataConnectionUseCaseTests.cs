@@ -119,4 +119,65 @@ public sealed class UpdateDataConnectionUseCaseTests
         _connectionRepo.DidNotReceive().Update(Arg.Any<DataConnection>());
         await _unitOfWork.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
     }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenIfMatchValid_UpdatesAndReturnsConcurrencyToken()
+    {
+        // Arrange
+        var id = Guid.NewGuid();
+        var existing = DataConnectionBuilder.Postgres(name: "DB", connectionString: "enc", id: id);
+        _connectionRepo.GetByIdAsync(new DataConnectionId(id), Arg.Any<CancellationToken>())
+            .Returns(existing);
+
+        var expectedToken = (existing.UpdatedAt ?? existing.CreatedAt).ToUnixTimeMilliseconds().ToString();
+        var command = new UpdateDataConnectionCommand(id, "DB Renamed", "PostgreSQL", "", $"\"{expectedToken}\"");
+
+        // Act
+        var result = await CreateSut().ExecuteAsync(command);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.ConcurrencyToken.Should().NotBeNullOrEmpty();
+        _connectionRepo.Received(1).Update(existing);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenIfMatchWildcard_UpdatesSuccessfully()
+    {
+        // Arrange
+        var id = Guid.NewGuid();
+        var existing = DataConnectionBuilder.Postgres(name: "DB", connectionString: "enc", id: id);
+        _connectionRepo.GetByIdAsync(new DataConnectionId(id), Arg.Any<CancellationToken>())
+            .Returns(existing);
+
+        var command = new UpdateDataConnectionCommand(id, "DB Renamed", "PostgreSQL", "", "*");
+
+        // Act
+        var result = await CreateSut().ExecuteAsync(command);
+
+        // Assert
+        result.Should().NotBeNull();
+        _connectionRepo.Received(1).Update(existing);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenIfMatchMismatch_ThrowsPreconditionFailedException()
+    {
+        // Arrange
+        var id = Guid.NewGuid();
+        var existing = DataConnectionBuilder.Postgres(name: "DB", connectionString: "enc", id: id);
+        _connectionRepo.GetByIdAsync(new DataConnectionId(id), Arg.Any<CancellationToken>())
+            .Returns(existing);
+
+        var command = new UpdateDataConnectionCommand(id, "DB Renamed", "PostgreSQL", "", "\"stale_token_123\"");
+
+        // Act
+        var act = () => CreateSut().ExecuteAsync(command);
+
+        // Assert
+        await act.Should().ThrowAsync<PreconditionFailedException>()
+            .WithMessage("*Precondition failed for data connection*");
+        _connectionRepo.DidNotReceive().Update(Arg.Any<DataConnection>());
+        await _unitOfWork.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
+    }
 }

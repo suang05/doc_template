@@ -21,19 +21,19 @@ public static class IntegrationModuleExtensions
     public static IServiceCollection AddIntegrationModule(this IServiceCollection services)
     {
         // Single-Responsibility UseCases - Datasets
-        services.AddUseCase<CreateDatasetCommand, DatasetDto, CreateDatasetUseCase>();
-        services.AddUseCase<UpdateDatasetCommand, DatasetDto, UpdateDatasetUseCase>();
+        services.AddUseCase<CreateDatasetCommand, DatasetResultDto, CreateDatasetUseCase>();
+        services.AddUseCase<UpdateDatasetCommand, DatasetResultDto, UpdateDatasetUseCase>();
         services.AddUseCase<DeleteDatasetCommand, bool, DeleteDatasetUseCase>();
-        services.AddUseCase<GetDatasetByIdQuery, DatasetDto, GetDatasetByIdUseCase>();
-        services.AddUseCase<ListDatasetsQuery, List<DatasetDto>, ListDatasetsUseCase>();
+        services.AddUseCase<GetDatasetByIdQuery, DatasetResultDto, GetDatasetByIdUseCase>();
+        services.AddUseCase<ListDatasetsQuery, List<DatasetResultDto>, ListDatasetsUseCase>();
 
         // Single-Responsibility UseCases - DataConnections
-        services.AddUseCase<CreateDataConnectionCommand, DataConnectionDto, CreateDataConnectionUseCase>();
-        services.AddUseCase<UpdateDataConnectionCommand, DataConnectionDto, UpdateDataConnectionUseCase>();
+        services.AddUseCase<CreateDataConnectionCommand, DataConnectionResultDto, CreateDataConnectionUseCase>();
+        services.AddUseCase<UpdateDataConnectionCommand, DataConnectionResultDto, UpdateDataConnectionUseCase>();
         services.AddUseCase<DeleteDataConnectionCommand, bool, DeleteDataConnectionUseCase>();
         services.AddUseCase<TestDataConnectionCommand, TestDataConnectionResultDto, TestDataConnectionUseCase>();
-        services.AddUseCase<GetDataConnectionByIdQuery, DataConnectionDto, GetDataConnectionByIdUseCase>();
-        services.AddUseCase<ListDataConnectionsQuery, List<DataConnectionDto>, ListDataConnectionsUseCase>();
+        services.AddUseCase<GetDataConnectionByIdQuery, DataConnectionResultDto, GetDataConnectionByIdUseCase>();
+        services.AddUseCase<ListDataConnectionsQuery, List<DataConnectionResultDto>, ListDataConnectionsUseCase>();
 
         return services;
     }

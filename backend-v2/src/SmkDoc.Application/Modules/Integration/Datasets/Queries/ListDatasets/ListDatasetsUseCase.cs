@@ -8,9 +8,9 @@ namespace SmkDoc.Application.Modules.Integration.Datasets.Queries.ListDatasets;
 
 public sealed class ListDatasetsUseCase(
     IDatasetRepository datasetRepo,
-    IDataConnectionRepository connectionRepo) : IUseCase<ListDatasetsQuery, List<DatasetDto>>
+    IDataConnectionRepository connectionRepo) : IUseCase<ListDatasetsQuery, List<DatasetResultDto>>
 {
-    public async Task<List<DatasetDto>> ExecuteAsync(ListDatasetsQuery query, CancellationToken ct = default)
+    public async Task<List<DatasetResultDto>> ExecuteAsync(ListDatasetsQuery query, CancellationToken ct = default)
     {
         var datasets = await datasetRepo.ListAsync(ct);
         var missingConnectionIds = datasets
@@ -31,7 +31,7 @@ public sealed class ListDatasetsUseCase(
             var connName = d.DataConnection?.Name.Value
                 ?? (fallbackConns.TryGetValue(d.DataConnectionId, out var c) ? c.Name.Value : string.Empty);
 
-            return new DatasetDto(
+            return new DatasetResultDto(
                 d.Id.Value,
                 d.Name.Value,
                 d.Description,
@@ -40,7 +40,8 @@ public sealed class ListDatasetsUseCase(
                 d.SqlQuery,
                 d.CacheSeconds,
                 d.CreatedAt,
-                d.UpdatedAt);
+                d.UpdatedAt,
+                (d.UpdatedAt ?? d.CreatedAt).ToUnixTimeMilliseconds().ToString());
         }).ToList();
     }
 }

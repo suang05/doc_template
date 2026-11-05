@@ -1,18 +1,17 @@
-using System.Data;
-using System.Text.Json;
-using Dapper;
-using Microsoft.Extensions.Configuration;
-using Npgsql;
 using SmkDoc.Application.Common.Interfaces;
+using SmkDoc.Domain.Exceptions;
 
 namespace SmkDoc.Infrastructure.Data;
 
-public class SqlExecutorService(
-    ISqlConnectionValidator? sqlValidator = null,
-    IConfiguration? configuration = null) : ISqlExecutorService
+/// <summary>
+/// Orchestrates external SQL dataset execution by enforcing security validation (SSRF and read-only AST)
+/// and dispatching to polymorphic database driver strategies.
+/// </summary>
+public sealed class SqlExecutorService(
+    ISqlConnectionValidator sqlValidator,
+    ISqlDriverFactory driverFactory) : ISqlExecutorService
 {
     private const int DefaultCommandTimeoutSeconds = 15;
-    private readonly ISqlConnectionValidator _sqlValidator = sqlValidator ?? new SqlSecurityGuard(configuration);
 
     public Task<string> ExecuteQueryAsJsonAsync(
         string provider,
@@ -28,46 +27,20 @@ public class SqlExecutorService(
         IDictionary<string, object>? parameters,
         CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(provider) ||
-            !string.Equals(provider.Trim(), "postgresql", StringComparison.OrdinalIgnoreCase))
+        if (string.IsNullOrWhiteSpace(provider))
         {
-            throw new NotSupportedException($"Data connection provider '{provider}' is not currently supported.");
+            throw new DomainValidationException("Data connection provider is required.");
         }
 
-        await _sqlValidator.ValidateConnectionTargetAsync(provider, connectionString, ct);
-        _sqlValidator.ValidateReadOnlySql(sqlQuery);
+        await sqlValidator.ValidateConnectionTargetAsync(provider, connectionString, ct);
+        sqlValidator.ValidateReadOnlySql(sqlQuery);
 
-        await using var dbConnection = new NpgsqlConnection(connectionString);
-        await dbConnection.OpenAsync(ct);
-
-        await using var transaction = await dbConnection.BeginTransactionAsync(IsolationLevel.ReadCommitted, ct);
-
-        var readOnlyGuardCommand = new CommandDefinition(
-            "SET TRANSACTION READ ONLY;",
-            transaction: transaction,
-            commandTimeout: DefaultCommandTimeoutSeconds,
-            cancellationToken: ct);
-        await dbConnection.ExecuteAsync(readOnlyGuardCommand);
-
-        var dapperParams = new DynamicParameters();
-        if (parameters != null)
-        {
-            foreach (var param in parameters)
-            {
-                dapperParams.Add(param.Key, param.Value);
-            }
-        }
-
-        var command = new CommandDefinition(
+        var strategy = driverFactory.GetStrategy(provider);
+        return await strategy.ExecuteQueryAsJsonAsync(
+            connectionString,
             sqlQuery,
-            dapperParams,
-            transaction: transaction,
-            commandTimeout: DefaultCommandTimeoutSeconds,
-            cancellationToken: ct);
-
-        var results = await dbConnection.QueryAsync(command);
-        await transaction.CommitAsync(ct);
-
-        return JsonSerializer.Serialize(results);
+            parameters,
+            DefaultCommandTimeoutSeconds,
+            ct);
     }
 }

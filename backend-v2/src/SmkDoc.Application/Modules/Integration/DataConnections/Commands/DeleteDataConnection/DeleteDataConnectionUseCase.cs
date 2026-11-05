@@ -14,6 +14,17 @@ public sealed class DeleteDataConnectionUseCase(
         var entity = await repository.GetByIdAsync(new DataConnectionId(command.Id), ct)
             ?? throw new NotFoundException("DataConnection", command.Id);
 
+        if (!string.IsNullOrWhiteSpace(command.IfMatch) && command.IfMatch != "*")
+        {
+            var currentToken = (entity.UpdatedAt ?? entity.CreatedAt).ToUnixTimeMilliseconds().ToString();
+            var sanitizedMatch = command.IfMatch.Trim('\"', 'W', '/', ' ');
+            if (!string.Equals(sanitizedMatch, currentToken, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new PreconditionFailedException(
+                    $"Precondition failed for data connection '{command.Id}'. ETag '{sanitizedMatch}' does not match current state.");
+            }
+        }
+
         repository.Remove(entity);
         await unitOfWork.CommitAsync(ct);
         return true;

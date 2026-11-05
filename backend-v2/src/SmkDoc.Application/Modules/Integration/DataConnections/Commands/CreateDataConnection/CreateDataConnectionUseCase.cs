@@ -15,9 +15,9 @@ public sealed class CreateDataConnectionUseCase(
     IDataProtectionService dataProtection,
     ISqlConnectionValidator sqlValidator,
     ICurrentProjectContext projectContext,
-    TimeProvider timeProvider) : IUseCase<CreateDataConnectionCommand, DataConnectionDto>
+    TimeProvider timeProvider) : IUseCase<CreateDataConnectionCommand, DataConnectionResultDto>
 {
-    public async Task<DataConnectionDto> ExecuteAsync(CreateDataConnectionCommand command, CancellationToken ct = default)
+    public async Task<DataConnectionResultDto> ExecuteAsync(CreateDataConnectionCommand command, CancellationToken ct = default)
     {
         if (!projectContext.IsResolved)
         {
@@ -37,11 +37,12 @@ public sealed class CreateDataConnectionUseCase(
         await repository.AddAsync(entity, ct);
         await unitOfWork.CommitAsync(ct);
 
-        return new DataConnectionDto(
+        return new DataConnectionResultDto(
             entity.Id.Value,
             entity.Name.Value,
             entity.Provider.Name,
             entity.CreatedAt,
-            entity.UpdatedAt);
+            entity.UpdatedAt,
+            (entity.UpdatedAt ?? entity.CreatedAt).ToUnixTimeMilliseconds().ToString());
     }
 }

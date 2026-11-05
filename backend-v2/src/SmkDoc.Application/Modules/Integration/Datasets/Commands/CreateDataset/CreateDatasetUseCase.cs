@@ -15,9 +15,9 @@ public sealed class CreateDatasetUseCase(
     IUnitOfWork unitOfWork,
     ISqlConnectionValidator sqlValidator,
     ICurrentProjectContext projectContext,
-    TimeProvider timeProvider) : IUseCase<CreateDatasetCommand, DatasetDto>
+    TimeProvider timeProvider) : IUseCase<CreateDatasetCommand, DatasetResultDto>
 {
-    public async Task<DatasetDto> ExecuteAsync(CreateDatasetCommand command, CancellationToken ct = default)
+    public async Task<DatasetResultDto> ExecuteAsync(CreateDatasetCommand command, CancellationToken ct = default)
     {
         if (!projectContext.IsResolved)
         {
@@ -42,7 +42,7 @@ public sealed class CreateDatasetUseCase(
         await datasetRepo.AddAsync(entity, ct);
         await unitOfWork.CommitAsync(ct);
 
-        return new DatasetDto(
+        return new DatasetResultDto(
             entity.Id.Value,
             entity.Name.Value,
             entity.Description,
@@ -51,6 +51,7 @@ public sealed class CreateDatasetUseCase(
             entity.SqlQuery,
             entity.CacheSeconds,
             entity.CreatedAt,
-            entity.UpdatedAt);
+            entity.UpdatedAt,
+            (entity.UpdatedAt ?? entity.CreatedAt).ToUnixTimeMilliseconds().ToString());
     }
 }

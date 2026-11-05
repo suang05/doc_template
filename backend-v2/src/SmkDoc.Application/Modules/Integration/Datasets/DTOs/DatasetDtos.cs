@@ -1,9 +1,12 @@
+// SSoT backward compatibility alias for external contracts
+global using DatasetDto = SmkDoc.Application.Modules.Integration.Datasets.DTOs.DatasetResultDto;
+
 namespace SmkDoc.Application.Modules.Integration.Datasets.DTOs;
 
 /// <summary>
-/// DTO representing a dataset query and cache configuration.
+/// Result DTO representing a dataset query and cache configuration.
 /// </summary>
-public sealed record DatasetDto(
+public sealed record DatasetResultDto(
     Guid Id,
     string Name,
     string? Description,
@@ -12,4 +15,5 @@ public sealed record DatasetDto(
     string SqlQuery,
     int CacheSeconds,
     DateTimeOffset CreatedAt,
-    DateTimeOffset? UpdatedAt);
+    DateTimeOffset? UpdatedAt,
+    string? ConcurrencyToken = null);

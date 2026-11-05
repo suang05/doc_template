@@ -901,17 +901,17 @@
             "content": {
               "text/plain": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfDataConnectionDto"
+                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfDataConnectionResultDto"
                 }
               },
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfDataConnectionDto"
+                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfDataConnectionResultDto"
                 }
               },
               "text/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfDataConnectionDto"
+                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfDataConnectionResultDto"
                 }
               }
             }
@@ -989,17 +989,17 @@
             "content": {
               "text/plain": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfDataConnectionDto"
+                  "$ref": "#/components/schemas/ApiResponseOfDataConnectionResultDto"
                 }
               },
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfDataConnectionDto"
+                  "$ref": "#/components/schemas/ApiResponseOfDataConnectionResultDto"
                 }
               },
               "text/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfDataConnectionDto"
+                  "$ref": "#/components/schemas/ApiResponseOfDataConnectionResultDto"
                 }
               }
             }
@@ -1090,17 +1090,17 @@
             "content": {
               "text/plain": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfDataConnectionDto"
+                  "$ref": "#/components/schemas/ApiResponseOfDataConnectionResultDto"
                 }
               },
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfDataConnectionDto"
+                  "$ref": "#/components/schemas/ApiResponseOfDataConnectionResultDto"
                 }
               },
               "text/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfDataConnectionDto"
+                  "$ref": "#/components/schemas/ApiResponseOfDataConnectionResultDto"
                 }
               }
             }
@@ -1216,17 +1216,17 @@
             "content": {
               "text/plain": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfDataConnectionDto"
+                  "$ref": "#/components/schemas/ApiResponseOfDataConnectionResultDto"
                 }
               },
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfDataConnectionDto"
+                  "$ref": "#/components/schemas/ApiResponseOfDataConnectionResultDto"
                 }
               },
               "text/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfDataConnectionDto"
+                  "$ref": "#/components/schemas/ApiResponseOfDataConnectionResultDto"
                 }
               }
             }
@@ -1545,17 +1545,17 @@
             "content": {
               "text/plain": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfDatasetDto"
+                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfDatasetResultDto"
                 }
               },
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfDatasetDto"
+                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfDatasetResultDto"
                 }
               },
               "text/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfDatasetDto"
+                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfDatasetResultDto"
                 }
               }
             }
@@ -1633,17 +1633,17 @@
             "content": {
               "text/plain": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfDatasetDto"
+                  "$ref": "#/components/schemas/ApiResponseOfDatasetResultDto"
                 }
               },
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfDatasetDto"
+                  "$ref": "#/components/schemas/ApiResponseOfDatasetResultDto"
                 }
               },
               "text/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfDatasetDto"
+                  "$ref": "#/components/schemas/ApiResponseOfDatasetResultDto"
                 }
               }
             }
@@ -1714,17 +1714,17 @@
             "content": {
               "text/plain": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfDatasetDto"
+                  "$ref": "#/components/schemas/ApiResponseOfDatasetResultDto"
                 }
               },
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfDatasetDto"
+                  "$ref": "#/components/schemas/ApiResponseOfDatasetResultDto"
                 }
               },
               "text/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfDatasetDto"
+                  "$ref": "#/components/schemas/ApiResponseOfDatasetResultDto"
                 }
               }
             }
@@ -1840,17 +1840,17 @@
             "content": {
               "text/plain": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfDatasetDto"
+                  "$ref": "#/components/schemas/ApiResponseOfDatasetResultDto"
                 }
               },
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfDatasetDto"
+                  "$ref": "#/components/schemas/ApiResponseOfDatasetResultDto"
                 }
               },
               "text/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfDatasetDto"
+                  "$ref": "#/components/schemas/ApiResponseOfDatasetResultDto"
                 }
               }
             }
@@ -6266,7 +6266,7 @@
         },
         "description": "Standard API Response wrapper for successful requests that return data.\r\nEnforces the \"Envelope Pattern\" for consistent JSON schemas."
       },
-      "ApiResponseOfDataConnectionDto": {
+      "ApiResponseOfDataConnectionResultDto": {
         "required": [
           "data"
         ],
@@ -6278,14 +6278,14 @@
                 "type": "null"
               },
               {
-                "$ref": "#/components/schemas/DataConnectionDto"
+                "$ref": "#/components/schemas/DataConnectionResultDto"
               }
             ]
           }
         },
         "description": "Standard API Response wrapper for successful requests that return data.\r\nEnforces the \"Envelope Pattern\" for consistent JSON schemas."
       },
-      "ApiResponseOfDatasetDto": {
+      "ApiResponseOfDatasetResultDto": {
         "required": [
           "data"
         ],
@@ -6297,7 +6297,7 @@
                 "type": "null"
               },
               {
-                "$ref": "#/components/schemas/DatasetDto"
+                "$ref": "#/components/schemas/DatasetResultDto"
               }
             ]
           }
@@ -6398,7 +6398,7 @@
         },
         "description": "Standard API Response wrapper for successful requests that return data.\r\nEnforces the \"Envelope Pattern\" for consistent JSON schemas."
       },
-      "ApiResponseOfIEnumerableOfDataConnectionDto": {
+      "ApiResponseOfIEnumerableOfDataConnectionResultDto": {
         "required": [
           "data"
         ],
@@ -6410,13 +6410,13 @@
               "array"
             ],
             "items": {
-              "$ref": "#/components/schemas/DataConnectionDto"
+              "$ref": "#/components/schemas/DataConnectionResultDto"
             }
           }
         },
         "description": "Standard API Response wrapper for successful requests that return data.\r\nEnforces the \"Envelope Pattern\" for consistent JSON schemas."
       },
-      "ApiResponseOfIEnumerableOfDatasetDto": {
+      "ApiResponseOfIEnumerableOfDatasetResultDto": {
         "required": [
           "data"
         ],
@@ -6428,7 +6428,7 @@
               "array"
             ],
             "items": {
-              "$ref": "#/components/schemas/DatasetDto"
+              "$ref": "#/components/schemas/DatasetResultDto"
             }
           }
         },
@@ -7156,7 +7156,7 @@
         },
         "description": "Profile result returned by GET /api/v1/auth/me for current authenticated user."
       },
-      "DataConnectionDto": {
+      "DataConnectionResultDto": {
         "required": [
           "id",
           "name",
@@ -7186,11 +7186,17 @@
               "string"
             ],
             "format": "date-time"
+          },
+          "concurrencyToken": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         },
-        "description": "DTO representing a safe database connection definition (connection string omitted)."
+        "description": "Result DTO representing a safe database connection definition (connection string omitted)."
       },
-      "DatasetDto": {
+      "DatasetResultDto": {
         "required": [
           "id",
           "name",
@@ -7245,9 +7251,15 @@
               "string"
             ],
             "format": "date-time"
+          },
+          "concurrencyToken": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         },
-        "description": "DTO representing a dataset query and cache configuration."
+        "description": "Result DTO representing a dataset query and cache configuration."
       },
       "DocumentJobDto": {
         "required": [
