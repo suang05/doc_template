@@ -545,6 +545,8 @@ public sealed class CleanArchitectureTests
 
         apiAssembly.GetType("SmkDoc.Api.Controllers.Rendering.DocumentController")
             .Should().BeNull("Monolithic DocumentController was decomposed into DocumentGenerationController, DocumentArtifactController, and DocumentHistoryController.");
+        apiAssembly.GetType("SmkDoc.Api.Controllers.Authoring.TemplateController")
+            .Should().BeNull("Monolithic TemplateController was decomposed into TemplateLifecycleController and TemplateAssetController.");
         apiAssembly.GetType("SmkDoc.Api.Filters.ValidateCommandFilter")
             .Should().BeNull("ValidateCommandFilter was retired in favor of ValidatingUseCaseDecorator.");
         appAssembly.GetType("SmkDoc.Application.Common.Interfaces.IJsonDataParser")

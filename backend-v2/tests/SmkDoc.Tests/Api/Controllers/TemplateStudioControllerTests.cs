@@ -1,21 +1,16 @@
-using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Common.Responses;
-using SmkDoc.Api.Contracts.Authoring.FieldMappings;
 using SmkDoc.Api.Contracts.Authoring.Templates;
 using SmkDoc.Api.Controllers.Authoring;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.Modules.Authoring.FieldMappings.Commands.SaveTemplateMappings;
-using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
-using SmkDoc.Application.Modules.Authoring.FieldMappings.Queries.GetTemplateMappings;
-using SmkDoc.Application.Modules.Authoring.FieldMappings.Queries.PreviewMapping;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.SaveTemplateHtml;
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.GetTemplateHtmlSource;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.GetTemplateSchema;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.GetTemplateStudioBundle;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.ValidateTemplateHtml;
+using SmkDoc.Domain.Enums;
 
 namespace SmkDoc.Tests.Api.Controllers;
 
@@ -26,9 +21,6 @@ public sealed class TemplateStudioControllerTests
     private readonly IUseCase<GetTemplateSchemaQuery, TemplateSchemaDto> _getSchemaUseCase = Substitute.For<IUseCase<GetTemplateSchemaQuery, TemplateSchemaDto>>();
     private readonly IUseCase<SaveTemplateHtmlCommand, SaveHtmlResultDto> _saveHtmlUseCase = Substitute.For<IUseCase<SaveTemplateHtmlCommand, SaveHtmlResultDto>>();
     private readonly IUseCase<ValidateTemplateHtmlQuery, TemplateValidationResultDto> _validateUseCase = Substitute.For<IUseCase<ValidateTemplateHtmlQuery, TemplateValidationResultDto>>();
-    private readonly IUseCase<GetTemplateMappingsQuery, List<FieldMappingDto>> _getMappingsUseCase = Substitute.For<IUseCase<GetTemplateMappingsQuery, List<FieldMappingDto>>>();
-    private readonly IUseCase<SaveTemplateMappingsCommand, List<FieldMappingDto>> _saveMappingsUseCase = Substitute.For<IUseCase<SaveTemplateMappingsCommand, List<FieldMappingDto>>>();
-    private readonly IUseCase<PreviewMappingQuery, Stream> _previewMappingUseCase = Substitute.For<IUseCase<PreviewMappingQuery, Stream>>();
 
     private TemplateStudioController CreateSut()
     {
@@ -37,10 +29,7 @@ public sealed class TemplateStudioControllerTests
             _getStudioBundleUseCase,
             _getSchemaUseCase,
             _saveHtmlUseCase,
-            _validateUseCase,
-            _getMappingsUseCase,
-            _saveMappingsUseCase,
-            _previewMappingUseCase)
+            _validateUseCase)
         {
             ControllerContext = new ControllerContext
             {
@@ -94,6 +83,26 @@ public sealed class TemplateStudioControllerTests
     }
 
     [Fact]
+    public async Task GetSchema_ShouldReturnSchemaEnvelope()
+    {
+        // Arrange
+        var sut = CreateSut();
+        var templateId = Guid.NewGuid();
+        var schemaDto = new TemplateSchemaDto(templateId, "invoice", TemplateFormat.Html, 1, "{\"type\":\"object\"}", "{}");
+
+        _getSchemaUseCase.ExecuteAsync(Arg.Is<GetTemplateSchemaQuery>(q => q.TemplateId == templateId), Arg.Any<CancellationToken>())
+            .Returns(schemaDto);
+
+        // Act
+        var result = await sut.GetSchema(templateId, CancellationToken.None);
+
+        // Assert
+        var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
+        var body = okResult.Value.Should().BeOfType<ApiResponse<TemplateSchemaDto>>().Subject;
+        body.Data.DataSchema.Should().Be("{\"type\":\"object\"}");
+    }
+
+    [Fact]
     public async Task SaveHtml_WithIfMatchHeader_ShouldPassIfMatchAndSetETagHeader()
     {
         // Arrange
@@ -134,73 +143,5 @@ public sealed class TemplateStudioControllerTests
         var body = okResult.Value.Should().BeOfType<ApiResponse<TemplateValidationResultDto>>().Subject;
         body.Data.Valid.Should().BeTrue();
         body.Data.Fields.Should().Contain("name");
-    }
-
-    [Fact]
-    public async Task GetMappings_ShouldReturnMappingsCollection()
-    {
-        // Arrange
-        var sut = CreateSut();
-        var templateId = Guid.NewGuid();
-        var mappings = new List<FieldMappingDto>
-        {
-            new(Guid.NewGuid(), templateId, "company", "req.company", "Company", false, null, null, 1, "direct", null, null, null)
-        };
-        _getMappingsUseCase.ExecuteAsync(Arg.Is<GetTemplateMappingsQuery>(q => q.TemplateId == templateId), Arg.Any<CancellationToken>())
-            .Returns(mappings);
-
-        // Act
-        var result = await sut.GetMappings(templateId, CancellationToken.None);
-
-        // Assert
-        var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
-        var body = okResult.Value.Should().BeOfType<ApiResponse<IEnumerable<FieldMappingDto>>>().Subject;
-        body.Data.Should().HaveCount(1);
-    }
-
-    [Fact]
-    public async Task SaveMappings_ShouldExecuteCommandAndReturnUpdatedMappings()
-    {
-        // Arrange
-        var sut = CreateSut();
-        var templateId = Guid.NewGuid();
-        var mappings = new List<FieldMappingDto>
-        {
-            new(Guid.NewGuid(), templateId, "company", "req.company", "Company", false, null, null, 1, "direct", null, null, null)
-        };
-        _saveMappingsUseCase.ExecuteAsync(Arg.Is<SaveTemplateMappingsCommand>(c => c.TemplateId == templateId), Arg.Any<CancellationToken>())
-            .Returns(mappings);
-
-        var request = new SaveTemplateMappingsRequest([]);
-
-        // Act
-        var result = await sut.SaveMappings(templateId, request, null, CancellationToken.None);
-
-        // Assert
-        await _saveMappingsUseCase.Received(1).ExecuteAsync(Arg.Is<SaveTemplateMappingsCommand>(c => c.TemplateId == templateId), Arg.Any<CancellationToken>());
-        var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
-        var body = okResult.Value.Should().BeOfType<ApiResponse<IEnumerable<FieldMappingDto>>>().Subject;
-        body.Data.Should().HaveCount(1);
-    }
-
-    [Fact]
-    public async Task PreviewMappings_ShouldReturnInlinePdfStream()
-    {
-        // Arrange
-        var sut = CreateSut();
-        var templateId = Guid.NewGuid();
-        using var stream = new MemoryStream([1, 2, 3]);
-        _previewMappingUseCase.ExecuteAsync(Arg.Is<PreviewMappingQuery>(q => q.TemplateId == templateId), Arg.Any<CancellationToken>())
-            .Returns(stream);
-
-        var request = new PreviewMappingRequest(JsonDocument.Parse("{}").RootElement);
-
-        // Act
-        var result = await sut.PreviewMappings(templateId, request, CancellationToken.None);
-
-        // Assert
-        var fileResult = result.Should().BeOfType<FileStreamResult>().Subject;
-        fileResult.ContentType.Should().Be("application/pdf");
-        sut.Response.Headers.ContentDisposition.ToString().Should().Be("inline");
     }
 }

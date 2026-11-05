@@ -84,6 +84,6 @@ public sealed class TemplateDraftController(
             request.Category,
             request.Mappings ?? []);
         var result = await commitUseCase.ExecuteAsync(command, ct);
-        return CreatedAtAction(nameof(TemplateController.GetById), "Template", new { id = result.TemplateId }, new ApiResponse<CommitDraftResultDto>(result));
+        return CreatedAtAction(nameof(TemplateLifecycleController.GetById), "TemplateLifecycle", new { id = result.TemplateId }, new ApiResponse<CommitDraftResultDto>(result));
     }
 }
