@@ -9,6 +9,7 @@ using SmkDoc.Application.Modules.Integration.DataConnections.Queries.GetDataConn
 using SmkDoc.Application.Modules.Integration.DataConnections.Queries.ListDataConnections;
 using SmkDoc.Application.Modules.Integration.Datasets.Commands.CreateDataset;
 using SmkDoc.Application.Modules.Integration.Datasets.Commands.DeleteDataset;
+using SmkDoc.Application.Modules.Integration.Datasets.Commands.DryRunDataset;
 using SmkDoc.Application.Modules.Integration.Datasets.Commands.UpdateDataset;
 using SmkDoc.Application.Modules.Integration.Datasets.DTOs;
 using SmkDoc.Application.Modules.Integration.Datasets.Queries.GetDatasetById;
@@ -26,6 +27,7 @@ public static class IntegrationModuleExtensions
         services.AddUseCase<DeleteDatasetCommand, bool, DeleteDatasetUseCase>();
         services.AddUseCase<GetDatasetByIdQuery, DatasetResultDto, GetDatasetByIdUseCase>();
         services.AddUseCase<ListDatasetsQuery, List<DatasetResultDto>, ListDatasetsUseCase>();
+        services.AddUseCase<DryRunDatasetCommand, DryRunDatasetResultDto, DryRunDatasetUseCase>();
 
         // Single-Responsibility UseCases - DataConnections
         services.AddUseCase<CreateDataConnectionCommand, DataConnectionResultDto, CreateDataConnectionUseCase>();

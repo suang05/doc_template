@@ -1,6 +1,3 @@
-// SSoT backward compatibility alias for external contracts
-global using DatasetDto = SmkDoc.Application.Modules.Integration.Datasets.DTOs.DatasetResultDto;
-
 namespace SmkDoc.Application.Modules.Integration.Datasets.DTOs;
 
 /// <summary>

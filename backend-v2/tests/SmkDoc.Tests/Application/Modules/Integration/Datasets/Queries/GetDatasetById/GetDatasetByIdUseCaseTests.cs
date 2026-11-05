@@ -39,7 +39,7 @@ public sealed class GetDatasetByIdUseCaseTests
             .Returns(conn);
 
         // Act
-        DatasetDto result = await CreateSut().ExecuteAsync(new GetDatasetByIdQuery(id));
+        DatasetResultDto result = await CreateSut().ExecuteAsync(new GetDatasetByIdQuery(id));
 
         // Assert
         result.Should().NotBeNull();

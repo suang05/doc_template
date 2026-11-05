@@ -17,7 +17,7 @@ using SmkDoc.Application.Modules.Integration.Datasets.Queries.ListDatasets;
 
 namespace SmkDoc.Tests.Api.Controllers;
 
-public sealed class DatasetControllerTests
+public sealed class DatasetsControllerTests
 {
     private readonly IUseCase<ListDatasetsQuery, List<DatasetResultDto>> _listUseCase = Substitute.For<IUseCase<ListDatasetsQuery, List<DatasetResultDto>>>();
     private readonly IUseCase<GetDatasetByIdQuery, DatasetResultDto> _getByIdUseCase = Substitute.For<IUseCase<GetDatasetByIdQuery, DatasetResultDto>>();
@@ -25,9 +25,9 @@ public sealed class DatasetControllerTests
     private readonly IUseCase<UpdateDatasetCommand, DatasetResultDto> _updateUseCase = Substitute.For<IUseCase<UpdateDatasetCommand, DatasetResultDto>>();
     private readonly IUseCase<DeleteDatasetCommand, bool> _deleteUseCase = Substitute.For<IUseCase<DeleteDatasetCommand, bool>>();
 
-    private DatasetController CreateSut()
+    private DatasetsController CreateSut()
     {
-        var controller = new DatasetController(
+        var controller = new DatasetsController(
             _listUseCase,
             _getByIdUseCase,
             _createUseCase,
@@ -46,7 +46,7 @@ public sealed class DatasetControllerTests
     [Fact]
     public void Controller_ShouldBeDecoratedWithDatasetManagementPolicy()
     {
-        var type = typeof(DatasetController);
+        var type = typeof(DatasetsController);
 
         var authAttr = type.GetCustomAttribute<AuthorizeAttribute>();
         authAttr.Should().NotBeNull();
@@ -120,7 +120,7 @@ public sealed class DatasetControllerTests
         var body = createdResult.Value.Should().BeOfType<ApiResponse<DatasetResultDto>>().Subject;
         body.Data.Id.Should().Be(id);
 
-        var method = typeof(DatasetController).GetMethod(nameof(DatasetController.Create));
+        var method = typeof(DatasetsController).GetMethod(nameof(DatasetsController.Create));
         method!.GetCustomAttribute<IdempotentAttribute>().Should().NotBeNull();
     }
 

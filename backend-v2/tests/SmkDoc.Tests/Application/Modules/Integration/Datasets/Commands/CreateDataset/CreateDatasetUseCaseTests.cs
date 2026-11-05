@@ -41,7 +41,7 @@ public sealed class CreateDatasetUseCaseTests
     {
         // Arrange
         var command = new CreateDatasetCommand("", null, Guid.Empty, "", -1);
-        var pipeline = new ValidatingUseCaseDecorator<CreateDatasetCommand, DatasetDto>(
+        var pipeline = new ValidatingUseCaseDecorator<CreateDatasetCommand, DatasetResultDto>(
             CreateSut(),
             [new CreateDatasetCommandValidator()]);
 
@@ -82,7 +82,7 @@ public sealed class CreateDatasetUseCaseTests
             .Returns(conn);
 
         // Act
-        DatasetDto result = await CreateSut().ExecuteAsync(command);
+        DatasetResultDto result = await CreateSut().ExecuteAsync(command);
 
         // Assert
         result.Name.Should().Be("OrdersSet");

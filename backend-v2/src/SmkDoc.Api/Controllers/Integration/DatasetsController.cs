@@ -23,7 +23,7 @@ namespace SmkDoc.Api.Controllers.Integration;
 [Authorize(Policy = SmkDocPolicies.CanManageDatasets)]
 [ProducesResponseType(StatusCodes.Status401Unauthorized)]
 [ProducesResponseType(StatusCodes.Status403Forbidden)]
-public sealed class DatasetController(
+public sealed class DatasetsController(
     IUseCase<ListDatasetsQuery, List<DatasetResultDto>> listUseCase,
     IUseCase<GetDatasetByIdQuery, DatasetResultDto> getByIdUseCase,
     IUseCase<CreateDatasetCommand, DatasetResultDto> createUseCase,
@@ -95,3 +95,4 @@ public sealed class DatasetController(
         return NoContent();
     }
 }
+

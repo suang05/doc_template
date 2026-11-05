@@ -11,6 +11,3 @@ global using SmkDoc.Domain.Exceptions;
 global using SmkDoc.Domain.Interfaces;
 global using SmkDoc.Domain.ValueObjects;
 global using SmkDoc.Tests.Common;
-
-global using DataConnectionDto = SmkDoc.Application.Modules.Integration.DataConnections.DTOs.DataConnectionResultDto;
-global using DatasetDto = SmkDoc.Application.Modules.Integration.Datasets.DTOs.DatasetResultDto;

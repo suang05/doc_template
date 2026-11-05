@@ -226,8 +226,48 @@ public sealed class TemplateRepository(AppDbContext dbContext) : ITemplateReposi
 }
 ```
 
-### Fail-Closed Ambient Multi-Tenant Global Query Filter
+### Transactional Unit of Work & Post-Commit Domain Event Dispatcher Archetype
 >> MANDATORY CANONICAL TEMPLATE [RULE-INFRA-003]:
+* [MUST] Commit database state changes via `SaveChangesAsync` BEFORE dispatching events.
+* [MUST] Clear domain events from tracked entities after harvesting to prevent duplicate dispatching.
+
+```csharp
+using SmkDoc.Application.Common.Interfaces;
+using SmkDoc.Domain.Common;
+
+namespace SmkDoc.Infrastructure.Persistence;
+
+public sealed class TransactionalUnitOfWork(
+    AppDbContext dbContext,
+    IDomainEventDispatcher eventDispatcher) : IUnitOfWork
+{
+    public async Task CommitAsync(CancellationToken ct = default)
+    {
+        // 1. Harvest events from tracked aggregate roots
+        var aggregates = dbContext.ChangeTracker.Entries<IAggregateRoot>()
+            .Where(e => e.Entity.DomainEvents.Count > 0)
+            .Select(e => e.Entity)
+            .ToList();
+
+        var events = aggregates.SelectMany(a => a.DomainEvents).ToList();
+
+        // 2. Persist state changes in database transaction
+        await dbContext.SaveChangesAsync(ct);
+
+        // 3. Clear domain events to prevent duplicate dispatching
+        aggregates.ForEach(a => a.ClearDomainEvents());
+
+        // 4. Dispatch events strictly after successful database commit
+        foreach (var domainEvent in events)
+        {
+            await eventDispatcher.DispatchAsync(domainEvent, ct);
+        }
+    }
+}
+```
+
+### Fail-Closed Ambient Multi-Tenant Global Query Filter
+>> MANDATORY CANONICAL TEMPLATE [RULE-INFRA-004]:
 * [MUST] Apply fail-closed global query filter in `AppDbContext.OnModelCreating` to all entities implementing `IMustHaveProject`: `IsTenantResolved && e.ProjectId == CurrentTenantId`.
 * [MUST] Apply matching child query filters on `TemplateVersion`, `FieldMapping`, `TemplateDataset`, and `DocumentVersion` via their parent aggregate navigation to satisfy EF Core warning `10622` and prevent cross-tenant child queries.
 * [MUST NOT] Use fail-open expressions (`!IsResolved || ...`) or call `.IgnoreQueryFilters()` in tenant application routes.

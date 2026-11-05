@@ -849,6 +849,116 @@
         }
       }
     },
+    "/api/v1/data-connections/test": {
+      "post": {
+        "tags": [
+          "DataConnectionDiagnostics"
+        ],
+        "summary": "Test connection credentials and reachability.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TestDataConnectionRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TestDataConnectionRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/TestDataConnectionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfTestDataConnectionResultDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfTestDataConnectionResultDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfTestDataConnectionResultDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/data-connections": {
       "get": {
         "tags": [
@@ -1403,27 +1513,27 @@
         }
       }
     },
-    "/api/v1/data-connections/test": {
+    "/api/v1/datasets/dry-run": {
       "post": {
         "tags": [
-          "DataConnections"
+          "DatasetDiagnostics"
         ],
-        "summary": "Test connection credentials and reachability.",
+        "summary": "Dry-run a SQL dataset query to discover column schema and preview sample rows.",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/TestDataConnectionRequest"
+                "$ref": "#/components/schemas/DryRunDatasetRequest"
               }
             },
             "text/json": {
               "schema": {
-                "$ref": "#/components/schemas/TestDataConnectionRequest"
+                "$ref": "#/components/schemas/DryRunDatasetRequest"
               }
             },
             "application/*+json": {
               "schema": {
-                "$ref": "#/components/schemas/TestDataConnectionRequest"
+                "$ref": "#/components/schemas/DryRunDatasetRequest"
               }
             }
           },
@@ -1475,17 +1585,37 @@
             "content": {
               "text/plain": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfTestDataConnectionResultDto"
+                  "$ref": "#/components/schemas/ApiResponseOfDryRunDatasetResultDto"
                 }
               },
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfTestDataConnectionResultDto"
+                  "$ref": "#/components/schemas/ApiResponseOfDryRunDatasetResultDto"
                 }
               },
               "text/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfTestDataConnectionResultDto"
+                  "$ref": "#/components/schemas/ApiResponseOfDryRunDatasetResultDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
@@ -1496,7 +1626,7 @@
     "/api/v1/datasets": {
       "get": {
         "tags": [
-          "Dataset"
+          "Datasets"
         ],
         "summary": "List all configured SQL datasets.",
         "responses": {
@@ -1564,7 +1694,7 @@
       },
       "post": {
         "tags": [
-          "Dataset"
+          "Datasets"
         ],
         "summary": "Create a new SQL dataset definition.",
         "requestBody": {
@@ -1654,7 +1784,7 @@
     "/api/v1/datasets/{id}": {
       "get": {
         "tags": [
-          "Dataset"
+          "Datasets"
         ],
         "summary": "Get a specific SQL dataset definition by its ID.",
         "parameters": [
@@ -1753,7 +1883,7 @@
       },
       "put": {
         "tags": [
-          "Dataset"
+          "Datasets"
         ],
         "summary": "Update an existing SQL dataset definition.",
         "parameters": [
@@ -1899,7 +2029,7 @@
       },
       "delete": {
         "tags": [
-          "Dataset"
+          "Datasets"
         ],
         "summary": "Delete a SQL dataset definition.",
         "parameters": [
@@ -6342,6 +6472,25 @@
         },
         "description": "Standard API Response wrapper for successful requests that return data.\r\nEnforces the \"Envelope Pattern\" for consistent JSON schemas."
       },
+      "ApiResponseOfDryRunDatasetResultDto": {
+        "required": [
+          "data"
+        ],
+        "type": "object",
+        "properties": {
+          "data": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DryRunDatasetResultDto"
+              }
+            ]
+          }
+        },
+        "description": "Standard API Response wrapper for successful requests that return data.\r\nEnforces the \"Envelope Pattern\" for consistent JSON schemas."
+      },
       "ApiResponseOfFontCatalogDto": {
         "required": [
           "data"
@@ -7196,6 +7345,26 @@
         },
         "description": "Result DTO representing a safe database connection definition (connection string omitted)."
       },
+      "DatasetColumnSchemaDto": {
+        "required": [
+          "name",
+          "dataType"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "dataType": {
+            "type": "string"
+          },
+          "isNullable": {
+            "type": "boolean",
+            "default": true
+          }
+        },
+        "description": "Schema metadata for a single column discovered from query execution."
+      },
       "DatasetResultDto": {
         "required": [
           "id",
@@ -7421,6 +7590,105 @@
           }
         },
         "description": "Pre-signed document download URL and validity window."
+      },
+      "DryRunDatasetRequest": {
+        "required": [
+          "dataConnectionId",
+          "provider",
+          "connectionString",
+          "sqlQuery"
+        ],
+        "type": "object",
+        "properties": {
+          "dataConnectionId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "provider": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "connectionString": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "sqlQuery": {
+            "type": "string"
+          },
+          "parameters": {
+            "type": [
+              "null",
+              "object"
+            ]
+          },
+          "maxSampleRows": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32",
+            "default": 5
+          }
+        },
+        "description": "Request payload to test-run a SQL dataset query and discover column schemas."
+      },
+      "DryRunDatasetResultDto": {
+        "required": [
+          "success",
+          "columns",
+          "sampleRows",
+          "sampleCount",
+          "executionTimeMs"
+        ],
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "columns": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DatasetColumnSchemaDto"
+            }
+          },
+          "sampleRows": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "sampleCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "executionTimeMs": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "error": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "Result returned from dry-running a SQL dataset query, containing discovered column schema and sample rows."
       },
       "FieldMappingDto": {
         "required": [
@@ -9392,10 +9660,16 @@
       "name": "DocumentHistory"
     },
     {
+      "name": "DataConnectionDiagnostics"
+    },
+    {
       "name": "DataConnections"
     },
     {
-      "name": "Dataset"
+      "name": "DatasetDiagnostics"
+    },
+    {
+      "name": "Datasets"
     },
     {
       "name": "ApiKey"

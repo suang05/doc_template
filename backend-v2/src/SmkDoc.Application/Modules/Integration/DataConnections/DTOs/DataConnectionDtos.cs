@@ -1,6 +1,3 @@
-// SSoT backward compatibility alias for external contracts
-global using DataConnectionDto = SmkDoc.Application.Modules.Integration.DataConnections.DTOs.DataConnectionResultDto;
-
 namespace SmkDoc.Application.Modules.Integration.DataConnections.DTOs;
 
 /// <summary>

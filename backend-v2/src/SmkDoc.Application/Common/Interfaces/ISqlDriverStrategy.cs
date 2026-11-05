@@ -1,3 +1,5 @@
+using SmkDoc.Application.Modules.Integration.Datasets.DTOs;
+
 namespace SmkDoc.Application.Common.Interfaces;
 
 /// <summary>
@@ -17,6 +19,17 @@ public interface ISqlDriverStrategy
         string connectionString,
         string sqlQuery,
         IDictionary<string, object>? parameters,
+        int commandTimeoutSeconds,
+        CancellationToken ct);
+
+    /// <summary>
+    /// Executes a dry-run read-only query against the database, extracting column schema and bounded sample rows.
+    /// </summary>
+    Task<DryRunExecutionResult> ExecuteDryRunAsync(
+        string connectionString,
+        string sqlQuery,
+        IDictionary<string, object>? parameters,
+        int maxRows,
         int commandTimeoutSeconds,
         CancellationToken ct);
 }

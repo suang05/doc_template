@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.RateLimiting;
 using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.Constants;
 using SmkDoc.Api.Contracts.Integration.DataConnections;
@@ -8,7 +7,6 @@ using SmkDoc.Api.Filters;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Integration.DataConnections.Commands.CreateDataConnection;
 using SmkDoc.Application.Modules.Integration.DataConnections.Commands.DeleteDataConnection;
-using SmkDoc.Application.Modules.Integration.DataConnections.Commands.TestDataConnection;
 using SmkDoc.Application.Modules.Integration.DataConnections.Commands.UpdateDataConnection;
 using SmkDoc.Application.Modules.Integration.DataConnections.DTOs;
 using SmkDoc.Application.Modules.Integration.DataConnections.Queries.GetDataConnectionById;
@@ -30,8 +28,7 @@ public sealed class DataConnectionsController(
     IUseCase<GetDataConnectionByIdQuery, DataConnectionResultDto> getByIdUseCase,
     IUseCase<CreateDataConnectionCommand, DataConnectionResultDto> createUseCase,
     IUseCase<UpdateDataConnectionCommand, DataConnectionResultDto> updateUseCase,
-    IUseCase<DeleteDataConnectionCommand, bool> deleteUseCase,
-    IUseCase<TestDataConnectionCommand, TestDataConnectionResultDto> testUseCase) : ControllerBase
+    IUseCase<DeleteDataConnectionCommand, bool> deleteUseCase) : ControllerBase
 {
     /// <summary>List all configured database connections.</summary>
     [HttpGet]
@@ -98,17 +95,5 @@ public sealed class DataConnectionsController(
         var command = new DeleteDataConnectionCommand(id, ifMatch);
         await deleteUseCase.ExecuteAsync(command, ct);
         return NoContent();
-    }
-
-    /// <summary>Test connection credentials and reachability.</summary>
-    [HttpPost("test")]
-    [EnableRateLimiting("test-conn")]
-    [ProducesResponseType(typeof(ApiResponse<TestDataConnectionResultDto>), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    public async Task<IActionResult> TestConnection([FromBody] TestDataConnectionRequest request, CancellationToken ct)
-    {
-        var command = new TestDataConnectionCommand(request.Provider, request.ConnectionString);
-        var result = await testUseCase.ExecuteAsync(command, ct);
-        return Ok(new ApiResponse<TestDataConnectionResultDto>(result));
     }
 }

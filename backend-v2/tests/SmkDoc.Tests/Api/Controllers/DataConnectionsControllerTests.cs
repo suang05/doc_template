@@ -2,7 +2,6 @@ using System.Reflection;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.RateLimiting;
 using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.Constants;
 using SmkDoc.Api.Contracts.Integration.DataConnections;
@@ -12,7 +11,6 @@ using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Integration.DataConnections.Commands.CreateDataConnection;
 using SmkDoc.Application.Modules.Integration.DataConnections.Commands.DeleteDataConnection;
-using SmkDoc.Application.Modules.Integration.DataConnections.Commands.TestDataConnection;
 using SmkDoc.Application.Modules.Integration.DataConnections.Commands.UpdateDataConnection;
 using SmkDoc.Application.Modules.Integration.DataConnections.DTOs;
 using SmkDoc.Application.Modules.Integration.DataConnections.Queries.GetDataConnectionById;
@@ -27,7 +25,6 @@ public sealed class DataConnectionsControllerTests
     private readonly IUseCase<CreateDataConnectionCommand, DataConnectionResultDto> _createUseCase = Substitute.For<IUseCase<CreateDataConnectionCommand, DataConnectionResultDto>>();
     private readonly IUseCase<UpdateDataConnectionCommand, DataConnectionResultDto> _updateUseCase = Substitute.For<IUseCase<UpdateDataConnectionCommand, DataConnectionResultDto>>();
     private readonly IUseCase<DeleteDataConnectionCommand, bool> _deleteUseCase = Substitute.For<IUseCase<DeleteDataConnectionCommand, bool>>();
-    private readonly IUseCase<TestDataConnectionCommand, TestDataConnectionResultDto> _testUseCase = Substitute.For<IUseCase<TestDataConnectionCommand, TestDataConnectionResultDto>>();
 
     private DataConnectionsController CreateSut()
     {
@@ -36,8 +33,7 @@ public sealed class DataConnectionsControllerTests
             _getByIdUseCase,
             _createUseCase,
             _updateUseCase,
-            _deleteUseCase,
-            _testUseCase)
+            _deleteUseCase)
         {
             ControllerContext = new ControllerContext
             {
@@ -49,7 +45,7 @@ public sealed class DataConnectionsControllerTests
     }
 
     [Fact]
-    public void Controller_ShouldBeDecoratedWithEnterpriseRbacPolicyAndRateLimiting()
+    public void Controller_ShouldBeDecoratedWithEnterpriseRbacPolicy()
     {
         var type = typeof(DataConnectionsController);
 
@@ -60,11 +56,6 @@ public sealed class DataConnectionsControllerTests
         var routeAttr = type.GetCustomAttribute<RouteAttribute>();
         routeAttr.Should().NotBeNull();
         routeAttr!.Template.Should().Be("api/v1/data-connections");
-
-        var testMethod = type.GetMethod(nameof(DataConnectionsController.TestConnection));
-        var rateLimitAttr = testMethod!.GetCustomAttribute<EnableRateLimitingAttribute>();
-        rateLimitAttr.Should().NotBeNull();
-        rateLimitAttr!.PolicyName.Should().Be("test-conn");
     }
 
     [Fact]
@@ -186,65 +177,4 @@ public sealed class DataConnectionsControllerTests
         // Assert
         result.Should().BeOfType<NoContentResult>();
     }
-
-    [Fact]
-    public async Task TestConnection_WhenReachable_ShouldReturnSemantic200OkWithSuccessTrue()
-    {
-        // Arrange
-        var sut = CreateSut();
-        _testUseCase.ExecuteAsync(Arg.Any<TestDataConnectionCommand>(), Arg.Any<CancellationToken>())
-            .Returns(new TestDataConnectionResultDto(true, "Connection successful."));
-
-        var request = new TestDataConnectionRequest("PostgreSQL", "Host=db.prod;Database=erp");
-
-        // Act
-        var result = await sut.TestConnection(request, CancellationToken.None);
-
-        // Assert
-        var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
-        okResult.StatusCode.Should().Be(StatusCodes.Status200OK);
-        var body = okResult.Value.Should().BeOfType<ApiResponse<TestDataConnectionResultDto>>().Subject;
-        body.Data.Success.Should().BeTrue();
-        body.Data.Message.Should().Be("Connection successful.");
-    }
-
-    [Fact]
-    public async Task TestConnection_WhenUnreachable_ShouldReturnSemantic200OkWithSuccessFalse()
-    {
-        // Arrange
-        var sut = CreateSut();
-        _testUseCase.ExecuteAsync(Arg.Any<TestDataConnectionCommand>(), Arg.Any<CancellationToken>())
-            .Returns(new TestDataConnectionResultDto(false, "Connection failed."));
-
-        var request = new TestDataConnectionRequest("PostgreSQL", "Host=unreachable.prod;Database=erp");
-
-        // Act
-        var result = await sut.TestConnection(request, CancellationToken.None);
-
-        // Assert
-        var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
-        okResult.StatusCode.Should().Be(StatusCodes.Status200OK);
-        var body = okResult.Value.Should().BeOfType<ApiResponse<TestDataConnectionResultDto>>().Subject;
-        body.Data.Success.Should().BeFalse();
-        body.Data.Message.Should().Be("Connection failed.");
-    }
-
-    [Fact]
-    public async Task TestConnection_WhenSsrfForbidden_ShouldBubbleForbiddenException()
-    {
-        // Arrange
-        var sut = CreateSut();
-        _testUseCase.ExecuteAsync(Arg.Any<TestDataConnectionCommand>(), Arg.Any<CancellationToken>())
-            .ThrowsAsync(new ForbiddenException("Connecting to loopback host 'localhost' is prohibited."));
-
-        var request = new TestDataConnectionRequest("PostgreSQL", "Host=localhost;Database=erp");
-
-        // Act
-        var act = () => sut.TestConnection(request, CancellationToken.None);
-
-        // Assert
-        await act.Should().ThrowAsync<ForbiddenException>()
-            .WithMessage("*loopback*");
-    }
 }
-

@@ -35,7 +35,7 @@ public sealed class UpdateDatasetUseCaseTests
     {
         // Arrange
         var command = new UpdateDatasetCommand(Guid.Empty, "", null, Guid.Empty, "", -1);
-        var pipeline = new ValidatingUseCaseDecorator<UpdateDatasetCommand, DatasetDto>(
+        var pipeline = new ValidatingUseCaseDecorator<UpdateDatasetCommand, DatasetResultDto>(
             CreateSut(),
             [new UpdateDatasetCommandValidator()]);
 
@@ -72,7 +72,7 @@ public sealed class UpdateDatasetUseCaseTests
         var command = new UpdateDatasetCommand(id, "NewName", "new desc", connId, "SELECT 2", 60);
 
         // Act
-        DatasetDto? result = await CreateSut().ExecuteAsync(command);
+        DatasetResultDto? result = await CreateSut().ExecuteAsync(command);
 
         // Assert
         result.Should().NotBeNull();

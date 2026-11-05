@@ -41,7 +41,7 @@ public sealed class CreateDataConnectionUseCaseTests
     {
         // Arrange
         var command = new CreateDataConnectionCommand("", "InvalidProvider", "");
-        var pipeline = new ValidatingUseCaseDecorator<CreateDataConnectionCommand, DataConnectionDto>(
+        var pipeline = new ValidatingUseCaseDecorator<CreateDataConnectionCommand, DataConnectionResultDto>(
             CreateSut(),
             [new CreateDataConnectionCommandValidator()]);
 
@@ -76,7 +76,7 @@ public sealed class CreateDataConnectionUseCaseTests
         var command = new CreateDataConnectionCommand("Warehouse", "PostgreSQL", "Host=wh.local;Pass=secret");
 
         // Act
-        DataConnectionDto result = await CreateSut().ExecuteAsync(command);
+        DataConnectionResultDto result = await CreateSut().ExecuteAsync(command);
 
         // Assert
         result.Name.Should().Be("Warehouse");

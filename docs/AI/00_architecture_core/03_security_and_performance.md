@@ -12,64 +12,59 @@ ArchitecturalSignals: [ARCH_EVOLUTION_SECURITY], [ARCH_EVOLUTION_RENDERING]
 
 ## 1. Level 1: Security & Performance Invariants Matrix
 
+> [SSOT DELEGATION]: Multi-tenant dual-channel authentication (M2M/JWT), ClaimsPrincipal hydration, ambient project context, and API key quota governance are governed exclusively by `docs/AI/03_specialized_mechanics/multi_tenant_security_pipeline.md`.
+
 | Architectural Concern | Prohibited Pattern (! BANNED) | Canonical SSoT Pattern (>> MANDATORY) | Enforcement Point |
 |---|---|---|---|
-| **M2M Key Validation** | ! Variable-time string comparison (`key == storedHash`) | >> Constant-time `CryptographicOperations.FixedTimeEquals` | `ApiKeyValidator` |
-| **M2M Claims Transport**| ! Setting ambient context without `ClaimsPrincipal` on `User` | >> Hydrate `ClaimsPrincipal` (`Role: M2MClient`, `Scope`) into `context.User` | `ProjectContextMiddleware` |
-| **User Tenancy** | ! Storing `project_id` or `tenant_id` in `users` table | >> `User` is Global Identity; tenancy scoped strictly via `UserProjectRole` | Domain / EF Schema |
-| **Multi-Tenant Filter**| ! Manual `WHERE project_id = @id` queries | >> Compile-time EF Core `HasQueryFilter` on `ICurrentProjectContext` | `AppDbContext` |
-| **Memory Buffer** | ! `MemoryStream.ToArray()` or in-memory buffer $\ge 85\text{KB}$ | >> Direct stream pipe to `Response.Body` with bounded buffer $\le 81,920$ bytes | Render / Download Egress |
+| **Cryptographic Equality** | ! Variable-time string comparison (`key == storedHash`) | >> Constant-time comparison: `CryptographicOperations.FixedTimeEquals` across all secret/hash validations | `ApiKeyValidator` / Crypto Services |
+| **Large Object Heap (LOH)** | ! `MemoryStream.ToArray()`, `Task<byte[]>`, or in-memory buffer $\ge 85\text{KB}$ | >> Direct streaming pipe to `Response.Body` with bounded buffer $\le 81,920$ bytes | Render / Download Egress |
 | **Download Egress** | ! HTTP 307 Redirects to internal MinIO S3 instances | >> Gateway reverse-proxy streaming via `File(stream, ...)` | `DocumentArtifactController` |
-| **SSRF Host Defense** | ! Unchecked database hosts or targeting loopback / metadata | >> Pre-flight DNS/IP validation via `ConnectionHostValidator` | Data Connection Services |
-| **Chromium Cluster** | ! Unthrottled render calls crashing Gotenberg pods | >> Dedicated rate limiter (`30 req/min`) + Async batch queue | Presentation Gateway |
-| **API Throttling & DDoS** | ! Unthrottled endpoints susceptible to volumetric DoS / brute-force | >> Declarative rate limiting via `[EnableRateLimiting("...")]` (`api`: 60/m, `auth-strict`: 5/m, `rendering`: 30/m, `test-conn`: 10/m) | Presentation Layer Controllers |
-| **Key Governance** | ! Forcing SuperAdmin to issue every operational key (Bottleneck) OR unconstrained key sprawl | >> Master Key / Delegated Ownership: Project Admin self-services sub-keys (`/api/v1/api-keys`, max 2); SuperAdmin governs transfer/break-glass | IdentityAccess / API |
+| **SSRF Host Defense** | ! Unchecked database connection hosts or loopback/metadata targets | >> Pre-flight DNS/IP validation via `ConnectionHostValidator`; enforce `READ ONLY` database transactions | Data Connection / Integration Services |
+| **Chromium Cluster Protection** | ! Unthrottled render calls crashing Gotenberg pods | >> Dedicated rate limiter (`30 req/min`) + async batch queuing | Presentation Layer Gateway |
+| **API Throttling & DDoS** | ! Unthrottled endpoints susceptible to volumetric DoS or brute-force | >> Declarative rate limiting via `[EnableRateLimiting("...")]` (`api`: 60/m, `auth-strict`: 5/m, `rendering`: 30/m, `test-conn`: 10/m) | Presentation Layer Controllers |
+| **Non-Blocking I/O** | ! Synchronous blocking calls (`.Result`, `.Wait()`) on wire/database I/O | >> 100% `async`/`await` with forwarded `CancellationToken ct` | All Application & Infrastructure Services |
 
 ---
 
 ## 2. Level 2: Core Security AST & Cognitive Interceptor Engine
 
 ### 2.1 Engineering Rationale & Causal Decisions
-* **Why Constant-Time Hash Comparison**: Standard string `==` terminates on the first mismatched byte, creating microsecond timing discrepancies that allow attackers to deduce valid API keys via side-channel latency measurements.
-* **Why `ClaimsPrincipal` Hydration for M2M**: ASP.NET Core `[Authorize]` attributes evaluate `HttpContext.User.Identity.IsAuthenticated`. Failing to set a `ClaimsPrincipal` on valid API keys causes `app.UseAuthorization()` to reject M2M requests with `401 Unauthorized`.
+* **Why Constant-Time Hash Comparison**: Standard string `==` terminates on the first mismatched byte, creating microsecond timing discrepancies that allow attackers to incrementally deduce valid cryptographic hashes via side-channel latency measurements.
 * **Why 81,920-Byte Buffer Threshold**: Any memory allocation exceeding 85,000 bytes is placed on the Large Object Heap (LOH). The .NET Garbage Collector does not compact the LOH during Gen 0/1 sweeps, leading to Gen 2 GC pauses and server stalls under concurrent load.
 * **Why Banning HTTP 307 Redirects to MinIO**: MinIO runs inside an isolated Docker network. Returning a 307 redirect exposes private hostnames (`http://minio:9000/...`), fails for external callers, and violates Zero-Trust perimeter boundaries.
-* **Why Master Key / Delegated Ownership Pattern**: Eliminates operational bottlenecks by delegating routine application sub-key issuance and key rotation to Project Admins under strict quota guardrails (max 2 keys), while securing Master Credential authority and ownership transfer under formal SuperAdmin governance.
+* **Why Pre-Flight Host & Private Subnet Validation**: Attackers configuring custom database connections can target container host interfaces (`172.17.0.1`), loopback (`127.0.0.1`), or cloud instance metadata services (`169.254.169.254`) to extract credentials. Pre-flight DNS resolution and subnet blocking stops SSRF at the network edge.
+* **Why Multi-Tier Declarative Rate Limiting**: Chromium HTML-to-PDF generation is CPU/memory intensive. Without endpoint rate limits, simultaneous rendering requests exhaust pod resources. Applying tiered limits protects both Gotenberg (`30/m`) and authentication routes (`5/m`) from resource exhaustion.
 
 ### 2.2 Cognitive Security & Performance Interceptors
 ```yaml
 OptimizationObjectives:
-  PrimaryObjective: Zero-Leakage M2M Dual-Auth, Constant Memory Bounds & SSRF Immunity
-  TradeOffPriority: ZeroCrossTenantLeakage > MemorySafety (Zero-LOH) > M2MFirstIntegrity > NetworkPerimeterIsolation
+  PrimaryObjective: Constant Memory Bounds, SSRF Immunity & Cryptographic Timing Safety
+  TradeOffPriority: MemorySafety (Zero-LOH) > NetworkPerimeterIsolation > TimingSideChannelImmunity > HighThroughputAvailability
 
 ProactiveSecurityGuards:
   - Scope: SmkDoc.Infrastructure
-    Trigger: String equality check (== or .Equals()) on API key hashes
-    CanonicalAction: Enforce CryptographicOperations.FixedTimeEquals on byte arrays >> Ref: [RULE-SEC-001]
-
-  - Scope: SmkDoc.Api.Middleware
-    Trigger: Validating API Key without setting ClaimsPrincipal on HttpContext.User
-    CanonicalAction: Hydrate ClaimsIdentity with Role=M2MClient, Scope, and ProjectId >> Ref: [RULE-SEC-002]
+    Trigger: String equality check (== or .Equals()) on API key hashes or secrets
+    CanonicalAction: Enforce CryptographicOperations.FixedTimeEquals on byte arrays >> Ref: [RULE-SEC-002]
 
   - Scope: SmkDoc.Api.Controllers
     Trigger: Detection of in-memory byte[] allocation, MemoryStream.ToArray(), or buffer >= 85KB
-    CanonicalAction: Pipe live Stream to HttpResponse.Body with bounded 81,920 buffer >> Ref: [RULE-SEC-003]
+    CanonicalAction: Pipe live Stream to HttpResponse.Body with bounded 81,920 buffer >> Ref: [RULE-PERF-LOH]
 
   - Scope: SmkDoc.Api.Controllers
     Trigger: Returning HTTP 307 Redirect to internal MinIO storage URL
-    CanonicalAction: Reject redirect; stream content directly through gateway using File(stream, ...) >> Ref: [RULE-SEC-004]
+    CanonicalAction: Reject redirect; stream content directly through gateway using File(stream, ...) >> Ref: [RULE-SEC-REDIRECT]
 
   - Scope: SmkDoc.Infrastructure
     Trigger: External database connection targeting loopback, link-local, or container network alias
-    CanonicalAction: Throw SecurityViolationException via ConnectionHostValidator >> Ref: [RULE-SEC-005]
+    CanonicalAction: Throw SecurityViolationException via ConnectionHostValidator >> Ref: [RULE-SEC-001]
 
   - Scope: SmkDoc.Api.Controllers
     Trigger: Controller or endpoint exposed without declarative rate limiting policy
-    CanonicalAction: Decorate with [EnableRateLimiting("...")] matching designated policy >> Ref: [RULE-API-001]
+    CanonicalAction: Decorate with [EnableRateLimiting("...")] matching designated policy >> Ref: [RULE-PERF-001]
 
 CoreExtensionSlots:
   RateLimitingSlot: Microsoft.AspNetCore.RateLimiting (auth-strict, rendering, test-conn, api)
-  ApiKeyValidatorSlot: Cryptographic hash generator and verification engine
+  HostValidatorSlot: ConnectionHostValidator (SSRF DNS resolution and subnet filtering)
   StorageProviderSlot: IBucketStorageService (MinIO S3 / AWS S3 / Azure Blob Storage)
   RenderingEngineSlot: IRenderEngine (Gotenberg Chromium / OpenXML Word / ClosedXML Excel)
 ```
@@ -78,50 +73,111 @@ CoreExtensionSlots:
 
 ## 3. Level 3: Canonical Working Archetypes (100% Fully-Hydrated Recipes)
 
-### 3.1 Canonical M2M Dual-Auth Claims Transformation Recipe
->> MANDATORY CANONICAL TEMPLATE [RULE-SEC-002]:
-* [MUST] Hydrate `ClaimsPrincipal` onto `HttpContext.User` upon successful `X-API-Key` validation.
-* [MUST] Assign `Role: M2MClient` and populate `Scope` and `ProjectId` claims.
+### 3.1 Canonical SSRF Pre-Flight ConnectionHostValidator Recipe
+>> MANDATORY CANONICAL TEMPLATE [RULE-SEC-001]:
+* [MUST] Inspect hostnames against blocked infrastructure list prior to opening network connections.
+* [MUST] Resolve DNS addresses and block loopback, link-local, and private subnets.
 
 ```csharp
-// Inside ProjectContextMiddleware.cs
-if (context.Request.Headers.TryGetValue("X-API-Key", out var extractedKey) &&
-    !string.IsNullOrWhiteSpace(extractedKey))
+using System.Net;
+using SmkDoc.Domain.Exceptions;
+
+namespace SmkDoc.Infrastructure.Security;
+
+public static class ConnectionHostValidator
 {
-    var rawKey = extractedKey.ToString();
-    var query = new ValidateApiKeyQuery(rawKey);
-    var result = await validateApiKeyUseCase.ExecuteAsync(query, context.RequestAborted);
-
-    if (result == null)
+    private static readonly HashSet<string> BlockedHostnames = new(StringComparer.OrdinalIgnoreCase)
     {
-        await WriteUnauthorizedResponseAsync(context, "Invalid or inactive API Key.");
-        return;
-    }
-
-    // 1. Hydrate Ambient Scoped Project Context
-    var projectId = new ProjectId(result.ProjectId);
-    projectContextSetter.SetProject(projectId, result.CallerApp);
-
-    // 2. Hydrate ASP.NET Core ClaimsPrincipal to pass [Authorize] policies
-    var claims = new[]
-    {
-        new Claim(ClaimTypes.NameIdentifier, result.Id.ToString()),
-        new Claim(ClaimTypes.Role, "M2MClient"),
-        new Claim("Scope", result.Scope),
-        new Claim("ProjectId", result.ProjectId.ToString())
+        "localhost", "postgres", "minio", "redis", "gotenberg", "host.docker.internal"
     };
-    var identity = new ClaimsIdentity(claims, "ApiKeyScheme");
-    context.User = new ClaimsPrincipal(identity);
 
-    await next(context);
-    return;
+    public static void EnsureSafeTarget(string host)
+    {
+        if (BlockedHostnames.Contains(host))
+            throw new SecurityViolationException($"Targeting internal infrastructure '{host}' is strictly forbidden.");
+
+        var addresses = Dns.GetHostAddresses(host);
+        foreach (var ip in addresses)
+        {
+            if (IPAddress.IsLoopback(ip) || ip.ToString().StartsWith("169.254.") || ip.ToString().StartsWith("10."))
+                throw new SecurityViolationException($"Targeting private or link-local address '{ip}' is prohibited.");
+        }
+    }
 }
 ```
 
-### 3.2 Canonical SSRF Pre-Flight ConnectionHostValidator Recipe
->> MANDATORY CANONICAL TEMPLATE [RULE-SEC-005]:
-* [MUST] Inspect hostnames against blocked infrastructure list prior to opening network connections.
-* [MUST] Resolve DNS addresses and block loopback, link-local, and private subnets.
+### 3.2 Canonical Constant-Time Cryptographic Comparison Recipe
+>> MANDATORY CANONICAL TEMPLATE [RULE-SEC-002]:
+* [MUST] Compare secret hashes and token signatures using `CryptographicOperations.FixedTimeEquals` across byte representations.
+
+```csharp
+using System.Security.Cryptography;
+using System.Text;
+
+namespace SmkDoc.Infrastructure.Security;
+
+public static class ConstantTimeVerifier
+{
+    public static bool VerifyHash(string computedHash, string storedHash)
+    {
+        var expectedBytes = Encoding.UTF8.GetBytes(computedHash);
+        var actualBytes = Encoding.UTF8.GetBytes(storedHash);
+
+        return CryptographicOperations.FixedTimeEquals(expectedBytes, actualBytes);
+    }
+}
+```
+
+### 3.3 Canonical Multi-Tier Rate Limiting Configuration Recipe
+>> MANDATORY CANONICAL TEMPLATE [RULE-PERF-001]:
+* [MUST] Register declarative rate limiting tiers in ASP.NET Core service configuration.
+* [MUST] Decorate Controllers or endpoints using `[EnableRateLimiting("...")]` matching designated tier policies.
+
+```csharp
+using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace SmkDoc.Api.Configuration;
+
+public static class RateLimitingExtensions
+{
+    public static IServiceCollection AddAppRateLimiting(this IServiceCollection services)
+    {
+        services.AddRateLimiter(options =>
+        {
+            options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+            options.AddFixedWindowLimiter("api", opt =>
+            {
+                opt.PermitLimit = 60;
+                opt.Window = TimeSpan.FromMinutes(1);
+            });
+
+            options.AddFixedWindowLimiter("rendering", opt =>
+            {
+                opt.PermitLimit = 30;
+                opt.Window = TimeSpan.FromMinutes(1);
+            });
+
+            options.AddFixedWindowLimiter("test-conn", opt =>
+            {
+                opt.PermitLimit = 10;
+                opt.Window = TimeSpan.FromMinutes(1);
+            });
+
+            options.AddFixedWindowLimiter("auth-strict", opt =>
+            {
+                opt.PermitLimit = 5;
+                opt.Window = TimeSpan.FromMinutes(1);
+            });
+        });
+
+        return services;
+    }
+}
+```
 
 ```csharp
 using System.Net;

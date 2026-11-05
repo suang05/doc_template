@@ -87,44 +87,17 @@ ProactiveFirewallInterceptors:
 
 ## 3. Level 3: Canonical Working Archetypes (100% Fully-Hydrated Recipes)
 
-### 3.1 Post-Commit Domain Event Dispatcher Archetype
->> MANDATORY CANONICAL TEMPLATE [RULE-EVENT-001]:
-* [MUST] Commit database state changes via `SaveChangesAsync` BEFORE dispatching events.
-* [MUST] Clear domain events from tracked entities after harvesting to prevent duplicate dispatching.
-
-```csharp
-public sealed class TransactionalUnitOfWork(
-    AppDbContext dbContext,
-    IDomainEventDispatcher eventDispatcher) : IUnitOfWork
-{
-    public async Task CommitAsync(CancellationToken ct = default)
-    {
-        // 1. Harvest events from tracked aggregate roots
-        var aggregates = dbContext.ChangeTracker.Entries<IAggregateRoot>()
-            .Where(e => e.Entity.DomainEvents.Count > 0)
-            .Select(e => e.Entity)
-            .ToList();
-
-        var events = aggregates.SelectMany(a => a.DomainEvents).ToList();
-
-        // 2. Persist state changes in database transaction
-        await dbContext.SaveChangesAsync(ct);
-
-        // 3. Clear domain events to prevent duplicate dispatching
-        aggregates.ForEach(a => a.ClearDomainEvents());
-
-        // 4. Dispatch events strictly after successful database commit
-        foreach (var domainEvent in events)
-        {
-            await eventDispatcher.DispatchAsync(domainEvent, ct);
-        }
-    }
-}
-```
+### 3.1 Canonical Diagnostic Guard & Interceptor Archetype
+>> MANDATORY CANONICAL TEMPLATE [RULE-FIREWALL-001]:
+* [MUST] Intercept fatal failure modes at the architecture perimeter before entering inner business execution.
+* [MUST] Route architectural state persistence and post-commit event harvesting through the canonical UnitOfWork adapter:
+  >> Canonical UnitOfWork Recipe: `[RULE-INFRA-003]` in `docs/AI/01_clean_arch_patterns/03_infrastructure_layer.md`
+* [MUST] Route perimeter network validation through the canonical host validator:
+  >> Canonical Host Validator Recipe: `[RULE-SEC-001]` in `docs/AI/00_architecture_core/03_security_and_performance.md`
 
 ---
 
-## 4. Level 4: Anti-Patterns & Unified Micro-Diffs (The 14 Fatal Traps)
+## 4. Level 4: Anti-Patterns & Unified Micro-Diffs (The 16 Fatal Traps)
 
 ### [TRAP-LOH-001]: Buffer Exceeding Large Object Heap Threshold
 ```diff

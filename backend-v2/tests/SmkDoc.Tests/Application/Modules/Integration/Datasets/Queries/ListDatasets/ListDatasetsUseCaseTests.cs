@@ -35,7 +35,7 @@ public sealed class ListDatasetsUseCaseTests
             .Returns(new List<DataConnection> { conn });
 
         // Act
-        IReadOnlyList<DatasetDto> results = await CreateSut().ExecuteAsync(new ListDatasetsQuery());
+        IReadOnlyList<DatasetResultDto> results = await CreateSut().ExecuteAsync(new ListDatasetsQuery());
 
         // Assert
         results.Should().HaveCount(1);

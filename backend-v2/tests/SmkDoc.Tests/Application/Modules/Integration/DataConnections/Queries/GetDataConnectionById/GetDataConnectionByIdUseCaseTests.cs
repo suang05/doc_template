@@ -25,7 +25,7 @@ public sealed class GetDataConnectionByIdUseCaseTests
             .Returns(conn);
 
         // Act
-        DataConnectionDto result = await CreateSut().ExecuteAsync(new GetDataConnectionByIdQuery(id));
+        DataConnectionResultDto result = await CreateSut().ExecuteAsync(new GetDataConnectionByIdQuery(id));
 
         // Assert
         result.Should().NotBeNull();

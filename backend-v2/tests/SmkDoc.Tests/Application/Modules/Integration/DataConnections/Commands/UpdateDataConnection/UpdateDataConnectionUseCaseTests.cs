@@ -35,7 +35,7 @@ public sealed class UpdateDataConnectionUseCaseTests
     {
         // Arrange
         var command = new UpdateDataConnectionCommand(Guid.Empty, "", "InvalidProvider", "");
-        var pipeline = new ValidatingUseCaseDecorator<UpdateDataConnectionCommand, DataConnectionDto>(
+        var pipeline = new ValidatingUseCaseDecorator<UpdateDataConnectionCommand, DataConnectionResultDto>(
             CreateSut(),
             [new UpdateDataConnectionCommandValidator()]);
 
@@ -63,7 +63,7 @@ public sealed class UpdateDataConnectionUseCaseTests
         var command = new UpdateDataConnectionCommand(id, "New Name", "SqlServer", "new_plain_conn");
 
         // Act
-        DataConnectionDto? result = await CreateSut().ExecuteAsync(command);
+        DataConnectionResultDto? result = await CreateSut().ExecuteAsync(command);
 
         // Assert
         result.Should().NotBeNull();
@@ -91,7 +91,7 @@ public sealed class UpdateDataConnectionUseCaseTests
         var command = new UpdateDataConnectionCommand(id, "DB Renamed", "PostgreSQL", "");
 
         // Act
-        DataConnectionDto? result = await CreateSut().ExecuteAsync(command);
+        DataConnectionResultDto? result = await CreateSut().ExecuteAsync(command);
 
         // Assert
         result.Should().NotBeNull();
