@@ -5,33 +5,35 @@ Scope: Fatal Production Traps, Memory Safety Interceptors, Security Hardening, a
 SSoT_For: System-Wide Anti-Pattern Traps (TRAP-001 to TRAP-016), Interceptor Triggers, and Critical Failure Modes.
 Out_Of_Scope: Basic language syntax (see: 02_coding_conventions.md), System Architecture layers (see: 01_system_architecture.md).
 Target: Full Stack (`backend-v2/` and `frontend-v2/`).
-ArchitecturalSignals: [ARCH_EVOLUTION_RENDERING], [ARCH_EVOLUTION_SECURITY]
+ArchitecturalSignals: [ARCH_EVOLUTION_FIREWALL]
 </context>
 
 ---
 
-## 1. Level 1: High-Salience Fatal Traps Matrix
+## 1. Level 1: Fatal Traps & Affirmative Invariants Matrix
 
-| Trap ID | Category | Prohibited Signature (! BANNED) | Canonical Remedy (>> MANDATORY) | Severity |
+| Trap ID | Architectural Category | Causal Failure Mode & Production Risk | Affirmative Canonical Invariant (Remedy) | Severity |
 |---|---|---|---|---|
-| **[TRAP-LOH-001]** | Memory Safety | ! `MemoryStream.ToArray()`, `Task<byte[]>`, or in-memory buffer $\ge 85\text{KB}$ | >> Bounded streaming egress via `File(stream, ...)` with buffer $\le 81,920$ bytes | FATAL |
-| **[TRAP-EF-002]** | Concurrency | ! Parallel operations sharing scoped `AppDbContext` | >> Inject `IDbContextFactory<AppDbContext>` for per-task isolation | FATAL |
-| **[TRAP-ASYNC-003]** | Thread Safety | ! Synchronous blocking (`.Result`, `.Wait()`, `.GetAwaiter().GetResult()`) | >> 100% `async`/`await` with forwarded `CancellationToken ct` | FATAL |
-| **[TRAP-SSRF-004]** | Security | ! Unsanitized dynamic user HTML forwarded to Gotenberg | >> Apply `HtmlSanitizer` whitelist and run Chromium with restricted file flags | CRITICAL |
-| **[TRAP-AUTH-005]** | Security | ! Early return on missing user email (timing leak) | >> Verify against `DummyPasswordHash` for uniform execution latency | CRITICAL |
-| **[TRAP-LEAK-006]** | Architecture | ! Returning Domain Entities from Controllers or UseCases | >> Map explicitly to immutable sealed positional `record` DTOs | HIGH |
-| **[TRAP-TIME-007]** | Testability | ! Direct queries to system clock (`DateTime.UtcNow`, `DateTime.Now`) | >> Inject `TimeProvider` or pass explicit `DateTimeOffset now` | HIGH |
-| **[TRAP-VOID-008]** | Reliability | ! Swallowing exceptions with empty catch blocks (`catch (Exception) {}`) | >> Let bubble to RFC 9457 handler or rethrow strongly-typed `DomainException` | HIGH |
-| **[TRAP-AUDIT-009]** | Storage / OLTP | ! Unbounded JSON payloads stored directly in PostgreSQL OLTP rows | >> Offload payloads $>16\text{KB}$ to MinIO S3 and store SHA-256 in DB | HIGH |
-| **[TRAP-EVENT-010]** | Consistency | ! Pre-commit domain event dispatching | >> Commit transaction via `unitOfWork.CommitAsync(ct)`, then dispatch | FATAL |
-| **[TRAP-SQL-011]** | Security / SSRF | ! Unchecked database connection hosts or mutating SQL execution | >> Validate target host via `ConnectionHostValidator`; enforce `READ ONLY` tx | CRITICAL |
-| **[TRAP-SLICE-012]** | Architecture | ! Declaring multiple primary types in UseCase file (*UseCase.cs) | >> Enforce 1-Primary-Type-Per-File (`{TypeName}.cs`) per CQRS slice | HIGH |
-| **[TRAP-SQL-013]** | Performance | ! N+1 dataset lookups or unbounded parallel SQL queries | >> Batch `.Include()` query + `SemaphoreSlim(4)` + fail-fast cancellation | HIGH |
-| **[TRAP-POD-014]** | Statelessness | ! In-memory process-only idempotency or raw API keys in Redis | >> Atomic Redis Lua script with `SHA-256` key hash and fail-closed 503 | CRITICAL |
+| **[TRAP-LOH-001]** | Memory Safety | In-memory buffering $\ge 85\text{KB}$ (`byte[]`, `ToArray()`) triggers uncompacted Gen 2 GC pauses. | Binary outputs must stream directly to `Response.Body` with bounded buffers $\le 81,920$ bytes. | FATAL |
+| **[TRAP-EF-002]** | Concurrency | Concurrently calling methods on shared scoped `DbContext` corrupts EF tracker state. | Inject `IDbContextFactory<AppDbContext>` for per-task isolated execution in parallel workers. | FATAL |
+| **[TRAP-ASYNC-003]** | Thread Safety | Synchronous blocking (`.Result`, `.Wait()`) causes thread-pool worker thread starvation. | Execute 100% pure `async`/`await` pipeline forwarding `CancellationToken ct`. | FATAL |
+| **[TRAP-SSRF-004]** | Security | Unsanitized dynamic user HTML allows Chromium to read local files (`file:///etc/passwd`). | Sanitize HTML via whitelist and run Chromium with strict isolation flags. | CRITICAL |
+| **[TRAP-AUTH-005]** | Security | Early return on non-existent user accounts leaks registered emails via side-channel latency. | Verify credentials against `DummyPasswordHash` to guarantee constant-time execution. | CRITICAL |
+| **[TRAP-LEAK-006]** | Architecture | Exposing Domain Entities leaks internal schema, navigation proxies, and domain invariants. | Map domain state strictly to immutable sealed positional `*ResultDto` records. | HIGH |
+| **[TRAP-TIME-007]** | Testability | Direct queries to `DateTime.UtcNow` create non-deterministic test failures and temporal drift. | Inject `TimeProvider` or pass explicit parameterized `DateTimeOffset now`. | HIGH |
+| **[TRAP-VOID-008]** | Reliability | Swallowing exceptions with empty catch blocks hides production crashes and data corruption. | Allow exceptions to bubble to RFC 9457 handler or rethrow strongly-typed `DomainException`. | HIGH |
+| **[TRAP-AUDIT-009]** | Storage / OLTP | Storing unbounded JSON payloads $>16\text{KB}$ directly in PostgreSQL table rows bloats WAL. | Offload payloads $>16\text{KB}$ to MinIO S3 and store immutable SHA-256 hash in DB. | HIGH |
+| **[TRAP-EVENT-010]** | Consistency | Pre-commit event dispatching creates phantom side-effects if the database transaction aborts. | Execute transaction commit via `unitOfWork.CommitAsync(ct)` prior to event dispatch. | FATAL |
+| **[TRAP-SQL-011]** | Security / SSRF | Unchecked database connections target internal Docker network or cloud metadata services. | Pre-flight DNS validation via `ConnectionHostValidator`; enforce `READ ONLY` transactions. | CRITICAL |
+| **[TRAP-SLICE-012]** | Architecture | Bundling multiple primary types in one file hides contracts and degrades PR reviewability. | Enforce 1-Primary-Type-Per-File (`{TypeName}.cs`) co-located within feature slices. | HIGH |
+| **[TRAP-SQL-013]** | Performance | N+1 sequential database lookups exhaust connection pool and spike query latency. | Batch data fetching via `.Include()` and throttle parallel tasks with `SemaphoreSlim(4)`. | HIGH |
+| **[TRAP-POD-014]** | Statelessness | In-memory singleton state breaks horizontal pod scaling and allows rate-limit bypasses. | Enforce distributed state via Redis Lua scripts and declarative `[EnableRateLimiting]`. | CRITICAL |
+| **[TRAP-ARCH-015]** | Simplicity | Generic CRUD base classes create tight coupling and obscure business invariants. | Enforce flat composition and single-responsibility `IUseCase<TReq, TRes>` slices. | HIGH |
+| **[TRAP-SCALE-016]** | Scalability | In-memory dictionaries in singletons cause state divergence across Kubernetes replicas. | State must reside in external distributed backends or immutable stateless services. | FATAL |
 
 ---
 
-## 2. Level 2: Interceptor Category ASTs & Cognitive Firewall Engine
+## 2. Level 2: Interceptor Rationales & Cognitive Firewalls
 
 ### 2.1 Engineering Rationale & Causal Decisions
 * **Why 81,920-Byte LOH Threshold**: Any memory allocation $\ge 85,000$ bytes lands on the Large Object Heap (LOH), triggering expensive Gen 2 garbage collection sweeps and uncompacted memory fragmentation under high concurrent load.
@@ -39,61 +41,44 @@ ArchitecturalSignals: [ARCH_EVOLUTION_RENDERING], [ARCH_EVOLUTION_SECURITY]
 * **Why Constant-Time Dummy Hash Verification**: Early returns when an email does not exist create a timing disparity (<2ms vs ~100ms password hash verification), allowing attackers to enumerate registered email addresses via side-channel latency attacks.
 * **Why Post-Commit Domain Event Dispatch**: Dispatching domain events before `SaveChangesAsync` commits creates "phantom side-effects" if the database transaction subsequently fails or aborts.
 
-### 2.2 Cognitive Firewall & Interceptor Engine
+### 2.2 Proactive Firewall Interceptors
 ```yaml
-OptimizationObjectives:
-  PrimaryObjective: Zero-Regression Fatal Trap Interception
-  TradeOffPriority: MemorySafety (Zero-LOH) > DataConsistency (Post-Commit) > Security (SSRF/Timing) > ConcurrencySafety > RawSpeed
+LohFirewall:
+  Trigger: MemoryStream.ToArray() or buffer >= 85KB
+  Action: Stream through bounded 81,920 buffer directly to response >> Ref: [RULE-PERF-001]
 
-ProactiveFirewallInterceptors:
-  - TrapId: [TRAP-LOH-001]
-    Trigger: Detection of in-memory byte[] allocation, MemoryStream.ToArray(), or buffer >= 85KB
-    CanonicalAction: Pipe live Stream to HttpResponse.Body with bounded 81,920 buffer >> Ref: [RULE-LOH-001]
+DbContextConcurrencyFirewall:
+  Trigger: Parallel tasks capturing scoped DbContext
+  Action: Inject IDbContextFactory<T> and allocate isolated context per task
 
-  - TrapId: [TRAP-EF-002]
-    Trigger: Parallel task or background worker capturing scoped AppDbContext
-    CanonicalAction: Inject IDbContextFactory<AppDbContext> and create per-task isolated context >> Ref: [RULE-CONC-001]
+AsyncPurityFirewall:
+  Trigger: Synchronous blocking (.Result, .Wait())
+  Action: Enforce 100% async/await forwarding CancellationToken ct
 
-  - TrapId: [TRAP-ASYNC-003]
-    Trigger: .Result, .Wait(), or .GetAwaiter().GetResult() blocking call
-    CanonicalAction: Forward CancellationToken through 100% async/await pipeline
+DomainLeakageFirewall:
+  Trigger: Domain Entity crossing into Presentation controller
+  Action: Map strictly to immutable sealed record ResultDto
 
-  - TrapId: [TRAP-SSRF-004]
-    Trigger: Unsanitized dynamic HTML forwarded to Chromium rendering engine
-    CanonicalAction: Apply HtmlSanitizer whitelist and execute with restricted file flags >> Ref: [RULE-SSRF-001]
+ClockIntegrityFirewall:
+  Trigger: Direct ambient clock access (DateTime.UtcNow)
+  Action: Inject TimeProvider.GetUtcNow() or pass explicit DateTimeOffset now
 
-  - TrapId: [TRAP-AUTH-005]
-    Trigger: Fast exit or conditional branch on non-existent user credential
-    CanonicalAction: Verify against DummyPasswordHash for uniform execution latency >> Ref: [RULE-AUTH-001]
-
-  - TrapId: [TRAP-LEAK-006]
-    Trigger: Domain Entity or AggregateRoot crossing into Presentation controller
-    CanonicalAction: Map strictly to immutable sealed record Application DTO
-
-  - TrapId: [TRAP-TIME-007]
-    Trigger: Direct system clock access via DateTime.UtcNow or DateTime.Now
-    CanonicalAction: Inject TimeProvider.GetUtcNow() or pass explicit DateTimeOffset now
-
-  - TrapId: [TRAP-EVENT-010]
-    Trigger: Pre-commit domain event dispatching
-    CanonicalAction: Commit transaction first, then dispatch harvested events
-
-  - TrapId: [TRAP-SQL-011]
-    Trigger: External database connection targeting loopback or internal infrastructure
-    CanonicalAction: Block target via ConnectionHostValidator >> Ref: [RULE-SEC-005]
+EventConsistencyFirewall:
+  Trigger: Pre-commit domain event dispatching
+  Action: Commit transaction first via IUnitOfWork, then dispatch harvested events
 ```
 
 ---
 
-## 3. Level 3: Canonical Working Archetypes (100% Fully-Hydrated Recipes)
+## 3. Level 3: Canonical Working Archetypes
 
-### 3.1 Canonical Diagnostic Guard & Interceptor Archetype
->> MANDATORY CANONICAL TEMPLATE [RULE-FIREWALL-001]:
-* [MUST] Intercept fatal failure modes at the architecture perimeter before entering inner business execution.
-* [MUST] Route architectural state persistence and post-commit event harvesting through the canonical UnitOfWork adapter:
-  >> Canonical UnitOfWork Recipe: `[RULE-INFRA-003]` in `specs/01_clean_arch_patterns/03_infrastructure_layer.md`
-* [MUST] Route perimeter network validation through the canonical host validator:
-  >> Canonical Host Validator Recipe: `[RULE-SEC-001]` in `specs/00_architecture_core/03_security_and_performance.md`
+### 3.1 Architectural Perimeter Interception Archetype
+>> MANDATORY CANONICAL BLUEPRINT [RULE-FIREWALL-001]:
+* Intercept fatal failure modes at the architecture perimeter before entering inner business execution.
+* Route persistence and post-commit event harvesting through `IUnitOfWork`:
+  >> Ref: `specs/01_clean_arch_patterns/03_infrastructure_layer.md`
+* Route perimeter network validation through `ConnectionHostValidator`:
+  >> Ref: `specs/00_architecture_core/03_security_and_performance.md`
 
 ---
 
@@ -117,8 +102,8 @@ ProactiveFirewallInterceptors:
 
 ### [TRAP-ASYNC-003]: Synchronous Blocking on Asynchronous Task
 ```diff
-- var template = _repository.GetByIdAsync(id).Result;
-+ var template = await _repository.GetByIdAsync(id, ct);
+- var entity = _repository.GetByIdAsync(id).Result;
++ var entity = await _repository.GetByIdAsync(id, ct);
 ```
 
 ### [TRAP-AUTH-005]: Timing Side-Channel Discrepancy on Login
@@ -132,11 +117,11 @@ ProactiveFirewallInterceptors:
 
 ### [TRAP-LEAK-006]: Domain Entity Exposed in API Presentation
 ```diff
-- public async Task<ActionResult<Template>> Get(Guid id) => Ok(await _repo.GetByIdAsync(id));
+- public async Task<ActionResult<{Aggregate}>> Get(Guid id) => Ok(await _repo.GetByIdAsync(id));
 + public async Task<IActionResult> Get([FromRoute] Guid id, CancellationToken ct) {
-+     var query = new GetTemplateQuery(id);
++     var query = new Get{Aggregate}Query(id);
 +     var result = await _useCase.ExecuteAsync(query, ct);
-+     return Ok(new ApiResponse<TemplateResultDto>(result));
++     return Ok(new ApiResponse<{Aggregate}ResultDto>(result));
 + }
 ```
 
@@ -189,10 +174,10 @@ ProactiveFirewallInterceptors:
 
 ### [TRAP-SLICE-012]: Multi-Type CQRS Slices in Single File
 ```diff
-- RollbackTemplateVersionUseCase.cs // (holds Command + Validator + UseCase)
-+ RollbackTemplateVersionCommand.cs
-+ RollbackTemplateVersionCommandValidator.cs
-+ RollbackTemplateVersionUseCase.cs
+- {Verb}{Aggregate}UseCase.cs // (holds Command + Validator + UseCase)
++ {Verb}{Aggregate}Command.cs
++ {Verb}{Aggregate}CommandValidator.cs
++ {Verb}{Aggregate}UseCase.cs
 ```
 
 ### [TRAP-SQL-013]: N+1 External Database Queries Without Throttling
@@ -214,30 +199,25 @@ ProactiveFirewallInterceptors:
 
 ### [TRAP-ARCH-015]: Premature Generic Base Class Over-Engineering
 ```diff
-- // BANNED: Over-engineered generic CRUD base class
-- public abstract class CrudServiceBase<TEntity, TDto, TId> : ICrudService<TDto, TId> {
--     protected abstract Task<TEntity> MapToEntity(TDto dto);
--     public virtual async Task<TDto> CreateAsync(TDto dto) { ... }
-- }
-- public class TemplateService : CrudServiceBase<Template, TemplateDto, Guid> { ... }
-+ // MANDATORY: Flat, single-responsibility vertical slice
-+ public sealed class CreateTemplateUseCase(
-+     ITemplateRepository templateRepository,
-+     IUnitOfWork unitOfWork) : IUseCase<CreateTemplateCommand, TemplateResultDto> {
-+     public async Task<TemplateResultDto> ExecuteAsync(CreateTemplateCommand command, CancellationToken ct) { ... }
+- // Over-engineered generic CRUD base class
+- public abstract class CrudServiceBase<TEntity, TDto, TId> : ICrudService<TDto, TId> { ... }
+- public class {Aggregate}Service : CrudServiceBase<{Aggregate}, {Aggregate}Dto, Guid> { ... }
++ // Flat, single-responsibility vertical slice
++ public sealed class {Verb}{Aggregate}UseCase(
++     I{Aggregate}Repository {aggregate}Repository,
++     IUnitOfWork unitOfWork) : IUseCase<{Verb}{Aggregate}Command, {Aggregate}ResultDto> {
++     public async Task<{Aggregate}ResultDto> ExecuteAsync({Verb}{Aggregate}Command command, CancellationToken ct) { ... }
 + }
 ```
-*Rationale: Generic CRUD base services obscure business logic, force awkward inheritance overrides, and create tight coupling across disparate domain entities. Flat single-responsibility UseCases maximize readability and isolate changes.*
 
 ### [TRAP-SCALE-016]: Stateful In-Memory Singleton Preventing Horizontal Scaling
 ```diff
-- // BANNED: In-memory state breaks when scaling to multiple pods
+- // In-memory state breaks when scaling to multiple pods
 - public sealed class DocumentRateLimiter {
 -     private readonly ConcurrentDictionary<string, int> _tenantCounters = new();
 -     public bool Allow(string tenantId) => _tenantCounters.AddOrUpdate(...) < 100;
 - }
-+ // MANDATORY: External distributed state (Redis / RateLimiterMiddleware)
++ // External distributed state (Redis / RateLimiterMiddleware)
 + [EnableRateLimiting("rendering")] // Backed by distributed partition key
-+ public sealed class DocumentGenerationController(...) : ControllerBase { ... }
++ public sealed class {Aggregate}sController(...) : ControllerBase { ... }
 ```
-*Rationale: In-memory state in singletons is invisible to other pod replicas in a Kubernetes cluster, leading to rate-limiting bypasses and inconsistent application state across instances.*
