@@ -1,97 +1,88 @@
 # [PATTERN-003]: 03_infrastructure_layer.md — Infrastructure Layer Design Patterns & EF Core SSoT
 
 <context>
-Scope: Infrastructure Layer Patterns, EF Core Configurations, Strongly-Typed ID Converters, JSONB Mapping, Repositories, Tenancy Query Filters & S3 Storage.
-SSoT_For: Infrastructure Port Adapters, EF Core Mapping, Value Converters, AppDbContext ModelSnapshot, S3 Object Storage, and Redis Distributed State.
+Scope: Infrastructure Layer Patterns, EF Core Configurations, Strongly-Typed ID Converters, JSONB Mapping, Repositories, Tenancy Query Filters, S3 Storage, Gotenberg Streaming, and SQL Driver Strategy.
+SSoT_For: Infrastructure Port Adapters, EF Core Mapping, Value Converters, AppDbContext ModelSnapshot, S3 Object Storage, Redis Distributed State, and Polymorphic SQL Drivers.
 Out_Of_Scope: Application UseCase orchestration (see: 02_application_layer.md), Pure Domain Entities (see: 01_domain_layer.md), HTTP Controllers (see: 04_api_presentation_layer.md), Auth middleware pipeline (see: ../03_specialized_mechanics/multi_tenant_security_pipeline.md).
-Target: `SmkDoc.Infrastructure/` (`Persistence/Configurations/`, `Repositories/`, `Storage/`, `Gotenberg/`).
-ArchitecturalSignals: [ARCH_EVOLUTION_PERSISTENCE], [ARCH_EVOLUTION_RENDERING], [ARCH_EVOLUTION_SECURITY]
+Target: `SmkDoc.Infrastructure/` (`Persistence/Configurations/`, `Repositories/`, `Storage/`, `Gotenberg/`, `Data/Drivers/`).
+ArchitecturalSignals: [ARCH_EVOLUTION_INFRASTRUCTURE]
 </context>
 
 ---
 
-## 1. Level 1: Persistence Invariants & Rules Matrix
+## 1. Level 1: Affirmative Infrastructure Invariants Matrix
 
-### Architectural Wiring & Data Contracts
+### 1.1 Architectural Wiring & Layer Contracts
 | Direction | Upstream Origin | Current Layer Role (Infrastructure Port Adapter) | Downstream Destination |
 |---|---|---|---|
-| **Port Inbound** | Application Port (`ITemplateRepository`, `IUnitOfWork`) | Implements port via EF Core `AppDbContext` | Database / Network Port |
-| **Object Relational Mapping**| Domain POCOs (`Template`, `Document`) | Maps tables, columns (`snake_case`), and ID conversions | PostgreSQL 16+ Engine (`Npgsql`) |
+| **Port Inbound** | Application Port (`I{Aggregate}Repository`, `IUnitOfWork`) | Implements port contract via EF Core `AppDbContext` | Database / Network Socket |
+| **Object Relational Mapping**| Domain POCOs (`{Aggregate}`, `{ChildEntity}`) | Maps tables, columns (`snake_case`), and ID conversions | PostgreSQL 16+ Engine (`Npgsql`) |
 | **Concurrency Safeguard**| Entity State Mutation | Tracks row version via PostgreSQL `xmin` | Optimistic Concurrency Check |
 | **Storage Inbound** | Application Storage Port (`IStorageService`) | Pipes seekable known-size streams to S3 object storage | MinIO Cluster / AWS S3 Bucket |
 | **Rendering Inbound**| Application Render Port (`IRenderEngine`) | Converts HTML/CSS via HTTP Chromium service | Gotenberg 8 Cluster (`/forms/chromium`) |
 | **Port Outbound** | Database / Gotenberg / S3 Results | Returns domain entities or response-owning streams | Application UseCases (Zero LOH buffer) |
 
-### Persistence Invariants & Rules Matrix
-| Architectural Concern | Prohibited Pattern (! BANNED) | Canonical SSoT Pattern (>> MANDATORY) |
+### 1.2 Affirmative Persistence & Infrastructure Invariants
+| Infrastructure Concern | Affirmative Infrastructure Invariant (Positive SSoT Law) | Boundary Vector |
 |---|---|---|
-| **Leaking Persistence** | Exposing EF Core `DbSet<T>` or `DbContext` outside | Hide behind domain repository interfaces (`ITemplateRepository`) |
-| **Identity Storage** | Mapping strongly-typed IDs as raw `string` or object | Value converter to PostgreSQL native `uuid`: `HasConversion(id => id.Value, v => new TemplateId(v))` |
-| **Client Child UUIDs** | Leaving child `Guid` keys as `ValueGeneratedOnAdd` when Domain generates UUIDv7 | Configure `builder.Property(e => e.Id).ValueGeneratedNever()` on all child entities (`TemplateVersion`, `DocumentVersion`, `FieldMapping`, `TemplateDataset`) |
-| **Tenant Scoping** | Fail-open `!IsResolved || ...` or manual `WHERE` clauses | Fail-closed ambient Global Query Filter: `IsTenantResolved && e.ProjectId == CurrentTenantId` |
-| **Child Tenant Filters** | Leaving child entities unfiltered when parent aggregate has global query filter (EF Warning 10622) | Matching query filters on child entities (`TemplateVersion`, `FieldMapping`, `TemplateDataset`, `DocumentVersion`) via parent navigation |
-| **Concurrency Token** | Unprotected mutations susceptible to lost updates | PostgreSQL `xmin` system column mapped as row version token |
-| **Relationship Cascade**| Blind `Cascade` deletes on production documents/logs | `DeleteBehavior.Restrict` or `DeleteBehavior.SetNull` per Level 2 matrix |
-| **JSON Column Storage** | Storing structured payloads as plain escaped text | Native PostgreSQL `jsonb` column mapping |
-| **IQueryable Leakage** | Leaking `IQueryable<T>` outside Infrastructure | Repositories evaluate queries internally; return `Task<IReadOnlyList<T>>` or `Task<T?>` |
-| **Entity Tracking & JSONB List Projections** | Using `.AsNoTracking()` when mutating aggregates OR hydrating `jsonb` blobs (`InputData`, `DataSchema`, `SamplePayload`, `MappingsSnapshot`) on paged list queries | Fetch tracked aggregates in mutating Commands; use `.AsNoTracking()` + scalar SQL `.Select(...)` projections (`ITemplateQueryService`, `IGenerationLogQueryService`) and single-pass `GroupBy(_ => 1)` aggregates on read/metrics hot-paths |
-| **Tenant Composite Indexing** | Global unique `templates(Slug)` or single-column `generation_logs` indexes forcing heap sorts | Composite unique `(ProjectId, Slug)` on `templates` and composite descending `(ProjectId, CreatedAt DESC)` / `(ProjectId, CallerApp, CreatedAt DESC)` indexes on `generation_logs`, kept at 100% parity with `AppDbContextModelSnapshot` |
-| **MinIO Stream Sizing & Downloads** | Passing `ObjectSize(-1)` on uploads, buffering `DownloadAsync` into unbounded `MemoryStream`, or calling `BucketExistsAsync` per upload | Spool seekable streams via `HybridSpoolStream` (`<= 64 KB` `ArrayPool<byte>`; `> 64 KB` `DeleteOnClose` temp `FileStream`) so sockets release immediately with zero LOH allocations, and cache initialized buckets in `ConcurrentDictionary` |
-| **Multi-Pod Distributed State & Startup** | Process-local `IMemoryCache` idempotency/drafts, `byte[]` draft caching, unserialized `MigrateAsync()` across pods, or static-IV AES-CBC secrets | Dual-Mode `StackExchange.Redis` (`Redis*` when configured; `Memory*` fallback): Fail-Closed (`503`) atomic Lua `RedisIdempotencyStore`, Fail-Open `RedisDatasetResultCache` & Pub/Sub `ITemplateCacheInvalidationBus`, MinIO-backed `StorageBuckets.Drafts` (`drafts/{projectId:N}/{draftId}{ext}`), `pg_advisory_lock` startup serialization, and `v2:` AES-256-GCM `DataProtectionService` |
+| **Persistence Encapsulation** | Hide `DbSet<T>` and `DbContext` strictly behind domain repository interfaces (`I{Aggregate}Repository`). Prohibit leaking ORM contexts outside Infrastructure. | Data Layer Boundary |
+| **Native Identity Storage** | Map strongly-typed IDs via `.HasConversion(id => id.Value, v => new {Aggregate}Id(v))` to PostgreSQL native `uuid` columns. | Column Type Mapping |
+| **Child Identity Generation** | Configure `builder.Property(e => e.Id).ValueGeneratedNever()` on all child entities with domain-generated UUIDv7 keys (`{Aggregate}Version`, `{ChildEntity}`). | Identity Lifecycle |
+| **Fail-Closed Tenant Isolation**| Global Query Filter strictly enforces `IsTenantResolved && e.ProjectId == CurrentTenantId` on all entities implementing `IMustHaveProject`. Prohibit fail-open expressions (`!IsResolved || ...`). | Tenancy Isolation |
+| **Child Filter Propagation** | Configure matching parent-navigation query filters on child entities (`v.{Aggregate} != null && IsTenantResolved && v.{Aggregate}.ProjectId == CurrentTenantId`) to eliminate EF Warning 10622. | Relational Tenancy |
+| **Optimistic Concurrency Token**| Map PostgreSQL system column `builder.Property<uint>("xmin").HasColumnType("xid").ValueGeneratedOnAddOrUpdate().IsConcurrencyToken()`. | Concurrency Safety |
+| **Explicit Referential Actions**| Configure referential actions explicitly per Referential Integrity Matrix (`DeleteBehavior.Restrict`, `DeleteBehavior.SetNull`, `DeleteBehavior.Cascade`). Prohibit unspecified cascades. | Foreign Key Constraints |
+| **Native JSONB Storage** | Map structured document schemas and payload dictionaries via `.HasColumnType("jsonb")` with strongly-typed `JsonSerializerOptions` converters. | Semi-Structured Data |
+| **Internal Query Evaluation** | Repositories materialize queries internally and return `Task<T?>` or `Task<IReadOnlyList<T>>`. Prohibit leaking `IQueryable<T>` across interface boundaries. | Interface Segregation |
+| **Tracking Partitioning** | Read-only queries apply `.AsNoTracking()` and project scalar SQL columns (`I{Aggregate}QueryService`); mutating commands fetch tracked entities for ChangeTracker updates. | Memory & Throughput |
+| **Composite Index Parity** | Maintain composite unique indexes `(ProjectId, Slug)` and descending indexes `(ProjectId, CreatedAt DESC)` at 100% parity with `AppDbContextModelSnapshot`. | Database Performance |
+| **Zero-LOH Stream Sizing** | Object storage uploads require seekable streams with known `Stream.Length` spooled via `HybridSpoolStream`; initialized buckets are cached in `ConcurrentDictionary`. | Storage Gateway |
+| **Distributed State Topology** | Redis stores utilize atomic Lua scripts with fail-closed semantics for idempotency (`503`), fail-open for result caches, and `pg_advisory_lock` for multi-pod migrations. | Multi-Pod Scalability |
+| **Polymorphic SQL Execution** | Execute external SQL datasets via `ISqlDriverFactory` resolving provider-specific strategies (`PostgresDriverStrategy`, `SqlServerDriverStrategy`) with AST and transaction read-only isolation. | Data Federation |
 
 ---
 
 ## 2. Level 2: Core Persistence SSoT ASTs & Cognitive Infrastructure Engine
 
-### Engineering Rationale & Architectural Decisions
+### 2.1 Engineering Rationale & Architectural Decisions
 * **Why EF Core `IEntityTypeConfiguration<T>` over DataAnnotations:** Keeps domain POCOs completely uncontaminated by ORM attributes, maintaining Clean Architecture purity.
-* **Why `.ValueGeneratedNever()` on Child Entities:** When Domain factories pre-assign `Guid.CreateVersion7()` on a child entity appended to an already-tracked aggregate root (`document.CreateVersion`, `template.CreateDraftVersion`), EF Core 8/10 treats `ValueGeneratedOnAdd` non-empty keys as pre-existing `EntityState.Modified` rows and throws `DbUpdateConcurrencyException` on commit.
+* **Why `.ValueGeneratedNever()` on Child Entities:** When Domain factories pre-assign `Guid.CreateVersion7()` on a child entity appended to an already-tracked aggregate root, EF Core treats `ValueGeneratedOnAdd` non-empty keys as pre-existing `EntityState.Modified` rows and throws `DbUpdateConcurrencyException` on commit.
 * **Why Fail-Closed Global Query Filter (`IsTenantResolved && ...`):** Fail-open filters (`!IsResolved || ...`) return every tenant's rows if a route or background job forgets to resolve `ICurrentProjectContext`; fail-closed guarantees zero rows leak when tenant resolution is absent.
 * **Why PostgreSQL `xmin` over Timestamp Columns:** PostgreSQL manages `xmin` internally per transaction, guaranteeing true row-level concurrency without manual clock tracking or trigger overhead.
 * **Why `.AsNoTracking()` Separation:** Query reads bypass EF ChangeTracker overhead entirely for maximum throughput; mutating commands fetch tracked entities so `SaveChangesAsync` produces minimal SQL diffs.
-* **Why Response-Owning Gotenberg Streams & Known-Size S3 Uploads:** Returning raw `response.Content.ReadAsStreamAsync()` without disposing `HttpResponseMessage` leaks sockets, while passing `ObjectSize(-1)` to MinIO SDK forces a 5 MB+ multipart LOH buffer allocation. Wrapping HTTP streams in a response-disposing decorator and spooling production outputs via `ArrayPool<byte>` into a `FileOptions.DeleteOnClose` temp `FileStream` yields deterministic socket release, exact `FileSizeBytes` + `SHA-256`, and zero-LOH S3 uploads.
+* **Why Response-Owning Gotenberg Streams & Known-Size S3 Uploads:** Returning raw `response.Content.ReadAsStreamAsync()` without disposing `HttpResponseMessage` leaks sockets, while passing `ObjectSize(-1)` to MinIO SDK forces a 5 MB+ multipart LOH buffer allocation. Wrapping HTTP streams in a response-disposing decorator and spooling production outputs via `ArrayPool<byte>` into a `FileOptions.DeleteOnClose` temp `FileStream` yields deterministic socket release, exact `FileSizeBytes`, and zero-LOH S3 uploads.
 
-### Cognitive Infrastructure Optimization & Guard Engine
+### 2.2 Proactive Infrastructure Firewalls
 ```yaml
-OptimizationObjectives:
-  PrimaryObjective: Bounded Memory Footprint & Absolute Persistence Isolation
-  TradeOffPriority: MemorySafety (Zero-LOH) > TenantIsolation > ConcurrencyFidelity > DirectQueryPerformance
+RepositoryBoundaryFirewall:
+  Invariant: "Repositories must never return IQueryable<T> across interface boundary."
+  ActionOnViolation: "Materialize query inside repository and return IReadOnlyList<T> or T?."
 
-ProactiveInfraGuards:
-  - Scope: SmkDoc.Infrastructure.Repositories
-    Trigger: Method returning IQueryable<T> across interface boundary
-    CanonicalAction: Materialize query asynchronously within repository and return IReadOnlyList<T> or T? >> Ref: [RULE-INFRA-002]
+FailClosedTenancyFirewall:
+  Invariant: "Global query filter must use fail-closed IsTenantResolved && e.ProjectId == CurrentTenantId."
+  ActionOnViolation: "Remove !IsResolved or IgnoreQueryFilters() calls in tenant application routes."
 
-  - Scope: SmkDoc.Infrastructure.Persistence
-    Trigger: Fail-open !IsResolved query filter or call to .IgnoreQueryFilters() in tenant routes
-    CanonicalAction: Enforce fail-closed IsTenantResolved && e.ProjectId == CurrentTenantId >> Ref: [RULE-INFRA-003]
+ChildEntityKeyGenerationFirewall:
+  Invariant: "Child entities with Domain-generated UUIDv7 keys must declare ValueGeneratedNever()."
+  ActionOnViolation: "Add builder.Property(e => e.Id).ValueGeneratedNever() in EntityTypeConfiguration."
 
-  - Scope: SmkDoc.Infrastructure.Persistence.Configurations
-    Trigger: Child entity with Domain-generated Guid missing ValueGeneratedNever()
-    CanonicalAction: Add builder.Property(e => e.Id).ValueGeneratedNever() >> Ref: [RULE-INFRA-001]
+GotenbergSocketLeakFirewall:
+  Invariant: "Gotenberg HTTP stream responses must be wrapped in ResponseDisposingStream."
+  ActionOnViolation: "Wrap ReadAsStreamAsync() with ResponseDisposingStream and ResponseHeadersRead."
 
-  - Scope: SmkDoc.Infrastructure.Gotenberg
-    Trigger: Returning raw ReadAsStreamAsync without owning HttpResponseMessage disposal
-    CanonicalAction: Wrap stream in ResponseDisposingStream with HttpCompletionOption.ResponseHeadersRead >> Ref: [RULE-INFRA-004]
-
-  - Scope: SmkDoc.Infrastructure.Storage
-    Trigger: Passing ObjectSize(-1) or calling BucketExistsAsync on every UploadAsync call
-    CanonicalAction: Require known Stream.Length (via DeleteOnClose temp-file spool) and cache initialized buckets >> Ref: [RULE-INFRA-005]
-
-CoreExtensionSlots:
-  RepositoryAdapterSlot: IRepository<TAggregate, TId> (Pluggable entity persistence adapter)
-  StorageServiceSlot: IStorageService (MinIO S3 / AWS S3 / Azure Blob Storage adapter)
-  RenderingEngineSlot: IRenderEngine (Gotenberg Chromium / OpenXML Word / ClosedXML Excel)
+S3StreamSizeFirewall:
+  Invariant: "UploadAsync requires known stream length to avoid MinIO 5MB multipart LOH buffers."
+  ActionOnViolation: "Spool unseekable streams through HybridSpoolStream before calling UploadAsync."
 ```
 
-### Referential Integrity & Cascade Delete Matrix
+### 2.3 Referential Integrity & Cascade Delete Matrix
 | Relationship Category | Target Entities | EF Core DeleteBehavior | Foreign Key Invariant |
 |---|---|---|---|
-| **Master Hierarchy** | `Company` => `Project` => `Template` => `TemplateVersion` | `DeleteBehavior.Cascade` | Child entities have no operational lifecycle outside parent aggregate root |
+| **Master Hierarchy** | `Company` => `Project` => `{Aggregate}` => `{ChildEntity}` | `DeleteBehavior.Cascade` | Child entities have no operational lifecycle outside parent aggregate root |
 | **Audit & Legal Records** | `GenerationLog`, `AuditTrail`, `DocumentVersion` | `DeleteBehavior.Restrict` | Prohibit physical deletion of parent if audit records exist; prevents data falsification |
-| **Optional References** | `Template.CurrentVersionId`, `User.LastActiveProjectId` | `DeleteBehavior.SetNull` | Nullable FK; decoupling lifecycle avoids circular cascade cascades |
+| **Optional References** | `{Aggregate}.CurrentVersionId`, `User.LastActiveProjectId` | `DeleteBehavior.SetNull` | Nullable FK; decoupling lifecycle avoids circular cascade cascades |
 
-### Object Storage Buckets SSoT Catalog (`StorageBuckets.cs`)
+### 2.4 Object Storage Buckets SSoT Catalog (`StorageBuckets.cs`)
 | Bucket Constant | Bucket Name | Target Content | Key Path Partitioning Scheme |
 |---|---|---|---|
 | `StorageBuckets.Templates` | `templates` | Immutable HTML/DOCX/XLSX template versions | `templates/{projectId:N}/{templateId:N}/v{version}{ext}` |
@@ -100,7 +91,7 @@ CoreExtensionSlots:
 | `StorageBuckets.AuditPayloads` | `audit-payloads` | Large generation request payloads (>16KB) | `audit/{projectId:N}/{yyyy/MM/dd}/{payloadSha256}.json` |
 | `StorageBuckets.Fonts` | `fonts` | Tenant-isolated custom typography assets | `fonts/{projectId:N}/{safeFileName}` |
 
-### Native PostgreSQL JSONB Mapping AST
+### 2.5 Native PostgreSQL JSONB Mapping AST
 ```csharp
 builder.Property(e => e.ExtractionSchema)
     .HasColumnType("jsonb")
@@ -111,34 +102,27 @@ builder.Property(e => e.ExtractionSchema)
 
 ---
 
-## 3. Level 3: Canonical Infrastructure Archetypes
+## 3. Level 3: Canonical Infrastructure Archetypes (Surgical AST Recipes)
 
-### Entity Configuration Archetype (`TemplateConfiguration`)
->> MANDATORY CANONICAL TEMPLATE [RULE-INFRA-001]:
-* [MUST] Implement `IEntityTypeConfiguration<TEntity>`.
-* [MUST] Map table names and database column names strictly to lowercase `snake_case`.
-* [MUST] Map strongly-typed IDs (`TemplateId`, `ProjectId`) and Value Objects using `.HasConversion(...)` to PostgreSQL native types (`uuid`, `varchar`).
-* [MUST] Configure optimistic concurrency via PostgreSQL system column `builder.Property<uint>("xmin").HasColumnType("xid").ValueGeneratedOnAddOrUpdate().IsConcurrencyToken()`.
-* [MUST] Configure referential integrity delete behaviors explicitly per Level 2 matrix (prohibit unspecified default cascades).
+### 3.1 Entity Configuration Archetype (`{Aggregate}Configuration`)
+>> MANDATORY CANONICAL BLUEPRINT [RULE-INFRA-001]:
+* Implements `IEntityTypeConfiguration<{Aggregate}>`.
+* Maps tables and column names strictly to lowercase `snake_case`.
+* Value converters map strongly-typed IDs and Value Objects to PostgreSQL native types (`uuid`, `varchar`).
+* Concurrency token mapped via PostgreSQL system column `xmin`.
+
 ```csharp
-using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.ValueObjects;
-using SmkDoc.Domain.ValueObjects.Ids;
-
-namespace SmkDoc.Infrastructure.Persistence.Configurations;
-
-public sealed class TemplateConfiguration : IEntityTypeConfiguration<Template>
+public sealed class {Aggregate}Configuration : IEntityTypeConfiguration<{Aggregate}>
 {
-    public void Configure(EntityTypeBuilder<Template> builder)
+    public void Configure(EntityTypeBuilder<{Aggregate}> builder)
     {
-        builder.ToTable("templates");
+        // Step 1: Table & Key Mapping <Why: explicit snake_case relational schema>
+        builder.ToTable("{aggregate_table_name}");
         builder.HasKey(e => e.Id);
 
-        // Strongly-Typed ID Value Converters
+        // Step 2: Strongly-Typed ID Converters <Why: compile-time type safety stored as native UUID>
         builder.Property(e => e.Id)
-            .HasConversion(id => id.Value, v => new TemplateId(v))
+            .HasConversion(id => id.Value, v => new {Aggregate}Id(v))
             .HasColumnName("id");
 
         builder.Property(e => e.ProjectId)
@@ -146,104 +130,98 @@ public sealed class TemplateConfiguration : IEntityTypeConfiguration<Template>
             .HasColumnName("project_id")
             .IsRequired();
 
-        // Validated Value Object Converters
+        // Step 3: Validated Value Object Converters <Why: encapsulated domain types mapped to varchar>
         builder.Property(e => e.Name)
-            .HasConversion(v => v.Value, v => TemplateName.Create(v))
+            .HasConversion(v => v.Value, v => {Aggregate}Name.Create(v))
             .HasColumnName("name")
             .HasMaxLength(100)
             .IsRequired();
 
         builder.Property(e => e.Slug)
-            .HasConversion(s => s.Value, v => new TemplateSlug(v))
+            .HasConversion(s => s.Value, v => new {Aggregate}Slug(v))
             .HasColumnName("slug")
             .HasMaxLength(100)
             .IsRequired();
 
+        // Step 4: Scalar Properties & Auditing <Why: audit trail with database-level timestamps>
         builder.Property(e => e.Category).HasColumnName("category").HasMaxLength(50);
         builder.Property(e => e.IsActive).HasColumnName("is_active").HasDefaultValue(true);
         builder.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
         builder.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("NOW()");
 
-        // PostgreSQL xmin Concurrency Token
+        // Step 5: Optimistic Concurrency Token <Why: prevent silent overwrite race conditions>
         builder.Property<uint>("xmin").HasColumnType("xid").ValueGeneratedOnAddOrUpdate().IsConcurrencyToken();
 
+        // Step 6: Composite Indexes <Why: tenant-isolated fast slug lookup>
         builder.HasIndex(e => new { e.ProjectId, e.Slug }).IsUnique();
 
+        // Step 7: Referential Integrity <Why: prevent orphaned records per delete behavior matrix>
         builder.HasOne(e => e.CurrentVersion).WithMany().HasForeignKey(e => e.CurrentVersionId).OnDelete(DeleteBehavior.SetNull);
-        builder.HasMany(e => e.FieldMappings).WithOne().HasForeignKey(e => e.TemplateId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasMany(e => e.Children).WithOne().HasForeignKey(e => e.{Aggregate}Id).OnDelete(DeleteBehavior.Cascade);
     }
 }
 ```
 
-### Repository Implementation Archetype (`TemplateRepository`)
->> MANDATORY CANONICAL TEMPLATE [RULE-INFRA-002]:
-* [MUST] Implement domain repository interface (`ITemplateRepository`) using C# 13 primary constructor injecting `AppDbContext`.
-* [MUST] Materialize queries internally and return `Task<T?>` or `Task<IReadOnlyList<T>>` (strictly prohibit returning or leaking `IQueryable<T>`).
-* [MUST] Apply `.AsNoTracking()` to all read-only queries to prevent EF Core ChangeTracker memory overhead.
-* [MUST] Accept `CancellationToken ct = default` on every async query method and forward to EF Core async operators (`FirstOrDefaultAsync`, `ToListAsync`).
+### 3.2 Repository Implementation Archetype (`{Aggregate}Repository`)
+>> MANDATORY CANONICAL BLUEPRINT [RULE-INFRA-002]:
+* Primary constructor injecting `AppDbContext`.
+* Queries materialized internally; returns `Task<T?>` or `Task<IReadOnlyList<T>>` (never leaks `IQueryable<T>`).
+* Read queries utilize `.AsNoTracking()`. Mutating queries load tracked aggregates.
+
 ```csharp
-using Microsoft.EntityFrameworkCore;
-using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Interfaces;
-using SmkDoc.Domain.ValueObjects.Ids;
-using SmkDoc.Infrastructure.Persistence;
-
-namespace SmkDoc.Infrastructure.Repositories;
-
-public sealed class TemplateRepository(AppDbContext dbContext) : ITemplateRepository
+public sealed class {Aggregate}Repository(AppDbContext dbContext) : I{Aggregate}Repository
 {
-    public async Task<Template?> GetByIdAsync(TemplateId id, CancellationToken ct = default)
+    // Step 1: Tracked Read for Mutation <Why: ChangeTracker tracks state updates for SaveChanges>
+    public async Task<{Aggregate}?> GetByIdAsync({Aggregate}Id id, CancellationToken ct = default)
     {
-        return await dbContext.Templates
+        return await dbContext.{Aggregate}s
             .Include(t => t.CurrentVersion)
-            .Include(t => t.FieldMappings)
+            .Include(t => t.Children)
             .FirstOrDefaultAsync(t => t.Id == id, ct);
     }
 
-    public async Task<IReadOnlyList<Template>> ListByProjectIdAsync(ProjectId projectId, CancellationToken ct = default)
+    // Step 2: Untracked Read for Queries <Why: zero ChangeTracker overhead on read paths>
+    public async Task<IReadOnlyList<{Aggregate}>> ListByProjectIdAsync(ProjectId projectId, CancellationToken ct = default)
     {
-        return await dbContext.Templates
+        return await dbContext.{Aggregate}s
             .AsNoTracking()
             .Where(t => t.ProjectId == projectId && t.IsActive)
             .OrderByDescending(t => t.CreatedAt)
             .ToListAsync(ct);
     }
 
-    public async Task<bool> SlugExistsAsync(string slug, CancellationToken ct = default)
+    // Step 3: Fast Precondition Existence Check <Why: indexed boolean check without entity hydration>
+    public async Task<bool> ExistsBySlugAsync(ProjectId projectId, string slug, CancellationToken ct = default)
     {
-        return await dbContext.Templates.AnyAsync(t => t.Slug == slug, ct);
+        return await dbContext.{Aggregate}s.AnyAsync(t => t.ProjectId == projectId && t.Slug == slug, ct);
     }
 
-    public async Task AddAsync(Template template, CancellationToken ct = default)
+    // Step 4: Attach New Aggregate <Why: queues insert into ChangeTracker>
+    public async Task AddAsync({Aggregate} aggregate, CancellationToken ct = default)
     {
-        await dbContext.Templates.AddAsync(template, ct);
+        await dbContext.{Aggregate}s.AddAsync(aggregate, ct);
     }
 
-    public void Update(Template template)
+    public void Update({Aggregate} aggregate)
     {
-        dbContext.Templates.Update(template);
+        dbContext.{Aggregate}s.Update(aggregate);
     }
 }
 ```
 
-### Transactional Unit of Work & Post-Commit Domain Event Dispatcher Archetype
->> MANDATORY CANONICAL TEMPLATE [RULE-INFRA-003]:
-* [MUST] Commit database state changes via `SaveChangesAsync` BEFORE dispatching events.
-* [MUST] Clear domain events from tracked entities after harvesting to prevent duplicate dispatching.
+### 3.3 Transactional Unit of Work Archetype (`TransactionalUnitOfWork`)
+>> MANDATORY CANONICAL BLUEPRINT [RULE-INFRA-003]:
+* Commits database changes via `SaveChangesAsync` BEFORE dispatching events.
+* Clears domain events from entities to prevent duplicate dispatching.
 
 ```csharp
-using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Domain.Common;
-
-namespace SmkDoc.Infrastructure.Persistence;
-
 public sealed class TransactionalUnitOfWork(
     AppDbContext dbContext,
     IDomainEventDispatcher eventDispatcher) : IUnitOfWork
 {
-    public async Task CommitAsync(CancellationToken ct = default)
+    public async Task<int> CommitAsync(CancellationToken ct = default)
     {
-        // 1. Harvest events from tracked aggregate roots
+        // Step 1: Harvest Events <Why: snapshot all domain events before commit>
         var aggregates = dbContext.ChangeTracker.Entries<IAggregateRoot>()
             .Where(e => e.Entity.DomainEvents.Count > 0)
             .Select(e => e.Entity)
@@ -251,35 +229,29 @@ public sealed class TransactionalUnitOfWork(
 
         var events = aggregates.SelectMany(a => a.DomainEvents).ToList();
 
-        // 2. Persist state changes in database transaction
-        await dbContext.SaveChangesAsync(ct);
+        // Step 2: Commit Transaction <Why: atomic relational persistence>
+        var rowsAffected = await dbContext.SaveChangesAsync(ct);
 
-        // 3. Clear domain events to prevent duplicate dispatching
+        // Step 3: Clear Harvested Events <Why: prevent ghost duplicate event dispatches>
         aggregates.ForEach(a => a.ClearDomainEvents());
 
-        // 4. Dispatch events strictly after successful database commit
-        foreach (var domainEvent in events)
+        // Step 4: Dispatch Events Post-Commit <Why: side-effects execute only upon successful commit>
+        if (events.Count > 0)
         {
-            await eventDispatcher.DispatchAsync(domainEvent, ct);
+            await eventDispatcher.DispatchEventsAsync(events, ct);
         }
+
+        return rowsAffected;
     }
 }
 ```
 
-### Fail-Closed Ambient Multi-Tenant Global Query Filter
->> MANDATORY CANONICAL TEMPLATE [RULE-INFRA-004]:
-* [MUST] Apply fail-closed global query filter in `AppDbContext.OnModelCreating` to all entities implementing `IMustHaveProject`: `IsTenantResolved && e.ProjectId == CurrentTenantId`.
-* [MUST] Apply matching child query filters on `TemplateVersion`, `FieldMapping`, `TemplateDataset`, and `DocumentVersion` via their parent aggregate navigation to satisfy EF Core warning `10622` and prevent cross-tenant child queries.
-* [MUST NOT] Use fail-open expressions (`!IsResolved || ...`) or call `.IgnoreQueryFilters()` in tenant application routes.
+### 3.4 Fail-Closed Ambient Multi-Tenant Global Query Filter
+>> MANDATORY CANONICAL BLUEPRINT [RULE-INFRA-004]:
+* Applies fail-closed query filter: `IsTenantResolved && e.ProjectId == CurrentTenantId`.
+* Applies matching child query filters via parent navigation to eliminate EF Warning 10622.
+
 ```csharp
-using System.Reflection;
-using Microsoft.EntityFrameworkCore;
-using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Interfaces;
-using SmkDoc.Domain.ValueObjects.Ids;
-
-namespace SmkDoc.Infrastructure.Persistence;
-
 public partial class AppDbContext
 {
     public ProjectId CurrentTenantId => _projectContext?.ProjectId ?? ProjectId.Empty;
@@ -290,6 +262,7 @@ public partial class AppDbContext
         base.OnModelCreating(modelBuilder);
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
 
+        // Step 1: Automated Ambient Tenancy Filter <Why: fail-closed zero-leak tenant isolation>
         foreach (var entityType in modelBuilder.Model.GetEntityTypes().ToList())
         {
             if (entityType.ClrType != null && typeof(IMustHaveProject).IsAssignableFrom(entityType.ClrType))
@@ -302,14 +275,9 @@ public partial class AppDbContext
             }
         }
 
-        modelBuilder.Entity<TemplateVersion>()
-            .HasQueryFilter(v => v.Template != null && IsTenantResolved && v.Template.ProjectId == CurrentTenantId);
-        modelBuilder.Entity<FieldMapping>()
-            .HasQueryFilter(m => m.Template != null && IsTenantResolved && m.Template.ProjectId == CurrentTenantId);
-        modelBuilder.Entity<TemplateDataset>()
-            .HasQueryFilter(td => td.Template != null && IsTenantResolved && td.Template.ProjectId == CurrentTenantId);
-        modelBuilder.Entity<DocumentVersion>()
-            .HasQueryFilter(dv => dv.Document != null && IsTenantResolved && dv.Document.ProjectId == CurrentTenantId);
+        // Step 2: Child Entity Navigation Filters <Why: satisfy EF Warning 10622 and secure joined reads>
+        modelBuilder.Entity<{ChildEntity}>()
+            .HasQueryFilter(v => v.{Aggregate} != null && IsTenantResolved && v.{Aggregate}.ProjectId == CurrentTenantId);
     }
 
     private void ConfigureProjectFilter<TEntity>(ModelBuilder modelBuilder) where TEntity : class, IMustHaveProject
@@ -319,39 +287,32 @@ public partial class AppDbContext
 }
 ```
 
-### Zero-LOH Gotenberg HTTP Streaming Client Archetype
->> MANDATORY CANONICAL TEMPLATE [RULE-INFRA-004]:
-* [MUST] Use `HttpCompletionOption.ResponseHeadersRead` when sending conversion requests to Gotenberg.
-* [MUST] Wrap `response.Content.ReadAsStreamAsync(ct)` in a `ResponseDisposingStream` so `HttpResponseMessage` is deterministically disposed when the caller closes the stream (and dispose `response` inside `catch` on early failure).
-* [MUST] Catch and enrich transport exceptions into strongly-typed domain/application exceptions (e.g. `DocumentRenderException`); strictly prohibit swallowing exceptions silently.
-* [MUST] Forward `CancellationToken` to `SendAsync` and `ReadAsStreamAsync`.
+### 3.5 Zero-LOH Gotenberg HTTP Streaming Client Archetype
+>> MANDATORY CANONICAL BLUEPRINT [RULE-INFRA-005]:
+* Uses `HttpCompletionOption.ResponseHeadersRead` to stream payload directly.
+* Wraps stream in `ResponseDisposingStream` to deterministically dispose `HttpResponseMessage` and socket on completion.
+
 ```csharp
-using System.IO;
-using System.Net.Http;
-using System.Threading;
-using System.Threading.Tasks;
-using SmkDoc.Application.Common.Exceptions;
-
-namespace SmkDoc.Infrastructure.Pdf;
-
 public sealed class GotenbergClient(HttpClient httpClient)
 {
     public async Task<Stream> ConvertHtmlToPdfStreamAsync(string htmlContent, CancellationToken ct)
     {
         using var form = new MultipartFormDataContent();
-        var content = new StringContent(htmlContent);
-        form.Add(content, "files", "index.html");
+        form.Add(new StringContent(htmlContent), "files", "index.html");
 
         using var request = new HttpRequestMessage(HttpMethod.Post, "/forms/chromium/convert/html")
         {
             Content = form
         };
 
+        // Step 1: Send with ResponseHeadersRead <Why: do not buffer response body in memory>
         var httpResponse = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
         try
         {
             httpResponse.EnsureSuccessStatusCode();
             var innerStream = await httpResponse.Content.ReadAsStreamAsync(ct);
+
+            // Step 2: Wrap in ResponseDisposingStream <Why: releases HTTP socket when consumer closes stream>
             return new ResponseDisposingStream(innerStream, httpResponse);
         }
         catch (HttpRequestException ex)
@@ -368,34 +329,27 @@ public sealed class GotenbergClient(HttpClient httpClient)
 }
 ```
 
-### S3 Object Storage Service Archetype (MinIO)
->> MANDATORY CANONICAL TEMPLATE [RULE-INFRA-005]:
-* [MUST] Implement `IStorageService` using MinIO S3 SDK with cached one-time bucket verification (`ConcurrentDictionary<string, bool>`).
-* [MUST] Require seekable known-size `Stream` on `UploadAsync` (callers spool unseekable render streams via `FileOptions.DeleteOnClose | FileOptions.Asynchronous` temp `FileStream` or `HybridSpoolStream` so `ObjectSize` is exact and MinIO SDK never allocates 5 MB+ multipart LOH buffers).
-* [MUST] Spool `DownloadAsync` callbacks into `HybridSpoolStream` via `ArrayPool<byte>` (`81,920`-byte buffer) so payloads `<= 64 KB` stay in pooled memory, payloads `> 64 KB` spill to `DeleteOnClose` OS-cached temporary files with zero LOH allocations, and the MinIO HTTP socket releases immediately.
-* [MUST] Support prefix-scoped listing (`ListObjectsAsync`) for tenant-partitioned assets such as `fonts/{projectId:N}/`.
+### 3.6 S3 Object Storage Service Archetype (MinIO)
+>> MANDATORY CANONICAL BLUEPRINT [RULE-INFRA-006]:
+* Injects `IMinioClient` with cached bucket verification via `ConcurrentDictionary`.
+* Requires seekable known-size `Stream` on `UploadAsync` to prevent 5MB+ multipart LOH allocations.
+
 ```csharp
-using System.Collections.Concurrent;
-using Microsoft.Extensions.Logging;
-using Minio;
-using Minio.DataModel.Args;
-using SmkDoc.Application.Common.Interfaces;
-
-namespace SmkDoc.Infrastructure.Storage;
-
 public sealed class MinioStorageService(
     IMinioClient client,
     ILogger<MinioStorageService> logger) : IStorageService
 {
-    private readonly ConcurrentDictionary<string, bool> initializedBuckets = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, bool> _initializedBuckets = new(StringComparer.Ordinal);
 
     public async Task<string> UploadAsync(string bucket, string objectName, Stream data, string contentType, CancellationToken ct = default)
     {
         await EnsureBucketInitializedOnceAsync(bucket, ct);
 
+        // Step 1: Enforce Known-Size Seekable Stream <Why: prevent MinIO SDK from allocating 5MB LOH buffers>
         if (!data.CanSeek)
-            throw new InvalidOperationException("UploadAsync requires a seekable stream with known Length to prevent LOH multipart buffering.");
+            throw new InvalidOperationException("UploadAsync requires a seekable stream with known Length.");
 
+        // Step 2: Upload Bounded Stream <Why: zero intermediate byte[] memory allocations>
         var args = new PutObjectArgs()
             .WithBucket(bucket)
             .WithObject(objectName)
@@ -408,22 +362,10 @@ public sealed class MinioStorageService(
         return objectName;
     }
 
-    public async Task<IReadOnlyList<string>> ListObjectsAsync(string bucket, string prefix, CancellationToken ct = default)
-    {
-        await EnsureBucketInitializedOnceAsync(bucket, ct);
-        var keys = new List<string>();
-        var args = new ListObjectsArgs().WithBucket(bucket).WithPrefix(prefix).WithRecursive(false);
-        await foreach (var item in client.ListObjectsEnumAsync(args, ct))
-        {
-            if (!item.IsDir && !string.IsNullOrEmpty(item.Key))
-                keys.Add(item.Key);
-        }
-        return keys;
-    }
-
     private async Task EnsureBucketInitializedOnceAsync(string bucket, CancellationToken ct)
     {
-        if (initializedBuckets.ContainsKey(bucket)) return;
+        if (_initializedBuckets.ContainsKey(bucket)) return;
+
         var existsArgs = new BucketExistsArgs().WithBucket(bucket);
         bool exists = await client.BucketExistsAsync(existsArgs, ct);
         if (!exists)
@@ -431,25 +373,17 @@ public sealed class MinioStorageService(
             var makeArgs = new MakeBucketArgs().WithBucket(bucket);
             await client.MakeBucketAsync(makeArgs, ct);
         }
-        initializedBuckets.TryAdd(bucket, true);
+        _initializedBuckets.TryAdd(bucket, true);
     }
 }
 ```
 
-### Polymorphic SQL Driver Strategy Archetype
->> MANDATORY CANONICAL TEMPLATE [RULE-INFRA-006]:
-* [MUST] Select SQL execution drivers via Polymorphic Strategy / Factory Pattern (`ISqlDriverStrategy` & `ISqlDriverFactory`) based on `DatabaseProvider`; strictly prohibit hardcoded driver instantiation or `if/else` provider switching.
-* [MUST] Enforce double read-only isolation: 1) AST token validation (`SELECT` / `WITH` only), and 2) Transactional read-only engine commands (e.g. `SET TRANSACTION READ ONLY;`).
-* [MUST] Provide dry-run schema discovery via ADO.NET `GetColumnSchemaAsync` and bounded sample rows ($\le 5$) without loading full tables into memory.
+### 3.7 Polymorphic SQL Driver Strategy Archetype
+>> MANDATORY CANONICAL BLUEPRINT [RULE-INFRA-007]:
+* Resolves SQL execution drivers via polymorphic dictionary lookup (`ISqlDriverFactory`).
+* Enforces read-only isolation across AST token validation and transactional commands.
 
 ```csharp
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using SmkDoc.Application.Common.Interfaces;
-
-namespace SmkDoc.Infrastructure.Data.Drivers;
-
 public sealed class SqlDriverFactory(IEnumerable<ISqlDriverStrategy> strategies) : ISqlDriverFactory
 {
     private readonly Dictionary<string, ISqlDriverStrategy> _strategies =
@@ -457,6 +391,7 @@ public sealed class SqlDriverFactory(IEnumerable<ISqlDriverStrategy> strategies)
 
     public ISqlDriverStrategy GetStrategy(string provider)
     {
+        // Step 1: Polymorphic Provider Dispatch <Why: zero if/else or switch-case extension fragility>
         if (_strategies.TryGetValue(provider, out var strategy))
         {
             return strategy;
@@ -473,22 +408,22 @@ public sealed class SqlDriverFactory(IEnumerable<ISqlDriverStrategy> strategies)
 
 ### [TRAP-INFRA-001]: IQueryable Boundary Leakage
 ```diff
-- public IQueryable<Template> GetTemplates() => dbContext.Templates;
-+ public async Task<IReadOnlyList<Template>> GetTemplatesAsync(ProjectId projectId, CancellationToken ct) => await dbContext.Templates.AsNoTracking().Where(t => t.ProjectId == projectId).ToListAsync(ct);
+- public IQueryable<{Aggregate}> Get{Aggregate}s() => dbContext.{Aggregate}s;
++ public async Task<IReadOnlyList<{Aggregate}>> Get{Aggregate}sAsync(ProjectId projectId, CancellationToken ct) => await dbContext.{Aggregate}s.AsNoTracking().Where(t => t.ProjectId == projectId).ToListAsync(ct);
 ```
 *Rationale: Leaking `IQueryable` crosses layer boundaries, causing deferred execution outside transaction and unit-of-work scopes.*
 
 ### [TRAP-INFRA-002]: Multi-Tenant Isolation Bypass
 ```diff
-- var templates = await dbContext.Templates.IgnoreQueryFilters().ToListAsync(ct);
-+ var templates = await dbContext.Templates.ToListAsync(ct);
+- var aggregates = await dbContext.{Aggregate}s.IgnoreQueryFilters().ToListAsync(ct);
++ var aggregates = await dbContext.{Aggregate}s.ToListAsync(ct);
 ```
 *Rationale: Disabling global query filters creates catastrophic IDOR cross-tenant data leaks in production endpoints.*
 
-### [TRAP-EF-003]: Untracked Aggregate Mutation (Silent Save Loss)
+### [TRAP-INFRA-003]: Untracked Aggregate Mutation (Silent Save Loss)
 ```diff
-- var template = await dbContext.Templates.AsNoTracking().FirstOrDefaultAsync(t => t.Id == id, ct); template.Update(name, cat, now); await unitOfWork.CommitAsync(ct);
-+ var template = await templateRepo.GetByIdAsync(id, ct); template.Update(name, cat, now); await unitOfWork.CommitAsync(ct);
+- var aggregate = await dbContext.{Aggregate}s.AsNoTracking().FirstOrDefaultAsync(t => t.Id == id, ct); aggregate.Update(name, now); await unitOfWork.CommitAsync(ct);
++ var aggregate = await repository.GetByIdAsync(id, ct); aggregate.Update(name, now); await unitOfWork.CommitAsync(ct);
 ```
 *Rationale: Entities fetched with `AsNoTracking()` are ignored by EF Core ChangeTracker, silently emitting zero SQL updates on commit.*
 
@@ -501,7 +436,14 @@ public sealed class SqlDriverFactory(IEnumerable<ISqlDriverStrategy> strategies)
 
 ### [TRAP-INFRA-005]: Missing Concurrency Token Configuration
 ```diff
-- builder.ToTable("templates"); builder.HasKey(e => e.Id);
-+ builder.ToTable("templates"); builder.HasKey(e => e.Id); builder.Property<uint>("xmin").HasColumnType("xid").ValueGeneratedOnAddOrUpdate().IsConcurrencyToken();
+- builder.ToTable("{table_name}"); builder.HasKey(e => e.Id);
++ builder.ToTable("{table_name}"); builder.HasKey(e => e.Id); builder.Property<uint>("xmin").HasColumnType("xid").ValueGeneratedOnAddOrUpdate().IsConcurrencyToken();
 ```
 *Rationale: Omitting PostgreSQL `xmin` concurrency tokens leaves entity records vulnerable to silent overwrite race conditions.*
+
+### [TRAP-INFRA-006]: Unseekable Unknown-Size S3 Upload (LOH Multipart Buffer Trap)
+```diff
+- var args = new PutObjectArgs().WithStreamData(stream).WithObjectSize(-1);
++ if (!stream.CanSeek) throw new InvalidOperationException("Seekable stream required."); var args = new PutObjectArgs().WithStreamData(stream).WithObjectSize(stream.Length - stream.Position);
+```
+*Rationale: Passing `ObjectSize(-1)` forces the S3 SDK to allocate 5MB+ memory chunks in Large Object Heap (LOH) to perform multipart buffering.*

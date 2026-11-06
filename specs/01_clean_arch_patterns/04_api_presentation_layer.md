@@ -1,8 +1,8 @@
 # [PATTERN-004]: 04_api_presentation_layer.md — Presentation Layer Design Patterns & HTTP SSoT
 
 <context>
-Scope: Presentation Layer Patterns, Thin Controllers (<= 5 LOC), 3-Step Dispatcher, ApiResponse Envelopes, Mutation Semantics (POST Idempotency vs PUT/DELETE ETag), and RFC 9457 Exceptions.
-SSoT_For: Controller Action Contracts, 3-Step Dispatcher Pattern, HTTP Status Mapping, and RFC 9457 ProblemDetails Translation.
+Scope: Presentation Layer Patterns, Thin Controllers (<= 5 LOC), 3-Step Dispatcher, ApiResponse Envelopes, Mutation Semantics (POST Idempotency vs PUT/DELETE ETag), Controller Partitioning, and RFC 9457 Exceptions.
+SSoT_For: Controller Action Contracts, 3-Step Dispatcher Pattern, HTTP Status Mapping, Controller Partitioning & Diagnostics, and RFC 9457 ProblemDetails Translation.
 Out_Of_Scope: Application UseCase orchestration (see: 02_application_layer.md), Multi-tenant dual-auth middleware (see: ../03_specialized_mechanics/multi_tenant_security_pipeline.md), SSRF network validator mechanics (see: ../00_architecture_core/03_security_and_performance.md).
 Target: `backend-v2/` (`SmkDoc.Api/Controllers/`, `SmkDoc.Api/Common/Responses/`, `SmkDoc.Api/Filters/`, `SmkDoc.Api/Middleware/`).
 ArchitecturalSignals: [ARCH_EVOLUTION_API]
@@ -10,45 +10,42 @@ ArchitecturalSignals: [ARCH_EVOLUTION_API]
 
 ---
 
-## 1. Level 1: Presentation Invariants & HTTP Semantics Matrix
+## 1. Level 1: Affirmative Presentation Invariants Matrix
 
-### Architectural Wiring & Data Contracts
+### 1.1 Architectural Wiring & Layer Contracts
 | Direction | Upstream Origin | Current Layer Role (HTTP Presentation Gateway) | Downstream Destination |
 |---|---|---|---|
 | **Wire Inbound** | HTTP Client (Next.js Proxy / ERP) | Resolves Tenant & Auth Context | Controller Action (`[ApiController]`) |
-| **Command Dispatch** | Route & Body Parameters | Instantiates Command & forwards to UseCase | Application (`createTemplateUseCase.ExecuteAsync`) |
+| **Command Dispatch** | Route & Body Parameters | Instantiates Command & forwards to UseCase | Application (`{verb}{Aggregate}UseCase.ExecuteAsync`) |
 | **POST Mutation Safeguard**| State-Mutating `POST` Methods | Enforces deduplication via `Idempotency-Key` | Idempotency Middleware / In-Memory Store |
 | **PUT/DELETE Concurrency** | State-Mutating `PUT` / `DELETE` | Enforces concurrency via `If-Match` / `ETag` | UseCase Optimistic Concurrency Engine |
-| **Wire Egress** | Application DTO (`TemplateResultDto`) | Envelopes into `ApiResponse<T>` with HTTP Status | Client (`200 OK`, `201 Created` + Location) |
+| **Wire Egress** | Application DTO (`{Aggregate}ResultDto`) | Envelopes into `ApiResponse<T>` with HTTP Status | Client (`200 OK`, `201 Created` + Location) |
 | **Streaming Egress** | Binary Render Stream | Streams directly to `Response.Body` | HTTP Chunked Stream (`application/pdf`) |
 | **Error Egress** | Unhandled Exceptions | Dispatches to RFC 9457 `ProblemDetails` | HTTP Client (`application/problem+json`) |
 
-### Presentation Invariants & HTTP Semantics Matrix
-| Architectural Concern | Prohibited Pattern (! BANNED) | Canonical SSoT Pattern (>> MANDATORY) |
+### 1.2 Affirmative Presentation Invariants
+| Presentation Architectural Concern | Affirmative Presentation Invariant (Positive SSoT Law) | Boundary Vector |
 |---|---|---|
-| **Controller Logic** | ! Business logic, entity mutation, or SQL queries inside action | >> Thin orchestrator ($\le 5$ lines per action) delegating to UseCase |
-| **Response Formats** | ! Raw anonymous objects: `return Ok(new { data = ... })` | >> Strongly-typed `ApiResponse<T>` or `PagedApiResponse<T>` |
-| **Error Format** | ! Custom ad-hoc error JSON objects | >> RFC 9457 `ProblemDetails` dispatched via `GlobalExceptionHandler` |
-| **Validation Error Payload**| ! Omitting field error dictionary from validation response | >> Structured RFC 9457 `errors` dictionary populated in `problemDetails.Extensions["errors"]` |
-| **POST Mutation Semantics** | ! Unprotected POST mutations without idempotency safeguards | >> `[Idempotent]` filter on state-mutating `POST` endpoints (`Idempotency-Key` header) |
-| **PUT/DELETE Concurrency** | ! Applying Redis lock idempotency to naturally idempotent PUT/DELETE or allowing lost updates | >> Optimistic Concurrency Control (`ETag` / `If-Match`) via PostgreSQL `xmin` concurrency token; return `412 Precondition Failed` on mismatch |
-| **Connectivity Test Semantics**| ! Returning HTTP 400 for negative network reachability results | >> Return HTTP 200 OK with `ApiResponse<TestDataConnectionResultDto>` (`{ success: false, message }`); reserve HTTP 4xx strictly for malformed payloads or SSRF blocks (`403 Forbidden`) |
-| **SSRF Defense** | ! Probing internal networks via unvalidated database connection strings | >> Pre-flight `ConnectionHostValidator` blocking loopback, link-local, cloud metadata (`169.254.x.x`), and Docker aliases (`postgres`, `minio`, `redis`, `gotenberg`) |
-| **Binary Downloads** | ! In-memory `byte[]` arrays or raw MinIO 307 redirects to external clients | >> Server-side direct bounded streaming via `Response.Body` or `File(Stream, ...)` with `81,920` buffer |
-| **Route Taxonomy & SSoT** | ! Declaring duplicate routes (`/api/*` alongside `/api/v1/*`) or verb-based paths (`/api/createTemplate`) | >> Strict SSoT on RESTful plural kebab-case `api/v1/{resource}`; immediate deletion of legacy `/api/*` routes across all controllers |
-| **Dual-Track Document Pipeline** | ! Forcing all renders through blocking synchronous HTTP requests or exposing unbounded async queues | >> Dual-Track Pipeline: Track 1 (Sync Monaco preview / instant generate with fixed-window `rendering` rate limit 30 req/min), Track 2 (`POST /api/v1/documents/generate-async`, `202 Accepted` + `Location: /api/v1/documents/jobs/{jobId}`, polled via `GET /api/v1/documents/jobs/{jobId}`) |
-| **Validation SSoT** | ! Mutating incoming JSON payload during rendering or duplicating template validation endpoints | >> Pure ingestion invariant: Fail-fast JSON schema validation during document generation returning RFC 9457 ProblemDetails with exact field diagnostics; zero payload mutation |
-| **Integration RBAC** | ! Unrestricted `[Authorize]` allowing general members to manage DB credentials | >> Restrict Data Connection CRUD/Test to `AdminOrSuperAdmin`; restrict Dataset CRUD to `AuthorOrAdmin` |
-| **API Key Presentation Boundaries** | ! Merging SuperAdmin governance and tenant sub-key operations into duplicate ambiguous routes | >> Clear separation: Tenant Sub-Key lifecycle on `/api/v1/api-keys` (Project Admin) vs Platform Governance & Break-Glass on `/api/v1/management/api-keys` (SuperAdmin) |
-| **Top-Level Arrays** | ! Accepting raw array: `[FromBody] List<TItem>` | >> Wrapped batch envelope: `[FromBody] BatchRequest { Items = [...] }` |
-| **Timestamp Wire Format**| ! Unspecified/local datetime strings | >> Strict ISO-8601 UTC with `Z` suffix (`2026-10-21T15:30:00Z`) |
-| **OpenAPI Schema Metadata**| ! Action without `[ProducesResponseType]` metadata | >> Explicit `[ProducesResponseType(typeof(ApiResponse<T>), StatusCodes.Status200OK)]` |
+| **Thin Controller Boundary** | Controllers remain thin orchestrators ($\le 5$ LOC per action) delegating directly to a single-responsibility `IUseCase<TReq, TRes>`. Business logic is strictly sealed in Application/Domain. | Controller Action |
+| **Unified Response Envelopes** | All standard JSON responses are wrapped in immutable `ApiResponse<T>` or `PagedApiResponse<T>`. Anonymous object returns (`new { ... }`) are prohibited. | Wire Output |
+| **RFC 9457 ProblemDetails** | Unhandled and domain exceptions translate through `GlobalExceptionHandler` into RFC 9457 `ProblemDetails` (`application/problem+json`) with validation dictionaries in `Extensions["errors"]`. | Error Pipeline |
+| **POST Mutation Idempotency** | State-mutating `POST` endpoints enforce deduplication via `[Idempotent]` attribute consuming the `Idempotency-Key` HTTP header. | Mutation Safety |
+| **PUT/DELETE Concurrency** | Naturally idempotent `PUT` and `DELETE` endpoints enforce optimistic concurrency via `[FromHeader(Name = "If-Match")]` mapped to PostgreSQL `xmin`. Redis lock idempotency on PUT/DELETE is prohibited. | Concurrency Control |
+| **Diagnostic Probe Semantics** | Connectivity probes (`POST /api/v1/data-connections/test`) return HTTP 200 OK with `ApiResponse<TestDataConnectionResultDto>` (`{ success: false, message }`). HTTP 4xx is reserved strictly for malformed JSON or SSRF blocks. | Integration Diagnostics |
+| **SSRF Perimeter Defense** | Network reachability endpoints execute pre-flight `ConnectionHostValidator.EnsureSafeTarget(host)` blocking loopback, link-local, cloud metadata, and container aliases. | Network Boundary |
+| **Zero-LOH Streaming Egress** | Binary render/download endpoints stream live `Stream` directly to `Response.Body` or `File(stream, ...)` with bounded `81,920`-byte buffers. Whole-file `byte[]` buffering is prohibited. | Memory & GC |
+| **Plural RESTful Taxonomy** | Routes adhere to plural kebab-case `api/v1/{resources}` on `{Aggregate}sController`. Legacy `/api/*` and verb-based route segments are prohibited. | Route Routing |
+| **Dual-Track Rendering** | Document generation is partitioned into Track 1 (Sync Monaco preview / instant generate with `rendering` rate limit 30 req/min) and Track 2 (`POST generate-async`, returning `202 Accepted` + `Location`). | Rendering Gateway |
+| **Pure Schema Ingestion** | Incoming JSON payloads are validated fail-fast during generation without mutating payload data or duplicating validation endpoints. | Ingestion Pipeline |
+| **Declarative Policy Security**| Actions are authorized via declarative `[Authorize(Policy = "...")]` attributes matching the Declarative Authorization Policies Matrix. | Endpoint Authorization |
+| **Separated API Key Routes** | Tenant sub-key operations reside on `/api/v1/api-keys` (Project Admin, quota max 2), while platform-wide governance resides on `/api/v1/management/api-keys` (SuperAdmin). | Key Governance |
+| **OpenAPI Schema Contracts** | Every controller action declares explicit `[ProducesResponseType]` metadata matching both success envelopes and RFC 9457 error contracts. | Contract Metadata |
 
 ---
 
-## 2. Level 2: Core Presentation SSoT ASTs & Cognitive API Engine
+## 2. Level 2: Core Presentation SSoT Catalogs & Cognitive API Engine
 
-### Engineering Rationale & Architectural Decisions
+### 2.1 Engineering Rationale & Architectural Decisions
 * **Why Thin Controllers (<= 5 Lines):** Keeps controllers purely focused on HTTP transport and identity resolution, preventing business logic duplication and making use cases independently testable.
 * **Why POST Idempotency vs PUT/DELETE ETag Concurrency:** `POST` operations create new resources and are naturally non-idempotent; network retries without an `[Idempotent]` filter risk duplicate billing or entity creation. Conversely, `PUT` and `DELETE` are naturally idempotent by HTTP specification; their primary risk is concurrent overwrites ("lost updates"), which is cleanly solved via `If-Match` / `ETag` optimistic concurrency without Redis lock overhead.
 * **Why HTTP 200 for Test Connection Probes:** When testing database connectivity (`POST /api/v1/data-connections/test`), an unreachable database or invalid password is a valid diagnostic business result, NOT an HTTP transport failure. Returning HTTP 400 violates REST semantics and breaks automated health check clients. HTTP 4xx is reserved strictly for syntactically malformed JSON (400) or SSRF security violations (403).
@@ -57,68 +54,30 @@ ArchitecturalSignals: [ARCH_EVOLUTION_API]
 * **Why Delegated Tenant Sub-Keys (`/api/v1/api-keys`) vs Platform Governance (`/api/v1/management/api-keys`):** Eliminates route ambiguity and operational bottlenecks. Tenant Project Admins manage operational application keys (ERP, CRM) via ambient project context under strict quota guardrails (max 2 keys), while SuperAdmin retains dedicated platform-wide oversight, quota adjustment, and emergency break-glass revocation on `/api/v1/management/...`.
 * **Why RFC 9457 Global Exception Handler:** Replaces ad-hoc error formats with an IETF standard, ensuring clients receive machine-parsable error codes and validation details without stack traces.
 
-### Cognitive Presentation Optimization & Guard Engine
+### 2.2 Proactive Presentation Firewalls
 ```yaml
-OptimizationObjectives:
-  PrimaryObjective: Uniform Wire Contracts, High-Throughput Egress & Absolute Transport Separation
-  TradeOffPriority: ContractConsistency > ZeroCrossTenantLeakage > NetworkPerimeterSecurity > TransportSpeed
+ControllerFatLogicFirewall:
+  Invariant: "Controller actions must not exceed 5 lines or execute business logic."
+  ActionOnViolation: "Delegate action execution directly to single IUseCase<TReq, TRes>."
 
-ProactiveApiGuards:
-  - Scope: SmkDoc.Api.Controllers
-    Trigger: Controller action exceeding 5 lines or executing validation logic
-    CanonicalAction: Delegate directly to single-responsibility IUseCase<TReq, TRes> >> Ref: [RULE-API-001]
+VariableNamingFirewall:
+  Invariant: "UseCase execution output must be assigned strictly to var result."
+  ActionOnViolation: "Rename pagedResult, pagedLogs, pdfStream, response to var result."
 
-  - Scope: SmkDoc.Api.Controllers
-    Trigger: Assigning UseCase execution result to non-standard variable (e.g. pagedResult, pagedLogs, pdfStream, response)
-    CanonicalAction: Assign strictly to var result = await useCase.ExecuteAsync(...) >> Ref: [RULE-API-001]
+MutationSemanticsFirewall:
+  Invariant: "Apply [Idempotent] strictly to POST; enforce If-Match on PUT/DELETE."
+  ActionOnViolation: "Remove [Idempotent] from PUT/DELETE and add [FromHeader(Name = 'If-Match')]."
 
-  - Scope: SmkDoc.Api.Controllers
-    Trigger: State-mutating POST endpoint declared without [Idempotent] filter
-    CanonicalAction: Apply [Idempotent] attribute to ensure deterministic deduplication >> Ref: [TRAP-API-003]
+RateLimitingPolicyFirewall:
+  Invariant: "Every controller must be decorated with [EnableRateLimiting] policy."
+  ActionOnViolation: "Add [EnableRateLimiting('api')] or specific policy attribute to controller."
 
-  - Scope: SmkDoc.Api.Controllers
-    Trigger: State-mutating PUT or DELETE endpoint declared with [Idempotent] or without If-Match concurrency
-    CanonicalAction: Enforce If-Match header and ETag validation via PostgreSQL xmin >> Ref: [RULE-API-001]
-
-  - Scope: SmkDoc.Api.Controllers
-    Trigger: Controller or endpoint declared without [EnableRateLimiting] policy attribute
-    CanonicalAction: Decorate with [EnableRateLimiting("...")] matching the Specialized Rate Limiting Policies Matrix >> Ref: [RULE-API-001]
-
-  - Scope: SmkDoc.Api.Controllers
-    Trigger: Returning 201 Created or 202 Accepted via raw StatusCode(...) or manual Location header assignment
-    CanonicalAction: Use typed CreatedAtAction or AcceptedAtAction helpers with RFC 7231 / 9110 Location headers >> Ref: [RULE-API-001]
-
-  - Scope: SmkDoc.Api.Controllers
-    Trigger: Action invoking multiple UseCases to re-query or mutate secondary state
-    CanonicalAction: Single UseCase invocation per action; return updated collection/aggregate directly from command UseCase >> Ref: [TRAP-API-008]
-
-  - Scope: SmkDoc.Api.Controllers
-    Trigger: Manual if (result == null) return NotFound() inside controller action
-    CanonicalAction: Eliminate manual NotFound checks; UseCase must throw strongly-typed NotFoundException >> Ref: [TRAP-API-009]
-
-  - Scope: SmkDoc.Api.Contracts
-    Trigger: Request body contract containing ambient route/tenant parameters (e.g. ProjectId)
-    CanonicalAction: Strip route/tenant IDs from request body; bind exclusively from [FromRoute] or ICurrentProjectContext >> Ref: [RULE-API-001]
-
-  - Scope: SmkDoc.Api.Controllers
-    Trigger: Returning HTTP 400 for negative network reachability probe
-    CanonicalAction: Return HTTP 200 OK with ApiResponse<TestDataConnectionResultDto> >> Ref: [RULE-API-004]
-
-  - Scope: SmkDoc.Api.Responses
-    Trigger: Returning raw domain entity or anonymous object new { ... }
-    CanonicalAction: Wrap immutable Application DTO in ApiResponse<T> envelope >> Ref: [RULE-API-003]
-
-  - Scope: SmkDoc.Api.Exceptions
-    Trigger: Try-catch block inside controller action swallowing or remapping exception
-    CanonicalAction: Remove try-catch; let exception bubble up to RFC 9457 GlobalExceptionHandler >> Ref: [RULE-API-002]
-
-CoreExtensionSlots:
-  ExceptionHandlerSlot: IExceptionHandler (RFC 9457 ProblemDetails translation)
-  IdempotencyStoreSlot: IIdempotencyStore (In-Memory / Redis idempotency cache for POST)
-  ApiResponseEnvelopeSlot: ApiResponse<T> / PagedApiResponse<T> (Unified HTTP payload format)
+NotFoundExceptionFirewall:
+  Invariant: "Controllers must never check if (result == null) return NotFound()."
+  ActionOnViolation: "Remove null check; UseCase must throw strongly-typed NotFoundException."
 ```
 
-### RFC 9457 ProblemDetails Exception Translation Matrix
+### 2.3 RFC 9457 ProblemDetails Exception Translation Matrix
 | Domain / Application Exception | HTTP Status Code | RFC 9457 Title | ProblemDetails Type URI |
 |---|---|---|---|
 | `ValidationException` | `400 Bad Request` | Validation Error | `https://tools.ietf.org/html/rfc9110#section-15.5.1` |
@@ -132,7 +91,7 @@ CoreExtensionSlots:
 | `DistributedStateUnavailableException` | `503 Service Unavailable` | Distributed State Unavailable | `https://api.sammakorn.co.th/errors/distributed-state-unavailable` |
 | Unhandled Exceptions | `500 Internal Error`| Internal Server Error | `https://tools.ietf.org/html/rfc9110#section-15.6.1` |
 
-### Specialized Rate Limiting Policies Matrix
+### 2.4 Specialized Rate Limiting Policies Matrix
 | Policy Name | Target Endpoints | Limit & Window | Rejection Status | Primary Architectural Rationale |
 |---|---|---|---|---|
 | `auth-strict` | `POST /api/v1/auth/login`, `POST /api/v1/auth/refresh` | 5 permits / 1 min (by IP) | `429 Too Many Requests` | Defends against password brute-force and credential stuffing |
@@ -140,7 +99,7 @@ CoreExtensionSlots:
 | `test-conn` | `POST /api/v1/data-connections/test` | 10 permits / 1 min (by User/IP) | `429 Too Many Requests` | Mitigates internal network scanning, port enumeration, and SSRF probing |
 | `api` | All standard CRUD, query, and management endpoints | 60 permits / 1 min (by Partition) | `429 Too Many Requests` | Baseline API throttling for fair resource distribution |
 
-### Declarative Authorization Policies Matrix (`SmkDocPolicies`)
+### 2.5 Declarative Authorization Policies Matrix (`SmkDocPolicies`)
 | Policy Name | Target Endpoints & Controller Scope | Allowed Subject Identities | Policy Enforcement Criteria |
 |---|---|---|---|
 | `RequireSuperAdmin` | `api/v1/management/api-keys`, `api/v1/management/projects/*` | Platform SuperAdmin exclusively | `ctx.User.IsInRole(RoleConstants.SuperAdmin)` \| `ctx.User.HasClaim("SystemRole", SuperAdmin)` |
@@ -150,23 +109,9 @@ CoreExtensionSlots:
 | `CanManageDataConnections`| `api/v1/data-connections/*` (`GET`, `POST`, `PUT`, `DELETE`, `test`) | Project Admin or SuperAdmin | `ctx.User.IsInRole(RoleConstants.Admin)` \| `ctx.User.IsInRole(RoleConstants.SuperAdmin)` |
 | `CanManageDatasets` | `api/v1/datasets/*` (`GET`, `POST`, `PUT`, `DELETE`) | Author, Developer, Admin, SuperAdmin, or M2M ReadWrite | `IsInRole("Author")` \| `IsInRole("Developer")` \| `IsInRole(Admin)` \| `IsInRole(SuperAdmin)` \| `Scope == "ReadWrite"` |
 
----
-
-## 3. Level 3: Canonical Presentation Archetypes
-
-### Authoring Controller Taxonomy & Single-Responsibility Partitioning
-
-Controllers under `SmkDoc.Api.Controllers.Authoring` adhere to strict domain partitioning with $\le 5$ UseCase dependencies:
-
-| Controller | Route Scope | Responsibilities & Invariants |
-|---|---|---|
-| `TemplateLifecycleController` | `api/v1/templates` | Template CRUD, listing with tenant filtering, metadata updates, and soft-deactivation. |
-| `TemplateAssetController` | `api/v1/templates` | File downloads (`/{id}/download`), stateless scanning (`/scan-fields`), stored placeholder inspection, and payload dry-run validation (`/{slug}/validate-payload`). |
-| `TemplateDraftController` | `api/v1/templates/draft` | 3-Step RAM-only draft lifecycle: upload parsing (`/parse`), in-memory preview (`/{draftId}/preview`), and atomic commit (`/{draftId}/commit`). |
-| `TemplateStudioController` | `api/v1/templates/{id}` | Monaco Studio authoring: raw HTML editing (`/html`), studio bundle (`/studio/bundle`), schema retrieval (`/schema`), and HTML syntax validation (`/validate`). |
-### Controller Partitioning & Companion Diagnostics Pattern
+### 2.6 Controller Partitioning & Companion Diagnostics Pattern
 When an aggregate's capabilities exceed 5 UseCases, or encompass specialized operational concerns (e.g. diagnostics, reachability tests, dry-run schema introspection), enforce single-responsibility by decomposing into cohesive companion controllers sharing the same route prefix:
-* **Primary Resource Controller**: `{Resources}Controller` handles standard state mutations and queries (List, Get, Create, Update, Deactivate) decorated with `[EnableRateLimiting("api")]`.
+* **Primary Resource Controller**: `{Aggregate}sController` handles standard state mutations and queries (List, Get, Create, Update, Deactivate) decorated with `[EnableRateLimiting("api")]`.
 * **Companion Diagnostics Controller**: `{Resource}DiagnosticsController` isolates network reachability, test probes, or dry-run introspection calls decorated with dedicated `[EnableRateLimiting("test-conn")]`.
 
 | Partitioning Strategy | Route Scope | Typical Invariants & Policies | Canonical Example |
@@ -175,94 +120,95 @@ When an aggregate's capabilities exceed 5 UseCases, or encompass specialized ope
 | **Companion Diagnostics** | `api/v1/{resources}` | Reachability checks, dry-run schema introspection, `[EnableRateLimiting("test-conn")]` (10 req/min) | `DataConnectionDiagnosticsController`, `DatasetDiagnosticsController` |
 | **Interactive Studio Draft**| `api/v1/{resources}/draft` | RAM-only preview lifecycle, ephemeral streaming, Monaco syntax validation | `TemplateDraftController`, `TemplateStudioController` |
 
-### Thin Controller Archetype (`TemplateController`)
->> MANDATORY CANONICAL TEMPLATE [RULE-API-001]:
-* [MUST] Inherit from `ControllerBase`, apply `[ApiController]`, mark class `sealed`, and define route as `[Route("api/v1/{plural-kebab-resource}")]`.
-* [MUST] Inject single-responsibility `IUseCase<TRequest, TResponse>` / `IUseCase<TRequest>` abstractions via C# 13 primary constructor (strictly $\le 5$ dependencies per controller).
-* [MUST] Keep action methods thin (<= 5 lines per action): delegate directly to UseCase and envelope result in `ApiResponse<T>`.
-* [MUST] Declare Command or Query as an explicit local variable (`command`, `query`) prior to UseCase invocation (prohibit inline instantiation).
-* [MUST] Standardize all UseCase execution outputs to `var result = await useCase.ExecuteAsync(...)`; strictly prohibit entity-specific synonyms (`pagedResult`, `pagedLogs`, `pdfStream`) or shadowing `ControllerBase.Response` (`var response = ...`).
-* [MUST] Apply `[EnableRateLimiting("...")]` policy attribute according to the Specialized Rate Limiting Policies Matrix (e.g. `[EnableRateLimiting("api")]` at class level for management/CRUD controllers, `[EnableRateLimiting("rendering")]` for document generation, `[EnableRateLimiting("auth-strict")]` for authentication, and `[EnableRateLimiting("test-conn")]` for diagnostics).
-* [MUST] Apply `[Idempotent]` attribute strictly on state-mutating `POST` endpoints.
-* [MUST] Enforce Optimistic Concurrency via `[FromHeader(Name = "If-Match")] string? ifMatch` on `PUT` and `DELETE` endpoints (prohibit `[Idempotent]` on PUT/DELETE).
-* [MUST] Return `CreatedAtAction` with `201 Created` for resource creation and `AcceptedAtAction` with `202 Accepted` for async jobs (prohibit raw `StatusCode(201, ...)`, `StatusCode(202, ...)`, or manual `Response.Headers.Location` assignments).
-* [MUST] Return `Ok(new ApiResponse<T>(result))` for reads/updates, `Ok(new PagedApiResponse<T>(...))` for pagination, `NoContent()` for deletions, and `File(result, contentType, fileName)` for binary streaming.
-* [MUST] Prohibit manual `return NotFound()` checks in controllers; UseCases must throw strongly-typed `NotFoundException`, translated globally to RFC 9457 `ProblemDetails`.
-* [MUST] Strictly limit to one UseCase invocation per controller action; command UseCases must return the updated collection or resource directly instead of re-querying in the controller.
-* [MUST] Prohibit ambient route/tenant parameters (such as `ProjectId`) inside body request contracts to prevent confused-deputy parameter spoofing.
+---
+
+## 3. Level 3: Canonical Presentation Archetypes (Surgical AST Recipes)
+
+### 3.1 Thin Primary Controller Archetype (`{Aggregate}sController`)
+>> MANDATORY CANONICAL BLUEPRINT [RULE-API-001]:
+* Inherits from `ControllerBase`, applies `[ApiController]`, marks class `sealed`, and defines route as `[Route("api/v1/{plural-kebab-resource}")]`.
+* Injects single-responsibility `IUseCase<TRequest, TResponse>` abstractions via primary constructor ($\le 5$ dependencies).
+* Action methods stay thin ($\le 5$ LOC): execute 3-step dispatcher (Instantiate Input, Execute UseCase to `var result`, Envelope Return).
+* Applies `[Idempotent]` strictly to `POST` mutations; enforces `[FromHeader(Name = "If-Match")]` on `PUT` and `DELETE`.
+
 ```csharp
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.RateLimiting;
-using SmkDoc.Api.Common.Responses;
-using SmkDoc.Api.Contracts.Authoring.Templates;
-using SmkDoc.Api.Filters;
-using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.Modules.Authoring.Templates.Commands.CreateTemplate;
-using SmkDoc.Application.Modules.Authoring.Templates.Commands.DeactivateTemplate;
-using SmkDoc.Application.Modules.Authoring.Templates.Commands.UpdateTemplate;
-using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
-using SmkDoc.Application.Modules.Authoring.Templates.Queries.GetTemplateById;
-using SmkDoc.Application.Modules.Authoring.Templates.Queries.ListTemplates;
-
-namespace SmkDoc.Api.Controllers.Authoring;
-
 [ApiController]
-[Route("api/v1/templates")]
+[Route("api/v1/{aggregate-kebab-plural}")]
 [EnableRateLimiting("api")]
-public sealed class TemplateController(
-    IUseCase<ListTemplatesQuery, TemplatePagedResultDto> listTemplatesUseCase,
-    IUseCase<GetTemplateByIdQuery, TemplateResultDto> getTemplateByIdUseCase,
-    IUseCase<CreateTemplateCommand, TemplateResultDto> createTemplateUseCase,
-    IUseCase<UpdateTemplateCommand, TemplateResultDto> updateTemplateUseCase,
-    IUseCase<DeactivateTemplateCommand> deactivateTemplateUseCase) : ControllerBase
+public sealed class {Aggregate}sController(
+    IUseCase<List{Aggregate}sQuery, {Aggregate}PagedResultDto> listUseCase,
+    IUseCase<Get{Aggregate}ByIdQuery, {Aggregate}ResultDto> getByIdUseCase,
+    IUseCase<Create{Aggregate}Command, {Aggregate}ResultDto> createUseCase,
+    IUseCase<Update{Aggregate}Command, {Aggregate}ResultDto> updateUseCase,
+    IUseCase<Deactivate{Aggregate}Command> deactivateUseCase) : ControllerBase
 {
     [HttpGet]
-    [ProducesResponseType(typeof(PagedApiResponse<TemplateResultDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(PagedApiResponse<{Aggregate}ResultDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> List([FromQuery] int page = 1, [FromQuery] int pageSize = 20, CancellationToken ct = default)
     {
-        var query = new ListTemplatesQuery(page, pageSize);
-        var result = await listTemplatesUseCase.ExecuteAsync(query, ct);
-        return Ok(new PagedApiResponse<TemplateResultDto>(result.Items, result.TotalCount, result.Page, result.PageSize));
+        // Step 1: Instantiate Query <Why: map HTTP query parameters to application contract>
+        var query = new List{Aggregate}sQuery(null, null, null, page, pageSize);
+
+        // Step 2: Execute UseCase <Why: execute decoupled orchestration logic>
+        var result = await listUseCase.ExecuteAsync(query, ct);
+
+        // Step 3: Envelope Egress <Why: standardized pagination wire schema>
+        return Ok(new PagedApiResponse<{Aggregate}ResultDto>(result.Items, result.Page, result.PageSize, result.TotalCount));
     }
 
     [HttpGet("{id:guid}")]
-    [ProducesResponseType(typeof(ApiResponse<TemplateResultDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<{Aggregate}ResultDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetById([FromRoute] Guid id, CancellationToken ct)
     {
-        var query = new GetTemplateByIdQuery(id);
-        var result = await getTemplateByIdUseCase.ExecuteAsync(query, ct);
+        // Step 1: Instantiate Query <Why: isolate route parameters into strongly-typed query>
+        var query = new Get{Aggregate}ByIdQuery(id);
+
+        // Step 2: Execute UseCase <Why: throws strongly-typed NotFoundException if missing>
+        var result = await getByIdUseCase.ExecuteAsync(query, ct);
+
+        // Step 3: Attach Concurrency Header & Envelope <Why: optimistic concurrency support>
         Response.Headers.ETag = $"\"{result.ConcurrencyToken}\"";
-        return Ok(new ApiResponse<TemplateResultDto>(result));
+        return Ok(new ApiResponse<{Aggregate}ResultDto>(result));
     }
 
     [HttpPost]
     [Idempotent]
-    [ProducesResponseType(typeof(ApiResponse<TemplateResultDto>), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ApiResponse<{Aggregate}ResultDto>), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
-    public async Task<IActionResult> Create([FromBody] CreateTemplateRequest request, CancellationToken ct)
+    public async Task<IActionResult> Create([FromBody] Create{Aggregate}Request request, CancellationToken ct)
     {
-        var command = new CreateTemplateCommand(request.Name, request.Slug, request.Category);
-        var result = await createTemplateUseCase.ExecuteAsync(command, ct);
-        return CreatedAtAction(nameof(GetById), new { id = result.Id }, new ApiResponse<TemplateResultDto>(result));
+        // Step 1: Instantiate Command <Why: translate transport model to immutable command>
+        var command = new Create{Aggregate}Command(request.Name, request.Slug, request.Category);
+
+        // Step 2: Execute UseCase <Why: PEMR execution and atomic commit>
+        var result = await createUseCase.ExecuteAsync(command, ct);
+
+        // Step 3: Return Typed REST 201 Created <Why: RFC 7231 Location header compliance>
+        return CreatedAtAction(nameof(GetById), new { id = result.Id }, new ApiResponse<{Aggregate}ResultDto>(result));
     }
 
     [HttpPut("{id:guid}")]
-    [ProducesResponseType(typeof(ApiResponse<TemplateResultDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<{Aggregate}ResultDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status412PreconditionFailed)]
     public async Task<IActionResult> Update(
         [FromRoute] Guid id,
-        [FromBody] UpdateTemplateRequest request,
+        [FromBody] Update{Aggregate}Request request,
         [FromHeader(Name = "If-Match")] string? ifMatch,
         CancellationToken ct)
     {
-        var command = new UpdateTemplateCommand(id, request.Name, request.Category, ifMatch);
-        var result = await updateTemplateUseCase.ExecuteAsync(command, ct);
+        // Step 1: Instantiate Command with Concurrency Token <Why: prevent lost update overwrites>
+        var command = new Update{Aggregate}Command(id, request.Name, request.Category, ifMatch);
+
+        // Step 2: Execute UseCase <Why: verify optimistic concurrency against PostgreSQL xmin>
+        var result = await updateUseCase.ExecuteAsync(command, ct);
+
+        // Step 3: Attach New ETag & Envelope <Why: update client cache header>
         Response.Headers.ETag = $"\"{result.ConcurrencyToken}\"";
-        return Ok(new ApiResponse<TemplateResultDto>(result));
+        return Ok(new ApiResponse<{Aggregate}ResultDto>(result));
     }
 
     [HttpDelete("{id:guid}")]
@@ -274,34 +220,32 @@ public sealed class TemplateController(
         [FromHeader(Name = "If-Match")] string? ifMatch,
         CancellationToken ct)
     {
-        var command = new DeactivateTemplateCommand(id, ifMatch);
-        await deactivateTemplateUseCase.ExecuteAsync(command, ct);
+        // Step 1: Instantiate Command <Why: capture target id and concurrency guard>
+        var command = new Deactivate{Aggregate}Command(id, ifMatch);
+
+        // Step 2: Execute UseCase <Why: soft deactivation in domain aggregate>
+        await deactivateUseCase.ExecuteAsync(command, ct);
+
+        // Step 3: Return 204 NoContent <Why: standard REST deletion response>
         return NoContent();
     }
 }
 ```
 
-### Centralized RFC 9457 Global Exception Handler Archetype
->> MANDATORY CANONICAL TEMPLATE [RULE-API-002]:
-* [MUST] Implement `IExceptionHandler` from `Microsoft.AspNetCore.Diagnostics`.
-* [MUST] Map domain and application exceptions strictly according to Level 2 Translation Matrix.
-* [MUST] Populate `problemDetails.Extensions["errors"]` with structured validation dictionary when handling `ValidationException`.
-* [MUST] Write JSON responses using `application/problem+json` content type.
-* [MUST NOT] Leak raw stack traces or internal database error messages to public callers.
+### 3.2 Centralized RFC 9457 Global Exception Handler Archetype
+>> MANDATORY CANONICAL BLUEPRINT [RULE-API-002]:
+* Implements `IExceptionHandler` from `Microsoft.AspNetCore.Diagnostics`.
+* Maps domain and application exceptions strictly according to Level 2 Translation Matrix.
+* Populates `problemDetails.Extensions["errors"]` with structured validation dictionary when handling `ValidationException`.
+
 ```csharp
-using Microsoft.AspNetCore.Diagnostics;
-using Microsoft.AspNetCore.Mvc;
-using SmkDoc.Application.Common.Exceptions;
-using SmkDoc.Domain.Exceptions;
-
-namespace SmkDoc.Api.Middleware;
-
 public sealed class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger) : IExceptionHandler
 {
     public async ValueTask<bool> TryHandleAsync(HttpContext httpContext, Exception exception, CancellationToken ct)
     {
         logger.LogError(exception, "Unhandled exception occurred: {Message}", exception.Message);
 
+        // Step 1: Translate Exception to RFC 9457 Tuple <Why: deterministic status and title mapping>
         var (statusCode, title, detail, type) = exception switch
         {
             ValidationException vex => (StatusCodes.Status400BadRequest, "Validation Error", "Validation failed.", "https://tools.ietf.org/html/rfc9110#section-15.5.1"),
@@ -314,6 +258,7 @@ public sealed class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logge
             _ => (StatusCodes.Status500InternalServerError, "Internal Server Error", "An unexpected error occurred.", "https://tools.ietf.org/html/rfc9110#section-15.6.1")
         };
 
+        // Step 2: Build ProblemDetails Schema <Why: compliant machine-parsable error response>
         var problemDetails = new ProblemDetails
         {
             Status = statusCode,
@@ -323,11 +268,13 @@ public sealed class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logge
             Instance = httpContext.Request.Path
         };
 
+        // Step 3: Attach Structured Validation Errors <Why: field-level error diagnostics for clients>
         if (exception is ValidationException validationEx)
         {
             problemDetails.Extensions["errors"] = validationEx.Errors;
         }
 
+        // Step 4: Write JSON Wire Egress <Why: application/problem+json content type>
         httpContext.Response.StatusCode = statusCode;
         httpContext.Response.ContentType = "application/problem+json";
         await httpContext.Response.WriteAsJsonAsync(problemDetails, ct);
@@ -337,14 +284,12 @@ public sealed class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logge
 }
 ```
 
-### Unified Response Envelopes Archetype
->> MANDATORY CANONICAL TEMPLATE [RULE-API-003]:
-* [MUST] Encapsulate all JSON API responses in immutable `ApiResponse<T>` or `PagedApiResponse<T>`.
-* [MUST] Populate `Timestamp` using UTC ISO-8601 formatting.
-* [MUST] Provide computed pagination properties (`TotalPages`, `HasNextPage`, `HasPreviousPage`) in `PagedApiResponse<T>`.
-```csharp
-namespace SmkDoc.Api.Common.Responses;
+### 3.3 Unified Response Envelopes Archetype
+>> MANDATORY CANONICAL BLUEPRINT [RULE-API-003]:
+* Encapsulates all JSON API responses in immutable `ApiResponse<T>` or `PagedApiResponse<T>`.
+* Populates `Timestamp` using UTC ISO-8601 formatting.
 
+```csharp
 public record ApiResponse<T>(
     T Data,
     bool Success = true,
@@ -369,41 +314,34 @@ public sealed record PagedApiResponse<T>(
 }
 ```
 
-### Companion Diagnostics Controller Archetype (`DataConnectionDiagnosticsController`)
->> MANDATORY CANONICAL TEMPLATE [RULE-API-004]:
-* [MUST] Separate diagnostic, reachability, or schema introspection endpoints from primary CRUD controllers into companion controllers (`*DiagnosticsController`) to strictly uphold the $\le 5$ use cases limit.
-* [MUST] Apply dedicated rate limiting (e.g. `[EnableRateLimiting("test-conn")]`) on diagnostic routes to prevent SSRF scanning or denial-of-service.
-* [MUST] Return HTTP `200 OK` with `ApiResponse<TestDataConnectionResultDto>` containing `{ success: false, message: ... }` when network reachability fails.
-* [MUST] Invoke pre-flight `ConnectionHostValidator.EnsureSafeTarget(host)` throwing `ForbiddenException` (`403 Forbidden`) on SSRF target attempts.
+### 3.4 Companion Diagnostics Controller Archetype (`{Resource}DiagnosticsController`)
+>> MANDATORY CANONICAL BLUEPRINT [RULE-API-004]:
+* Separates diagnostic, reachability, or schema introspection endpoints into companion controllers to uphold the $\le 5$ use cases limit.
+* Applies dedicated rate limiting (`[EnableRateLimiting("test-conn")]`) on diagnostic routes.
+* Returns HTTP `200 OK` with `ApiResponse<{Resource}DiagnosticResultDto>` containing `{ success: false, message: ... }` on reachability failure.
+
 ```csharp
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.RateLimiting;
-using SmkDoc.Api.Common.Responses;
-using SmkDoc.Api.Constants;
-using SmkDoc.Api.Contracts.Integration.DataConnections;
-using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.Modules.Integration.DataConnections.Commands.TestDataConnection;
-using SmkDoc.Application.Modules.Integration.DataConnections.DTOs;
-
-namespace SmkDoc.Api.Controllers.Integration;
-
 [ApiController]
-[Route("api/v1/data-connections")]
+[Route("api/v1/{resource-kebab-plural}")]
 [Authorize(Policy = SmkDocPolicies.CanManageDataConnections)]
-public sealed class DataConnectionDiagnosticsController(
-    IUseCase<TestDataConnectionCommand, TestDataConnectionResultDto> testUseCase) : ControllerBase
+public sealed class {Resource}DiagnosticsController(
+    IUseCase<Test{Resource}Command, Test{Resource}ResultDto> testUseCase) : ControllerBase
 {
     [HttpPost("test")]
     [EnableRateLimiting("test-conn")]
-    [ProducesResponseType(typeof(ApiResponse<TestDataConnectionResultDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<Test{Resource}ResultDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    public async Task<IActionResult> TestConnection([FromBody] TestDataConnectionRequest request, CancellationToken ct)
+    public async Task<IActionResult> TestConnection([FromBody] Test{Resource}Request request, CancellationToken ct)
     {
-        var command = new TestDataConnectionCommand(request.Provider, request.ConnectionString);
+        // Step 1: Translate Request to Diagnostic Command <Why: encapsulate test connection parameters>
+        var command = new Test{Resource}Command(request.Provider, request.ConnectionString);
+
+        // Step 2: Execute Diagnostic Probe <Why: reachability failure returns business result, not HTTP 400>
         var result = await testUseCase.ExecuteAsync(command, ct);
-        return Ok(new ApiResponse<TestDataConnectionResultDto>(result));
+
+        // Step 3: Return Envelope <Why: consistent client diagnostic contract>
+        return Ok(new ApiResponse<Test{Resource}ResultDto>(result));
     }
 }
 ```
@@ -414,15 +352,15 @@ public sealed class DataConnectionDiagnosticsController(
 
 ### [TRAP-API-001]: Fat Controller Action & Business Logic Leakage
 ```diff
-- [HttpPost] public async Task<IActionResult> Create(CreateTemplateRequest req) { if (string.IsNullOrEmpty(req.Name)) return BadRequest(); var t = Template.Create(...); await repo.AddAsync(t); await uow.CommitAsync(); return Ok(t); }
-+ [HttpPost] [Idempotent] public async Task<IActionResult> Create([FromBody] CreateTemplateRequest request, CancellationToken ct) { var command = new CreateTemplateCommand(request.Name, request.Slug); var result = await useCase.ExecuteAsync(command, ct); return CreatedAtAction(nameof(GetById), new { id = result.Id }, new ApiResponse<TemplateResultDto>(result)); }
+- [HttpPost] public async Task<IActionResult> Create(Create{Aggregate}Request req) { if (string.IsNullOrEmpty(req.Name)) return BadRequest(); var t = {Aggregate}.Create(...); await repo.AddAsync(t); await uow.CommitAsync(); return Ok(t); }
++ [HttpPost] [Idempotent] public async Task<IActionResult> Create([FromBody] Create{Aggregate}Request request, CancellationToken ct) { var command = new Create{Aggregate}Command(request.Name, request.Slug); var result = await useCase.ExecuteAsync(command, ct); return CreatedAtAction(nameof(GetById), new { id = result.Id }, new ApiResponse<{Aggregate}ResultDto>(result)); }
 ```
 *Rationale: Placing business logic in controllers violates single responsibility, bypasses application pipelines, and makes endpoint testing cumbersome.*
 
 ### [TRAP-API-002]: Ad-Hoc Anonymous Response Envelope
 ```diff
-- return Ok(new { success = true, result = templateDto });
-+ return Ok(new ApiResponse<TemplateResultDto>(result));
+- return Ok(new { success = true, result = {aggregate}Dto });
++ return Ok(new ApiResponse<{Aggregate}ResultDto>(result));
 ```
 *Rationale: Anonymous object returns produce untyped OpenAPI schemas and break client code-generator typing.*
 
@@ -430,9 +368,9 @@ public sealed class DataConnectionDiagnosticsController(
 ```diff
 - [HttpPut("{id:guid}")]
 - [Idempotent]
-- public async Task<IActionResult> Update([FromRoute] Guid id, [FromBody] UpdateTemplateRequest request)
+- public async Task<IActionResult> Update([FromRoute] Guid id, [FromBody] Update{Aggregate}Request request)
 + [HttpPut("{id:guid}")]
-+ public async Task<IActionResult> Update([FromRoute] Guid id, [FromBody] UpdateTemplateRequest request, [FromHeader(Name = "If-Match")] string? ifMatch, CancellationToken ct)
++ public async Task<IActionResult> Update([FromRoute] Guid id, [FromBody] Update{Aggregate}Request request, [FromHeader(Name = "If-Match")] string? ifMatch, CancellationToken ct)
 ```
 *Rationale: PUT and DELETE are naturally idempotent by HTTP specification; applying Redis-lock idempotency introduces distributed lock overhead while failing to prevent lost-update concurrency anomalies.*
 
@@ -445,11 +383,11 @@ public sealed class DataConnectionDiagnosticsController(
 
 ### [TRAP-API-005]: Direct Domain Entity Egress Across Controller Boundary
 ```diff
-- [HttpGet("{id}")] public async Task<ActionResult<Template>> Get(Guid id) => Ok(await repo.GetByIdAsync(new TemplateId(id)));
+- [HttpGet("{id}")] public async Task<ActionResult<{Aggregate}>> Get(Guid id) => Ok(await repo.GetByIdAsync(new {Aggregate}Id(id)));
 + [HttpGet("{id:guid}")] public async Task<IActionResult> GetById([FromRoute] Guid id, CancellationToken ct) {
-+     var query = new GetTemplateByIdQuery(id);
++     var query = new Get{Aggregate}ByIdQuery(id);
 +     var result = await useCase.ExecuteAsync(query, ct);
-+     return Ok(new ApiResponse<TemplateResultDto>(result));
++     return Ok(new ApiResponse<{Aggregate}ResultDto>(result));
 + }
 ```
 *Rationale: Returning Domain Entities directly exposes internal data models, navigation proxies, and private domain invariants to outside callers.*
@@ -457,7 +395,7 @@ public sealed class DataConnectionDiagnosticsController(
 ### [TRAP-API-006]: HTTP 400 Returned on Negative Connection Reachability Test
 ```diff
 - if (!result.Success) return BadRequest(new { error = result.Error });
-+ return Ok(new ApiResponse<TestDataConnectionResultDto>(result));
++ return Ok(new ApiResponse<Test{Resource}ResultDto>(result));
 ```
 *Rationale: An unreachable remote host during connection testing is a normal diagnostic result, NOT an HTTP client error. Returning HTTP 400 confuses automated monitoring tools.*
 
@@ -495,31 +433,31 @@ public sealed class DataConnectionDiagnosticsController(
 
 ### [TRAP-API-009]: Manual return NotFound() Bypassing RFC 9457 Global Exception Handler
 ```diff
-- var result = await getTemplateByIdUseCase.ExecuteAsync(query, ct);
+- var result = await get{Aggregate}ByIdUseCase.ExecuteAsync(query, ct);
 - if (result == null) return NotFound();
-- return Ok(new ApiResponse<TemplateResultDto>(result));
-+ var result = await getTemplateByIdUseCase.ExecuteAsync(query, ct);
-+ return Ok(new ApiResponse<TemplateResultDto>(result));
+- return Ok(new ApiResponse<{Aggregate}ResultDto>(result));
++ var result = await get{Aggregate}ByIdUseCase.ExecuteAsync(query, ct);
++ return Ok(new ApiResponse<{Aggregate}ResultDto>(result));
 ```
 *Rationale: Manual null-checks returning raw NotFound() produce inconsistent error schemas and bypass the centralized RFC 9457 ProblemDetails pipeline. Application UseCases must throw strongly-typed NotFoundException.*
 
 ### [TRAP-API-010]: Raw StatusCode(201/202) Returns Violating REST Location Contracts
 ```diff
-- var result = await createTemplateUseCase.ExecuteAsync(command, ct);
-- return StatusCode(StatusCodes.Status201Created, new ApiResponse<TemplateResultDto>(result));
-+ var result = await createTemplateUseCase.ExecuteAsync(command, ct);
-+ return CreatedAtAction(nameof(GetById), new { id = result.Id }, new ApiResponse<TemplateResultDto>(result));
+- var result = await create{Aggregate}UseCase.ExecuteAsync(command, ct);
+- return StatusCode(StatusCodes.Status201Created, new ApiResponse<{Aggregate}ResultDto>(result));
++ var result = await create{Aggregate}UseCase.ExecuteAsync(command, ct);
++ return CreatedAtAction(nameof(GetById), new { id = result.Id }, new ApiResponse<{Aggregate}ResultDto>(result));
 ```
 *Rationale: Using raw StatusCode(201, ...) or StatusCode(202, ...) omits the mandatory RFC 7231 / RFC 9110 Location header. Typed helpers CreatedAtAction and AcceptedAtAction ensure standard discoverability for downstream REST clients.*
 
 ### [TRAP-API-011]: Unthrottled Public Controller Endpoint Missing [EnableRateLimiting]
 ```diff
 - [ApiController]
-- [Route("api/v1/templates")]
-- public sealed class TemplateController : ControllerBase
+- [Route("api/v1/{aggregate-kebab-plural}")]
+- public sealed class {Aggregate}sController : ControllerBase
 + [ApiController]
-+ [Route("api/v1/templates")]
++ [Route("api/v1/{aggregate-kebab-plural}")]
 + [EnableRateLimiting("api")]
-+ public sealed class TemplateController : ControllerBase
++ public sealed class {Aggregate}sController : ControllerBase
 ```
 *Rationale: Exposing public API controllers without declarative rate limiting leaves services vulnerable to volumetric denial-of-service, runaway automation scripts, and cross-tenant resource starvation. Controllers and sensitive endpoints must be bound to their designated rate limiting policy.*
