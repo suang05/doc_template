@@ -5,14 +5,14 @@ Scope: Next.js 15 App Router Architecture, Server/Client Component Boundaries, R
 SSoT_For: App Router Data Fetching, Next.js API Proxy Gateway (`/api/proxy/[...path]`), Live Document Preview Streaming, and TanStack Query Hydration.
 Out_Of_Scope: UI Design tokens and Tailwind styling (see: 02_ui_component_conventions.md), Backend API presentation (see: ../01_clean_arch_patterns/04_api_presentation_layer.md).
 Target: `frontend-v2/` (`src/app/(app)/`, `src/features/`, `src/hooks/`, `src/lib/api/`).
-ArchitecturalSignals: [ARCH_EVOLUTION_FRONTEND]
+ArchitecturalSignals: [ARCH_EVOLUTION_FRONTEND_DATA]
 </context>
 
 ---
 
 ## 1. Level 1: App Router & Data Fetching Invariants Matrix
 
-### Architectural Wiring & Data Contracts
+### 1.1 Architectural Wiring & Data Contracts
 | Direction | Upstream Origin | Current Role (Next.js Application Gateway) | Downstream Destination |
 |---|---|---|---|
 | **Client Request** | Browser Client Component | Dispatches fetch to local route handler | Secure Server Proxy (`/api/proxy/[...path]`) |
@@ -21,24 +21,23 @@ ArchitecturalSignals: [ARCH_EVOLUTION_FRONTEND]
 | **Streaming Egress**| Backend Document Stream | Duplex-pipes body stream directly to caller | Browser Client (`Response(backendRes.body)`) |
 | **Live Preview** | Template Editor Changes | Debounces (800ms) with `AbortController` cancellation | Blob URL Egress (`URL.revokeObjectURL(old)`) |
 
-### App Router Invariants Matrix
-| Architectural Concern | Prohibited Pattern (! BANNED) | Canonical SSoT Pattern (>> MANDATORY) |
+### 1.2 Affirmative App Router & Data Fetching Invariants
+| App Router & Data Concern | Affirmative Frontend Invariant (Positive SSoT Law) | Boundary Vector |
 |---|---|---|
-| **Client Component Scope** | Placing `'use client'` at root page or layout | React Server Components (RSC) by default; restrict `'use client'` to leaf interactive components |
-| **API Token Storage** | Storing JWT tokens in `localStorage` or browser cookies | Next.js Server Proxy (`/api/proxy/[...path]`) with `httpOnly` session cookies |
-| **Direct Backend Calls** | Client browser fetching backend API directly (`http://localhost:8080`) | All client fetch calls routed through `/api/proxy/[...path]` |
-| **Live Preview Sync** | Firing preview requests on every keystroke | Debounced (800ms) with `AbortController` cancellation |
-| **Blob URL Leaks** | Overwriting preview object URLs without revoking | Immediate cleanup: `URL.revokeObjectURL(previousUrl)` |
-| **Route Params (Next.js 15)**| Synchronous params: `{ params: { id } }` | Async Promise params: `{ params }: { params: Promise<{ id: string }> }` + `await params` |
-| **Stateful Server Leaves**| Using React hooks (`useState`, `useEffect`) in RSC pages | Split layout into RSC Page wrapper + Client Leaf Widget |
-| **Server State & Caching**| Ad-hoc `useState` + `useEffect` data fetching in custom hooks | Centralized `@tanstack/react-query` (`useQuery`, `useMutation`) with automatic cache invalidation |
-| **Feature Encapsulation** | Scattering feature hooks, APIs, schemas in flat global folders | Physical Feature-Sliced structure (`src/features/{slice}/`) with explicit `index.ts` public barrels |
+| **Server Component Default** | React Server Components (RSC) are the default for all pages and layouts. `'use client'` is strictly confined to leaf interactive components. Root page `'use client'` is prohibited. | Component Boundary |
+| **Proxy Token Boundary** | Backend JWT tokens and tenant project IDs are injected exclusively server-side via Next.js Server Proxy (`/api/proxy/[...path]`) using `httpOnly` cookies. Storing tokens in `localStorage` is prohibited. | Session Security |
+| **Perimeter Proxy Routing** | All browser client API traffic routes strictly through `/api/proxy/[...path]`. Direct browser calls to internal backend ports are prohibited. | Network Ingress |
+| **Debounced Live Preview** | Template live preview triggers are debounced by at least 800ms and linked to an `AbortController`. Firing unthrottled preview requests on keystrokes is prohibited. | Rendering Throttling |
+| **Blob URL Memory Lifecycle**| Every newly generated Blob URL must revoke the preceding URL via `URL.revokeObjectURL(oldUrl)` and clean up on component unmount. Unrevoked URL allocation is prohibited. | Browser Memory & GC |
+| **Next.js 15 Async Params** | Route parameters are typed and handled strictly as asynchronous promises: `{ params }: { params: Promise<{ id: string }> }` followed by `await params`. Synchronous param access is prohibited. | Framework Routing |
+| **Server State Governance** | Client server state and data mutations are governed via `@tanstack/react-query` (`useQuery`, `useMutation`) with automated cache invalidation. Ad-hoc `useEffect` fetching is prohibited. | State Synchronization |
+| **Feature Sliced Isolation** | Code is organized in self-contained feature slices under `src/features/{slice}/` exporting their public interface through `index.ts`. Flat global folder sprawl is prohibited. | Code Topology |
 
 ---
 
 ## 2. Level 2: Core Frontend Topology & Cognitive Frontend Engine
 
-### Engineering Rationale & Architectural Decisions
+### 2.1 Engineering Rationale & Architectural Decisions
 * **Why Next.js Server Proxy over Direct Browser Calls:** Keeps backend JWT tokens and internal cluster endpoints completely hidden inside server-side `httpOnly` cookies, eliminating XSS token theft vectors.
 * **Why Next.js 15 Async `params`:** Next.js 15 enforces asynchronous route parameters to enable partial prerendering and streaming server components without synchronous blocking.
 * **Why 800ms Debounce with AbortController:** Document rendering via Gotenberg is CPU-intensive; 800ms debounce prevents cluster thrashing, while `AbortController` immediately halts stale rendering jobs on the wire.
@@ -46,48 +45,26 @@ ArchitecturalSignals: [ARCH_EVOLUTION_FRONTEND]
 * **Why TanStack Query over Ad-hoc useEffect:** Eliminates duplicate network requests, provides stale-while-revalidate background caching, and automates cache invalidation across disparate feature widgets without props drilling.
 * **Why Feature-Sliced Taxonomy over Flat Layered Folders:** Grouping related components, hooks, APIs, and schemas by domain capability ensures high cohesion and low coupling. Developers modify feature mechanics in a single directory without navigating across 6 disparate root folders, preventing circular dependencies and git merge conflicts.
 
-### Cognitive Frontend Optimization & Guard Engine
+### 2.2 Proactive Frontend Guards
 ```yaml
-OptimizationObjectives:
-  PrimaryObjective: Zero-Trust Token Isolation, Sub-Second Live Preview & Lean Client Bundles
-  TradeOffPriority: SecurityPurity (Server-Proxy) > MemoryFidelity (Blob Revoke) > RenderingResponsiveness > BoilerplateSimplicity
+ClientComponentRootGuard:
+  Invariant: "Page and layout files must remain React Server Components."
+  ActionOnViolation: "Remove 'use client' from page root and extract interactive leaves."
 
-ProactiveFrontendGuards:
-  - Scope: frontend-v2.src.app
-    Trigger: Declaration of 'use client' at page.tsx or layout.tsx root
-    CanonicalAction: Convert page to async RSC and extract interactive logic to leaf component under _components/ >> Ref: [RULE-FRONT-001]
+Next15AsyncParamsGuard:
+  Invariant: "Route params must be declared as Promise<T> and awaited."
+  ActionOnViolation: "Convert { params }: { params: Promise<{ id: string }> } and await params."
 
-  - Scope: frontend-v2.src.app
-    Trigger: Accessing params synchronously without await in Next.js 15
-    CanonicalAction: Type params as Promise<{ [key: string]: string }> and await params before reading properties >> Ref: [RULE-FRONT-002]
+BlobUrlMemoryLeakGuard:
+  Invariant: "Object URLs must be revoked before creating a replacement and on unmount."
+  ActionOnViolation: "Add URL.revokeObjectURL(previousUrlRef.current) before update and in cleanup."
 
-  - Scope: frontend-v2.src.hooks
-    Trigger: Creating object URL with URL.createObjectURL without revoking previous URL
-    CanonicalAction: Enforce URL.revokeObjectURL(previousUrlRef.current) before updating state and on unmount >> Ref: [RULE-FRONT-003]
-
-  - Scope: frontend-v2.src.lib.api
-    Trigger: Fetching internal backend port directly from browser runtime
-    CanonicalAction: Rewrite URL to route through /api/proxy/[...path] to ensure secure token injection
-
-CoreExtensionSlots:
-  FeatureSliceTaxonomy:
-    - templates: Authoring registry, upload wizard, and create modal
-    - studio: Monaco template editor, live HTML preview, variable extraction
-    - generator: Document render form, payload editor, Gotenberg invocation
-    - mapping: Field mapping visual designer, transform expressions, dnd
-    - datasources: Integration datasets and external DB connections
-    - auth: NextAuth session, login UI, and token lifecycle
-    - users: User management, role assignment
-    - apikeys: API key issuance and project scoping
-  ServerProxySlot: /api/proxy/[...path]/route.ts (Duplex streaming reverse proxy)
-  LivePreviewHookSlot: useLivePreview (Debounced rendering with abort lifecycle)
-  SplitEditorRecipeSlot: TemplateEditorSplitLayout (Monaco editor + PDF iframe layout)
-  DataTableRecipeSlot: DataTablePage (Enterprise grid with search & row actions)
-  WizardRecipeSlot: WizardLayout (Multi-step form container with stepper)
-  DashboardRecipeSlot: MetricsDashboardPage (KPI cards + Chart + Audit log feed)
+DirectBackendAccessGuard:
+  Invariant: "Browser runtime must not call backend API port directly."
+  ActionOnViolation: "Rewrite client fetch paths to route through /api/proxy/[...path]."
 ```
 
-### Frontend Bounded Context Taxonomy (`src/features/`)
+### 2.3 Frontend Bounded Context Taxonomy (`src/features/`)
 ```
 frontend-v2/src/features/
   templates/ # Authoring: List, Create, Upload Wizard, Choice Modal
@@ -124,13 +101,13 @@ frontend-v2/src/features/
   apikeys/ # IdentityAccess: API key tokens, project scoping
 ```
 
-### Hop-by-Hop Stripped Headers
+### 2.4 Hop-by-Hop Stripped Headers
 The Next.js reverse proxy MUST strip these headers before forwarding upstream:
 ```typescript
 const HOP_BY_HOP_HEADERS = ['host', 'connection', 'content-length', 'transfer-encoding'];
 ```
 
-### Component Boundary Classification Matrix
+### 2.5 Component Boundary Classification Matrix
 | Component Archetype | Execution Realm | Permitted Capabilities | Prohibited Patterns |
 |---|---|---|---|
 | `Page / Layout` | Server Component (RSC) | Async data fetching, session resolution | No React hooks (`useState`, `useEffect`), no event listeners |
@@ -139,14 +116,15 @@ const HOP_BY_HOP_HEADERS = ['host', 'connection', 'content-length', 'transfer-en
 
 ---
 
-## 3. Level 3: Canonical Frontend Archetypes
+## 3. Level 3: Canonical Frontend Archetypes (Surgical AST Recipes)
 
-### Secure Server Proxy Route (`/api/proxy/[...path]/route.ts`)
->> MANDATORY CANONICAL TEMPLATE [RULE-FRONT-001]:
-* [MUST] Route all client browser API traffic through the Next.js reverse proxy (`/api/proxy/[...path]`).
-* [MUST] Strip hop-by-hop headers (`host`, `connection`, `content-length`, `transfer-encoding`) before upstream dispatch.
-* [MUST] Inject backend Bearer JWT token strictly on server side from `httpOnly` NextAuth session cookies (prohibit client-side access).
-* [MUST] Stream backend response body directly to caller (`new Response(backendRes.body)` with duplex streaming).
+### 3.1 Secure Server Proxy Route Archetype (`/api/proxy/[...path]/route.ts`)
+>> MANDATORY CANONICAL BLUEPRINT [RULE-FRONT-001]:
+* Routes all client browser API traffic through the Next.js reverse proxy.
+* Strips hop-by-hop headers before upstream dispatch.
+* Injects backend Bearer JWT token strictly on server side from `httpOnly` NextAuth session cookies.
+* Streams backend response body directly to caller (`new Response(backendRes.body)` with duplex streaming).
+
 ```typescript
 import { NextRequest } from 'next/server';
 import { auth } from '@/auth';
@@ -157,28 +135,30 @@ const BACKEND_INTERNAL_URL =
 const HOP_BY_HOP_HEADERS = ['host', 'connection', 'content-length', 'transfer-encoding'];
 
 async function proxy(request: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
+  // Step 1: Resolve Async Route Params <Why: Next.js 15 dynamic route contract>
   const { path } = await params;
   const session = await auth();
 
   const targetUrl = `${BACKEND_INTERNAL_URL}/api/${path.join('/')}${request.nextUrl.search}`;
 
+  // Step 2: Strip Hop-by-Hop Headers <Why: prevent HTTP/1.1 vs HTTP/2 gateway forwarding conflicts>
   const headers = new Headers(request.headers);
   for (const name of HOP_BY_HOP_HEADERS) headers.delete(name);
 
-  // Inject backend Bearer token securely from httpOnly session
+  // Step 3: Inject Secure Server-Side Token & Tenancy <Why: zero client-side token exposure>
   if (session?.backendToken) {
     headers.set('Authorization', `Bearer ${session.backendToken}`);
   } else {
     headers.delete('authorization');
   }
 
-  // Inject active tenant ProjectId
   if (!headers.has('x-project-id') && session?.user?.projectId) {
     headers.set('x-project-id', session.user.projectId);
   }
 
   const hasBody = request.method !== 'GET' && request.method !== 'HEAD';
 
+  // Step 4: Stream Body Duplex <Why: direct response pass-through without memory buffering>
   const backendResponse = await fetch(targetUrl, {
     method: request.method,
     headers,
@@ -199,10 +179,11 @@ async function proxy(request: NextRequest, { params }: { params: Promise<{ path:
 export { proxy as GET, proxy as POST, proxy as PUT, proxy as PATCH, proxy as DELETE };
 ```
 
-### Next.js 15 Async Route Page Archetype (`src/app/(app)/studio/[templateId]/page.tsx`)
->> MANDATORY CANONICAL TEMPLATE [RULE-FRONT-002]:
-* [MUST] Treat `params` as `Promise<{ [key: string]: string }>` and `await params` before accessing properties.
-* [MUST] Execute initial server-side data fetching inside the RSC page before rendering client leaves.
+### 3.2 Next.js 15 Async Route Page Archetype (`src/app/(app)/studio/[templateId]/page.tsx`)
+>> MANDATORY CANONICAL BLUEPRINT [RULE-FRONT-002]:
+* Treats `params` as `Promise<{ [key: string]: string }>` and awaits `params` before accessing properties.
+* Executes server-side session checks inside the RSC page before rendering client leaves.
+
 ```tsx
 import { auth } from '@/auth';
 import { notFound } from 'next/navigation';
@@ -213,13 +194,16 @@ interface PageProps {
 }
 
 export default async function TemplateDetailsPage({ params }: PageProps) {
+  // Step 1: Await Route Params <Why: Next.js 15 partial prerendering compliance>
   const { id } = await params;
   const session = await auth();
 
+  // Step 2: Session Guard <Why: fail-fast on unauthenticated access at RSC level>
   if (!session?.user) {
     notFound();
   }
 
+  // Step 3: Render Leaf Client Component <Why: maintain lean RSC layout tree>
   return (
     <div className="flex h-full flex-col">
       <TemplateEditorClientWidget templateId={id} projectId={session.user.projectId} />
@@ -228,11 +212,12 @@ export default async function TemplateDetailsPage({ params }: PageProps) {
 }
 ```
 
-### Real-Time Live Preview Pipeline Hook (`useLivePreview.ts`)
->> MANDATORY CANONICAL TEMPLATE [RULE-FRONT-003]:
-* [MUST] Debounce live preview calls by at least 800ms to avoid Gotenberg engine thrashing.
-* [MUST] Cancel inflight HTTP requests via `AbortController` before issuing new preview calls.
-* [MUST] Clean up browser memory by calling `URL.revokeObjectURL(previousUrl)` whenever a new preview Blob URL is created or component unmounts.
+### 3.3 Real-Time Live Preview Pipeline Hook Archetype (`useLivePreview.ts`)
+>> MANDATORY CANONICAL BLUEPRINT [RULE-FRONT-003]:
+* Debounces live preview calls by at least 800ms to avoid Gotenberg engine thrashing.
+* Cancels inflight HTTP requests via `AbortController` before issuing new preview calls.
+* Cleans up browser memory by calling `URL.revokeObjectURL(previousUrl)` whenever a new preview Blob URL is created or component unmounts.
+
 ```typescript
 'use client';
 
@@ -251,6 +236,7 @@ export function useLivePreview(slug?: string, html?: string, sampleDataJson?: st
   const triggerPreview = useCallback(async () => {
     if (!slug && !html) return;
 
+    // Step 1: Abort Previous In-Flight Request <Why: prevent out-of-order race conditions>
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
@@ -268,10 +254,12 @@ export function useLivePreview(slug?: string, html?: string, sampleDataJson?: st
         signal: controller.signal,
       });
 
+      // Step 2: Revoke Previous Object URL <Why: prevent browser heap memory leaks>
       if (previousUrlRef.current) {
         URL.revokeObjectURL(previousUrlRef.current);
       }
 
+      // Step 3: Create New Blob URL <Why: isolated streaming iframe preview>
       const newUrl = URL.createObjectURL(blob);
       previousUrlRef.current = newUrl;
       setPdfUrl(newUrl);
@@ -284,6 +272,7 @@ export function useLivePreview(slug?: string, html?: string, sampleDataJson?: st
     }
   }, [slug, html, sampleDataJson]);
 
+  // Step 4: 800ms Debounce Lifecycle <Why: protect Gotenberg from CPU thrashing during typing>
   useEffect(() => {
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     debounceTimerRef.current = setTimeout(triggerPreview, 800);
@@ -298,15 +287,9 @@ export function useLivePreview(slug?: string, html?: string, sampleDataJson?: st
 }
 ```
 
----
+### 3.4 Canonical Screen Recipes
 
-## 3.1 UI Architectural Recipes (Canonical Screen Archetypes)
->> MANDATORY CANONICAL TEMPLATES [RULE-FRONT-004]:
-* [MUST] Adhere to the 4 canonical enterprise screen recipes below without introducing divergent layout conventions.
-
-### Recipe A: Dynamic Split-Pane Template Editor
-* Target: Template Editor, Live Preview Studio (`src/app/(app)/studio/[templateId]/page.tsx`).
-* Invariants: Left pane code editor, right pane streaming PDF preview iframe, header with manual render action.
+#### Recipe A: Dynamic Split-Pane Template Editor (`TemplateEditorSplitLayout`)
 ```tsx
 'use client';
 
@@ -351,9 +334,7 @@ export function TemplateEditorSplitLayout({ initialHtml, slug }: { initialHtml: 
 }
 ```
 
-### Recipe B: Enterprise Data Table Management
-* Target: Template Registry, API Key Management, User List (`src/app/(app)/templates/page.tsx`).
-* Invariants: Search + Filter Header, Table body with row action buttons, compact enterprise badges.
+#### Recipe B: Enterprise Data Table Management (`DataTablePage`)
 ```tsx
 'use client';
 
@@ -416,9 +397,7 @@ export function DataTablePage({ items, onSearch, onCreateNew }: DataTableProps) 
 }
 ```
 
-### Recipe C: Multi-Step Form Wizard Layout
-* Target: Template Creation Wizard, Data Connection Setup (`src/app/(app)/upload/page.tsx`).
-* Invariants: Horizontal step tracker, single card container for current step, persistent Back/Next footer with form validation guard.
+#### Recipe C: Multi-Step Form Wizard Layout (`WizardLayout`)
 ```tsx
 'use client';
 
@@ -468,9 +447,7 @@ export function WizardLayout({ currentStep, totalSteps, title, description, chil
 }
 ```
 
-### Recipe D: Executive Metrics Dashboard Layout
-* Target: Analytics, Throughput, System Health (`src/app/(app)/analytics/page.tsx`).
-* Invariants: 4-Column KPI grid, responsive chart container, recent activity event feed.
+#### Recipe D: Executive Metrics Dashboard Layout (`MetricsDashboardPage`)
 ```tsx
 'use client';
 

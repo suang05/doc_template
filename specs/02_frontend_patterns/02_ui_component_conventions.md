@@ -5,14 +5,14 @@ Scope: UI Component Conventions, Ice-White Design Tokens, CVA Component Variants
 SSoT_For: Frontend Component Design System, Tailwind CSS Tokens, Radix Primitives, Form Validation Schemas, and Vitest Component Testing.
 Out_Of_Scope: Next.js App Router data fetching and proxy architecture (see: 01_app_router_and_data_fetching.md), Backend API presentation (see: ../01_clean_arch_patterns/04_api_presentation_layer.md).
 Target: `frontend-v2/` (`src/components/ui/`, `src/features/*/schemas/`, `src/__tests__/`).
-ArchitecturalSignals: [ARCH_EVOLUTION_FRONTEND]
+ArchitecturalSignals: [ARCH_EVOLUTION_FRONTEND_UI]
 </context>
 
 ---
 
 ## 1. Level 1: UI Component & Design System Invariants Matrix
 
-### Architectural Wiring & Design Contracts
+### 1.1 Architectural Wiring & Design Contracts
 | Direction | Upstream Origin | Current Role (UI Primitive Engine) | Downstream Destination |
 |---|---|---|---|
 | **Design Tokens** | CSS Custom Properties (`:root`) | Defines ice-white surfaces and slate typography | Tailwind CSS Theme Configuration |
@@ -21,59 +21,47 @@ ArchitecturalSignals: [ARCH_EVOLUTION_FRONTEND]
 | **Icons** | Lucide React Icon Package | Consistent 16px/18px stroke rendering | UI Buttons, Headers & Status Badges |
 | **Test Verification** | Production Schemas (`@/features/*/schemas/`) | Co-located Vitest execution (`src/__tests__/`) | Quality Gate CI Pipeline |
 
-### UI Component Invariants Matrix
-| Architectural Concern | Prohibited Pattern (! BANNED) | Canonical SSoT Pattern (>> MANDATORY) |
+### 1.2 Affirmative UI Component & Design System Invariants
+| UI & Design System Concern | Affirmative Frontend Invariant (Positive SSoT Law) | Boundary Vector |
 |---|---|---|
-| **Border Radii** | Arbitrary or large rounding: `rounded-xl`, `rounded-2xl` | Compact Enterprise Geometry: `0px` (`rounded-none`), `2px` (`rounded-sm`), `4px` (`rounded-md`) |
-| **Color Tokens** | Hardcoded arbitrary hex: `bg-[#0284c7]` | Curated Ice-White design tokens or Tailwind semantic utility classes |
-| **Component Variants** | Ad-hoc template string conditional styles | `class-variance-authority` (CVA) variant definitions |
-| **Icon Set** | Raw inline `<svg>` elements or inconsistent icon packages | Standard Lucide React icons (`lucide-react`) with fixed `size={16}` or `size={18}` |
-| **Validation Schemas** | Defining duplicated test-local Zod schemas in tests | SSoT Zod schemas co-located in `src/features/{slice}/schemas/` and imported from `@/features/*` |
-| **Test Co-location** | Creating isolated `src/tests/` directory | Strictly co-located in `frontend-v2/src/__tests__/` matching source structure |
-| **Raw HTML Inputs** | Direct `<input>` or `<button>` without styling wrapper | Controlled CVA UI primitives (`<Input>`, `<Button>`, `<Card>`) |
+| **Compact Enterprise Geometry** | UI components adhere strictly to compact radii: `0px` (`rounded-none`), `2px` (`rounded-sm`), and `4px` (`rounded-md`). Consumer geometries (`rounded-xl`, `rounded-2xl`) are prohibited. | Border Geometry |
+| **Curated Design Tokens** | Surface backdrops, borders, and text colors consume semantic CSS custom properties or standard Tailwind utility classes. Hardcoded arbitrary hex values are prohibited. | Theme Tokens |
+| **Type-Safe Component Variants**| UI primitive styling is managed strictly through `class-variance-authority` (CVA) variant definitions. Ad-hoc template string conditional styles are prohibited. | Component Styling |
+| **Standardized Iconography** | Icons are imported exclusively from `lucide-react` with fixed `size={16}` or `size={18}` strokes. Inlining raw `<svg>` elements or mixing external icon packages is prohibited. | Icon Assets |
+| **SSoT Validation Schemas** | Form and payload validation schemas reside in `src/features/{slice}/schemas/` and are imported into both UI forms and Vitest specs. Redefining duplicate schemas in tests is prohibited. | Schema Integrity |
+| **Co-Located Test Directory** | Frontend unit and schema tests reside strictly under `frontend-v2/src/__tests__/` matching source structure. Separate or isolated `src/tests/` folders are prohibited. | Test Organization |
+| **Controlled UI Primitives** | Interactive elements wrap accessible Radix/CVA primitives (`<Button>`, `<Input>`, `<Card>`). Bare unstyled HTML form elements are prohibited. | DOM Primitives |
 
 ---
 
 ## 2. Level 2: Core Design System SSoT ASTs & Cognitive UI Engine
 
-### Engineering Rationale & Architectural Decisions
+### 2.1 Engineering Rationale & Architectural Decisions
 * **Why Compact Enterprise Geometry (<= 4px):** Enterprise document workflows require dense, information-rich viewports; consumer `rounded-2xl` cards waste substantial screen real estate and reduce professional visual cohesion.
 * **Why Ice-White Background (`#f8fbfe`):** A subtle cool undertone distinguishes active white card surfaces (`#ffffff`) from screen canvas without harsh contrast or eye strain.
 * **Why Class Variance Authority (CVA):** Eliminates messy ternary string concatenations, providing type-safe compile-time variant combinations with automatic default fallbacks.
 * **Why Single Source of Truth Zod Schemas:** Form validation schemas must match backend request rules; importing the same schema into tests guarantees zero test-drift and eliminates tautological tests.
 
-### Cognitive UI Optimization & Guard Engine
+### 2.2 Proactive UI Guards
 ```yaml
-OptimizationObjectives:
-  PrimaryObjective: Dense Information Architecture, Unified Enterprise Aesthetics & Strict Contract Fidelity
-  TradeOffPriority: VisualCohesion > TypographicClarity > ComponentReusability > CustomStylingFreedom
+CompactGeometryGuard:
+  Invariant: "UI primitives must use rounded-none, rounded-sm, or rounded-md."
+  ActionOnViolation: "Replace rounded-lg, rounded-xl, or rounded-2xl with rounded-md."
 
-ProactiveUiGuards:
-  - Scope: frontend-v2.src.components
-    Trigger: Declaration of rounded-lg, rounded-xl, or rounded-2xl on UI primitives
-    CanonicalAction: Enforce Compact Enterprise Geometry (rounded-none, rounded-sm, or rounded-md) >> Ref: [RULE-UI-001]
+LucideIconStandardGuard:
+  Invariant: "Icons must be imported from lucide-react with fixed size."
+  ActionOnViolation: "Replace inline <svg> with standardized Lucide React icon component."
 
-  - Scope: frontend-v2.src.components
-    Trigger: Use of raw inline <svg> instead of Lucide React icon
-    CanonicalAction: Import standard icon from lucide-react with size={16} or size={18} >> Ref: [RULE-UI-002]
+ZodSchemaSourceGuard:
+  Invariant: "Tests must import production Zod schemas from @/features/*/schemas/."
+  ActionOnViolation: "Remove local duplicate z.object() and import SSoT schema."
 
-  - Scope: frontend-v2.src.__tests__
-    Trigger: Inline duplicate z.object() declared inside test spec
-    CanonicalAction: Import SSoT schema directly from @/features/*/schemas/ >> Ref: [RULE-UI-003]
-
-  - Scope: frontend-v2.src
-    Trigger: Hardcoded hex color codes in className (e.g. bg-[#...])
-    CanonicalAction: Substitute with Tailwind semantic token (bg-slate-*, text-sky-*, etc.)
-
-CoreExtensionSlots:
-  PrimitiveButtonSlot: Button (CVA-managed action primitive)
-  PrimitiveInputSlot: Input (CVA-managed text field with focus rings)
-  PrimitiveCardSlot: Card / CardHeader / CardContent (Container primitive)
-  ValidationSchemaSlot: *Schema (Zod runtime and inferred TypeScript type)
-  VitestSpecSlot: __tests__/* (Co-located Vitest behavioral assertions)
+SemanticColorTokenGuard:
+  Invariant: "Tailwind classes must use semantic tokens rather than arbitrary hex."
+  ActionOnViolation: "Replace bg-[#...] with bg-slate-* or text-sky-* tokens."
 ```
 
-### Ice-White Design Token Palette
+### 2.3 Ice-White Design Token Palette
 ```css
 :root {
   /* Surface & Background */
@@ -99,29 +87,30 @@ CoreExtensionSlots:
 }
 ```
 
-### Compact Enterprise Geometry Rules
-| Geometry Token | Tailwind Class | Application Scope | Prohibited Alternatives (! BANNED) |
+### 2.4 Compact Enterprise Geometry Rules
+| Geometry Token | Tailwind Class | Application Scope | Prohibited Alternatives |
 |---|---|---|---|
 | **`0px`** | `rounded-none` | Split-screen panels, monaco editor containers | - |
 | **`2px`** | `rounded-sm` | Badges, tags, table action buttons | Large rounded tags |
-| **`4px`** | `rounded-md` | Cards, modals, text inputs, primary buttons | ! `rounded-xl`, `rounded-2xl` |
-| **Pills** | `rounded-full` | Strictly restricted to avatar icons & circular badges | ! Full-pill buttons or input fields |
+| **`4px`** | `rounded-md` | Cards, modals, text inputs, primary buttons | `rounded-xl`, `rounded-2xl` |
+| **Pills** | `rounded-full` | Strictly restricted to avatar icons & circular badges | Full-pill buttons or input fields |
 
 ---
 
-## 3. Level 3: Canonical Component & Schema Archetypes
+## 3. Level 3: Canonical Component & Schema Archetypes (Surgical AST Recipes)
 
-### CVA Component Variant Archetype (`Button.tsx`)
->> MANDATORY CANONICAL TEMPLATE [RULE-UI-001]:
-* [MUST] Define UI primitive variants using `class-variance-authority` (CVA).
-* [MUST] Use Compact Enterprise Geometry (`rounded-none`, `rounded-sm`, `rounded-md`); prohibit `rounded-xl` and `rounded-2xl`.
-* [MUST] Integrate `cn()` helper (`clsx` + `tailwind-merge`) to merge caller-provided `className`.
-* [MUST] Forward refs via `React.forwardRef` and declare explicit `displayName`.
+### 3.1 CVA Component Variant Archetype (`Button.tsx`)
+>> MANDATORY CANONICAL BLUEPRINT [RULE-UI-001]:
+* Defines UI primitive variants using `class-variance-authority` (CVA).
+* Uses Compact Enterprise Geometry (`rounded-md`); merges caller `className` via `cn()`.
+* Forwards `ref` via `React.forwardRef` and declares explicit `displayName`.
+
 ```typescript
 import * as React from 'react';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@/utils/cn';
 
+// Step 1: Define CVA Variant Schema <Why: type-safe styling without string concatenation>
 export const buttonVariants = cva(
   'inline-flex items-center justify-center font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:pointer-events-none disabled:opacity-50 rounded-md',
   {
@@ -151,6 +140,7 @@ export interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement>,
     VariantProps<typeof buttonVariants> {}
 
+// Step 2: Implement Component with ForwardRef <Why: enable seamless form hook and focus integration>
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant, size, ...props }, ref) => {
     return (
@@ -165,10 +155,11 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 Button.displayName = 'Button';
 ```
 
-### CVA Input Primitive Archetype (`Input.tsx`)
->> MANDATORY CANONICAL TEMPLATE [RULE-UI-002]:
-* [MUST] Apply compact enterprise 4px border radius (`rounded-md`), subtle borders (`border-slate-300`), and accessible sky focus rings.
-* [MUST] Integrate with `cn()` utility and forward `ref`.
+### 3.2 CVA Input Primitive Archetype (`Input.tsx`)
+>> MANDATORY CANONICAL BLUEPRINT [RULE-UI-002]:
+* Applies compact enterprise 4px border radius (`rounded-md`), subtle borders (`border-slate-300`), and accessible focus rings.
+* Integrates with `cn()` utility and forwards `ref`.
+
 ```typescript
 import * as React from 'react';
 import { cn } from '@/utils/cn';
@@ -177,6 +168,7 @@ export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> 
 
 export const Input = React.forwardRef<HTMLInputElement, InputProps>(
   ({ className, type, ...props }, ref) => {
+    // Step 1: Render Styled Input Primitive <Why: unified focus states and compact enterprise padding>
     return (
       <input
         type={type}
@@ -193,9 +185,10 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
 Input.displayName = 'Input';
 ```
 
-### Enterprise Card Container Archetype (`Card.tsx`)
->> MANDATORY CANONICAL TEMPLATE [RULE-UI-003]:
-* [MUST] Encapsulate container geometry with `rounded-md`, `border-slate-200`, and clean surface card backgrounds.
+### 3.3 Enterprise Card Container Archetype (`Card.tsx`)
+>> MANDATORY CANONICAL BLUEPRINT [RULE-UI-003]:
+* Encapsulates container geometry with `rounded-md`, `border-slate-200`, and clean surface card backgrounds.
+
 ```typescript
 import * as React from 'react';
 import { cn } from '@/utils/cn';
@@ -243,70 +236,82 @@ export const CardFooter = React.forwardRef<HTMLDivElement, React.HTMLAttributes<
 CardFooter.displayName = 'CardFooter';
 ```
 
-### SSoT Zod Validation Schema Archetype (`template.schema.ts`)
->> MANDATORY CANONICAL TEMPLATE [RULE-UI-004]:
-* [MUST] Define form and payload validation schemas in `src/features/{feature}/schemas/` as Single Source of Truth.
-* [MUST] Export both runtime Zod schema (`*Schema`) and derived TypeScript type (`z.infer<typeof *Schema>`).
-* [MUST NOT] Redefine or duplicate Zod schemas locally inside unit test files.
+### 3.4 SSoT Zod Validation Schema Archetype (`template.schema.ts`)
+>> MANDATORY CANONICAL BLUEPRINT [RULE-UI-004]:
+* Defines form and payload validation schemas in `src/features/{feature}/schemas/` as Single Source of Truth.
+* Exports both runtime Zod schema (`*Schema`) and derived TypeScript type (`z.infer<typeof *Schema>`).
+
 ```typescript
 import { z } from 'zod';
 
+// Step 1: Reusable Field Rules <Why: consistent slug regex and length constraints across app>
 export const slugSchema = z
   .string()
   .min(2, 'Slug must be at least 2 characters')
   .max(100, 'Slug must not exceed 100 characters')
   .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, 'Slug must be lowercase alphanumeric and hyphens');
 
-export const CreateTemplateRequestSchema = z.object({
-  name: z.string().min(1, 'Template name is required').max(100),
+// Step 2: Composite Request Schema <Why: runtime validation matching backend OpenAPI contract>
+export const Create{Aggregate}RequestSchema = z.object({
+  name: z.string().min(1, '{Aggregate} name is required').max(100),
   slug: slugSchema,
   category: z.string().max(50).optional().nullable(),
   htmlContent: z.string().optional().nullable(),
 });
 
-export type CreateTemplateRequest = z.infer<typeof CreateTemplateRequestSchema>;
+// Step 3: Infer Static TypeScript Type <Why: compile-time type safety derived from runtime schema>
+export type Create{Aggregate}Request = z.infer<typeof Create{Aggregate}RequestSchema>;
 ```
 
-### Co-Located Vitest Spec Archetype (`src/__tests__/schemas.test.ts`)
->> MANDATORY CANONICAL TEMPLATE [RULE-UI-005]:
-* [MUST] Co-locate tests strictly under `frontend-v2/src/__tests__/`.
-* [MUST] Import real production schemas from `@/features/*/schemas/` to eliminate test drift.
+### 3.5 Co-Located Vitest Spec Archetype (`src/__tests__/schemas.test.ts`)
+>> MANDATORY CANONICAL BLUEPRINT [RULE-UI-005]:
+* Co-locates tests strictly under `frontend-v2/src/__tests__/`.
+* Imports real production schemas from `@/features/*/schemas/` to eliminate test drift.
+
 ```typescript
 import { describe, it, expect } from 'vitest';
-import { CreateTemplateRequestSchema } from '@/features/templates/schemas/template.schema';
+import { Create{Aggregate}RequestSchema } from '@/features/{feature}/schemas/{aggregate}.schema';
 
-describe('CreateTemplateRequestSchema validation', () => {
-  it('should accept valid template payload', () => {
+describe('Create{Aggregate}RequestSchema validation', () => {
+  it('should accept valid payload', () => {
+    // Arrange: Valid payload matching schema
     const validData = {
-      name: 'Invoice Template',
-      slug: 'invoice-template',
-      category: 'Billing',
+      name: 'Sample Name',
+      slug: 'sample-slug',
+      category: 'General',
     };
 
-    const result = CreateTemplateRequestSchema.safeParse(validData);
+    // Act: Validate via SSoT schema
+    const result = Create{Aggregate}RequestSchema.safeParse(validData);
+
+    // Assert: Must pass validation
     expect(result.success).toBe(true);
   });
 
   it('should reject invalid uppercase characters in slug', () => {
+    // Arrange: Invalid slug with uppercase characters
     const invalidData = {
-      name: 'Invoice Template',
-      slug: 'INVOICE_TEMPLATE',
+      name: 'Sample Name',
+      slug: 'INVALID_SLUG',
     };
 
-    const result = CreateTemplateRequestSchema.safeParse(invalidData);
+    // Act & Assert
+    const result = Create{Aggregate}RequestSchema.safeParse(invalidData);
     expect(result.success).toBe(false);
     if (!result.success) {
       expect(result.error.issues[0].path).toContain('slug');
     }
   });
 
-  it('should fail when template name is empty', () => {
+  it('should fail when name is empty', () => {
+    // Arrange: Empty required name field
     const invalidData = {
       name: '',
       slug: 'valid-slug',
     };
 
-    const result = CreateTemplateRequestSchema.safeParse(invalidData);
+    // Act & Assert
+    const result = Create{Aggregate}RequestSchema.safeParse(invalidData);
     expect(result.success).toBe(false);
   });
 });
@@ -333,7 +338,7 @@ describe('CreateTemplateRequestSchema validation', () => {
 ### [TRAP-UI-003]: Test-Local Duplicate Zod Schemas
 ```diff
 - const localSchema = z.object({ name: z.string() }); // REJECTED: Tautological test!
-+ import { CreateTemplateRequestSchema } from '@/features/templates/schemas/template.schema';
++ import { Create{Aggregate}RequestSchema } from '@/features/{feature}/schemas/{aggregate}.schema';
 ```
 *Rationale: Testing against isolated local schemas tests the mock schema rather than production validation rules.*
 
@@ -347,6 +352,6 @@ describe('CreateTemplateRequestSchema validation', () => {
 ### [TRAP-UI-005]: Unwrapped Raw HTML Inputs
 ```diff
 - <input type="text" className="p-2 border" onChange={handleChange} />
-+ <Input placeholder="Enter template name..." value={name} onChange={handleChange} />
++ <Input placeholder="Enter name..." value={name} onChange={handleChange} />
 ```
 *Rationale: Raw HTML inputs lack standardized enterprise focus rings, accessible disabled states, and compact geometry tokens.*
