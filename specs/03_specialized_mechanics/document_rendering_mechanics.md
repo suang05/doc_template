@@ -4,15 +4,15 @@
 Scope: Polymorphic Rendering Engines, 2-Track Rendering Pipeline, Gotenberg Chromium Microservice, Zero-LOH Bounded Streaming, OpenXML DrawingML Fix, Thai Formatting Transformers, and ClosedXML Print Fit.
 SSoT_For: Render Engine Resolution, Gotenberg Response Streaming, Storage Perimeter Egress, Thai Formatting, OpenXML DrawingML Fix, and ClosedXML Print Fit.
 Out_Of_Scope: Presentation layer routing and RFC 9457 exceptions (see: ../01_clean_arch_patterns/04_api_presentation_layer.md), General Security and Performance bounds (see: ../00_architecture_core/03_security_and_performance.md).
-Target: `backend-v2/` (`SmkDoc.Infrastructure/Engines/`, `SmkDoc.Infrastructure/Pdf/`, `SmkDoc.Application/Common/Helpers/`).
-ArchitecturalSignals: [ARCH_EVOLUTION_RENDERING], [ARCH_EVOLUTION_API]
+Target: `backend-v2/` (`SmkDoc.Infrastructure/Engines/`, `SmkDoc.Infrastructure/Pdf/`, `SmkDoc.Application/Common/Helpers/`, `SmkDoc.Api/Controllers/Rendering/`).
+ArchitecturalSignals: [ARCH_EVOLUTION_RENDERING]
 </context>
 
 ---
 
 ## 1. Level 1: Document Rendering Invariants Matrix
 
-### Architectural Wiring & Rendering Contracts
+### 1.1 Architectural Wiring & Rendering Contracts
 | Direction | Upstream Origin | Current Role (Document Synthesis Core) | Downstream Destination |
 |---|---|---|---|
 | **Render Request** | Application UseCase (`RenderDocumentUseCase`)| Resolves polymorphic engine via resolver | `IRenderEngine` Implementation |
@@ -23,27 +23,27 @@ ArchitecturalSignals: [ARCH_EVOLUTION_RENDERING], [ARCH_EVOLUTION_API]
 | **Streaming Egress**| Engine Render Result | Direct Stream pass-through with bounded buffer | HTTP Wire Response (`Response.Body`) |
 | **Storage Egress** | MinIO S3 Object Store | Server-side reverse-proxy streaming via Gateway | Client Download (Zero 307 Redirects) |
 
-### Document Rendering Invariants Matrix
-| Architectural Concern | Prohibited Pattern (! BANNED) | Canonical SSoT Pattern (>> MANDATORY) |
+### 1.2 Affirmative Document Rendering Invariants
+| Rendering Architectural Concern | Affirmative Rendering Invariant (Positive SSoT Law) | Boundary Vector |
 |---|---|---|
-| **Buffer Allocations & Port Purity** | ! Exposing `byte[]` / `Task<byte[]>` on `IRenderEngine`/`IPdfRenderer` or copying packages into unbounded `MemoryStream` | >> Pure `Task<Stream>` port contracts; direct HTTP response streaming (`81,920`-byte buffer), `Stream.Null` dry-run validation, and `HybridSpoolStream` (`<= 64 KB` pooled `ArrayPool<byte>`; `> 64 KB` `DeleteOnClose` temp `FileStream`) for seekable packages |
-| **Engine Resolution** | ! Hardcoded `if/else` or `switch` chains for engine selection | >> Polymorphic dispatch via `IRenderEngine` & `RenderEngineResolver` |
-| **Storage Perimeter Egress** | ! Emitting HTTP 307 redirects or raw MinIO URLs to clients | >> Server-side bounded streaming pass-through (`81,920` buffer) keeping MinIO private inside isolated Docker VPC |
-| **2-Track Rendering Pipeline**| ! Forcing high-volume batch renders through synchronous 30 req/min endpoint causing 429 rejections | >> 2-Track Architecture: 1) Sync Pipeline for Monaco Live Preview (`30 req/min`), 2) Async Queue (`POST /api/v1/documents/generate-async`, `202 Accepted` + `Location: /api/v1/documents/jobs/{jobId}`, `DocumentRenderQueueWorker` with `SemaphoreSlim(4)` Gotenberg backpressure and Redis/Memory `IDocumentRenderQueue`) |
-| **Resource Protection** | ! Allowing unthrottled rendering requests to saturate Gotenberg Chromium | >> Enforce dedicated `rendering` rate-limiting policy (`30 req/min` per tenant) returning RFC 9457 ProblemDetails (`429 Too Many Requests`) |
-| **OpenXML DrawingML** | ! Leaving graphic frame property IDs as default `0` | >> Explicit positive non-zero integers ($\ge 1$) via `DrawingMlIdFixer` |
-| **Excel Printing** | ! Spreadsheets clipping content on print or PDF export | >> Automatic A4 portrait fit: `worksheet.PageSetup.FitToPages(1, 0)` |
-| **Thai Formatting** | ! Inline date / Baht text conversions inside Handlebars | >> Centralized `ThaiDataTransformer` helper methods |
-| **Thai Font Marks** | ! Missing Thai tone marks or floating vowels in PDF | >> Automated Google Fonts Sarabun injection in `HtmlLayoutProcessor` |
-| **Storage Retention & Auto-Purge** | ! Retaining generated document outputs in MinIO indefinitely, causing unbounded storage growth | >> Periodic background batch purging via `DocumentRetentionWorker` consuming `TimeProvider` to delete expired MinIO objects from `StorageBuckets.Outputs` and mark logs as purged |
-| **Immutable Payload Validation** | ! Mutating, computing, or transforming JSON payloads during rendering pipeline | >> Pure payload ingestion: JSON Schema Draft-07 validation with exact RFC 9457 error details; zero payload mutation |
-| **Synchronous Rendering**| ! Blocking on network/disk I/O (`.Result`, `.Wait()`) | >> 100% asynchronous execution with forwarded `CancellationToken` |
+| **Zero-LOH Stream Purity** | Render and PDF contracts expose pure `Task<Stream>` types. Output streams are piped with bounded `81,920`-byte buffers, dry-run validations drain to `Stream.Null`, and seekable packages use `HybridSpoolStream`. Multi-MB `byte[]` arrays are prohibited. | Memory & GC Boundary |
+| **Polymorphic Engine Resolution**| Document synthesis resolves engines dynamically via `IRenderEngineResolver` based on `RenderEngineType`. Hardcoded switch/if-else branching is prohibited. | Engine Extensibility |
+| **Storage Perimeter Isolation** | Generated documents and templates stream server-side through API Gateway (`File(stream, ...)`). Emitting HTTP 307 redirects or raw internal MinIO URLs to clients is prohibited. | Network Perimeter |
+| **2-Track Rendering Pipeline** | Rendering architecture is partitioned into Track 1 (Synchronous Monaco Live Preview with `rendering` rate limit 30 req/min) and Track 2 (Asynchronous Batch Queue via `POST generate-async`, `202 Accepted` + `Location` header, drained by `DocumentRenderQueueWorker` with `SemaphoreSlim(4)` backpressure). | Workload Partitioning |
+| **Chromium Pod Protection** | Document rendering endpoints enforce the dedicated `rendering` rate-limiting policy (30 req/min per tenant) returning RFC 9457 ProblemDetails (`429 Too Many Requests`). | Service Resilience |
+| **OpenXML Graphic Frame IDs** | All OpenXML drawing elements are intercepted via `DrawingMlIdFixer` to enforce explicit positive non-zero integers ($\ge 1$) for `nvPr.Id`. Prohibit zero or duplicate graphic IDs. | Document Integrity |
+| **Excel Print-Width Clamping** | All ClosedXML spreadsheet worksheets apply A4 portrait fit: `worksheet.PageSetup.FitToPages(1, 0)` and `AdjustToContents()`. Horizontal content clipping is prohibited. | Spreadsheet Geometry |
+| **Centralized Thai Typography** | Thai Buddhist Era calendar conversion (+543 years) and Baht text currency formatting execute exclusively through `ThaiDataTransformer`. Inline date math in templates is prohibited. | Linguistic Determinism |
+| **Thai Font Injection** | HTML render templates inject Google Fonts Sarabun font declarations via `HtmlLayoutProcessor` to guarantee accurate tone mark positioning in headless Chromium. | Font Rendering |
+| **Ephemeral Storage Purging** | Expired MinIO document outputs in `StorageBuckets.Outputs` are purged on a background schedule via `DocumentRetentionWorker` using `TimeProvider.GetUtcNow()`. | Storage Lifecycle |
+| **Pure Payload Ingestion** | JSON payloads are validated against JSON Schema Draft-07 fail-fast during generation without mutating payload data or duplicating validation endpoints. | Ingestion Pipeline |
+| **Asynchronous Streaming IO** | All rendering, network piping, and storage interactions execute 100% asynchronously with forwarded `CancellationToken`. Synchronous blocking (`.Result`, `.Wait()`) is prohibited. | Concurrency Safety |
 
 ---
 
 ## 2. Level 2: Core Rendering SSoT ASTs & Cognitive Rendering Engine
 
-### Engineering Rationale & Architectural Decisions
+### 2.1 Engineering Rationale & Architectural Decisions
 * **Why 2-Track Rendering Architecture:** Live preview in Monaco Studio requires sub-second synchronous turnaround to provide instant visual feedback. High-volume ERP batch generation (e.g. 5,000 invoices at month-end) would exhaust Chromium memory pods if submitted synchronously. Decoupling batch into an asynchronous job queue (`202 Accepted`) allows background workers to drain tasks at a concurrency rate matched to Gotenberg pod capacity.
 * **Why Banning HTTP 307 Redirects to Internal MinIO:** MinIO operates inside an internal container network (`http://minio:9000`). Emitting a 307 redirect exposes private infrastructure endpoints to outside clients, breaks corporate firewalls, and leaks storage topology. Streaming through the API gateway enforces Zero-Trust isolation.
 * **Why 81,920-Byte Buffer Threshold:** The .NET runtime allocates objects $\ge 85,000$ bytes on the Large Object Heap (LOH). The LOH is never compacted during Gen 0/1 sweeps; continuous multi-MB PDF buffering produces severe LOH fragmentation and costly Gen 2 stop-the-world GC pauses. Direct streaming bounded at 81,920 bytes completely avoids LOH allocation.
@@ -51,46 +51,31 @@ ArchitecturalSignals: [ARCH_EVOLUTION_RENDERING], [ARCH_EVOLUTION_API]
 * **Why OpenXML DrawingML Graphic Frame Non-Zero IDs:** Microsoft Word strictly rejects OpenXML packages where image or chart graphic frame IDs are `0` or duplicated, triggering file corruption warnings on user workstations.
 * **Why Centralized Thai Formatting:** Thai Buddhist Era dates and Baht text currency require specialized linguistic rules (tone mark positioning, grammatical edge cases, year +543); centralized transformers guarantee 100% deterministic outputs across PDF, DOCX, and XLSX exports.
 
-### Cognitive Rendering Optimization & Guard Engine
+### 2.2 Proactive Rendering Guards
 ```yaml
-OptimizationObjectives:
-  PrimaryObjective: High-Throughput Deterministic Rendering, Zero-LOH Memory Bounds & Gotenberg Pod Resilience
-  TradeOffPriority: MemorySafety (Zero-LOH) > GotenbergPodResilience > TypographicDeterminism (Thai Fonts) > CustomEngineExtensibility
+MemoryStreamProhibitionGuard:
+  Invariant: "Render engines and controllers must never buffer document outputs in byte[]."
+  ActionOnViolation: "Enforce live Stream pass-through with bounded 81,920 buffer."
 
-ProactiveRenderingGuards:
-  - Scope: SmkDoc.Infrastructure.Engines
-    Trigger: Detection of MemoryStream.ToArray() or byte[] buffer on document outputs
-    CanonicalAction: Enforce Stream pass-through with bounded 81,920 buffer >> Ref: [RULE-MECH-001]
+MinioRedirectProhibitionGuard:
+  Invariant: "Controllers must never return HTTP 307 redirects to internal MinIO instances."
+  ActionOnViolation: "Stream binary content directly through gateway using File(stream, ...)."
 
-  - Scope: SmkDoc.Api.Controllers
-    Trigger: Returning HTTP 307 Redirect to internal MinIO storage URL
-    CanonicalAction: Reject redirect; stream content directly through gateway using File(stream, ...) >> Ref: [RULE-MECH-006]
+OpenXmlZeroIdGuard:
+  Invariant: "OpenXML NonVisualDrawingProperties.Id must not be 0 or null."
+  ActionOnViolation: "Invoke DrawingMlIdFixer.EnsureNonZeroGraphicFrameId(nvPr)."
 
-  - Scope: SmkDoc.Infrastructure.Engines.Word
-    Trigger: Assignment of nvPr.Id = 0 or missing non-zero ID enforcement
-    CanonicalAction: Invoke DrawingMlIdFixer.EnsureNonZeroGraphicFrameId(nvPr) >> Ref: [RULE-MECH-002]
+ExcelPrintFitGuard:
+  Invariant: "ClosedXML worksheets must fit horizontally on a single page."
+  ActionOnViolation: "Call worksheet.PageSetup.FitToPages(1, 0) and AdjustToContents()."
 
-  - Scope: SmkDoc.Infrastructure.Engines.Excel
-    Trigger: Omitting PageSetup.FitToPages(1, 0) on A4 worksheets
-    CanonicalAction: Call ExcelPageSetupExtensions.ApplyA4FitToWidth(worksheet) >> Ref: [RULE-MECH-003]
-
-  - Scope: SmkDoc.Application.Common.Helpers
-    Trigger: Inline date math (e.g. + 543) or ad-hoc currency text formatting in templates
-    CanonicalAction: Route formatting through ThaiDataTransformer SSoT methods >> Ref: [RULE-MECH-004]
-
-CoreExtensionSlots:
-  RenderEngineSlot: IRenderEngine (Html, Docx, Excel polymorphic strategies)
-  EngineResolverSlot: IRenderEngineResolver (Type-safe engine selector)
-  ThaiTransformerSlot: ThaiDataTransformer (Centralized linguistic & currency transforms)
-  DrawingFixerSlot: DrawingMlIdFixer (Thread-safe graphic frame ID generator)
+ThaiFormattingGuard:
+  Invariant: "Templates must not perform inline date math or currency conversions."
+  ActionOnViolation: "Route transformations through centralized ThaiDataTransformer."
 ```
 
-### Polymorphic Rendering Engine Strategy Contract
+### 2.3 Polymorphic Rendering Engine Strategy Contract
 ```csharp
-namespace SmkDoc.Application.Common.Interfaces;
-
-using SmkDoc.Domain.Enums;
-
 public interface IRenderEngine
 {
     RenderEngineType EngineType { get; }
@@ -107,7 +92,7 @@ public interface IRenderEngineResolver
 }
 ```
 
-### Handlebars Authoritative Helpers Catalog
+### 2.4 Handlebars Authoritative Helpers Catalog
 | Helper Name | Usage in Template | Output Description |
 |---|---|---|
 | `thai_date` | `{{thai_date date_field}}` | Formats date into Buddhist Era (e.g. `21 ตุลาคม 2569`) |
@@ -121,21 +106,15 @@ public interface IRenderEngineResolver
 
 ---
 
-## 3. Level 3: Canonical Rendering Archetypes
+## 3. Level 3: Canonical Rendering Archetypes (Surgical AST Recipes)
 
-### Gotenberg Direct Response Streaming Archetype
->> MANDATORY CANONICAL TEMPLATE [RULE-MECH-001]:
-* [MUST] Use `HttpCompletionOption.ResponseHeadersRead` when invoking external Gotenberg rendering endpoints.
-* [MUST] Wrap `response.Content.ReadAsStreamAsync(ct)` in a `ResponseDisposingStream` so `HttpResponseMessage` is deterministically disposed on stream close.
-* [MUST] Spool unseekable engine streams via `ArrayPool<byte>` (81,920 bytes) + `IncrementalHash` (`SHA256`) into a `FileOptions.DeleteOnClose | FileOptions.Asynchronous` temporary `FileStream` before MinIO upload (Zero Large Object Heap allocation).
+### 3.1 Gotenberg Direct Response Streaming Archetype
+>> MANDATORY CANONICAL BLUEPRINT [RULE-MECH-001]:
+* Uses `HttpCompletionOption.ResponseHeadersRead` when invoking external Gotenberg rendering endpoints.
+* Wraps `response.Content.ReadAsStreamAsync(ct)` in a `ResponseDisposingStream` so `HttpResponseMessage` is deterministically disposed on stream close.
+* Spools unseekable engine streams via `HybridSpoolStream` (81,920 bytes) before storage upload (Zero Large Object Heap allocation).
+
 ```csharp
-using System.Net.Http;
-using System.Net.Http.Headers;
-using System.Text;
-using SmkDoc.Application.Common.Exceptions;
-
-namespace SmkDoc.Infrastructure.Pdf;
-
 public sealed class GotenbergHtmlRenderer(HttpClient httpClient)
 {
     public async Task<Stream> RenderHtmlToPdfStreamAsync(
@@ -144,6 +123,7 @@ public sealed class GotenbergHtmlRenderer(HttpClient httpClient)
         string? footerHtml = null,
         CancellationToken ct = default)
     {
+        // Step 1: Prepare Form Content <Why: pass HTML/CSS parts to Chromium headless>
         using var content = new MultipartFormDataContent();
         var htmlContent = new ByteArrayContent(Encoding.UTF8.GetBytes(html));
         htmlContent.Headers.ContentType = new MediaTypeHeaderValue("text/html");
@@ -168,6 +148,7 @@ public sealed class GotenbergHtmlRenderer(HttpClient httpClient)
             Content = content
         };
 
+        // Step 2: Send with ResponseHeadersRead <Why: avoid whole-body RAM buffering>
         var httpResponse = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
         if (!httpResponse.IsSuccessStatusCode)
         {
@@ -182,6 +163,7 @@ public sealed class GotenbergHtmlRenderer(HttpClient httpClient)
             }
         }
 
+        // Step 3: Wrap in ResponseDisposingStream <Why: releases HTTP socket when consumer closes stream>
         try
         {
             var innerStream = await httpResponse.Content.ReadAsStreamAsync(ct);
@@ -223,31 +205,13 @@ public sealed class ResponseDisposingStream(Stream innerStream, HttpResponseMess
 }
 ```
 
-### 2-Track Rendering Pipeline Presentation Archetype
->> MANDATORY CANONICAL TEMPLATE [RULE-MECH-006]:
-* [MUST] Provide Track 1 (Live Preview & Sync Generation) via `DocumentGenerationController`: synchronous streaming return via `File(stream, "application/pdf")`.
-* [MUST] Provide Track 2 (Async Batch Queue): enqueue background render job and return `AcceptedAtAction` (`202 Accepted`) with `JobId` and polling status URL.
-* [MUST] Provide Artifact Egress via `DocumentArtifactController`: pre-signed download URLs (`/download/{logId}/url`) or direct bounded stream pass-through (`/download/{logId}/file`).
-* [MUST NOT] Return HTTP 307 redirects to internal MinIO S3 instances.
-* [MUST NOT] Bundle generation, download, and version history into a single monolithic controller.
+### 3.2 2-Track Rendering Pipeline Presentation Archetype
+>> MANDATORY CANONICAL BLUEPRINT [RULE-MECH-006]:
+* Track 1 (Live Preview & Sync Generation): synchronous streaming return via `File(stream, "application/pdf")`.
+* Track 2 (Async Batch Queue): enqueue background render job and return `AcceptedAtAction` (`202 Accepted`) with `JobId` and polling status URL.
+* Direct server-side streaming pass-through for downloads; zero HTTP 307 redirects to MinIO.
+
 ```csharp
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.RateLimiting;
-using SmkDoc.Api.Common.Responses;
-using SmkDoc.Api.Constants;
-using SmkDoc.Api.Contracts.Rendering.Documents;
-using SmkDoc.Api.Filters;
-using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.Modules.Rendering.Documents.Commands.EnqueueDocumentGeneration;
-using SmkDoc.Application.Modules.Rendering.Documents.Commands.GenerateDocument;
-using SmkDoc.Application.Modules.Rendering.Documents.DTOs;
-using SmkDoc.Application.Modules.Rendering.Documents.Queries.GetDocumentJob;
-using SmkDoc.Application.Modules.Rendering.Documents.Queries.PreviewDocument;
-using SmkDoc.Domain.Exceptions;
-
-namespace SmkDoc.Api.Controllers.Rendering;
-
 [ApiController]
 [Route("api/v1/documents")]
 [Authorize(Policy = SmkDocPolicies.CanGenerateDocuments)]
@@ -264,8 +228,13 @@ public sealed class DocumentGenerationController(
     [ProducesResponseType(typeof(ApiResponse<GenerateDocumentResultDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> Generate([FromRoute] string slug, [FromBody] GenerateDocumentRequest request, CancellationToken ct)
     {
+        // Step 1: Translate Request to Command <Why: map transport payload to application command>
         var command = new GenerateDocumentCommand(slug, request.Payload, request.OutputFormat, request.DocumentRef, request.ChangeNote, request.SkipValidation);
+
+        // Step 2: Execute UseCase <Why: execute synchronous document generation>
         var result = await generateUseCase.ExecuteAsync(command, ct);
+
+        // Step 3: Envelope Egress <Why: standardized envelope with generation metadata>
         return Ok(new ApiResponse<GenerateDocumentResultDto>(result));
     }
 
@@ -274,8 +243,13 @@ public sealed class DocumentGenerationController(
     [Produces("application/pdf")]
     public async Task<IActionResult> Preview([FromBody] PreviewDocumentRequest request, CancellationToken ct)
     {
+        // Step 1: Translate Request to Query <Why: build ephemeral preview query>
         var query = new PreviewDocumentQuery(request.Payload, request.Html, null);
+
+        // Step 2: Execute UseCase <Why: render ephemeral stream via Gotenberg>
         var result = await previewUseCase.ExecuteAsync(query, ct);
+
+        // Step 3: Stream Live PDF Egress <Why: Zero-LOH stream return for browser display>
         Response.Headers.ContentDisposition = "inline";
         return File(result, "application/pdf");
     }
@@ -287,8 +261,13 @@ public sealed class DocumentGenerationController(
     [ProducesResponseType(typeof(ApiResponse<DocumentJobDto>), StatusCodes.Status202Accepted)]
     public async Task<IActionResult> GenerateAsync([FromRoute] string slug, [FromBody] GenerateDocumentRequest request, CancellationToken ct)
     {
+        // Step 1: Translate Request to Batch Command <Why: capture batch render request>
         var command = new EnqueueDocumentGenerationCommand(slug, request.Payload, request.OutputFormat, request.DocumentRef, request.ChangeNote, request.SkipValidation);
+
+        // Step 2: Enqueue Job <Why: place job in Redis/Memory queue with backpressure>
         var result = await enqueueJobUseCase.ExecuteAsync(command, ct);
+
+        // Step 3: Return REST 202 Accepted <Why: provide job status polling URI>
         return AcceptedAtAction(nameof(GetJobStatus), new { jobId = result.JobId }, new ApiResponse<DocumentJobDto>(result));
     }
 
@@ -297,27 +276,22 @@ public sealed class DocumentGenerationController(
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetJobStatus([FromRoute] Guid jobId, CancellationToken ct)
     {
+        // Step 1: Query Job Status <Why: inspect background worker render progress>
         var query = new GetDocumentJobQuery(jobId);
         var result = await getJobUseCase.ExecuteAsync(query, ct);
+
+        // Step 2: Return Status Envelope <Why: client polling interface>
         return Ok(new ApiResponse<DocumentJobDto>(result));
     }
 }
 ```
 
-### Ephemeral Storage Retention & Auto-Purge Worker Archetype
->> MANDATORY CANONICAL TEMPLATE [RULE-MECH-007]:
-* [MUST] Purge expired output files from MinIO `StorageBuckets.Outputs` on a background schedule (default 24h TTL, 30m worker interval).
-* [MUST] Injected `TimeProvider` must be used for all timestamp evaluations (`timeProvider.GetUtcNow()`).
-* [MUST] Repository query must bypass tenant filter via `.IgnoreQueryFilters()` to allow system-wide cross-tenant purging.
-* [MUST] Mark log entity state via expressive domain verb `log.MarkOutputPurged(now)`.
+### 3.3 Ephemeral Storage Retention & Auto-Purge Worker Archetype
+>> MANDATORY CANONICAL BLUEPRINT [RULE-MECH-007]:
+* Purges expired output files from MinIO `StorageBuckets.Outputs` on a background schedule.
+* Uses injected `TimeProvider` for all timestamp evaluations (`timeProvider.GetUtcNow()`).
+
 ```csharp
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
-using SmkDoc.Application.Modules.Rendering.Documents.Services;
-
-namespace SmkDoc.Infrastructure.BackgroundWorkers;
-
 public sealed class DocumentRetentionWorker(
     IServiceScopeFactory scopeFactory,
     IOptions<DocumentRetentionWorkerOptions> options,
@@ -332,8 +306,11 @@ public sealed class DocumentRetentionWorker(
         {
             try
             {
+                // Step 1: Create Execution Scope <Why: resolve scoped persistence services in background worker>
                 using var scope = scopeFactory.CreateScope();
                 var retentionService = scope.ServiceProvider.GetRequiredService<IDocumentRetentionService>();
+
+                // Step 2: Execute Purge Batch <Why: delete expired MinIO objects and update audit logs>
                 var purgedCount = await retentionService.PurgeExpiredOutputsAsync(
                     _options.RetentionPeriod,
                     _options.BatchSize,
@@ -349,23 +326,19 @@ public sealed class DocumentRetentionWorker(
                 logger.LogError(ex, "Error occurred during document retention purge cycle.");
             }
 
+            // Step 3: Delay with TimeProvider <Why: deterministic time control for unit and integration testing>
             await Task.Delay(_options.CheckInterval, timeProvider, stoppingToken);
         }
     }
 }
 ```
-```
 
-### OpenXML DrawingML Non-Zero ID Fix Archetype
->> MANDATORY CANONICAL TEMPLATE [RULE-MECH-002]:
-* [MUST] Intercept all `NonVisualDrawingProperties` (`nvPr`) during OpenXML DOCX manipulation.
-* [MUST] Ensure `nvPr.Id` is assigned an explicit, thread-safe non-zero positive integer (`>= 1`).
-* [MUST NOT] Allow duplicate or zero (`0`) graphic frame IDs which cause Microsoft Word corruption alerts.
+### 3.4 OpenXML DrawingML Non-Zero ID Fix Archetype
+>> MANDATORY CANONICAL BLUEPRINT [RULE-MECH-002]:
+* Intercepts all `NonVisualDrawingProperties` (`nvPr`) during OpenXML DOCX manipulation.
+* Ensures `nvPr.Id` is assigned an explicit, thread-safe non-zero positive integer ($\ge 1$).
+
 ```csharp
-using DocumentFormat.OpenXml.Drawing;
-
-namespace SmkDoc.Infrastructure.Engines.Word;
-
 public static class DrawingMlIdFixer
 {
     private static uint _nextId = 1;
@@ -374,45 +347,46 @@ public static class DrawingMlIdFixer
 
     public static void EnsureNonZeroGraphicFrameId(NonVisualDrawingProperties nvPr)
     {
+        // Step 1: Check ID Validity <Why: Word corrupts on 0 or null graphic IDs>
         if (nvPr.Id == null || nvPr.Id.Value == 0)
         {
+            // Step 2: Assign Thread-Safe Non-Zero ID <Why: guarantees unique positive ID across threads>
             nvPr.Id = GenerateNonZeroId();
         }
     }
 }
 ```
 
-### ClosedXML A4 Auto-Fit Archetype
->> MANDATORY CANONICAL TEMPLATE [RULE-MECH-003]:
-* [MUST] Configure `worksheet.PageSetup.PaperSize = XLPaperSize.A4Paper` and `PageOrientation = XLPageOrientation.Portrait` (or Landscape per template).
-* [MUST] Call `worksheet.PageSetup.FitToPages(1, 0)` so columns fit horizontally on a single page width without horizontal overflow.
+### 3.5 ClosedXML A4 Auto-Fit Archetype
+>> MANDATORY CANONICAL BLUEPRINT [RULE-MECH-003]:
+* Configures `worksheet.PageSetup.PaperSize = XLPaperSize.A4Paper` and `PageOrientation = XLPageOrientation.Portrait`.
+* Calls `worksheet.PageSetup.FitToPages(1, 0)` so columns fit horizontally on a single page width.
+
 ```csharp
-using ClosedXML.Excel;
-
-namespace SmkDoc.Infrastructure.Engines.Excel;
-
 public static class ExcelPageSetupExtensions
 {
     public static void ApplyA4FitToWidth(IXLWorksheet worksheet)
     {
+        // Step 1: Configure A4 Paper Dimensions <Why: standardize target print sheet size>
         worksheet.PageSetup.PaperSize = XLPaperSize.A4Paper;
         worksheet.PageSetup.PageOrientation = XLPageOrientation.Portrait;
+
+        // Step 2: Enforce 1-Page Width Clamping <Why: prevent horizontal table splitting and text clipping>
         worksheet.PageSetup.FitToPages(1, 0);
+
+        // Step 3: Adjust Column Margins <Why: dynamic cell padding based on text length>
         worksheet.Columns().AdjustToContents();
     }
 }
 ```
 
-### Centralized ThaiDataTransformer Implementation
->> MANDATORY CANONICAL TEMPLATE [RULE-MECH-004]:
-* [MUST] Format dates with Buddhist Era offset (+543 years) and Thai month names, normalizing Buddhist Era input years (`year > 2400 => year - 543`) BEFORE Gregorian calendar validation.
-* [MUST] Convert numerical currency amounts to standardized Thai Baht text (`บาทถ้วน` or satang suffix).
-* [MUST] Format phone numbers to `0xx-xxx-xxxx` and national ID cards to `x-xxxx-xxxxx-xx-x`.
+### 3.6 Centralized ThaiDataTransformer Implementation
+>> MANDATORY CANONICAL BLUEPRINT [RULE-MECH-004]:
+* Formats dates with Buddhist Era offset (+543 years) and Thai month names.
+* Converts numerical currency amounts to standardized Thai Baht text (`บาทถ้วน` or satang suffix).
+* Formats phone numbers to `0xx-xxx-xxxx` and national ID cards to `x-xxxx-xxxxx-xx-x`.
+
 ```csharp
-using System.Text;
-
-namespace SmkDoc.Application.Common.Helpers;
-
 public static class ThaiDataTransformer
 {
     private static readonly string[] ThaiMonths =
@@ -513,17 +487,12 @@ public static class ThaiDataTransformer
 }
 ```
 
-### Polymorphic Rendering Engine Resolver Archetype
->> MANDATORY CANONICAL TEMPLATE [RULE-MECH-005]:
-* [MUST] Inject `IEnumerable<IRenderEngine>` into `RenderEngineResolver`.
-* [MUST] Resolve target engine using `EngineType` match, throwing strongly-typed exception on unsupported engines.
+### 3.7 Polymorphic Rendering Engine Resolver Archetype
+>> MANDATORY CANONICAL BLUEPRINT [RULE-MECH-005]:
+* Injects `IEnumerable<IRenderEngine>` into `RenderEngineResolver`.
+* Resolves target engine using `EngineType` dictionary lookup, throwing strongly-typed exception on unsupported engines.
+
 ```csharp
-using SmkDoc.Application.Common.Exceptions;
-using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Domain.Enums;
-
-namespace SmkDoc.Infrastructure.Engines;
-
 public sealed class RenderEngineResolver(IEnumerable<IRenderEngine> engines) : IRenderEngineResolver
 {
     private readonly Dictionary<RenderEngineType, IRenderEngine> _engines =
@@ -531,6 +500,7 @@ public sealed class RenderEngineResolver(IEnumerable<IRenderEngine> engines) : I
 
     public IRenderEngine Resolve(RenderEngineType engineType)
     {
+        // Step 1: Dictionary Lookup <Why: O(1) polymorphic engine dispatch without switch statements>
         if (_engines.TryGetValue(engineType, out var engine))
         {
             return engine;
