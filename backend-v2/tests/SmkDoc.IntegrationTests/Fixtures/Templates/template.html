@@ -1,0 +1,583 @@
+﻿<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <title>{{pageTitle}} — {{documentNo}}</title>
+  <style>
+    /* ══════════════════════════════════════════════
+       PAGE SETUP
+       A4 = 210mm × 297mm
+       Header ≈ 28mm  →  margin-top: 32mm
+       Footer ≈ 16mm  →  margin-bottom: 22mm
+    ══════════════════════════════════════════════ */
+    @page {
+      size: A4 portrait;
+      margin: 32mm 18mm 22mm 18mm;
+    }
+    @page :first {
+      margin-top: 10mm;   /* หน้าแรก: ไม่มี fixed-header ซ้ำ — header ถูก inline แทน */
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Sarabun', 'TH Sarabun New', 'Angsana New', Arial, sans-serif;
+      font-size: 13.5pt;
+      line-height: 1.65;
+      color: #1a1a1a;
+    }
+
+    /* ══════════════════════════════════════════════
+       FIXED HEADER — ทำซ้ำทุกหน้า (หน้า 2 เป็นต้นไป)
+       Gotenberg / Chrome headless: position:fixed
+       top:0 จะ repeat ทุกหน้าโดยอัตโนมัติ
+    ══════════════════════════════════════════════ */
+    .page-header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 28mm;
+      padding: 4mm 18mm 3mm;
+      background: #ffffff;
+      border-bottom: 2px solid #1e3a5f;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 100;
+    }
+    .page-header .hd-left { flex: 1; }
+    .page-header .hd-company {
+      font-size: 12pt;
+      font-weight: bold;
+      color: #1e3a5f;
+      line-height: 1.3;
+    }
+    .page-header .hd-ref {
+      font-size: 9pt;
+      color: #6b7280;
+      margin-top: 2px;
+    }
+    .page-header .hd-logo img {
+      height: 14mm;
+      object-fit: contain;
+    }
+    /* ซ่อน fixed header บนหน้าแรก (ใช้ inline header แทน) */
+    .page-header { display: none; }
+    @media print {
+      .page-header { display: flex; }
+    }
+
+    /* ══════════════════════════════════════════════
+       FIXED FOOTER — ทำซ้ำทุกหน้า
+    ══════════════════════════════════════════════ */
+    .page-footer {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 16mm;
+      padding: 3mm 18mm 3mm;
+      background: #ffffff;
+      border-top: 1px solid #e5e7eb;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 8.5pt;
+      color: #9ca3af;
+      z-index: 100;
+    }
+    .page-footer .ft-left   { flex: 1; }
+    .page-footer .ft-center { flex: 1; text-align: center; color: #dc2626; font-weight: 600; font-size: 8pt; letter-spacing: 0.5px; }
+    .page-footer .ft-right  { flex: 1; text-align: right; }
+    /* CSS Counter สำหรับ page number */
+    .page-footer .ft-pagenum::before {
+      content: "หน้า " counter(page) " / " counter(pages);
+    }
+    @page { counter-increment: page; }
+
+    /* ══════════════════════════════════════════════
+       CONTENT AREA
+    ══════════════════════════════════════════════ */
+    .content { }
+
+    /* ── Page Break ─────────────────────────── */
+    .page-break {
+      page-break-after: always;
+      break-after: page;
+    }
+    .avoid-break {
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+
+    /* ── หน้าแรก: Inline Header (ไม่ใช้ fixed) ─ */
+    .first-page-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 10px;
+      padding-bottom: 10px;
+      border-bottom: 3px solid #1e3a5f;
+    }
+    .fp-company-name { font-size: 17pt; font-weight: bold; color: #1e3a5f; margin-bottom: 3px; }
+    .fp-company-detail { font-size: 9.5pt; color: #555; line-height: 1.5; }
+    .fp-logo img { max-width: 55mm; max-height: 18mm; object-fit: contain; }
+
+    /* ── Document Title Block ──────────────────── */
+    .doc-title-block {
+      text-align: center;
+      margin: 10px 0;
+      padding: 8px 0;
+      background: #f0f4f8;
+      border-radius: 3px;
+    }
+    .doc-title { font-size: 19pt; font-weight: bold; color: #1e3a5f; }
+    .doc-copy  { font-size: 10.5pt; color: #dc2626; font-weight: bold; margin-top: 2px; }
+
+    /* ── Info Grid ─────────────────────────────── */
+    .info-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin: 10px 0;
+    }
+    .info-box {
+      border: 1px solid #d1d5db;
+      border-radius: 3px;
+      padding: 8px 11px;
+      background: #fafafa;
+    }
+    .info-box-title {
+      font-size: 8.5pt;
+      color: #6b7280;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      border-bottom: 1px solid #e5e7eb;
+      padding-bottom: 4px;
+      margin-bottom: 5px;
+    }
+    .info-row { display: flex; gap: 6px; font-size: 10.5pt; margin-bottom: 2px; }
+    .info-label { color: #6b7280; min-width: 85px; }
+    .info-value { color: #111; font-weight: 500; flex: 1; word-break: break-word; }
+
+    /* ── Section Heading ───────────────────────── */
+    .section-heading {
+      font-size: 12.5pt;
+      font-weight: bold;
+      color: #1e3a5f;
+      border-left: 4px solid #1e3a5f;
+      padding-left: 8px;
+      margin: 14px 0 7px;
+    }
+
+    /* ── Tables ────────────────────────────────── */
+    table { width: 100%; border-collapse: collapse; font-size: 10.5pt; }
+    thead th {
+      background: #1e3a5f;
+      color: #fff;
+      padding: 7px 5px;
+      text-align: center;
+      font-size: 9.5pt;
+      font-weight: 600;
+    }
+    td { padding: 6px 5px; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
+    tr:nth-child(even) td { background: #f9fafb; }
+    .col-no     { width: 7%;  text-align: center; }
+    .col-desc   { width: 42%; word-wrap: break-word; word-break: break-word; hyphens: auto; }
+    .col-unit   { width: 9%;  text-align: center; }
+    .col-qty    { width: 10%; text-align: right; }
+    .col-price  { width: 15%; text-align: right; }
+    .col-amount { width: 17%; text-align: right; }
+
+    /* ── Summary ───────────────────────────────── */
+    .summary-wrap { display: flex; justify-content: flex-end; margin-top: 6px; }
+    .summary-table { width: 55%; border-collapse: collapse; font-size: 10.5pt; }
+    .summary-table td { padding: 3px 8px; border: none; }
+    .summary-label { color: #555; text-align: right; }
+    .summary-value { text-align: right; font-weight: 600; width: 100px; }
+    .summary-total-row td { font-size: 12.5pt; font-weight: bold; color: #fff; background: #1e3a5f; border-top: none; padding: 5px 8px; }
+    .amount-text-box {
+      border: 1px solid #d1d5db;
+      border-radius: 3px;
+      padding: 6px 10px;
+      margin: 8px 0;
+      font-size: 10.5pt;
+      background: #fffbeb;
+    }
+
+    /* ── Long Text ─────────────────────────────── */
+    .long-text-box {
+      border: 1px solid #e5e7eb;
+      border-radius: 3px;
+      padding: 9px 11px;
+      font-size: 10.5pt;
+      line-height: 1.75;
+      word-wrap: break-word;
+      word-break: break-word;
+      hyphens: auto;
+      white-space: pre-wrap;
+      background: #fdfefe;
+      margin-bottom: 10px;
+    }
+
+    /* ── Special Placeholder Boxes ─────────────── */
+    .special-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin: 12px 0;
+    }
+    .special-grid.col2 { grid-template-columns: repeat(2, 1fr); }
+    .special-box {
+      border: 1.5px dashed #94a3b8;
+      border-radius: 5px;
+      padding: 11px 8px;
+      text-align: center;
+      background: #f8fafc;
+    }
+    .special-box img { max-width: 100%; display: block; margin: 0 auto 6px; }
+    .special-box .ph-label { font-size: 8pt; color: #6b7280; display: block; }
+    .special-box .ph-code  { font-size: 7.5pt; color: #374151; font-family: monospace; background: #e2e8f0; padding: 1px 4px; border-radius: 2px; display: inline-block; margin-top: 3px; }
+
+    /* ── Transform Table ───────────────────────── */
+    .transform-table th { background: #374151; }
+    .transform-table td:first-child { font-family: monospace; font-size: 9.5pt; color: #0f4c81; background: #eff6ff; }
+
+    /* ── Milestone ─────────────────────────────── */
+    .bar-bg   { background: #e5e7eb; border-radius: 9999px; height: 7px; overflow: hidden; }
+    .bar-fill { background: #1e3a5f; height: 100%; border-radius: 9999px; }
+    .s-done    { color: #16a34a; font-weight: bold; }
+    .s-active  { color: #d97706; font-weight: bold; }
+    .s-pending { color: #6b7280; }
+
+    /* ── Contact Cards ─────────────────────────── */
+    .contact-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; margin-bottom: 12px; }
+    .contact-card { border: 1px solid #e5e7eb; border-radius: 4px; padding: 9px 10px; background: #f9fafb; font-size: 10pt; }
+    .contact-role { font-weight: bold; color: #1e3a5f; margin-bottom: 3px; }
+
+    /* ── Signature ─────────────────────────────── */
+    .sig-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 18px; }
+    .sig-box  { text-align: center; }
+    .sig-img  { height: 16mm; object-fit: contain; opacity: 0.75; display: block; margin: 0 auto 4px; }
+    .sig-line { border-top: 1px solid #374151; margin: 0 12px; padding-top: 5px; }
+    .sig-name { font-weight: bold; font-size: 10.5pt; }
+    .sig-pos  { font-size: 9.5pt; color: #6b7280; }
+    .sig-date { font-size: 9.5pt; color: #6b7280; margin-top: 1px; }
+  </style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     FIXED HEADER — ปรากฏบนทุกหน้า (ยกเว้นหน้าแรก ที่ใช้ inline แทน)
+     Gotenberg / Chrome headless: position:fixed → repeat every page
+══════════════════════════════════════════════════════════════════ -->
+<div class="page-header">
+  <div class="hd-left">
+    <div class="hd-company">{{companyName}}</div>
+    <div class="hd-ref">เลขที่: {{documentNo}} &nbsp;|&nbsp; วันที่: {{documentDate}} &nbsp;|&nbsp; {{pageTitle}}</div>
+  </div>
+  <div class="hd-logo">
+    <img src="{{image:logoUrl}}" alt="logo" />
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     FIXED FOOTER — ปรากฏบนทุกหน้า
+══════════════════════════════════════════════════════════════════ -->
+<div class="page-footer">
+  <div class="ft-left">{{companyName}} &nbsp;|&nbsp; {{companyPhone}}</div>
+  <div class="ft-center">⚠ {{confidential}} ⚠</div>
+  <div class="ft-right">
+    <span class="ft-pagenum"></span>
+    &nbsp;|&nbsp; พิมพ์: {{documentDate:date}}
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     หน้า 1 — ใบแจ้งหนี้ / Invoice
+══════════════════════════════════════════════════════════════════ -->
+<div class="content">
+
+  <!-- Inline Header สำหรับหน้าแรก (fixed header ซ่อนอยู่บนหน้าแรก) -->
+  <div class="first-page-header">
+    <div>
+      <div class="fp-company-name">{{companyName}}</div>
+      <div class="fp-company-detail">
+        {{companyAddress}}<br/>
+        เลขประจำตัวผู้เสียภาษี: {{companyTaxId}} &nbsp;|&nbsp;
+        โทร: {{companyPhone}} &nbsp;|&nbsp; {{companyEmail}}
+      </div>
+    </div>
+    <div class="fp-logo">
+      <img src="{{image:logoUrl}}" alt="company logo" />
+    </div>
+  </div>
+
+  <!-- Document Title -->
+  <div class="doc-title-block">
+    <div class="doc-title">{{pageTitle}}</div>
+    <div class="doc-copy">({{copyLabel}})</div>
+  </div>
+
+  <!-- Info Grid -->
+  <div class="info-grid">
+    <div class="info-box">
+      <div class="info-box-title">ข้อมูลเอกสาร</div>
+      <div class="info-row"><span class="info-label">เลขที่:</span><span class="info-value">{{documentNo}}</span></div>
+      <div class="info-row"><span class="info-label">วันที่:</span><span class="info-value">{{documentDate}}</span></div>
+      <div class="info-row"><span class="info-label">กำหนดชำระ:</span><span class="info-value">{{dueDate}}</span></div>
+      <div class="info-row"><span class="info-label">เงื่อนไข:</span><span class="info-value">{{paymentTerms}}</span></div>
+      <div class="info-row"><span class="info-label">โครงการ:</span><span class="info-value">{{projectCode}}</span></div>
+    </div>
+    <div class="info-box">
+      <div class="info-box-title">ข้อมูลลูกค้า / Customer</div>
+      <div class="info-row"><span class="info-label">ชื่อ:</span><span class="info-value">{{customerName}}</span></div>
+      <div class="info-row"><span class="info-label">รหัส:</span><span class="info-value">{{customerCode}}</span></div>
+      <div class="info-row"><span class="info-label">ที่อยู่:</span><span class="info-value">{{customerAddress}}</span></div>
+      <div class="info-row"><span class="info-label">เลขภาษี:</span><span class="info-value">{{customerTaxId}}</span></div>
+      <div class="info-row"><span class="info-label">โทร:</span><span class="info-value">{{customerPhone}}</span></div>
+    </div>
+  </div>
+
+  <!-- Items Table -->
+  <div class="section-heading">รายการงาน / Items</div>
+  <table class="avoid-break">
+    <thead>
+      <tr>
+        <th class="col-no">ที่</th>
+        <th class="col-desc">รายการ</th>
+        <th class="col-unit">หน่วย</th>
+        <th class="col-qty">จำนวน</th>
+        <th class="col-price">ราคา/หน่วย</th>
+        <th class="col-amount">จำนวนเงิน</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{#each items}}
+      <tr>
+        <td class="col-no">{{no}}</td>
+        <td class="col-desc">{{description}}</td>
+        <td class="col-unit">{{unit}}</td>
+        <td class="col-qty">{{quantity:number}}</td>
+        <td class="col-price">{{unitPrice:number}}</td>
+        <td class="col-amount">{{amount:number}}</td>
+      </tr>
+      {{/each}}
+    </tbody>
+  </table>
+
+  <!-- Summary -->
+  <div class="summary-wrap avoid-break">
+    <table class="summary-table">
+      <tr>
+        <td class="summary-label">ราคาก่อนภาษี:</td>
+        <td class="summary-value">{{subtotal:number}}</td>
+      </tr>
+      <tr>
+        <td class="summary-label">ภาษีมูลค่าเพิ่ม {{vatRate}}%:</td>
+        <td class="summary-value">{{vatAmount:number}}</td>
+      </tr>
+      <tr class="summary-total-row">
+        <td class="summary-label">รวมทั้งสิ้น (บาท):</td>
+        <td class="summary-value">{{total:number}}</td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="amount-text-box avoid-break">
+    <strong>จำนวนเงินเป็นตัวอักษร:</strong>&ensp;({{totalText}})
+  </div>
+
+  <!-- Transform Placeholders showcase -->
+  <div class="section-heading">ทดสอบ Transform Placeholders</div>
+  <table class="transform-table avoid-break">
+    <thead>
+      <tr><th style="width:38%">Placeholder</th><th>ผลลัพธ์</th><th style="width:22%">ชนิด</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>{{customerName:upper}}</td><td>{{customerName:upper}}</td><td>UPPERCASE</td></tr>
+      <tr><td>{{companyEmail:lower}}</td><td>{{companyEmail:lower}}</td><td>lowercase</td></tr>
+      <tr><td>{{documentDate:date}}</td><td>{{documentDate:date}}</td><td>Date format</td></tr>
+      <tr><td>{{dueDate:date}}</td><td>{{dueDate:date}}</td><td>Date format</td></tr>
+      <tr><td>{{total:number}}</td><td>{{total:number}}</td><td>Number format</td></tr>
+      <tr><td>{{vatRate:number}}</td><td>{{vatRate:number}}</td><td>Number format</td></tr>
+    </tbody>
+  </table>
+
+
+<!-- ══════════════ PAGE BREAK ══════════════ -->
+</div>
+<div class="page-break"></div>
+<div class="content">
+
+
+  <!-- ══════════════════════════════════════════════════════════════════
+       หน้า 2 — QR Code / Barcode / Image
+  ══════════════════════════════════════════════════════════════════ -->
+
+  <div class="section-heading">QR Code Placeholders</div>
+  <p style="font-size:9.5pt; color:#6b7280; margin-bottom:8px;">
+    <code>{{qr:fieldName}}</code> และ <code>{{qrcode:fieldName}}</code> — สร้าง QR Code จาก URL/ข้อมูลที่อยู่ใน field
+  </p>
+  <div class="special-grid col2">
+    <div class="special-box avoid-break">
+      <img src="{{qr:invoiceUrl}}" alt="QR Invoice" style="width:90px; height:90px;" />
+      <span class="ph-label">QR ลิงก์ใบแจ้งหนี้</span>
+      <span class="ph-code">{{qr:invoiceUrl}}</span>
+    </div>
+    <div class="special-box avoid-break">
+      <img src="{{qrcode:qrPaymentData}}" alt="QR Payment" style="width:90px; height:90px;" />
+      <span class="ph-label">QR PromptPay (EMV)</span>
+      <span class="ph-code">{{qrcode:qrPaymentData}}</span>
+    </div>
+  </div>
+
+  <div class="section-heading">Barcode Placeholders</div>
+  <p style="font-size:9.5pt; color:#6b7280; margin-bottom:8px;">
+    <code>{{barcode:fieldName}}</code> — สร้าง Code 128 barcode จาก field ที่ระบุ
+  </p>
+  <div class="special-grid col2">
+    <div class="special-box avoid-break">
+      <img src="{{barcode:trackingBarcode}}" alt="Barcode Tracking" style="width:200px; height:55px;" />
+      <span class="ph-label">Barcode Tracking</span>
+      <span class="ph-code">{{barcode:trackingBarcode}}</span>
+    </div>
+    <div class="special-box avoid-break">
+      <img src="{{barcode:productBarcode}}" alt="Barcode Product" style="width:200px; height:55px;" />
+      <span class="ph-label">Barcode สินค้า</span>
+      <span class="ph-code">{{barcode:productBarcode}}</span>
+    </div>
+  </div>
+
+  <div class="section-heading">Image Placeholders</div>
+  <p style="font-size:9.5pt; color:#6b7280; margin-bottom:8px;">
+    <code>{{image:fieldName}}</code> — แทรกรูปภาพจาก URL ที่อยู่ใน field (รองรับ PNG/JPG/WebP)
+  </p>
+  <div class="special-grid">
+    <div class="special-box avoid-break">
+      <img src="{{image:logoUrl}}" alt="logo" style="height:20mm; object-fit:contain;" />
+      <span class="ph-label">โลโก้</span>
+      <span class="ph-code">{{image:logoUrl}}</span>
+    </div>
+    <div class="special-box avoid-break">
+      <img src="{{image:stampUrl}}" alt="stamp" style="height:20mm; object-fit:contain;" />
+      <span class="ph-label">ตราประทับ</span>
+      <span class="ph-code">{{image:stampUrl}}</span>
+    </div>
+    <div class="special-box avoid-break">
+      <img src="{{image:signatureUrl}}" alt="sig" style="height:14mm; object-fit:contain;" />
+      <span class="ph-label">ลายเซ็น</span>
+      <span class="ph-code">{{image:signatureUrl}}</span>
+    </div>
+    <div class="special-box avoid-break">
+      <img src="{{image:headerBannerUrl}}" alt="banner" style="height:12mm; object-fit:cover; width:100%;" />
+      <span class="ph-label">Banner</span>
+      <span class="ph-code">{{image:headerBannerUrl}}</span>
+    </div>
+  </div>
+
+
+<!-- ══════════════ PAGE BREAK ══════════════ -->
+</div>
+<div class="page-break"></div>
+<div class="content">
+
+
+  <!-- ══════════════════════════════════════════════════════════════════
+       หน้า 3 — Long Text / Milestone / Contacts / Signature
+  ══════════════════════════════════════════════════════════════════ -->
+
+  <div class="section-heading">ข้อความยาว — ทดสอบ Word Wrap / ตัดคำไทย-อังกฤษ</div>
+  <div class="long-text-box">{{longText}}</div>
+  <div class="long-text-box" style="background:#fff9f0; font-size:10.5pt;">
+    <strong>หมายเหตุ:</strong>&ensp;{{remark}}
+  </div>
+
+  <!-- Milestone Table -->
+  <div class="section-heading">ความคืบหน้าโครงการ — {{projectName}}</div>
+  <table class="avoid-break">
+    <thead>
+      <tr style="background:#374151;">
+        <th style="width:10%">Phase</th>
+        <th style="width:28%">งาน</th>
+        <th style="width:14%">เริ่มต้น</th>
+        <th style="width:14%">สิ้นสุด</th>
+        <th style="width:20%">ความคืบหน้า</th>
+        <th style="width:14%">สถานะ</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{#each milestones}}
+      <tr>
+        <td style="text-align:center">{{phase}}</td>
+        <td>{{name}}</td>
+        <td style="text-align:center; font-size:9.5pt;">{{startDate:date}}</td>
+        <td style="text-align:center; font-size:9.5pt;">{{endDate:date}}</td>
+        <td>
+          <div class="bar-bg"><div class="bar-fill" style="width:{{percent}}%"></div></div>
+          <div style="text-align:center; font-size:8.5pt; margin-top:2px;">{{percent}}%</div>
+        </td>
+        <td style="text-align:center; font-size:9.5pt;">
+          {{#if (eq status "เสร็จสิ้น")}}        <span class="s-done">{{status}}</span>
+          {{else if (eq status "กำลังดำเนินการ")}} <span class="s-active">{{status}}</span>
+          {{else}}                                  <span class="s-pending">{{status}}</span>
+          {{/if}}
+        </td>
+      </tr>
+      {{/each}}
+    </tbody>
+  </table>
+
+  <!-- Contacts -->
+  <div class="section-heading">ผู้ติดต่อโครงการ</div>
+  <div class="contact-grid">
+    {{#each contacts}}
+    <div class="contact-card">
+      <div class="contact-role">{{role}}</div>
+      <div>{{name}}</div>
+      <div style="color:#6b7280;">โทร: {{phone}}</div>
+      <div style="color:#6b7280;">{{email}}</div>
+    </div>
+    {{/each}}
+  </div>
+
+  <!-- Approver info -->
+  <div class="info-box avoid-break" style="margin-bottom:14px;">
+    <div class="info-box-title">ผู้อนุมัติ</div>
+    <div class="info-row"><span class="info-label">ชื่อ:</span><span class="info-value">{{approverName}}</span></div>
+    <div class="info-row"><span class="info-label">ตำแหน่ง:</span><span class="info-value">{{approverPosition}}</span></div>
+    <div class="info-row"><span class="info-label">วันที่อนุมัติ:</span><span class="info-value">{{approveDate:date}}</span></div>
+  </div>
+
+  <!-- Signature Block -->
+  <div class="section-heading">ลายมือชื่อ / Signatures</div>
+  <div class="sig-grid avoid-break">
+    <div class="sig-box">
+      <img class="sig-img" src="{{image:signatureUrl}}" alt="signature" />
+      <div class="sig-line">
+        <div class="sig-name">{{approverName}}</div>
+        <div class="sig-pos">{{approverPosition}}</div>
+        <div class="sig-date">วันที่: {{approveDate:date}}</div>
+      </div>
+    </div>
+    <div class="sig-box">
+      <div style="height:16mm;"></div>
+      <div class="sig-line">
+        <div class="sig-name">.................................</div>
+        <div class="sig-pos">ผู้รับเอกสาร / Recipient</div>
+        <div class="sig-date">วันที่: .................................</div>
+      </div>
+    </div>
+    <div class="sig-box">
+      <img class="sig-img" src="{{image:stampUrl}}" alt="company stamp" style="height:20mm; opacity:0.85;" />
+      <div class="sig-line">
+        <div class="sig-name">ตราบริษัท</div>
+        <div class="sig-pos">Company Seal</div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- end .content -->
+</body>
+</html>

@@ -1,0 +1,21 @@
+{
+  "warrantyId": "WR-2026-CH088-01",
+  "startDate": "2026-11-01",
+  "projectName": "สัมมากร ชัยพฤกษ์ - วงแหวน",
+  "unitNo": "B-14",
+  "houseNumber": "88/14",
+  "houseModel": "Barn House Type A (บ้านเดี่ยว 2 ชั้น)",
+  "customerName": "นายวิศรุต รัตนภักดี",
+  "customerPhone": "089-123-4567",
+  "structureEndDate": "2031-11-01",
+  "defectEndDate": "2027-11-01",
+  "mepEndDate": "2027-11-01",
+  "pestEndDate": "2029-11-01",
+  "electricMeterNo": "020084918239",
+  "waterMeterNo": "WM-774912",
+  "keysCount": "5",
+  "remoteCount": "3",
+  "keycardsCount": "4",
+  "aftersalesManagerName": "นายธนกฤต พิพัฒนกุล",
+  "lineOaUrl": "https://line.me/R/ti/p/@sammakorncare"
+}

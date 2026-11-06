@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <title>หนังสือรับรองการรับประกันบ้านและส่งมอบ - สัมมากร</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap">
+  <style>
+    @page {
+      size: A4 portrait;
+      margin: 15mm 15mm 15mm 15mm;
+    }
+    * {
+      box-sizing: border-box;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    body {
+      font-family: 'Sarabun', sans-serif;
+      font-size: 10pt;
+      line-height: 1.4;
+      color: #0f172a;
+      margin: 0;
+      padding: 0;
+      background: #ffffff;
+    }
+    .page {
+      position: relative;
+      width: 100%;
+      min-height: 260mm;
+    }
+    .page-break {
+      page-break-before: always;
+      break-before: page;
+    }
+    .cert-header {
+      text-align: center;
+      border-bottom: 2px solid #0369a1;
+      padding-bottom: 12px;
+      margin-bottom: 14px;
+    }
+    .cert-logo {
+      font-size: 18pt;
+      font-weight: 800;
+      color: #0369a1;
+      margin: 0;
+      letter-spacing: 1px;
+    }
+    .cert-title {
+      font-size: 14pt;
+      font-weight: 700;
+      color: #0f172a;
+      margin: 4px 0 2px 0;
+    }
+    .cert-badge {
+      display: inline-block;
+      background: #f0fdf4;
+      color: #15803d;
+      border: 1px solid #bbf7d0;
+      padding: 2px 8px;
+      border-radius: 3px;
+      font-size: 8.5pt;
+      font-weight: 600;
+    }
+    .card-box {
+      border: 1px solid #cbd5e1;
+      border-radius: 4px;
+      background-color: #f8fafc;
+      padding: 10px 14px;
+      margin-bottom: 12px;
+    }
+    .card-title {
+      font-size: 10.5pt;
+      font-weight: 700;
+      color: #0369a1;
+      border-bottom: 1px solid #cbd5e1;
+      padding-bottom: 4px;
+      margin-bottom: 8px;
+    }
+    .table-info {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 9.5pt;
+    }
+    .table-info td {
+      padding: 3px 4px;
+      vertical-align: top;
+    }
+    .label {
+      font-weight: 600;
+      color: #475569;
+      width: 22%;
+    }
+    .warranty-grid {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 8px;
+      font-size: 9pt;
+    }
+    .warranty-grid th {
+      background-color: #f1f5f9;
+      border: 1px solid #cbd5e1;
+      padding: 6px 8px;
+      color: #334155;
+      text-align: left;
+    }
+    .warranty-grid td {
+      border: 1px solid #e2e8f0;
+      padding: 6px 8px;
+    }
+    .text-center { text-align: center; }
+    .sign-table {
+      width: 100%;
+      margin-top: 25px;
+      border-collapse: collapse;
+      page-break-inside: avoid;
+    }
+    .sign-box {
+      width: 48%;
+      border: 1px dashed #cbd5e1;
+      border-radius: 4px;
+      padding: 12px;
+      text-align: center;
+      background: #ffffff;
+      font-size: 9pt;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ==================== PAGE 1 ==================== -->
+  <div class="page">
+    <div class="cert-header">
+      <div class="cert-logo">SAMMAKORN • SAMMAKORN CARE</div>
+      <div class="cert-title">หนังสือรับรองการรับประกันสิ่งปลูกสร้างและการส่งมอบบ้าน</div>
+      <div class="cert-badge">Home Warranty Certificate & Service Pass</div>
+      <div style="font-size: 8.5pt; color: #64748b; margin-top: 6px;">
+        เลขที่ใบรับประกัน: <strong>{{warrantyId}}</strong> • วันที่เริ่มต้นประกัน: <strong>{{startDate:thai_date}}</strong>
+      </div>
+    </div>
+
+    <!-- ข้อมูลแปลงและกรรมสิทธิ์ -->
+    <div class="card-box">
+      <div class="card-title">1. ข้อมูลกรรมสิทธิ์บ้านและเจ้าของบ้าน (Property Profile)</div>
+      <table class="table-info">
+        <tr>
+          <td class="label">ชื่อโครงการ:</td>
+          <td style="width: 35%;"><strong>{{projectName}}</strong></td>
+          <td class="label">แปลงเลขที่ (Unit No.):</td>
+          <td style="width: 35%;"><strong style="color: #0284c7; font-size: 11pt;">{{unitNo}}</strong></td>
+        </tr>
+        <tr>
+          <td class="label">บ้านเลขที่:</td>
+          <td><strong>{{houseNumber}}</strong></td>
+          <td class="label">แบบบ้าน (Model):</td>
+          <td>{{houseModel}}</td>
+        </tr>
+        <tr>
+          <td class="label">ชื่อเจ้าของบ้าน:</td>
+          <td><strong>{{customerName}}</strong></td>
+          <td class="label">เบอร์โทรติดต่อ:</td>
+          <td>{{customerPhone}}</td>
+        </tr>
+      </table>
+    </div>
+
+    <!-- ขอบเขตการรับประกันผลงาน -->
+    <div class="card-box">
+      <div class="card-title">2. ขอบเขตและระยะเวลาการรับประกัน (Warranty Coverage)</div>
+      <table class="warranty-grid">
+        <thead>
+          <tr>
+            <th style="width: 35%;">หมวดหมู่งาน</th>
+            <th style="width: 20%; text-align: center;">ระยะเวลารับประกัน</th>
+            <th style="width: 45%;">วันสิ้นสุดการรับประกัน</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>งานโครงสร้างหลักของอาคาร</strong> (เสา, คาน, ฐานราก, โครงหลังคา)</td>
+            <td class="text-center font-bold" style="color: #0369a1;">5 ปี</td>
+            <td>จนถึงวันที่ <strong>{{structureEndDate:thai_date}}</strong></td>
+          </tr>
+          <tr>
+            <td><strong>งานสถาปัตยกรรมและส่วนควบ</strong> (สี, พื้น, ประตู, หน้าต่าง)</td>
+            <td class="text-center font-bold" style="color: #0369a1;">1 ปี</td>
+            <td>จนถึงวันที่ <strong>{{defectEndDate:thai_date}}</strong></td>
+          </tr>
+          <tr>
+            <td><strong>งานระบบไฟฟ้าและสุขาภิบาล</strong> (ท่อน้ำดี-น้ำทิ้ง, สายไฟ)</td>
+            <td class="text-center font-bold" style="color: #0369a1;">1 ปี</td>
+            <td>จนถึงวันที่ <strong>{{mepEndDate:thai_date}}</strong></td>
+          </tr>
+          <tr>
+            <td><strong>งานป้องกันและกำจัดปลวกใต้ดิน</strong> (ระบบท่อเคมี)</td>
+            <td class="text-center font-bold" style="color: #0369a1;">3 ปี</td>
+            <td>จนถึงวันที่ <strong>{{pestEndDate:thai_date}}</strong> (ตรวจอัดน้ำยาปีละ 1 ครั้ง)</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- รายการอุปกรณ์และมิเตอร์ส่งมอบ -->
+    <div class="card-box">
+      <div class="card-title">3. รายการอุปกรณ์และสาธารณูปโภคที่ส่งมอบ (Handover Items)</div>
+      <table class="table-info">
+        <tr>
+          <td class="label">มิเตอร์ไฟฟ้า (กฟภ./กฟน.):</td>
+          <td style="width: 35%;">หมายเลข <strong>{{electricMeterNo}}</strong> (ขนาด 30/100A 1 เฟส)</td>
+          <td class="label">มิเตอร์น้ำประปา:</td>
+          <td style="width: 35%;">หมายเลข <strong>{{waterMeterNo}}</strong> (ขนาด 1/2 นิ้ว)</td>
+        </tr>
+        <tr>
+          <td class="label">กุญแจประตูรั้ว / บ้าน:</td>
+          <td>ส่งมอบรวม <strong>{{keysCount}} ชุด</strong></td>
+          <td class="label">รีโมทประตูรั้วไฟฟ้า:</td>
+          <td>ส่งมอบรวม <strong>{{remoteCount}} ชุด</strong></td>
+        </tr>
+        <tr>
+          <td class="label">คีย์การ์ดเข้าโครงการ:</td>
+          <td>ส่งมอบรวม <strong>{{keycardsCount}} ใบ</strong></td>
+          <td class="label">คู่มือการดูแลรักษาบ้าน:</td>
+          <td>ส่งมอบเล่ม Hardcopy พร้อมไฟล์ดิจิทัล</td>
+        </tr>
+      </table>
+    </div>
+
+    <div style="text-align: right; font-size: 8pt; color: #94a3b8; margin-top: 25px;">
+      [ ใบรับประกันบ้าน • แปลง {{unitNo}} • หน้า 1/2 ]
+    </div>
+  </div>
+
+  <!-- ==================== PAGE 2 ==================== -->
+  <div class="page page-break">
+    <div style="font-size: 9pt; color: #64748b; border-bottom: 1px solid #cbd5e1; padding-bottom: 4px; margin-bottom: 14px;">
+      หนังสือรับรองการรับประกันบ้านและส่งมอบ • แปลง: {{unitNo}} (หน้า 2/2)
+    </div>
+
+    <!-- ข้อแนะนำและการขอรับบริการ -->
+    <div class="card-box">
+      <div class="card-title">4. ช่องทางการแจ้งซ่อมและบริการหลังการขาย (Sammakorn Care)</div>
+      <table style="width: 100%;">
+        <tr>
+          <td style="width: 68%; vertical-align: top; font-size: 9pt; color: #334155; line-height: 1.6;">
+            • <strong>Call Center:</strong> โทร <strong>1427</strong> (เปิดบริการทุกวัน 08:30 - 18:00 น.)<br>
+            • <strong>Mobile Application:</strong> SAMMAKORN Plus (ตรวจสอบสถานะงานแจ้งซ่อมแบบเรียลไทม์)<br>
+            • <strong>Line Official Account:</strong> @sammakorncare<br>
+            • <strong>ระยะเวลาเข้าตรวจสอบ:</strong> ทีมช่างจะติดต่อกลับภายใน 24 ชม. หลังได้รับคำขอแจ้งซ่อม<br>
+            • <strong>กรณีฉุกเฉิน 24 ชม.:</strong> (ไฟฟ้าลัดวงจรทั้งบ้าน / ท่อประปาเมนแตก) โทร Hotline 1427 กด 9
+          </td>
+          <td style="width: 32%; text-align: center; vertical-align: middle;">
+            <div style="display: inline-block; border: 1px solid #cbd5e1; padding: 6px; border-radius: 4px;">
+              {{qr:lineOaUrl}}
+              <div style="font-size: 7.5pt; color: #64748b; margin-top: 2px;">สแกนแอดไลน์แจ้งซ่อม</div>
+            </div>
+          </td>
+        </tr>
+      </table>
+    </div>
+
+    <!-- เงื่อนไขข้อยกเว้นการประกัน -->
+    <div class="card-box">
+      <div class="card-title">5. ข้อยกเว้นความรับผิดชอบในการรับประกัน (Warranty Exclusions)</div>
+      <div style="font-size: 8.5pt; color: #475569; line-height: 1.5;">
+        1. ความเสียหายอันเกิดจากการต่อเติม ดัดแปลงโครงสร้าง หรือรื้อถอนส่วนหนึ่งส่วนใดโดยมิได้รับความเห็นชอบจากวิศวกรของบริษัทฯ<br>
+        2. การต่อเติมหลังคาโรงรถ หรือครัวไทยด้านหลังที่ถ่ายน้ำหนักลงบนโครงสร้างตัวบ้านหลัก จนทำให้เกิดการทรุดตัวต่างระดับ<br>
+        3. ความเสียหายจากภัยธรรมชาติ (อุทกภัย วาตภัย แผ่นดินไหว) หรืออุบัติเหตุอันมิได้เกิดจากความบกพร่องของวัสดุอุปกรณ์มาตรฐาน<br>
+        4. การสึกหรอตามอายุการใช้งานปกติ (Normal Wear & Tear) เช่น หลอดไฟขาด ยางซิลิโคนเสื่อมสภาพตามกาลเวลา
+      </div>
+    </div>
+
+    <!-- ลายมือชื่อส่งมอบ 2 ฝ่าย -->
+    <table class="sign-table">
+      <tr>
+        <td class="sign-box">
+          <div style="font-weight: 600; margin-bottom: 35px;">ผู้ส่งมอบ (บริษัท สัมมากร จำกัด (มหาชน))</div>
+          <div style="border-bottom: 1px solid #64748b; width: 80%; margin: 0 auto 4px auto;"></div>
+          <div>( <strong>{{aftersalesManagerName}}</strong> )</div>
+          <div style="color: #64748b; font-size: 8pt;">ผู้จัดการฝ่ายลูกค้าสัมพันธ์และบริการหลังการขาย</div>
+          <div style="color: #94a3b8; font-size: 8pt;">วันที่: {{startDate:thai_date}}</div>
+        </td>
+        <td style="width: 4%;"></td>
+        <td class="sign-box">
+          <div style="font-weight: 600; margin-bottom: 35px;">ผู้รับมอบและรับทราบเงื่อนไขการรับประกัน</div>
+          <div style="border-bottom: 1px solid #64748b; width: 80%; margin: 0 auto 4px auto;"></div>
+          <div>( <strong>{{customerName}}</strong> )</div>
+          <div style="color: #64748b; font-size: 8pt;">เจ้าของกรรมสิทธิ์บ้าน</div>
+          <div style="color: #94a3b8; font-size: 8pt;">วันที่: {{startDate:thai_date}}</div>
+        </td>
+      </tr>
+    </table>
+
+    <div style="margin-top: 40px; text-align: center;">
+      {{barcode:warrantyId}}
+      <div style="font-size: 7.5pt; color: #64748b;">Warranty Barcode: {{warrantyId}}</div>
+    </div>
+  </div>
+
+</body>
+</html>

@@ -12,7 +12,7 @@ ArchitecturalSignals: [ARCH_EVOLUTION_SECURITY], [ARCH_EVOLUTION_RENDERING]
 
 ## 1. Level 1: Security & Performance Invariants Matrix
 
-> [SSOT DELEGATION]: Multi-tenant dual-channel authentication (M2M/JWT), ClaimsPrincipal hydration, ambient project context, and API key quota governance are governed exclusively by `docs/AI/03_specialized_mechanics/multi_tenant_security_pipeline.md`.
+> [SSOT DELEGATION]: Multi-tenant dual-channel authentication (M2M/JWT), ClaimsPrincipal hydration, ambient project context, and API key quota governance are governed exclusively by `specs/03_specialized_mechanics/multi_tenant_security_pipeline.md`.
 
 | Architectural Concern | Prohibited Pattern (! BANNED) | Canonical SSoT Pattern (>> MANDATORY) | Enforcement Point |
 |---|---|---|---|

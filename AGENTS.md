@@ -69,6 +69,17 @@ AutonomousExecutionBlockers:
   Trigger: Code modification violating canonical blueprints or anti-pattern firewalls in `specs/`
     => Action: Halt code generation and conform strictly to the authoritative rules in `specs/`.
 
+HighFrequencyRegressionTraps:
+  [PRE-TRAINING BIAS INTERCEPTORS: Guardrails preventing statistical drift to legacy patterns]
+  Trigger: Next.js 15 route parameters accessed synchronously (`{ params: { id } }` or `params.id`)
+    => Action: Route parameters are asynchronous in Next.js 15. Type as `Promise<{ id: string }>` and `await params`.
+  Trigger: Empty catch block or swallowed exceptions (`catch (Exception) { }`)
+    => Action: Prohibit empty catch blocks. Throw strongly-typed `DomainException` or log semantically.
+  Trigger: Binary generation or disk write inside unit test project (`SmkDoc.Tests`)
+    => Action: Keep unit tests 100% in-memory with mocks/fakes. Route all disk, binary, or external wire I/O exclusively to `SmkDoc.IntegrationTests`.
+  Trigger: Persistent database or MinIO mutations during preview operations
+    => Action: Preview workflows must remain 100% in-memory; zero database or MinIO persistence.
+
 WorkflowGuard:
   [STEP_1: HIERARCHICAL_PLAN_REQUIREMENT]
   Language: Strictly English (Ensures code-AST token alignment & zero translation drift).

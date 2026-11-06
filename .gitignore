@@ -14,6 +14,8 @@
 !backend/Templates/**/*.xlsx
 !backend-v2/Templates/**/*.docx
 !backend-v2/Templates/**/*.xlsx
+!**/Fixtures/**/*.docx
+!**/Fixtures/**/*.xlsx
 
 # Template Test Files, Generated Documents & Version Archives (V1 & V2)
 backend/Templates/versions/
@@ -27,6 +29,7 @@ backend-v2/Templates/**/test_*
 backend-v2/Templates/**/test.*
 backend-v2/Templates/**/sample_*
 backend-v2/Templates/**/*_test.*
+backend-v2/src/**/bin/
 backend-v2/OutputFiles/
 *.pdf
 coverlet.*
@@ -67,10 +70,7 @@ COOLIFY.md
 **/Doc/
 **/Docs/
 **/docs/
-!docs/
-docs/*
-!docs/AI/
-!docs/openapi.json
+!specs/openapi.json
 scratch/
 tools/
 *.zip

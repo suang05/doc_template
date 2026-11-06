@@ -31,4 +31,10 @@
     <ProjectReference Include="..\SmkDoc.Tests\SmkDoc.Tests.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="Fixtures\Templates\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

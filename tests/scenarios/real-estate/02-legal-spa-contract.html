@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <title>สัญญาจะซื้อจะขายที่ดินพร้อมสิ่งปลูกสร้าง - สัมมากร</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap">
+  <style>
+    @page {
+      size: A4 portrait;
+      margin: 22mm 18mm 20mm 18mm;
+    }
+    * {
+      box-sizing: border-box;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    body {
+      font-family: 'Sarabun', sans-serif;
+      font-size: 10.5pt;
+      line-height: 1.5;
+      color: #0f172a;
+      margin: 0;
+      padding: 0;
+      background: #ffffff;
+      text-align: justify;
+    }
+    .page {
+      position: relative;
+      width: 100%;
+      min-height: 245mm;
+    }
+    .page-break {
+      page-break-before: always;
+      break-before: page;
+    }
+    .contract-header {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    .contract-title {
+      font-size: 15pt;
+      font-weight: 700;
+      margin: 0 0 4px 0;
+      color: #0f172a;
+    }
+    .contract-sub {
+      font-size: 10pt;
+      color: #475569;
+    }
+    .meta-table {
+      width: 100%;
+      margin-bottom: 16px;
+      font-size: 10pt;
+    }
+    .clause-title {
+      font-weight: 700;
+      color: #0f172a;
+      margin-top: 12px;
+      margin-bottom: 4px;
+    }
+    .clause-content {
+      text-indent: 2.5em;
+      margin-bottom: 8px;
+    }
+    .grid-box {
+      border: 1px solid #cbd5e1;
+      padding: 8px 12px;
+      border-radius: 2px;
+      margin: 8px 0;
+      background: #f8fafc;
+      font-size: 10pt;
+    }
+    .table-spec {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 10px 0;
+      font-size: 9.5pt;
+    }
+    .table-spec th, .table-spec td {
+      border: 1px solid #cbd5e1;
+      padding: 5px 8px;
+    }
+    .table-spec th {
+      background-color: #f1f5f9;
+      text-align: left;
+    }
+    .text-right {
+      text-align: right;
+    }
+    .text-center {
+      text-align: center;
+    }
+    .sign-table {
+      width: 100%;
+      margin-top: 25px;
+      border-collapse: collapse;
+      page-break-inside: avoid;
+    }
+    .sign-cell {
+      width: 48%;
+      text-align: center;
+      vertical-align: top;
+      padding: 12px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ==================== GOTENBERG RUNNING HEADER ==================== -->
+  <template id="header">
+    <div style="font-size: 8pt; font-family: 'Sarabun', sans-serif; width: 100%; display: flex; justify-content: space-between; border-bottom: 1px solid #cbd5e1; padding-bottom: 3px; color: #64748b; margin-bottom: 4px;">
+      <span>บริษัท สัมมากร จำกัด (มหาชน) • สัญญาจะซื้อจะขายที่ดินพร้อมสิ่งปลูกสร้าง</span>
+      <span>สัญญาเลขที่: {{contractNo}}</span>
+    </div>
+  </template>
+
+  <!-- ==================== GOTENBERG RUNNING FOOTER ==================== -->
+  <template id="footer">
+    <div style="font-size: 8pt; font-family: 'Sarabun', sans-serif; width: 100%; display: flex; justify-content: space-between; border-top: 1px solid #cbd5e1; padding-top: 3px; color: #64748b; margin-top: 4px;">
+      <span>สำนักงานโครงการ สัมมากร ชัยพฤกษ์ - วงแหวน (โทร 02-123-4567)</span>
+      <span>หน้า <span class="pageNumber"></span> / <span class="totalPages"></span></span>
+    </div>
+  </template>
+
+  <!-- ==================== CONTRACT PAGE 1 ==================== -->
+  <div class="page">
+    <div class="contract-header">
+      <div style="font-size: 9pt; color: #64748b; margin-bottom: 4px;">แบบสัญญามาตรฐานตามพระราชบัญญัติการจัดสรรที่ดิน พ.ศ. 2543</div>
+      <div class="contract-title">สัญญาจะซื้อจะขายที่ดินพร้อมสิ่งปลูกสร้าง</div>
+      <div class="contract-sub">สัญญาเลขที่: <strong>{{contractNo}}</strong> • โครงการ: <strong>{{projectName}}</strong></div>
+    </div>
+
+    <table class="meta-table">
+      <tr>
+        <td style="width: 50%;">ทำที่: {{contractPlace}}</td>
+        <td style="width: 50%; text-align: right;">วันที่: <strong>{{contractDate:thai_date}}</strong></td>
+      </tr>
+    </table>
+
+    <div class="clause-content">
+      สัญญาฉบับนี้ทำขึ้นระหว่าง <strong>บริษัท สัมมากร จำกัด (มหาชน)</strong> สำนักงานใหญ่ตั้งอยู่เลขที่ 195 อาคารเอ็มไพร์ ทาวเวอร์ ชั้น 18 ถนนสาทรใต้ แขวงยานนาวา เขตสาทร กรุงเทพมหานคร ทะเบียนนิติบุคคลเลขที่ 0107536000287 โดยกรรมการผู้มีอำนาจลงนามผูกพันบริษัท ซึ่งต่อไปในสัญญานี้จะเรียกว่า <strong>"ผู้จะขาย"</strong> ฝ่ายหนึ่ง กับ
+    </div>
+
+    <div class="clause-content">
+      <strong>{{buyerName}}</strong> สัญชาติ {{buyerNationality}} ถือบัตรประจำตัวประชาชนเลขที่ {{buyerIdCard}} อยู่บ้านเลขที่ {{buyerAddress}} โทรศัพท์ {{buyerPhone}} ซึ่งต่อไปในสัญญานี้จะเรียกว่า <strong>"ผู้จะซื้อ"</strong> อีกฝ่ายหนึ่ง
+    </div>
+
+    <div class="clause-content">
+      คู่สัญญาทั้งสองฝ่ายตกลงทำสัญญาจะซื้อจะขายที่ดินพร้อมสิ่งปลูกสร้าง โดยมีข้อความและเงื่อนไขดังต่อไปนี้:
+    </div>
+
+    <div class="clause-title">ข้อ 1. ทรัพย์สินที่ตกลงจะซื้อจะขาย</div>
+    <div class="clause-content">
+      ผู้จะขายตกลงจะขายและผู้จะซื้อตกลงจะซื้อที่ดินตามโฉนดที่ดินเลขที่ <strong>{{titleDeedNo}}</strong> หน้าสำรวจ <strong>{{surveyNo}}</strong> ระวาง <strong>{{rawang}}</strong> ตำบล{{subDistrict}} อำเภอ{{district}} จังหวัด{{province}} แปลงหมายเลขที่ <strong>{{plotNo}}</strong> เนื้อที่ประมาณ <strong>{{landRai}} ไร่ {{landNgan}} งาน {{landWah}} ตารางวา</strong> พร้อมสิ่งปลูกสร้างบ้านเดี่ยว <strong>{{houseModel}}</strong> มีพื้นที่ใช้สอยประมาณ <strong>{{usableArea}} ตารางเมตร</strong>
+    </div>
+
+    <div class="clause-title">ข้อ 2. ราคาและการชำระเงิน</div>
+    <div class="clause-content">
+      คู่สัญญาตกลงราคาซื้อขายที่ดินพร้อมสิ่งปลูกสร้างตามสัญญานี้ เป็นจำนวนเงินทั้งสิ้น <strong>{{totalPrice:currency}} บาท ({{totalPrice:thai_baht_text}})</strong> โดยผู้จะซื้อตกลงชำระเงินให้แก่ผู้จะขายดังนี้:
+    </div>
+
+    <table class="table-spec">
+      <thead>
+        <tr>
+          <th style="width: 15%; text-align: center;">งวดชำระ</th>
+          <th style="width: 50%;">รายละเอียด</th>
+          <th style="width: 35%; text-align: right;">จำนวนเงิน (บาท)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="text-center">งวดที่ 1</td>
+          <td>เงินมัดจำการจอง (ชำระแล้วเมื่อ {{bookingDate:thai_date}})</td>
+          <td class="text-right">{{bookingPaid:currency}}</td>
+        </tr>
+        <tr>
+          <td class="text-center">งวดที่ 2</td>
+          <td>เงินทำสัญญาจะซื้อจะขาย (ชำระในวันทำสัญญานี้)</td>
+          <td class="text-right">{{contractPaid:currency}}</td>
+        </tr>
+        <tr>
+          <td class="text-center">งวดที่ 3</td>
+          <td>เงินดาวน์ ผ่อนชำระรวม {{downMonths}} งวด (งวดละ {{downPerMonth:currency}} บาท)</td>
+          <td class="text-right">{{downTotal:currency}}</td>
+        </tr>
+        <tr style="background-color: #f8fafc; font-weight: 700;">
+          <td class="text-center">งวดสุดท้าย</td>
+          <td>เงินส่วนที่เหลือ ชำระในวันจดทะเบียนโอนกรรมสิทธิ์</td>
+          <td class="text-right">{{finalTransferAmount:currency}}</td>
+        </tr>
+        <tr style="background-color: #f1f5f9; font-weight: 700;">
+          <td colspan="2" class="text-center">รวมจำนวนเงินทั้งสิ้น</td>
+          <td class="text-right" style="color: #0369a1;">{{totalPrice:currency}}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ==================== CONTRACT PAGE 2 ==================== -->
+  <div class="page page-break">
+    <div class="clause-title" style="margin-top: 0;">ข้อ 3. การก่อสร้างและกำหนดแล้วเสร็จ</div>
+    <div class="clause-content">
+      ผู้จะขายต้องดำเนินการก่อสร้างสิ่งปลูกสร้างให้ถูกต้องตามแบบแปลนและรายการวัสดุอุปกรณ์มาตรฐานของโครงการที่ได้รับอนุญาตตามกฎหมาย โดยมีกำหนดการก่อสร้างแล้วเสร็จพร้อมส่งมอบภายในวันที่ <strong>{{constructionDueDate:thai_date}}</strong> หากมีเหตุสุดวิสัยอันมิใช่ความผิดของผู้จะขาย ผู้จะขายมีสิทธิขยายระยะเวลาออกไปได้ตามความจำเป็นแก่กรณี
+    </div>
+
+    <div class="clause-title">ข้อ 4. การจดทะเบียนโอนกรรมสิทธิ์</div>
+    <div class="clause-content">
+      ผู้จะขายจะดำเนินการจดทะเบียนโอนกรรมสิทธิ์ที่ดินพร้อมสิ่งปลูกสร้างให้แก่ผู้จะซื้อ ณ สำนักงานที่ดินที่มีอำนาจ ภายในกำหนด <strong>30 วัน</strong> นับแต่วันที่ผู้จะขายแจ้งให้ผู้จะซื้อทราบว่าสิ่งปลูกสร้างแล้วเสร็จและผู้จะซื้อได้ตรวจสอบรับมอบเรียบร้อยแล้ว โดยมีเงื่อนไขค่าธรรมเนียมและภาษีดังนี้:
+    </div>
+    <div class="grid-box">
+      • <strong>ค่าธรรมเนียมการจดทะเบียนสิทธิและนิติกรรม:</strong> {{transferFeeRule}}<br>
+      • <strong>ภาษีเงินได้หัก ณ ที่จ่าย และภาษีธุรกิจเฉพาะ:</strong> ผู้จะขายเป็นผู้รับผิดชอบชำระทั้งสิ้น<br>
+      • <strong>ค่าประกันมิเตอร์ไฟฟ้าและมิเตอร์น้ำประปา:</strong> ผู้จะซื้อเป็นผู้ชำระในวันโอนกรรมสิทธิ์
+    </div>
+
+    <div class="clause-title">ข้อ 5. การผิดสัญญาและการบอกเลิกสัญญา</div>
+    <div class="clause-content">
+      5.1 หากผู้จะซื้อผิดนัดไม่ชำระเงินงวดหนึ่งงวดใดตามกำหนด ผู้จะขายมีสิทธิคิดดอกเบี้ยผิดนัดในอัตราร้อยละ <strong>15 ต่อปี</strong> ของเงินค่างวดที่ค้างชำระ นับแต่วันผิดนัดจนถึงวันที่ชำระเสร็จสิ้น<br>
+      5.2 หากผู้จะซื้อผิดนัดชำระเงินติดต่อกันเกินกว่า 30 วันนับแต่ได้รับหนังสือเตือนจากผู้จะขาย ผู้จะขายมีสิทธิบอกเลิกสัญญาและริบเงินที่ผู้จะซื้อได้ชำระมาแล้วทั้งหมดตามสัดส่วนที่กฎหมายกำหนด
+    </div>
+
+    <div class="clause-title">ข้อ 6. สาธารณูปโภคและค่าบริการส่วนกลาง</div>
+    <div class="clause-content">
+      ผู้จะซื้อตกลงปฏิบัติตามระเบียบข้อบังคับของนิติบุคคลหมู่บ้านจัดสรร และตกลงชำระเงินค่าบริการสาธารณะ (ค่าส่วนกลาง) ในอัตราตารางวาละ <strong>{{camFeePerWah}} บาท/เดือน</strong> โดยชำระล่วงหน้าเป็นเวลา <strong>{{camPrepaidYears}} ปี</strong> ในวันจดทะเบียนโอนกรรมสิทธิ์
+    </div>
+
+    <div class="clause-title">ข้อ 7. การประกันความชำรุดบกพร่อง</div>
+    <div class="clause-content">
+      ผู้จะขายตกลงรับประกันความชำรุดบกพร่องของสิ่งปลูกสร้างนับแต่วันจดทะเบียนโอนกรรมสิทธิ์ ดังนี้:
+    </div>
+    <div class="grid-box">
+      1. <strong>โครงสร้างอาคาร:</strong> เสา คาน ฐานราก หลังคา พื้นคอนกรีต รับประกันเป็นเวลา <strong>5 (ห้า) ปี</strong><br>
+      2. <strong>ส่วนควบและงานสถาปัตยกรรม:</strong> ประตู หน้าต่าง พื้นกระเบื้อง สี งานสุขาภิบาล รับประกันเป็นเวลา <strong>1 (หนึ่ง) ปี</strong>
+    </div>
+  </div>
+
+  <!-- ==================== CONTRACT PAGE 3 ==================== -->
+  <div class="page page-break">
+    <div class="clause-title" style="margin-top: 0;">ข้อ 8. ข้อตกลงและเงื่อนไขอื่นๆ</div>
+    <div class="clause-content">
+      สัญญานี้ทำขึ้นเป็นสองฉบับมีข้อความถูกต้องตรงกัน คู่สัญญาได้อ่านและเข้าใจข้อความแห่งสัญญานี้โดยตลอดแล้ว เห็นว่าถูกต้องตรงตามเจตนาทุกประการ จึงได้ลงลายมือชื่อและประทับตรา (ถ้ามี) ไว้เป็นสำคัญต่อหน้าพยาน และต่างยึดถือไว้ฝ่ายละหนึ่งฉบับ
+    </div>
+
+    <!-- ตารางลงนาม 4 ฝ่าย -->
+    <table class="sign-table">
+      <tr>
+        <td class="sign-cell">
+          <div style="font-weight: 600; margin-bottom: 40px;">ผู้จะขาย (บริษัท สัมมากร จำกัด (มหาชน))</div>
+          <div style="border-bottom: 1px solid #64748b; width: 85%; margin: 0 auto 6px auto;"></div>
+          <div>( <strong>{{sellerAuthorizedRep}}</strong> )</div>
+          <div style="font-size: 8.5pt; color: #64748b;">กรรมการผู้มีอำนาจลงนาม / ผู้รับมอบอำนาจ</div>
+        </td>
+        <td class="sign-cell">
+          <div style="font-weight: 600; margin-bottom: 40px;">ผู้จะซื้อ</div>
+          <div style="border-bottom: 1px solid #64748b; width: 85%; margin: 0 auto 6px auto;"></div>
+          <div>( <strong>{{buyerName}}</strong> )</div>
+          <div style="font-size: 8.5pt; color: #64748b;">ผู้จะซื้อ</div>
+        </td>
+      </tr>
+      <tr>
+        <td class="sign-cell" style="padding-top: 30px;">
+          <div style="font-weight: 600; margin-bottom: 40px;">พยานฝ่ายผู้จะขาย</div>
+          <div style="border-bottom: 1px solid #64748b; width: 85%; margin: 0 auto 6px auto;"></div>
+          <div>( {{witness1Name}} )</div>
+          <div style="font-size: 8.5pt; color: #64748b;">พยาน</div>
+        </td>
+        <td class="sign-cell" style="padding-top: 30px;">
+          <div style="font-weight: 600; margin-bottom: 40px;">พยานฝ่ายผู้จะซื้อ</div>
+          <div style="border-bottom: 1px solid #64748b; width: 85%; margin: 0 auto 6px auto;"></div>
+          <div>( {{witness2Name}} )</div>
+          <div style="font-size: 8.5pt; color: #64748b;">พยาน</div>
+        </td>
+      </tr>
+    </table>
+
+    <!-- Barcode สัญญาด้านล่างสุด -->
+    <div style="margin-top: 60px; text-align: center;">
+      {{barcode:contractNo}}
+      <div style="font-size: 8pt; color: #64748b; margin-top: 3px;">Contract Reference: {{contractNo}}</div>
+    </div>
+  </div>
+
+</body>
+</html>

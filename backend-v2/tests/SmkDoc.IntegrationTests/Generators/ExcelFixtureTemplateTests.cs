@@ -26,10 +26,14 @@ public sealed class ExcelFixtureTemplateTests
     [Fact]
     public async Task RenderAsync_WithDocTestFixtureTemplateXlsx_ShouldRenderAndExpandSuccessfully()
     {
-        var fixturePath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../../docs/test-fixtures/template.xlsx"));
+        var fixturePath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "Fixtures/Templates/template.xlsx"));
         if (!File.Exists(fixturePath))
         {
-            fixturePath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../docs/test-fixtures/template.xlsx"));
+            fixturePath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../Fixtures/Templates/template.xlsx"));
+        }
+        if (!File.Exists(fixturePath))
+        {
+            fixturePath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../Fixtures/Templates/template.xlsx"));
         }
 
         File.Exists(fixturePath).Should().BeTrue($"Fixture template should exist at {fixturePath}");

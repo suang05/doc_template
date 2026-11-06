@@ -1,0 +1,30 @@
+{
+  "inspectionId": "QA-CHK-2026-0819",
+  "inspectionRound": "1 (ตรวจรับมอบรอบแรก)",
+  "inspectionDate": "2026-10-15",
+  "projectName": "สัมมากร ชัยพฤกษ์ - วงแหวน",
+  "unitNo": "B-14",
+  "houseModel": "Barn House Type A",
+  "customerName": "นายวิศรุต รัตนภักดี",
+  "engineerName": "นายธีรวัฒน์ มณีรัตน์ (วิศวกรสนาม)",
+  "projectManagerName": "นายเอกชัย มงคลสวัสดิ์",
+  "totalChecked": 10,
+  "passedCount": 7,
+  "defectCount": 3,
+  "targetFixDate": "2026-10-25",
+  "nextInspectionDate": "2026-10-27",
+  "archItems": [
+    { "id": 1, "area": "ห้องโถงชั้น 1", "item": "ระดับความเรียบและรอยต่อกระเบื้องแกรนิตโต้ 60x60", "statusClass": "status-pass", "statusText": "ผ่าน (PASS)", "defectRemarks": "ระดับพื้นได้ระนาบ ยาแนวเรียบร้อยดี" },
+    { "id": 2, "area": "ห้องรับแขก", "item": "งานทาสีผนังภายในและบัวเชิงผนัง", "statusClass": "status-defect", "statusText": "แก้ไข (DEFECT)", "defectRemarks": "พบรอยแตกลายงาบริเวณผนังฝั่งทิศตะวันออก และบัวเชิงผนังเก็บรอยต่อไม่เรียบร้อย" },
+    { "id": 3, "area": "ห้องนอนใหญ่ (Master)", "item": "พื้นลามิเนตไวนิลลายไม้ และการยุบตัว", "statusClass": "status-pass", "statusText": "ผ่าน (PASS)", "defectRemarks": "ผิวหน้าสมบูรณ์ ไม่มีเสียงดังกรอบแกรบ" },
+    { "id": 4, "area": "ประตูหน้าต่างกระจก", "item": "การเปิด-ปิด และการล็อคบานเลื่อนอลูมิเนียม", "statusClass": "status-defect", "statusText": "แก้ไข (DEFECT)", "defectRemarks": "บานเลื่อนระเบียงห้องนอนใหญ่ฝืดเล็กน้อย ให้ปรับตั้งลูกล้อใหม่" },
+    { "id": 5, "area": "หลังคาและฝ้าเพดาน", "item": "ตรวจสอบคราบน้ำรั่วซึมใต้ฝ้าเพดานยิปซัม", "statusClass": "status-pass", "statusText": "ผ่าน (PASS)", "defectRemarks": "ไม่พบคราบน้ำหรือการรั่วซึม สมบูรณ์ดี" }
+  ],
+  "mepItems": [
+    { "id": 6, "area": "ห้องน้ำชั้นบน", "item": "ระบบแรงดันน้ำ สุขภัณฑ์ และก๊อกน้ำ Cotto", "statusClass": "status-pass", "statusText": "ผ่าน (PASS)", "defectRemarks": "แรงดันน้ำปกติ ชักโครกกดชำระราบรื่น" },
+    { "id": 7, "area": "ตู้เมนสวิตช์ (MDB)", "item": "ตู้ควบคุมไฟฟ้าเบรกเกอร์ Schneider และสายดิน", "statusClass": "status-pass", "statusText": "ผ่าน (PASS)", "defectRemarks": "ค่าความต้านทานสายดิน < 5 โอห์ม ผ่านเกณฑ์" },
+    { "id": 8, "area": "เต้ารับไฟฟ้า", "item": "ทดสอบแรงดันไฟ 220V และสลับเฟสทุกจุด", "statusClass": "status-defect", "statusText": "แก้ไข (DEFECT)", "defectRemarks": "เต้ารับข้างหัวเตียงห้องนอน 2 ไม่มีสัญญาณไฟ ให้ตรวจสอบการเข้าสาย" },
+    { "id": 9, "area": "ระบบระบายน้ำทิ้ง", "item": "ทดสอบการขังของน้ำใน Floor Drain ทุกห้องน้ำ", "statusClass": "status-pass", "statusText": "ผ่าน (PASS)", "defectRemarks": "ความลาดเอียง (Slope) ระบายน้ำได้รวดเร็ว ไม่ขัง" },
+    { "id": 10, "area": "ปั๊มน้ำและถังเก็บน้ำ", "item": "การตัด-ต่อการทำงานของปั๊มน้ำอัตโนมัติ", "statusClass": "status-pass", "statusText": "ผ่าน (PASS)", "defectRemarks": "ปั๊มทำงานเงียบ ตัดการทำงานตามจังหวะปกติ" }
+  ]
+}

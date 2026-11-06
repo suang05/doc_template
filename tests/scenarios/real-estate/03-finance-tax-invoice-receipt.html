@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <title>ใบเสร็จรับเงิน / ใบกำกับภาษี - สัมมากร</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap">
+  <style>
+    @page {
+      size: A4 portrait;
+      margin: 15mm 15mm 15mm 15mm;
+    }
+    * {
+      box-sizing: border-box;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    body {
+      font-family: 'Sarabun', sans-serif;
+      font-size: 10pt;
+      line-height: 1.4;
+      color: #0f172a;
+      margin: 0;
+      padding: 0;
+      background: #ffffff;
+    }
+    .container {
+      width: 100%;
+    }
+    .header-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 10px;
+    }
+    .logo-text {
+      font-size: 18pt;
+      font-weight: 800;
+      color: #0369a1;
+      letter-spacing: -0.5px;
+      margin: 0;
+    }
+    .header-sub {
+      font-size: 8.5pt;
+      color: #475569;
+      line-height: 1.3;
+    }
+    .receipt-badge {
+      display: inline-block;
+      background: #e0f2fe;
+      color: #0369a1;
+      border: 1px solid #bae6fd;
+      padding: 4px 10px;
+      font-size: 11pt;
+      font-weight: 700;
+      border-radius: 3px;
+    }
+    .info-card {
+      border: 1px solid #cbd5e1;
+      border-radius: 4px;
+      padding: 8px 12px;
+      margin-bottom: 10px;
+      background-color: #f8fafc;
+    }
+    .info-table {
+      width: 100%;
+      font-size: 9pt;
+      border-collapse: collapse;
+    }
+    .info-table td {
+      padding: 2px 4px;
+      vertical-align: top;
+    }
+    .label {
+      font-weight: 600;
+      color: #475569;
+      width: 18%;
+    }
+    .items-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      font-size: 9pt;
+    }
+    .items-table th {
+      background-color: #f1f5f9;
+      border: 1px solid #cbd5e1;
+      padding: 6px 8px;
+      font-weight: 600;
+      color: #334155;
+    }
+    .items-table td {
+      border: 1px solid #e2e8f0;
+      padding: 6px 8px;
+    }
+    .text-center { text-align: center; }
+    .text-right { text-align: right; }
+    .font-bold { font-weight: 700; }
+    .summary-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 9pt;
+      margin-top: -1px;
+    }
+    .summary-table td {
+      padding: 5px 8px;
+      border: 1px solid #cbd5e1;
+    }
+    .baht-text-cell {
+      background-color: #f8fafc;
+      font-size: 9pt;
+      font-weight: 600;
+      color: #0369a1;
+      vertical-align: middle;
+      padding: 8px !important;
+    }
+    .sign-section {
+      width: 100%;
+      margin-top: 20px;
+      border-collapse: collapse;
+    }
+    .sign-box {
+      width: 30%;
+      text-align: center;
+      border: 1px dashed #cbd5e1;
+      border-radius: 3px;
+      padding: 8px;
+      font-size: 8.5pt;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <table class="header-table">
+      <tr>
+        <td style="width: 58%; vertical-align: top;">
+          <h1 class="logo-text">SAMMAKORN</h1>
+          <div class="header-sub">
+            <strong>บริษัท สัมมากร จำกัด (มหาชน)</strong> (สำนักงานใหญ่)<br>
+            195 อาคารเอ็มไพร์ ทาวเวอร์ ชั้น 18 ถนนสาทรใต้ แขวงยานนาวา เขตสาทร กรุงเทพมหานคร 10120<br>
+            เลขประจำตัวผู้เสียภาษีอากร: <strong>0107536000287</strong> • โทร: 02-123-4567
+          </div>
+        </td>
+        <td style="width: 42%; text-align: right; vertical-align: top;">
+          <div class="receipt-badge">ใบเสร็จรับเงิน / ใบกำกับภาษี</div>
+          <div style="font-size: 8.5pt; color: #64748b; margin-top: 2px;">ต้นฉบับ (สำหรับลูกค้า)</div>
+          <div style="margin-top: 8px; font-size: 9pt;">
+            เลขที่เอกสาร: <strong>{{receiptNo}}</strong><br>
+            วันที่: <strong>{{receiptDate:thai_date}}</strong><br>
+            อ้างอิงใบจอง: {{refBookingNo}}
+          </div>
+        </td>
+      </tr>
+    </table>
+
+    <!-- ข้อมูลลูกค้าและโครงการ -->
+    <div class="info-card">
+      <table class="info-table">
+        <tr>
+          <td class="label">ชื่อลูกค้า:</td>
+          <td style="width: 35%;"><strong>{{customerName}}</strong></td>
+          <td class="label">ชื่อโครงการ:</td>
+          <td style="width: 35%;">{{projectName}}</td>
+        </tr>
+        <tr>
+          <td class="label">เลขประจำตัวผู้เสียภาษี/บัตรประชาชน:</td>
+          <td>{{idCardNumber}}</td>
+          <td class="label">แปลงที่ดิน / บ้านเลขที่:</td>
+          <td>แปลง <strong>{{unitNo}}</strong></td>
+        </tr>
+        <tr>
+          <td class="label">ที่อยู่:</td>
+          <td colspan="3">{{customerAddress}}</td>
+        </tr>
+        <tr>
+          <td class="label">วิธีการชำระเงิน:</td>
+          <td colspan="3">{{paymentMethod}} (ธนาคาร: {{bankName}} / เลขที่อ้างอิง: {{transactionRef}})</td>
+        </tr>
+      </table>
+    </div>
+
+    <!-- ตารางรายการชำระเงิน -->
+    <table class="items-table">
+      <thead>
+        <tr>
+          <th style="width: 8%;" class="text-center">ลำดับ</th>
+          <th style="width: 62%;">รายการชำระ</th>
+          <th style="width: 30%;" class="text-right">จำนวนเงิน (บาท)</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each lineItems}}
+        <tr>
+          <td class="text-center">{{id}}</td>
+          <td>{{description}}</td>
+          <td class="text-right">{{amount:currency}}</td>
+        </tr>
+        {{/each}}
+      </tbody>
+    </table>
+
+    <!-- สรุปตัวเลขและ VAT -->
+    <table class="summary-table">
+      <tr>
+        <td rowspan="4" style="width: 60%;" class="baht-text-cell">
+          <strong>จำนวนเงินตัวอักษร:</strong><br>
+          ({{grandTotal:thai_baht_text}})
+        </td>
+        <td style="width: 20%;" class="font-bold">มูลค่าก่อนภาษี:</td>
+        <td style="width: 20%;" class="text-right">{{subtotal:currency}}</td>
+      </tr>
+      <tr>
+        <td class="font-bold">ภาษีมูลค่าเพิ่ม (VAT 7%):</td>
+        <td class="text-right">{{vatAmount:currency}}</td>
+      </tr>
+      <tr style="background-color: #f0fdf4; font-weight: 700; color: #166534; font-size: 10pt;">
+        <td>จำนวนเงินรวมทั้งสิ้น:</td>
+        <td class="text-right">{{grandTotal:currency}}</td>
+      </tr>
+      <tr style="background-color: #f8fafc; font-size: 8pt; color: #64748b;">
+        <td>ภาษีหัก ณ ที่จ่าย (ถ้ามี):</td>
+        <td class="text-right">{{withholdingTax:currency}}</td>
+      </tr>
+    </table>
+
+    <!-- ส่วนล่าง: QR Code ชำระเงิน / ตรวจสอบ และ ลายมือชื่อ -->
+    <table style="width: 100%; margin-top: 14px; border-collapse: collapse;">
+      <tr>
+        <td style="width: 25%; vertical-align: top; text-align: center;">
+          <div style="display: inline-block; border: 1px solid #e2e8f0; padding: 6px; border-radius: 4px;">
+            {{qr:promptPayPayload}}
+            <div style="font-size: 7.5pt; color: #64748b; margin-top: 2px;">PromptPay e-Payment / Verify</div>
+          </div>
+        </td>
+        <td style="width: 75%; vertical-align: top;">
+          <table class="sign-section">
+            <tr>
+              <td class="sign-box">
+                <div style="height: 35px;"></div>
+                <div style="border-bottom: 1px dotted #94a3b8; width: 80%; margin: 0 auto 4px auto;"></div>
+                <div>( {{cashierName}} )</div>
+                <div style="color: #64748b; font-size: 7.5pt;">เจ้าหน้าที่การเงินผู้รับเงิน</div>
+              </td>
+              <td style="width: 5%;"></td>
+              <td class="sign-box">
+                <div style="height: 35px;"></div>
+                <div style="border-bottom: 1px dotted #94a3b8; width: 80%; margin: 0 auto 4px auto;"></div>
+                <div>( {{accountantName}} )</div>
+                <div style="color: #64748b; font-size: 7.5pt;">สมุห์บัญชี / ผู้มีอำนาจลงนาม</div>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+
+    <!-- Barcode ใบเสร็จ -->
+    <div style="margin-top: 16px; text-align: center;">
+      {{barcode:receiptNo}}
+      <div style="font-size: 7.5pt; color: #64748b;">Receipt Barcode: {{receiptNo}}</div>
+    </div>
+  </div>
+
+</body>
+</html>

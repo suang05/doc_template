@@ -4,7 +4,7 @@
     <RootNamespace>SmkDoc.Api</RootNamespace>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);1591</NoWarn>
-    <OpenApiDocumentsDirectory>$(MSBuildProjectDirectory)\..\..\..\docs</OpenApiDocumentsDirectory>
+    <OpenApiDocumentsDirectory>$(MSBuildProjectDirectory)\..\..\..\specs</OpenApiDocumentsDirectory>
   </PropertyGroup>
 
   <ItemGroup>

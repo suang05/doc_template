@@ -1,0 +1,109 @@
+{
+  "_comment": "Sample payload ใช้ทดสอบทุก placeholder kind — ส่ง JSON นี้เป็น body ของ POST /api/documents/generate/{slug}",
+
+  "companyName": "บริษัท สมาคมก่อสร้างไทย จำกัด (มหาชน)",
+  "companyAddress": "123 ถนนสุขุมวิท แขวงคลองเตย เขตคลองเตย กรุงเทพมหานคร 10110",
+  "companyTaxId": "0105565012345",
+  "companyPhone": "02-123-4567",
+  "companyEmail": "contact@sammakorn.co.th",
+
+  "customerName": "นายสมชาย ใจดี",
+  "customerCode": "CUST-2024-00123",
+  "customerAddress": "456/78 ถนนพหลโยธิน แขวงสามเสนใน เขตพญาไท กรุงเทพมหานคร 10400",
+  "customerTaxId": "3101700123456",
+  "customerPhone": "081-234-5678",
+
+  "documentNo": "INV-2567-12345",
+  "documentDate": "2567-12-15",
+  "documentDateEN": "15 December 2024",
+  "dueDate": "2568-01-15",
+  "paymentTerms": "30 วัน",
+
+  "subtotal": 142857.14,
+  "vatRate": 7,
+  "vatAmount": 10000.00,
+  "total": 152857.14,
+  "totalText": "หนึ่งแสนห้าหมื่นสองพันแปดร้อยห้าสิบเจ็ดบาทสิบสี่สตางค์",
+  "totalTextEN": "One Hundred and Fifty Two Thousand Eight Hundred and Fifty Seven Baht Fourteen Satang",
+
+  "projectName": "โครงการก่อสร้างอาคารสำนักงาน 15 ชั้น",
+  "projectCode": "PRJ-2024-007",
+  "projectLocation": "นนทบุรี",
+
+  "approverName": "นายวิชัย มั่นคง",
+  "approverPosition": "ผู้จัดการฝ่ายการเงิน",
+  "approveDate": "2024-12-15",
+
+  "remark": "กรุณาชำระเงินภายในกำหนด เพื่อหลีกเลี่ยงค่าปรับล่าช้า 1.5% ต่อเดือน หากมีข้อสงสัยกรุณาติดต่อฝ่ายบัญชี",
+  "longText": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. ข้อความภาษาไทยผสม: การทดสอบการตัดคำภาษาไทยในเอกสารที่มีเนื้อหายาวและมีทั้งภาษาไทยและภาษาอังกฤษปนกันอยู่",
+
+  "invoiceUrl": "https://docs.sammakorn.co.th/invoice/INV-2567-12345",
+  "trackingBarcode": "TRK202412150001",
+  "productBarcode": "8850006123456",
+  "qrPaymentData": "00020101021253370016A000000677010111011300660000012345204999953037645404100.005802TH5914Sammakorn Co6007Bangkok630433CC",
+
+  "logoUrl": "https://placehold.co/240x80/1e3a5f/ffffff?text=SAMMAKORN",
+  "stampUrl": "https://placehold.co/120x120/16a34a/ffffff?text=APPROVED",
+  "signatureUrl": "https://placehold.co/200x60/374151/ffffff?text=Signature",
+  "headerBannerUrl": "https://placehold.co/800x120/0f172a/ffffff?text=Company+Header+Banner",
+
+  "items": [
+    {
+      "no": 1,
+      "description": "งานรื้อถอนอาคารเดิมและเตรียมพื้นที่",
+      "unit": "งาน",
+      "quantity": 1,
+      "unitPrice": 250000.00,
+      "amount": 250000.00
+    },
+    {
+      "no": 2,
+      "description": "งานฐานรากและโครงสร้างคอนกรีตเสริมเหล็กชั้นใต้ดิน",
+      "unit": "ตร.ม.",
+      "quantity": 1200,
+      "unitPrice": 8500.00,
+      "amount": 10200000.00
+    },
+    {
+      "no": 3,
+      "description": "งานโครงสร้างเหล็กพร้อมติดตั้งชั้น 1-15 รวมงานเชื่อม",
+      "unit": "ตัน",
+      "quantity": 85.5,
+      "unitPrice": 95000.00,
+      "amount": 8122500.00
+    },
+    {
+      "no": 4,
+      "description": "วัสดุ: คอนกรีตผสมเสร็จ 280 ksc (ทดสอบการตัดคำในเซลล์ตาราง)",
+      "unit": "ลบ.ม.",
+      "quantity": 450,
+      "unitPrice": 2800.00,
+      "amount": 1260000.00
+    },
+    {
+      "no": 5,
+      "description": "งานระบบไฟฟ้าและสื่อสารครบวงจร",
+      "unit": "ระบบ",
+      "quantity": 1,
+      "unitPrice": 3500000.00,
+      "amount": 3500000.00
+    }
+  ],
+
+  "milestones": [
+    { "phase": "Phase 1", "name": "งานฐานราก", "startDate": "2024-01-15", "endDate": "2024-03-31", "percent": 100, "status": "เสร็จสิ้น" },
+    { "phase": "Phase 2", "name": "งานโครงสร้าง", "startDate": "2024-04-01", "endDate": "2024-08-31", "percent": 75, "status": "กำลังดำเนินการ" },
+    { "phase": "Phase 3", "name": "งานสถาปัตยกรรม", "startDate": "2024-06-01", "endDate": "2024-12-31", "percent": 30, "status": "กำลังดำเนินการ" },
+    { "phase": "Phase 4", "name": "งานระบบ M&E", "startDate": "2024-09-01", "endDate": "2025-02-28", "percent": 0, "status": "รอดำเนินการ" }
+  ],
+
+  "contacts": [
+    { "role": "Project Manager", "name": "นายอนันต์ สร้างสรรค์", "phone": "081-111-2222", "email": "anan@sammakorn.co.th" },
+    { "role": "Site Engineer", "name": "นางสาวพิมพ์ มั่นคง", "phone": "082-333-4444", "email": "pim@sammakorn.co.th" },
+    { "role": "QC Inspector", "name": "นายธนกร ตรวจสอบ", "phone": "083-555-6666", "email": "thanakorn@sammakorn.co.th" }
+  ],
+
+  "pageTitle": "ใบแจ้งหนี้ / Tax Invoice",
+  "copyLabel": "ต้นฉบับ",
+  "confidential": "เอกสารนี้เป็นความลับทางธุรกิจ"
+}

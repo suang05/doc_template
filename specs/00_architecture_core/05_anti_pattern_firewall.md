@@ -91,9 +91,9 @@ ProactiveFirewallInterceptors:
 >> MANDATORY CANONICAL TEMPLATE [RULE-FIREWALL-001]:
 * [MUST] Intercept fatal failure modes at the architecture perimeter before entering inner business execution.
 * [MUST] Route architectural state persistence and post-commit event harvesting through the canonical UnitOfWork adapter:
-  >> Canonical UnitOfWork Recipe: `[RULE-INFRA-003]` in `docs/AI/01_clean_arch_patterns/03_infrastructure_layer.md`
+  >> Canonical UnitOfWork Recipe: `[RULE-INFRA-003]` in `specs/01_clean_arch_patterns/03_infrastructure_layer.md`
 * [MUST] Route perimeter network validation through the canonical host validator:
-  >> Canonical Host Validator Recipe: `[RULE-SEC-001]` in `docs/AI/00_architecture_core/03_security_and_performance.md`
+  >> Canonical Host Validator Recipe: `[RULE-SEC-001]` in `specs/00_architecture_core/03_security_and_performance.md`
 
 ---
 

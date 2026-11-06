@@ -1,0 +1,282 @@
+# Sprint 10 — API Test Scenarios
+# ใช้กับ VS Code REST Client extension หรือ JetBrains HTTP Client
+# ตั้งค่า: Replace {{API_KEY}} ด้วย key จริง และ {{PROJECT_ID}} ด้วย UUID ของ project
+
+@baseUrl = http://localhost:8080
+@apiKey = secret-smk-key-2026
+@contentType = application/json
+
+###############################################################################
+# SECTION 1: DataConnection CRUD
+###############################################################################
+
+### 1.1 สร้าง DataConnection ใหม่ (PostgreSQL)
+# Expected: 200 OK, ConnectionString = null ใน response (ไม่ return กลับมาหลัง save)
+POST {{baseUrl}}/api/DataConnection
+X-API-Key: {{apiKey}}
+Content-Type: {{contentType}}
+
+{
+  "name": "สาขาหลัก — Local PostgreSQL",
+  "projectId": null,
+  "databaseType": "postgresql",
+  "connectionString": "Host=db;Database=smkdoc;Username=postgres;Password=password"
+}
+
+### → Copy "id" จาก response แล้ว paste แทน {{CONNECTION_ID}} ด้านล่าง
+@connectionId = 00000000-0000-0000-0000-000000000000
+
+---
+
+### 1.2 ดึง DataConnection ทั้งหมด
+# Expected: 200 OK, array, ทุก item มี connectionString = null
+GET {{baseUrl}}/api/DataConnection
+X-API-Key: {{apiKey}}
+
+---
+
+### 1.3 ทดสอบ connectivity
+# Expected: { "success": true, "message": "Connection successful." }
+POST {{baseUrl}}/api/DataConnection/{{connectionId}}/test
+X-API-Key: {{apiKey}}
+
+---
+
+### 1.4 อัปเดตชื่อ (ไม่เปลี่ยน password)
+# ส่ง connectionString = "" หรือ null → ไม่ re-encrypt
+PUT {{baseUrl}}/api/DataConnection/{{connectionId}}
+X-API-Key: {{apiKey}}
+Content-Type: {{contentType}}
+
+{
+  "name": "สาขาหลัก — Updated Name",
+  "databaseType": "postgresql",
+  "connectionString": ""
+}
+
+---
+
+### 1.5 อัปเดตพร้อมเปลี่ยน connection string
+PUT {{baseUrl}}/api/DataConnection/{{connectionId}}
+X-API-Key: {{apiKey}}
+Content-Type: {{contentType}}
+
+{
+  "name": "สาขาหลัก — New Password",
+  "databaseType": "postgresql",
+  "connectionString": "Host=db;Database=smkdoc;Username=postgres;Password=newpassword"
+}
+
+---
+
+### 1.6 ลบ DataConnection
+# Expected: 200 OK { "message": "Deleted." }
+DELETE {{baseUrl}}/api/DataConnection/{{connectionId}}
+X-API-Key: {{apiKey}}
+
+---
+
+### 1.7 ลบ ID ที่ไม่มีอยู่ → 404
+DELETE {{baseUrl}}/api/DataConnection/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee
+X-API-Key: {{apiKey}}
+
+---
+
+### 1.8 สร้างโดยไม่มี ConnectionString → 400
+POST {{baseUrl}}/api/DataConnection
+X-API-Key: {{apiKey}}
+Content-Type: {{contentType}}
+
+{
+  "name": "Missing CS",
+  "databaseType": "postgresql",
+  "connectionString": ""
+}
+
+---
+
+### 1.9 สร้างโดยไม่มี Name → 400
+POST {{baseUrl}}/api/DataConnection
+X-API-Key: {{apiKey}}
+Content-Type: {{contentType}}
+
+{
+  "name": "",
+  "databaseType": "postgresql",
+  "connectionString": "Host=db;Database=smkdoc;Username=postgres;Password=password"
+}
+
+###############################################################################
+# SECTION 2: FieldMapping — DataSourceType "expr" (Math Expression)
+###############################################################################
+# ต้องมี templateId ที่มีอยู่ใน DB
+@templateId = 00000000-0000-0000-0000-000000000000
+
+### 2.1 บันทึก FieldMapping สำหรับใบแจ้งหนี้ (JSON + expr combined)
+# SortOrder สำคัญ: expr ต้องมาหลัง json ที่เป็น source ของมัน
+PUT {{baseUrl}}/api/FieldMapping/{{templateId}}
+X-API-Key: {{apiKey}}
+Content-Type: {{contentType}}
+
+[
+  {
+    "placeholder": "qty",
+    "label": "จำนวน",
+    "sourcePath": "items[0].quantity",
+    "placeholderType": "text",
+    "dataSourceType": "json",
+    "sortOrder": 0
+  },
+  {
+    "placeholder": "unitPrice",
+    "label": "ราคาต่อหน่วย",
+    "sourcePath": "items[0].unitPrice",
+    "placeholderType": "text",
+    "dataSourceType": "json",
+    "sortOrder": 1
+  },
+  {
+    "placeholder": "subtotal",
+    "label": "ยอดก่อน VAT",
+    "sourcePath": "qty * unitPrice",
+    "placeholderType": "text",
+    "dataSourceType": "expr",
+    "sortOrder": 2
+  },
+  {
+    "placeholder": "vat",
+    "label": "VAT 7%",
+    "sourcePath": "subtotal * 0.07",
+    "placeholderType": "text",
+    "dataSourceType": "expr",
+    "sortOrder": 3
+  },
+  {
+    "placeholder": "grandTotal",
+    "label": "ยอดรวมสุทธิ",
+    "sourcePath": "subtotal + vat",
+    "placeholderType": "text",
+    "dataSourceType": "expr",
+    "sortOrder": 4
+  }
+]
+
+---
+
+### 2.2 Preview FieldMapping กับ Sample JSON
+POST {{baseUrl}}/api/FieldMapping/{{templateId}}/preview
+X-API-Key: {{apiKey}}
+Content-Type: {{contentType}}
+
+{
+  "sampleJson": {
+    "items": [
+      { "quantity": "3", "unitPrice": "250.50" }
+    ]
+  }
+}
+
+# Expected result:
+# qty           = "3"           (json)
+# unitPrice     = "250.50"      (json)
+# subtotal      = "751.5"       (expr: 3 * 250.50)
+# vat           = "52.605"      (expr: 751.5 * 0.07)
+# grandTotal    = "804.105"     (expr: 751.5 + 52.605)
+
+###############################################################################
+# SECTION 3: FieldMapping — DataSourceType "sql"
+###############################################################################
+
+### 3.1 บันทึก FieldMapping แบบ sql
+# ต้องสร้าง DataConnection ก่อน (Section 1.1) แล้วใส่ ID
+PUT {{baseUrl}}/api/FieldMapping/{{templateId}}
+X-API-Key: {{apiKey}}
+Content-Type: {{contentType}}
+
+[
+  {
+    "placeholder": "customerName",
+    "label": "ชื่อลูกค้า",
+    "sourcePath": "name",
+    "placeholderType": "text",
+    "dataSourceType": "sql",
+    "dataConnectionId": "{{connectionId}}",
+    "sqlQuery": "SELECT name, address FROM customers WHERE id = 1 LIMIT 1",
+    "sortOrder": 0
+  },
+  {
+    "placeholder": "customerAddress",
+    "label": "ที่อยู่ลูกค้า",
+    "sourcePath": "address",
+    "placeholderType": "text",
+    "dataSourceType": "sql",
+    "dataConnectionId": "{{connectionId}}",
+    "sqlQuery": "SELECT name, address FROM customers WHERE id = 1 LIMIT 1",
+    "sortOrder": 1
+  }
+]
+
+# Note: ทั้ง 2 mappings ใช้ query เดียวกัน → SQL executed เพียงครั้งเดียว (cache ใน TryApplyMappingAsync)
+
+---
+
+### 3.2 Preview sql mapping → แสดง placeholder note (ไม่ execute SQL)
+POST {{baseUrl}}/api/FieldMapping/{{templateId}}/preview
+X-API-Key: {{apiKey}}
+Content-Type: {{contentType}}
+
+{
+  "sampleJson": {}
+}
+
+# Expected:
+# customerName    TransformedValue = "(sql — ไม่สามารถดูตัวอย่างได้)"
+# customerAddress TransformedValue = "(sql — ไม่สามารถดูตัวอย่างได้)"
+
+###############################################################################
+# SECTION 4: E2E — Generate Document with expr Mappings
+###############################################################################
+
+### 4.1 Generate ใบแจ้งหนี้ (docx) พร้อม expr calculation
+# สมมติมี template ที่มี {{subtotal}}, {{vat}}, {{grandTotal}} placeholders
+POST {{baseUrl}}/api/Document/generate
+X-API-Key: {{apiKey}}
+Content-Type: {{contentType}}
+
+{
+  "templateFileName": "invoice-template.docx",
+  "outputFormat": "docx",
+  "data": {
+    "invoiceNo": "INV-2026-001",
+    "customerName": "บริษัท ทดสอบ จำกัด",
+    "items": [
+      { "quantity": "10", "unitPrice": "500" }
+    ]
+  }
+}
+
+# Expected flow:
+# 1. qty       = JsonPath "items[0].quantity" = "10"
+# 2. unitPrice = JsonPath "items[0].unitPrice" = "500"
+# 3. subtotal  = expr "qty * unitPrice" = "5000"
+# 4. vat       = expr "subtotal * 0.07" = "350"
+# 5. grandTotal= expr "subtotal + vat" = "5350"
+
+---
+
+### 4.2 Preview (ไม่บันทึก) — ใช้ Tiptap/HTML template
+POST {{baseUrl}}/api/Document/preview
+X-API-Key: {{apiKey}}
+Content-Type: {{contentType}}
+
+{
+  "templateFileName": "invoice-template.html",
+  "outputFormat": "pdf",
+  "data": {
+    "items": [
+      { "quantity": "5", "unitPrice": "1200" }
+    ]
+  }
+}
+
+# Expected: stream PDF bytes (subtotal=6000, vat=420, grandTotal=6420)

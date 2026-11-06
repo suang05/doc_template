@@ -1,0 +1,46 @@
+{
+  "projectName": "\u0E2A\u0E31\u0E21\u0E21\u0E32\u0E01\u0E23 \u0E0A\u0E31\u0E22\u0E1E\u0E24\u0E01\u0E29\u0E4C - \u0E27\u0E07\u0E41\u0E2B\u0E27\u0E19",
+  "unitNo": "B-14",
+  "customerName": "\u0E19\u0E32\u0E22\u0E27\u0E34\u0E28\u0E23\u0E38\u0E15 \u0E23\u0E31\u0E15\u0E19\u0E20\u0E31\u0E01\u0E14\u0E35",
+  "houseModel": "Barn House Type A",
+  "landArea": "65.4 \u0E15\u0E23.\u0E27.",
+  "sellingPrice": "8,400,000",
+  "installments": [
+    {
+      "no": "1",
+      "dueDate": "15/10/2026",
+      "title": "\u0E40\u0E07\u0E34\u0E19\u0E14\u0E32\u0E27\u0E19\u0E4C \u0E07\u0E27\u0E14\u0E17\u0E35\u0E48 1",
+      "amount": "50000"
+    },
+    {
+      "no": "2",
+      "dueDate": "15/11/2026",
+      "title": "\u0E40\u0E07\u0E34\u0E19\u0E14\u0E32\u0E27\u0E19\u0E4C \u0E07\u0E27\u0E14\u0E17\u0E35\u0E48 2",
+      "amount": "50000"
+    },
+    {
+      "no": "3",
+      "dueDate": "15/12/2026",
+      "title": "\u0E40\u0E07\u0E34\u0E19\u0E14\u0E32\u0E27\u0E19\u0E4C \u0E07\u0E27\u0E14\u0E17\u0E35\u0E48 3",
+      "amount": "50000"
+    },
+    {
+      "no": "4",
+      "dueDate": "15/01/2027",
+      "title": "\u0E40\u0E07\u0E34\u0E19\u0E14\u0E32\u0E27\u0E19\u0E4C \u0E07\u0E27\u0E14\u0E17\u0E35\u0E48 4",
+      "amount": "50000"
+    },
+    {
+      "no": "5",
+      "dueDate": "15/02/2027",
+      "title": "\u0E40\u0E07\u0E34\u0E19\u0E14\u0E32\u0E27\u0E19\u0E4C \u0E07\u0E27\u0E14\u0E17\u0E35\u0E48 5",
+      "amount": "50000"
+    },
+    {
+      "no": "6",
+      "dueDate": "15/03/2027",
+      "title": "\u0E40\u0E07\u0E34\u0E19\u0E14\u0E32\u0E27\u0E19\u0E4C \u0E07\u0E27\u0E14\u0E17\u0E35\u0E48 6",
+      "amount": "50000"
+    }
+  ]
+}

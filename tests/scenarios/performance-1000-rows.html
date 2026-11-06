@@ -1,0 +1,57 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8"/>
+    <style>
+        @page { size: A4; margin-top: 25mm; margin-bottom: 22mm; margin-left: 15mm; margin-right: 15mm; }
+        body { font-family: 'Sarabun', sans-serif; font-size: 8pt; color: #1e293b; margin: 0; }
+        h1 { font-size: 14pt; color: #0284c7; margin: 0 0 4px 0; }
+        .meta { font-size: 8pt; color: #64748b; margin-bottom: 12px; }
+        table { width: 100%; border-collapse: collapse; page-break-inside: auto; }
+        tr { page-break-inside: avoid; page-break-after: auto; }
+        th, td { border: 1px solid #cbd5e1; padding: 4px 6px; font-size: 8pt; }
+        th { background-color: #f1f5f9; font-weight: bold; text-align: left; }
+        .num { text-align: right; }
+    </style>
+</head>
+<body>
+    <template id="header">
+        <div style="font-family: 'Sarabun', sans-serif; font-size: 8pt; color: #94a3b8; width: 100%; border-bottom: 1px solid #cbd5e1; padding-bottom: 4px; display: flex; justify-content: space-between;">
+            <span>บริษัท สัมมากร จำกัด (มหาชน) — บัญชีทำธุรกรรมประจำปี</span>
+            <span>วันที่พิมพ์: {{generatedDate}}</span>
+        </div>
+    </template>
+    <template id="footer">
+        <div style="font-family: 'Sarabun', sans-serif; font-size: 8pt; color: #94a3b8; width: 100%; border-top: 1px solid #cbd5e1; padding-top: 4px; display: flex; justify-content: space-between;">
+            <span>เอกสารตรวจสอบความถูกต้องภายใน</span>
+            <span>หน้าที่ <span class="pageNumber"></span> / <span class="totalPages"></span></span>
+        </div>
+    </template>
+
+    <h1>{{companyName}}</h1>
+    <div class="meta">{{reportTitle}} | วันที่ออกรายงาน: {{generatedDate}}</div>
+
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 5%;">#</th>
+                <th style="width: 12%;">วันที่</th>
+                <th style="width: 18%;">เลขอ้างอิง</th>
+                <th style="width: 45%;">รายละเอียดธุรกรรม</th>
+                <th style="width: 20%;" class="num">จำนวนเงิน (บาท)</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{#each items}}
+            <tr>
+                <td>{{no}}</td>
+                <td>{{date}}</td>
+                <td>{{refNo}}</td>
+                <td>{{description}}</td>
+                <td class="num">{{amount}}</td>
+            </tr>
+            {{/each}}
+        </tbody>
+    </table>
+</body>
+</html>

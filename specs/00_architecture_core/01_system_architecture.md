@@ -5,14 +5,14 @@ Scope: Macro Container Topology, 4 Bounded Contexts Collaboration, Tier Matrix, 
 SSoT_For: Overall System Architecture, Layer Dependency Invariants, Container Topology, and Execution Pipeline Lifecycles.
 Out_Of_Scope: C# 13 syntax and linear cadences (see: 02_coding_conventions.md), M2M security and performance limits (see: 03_security_and_performance.md), Lexical naming (see: 04_naming_standards.md), Anti-patterns (see: 05_anti_pattern_firewall.md).
 Target: `backend-v2/` (`SmkDoc.Domain`, `SmkDoc.Application`, `SmkDoc.Infrastructure`, `SmkDoc.Api`) and `frontend-v2/`.
-ArchitecturalSignals: [ARCH_EVOLUTION_APPLICATION], [ARCH_EVOLUTION_DOMAIN], [ARCH_EVOLUTION_RENDERING]
+ArchitecturalSignals: [ARCH_EVOLUTION_CORE]
 </context>
 
 ---
 
 ## 1. Level 1: System Topology & Layer Invariants Matrix
 
-### 1.1 Core Mission: M2M-First Enterprise Document Gateway
+### 1.1 Core Mission & Caller Personas
 `smk-doc-server` is an enterprise-grade, high-throughput centralized document gateway ingesting structured JSON payloads and external database queries to produce deterministic outputs across three target formats: **PDF**, **DOCX**, and **XLSX**.
 * **Primary Persona**: Automated Machine-to-Machine (M2M) callers (Enterprise ERPs, Core Banking, Billing Engines) communicating via SHA-256 API Keys.
 * **Secondary Persona**: Template Authors and Administrators interacting with the Web Studio Portal (`frontend-v2`) via JWT Bearer sessions.
@@ -27,22 +27,43 @@ graph TD
     Infra --> Domain
 ```
 
-| Layer Project | Inbound Allowed | Prohibited Patterns (! BANNED) | Canonical Mandates (>> MANDATORY) | Boundary Vector |
-|---|---|---|---|---|
-| **`SmkDoc.Domain`** | `Application`, `Infrastructure`, `Api` | ! EF Core / ASP.NET / MinIO references<br/>! Public property setters (`set;`)<br/>! Direct system clock queries (`DateTime.UtcNow`) | >> Pure C# 13 POCOs<br/>>> Encapsulated state (`private set`)<br/>>> Canonical factory method (`Create`)<br/>>> Parameterized `TimeProvider` or explicit `DateTimeOffset now` | Core Center |
-| **`SmkDoc.Application`** | `Infrastructure`, `Api` | ! Leaking Domain Entities across boundaries<br/>! Direct EF Core `DbContext` references<br/>! Synchronous blocking (`.Result`, `.Wait()`)<br/>! Multi-type `*UseCase.cs` declarations | >> Positional immutable `record` for contracts<br/>>> 1-Type-Per-File co-located per CQRS slice<br/>>> Orchestrate workflows via `IUseCase<TReq, TRes>`<br/>>> Transaction boundary via `IUnitOfWork` | Inward => Domain |
-| **`SmkDoc.Infrastructure`**| `Api` (DI composition root only) | ! Exposing EF `DbContext` outside<br/>! Bypassing ambient tenant query filters<br/>! Multi-MB in-memory buffering (`byte[]`) | >> Implement Application ports/interfaces<br/>>> Zero-LOH streaming for Gotenberg/MinIO<br/>>> `IEntityTypeConfiguration<T>` + `xmin` concurrency | Inward => Domain & Application |
-| **`SmkDoc.Api`** | None (Entry Point) | ! Business logic inside controllers<br/>! Actions exceeding 5 lines of code<br/>! Direct Entity consumption or return | >> Thin orchestrators with Primary Constructors<br/>>> Centralized RFC 9457 `ProblemDetails`<br/>>> `ApiResponse<T>` / `PagedApiResponse<T>` | Inward => Application |
+| Layer Project | Inbound Allowed | Affirmative Architectural Invariants (Positive Core Laws) | Boundary Vector |
+|---|---|---|---|
+| **`SmkDoc.Domain`** | `Application`, `Infrastructure`, `Api` | Pure C# 13 POCOs only. Encapsulated state via `private set`. Explicit dependencies passed via parameters (`DateTimeOffset now`, `TimeProvider`). Exactly 1 canonical factory method (`Create`) per Aggregate Root. | Core Center |
+| **`SmkDoc.Application`** | `Infrastructure`, `Api` | CQRS Single-Responsibility workflows via `IUseCase<TReq, TRes>`. Cross-boundary payloads strictly use immutable positional records (`*Command`, `*Query`, `*ResultDto`). Atomic persistence coordination via `IUnitOfWork`. Enforces 1-Primary-Type-Per-File co-located in feature slices. | Inward => Domain |
+| **`SmkDoc.Infrastructure`**| `Api` (Composition Root only) | Implements Application ports (EF Core, MinIO, Gotenberg, SQL Drivers). Enforces ambient multi-tenancy via EF Core global query filters. Streams binary outputs directly through bounded 81,920-byte buffers. Pluggable adapters via Factory/Strategy patterns. | Inward => Domain & Application |
+| **`SmkDoc.Api`** | None (Entry Point) | Thin HTTP orchestrators ($\le 5$ LOC per action) with C# 13 Primary Constructors. Translates HTTP requests to Commands/Queries and delegates directly to UseCases. Centralizes RFC 9457 `ProblemDetails` via `IExceptionHandler`. | Inward => Application |
 
 ### 1.3 The 4 Bounded Context Collaboration Matrix
-| Bounded Context | Core Entities (Domain) | Upstream Dependencies | Downstream Consumers | Shared Boundary Contracts |
+| Bounded Context | Core Aggregates (Domain) | Upstream Dependencies | Downstream Consumers | Shared Boundary Contracts |
 |---|---|---|---|---|
 | **`Authoring`** | `Template`, `TemplateVersion`, `FieldMapping`, `Font` | `IdentityAccess` (Project scoping) | `Rendering` (Template resolution) | `TemplateId`, `TemplateSlug`, `TemplateVersionId`, `TemplatePublishedDomainEvent` |
 | **`Rendering`** | `Document`, `DocumentVersion`, `GenerationLog` | `Authoring` (Templates), `Integration` (Datasets) | External Callers, Portal UI | `DocumentId`, `RenderEngineType`, `OutputFormat`, `Stream` |
 | **`Integration`**| `DataConnection`, `Dataset` | `IdentityAccess` (Project scoping) | `Rendering` (Data extraction) | `DataConnectionId`, `DatasetId`, `ExtractionStrategy` |
 | **`IdentityAccess`**| `Company`, `Project`, `User`, `ApiKey` | Edge Authentication Middleware | All other Contexts (Tenant filtering) | `ProjectId`, `CompanyId`, `UserId`, `ApiKeyId`, `ICurrentProjectContext` |
 
-### 1.4 Application Module Taxonomy Tree
+### 1.4 The 2 Core Execution Pipelines
+```
+[PIPELINE_A: M2M DOCUMENT GENERATION (Persistent & Audited)]
+HTTP Request (API Key) 
+  => ApiKeyAuthMiddleware (Resolves ProjectContext)
+  => RenderDocumentController (<= 5 LOC)
+  => RenderDocumentUseCase (PEMR Cadence)
+  => Engine Dispatcher (Gotenberg / OpenXML / ClosedXML)
+  => ResponseDisposingStream (Bounded 81,920 buffer passthrough)
+  => Async Background Audit & MinIO Archive
+
+[PIPELINE_B: WEB STUDIO LIVE PREVIEW (100% In-Memory & Non-Persistent)]
+HTTP Request (JWT Bearer)
+  => JwtSessionMiddleware (Resolves User & Draft ProjectContext)
+  => PreviewController (<= 5 LOC)
+  => RenderPreviewUseCase (In-Memory Draft Rendering)
+  => Gotenberg Sandboxed Chromium Cluster (In-Memory HTML/CSS)
+  => Direct MemoryStream Passthrough to Response
+  => ZERO Database Mutation & ZERO MinIO Persistence
+```
+
+### 1.5 Application Module Taxonomy Tree
 ```
 backend-v2/src/SmkDoc.Application/Modules/
   Authoring/
@@ -65,40 +86,30 @@ backend-v2/src/SmkDoc.Application/Modules/
 
 ---
 
-## 2. Level 2: Core Architecture AST & Structural Interceptor Engine
+## 2. Level 2: Architectural Rationales & Structural Firewalls
 
 ### 2.1 Engineering Rationale & Causal Decisions
 * **Why Inward-Only Dependency Flow**: Prevents database schema changes and third-party library churn from forcing breaking changes onto core business invariants.
 * **Why Single-Responsibility `IUseCase` over MediatR**: Eliminates runtime reflection, assembly scanning allocations, and opaque call stacks. Direct `IUseCase<TRequest, TResponse>` gives compile-time verification, clean stack traces, and straightforward unit testing via `CreateSut()`.
 * **Why Decoupled Gotenberg Chromium Cluster**: Embedded headless browser processes are prone to memory leaks, font shifting across OS platforms, and sudden SIGSEGV process crashes. External Gotenberg pods isolate rendering compute from the core API gateway.
 
-### 2.2 Cognitive Layer Governance & Structural Interceptors
+### 2.2 Proactive Structural Firewalls
 ```yaml
-OptimizationObjectives:
-  PrimaryObjective: Architectural Boundary Integrity & M2M-First System Topology
-  TradeOffPriority: StatelessScalability > MemorySafety (Zero-LOH) > DomainPurity > CompileTimeVerifiability > RawLatency
+DomainIntegrityFirewall:
+  Invariant: "SmkDoc.Domain must contain strictly 100% pure C# POCOs."
+  ActionOnViolation: "Reject any third-party framework or persistence dependencies (EF Core, ASP.NET Core, AWS/MinIO SDKs)."
 
-ProactiveStructuralGuards:
-  - Scope: SmkDoc.Domain
-    Trigger: NuGet package addition of EF Core, ASP.NET Core, or AWS/MinIO SDK
-    CanonicalAction: Reject immediately; Domain must remain 100% pure C# POCOs >> Ref: [RULE-STRUCT-001]
+PersistenceIsolationFirewall:
+  Invariant: "SmkDoc.Application must never reference EF Core DbContext directly."
+  ActionOnViolation: "Enforce persistence abstraction behind Repository interfaces and IUnitOfWork."
 
-  - Scope: SmkDoc.Application
-    Trigger: Reference to Microsoft.EntityFrameworkCore or DbContext in UseCase
-    CanonicalAction: Reject; abstract persistence operations behind Repository and IUnitOfWork ports >> Ref: [RULE-STRUCT-002]
+ApiOrchestrationFirewall:
+  Invariant: "SmkDoc.Api controllers are thin dispatchers strictly <= 5 LOC per action."
+  ActionOnViolation: "Delegate workflow execution directly to IUseCase<TReq, TRes> and wrap output in ApiResponse<T>."
 
-  - Scope: SmkDoc.Api
-    Trigger: Controller action consuming Domain Entity directly or exceeding 5 lines
-    CanonicalAction: Delegate immediately to IUseCase<TReq, TRes> and wrap result in ApiResponse<T> >> Ref: [RULE-STRUCT-003]
-
-  - Scope: SmkDoc.Application
-    Trigger: Declaring multiple primary public types in a slice file (*UseCase.cs)
-    CanonicalAction: Enforce 1-Primary-Type-Per-File ({TypeName}.cs) co-located inside slice folder >> Ref: [RULE-STRUCT-004]
-
-CoreExtensionSlots:
-  RenderingEngineSlot: IRenderEngine (Gotenberg Chromium / OpenXML Word / ClosedXML Excel)
-  DataExtractionSlot: IDatasetExtractor (PostgreSQL / SQL Server / REST API data sources)
-  StorageProviderSlot: IBucketStorageService (MinIO S3 / AWS S3 / Azure Blob Storage)
+SliceModularityFirewall:
+  Invariant: "Enforce 1-Primary-Type-Per-File co-located within feature slices."
+  ActionOnViolation: "Split bundled types into separate dedicated files ({TypeName}.cs)."
 ```
 
 ---
@@ -111,78 +122,53 @@ CoreExtensionSlots:
 * [MUST NOT] Bundle `*Command`, `*Query`, or `*Validator` declarations inside `*UseCase.cs`.
 
 ```
-Modules/Authoring/Templates/Commands/CreateTemplate/
-  CreateTemplateCommand.cs          # 1. Positional input record
-  CreateTemplateCommandValidator.cs # 2. FluentValidation rules
-  CreateTemplateUseCase.cs          # 3. Single-responsibility orchestrator
-  TemplateResultDto.cs              # 4. Immutable output record
-  CreateTemplateErrors.cs           # 5. Strongly-typed slice domain errors
+Modules/{Context}/{Aggregate}/Commands/{Verb}{Aggregate}/
+  {Verb}{Aggregate}Command.cs          # 1. Positional input record
+  {Verb}{Aggregate}CommandValidator.cs # 2. FluentValidation rules
+  {Verb}{Aggregate}UseCase.cs          # 3. Single-responsibility orchestrator
+  {Aggregate}ResultDto.cs              # 4. Immutable output record
+  {Verb}{Aggregate}Errors.cs           # 5. Strongly-typed slice domain errors
 ```
 
 ```csharp
-// 1. CreateTemplateCommand.cs
-namespace SmkDoc.Application.Modules.Authoring.Templates.Commands.CreateTemplate;
-
-public sealed record CreateTemplateCommand(
+// 1. {Verb}{Aggregate}Command.cs (Surgical AST: Positional Input Contract)
+public sealed record {Verb}{Aggregate}Command(
     string Name,
     string Slug,
     string? Category = null);
 
-// 2. CreateTemplateUseCase.cs
-namespace SmkDoc.Application.Modules.Authoring.Templates.Commands.CreateTemplate;
-
-public sealed class CreateTemplateUseCase(
-    ITemplateRepository templateRepository,
+// 2. {Verb}{Aggregate}UseCase.cs (Surgical AST: 4-Step PEMR Cadence)
+public sealed class {Verb}{Aggregate}UseCase(
+    I{Aggregate}Repository {aggregate}Repository,
     ICurrentProjectContext projectContext,
     IUnitOfWork unitOfWork,
-    TimeProvider timeProvider) : IUseCase<CreateTemplateCommand, TemplateResultDto>
+    TimeProvider timeProvider) : IUseCase<{Verb}{Aggregate}Command, {Aggregate}ResultDto>
 {
-    public async Task<TemplateResultDto> ExecuteAsync(CreateTemplateCommand command, CancellationToken ct = default)
+    public async Task<{Aggregate}ResultDto> ExecuteAsync({Verb}{Aggregate}Command command, CancellationToken ct = default)
     {
+        // Step 1: Parse & Guard (Fail-fast ambient tenant validation)
         if (!projectContext.IsResolved)
         {
-            throw new ForbiddenException("Project context is required to create a template.");
+            throw new ForbiddenException("Project context is required.");
         }
 
-        var now = timeProvider.GetUtcNow();
-        var template = Template.Create(
+        // Step 2: Ensure Preconditions (Business rules & slug uniqueness)
+        var now = timeProvider.GetUtcNow(); // Injected clock: deterministic testability
+
+        // Step 3: Mutate State (Expressive domain entity factory verb)
+        var entity = {Aggregate}.Create(
             projectContext.ProjectId,
-            TemplateName.Create(command.Name),
-            TemplateSlug.Create(command.Slug),
+            {Aggregate}Name.Create(command.Name),
+            {Aggregate}Slug.Create(command.Slug),
             command.Category,
             now);
 
-        await templateRepository.AddAsync(template, ct);
+        await {aggregate}Repository.AddAsync(entity, ct);
+
+        // Step 4: Return ResultDto (Atomic transaction commit & immutable output)
         await unitOfWork.CommitAsync(ct);
-
-        return new TemplateResultDto(template.Id.Value, template.Name.Value, template.Slug.Value, template.Category);
+        return new {Aggregate}ResultDto(entity.Id.Value, entity.Name.Value, entity.Slug.Value, entity.Category);
     }
-}
-```
-
-### 3.2 Strongly-Typed ID Explicit Operator Standard
->> MANDATORY CANONICAL TEMPLATE [RULE-STRUCT-003]:
-* [MUST] Declare strongly-typed ID struct as `public readonly record struct Name(Guid Value) : IComparable<Name>`.
-* [MUST] Implement explicit cast operators to/from `Guid` to prevent accidental cross-domain ID pollution.
-* [MUST] Implement cross-type equality operators (`==`, `!=`) for seamless evaluation.
-
-```csharp
-// Stack-allocated (16-byte) strongly-typed identifier
-public readonly record struct TemplateId(Guid Value) : IComparable<TemplateId>
-{
-    public static TemplateId New() => new(Guid.CreateVersion7());
-    public static TemplateId Empty => new(Guid.Empty);
-    public bool IsEmpty => Value == Guid.Empty;
-    public int CompareTo(TemplateId other) => Value.CompareTo(other.Value);
-    public override string ToString() => Value.ToString();
-
-    public static explicit operator Guid(TemplateId id) => id.Value;
-    public static explicit operator TemplateId(Guid value) => new(value);
-
-    public static bool operator ==(TemplateId left, Guid right) => left.Value == right;
-    public static bool operator !=(TemplateId left, Guid right) => left.Value != right;
-    public static bool operator ==(Guid left, TemplateId right) => left == right.Value;
-    public static bool operator !=(Guid left, TemplateId right) => left != right.Value;
 }
 ```
 
@@ -192,13 +178,13 @@ public readonly record struct TemplateId(Guid Value) : IComparable<TemplateId>
 
 ### [TRAP-ARCH-001]: Direct DbContext or Entity Leakage in Application Layer
 ```diff
-- public sealed class GetTemplateUseCase(AppDbContext dbContext) {
--     public async Task<Template> ExecuteAsync(Guid id) => await dbContext.Templates.FindAsync(id);
+- public sealed class Get{Aggregate}UseCase(AppDbContext dbContext) {
+-     public async Task<{Aggregate}> ExecuteAsync(Guid id) => await dbContext.Set<{Aggregate}>().FindAsync(id);
 - }
-+ public sealed class GetTemplateUseCase(ITemplateRepository templateRepository) : IUseCase<GetTemplateQuery, TemplateResultDto> {
-+     public async Task<TemplateResultDto> ExecuteAsync(GetTemplateQuery query, CancellationToken ct) {
-+         var template = await templateRepository.GetByIdAsync(query.Id, ct) ?? throw new NotFoundException("Template not found.");
-+         return new TemplateResultDto(template.Id.Value, template.Name, template.Slug);
++ public sealed class Get{Aggregate}UseCase(I{Aggregate}Repository repository) : IUseCase<Get{Aggregate}Query, {Aggregate}ResultDto> {
++     public async Task<{Aggregate}ResultDto> ExecuteAsync(Get{Aggregate}Query query, CancellationToken ct) {
++         var entity = await repository.GetByIdAsync(query.Id, ct) ?? throw new NotFoundException("{Aggregate} not found.");
++         return new {Aggregate}ResultDto(entity.Id.Value, entity.Name, entity.Slug);
 +     }
 + }
 ```
@@ -206,20 +192,13 @@ public readonly record struct TemplateId(Guid Value) : IComparable<TemplateId>
 
 ### [TRAP-ARCH-002]: Bundling Multiple Primary Types Inside UseCase File
 ```diff
-- // Inside CreateTemplateUseCase.cs:
-- public sealed record CreateTemplateCommand(...);
-- public sealed class CreateTemplateValidator : AbstractValidator<CreateTemplateCommand> { ... }
-- public sealed class CreateTemplateUseCase(...) { ... }
+- // Inside {Verb}{Aggregate}UseCase.cs:
+- public sealed record {Verb}{Aggregate}Command(...);
+- public sealed class {Verb}{Aggregate}Validator : AbstractValidator<{Verb}{Aggregate}Command> { ... }
+- public sealed class {Verb}{Aggregate}UseCase(...) { ... }
 + // Split into separate 1-Primary-Type-Per-File co-located records:
-+ // CreateTemplateCommand.cs -> contains CreateTemplateCommand
-+ // CreateTemplateCommandValidator.cs -> contains CreateTemplateCommandValidator
-+ // CreateTemplateUseCase.cs -> contains CreateTemplateUseCase
++ // {Verb}{Aggregate}Command.cs -> contains {Verb}{Aggregate}Command
++ // {Verb}{Aggregate}CommandValidator.cs -> contains {Verb}{Aggregate}CommandValidator
++ // {Verb}{Aggregate}UseCase.cs -> contains {Verb}{Aggregate}UseCase
 ```
 *Rationale: Bundling hides type contracts from Solution Explorer and git diffs, degrading team readability and cognitive clarity.*
-
-### [TRAP-ARCH-003]: Structured Logging vs String Interpolation
-```diff
-- logger.LogInformation($"Processing {templateId} for project {projectId}");
-+ logger.LogInformation("Processing template render {TemplateId} for tenant {ProjectId}", templateId, projectId);
-```
-*Rationale: String interpolation allocates formatting strings on every call and breaks semantic message indexing.*
