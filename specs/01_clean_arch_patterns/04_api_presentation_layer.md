@@ -153,7 +153,7 @@ public sealed class {Aggregate}sController(
         var result = await listUseCase.ExecuteAsync(query, ct);
 
         // Step 3: Envelope Egress <Why: standardized pagination wire schema>
-        return Ok(new PagedApiResponse<{Aggregate}ResultDto>(result.Items, result.Page, result.PageSize, result.TotalCount));
+        return Ok(new PagedApiResponse<{Aggregate}ResultDto>(result.Items, result.TotalCount, result.Page, result.PageSize));
     }
 
     [HttpGet("{id:guid}")]
@@ -286,31 +286,40 @@ public sealed class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logge
 
 ### 3.3 Unified Response Envelopes Archetype
 >> MANDATORY CANONICAL BLUEPRINT [RULE-API-003]:
-* Encapsulates all JSON API responses in immutable `ApiResponse<T>` or `PagedApiResponse<T>`.
-* Populates `Timestamp` using UTC ISO-8601 formatting.
+* Encapsulates single-resource responses in immutable `ApiResponse<T>(T Data)`.
+* Encapsulates collection responses in `PagedApiResponse<T>(IEnumerable<T> Data, PaginationMetadata Pagination)`.
+* Adheres strictly to Universal Wire SSoT (see: `../00_architecture_core/06_api_contract_standards.md`).
 
 ```csharp
-public record ApiResponse<T>(
-    T Data,
-    bool Success = true,
-    string? Message = null,
-    DateTimeOffset Timestamp = default)
+public record ApiResponse<T>(T Data);
+
+public record PaginationMetadata(
+    int Page,
+    int Limit,
+    int TotalCount,
+    int TotalPages
+)
 {
-    public DateTimeOffset Timestamp { get; init; } = Timestamp == default ? DateTimeOffset.UtcNow : Timestamp;
+    public static PaginationMetadata Create(int totalCount, int page, int limit)
+    {
+        var safeLimit = Math.Max(1, limit);
+        var safePage = Math.Max(1, page);
+        var safeTotal = Math.Max(0, totalCount);
+        var totalPages = (int)Math.Ceiling((double)safeTotal / safeLimit);
+
+        return new PaginationMetadata(safePage, safeLimit, safeTotal, totalPages);
+    }
 }
 
-public sealed record PagedApiResponse<T>(
-    IReadOnlyList<T> Items,
-    int PageNumber,
-    int PageSize,
-    int TotalCount,
-    bool Success = true,
-    string? Message = null,
-    DateTimeOffset Timestamp = default) : ApiResponse<IReadOnlyList<T>>(Items, Success, Message, Timestamp)
+public record PagedApiResponse<T>(
+    IEnumerable<T> Data,
+    PaginationMetadata Pagination
+) : ApiResponse<IEnumerable<T>>(Data)
 {
-    public int TotalPages => (int)Math.Ceiling(TotalCount / (double)PageSize);
-    public bool HasNextPage => PageNumber < TotalPages;
-    public bool HasPreviousPage => PageNumber > 1;
+    public PagedApiResponse(IEnumerable<T> data, int totalCount, int page, int limit)
+        : this(data, PaginationMetadata.Create(totalCount, page, limit))
+    {
+    }
 }
 ```
 

@@ -79,6 +79,10 @@ HighFrequencyRegressionTraps:
     => Action: Keep unit tests 100% in-memory with mocks/fakes. Route all disk, binary, or external wire I/O exclusively to `SmkDoc.IntegrationTests`.
   Trigger: Persistent database or MinIO mutations during preview operations
     => Action: Preview workflows must remain 100% in-memory; zero database or MinIO persistence.
+  Trigger: Returning raw unwrapped JSON array or flat pagination fields at response root
+    => Action: Envelop all single resources strictly in `ApiResponse<T>` (`{ data: T }`) and collections in `PagedApiResponse<T>` (`{ data: T[], pagination: { page, limit, totalCount, totalPages } }`).
+  Trigger: Applying Idempotency-Key on PUT/DELETE, or mutating resource without If-Match header
+    => Action: Reserve `Idempotency-Key` exclusively for state-creating POST. Enforce `If-Match: "<xmin>"` concurrency token on PUT/DELETE mutations.
 
 WorkflowGuard:
   [STEP_1: HIERARCHICAL_PLAN_REQUIREMENT]
@@ -117,6 +121,7 @@ Axiom1_CleanTopologyAndBoundedSlices:
     Application (SmkDoc.Application): Feature slices under `Modules/{BoundedContext}/{Aggregate}/{Commands|Queries|DTOs}`. Orchestrates workflows via `IUseCase<TReq, TRes>`. Strictly returns ResultDto or Stream. Never leaks Domain Entities.
     Infrastructure (SmkDoc.Infrastructure): Implements persistence & wire I/O (EF Core, MinIO, Gotenberg, SQL Drivers). Completely hides low-level transport details.
     Presentation (SmkDoc.Api): Thin HTTP orchestrators dispatching to UseCases via C# 13 Primary Constructors. Centralized RFC 9457 `ProblemDetails`. Routes `api/v1/{resource}`.
+    Frontend (frontend-v2): Next.js 15 App Router (`src/app/`, `src/features/`, `src/components/`, `src/lib/api/`). Strictly partitions Server Components (data fetching & SEO) from Client Components (interactive forms & state). API mutations route through dedicated API client or Server Actions with Zod validation.
 
 Axiom2_UniversalLinearCadences:
   ArchitecturalPhilosophy: KISS & Absolute Visual Uniformity (Linear code read top-to-bottom in a single pass without cognitive friction).
@@ -148,6 +153,10 @@ Axiom2_UniversalLinearCadences:
       Step1_Arrange: Stub dependencies via NSubstitute + construct SUT via `CreateSut()` + build explicit input `command`.
       Step2_Act: Execute target method into `result` (`var result = await sut.ExecuteAsync(command, ct);`).
       Step3_Assert: Verify invariants via FluentAssertions (`result.Should().NotBeNull();`) + verify side-effects (`await uow.Received(1).CommitAsync(ct);`).
+    7_NextJsPageCadence: Strictly 3-step async server orchestrator:
+      Step1_AwaitParams: Explicitly resolve route parameters (`const { id } = await params;`).
+      Step2_ServerFetch: Retrieve initial data payload via server-side API client with ambient tenant headers.
+      Step3_RenderClientBoundary: Pass immutable DTOs across boundary to interactive Client Feature Component.
 
 Axiom3_ComplexityFirewallAndAntiOverEngineering:
   ArchitecturalPhilosophy: SOLID & YAGNI over speculative abstractions.
@@ -168,6 +177,7 @@ Axiom4_CloudNativeScalabilityAndImmutability:
     StatelessTopology: All UseCases and domain services must be 100% stateless. Prohibit shared in-memory dictionaries, stateful singletons, or static caches.
     ZeroLohStreaming: Stream binary outputs directly with bounded 81,920-byte buffers; strictly prohibit unbounded `byte[]` arrays or in-memory `MemoryStream.ToArray()`.
     ContractImmutability: All cross-boundary payloads must be immutable records (`record`, `readonly record struct`).
+    UniversalWireEnvelope: All non-streaming HTTP responses must encapsulate payloads in ApiResponse<T> or PagedApiResponse<T> with RFC 9457 ProblemDetails for errors.
     DeterministicTime: All temporal queries must consume injected `TimeProvider` (prohibit `DateTime.UtcNow`).
 
 MachineSyntaxAndNamingStandards:
@@ -175,6 +185,7 @@ MachineSyntaxAndNamingStandards:
   PayloadVariables: "command" for commands, "query" for queries, "result" for outputs, "now" for injected time, "ct" for CancellationToken
   VariableNaming: Full semantic names strictly; prohibit cryptic abbreviations (repo, uow, ctx, svc, t, v, d)
   UseCaseResultDtos: Suffix with "ResultDto" strictly (e.g. *ResultDto); prohibit *Response records in contracts
+  FrontendNamingStandards: kebab-case for directories/utilities; PascalCase for React components (*.tsx); camelCase for hooks (use*); *.schema.ts for Zod contracts.
   ObjectInstantiation: Explicit local variable assignment before method consumption (prohibit inlining `new` inside calls).
   StructuredLogging: logger.LogInformation("Processing {TemplateId}", templateId); # No string interpolation
 </core_engineering_axioms>
@@ -190,6 +201,7 @@ MachineSyntaxAndNamingStandards:
 | **Security Architecture, Zero-LOH & Performance** | `[ARCH_EVOLUTION_SECURITY]` | `specs/00_architecture_core/03_security_and_performance.md` | `specs/03_specialized_mechanics/multi_tenant_security_pipeline.md` |
 | **Naming Conventions & ResultDto Lexicon** | `[ARCH_EVOLUTION_NAMING]` | `specs/00_architecture_core/04_naming_standards.md` | `specs/01_clean_arch_patterns/02_application_layer.md` |
 | **Anti-Patterns & Architectural Firewalls** | `[ARCH_EVOLUTION_FIREWALL]` | `specs/00_architecture_core/05_anti_pattern_firewall.md` | `specs/01_clean_arch_patterns/03_infrastructure_layer.md` |
+| **API Contracts, Wire Protocols & Envelopes** | `[ARCH_EVOLUTION_CONTRACT]` | `specs/00_architecture_core/06_api_contract_standards.md` | `specs/01_clean_arch_patterns/04_api_presentation_layer.md` |
 | **Domain Entities, Value Objects & Events** | `[ARCH_EVOLUTION_DOMAIN]` | `specs/01_clean_arch_patterns/01_domain_layer.md` | `specs/00_architecture_core/01_system_architecture.md` |
 | **Application UseCases, Commands & PEMR** | `[ARCH_EVOLUTION_APPLICATION]` | `specs/01_clean_arch_patterns/02_application_layer.md` | `specs/00_architecture_core/04_naming_standards.md` |
 | **Infrastructure Adapters, Repos & Drivers** | `[ARCH_EVOLUTION_INFRASTRUCTURE]` | `specs/01_clean_arch_patterns/03_infrastructure_layer.md` | `specs/00_architecture_core/05_anti_pattern_firewall.md` |
@@ -199,13 +211,14 @@ MachineSyntaxAndNamingStandards:
 | **UI Components, Design Tokens & Zod Contracts** | `[ARCH_EVOLUTION_FRONTEND_UI]` | `specs/02_frontend_patterns/02_ui_component_conventions.md` | `specs/02_frontend_patterns/01_app_router_and_data_fetching.md` |
 | **Multi-Tenant Dual-Auth & Project Context** | `[ARCH_EVOLUTION_TENANCY]` | `specs/03_specialized_mechanics/multi_tenant_security_pipeline.md` | `specs/00_architecture_core/03_security_and_performance.md` |
 | **Document Rendering Engines & Thai Formatting** | `[ARCH_EVOLUTION_RENDERING]` | `specs/03_specialized_mechanics/document_rendering_mechanics.md` | `specs/00_architecture_core/05_anti_pattern_firewall.md` |
+| **Database Persistence, Schema & Concurrency** | `[ARCH_EVOLUTION_DATABASE]` | `specs/03_specialized_mechanics/database_persistence_and_schema_mechanics.md` | `specs/01_clean_arch_patterns/03_infrastructure_layer.md` |
 
 TopologyMap:
 specs/
-  00_architecture_core/ (01_system_architecture.md .. 05_anti_pattern_firewall.md)
+  00_architecture_core/ (01_system_architecture.md .. 06_api_contract_standards.md)
   01_clean_arch_patterns/ (01_domain_layer.md .. 05_testing_archetypes.md)
   02_frontend_patterns/ (01_app_router_and_data_fetching.md, 02_ui_component_conventions.md)
-  03_specialized_mechanics/ (multi_tenant_security_pipeline.md, document_rendering_mechanics.md)
+  03_specialized_mechanics/ (multi_tenant_security_pipeline.md, document_rendering_mechanics.md, database_persistence_and_schema_mechanics.md)
 </unified_architectural_router>
 
 <specification_governance_and_evolution>

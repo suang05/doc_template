@@ -19,11 +19,19 @@ export interface ApiResponse<T> {
 }
 
 /**
- * Canonical Paged API Response envelope for paginated collections.
+ * Standard pagination telemetry metadata envelope conforming to global REST API standards.
  */
-export interface PagedApiResponse<T> {
-  data: T[];
-  totalCount: number;
+export interface PaginationMetadata {
   page: number;
   limit: number;
+  totalCount: number;
+  totalPages: number;
+}
+
+/**
+ * Canonical Paged API Response envelope for collection endpoints.
+ */
+export interface PagedApiResponse<T> extends ApiResponse<T[]> {
+  data: T[];
+  pagination: PaginationMetadata;
 }
