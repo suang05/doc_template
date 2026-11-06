@@ -50,7 +50,7 @@ ArchitecturalSignals: [ARCH_EVOLUTION_API]
 * **Why POST Idempotency vs PUT/DELETE ETag Concurrency:** `POST` operations create new resources and are naturally non-idempotent; network retries without an `[Idempotent]` filter risk duplicate billing or entity creation. Conversely, `PUT` and `DELETE` are naturally idempotent by HTTP specification; their primary risk is concurrent overwrites ("lost updates"), which is cleanly solved via `If-Match` / `ETag` optimistic concurrency without Redis lock overhead.
 * **Why HTTP 200 for Test Connection Probes:** When testing database connectivity (`POST /api/v1/data-connections/test`), an unreachable database or invalid password is a valid diagnostic business result, NOT an HTTP transport failure. Returning HTTP 400 violates REST semantics and breaks automated health check clients. HTTP 4xx is reserved strictly for syntactically malformed JSON (400) or SSRF security violations (403).
 * **Why Pre-Flight `ConnectionHostValidator` Defense:** Attacking internal services via SSRF (Server-Side Request Forgery) using customer database strings is a high-risk attack vector. Validating hostnames against blocked infrastructure and resolving DNS prior to opening TCP sockets prevents internal reconnaissance.
-* **Why Standard Response Envelopes (`ApiResponse<T>`):** Guarantees consistent client consumption contracts (`data`, `success`, `message`, `timestamp`) across all endpoints.
+* **Why Standard Response Envelopes (`ApiResponse<T>`):** Guarantees consistent client consumption contracts (`{ "data": T }` per `06_api_contract_standards.md` SSoT) across all endpoints.
 * **Why Delegated Tenant Sub-Keys (`/api/v1/api-keys`) vs Platform Governance (`/api/v1/management/api-keys`):** Eliminates route ambiguity and operational bottlenecks. Tenant Project Admins manage operational application keys (ERP, CRM) via ambient project context under strict quota guardrails (max 2 keys), while SuperAdmin retains dedicated platform-wide oversight, quota adjustment, and emergency break-glass revocation on `/api/v1/management/...`.
 * **Why RFC 9457 Global Exception Handler:** Replaces ad-hoc error formats with an IETF standard, ensuring clients receive machine-parsable error codes and validation details without stack traces.
 
@@ -84,7 +84,7 @@ NotFoundExceptionFirewall:
 | `SecurityViolationException` | `403 Forbidden` | Security Violation | `https://tools.ietf.org/html/rfc9110#section-15.5.4` |
 | `ForbiddenException` | `403 Forbidden` | Forbidden | `https://tools.ietf.org/html/rfc9110#section-15.5.4` |
 | `NotFoundException` | `404 Not Found` | Resource Not Found | `https://tools.ietf.org/html/rfc9110#section-15.5.5` |
-| `ConflictException` | `409 Conflict` | Conflict | `https://tools.ietf.org/html/rfc9110#section-15.5.10` |
+| `ConflictException` / `DbUpdateConcurrencyException` | `409 Conflict` | Concurrency Conflict | `https://tools.ietf.org/html/rfc9110#section-15.5.10` |
 | `PreconditionFailedException`| `412 Precondition Failed` | Precondition Failed | `https://tools.ietf.org/html/rfc9110#section-15.5.13` |
 | `DomainValidationException` | `422 Unprocessable`| Domain Rule Violation | `https://tools.ietf.org/html/rfc9110#section-15.5.21` |
 | `DataConnectionException` | `500 Internal Error`| Integration Error | `https://tools.ietf.org/html/rfc9110#section-15.6.1` |
@@ -100,14 +100,16 @@ NotFoundExceptionFirewall:
 | `api` | All standard CRUD, query, and management endpoints | 60 permits / 1 min (by Partition) | `429 Too Many Requests` | Baseline API throttling for fair resource distribution |
 
 ### 2.5 Declarative Authorization Policies Matrix (`SmkDocPolicies`)
+The portal operates as an internal operator and authoring console (SuperAdmin and Template Designers); external enterprise callers (ERP, CRM) integrate exclusively via Channel A (M2M API Keys). All controller actions enforce authorization declaratively through policies:
+
 | Policy Name | Target Endpoints & Controller Scope | Allowed Subject Identities | Policy Enforcement Criteria |
 |---|---|---|---|
 | `RequireSuperAdmin` | `api/v1/management/api-keys`, `api/v1/management/projects/*` | Platform SuperAdmin exclusively | `ctx.User.IsInRole(RoleConstants.SuperAdmin)` \| `ctx.User.HasClaim("SystemRole", SuperAdmin)` |
-| `RequireProjectAdmin` | `api/v1/api-keys`, `api/v1/audit-logs`, `api/v1/users` | Project Admin, SuperAdmin, or M2M ReadWrite | `ctx.User.IsInRole(Admin)` \| `ctx.User.IsInRole(SuperAdmin)` \| `(IsInRole("M2MClient") & Scope == "ReadWrite")` |
-| `CanManageTemplates` | `api/v1/templates`, `api/v1/templates/{id}/studio/*`, `mappings`, `datasets` | Template Designer, Admin, SuperAdmin, or M2M ReadWrite | `IsInRole("Author")` \| `IsInRole("Developer")` \| `IsInRole(Admin)` \| `IsInRole(SuperAdmin)` \| `Scope == "ReadWrite"` |
+| `RequireProjectAdmin` | `api/v1/api-keys`, `api/v1/audit-logs`, `api/v1/users` | Project Admin, SuperAdmin, or M2M ReadWrite | `ctx.User.IsInRole(RoleConstants.Admin)` \| `ctx.User.IsInRole(RoleConstants.SuperAdmin)` \| `(IsInRole("M2MClient") & Scope == "ReadWrite")` |
+| `CanManageTemplates` | `api/v1/templates`, `api/v1/templates/{id}/studio/*`, `mappings`, `datasets` | Template Designer (`Developer`), Admin, SuperAdmin, or M2M ReadWrite | `IsInRole(RoleConstants.Developer)` \| `IsInRole(RoleConstants.Admin)` \| `IsInRole(RoleConstants.SuperAdmin)` \| `Scope == "ReadWrite"` |
 | `CanGenerateDocuments` | `api/v1/documents/*` (`generate`, `generate-async`, `preview`, `download`, `versions`) | Any authenticated user or M2M key (ReadOnly/ReadWrite) | `ctx.User.Identity.IsAuthenticated == true` |
 | `CanManageDataConnections`| `api/v1/data-connections/*` (`GET`, `POST`, `PUT`, `DELETE`, `test`) | Project Admin or SuperAdmin | `ctx.User.IsInRole(RoleConstants.Admin)` \| `ctx.User.IsInRole(RoleConstants.SuperAdmin)` |
-| `CanManageDatasets` | `api/v1/datasets/*` (`GET`, `POST`, `PUT`, `DELETE`) | Author, Developer, Admin, SuperAdmin, or M2M ReadWrite | `IsInRole("Author")` \| `IsInRole("Developer")` \| `IsInRole(Admin)` \| `IsInRole(SuperAdmin)` \| `Scope == "ReadWrite"` |
+| `CanManageDatasets` | `api/v1/datasets/*` (`GET`, `POST`, `PUT`, `DELETE`) | Template Designer (`Developer`), Admin, SuperAdmin, or M2M ReadWrite | `IsInRole(RoleConstants.Developer)` \| `IsInRole(RoleConstants.Admin)` \| `IsInRole(RoleConstants.SuperAdmin)` \| `Scope == "ReadWrite"` |
 
 ### 2.6 Controller Partitioning & Companion Diagnostics Pattern
 When an aggregate's capabilities exceed 5 UseCases, or encompass specialized operational concerns (e.g. diagnostics, reachability tests, dry-run schema introspection), enforce single-responsibility by decomposing into cohesive companion controllers sharing the same route prefix:
@@ -193,6 +195,7 @@ public sealed class {Aggregate}sController(
     [ProducesResponseType(typeof(ApiResponse<{Aggregate}ResultDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status412PreconditionFailed)]
     public async Task<IActionResult> Update(
         [FromRoute] Guid id,
@@ -253,6 +256,7 @@ public sealed class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logge
             ForbiddenException fe => (StatusCodes.Status403Forbidden, "Forbidden", fe.Message, "https://tools.ietf.org/html/rfc9110#section-15.5.4"),
             NotFoundException nfe => (StatusCodes.Status404NotFound, "Resource Not Found", nfe.Message, "https://tools.ietf.org/html/rfc9110#section-15.5.5"),
             ConflictException ce => (StatusCodes.Status409Conflict, "Conflict", ce.Message, "https://tools.ietf.org/html/rfc9110#section-15.5.10"),
+            DbUpdateConcurrencyException => (StatusCodes.Status409Conflict, "Concurrency Conflict", "The resource was modified by another transaction while your request was processing. Please reload and retry.", "https://tools.ietf.org/html/rfc9110#section-15.5.10"),
             PreconditionFailedException pfe => (StatusCodes.Status412PreconditionFailed, "Precondition Failed", pfe.Message, "https://tools.ietf.org/html/rfc9110#section-15.5.13"),
             DomainValidationException dve => (StatusCodes.Status422UnprocessableEntity, "Domain Rule Violation", dve.Message, "https://tools.ietf.org/html/rfc9110#section-15.5.21"),
             _ => (StatusCodes.Status500InternalServerError, "Internal Server Error", "An unexpected error occurred.", "https://tools.ietf.org/html/rfc9110#section-15.6.1")
@@ -288,7 +292,7 @@ public sealed class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logge
 >> MANDATORY CANONICAL BLUEPRINT [RULE-API-003]:
 * Encapsulates single-resource responses in immutable `ApiResponse<T>(T Data)`.
 * Encapsulates collection responses in `PagedApiResponse<T>(IEnumerable<T> Data, PaginationMetadata Pagination)`.
-* Adheres strictly to Universal Wire SSoT (see: `../00_architecture_core/06_api_contract_standards.md`).
+>> SSoT DELEGATION: Universal response envelopes (`ApiResponse<T>`, `PagedApiResponse<T>`) and RFC 9457 error wire schemas are governed strictly by [06_api_contract_standards.md](../00_architecture_core/06_api_contract_standards.md).
 
 ```csharp
 public record ApiResponse<T>(T Data);

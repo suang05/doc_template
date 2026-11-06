@@ -34,6 +34,7 @@ ArchitecturalSignals: [ARCH_EVOLUTION_APPLICATION]
 | **Transaction Boundary** | State mutations commit exclusively via `IUnitOfWork.CommitAsync(ct)` at egress. Read queries remain read-only and never commit transactions. | Data Persistence |
 | **Zero-LOH Streaming** | Binary render/export operations consume and return live `Stream`. Spooling utilizes `HybridSpoolStream` (<= 64 KB pooled `ArrayPool<byte>`; > 64 KB `DeleteOnClose` temp `FileStream`). Zero unbounded `byte[]` in memory. | Memory & GC |
 | **Pagination Clamping** | Paginated queries clamp `Page >= 1` and `PageSize` between 1 and 100 (`Math.Clamp(query.PageSize, 1, 100)`). Hot-path list projections select scalar columns only, bypassing `jsonb` payloads. | Query Scaling |
+| **Optimistic Concurrency Guard** | Mutating commands on versioned aggregates accept `string? IfMatch = null`. The UseCase performs pre-flight verification against the aggregate's current concurrency token (throwing `PreconditionFailedException` on mismatch) and catches `DbUpdateConcurrencyException` during commit (throwing `ConflictException`). | Concurrency Control |
 | **Single-Type File Topology** | Every `*Command`, `*Query`, `*Validator`, and `*UseCase` resides in its own isolated `{TypeName}.cs` file inside its vertical slice directory (`Commands/{SliceName}/` or `Queries/{SliceName}/`). | Physical Structure |
 
 ---
@@ -47,6 +48,8 @@ ArchitecturalSignals: [ARCH_EVOLUTION_APPLICATION]
 * **Why Application DTOs as Boundary Firewalls:** Domain entities must never cross the layer boundary into Presentation; prevents leaking internal domain state or triggering EF Core lazy-loading traps.
 * **Why Direct Stream Return for Render/Preview:** Guarantees zero Large Object Heap (LOH) RAM allocation (<85 KB Gen 2 threshold) during high-throughput document streaming.
 * **Why Post-Commit Domain Event Dispatch:** Dispatches domain side-effects (e.g. audit logging, cache invalidation) strictly after `unitOfWork.CommitAsync(ct)` succeeds, preventing ghost side-effects on transaction rollback.
+* **Why Application-Level Pre-Flight Concurrency Check:** Catches stale updates immediately before executing heavy domain invariants or external validations. If another user modified the template 10 minutes ago, aborting at Step 1 saves database locks and CPU cycles.
+* **Why Dual-Catch Commit Pattern:** While pre-flight checks catch 99% of stale edits, two concurrent requests can pass pre-flight simultaneously. Catching EF Core's `DbUpdateConcurrencyException` during `CommitAsync` and mapping to `ConflictException` (409) closes the remaining microsecond race condition.
 
 ### 2.2 Primary SSoT Interfaces & ProblemDetails RFC 9457 Mapping
 ```csharp
@@ -76,7 +79,8 @@ public interface IDomainEventDispatcher
 | `ValidationException` | `400 Bad Request` | Fail-fast payload schema or format failure |
 | `ForbiddenException` | `403 Forbidden` | Tenant boundary cross or unauthenticated project context |
 | `NotFoundException` | `404 Not Found` | Target aggregate ID does not exist in tenant partition |
-| `ConflictException` | `409 Conflict` | Unique business key collision (Slug, Code, Concurrent edit) |
+| `ConflictException` | `409 Conflict` | Unique business key collision or mid-flight concurrency collision (`DbUpdateConcurrencyException`) |
+| `PreconditionFailedException` | `412 Precondition Failed` | Optimistic concurrency check failed (`If-Match` token mismatch) |
 | `DomainValidationException` | `422 Unprocessable`| Aggregate business invariant violated |
 | `DocumentRenderException` | `502 Bad Gateway` | Gotenberg rendering microservice pipeline failure |
 | `DistributedStateUnavailableException` | `503 Service Unavailable` | Distributed idempotency store unreachable (Fail-Closed mutation safety) |
@@ -312,6 +316,78 @@ public sealed class CachedTemplateRenderer(
 }
 ```
 
+### 3.5 Optimistic Concurrency Mutating Slice Archetype (`Update{Aggregate}` with ETag / If-Match Guard)
+>> MANDATORY CANONICAL BLUEPRINT [RULE-APP-CMD-005]:
+* Co-located inside `Modules/{BoundedContext}/{Aggregate}/Commands/Update{Aggregate}/`.
+* Ingress Command carries optional `string? IfMatch = null`.
+* Executes 4-step PEMR with Step 1 Pre-flight Concurrency Check and Step 3 Dual-Catch Mid-flight Commit collision handler.
+
+```csharp
+// --- File: Commands/Update{Aggregate}/Update{Aggregate}Command.cs ---
+namespace SmkDoc.Application.Modules.{BoundedContext}.{Aggregate}.Commands.Update{Aggregate};
+
+public sealed record Update{Aggregate}Command(
+    Guid Id,
+    string Name,
+    string? Category,
+    string? IfMatch = null
+);
+
+// --- File: Commands/Update{Aggregate}/Update{Aggregate}UseCase.cs ---
+namespace SmkDoc.Application.Modules.{BoundedContext}.{Aggregate}.Commands.Update{Aggregate};
+
+public sealed class Update{Aggregate}UseCase(
+    I{Aggregate}Repository repository,
+    IUnitOfWork unitOfWork,
+    TimeProvider timeProvider) : IUseCase<Update{Aggregate}Command, {Aggregate}ResultDto>
+{
+    public async Task<{Aggregate}ResultDto> ExecuteAsync(Update{Aggregate}Command command, CancellationToken ct = default)
+    {
+        // Step 1: Fetch Aggregate Root & Execute Pre-flight Concurrency Guard
+        var entity = await repository.GetByIdAsync(new {Aggregate}Id(command.Id), ct)
+            ?? throw new NotFoundException("{Aggregate}", command.Id);
+
+        if (!string.IsNullOrWhiteSpace(command.IfMatch) && command.IfMatch != "*")
+        {
+            var sanitizedMatch = command.IfMatch.Trim('\"', 'W', '/', ' ');
+            var currentToken = entity.ConcurrencyToken; // Sourced from xmin or Version
+
+            if (!string.Equals(sanitizedMatch, currentToken, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new PreconditionFailedException(
+                    $"Precondition failed for {Aggregate} '{command.Id}'. ETag '{sanitizedMatch}' does not match current state '{currentToken}'.");
+            }
+        }
+
+        // Step 2: Domain Invariants Execution
+        var now = timeProvider.GetUtcNow();
+        entity.UpdateDetails(command.Name, command.Category, now);
+
+        // Step 3: Persistence & Dual-Catch Mid-flight Concurrency Commit
+        repository.Update(entity);
+        try
+        {
+            await unitOfWork.CommitAsync(ct);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            throw new ConflictException(
+                "The resource was modified by another transaction while your request was processing. Please reload and retry.",
+                "CONCURRENCY_CONFLICT");
+        }
+
+        // Step 4: Return Immutable DTO with updated Concurrency Token
+        return new {Aggregate}ResultDto(
+            entity.Id.Value,
+            entity.Name.Value,
+            entity.Category,
+            entity.UpdatedAt,
+            entity.ConcurrencyToken
+        );
+    }
+}
+```
+
 ---
 
 ## 4. Level 4: Anti-Patterns & Unified Micro-Diffs
@@ -367,3 +443,19 @@ public sealed class CachedTemplateRenderer(
 + // Commands/{Verb}{Aggregate}/{Verb}{Aggregate}UseCase.cs
 ```
 *Rationale: Every `*Command`, `*Query`, `*Validator`, and `*UseCase` MUST live in its own `{TypeName}.cs` file co-located inside its vertical slice namespace.*
+
+### [TRAP-APP-008]: Blind Aggregate Mutation Without If-Match Precondition Guard
+```diff
+- // Overwriting aggregate details blindly without checking IfMatch
+- entity.UpdateDetails(command.Name, now);
+- await unitOfWork.CommitAsync(ct);
++ if (!string.IsNullOrWhiteSpace(command.IfMatch) && command.IfMatch != "*")
++ {
++     var sanitized = command.IfMatch.Trim('\"', 'W', '/', ' ');
++     if (!string.Equals(sanitized, entity.ConcurrencyToken, StringComparison.OrdinalIgnoreCase))
++         throw new PreconditionFailedException($"Precondition failed for '{command.Id}'.");
++ }
++ entity.UpdateDetails(command.Name, now);
++ await unitOfWork.CommitAsync(ct);
+```
+*Rationale: Blind mutations without pre-flight concurrency validation allow two users editing the same template in different browser tabs to silently clobber each other's changes (lost updates).*

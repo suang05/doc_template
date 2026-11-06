@@ -35,7 +35,7 @@ ArchitecturalSignals: [ARCH_EVOLUTION_INFRASTRUCTURE]
 | **Distributed State Topology** | Redis stores utilize atomic Lua scripts with fail-closed semantics for idempotency (`503`), fail-open for result caches, and `pg_advisory_lock` for multi-pod migrations. | Multi-Pod Scalability |
 | **Polymorphic SQL Execution** | Execute external SQL datasets via `ISqlDriverFactory` resolving provider-specific strategies (`PostgresDriverStrategy`, `SqlServerDriverStrategy`) with AST and transaction read-only isolation. | Data Federation |
 
-* **Relational Schema & Concurrency Delegation:** All physical table configurations (`IEntityTypeConfiguration<T>`), primary key UUIDv7 generation, composite indexing, foreign key cascade boundaries, JSONB mapping, and PostgreSQL `xmin` concurrency mechanics are governed exclusively by [database_persistence_and_schema_mechanics.md](../03_specialized_mechanics/database_persistence_and_schema_mechanics.md).
+>> SSoT DELEGATION: PostgreSQL physical table configurations (`IEntityTypeConfiguration<T>`), primary key UUIDv7, composite indexing, foreign key cascade boundaries, JSONB mapping, and `xmin` concurrency mechanics are governed strictly by [database_persistence_and_schema_mechanics.md](../03_specialized_mechanics/database_persistence_and_schema_mechanics.md).
 
 ---
 

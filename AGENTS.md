@@ -19,6 +19,9 @@ OperationalMindset:
 <core_mission_and_benchmarks>
 CoreMission:
   TargetSystem: Centralized, high-throughput document gateway transforming structured JSON into deterministic PDF, DOCX, and XLSX.
+  SystemPerimeter:
+    PortalPersona: Internal Backoffice & Authoring Console designed strictly for SuperAdmin (governance/keys) and Template Designers (Monaco studio/preview). Explicitly NOT a third-party login hub or IdP.
+    ExternalIntegration: External systems (ERP, CRM, Billing) integrate exclusively via Channel A (M2M API Keys) carrying scoped access (ReadOnly/ReadWrite).
   CompetitiveBenchmarks: Maintain parity and architectural superiority over enterprise engines (SSRS, JasperReports, Carbone.io, qorstack-report).
 
 QualityTargets:
@@ -212,6 +215,7 @@ MachineSyntaxAndNamingStandards:
 | **Multi-Tenant Dual-Auth & Project Context** | `[ARCH_EVOLUTION_TENANCY]` | `specs/03_specialized_mechanics/multi_tenant_security_pipeline.md` | `specs/00_architecture_core/03_security_and_performance.md` |
 | **Document Rendering Engines & Thai Formatting** | `[ARCH_EVOLUTION_RENDERING]` | `specs/03_specialized_mechanics/document_rendering_mechanics.md` | `specs/00_architecture_core/05_anti_pattern_firewall.md` |
 | **Database Persistence, Schema & Concurrency** | `[ARCH_EVOLUTION_DATABASE]` | `specs/03_specialized_mechanics/database_persistence_and_schema_mechanics.md` | `specs/01_clean_arch_patterns/03_infrastructure_layer.md` |
+| **Optimistic Concurrency & ETag/If-Match Parity** | `[ARCH_EVOLUTION_CONCURRENCY]` | `specs/00_architecture_core/06_api_contract_standards.md` | `specs/01_clean_arch_patterns/02_application_layer.md`, `specs/02_frontend_patterns/01_app_router_and_data_fetching.md` |
 
 TopologyMap:
 specs/
@@ -275,6 +279,13 @@ ArchetypePurityFirewall:
   - Code in `specs/` must be 100% abstract, generic boilerplate templates demonstrating the PATTERN only.
   - Strictly prohibit copying concrete production logic (IFormFile, multipart streams, specific domain DTOs, business conditionals).
   - Strictly enforce Action LOC <= 5 and UseCase in pure 4-step PEMR.
+
+ZeroDuplicationSSoTFirewall:
+  [CANONICAL ANTI-DUPLICATION RULE: Every architectural pattern or AST belongs to exactly ONE Primary SSoT]
+  Invariant: "Every architectural pattern, schema table, or code archetype must reside in exactly ONE Primary SSoT document."
+  ActionOnViolation: "Strictly prohibit copy-pasting AST classes or markdown tables across files. Replace duplicates with the canonical SSoT Delegation Bridge."
+  CanonicalDelegationSyntax: ">> SSoT DELEGATION: [{Concern}] governed strictly by [{target_spec.md}]({relative_path})."
+  CrossCuttingException: "Cross-cutting protocols (e.g. Concurrency, Multi-Tenancy) may document layer-specific projections across layers, but must NEVER duplicate another layer's native AST."
 
 TwoPhaseExecutionWorkflow:
   Phase1_CodeImplementation: Strictly PROHIBIT touching `specs/` or `AGENTS.md` while writing or testing code.

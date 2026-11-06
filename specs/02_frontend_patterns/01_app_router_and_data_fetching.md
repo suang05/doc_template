@@ -31,6 +31,7 @@ ArchitecturalSignals: [ARCH_EVOLUTION_FRONTEND_DATA]
 | **Blob URL Memory Lifecycle**| Every newly generated Blob URL must revoke the preceding URL via `URL.revokeObjectURL(oldUrl)` and clean up on component unmount. Unrevoked URL allocation is prohibited. | Browser Memory & GC |
 | **Next.js 15 Async Params** | Route parameters are typed and handled strictly as asynchronous promises: `{ params }: { params: Promise<{ id: string }> }` followed by `await params`. Synchronous param access is prohibited. | Framework Routing |
 | **Server State Governance** | Client server state and data mutations are governed via `@tanstack/react-query` (`useQuery`, `useMutation`) with automated cache invalidation. Ad-hoc `useEffect` fetching is prohibited. | State Synchronization |
+| **Optimistic Concurrency Parity** | State-mutating forms and hooks (`PUT`, `DELETE`) must forward `If-Match: "<token>"` using the resource's `concurrencyToken` (or cached `ETag`). Client error boundaries must intercept HTTP 412/409, alert the operator with conflict details, and prompt to reload rather than overwriting. Blind mutations without `If-Match` are prohibited. | Concurrency Parity |
 | **Feature Sliced Isolation** | Code is organized in self-contained feature slices under `src/features/{slice}/` exporting their public interface through `index.ts`. Flat global folder sprawl is prohibited. | Code Topology |
 
 ---
@@ -43,6 +44,7 @@ ArchitecturalSignals: [ARCH_EVOLUTION_FRONTEND_DATA]
 * **Why 800ms Debounce with AbortController:** Document rendering via Gotenberg is CPU-intensive; 800ms debounce prevents cluster thrashing, while `AbortController` immediately halts stale rendering jobs on the wire.
 * **Why Strict `URL.revokeObjectURL` Cleanup:** Browser blob URLs remain retained in browser heap memory until explicitly revoked; omitting cleanup causes substantial memory leaks during prolonged template editing sessions.
 * **Why TanStack Query over Ad-hoc useEffect:** Eliminates duplicate network requests, provides stale-while-revalidate background caching, and automates cache invalidation across disparate feature widgets without props drilling.
+* **Why Client-Side If-Match Parity over Blind Last-Write-Wins:** In an authoring console where template designers edit complex schemas or HTML concurrently in multiple browser tabs, blind mutations cause silent lost updates. Forwarding `If-Match` ensures that if another tab saved in the interim, the browser receives `412 Precondition Failed` or `409 Conflict`, preserving uncommitted editor changes and alerting the designer.
 * **Why Feature-Sliced Taxonomy over Flat Layered Folders:** Grouping related components, hooks, APIs, and schemas by domain capability ensures high cohesion and low coupling. Developers modify feature mechanics in a single directory without navigating across 6 disparate root folders, preventing circular dependencies and git merge conflicts.
 
 ### 2.2 Proactive Frontend Guards
@@ -505,6 +507,71 @@ export function MetricsDashboardPage({ stats, recentLogs }: DashboardProps) {
 }
 ```
 
+### 3.5 Optimistic Concurrency Mutation Hook Archetype (`useUpdateTemplate.ts`)
+>> MANDATORY CANONICAL BLUEPRINT [RULE-FRONT-004]:
+* Captures the `concurrencyToken` (ETag) from the resource query state.
+* Forwards `If-Match: `"${concurrencyToken}"`` header during `PUT` / `DELETE` mutations.
+* Intercepts HTTP 412 (`PRECONDITION_FAILED`) and HTTP 409 (`CONCURRENCY_CONFLICT`), prompting the user with a conflict toast or dialog to reload without discarding uncommitted input.
+* Invalids cache and sets updated token on success.
+
+```typescript
+'use client';
+
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { apiClient, ApiError } from '@/lib/api/client';
+import { toast } from 'sonner';
+
+interface UpdateTemplatePayload {
+  id: string;
+  name: string;
+  category?: string;
+  concurrencyToken: string; // Captured from query cache / ETag
+}
+
+interface TemplateResult {
+  id: string;
+  name: string;
+  category?: string;
+  concurrencyToken: string;
+}
+
+export function useUpdateTemplate() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, name, category, concurrencyToken }: UpdateTemplatePayload) => {
+      // Step 1: Forward Concurrency Precondition Header <Why: prevent lost update overwrites>
+      return await apiClient<TemplateResult>(`/api/v1/templates/${id}`, {
+        method: 'PUT',
+        headers: {
+          'If-Match': `"${concurrencyToken}"`,
+        },
+        body: JSON.stringify({ name, category }),
+      });
+    },
+    onSuccess: (data) => {
+      toast.success('Template updated successfully');
+      // Step 2: Invalidate & Hydrate New Cache State <Why: synchronize new concurrencyToken>
+      queryClient.setQueryData(['templates', data.id], data);
+      queryClient.invalidateQueries({ queryKey: ['templates'] });
+    },
+    onError: (error: unknown) => {
+      if (error instanceof ApiError) {
+        // Step 3: Handle Concurrency Race Conditions <Why: clear user feedback on 412/409>
+        if (error.status === 412 || error.status === 409) {
+          toast.error(
+            'Concurrency Conflict: This template was updated by another session. Please refresh the page to view the latest changes.',
+            { duration: 8000 }
+          );
+          return;
+        }
+      }
+      toast.error('Failed to update template');
+    },
+  });
+}
+```
+
 ---
 
 ## 4. Level 4: High-Salience Fatal Traps & Unified Micro-Diffs
@@ -543,3 +610,14 @@ export function MetricsDashboardPage({ stats, recentLogs }: DashboardProps) {
 + if (abortControllerRef.current) abortControllerRef.current.abort(); const controller = new AbortController(); abortControllerRef.current = controller; const blob = await documentsApi.renderPreview({ slug, html, signal: controller.signal });
 ```
 *Rationale: Firing new preview requests without aborting in-flight requests causes race conditions where an older, slower render overwrites a newer one.*
+
+### [TRAP-FRONT-006]: Blind Mutation Without If-Match Header (Silent Overwrites)
+```diff
+- await apiClient(`/api/v1/templates/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
++ await apiClient(`/api/v1/templates/${id}`, {
++   method: 'PUT',
++   headers: { 'If-Match': `"${template.concurrencyToken}"` },
++   body: JSON.stringify(payload),
++ });
+```
+*Rationale: Executing PUT/DELETE without If-Match allows multiple browser tabs or operators to silently overwrite each other's changes without detection.*

@@ -59,6 +59,10 @@ ArchitecturalSignals: [ARCH_EVOLUTION_CONTRACT]
 * **Why RFC 9457 ProblemDetails over Ad-Hoc Errors:** Ad-hoc formats like `{ "error": "something went wrong" }` lack machine-parsable semantics. RFC 9457 provides an IETF standard with typed URIs, standardized HTTP status mapping, and structured validation dictionaries under `errors`.
 * **Why HTTP 200 for Diagnostic Connection Probes:** An unreachable database or invalid credential is a valid diagnostic business result, NOT an HTTP transport failure. Emitting HTTP 400 confuses automated monitoring and breaks client error handlers.
 * **Why Dedicated Machine-Readable `specs/openapi.json`:** Eliminates documentation drift by generating contracts directly from the compiled ASP.NET Core API reflection pipeline, providing frontend TypeScript code-generators a single source of truth.
+* **Why Optimistic Concurrency (`ETag` / `If-Match`) over Distributed Locks for Mutations:** Mutating existing resources (`PUT`, `DELETE`) is naturally idempotent by HTTP semantics; acquiring distributed Redis locks introduces latency and deadlocks while failing to catch lost-update anomalies if two users read stale data minutes apart. `If-Match` carrying the resource state token (PostgreSQL `xmin`) completely eliminates lost updates with zero distributed locking overhead.
+* **Why Distinct 412 Precondition Failed vs 409 Conflict:**
+  * `412 Precondition Failed`: Pre-execution validation failure. The caller's `If-Match` token does not match the current database state at read-time. The mutation is aborted before executing domain logic.
+  * `409 Conflict`: Mid-flight concurrency collision. The `If-Match` matched at read-time, but another concurrent transaction committed changes before this transaction called `CommitAsync` (detected via EF Core `DbUpdateConcurrencyException`).
 
 ### 2.2 Proactive Wire Protocol Firewalls
 ```yaml
@@ -96,6 +100,20 @@ All collection query endpoints must conform strictly to these standardized query
 | `isActive` | `boolean?`| `null` | Filter by lifecycle state: `true`, `false`, or omitted for all. |
 
 * **Ingress vs Egress Parameter Parity:** The HTTP Query String accepts either `pageSize` or `limit` (canonical default: `pageSize`). The HTTP Egress Response strictly envelopes items per page under `pagination.limit` conforming to `PaginationMetadata`.
+
+### 2.4 Optimistic Concurrency & ETag/If-Match Parity Protocol (Pre-flight 412 vs Mid-flight 409)
+The wire protocol strictly enforces optimistic concurrency across all state-mutating endpoints (`PUT`, `DELETE`) on mutable resources (Templates, Datasets, DataConnections) using HTTP standard headers (RFC 9110 §13.1.1, RFC 7232):
+
+| Header | Direction | Format / Syntax | Semantic Meaning & Wire Invariant |
+|---|---|---|---|
+| `ETag` | Response (`GET`, `PUT`) | `ETag: "54218"` | Resource state token derived from database rowversion. Enclosed in double quotes. |
+| `If-Match` | Request (`PUT`, `DELETE`) | `If-Match: "54218"` or `*` | Ingress concurrency precondition. Must match target resource's current token. Wildcard `*` bypasses pre-check. |
+
+#### Wire Concurrency Error Resolution Matrix
+| Failure Scenario | HTTP Wire Status | RFC 9457 `errorCode` | Wire Resolution & Client Behavior |
+|---|---|---|---|
+| **Pre-flight Token Mismatch** | `412 Precondition Failed` | `PRECONDITION_FAILED` | Ingress `If-Match` differs from current resource state. Request terminates before domain execution. Client must refetch latest state. |
+| **Mid-flight Mutation Collision** | `409 Conflict` | `CONCURRENCY_CONFLICT` | Resource was modified concurrently by another transaction during processing. Client must reload latest state and prompt user to reconcile. |
 
 ---
 
@@ -281,6 +299,36 @@ export interface ProblemDetails {
 
 ---
 
+### 3.5 Optimistic Concurrency Error Wire Blueprints (`412 Precondition Failed` & `409 Conflict`)
+>> MANDATORY CANONICAL BLUEPRINT [RULE-CONTRACT-005]:
+* Concurrency errors serialize strictly as RFC 9457 `ProblemDetails` differentiating pre-flight (`412`) vs mid-flight (`409`).
+
+**JSON Wire Representation: 412 Precondition Failed (Pre-flight Token Mismatch):**
+```json
+{
+  "type": "https://tools.ietf.org/html/rfc9110#section-15.5.13",
+  "title": "Precondition Failed",
+  "status": 412,
+  "detail": "Precondition failed for template '0192e2c8-72b1-7000-8000-111111111111'. ETag '54217' does not match current state '54218'.",
+  "instance": "/api/v1/templates/0192e2c8-72b1-7000-8000-111111111111",
+  "errorCode": "PRECONDITION_FAILED"
+}
+```
+
+**JSON Wire Representation: 409 Conflict (Mid-flight Commit Collision):**
+```json
+{
+  "type": "https://tools.ietf.org/html/rfc9110#section-15.5.10",
+  "title": "Conflict",
+  "status": 409,
+  "detail": "The resource was modified by another transaction while your request was processing. Please reload the latest state and retry.",
+  "instance": "/api/v1/templates/0192e2c8-72b1-7000-8000-111111111111",
+  "errorCode": "CONCURRENCY_CONFLICT"
+}
+```
+
+---
+
 ## 4. Level 4: Anti-Patterns & Unified Micro-Diffs
 
 ### [TRAP-CONTRACT-001]: Flat Pagination Properties Leaking into Root Envelope
@@ -331,3 +379,12 @@ export interface ProblemDetails {
 + // Run dotnet build backend-v2/src/SmkDoc.Api to re-generate specs/openapi.json automatically
 ```
 *Rationale: Manual edits to openapi.json are overwritten on the next API build and introduce silent schema drift.*
+
+### [TRAP-CONTRACT-008]: Swallowing Mid-flight Concurrency Collisions as 500 or Ignoring If-Match Headers
+```diff
+- // Unhandled DbUpdateConcurrencyException falling back to generic 500 Internal Error
+- // Or executing PUT/DELETE without validating If-Match (Blind Last-Write-Wins)
++ // UseCase pre-validates If-Match -> 412 Precondition Failed
++ // GlobalExceptionHandler maps DbUpdateConcurrencyException -> 409 Conflict
+```
+*Rationale: Leaking DbUpdateConcurrencyException as HTTP 500 signals internal server degradation to monitoring dashboards, whereas it is an expected HTTP 409 client-level race condition. Ignoring If-Match allows silent overwrites and lost updates.*

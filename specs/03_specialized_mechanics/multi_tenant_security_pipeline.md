@@ -40,12 +40,15 @@ ArchitecturalSignals: [ARCH_EVOLUTION_TENANCY]
 | **Perimeter Scope Enforcement** | Channel A keys with `ApiKeyScope.ReadOnly` are blocked at `ProjectContextMiddleware` from executing mutating HTTP verbs (`POST`/`PUT`/`PATCH`/`DELETE`) returning `403 Forbidden`, permitting only stateless `/preview` and `/validate`. | Perimeter Firewall |
 | **Authenticated Preview Protection**| Preview endpoints require authenticated tenant context to resolve templates and protect Gotenberg Chromium pods. Anonymous public access to `/preview` is prohibited. | Render Perimeter |
 | **Tenant Idempotency Partition**| Distributed idempotency keys are partitioned strictly by resolved project: `idempotency:{ProjectId:N}:{IdempotencyKey}`. Shared caller keying is prohibited. | Cache Partitioning |
+| **Portal Persona & Integration Perimeter** | The Web Portal (`frontend-v2`) is strictly an internal operator and authoring console for SuperAdmin and Template Designers. The system is explicitly NOT a central identity hub or IdP for third-party user logins; external enterprise callers (ERP, CRM) integrate exclusively via Channel A (M2M API Keys). | System Boundary |
+| **Harmonized 2-Tier Role Taxonomy** | Identity is partitioned into Tier 1 Platform `SystemRole` (`SuperAdmin`, `Member`) and Tier 2 Project `RoleType` (`Admin`, `Developer`, `Viewer`). Spurious role aliases (`Editor`, `Author`) are strictly prohibited. | Role Governance |
 
 ---
 
 ## 2. Level 2: Dual-Channel Topology & Cognitive Tenancy Engine
 
 ### 2.1 Engineering Rationale & Causal Decisions
+* **Why Internal Backoffice Console vs External Auth Hub:** Attempting to turn the document portal into a public Identity Provider (IdP) introduces accidental SaaS complexity (social login, user registration, self-service forgot-password). External enterprise software (ERP, CRM) already manages user identities natively; their servers consume document generation via Channel A (M2M API Keys). The web portal exists purely as an internal operator console for SuperAdmin governance and Template Designer authoring.
 * **Why Constant-Time Hash Comparison (`FixedTimeEquals`):** Standard string equality (`==`) terminates on the first mismatched character, creating timing side-channel vulnerabilities that allow attackers to deduce hashes through network latency jitter.
 * **Why `ClaimsPrincipal` Hydration for M2M:** ASP.NET Core `[Authorize]` attributes evaluate `HttpContext.User.Identity.IsAuthenticated`. Validating an API key into ambient context without updating `HttpContext.User` causes downstream middleware to treat M2M requests as unauthenticated (`401 Unauthorized`).
 * **Why Unified `ICurrentProjectContext` (Retiring `IExecutionContext`):** Maintaining both `ICurrentProjectContext` and `IExecutionContext` causes split-brain bugs and leaks transport authentication mechanics into UseCases. Both `X-API-Key` (M2M) and `Authorization: Bearer` (JWT) converge at the perimeter into `ICurrentProjectContext` so inner business logic executes completely agnostically of transport origin.
@@ -115,6 +118,19 @@ public interface ICurrentProjectContextSetter
         string? callerIdentity = null);
 }
 ```
+
+### 2.5 Unified 2-Tier RBAC & Scope Decision Matrix
+The system is partitioned into two distinct identity channels: Channel B (Internal Portal for SuperAdmin and Designers) and Channel A (M2M External Systems). Spurious role aliases (`Editor`, `Author`) are strictly prohibited in favor of the canonical SSoT taxonomy:
+
+| Identity Channel | Security Principal Tier | Canonical Role / Scope | Primary Operational Scope & Responsibilities |
+|---|---|---|---|
+| **Channel B (Portal)** | **Tier 1: Platform Level** (`SystemRole`) | `SuperAdmin` | Platform-wide governance, cross-tenant management, system diagnostics, master API keys. |
+| **Channel B (Portal)** | **Tier 1: Platform Level** (`SystemRole`) | `Member` | Standard authenticated operator assigned to specific project workspaces. |
+| **Channel B (Portal)** | **Tier 2: Tenant Workspace** (`RoleType`) | `Admin` | Project Administrator: manages project API keys, user memberships, and data connections. |
+| **Channel B (Portal)** | **Tier 2: Tenant Workspace** (`RoleType`) | `Developer` | Template Designer: authors templates, Monaco HTML/Handlebars, bindings, datasets, live preview. |
+| **Channel B (Portal)** | **Tier 2: Tenant Workspace** (`RoleType`) | `Viewer` | Read-only inspection: views template catalog and previews generated outputs. |
+| **Channel A (M2M)** | **Tier 3: External Integration** (`ApiKeyScope`)| `ReadOnly` (`M2MClient`) | External ERP/CRM: stateless preview and schema validation only (`403` on mutating verbs). |
+| **Channel A (M2M)** | **Tier 3: External Integration** (`ApiKeyScope`)| `ReadWrite` (`M2MClient`) | External ERP/CRM: document generation, async queueing, asset download, and template CRUD. |
 
 ---
 

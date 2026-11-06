@@ -12,7 +12,7 @@ ArchitecturalSignals: [ARCH_EVOLUTION_SECURITY]
 
 ## 1. Level 1: Affirmative Security & Performance Invariants Matrix
 
-> [SSOT DELEGATION]: Multi-tenant dual-channel authentication (M2M/JWT), ClaimsPrincipal hydration, ambient project context, and API key quota governance are governed exclusively by `specs/03_specialized_mechanics/multi_tenant_security_pipeline.md`.
+>> SSoT DELEGATION: Multi-tenant dual-channel authentication (M2M/JWT), ClaimsPrincipal hydration, ambient project context, and API key quota governance are governed strictly by [multi_tenant_security_pipeline.md](../03_specialized_mechanics/multi_tenant_security_pipeline.md).
 
 | Architectural Concern | Affirmative Security/Performance Invariant (Positive SSoT Law) | Boundary Vector |
 |---|---|---|
