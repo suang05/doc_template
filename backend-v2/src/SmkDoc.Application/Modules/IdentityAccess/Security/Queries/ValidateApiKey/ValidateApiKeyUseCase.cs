@@ -11,13 +11,13 @@ public sealed class ValidateApiKeyUseCase(
     IApiKeyRepository apiKeyRepo,
     IProjectRepository projectRepo,
     IUnitOfWork unitOfWork,
-    TimeProvider timeProvider) : IUseCase<ValidateApiKeyQuery, ValidatedApiKeyDto?>
+    TimeProvider timeProvider) : IUseCase<ValidateApiKeyQuery, ValidatedApiKeyResultDto?>
 {
-    public async Task<ValidatedApiKeyDto?> ExecuteAsync(ValidateApiKeyQuery query, CancellationToken ct = default)
+    public async Task<ValidatedApiKeyResultDto?> ExecuteAsync(ValidateApiKeyQuery query, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(query.PlainTextKey)) return null;
 
-        var hash = new Sha256Hash(ApiKeyHelper.ComputeHash(query.PlainTextKey));
+        var hash = new Sha256Hash(ApiKeyGenerator.ComputeHash(query.PlainTextKey));
         var key = await apiKeyRepo.GetByKeyHashAsync(hash, ct);
         var now = timeProvider.GetUtcNow();
         if (key != null && key.IsUsableAt(now))
@@ -31,7 +31,7 @@ public sealed class ValidateApiKeyUseCase(
             key.RecordUsage(now);
             apiKeyRepo.Update(key);
             await unitOfWork.CommitAsync(ct);
-            return new ValidatedApiKeyDto(key.Id.Value, key.CallerApp, key.ProjectId.Value, key.Scope.Name);
+            return new ValidatedApiKeyResultDto(key.Id.Value, key.CallerApp, key.ProjectId.Value, key.Scope.Name);
         }
         return null;
     }

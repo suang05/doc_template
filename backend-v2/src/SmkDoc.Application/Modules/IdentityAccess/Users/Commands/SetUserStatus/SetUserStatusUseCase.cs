@@ -76,7 +76,8 @@ public sealed class SetUserStatusUseCase(
             user.LastName,
             roleName,
             user.IsActive,
-            user.CreatedAt
+            user.CreatedAt,
+            (user.UpdatedAt ?? user.CreatedAt).ToUnixTimeMilliseconds().ToString()
         );
     }
 }

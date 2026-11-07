@@ -80,7 +80,7 @@ public sealed class ValidateApiKeyUseCaseTests
     {
         // Arrange
         const string plainText = "smk_billing_secret123";
-        var hash = new Sha256Hash(ApiKeyHelper.ComputeHash(plainText));
+        var hash = new Sha256Hash(ApiKeyGenerator.ComputeHash(plainText));
         var projectId = Guid.NewGuid();
         ApiKey key = new ApiKeyBuilder()
             .WithProjectId(projectId)
@@ -100,7 +100,7 @@ public sealed class ValidateApiKeyUseCaseTests
             .Returns(project);
 
         // Act
-        ValidatedApiKeyDto? result = await CreateSut().ExecuteAsync(new ValidateApiKeyQuery(plainText));
+        ValidatedApiKeyResultDto? result = await CreateSut().ExecuteAsync(new ValidateApiKeyQuery(plainText));
 
         // Assert
         result.Should().NotBeNull();
@@ -118,7 +118,7 @@ public sealed class ValidateApiKeyUseCaseTests
     {
         // Arrange
         const string plainText = "smk_billing_secret123";
-        var hash = new Sha256Hash(ApiKeyHelper.ComputeHash(plainText));
+        var hash = new Sha256Hash(ApiKeyGenerator.ComputeHash(plainText));
         var projectId = Guid.NewGuid();
         ApiKey key = new ApiKeyBuilder()
             .WithProjectId(projectId)

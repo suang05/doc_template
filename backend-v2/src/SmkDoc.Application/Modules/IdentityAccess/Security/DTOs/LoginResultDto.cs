@@ -13,7 +13,7 @@ public record LoginResultDto
     public int ExpiresIn { get; init; } = AuthConstants.AccessTokenLifetimeSeconds;
     public UserProfileDto User { get; init; } = default!;
     public IReadOnlyList<AccessibleProjectDto> AccessibleProjects { get; init; } = [];
-    public IReadOnlyList<ApiKeyDto> ActiveApiKeys { get; init; } = [];
+    public IReadOnlyList<ApiKeyResultDto> ActiveApiKeys { get; init; } = [];
     public Guid? DefaultProjectId { get; init; }
     public Guid? ActiveProjectId { get; init; }
     public string? ActiveRole { get; init; }
@@ -30,7 +30,7 @@ public record LoginResultDto
         string tokenType = AuthConstants.BearerTokenType,
         int expiresIn = AuthConstants.AccessTokenLifetimeSeconds,
         string? refreshToken = null,
-        IReadOnlyList<ApiKeyDto>? activeApiKeys = null)
+        IReadOnlyList<ApiKeyResultDto>? activeApiKeys = null)
     {
         AccessToken = accessToken;
         RefreshToken = refreshToken;

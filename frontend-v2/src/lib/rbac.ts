@@ -4,7 +4,7 @@ import type { UserRole } from '@/types/api';
 // Higher number = higher privilege — Record<UserRole> ensures compile-time sync with schema
 export const ROLE_LEVEL: Record<UserRole, number> = {
   Viewer: 1,
-  Editor: 2,
+  Developer: 2,
   Admin: 3,
 };
 
@@ -13,11 +13,11 @@ export const NAV_MIN_ROLE: Record<NavigationItemId, UserRole> = {
   generator:        'Viewer',
   audit:            'Viewer',
   apidocs:          'Viewer',
-  templates:        'Editor',
-  studio:           'Editor',
-  upload:           'Editor',
-  mapping:          'Editor',
-  'version-history':'Editor',
+  templates:        'Developer',
+  studio:           'Developer',
+  upload:           'Developer',
+  mapping:          'Developer',
+  'version-history':'Developer',
   logs:             'Admin',
   analytics:        'Admin',
   datasources:      'Admin',

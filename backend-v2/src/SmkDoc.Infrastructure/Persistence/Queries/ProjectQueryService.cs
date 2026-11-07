@@ -49,7 +49,13 @@ public sealed class ProjectQueryService(AppDbContext context) : IProjectQuerySer
             .ToListAsync(ct);
 
         var items = projects
-            .Select(p => new ProjectResultDto(p.Id.Value, p.Name.Value, p.Slug.Value, p.IsActive, p.CreatedAt))
+            .Select(p => new ProjectResultDto(
+                p.Id.Value,
+                p.Name.Value,
+                p.Slug.Value,
+                p.IsActive,
+                p.CreatedAt,
+                ConcurrencyToken: (p.UpdatedAt ?? p.CreatedAt).ToUnixTimeMilliseconds().ToString()))
             .ToList();
 
         return (items, totalCount);

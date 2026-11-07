@@ -9,9 +9,9 @@ namespace SmkDoc.Application.Modules.IdentityAccess.Security.Queries.ListApiKeys
 
 public sealed class ListApiKeysUseCase(
     IApiKeyRepository apiKeyRepo,
-    ICurrentProjectContext projectContext) : IUseCase<ListApiKeysQuery, List<ApiKeyDto>>
+    ICurrentProjectContext projectContext) : IUseCase<ListApiKeysQuery, List<ApiKeyResultDto>>
 {
-    public async Task<List<ApiKeyDto>> ExecuteAsync(ListApiKeysQuery query, CancellationToken ct = default)
+    public async Task<List<ApiKeyResultDto>> ExecuteAsync(ListApiKeysQuery query, CancellationToken ct = default)
     {
         IReadOnlyList<Domain.Entities.ApiKey> keys;
 
@@ -48,7 +48,7 @@ public sealed class ListApiKeysUseCase(
             {
                 var suffix = k.KeyHash.Value.Length >= 4 ? k.KeyHash.Value[^4..] : "xxxx";
                 var masked = $"smk_{k.CallerApp.ToLowerInvariant()}_****{suffix}";
-                return new ApiKeyDto(
+                return new ApiKeyResultDto(
                     k.Id.Value,
                     k.Name.Value,
                     k.CallerApp,
@@ -56,7 +56,8 @@ public sealed class ListApiKeysUseCase(
                     k.LastUsedAt,
                     k.CreatedAt,
                     k.Scope.Name,
-                    masked);
+                    masked,
+                    ConcurrencyToken: (k.UpdatedAt ?? k.CreatedAt).ToUnixTimeMilliseconds().ToString());
             })
             .ToList();
     }

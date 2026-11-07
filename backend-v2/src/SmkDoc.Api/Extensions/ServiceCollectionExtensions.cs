@@ -189,8 +189,7 @@ public static class ServiceCollectionExtensions
             options.AddPolicy(AuthorizationPolicies.CanManageTemplates, policy =>
             {
                 policy.RequireAssertion(ctx =>
-                    ctx.User.IsInRole("Author") ||
-                    ctx.User.IsInRole("Developer") ||
+                    ctx.User.IsInRole(RoleConstants.Developer) ||
                     ctx.User.IsInRole(RoleConstants.Admin) ||
                     ctx.User.IsInRole(RoleConstants.SuperAdmin) ||
                     (ctx.User.IsInRole("M2MClient") && ctx.User.HasClaim(c => c.Type is "Scope" or "ApiKeyScope" && c.Value == "ReadWrite")));
@@ -211,8 +210,7 @@ public static class ServiceCollectionExtensions
             options.AddPolicy(AuthorizationPolicies.CanManageDatasets, policy =>
             {
                 policy.RequireAssertion(ctx =>
-                    ctx.User.IsInRole("Author") ||
-                    ctx.User.IsInRole("Developer") ||
+                    ctx.User.IsInRole(RoleConstants.Developer) ||
                     ctx.User.IsInRole(RoleConstants.Admin) ||
                     ctx.User.IsInRole(RoleConstants.SuperAdmin) ||
                     (ctx.User.IsInRole("M2MClient") && ctx.User.HasClaim(c => c.Type is "Scope" or "ApiKeyScope" && c.Value == "ReadWrite")));

@@ -4,7 +4,7 @@ using SmkDoc.Domain.ValueObjects;
 
 namespace SmkDoc.Application.Modules.IdentityAccess.Security.Helpers;
 
-public static class RefreshTokenHelper
+public static class RefreshTokenGenerator
 {
     public static string GenerateTokenString()
     {
@@ -17,3 +17,4 @@ public static class RefreshTokenHelper
         return new Sha256Hash(Convert.ToHexString(bytes).ToLowerInvariant());
     }
 }
+

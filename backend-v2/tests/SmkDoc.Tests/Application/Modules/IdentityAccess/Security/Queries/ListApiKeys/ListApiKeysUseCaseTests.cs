@@ -66,7 +66,7 @@ public sealed class ListApiKeysUseCaseTests
             .Returns(new List<ApiKey> { key1, key2 });
 
         // Act
-        List<ApiKeyDto> result = await CreateSut().ExecuteAsync(new ListApiKeysQuery());
+        List<ApiKeyResultDto> result = await CreateSut().ExecuteAsync(new ListApiKeysQuery());
 
         // Assert
         result.Should().HaveCount(2);
@@ -89,7 +89,7 @@ public sealed class ListApiKeysUseCaseTests
             .Returns(new List<ApiKey> { key });
 
         // Act
-        List<ApiKeyDto> result = await CreateSut().ExecuteAsync(new ListApiKeysQuery());
+        List<ApiKeyResultDto> result = await CreateSut().ExecuteAsync(new ListApiKeysQuery());
 
         // Assert
         result.Should().ContainSingle();
@@ -108,7 +108,7 @@ public sealed class ListApiKeysUseCaseTests
             .Returns(new List<ApiKey>());
 
         // Act
-        List<ApiKeyDto> result = await CreateSut().ExecuteAsync(new ListApiKeysQuery());
+        List<ApiKeyResultDto> result = await CreateSut().ExecuteAsync(new ListApiKeysQuery());
 
         // Assert
         result.Should().BeEmpty();

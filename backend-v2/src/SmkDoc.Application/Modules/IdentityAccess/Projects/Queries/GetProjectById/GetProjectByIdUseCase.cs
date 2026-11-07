@@ -13,6 +13,12 @@ public sealed class GetProjectByIdUseCase(IProjectRepository projectRepo) : IUse
         var project = await projectRepo.GetByIdAsync(new ProjectId(query.ProjectId), ct)
             ?? throw new NotFoundException("Project", query.ProjectId);
 
-        return new ProjectResultDto(project.Id.Value, project.Name.Value, project.Slug.Value, project.IsActive, project.CreatedAt);
+        return new ProjectResultDto(
+            project.Id.Value,
+            project.Name.Value,
+            project.Slug.Value,
+            project.IsActive,
+            project.CreatedAt,
+            ConcurrencyToken: (project.UpdatedAt ?? project.CreatedAt).ToUnixTimeMilliseconds().ToString());
     }
 }

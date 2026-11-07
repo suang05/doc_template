@@ -56,8 +56,8 @@ public sealed class LoginUseCase(
         var token = jwtTokenGenerator.GenerateToken(user, workspace.ActiveProjectId, roles);
 
         var now = timeProvider.GetUtcNow();
-        var rawRefreshToken = RefreshTokenHelper.GenerateTokenString();
-        var refreshTokenHash = RefreshTokenHelper.HashToken(rawRefreshToken);
+        var rawRefreshToken = RefreshTokenGenerator.GenerateTokenString();
+        var refreshTokenHash = RefreshTokenGenerator.HashToken(rawRefreshToken);
         var refreshToken = RefreshTokenEntity.Create(user.Id, refreshTokenHash, now.AddDays(AuthConstants.RefreshTokenLifetimeDays), now);
         await tokenRepo.AddAsync(refreshToken, ct);
         await unitOfWork.CommitAsync(ct);

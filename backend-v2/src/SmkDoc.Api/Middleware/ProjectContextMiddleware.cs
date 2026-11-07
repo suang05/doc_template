@@ -36,7 +36,7 @@ public sealed class ProjectContextMiddleware(
     public async Task InvokeAsync(
         HttpContext context,
         ICurrentProjectContextSetter projectContextSetter,
-        IUseCase<ValidateApiKeyQuery, ValidatedApiKeyDto?> validateApiKeyUseCase,
+        IUseCase<ValidateApiKeyQuery, ValidatedApiKeyResultDto?> validateApiKeyUseCase,
         IUserProjectRoleRepository userProjectRoleRepo,
         IProjectRepository projectRepo)
     {
@@ -218,7 +218,7 @@ public sealed class ProjectContextMiddleware(
                 return;
             }
 
-            ValidatedApiKeyDto? key;
+            ValidatedApiKeyResultDto? key;
             try
             {
                 var query = new ValidateApiKeyQuery(rawKey);
@@ -308,7 +308,7 @@ public sealed class ProjectContextMiddleware(
 
             if (string.Equals(key.Scope, ApiKeyScope.ReadWrite.Name, StringComparison.OrdinalIgnoreCase))
             {
-                claims.Add(new Claim(ClaimTypes.Role, "Author"));
+                claims.Add(new Claim(ClaimTypes.Role, RoleConstants.Developer));
             }
             claims.Add(new Claim(ClaimTypes.Role, RoleConstants.Member));
 

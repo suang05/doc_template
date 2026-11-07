@@ -37,6 +37,17 @@ public sealed class RevokeApiKeyUseCase(
             throw new NotFoundException($"API Key '{command.Id}' not found.");
         }
 
+        if (!string.IsNullOrWhiteSpace(command.IfMatch) && command.IfMatch != "*")
+        {
+            var currentToken = (key.UpdatedAt ?? key.CreatedAt).ToUnixTimeMilliseconds().ToString();
+            var sanitizedMatch = command.IfMatch.Trim('\"', 'W', '/', ' ');
+            if (!string.Equals(sanitizedMatch, currentToken, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new PreconditionFailedException(
+                    $"Precondition failed for API key '{command.Id}'. ETag '{sanitizedMatch}' does not match current state.");
+            }
+        }
+
         key.Revoke(timeProvider.GetUtcNow());
         apiKeyRepo.Update(key);
         await unitOfWork.CommitAsync(ct);

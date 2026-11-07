@@ -10,7 +10,8 @@ public sealed record ProjectResultDto(
     bool IsActive,
     DateTimeOffset CreatedAt,
     string? ReadApiKey = null,
-    string? WriteApiKey = null
+    string? WriteApiKey = null,
+    string? ConcurrencyToken = null
 );
 
 /// <summary>

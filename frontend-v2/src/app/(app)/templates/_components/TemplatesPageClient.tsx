@@ -9,7 +9,7 @@ export function TemplatesPageClient() {
   const router = useRouter();
 
   return (
-    <RequireRole role="Editor">
+    <RequireRole role="Developer">
       <TemplatesView
         onOpenStudio={(templateId) => router.push(`/studio/${templateId}`)}
         onOpenMapping={(templateId) => router.push(`/mapping?templateId=${templateId}`)}

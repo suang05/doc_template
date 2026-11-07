@@ -173,7 +173,7 @@ public static class DatabaseExtensions
                 logger.LogWarning("Using temporary Development API Key. NEVER use this in production.");
             }
 
-            var defaultKeyHash = new Sha256Hash(ApiKeyHelper.ComputeHash(masterApiKey));
+            var defaultKeyHash = new Sha256Hash(ApiKeyGenerator.ComputeHash(masterApiKey));
             var existingKey = await apiKeyRepo.GetByKeyHashAsync(defaultKeyHash);
             if (existingKey == null)
             {

@@ -21,7 +21,7 @@ import { useUsers } from '../hooks/useUsers';
 
 const ROLE_PILL: Record<UserRole, PillIntent> = {
   Admin: 'admin',
-  Editor: 'dev',
+  Developer: 'dev',
   Viewer: 'idle',
 };
 

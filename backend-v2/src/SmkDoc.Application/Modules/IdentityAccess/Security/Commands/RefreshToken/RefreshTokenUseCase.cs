@@ -21,7 +21,7 @@ public sealed class RefreshTokenUseCase(
     public async Task<TokenResultDto> ExecuteAsync(RefreshTokenCommand command, CancellationToken ct = default)
     {
         var now = timeProvider.GetUtcNow();
-        var tokenHash = RefreshTokenHelper.HashToken(command.RefreshToken);
+        var tokenHash = RefreshTokenGenerator.HashToken(command.RefreshToken);
         var token = await tokenRepo.GetByHashAsync(tokenHash, ct);
 
         if (token == null)
@@ -62,8 +62,8 @@ public sealed class RefreshTokenUseCase(
         var newAccessToken = jwtTokenGenerator.GenerateToken(user, workspace.ActiveProjectId, roles);
 
         // Token Rotation (RTR)
-        var newRawToken = RefreshTokenHelper.GenerateTokenString();
-        var newTokenHash = RefreshTokenHelper.HashToken(newRawToken);
+        var newRawToken = RefreshTokenGenerator.GenerateTokenString();
+        var newTokenHash = RefreshTokenGenerator.HashToken(newRawToken);
 
         if (!token.IsRevoked)
         {

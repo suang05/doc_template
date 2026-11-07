@@ -62,7 +62,7 @@ public sealed class CreateApiKeyUseCaseTests
 
         capturedKey.Should().NotBeNull();
         capturedKey!.ProjectId.Should().Be(new ProjectId(projectId));
-        capturedKey.KeyHash.Value.Should().Be(ApiKeyHelper.ComputeHash(result.PlainTextKey));
+        capturedKey.KeyHash.Value.Should().Be(ApiKeyGenerator.ComputeHash(result.PlainTextKey));
 
         await _unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
     }

@@ -19,13 +19,13 @@ public static class AuthorizationPolicies
 
     /// <summary>
     /// Template and asset authoring operations (Template design, dataset and font management).
-    /// Allows User Roles Author/Developer/Admin/SuperAdmin, OR M2M keys with ReadWrite scope.
+    /// Allows User Roles Developer/Admin/SuperAdmin, OR M2M keys with ReadWrite scope.
     /// </summary>
     public const string CanManageTemplates = "CanManageTemplates";
 
     /// <summary>
     /// Document rendering and validation operations (Sync Preview, Async Generation).
-    /// Allows User Roles Viewer/Member/Author/Developer/Admin/SuperAdmin, OR any authenticated M2M key (ReadOnly/ReadWrite).
+    /// Allows User Roles Viewer/Member/Developer/Admin/SuperAdmin, OR any authenticated M2M key (ReadOnly/ReadWrite).
     /// </summary>
     public const string CanGenerateDocuments = "CanGenerateDocuments";
 
@@ -37,7 +37,7 @@ public static class AuthorizationPolicies
 
     /// <summary>
     /// Dataset SQL query management.
-    /// Allows User Roles Author/Developer/Admin/SuperAdmin, OR M2M keys with ReadWrite scope.
+    /// Allows User Roles Developer/Admin/SuperAdmin, OR M2M keys with ReadWrite scope.
     /// </summary>
     public const string CanManageDatasets = "CanManageDatasets";
 }

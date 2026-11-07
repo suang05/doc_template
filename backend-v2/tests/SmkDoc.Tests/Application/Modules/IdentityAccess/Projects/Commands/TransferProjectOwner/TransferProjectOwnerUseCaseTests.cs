@@ -162,5 +162,52 @@ public sealed class TransferProjectOwnerUseCaseTests
         await _userRoleRepo.DidNotReceive().AddAsync(Arg.Any<UserProjectRole>(), Arg.Any<CancellationToken>());
         await _unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
     }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenIfMatchMatches_TransfersOwnerSuccessfully()
+    {
+        // Arrange
+        var projectId = Guid.NewGuid();
+        var newOwnerId = Guid.NewGuid();
+        var project = ProjectBuilder.AProject().WithId(projectId).Build();
+        var newOwner = UserBuilder.AUser().WithId(newOwnerId).Build();
+        var token = (project.UpdatedAt ?? project.CreatedAt).ToUnixTimeMilliseconds().ToString();
+
+        _projectRepo.GetByIdAsync(new ProjectId(projectId), Arg.Any<CancellationToken>())
+            .Returns(project);
+        _userRepo.GetByIdAsync(new UserId(newOwnerId), Arg.Any<CancellationToken>())
+            .Returns(newOwner);
+        _userRoleRepo.ListByProjectAsync(new ProjectId(projectId), Arg.Any<CancellationToken>())
+            .Returns(new List<UserProjectRole>());
+
+        var command = new TransferProjectOwnerCommand(projectId, newOwnerId, $"\"{token}\"");
+
+        // Act
+        await CreateSut().ExecuteAsync(command);
+
+        // Assert
+        await _unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenIfMatchMismatches_ThrowsPreconditionFailedException()
+    {
+        // Arrange
+        var projectId = Guid.NewGuid();
+        var newOwnerId = Guid.NewGuid();
+        var project = ProjectBuilder.AProject().WithId(projectId).Build();
+
+        _projectRepo.GetByIdAsync(new ProjectId(projectId), Arg.Any<CancellationToken>())
+            .Returns(project);
+
+        var command = new TransferProjectOwnerCommand(projectId, newOwnerId, "\"99999999\"");
+
+        // Act
+        var act = () => CreateSut().ExecuteAsync(command);
+
+        // Assert
+        await act.Should().ThrowAsync<PreconditionFailedException>();
+        await _unitOfWork.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
+    }
 }
 

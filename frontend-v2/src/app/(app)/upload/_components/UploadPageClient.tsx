@@ -9,7 +9,7 @@ export function UploadPageClient() {
   const router = useRouter();
 
   return (
-    <RequireRole role="Editor">
+    <RequireRole role="Developer">
       <UploadTemplateView
         onSuccess={(templateId) => router.push(`/mapping?templateId=${templateId}`)}
         onCancel={() => router.push('/templates')}

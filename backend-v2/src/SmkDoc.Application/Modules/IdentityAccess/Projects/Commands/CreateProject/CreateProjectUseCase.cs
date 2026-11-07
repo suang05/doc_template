@@ -48,7 +48,7 @@ public sealed class CreateProjectUseCase(
         {
             // Auto-provision Read API Key
             readPlainKey = $"smk_read_{command.Slug}_{Guid.NewGuid():N}";
-            var readHash = new Sha256Hash(ApiKeyHelper.ComputeHash(readPlainKey));
+            var readHash = new Sha256Hash(ApiKeyGenerator.ComputeHash(readPlainKey));
             var readKey = ApiKey.Issue(
                 project.Id,
                 ApiKeyName.Create($"{command.Name} Read"),
@@ -61,7 +61,7 @@ public sealed class CreateProjectUseCase(
 
             // Auto-provision Write/Delete API Key
             writePlainKey = $"smk_write_{command.Slug}_{Guid.NewGuid():N}";
-            var writeHash = new Sha256Hash(ApiKeyHelper.ComputeHash(writePlainKey));
+            var writeHash = new Sha256Hash(ApiKeyGenerator.ComputeHash(writePlainKey));
             var writeKey = ApiKey.Issue(
                 project.Id,
                 ApiKeyName.Create($"{command.Name} Write"),
@@ -83,6 +83,7 @@ public sealed class CreateProjectUseCase(
             project.IsActive,
             project.CreatedAt,
             readPlainKey,
-            writePlainKey);
+            writePlainKey,
+            ConcurrencyToken: (project.UpdatedAt ?? project.CreatedAt).ToUnixTimeMilliseconds().ToString());
     }
 }

@@ -26,6 +26,17 @@ public sealed class UpdateUserRoleUseCase(
         var roleEntry = await roleRepo.GetAsync(pId, uId, ct)
             ?? throw new NotFoundException("User is not a member of this project.");
 
+        if (!string.IsNullOrWhiteSpace(command.IfMatch) && command.IfMatch != "*")
+        {
+            var currentToken = roleEntry.CreatedAt.ToUnixTimeMilliseconds().ToString();
+            var sanitizedMatch = command.IfMatch.Trim('\"', 'W', '/', ' ');
+            if (!string.Equals(sanitizedMatch, currentToken, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new PreconditionFailedException(
+                    $"Precondition failed for user role '{command.UserId}'. ETag '{sanitizedMatch}' does not match current state.");
+            }
+        }
+
         var targetRole = RoleType.FromDisplayName<RoleType>(command.Role);
 
         // Guard: Cannot demote the last Admin of the project
@@ -52,7 +63,8 @@ public sealed class UpdateUserRoleUseCase(
             user.LastName,
             roleEntry.Role.Name,
             user.IsActive,
-            user.CreatedAt
+            user.CreatedAt,
+            roleEntry.CreatedAt.ToUnixTimeMilliseconds().ToString()
         );
     }
 }

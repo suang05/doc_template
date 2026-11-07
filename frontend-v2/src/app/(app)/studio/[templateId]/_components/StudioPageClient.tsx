@@ -13,7 +13,7 @@ export function StudioPageClient({ templateId }: StudioPageClientProps) {
   const router = useRouter();
 
   return (
-    <RequireRole role="Editor">
+    <RequireRole role="Developer">
       <TemplateStudioView
         templateId={templateId}
         onBack={() => router.push('/templates')}

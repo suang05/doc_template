@@ -3,7 +3,7 @@ using System.Text;
 
 namespace SmkDoc.Application.Modules.IdentityAccess.Security.Helpers;
 
-public static class ApiKeyHelper
+public static class ApiKeyGenerator
 {
     public static string ComputeHash(string input)
     {
@@ -11,3 +11,4 @@ public static class ApiKeyHelper
         return Convert.ToHexString(bytes).ToLowerInvariant();
     }
 }
+

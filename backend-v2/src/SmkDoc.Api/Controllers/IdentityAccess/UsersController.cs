@@ -24,7 +24,7 @@ namespace SmkDoc.Api.Controllers.IdentityAccess;
 [Route("api/v1/users")]
 [EnableRateLimiting("api")]
 [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-public sealed class UserManagementController(
+public sealed class UsersController(
     IUseCase<ListProjectUsersQuery, List<UserResultDto>> listProjectUsersUseCase,
     IUseCase<InviteUserCommand, UserResultDto> inviteUserUseCase,
     IUseCase<UpdateUserRoleCommand, UserResultDto> updateUserRoleUseCase,
@@ -75,8 +75,9 @@ public sealed class UserManagementController(
         [FromHeader(Name = "If-Match")] string? ifMatch,
         CancellationToken ct)
     {
-        var command = new UpdateUserRoleCommand(userId, request.Role);
+        var command = new UpdateUserRoleCommand(userId, request.Role, ifMatch);
         var result = await updateUserRoleUseCase.ExecuteAsync(command, ct);
+        Response.Headers.ETag = $"\"{result.ConcurrencyToken}\"";
         return Ok(new ApiResponse<UserResultDto>(result));
     }
 
@@ -95,7 +96,7 @@ public sealed class UserManagementController(
         CancellationToken ct)
     {
         var currentUserId = User.GetUserId();
-        var command = new RemoveUserCommand(userId, currentUserId);
+        var command = new RemoveUserCommand(userId, currentUserId, ifMatch);
         await removeUserUseCase.ExecuteAsync(command, ct);
         return NoContent();
     }
@@ -117,3 +118,4 @@ public sealed class UserManagementController(
         return Ok(new ApiResponse<UserResultDto>(result));
     }
 }
+

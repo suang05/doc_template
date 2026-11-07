@@ -23,7 +23,7 @@ namespace SmkDoc.Api.Controllers.IdentityAccess;
 [Authorize]
 [EnableRateLimiting("api")]
 [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-public sealed class ProjectManagementController(
+public sealed class ProjectsController(
     IUseCase<ListProjectsQuery, ProjectPagedResultDto> listProjectsUseCase,
     IUseCase<GetProjectByIdQuery, ProjectResultDto> getProjectByIdUseCase,
     IUseCase<CreateProjectCommand, ProjectResultDto> createProjectUseCase,
@@ -52,6 +52,7 @@ public sealed class ProjectManagementController(
     {
         var query = new GetProjectByIdQuery(projectId);
         var result = await getProjectByIdUseCase.ExecuteAsync(query, ct);
+        Response.Headers.ETag = $"\"{result.ConcurrencyToken}\"";
         return Ok(new ApiResponse<ProjectResultDto>(result));
     }
 
@@ -71,7 +72,6 @@ public sealed class ProjectManagementController(
         var command = new CreateProjectCommand(userId, request.Name, request.Slug);
         var result = await createProjectUseCase.ExecuteAsync(command, ct);
 
-        // ชี้ Location Header ไปยัง GetProjectById ที่สร้างขึ้นจริงอย่างถูกต้องตาม RFC 7231
         return CreatedAtAction(
             nameof(GetProjectById),
             new { projectId = result.Id },
@@ -84,13 +84,16 @@ public sealed class ProjectManagementController(
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status412PreconditionFailed)]
     public async Task<IActionResult> TransferOwner(
         [FromRoute] Guid projectId,
         [FromBody] TransferProjectOwnerRequest request,
+        [FromHeader(Name = "If-Match")] string? ifMatch,
         CancellationToken ct)
     {
-        var command = new TransferProjectOwnerCommand(projectId, request.NewOwnerUserId);
+        var command = new TransferProjectOwnerCommand(projectId, request.NewOwnerUserId, ifMatch);
         await transferOwnerUseCase.ExecuteAsync(command, ct);
         return NoContent();
     }
 }
+

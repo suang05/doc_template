@@ -35,7 +35,7 @@ describe('decodeBackendJwt & Claim Mappings', () => {
     const payload = {
       sub: 'user-guid-002',
       email: 'user@smk.local',
-      'http://schemas.microsoft.com/ws/2008/06/identity/claims/role': 'Editor',
+      'http://schemas.microsoft.com/ws/2008/06/identity/claims/role': 'Developer',
       'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/givenname': 'Kanya',
       'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/surname': 'Suksawat',
       exp: 1800000000,
@@ -46,7 +46,7 @@ describe('decodeBackendJwt & Claim Mappings', () => {
 
     const decoded = decodeBackendJwt(token);
     expect(decoded).not.toBeNull();
-    expect(jwtRole(decoded!)).toBe('Editor');
+    expect(jwtRole(decoded!)).toBe('Developer');
     expect(jwtGivenName(decoded!)).toBe('Kanya');
     expect(jwtFamilyName(decoded!)).toBe('Suksawat');
   });

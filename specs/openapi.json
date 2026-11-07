@@ -2281,10 +2281,10 @@
     "/api/v1/api-keys": {
       "get": {
         "tags": [
-          "ApiKey"
+          "ApiKeys"
         ],
         "summary": "List all active and inactive sub-keys for the current project.",
-        "operationId": "ApiKey_ListKeys",
+        "operationId": "ApiKeys_ListKeys",
         "responses": {
           "401": {
             "description": "Unauthorized",
@@ -2311,7 +2311,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfApiKeyDto"
+                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfApiKeyResultDto"
                 }
               }
             }
@@ -2340,10 +2340,10 @@
       },
       "post": {
         "tags": [
-          "ApiKey"
+          "ApiKeys"
         ],
         "summary": "Generate a new sub-key for the current project under quota guardrails (Max 2 active keys).",
-        "operationId": "ApiKey_CreateKey",
+        "operationId": "ApiKeys_CreateKey",
         "parameters": [
           {
             "name": "Idempotency-Key",
@@ -2451,304 +2451,13 @@
     "/api/v1/api-keys/{id}": {
       "delete": {
         "tags": [
-          "ApiKey"
+          "ApiKeys"
         ],
         "summary": "Revoke a sub-key belonging to the current project (Self-service key rotation).",
-        "operationId": "ApiKey_RevokeKey",
+        "operationId": "ApiKeys_RevokeKey",
         "parameters": [
           {
             "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          {
-            "name": "If-Match",
-            "in": "header",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "204": {
-            "description": "No Content"
-          },
-          "404": {
-            "description": "Not Found",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "412": {
-            "description": "Precondition Failed",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too Many Requests - rate limit exceeded (see Retry-After header).",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal Server Error.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/management/projects/{projectId}/api-keys": {
-      "get": {
-        "tags": [
-          "ApiKeyManagement"
-        ],
-        "summary": "List all API keys for the specified project. SuperAdmin only.",
-        "operationId": "ApiKeyManagement_ListKeys",
-        "parameters": [
-          {
-            "name": "projectId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "responses": {
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfApiKeyDto"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too Many Requests - rate limit exceeded (see Retry-After header).",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal Server Error.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "ApiKeyManagement"
-        ],
-        "summary": "Issue a new API key for the specified project (Quota: Max 2 active keys). SuperAdmin only.",
-        "operationId": "ApiKeyManagement_CreateKey",
-        "parameters": [
-          {
-            "name": "projectId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          {
-            "name": "Idempotency-Key",
-            "in": "header",
-            "description": "Client-generated unique key making retries safe. Completed responses are replayed for 24 hours.",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateApiKeyRequest"
-              }
-            },
-            "text/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateApiKeyRequest"
-              }
-            },
-            "application/*+json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateApiKeyRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "201": {
-            "description": "Created",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfCreateApiKeyResultDto"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Conflict",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too Many Requests - rate limit exceeded (see Retry-After header).",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal Server Error.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/management/projects/{projectId}/api-keys/{keyId}": {
-      "delete": {
-        "tags": [
-          "ApiKeyManagement"
-        ],
-        "summary": "Revoke an API key belonging to the specified project. SuperAdmin only.",
-        "operationId": "ApiKeyManagement_RevokeKey",
-        "parameters": [
-          {
-            "name": "projectId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          {
-            "name": "keyId",
             "in": "path",
             "required": true,
             "schema": {
@@ -3056,13 +2765,304 @@
         }
       }
     },
+    "/api/v1/management/projects/{projectId}/api-keys": {
+      "get": {
+        "tags": [
+          "ProjectApiKeys"
+        ],
+        "summary": "List all API keys for the specified project. SuperAdmin only.",
+        "operationId": "ProjectApiKeys_ListKeys",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfApiKeyResultDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests - rate limit exceeded (see Retry-After header).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "ProjectApiKeys"
+        ],
+        "summary": "Issue a new API key for the specified project (Quota: Max 2 active keys). SuperAdmin only.",
+        "operationId": "ProjectApiKeys_CreateKey",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Client-generated unique key making retries safe. Completed responses are replayed for 24 hours.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateApiKeyRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateApiKeyRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateApiKeyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfCreateApiKeyResultDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests - rate limit exceeded (see Retry-After header).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/management/projects/{projectId}/api-keys/{keyId}": {
+      "delete": {
+        "tags": [
+          "ProjectApiKeys"
+        ],
+        "summary": "Revoke an API key belonging to the specified project. SuperAdmin only.",
+        "operationId": "ProjectApiKeys_RevokeKey",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "keyId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "Precondition Failed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests - rate limit exceeded (see Retry-After header).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/management/projects": {
       "get": {
         "tags": [
-          "ProjectManagement"
+          "Projects"
         ],
         "summary": "List all projects accessible to the authenticated user with server-side pagination and search.",
-        "operationId": "ProjectManagement_ListProjects",
+        "operationId": "Projects_ListProjects",
         "parameters": [
           {
             "name": "search",
@@ -3145,10 +3145,10 @@
       },
       "post": {
         "tags": [
-          "ProjectManagement"
+          "Projects"
         ],
         "summary": "Create a new project. SuperAdmin only.",
-        "operationId": "ProjectManagement_CreateProject",
+        "operationId": "Projects_CreateProject",
         "parameters": [
           {
             "name": "Idempotency-Key",
@@ -3256,10 +3256,10 @@
     "/api/v1/management/projects/{projectId}": {
       "get": {
         "tags": [
-          "ProjectManagement"
+          "Projects"
         ],
         "summary": "Get a specific project by its ID.",
-        "operationId": "ProjectManagement_GetProjectById",
+        "operationId": "Projects_GetProjectById",
         "parameters": [
           {
             "name": "projectId",
@@ -3338,10 +3338,10 @@
     "/api/v1/management/projects/{projectId}/transfer-owner": {
       "post": {
         "tags": [
-          "ProjectManagement"
+          "Projects"
         ],
         "summary": "Transfer project ownership / Master Credential authority to a new IT Lead. SuperAdmin only.",
-        "operationId": "ProjectManagement_TransferOwner",
+        "operationId": "Projects_TransferOwner",
         "parameters": [
           {
             "name": "projectId",
@@ -3350,6 +3350,13 @@
             "schema": {
               "type": "string",
               "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "schema": {
+              "type": "string"
             }
           }
         ],
@@ -3407,6 +3414,16 @@
               }
             }
           },
+          "412": {
+            "description": "Precondition Failed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
           "403": {
             "description": "Forbidden - authenticated but not permitted.",
             "content": {
@@ -3443,10 +3460,10 @@
     "/api/v1/users": {
       "get": {
         "tags": [
-          "UserManagement"
+          "Users"
         ],
         "summary": "List all users in the active project.",
-        "operationId": "UserManagement_List",
+        "operationId": "Users_List",
         "responses": {
           "401": {
             "description": "Unauthorized",
@@ -3502,10 +3519,10 @@
       },
       "post": {
         "tags": [
-          "UserManagement"
+          "Users"
         ],
         "summary": "Invite a new user to the active project.",
-        "operationId": "UserManagement_AddUser",
+        "operationId": "Users_AddUser",
         "parameters": [
           {
             "name": "Idempotency-Key",
@@ -3613,10 +3630,10 @@
     "/api/v1/users/{userId}/role": {
       "put": {
         "tags": [
-          "UserManagement"
+          "Users"
         ],
         "summary": "Update a user's role within the active project.",
-        "operationId": "UserManagement_UpdateRole",
+        "operationId": "Users_UpdateRole",
         "parameters": [
           {
             "name": "userId",
@@ -3760,10 +3777,10 @@
     "/api/v1/users/{userId}": {
       "delete": {
         "tags": [
-          "UserManagement"
+          "Users"
         ],
         "summary": "Remove a user from the active project.",
-        "operationId": "UserManagement_Remove",
+        "operationId": "Users_Remove",
         "parameters": [
           {
             "name": "userId",
@@ -3872,10 +3889,10 @@
     "/api/v1/users/{userId}/status": {
       "patch": {
         "tags": [
-          "UserManagement"
+          "Users"
         ],
         "summary": "Activate or deactivate a global user account. SuperAdmin only.",
-        "operationId": "UserManagement_SetStatus",
+        "operationId": "Users_SetStatus",
         "parameters": [
           {
             "name": "userId",
@@ -6876,7 +6893,7 @@
         },
         "description": "Project access information for an authenticated user."
       },
-      "ApiKeyDto": {
+      "ApiKeyResultDto": {
         "required": [
           "id",
           "name",
@@ -6918,9 +6935,15 @@
           "maskedKey": {
             "type": "string",
             "default": ""
+          },
+          "concurrencyToken": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         },
-        "description": "DTO representing an API Key record. MaskedKey exposes only the prefix and trailing hash characters."
+        "description": "Result DTO representing an API Key record. MaskedKey exposes only the prefix and trailing hash characters."
       },
       "ApiResponseOfCommitDraftResultDto": {
         "required": [
@@ -7112,7 +7135,7 @@
         },
         "description": "Standard API Response wrapper for successful requests that return data.\r\nEnforces the \"Envelope Pattern\" for consistent JSON schemas."
       },
-      "ApiResponseOfIEnumerableOfApiKeyDto": {
+      "ApiResponseOfIEnumerableOfApiKeyResultDto": {
         "required": [
           "data"
         ],
@@ -7124,7 +7147,7 @@
               "array"
             ],
             "items": {
-              "$ref": "#/components/schemas/ApiKeyDto"
+              "$ref": "#/components/schemas/ApiKeyResultDto"
             }
           }
         },
@@ -7708,6 +7731,12 @@
               "string"
             ],
             "format": "date-time"
+          },
+          "effectiveScope": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -8631,7 +8660,7 @@
           "activeApiKeys": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/ApiKeyDto"
+              "$ref": "#/components/schemas/ApiKeyResultDto"
             }
           },
           "defaultProjectId": {
@@ -8987,6 +9016,12 @@
             ]
           },
           "writeApiKey": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "concurrencyToken": {
             "type": [
               "null",
               "string"
@@ -9962,6 +9997,12 @@
           "createdAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "concurrencyToken": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         },
         "description": "DTO representing user membership in a project."
@@ -10124,19 +10165,19 @@
       "name": "Datasets"
     },
     {
-      "name": "ApiKey"
-    },
-    {
-      "name": "ApiKeyManagement"
+      "name": "ApiKeys"
     },
     {
       "name": "Auth"
     },
     {
-      "name": "ProjectManagement"
+      "name": "ProjectApiKeys"
     },
     {
-      "name": "UserManagement"
+      "name": "Projects"
+    },
+    {
+      "name": "Users"
     },
     {
       "name": "FontManagement"

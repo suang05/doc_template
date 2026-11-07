@@ -25,6 +25,17 @@ public sealed class TransferProjectOwnerUseCase(
         var project = await projectRepo.GetByIdAsync(projectId, ct)
             ?? throw new NotFoundException($"Project '{command.ProjectId}' not found.");
 
+        if (!string.IsNullOrWhiteSpace(command.IfMatch) && command.IfMatch != "*")
+        {
+            var currentToken = (project.UpdatedAt ?? project.CreatedAt).ToUnixTimeMilliseconds().ToString();
+            var sanitizedMatch = command.IfMatch.Trim('\"', 'W', '/', ' ');
+            if (!string.Equals(sanitizedMatch, currentToken, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new PreconditionFailedException(
+                    $"Precondition failed for project '{command.ProjectId}'. ETag '{sanitizedMatch}' does not match current state.");
+            }
+        }
+
         var newOwnerId = new UserId(command.NewOwnerUserId);
         var newOwner = await userRepo.GetByIdAsync(newOwnerId, ct)
             ?? throw new NotFoundException($"User '{command.NewOwnerUserId}' not found.");

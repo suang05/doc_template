@@ -50,7 +50,7 @@ public sealed class UserWorkspaceQueryService(AppDbContext context) : IUserWorks
             .ToList();
     }
 
-    public async Task<IReadOnlyList<ApiKeyDto>> GetActiveApiKeysAsync(
+    public async Task<IReadOnlyList<ApiKeyResultDto>> GetActiveApiKeysAsync(
         Guid projectId,
         CancellationToken ct = default)
     {
@@ -62,14 +62,15 @@ public sealed class UserWorkspaceQueryService(AppDbContext context) : IUserWorks
             .ToListAsync(ct);
 
         return keys
-            .Select(k => new ApiKeyDto(
+            .Select(k => new ApiKeyResultDto(
                 k.Id.Value,
                 k.Name.Value,
                 k.CallerApp,
                 k.IsActive,
                 k.LastUsedAt,
                 k.CreatedAt,
-                k.Scope.Name))
+                k.Scope.Name,
+                ConcurrencyToken: (k.UpdatedAt ?? k.CreatedAt).ToUnixTimeMilliseconds().ToString()))
             .ToList();
     }
 

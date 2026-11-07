@@ -277,7 +277,7 @@ public sealed class LoginUseCaseTests
             new(projectId, "Project Alpha", "project-alpha", "Admin")
         };
 
-        var activeKeys = new List<ApiKeyDto>
+        var activeKeys = new List<ApiKeyResultDto>
         {
             new(Guid.NewGuid(), "Read Key", "test-app", true, null, now, "ReadOnly")
         };

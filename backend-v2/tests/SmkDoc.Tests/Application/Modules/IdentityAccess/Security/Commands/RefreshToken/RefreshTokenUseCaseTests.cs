@@ -55,7 +55,7 @@ public sealed class RefreshTokenUseCaseTests
         // Arrange
         var now = TestConstants.BaselineTime;
         var rawToken = "my-secret-refresh-token";
-        var tokenHash = RefreshTokenHelper.HashToken(rawToken);
+        var tokenHash = RefreshTokenGenerator.HashToken(rawToken);
         User user = aUser.Active().WithTime(now);
         var existingToken = RefreshTokenEntity.Create(user.Id, tokenHash, now.AddDays(7), now);
         var projectAlphaId = Guid.NewGuid();
@@ -98,7 +98,7 @@ public sealed class RefreshTokenUseCaseTests
         // Arrange
         var now = TestConstants.BaselineTime;
         var rawToken = "my-secret-refresh-token";
-        var tokenHash = RefreshTokenHelper.HashToken(rawToken);
+        var tokenHash = RefreshTokenGenerator.HashToken(rawToken);
         User user = aUser.Active().WithTime(now);
         var existingToken = RefreshTokenEntity.Create(user.Id, tokenHash, now.AddDays(7), now);
 
@@ -137,7 +137,7 @@ public sealed class RefreshTokenUseCaseTests
         // Arrange
         var now = TestConstants.BaselineTime;
         var rawToken = "my-secret-refresh-token";
-        var tokenHash = RefreshTokenHelper.HashToken(rawToken);
+        var tokenHash = RefreshTokenGenerator.HashToken(rawToken);
         User user = aUser.Active().WithSystemRole(SystemRole.Member).WithTime(now);
         var existingToken = RefreshTokenEntity.Create(user.Id, tokenHash, now.AddDays(7), now);
 
@@ -165,7 +165,7 @@ public sealed class RefreshTokenUseCaseTests
         // Arrange
         var now = TestConstants.BaselineTime;
         var rawToken = "admin-refresh-token";
-        var tokenHash = RefreshTokenHelper.HashToken(rawToken);
+        var tokenHash = RefreshTokenGenerator.HashToken(rawToken);
         User user = aUser.Active().WithSystemRole(SystemRole.SuperAdmin).WithTime(now);
         var existingToken = RefreshTokenEntity.Create(user.Id, tokenHash, now.AddDays(7), now);
         var requestedProjectId = Guid.NewGuid();
@@ -200,7 +200,7 @@ public sealed class RefreshTokenUseCaseTests
     {
         // Arrange
         var rawToken = "non-existent-token";
-        var tokenHash = RefreshTokenHelper.HashToken(rawToken);
+        var tokenHash = RefreshTokenGenerator.HashToken(rawToken);
 
         _tokenRepo.GetByHashAsync(tokenHash, Arg.Any<CancellationToken>())
             .Returns((RefreshTokenEntity?)null);
@@ -220,7 +220,7 @@ public sealed class RefreshTokenUseCaseTests
         // Arrange
         var now = TestConstants.BaselineTime;
         var rawToken = "revoked-token";
-        var tokenHash = RefreshTokenHelper.HashToken(rawToken);
+        var tokenHash = RefreshTokenGenerator.HashToken(rawToken);
         var userId = Guid.NewGuid();
         var revokedToken = RefreshTokenEntity.Create(new UserId(userId), tokenHash, now.AddDays(7), now);
         revokedToken.Revoke(now.AddMinutes(-5));
@@ -245,7 +245,7 @@ public sealed class RefreshTokenUseCaseTests
         // Arrange
         var now = TestConstants.BaselineTime;
         var rawToken = "concurrent-tab-token";
-        var tokenHash = RefreshTokenHelper.HashToken(rawToken);
+        var tokenHash = RefreshTokenGenerator.HashToken(rawToken);
         User user = aUser.Active().WithTime(now);
         var revokedToken = RefreshTokenEntity.Create(user.Id, tokenHash, now.AddDays(7), now);
         // Revoked 5 seconds ago (within the 30s leeway window)
@@ -290,7 +290,7 @@ public sealed class RefreshTokenUseCaseTests
         // Arrange
         var now = TestConstants.BaselineTime;
         var rawToken = "expired-token";
-        var tokenHash = RefreshTokenHelper.HashToken(rawToken);
+        var tokenHash = RefreshTokenGenerator.HashToken(rawToken);
         var userId = Guid.NewGuid();
         var expiredToken = RefreshTokenEntity.Create(new UserId(userId), tokenHash, now.AddMinutes(10), now);
         _timeProvider.Advance(TimeSpan.FromMinutes(20));
@@ -313,7 +313,7 @@ public sealed class RefreshTokenUseCaseTests
         // Arrange
         var now = TestConstants.BaselineTime;
         var rawToken = "inactive-user-token";
-        var tokenHash = RefreshTokenHelper.HashToken(rawToken);
+        var tokenHash = RefreshTokenGenerator.HashToken(rawToken);
         User user = aUser.Inactive().WithTime(now);
         var existingToken = RefreshTokenEntity.Create(user.Id, tokenHash, now.AddDays(7), now);
 

@@ -156,7 +156,7 @@ public sealed class ProjectContextMiddlewareTests
 
         var targetProjectId = ProjectId.New();
         var apiKeyId = ApiKeyId.New();
-        var hash = new Sha256Hash(ApiKeyHelper.ComputeHash(rawKey));
+        var hash = new Sha256Hash(ApiKeyGenerator.ComputeHash(rawKey));
         var apiKey = CreateHydratedApiKey(targetProjectId, hash, ApiKeyScope.ReadWrite, "crm-system", apiKeyId);
 
         _apiKeyRepo.GetByKeyHashAsync(hash, Arg.Any<CancellationToken>())
@@ -181,6 +181,7 @@ public sealed class ProjectContextMiddlewareTests
         httpContext.User.Identity!.IsAuthenticated.Should().BeTrue();
         httpContext.User.Identity.AuthenticationType.Should().Be("ApiKeyScheme");
         httpContext.User.IsInRole("M2MClient").Should().BeTrue();
+        httpContext.User.IsInRole(RoleConstants.Developer).Should().BeTrue();
         httpContext.User.FindFirst("ApiKeyScope")?.Value.Should().Be("ReadWrite");
     }
 
@@ -195,7 +196,7 @@ public sealed class ProjectContextMiddlewareTests
         httpContext.Request.Headers["X-API-Key"] = rawKey;
 
         var targetProjectId = ProjectId.New();
-        var hash = new Sha256Hash(ApiKeyHelper.ComputeHash(rawKey));
+        var hash = new Sha256Hash(ApiKeyGenerator.ComputeHash(rawKey));
         var apiKey = CreateHydratedApiKey(targetProjectId, hash, ApiKeyScope.ReadOnly, "reporting-bot");
 
         _apiKeyRepo.GetByKeyHashAsync(hash, Arg.Any<CancellationToken>())
@@ -230,7 +231,7 @@ public sealed class ProjectContextMiddlewareTests
         httpContext.Request.Headers["X-API-Key"] = rawKey;
 
         var targetProjectId = ProjectId.New();
-        var hash = new Sha256Hash(ApiKeyHelper.ComputeHash(rawKey));
+        var hash = new Sha256Hash(ApiKeyGenerator.ComputeHash(rawKey));
         var apiKey = CreateHydratedApiKey(targetProjectId, hash, ApiKeyScope.ReadOnly, "reporting-bot");
 
         _apiKeyRepo.GetByKeyHashAsync(hash, Arg.Any<CancellationToken>())
@@ -550,7 +551,7 @@ public sealed class ProjectContextMiddlewareTests
         var spoofedProjectId = ProjectId.New();
         httpContext.Request.Headers["X-Project-Id"] = spoofedProjectId.ToString();
 
-        var hash = new Sha256Hash(ApiKeyHelper.ComputeHash(rawKey));
+        var hash = new Sha256Hash(ApiKeyGenerator.ComputeHash(rawKey));
         var apiKey = CreateHydratedApiKey(keyProjectId, hash, ApiKeyScope.ReadWrite, "crm-system");
 
         _apiKeyRepo.GetByKeyHashAsync(hash, Arg.Any<CancellationToken>())
@@ -625,7 +626,7 @@ public sealed class ProjectContextMiddlewareTests
         httpContext.Request.Headers["X-API-Key"] = rawKey;
 
         var targetProjectId = ProjectId.New();
-        var hash = new Sha256Hash(ApiKeyHelper.ComputeHash(rawKey));
+        var hash = new Sha256Hash(ApiKeyGenerator.ComputeHash(rawKey));
         var apiKey = CreateHydratedApiKey(targetProjectId, hash, ApiKeyScope.ReadWrite, "crm-system");
 
         _apiKeyRepo.GetByKeyHashAsync(hash, Arg.Any<CancellationToken>())

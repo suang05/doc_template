@@ -46,7 +46,7 @@ public sealed class CreateApiKeyUseCase(
         }
 
         string rawSecret = $"smk_{command.CallerApp.ToLowerInvariant()}_{Guid.NewGuid():N}";
-        var hash = new Sha256Hash(ApiKeyHelper.ComputeHash(rawSecret));
+        var hash = new Sha256Hash(ApiKeyGenerator.ComputeHash(rawSecret));
 
         var key = ApiKey.Issue(
             pId,

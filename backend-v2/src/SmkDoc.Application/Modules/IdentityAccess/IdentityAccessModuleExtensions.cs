@@ -53,8 +53,8 @@ public static class IdentityAccessModuleExtensions
         services.AddUseCase<GetCurrentUserProfileQuery, CurrentUserProfileResultDto, GetCurrentUserProfileUseCase>();
         services.AddUseCase<CreateApiKeyCommand, CreateApiKeyResultDto, CreateApiKeyUseCase>();
         services.AddUseCase<RevokeApiKeyCommand, RevokeApiKeyUseCase>();
-        services.AddUseCase<ListApiKeysQuery, List<ApiKeyDto>, ListApiKeysUseCase>();
-        services.AddUseCase<ValidateApiKeyQuery, ValidatedApiKeyDto?, ValidateApiKeyUseCase>();
+        services.AddUseCase<ListApiKeysQuery, List<ApiKeyResultDto>, ListApiKeysUseCase>();
+        services.AddUseCase<ValidateApiKeyQuery, ValidatedApiKeyResultDto?, ValidateApiKeyUseCase>();
 
         return services;
     }

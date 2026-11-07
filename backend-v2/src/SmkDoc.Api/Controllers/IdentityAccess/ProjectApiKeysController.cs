@@ -24,21 +24,21 @@ namespace SmkDoc.Api.Controllers.IdentityAccess;
 [EnableRateLimiting("api")]
 [ProducesResponseType(StatusCodes.Status401Unauthorized)]
 [ProducesResponseType(StatusCodes.Status403Forbidden)]
-public sealed class ApiKeyManagementController(
-    IUseCase<ListApiKeysQuery, List<ApiKeyDto>> listApiKeysUseCase,
+public sealed class ProjectApiKeysController(
+    IUseCase<ListApiKeysQuery, List<ApiKeyResultDto>> listApiKeysUseCase,
     IUseCase<CreateApiKeyCommand, CreateApiKeyResultDto> createApiKeyUseCase,
     IUseCase<RevokeApiKeyCommand> revokeApiKeyUseCase) : ControllerBase
 {
     /// <summary>List all API keys for the specified project. SuperAdmin only.</summary>
     [HttpGet]
-    [ProducesResponseType(typeof(ApiResponse<IEnumerable<ApiKeyDto>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<IEnumerable<ApiKeyResultDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> ListKeys(
         [FromRoute] Guid projectId,
         CancellationToken ct)
     {
         var query = new ListApiKeysQuery(projectId);
         var result = await listApiKeysUseCase.ExecuteAsync(query, ct);
-        return Ok(new ApiResponse<IEnumerable<ApiKeyDto>>(result));
+        return Ok(new ApiResponse<IEnumerable<ApiKeyResultDto>>(result));
     }
 
     /// <summary>Issue a new API key for the specified project (Quota: Max 2 active keys). SuperAdmin only.</summary>
@@ -52,11 +52,7 @@ public sealed class ApiKeyManagementController(
         [FromBody] CreateApiKeyRequest request,
         CancellationToken ct)
     {
-        var scope = !string.IsNullOrWhiteSpace(request.Scope)
-            ? request.Scope
-            : (request.Scopes?.FirstOrDefault() ?? "ReadWrite");
-
-        var command = new CreateApiKeyCommand(request.Name, request.CallerApp, scope);
+        var command = new CreateApiKeyCommand(request.Name, request.CallerApp, request.EffectiveScope);
         var result = await createApiKeyUseCase.ExecuteAsync(command, ct);
         return CreatedAtAction(nameof(ListKeys), new { projectId }, new ApiResponse<CreateApiKeyResultDto>(result));
     }
@@ -72,8 +68,9 @@ public sealed class ApiKeyManagementController(
         [FromHeader(Name = "If-Match")] string? ifMatch,
         CancellationToken ct)
     {
-        var command = new RevokeApiKeyCommand(keyId);
+        var command = new RevokeApiKeyCommand(keyId, ifMatch);
         await revokeApiKeyUseCase.ExecuteAsync(command, ct);
         return NoContent();
     }
 }
+

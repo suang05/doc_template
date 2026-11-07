@@ -10,7 +10,7 @@ export interface MappingPageClientProps {
 
 export function MappingPageClient({ initialTemplateId }: MappingPageClientProps) {
   return (
-    <RequireRole role="Editor">
+    <RequireRole role="Developer">
       <FieldMappingView initialTemplateId={initialTemplateId} />
     </RequireRole>
   );

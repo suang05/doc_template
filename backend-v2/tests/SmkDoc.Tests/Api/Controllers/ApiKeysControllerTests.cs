@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.Contracts.IdentityAccess.ApiKeys;
 using SmkDoc.Api.Controllers.IdentityAccess;
-using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.CreateApiKey;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.RevokeApiKey;
@@ -12,67 +11,71 @@ using SmkDoc.Application.Modules.IdentityAccess.Security.Queries.ListApiKeys;
 
 namespace SmkDoc.Tests.Api.Controllers;
 
-public sealed class ApiKeyManagementControllerTests
+public sealed class ApiKeysControllerTests
 {
-    private readonly IUseCase<ListApiKeysQuery, List<ApiKeyDto>> _listUseCase = Substitute.For<IUseCase<ListApiKeysQuery, List<ApiKeyDto>>>();
+    private readonly IUseCase<ListApiKeysQuery, List<ApiKeyResultDto>> _listUseCase = Substitute.For<IUseCase<ListApiKeysQuery, List<ApiKeyResultDto>>>();
     private readonly IUseCase<CreateApiKeyCommand, CreateApiKeyResultDto> _createUseCase = Substitute.For<IUseCase<CreateApiKeyCommand, CreateApiKeyResultDto>>();
     private readonly IUseCase<RevokeApiKeyCommand> _revokeUseCase = Substitute.For<IUseCase<RevokeApiKeyCommand>>();
 
-    private ApiKeyManagementController CreateSut() =>
+    private ApiKeysController CreateSut() =>
         new(_listUseCase, _createUseCase, _revokeUseCase);
 
     [Fact]
-    public async Task ListKeys_WithProjectId_InvokesUseCaseAndReturnsOk()
+    public async Task ListKeys_CallsUseCaseWithAmbientProjectQuery_ReturnsOk()
     {
         // Arrange
-        var projId = Guid.NewGuid();
+        var keys = new List<ApiKeyResultDto>
+        {
+            new(Guid.NewGuid(), "CRM Integration", "crm", true, null, DateTimeOffset.UtcNow, "ReadWrite", "smk_crm_****abcd")
+        };
         _listUseCase.ExecuteAsync(Arg.Any<ListApiKeysQuery>(), Arg.Any<CancellationToken>())
-            .Returns(new List<ApiKeyDto>());
+            .Returns(keys);
 
         var controller = CreateSut();
 
         // Act
-        var result = await controller.ListKeys(projId, CancellationToken.None);
+        var result = await controller.ListKeys(CancellationToken.None);
 
         // Assert
-        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
+        var response = okResult.Value.Should().BeOfType<ApiResponse<IEnumerable<ApiKeyResultDto>>>().Subject;
+        response.Data.Should().HaveCount(1);
         await _listUseCase.Received(1).ExecuteAsync(
-            Arg.Is<ListApiKeysQuery>(q => q.ProjectId == projId),
+            Arg.Is<ListApiKeysQuery>(q => !q.ProjectId.HasValue),
             Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task CreateKey_WithValidRouteAndBody_InvokesUseCaseAndReturnsCreated()
+    public async Task CreateKey_WithValidRequest_ReturnsCreated()
     {
         // Arrange
-        var projId = Guid.NewGuid();
         var commandResult = new CreateApiKeyResultDto(
             Guid.NewGuid(),
-            "Admin Key",
-            "mgmt",
-            "smk_mgmt_plain_secret_123");
+            "ERP Key",
+            "erp",
+            "smk_erp_plain_secret_12345");
 
         _createUseCase.ExecuteAsync(Arg.Any<CreateApiKeyCommand>(), Arg.Any<CancellationToken>())
             .Returns(commandResult);
 
         var controller = CreateSut();
-        var request = new CreateApiKeyRequest("Admin Key", "mgmt", "ReadWrite");
+        var request = new CreateApiKeyRequest("ERP Key", "erp", "ReadWrite");
 
         // Act
-        var result = await controller.CreateKey(projId, request, CancellationToken.None);
+        var result = await controller.CreateKey(request, CancellationToken.None);
 
         // Assert
         var createdResult = result.Should().BeOfType<CreatedAtActionResult>().Subject;
         createdResult.StatusCode.Should().Be(StatusCodes.Status201Created);
         var response = createdResult.Value.Should().BeOfType<ApiResponse<CreateApiKeyResultDto>>().Subject;
-        response.Data.Key.Should().Be("smk_mgmt_plain_secret_123");
+        response.Data.Key.Should().Be("smk_erp_plain_secret_12345");
+        response.Data.Scope.Should().Be("ReadWrite");
     }
 
     [Fact]
-    public async Task RevokeKey_InvokesRevokeUseCase_ReturnsNoContent()
+    public async Task RevokeKey_WithValidId_ReturnsNoContent()
     {
         // Arrange
-        var projId = Guid.NewGuid();
         var keyId = Guid.NewGuid();
         _revokeUseCase.ExecuteAsync(Arg.Any<RevokeApiKeyCommand>(), Arg.Any<CancellationToken>())
             .Returns(Task.CompletedTask);
@@ -80,7 +83,7 @@ public sealed class ApiKeyManagementControllerTests
         var controller = CreateSut();
 
         // Act
-        var result = await controller.RevokeKey(projId, keyId, null, CancellationToken.None);
+        var result = await controller.RevokeKey(keyId, null, CancellationToken.None);
 
         // Assert
         result.Should().BeOfType<NoContentResult>();
@@ -89,3 +92,4 @@ public sealed class ApiKeyManagementControllerTests
             Arg.Any<CancellationToken>());
     }
 }
+

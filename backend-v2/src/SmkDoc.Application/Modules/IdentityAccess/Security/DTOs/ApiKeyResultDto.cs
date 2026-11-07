@@ -1,9 +1,9 @@
 namespace SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
 
 /// <summary>
-/// DTO representing an API Key record. MaskedKey exposes only the prefix and trailing hash characters.
+/// Result DTO representing an API Key record. MaskedKey exposes only the prefix and trailing hash characters.
 /// </summary>
-public sealed record ApiKeyDto(
+public sealed record ApiKeyResultDto(
     Guid Id,
     string Name,
     string CallerApp,
@@ -11,7 +11,8 @@ public sealed record ApiKeyDto(
     DateTimeOffset? LastUsedAt,
     DateTimeOffset CreatedAt,
     string Scope = "ReadWrite",
-    string MaskedKey = ""
+    string MaskedKey = "",
+    string? ConcurrencyToken = null
 );
 
 /// <summary>
@@ -30,20 +31,12 @@ public sealed record CreateApiKeyResultDto(
 }
 
 /// <summary>
-/// DTO representing an API key provisioned for a workspace.
+/// Result DTO returned after validating an API key.
 /// </summary>
-public sealed record ProvisionedApiKeyDto(
-    string Name,
-    string Scope,
-    string PlainTextKey
-);
-
-/// <summary>
-/// DTO returned after validating an API key.
-/// </summary>
-public sealed record ValidatedApiKeyDto(
+public sealed record ValidatedApiKeyResultDto(
     Guid Id,
     string CallerApp,
     Guid ProjectId,
     string Scope
 );
+

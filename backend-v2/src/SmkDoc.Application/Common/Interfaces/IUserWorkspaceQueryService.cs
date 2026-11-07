@@ -20,7 +20,7 @@ public interface IUserWorkspaceQueryService
     /// <summary>
     /// Gets active API keys for the specified workspace project.
     /// </summary>
-    Task<IReadOnlyList<ApiKeyDto>> GetActiveApiKeysAsync(
+    Task<IReadOnlyList<ApiKeyResultDto>> GetActiveApiKeysAsync(
         Guid projectId,
         CancellationToken ct = default);
 

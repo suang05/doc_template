@@ -10,5 +10,6 @@ public sealed record UserResultDto(
     string LastName,
     string Role,
     bool IsActive,
-    DateTimeOffset CreatedAt
+    DateTimeOffset CreatedAt,
+    string? ConcurrencyToken = null
 );

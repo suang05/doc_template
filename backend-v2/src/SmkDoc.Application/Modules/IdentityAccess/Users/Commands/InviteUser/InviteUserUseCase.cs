@@ -50,7 +50,8 @@ public sealed class InviteUserUseCase(
                 existingUser.LastName,
                 roleType.Name,
                 existingUser.IsActive,
-                existingUser.CreatedAt
+                existingUser.CreatedAt,
+                now.ToUnixTimeMilliseconds().ToString()
             );
         }
 
@@ -78,7 +79,8 @@ public sealed class InviteUserUseCase(
             newUser.LastName,
             roleType.Name,
             newUser.IsActive,
-            newUser.CreatedAt
+            newUser.CreatedAt,
+            now.ToUnixTimeMilliseconds().ToString()
         );
     }
 }
