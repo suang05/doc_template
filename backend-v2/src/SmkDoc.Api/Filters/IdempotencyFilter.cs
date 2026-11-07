@@ -48,7 +48,7 @@ public sealed class IdempotencyFilter(
         {
             if (mandatory)
             {
-                var problemDetails = SmkDocProblemDetailsFactory.Create(
+                var problemDetails = ProblemDetailsBuilder.Create(
                     status: StatusCodes.Status400BadRequest,
                     title: "Missing Idempotency-Key",
                     detail: "The 'Idempotency-Key' request header is required for this operation.",
@@ -87,7 +87,7 @@ public sealed class IdempotencyFilter(
             {
                 logger.LogWarning("Idempotency key {IdempotencyKey} is already in-flight for caller {CallerId}", idempotencyKey, callerId);
 
-                var conflictDetails = SmkDocProblemDetailsFactory.Create(
+                var conflictDetails = ProblemDetailsBuilder.Create(
                     status: StatusCodes.Status409Conflict,
                     title: "Request In-Flight",
                     detail: "A mutation request with this Idempotency-Key is currently being processed.",
@@ -107,7 +107,7 @@ public sealed class IdempotencyFilter(
                 {
                     logger.LogWarning("Idempotency key {IdempotencyKey} payload mismatch for caller {CallerId}", idempotencyKey, callerId);
 
-                    var mismatchDetails = SmkDocProblemDetailsFactory.Create(
+                    var mismatchDetails = ProblemDetailsBuilder.Create(
                         status: StatusCodes.Status422UnprocessableEntity,
                         title: "Idempotency-Key Payload Mismatch",
                         detail: "This Idempotency-Key was previously used with a different request payload.",

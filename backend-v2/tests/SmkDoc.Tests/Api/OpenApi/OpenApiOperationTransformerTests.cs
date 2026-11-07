@@ -8,9 +8,9 @@ using SmkDoc.Api.OpenApi.Transformers;
 
 namespace SmkDoc.Tests.Api.OpenApi;
 
-public sealed class SmkDocOperationTransformerTests
+public sealed class OpenApiOperationTransformerTests
 {
-    private static SmkDocOperationTransformer CreateSut() => new();
+    private static OpenApiOperationTransformer CreateSut() => new();
 
     private static OpenApiOperationTransformerContext CreateContext(
         string relativePath,
@@ -235,3 +235,4 @@ public sealed class SmkDocOperationTransformerTests
         operation.Responses!["200"].Headers.Should().ContainKey(OpenApiNames.ETagHeader);
     }
 }
+

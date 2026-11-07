@@ -56,7 +56,7 @@ public sealed class GlobalExceptionHandler(
         int status,
         string title,
         string errorCode) =>
-        SmkDocProblemDetailsFactory.Create(
+        ProblemDetailsBuilder.Create(
             status: status,
             title: title,
             detail: ResolveDetailMessage(exception, status),

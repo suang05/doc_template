@@ -45,8 +45,9 @@ public static class ServiceCollectionExtensions
         {
             options.CustomizeProblemDetails = context =>
             {
+                context.ProblemDetails.Type ??= ProblemDetailsBuilder.ResolveTypeUri(context.ProblemDetails.Status);
                 context.ProblemDetails.Instance ??= context.HttpContext.Request.Path;
-                var errorCode = SmkDocProblemDetailsFactory.ResolveDefaultErrorCode(context.ProblemDetails.Status);
+                var errorCode = ProblemDetailsBuilder.ResolveDefaultErrorCode(context.ProblemDetails.Status);
                 context.ProblemDetails.Extensions.TryAdd("errorCode", errorCode);
                 context.ProblemDetails.Extensions.TryAdd("traceId", context.HttpContext.TraceIdentifier);
             };
@@ -225,8 +226,8 @@ public static class ServiceCollectionExtensions
     {
         services.AddOpenApi("v1", options =>
         {
-            options.AddDocumentTransformer<SmkDocDocumentTransformer>();
-            options.AddOperationTransformer<SmkDocOperationTransformer>();
+            options.AddDocumentTransformer<OpenApiDocumentTransformer>();
+            options.AddOperationTransformer<OpenApiOperationTransformer>();
         });
 
         return services;
@@ -356,7 +357,7 @@ public static class ServiceCollectionExtensions
                 }
 
                 context.HttpContext.Response.ContentType = "application/problem+json";
-                var problemDetails = SmkDocProblemDetailsFactory.Create(
+                var problemDetails = ProblemDetailsBuilder.Create(
                     status: StatusCodes.Status429TooManyRequests,
                     title: "Too Many Requests",
                     detail: "Rate limit exceeded. Maximum 60 requests per minute per caller partition.",

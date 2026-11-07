@@ -11,7 +11,7 @@ namespace SmkDoc.Api.OpenApi.Transformers;
 /// Operation-level OpenAPI contract: stable operationId, security override for public routes,
 /// Idempotency-Key header, and RFC 9457 error responses.
 /// </summary>
-public sealed class SmkDocOperationTransformer : IOpenApiOperationTransformer
+public sealed class OpenApiOperationTransformer : IOpenApiOperationTransformer
 {
     private static readonly IReadOnlyDictionary<string, string> DefaultErrorDescriptions =
         new Dictionary<string, string>
@@ -159,3 +159,4 @@ public sealed class SmkDocOperationTransformer : IOpenApiOperationTransformer
     private static bool IsErrorStatusCode(string statusCode) =>
         statusCode.Length == 3 && statusCode[0] is '4' or '5';
 }
+

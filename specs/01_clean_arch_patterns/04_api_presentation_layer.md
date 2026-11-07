@@ -28,7 +28,7 @@ ArchitecturalSignals: [ARCH_EVOLUTION_API]
 |---|---|---|
 | **Thin Controller Boundary** | Controllers remain thin orchestrators ($\le 5$ LOC per action) delegating directly to a single-responsibility `IUseCase<TReq, TRes>`. Business logic is strictly sealed in Application/Domain. | Controller Action |
 | **Unified Response Envelopes** | All standard JSON responses are wrapped in immutable `ApiResponse<T>` or `PagedApiResponse<T>`. Anonymous object returns (`new { ... }`) are prohibited. | Wire Output |
-| **RFC 9457 ProblemDetails** | Unhandled and domain exceptions translate through `GlobalExceptionHandler` into RFC 9457 `ProblemDetails` (`application/problem+json`) with validation dictionaries in `Extensions["errors"]`. | Error Pipeline |
+| **RFC 9457 ProblemDetails** | Unhandled and domain exceptions translate through `GlobalExceptionHandler` and `ProblemDetailsBuilder` into RFC 9457 `ProblemDetails` (`application/problem+json`) with `errorCode`, `traceId` (`httpContext.TraceIdentifier`), and validation details in `Extensions["errors"]`. | Error Pipeline |
 | **POST Mutation Idempotency** | State-mutating `POST` endpoints enforce deduplication via `[Idempotent]` attribute consuming the `Idempotency-Key` HTTP header. | Mutation Safety |
 | **PUT/DELETE Concurrency** | Naturally idempotent `PUT` and `DELETE` endpoints enforce optimistic concurrency via `[FromHeader(Name = "If-Match")]` mapped to PostgreSQL `xmin`. Redis lock idempotency on PUT/DELETE is prohibited. | Concurrency Control |
 | **Diagnostic Probe Semantics** | Connectivity probes (`POST /api/v1/data-connections/test`) return HTTP 200 OK with `ApiResponse<TestDataConnectionResultDto>` (`{ success: false, message }`). HTTP 4xx is reserved strictly for malformed JSON or SSRF blocks. | Integration Diagnostics |
@@ -39,7 +39,7 @@ ArchitecturalSignals: [ARCH_EVOLUTION_API]
 | **Pure Schema Ingestion** | Incoming JSON payloads are validated fail-fast during generation without mutating payload data or duplicating validation endpoints. | Ingestion Pipeline |
 | **Declarative Policy Security**| Actions are authorized via declarative `[Authorize(Policy = "...")]` attributes matching the Declarative Authorization Policies Matrix. | Endpoint Authorization |
 | **Separated API Key Routes** | Tenant sub-key operations reside on `/api/v1/api-keys` (Project Admin, quota max 2), while platform-wide governance resides on `/api/v1/management/api-keys` (SuperAdmin). | Key Governance |
-| **OpenAPI Schema Contracts** | Every controller action declares explicit `[ProducesResponseType]` metadata matching both success envelopes and RFC 9457 error contracts. | Contract Metadata |
+| **OpenAPI Schema Contracts** | Every controller action declares explicit `[ProducesResponseType(typeof(ApiResponse<T>), 2xx)]` for success envelopes and type-less `[ProducesResponseType(StatusCodes.Status4xx)]` for error statuses (automatically bound to `ProblemDetails` by `OpenApiOperationTransformer`). | Contract Metadata |
 
 ---
 
@@ -75,21 +75,33 @@ RateLimitingPolicyFirewall:
 NotFoundExceptionFirewall:
   Invariant: "Controllers must never check if (result == null) return NotFound()."
   ActionOnViolation: "Remove null check; UseCase must throw strongly-typed NotFoundException."
+
+ProblemDetailsSSoTFirewall:
+  Invariant: "All RFC 9457 ProblemDetails instances must be constructed via ProblemDetailsBuilder with errorCode and traceId."
+  ActionOnViolation: "Replace inline new ProblemDetails { ... } with ProblemDetailsBuilder.Create(..., traceId: httpContext.TraceIdentifier)."
+
+ErrorProducesResponseTypeFirewall:
+  Invariant: "Error [ProducesResponseType] attributes must never declare typeof(ValidationProblemDetails) or typeof(ApiResponse<T>)."
+  ActionOnViolation: "Use parameterless [ProducesResponseType(StatusCodes.Status4xx)] and let OpenApiOperationTransformer attach ProblemDetails."
 ```
 
 ### 2.3 RFC 9457 ProblemDetails Exception Translation Matrix
-| Domain / Application Exception | HTTP Status Code | RFC 9457 Title | ProblemDetails Type URI |
-|---|---|---|---|
-| `ValidationException` | `400 Bad Request` | Validation Error | `https://tools.ietf.org/html/rfc9110#section-15.5.1` |
-| `SecurityViolationException` | `403 Forbidden` | Security Violation | `https://tools.ietf.org/html/rfc9110#section-15.5.4` |
-| `ForbiddenException` | `403 Forbidden` | Forbidden | `https://tools.ietf.org/html/rfc9110#section-15.5.4` |
-| `NotFoundException` | `404 Not Found` | Resource Not Found | `https://tools.ietf.org/html/rfc9110#section-15.5.5` |
-| `ConflictException` / `DbUpdateConcurrencyException` | `409 Conflict` | Concurrency Conflict | `https://tools.ietf.org/html/rfc9110#section-15.5.10` |
-| `PreconditionFailedException`| `412 Precondition Failed` | Precondition Failed | `https://tools.ietf.org/html/rfc9110#section-15.5.13` |
-| `DomainValidationException` | `422 Unprocessable`| Domain Rule Violation | `https://tools.ietf.org/html/rfc9110#section-15.5.21` |
-| `DataConnectionException` | `500 Internal Error`| Integration Error | `https://tools.ietf.org/html/rfc9110#section-15.6.1` |
-| `DistributedStateUnavailableException` | `503 Service Unavailable` | Distributed State Unavailable | `https://api.sammakorn.co.th/errors/distributed-state-unavailable` |
-| Unhandled Exceptions | `500 Internal Error`| Internal Server Error | `https://tools.ietf.org/html/rfc9110#section-15.6.1` |
+| Domain / Application / Infrastructure Exception | HTTP Status Code | RFC 9457 Title | `errorCode` | ProblemDetails Type URI |
+|---|---|---|---|---|
+| `ValidationException` | `400 Bad Request` | Validation Failed | `VALIDATION_FAILED` | `https://tools.ietf.org/html/rfc9110#section-15.5.1` |
+| `DomainValidationException` | `400 Bad Request` | Domain Validation Error | `DOMAIN_VALIDATION_ERROR` | `https://tools.ietf.org/html/rfc9110#section-15.5.1` |
+| `BusinessRuleViolationException` | `400 Bad Request` | Business Rule Violation | `{DomainErrorCode}` | `https://tools.ietf.org/html/rfc9110#section-15.5.1` |
+| `UnauthorizedException` / `UnauthorizedAccessException` | `401 Unauthorized` | Unauthorized | `UNAUTHORIZED` | `https://tools.ietf.org/html/rfc9110#section-15.5.2` |
+| `ForbiddenException` / `ProjectDeactivatedException` | `403 Forbidden` | Forbidden / Project Deactivated | `FORBIDDEN` / `PROJECT_DEACTIVATED` | `https://tools.ietf.org/html/rfc9110#section-15.5.4` |
+| `NotFoundException` | `404 Not Found` | Not Found | `{ENTITY}_NOT_FOUND` | `https://tools.ietf.org/html/rfc9110#section-15.5.5` |
+| `ConflictException` | `409 Conflict` | Conflict | `{ENTITY}_CONFLICT` | `https://tools.ietf.org/html/rfc9110#section-15.5.10` |
+| `DbUpdateConcurrencyException` | `409 Conflict` | Concurrency Conflict | `CONCURRENCY_CONFLICT` | `https://tools.ietf.org/html/rfc9110#section-15.5.10` |
+| `DraftExpiredException` | `410 Gone` | Draft Expired | `DRAFT_EXPIRED` | `https://tools.ietf.org/html/rfc9110#section-15.5.11` |
+| `PreconditionFailedException` | `412 Precondition Failed` | Precondition Failed | `PRECONDITION_FAILED` | `https://tools.ietf.org/html/rfc9110#section-15.5.13` |
+| `SchemaValidationException` | `422 Unprocessable Entity` | Schema Validation Failed | `SCHEMA_VALIDATION_FAILED` | `https://tools.ietf.org/html/rfc9110#section-15.5.21` |
+| `RenderException` / `DatasetExecutionException` / `DataConnectionDecryptionException` | `500 Internal Server Error` | Render / Dataset / Decryption Failed | `{DomainErrorCode}` | `https://tools.ietf.org/html/rfc9110#section-15.6.1` |
+| `DistributedStateUnavailableException` | `503 Service Unavailable` | Distributed State Unavailable | `DISTRIBUTED_STATE_UNAVAILABLE` | `https://tools.ietf.org/html/rfc9110#section-15.6.4` |
+| Unhandled `Exception` | `500 Internal Server Error` | Internal Server Error | `INTERNAL_SERVER_ERROR` | `https://tools.ietf.org/html/rfc9110#section-15.6.1` |
 
 ### 2.4 Specialized Rate Limiting Policies Matrix
 | Policy Name | Target Endpoints | Limit & Window | Rejection Status | Primary Architectural Rationale |
@@ -160,7 +172,7 @@ public sealed class {Aggregate}sController(
 
     [HttpGet("{id:guid}")]
     [ProducesResponseType(typeof(ApiResponse<{Aggregate}ResultDto>), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetById([FromRoute] Guid id, CancellationToken ct)
     {
         // Step 1: Instantiate Query <Why: isolate route parameters into strongly-typed query>
@@ -177,8 +189,8 @@ public sealed class {Aggregate}sController(
     [HttpPost]
     [Idempotent]
     [ProducesResponseType(typeof(ApiResponse<{Aggregate}ResultDto>), StatusCodes.Status201Created)]
-    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Create([FromBody] Create{Aggregate}Request request, CancellationToken ct)
     {
         // Step 1: Instantiate Command <Why: translate transport model to immutable command>
@@ -193,10 +205,10 @@ public sealed class {Aggregate}sController(
 
     [HttpPut("{id:guid}")]
     [ProducesResponseType(typeof(ApiResponse<{Aggregate}ResultDto>), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status412PreconditionFailed)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status412PreconditionFailed)]
     public async Task<IActionResult> Update(
         [FromRoute] Guid id,
         [FromBody] Update{Aggregate}Request request,
@@ -216,8 +228,8 @@ public sealed class {Aggregate}sController(
 
     [HttpDelete("{id:guid}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status412PreconditionFailed)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status412PreconditionFailed)]
     public async Task<IActionResult> Deactivate(
         [FromRoute] Guid id,
         [FromHeader(Name = "If-Match")] string? ifMatch,
@@ -235,55 +247,135 @@ public sealed class {Aggregate}sController(
 }
 ```
 
-### 3.2 Centralized RFC 9457 Global Exception Handler Archetype
+### 3.2 Centralized RFC 9457 Global Exception Handler & ProblemDetails SSoT Archetype
 >> MANDATORY CANONICAL BLUEPRINT [RULE-API-002]:
-* Implements `IExceptionHandler` from `Microsoft.AspNetCore.Diagnostics`.
-* Maps domain and application exceptions strictly according to Level 2 Translation Matrix.
-* Populates `problemDetails.Extensions["errors"]` with structured validation dictionary when handling `ValidationException`.
+* Implements `IExceptionHandler` (`<= 20` LOC per method) delegating RFC 9457 construction to `ProblemDetailsBuilder` and serialization to `IProblemDetailsService`.
+* Attaches `httpContext.TraceIdentifier` as `problemDetails.Extensions["traceId"]` and logs 4xx as `LogWarning` vs 5xx as `LogError` with `{ErrorCode}` and `{TraceId}`.
+* Maps `DbUpdateConcurrencyException` to `409 Conflict` (`CONCURRENCY_CONFLICT`) and populates `Extensions["errors"]` for `ValidationException` (400 map) and `SchemaValidationException` (422 rule list).
+* Configures `AddProblemDetails` (`CustomizeProblemDetails`) so framework-level 400 errors also carry `instance`, `errorCode`, and `traceId`.
 
 ```csharp
-public sealed class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger) : IExceptionHandler
+public sealed class GlobalExceptionHandler(
+    ILogger<GlobalExceptionHandler> logger,
+    IProblemDetailsService problemDetailsService) : IExceptionHandler
 {
+    private const string UnexpectedErrorDetail = "An unexpected error occurred.";
+    private const string ConcurrencyConflictDetail =
+        "The resource was modified by another transaction while your request was processing. Please reload the latest state and retry.";
+
     public async ValueTask<bool> TryHandleAsync(HttpContext httpContext, Exception exception, CancellationToken ct)
     {
-        logger.LogError(exception, "Unhandled exception occurred: {Message}", exception.Message);
+        // Step 1: Map exception to HTTP status, title, and stable errorCode <Why: deterministic classification>
+        var (status, title, errorCode) = ResolveExceptionDetails(exception);
 
-        // Step 1: Translate Exception to RFC 9457 Tuple <Why: deterministic status and title mapping>
-        var (statusCode, title, detail, type) = exception switch
-        {
-            ValidationException vex => (StatusCodes.Status400BadRequest, "Validation Error", "Validation failed.", "https://tools.ietf.org/html/rfc9110#section-15.5.1"),
-            SecurityViolationException sve => (StatusCodes.Status403Forbidden, "Security Violation", sve.Message, "https://tools.ietf.org/html/rfc9110#section-15.5.4"),
-            ForbiddenException fe => (StatusCodes.Status403Forbidden, "Forbidden", fe.Message, "https://tools.ietf.org/html/rfc9110#section-15.5.4"),
-            NotFoundException nfe => (StatusCodes.Status404NotFound, "Resource Not Found", nfe.Message, "https://tools.ietf.org/html/rfc9110#section-15.5.5"),
-            ConflictException ce => (StatusCodes.Status409Conflict, "Conflict", ce.Message, "https://tools.ietf.org/html/rfc9110#section-15.5.10"),
-            DbUpdateConcurrencyException => (StatusCodes.Status409Conflict, "Concurrency Conflict", "The resource was modified by another transaction while your request was processing. Please reload and retry.", "https://tools.ietf.org/html/rfc9110#section-15.5.10"),
-            PreconditionFailedException pfe => (StatusCodes.Status412PreconditionFailed, "Precondition Failed", pfe.Message, "https://tools.ietf.org/html/rfc9110#section-15.5.13"),
-            DomainValidationException dve => (StatusCodes.Status422UnprocessableEntity, "Domain Rule Violation", dve.Message, "https://tools.ietf.org/html/rfc9110#section-15.5.21"),
-            _ => (StatusCodes.Status500InternalServerError, "Internal Server Error", "An unexpected error occurred.", "https://tools.ietf.org/html/rfc9110#section-15.6.1")
-        };
+        // Step 2: Log semantically (4xx warning vs 5xx error with TraceId) <Why: prevent false 5xx alert fatigue>
+        LogException(exception, status, errorCode, httpContext.TraceIdentifier);
 
-        // Step 2: Build ProblemDetails Schema <Why: compliant machine-parsable error response>
-        var problemDetails = new ProblemDetails
-        {
-            Status = statusCode,
-            Title = title,
-            Detail = detail,
-            Type = type,
-            Instance = httpContext.Request.Path
-        };
+        // Step 3: Build standardized RFC 9457 ProblemDetails via SSoT builder <Why: guarantee traceId and errorCode>
+        var problemDetails = BuildProblemDetails(httpContext, exception, status, title, errorCode);
 
-        // Step 3: Attach Structured Validation Errors <Why: field-level error diagnostics for clients>
-        if (exception is ValidationException validationEx)
+        // Step 4: Write response via IProblemDetailsService <Why: standard application/problem+json pipeline>
+        await WriteResponseAsync(httpContext, problemDetails, exception, ct);
+        return true;
+    }
+
+    private void LogException(Exception exception, int status, string errorCode, string traceId)
+    {
+        if (status >= StatusCodes.Status500InternalServerError)
         {
-            problemDetails.Extensions["errors"] = validationEx.Errors;
+            logger.LogError(exception, "Unhandled 5xx Server Error [{ErrorCode}] (TraceId: {TraceId}): {Message}", errorCode, traceId, exception.Message);
+            return;
         }
 
-        // Step 4: Write JSON Wire Egress <Why: application/problem+json content type>
-        httpContext.Response.StatusCode = statusCode;
-        httpContext.Response.ContentType = "application/problem+json";
-        await httpContext.Response.WriteAsJsonAsync(problemDetails, ct);
+        logger.LogWarning("Handled 4xx Client/Domain Error [{ErrorCode}] (TraceId: {TraceId}): {Message}", errorCode, traceId, exception.Message);
+    }
 
-        return true;
+    private static ProblemDetails BuildProblemDetails(
+        HttpContext httpContext,
+        Exception exception,
+        int status,
+        string title,
+        string errorCode) =>
+        ProblemDetailsBuilder.Create(
+            status: status,
+            title: title,
+            detail: ResolveDetailMessage(exception, status),
+            errorCode: errorCode,
+            instance: httpContext.Request.Path,
+            traceId: httpContext.TraceIdentifier,
+            errors: ExtractValidationErrors(exception));
+
+    private static string ResolveDetailMessage(Exception exception, int status) =>
+        exception switch
+        {
+            DbUpdateConcurrencyException => ConcurrencyConflictDetail,
+            _ when status == StatusCodes.Status500InternalServerError && exception is not DomainException => UnexpectedErrorDetail,
+            _ => exception.Message
+        };
+
+    private static object? ExtractValidationErrors(Exception exception) =>
+        exception switch
+        {
+            SchemaValidationException schemaEx => schemaEx.Errors
+                .Select(e => new { path = e.Field, message = e.Message, rule = e.Rule })
+                .ToArray(),
+            ValidationException validationEx => validationEx.Errors,
+            _ => null
+        };
+
+    private async ValueTask WriteResponseAsync(
+        HttpContext httpContext,
+        ProblemDetails problemDetails,
+        Exception exception,
+        CancellationToken ct)
+    {
+        httpContext.Response.StatusCode = problemDetails.Status ?? StatusCodes.Status500InternalServerError;
+        var written = await problemDetailsService.TryWriteAsync(new ProblemDetailsContext
+        {
+            HttpContext = httpContext,
+            ProblemDetails = problemDetails,
+            Exception = exception
+        });
+
+        if (!written)
+        {
+            await httpContext.Response.WriteAsJsonAsync(problemDetails, cancellationToken: ct);
+        }
+    }
+
+    private static (int Status, string Title, string ErrorCode) ResolveExceptionDetails(Exception exception) =>
+        exception switch
+        {
+            PreconditionFailedException pfe => (StatusCodes.Status412PreconditionFailed, "Precondition Failed", pfe.ErrorCode),
+            DistributedStateUnavailableException dsue => (StatusCodes.Status503ServiceUnavailable, "Distributed State Unavailable", dsue.ErrorCode),
+            DomainException domainEx => ResolveDomainException(domainEx),
+            DbUpdateConcurrencyException => (StatusCodes.Status409Conflict, "Concurrency Conflict", "CONCURRENCY_CONFLICT"),
+            UnauthorizedAccessException => (StatusCodes.Status401Unauthorized, "Unauthorized", "UNAUTHORIZED"),
+            ArgumentException => (StatusCodes.Status400BadRequest, "Bad Request", "BAD_REQUEST"),
+            _ => (StatusCodes.Status500InternalServerError, "Internal Server Error", "INTERNAL_SERVER_ERROR")
+        };
+
+    private static (int Status, string Title, string ErrorCode) ResolveDomainException(DomainException exception)
+    {
+        var (status, title) = exception switch
+        {
+            NotFoundException => (StatusCodes.Status404NotFound, "Not Found"),
+            DraftExpiredException => (StatusCodes.Status410Gone, "Draft Expired"),
+            ConflictException => (StatusCodes.Status409Conflict, "Conflict"),
+            ProjectDeactivatedException => (StatusCodes.Status403Forbidden, "Project Deactivated"),
+            UnauthorizedException => (StatusCodes.Status401Unauthorized, "Unauthorized"),
+            ForbiddenException => (StatusCodes.Status403Forbidden, "Forbidden"),
+            SchemaValidationException => (StatusCodes.Status422UnprocessableEntity, "Schema Validation Failed"),
+            ValidationException => (StatusCodes.Status400BadRequest, "Validation Failed"),
+            DomainValidationException => (StatusCodes.Status400BadRequest, "Domain Validation Error"),
+            BusinessRuleViolationException => (StatusCodes.Status400BadRequest, "Business Rule Violation"),
+            RenderException => (StatusCodes.Status500InternalServerError, "Render Failed"),
+            DataConnectionDecryptionException => (StatusCodes.Status500InternalServerError, "Data Connection Decryption Failed"),
+            DatasetExecutionException => (StatusCodes.Status500InternalServerError, "Dataset Query Failed"),
+            _ => (StatusCodes.Status400BadRequest, "Domain Error")
+        };
+
+        return (status, title, exception.ErrorCode);
     }
 }
 ```
@@ -474,3 +566,12 @@ public sealed class {Resource}DiagnosticsController(
 + public sealed class {Aggregate}sController : ControllerBase
 ```
 *Rationale: Exposing public API controllers without declarative rate limiting leaves services vulnerable to volumetric denial-of-service, runaway automation scripts, and cross-tenant resource starvation. Controllers and sensitive endpoints must be bound to their designated rate limiting policy.*
+
+### [TRAP-API-012]: Ad-Hoc ProblemDetails Instantiation or Typed Error [ProducesResponseType] Leaks
+```diff
+- [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+- var problem = new ProblemDetails { Status = 400, Title = "Bad Request", Detail = msg }; // Missing errorCode & traceId
++ [ProducesResponseType(StatusCodes.Status400BadRequest)]
++ var problem = ProblemDetailsBuilder.Create(StatusCodes.Status400BadRequest, "Bad Request", msg, "BAD_REQUEST", context.Request.Path, context.TraceIdentifier);
+```
+*Rationale: Instantiating raw ProblemDetails inline omits mandatory errorCode and traceId extensions. Declaring typeof(ApiResponse<object>) or typeof(ValidationProblemDetails) on 4xx attributes pollutes OpenAPI components.schemas with unused types that fail Redocly lint.*

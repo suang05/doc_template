@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.ExceptionHandlers;
 
 namespace SmkDoc.Tests.Api.ExceptionHandlers;
@@ -61,7 +62,7 @@ public sealed class GlobalExceptionHandlerTests
         problemDetails.Status.Should().Be(expectedStatus);
         problemDetails.Extensions.Should().ContainKey("errorCode").WhoseValue.Should().Be(expectedErrorCode);
         problemDetails.Extensions.Should().ContainKey("traceId").WhoseValue.Should().Be("trace-001");
-        problemDetails.Type.Should().Be($"https://api.sammakorn.co.th/errors/{expectedErrorCode.ToLowerInvariant().Replace('_', '-')}");
+        problemDetails.Type.Should().Be(ProblemDetailsBuilder.ResolveTypeUri(expectedStatus));
         problemDetails.Instance.Should().Be("/api/v1/templates/test");
     }
 

@@ -432,8 +432,8 @@ public sealed class ProjectContextMiddleware(
         context.Response.StatusCode = statusCode;
         context.Response.ContentType = "application/problem+json";
 
-        var errorCode = SmkDocProblemDetailsFactory.ResolveDefaultErrorCode(statusCode);
-        var problemDetails = SmkDocProblemDetailsFactory.Create(
+        var errorCode = ProblemDetailsBuilder.ResolveDefaultErrorCode(statusCode);
+        var problemDetails = ProblemDetailsBuilder.Create(
             status: statusCode,
             title: title,
             detail: detail,

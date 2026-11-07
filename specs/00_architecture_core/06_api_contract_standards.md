@@ -28,7 +28,7 @@ ArchitecturalSignals: [ARCH_EVOLUTION_CONTRACT]
 | **JSON Field Casing** | Wire JSON serialization is strictly standard `camelCase`. `PascalCase` and `snake_case` on the HTTP wire are prohibited. | Serialization Pipeline |
 | **Single Entity Envelope** | All successful non-streaming single-resource endpoints encapsulate payloads in `{ "data": T }`. Unwrapped raw JSON returns are prohibited. | Wire Payload Schema |
 | **Paginated Collection Envelope**| All collection endpoints return `{ "data": T[], "pagination": PaginationMetadata }`. Flat pagination fields at root or unwrapped arrays are prohibited. | Collection Egress |
-| **RFC 9457 Error Wire Schema** | Errors emit standard RFC 9457 `application/problem+json` containing `type`, `title`, `status`, `detail`, `instance`, and structured field errors in `errors`. Ad-hoc `{ error: "msg" }` JSON is prohibited. | Error Handling Pipeline |
+| **RFC 9457 Error Wire Schema** | Errors emit standard RFC 9457 `application/problem+json` containing IETF RFC 9110 `type`, `title`, `status`, `detail`, `instance`, mandatory `errorCode` and `traceId` extensions, and optional structured field errors in `errors`. Ad-hoc `{ error: "msg" }` JSON is prohibited. | Error Handling Pipeline |
 | **Temporal Wire Format** | All datetime values on the wire serialize to ISO-8601 UTC strings terminated with the `Z` suffix (`YYYY-MM-DDTHH:mm:ssZ`). Unspecified local times and Unix epoch integers are prohibited. | Temporal Serialization |
 | **Null vs Undefined Semantics** | Missing optional values serialize explicitly as `null` or are omitted per schema. Emitting string `"undefined"` or `"null"` is prohibited. | Wire Payload Fidelity |
 | **Mutation Deduplication** | Non-idempotent state mutations (`POST`) require `Idempotency-Key: <uuidv7>`. Duplicate requests replay cached responses without re-execution. | Mutation Boundary |
@@ -229,24 +229,34 @@ export interface PagedApiResponse<T> extends ApiResponse<T[]> {
 
 ### 3.3 RFC 9457 ProblemDetails Error Schema Blueprint
 >> MANDATORY CANONICAL BLUEPRINT [RULE-CONTRACT-003]:
-* Centralized exception translation producing IETF RFC 9457 compliant error schemas with field-level diagnostics.
+* Centralized error construction via `ProblemDetailsBuilder` and `GlobalExceptionHandler` producing IETF RFC 9457 compliant error schemas with standard RFC 9110 `type` URIs, `errorCode`, `traceId`, and field-level diagnostics.
 
-**C# SSoT Definition (`backend-v2/src/SmkDoc.Api/ExceptionHandlers/GlobalExceptionHandler.cs`):**
+**C# SSoT Builder Contract (`backend-v2/src/SmkDoc.Api/Common/Responses/ProblemDetailsBuilder.cs`):**
 ```csharp
-// Standard ASP.NET Core RFC 9457 ProblemDetails schema with extensions dictionary for errorCode and field errors
-public class ProblemDetails
+public static class ProblemDetailsBuilder
 {
-    public string? Type { get; set; }
-    public string? Title { get; set; }
-    public int? Status { get; set; }
-    public string? Detail { get; set; }
-    public string? Instance { get; set; }
-    public IDictionary<string, object?> Extensions { get; } = new Dictionary<string, object?>(StringComparer.Ordinal);
+    public static ProblemDetails Create(
+        int status,
+        string title,
+        string detail,
+        string errorCode,
+        string? instance = null,
+        string? traceId = null,
+        object? errors = null);
+
+    public static string ResolveTypeUri(int? statusCode);
+    public static string ResolveDefaultErrorCode(int? statusCode);
 }
 ```
 
 **TypeScript Error Client Definition (`frontend-v2/src/lib/api/client.ts`):**
 ```typescript
+export interface SchemaValidationErrorItem {
+  path: string;
+  message: string;
+  rule: string;
+}
+
 export interface ProblemDetails {
   type?: string;
   title?: string;
@@ -254,19 +264,22 @@ export interface ProblemDetails {
   detail?: string;
   instance?: string;
   errorCode?: string;
-  errors?: Record<string, string[]>;
+  traceId?: string;
+  errors?: Record<string, string[]> | SchemaValidationErrorItem[];
   [key: string]: unknown;
 }
 ```
 
-**JSON Wire Representation (Validation Failure):**
+**JSON Wire Representation (400 Request Validation Failure — Property Map):**
 ```json
 {
   "type": "https://tools.ietf.org/html/rfc9110#section-15.5.1",
-  "title": "Validation Error",
+  "title": "Validation Failed",
   "status": 400,
-  "detail": "Validation failed.",
+  "detail": "One or more validation errors occurred.",
   "instance": "/api/v1/templates",
+  "errorCode": "VALIDATION_FAILED",
+  "traceId": "0HN7G6K9A1B2C:00000001",
   "errors": {
     "name": [
       "The Name field is required.",
@@ -276,6 +289,26 @@ export interface ProblemDetails {
       "Slug must contain only lowercase alphanumeric characters and hyphens."
     ]
   }
+}
+```
+
+**JSON Wire Representation (422 Schema Validation Failure — Rule Violation List):**
+```json
+{
+  "type": "https://tools.ietf.org/html/rfc9110#section-15.5.21",
+  "title": "Schema Validation Failed",
+  "status": 422,
+  "detail": "Payload failed JSON schema validation.",
+  "instance": "/api/v1/documents/generate",
+  "errorCode": "SCHEMA_VALIDATION_FAILED",
+  "traceId": "0HN7G6K9A1B2C:00000002",
+  "errors": [
+    {
+      "path": "/customer/tax_id",
+      "message": "String length must be 13 characters.",
+      "rule": "minLength"
+    }
+  ]
 }
 ```
 
@@ -311,7 +344,8 @@ export interface ProblemDetails {
   "status": 412,
   "detail": "Precondition failed for template '0192e2c8-72b1-7000-8000-111111111111'. ETag '54217' does not match current state '54218'.",
   "instance": "/api/v1/templates/0192e2c8-72b1-7000-8000-111111111111",
-  "errorCode": "PRECONDITION_FAILED"
+  "errorCode": "PRECONDITION_FAILED",
+  "traceId": "0HN7G6K9A1B2C:00000003"
 }
 ```
 
@@ -319,11 +353,12 @@ export interface ProblemDetails {
 ```json
 {
   "type": "https://tools.ietf.org/html/rfc9110#section-15.5.10",
-  "title": "Conflict",
+  "title": "Concurrency Conflict",
   "status": 409,
   "detail": "The resource was modified by another transaction while your request was processing. Please reload the latest state and retry.",
   "instance": "/api/v1/templates/0192e2c8-72b1-7000-8000-111111111111",
-  "errorCode": "CONCURRENCY_CONFLICT"
+  "errorCode": "CONCURRENCY_CONFLICT",
+  "traceId": "0HN7G6K9A1B2C:00000004"
 }
 ```
 
@@ -341,7 +376,7 @@ export interface ProblemDetails {
 ### [TRAP-CONTRACT-002]: Ad-Hoc Error JSON Bypassing RFC 9457 ProblemDetails
 ```diff
 - { "error": "Template not found", "code": 404 }
-+ { "type": "https://tools.ietf.org/html/rfc9110#section-15.5.5", "title": "Resource Not Found", "status": 404, "detail": "Template with id '...' was not found.", "instance": "/api/v1/templates/..." }
++ { "type": "https://tools.ietf.org/html/rfc9110#section-15.5.5", "title": "Not Found", "status": 404, "detail": "Template with id '...' was not found.", "instance": "/api/v1/templates/...", "errorCode": "TEMPLATE_NOT_FOUND", "traceId": "0HN7G6K9A1B2C:00000005" }
 ```
 *Rationale: Ad-hoc error formats prevent automated client error handling, break typing in client SDKs, and omit machine-readable validation dictionaries.*
 

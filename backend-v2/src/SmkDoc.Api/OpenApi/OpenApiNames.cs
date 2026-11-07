@@ -25,7 +25,7 @@ public static class OpenApiNames
 
     /// <summary>
     /// API v1 routes that require no authentication.
-    /// Consumed by both <c>ProjectContextMiddleware</c> and <c>SmkDocOperationTransformer</c>.
+    /// Consumed by both <c>ProjectContextMiddleware</c> and <c>OpenApiOperationTransformer</c>.
     /// </summary>
     public static readonly string[] PublicRoutes =
     [

@@ -6,7 +6,7 @@ namespace SmkDoc.Api.OpenApi.Transformers;
 /// <summary>
 /// Document-level OpenAPI metadata: info, servers, security schemes (ApiKey OR Bearer) and the RFC 9457 error schema.
 /// </summary>
-public sealed class SmkDocDocumentTransformer(IConfiguration configuration) : IOpenApiDocumentTransformer
+public sealed class OpenApiDocumentTransformer(IConfiguration configuration) : IOpenApiDocumentTransformer
 {
     public Task TransformAsync(
         OpenApiDocument document,
@@ -120,3 +120,4 @@ public sealed class SmkDocDocumentTransformer(IConfiguration configuration) : IO
         ]
     };
 }
+

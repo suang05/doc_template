@@ -6,9 +6,9 @@ using SmkDoc.Api.OpenApi.Transformers;
 
 namespace SmkDoc.Tests.Api.OpenApi;
 
-public sealed class SmkDocDocumentTransformerTests
+public sealed class OpenApiDocumentTransformerTests
 {
-    private static SmkDocDocumentTransformer CreateSut(string? serverUrl = null)
+    private static OpenApiDocumentTransformer CreateSut(string? serverUrl = null)
     {
         var values = new Dictionary<string, string?>();
         if (serverUrl is not null)
@@ -17,7 +17,7 @@ public sealed class SmkDocDocumentTransformerTests
         }
 
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(values).Build();
-        return new SmkDocDocumentTransformer(configuration);
+        return new OpenApiDocumentTransformer(configuration);
     }
 
     private static OpenApiDocumentTransformerContext CreateContext() => new()
@@ -27,7 +27,7 @@ public sealed class SmkDocDocumentTransformerTests
         ApplicationServices = Substitute.For<IServiceProvider>()
     };
 
-    private static async Task<OpenApiDocument> TransformAsync(SmkDocDocumentTransformer sut)
+    private static async Task<OpenApiDocument> TransformAsync(OpenApiDocumentTransformer sut)
     {
         var document = new OpenApiDocument();
         await sut.TransformAsync(document, CreateContext(), CancellationToken.None);
@@ -115,3 +115,4 @@ public sealed class SmkDocDocumentTransformerTests
         schema.Properties!["errors"].OneOf.Should().HaveCount(2);
     }
 }
+
