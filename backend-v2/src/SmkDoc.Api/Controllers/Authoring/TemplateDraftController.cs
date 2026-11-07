@@ -19,7 +19,7 @@ namespace SmkDoc.Api.Controllers.Authoring;
 /// </summary>
 [ApiController]
 [Route("api/v1/templates/draft")]
-[Authorize(Policy = SmkDocPolicies.CanManageTemplates)]
+[Authorize(Policy = AuthorizationPolicies.CanManageTemplates)]
 public sealed class TemplateDraftController(
     IUseCase<ParseTemplateDraftCommand, ParseDraftResultDto> parseUseCase,
     IUseCase<PreviewTemplateDraftQuery, Stream> previewUseCase,

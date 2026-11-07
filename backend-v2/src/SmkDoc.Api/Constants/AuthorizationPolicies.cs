@@ -4,7 +4,7 @@ namespace SmkDoc.Api.Constants;
 /// Technical Authorization Policy name constants for declarative Policy-Based Authorization.
 /// Supports both Interactive Users (JWT Bearer) and M2M Integration Clients (X-API-Key).
 /// </summary>
-public static class SmkDocPolicies
+public static class AuthorizationPolicies
 {
     /// <summary>
     /// SuperAdmin-only administrative operations (Platform-level governance).

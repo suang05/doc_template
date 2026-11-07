@@ -214,7 +214,7 @@ public sealed class ResponseDisposingStream(Stream innerStream, HttpResponseMess
 ```csharp
 [ApiController]
 [Route("api/v1/documents")]
-[Authorize(Policy = SmkDocPolicies.CanGenerateDocuments)]
+[Authorize(Policy = AuthorizationPolicies.CanGenerateDocuments)]
 public sealed class DocumentGenerationController(
     IUseCase<GenerateDocumentCommand, GenerateDocumentResultDto> generateUseCase,
     IUseCase<PreviewDocumentQuery, Stream> previewUseCase,

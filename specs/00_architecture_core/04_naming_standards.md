@@ -60,13 +60,28 @@ The codebase strictly prohibits clipped identifiers. The only permitted short to
 * `configuration` (prohibit: `cfg`)
 * `exception` (prohibit: `ex`)
 
-### 1.4 Symmetrical Casing & Wire Format
+### 1.4 Symmetrical Casing, Zero Project Prefix & Wire Format
 * **C# Types & Methods**: `PascalCase` (`Create{Aggregate}Command`, `ExecuteAsync`).
+* **Zero Project/Brand Type Prefix**: Strictly prohibit prefixing C# or TypeScript type identifiers (classes, interfaces, records, structs, enums) with project or organization names (`SmkDoc*`, `Sammakorn*`). The `SmkDoc.*` namespace already provides scope isolation.
 * **C# Primary Constructor Parameters**: pure `camelCase` without prefixes (`{aggregate}Repository`, `unitOfWork`, `timeProvider`).
 * **HTTP REST Routes**: Plural `kebab-case` prefixed with version (`/api/v1/{resources}`, `/api/v1/data-connections`).
 * **Controller Class Names**: Plural `PascalCase` (`{Aggregate}sController`). Companion diagnostic endpoints: `{Resource}DiagnosticsController`.
 * **Database Columns & Tables**: `snake_case` (`template_versions`, `current_version_id`).
 * **TypeScript Files**: React Components (`PascalCase.tsx`), Hooks/Utils (`kebab-case.ts`), Schemas (`kebab-case.schema.ts`).
+
+### 1.5 Architectural Role-Based Suffix Taxonomy
+Every non-entity class must terminate with a deterministic suffix declaring its exact architectural responsibility. Vague catch-all suffixes (`*Helper`, `*Util`, `*Utils`, `*Manager`, `*Info`, `*Data`) are strictly prohibited:
+
+| Architectural Responsibility | Mandatory Type Suffix | Banned Vague Suffixes | Canonical Example |
+|---|---|---|---|
+| **Application Workflow Orchestrator** | `*UseCase` | `*Service`, `*Manager`, `*Handler` | `Create{Aggregate}UseCase` |
+| **Application Input / Output Contracts** | `*Command`, `*Query`, `*ResultDto` | `*Dto` (for UseCase root), `*Response`, `*Data` | `{Aggregate}ResultDto` |
+| **Standardized Object / Schema Construction** | `*Builder`, `*Factory` | `*Helper`, `*Util`, `*Creator` | `ProblemDetailsBuilder`, `OpenApiOperationIdFactory` |
+| **Pure Calculation / Resolution / Parsing** | `*Calculator`, `*Resolver`, `*Parser` | `*Helper`, `*Utils`, `*Processor` | `RequestFingerprintCalculator`, `RateLimitPartitionKeyResolver` |
+| **Validation & Security Sanitization** | `*Validator`, `*Sanitizer` | `*Checker`, `*Helper`, `*Guard` (for services) | `ConnectionHostValidator`, `HtmlContentSanitizer` |
+| **OpenAPI / Schema Transformation** | `*Transformer`, `*Deduplicator` | `*Modifier`, `*Helper`, `*Patcher` | `OpenApiDocumentTransformer`, `OpenApiOperationTransformer` |
+| **HTTP Pipeline Interception** | `*Middleware`, `*Filter`, `*ExceptionHandler` | `*Interceptor`, `*Hook`, `*Manager` | `ProjectContextMiddleware`, `IdempotencyFilter`, `GlobalExceptionHandler` |
+| **Static Policy & Protocol Tokens** | `*Policies`, `*Constants`, `*Names` | `*Config`, `*Strings`, `*Values` | `AuthorizationPolicies`, `RoleConstants`, `HttpHeaderConstants` |
 
 ---
 
@@ -76,6 +91,7 @@ The codebase strictly prohibits clipped identifiers. The only permitted short to
 * **Why Strict Verbs over Synonyms**: When multiple synonyms exist (`Get` vs `Find` vs `Fetch`), the LLM's transformer softmax probability distribution flattens, resulting in non-deterministic naming drift. Strict verbs enforce 100% token determinism.
 * **Why Banning Variable Name 'response'**: Declaring `var response = ...` inside ASP.NET Core controllers shadows the built-in `ControllerBase.Response` property, creating latent compilation bugs and cognitive ambiguity. Standardizing on `result` guarantees safety.
 * **Why Anti-Abbreviation Policy**: Clipped abbreviations carry ambiguous semantic weight across domains. Expressive full names (`{aggregate}Repository`, `unitOfWork`) eliminate token confusion and make ASTs self-documenting.
+* **Why Zero Project Prefix & Banned Vague Suffixes**: Prefixing class names with `SmkDoc` duplicates the `SmkDoc.*` namespace and violates Microsoft .NET Framework Design Guidelines. Vague catch-all suffixes (`*Helper`, `*Util`, `*Manager`) hide single responsibility and attract unrelated static methods into God classes.
 
 ### 2.2 Proactive Naming Firewalls
 ```yaml
@@ -90,6 +106,10 @@ VariableTokenFirewall:
 RouteSyntaxFirewall:
   Invariant: "Public REST endpoints must be plural kebab-case under /api/v1/."
   ActionOnViolation: "Convert singular or camelCase routes to /api/v1/{resources}."
+
+TypePrefixAndRoleSuffixFirewall:
+  Invariant: "Type names must never carry project prefixes (SmkDoc*) or vague suffixes (*Helper, *Util, *Manager)."
+  ActionOnViolation: "Strip SmkDoc prefix and rename vague suffix to exact role (*Builder, *Factory, *Resolver, *Calculator, *Validator, *Policies)."
 ```
 
 ---
@@ -161,3 +181,14 @@ public sealed class {Aggregate}sController(
 + return Ok(new ApiResponse<TemplateResultDto>(result));
 ```
 *Rationale: Naming local variables `response` shadows the built-in HTTP Response property in controllers and violates universal variable standards.*
+
+### [TRAP-NAME-004]: Project/Brand Prefixes (`SmkDoc*`) and Vague Catch-All Suffixes (`*Helper`, `*Manager`)
+```diff
+- public static class SmkDocProblemDetailsHelper { ... }
+- public static class SmkDocPolicies { ... }
+- public sealed class SmkDocOperationTransformer : IOpenApiOperationTransformer { ... }
++ public static class ProblemDetailsBuilder { ... }
++ public static class AuthorizationPolicies { ... }
++ public sealed class OpenApiOperationTransformer : IOpenApiOperationTransformer { ... }
+```
+*Rationale: Prefixing types with `SmkDoc` duplicates the `SmkDoc.*` namespace and violates Microsoft .NET Framework Design Guidelines. Vague suffixes like `*Helper` or `*Manager` obscure single responsibility and invite God-class bloat.*

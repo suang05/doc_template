@@ -33,7 +33,7 @@ public sealed class UserManagementController(
 {
     /// <summary>List all users in the active project.</summary>
     [HttpGet]
-    [Authorize(Policy = SmkDocPolicies.RequireProjectAdmin)]
+    [Authorize(Policy = AuthorizationPolicies.RequireProjectAdmin)]
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<UserResultDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> List(CancellationToken ct)
     {
@@ -44,7 +44,7 @@ public sealed class UserManagementController(
 
     /// <summary>Invite a new user to the active project.</summary>
     [HttpPost]
-    [Authorize(Policy = SmkDocPolicies.RequireProjectAdmin)]
+    [Authorize(Policy = AuthorizationPolicies.RequireProjectAdmin)]
     [Idempotent]
     [ProducesResponseType(typeof(ApiResponse<UserResultDto>), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -62,7 +62,7 @@ public sealed class UserManagementController(
 
     /// <summary>Update a user's role within the active project.</summary>
     [HttpPut("{userId:guid}/role")]
-    [Authorize(Policy = SmkDocPolicies.RequireProjectAdmin)]
+    [Authorize(Policy = AuthorizationPolicies.RequireProjectAdmin)]
     [ProducesResponseType(typeof(ApiResponse<UserResultDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -82,7 +82,7 @@ public sealed class UserManagementController(
 
     /// <summary>Remove a user from the active project.</summary>
     [HttpDelete("{userId:guid}")]
-    [Authorize(Policy = SmkDocPolicies.RequireProjectAdmin)]
+    [Authorize(Policy = AuthorizationPolicies.RequireProjectAdmin)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -102,7 +102,7 @@ public sealed class UserManagementController(
 
     /// <summary>Activate or deactivate a global user account. SuperAdmin only.</summary>
     [HttpPatch("{userId:guid}/status")]
-    [Authorize(Policy = SmkDocPolicies.RequireSuperAdmin)]
+    [Authorize(Policy = AuthorizationPolicies.RequireSuperAdmin)]
     [ProducesResponseType(typeof(ApiResponse<UserResultDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]

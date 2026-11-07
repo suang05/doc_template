@@ -46,7 +46,7 @@ public sealed class TemplateDraftControllerTests
 
         var authAttr = type.GetCustomAttribute<AuthorizeAttribute>();
         authAttr.Should().NotBeNull();
-        authAttr!.Policy.Should().Be(SmkDocPolicies.CanManageTemplates);
+        authAttr!.Policy.Should().Be(AuthorizationPolicies.CanManageTemplates);
 
         var routes = type.GetCustomAttributes<RouteAttribute>().Select(r => r.Template).ToList();
         routes.Should().ContainSingle().Which.Should().Be("api/v1/templates/draft");

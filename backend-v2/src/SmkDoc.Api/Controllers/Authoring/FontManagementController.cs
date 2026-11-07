@@ -46,7 +46,7 @@ public sealed class FontManagementController(
 
     /// <summary>Upload a new font file (.ttf, .otf, .woff, .woff2). Max 10 MB. Author or Admin role required.</summary>
     [HttpPost]
-    [Authorize(Policy = SmkDocPolicies.CanManageTemplates)]
+    [Authorize(Policy = AuthorizationPolicies.CanManageTemplates)]
     [Idempotent]
     [RequestSizeLimit(10 * 1024 * 1024)]
     [ProducesResponseType(typeof(ApiResponse<UploadFontResultDto>), StatusCodes.Status201Created)]

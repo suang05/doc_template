@@ -18,7 +18,7 @@ namespace SmkDoc.Api.Controllers.IdentityAccess;
 /// </summary>
 [ApiController]
 [Route("api/v1/api-keys")]
-[Authorize(Policy = SmkDocPolicies.RequireProjectAdmin)]
+[Authorize(Policy = AuthorizationPolicies.RequireProjectAdmin)]
 [ProducesResponseType(StatusCodes.Status401Unauthorized)]
 [ProducesResponseType(StatusCodes.Status403Forbidden)]
 public sealed class ApiKeyController(

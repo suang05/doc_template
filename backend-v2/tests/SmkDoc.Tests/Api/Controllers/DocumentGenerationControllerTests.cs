@@ -46,7 +46,7 @@ public sealed class DocumentGenerationControllerTests
 
         var authAttr = type.GetCustomAttribute<AuthorizeAttribute>();
         authAttr.Should().NotBeNull();
-        authAttr!.Policy.Should().Be(SmkDocPolicies.CanGenerateDocuments);
+        authAttr!.Policy.Should().Be(AuthorizationPolicies.CanGenerateDocuments);
 
         var routes = type.GetCustomAttributes<RouteAttribute>().Select(r => r.Template).ToList();
         routes.Should().ContainSingle().Which.Should().Be("api/v1/documents");

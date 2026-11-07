@@ -16,11 +16,11 @@ namespace SmkDoc.Api.Controllers.Integration;
 
 /// <summary>
 /// Database connection definitions for dynamic template data binding.
-/// Auth: Admin or SuperAdmin via SmkDocPolicies.CanManageDataConnections.
+/// Auth: Admin or SuperAdmin via AuthorizationPolicies.CanManageDataConnections.
 /// </summary>
 [ApiController]
 [Route("api/v1/data-connections")]
-[Authorize(Policy = SmkDocPolicies.CanManageDataConnections)]
+[Authorize(Policy = AuthorizationPolicies.CanManageDataConnections)]
 [ProducesResponseType(StatusCodes.Status401Unauthorized)]
 [ProducesResponseType(StatusCodes.Status403Forbidden)]
 public sealed class DataConnectionsController(

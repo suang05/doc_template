@@ -50,7 +50,7 @@ public sealed class DatasetsControllerTests
 
         var authAttr = type.GetCustomAttribute<AuthorizeAttribute>();
         authAttr.Should().NotBeNull();
-        authAttr!.Policy.Should().Be(SmkDocPolicies.CanManageDatasets);
+        authAttr!.Policy.Should().Be(AuthorizationPolicies.CanManageDatasets);
 
         var routeAttr = type.GetCustomAttribute<RouteAttribute>();
         routeAttr.Should().NotBeNull();

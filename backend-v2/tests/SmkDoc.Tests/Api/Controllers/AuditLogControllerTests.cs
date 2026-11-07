@@ -43,7 +43,7 @@ public sealed class AuditLogControllerTests
 
         var authAttr = type.GetCustomAttribute<AuthorizeAttribute>();
         authAttr.Should().NotBeNull();
-        authAttr!.Policy.Should().Be(SmkDocPolicies.RequireProjectAdmin);
+        authAttr!.Policy.Should().Be(AuthorizationPolicies.RequireProjectAdmin);
 
         var routes = type.GetCustomAttributes<RouteAttribute>().Select(r => r.Template).ToList();
         routes.Should().ContainSingle().Which.Should().Be("api/v1/logs");

@@ -12,11 +12,11 @@ namespace SmkDoc.Api.Controllers.Integration;
 
 /// <summary>
 /// SQL dataset diagnostics and schema introspection.
-/// Auth: Author, Developer, Admin, SuperAdmin via SmkDocPolicies.CanManageDatasets.
+/// Auth: Author, Developer, Admin, SuperAdmin via AuthorizationPolicies.CanManageDatasets.
 /// </summary>
 [ApiController]
 [Route("api/v1/datasets")]
-[Authorize(Policy = SmkDocPolicies.CanManageDatasets)]
+[Authorize(Policy = AuthorizationPolicies.CanManageDatasets)]
 [ProducesResponseType(StatusCodes.Status401Unauthorized)]
 [ProducesResponseType(StatusCodes.Status403Forbidden)]
 public sealed class DatasetDiagnosticsController(

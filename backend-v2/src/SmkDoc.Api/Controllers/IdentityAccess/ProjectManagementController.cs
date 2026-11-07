@@ -57,7 +57,7 @@ public sealed class ProjectManagementController(
 
     /// <summary>Create a new project. SuperAdmin only.</summary>
     [HttpPost]
-    [Authorize(Policy = SmkDocPolicies.RequireSuperAdmin)]
+    [Authorize(Policy = AuthorizationPolicies.RequireSuperAdmin)]
     [Idempotent]
     [ProducesResponseType(typeof(ApiResponse<ProjectResultDto>), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -80,7 +80,7 @@ public sealed class ProjectManagementController(
 
     /// <summary>Transfer project ownership / Master Credential authority to a new IT Lead. SuperAdmin only.</summary>
     [HttpPost("{projectId:guid}/transfer-owner")]
-    [Authorize(Policy = SmkDocPolicies.RequireSuperAdmin)]
+    [Authorize(Policy = AuthorizationPolicies.RequireSuperAdmin)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

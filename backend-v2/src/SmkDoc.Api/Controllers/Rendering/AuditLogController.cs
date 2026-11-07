@@ -16,7 +16,7 @@ namespace SmkDoc.Api.Controllers.Rendering;
 /// </summary>
 [ApiController]
 [Route("api/v1/logs")]
-[Authorize(Policy = SmkDocPolicies.RequireProjectAdmin)]
+[Authorize(Policy = AuthorizationPolicies.RequireProjectAdmin)]
 [ProducesResponseType(StatusCodes.Status401Unauthorized)]
 public sealed class AuditLogController(
     IUseCase<ListGenerationLogsQuery, GenerationLogPagedResult> listUseCase,

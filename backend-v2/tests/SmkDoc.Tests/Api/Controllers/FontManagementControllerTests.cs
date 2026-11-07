@@ -56,7 +56,7 @@ public sealed class FontManagementControllerTests
         var uploadMethod = type.GetMethod(nameof(FontManagementController.UploadFont));
         var uploadAuthAttr = uploadMethod!.GetCustomAttribute<AuthorizeAttribute>();
         uploadAuthAttr.Should().NotBeNull();
-        uploadAuthAttr!.Policy.Should().Be(SmkDocPolicies.CanManageTemplates);
+        uploadAuthAttr!.Policy.Should().Be(AuthorizationPolicies.CanManageTemplates);
     }
 
     [Fact]

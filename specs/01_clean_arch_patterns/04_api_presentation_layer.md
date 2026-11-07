@@ -111,7 +111,7 @@ ErrorProducesResponseTypeFirewall:
 | `test-conn` | `POST /api/v1/data-connections/test` | 10 permits / 1 min (by User/IP) | `429 Too Many Requests` | Mitigates internal network scanning, port enumeration, and SSRF probing |
 | `api` | All standard CRUD, query, and management endpoints | 60 permits / 1 min (by Partition) | `429 Too Many Requests` | Baseline API throttling for fair resource distribution |
 
-### 2.5 Declarative Authorization Policies Matrix (`SmkDocPolicies`)
+### 2.5 Declarative Authorization Policies Matrix (`AuthorizationPolicies`)
 The portal operates as an internal operator and authoring console (SuperAdmin and Template Designers); external enterprise callers (ERP, CRM) integrate exclusively via Channel A (M2M API Keys). All controller actions enforce authorization declaratively through policies:
 
 | Policy Name | Target Endpoints & Controller Scope | Allowed Subject Identities | Policy Enforcement Criteria |
@@ -316,10 +316,7 @@ public sealed class GlobalExceptionHandler(
     private static object? ExtractValidationErrors(Exception exception) =>
         exception switch
         {
-            SchemaValidationException schemaEx => schemaEx.Errors
-                .Select(e => new { path = e.Field, message = e.Message, rule = e.Rule })
-                .ToArray(),
-            ValidationException validationEx => validationEx.Errors,
+            IValidationException validationEx => validationEx.Errors,
             _ => null
         };
 
@@ -346,37 +343,29 @@ public sealed class GlobalExceptionHandler(
     private static (int Status, string Title, string ErrorCode) ResolveExceptionDetails(Exception exception) =>
         exception switch
         {
+            DomainException domainEx => (ResolveDomainStatus(domainEx), ResolveDomainTitle(domainEx), domainEx.ErrorCode),
             PreconditionFailedException pfe => (StatusCodes.Status412PreconditionFailed, "Precondition Failed", pfe.ErrorCode),
-            DistributedStateUnavailableException dsue => (StatusCodes.Status503ServiceUnavailable, "Distributed State Unavailable", dsue.ErrorCode),
-            DomainException domainEx => ResolveDomainException(domainEx),
             DbUpdateConcurrencyException => (StatusCodes.Status409Conflict, "Concurrency Conflict", "CONCURRENCY_CONFLICT"),
+            DistributedStateUnavailableException dsue => (StatusCodes.Status503ServiceUnavailable, "Distributed State Unavailable", dsue.ErrorCode),
             UnauthorizedAccessException => (StatusCodes.Status401Unauthorized, "Unauthorized", "UNAUTHORIZED"),
             ArgumentException => (StatusCodes.Status400BadRequest, "Bad Request", "BAD_REQUEST"),
             _ => (StatusCodes.Status500InternalServerError, "Internal Server Error", "INTERNAL_SERVER_ERROR")
         };
 
-    private static (int Status, string Title, string ErrorCode) ResolveDomainException(DomainException exception)
-    {
-        var (status, title) = exception switch
+    private static int ResolveDomainStatus(DomainException exception) =>
+        exception switch
         {
-            NotFoundException => (StatusCodes.Status404NotFound, "Not Found"),
-            DraftExpiredException => (StatusCodes.Status410Gone, "Draft Expired"),
-            ConflictException => (StatusCodes.Status409Conflict, "Conflict"),
-            ProjectDeactivatedException => (StatusCodes.Status403Forbidden, "Project Deactivated"),
-            UnauthorizedException => (StatusCodes.Status401Unauthorized, "Unauthorized"),
-            ForbiddenException => (StatusCodes.Status403Forbidden, "Forbidden"),
-            SchemaValidationException => (StatusCodes.Status422UnprocessableEntity, "Schema Validation Failed"),
-            ValidationException => (StatusCodes.Status400BadRequest, "Validation Failed"),
-            DomainValidationException => (StatusCodes.Status400BadRequest, "Domain Validation Error"),
-            BusinessRuleViolationException => (StatusCodes.Status400BadRequest, "Business Rule Violation"),
-            RenderException => (StatusCodes.Status500InternalServerError, "Render Failed"),
-            DataConnectionDecryptionException => (StatusCodes.Status500InternalServerError, "Data Connection Decryption Failed"),
-            DatasetExecutionException => (StatusCodes.Status500InternalServerError, "Dataset Query Failed"),
-            _ => (StatusCodes.Status400BadRequest, "Domain Error")
+            NotFoundException => StatusCodes.Status404NotFound,
+            ConflictException => StatusCodes.Status409Conflict,
+            ForbiddenException => StatusCodes.Status403Forbidden,
+            UnauthorizedException => StatusCodes.Status401Unauthorized,
+            ValidationException => StatusCodes.Status400BadRequest,
+            SchemaValidationException => StatusCodes.Status422UnprocessableEntity,
+            _ => StatusCodes.Status400BadRequest
         };
 
-        return (status, title, exception.ErrorCode);
-    }
+    private static string ResolveDomainTitle(DomainException exception) =>
+        exception.GetType().Name.Replace("Exception", string.Empty);
 }
 ```
 
@@ -428,7 +417,7 @@ public record PagedApiResponse<T>(
 ```csharp
 [ApiController]
 [Route("api/v1/{resource-kebab-plural}")]
-[Authorize(Policy = SmkDocPolicies.CanManageDataConnections)]
+[Authorize(Policy = AuthorizationPolicies.CanManageDataConnections)]
 public sealed class {Resource}DiagnosticsController(
     IUseCase<Test{Resource}Command, Test{Resource}ResultDto> testUseCase) : ControllerBase
 {

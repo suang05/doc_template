@@ -20,7 +20,7 @@ namespace SmkDoc.Api.Controllers.Rendering;
 /// </summary>
 [ApiController]
 [Route("api/v1/documents")]
-[Authorize(Policy = SmkDocPolicies.CanGenerateDocuments)]
+[Authorize(Policy = AuthorizationPolicies.CanGenerateDocuments)]
 public sealed class DocumentGenerationController(
     IUseCase<GenerateDocumentCommand, GenerateDocumentResultDto> generateUseCase,
     IUseCase<EnqueueDocumentGenerationCommand, DocumentJobDto> enqueueJobUseCase,

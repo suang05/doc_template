@@ -38,7 +38,7 @@ public sealed class DataConnectionDiagnosticsControllerTests
 
         var authAttr = type.GetCustomAttribute<AuthorizeAttribute>();
         authAttr.Should().NotBeNull();
-        authAttr!.Policy.Should().Be(SmkDocPolicies.CanManageDataConnections);
+        authAttr!.Policy.Should().Be(AuthorizationPolicies.CanManageDataConnections);
 
         var routeAttr = type.GetCustomAttribute<RouteAttribute>();
         routeAttr.Should().NotBeNull();

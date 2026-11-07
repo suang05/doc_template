@@ -20,7 +20,7 @@ namespace SmkDoc.Api.Controllers.IdentityAccess;
 /// </summary>
 [ApiController]
 [Route("api/v1/management/projects/{projectId:guid}/api-keys")]
-[Authorize(Policy = SmkDocPolicies.RequireSuperAdmin)]
+[Authorize(Policy = AuthorizationPolicies.RequireSuperAdmin)]
 [EnableRateLimiting("api")]
 [ProducesResponseType(StatusCodes.Status401Unauthorized)]
 [ProducesResponseType(StatusCodes.Status403Forbidden)]

@@ -171,14 +171,14 @@ public static class ServiceCollectionExtensions
 
         services.AddAuthorization(options =>
         {
-            options.AddPolicy(SmkDocPolicies.RequireSuperAdmin, policy =>
+            options.AddPolicy(AuthorizationPolicies.RequireSuperAdmin, policy =>
             {
                 policy.RequireAssertion(ctx =>
                     ctx.User.HasClaim("SystemRole", RoleConstants.SuperAdmin) ||
                     ctx.User.IsInRole(RoleConstants.SuperAdmin));
             });
 
-            options.AddPolicy(SmkDocPolicies.RequireProjectAdmin, policy =>
+            options.AddPolicy(AuthorizationPolicies.RequireProjectAdmin, policy =>
             {
                 policy.RequireAssertion(ctx =>
                     ctx.User.IsInRole(RoleConstants.Admin) ||
@@ -186,7 +186,7 @@ public static class ServiceCollectionExtensions
                     (ctx.User.IsInRole("M2MClient") && ctx.User.HasClaim(c => c.Type is "Scope" or "ApiKeyScope" && c.Value == "ReadWrite")));
             });
 
-            options.AddPolicy(SmkDocPolicies.CanManageTemplates, policy =>
+            options.AddPolicy(AuthorizationPolicies.CanManageTemplates, policy =>
             {
                 policy.RequireAssertion(ctx =>
                     ctx.User.IsInRole("Author") ||
@@ -196,19 +196,19 @@ public static class ServiceCollectionExtensions
                     (ctx.User.IsInRole("M2MClient") && ctx.User.HasClaim(c => c.Type is "Scope" or "ApiKeyScope" && c.Value == "ReadWrite")));
             });
 
-            options.AddPolicy(SmkDocPolicies.CanGenerateDocuments, policy =>
+            options.AddPolicy(AuthorizationPolicies.CanGenerateDocuments, policy =>
             {
                 policy.RequireAssertion(ctx => ctx.User.Identity?.IsAuthenticated == true);
             });
 
-            options.AddPolicy(SmkDocPolicies.CanManageDataConnections, policy =>
+            options.AddPolicy(AuthorizationPolicies.CanManageDataConnections, policy =>
             {
                 policy.RequireAssertion(ctx =>
                     ctx.User.IsInRole(RoleConstants.Admin) ||
                     ctx.User.IsInRole(RoleConstants.SuperAdmin));
             });
 
-            options.AddPolicy(SmkDocPolicies.CanManageDatasets, policy =>
+            options.AddPolicy(AuthorizationPolicies.CanManageDatasets, policy =>
             {
                 policy.RequireAssertion(ctx =>
                     ctx.User.IsInRole("Author") ||

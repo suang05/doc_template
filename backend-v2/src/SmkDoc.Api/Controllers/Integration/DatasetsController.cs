@@ -16,11 +16,11 @@ namespace SmkDoc.Api.Controllers.Integration;
 
 /// <summary>
 /// SQL dataset definitions for query execution and template data binding.
-/// Auth: Author, Developer, Admin, SuperAdmin, or M2M ReadWrite scope via SmkDocPolicies.CanManageDatasets.
+/// Auth: Author, Developer, Admin, SuperAdmin, or M2M ReadWrite scope via AuthorizationPolicies.CanManageDatasets.
 /// </summary>
 [ApiController]
 [Route("api/v1/datasets")]
-[Authorize(Policy = SmkDocPolicies.CanManageDatasets)]
+[Authorize(Policy = AuthorizationPolicies.CanManageDatasets)]
 [ProducesResponseType(StatusCodes.Status401Unauthorized)]
 [ProducesResponseType(StatusCodes.Status403Forbidden)]
 public sealed class DatasetsController(
