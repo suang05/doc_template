@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
 using SmkDoc.Api.Authentication;
+using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.Constants;
 using SmkDoc.Api.ExceptionHandlers;
 using SmkDoc.Api.Filters;
@@ -26,8 +27,7 @@ public static class ServiceCollectionExtensions
         IConfiguration configuration)
     {
         services.AddMemoryCache();
-        services.AddProblemDetails();
-        services.AddExceptionHandler<GlobalExceptionHandler>();
+        services.AddApiProblemDetails();
 
         services.AddApiControllers();
         services.AddApiCors(configuration);
@@ -35,6 +35,23 @@ public static class ServiceCollectionExtensions
         services.AddApiOpenApi();
         services.AddApiRateLimiting(configuration);
         services.AddApiHealthChecks(configuration);
+
+        return services;
+    }
+
+    private static IServiceCollection AddApiProblemDetails(this IServiceCollection services)
+    {
+        services.AddProblemDetails(options =>
+        {
+            options.CustomizeProblemDetails = context =>
+            {
+                context.ProblemDetails.Instance ??= context.HttpContext.Request.Path;
+                var errorCode = SmkDocProblemDetailsFactory.ResolveDefaultErrorCode(context.ProblemDetails.Status);
+                context.ProblemDetails.Extensions.TryAdd("errorCode", errorCode);
+                context.ProblemDetails.Extensions.TryAdd("traceId", context.HttpContext.TraceIdentifier);
+            };
+        });
+        services.AddExceptionHandler<GlobalExceptionHandler>();
 
         return services;
     }
@@ -339,13 +356,13 @@ public static class ServiceCollectionExtensions
                 }
 
                 context.HttpContext.Response.ContentType = "application/problem+json";
-                var problemDetails = new ProblemDetails
-                {
-                    Status = StatusCodes.Status429TooManyRequests,
-                    Title = "Too Many Requests",
-                    Type = "https://datatracker.ietf.org/doc/html/rfc6585#section-4",
-                    Detail = "Rate limit exceeded. Maximum 60 requests per minute per caller partition."
-                };
+                var problemDetails = SmkDocProblemDetailsFactory.Create(
+                    status: StatusCodes.Status429TooManyRequests,
+                    title: "Too Many Requests",
+                    detail: "Rate limit exceeded. Maximum 60 requests per minute per caller partition.",
+                    errorCode: "RATE_LIMIT_EXCEEDED",
+                    instance: context.HttpContext.Request.Path,
+                    traceId: context.HttpContext.TraceIdentifier);
                 await context.HttpContext.Response.WriteAsJsonAsync(problemDetails, ct);
             };
         });

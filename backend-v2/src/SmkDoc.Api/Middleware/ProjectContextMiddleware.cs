@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.Constants;
 using SmkDoc.Api.OpenApi;
 using SmkDoc.Application.Common.Interfaces;
@@ -431,14 +432,15 @@ public sealed class ProjectContextMiddleware(
         context.Response.StatusCode = statusCode;
         context.Response.ContentType = "application/problem+json";
 
-        var problemDetails = new
-        {
-            type,
-            title,
-            status = statusCode,
-            detail,
-            instance = context.Request.Path.Value
-        };
+        var errorCode = SmkDocProblemDetailsFactory.ResolveDefaultErrorCode(statusCode);
+        var problemDetails = SmkDocProblemDetailsFactory.Create(
+            status: statusCode,
+            title: title,
+            detail: detail,
+            errorCode: errorCode,
+            instance: context.Request.Path.Value,
+            traceId: context.TraceIdentifier);
+        problemDetails.Type = type;
 
         await context.Response.WriteAsJsonAsync(
             problemDetails,

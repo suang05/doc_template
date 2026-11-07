@@ -83,6 +83,7 @@ public sealed class SmkDocDocumentTransformer(IConfiguration configuration) : IO
             ["detail"] = new OpenApiSchema { Type = JsonSchemaType.String, Description = "Human-readable explanation with remediation guidance." },
             ["instance"] = new OpenApiSchema { Type = JsonSchemaType.String, Description = "Request path that produced the problem." },
             ["errorCode"] = new OpenApiSchema { Type = JsonSchemaType.String, Description = "Stable machine-readable error code." },
+            ["traceId"] = new OpenApiSchema { Type = JsonSchemaType.String, Description = "Correlation trace identifier for observability and log lookup." },
             ["errors"] = BuildFieldErrorsSchema()
         }
     };

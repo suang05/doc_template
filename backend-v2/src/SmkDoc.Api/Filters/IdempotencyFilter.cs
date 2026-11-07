@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using SmkDoc.Api.Common.Responses;
 using SmkDoc.Application.Common.Interfaces;
 
 namespace SmkDoc.Api.Filters;
@@ -47,15 +48,13 @@ public sealed class IdempotencyFilter(
         {
             if (mandatory)
             {
-                var problemDetails = new ProblemDetails
-                {
-                    Status = StatusCodes.Status400BadRequest,
-                    Title = "Missing Idempotency-Key",
-                    Detail = "The 'Idempotency-Key' request header is required for this operation.",
-                    Instance = context.HttpContext.Request.Path,
-                    Type = "https://api.sammakorn.co.th/errors/missing-idempotency-key"
-                };
-                problemDetails.Extensions["errorCode"] = "MISSING_IDEMPOTENCY_KEY";
+                var problemDetails = SmkDocProblemDetailsFactory.Create(
+                    status: StatusCodes.Status400BadRequest,
+                    title: "Missing Idempotency-Key",
+                    detail: "The 'Idempotency-Key' request header is required for this operation.",
+                    errorCode: "MISSING_IDEMPOTENCY_KEY",
+                    instance: context.HttpContext.Request.Path,
+                    traceId: context.HttpContext.TraceIdentifier);
 
                 context.Result = new BadRequestObjectResult(problemDetails);
                 return;
@@ -88,15 +87,13 @@ public sealed class IdempotencyFilter(
             {
                 logger.LogWarning("Idempotency key {IdempotencyKey} is already in-flight for caller {CallerId}", idempotencyKey, callerId);
 
-                var conflictDetails = new ProblemDetails
-                {
-                    Status = StatusCodes.Status409Conflict,
-                    Title = "Request In-Flight",
-                    Detail = "A mutation request with this Idempotency-Key is currently being processed.",
-                    Instance = context.HttpContext.Request.Path,
-                    Type = "https://api.sammakorn.co.th/errors/idempotency-in-flight"
-                };
-                conflictDetails.Extensions["errorCode"] = "IDEMPOTENCY_IN_FLIGHT";
+                var conflictDetails = SmkDocProblemDetailsFactory.Create(
+                    status: StatusCodes.Status409Conflict,
+                    title: "Request In-Flight",
+                    detail: "A mutation request with this Idempotency-Key is currently being processed.",
+                    errorCode: "IDEMPOTENCY_IN_FLIGHT",
+                    instance: context.HttpContext.Request.Path,
+                    traceId: context.HttpContext.TraceIdentifier);
 
                 context.Result = new ConflictObjectResult(conflictDetails);
                 return;
@@ -110,15 +107,13 @@ public sealed class IdempotencyFilter(
                 {
                     logger.LogWarning("Idempotency key {IdempotencyKey} payload mismatch for caller {CallerId}", idempotencyKey, callerId);
 
-                    var mismatchDetails = new ProblemDetails
-                    {
-                        Status = StatusCodes.Status422UnprocessableEntity,
-                        Title = "Idempotency-Key Payload Mismatch",
-                        Detail = "This Idempotency-Key was previously used with a different request payload.",
-                        Instance = context.HttpContext.Request.Path,
-                        Type = "https://api.sammakorn.co.th/errors/idempotency-payload-mismatch"
-                    };
-                    mismatchDetails.Extensions["errorCode"] = "IDEMPOTENCY_PAYLOAD_MISMATCH";
+                    var mismatchDetails = SmkDocProblemDetailsFactory.Create(
+                        status: StatusCodes.Status422UnprocessableEntity,
+                        title: "Idempotency-Key Payload Mismatch",
+                        detail: "This Idempotency-Key was previously used with a different request payload.",
+                        errorCode: "IDEMPOTENCY_PAYLOAD_MISMATCH",
+                        instance: context.HttpContext.Request.Path,
+                        traceId: context.HttpContext.TraceIdentifier);
 
                     var mismatchResult = new ObjectResult(mismatchDetails)
                     {

@@ -1,67 +1,95 @@
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using SmkDoc.Api.Common.Responses;
 using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Domain.Exceptions;
 
 namespace SmkDoc.Api.ExceptionHandlers;
 
 /// <summary>
-/// Centralized ASP.NET Core exception handler (.NET 8/10) conforming to RFC 9457 Problem Details.
+/// Centralized ASP.NET Core exception handler (.NET 10) conforming to RFC 9457 Problem Details.
 /// Catches unhandled exceptions across the entire HTTP pipeline (Middlewares, UseCases, Controllers).
 /// </summary>
 public sealed class GlobalExceptionHandler(
     ILogger<GlobalExceptionHandler> logger,
     IProblemDetailsService problemDetailsService) : IExceptionHandler
 {
+    private const string UnexpectedErrorDetail = "An unexpected error occurred.";
+    private const string ConcurrencyConflictDetail =
+        "The resource was modified by another transaction while your request was processing. Please reload the latest state and retry.";
+
     /// <inheritdoc />
     public async ValueTask<bool> TryHandleAsync(
         HttpContext httpContext,
         Exception exception,
         CancellationToken cancellationToken)
     {
+        // Step 1: Map exception to HTTP status, title, and stable errorCode
         var (status, title, errorCode) = ResolveExceptionDetails(exception);
 
-        // 1. Semantic Logging (Zero string interpolation in log message templates)
+        // Step 2: Log semantically (4xx client warning vs 5xx server error)
+        LogException(exception, status, errorCode, httpContext.TraceIdentifier);
+
+        // Step 3: Build standardized RFC 9457 ProblemDetails with traceId and validation errors
+        var problemDetails = BuildProblemDetails(httpContext, exception, status, title, errorCode);
+
+        // Step 4: Write response to HTTP pipeline
+        await WriteResponseAsync(httpContext, problemDetails, exception, cancellationToken);
+        return true;
+    }
+
+    private void LogException(Exception exception, int status, string errorCode, string traceId)
+    {
         if (status >= StatusCodes.Status500InternalServerError)
         {
-            logger.LogError(exception, "Unhandled 5xx Server Error: {Message}", exception.Message);
-        }
-        else
-        {
-            logger.LogWarning("Handled 4xx Client/Domain Error [{ErrorCode}]: {Message}", errorCode, exception.Message);
+            logger.LogError(exception, "Unhandled 5xx Server Error [{ErrorCode}] (TraceId: {TraceId}): {Message}", errorCode, traceId, exception.Message);
+            return;
         }
 
-        // 2. Build RFC 9457 ProblemDetails
-        var problemDetails = new ProblemDetails
+        logger.LogWarning("Handled 4xx Client/Domain Error [{ErrorCode}] (TraceId: {TraceId}): {Message}", errorCode, traceId, exception.Message);
+    }
+
+    private static ProblemDetails BuildProblemDetails(
+        HttpContext httpContext,
+        Exception exception,
+        int status,
+        string title,
+        string errorCode) =>
+        SmkDocProblemDetailsFactory.Create(
+            status: status,
+            title: title,
+            detail: ResolveDetailMessage(exception, status),
+            errorCode: errorCode,
+            instance: httpContext.Request.Path,
+            traceId: httpContext.TraceIdentifier,
+            errors: ExtractValidationErrors(exception));
+
+    private static string ResolveDetailMessage(Exception exception, int status) =>
+        exception switch
         {
-            Status = status,
-            Title = title,
-            Type = $"https://api.sammakorn.co.th/errors/{errorCode.ToLowerInvariant().Replace('_', '-')}",
-            Instance = httpContext.Request.Path,
-            Detail = status == StatusCodes.Status500InternalServerError && exception is not DomainException
-                ? "An unexpected error occurred."
-                : exception.Message
+            DbUpdateConcurrencyException => ConcurrencyConflictDetail,
+            _ when status == StatusCodes.Status500InternalServerError && exception is not DomainException => UnexpectedErrorDetail,
+            _ => exception.Message
         };
 
-        problemDetails.Extensions["errorCode"] = errorCode;
-
-        // 3. Attach rich validation errors payload
-        if (exception is SchemaValidationException schemaEx)
+    private static object? ExtractValidationErrors(Exception exception) =>
+        exception switch
         {
-            problemDetails.Extensions["errors"] = schemaEx.Errors.Select(e => new
-            {
-                path = e.Field,
-                message = e.Message,
-                rule = e.Rule
-            }).ToArray();
-        }
-        else if (exception is ValidationException validationEx)
-        {
-            problemDetails.Extensions["errors"] = validationEx.Errors;
-        }
+            SchemaValidationException schemaEx => schemaEx.Errors
+                .Select(e => new { path = e.Field, message = e.Message, rule = e.Rule })
+                .ToArray(),
+            ValidationException validationEx => validationEx.Errors,
+            _ => null
+        };
 
-        // 4. Output response via IProblemDetailsService with fallback
-        httpContext.Response.StatusCode = status;
+    private async ValueTask WriteResponseAsync(
+        HttpContext httpContext,
+        ProblemDetails problemDetails,
+        Exception exception,
+        CancellationToken ct)
+    {
+        httpContext.Response.StatusCode = problemDetails.Status ?? StatusCodes.Status500InternalServerError;
         var written = await problemDetailsService.TryWriteAsync(new ProblemDetailsContext
         {
             HttpContext = httpContext,
@@ -71,33 +99,42 @@ public sealed class GlobalExceptionHandler(
 
         if (!written)
         {
-            await httpContext.Response.WriteAsJsonAsync(problemDetails, cancellationToken: cancellationToken);
+            await httpContext.Response.WriteAsJsonAsync(problemDetails, cancellationToken: ct);
         }
-
-        return true;
     }
 
     private static (int Status, string Title, string ErrorCode) ResolveExceptionDetails(Exception exception) =>
         exception switch
         {
-            PreconditionFailedException precond  => (StatusCodes.Status412PreconditionFailed, "Precondition Failed", precond.ErrorCode),
-            NotFoundException notFound           => (StatusCodes.Status404NotFound, "Not Found", notFound.ErrorCode),
-            DraftExpiredException draftExpired   => (StatusCodes.Status410Gone, "Draft Expired", draftExpired.ErrorCode),
-            ConflictException conflict           => (StatusCodes.Status409Conflict, "Conflict", conflict.ErrorCode),
-            ProjectDeactivatedException projDeact => (StatusCodes.Status403Forbidden, "Project Deactivated", projDeact.ErrorCode),
-            RenderException render               => (StatusCodes.Status500InternalServerError, "Render Failed", render.ErrorCode),
-            DataConnectionDecryptionException decrypt => (StatusCodes.Status500InternalServerError, "Data Connection Decryption Failed", decrypt.ErrorCode),
-            DatasetExecutionException datasetEx  => (StatusCodes.Status500InternalServerError, "Dataset Query Failed", datasetEx.ErrorCode),
+            DomainException domainEx => ResolveDomainException(domainEx),
+            PreconditionFailedException precond => (StatusCodes.Status412PreconditionFailed, "Precondition Failed", precond.ErrorCode),
             DistributedStateUnavailableException unavailable => (StatusCodes.Status503ServiceUnavailable, "Distributed State Unavailable", unavailable.ErrorCode),
-            UnauthorizedException unauthorized   => (StatusCodes.Status401Unauthorized, "Unauthorized", unauthorized.ErrorCode),
-            ForbiddenException forbidden         => (StatusCodes.Status403Forbidden, "Forbidden", forbidden.ErrorCode),
-            DomainValidationException domainVal  => (StatusCodes.Status400BadRequest, "Domain Validation Error", domainVal.ErrorCode),
-            BusinessRuleViolationException rule  => (StatusCodes.Status400BadRequest, "Business Rule Violation", rule.ErrorCode),
-            SchemaValidationException schema     => (StatusCodes.Status422UnprocessableEntity, "Schema Validation Failed", schema.ErrorCode),
-            ValidationException validation       => (StatusCodes.Status400BadRequest, "Validation Failed", validation.ErrorCode),
-            DomainException domain               => (StatusCodes.Status400BadRequest, "Domain Error", domain.ErrorCode),
-            UnauthorizedAccessException          => (StatusCodes.Status401Unauthorized, "Unauthorized", "UNAUTHORIZED"),
-            ArgumentException                    => (StatusCodes.Status400BadRequest, "Bad Request", "BAD_REQUEST"),
-            _                                    => (StatusCodes.Status500InternalServerError, "Internal Server Error", "INTERNAL_SERVER_ERROR")
+            DbUpdateConcurrencyException => (StatusCodes.Status409Conflict, "Concurrency Conflict", "CONCURRENCY_CONFLICT"),
+            UnauthorizedAccessException => (StatusCodes.Status401Unauthorized, "Unauthorized", "UNAUTHORIZED"),
+            ArgumentException => (StatusCodes.Status400BadRequest, "Bad Request", "BAD_REQUEST"),
+            _ => (StatusCodes.Status500InternalServerError, "Internal Server Error", "INTERNAL_SERVER_ERROR")
         };
+
+    private static (int Status, string Title, string ErrorCode) ResolveDomainException(DomainException exception)
+    {
+        var (status, title) = exception switch
+        {
+            NotFoundException => (StatusCodes.Status404NotFound, "Not Found"),
+            DraftExpiredException => (StatusCodes.Status410Gone, "Draft Expired"),
+            ConflictException => (StatusCodes.Status409Conflict, "Conflict"),
+            ProjectDeactivatedException => (StatusCodes.Status403Forbidden, "Project Deactivated"),
+            UnauthorizedException => (StatusCodes.Status401Unauthorized, "Unauthorized"),
+            ForbiddenException => (StatusCodes.Status403Forbidden, "Forbidden"),
+            SchemaValidationException => (StatusCodes.Status422UnprocessableEntity, "Schema Validation Failed"),
+            ValidationException => (StatusCodes.Status400BadRequest, "Validation Failed"),
+            DomainValidationException => (StatusCodes.Status400BadRequest, "Domain Validation Error"),
+            BusinessRuleViolationException => (StatusCodes.Status400BadRequest, "Business Rule Violation"),
+            RenderException => (StatusCodes.Status500InternalServerError, "Render Failed"),
+            DataConnectionDecryptionException => (StatusCodes.Status500InternalServerError, "Data Connection Decryption Failed"),
+            DatasetExecutionException => (StatusCodes.Status500InternalServerError, "Dataset Query Failed"),
+            _ => (StatusCodes.Status400BadRequest, "Domain Error")
+        };
+
+        return (status, title, exception.ErrorCode);
+    }
 }

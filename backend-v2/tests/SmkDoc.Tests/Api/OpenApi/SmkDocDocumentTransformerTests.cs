@@ -111,7 +111,7 @@ public sealed class SmkDocDocumentTransformerTests
 
         // Step 3: Assert
         var schema = document.Components!.Schemas![OpenApiNames.ProblemDetailsSchema];
-        schema.Properties.Should().ContainKeys("type", "title", "status", "detail", "instance", "errorCode", "errors");
+        schema.Properties.Should().ContainKeys("type", "title", "status", "detail", "instance", "errorCode", "traceId", "errors");
         schema.Properties!["errors"].OneOf.Should().HaveCount(2);
     }
 }

@@ -8915,6 +8915,10 @@
             "type": "string",
             "description": "Stable machine-readable error code."
           },
+          "traceId": {
+            "type": "string",
+            "description": "Correlation trace identifier for observability and log lookup."
+          },
           "errors": {
             "oneOf": [
               {

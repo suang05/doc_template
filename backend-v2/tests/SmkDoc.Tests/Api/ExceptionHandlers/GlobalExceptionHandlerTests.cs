@@ -1,5 +1,6 @@
-﻿using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using SmkDoc.Api.ExceptionHandlers;
 
@@ -9,7 +10,8 @@ public sealed class GlobalExceptionHandlerTests
 {
     private static async Task<(bool Handled, DefaultHttpContext HttpContext, ProblemDetails ProblemDetails)> ExecuteHandlerAsync(
         Exception exception,
-        string path = "/api/v1/templates/test")
+        string path = "/api/v1/templates/test",
+        string traceId = "trace-001")
     {
         ProblemDetails? capturedProblemDetails = null;
         var problemDetailsService = Substitute.For<IProblemDetailsService>();
@@ -21,7 +23,7 @@ public sealed class GlobalExceptionHandlerTests
             NullLogger<GlobalExceptionHandler>.Instance,
             problemDetailsService);
 
-        var httpContext = new DefaultHttpContext();
+        var httpContext = new DefaultHttpContext { TraceIdentifier = traceId };
         httpContext.Request.Path = path;
 
         var handled = await handler.TryHandleAsync(httpContext, exception, CancellationToken.None);
@@ -57,10 +59,29 @@ public sealed class GlobalExceptionHandlerTests
         httpContext.Response.StatusCode.Should().Be(expectedStatus);
         problemDetails.Should().NotBeNull();
         problemDetails.Status.Should().Be(expectedStatus);
-        problemDetails.Extensions.Should().ContainKey("errorCode");
-        problemDetails.Extensions["errorCode"].Should().Be(expectedErrorCode);
+        problemDetails.Extensions.Should().ContainKey("errorCode").WhoseValue.Should().Be(expectedErrorCode);
+        problemDetails.Extensions.Should().ContainKey("traceId").WhoseValue.Should().Be("trace-001");
         problemDetails.Type.Should().Be($"https://api.sammakorn.co.th/errors/{expectedErrorCode.ToLowerInvariant().Replace('_', '-')}");
         problemDetails.Instance.Should().Be("/api/v1/templates/test");
+    }
+
+    [Fact]
+    public async Task TryHandleAsync_ShouldMapDbUpdateConcurrencyExceptionTo409Conflict()
+    {
+        // Arrange
+        var ex = new DbUpdateConcurrencyException("Row was updated by another transaction.");
+
+        // Act
+        var (handled, httpContext, problemDetails) = await ExecuteHandlerAsync(ex, "/api/v1/templates/123", "trace-concurrency-99");
+
+        // Assert
+        handled.Should().BeTrue();
+        httpContext.Response.StatusCode.Should().Be(StatusCodes.Status409Conflict);
+        problemDetails.Status.Should().Be(StatusCodes.Status409Conflict);
+        problemDetails.Title.Should().Be("Concurrency Conflict");
+        problemDetails.Detail.Should().Be("The resource was modified by another transaction while your request was processing. Please reload the latest state and retry.");
+        problemDetails.Extensions["errorCode"].Should().Be("CONCURRENCY_CONFLICT");
+        problemDetails.Extensions["traceId"].Should().Be("trace-concurrency-99");
     }
 
     [Fact]
@@ -85,6 +106,7 @@ public sealed class GlobalExceptionHandlerTests
         problemDetails.Title.Should().Be("Schema Validation Failed");
         problemDetails.Extensions.Should().ContainKey("errorCode");
         problemDetails.Extensions["errorCode"].Should().Be("SCHEMA_VALIDATION_FAILED");
+        problemDetails.Extensions.Should().ContainKey("traceId");
         problemDetails.Extensions.Should().ContainKey("errors");
     }
 
@@ -109,6 +131,7 @@ public sealed class GlobalExceptionHandlerTests
         problemDetails.Status.Should().Be(StatusCodes.Status400BadRequest);
         problemDetails.Title.Should().Be("Validation Failed");
         problemDetails.Extensions["errorCode"].Should().Be("VALIDATION_FAILED");
+        problemDetails.Extensions["traceId"].Should().Be("trace-001");
         problemDetails.Extensions["errors"].Should().BeEquivalentTo(fieldErrors);
     }
 
@@ -137,8 +160,8 @@ public sealed class GlobalExceptionHandlerTests
         httpContext.Response.StatusCode.Should().Be(expectedStatus);
         problemDetails.Should().NotBeNull();
         problemDetails.Status.Should().Be(expectedStatus);
-        problemDetails.Extensions.Should().ContainKey("errorCode");
-        problemDetails.Extensions["errorCode"].Should().Be(expectedErrorCode);
+        problemDetails.Extensions.Should().ContainKey("errorCode").WhoseValue.Should().Be(expectedErrorCode);
+        problemDetails.Extensions.Should().ContainKey("traceId").WhoseValue.Should().Be("trace-001");
 
         if (expectedStatus == StatusCodes.Status500InternalServerError)
         {
