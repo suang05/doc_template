@@ -6,12 +6,12 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
-using Microsoft.OpenApi;
 using SmkDoc.Api.Authentication;
 using SmkDoc.Api.Constants;
 using SmkDoc.Api.ExceptionHandlers;
 using SmkDoc.Api.Filters;
 using SmkDoc.Api.HealthChecks;
+using SmkDoc.Api.OpenApi.Transformers;
 using SmkDoc.Api.RateLimiting;
 using SmkDoc.Infrastructure.Cache;
 using SmkDoc.Infrastructure.Persistence;
@@ -198,47 +198,8 @@ public static class ServiceCollectionExtensions
     {
         services.AddOpenApi("v1", options =>
         {
-            options.AddDocumentTransformer((document, context, ct) =>
-            {
-                document.Info = new OpenApiInfo
-                {
-                    Title = "SAMMAKORN Document Generation Service API",
-                    Version = "v2",
-                    Description =
-                        "Enterprise document generation microservice accepting JSON payloads and generating pixel-perfect PDF, DOCX, or XLSX output based on SDD v1.3."
-                };
-
-                var apiKeyScheme = new OpenApiSecurityScheme
-                {
-                    Description = "Enter API Key in header: X-API-Key",
-                    Name = "X-API-Key",
-                    In = ParameterLocation.Header,
-                    Type = SecuritySchemeType.ApiKey
-                };
-
-                var bearerScheme = new OpenApiSecurityScheme
-                {
-                    Description = "Enter JWT Bearer token: Authorization: Bearer <token>",
-                    Name = "Authorization",
-                    In = ParameterLocation.Header,
-                    Type = SecuritySchemeType.Http,
-                    Scheme = "bearer",
-                    BearerFormat = "JWT"
-                };
-
-                var components = document.Components ??= new OpenApiComponents();
-                components.SecuritySchemes ??= new Dictionary<string, IOpenApiSecurityScheme>();
-                components.SecuritySchemes["ApiKey"] = apiKeyScheme;
-                components.SecuritySchemes["Bearer"] = bearerScheme;
-
-                document.Security ??= [];
-                document.Security.Add(new OpenApiSecurityRequirement
-                {
-                    [new OpenApiSecuritySchemeReference("ApiKey")] = []
-                });
-
-                return Task.CompletedTask;
-            });
+            options.AddDocumentTransformer<SmkDocDocumentTransformer>();
+            options.AddOperationTransformer<SmkDocOperationTransformer>();
         });
 
         return services;

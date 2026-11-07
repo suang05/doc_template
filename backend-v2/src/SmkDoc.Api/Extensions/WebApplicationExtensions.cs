@@ -56,7 +56,7 @@ public static class WebApplicationExtensions
             options.WithTitle("SMK Document Server API")
                    .WithTheme(ScalarTheme.Moon);
         });
-        app.MapGet("/swagger", () => Results.Redirect("/scalar/v1"));
+        app.MapGet("/swagger", () => Results.Redirect("/scalar/v1")).ExcludeFromDescription();
 
         // 8. Health Check Endpoint
         app.MapHealthChecks("/health", new HealthCheckOptions
@@ -91,7 +91,7 @@ public static class WebApplicationExtensions
                 Openapi: "/openapi/v1.json");
 
             return Results.Ok(response);
-        });
+        }).ExcludeFromDescription();
 
         return app;
     }

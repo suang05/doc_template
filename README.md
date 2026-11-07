@@ -681,6 +681,29 @@ npm run lint
 
 [`tests/`](tests/) เก็บ HTTP scenarios (`tests/http`), ชุดทดสอบเอกสารจริง (`tests/scenarios`) และรายงานผล (`tests/reports`)
 
+### OpenAPI contract workflow
+
+`specs/openapi.json` **ถูก generate จากโค้ดตอน `dotnet build`** (OAS 3.1.1) — ห้ามแก้มือ
+ทุก operation มี `operationId` แบบ `{Controller}_{Action}`, error ทั้งหมดเป็น `application/problem+json`
+และ security เป็น `ApiKey` หรือ `Bearer` (route สาธารณะ override เป็น `security: []`)
+
+```powershell
+# regenerate + drift check + lint + breaking-change check (ต้องมี Node.js; oasdiff เป็น optional)
+pwsh tools/openapi/check-openapi.ps1
+
+# เปิดใช้เป็น pre-push hook (ทำครั้งเดียวต่อ clone)
+git config core.hooksPath .githooks
+```
+
+| ขั้น | เครื่องมือ | fail เมื่อ |
+|------|-----------|-----------|
+| Drift | `git diff --exit-code specs/openapi.json` หลัง build | spec เปลี่ยนแต่ยังไม่ commit |
+| Lint | Redocly CLI + [`redocly.yaml`](redocly.yaml) | ผิดกฎ (ไม่มี operationId, ไม่ใช่ problem+json ฯลฯ) |
+| Breaking | [`oasdiff`](https://github.com/oasdiff/oasdiff) เทียบกับ `origin/main` | ลบ/เปลี่ยน contract ที่ client ใช้อยู่ |
+
+> [!NOTE]
+> ยังไม่มี CI pipeline ใน repo — gate นี้รัน local/pre-push เท่านั้น ควรเรียก script เดียวกันนี้จาก CI เมื่อมี
+
 ---
 
 ## 📁 Project Structure
@@ -713,7 +736,9 @@ smk-doc-server/
 │   └── __tests__/                   vitest
 ├── specs/                           Architecture blueprints + openapi.json
 ├── tests/                           HTTP scenarios, fixtures, reports
-├── tools/                           Test-fixture generators
+├── tools/                           Test-fixture generators + openapi/check-openapi.ps1 (contract gate)
+├── redocly.yaml                     OpenAPI lint rules
+├── .githooks/                       Opt-in git hooks (pre-push → OpenAPI gate)
 ├── docker-compose.v2.yml            Full stack
 ├── AGENTS.md                        Engineering rules for contributors / AI agents
 └── README.md
