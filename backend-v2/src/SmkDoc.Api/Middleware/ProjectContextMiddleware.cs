@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
@@ -8,6 +9,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using SmkDoc.Api.Constants;
+using SmkDoc.Api.OpenApi;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Queries.ValidateApiKey;
@@ -416,9 +418,7 @@ public sealed class ProjectContextMiddleware(
             || path.StartsWith("/openapi", StringComparison.OrdinalIgnoreCase)
             || path.StartsWith("/swagger", StringComparison.OrdinalIgnoreCase)
             || path.StartsWith("/docs", StringComparison.OrdinalIgnoreCase)
-            || path.StartsWith("/api/v1/auth/login", StringComparison.OrdinalIgnoreCase)
-            || path.StartsWith("/api/v1/auth/refresh", StringComparison.OrdinalIgnoreCase)
-            || path.StartsWith("/api/v1/schemas/validate", StringComparison.OrdinalIgnoreCase);
+            || OpenApiNames.PublicRoutes.Any(route => path.StartsWith(route, StringComparison.OrdinalIgnoreCase));
     }
 
     private static async Task WriteProblemDetailsAsync(

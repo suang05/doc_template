@@ -425,7 +425,7 @@ Job สำเร็จเมื่อ `status` เปลี่ยนเป็น
 | GET | `/templates/{id}/studio` · `/studio/bundle` · `/schema` | ข้อมูลสำหรับ Studio / inferred JSON Schema |
 | POST | `/templates/draft/parse` | parse ไฟล์ที่อัปโหลดเป็น draft |
 | POST | `/templates/draft/{draftId}/preview` · `/commit` | preview / commit draft เป็น template |
-| POST | `/templates/{id}/validate` · `/templates/{slug}/validate` | validate + dry-run render |
+| POST | `/templates/{id}/validate` | validate HTML syntax และ Handlebars tags |
 | POST | `/templates/{slug}/validate-payload` | validate payload กับ schema ของ template |
 | GET, POST | `/templates/scan-fields`, `/templates/{id}/scan-fields` | สแกน `{{placeholder}}` |
 | GET, PUT | `/templates/{id}/mappings` | อ่าน / บันทึก mapping |

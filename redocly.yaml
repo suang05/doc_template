@@ -16,21 +16,17 @@ rules:
   security-defined: error
   path-parameters-defined: error
   no-unresolved-refs: error
+  no-unused-components: error
+  no-identical-paths: error
 
   # --- Error contract: every 4xx must be RFC 9457 problem+json (blocking) --
   operation-4xx-problem-details-rfc7807: error
 
   # --- Tracked debt --------------------------------------------------------
-  no-unused-components: warn
   no-ambiguous-paths: warn   # MVC route constraints (e.g. {id:guid}) are not expressible in OAS
-  # Known contract issue: POST /templates/{slug}/validate and /templates/{id}/validate differ only by
-  # parameter name. Valid in MVC (guid constraint) but ambiguous in OAS. Decide whether to drop the
-  # {slug}/validate alias (breaking) - then promote this rule back to error.
-  no-identical-paths: warn
 
   # --- Not applicable: internal service, contact/license live in the repo ---
   info-license: off
   info-contact: off
   tag-description: off
   operation-description: off
-

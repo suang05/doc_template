@@ -43,10 +43,20 @@ public static class ServiceCollectionExtensions
     {
         var jsonEnumConverter = new JsonStringEnumConverter(JsonNamingPolicy.CamelCase);
 
-        services.AddControllers().AddJsonOptions(options =>
+        services.AddControllers(options =>
+        {
+            options.Filters.Add(new ProducesAttribute("application/json"));
+        }).AddJsonOptions(options =>
         {
             options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
+            options.JsonSerializerOptions.NumberHandling = JsonNumberHandling.Strict;
             options.JsonSerializerOptions.Converters.Add(jsonEnumConverter);
+        });
+
+        services.ConfigureHttpJsonOptions(options =>
+        {
+            options.SerializerOptions.NumberHandling = JsonNumberHandling.Strict;
+            options.SerializerOptions.Converters.Add(jsonEnumConverter);
         });
 
         services.AddScoped<IdempotencyFilter>();

@@ -35,7 +35,7 @@ public sealed class SmkDocDocumentTransformerTests
     }
 
     [Fact]
-    public async Task TransformAsync_NoConfiguredServer_UsesRelativeRoot()
+    public async Task TransformAsync_WhenNoServerConfigured_ShouldUseRelativeRoot()
     {
         // Step 1: Arrange
         var sut = CreateSut();
@@ -48,7 +48,7 @@ public sealed class SmkDocDocumentTransformerTests
     }
 
     [Fact]
-    public async Task TransformAsync_ConfiguredServer_UsesConfiguredUrl()
+    public async Task TransformAsync_WhenServerConfigured_ShouldUseConfiguredUrl()
     {
         // Step 1: Arrange
         var sut = CreateSut("https://api.example.com");
@@ -61,7 +61,7 @@ public sealed class SmkDocDocumentTransformerTests
     }
 
     [Fact]
-    public async Task TransformAsync_SetsSemanticVersion()
+    public async Task TransformAsync_WhenExecuted_ShouldSetSemanticVersion()
     {
         // Step 1: Arrange
         var sut = CreateSut();
@@ -74,7 +74,7 @@ public sealed class SmkDocDocumentTransformerTests
     }
 
     [Fact]
-    public async Task TransformAsync_DeclaresBothSecuritySchemes()
+    public async Task TransformAsync_WhenExecuted_ShouldDeclareBothSecuritySchemes()
     {
         // Step 1: Arrange
         var sut = CreateSut();
@@ -87,7 +87,7 @@ public sealed class SmkDocDocumentTransformerTests
     }
 
     [Fact]
-    public async Task TransformAsync_GlobalSecurity_IsApiKeyOrBearer()
+    public async Task TransformAsync_WhenExecuted_ShouldConfigureGlobalSecurityAsApiKeyOrBearer()
     {
         // Step 1: Arrange
         var sut = CreateSut();
@@ -101,7 +101,7 @@ public sealed class SmkDocDocumentTransformerTests
     }
 
     [Fact]
-    public async Task TransformAsync_RegistersProblemDetailsSchemaWithErrorCode()
+    public async Task TransformAsync_WhenExecuted_ShouldRegisterProblemDetailsSchemaWithOneOfFieldErrors()
     {
         // Step 1: Arrange
         var sut = CreateSut();
@@ -112,6 +112,6 @@ public sealed class SmkDocDocumentTransformerTests
         // Step 3: Assert
         var schema = document.Components!.Schemas![OpenApiNames.ProblemDetailsSchema];
         schema.Properties.Should().ContainKeys("type", "title", "status", "detail", "instance", "errorCode", "errors");
+        schema.Properties!["errors"].OneOf.Should().HaveCount(2);
     }
 }
-

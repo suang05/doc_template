@@ -68,7 +68,6 @@ public sealed class TemplateAssetController(
     /// Dry-run schema validation for an incoming payload against a published template's schema contract.
     /// Multi-tenant scoped. Zero side-effects (no DB write, no MinIO upload, no rendering).
     /// </summary>
-    [HttpPost("{slug}/validate")]
     [HttpPost("{slug}/validate-payload")]
     [ProducesResponseType(typeof(ApiResponse<ValidateTemplatePayloadResult>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]

@@ -39,6 +39,7 @@ public sealed class SmkDocOperationTransformer : IOpenApiOperationTransformer
 
         // Step 3: Headers
         ApplyIdempotencyHeader(operation, context.Description);
+        ApplyETagResponseHeader(operation);
 
         // Step 4: Error contract
         AddDefaultErrorResponses(operation, isPublic);
@@ -99,6 +100,24 @@ public sealed class SmkDocOperationTransformer : IOpenApiOperationTransformer
             Description = $"Client-generated unique key making retries safe. Completed responses are replayed for {idempotent.TtlHours} hours.",
             Schema = new OpenApiSchema { Type = JsonSchemaType.String }
         });
+    }
+
+    private static void ApplyETagResponseHeader(OpenApiOperation operation)
+    {
+        var hasIfMatch = operation.Parameters?.Any(parameter =>
+            parameter.In == ParameterLocation.Header &&
+            string.Equals(parameter.Name, OpenApiNames.IfMatchHeader, StringComparison.OrdinalIgnoreCase)) == true;
+        if (!hasIfMatch || operation.Responses is null || !operation.Responses.TryGetValue("200", out var okResponse) || okResponse is not OpenApiResponse concreteResponse)
+        {
+            return;
+        }
+
+        concreteResponse.Headers ??= new Dictionary<string, IOpenApiHeader>();
+        concreteResponse.Headers[OpenApiNames.ETagHeader] = new OpenApiHeader
+        {
+            Description = "Updated resource concurrency token (quoted rowversion).",
+            Schema = new OpenApiSchema { Type = JsonSchemaType.String }
+        };
     }
 
     private static void AddDefaultErrorResponses(OpenApiOperation operation, bool isPublic)

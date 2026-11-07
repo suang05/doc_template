@@ -5,7 +5,7 @@ namespace SmkDoc.Tests.Api.OpenApi;
 public sealed class OpenApiOperationIdFactoryTests
 {
     [Fact]
-    public void Create_ComposesControllerAndAction()
+    public void Create_WhenValidControllerAndAction_ShouldComposeOperationId()
     {
         // Step 1: Arrange
         const string controller = "DocumentGeneration";
@@ -19,7 +19,7 @@ public sealed class OpenApiOperationIdFactoryTests
     }
 
     [Fact]
-    public void Create_TrimsSurroundingWhitespace()
+    public void Create_WhenInputsContainSurroundingWhitespace_ShouldTrimSegments()
     {
         // Step 1: Arrange
         const string controller = " DocumentGeneration ";
@@ -34,7 +34,7 @@ public sealed class OpenApiOperationIdFactoryTests
     [Theory]
     [InlineData("", "Action")]
     [InlineData("Controller", " ")]
-    public void Create_BlankSegment_Throws(string controller, string action)
+    public void Create_WhenSegmentIsBlank_ShouldThrowArgumentException(string controller, string action)
     {
         // Step 1: Arrange
         var act = () => OpenApiOperationIdFactory.Create(controller, action);

@@ -55,8 +55,8 @@ public sealed class SmkDocDocumentTransformer(IConfiguration configuration) : IO
 
     private static OpenApiSecurityScheme BuildApiKeyScheme() => new()
     {
-        Description = "Machine-to-machine API key. Send it in the X-API-Key header.",
-        Name = "X-API-Key",
+        Description = $"Machine-to-machine API key. Send it in the {OpenApiNames.ApiKeyHeader} header.",
+        Name = OpenApiNames.ApiKeyHeader,
         In = ParameterLocation.Header,
         Type = SecuritySchemeType.ApiKey
     };
@@ -89,17 +89,33 @@ public sealed class SmkDocDocumentTransformer(IConfiguration configuration) : IO
 
     private static OpenApiSchema BuildFieldErrorsSchema() => new()
     {
-        Type = JsonSchemaType.Array,
-        Description = "Field-level validation errors (present on 400/422 validation failures).",
-        Items = new OpenApiSchema
-        {
-            Type = JsonSchemaType.Object,
-            Properties = new Dictionary<string, IOpenApiSchema>
+        Description = "Field-level validation errors: property-to-messages map on 400, or rule-violation list on 422.",
+        OneOf =
+        [
+            new OpenApiSchema
             {
-                ["path"] = new OpenApiSchema { Type = JsonSchemaType.String },
-                ["message"] = new OpenApiSchema { Type = JsonSchemaType.String },
-                ["rule"] = new OpenApiSchema { Type = JsonSchemaType.String }
+                Type = JsonSchemaType.Object,
+                AdditionalPropertiesAllowed = true,
+                AdditionalProperties = new OpenApiSchema
+                {
+                    Type = JsonSchemaType.Array,
+                    Items = new OpenApiSchema { Type = JsonSchemaType.String }
+                }
+            },
+            new OpenApiSchema
+            {
+                Type = JsonSchemaType.Array,
+                Items = new OpenApiSchema
+                {
+                    Type = JsonSchemaType.Object,
+                    Properties = new Dictionary<string, IOpenApiSchema>
+                    {
+                        ["path"] = new OpenApiSchema { Type = JsonSchemaType.String },
+                        ["message"] = new OpenApiSchema { Type = JsonSchemaType.String },
+                        ["rule"] = new OpenApiSchema { Type = JsonSchemaType.String }
+                    }
+                }
             }
-        }
+        ]
     };
 }

@@ -55,7 +55,7 @@ public sealed class SmkDocOperationTransformerTests
     };
 
     [Fact]
-    public async Task TransformAsync_SetsOperationIdFromControllerAndAction()
+    public async Task TransformAsync_WhenControllerAndActionPresent_ShouldSetOperationId()
     {
         // Step 1: Arrange
         var sut = CreateSut();
@@ -70,7 +70,7 @@ public sealed class SmkDocOperationTransformerTests
     }
 
     [Fact]
-    public async Task TransformAsync_PrefersRealMethodNameSoAsyncOverloadsStayUnique()
+    public async Task TransformAsync_WhenMethodInfoHasAsyncSuffix_ShouldPreferRealMethodName()
     {
         // Step 1: Arrange — MVC strips "Async" from the routed action name; the MethodInfo keeps it
         var sut = CreateSut();
@@ -95,7 +95,7 @@ public sealed class SmkDocOperationTransformerTests
     [InlineData("api/v1/auth/login")]
     [InlineData("api/v1/auth/refresh")]
     [InlineData("api/v1/schemas/validate")]
-    public async Task TransformAsync_PublicRoute_OverridesSecurityWithEmptyList(string relativePath)
+    public async Task TransformAsync_WhenRouteIsPublic_ShouldOverrideSecurityWithEmptyList(string relativePath)
     {
         // Step 1: Arrange
         var sut = CreateSut();
@@ -112,7 +112,7 @@ public sealed class SmkDocOperationTransformerTests
     }
 
     [Fact]
-    public async Task TransformAsync_ProtectedRoute_KeepsGlobalSecurityAndAddsAuthErrors()
+    public async Task TransformAsync_WhenRouteIsProtected_ShouldKeepGlobalSecurityAndAddAuthErrors()
     {
         // Step 1: Arrange
         var sut = CreateSut();
@@ -128,7 +128,7 @@ public sealed class SmkDocOperationTransformerTests
     }
 
     [Fact]
-    public async Task TransformAsync_ErrorResponses_UseProblemJsonWithProblemDetailsSchema()
+    public async Task TransformAsync_WhenErrorResponsesExist_ShouldUseProblemJsonWithProblemDetailsSchema()
     {
         // Step 1: Arrange
         var sut = CreateSut();
@@ -150,7 +150,7 @@ public sealed class SmkDocOperationTransformerTests
     }
 
     [Fact]
-    public async Task TransformAsync_ExistingErrorDescription_IsPreserved()
+    public async Task TransformAsync_WhenErrorResponseAlreadyHasDescription_ShouldPreserveDescription()
     {
         // Step 1: Arrange
         var sut = CreateSut();
@@ -165,7 +165,7 @@ public sealed class SmkDocOperationTransformerTests
     }
 
     [Fact]
-    public async Task TransformAsync_IdempotentAction_AddsOptionalIdempotencyKeyHeader()
+    public async Task TransformAsync_WhenActionIsIdempotent_ShouldAddOptionalIdempotencyKeyHeader()
     {
         // Step 1: Arrange
         var sut = CreateSut();
@@ -183,7 +183,7 @@ public sealed class SmkDocOperationTransformerTests
     }
 
     [Fact]
-    public async Task TransformAsync_MandatoryIdempotentAction_MarksHeaderRequired()
+    public async Task TransformAsync_WhenActionIsMandatoryIdempotent_ShouldMarkHeaderRequired()
     {
         // Step 1: Arrange
         var sut = CreateSut();
@@ -198,7 +198,7 @@ public sealed class SmkDocOperationTransformerTests
     }
 
     [Fact]
-    public async Task TransformAsync_NonIdempotentAction_AddsNoHeader()
+    public async Task TransformAsync_WhenActionIsNotIdempotent_ShouldNotAddIdempotencyHeader()
     {
         // Step 1: Arrange
         var sut = CreateSut();
@@ -210,5 +210,28 @@ public sealed class SmkDocOperationTransformerTests
 
         // Step 3: Assert
         operation.Parameters.Should().BeNullOrEmpty();
+    }
+
+    [Fact]
+    public async Task TransformAsync_WhenOperationHasIfMatchHeader_ShouldAddETagHeaderTo200Response()
+    {
+        // Step 1: Arrange
+        var sut = CreateSut();
+        var operation = CreateOperation();
+        operation.Parameters =
+        [
+            new OpenApiParameter
+            {
+                Name = OpenApiNames.IfMatchHeader,
+                In = ParameterLocation.Header
+            }
+        ];
+        var context = CreateContext("api/v1/templates/{id}", action: "Update");
+
+        // Step 2: Act
+        await sut.TransformAsync(operation, context, CancellationToken.None);
+
+        // Step 3: Assert
+        operation.Responses!["200"].Headers.Should().ContainKey(OpenApiNames.ETagHeader);
     }
 }

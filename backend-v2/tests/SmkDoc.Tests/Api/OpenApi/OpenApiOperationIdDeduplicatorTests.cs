@@ -26,7 +26,7 @@ public sealed class OpenApiOperationIdDeduplicatorTests
         document.Paths[path].Operations![HttpMethod.Get].OperationId!;
 
     [Fact]
-    public void Apply_UniqueIds_AreLeftUntouched()
+    public void Apply_WhenOperationIdsAreUnique_ShouldLeaveIdsUntouched()
     {
         // Step 1: Arrange
         var document = CreateDocument(("/api/v1/a", "A_One"), ("/api/v1/b", "B_Two"));
@@ -40,7 +40,7 @@ public sealed class OpenApiOperationIdDeduplicatorTests
     }
 
     [Fact]
-    public void Apply_AliasRoutes_ShortestPathKeepsBaseIdAndAliasGetsPathSuffix()
+    public void Apply_WhenRoutesAreAliased_ShouldKeepBaseIdOnShortestPathAndAppendPathSuffixToAlias()
     {
         // Step 1: Arrange
         var document = CreateDocument(
@@ -56,7 +56,7 @@ public sealed class OpenApiOperationIdDeduplicatorTests
     }
 
     [Fact]
-    public void Apply_AfterRenaming_AllIdsAreUnique()
+    public void Apply_WhenCollisionsExist_ShouldProduceAllUniqueIds()
     {
         // Step 1: Arrange
         var document = CreateDocument(
@@ -76,7 +76,7 @@ public sealed class OpenApiOperationIdDeduplicatorTests
     [InlineData("/api/v1/management/settings/fonts", "ManagementSettingsFonts")]
     [InlineData("/api/v1/templates/{id}/studio/bundle", "TemplatesIdStudioBundle")]
     [InlineData("/api/v1/templates/{slug}/validate-payload", "TemplatesSlugValidatePayload")]
-    public void BuildPathSuffix_StripsApiPrefixAndPascalCasesSegments(string path, string expected)
+    public void BuildPathSuffix_WhenGivenApiPath_ShouldStripApiPrefixAndPascalCaseSegments(string path, string expected)
     {
         // Step 1 & 2: Act
         var result = OpenApiOperationIdDeduplicator.BuildPathSuffix(path);
@@ -85,4 +85,3 @@ public sealed class OpenApiOperationIdDeduplicatorTests
         result.Should().Be(expected);
     }
 }
-

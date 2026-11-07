@@ -25,7 +25,7 @@ public sealed class SchemaController(
     /// <returns>ApiResponse containing <see cref="ValidateStandaloneSchemaResult"/>.</returns>
     [HttpPost("validate")]
     [ProducesResponseType(typeof(ApiResponse<ValidateStandaloneSchemaResult>), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Validate([FromBody] ValidateSchemaRequest request, CancellationToken ct)
     {
         var command = new ValidateStandaloneSchemaCommand(request.Schema, request.Payload);

@@ -24,11 +24,7 @@
             "name": "page",
             "in": "query",
             "schema": {
-              "pattern": "^-?(?:0|[1-9]\\d*)$",
-              "type": [
-                "integer",
-                "string"
-              ],
+              "type": "integer",
               "format": "int32",
               "default": 1
             }
@@ -37,11 +33,7 @@
             "name": "limit",
             "in": "query",
             "schema": {
-              "pattern": "^-?(?:0|[1-9]\\d*)$",
-              "type": [
-                "integer",
-                "string"
-              ],
+              "type": "integer",
               "format": "int32",
               "default": 50
             }
@@ -68,17 +60,7 @@
           "200": {
             "description": "OK",
             "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/PagedApiResponseOfGenerationLogDto"
-                }
-              },
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PagedApiResponseOfGenerationLogDto"
-                }
-              },
-              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PagedApiResponseOfGenerationLogDto"
                 }
@@ -157,17 +139,7 @@
           "200": {
             "description": "OK",
             "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfLogMetricsDto"
-                }
-              },
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfLogMetricsDto"
-                }
-              },
-              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseOfLogMetricsDto"
                 }
@@ -239,17 +211,7 @@
           "200": {
             "description": "OK",
             "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfLogPayloadResultDto"
-                }
-              },
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfLogPayloadResultDto"
-                }
-              },
-              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseOfLogPayloadResultDto"
                 }
@@ -321,17 +283,7 @@
           "200": {
             "description": "OK",
             "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfDownloadUrlResultDto"
-                }
-              },
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfDownloadUrlResultDto"
-                }
-              },
-              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseOfDownloadUrlResultDto"
                 }
@@ -590,17 +542,7 @@
           "200": {
             "description": "OK",
             "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfGenerateDocumentResultDto"
-                }
-              },
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfGenerateDocumentResultDto"
-                }
-              },
-              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseOfGenerateDocumentResultDto"
                 }
@@ -709,17 +651,7 @@
           "202": {
             "description": "Accepted",
             "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfDocumentJobDto"
-                }
-              },
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfDocumentJobDto"
-                }
-              },
-              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseOfDocumentJobDto"
                 }
@@ -801,17 +733,7 @@
           "200": {
             "description": "OK",
             "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfDocumentJobDto"
-                }
-              },
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfDocumentJobDto"
-                }
-              },
-              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseOfDocumentJobDto"
                 }
@@ -1056,17 +978,7 @@
           "200": {
             "description": "OK",
             "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfDocumentVersionDto"
-                }
-              },
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfDocumentVersionDto"
-                }
-              },
-              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfDocumentVersionDto"
                 }
@@ -1137,17 +1049,7 @@
           "200": {
             "description": "OK",
             "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfDocumentVersionDto"
-                }
-              },
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfDocumentVersionDto"
-                }
-              },
-              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfDocumentVersionDto"
                 }
@@ -1218,7 +1120,6 @@
             "in": "path",
             "required": true,
             "schema": {
-              "pattern": "^-?(?:0|[1-9]\\d*)$",
               "type": "integer",
               "format": "int32"
             }
@@ -1332,17 +1233,7 @@
           "200": {
             "description": "OK",
             "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfTestDataConnectionResultDto"
-                }
-              },
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfTestDataConnectionResultDto"
-                }
-              },
-              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseOfTestDataConnectionResultDto"
                 }
@@ -1413,17 +1304,7 @@
           "200": {
             "description": "OK",
             "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfDataConnectionResultDto"
-                }
-              },
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfDataConnectionResultDto"
-                }
-              },
-              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfDataConnectionResultDto"
                 }
@@ -1512,17 +1393,7 @@
           "201": {
             "description": "Created",
             "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfDataConnectionResultDto"
-                }
-              },
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfDataConnectionResultDto"
-                }
-              },
-              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseOfDataConnectionResultDto"
                 }
@@ -1604,17 +1475,7 @@
           "200": {
             "description": "OK",
             "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfDataConnectionResultDto"
-                }
-              },
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfDataConnectionResultDto"
-                }
-              },
-              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseOfDataConnectionResultDto"
                 }
@@ -1720,18 +1581,16 @@
           },
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "Updated resource concurrency token (quoted rowversion).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfDataConnectionResultDto"
-                }
-              },
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfDataConnectionResultDto"
-                }
-              },
-              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseOfDataConnectionResultDto"
                 }
@@ -1932,17 +1791,7 @@
           "200": {
             "description": "OK",
             "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfDryRunDatasetResultDto"
-                }
-              },
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfDryRunDatasetResultDto"
-                }
-              },
-              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseOfDryRunDatasetResultDto"
                 }
@@ -2013,17 +1862,7 @@
           "200": {
             "description": "OK",
             "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfDatasetResultDto"
-                }
-              },
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfDatasetResultDto"
-                }
-              },
-              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfDatasetResultDto"
                 }
@@ -2112,17 +1951,7 @@
           "201": {
             "description": "Created",
             "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfDatasetResultDto"
-                }
-              },
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfDatasetResultDto"
-                }
-              },
-              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseOfDatasetResultDto"
                 }
@@ -2194,17 +2023,7 @@
           "200": {
             "description": "OK",
             "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfDatasetResultDto"
-                }
-              },
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfDatasetResultDto"
-                }
-              },
-              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseOfDatasetResultDto"
                 }
@@ -2310,18 +2129,16 @@
           },
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "Updated resource concurrency token (quoted rowversion).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfDatasetResultDto"
-                }
-              },
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfDatasetResultDto"
-                }
-              },
-              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseOfDatasetResultDto"
                 }
@@ -2492,17 +2309,7 @@
           "200": {
             "description": "OK",
             "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfApiKeyDto"
-                }
-              },
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfApiKeyDto"
-                }
-              },
-              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfApiKeyDto"
                 }
@@ -2591,17 +2398,7 @@
           "201": {
             "description": "Created",
             "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfCreateApiKeyResultDto"
-                }
-              },
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfCreateApiKeyResultDto"
-                }
-              },
-              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseOfCreateApiKeyResultDto"
                 }
@@ -2785,17 +2582,7 @@
           "200": {
             "description": "OK",
             "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfApiKeyDto"
-                }
-              },
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfApiKeyDto"
-                }
-              },
-              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfApiKeyDto"
                 }
@@ -2893,17 +2680,7 @@
           "201": {
             "description": "Created",
             "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfCreateApiKeyResultDto"
-                }
-              },
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfCreateApiKeyResultDto"
-                }
-              },
-              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseOfCreateApiKeyResultDto"
                 }
@@ -3085,17 +2862,7 @@
           "200": {
             "description": "OK",
             "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfLoginResultDto"
-                }
-              },
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfLoginResultDto"
-                }
-              },
-              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseOfLoginResultDto"
                 }
@@ -3177,17 +2944,7 @@
           "200": {
             "description": "OK",
             "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfTokenResultDto"
-                }
-              },
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfTokenResultDto"
-                }
-              },
-              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseOfTokenResultDto"
                 }
@@ -3249,17 +3006,7 @@
           "200": {
             "description": "OK",
             "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfCurrentUserProfileResultDto"
-                }
-              },
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfCurrentUserProfileResultDto"
-                }
-              },
-              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseOfCurrentUserProfileResultDto"
                 }
@@ -3328,11 +3075,7 @@
             "name": "page",
             "in": "query",
             "schema": {
-              "pattern": "^-?(?:0|[1-9]\\d*)$",
-              "type": [
-                "integer",
-                "string"
-              ],
+              "type": "integer",
               "format": "int32",
               "default": 1
             }
@@ -3341,11 +3084,7 @@
             "name": "pageSize",
             "in": "query",
             "schema": {
-              "pattern": "^-?(?:0|[1-9]\\d*)$",
-              "type": [
-                "integer",
-                "string"
-              ],
+              "type": "integer",
               "format": "int32",
               "default": 20
             }
@@ -3365,17 +3104,7 @@
           "200": {
             "description": "OK",
             "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/PagedApiResponseOfProjectResultDto"
-                }
-              },
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PagedApiResponseOfProjectResultDto"
-                }
-              },
-              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PagedApiResponseOfProjectResultDto"
                 }
@@ -3464,17 +3193,7 @@
           "201": {
             "description": "Created",
             "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfProjectResultDto"
-                }
-              },
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfProjectResultDto"
-                }
-              },
-              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseOfProjectResultDto"
                 }
@@ -3566,17 +3285,7 @@
           "200": {
             "description": "OK",
             "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfProjectResultDto"
-                }
-              },
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfProjectResultDto"
-                }
-              },
-              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseOfProjectResultDto"
                 }
@@ -3752,17 +3461,7 @@
           "200": {
             "description": "OK",
             "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfUserResultDto"
-                }
-              },
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfUserResultDto"
-                }
-              },
-              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfUserResultDto"
                 }
@@ -3851,17 +3550,7 @@
           "201": {
             "description": "Created",
             "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfUserResultDto"
-                }
-              },
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfUserResultDto"
-                }
-              },
-              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseOfUserResultDto"
                 }
@@ -3979,18 +3668,16 @@
           },
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "Updated resource concurrency token (quoted rowversion).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfUserResultDto"
-                }
-              },
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfUserResultDto"
-                }
-              },
-              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseOfUserResultDto"
                 }
@@ -4234,17 +3921,7 @@
           "200": {
             "description": "OK",
             "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfUserResultDto"
-                }
-              },
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfUserResultDto"
-                }
-              },
-              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseOfUserResultDto"
                 }
@@ -4315,17 +3992,7 @@
           "200": {
             "description": "OK",
             "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfstring"
-                }
-              },
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfstring"
-                }
-              },
-              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfstring"
                 }
@@ -4409,17 +4076,7 @@
           "201": {
             "description": "Created",
             "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfUploadFontResultDto"
-                }
-              },
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfUploadFontResultDto"
-                }
-              },
-              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseOfUploadFontResultDto"
                 }
@@ -4490,17 +4147,7 @@
           "200": {
             "description": "OK",
             "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfstring"
-                }
-              },
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfstring"
-                }
-              },
-              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfstring"
                 }
@@ -4584,17 +4231,7 @@
           "201": {
             "description": "Created",
             "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfUploadFontResultDto"
-                }
-              },
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfUploadFontResultDto"
-                }
-              },
-              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseOfUploadFontResultDto"
                 }
@@ -4665,17 +4302,7 @@
           "200": {
             "description": "OK",
             "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfFontCatalogDto"
-                }
-              },
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfFontCatalogDto"
-                }
-              },
-              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseOfFontCatalogDto"
                 }
@@ -4736,17 +4363,7 @@
           "200": {
             "description": "OK",
             "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfFontCatalogDto"
-                }
-              },
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfFontCatalogDto"
-                }
-              },
-              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseOfFontCatalogDto"
                 }
@@ -4828,17 +4445,7 @@
           "200": {
             "description": "OK",
             "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfValidateStandaloneSchemaResult"
-                }
-              },
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfValidateStandaloneSchemaResult"
-                }
-              },
-              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseOfValidateStandaloneSchemaResult"
                 }
@@ -4980,17 +4587,7 @@
           "200": {
             "description": "OK",
             "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfScanFieldsResultDto"
-                }
-              },
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfScanFieldsResultDto"
-                }
-              },
-              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseOfScanFieldsResultDto"
                 }
@@ -5072,140 +4669,9 @@
           "200": {
             "description": "OK",
             "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfScanFieldsResultDto"
-                }
-              },
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseOfScanFieldsResultDto"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfScanFieldsResultDto"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not Found",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - missing or invalid credentials.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden - authenticated but not permitted.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too Many Requests - rate limit exceeded (see Retry-After header).",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal Server Error.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/templates/{slug}/validate": {
-      "post": {
-        "tags": [
-          "TemplateAsset"
-        ],
-        "summary": "Dry-run schema validation for an incoming payload against a published template's schema contract.\r\nMulti-tenant scoped. Zero side-effects (no DB write, no MinIO upload, no rendering).",
-        "operationId": "TemplateAsset_ValidatePayload",
-        "parameters": [
-          {
-            "name": "slug",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/JsonElement"
-              }
-            },
-            "text/json": {
-              "schema": {
-                "$ref": "#/components/schemas/JsonElement"
-              }
-            },
-            "application/*+json": {
-              "schema": {
-                "$ref": "#/components/schemas/JsonElement"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfValidateTemplatePayloadResult"
-                }
-              },
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfValidateTemplatePayloadResult"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfValidateTemplatePayloadResult"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
@@ -5269,7 +4735,7 @@
           "TemplateAsset"
         ],
         "summary": "Dry-run schema validation for an incoming payload against a published template's schema contract.\r\nMulti-tenant scoped. Zero side-effects (no DB write, no MinIO upload, no rendering).",
-        "operationId": "TemplateAsset_ValidatePayload_TemplatesSlugValidatePayload",
+        "operationId": "TemplateAsset_ValidatePayload",
         "parameters": [
           {
             "name": "slug",
@@ -5304,17 +4770,7 @@
           "200": {
             "description": "OK",
             "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfValidateTemplatePayloadResult"
-                }
-              },
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfValidateTemplatePayloadResult"
-                }
-              },
-              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseOfValidateTemplatePayloadResult"
                 }
@@ -5406,17 +4862,7 @@
           "200": {
             "description": "OK",
             "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfTemplateDatasetDto"
-                }
-              },
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfTemplateDatasetDto"
-                }
-              },
-              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfTemplateDatasetDto"
                 }
@@ -5512,18 +4958,16 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "Updated resource concurrency token (quoted rowversion).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfTemplateDatasetDto"
-                }
-              },
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfTemplateDatasetDto"
-                }
-              },
-              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfTemplateDatasetDto"
                 }
@@ -5629,17 +5073,7 @@
           "200": {
             "description": "OK",
             "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfParseDraftResultDto"
-                }
-              },
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfParseDraftResultDto"
-                }
-              },
-              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseOfParseDraftResultDto"
                 }
@@ -5845,17 +5279,7 @@
           "201": {
             "description": "Created",
             "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfCommitDraftResultDto"
-                }
-              },
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfCommitDraftResultDto"
-                }
-              },
-              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseOfCommitDraftResultDto"
                 }
@@ -5976,11 +5400,7 @@
             "name": "page",
             "in": "query",
             "schema": {
-              "pattern": "^-?(?:0|[1-9]\\d*)$",
-              "type": [
-                "integer",
-                "string"
-              ],
+              "type": "integer",
               "format": "int32",
               "default": 1
             }
@@ -5989,11 +5409,7 @@
             "name": "pageSize",
             "in": "query",
             "schema": {
-              "pattern": "^-?(?:0|[1-9]\\d*)$",
-              "type": [
-                "integer",
-                "string"
-              ],
+              "type": "integer",
               "format": "int32",
               "default": 20
             }
@@ -6003,17 +5419,7 @@
           "200": {
             "description": "OK",
             "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/PagedApiResponseOfTemplateResultDto"
-                }
-              },
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PagedApiResponseOfTemplateResultDto"
-                }
-              },
-              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PagedApiResponseOfTemplateResultDto"
                 }
@@ -6126,17 +5532,7 @@
           "201": {
             "description": "Created",
             "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfTemplateResultDto"
-                }
-              },
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfTemplateResultDto"
-                }
-              },
-              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseOfTemplateResultDto"
                 }
@@ -6228,17 +5624,7 @@
           "200": {
             "description": "OK",
             "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfTemplateResultDto"
-                }
-              },
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfTemplateResultDto"
-                }
-              },
-              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseOfTemplateResultDto"
                 }
@@ -6344,18 +5730,16 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "Updated resource concurrency token (quoted rowversion).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfTemplateResultDto"
-                }
-              },
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfTemplateResultDto"
-                }
-              },
-              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseOfTemplateResultDto"
                 }
@@ -6547,17 +5931,7 @@
           "200": {
             "description": "OK",
             "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfFieldMappingDto"
-                }
-              },
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfFieldMappingDto"
-                }
-              },
-              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfFieldMappingDto"
                 }
@@ -6653,18 +6027,16 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "Updated resource concurrency token (quoted rowversion).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfFieldMappingDto"
-                }
-              },
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfFieldMappingDto"
-                }
-              },
-              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfFieldMappingDto"
                 }
@@ -6946,18 +6318,16 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "Updated resource concurrency token (quoted rowversion).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfSaveHtmlResultDto"
-                }
-              },
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfSaveHtmlResultDto"
-                }
-              },
-              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseOfSaveHtmlResultDto"
                 }
@@ -7039,17 +6409,7 @@
           "200": {
             "description": "OK",
             "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfTemplateStudioDto"
-                }
-              },
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfTemplateStudioDto"
-                }
-              },
-              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseOfTemplateStudioDto"
                 }
@@ -7121,17 +6481,7 @@
           "200": {
             "description": "OK",
             "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfTemplateStudioDto"
-                }
-              },
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfTemplateStudioDto"
-                }
-              },
-              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseOfTemplateStudioDto"
                 }
@@ -7203,17 +6553,7 @@
           "200": {
             "description": "OK",
             "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfTemplateSchemaDto"
-                }
-              },
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfTemplateSchemaDto"
-                }
-              },
-              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseOfTemplateSchemaDto"
                 }
@@ -7305,17 +6645,7 @@
           "200": {
             "description": "OK",
             "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfTemplateValidationResultDto"
-                }
-              },
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfTemplateValidationResultDto"
-                }
-              },
-              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseOfTemplateValidationResultDto"
                 }
@@ -7387,17 +6717,7 @@
           "200": {
             "description": "OK",
             "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfTemplateVersionDto"
-                }
-              },
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfTemplateVersionDto"
-                }
-              },
-              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfTemplateVersionDto"
                 }
@@ -7469,7 +6789,6 @@
             "in": "path",
             "required": true,
             "schema": {
-              "pattern": "^-?(?:0|[1-9]\\d*)$",
               "type": "integer",
               "format": "int32"
             }
@@ -7479,17 +6798,7 @@
           "200": {
             "description": "OK",
             "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfRollbackVersionResultDto"
-                }
-              },
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfRollbackVersionResultDto"
-                }
-              },
-              "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseOfRollbackVersionResultDto"
                 }
@@ -8022,16 +7331,6 @@
         },
         "description": "Standard API Response wrapper for successful requests that return data.\r\nEnforces the \"Envelope Pattern\" for consistent JSON schemas."
       },
-      "ApiResponseOfObject": {
-        "required": [
-          "data"
-        ],
-        "type": "object",
-        "properties": {
-          "data": { }
-        },
-        "description": "Standard API Response wrapper for successful requests that return data.\r\nEnforces the \"Envelope Pattern\" for consistent JSON schemas."
-      },
       "ApiResponseOfParseDraftResultDto": {
         "required": [
           "data"
@@ -8328,11 +7627,7 @@
             "type": "string"
           },
           "generationCount": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
+            "type": "integer",
             "format": "int32"
           }
         },
@@ -8503,11 +7798,7 @@
             "type": "string"
           },
           "cacheSeconds": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
+            "type": "integer",
             "format": "int32",
             "default": 0
           }
@@ -8677,11 +7968,7 @@
             "type": "string"
           },
           "cacheSeconds": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
+            "type": "integer",
             "format": "int32"
           },
           "createdAt": {
@@ -8804,11 +8091,7 @@
             "type": "string"
           },
           "version": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
+            "type": "integer",
             "format": "int32"
           },
           "templateVersionId": {
@@ -8854,11 +8137,7 @@
             "type": "string"
           },
           "expiresInSeconds": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
+            "type": "integer",
             "format": "int32",
             "default": 3600
           }
@@ -8903,11 +8182,7 @@
             ]
           },
           "maxSampleRows": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
+            "type": "integer",
             "format": "int32",
             "default": 5
           }
@@ -8940,19 +8215,11 @@
             }
           },
           "sampleCount": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
+            "type": "integer",
             "format": "int32"
           },
           "executionTimeMs": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
+            "type": "integer",
             "format": "int64"
           },
           "error": {
@@ -9015,11 +8282,7 @@
             ]
           },
           "sortOrder": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
+            "type": "integer",
             "format": "int32"
           },
           "dataSourceType": {
@@ -9115,7 +8378,11 @@
         }
       },
       "FontSource": {
-        "type": "integer"
+        "enum": [
+          "googleFonts",
+          "minIO",
+          "system"
+        ]
       },
       "GenerateDocumentRequest": {
         "required": [
@@ -9175,11 +8442,7 @@
             "type": "string"
           },
           "fileSizeBytes": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
+            "type": "integer",
             "format": "int64"
           },
           "sha256": {
@@ -9257,29 +8520,21 @@
             ]
           },
           "fileSizeBytes": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
             "type": [
               "null",
-              "integer",
-              "string"
+              "integer"
             ],
             "format": "int64"
           },
           "pageCount": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
             "type": [
               "null",
-              "integer",
-              "string"
+              "integer"
             ],
             "format": "int32"
           },
           "durationMs": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
+            "type": "integer",
             "format": "int32"
           },
           "status": {
@@ -9361,11 +8616,7 @@
             "type": "string"
           },
           "expiresIn": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
+            "type": "integer",
             "format": "int32"
           },
           "user": {
@@ -9418,43 +8669,23 @@
         "type": "object",
         "properties": {
           "totalGenerations": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
+            "type": "integer",
             "format": "int32"
           },
           "successfulGenerations": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
+            "type": "integer",
             "format": "int32"
           },
           "failedGenerations": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
+            "type": "integer",
             "format": "int32"
           },
           "averageDurationMs": {
-            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
-            "type": [
-              "number",
-              "string"
-            ],
+            "type": "number",
             "format": "double"
           },
           "totalFileSizeBytes": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
+            "type": "integer",
             "format": "int64"
           },
           "topCallerApps": {
@@ -9561,35 +8792,19 @@
         "type": "object",
         "properties": {
           "page": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
+            "type": "integer",
             "format": "int32"
           },
           "limit": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
+            "type": "integer",
             "format": "int32"
           },
           "totalCount": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
+            "type": "integer",
             "format": "int32"
           },
           "totalPages": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
+            "type": "integer",
             "format": "int32"
           }
         },
@@ -9624,7 +8839,12 @@
         "description": "Result returned after step 1 (parsing) of draft upload."
       },
       "PlaceholderCategory": {
-        "type": "integer"
+        "enum": [
+          "scalar",
+          "tabular",
+          "object",
+          "system"
+        ]
       },
       "PreviewDocumentRequest": {
         "required": [
@@ -9696,22 +8916,35 @@
             "description": "Stable machine-readable error code."
           },
           "errors": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "path": {
-                  "type": "string"
-                },
-                "message": {
-                  "type": "string"
-                },
-                "rule": {
-                  "type": "string"
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "rule": {
+                      "type": "string"
+                    }
+                  }
                 }
               }
-            },
-            "description": "Field-level validation errors (present on 400/422 validation failures)."
+            ],
+            "description": "Field-level validation errors: property-to-messages map on 400, or rule-violation list on 422."
           }
         },
         "description": "RFC 9457 problem details returned for every 4xx/5xx response."
@@ -9780,11 +9013,7 @@
             ]
           },
           "id": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
+            "type": "integer",
             "format": "int32"
           }
         }
@@ -9796,11 +9025,7 @@
         "type": "object",
         "properties": {
           "version": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
+            "type": "integer",
             "format": "int32"
           }
         },
@@ -9843,11 +9068,7 @@
             ]
           },
           "sortOrder": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
+            "type": "integer",
             "format": "int32"
           },
           "dataSourceType": {
@@ -9909,11 +9130,7 @@
             ]
           },
           "sortOrder": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
+            "type": "integer",
             "format": "int32",
             "default": 0
           },
@@ -9982,11 +9199,7 @@
         "type": "object",
         "properties": {
           "version": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
+            "type": "integer",
             "format": "int32"
           }
         },
@@ -10008,11 +9221,7 @@
             "type": "string"
           },
           "sortOrder": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
+            "type": "integer",
             "format": "int32"
           }
         }
@@ -10112,11 +9321,7 @@
             "type": "string"
           },
           "sortOrder": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
+            "type": "integer",
             "format": "int32"
           }
         },
@@ -10147,11 +9352,7 @@
             ]
           },
           "id": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
+            "type": "integer",
             "format": "int32"
           }
         }
@@ -10168,38 +9369,22 @@
             "default": "portrait"
           },
           "marginTopMm": {
-            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
-            "type": [
-              "number",
-              "string"
-            ],
+            "type": "number",
             "format": "double",
             "default": 15
           },
           "marginBottomMm": {
-            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
-            "type": [
-              "number",
-              "string"
-            ],
+            "type": "number",
             "format": "double",
             "default": 15
           },
           "marginLeftMm": {
-            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
-            "type": [
-              "number",
-              "string"
-            ],
+            "type": "number",
             "format": "double",
             "default": 10
           },
           "marginRightMm": {
-            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
-            "type": [
-              "number",
-              "string"
-            ],
+            "type": "number",
             "format": "double",
             "default": 10
           },
@@ -10356,11 +9541,7 @@
             ]
           },
           "version": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
+            "type": "integer",
             "format": "int32"
           },
           "dataSchema": {
@@ -10403,11 +9584,7 @@
             ]
           },
           "version": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
+            "type": "integer",
             "format": "int32"
           },
           "pageSettings": {
@@ -10476,11 +9653,7 @@
             "format": "uuid"
           },
           "version": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
+            "type": "integer",
             "format": "int32"
           },
           "storageKey": {
@@ -10592,11 +9765,7 @@
             "type": "string"
           },
           "expiresIn": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
+            "type": "integer",
             "format": "int32",
             "default": 86400
           },
@@ -10665,11 +9834,7 @@
             "type": "string"
           },
           "cacheSeconds": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
+            "type": "integer",
             "format": "int32",
             "default": 0
           }
@@ -10864,11 +10029,7 @@
             "type": "string"
           },
           "version": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
+            "type": "integer",
             "format": "int32"
           },
           "message": {
