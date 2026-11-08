@@ -360,39 +360,8 @@ if (!projectContext.IsResolved)
 var activeProjectId = projectContext.ProjectId;
 ```
 
-### 3.4 Compile-Time EF Core Global Tenancy Filter Archetype
->> MANDATORY CANONICAL BLUEPRINT [RULE-SEC-004]:
-* Configures `HasQueryFilter` in `AppDbContext.OnModelCreating` checking `IsResolved` and matching `ProjectId`.
-* Ensures all entities implementing `IMustHaveProject` are automatically scoped to the active tenant in SQL.
-
-```csharp
-public partial class AppDbContext
-{
-    protected override void OnModelCreating(ModelBuilder modelBuilder)
-    {
-        base.OnModelCreating(modelBuilder);
-
-        // Step 1: Iterate Tenant Entities <Why: dynamically bind compile-time query filters>
-        foreach (var entityType in modelBuilder.Model.GetEntityTypes())
-        {
-            if (typeof(IMustHaveProject).IsAssignableFrom(entityType.ClrType))
-            {
-                var parameter = Expression.Parameter(entityType.ClrType, "e");
-                var projectProperty = Expression.Property(parameter, nameof(IMustHaveProject.ProjectId));
-                var currentTenantProperty = Expression.Property(Expression.Constant(_projectContext), nameof(ICurrentProjectContext.ProjectId));
-                var isResolvedProperty = Expression.Property(Expression.Constant(_projectContext), nameof(ICurrentProjectContext.IsResolved));
-
-                // Step 2: Combine Fail-Closed Conditions <Why: emit WHERE IsResolved AND ProjectId == TenantId>
-                var equalExpression = Expression.Equal(projectProperty, currentTenantProperty);
-                var combinedFilter = Expression.AndAlso(isResolvedProperty, equalExpression);
-
-                var lambda = Expression.Lambda(combinedFilter, parameter);
-                modelBuilder.Entity(entityType.ClrType).HasQueryFilter(lambda);
-            }
-        }
-    }
-}
-```
+### 3.4 Compile-Time EF Core Global Tenancy Filter Configuration
+>> SSoT DELEGATION: [Compile-Time EF Core Global Query Filter Mechanics] governed strictly by [database_persistence_and_schema_mechanics.md](./database_persistence_and_schema_mechanics.md#33-multi-tenant-global-query-filter-configuration-in-appdbcontext).
 
 ---
 

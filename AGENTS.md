@@ -229,9 +229,7 @@ specs/
 </unified_architectural_router>
 
 <specification_governance_and_evolution>
-# ==============================================================================
-# ARCHITECTURAL GOVERNANCE & BLUEPRINT EVOLUTION KERNEL
-# ==============================================================================
+# Architectural Governance & Blueprint Evolution Kernel
 
 ArchitectPersonaAndPurpose:
   RoleIdentity: "Principal AI System Architect & Blueprint Lawmaker"
@@ -320,9 +318,7 @@ AuthoringAndRepresentationStandards:
 </specification_governance_and_evolution>
 
 <verification_and_handoff_protocol>
-# ==============================================================================
-# DEFINITION OF DONE & ADAPTIVE HANDOFF PROTOCOL
-# ==============================================================================
+# Definition of Done & Adaptive Handoff Protocol
 
 TerminalVerificationCommands:
   BackendBuild: dotnet build backend-v2/SmkDocServerV2.slnx

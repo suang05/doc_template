@@ -179,26 +179,14 @@ public sealed class GotenbergHtmlRenderer(HttpClient httpClient)
 
 public sealed class ResponseDisposingStream(Stream innerStream, HttpResponseMessage response) : Stream
 {
-    public override bool CanRead => innerStream.CanRead;
-    public override bool CanSeek => innerStream.CanSeek;
-    public override bool CanWrite => innerStream.CanWrite;
-    public override long Length => innerStream.Length;
-    public override long Position { get => innerStream.Position; set => innerStream.Position = value; }
-
-    public override void Flush() => innerStream.Flush();
-    public override int Read(byte[] buffer, int offset, int count) => innerStream.Read(buffer, offset, count);
-    public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken ct) => innerStream.ReadAsync(buffer, offset, count, ct);
-    public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken ct = default) => innerStream.ReadAsync(buffer, ct);
-    public override long Seek(long offset, SeekOrigin origin) => innerStream.Seek(offset, origin);
-    public override void SetLength(long value) => innerStream.SetLength(value);
-    public override void Write(byte[] buffer, int offset, int count) => innerStream.Write(buffer, offset, count);
+    // Invariant: Pure delegating stream forwarders (CanRead, ReadAsync, Flush, Seek, etc.) pass through directly to innerStream.
 
     protected override void Dispose(bool disposing)
     {
         if (disposing)
         {
             innerStream.Dispose();
-            response.Dispose();
+            response.Dispose(); // Invariant: Releases underlying socket connection deterministically
         }
         base.Dispose(disposing);
     }
@@ -213,38 +201,38 @@ public sealed class ResponseDisposingStream(Stream innerStream, HttpResponseMess
 
 ```csharp
 [ApiController]
-[Route("api/v1/documents")]
+[Route("api/v1/{resources}")]
 [Authorize(Policy = AuthorizationPolicies.CanGenerateDocuments)]
-public sealed class DocumentGenerationController(
-    IUseCase<GenerateDocumentCommand, GenerateDocumentResultDto> generateUseCase,
-    IUseCase<PreviewDocumentQuery, Stream> previewUseCase,
-    IUseCase<EnqueueDocumentGenerationCommand, DocumentJobDto> enqueueJobUseCase,
-    IUseCase<GetDocumentJobQuery, DocumentJobDto> getJobUseCase) : ControllerBase
+public sealed class {Resource}RenderingController(
+    IUseCase<Generate{Resource}Command, {Resource}ResultDto> generateUseCase,
+    IUseCase<Preview{Resource}Query, Stream> previewUseCase,
+    IUseCase<Enqueue{Resource}JobCommand, DocumentJobDto> enqueueJobUseCase,
+    IUseCase<Get{Resource}JobQuery, DocumentJobDto> getJobUseCase) : ControllerBase
 {
-    // Track 1: Synchronous Live Preview & Instant Generation (Dedicated 30 req/min rate limit)
+    // Track 1: Synchronous Live Preview & Instant Generation (Dedicated "rendering" rate-limiting partition)
     [HttpPost("generate/{slug}")]
     [Idempotent]
     [EnableRateLimiting("rendering")]
-    [ProducesResponseType(typeof(ApiResponse<GenerateDocumentResultDto>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> Generate([FromRoute] string slug, [FromBody] GenerateDocumentRequest request, CancellationToken ct)
+    [ProducesResponseType(typeof(ApiResponse<{Resource}ResultDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> Generate([FromRoute] string slug, [FromBody] Generate{Resource}Request request, CancellationToken ct)
     {
         // Step 1: Translate Request to Command <Why: map transport payload to application command>
-        var command = new GenerateDocumentCommand(slug, request.Payload, request.OutputFormat, request.DocumentRef, request.ChangeNote, request.SkipValidation);
+        var command = new Generate{Resource}Command(slug, request.Payload, request.OutputFormat, request.DocumentRef, request.ChangeNote, request.SkipValidation);
 
         // Step 2: Execute UseCase <Why: execute synchronous document generation>
         var result = await generateUseCase.ExecuteAsync(command, ct);
 
         // Step 3: Envelope Egress <Why: standardized envelope with generation metadata>
-        return Ok(new ApiResponse<GenerateDocumentResultDto>(result));
+        return Ok(new ApiResponse<{Resource}ResultDto>(result));
     }
 
     [HttpPost("preview")]
     [EnableRateLimiting("rendering")]
     [Produces("application/pdf")]
-    public async Task<IActionResult> Preview([FromBody] PreviewDocumentRequest request, CancellationToken ct)
+    public async Task<IActionResult> Preview([FromBody] Preview{Resource}Request request, CancellationToken ct)
     {
         // Step 1: Translate Request to Query <Why: build ephemeral preview query>
-        var query = new PreviewDocumentQuery(request.Payload, request.Html, null);
+        var query = new Preview{Resource}Query(request.Payload, request.Html, null);
 
         // Step 2: Execute UseCase <Why: render ephemeral stream via Gotenberg>
         var result = await previewUseCase.ExecuteAsync(query, ct);
@@ -259,12 +247,12 @@ public sealed class DocumentGenerationController(
     [Idempotent]
     [EnableRateLimiting("rendering")]
     [ProducesResponseType(typeof(ApiResponse<DocumentJobDto>), StatusCodes.Status202Accepted)]
-    public async Task<IActionResult> GenerateAsync([FromRoute] string slug, [FromBody] GenerateDocumentRequest request, CancellationToken ct)
+    public async Task<IActionResult> GenerateAsync([FromRoute] string slug, [FromBody] Generate{Resource}Request request, CancellationToken ct)
     {
         // Step 1: Translate Request to Batch Command <Why: capture batch render request>
-        var command = new EnqueueDocumentGenerationCommand(slug, request.Payload, request.OutputFormat, request.DocumentRef, request.ChangeNote, request.SkipValidation);
+        var command = new Enqueue{Resource}JobCommand(slug, request.Payload, request.OutputFormat, request.DocumentRef, request.ChangeNote, request.SkipValidation);
 
-        // Step 2: Enqueue Job <Why: place job in Redis/Memory queue with backpressure>
+        // Step 2: Enqueue Job <Why: place job in queue with backpressure>
         var result = await enqueueJobUseCase.ExecuteAsync(command, ct);
 
         // Step 3: Return REST 202 Accepted <Why: provide job status polling URI>
@@ -277,7 +265,7 @@ public sealed class DocumentGenerationController(
     public async Task<IActionResult> GetJobStatus([FromRoute] Guid jobId, CancellationToken ct)
     {
         // Step 1: Query Job Status <Why: inspect background worker render progress>
-        var query = new GetDocumentJobQuery(jobId);
+        var query = new Get{Resource}JobQuery(jobId);
         var result = await getJobUseCase.ExecuteAsync(query, ct);
 
         // Step 2: Return Status Envelope <Why: client polling interface>
@@ -380,110 +368,62 @@ public static class ExcelPageSetupExtensions
 }
 ```
 
-### 3.6 Centralized ThaiDataTransformer Implementation
+### 3.6 Centralized ThaiDataTransformer Contract & Linguistic Invariants
 >> MANDATORY CANONICAL BLUEPRINT [RULE-MECH-004]:
-* Formats dates with Buddhist Era offset (+543 years) and Thai month names.
+* Formats dates strictly with Buddhist Era offset (+543 years) and formal Thai month names.
 * Converts numerical currency amounts to standardized Thai Baht text (`บาทถ้วน` or satang suffix).
-* Formats phone numbers to `0xx-xxx-xxxx` and national ID cards to `x-xxxx-xxxxx-xx-x`.
+* Enforces canonical mask formatting for phone numbers (`0xx-xxx-xxxx`) and national IDs (`x-xxxx-xxxxx-xx-x`).
+* Pure stateless static transformer; templates must never perform inline arithmetic or currency conversions.
 
 ```csharp
 public static class ThaiDataTransformer
 {
-    private static readonly string[] ThaiMonths =
-    [
-        "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
-        "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"
-    ];
-
-    private static readonly string[] ThaiDigits = ["ศูนย์", "หนึ่ง", "สอง", "สาม", "สี่", "ห้า", "หก", "เจ็ด", "แปด", "เก้า"];
-    private static readonly string[] ThaiUnits = ["", "สิบ", "ร้อย", "พัน", "หมื่น", "แสน", "ล้าน"];
+    // Linguistic Invariants:
+    // 1. Buddhist Era: Year + 543 with formal Thai month names (e.g. 21 ตุลาคม 2569).
+    // 2. Baht Text: Deterministic integer and satang conversion terminating with "บาทถ้วน" or "สตางค์".
+    // 3. Mask Enforcement: Pure numeric extraction before applying standard hyphenation delimiters.
 
     public static string FormatThaiDate(DateTimeOffset date)
     {
-        var day = date.Day;
-        var month = ThaiMonths[date.Month - 1];
         var buddhistYear = date.Year + 543;
-        return $"{day} {month} {buddhistYear}";
+        var monthName = ResolveThaiMonthName(date.Month);
+        return $"{date.Day} {monthName} {buddhistYear}";
     }
 
     public static string ToThaiBahtText(decimal amount)
     {
+        // Contract: Converts decimal to authoritative Thai Baht text (e.g. 1200.00m => "หนึ่งพันสองร้อยบาทถ้วน")
+        // Resolves integer baht words and decimal satang words, terminating with "ถ้วน" when satang is zero.
         if (amount == 0) return "ศูนย์บาทถ้วน";
-
-        var integerPart = (long)Math.Truncate(amount);
-        var decimalPart = (int)Math.Round((amount - integerPart) * 100);
-
-        var result = new StringBuilder();
-        if (integerPart > 0)
-        {
-            result.Append(ConvertNumberToThaiText(integerPart)).Append("บาท");
-        }
-
-        if (decimalPart > 0)
-        {
-            result.Append(ConvertNumberToThaiText(decimalPart)).Append("สตางค์");
-        }
-        else
-        {
-            result.Append("ถ้วน");
-        }
-
-        return result.ToString();
+        return ResolveBahtWords(amount);
     }
 
     public static string FormatPhone(string? phone)
     {
-        if (string.IsNullOrWhiteSpace(phone)) return string.Empty;
-        var digits = new string(phone.Where(char.IsDigit).ToArray());
+        // Contract: Extracts digits and standardizes to 0xx-xxx-xxxx (10 digits) or 0x-xxx-xxxx (9 digits).
+        var digits = ExtractDigits(phone);
         return digits.Length switch
         {
             10 => $"{digits[..3]}-{digits.Substring(3, 3)}-{digits[6..]}",
             9 => $"{digits[..2]}-{digits.Substring(2, 3)}-{digits[5..]}",
-            _ => phone
+            _ => phone ?? string.Empty
         };
     }
 
     public static string FormatThaiIdCard(string? idCard)
     {
-        if (string.IsNullOrWhiteSpace(idCard)) return string.Empty;
-        var digits = new string(idCard.Where(char.IsDigit).ToArray());
-        if (digits.Length != 13) return idCard;
-        return $"{digits[0]}-{digits.Substring(1, 4)}-{digits.Substring(5, 5)}-{digits.Substring(10, 2)}-{digits[12]}";
+        // Contract: Standardizes 13-digit Thai National ID to canonical mask x-xxxx-xxxxx-xx-x.
+        var digits = ExtractDigits(idCard);
+        return digits.Length == 13
+            ? $"{digits[0]}-{digits.Substring(1, 4)}-{digits.Substring(5, 5)}-{digits.Substring(10, 2)}-{digits[12]}"
+            : idCard ?? string.Empty;
     }
 
-    private static string ConvertNumberToThaiText(long number)
-    {
-        if (number == 0) return string.Empty;
-        var text = new StringBuilder();
-        var digits = number.ToString();
-        var len = digits.Length;
-
-        for (var i = 0; i < len; i++)
-        {
-            var digit = digits[i] - '0';
-            var unitIndex = (len - i - 1) % 6;
-
-            if (digit != 0)
-            {
-                if (unitIndex == 0 && digit == 1 && len > 1 && digits[i - 1] != '0')
-                    text.Append("เอ็ด");
-                else if (unitIndex == 1 && digit == 2)
-                    text.Append("ยี่");
-                else if (unitIndex == 1 && digit == 1) { } // Ten in Thai does not precede "หนึ่ง"
-                else
-                    text.Append(ThaiDigits[digit]);
-
-                text.Append(ThaiUnits[unitIndex]);
-            }
-
-            if (unitIndex == 0 && i < len - 1)
-            {
-                text.Append("ล้าน");
-            }
-        }
-
-        return text.ToString();
-    }
+    // Concrete linguistic dictionary tables and digit-stepping loop algorithms are encapsulated
+    // strictly in production implementation: SmkDoc.Application/Common/Helpers/ThaiDataTransformer.cs
+    private static string ResolveThaiMonthName(int month) => throw new NotImplementedException();
+    private static string ResolveBahtWords(decimal amount) => throw new NotImplementedException();
+    private static string ExtractDigits(string? input) => throw new NotImplementedException();
 }
 ```
 
