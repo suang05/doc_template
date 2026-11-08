@@ -1,3 +1,5 @@
+using SmkDoc.Application.Common.Interfaces;
+
 namespace SmkDoc.Application.Modules.Integration.DataConnections.DTOs;
 
 /// <summary>
@@ -9,7 +11,7 @@ public sealed record DataConnectionResultDto(
     string Provider,
     DateTimeOffset CreatedAt,
     DateTimeOffset? UpdatedAt,
-    string? ConcurrencyToken = null);
+    string? ConcurrencyToken = null) : IHasConcurrencyToken;
 
 /// <summary>
 /// Result returned after testing connectivity to an external database.

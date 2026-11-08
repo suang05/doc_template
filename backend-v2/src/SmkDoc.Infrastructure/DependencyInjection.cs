@@ -44,10 +44,14 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructureServices(this IServiceCollection services, IConfiguration configuration)
     {
-        // 2. Unified Channel-Agnostic Ambient Project & Caller Context
+        // 2. Unified Channel-Agnostic Ambient Project & Caller Context + Concurrency Context
         services.AddScoped<CurrentProjectContext>();
         services.AddScoped<ICurrentProjectContext>(sp => sp.GetRequiredService<CurrentProjectContext>());
         services.AddScoped<ICurrentProjectContextSetter>(sp => sp.GetRequiredService<CurrentProjectContext>());
+
+        services.AddScoped<ConcurrencyContext>();
+        services.AddScoped<IConcurrencyContext>(sp => sp.GetRequiredService<ConcurrencyContext>());
+        services.AddScoped<IConcurrencyContextSetter>(sp => sp.GetRequiredService<ConcurrencyContext>());
 
         // 3. Database
         string connectionString = configuration.GetConnectionString("DefaultConnection")
@@ -56,6 +60,7 @@ public static class DependencyInjection
                 "Database connection string is required. Set ConnectionStrings:DefaultConnection or DATABASE_URL.");
 
         services.AddScoped<TenantSecuritySaveChangesInterceptor>();
+        services.AddScoped<ConcurrencySaveChangesInterceptor>();
 
         services.AddDbContext<AppDbContext>((sp, options) =>
         {
@@ -63,7 +68,9 @@ public static class DependencyInjection
                 maxRetryCount: 5,
                 maxRetryDelay: TimeSpan.FromSeconds(10),
                 errorCodesToAdd: null));
-            options.AddInterceptors(sp.GetRequiredService<TenantSecuritySaveChangesInterceptor>());
+            options.AddInterceptors(
+                sp.GetRequiredService<TenantSecuritySaveChangesInterceptor>(),
+                sp.GetRequiredService<ConcurrencySaveChangesInterceptor>());
         });
 
         services.AddScoped<ITemplateRepository, TemplateRepository>();

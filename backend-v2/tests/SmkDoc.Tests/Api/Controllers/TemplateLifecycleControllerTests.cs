@@ -100,7 +100,7 @@ public sealed class TemplateLifecycleControllerTests
     }
 
     [Fact]
-    public async Task GetById_ShouldSetETagHeader()
+    public async Task GetById_ShouldReturnOkWithTemplate()
     {
         // Arrange
         var sut = CreateSut();
@@ -128,7 +128,8 @@ public sealed class TemplateLifecycleControllerTests
 
         // Assert
         var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
-        sut.Response.Headers.ETag.ToString().Should().Be($"\"{now.ToUnixTimeMilliseconds()}\"");
+        var body = okResult.Value.Should().BeOfType<ApiResponse<TemplateResultDto>>().Subject;
+        body.Data.Id.Should().Be(templateId);
     }
 
     [Fact]
@@ -165,7 +166,7 @@ public sealed class TemplateLifecycleControllerTests
     }
 
     [Fact]
-    public async Task UpdateMetadata_WithIfMatch_ShouldPassIfMatchAndSetETagHeader()
+    public async Task UpdateMetadata_ShouldExecuteCommandAndReturnOk()
     {
         // Arrange
         var sut = CreateSut();
@@ -186,20 +187,19 @@ public sealed class TemplateLifecycleControllerTests
             token);
 
         _updateTemplateDetailsUseCase.ExecuteAsync(
-            Arg.Is<UpdateTemplateDetailsCommand>(c => c.TemplateId == templateId && c.IfMatch == "\"12345\""),
+            Arg.Is<UpdateTemplateDetailsCommand>(c => c.TemplateId == templateId),
             Arg.Any<CancellationToken>())
             .Returns(resultDto);
 
         var request = new UpdateTemplateMetadataRequest("New Template Name", "Billing");
 
         // Act
-        var result = await sut.UpdateMetadata(templateId, request, "\"12345\"", CancellationToken.None);
+        var result = await sut.UpdateMetadata(templateId, request, CancellationToken.None);
 
         // Assert
         var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
         var body = okResult.Value.Should().BeOfType<ApiResponse<TemplateResultDto>>().Subject;
         body.Data.Name.Should().Be("New Template Name");
-        sut.Response.Headers.ETag.ToString().Should().Be($"\"{now.ToUnixTimeMilliseconds()}\"");
     }
 
     [Fact]
@@ -210,7 +210,7 @@ public sealed class TemplateLifecycleControllerTests
         var templateId = Guid.NewGuid();
 
         // Act
-        var result = await sut.Deactivate(templateId, null, CancellationToken.None);
+        var result = await sut.Deactivate(templateId, CancellationToken.None);
 
         // Assert
         await _deactivateTemplateUseCase.Received(1).ExecuteAsync(

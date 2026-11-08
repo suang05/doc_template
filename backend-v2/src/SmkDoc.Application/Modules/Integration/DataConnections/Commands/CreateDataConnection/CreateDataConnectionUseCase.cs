@@ -43,6 +43,6 @@ public sealed class CreateDataConnectionUseCase(
             entity.Provider.Name,
             entity.CreatedAt,
             entity.UpdatedAt,
-            (entity.UpdatedAt ?? entity.CreatedAt).ToUnixTimeMilliseconds().ToString());
+            entity.GetConcurrencyToken());
     }
 }

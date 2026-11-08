@@ -52,6 +52,6 @@ public sealed class CreateDatasetUseCase(
             entity.CacheSeconds,
             entity.CreatedAt,
             entity.UpdatedAt,
-            (entity.UpdatedAt ?? entity.CreatedAt).ToUnixTimeMilliseconds().ToString());
+            entity.GetConcurrencyToken());
     }
 }

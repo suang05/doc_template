@@ -142,7 +142,7 @@ public sealed class CreateTemplateUseCase(
             initialVersion.FileFormat?.Name,
             template.CreatedAt,
             template.UpdatedAt,
-            (template.UpdatedAt ?? template.CreatedAt).ToUnixTimeMilliseconds().ToString()
+            template.GetConcurrencyToken()
         );
     }
 }

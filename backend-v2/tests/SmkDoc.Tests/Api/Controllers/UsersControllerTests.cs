@@ -105,11 +105,10 @@ public sealed class UsersControllerTests
     }
 
     [Fact]
-    public async Task UpdateRole_WithIfMatchHeader_SetsETagAndReturnsOk()
+    public async Task UpdateRole_ReturnsOk()
     {
         // Arrange
         var targetUserId = Guid.NewGuid();
-        var ifMatch = "\"10001\"";
         var updatedDto = new UserResultDto(
             targetUserId,
             "user@sammakorn.co.th",
@@ -127,37 +126,35 @@ public sealed class UsersControllerTests
         var request = new UpdateUserRoleRequest("Admin");
 
         // Act
-        var result = await controller.UpdateRole(targetUserId, request, ifMatch, CancellationToken.None);
+        var result = await controller.UpdateRole(targetUserId, request, CancellationToken.None);
 
         // Assert
         var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
         var response = okResult.Value.Should().BeOfType<ApiResponse<UserResultDto>>().Subject;
         response.Data.Role.Should().Be("Admin");
-        controller.Response.Headers.ETag.ToString().Should().Be("\"10002\"");
 
         await _updateRoleUseCase.Received(1).ExecuteAsync(
-            Arg.Is<UpdateUserRoleCommand>(c => c.UserId == targetUserId && c.Role == "Admin" && c.IfMatch == ifMatch),
+            Arg.Is<UpdateUserRoleCommand>(c => c.UserId == targetUserId && c.Role == "Admin"),
             Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task Remove_PassesCurrentUserIdAndIfMatch_ReturnsNoContent()
+    public async Task Remove_PassesCurrentUserId_ReturnsNoContent()
     {
         // Arrange
         var targetUserId = Guid.NewGuid();
-        var ifMatch = "\"54321\"";
         _removeUseCase.ExecuteAsync(Arg.Any<RemoveUserCommand>(), Arg.Any<CancellationToken>())
             .Returns(Task.CompletedTask);
 
         var controller = CreateSut();
 
         // Act
-        var result = await controller.Remove(targetUserId, ifMatch, CancellationToken.None);
+        var result = await controller.Remove(targetUserId, CancellationToken.None);
 
         // Assert
         result.Should().BeOfType<NoContentResult>();
         await _removeUseCase.Received(1).ExecuteAsync(
-            Arg.Is<RemoveUserCommand>(c => c.UserId == targetUserId && c.CurrentUserId == _currentUserId && c.IfMatch == ifMatch),
+            Arg.Is<RemoveUserCommand>(c => c.UserId == targetUserId && c.CurrentUserId == _currentUserId),
             Arg.Any<CancellationToken>());
     }
 

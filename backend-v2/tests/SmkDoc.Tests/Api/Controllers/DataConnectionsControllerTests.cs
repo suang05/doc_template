@@ -80,7 +80,7 @@ public sealed class DataConnectionsControllerTests
     }
 
     [Fact]
-    public async Task GetById_WhenFound_ShouldReturnConnectionAndSetETag()
+    public async Task GetById_WhenFound_ShouldReturnConnection()
     {
         // Arrange
         var sut = CreateSut();
@@ -96,7 +96,6 @@ public sealed class DataConnectionsControllerTests
         var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
         var body = okResult.Value.Should().BeOfType<ApiResponse<DataConnectionResultDto>>().Subject;
         body.Data.Id.Should().Be(id);
-        sut.Response.Headers.ETag.ToString().Should().Be("\"12345\"");
     }
 
     [Fact]
@@ -141,38 +140,37 @@ public sealed class DataConnectionsControllerTests
     }
 
     [Fact]
-    public async Task Update_ShouldForwardIfMatchAndSetETagHeader()
+    public async Task Update_ShouldExecuteCommandAndReturnOk()
     {
         // Arrange
         var sut = CreateSut();
         var id = Guid.NewGuid();
         var dto = new DataConnectionResultDto(id, "Updated Connection", "PostgreSQL", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "8888");
-        _updateUseCase.ExecuteAsync(Arg.Is<UpdateDataConnectionCommand>(c => c.Id == id && c.IfMatch == "\"7777\""), Arg.Any<CancellationToken>())
+        _updateUseCase.ExecuteAsync(Arg.Is<UpdateDataConnectionCommand>(c => c.Id == id), Arg.Any<CancellationToken>())
             .Returns(dto);
 
         var request = new UpdateDataConnectionRequest("Updated Connection", "PostgreSQL", "Host=db;Database=erp");
 
         // Act
-        var result = await sut.Update(id, request, "\"7777\"", CancellationToken.None);
+        var result = await sut.Update(id, request, CancellationToken.None);
 
         // Assert
         var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
         var body = okResult.Value.Should().BeOfType<ApiResponse<DataConnectionResultDto>>().Subject;
         body.Data.Id.Should().Be(id);
-        sut.Response.Headers.ETag.ToString().Should().Be("\"8888\"");
     }
 
     [Fact]
-    public async Task Delete_ShouldForwardIfMatch()
+    public async Task Delete_ShouldExecuteCommandAndReturnNoContent()
     {
         // Arrange
         var sut = CreateSut();
         var id = Guid.NewGuid();
-        _deleteUseCase.ExecuteAsync(Arg.Is<DeleteDataConnectionCommand>(c => c.Id == id && c.IfMatch == "\"7777\""), Arg.Any<CancellationToken>())
+        _deleteUseCase.ExecuteAsync(Arg.Is<DeleteDataConnectionCommand>(c => c.Id == id), Arg.Any<CancellationToken>())
             .Returns(true);
 
         // Act
-        var result = await sut.Delete(id, "\"7777\"", CancellationToken.None);
+        var result = await sut.Delete(id, CancellationToken.None);
 
         // Assert
         result.Should().BeOfType<NoContentResult>();

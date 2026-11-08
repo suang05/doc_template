@@ -57,7 +57,7 @@ public sealed class ListApiKeysUseCase(
                     k.CreatedAt,
                     k.Scope.Name,
                     masked,
-                    ConcurrencyToken: (k.UpdatedAt ?? k.CreatedAt).ToUnixTimeMilliseconds().ToString());
+                    ConcurrencyToken: k.GetConcurrencyToken());
             })
             .ToList();
     }

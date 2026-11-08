@@ -20,7 +20,8 @@ public sealed class SaveTemplateHtmlUseCase(
     IUnitOfWork unitOfWork,
     ICurrentProjectContext projectContext,
     ISchemaInferenceService schemaInferenceService,
-    TimeProvider timeProvider) : IUseCase<SaveTemplateHtmlCommand, SaveHtmlResultDto>
+    TimeProvider timeProvider,
+    IConcurrencyContext? concurrencyContext = null) : IUseCase<SaveTemplateHtmlCommand, SaveHtmlResultDto>
 {
     public async Task<SaveHtmlResultDto> ExecuteAsync(SaveTemplateHtmlCommand command, CancellationToken ct = default)
     {
@@ -34,21 +35,10 @@ public sealed class SaveTemplateHtmlUseCase(
             ?? await templateRepo.GetByIdAsync(templateId, ct)
             ?? throw new NotFoundException($"Template '{command.TemplateId}' not found.");
 
-        if (!string.IsNullOrWhiteSpace(command.IfMatch) && command.IfMatch != "*")
-        {
-            var sanitizedMatch = command.IfMatch.Trim('\"', 'W', '/', ' ');
-            var currentVersion = template.CurrentVersion?.Version.ToString()
-                ?? template.FindPublishedVersion()?.Version.ToString()
-                ?? "0";
-            var currentToken = (template.UpdatedAt ?? template.CreatedAt).ToUnixTimeMilliseconds().ToString();
-
-            if (!string.Equals(sanitizedMatch, currentVersion, StringComparison.OrdinalIgnoreCase) &&
-                !string.Equals(sanitizedMatch, currentToken, StringComparison.OrdinalIgnoreCase))
-            {
-                throw new PreconditionFailedException(
-                    $"Precondition failed for template '{command.TemplateId}'. Version/ETag '{sanitizedMatch}' does not match current state.");
-            }
-        }
+        var currentVersion = template.CurrentVersion?.Version.ToString()
+            ?? template.FindPublishedVersion()?.Version.ToString()
+            ?? "0";
+        concurrencyContext?.EnsureMatches(template, currentVersion);
 
         int nextVersionNumber = template.GetNextVersionNumber();
         string versionedKey = StorageBuckets.TemplateVersionKey(template.ProjectId, template.Id, nextVersionNumber, ".html");

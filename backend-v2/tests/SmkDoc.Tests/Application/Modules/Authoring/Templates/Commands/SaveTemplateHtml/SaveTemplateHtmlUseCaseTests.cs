@@ -7,6 +7,7 @@ using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.ValueObjects.Ids;
+using SmkDoc.Infrastructure.Contexts;
 using SmkDoc.Tests.Common.Builders;
 
 namespace SmkDoc.Tests.Application.Modules.Authoring.Templates.Commands.SaveTemplateHtml;
@@ -19,6 +20,7 @@ public sealed class SaveTemplateHtmlUseCaseTests
     private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
     private readonly ISchemaInferenceService _schemaInference = Substitute.For<ISchemaInferenceService>();
     private readonly FakeTimeProvider _timeProvider = TestConstants.CreateFakeClock();
+    private readonly ConcurrencyContext _concurrencyContext = new();
 
     public SaveTemplateHtmlUseCaseTests()
     {
@@ -34,7 +36,8 @@ public sealed class SaveTemplateHtmlUseCaseTests
         _unitOfWork,
         _projectContext,
         _schemaInference,
-        _timeProvider);
+        _timeProvider,
+        _concurrencyContext);
 
     [Fact]
     public async Task ExecuteAsync_ShouldUploadOnlyImmutableVersionKey_ArchivePreviousVersion_AndCarryForwardMappingsSnapshot()
@@ -192,10 +195,10 @@ public sealed class SaveTemplateHtmlUseCaseTests
         _templateRepo.GetByIdWithDetailsAsync(new TemplateId(templateId), Arg.Any<CancellationToken>())
             .Returns(template);
 
+        _concurrencyContext.SetIfMatch("\"2\""); // Current version is 3, mismatch!
         var request = new SaveTemplateHtmlCommand(
             TemplateId: templateId,
-            Html: "<html><body>Hello</body></html>",
-            IfMatch: "\"2\"" // Current version is 3, mismatch!
+            Html: "<html><body>Hello</body></html>"
         );
 
         // Act
@@ -237,10 +240,10 @@ public sealed class SaveTemplateHtmlUseCaseTests
         _schemaInference.InferFromHtml(Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<string?>())
             .Returns(("{}", "{}"));
 
+        _concurrencyContext.SetIfMatch("\"3\""); // Matches version 3!
         var request = new SaveTemplateHtmlCommand(
             TemplateId: templateId,
-            Html: "<html><body>Hello</body></html>",
-            IfMatch: "\"3\"" // Matches version 3!
+            Html: "<html><body>Hello</body></html>"
         );
 
         // Act

@@ -1,5 +1,6 @@
 using SmkDoc.Domain.Common;
 using SmkDoc.Domain.Exceptions;
+using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.ValueObjects.Ids;
 
@@ -8,7 +9,7 @@ namespace SmkDoc.Domain.Entities;
 /// <summary>
 /// Aggregate root representing a business project / tenant boundary.
 /// </summary>
-public sealed class Project : BaseEntity<ProjectId>
+public sealed class Project : BaseEntity<ProjectId>, IConcurrencyAware
 {
     public CompanyId CompanyId { get; private set; }
     public ProjectName Name { get; private set; } = null!;

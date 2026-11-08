@@ -21,17 +21,6 @@ public sealed class UpdateDatasetUseCase(
         var entity = await datasetRepo.GetByIdAsync(new DatasetId(command.Id), ct)
             ?? throw new NotFoundException("Dataset", command.Id);
 
-        if (!string.IsNullOrWhiteSpace(command.IfMatch) && command.IfMatch != "*")
-        {
-            var currentToken = (entity.UpdatedAt ?? entity.CreatedAt).ToUnixTimeMilliseconds().ToString();
-            var sanitizedMatch = command.IfMatch.Trim('\"', 'W', '/', ' ');
-            if (!string.Equals(sanitizedMatch, currentToken, StringComparison.OrdinalIgnoreCase))
-            {
-                throw new PreconditionFailedException(
-                    $"Precondition failed for dataset '{command.Id}'. ETag '{sanitizedMatch}' does not match current state.");
-            }
-        }
-
         var connection = await connectionRepo.GetByIdAsync(new DataConnectionId(command.DataConnectionId), ct)
             ?? throw new NotFoundException($"DataConnection '{command.DataConnectionId}' not found.");
 
@@ -57,6 +46,6 @@ public sealed class UpdateDatasetUseCase(
             entity.CacheSeconds,
             entity.CreatedAt,
             entity.UpdatedAt,
-            (entity.UpdatedAt ?? entity.CreatedAt).ToUnixTimeMilliseconds().ToString());
+            entity.GetConcurrencyToken());
     }
 }

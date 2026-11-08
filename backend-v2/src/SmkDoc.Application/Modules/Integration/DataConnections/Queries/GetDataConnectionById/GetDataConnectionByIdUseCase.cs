@@ -20,6 +20,6 @@ public sealed class GetDataConnectionByIdUseCase(
             c.Provider.Name,
             c.CreatedAt,
             c.UpdatedAt,
-            (c.UpdatedAt ?? c.CreatedAt).ToUnixTimeMilliseconds().ToString());
+            c.GetConcurrencyToken());
     }
 }

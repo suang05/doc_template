@@ -72,12 +72,10 @@ public sealed class UsersController(
     public async Task<IActionResult> UpdateRole(
         [FromRoute] Guid userId,
         [FromBody] UpdateUserRoleRequest request,
-        [FromHeader(Name = "If-Match")] string? ifMatch,
         CancellationToken ct)
     {
-        var command = new UpdateUserRoleCommand(userId, request.Role, ifMatch);
+        var command = new UpdateUserRoleCommand(userId, request.Role);
         var result = await updateUserRoleUseCase.ExecuteAsync(command, ct);
-        Response.Headers.ETag = $"\"{result.ConcurrencyToken}\"";
         return Ok(new ApiResponse<UserResultDto>(result));
     }
 
@@ -92,11 +90,10 @@ public sealed class UsersController(
     [ProducesResponseType(StatusCodes.Status412PreconditionFailed)]
     public async Task<IActionResult> Remove(
         [FromRoute] Guid userId,
-        [FromHeader(Name = "If-Match")] string? ifMatch,
         CancellationToken ct)
     {
         var currentUserId = User.GetUserId();
-        var command = new RemoveUserCommand(userId, currentUserId, ifMatch);
+        var command = new RemoveUserCommand(userId, currentUserId);
         await removeUserUseCase.ExecuteAsync(command, ct);
         return NoContent();
     }

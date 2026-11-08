@@ -84,6 +84,6 @@ public sealed class CreateProjectUseCase(
             project.CreatedAt,
             readPlainKey,
             writePlainKey,
-            ConcurrencyToken: (project.UpdatedAt ?? project.CreatedAt).ToUnixTimeMilliseconds().ToString());
+            ConcurrencyToken: project.GetConcurrencyToken());
     }
 }

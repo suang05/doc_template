@@ -1,10 +1,21 @@
 namespace SmkDoc.Api.Common.Responses;
 
 /// <summary>
+/// Non-generic envelope contract enabling zero-reflection payload inspection in global filters.
+/// </summary>
+public interface IApiResponse
+{
+    object? Data { get; }
+}
+
+/// <summary>
 /// Standard API Response wrapper for successful requests that return data.
 /// Enforces the "Envelope Pattern" for consistent JSON schemas.
 /// </summary>
-public record ApiResponse<T>(T Data);
+public record ApiResponse<T>(T Data) : IApiResponse
+{
+    object? IApiResponse.Data => Data;
+}
 
 /// <summary>
 /// Standard pagination telemetry metadata envelope conforming to global REST API standards.

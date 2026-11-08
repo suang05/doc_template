@@ -12,7 +12,7 @@ namespace SmkDoc.Domain.Entities;
 /// Domain aggregate root representing a document template.
 /// Owns TemplateVersion, FieldMapping, and TemplateDataset child entities.
 /// </summary>
-public sealed class Template : BaseEntity<TemplateId>, IMustHaveProject
+public sealed class Template : BaseEntity<TemplateId>, IMustHaveProject, IConcurrencyAware
 {
     public ProjectId ProjectId { get; private set; }
     public TemplateName Name { get; private set; } = null!;
@@ -20,6 +20,9 @@ public sealed class Template : BaseEntity<TemplateId>, IMustHaveProject
     public string? Category { get; private set; }
     public bool IsActive { get; private set; }
     public Guid? CurrentVersionId { get; private set; }
+
+    string? IConcurrencyAware.GetAlternateConcurrencyToken() =>
+        CurrentVersion?.Version.ToString() ?? CurrentVersionId?.ToString();
 
     private readonly List<FieldMapping> _fieldMappings = new();
     private readonly List<TemplateVersion> _versions = new();

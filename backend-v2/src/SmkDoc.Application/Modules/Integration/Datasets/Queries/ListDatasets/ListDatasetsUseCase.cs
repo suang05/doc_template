@@ -41,7 +41,7 @@ public sealed class ListDatasetsUseCase(
                 d.CacheSeconds,
                 d.CreatedAt,
                 d.UpdatedAt,
-                (d.UpdatedAt ?? d.CreatedAt).ToUnixTimeMilliseconds().ToString());
+                d.GetConcurrencyToken());
         }).ToList();
     }
 }

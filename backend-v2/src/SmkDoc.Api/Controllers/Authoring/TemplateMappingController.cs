@@ -39,13 +39,12 @@ public sealed class TemplateMappingController(
     public async Task<IActionResult> SaveMappings(
         [FromRoute] Guid id,
         [FromBody] SaveTemplateMappingsRequest request,
-        [FromHeader(Name = "If-Match")] string? ifMatch,
         CancellationToken ct)
     {
         var mappings = (request.Mappings ?? []).Select(m => new SaveFieldMappingItemDto(
             m.Placeholder, m.SourcePath, m.Label, m.Required, m.DefaultValue, m.Transform,
             m.SortOrder, m.DataSourceType, m.DatasetAlias, m.ResultPath, m.MathExpression)).ToList();
-        var command = new SaveTemplateMappingsCommand(id, mappings, ifMatch);
+        var command = new SaveTemplateMappingsCommand(id, mappings);
         var result = await saveMappingsUseCase.ExecuteAsync(command, ct);
         return Ok(new ApiResponse<IEnumerable<FieldMappingDto>>(result));
     }

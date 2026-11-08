@@ -62,7 +62,6 @@ public sealed class TemplateLifecycleController(
     {
         var query = new GetTemplateByIdQuery(id);
         var result = await getTemplateByIdUseCase.ExecuteAsync(query, ct);
-        Response.Headers.ETag = $"\"{result.ConcurrencyToken}\"";
         return Ok(new ApiResponse<TemplateResultDto>(result));
     }
 
@@ -96,12 +95,10 @@ public sealed class TemplateLifecycleController(
     public async Task<IActionResult> UpdateMetadata(
         [FromRoute] Guid id,
         [FromBody] UpdateTemplateMetadataRequest request,
-        [FromHeader(Name = "If-Match")] string? ifMatch,
         CancellationToken ct)
     {
-        var command = new UpdateTemplateDetailsCommand(id, request.Name ?? string.Empty, request.Category, ifMatch);
+        var command = new UpdateTemplateDetailsCommand(id, request.Name ?? string.Empty, request.Category);
         var result = await updateTemplateDetailsUseCase.ExecuteAsync(command, ct);
-        Response.Headers.ETag = $"\"{result.ConcurrencyToken}\"";
         return Ok(new ApiResponse<TemplateResultDto>(result));
     }
 
@@ -112,7 +109,6 @@ public sealed class TemplateLifecycleController(
     [ProducesResponseType(StatusCodes.Status412PreconditionFailed)]
     public async Task<IActionResult> Deactivate(
         [FromRoute] Guid id,
-        [FromHeader(Name = "If-Match")] string? ifMatch,
         CancellationToken ct)
     {
         var command = new DeactivateTemplateCommand(id);

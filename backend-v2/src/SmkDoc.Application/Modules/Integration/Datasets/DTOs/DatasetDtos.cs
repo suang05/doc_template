@@ -1,3 +1,5 @@
+using SmkDoc.Application.Common.Interfaces;
+
 namespace SmkDoc.Application.Modules.Integration.Datasets.DTOs;
 
 /// <summary>
@@ -13,4 +15,4 @@ public sealed record DatasetResultDto(
     int CacheSeconds,
     DateTimeOffset CreatedAt,
     DateTimeOffset? UpdatedAt,
-    string? ConcurrencyToken = null);
+    string? ConcurrencyToken = null) : IHasConcurrencyToken;

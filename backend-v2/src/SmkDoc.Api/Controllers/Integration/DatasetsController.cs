@@ -48,7 +48,6 @@ public sealed class DatasetsController(
     {
         var query = new GetDatasetByIdQuery(id);
         var result = await getByIdUseCase.ExecuteAsync(query, ct);
-        Response.Headers.ETag = $"\"{result.ConcurrencyToken}\"";
         return Ok(new ApiResponse<DatasetResultDto>(result));
     }
 
@@ -71,12 +70,10 @@ public sealed class DatasetsController(
     public async Task<IActionResult> Update(
         [FromRoute] Guid id,
         [FromBody] UpdateDatasetRequest request,
-        [FromHeader(Name = "If-Match")] string? ifMatch,
         CancellationToken ct)
     {
-        var command = new UpdateDatasetCommand(id, request.Name, request.Description, request.DataConnectionId, request.SqlQuery, request.CacheSeconds, ifMatch);
+        var command = new UpdateDatasetCommand(id, request.Name, request.Description, request.DataConnectionId, request.SqlQuery, request.CacheSeconds);
         var result = await updateUseCase.ExecuteAsync(command, ct);
-        Response.Headers.ETag = $"\"{result.ConcurrencyToken}\"";
         return Ok(new ApiResponse<DatasetResultDto>(result));
     }
 
@@ -87,10 +84,9 @@ public sealed class DatasetsController(
     [ProducesResponseType(StatusCodes.Status412PreconditionFailed)]
     public async Task<IActionResult> Delete(
         [FromRoute] Guid id,
-        [FromHeader(Name = "If-Match")] string? ifMatch,
         CancellationToken ct)
     {
-        var command = new DeleteDatasetCommand(id, ifMatch);
+        var command = new DeleteDatasetCommand(id);
         await deleteUseCase.ExecuteAsync(command, ct);
         return NoContent();
     }

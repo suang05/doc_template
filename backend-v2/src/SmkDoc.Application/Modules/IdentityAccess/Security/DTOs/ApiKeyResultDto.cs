@@ -1,3 +1,5 @@
+using SmkDoc.Application.Common.Interfaces;
+
 namespace SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
 
 /// <summary>
@@ -13,7 +15,7 @@ public sealed record ApiKeyResultDto(
     string Scope = "ReadWrite",
     string MaskedKey = "",
     string? ConcurrencyToken = null
-);
+) : IHasConcurrencyToken;
 
 /// <summary>
 /// Result returned immediately after creating an API key, containing the one-time plain-text key.

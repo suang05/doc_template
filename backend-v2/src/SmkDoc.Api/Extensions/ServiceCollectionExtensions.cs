@@ -64,6 +64,7 @@ public static class ServiceCollectionExtensions
         services.AddControllers(options =>
         {
             options.Filters.Add(new ProducesAttribute("application/json"));
+            options.Filters.AddService<ETagFilter>();
         }).AddJsonOptions(options =>
         {
             options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
@@ -78,6 +79,7 @@ public static class ServiceCollectionExtensions
         });
 
         services.AddScoped<IdempotencyFilter>();
+        services.AddScoped<ETagFilter>();
         services.AddEndpointsApiExplorer();
 
         return services;

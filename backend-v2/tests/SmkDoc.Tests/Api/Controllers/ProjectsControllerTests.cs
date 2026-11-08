@@ -76,7 +76,7 @@ public sealed class ProjectsControllerTests
     }
 
     [Fact]
-    public async Task GetProjectById_SetsETagHeaderAndReturnsOk()
+    public async Task GetProjectById_ReturnsOk()
     {
         // Arrange
         var projectId = Guid.NewGuid();
@@ -102,7 +102,6 @@ public sealed class ProjectsControllerTests
         var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
         var response = okResult.Value.Should().BeOfType<ApiResponse<ProjectResultDto>>().Subject;
         response.Data.Id.Should().Be(projectId);
-        controller.Response.Headers.ETag.ToString().Should().Be("\"54321\"");
 
         await _getByIdUseCase.Received(1).ExecuteAsync(
             Arg.Is<GetProjectByIdQuery>(q => q.ProjectId == projectId),
@@ -147,12 +146,11 @@ public sealed class ProjectsControllerTests
     }
 
     [Fact]
-    public async Task TransferOwner_PassesIfMatch_ReturnsNoContent()
+    public async Task TransferOwner_ReturnsNoContent()
     {
         // Arrange
         var projectId = Guid.NewGuid();
         var newOwnerId = Guid.NewGuid();
-        var ifMatch = "\"54321\"";
 
         _transferOwnerUseCase.ExecuteAsync(Arg.Any<TransferProjectOwnerCommand>(), Arg.Any<CancellationToken>())
             .Returns(Task.CompletedTask);
@@ -161,12 +159,12 @@ public sealed class ProjectsControllerTests
         var request = new TransferProjectOwnerRequest(newOwnerId);
 
         // Act
-        var result = await controller.TransferOwner(projectId, request, ifMatch, CancellationToken.None);
+        var result = await controller.TransferOwner(projectId, request, CancellationToken.None);
 
         // Assert
         result.Should().BeOfType<NoContentResult>();
         await _transferOwnerUseCase.Received(1).ExecuteAsync(
-            Arg.Is<TransferProjectOwnerCommand>(c => c.ProjectId == projectId && c.NewOwnerUserId == newOwnerId && c.IfMatch == ifMatch),
+            Arg.Is<TransferProjectOwnerCommand>(c => c.ProjectId == projectId && c.NewOwnerUserId == newOwnerId),
             Arg.Any<CancellationToken>());
     }
 }

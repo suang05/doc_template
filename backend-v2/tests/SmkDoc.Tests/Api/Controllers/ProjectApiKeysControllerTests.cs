@@ -80,7 +80,7 @@ public sealed class ProjectApiKeysControllerTests
         var controller = CreateSut();
 
         // Act
-        var result = await controller.RevokeKey(projId, keyId, null, CancellationToken.None);
+        var result = await controller.RevokeKey(projId, keyId, CancellationToken.None);
 
         // Assert
         result.Should().BeOfType<NoContentResult>();

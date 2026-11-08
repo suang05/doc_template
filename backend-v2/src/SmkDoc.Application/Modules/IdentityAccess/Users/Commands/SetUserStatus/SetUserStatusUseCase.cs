@@ -77,7 +77,7 @@ public sealed class SetUserStatusUseCase(
             roleName,
             user.IsActive,
             user.CreatedAt,
-            (user.UpdatedAt ?? user.CreatedAt).ToUnixTimeMilliseconds().ToString()
+            user.GetConcurrencyToken()
         );
     }
 }

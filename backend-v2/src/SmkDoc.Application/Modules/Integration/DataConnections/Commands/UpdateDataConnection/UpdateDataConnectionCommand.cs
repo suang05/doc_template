@@ -4,5 +4,4 @@ public sealed record UpdateDataConnectionCommand(
     Guid Id,
     string Name,
     string Provider,
-    string ConnectionString,
-    string? IfMatch = null);
+    string ConnectionString);

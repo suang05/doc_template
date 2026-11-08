@@ -37,11 +37,10 @@ public sealed class TemplateDatasetController(
     public async Task<IActionResult> SaveDatasets(
         [FromRoute] Guid id,
         [FromBody] SaveTemplateDatasetsRequest request,
-        [FromHeader(Name = "If-Match")] string? ifMatch,
         CancellationToken ct)
     {
         var items = (request.Datasets ?? []).Select(i => new SaveTemplateDatasetItemDto(i.DatasetId, i.Alias, i.SortOrder)).ToList();
-        var command = new SaveTemplateDatasetsCommand(id, items, ifMatch);
+        var command = new SaveTemplateDatasetsCommand(id, items);
         var result = await saveDatasetsUseCase.ExecuteAsync(command, ct);
         return Ok(new ApiResponse<IEnumerable<TemplateDatasetDto>>(result));
     }

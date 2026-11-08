@@ -1,6 +1,7 @@
 using SmkDoc.Domain.Common;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
+using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Domain.Entities;
@@ -9,12 +10,16 @@ namespace SmkDoc.Domain.Entities;
 /// Domain entity representing a user's role assignment within a specific project.
 /// Composite identity (UserId, ProjectId).
 /// </summary>
-public sealed class UserProjectRole : IEquatable<UserProjectRole>
+public sealed class UserProjectRole : IConcurrencyAware, IEquatable<UserProjectRole>
 {
     public UserId UserId { get; private set; }
     public ProjectId ProjectId { get; private set; }
     public RoleType Role { get; private set; } = RoleType.Viewer;
     public DateTimeOffset CreatedAt { get; private set; }
+    DateTimeOffset? IConcurrencyAware.UpdatedAt => null;
+
+    public string GetConcurrencyToken() =>
+        CreatedAt.ToUnixTimeMilliseconds().ToString();
 
     // For EF Core materialization only
     private UserProjectRole() { }

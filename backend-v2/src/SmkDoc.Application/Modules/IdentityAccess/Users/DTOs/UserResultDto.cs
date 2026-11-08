@@ -1,3 +1,5 @@
+using SmkDoc.Application.Common.Interfaces;
+
 namespace SmkDoc.Application.Modules.IdentityAccess.Users.DTOs;
 
 /// <summary>
@@ -12,4 +14,4 @@ public sealed record UserResultDto(
     bool IsActive,
     DateTimeOffset CreatedAt,
     string? ConcurrencyToken = null
-);
+) : IHasConcurrencyToken;

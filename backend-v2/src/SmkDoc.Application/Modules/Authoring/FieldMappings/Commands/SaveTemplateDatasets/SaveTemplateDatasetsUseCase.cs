@@ -21,17 +21,6 @@ public sealed class SaveTemplateDatasetsUseCase(
             ?? await templateRepo.GetByIdAsync(templateId, ct)
             ?? throw new NotFoundException($"Template '{command.TemplateId}' not found.");
 
-        if (!string.IsNullOrWhiteSpace(command.IfMatch) && command.IfMatch != "*")
-        {
-            var sanitizedMatch = command.IfMatch.Trim('\"', 'W', '/', ' ');
-            var currentToken = (template.UpdatedAt ?? template.CreatedAt).ToUnixTimeMilliseconds().ToString();
-            if (!string.Equals(sanitizedMatch, currentToken, StringComparison.OrdinalIgnoreCase))
-            {
-                throw new PreconditionFailedException(
-                    $"Precondition failed for template '{command.TemplateId}'. ETag '{sanitizedMatch}' does not match current state.");
-            }
-        }
-
         var now = timeProvider.GetUtcNow();
         var datasets = command.Items.Select(item =>
             TemplateDataset.Create(template.Id, new DatasetId(item.DatasetId), DatasetAlias.Create(item.Alias), item.SortOrder, now)

@@ -83,7 +83,7 @@ public sealed class ApiKeysControllerTests
         var controller = CreateSut();
 
         // Act
-        var result = await controller.RevokeKey(keyId, null, CancellationToken.None);
+        var result = await controller.RevokeKey(keyId, CancellationToken.None);
 
         // Assert
         result.Should().BeOfType<NoContentResult>();

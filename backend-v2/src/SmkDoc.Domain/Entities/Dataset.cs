@@ -9,7 +9,7 @@ namespace SmkDoc.Domain.Entities;
 /// <summary>
 /// Domain entity representing a dataset query definition associated with a data connection.
 /// </summary>
-public sealed class Dataset : BaseEntity<DatasetId>, IMustHaveProject
+public sealed class Dataset : BaseEntity<DatasetId>, IMustHaveProject, IConcurrencyAware
 {
     public ProjectId ProjectId { get; private set; }
     public DatasetName Name { get; private set; } = null!;

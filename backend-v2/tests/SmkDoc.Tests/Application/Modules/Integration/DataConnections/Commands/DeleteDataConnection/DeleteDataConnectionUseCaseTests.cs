@@ -60,46 +60,4 @@ public sealed class DeleteDataConnectionUseCaseTests
         _connectionRepo.DidNotReceive().Remove(Arg.Any<DataConnection>());
         await _unitOfWork.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
     }
-
-    [Fact]
-    public async Task ExecuteAsync_WhenIfMatchMatches_RemovesAndReturnsTrue()
-    {
-        // Arrange
-        var id = Guid.NewGuid();
-        var existing = DataConnectionBuilder.Postgres(name: "To Delete", connectionString: "enc_delete", id: id);
-        _connectionRepo.GetByIdAsync(new DataConnectionId(id), Arg.Any<CancellationToken>())
-            .Returns(existing);
-
-        var token = (existing.UpdatedAt ?? existing.CreatedAt).ToUnixTimeMilliseconds().ToString();
-        var command = new DeleteDataConnectionCommand(id, $"\"{token}\"");
-
-        // Act
-        var result = await CreateSut().ExecuteAsync(command);
-
-        // Assert
-        result.Should().BeTrue();
-        _connectionRepo.Received(1).Remove(existing);
-        await _unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task ExecuteAsync_WhenIfMatchMismatched_ThrowsPreconditionFailedException()
-    {
-        // Arrange
-        var id = Guid.NewGuid();
-        var existing = DataConnectionBuilder.Postgres(name: "To Delete", connectionString: "enc_delete", id: id);
-        _connectionRepo.GetByIdAsync(new DataConnectionId(id), Arg.Any<CancellationToken>())
-            .Returns(existing);
-
-        var command = new DeleteDataConnectionCommand(id, "\"wrong_etag\"");
-
-        // Act
-        var act = () => CreateSut().ExecuteAsync(command);
-
-        // Assert
-        await act.Should().ThrowAsync<PreconditionFailedException>()
-            .WithMessage("*Precondition failed for data connection*");
-        _connectionRepo.DidNotReceive().Remove(Arg.Any<DataConnection>());
-        await _unitOfWork.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
-    }
 }

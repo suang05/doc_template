@@ -103,24 +103,23 @@ public sealed class TemplateStudioControllerTests
     }
 
     [Fact]
-    public async Task SaveHtml_WithIfMatchHeader_ShouldPassIfMatchAndSetETagHeader()
+    public async Task SaveHtml_ShouldExecuteCommandAndReturnOk()
     {
         // Arrange
         var sut = CreateSut();
         var templateId = Guid.NewGuid();
-        _saveHtmlUseCase.ExecuteAsync(Arg.Is<SaveTemplateHtmlCommand>(c => c.TemplateId == templateId && c.IfMatch == "\"1\""), Arg.Any<CancellationToken>())
+        _saveHtmlUseCase.ExecuteAsync(Arg.Is<SaveTemplateHtmlCommand>(c => c.TemplateId == templateId), Arg.Any<CancellationToken>())
             .Returns(new SaveHtmlResultDto(2));
 
         var request = new SaveHtmlRequest("<html>updated</html>", "{}", "Increment note");
 
         // Act
-        var result = await sut.SaveHtml(templateId, request, "\"1\"", CancellationToken.None);
+        var result = await sut.SaveHtml(templateId, request, CancellationToken.None);
 
         // Assert
         var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
         var body = okResult.Value.Should().BeOfType<ApiResponse<SaveHtmlResultDto>>().Subject;
         body.Data.Version.Should().Be(2);
-        sut.Response.Headers.ETag.ToString().Should().Be("\"2\"");
     }
 
     [Fact]

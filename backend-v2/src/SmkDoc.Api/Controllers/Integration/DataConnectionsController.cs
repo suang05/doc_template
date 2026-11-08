@@ -48,7 +48,6 @@ public sealed class DataConnectionsController(
     {
         var query = new GetDataConnectionByIdQuery(id);
         var result = await getByIdUseCase.ExecuteAsync(query, ct);
-        Response.Headers.ETag = $"\"{result.ConcurrencyToken}\"";
         return Ok(new ApiResponse<DataConnectionResultDto>(result));
     }
 
@@ -73,12 +72,10 @@ public sealed class DataConnectionsController(
     public async Task<IActionResult> Update(
         [FromRoute] Guid id,
         [FromBody] UpdateDataConnectionRequest request,
-        [FromHeader(Name = "If-Match")] string? ifMatch,
         CancellationToken ct)
     {
-        var command = new UpdateDataConnectionCommand(id, request.Name, request.Provider, request.ConnectionString, ifMatch);
+        var command = new UpdateDataConnectionCommand(id, request.Name, request.Provider, request.ConnectionString);
         var result = await updateUseCase.ExecuteAsync(command, ct);
-        Response.Headers.ETag = $"\"{result.ConcurrencyToken}\"";
         return Ok(new ApiResponse<DataConnectionResultDto>(result));
     }
 
@@ -89,10 +86,9 @@ public sealed class DataConnectionsController(
     [ProducesResponseType(StatusCodes.Status412PreconditionFailed)]
     public async Task<IActionResult> Delete(
         [FromRoute] Guid id,
-        [FromHeader(Name = "If-Match")] string? ifMatch,
         CancellationToken ct)
     {
-        var command = new DeleteDataConnectionCommand(id, ifMatch);
+        var command = new DeleteDataConnectionCommand(id);
         await deleteUseCase.ExecuteAsync(command, ct);
         return NoContent();
     }

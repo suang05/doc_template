@@ -234,5 +234,25 @@ public sealed class OpenApiOperationTransformerTests
         // Step 3: Assert
         operation.Responses!["200"].Headers.Should().ContainKey(OpenApiNames.ETagHeader);
     }
+
+    [Fact]
+    public async Task TransformAsync_WhenOperationDeclares412Response_ShouldAutoAddIfMatchParameterAndETagResponseHeader()
+    {
+        // Step 1: Arrange
+        var sut = CreateSut();
+        var operation = CreateOperation();
+        operation.Responses!["412"] = new OpenApiResponse { Description = "Precondition Failed" };
+        var context = CreateContext("api/v1/templates/{id}", action: "Update");
+
+        // Step 2: Act
+        await sut.TransformAsync(operation, context, CancellationToken.None);
+
+        // Step 3: Assert
+        operation.Parameters.Should().ContainSingle(p =>
+            p.Name == OpenApiNames.IfMatchHeader &&
+            p.In == ParameterLocation.Header &&
+            !p.Required);
+        operation.Responses["200"].Headers.Should().ContainKey(OpenApiNames.ETagHeader);
+    }
 }
 

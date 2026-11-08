@@ -72,7 +72,7 @@ public sealed class TemplateMappingControllerTests
         var request = new SaveTemplateMappingsRequest([]);
 
         // Act
-        var result = await sut.SaveMappings(templateId, request, null, CancellationToken.None);
+        var result = await sut.SaveMappings(templateId, request, CancellationToken.None);
 
         // Assert
         await _saveMappingsUseCase.Received(1).ExecuteAsync(Arg.Is<SaveTemplateMappingsCommand>(c => c.TemplateId == templateId), Arg.Any<CancellationToken>());

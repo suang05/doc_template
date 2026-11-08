@@ -5,6 +5,7 @@ using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
+using SmkDoc.Infrastructure.Contexts;
 using SmkDoc.Tests.Common.Builders;
 
 namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Projects.Commands.TransferProjectOwner;
@@ -16,6 +17,7 @@ public sealed class TransferProjectOwnerUseCaseTests
     private readonly IUserProjectRoleRepository _userRoleRepo = Substitute.For<IUserProjectRoleRepository>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
     private readonly FakeTimeProvider _timeProvider = TestConstants.CreateFakeClock();
+    private readonly ConcurrencyContext _concurrencyContext = new();
 
     public TransferProjectOwnerUseCaseTests()
     {
@@ -23,7 +25,7 @@ public sealed class TransferProjectOwnerUseCaseTests
     }
 
     private TransferProjectOwnerUseCase CreateSut() =>
-        new(_projectRepo, _userRepo, _userRoleRepo, _unitOfWork, _timeProvider);
+        new(_projectRepo, _userRepo, _userRoleRepo, _unitOfWork, _timeProvider, _concurrencyContext);
 
     [Fact]
     public async Task ExecuteAsync_WhenProjectNotFound_ThrowsNotFoundException()
@@ -180,7 +182,8 @@ public sealed class TransferProjectOwnerUseCaseTests
         _userRoleRepo.ListByProjectAsync(new ProjectId(projectId), Arg.Any<CancellationToken>())
             .Returns(new List<UserProjectRole>());
 
-        var command = new TransferProjectOwnerCommand(projectId, newOwnerId, $"\"{token}\"");
+        _concurrencyContext.SetIfMatch($"\"{token}\"");
+        var command = new TransferProjectOwnerCommand(projectId, newOwnerId);
 
         // Act
         await CreateSut().ExecuteAsync(command);
@@ -200,7 +203,8 @@ public sealed class TransferProjectOwnerUseCaseTests
         _projectRepo.GetByIdAsync(new ProjectId(projectId), Arg.Any<CancellationToken>())
             .Returns(project);
 
-        var command = new TransferProjectOwnerCommand(projectId, newOwnerId, "\"99999999\"");
+        _concurrencyContext.SetIfMatch("\"99999999\"");
+        var command = new TransferProjectOwnerCommand(projectId, newOwnerId);
 
         // Act
         var act = () => CreateSut().ExecuteAsync(command);

@@ -52,7 +52,6 @@ public sealed class ProjectsController(
     {
         var query = new GetProjectByIdQuery(projectId);
         var result = await getProjectByIdUseCase.ExecuteAsync(query, ct);
-        Response.Headers.ETag = $"\"{result.ConcurrencyToken}\"";
         return Ok(new ApiResponse<ProjectResultDto>(result));
     }
 
@@ -88,10 +87,9 @@ public sealed class ProjectsController(
     public async Task<IActionResult> TransferOwner(
         [FromRoute] Guid projectId,
         [FromBody] TransferProjectOwnerRequest request,
-        [FromHeader(Name = "If-Match")] string? ifMatch,
         CancellationToken ct)
     {
-        var command = new TransferProjectOwnerCommand(projectId, request.NewOwnerUserId, ifMatch);
+        var command = new TransferProjectOwnerCommand(projectId, request.NewOwnerUserId);
         await transferOwnerUseCase.ExecuteAsync(command, ct);
         return NoContent();
     }

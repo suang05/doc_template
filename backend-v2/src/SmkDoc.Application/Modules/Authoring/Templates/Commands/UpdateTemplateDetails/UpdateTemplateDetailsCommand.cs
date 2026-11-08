@@ -3,6 +3,5 @@ namespace SmkDoc.Application.Modules.Authoring.Templates.Commands.UpdateTemplate
 public sealed record UpdateTemplateDetailsCommand(
     Guid TemplateId,
     string Name,
-    string? Category,
-    string? IfMatch = null
+    string? Category
 );

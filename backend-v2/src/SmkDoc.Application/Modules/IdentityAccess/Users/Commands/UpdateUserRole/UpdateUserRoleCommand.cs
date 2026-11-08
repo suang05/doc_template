@@ -2,6 +2,5 @@ namespace SmkDoc.Application.Modules.IdentityAccess.Users.Commands.UpdateUserRol
 
 public sealed record UpdateUserRoleCommand(
     Guid UserId,
-    string Role,
-    string? IfMatch = null
+    string Role
 );

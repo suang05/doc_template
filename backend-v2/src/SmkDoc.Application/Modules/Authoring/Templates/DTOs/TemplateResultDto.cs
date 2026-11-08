@@ -1,3 +1,5 @@
+using SmkDoc.Application.Common.Interfaces;
+
 namespace SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 
 /// <summary>
@@ -15,7 +17,7 @@ public sealed record TemplateResultDto(
     DateTimeOffset CreatedAt,
     DateTimeOffset? UpdatedAt,
     string? ConcurrencyToken = null
-);
+) : IHasConcurrencyToken;
 
 /// <summary>
 /// Paged query result for templates.

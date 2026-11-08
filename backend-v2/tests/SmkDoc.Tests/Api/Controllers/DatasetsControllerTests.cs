@@ -79,7 +79,7 @@ public sealed class DatasetsControllerTests
     }
 
     [Fact]
-    public async Task GetById_WhenFound_ShouldReturnDatasetAndSetETag()
+    public async Task GetById_WhenFound_ShouldReturnDataset()
     {
         // Arrange
         var sut = CreateSut();
@@ -95,7 +95,6 @@ public sealed class DatasetsControllerTests
         var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
         var body = okResult.Value.Should().BeOfType<ApiResponse<DatasetResultDto>>().Subject;
         body.Data.Id.Should().Be(id);
-        sut.Response.Headers.ETag.ToString().Should().Be("\"2222\"");
     }
 
     [Fact]
@@ -125,39 +124,38 @@ public sealed class DatasetsControllerTests
     }
 
     [Fact]
-    public async Task Update_ShouldForwardIfMatchAndSetETagHeader()
+    public async Task Update_ShouldExecuteCommandAndReturnOk()
     {
         // Arrange
         var sut = CreateSut();
         var id = Guid.NewGuid();
         var connId = Guid.NewGuid();
         var dto = new DatasetResultDto(id, "Invoices", "Monthly customer invoices", connId, "ERP DB", "SELECT * FROM invoices", 300, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "4444");
-        _updateUseCase.ExecuteAsync(Arg.Is<UpdateDatasetCommand>(c => c.Id == id && c.IfMatch == "\"3333\""), Arg.Any<CancellationToken>())
+        _updateUseCase.ExecuteAsync(Arg.Is<UpdateDatasetCommand>(c => c.Id == id), Arg.Any<CancellationToken>())
             .Returns(dto);
 
         var request = new UpdateDatasetRequest("Invoices", "Monthly customer invoices", connId, "SELECT * FROM invoices", 300);
 
         // Act
-        var result = await sut.Update(id, request, "\"3333\"", CancellationToken.None);
+        var result = await sut.Update(id, request, CancellationToken.None);
 
         // Assert
         var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
         var body = okResult.Value.Should().BeOfType<ApiResponse<DatasetResultDto>>().Subject;
         body.Data.Id.Should().Be(id);
-        sut.Response.Headers.ETag.ToString().Should().Be("\"4444\"");
     }
 
     [Fact]
-    public async Task Delete_ShouldForwardIfMatch()
+    public async Task Delete_ShouldExecuteCommandAndReturnNoContent()
     {
         // Arrange
         var sut = CreateSut();
         var id = Guid.NewGuid();
-        _deleteUseCase.ExecuteAsync(Arg.Is<DeleteDatasetCommand>(c => c.Id == id && c.IfMatch == "\"3333\""), Arg.Any<CancellationToken>())
+        _deleteUseCase.ExecuteAsync(Arg.Is<DeleteDatasetCommand>(c => c.Id == id), Arg.Any<CancellationToken>())
             .Returns(true);
 
         // Act
-        var result = await sut.Delete(id, "\"3333\"", CancellationToken.None);
+        var result = await sut.Delete(id, CancellationToken.None);
 
         // Assert
         result.Should().BeOfType<NoContentResult>();

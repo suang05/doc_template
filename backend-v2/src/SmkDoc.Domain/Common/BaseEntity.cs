@@ -28,6 +28,9 @@ public abstract class BaseEntity<TId> : IHaveDomainEvents, IEquatable<BaseEntity
     protected void SetUpdated(DateTimeOffset now) =>
         UpdatedAt = now;
 
+    public string GetConcurrencyToken() =>
+        (UpdatedAt ?? CreatedAt).ToUnixTimeMilliseconds().ToString();
+
     public override bool Equals(object? obj) =>
         obj is BaseEntity<TId> other && Equals(other);
 

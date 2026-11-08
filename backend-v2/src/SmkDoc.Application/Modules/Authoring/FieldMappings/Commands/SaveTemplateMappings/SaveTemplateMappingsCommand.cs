@@ -4,6 +4,5 @@ namespace SmkDoc.Application.Modules.Authoring.FieldMappings.Commands.SaveTempla
 
 public sealed record SaveTemplateMappingsCommand(
     Guid TemplateId,
-    List<SaveFieldMappingItemDto> Items,
-    string? IfMatch = null
+    List<SaveFieldMappingItemDto> Items
 );

@@ -46,7 +46,7 @@ public class AppDbContext : DbContext
 
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
 
-        // 11. Multi-Tenant Global Query Filters for IMustHaveProject entities
+        // 11. Multi-Tenant Global Query Filters for IMustHaveProject entities & Concurrency Tokens for IConcurrencyAware entities
         foreach (var entityType in modelBuilder.Model.GetEntityTypes().ToList())
         {
             if (entityType.ClrType != null && typeof(IMustHaveProject).IsAssignableFrom(entityType.ClrType))
@@ -54,6 +54,15 @@ public class AppDbContext : DbContext
                 ConfigureProjectFilterMethod
                     .MakeGenericMethod(entityType.ClrType)
                     .Invoke(this, [modelBuilder]);
+            }
+
+            if (entityType.ClrType != null &&
+                typeof(IConcurrencyAware).IsAssignableFrom(entityType.ClrType) &&
+                entityType.FindProperty(nameof(IConcurrencyAware.UpdatedAt)) is not null)
+            {
+                modelBuilder.Entity(entityType.ClrType)
+                    .Property(nameof(IConcurrencyAware.UpdatedAt))
+                    .IsConcurrencyToken();
             }
         }
 

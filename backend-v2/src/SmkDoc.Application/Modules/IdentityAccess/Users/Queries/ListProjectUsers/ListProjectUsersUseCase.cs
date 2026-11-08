@@ -35,7 +35,7 @@ public sealed class ListProjectUsersUseCase(
                     r.Role.ToString(),
                     u.IsActive,
                     u.CreatedAt,
-                    r.CreatedAt.ToUnixTimeMilliseconds().ToString()
+                    r.GetConcurrencyToken()
                 );
             })
             .OrderBy(u => u.Email)

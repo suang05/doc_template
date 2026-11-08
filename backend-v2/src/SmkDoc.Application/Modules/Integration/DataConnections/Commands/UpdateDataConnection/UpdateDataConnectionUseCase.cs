@@ -21,17 +21,6 @@ public sealed class UpdateDataConnectionUseCase(
         var entity = await repository.GetByIdAsync(new DataConnectionId(command.Id), ct)
             ?? throw new NotFoundException("DataConnection", command.Id);
 
-        if (!string.IsNullOrWhiteSpace(command.IfMatch) && command.IfMatch != "*")
-        {
-            var currentToken = (entity.UpdatedAt ?? entity.CreatedAt).ToUnixTimeMilliseconds().ToString();
-            var sanitizedMatch = command.IfMatch.Trim('\"', 'W', '/', ' ');
-            if (!string.Equals(sanitizedMatch, currentToken, StringComparison.OrdinalIgnoreCase))
-            {
-                throw new PreconditionFailedException(
-                    $"Precondition failed for data connection '{command.Id}'. ETag '{sanitizedMatch}' does not match current state.");
-            }
-        }
-
         EncryptedConnectionString encryptedCs;
         if (string.IsNullOrEmpty(command.ConnectionString))
         {
@@ -61,6 +50,6 @@ public sealed class UpdateDataConnectionUseCase(
             entity.Provider.Name,
             entity.CreatedAt,
             entity.UpdatedAt,
-            (entity.UpdatedAt ?? entity.CreatedAt).ToUnixTimeMilliseconds().ToString());
+            entity.GetConcurrencyToken());
     }
 }

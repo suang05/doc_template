@@ -22,18 +22,6 @@ public sealed class UpdateTemplateDetailsUseCase(
         var template = await templateRepo.GetByIdAsync(new TemplateId(command.TemplateId), ct)
             ?? throw new NotFoundException($"Template '{command.TemplateId}' was not found.");
 
-        if (!string.IsNullOrWhiteSpace(command.IfMatch) && command.IfMatch != "*")
-        {
-            var currentToken = (template.UpdatedAt ?? template.CreatedAt).ToUnixTimeMilliseconds().ToString();
-            var sanitizedMatch = command.IfMatch.Trim('\"', 'W', '/', ' ');
-            if (!string.Equals(sanitizedMatch, currentToken, StringComparison.OrdinalIgnoreCase) &&
-                !string.Equals(sanitizedMatch, template.CurrentVersionId?.ToString(), StringComparison.OrdinalIgnoreCase))
-            {
-                throw new PreconditionFailedException(
-                    $"Precondition failed for template '{command.TemplateId}'. ETag '{sanitizedMatch}' does not match current state.");
-            }
-        }
-
         // 2. Domain Invariants Execution
         var now = timeProvider.GetUtcNow();
         template.UpdateDetails(TemplateName.Create(command.Name), command.Category?.Trim(), now);
@@ -54,7 +42,7 @@ public sealed class UpdateTemplateDetailsUseCase(
             template.CurrentVersion?.FileFormat?.Name,
             template.CreatedAt,
             template.UpdatedAt,
-            (template.UpdatedAt ?? template.CreatedAt).ToUnixTimeMilliseconds().ToString()
+            template.GetConcurrencyToken()
         );
     }
 }

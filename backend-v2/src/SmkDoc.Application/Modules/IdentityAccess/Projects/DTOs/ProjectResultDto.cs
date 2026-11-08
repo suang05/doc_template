@@ -1,3 +1,5 @@
+using SmkDoc.Application.Common.Interfaces;
+
 namespace SmkDoc.Application.Modules.IdentityAccess.Projects.DTOs;
 
 /// <summary>
@@ -12,7 +14,7 @@ public sealed record ProjectResultDto(
     string? ReadApiKey = null,
     string? WriteApiKey = null,
     string? ConcurrencyToken = null
-);
+) : IHasConcurrencyToken;
 
 /// <summary>
 /// Paged query result for projects.

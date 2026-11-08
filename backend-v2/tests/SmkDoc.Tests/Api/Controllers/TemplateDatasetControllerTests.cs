@@ -71,7 +71,7 @@ public sealed class TemplateDatasetControllerTests
         ]);
 
         // Act
-        var result = await sut.SaveDatasets(templateId, request, null, CancellationToken.None);
+        var result = await sut.SaveDatasets(templateId, request, CancellationToken.None);
 
         // Assert
         await _saveDatasetsUseCase.Received(1).ExecuteAsync(Arg.Is<SaveTemplateDatasetsCommand>(c => c.TemplateId == templateId), Arg.Any<CancellationToken>());

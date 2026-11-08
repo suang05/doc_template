@@ -24,17 +24,6 @@ public sealed class RemoveUserUseCase(
         var roleEntry = await roleRepo.GetAsync(pId, uId, ct)
             ?? throw new NotFoundException("User is not a member of this project.");
 
-        if (!string.IsNullOrWhiteSpace(command.IfMatch) && command.IfMatch != "*")
-        {
-            var currentToken = roleEntry.CreatedAt.ToUnixTimeMilliseconds().ToString();
-            var sanitizedMatch = command.IfMatch.Trim('\"', 'W', '/', ' ');
-            if (!string.Equals(sanitizedMatch, currentToken, StringComparison.OrdinalIgnoreCase))
-            {
-                throw new PreconditionFailedException(
-                    $"Precondition failed for user role '{command.UserId}'. ETag '{sanitizedMatch}' does not match current state.");
-            }
-        }
-
         if (roleEntry.Role == RoleType.Admin)
         {
             var adminCount = await roleRepo.CountAdminsAsync(pId, ct);

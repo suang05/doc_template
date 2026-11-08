@@ -65,10 +65,9 @@ public sealed class ProjectApiKeysController(
     public async Task<IActionResult> RevokeKey(
         [FromRoute] Guid projectId,
         [FromRoute] Guid keyId,
-        [FromHeader(Name = "If-Match")] string? ifMatch,
         CancellationToken ct)
     {
-        var command = new RevokeApiKeyCommand(keyId, ifMatch);
+        var command = new RevokeApiKeyCommand(keyId);
         await revokeApiKeyUseCase.ExecuteAsync(command, ct);
         return NoContent();
     }

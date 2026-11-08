@@ -1,5 +1,6 @@
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 
 namespace SmkDoc.Application.Modules.Authoring.Templates.DTOs;
@@ -97,7 +98,10 @@ public sealed record CommitDraftResultDto(
 /// </summary>
 public sealed record SaveHtmlResultDto(
     int Version
-);
+) : IHasConcurrencyToken
+{
+    string? IHasConcurrencyToken.ConcurrencyToken => Version.ToString();
+}
 
 /// <summary>
 /// Result returned after rolling back a template version.

@@ -56,10 +56,9 @@ public sealed class ApiKeysController(
     [ProducesResponseType(StatusCodes.Status412PreconditionFailed)]
     public async Task<IActionResult> RevokeKey(
         [FromRoute] Guid id,
-        [FromHeader(Name = "If-Match")] string? ifMatch,
         CancellationToken ct)
     {
-        var command = new RevokeApiKeyCommand(id, ifMatch);
+        var command = new RevokeApiKeyCommand(id);
         await revokeApiKeyUseCase.ExecuteAsync(command, ct);
         return NoContent();
     }
