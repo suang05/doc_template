@@ -32,7 +32,7 @@ ArchitecturalSignals: [ARCH_EVOLUTION_CONTRACT]
 | **Temporal Wire Format** | All datetime values on the wire serialize to ISO-8601 UTC strings terminated with the `Z` suffix (`YYYY-MM-DDTHH:mm:ssZ`). Unspecified local times and Unix epoch integers are prohibited. | Temporal Serialization |
 | **Null vs Undefined Semantics** | Missing optional values serialize explicitly as `null` or are omitted per schema. Emitting string `"undefined"` or `"null"` is prohibited. | Wire Payload Fidelity |
 | **Mutation Deduplication** | Non-idempotent state mutations (`POST`) require `Idempotency-Key: <uuidv7>`. Duplicate requests replay cached responses without re-execution. | Mutation Boundary |
-| **Optimistic Concurrency Wire** | Resource mutations (`PUT`, `DELETE`) require `If-Match: "<token>"` carrying PostgreSQL `xmin` rowversion. Server returns updated token in `ETag` header. | Concurrency Control |
+| **Optimistic Concurrency Wire** | Resource mutations (`PUT`, `DELETE`) require `If-Match: "<token>"` evaluated by the ambient concurrency pipeline (`ETagFilter` + `ConcurrencySaveChangesInterceptor`). Server emits updated token in `ETag` header automatically from `IHasConcurrencyToken`. | Concurrency Control |
 | **Tenant Scope Header** | Multi-tenant context passes explicitly via `x-project-id: <guid>` header or JWT `projectId` claim. Tenant identity in request JSON body is prohibited. | Multi-Tenant Perimeter |
 | **RESTful Route Taxonomy** | Public routes use plural kebab-case nouns prefixed with `api/v1/{resources}`. Verb-based routes (`/api/createTemplate`) and legacy `/api/*` are prohibited. | Wire URL Addressing |
 | **OpenAPI SSoT Fidelity** | `specs/openapi.json` is the sole machine-readable schema authority, generated deterministically during `.NET` build. Manual edits to `specs/openapi.json` are prohibited. | Schema Governance |
@@ -59,10 +59,11 @@ ArchitecturalSignals: [ARCH_EVOLUTION_CONTRACT]
 * **Why RFC 9457 ProblemDetails over Ad-Hoc Errors:** Ad-hoc formats like `{ "error": "something went wrong" }` lack machine-parsable semantics. RFC 9457 provides an IETF standard with typed URIs, standardized HTTP status mapping, and structured validation dictionaries under `errors`.
 * **Why HTTP 200 for Diagnostic Connection Probes:** An unreachable database or invalid credential is a valid diagnostic business result, NOT an HTTP transport failure. Emitting HTTP 400 confuses automated monitoring and breaks client error handlers.
 * **Why Dedicated Machine-Readable `specs/openapi.json`:** Eliminates documentation drift by generating contracts directly from the compiled ASP.NET Core API reflection pipeline, providing frontend TypeScript code-generators a single source of truth.
-* **Why Optimistic Concurrency (`ETag` / `If-Match`) over Distributed Locks for Mutations:** Mutating existing resources (`PUT`, `DELETE`) is naturally idempotent by HTTP semantics; acquiring distributed Redis locks introduces latency and deadlocks while failing to catch lost-update anomalies if two users read stale data minutes apart. `If-Match` carrying the resource state token (PostgreSQL `xmin`) completely eliminates lost updates with zero distributed locking overhead.
+* **Why Optimistic Concurrency (`ETag` / `If-Match`) over Distributed Locks for Mutations:** Mutating existing resources (`PUT`, `DELETE`) is naturally idempotent by HTTP semantics; acquiring distributed Redis locks introduces latency and deadlocks while failing to catch lost-update anomalies if two users read stale data minutes apart. `If-Match` carrying the resource state token (`IConcurrencyAware.GetConcurrencyToken()`) completely eliminates lost updates with zero distributed locking overhead.
+* **Why Ambient Cross-Cutting Concurrency over Controller/Command Plumbing:** Parsing `If-Match` headers and setting `Response.Headers.ETag` manually inside every Controller action and Command pollutes business contracts. A global `ETagFilter` captures and sanitizes `If-Match` into scoped `IConcurrencyContext` on ingress and extracts `IHasConcurrencyToken.ConcurrencyToken` from `IApiResponse` on egress, while `ConcurrencySaveChangesInterceptor` verifies the token against EF Core `OriginalValue` on `CommitAsync`.
 * **Why Distinct 412 Precondition Failed vs 409 Conflict:**
-  * `412 Precondition Failed`: Pre-execution validation failure. The caller's `If-Match` token does not match the current database state at read-time. The mutation is aborted before executing domain logic.
-  * `409 Conflict`: Mid-flight concurrency collision. The `If-Match` matched at read-time, but another concurrent transaction committed changes before this transaction called `CommitAsync` (detected via EF Core `DbUpdateConcurrencyException`).
+  * `412 Precondition Failed`: Pre-execution or pre-commit validation failure. The caller's `If-Match` token does not match the current database state (verified by `ConcurrencySaveChangesInterceptor` on `SaveChangesAsync` or pre-flight `IConcurrencyContext.EnsureMatches` prior to external I/O).
+  * `409 Conflict`: Mid-flight concurrency collision. The `If-Match` matched at read-time, but another concurrent transaction committed changes at the exact microsecond before this transaction called `CommitAsync` (detected via EF Core `DbUpdateConcurrencyException` on `.IsConcurrencyToken()`).
 
 ### 2.2 Proactive Wire Protocol Firewalls
 ```yaml
@@ -84,7 +85,7 @@ ErrorEnvelopeFirewall:
 
 HeaderSemanticsFirewall:
   Invariant: "Enforce Idempotency-Key on state-mutating POST; enforce If-Match on PUT/DELETE."
-  ActionOnViolation: "Attach [Idempotent] filter to POST; add [FromHeader(Name = 'If-Match')] to PUT/DELETE."
+  ActionOnViolation: "Attach [Idempotent] filter to POST; decorate PUT/DELETE with [ProducesResponseType(StatusCodes.Status412PreconditionFailed)] and enforce via global ETagFilter + ConcurrencySaveChangesInterceptor."
 ```
 
 ### 2.3 Universal Pagination, Sorting & Filtering Taxonomy
@@ -125,7 +126,15 @@ The wire protocol strictly enforces optimistic concurrency across all state-muta
 
 **C# SSoT Definition (`backend-v2/src/SmkDoc.Api/Common/Responses/ApiResponse.cs`):**
 ```csharp
-public record ApiResponse<T>(T Data);
+public interface IApiResponse
+{
+    object? Data { get; }
+}
+
+public record ApiResponse<T>(T Data) : IApiResponse
+{
+    object? IApiResponse.Data => Data;
+}
 ```
 
 **TypeScript SSoT Definition (`frontend-v2/src/types/api.ts`):**
@@ -419,7 +428,7 @@ export interface ProblemDetails {
 ```diff
 - // Unhandled DbUpdateConcurrencyException falling back to generic 500 Internal Error
 - // Or executing PUT/DELETE without validating If-Match (Blind Last-Write-Wins)
-+ // UseCase pre-validates If-Match -> 412 Precondition Failed
++ // ConcurrencySaveChangesInterceptor / IConcurrencyContext validates If-Match -> 412 Precondition Failed
 + // GlobalExceptionHandler maps DbUpdateConcurrencyException -> 409 Conflict
 ```
 *Rationale: Leaking DbUpdateConcurrencyException as HTTP 500 signals internal server degradation to monitoring dashboards, whereas it is an expected HTTP 409 client-level race condition. Ignoring If-Match allows silent overwrites and lost updates.*

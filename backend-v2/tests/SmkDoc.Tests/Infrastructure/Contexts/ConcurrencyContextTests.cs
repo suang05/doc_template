@@ -14,16 +14,15 @@ public sealed class ConcurrencyContextTests
     [InlineData("W/\"1700000000\"", "1700000000")]
     [InlineData("  \"54321\"  ", "54321")]
     [InlineData("*", "*")]
-    public void SetIfMatch_WhenValidHeaderProvided_ShouldSanitizeQuotesAndWeakPrefixes(string rawHeader, string expectedToken)
+    public void IfMatch_WhenValidHeaderProvided_ShouldSanitizeQuotesAndWeakPrefixes(string rawHeader, string expectedToken)
     {
         // Step 1: Arrange
         var sut = CreateSut();
 
         // Step 2: Act
-        sut.SetIfMatch(rawHeader);
+        sut.IfMatch = rawHeader;
 
         // Step 3: Assert
-        sut.HasIfMatch.Should().BeTrue();
         sut.IfMatch.Should().Be(expectedToken);
     }
 
@@ -33,7 +32,7 @@ public sealed class ConcurrencyContextTests
         // Step 1: Arrange
         var sut = CreateSut();
         Template template = TemplateBuilder.ATemplate().WithName("Invoice").WithSlug("invoice");
-        sut.SetIfMatch($"\"{template.GetConcurrencyToken()}\"");
+        sut.IfMatch = $"\"{template.GetConcurrencyToken()}\"";
 
         // Step 2: Act
         var act = () => sut.EnsureMatches(template);
@@ -49,7 +48,7 @@ public sealed class ConcurrencyContextTests
         // Step 1: Arrange
         var sut = CreateSut();
         Template template = TemplateBuilder.ATemplate().WithName("Invoice").WithSlug("invoice");
-        sut.SetIfMatch("*");
+        sut.IfMatch = "*";
 
         // Step 2: Act
         var act = () => sut.EnsureMatches(template);
@@ -65,7 +64,7 @@ public sealed class ConcurrencyContextTests
         // Step 1: Arrange
         var sut = CreateSut();
         Template template = TemplateBuilder.ATemplate().WithName("Invoice").WithSlug("invoice");
-        sut.SetIfMatch("\"stale-token-999\"");
+        sut.IfMatch = "\"stale-token-999\"";
 
         // Step 2: Act
         var act = () => sut.EnsureMatches(template);

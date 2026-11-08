@@ -24,7 +24,7 @@ ArchitecturalSignals: [ARCH_EVOLUTION_CONVENTIONS]
 | **Asynchronous I/O** | 100% pure `async`/`await` pipeline forwarding standardized `CancellationToken ct = default`. | Method body |
 | **Variable Assignment** | Explicit intermediate local variable assignment before passing into method invocations. | Universal |
 | **Temporal Queries** | Parameterized `TimeProvider` or explicit `DateTimeOffset now`. | Temporal logic |
-| **Concurrency Guard** | Optimistic concurrency on PUT/DELETE actions via `[FromHeader(Name = "If-Match")] string? ifMatch`. | Controller Action |
+| **Concurrency Guard** | Ambient optimistic concurrency via global `ETagFilter`, `IConcurrencyContext`, and `ConcurrencySaveChangesInterceptor`. | Cross-Cutting Pipeline |
 | **Traffic Protection** | Declarative endpoint rate limiting via `[EnableRateLimiting("...")]` policies. | Controller Action |
 | **Test Rhythm** | 3-Phase DAMP Arrange-Act-Assert (AAA) layout with explicit test setups. | Test suites |
 

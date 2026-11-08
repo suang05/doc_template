@@ -33,6 +33,7 @@ ArchitecturalSignals: [ARCH_EVOLUTION_DOMAIN]
 | **Global vs Tenant Identity** | `User` is a Global Identity (Zero `ProjectId` column, zero `IMustHaveProject`). Multi-project tenancy is mapped exclusively through `UserProjectRole`. | Identity Context |
 | **Tenant Partitioning** | Tenant-scoped entities implement `IMustHaveProject` with mandatory fail-fast guard: `ProjectId = Guard.NotEmpty(projectId, nameof(ProjectId))`. | Multi-Tenancy |
 | **Child Entity Lifecycle** | Child entities created and mutated exclusively through their parent Aggregate Root (`aggregate.AddChild(...)`). Standard `Guid` identity. | Entity Hierarchy |
+| **Concurrency Token Contract**| Mutable aggregates implement `IConcurrencyAware`, exposing `EntityId` and deterministic `GetConcurrencyToken()` (`(UpdatedAt ?? CreatedAt).ToUnixTimeMilliseconds().ToString()`) inherited from `BaseEntity<TId>`. | Optimistic Concurrency |
 | **Decoupled Side-Effects** | Side-effects appended in-memory as immutable `IDomainEvent` records and harvested post-commit by the application layer. | Event Outbox |
 
 ---
@@ -95,15 +96,26 @@ public readonly record struct {Aggregate}Id(Guid Value) : IComparable<{Aggregate
 }
 ```
 
-### 3.2 Base Entity Contracts (`BaseEntity<TId>` & `BaseEntity`)
+### 3.2 Base Entity & Concurrency Contracts (`IConcurrencyAware`, `BaseEntity<TId>` & `BaseEntity`)
 >> MANDATORY CANONICAL BLUEPRINT [RULE-DOM-002]:
-* `BaseEntity<TId>` encapsulates strongly-typed ID, audit timestamps, and in-memory domain event harvesting.
+* `IConcurrencyAware` defines the uniform identity and token extraction contract for optimistic concurrency verification.
+* `BaseEntity<TId>` encapsulates strongly-typed ID, audit timestamps, `EntityId`, `GetConcurrencyToken()`, and in-memory domain event harvesting.
 * `BaseEntity` encapsulates standard `Guid` identities for child entities.
 
 ```csharp
+public interface IConcurrencyAware
+{
+    object EntityId { get; }
+    DateTimeOffset CreatedAt { get; }
+    DateTimeOffset? UpdatedAt { get; }
+    string GetConcurrencyToken();
+    string? GetAlternateConcurrencyToken() => null;
+}
+
 public abstract class BaseEntity<TId> : IHaveDomainEvents where TId : struct, IEquatable<TId>
 {
     public TId Id { get; protected set; }
+    public object EntityId => Id;
     public DateTimeOffset CreatedAt { get; protected set; }
     public DateTimeOffset? UpdatedAt { get; protected set; }
 
@@ -121,11 +133,15 @@ public abstract class BaseEntity<TId> : IHaveDomainEvents where TId : struct, IE
     public void AddDomainEvent(IDomainEvent domainEvent) => _domainEvents.Add(Guard.NotNull(domainEvent, nameof(domainEvent)));
     public void ClearDomainEvents() => _domainEvents.Clear();
     protected void SetUpdated(DateTimeOffset now) => UpdatedAt = Guard.NotDefault(now, nameof(now));
+
+    public string GetConcurrencyToken() =>
+        (UpdatedAt ?? CreatedAt).ToUnixTimeMilliseconds().ToString();
 }
 
 public abstract class BaseEntity
 {
     public Guid Id { get; protected set; }
+    public object EntityId => Id;
     public DateTimeOffset CreatedAt { get; protected set; }
     public DateTimeOffset? UpdatedAt { get; protected set; }
 
@@ -138,17 +154,20 @@ public abstract class BaseEntity
     }
 
     protected void SetUpdated(DateTimeOffset now) => UpdatedAt = Guard.NotDefault(now, nameof(now));
+
+    public string GetConcurrencyToken() =>
+        (UpdatedAt ?? CreatedAt).ToUnixTimeMilliseconds().ToString();
 }
 ```
 
 ### 3.3 Tenant-Scoped Aggregate Root Archetype
 >> MANDATORY CANONICAL BLUEPRINT [RULE-DOM-003]:
-* Sealed reference type inheriting `BaseEntity<{Aggregate}Id>` and implementing `IMustHaveProject`.
+* Sealed reference type inheriting `BaseEntity<{Aggregate}Id>` and implementing `IMustHaveProject` and `IConcurrencyAware`.
 * 1 Canonical static `Create(...)` factory method.
 * Business mutation verbs following the 4-Step State Mutation Verb Cadence.
 
 ```csharp
-public sealed class {Aggregate} : BaseEntity<{Aggregate}Id>, IMustHaveProject
+public sealed class {Aggregate} : BaseEntity<{Aggregate}Id>, IMustHaveProject, IConcurrencyAware
 {
     // 1. Public Encapsulated Properties
     public ProjectId ProjectId { get; private set; }

@@ -13,9 +13,9 @@ namespace SmkDoc.Tests.Api.Filters;
 
 public sealed class ETagFilterTests
 {
-    private readonly IConcurrencyContextSetter _concurrencySetter = Substitute.For<IConcurrencyContextSetter>();
+    private readonly IConcurrencyContext _concurrencyContext = Substitute.For<IConcurrencyContext>();
 
-    private ETagFilter CreateSut() => new(_concurrencySetter);
+    private ETagFilter CreateSut() => new(_concurrencyContext);
 
     private static (ActionExecutingContext ExecutingContext, ActionExecutionDelegate Next) CreateFilterPipeline(
         IActionResult result,
@@ -57,7 +57,7 @@ public sealed class ETagFilterTests
         await sut.OnActionExecutionAsync(context, next);
 
         // Step 3: Assert
-        _concurrencySetter.Received(1).SetIfMatch("\"123456\"");
+        _concurrencyContext.IfMatch.Should().Be("\"123456\"");
     }
 
     [Fact]

@@ -195,7 +195,7 @@ public sealed class SaveTemplateHtmlUseCaseTests
         _templateRepo.GetByIdWithDetailsAsync(new TemplateId(templateId), Arg.Any<CancellationToken>())
             .Returns(template);
 
-        _concurrencyContext.SetIfMatch("\"2\""); // Current version is 3, mismatch!
+        _concurrencyContext.IfMatch = "\"2\""; // Current version is 3, mismatch!
         var request = new SaveTemplateHtmlCommand(
             TemplateId: templateId,
             Html: "<html><body>Hello</body></html>"
@@ -240,7 +240,7 @@ public sealed class SaveTemplateHtmlUseCaseTests
         _schemaInference.InferFromHtml(Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<string?>())
             .Returns(("{}", "{}"));
 
-        _concurrencyContext.SetIfMatch("\"3\""); // Matches version 3!
+        _concurrencyContext.IfMatch = "\"3\""; // Matches version 3!
         var request = new SaveTemplateHtmlCommand(
             TemplateId: templateId,
             Html: "<html><body>Hello</body></html>"

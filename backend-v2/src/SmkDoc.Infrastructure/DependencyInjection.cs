@@ -49,9 +49,7 @@ public static class DependencyInjection
         services.AddScoped<ICurrentProjectContext>(sp => sp.GetRequiredService<CurrentProjectContext>());
         services.AddScoped<ICurrentProjectContextSetter>(sp => sp.GetRequiredService<CurrentProjectContext>());
 
-        services.AddScoped<ConcurrencyContext>();
-        services.AddScoped<IConcurrencyContext>(sp => sp.GetRequiredService<ConcurrencyContext>());
-        services.AddScoped<IConcurrencyContextSetter>(sp => sp.GetRequiredService<ConcurrencyContext>());
+        services.AddScoped<IConcurrencyContext, ConcurrencyContext>();
 
         // 3. Database
         string connectionString = configuration.GetConnectionString("DefaultConnection")

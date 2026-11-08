@@ -34,7 +34,7 @@ ArchitecturalSignals: [ARCH_EVOLUTION_APPLICATION]
 | **Transaction Boundary** | State mutations commit exclusively via `IUnitOfWork.CommitAsync(ct)` at egress. Read queries remain read-only and never commit transactions. | Data Persistence |
 | **Zero-LOH Streaming** | Binary render/export operations consume and return live `Stream`. Spooling utilizes `HybridSpoolStream` (<= 64 KB pooled `ArrayPool<byte>`; > 64 KB `DeleteOnClose` temp `FileStream`). Zero unbounded `byte[]` in memory. | Memory & GC |
 | **Pagination Clamping** | Paginated queries clamp `Page >= 1` and `PageSize` between 1 and 100 (`Math.Clamp(query.PageSize, 1, 100)`). Hot-path list projections select scalar columns only, bypassing `jsonb` payloads. | Query Scaling |
-| **Optimistic Concurrency Guard** | Mutating commands on versioned aggregates accept `string? IfMatch = null`. The UseCase performs pre-flight verification against the aggregate's current concurrency token (throwing `PreconditionFailedException` on mismatch) and catches `DbUpdateConcurrencyException` during commit (throwing `ConflictException`). | Concurrency Control |
+| **Ambient Concurrency Guard** | Commands and UseCases remain free of `string? IfMatch` plumbing. Mutable `*ResultDto` records implement `IHasConcurrencyToken` (`entity.GetConcurrencyToken()`). Pre-commit `412` verification executes automatically via `ConcurrencySaveChangesInterceptor` on `CommitAsync(ct)` (or explicitly via `IConcurrencyContext.EnsureMatches(entity)` only when external I/O precedes `CommitAsync`). | Concurrency Control |
 | **Single-Type File Topology** | Every `*Command`, `*Query`, `*Validator`, and `*UseCase` resides in its own isolated `{TypeName}.cs` file inside its vertical slice directory (`Commands/{SliceName}/` or `Queries/{SliceName}/`). | Physical Structure |
 
 ---
@@ -48,8 +48,8 @@ ArchitecturalSignals: [ARCH_EVOLUTION_APPLICATION]
 * **Why Application DTOs as Boundary Firewalls:** Domain entities must never cross the layer boundary into Presentation; prevents leaking internal domain state or triggering EF Core lazy-loading traps.
 * **Why Direct Stream Return for Render/Preview:** Guarantees zero Large Object Heap (LOH) RAM allocation (<85 KB Gen 2 threshold) during high-throughput document streaming.
 * **Why Post-Commit Domain Event Dispatch:** Dispatches domain side-effects (e.g. audit logging, cache invalidation) strictly after `unitOfWork.CommitAsync(ct)` succeeds, preventing ghost side-effects on transaction rollback.
-* **Why Application-Level Pre-Flight Concurrency Check:** Catches stale updates immediately before executing heavy domain invariants or external validations. If another user modified the template 10 minutes ago, aborting at Step 1 saves database locks and CPU cycles.
-* **Why Dual-Catch Commit Pattern:** While pre-flight checks catch 99% of stale edits, two concurrent requests can pass pre-flight simultaneously. Catching EF Core's `DbUpdateConcurrencyException` during `CommitAsync` and mapping to `ConflictException` (409) closes the remaining microsecond race condition.
+* **Why Ambient Concurrency Pipeline over Imperative Command/UseCase Plumbing:** Passing `string? IfMatch` through every Controller, Command, and UseCase pollutes business logic with HTTP string-trimming ceremony. Instead, `ETagFilter` populates scoped `IConcurrencyContext.IfMatch` on ingress, `ConcurrencySaveChangesInterceptor` verifies `IfMatch` against EF Core `OriginalValue` of `UpdatedAt ?? CreatedAt` on `CommitAsync` (throwing `PreconditionFailedException` -> `412`), and EF Core `.IsConcurrencyToken()` on `UpdatedAt` catches microsecond race conditions (throwing `DbUpdateConcurrencyException` -> `409` via `GlobalExceptionHandler`).
+* **Why Explicit `IConcurrencyContext.EnsureMatches` Only Before Pre-Commit External I/O:** When a UseCase uploads an object to MinIO S3 before calling `unitOfWork.CommitAsync(ct)`, calling `concurrencyContext.EnsureMatches(entity)` in Step 2 prevents orphan S3 uploads if the caller's `If-Match` header is already stale, and sets `IsVerified = true` so `ConcurrencySaveChangesInterceptor` skips redundant re-evaluation.
 
 ### 2.2 Primary SSoT Interfaces & ProblemDetails RFC 9457 Mapping
 ```csharp
@@ -71,6 +71,19 @@ public interface IUnitOfWork
 public interface IDomainEventDispatcher
 {
     Task DispatchEventsAsync(IEnumerable<IDomainEvent> domainEvents, CancellationToken ct = default);
+}
+
+public interface IHasConcurrencyToken
+{
+    string? ConcurrencyToken { get; }
+}
+
+public interface IConcurrencyContext
+{
+    string? IfMatch { get; set; }
+    bool IsVerified { get; }
+    void EnsureMatches(IConcurrencyAware entity, string? alternateToken = null);
+    void EnsureTokenMatches(string resourceName, object resourceId, string currentToken, string? alternateToken = null);
 }
 ```
 
@@ -144,7 +157,8 @@ public sealed record {Aggregate}ResultDto(
     string? Category,
     bool IsActive,
     DateTimeOffset CreatedAt,
-    DateTimeOffset? UpdatedAt);
+    DateTimeOffset? UpdatedAt,
+    string? ConcurrencyToken = null) : IHasConcurrencyToken;
 
 // --- File: Commands/{Verb}{Aggregate}/{Verb}{Aggregate}UseCase.cs ---
 public sealed class {Verb}{Aggregate}UseCase(
@@ -186,7 +200,8 @@ public sealed class {Verb}{Aggregate}UseCase(
             aggregate.Category,
             aggregate.IsActive,
             aggregate.CreatedAt,
-            aggregate.UpdatedAt);
+            aggregate.UpdatedAt,
+            aggregate.GetConcurrencyToken());
     }
 }
 ```
@@ -316,74 +331,55 @@ public sealed class CachedTemplateRenderer(
 }
 ```
 
-### 3.5 Optimistic Concurrency Mutating Slice Archetype (`Update{Aggregate}` with ETag / If-Match Guard)
+### 3.5 Optimistic Concurrency Mutating Slice Archetype (`Update{Aggregate}` via Ambient Concurrency Pipeline)
 >> MANDATORY CANONICAL BLUEPRINT [RULE-APP-CMD-005]:
 * Co-located inside `Modules/{BoundedContext}/{Aggregate}/Commands/Update{Aggregate}/`.
-* Ingress Command carries optional `string? IfMatch = null`.
-* Executes 4-step PEMR with Step 1 Pre-flight Concurrency Check and Step 3 Dual-Catch Mid-flight Commit collision handler.
+* Command and UseCase remain 100% free of manual `IfMatch` string parameters.
+* Standard relational mutations rely automatically on `ConcurrencySaveChangesInterceptor` during `unitOfWork.CommitAsync(ct)` (pre-commit `412`) and EF Core `.IsConcurrencyToken()` on `UpdatedAt` (mid-flight `409`).
+* When external I/O (e.g. MinIO `storageService.UploadAsync`) precedes `unitOfWork.CommitAsync(ct)`, inject `IConcurrencyContext concurrencyContext` and invoke `concurrencyContext.EnsureMatches(entity)` before the external upload.
 
 ```csharp
 // --- File: Commands/Update{Aggregate}/Update{Aggregate}Command.cs ---
-namespace SmkDoc.Application.Modules.{BoundedContext}.{Aggregate}.Commands.Update{Aggregate};
-
 public sealed record Update{Aggregate}Command(
     Guid Id,
     string Name,
-    string? Category,
-    string? IfMatch = null
-);
+    string? Category);
 
 // --- File: Commands/Update{Aggregate}/Update{Aggregate}UseCase.cs ---
-namespace SmkDoc.Application.Modules.{BoundedContext}.{Aggregate}.Commands.Update{Aggregate};
-
 public sealed class Update{Aggregate}UseCase(
     I{Aggregate}Repository repository,
     IUnitOfWork unitOfWork,
+    ICurrentProjectContext projectContext,
     TimeProvider timeProvider) : IUseCase<Update{Aggregate}Command, {Aggregate}ResultDto>
 {
     public async Task<{Aggregate}ResultDto> ExecuteAsync(Update{Aggregate}Command command, CancellationToken ct = default)
     {
-        // Step 1: Fetch Aggregate Root & Execute Pre-flight Concurrency Guard
+        // Step 1: Tenant Guard <Why: prevent cross-tenant mutation>
+        if (!projectContext.IsResolved)
+            throw new ForbiddenException("Active project context is required.");
+
+        // Step 2: Ensure Preconditions <Why: fetch tracked aggregate root>
         var entity = await repository.GetByIdAsync(new {Aggregate}Id(command.Id), ct)
-            ?? throw new NotFoundException("{Aggregate}", command.Id);
+            ?? throw new NotFoundException($"Target {nameof({Aggregate})} '{command.Id}' not found.");
 
-        if (!string.IsNullOrWhiteSpace(command.IfMatch) && command.IfMatch != "*")
-        {
-            var sanitizedMatch = command.IfMatch.Trim('\"', 'W', '/', ' ');
-            var currentToken = entity.ConcurrencyToken; // Sourced from xmin or Version
-
-            if (!string.Equals(sanitizedMatch, currentToken, StringComparison.OrdinalIgnoreCase))
-            {
-                throw new PreconditionFailedException(
-                    $"Precondition failed for {Aggregate} '{command.Id}'. ETag '{sanitizedMatch}' does not match current state '{currentToken}'.");
-            }
-        }
-
-        // Step 2: Domain Invariants Execution
+        // Step 3: Mutate Domain State <Why: enforce domain invariants and advance UpdatedAt>
         var now = timeProvider.GetUtcNow();
-        entity.UpdateDetails(command.Name, command.Category, now);
-
-        // Step 3: Persistence & Dual-Catch Mid-flight Concurrency Commit
+        entity.UpdateDetails({Aggregate}Name.Create(command.Name), command.Category, now);
         repository.Update(entity);
-        try
-        {
-            await unitOfWork.CommitAsync(ct);
-        }
-        catch (DbUpdateConcurrencyException)
-        {
-            throw new ConflictException(
-                "The resource was modified by another transaction while your request was processing. Please reload and retry.",
-                "CONCURRENCY_CONFLICT");
-        }
 
-        // Step 4: Return Immutable DTO with updated Concurrency Token
+        // Step 4: Commit & Egress <Why: ConcurrencySaveChangesInterceptor verifies If-Match against OriginalValue>
+        await unitOfWork.CommitAsync(ct);
+
         return new {Aggregate}ResultDto(
             entity.Id.Value,
+            entity.ProjectId.Value,
             entity.Name.Value,
+            entity.Slug.Value,
             entity.Category,
+            entity.IsActive,
+            entity.CreatedAt,
             entity.UpdatedAt,
-            entity.ConcurrencyToken
-        );
+            entity.GetConcurrencyToken());
     }
 }
 ```
@@ -444,18 +440,14 @@ public sealed class Update{Aggregate}UseCase(
 ```
 *Rationale: Every `*Command`, `*Query`, `*Validator`, and `*UseCase` MUST live in its own `{TypeName}.cs` file co-located inside its vertical slice namespace.*
 
-### [TRAP-APP-008]: Blind Aggregate Mutation Without If-Match Precondition Guard
+### [TRAP-APP-008]: Polluting Commands and UseCases with Imperative If-Match String Parsing
 ```diff
-- // Overwriting aggregate details blindly without checking IfMatch
-- entity.UpdateDetails(command.Name, now);
-- await unitOfWork.CommitAsync(ct);
-+ if (!string.IsNullOrWhiteSpace(command.IfMatch) && command.IfMatch != "*")
-+ {
-+     var sanitized = command.IfMatch.Trim('\"', 'W', '/', ' ');
-+     if (!string.Equals(sanitized, entity.ConcurrencyToken, StringComparison.OrdinalIgnoreCase))
-+         throw new PreconditionFailedException($"Precondition failed for '{command.Id}'.");
-+ }
-+ entity.UpdateDetails(command.Name, now);
-+ await unitOfWork.CommitAsync(ct);
+- public sealed record Update{Aggregate}Command(Guid Id, string Name, string? IfMatch = null);
+- // Inside UseCase: manual string trimming & token comparison before CommitAsync
+- var sanitized = command.IfMatch.Trim('\"', 'W', '/', ' ');
+- if (sanitized != (entity.UpdatedAt ?? entity.CreatedAt).ToUnixTimeMilliseconds().ToString()) throw new PreconditionFailedException(...);
++ public sealed record Update{Aggregate}Command(Guid Id, string Name);
++ // ConcurrencySaveChangesInterceptor verifies ambient IConcurrencyContext.IfMatch automatically on unitOfWork.CommitAsync(ct)
++ // (Or call concurrencyContext.EnsureMatches(entity) before pre-commit external S3 I/O)
 ```
-*Rationale: Blind mutations without pre-flight concurrency validation allow two users editing the same template in different browser tabs to silently clobber each other's changes (lost updates).*
+*Rationale: Threading HTTP `If-Match` strings through Commands and UseCases violates Clean Architecture separation and duplicates token formatting logic across slices.*

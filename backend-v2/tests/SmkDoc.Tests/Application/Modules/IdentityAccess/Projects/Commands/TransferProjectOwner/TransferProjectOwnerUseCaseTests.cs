@@ -5,7 +5,6 @@ using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
-using SmkDoc.Infrastructure.Contexts;
 using SmkDoc.Tests.Common.Builders;
 
 namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Projects.Commands.TransferProjectOwner;
@@ -17,7 +16,6 @@ public sealed class TransferProjectOwnerUseCaseTests
     private readonly IUserProjectRoleRepository _userRoleRepo = Substitute.For<IUserProjectRoleRepository>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
     private readonly FakeTimeProvider _timeProvider = TestConstants.CreateFakeClock();
-    private readonly ConcurrencyContext _concurrencyContext = new();
 
     public TransferProjectOwnerUseCaseTests()
     {
@@ -25,7 +23,7 @@ public sealed class TransferProjectOwnerUseCaseTests
     }
 
     private TransferProjectOwnerUseCase CreateSut() =>
-        new(_projectRepo, _userRepo, _userRoleRepo, _unitOfWork, _timeProvider, _concurrencyContext);
+        new(_projectRepo, _userRepo, _userRoleRepo, _unitOfWork, _timeProvider);
 
     [Fact]
     public async Task ExecuteAsync_WhenProjectNotFound_ThrowsNotFoundException()
@@ -159,59 +157,12 @@ public sealed class TransferProjectOwnerUseCaseTests
         // Assert
         priorRole.Role.Should().Be(RoleType.Developer);
         targetRole.Role.Should().Be(RoleType.Admin);
+        project.UpdatedAt.Should().NotBeNull();
+        _projectRepo.Received(1).Update(project);
         _userRoleRepo.Received(1).Update(priorRole);
         _userRoleRepo.Received(1).Update(targetRole);
         await _userRoleRepo.DidNotReceive().AddAsync(Arg.Any<UserProjectRole>(), Arg.Any<CancellationToken>());
         await _unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task ExecuteAsync_WhenIfMatchMatches_TransfersOwnerSuccessfully()
-    {
-        // Arrange
-        var projectId = Guid.NewGuid();
-        var newOwnerId = Guid.NewGuid();
-        var project = ProjectBuilder.AProject().WithId(projectId).Build();
-        var newOwner = UserBuilder.AUser().WithId(newOwnerId).Build();
-        var token = (project.UpdatedAt ?? project.CreatedAt).ToUnixTimeMilliseconds().ToString();
-
-        _projectRepo.GetByIdAsync(new ProjectId(projectId), Arg.Any<CancellationToken>())
-            .Returns(project);
-        _userRepo.GetByIdAsync(new UserId(newOwnerId), Arg.Any<CancellationToken>())
-            .Returns(newOwner);
-        _userRoleRepo.ListByProjectAsync(new ProjectId(projectId), Arg.Any<CancellationToken>())
-            .Returns(new List<UserProjectRole>());
-
-        _concurrencyContext.SetIfMatch($"\"{token}\"");
-        var command = new TransferProjectOwnerCommand(projectId, newOwnerId);
-
-        // Act
-        await CreateSut().ExecuteAsync(command);
-
-        // Assert
-        await _unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task ExecuteAsync_WhenIfMatchMismatches_ThrowsPreconditionFailedException()
-    {
-        // Arrange
-        var projectId = Guid.NewGuid();
-        var newOwnerId = Guid.NewGuid();
-        var project = ProjectBuilder.AProject().WithId(projectId).Build();
-
-        _projectRepo.GetByIdAsync(new ProjectId(projectId), Arg.Any<CancellationToken>())
-            .Returns(project);
-
-        _concurrencyContext.SetIfMatch("\"99999999\"");
-        var command = new TransferProjectOwnerCommand(projectId, newOwnerId);
-
-        // Act
-        var act = () => CreateSut().ExecuteAsync(command);
-
-        // Assert
-        await act.Should().ThrowAsync<PreconditionFailedException>();
-        await _unitOfWork.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
     }
 }
 

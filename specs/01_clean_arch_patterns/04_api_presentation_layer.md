@@ -18,7 +18,7 @@ ArchitecturalSignals: [ARCH_EVOLUTION_API]
 | **Wire Inbound** | HTTP Client (Next.js Proxy / ERP) | Resolves Tenant & Auth Context | Controller Action (`[ApiController]`) |
 | **Command Dispatch** | Route & Body Parameters | Instantiates Command & forwards to UseCase | Application (`{verb}{Aggregate}UseCase.ExecuteAsync`) |
 | **POST Mutation Safeguard**| State-Mutating `POST` Methods | Enforces deduplication via `Idempotency-Key` | Idempotency Middleware / In-Memory Store |
-| **PUT/DELETE Concurrency** | State-Mutating `PUT` / `DELETE` | Enforces concurrency via `If-Match` / `ETag` | UseCase Optimistic Concurrency Engine |
+| **PUT/DELETE Concurrency** | State-Mutating `PUT` / `DELETE` | Enforces concurrency via global `ETagFilter` & `If-Match` | Ambient `IConcurrencyContext` & `ConcurrencySaveChangesInterceptor` |
 | **Wire Egress** | Application DTO (`{Aggregate}ResultDto`) | Envelopes into `ApiResponse<T>` with HTTP Status | Client (`200 OK`, `201 Created` + Location) |
 | **Streaming Egress** | Binary Render Stream | Streams directly to `Response.Body` | HTTP Chunked Stream (`application/pdf`) |
 | **Error Egress** | Unhandled Exceptions | Dispatches to RFC 9457 `ProblemDetails` | HTTP Client (`application/problem+json`) |
@@ -30,7 +30,7 @@ ArchitecturalSignals: [ARCH_EVOLUTION_API]
 | **Unified Response Envelopes** | All standard JSON responses are wrapped in immutable `ApiResponse<T>` or `PagedApiResponse<T>`. Anonymous object returns (`new { ... }`) are prohibited. | Wire Output |
 | **RFC 9457 ProblemDetails** | Unhandled and domain exceptions translate through `GlobalExceptionHandler` and `ProblemDetailsBuilder` into RFC 9457 `ProblemDetails` (`application/problem+json`) with `errorCode`, `traceId` (`httpContext.TraceIdentifier`), and validation details in `Extensions["errors"]`. | Error Pipeline |
 | **POST Mutation Idempotency** | State-mutating `POST` endpoints enforce deduplication via `[Idempotent]` attribute consuming the `Idempotency-Key` HTTP header. | Mutation Safety |
-| **PUT/DELETE Concurrency** | Naturally idempotent `PUT` and `DELETE` endpoints enforce optimistic concurrency via `[FromHeader(Name = "If-Match")]` mapped to PostgreSQL `xmin`. Redis lock idempotency on PUT/DELETE is prohibited. | Concurrency Control |
+| **PUT/DELETE Concurrency** | Naturally idempotent `PUT` and `DELETE` endpoints enforce optimistic concurrency via global `ETagFilter` (capturing `If-Match` into `IConcurrencyContext` on ingress and emitting `ETag` from `IHasConcurrencyToken` on 2xx egress) and `[ProducesResponseType(StatusCodes.Status412PreconditionFailed)]`. Redis lock idempotency on PUT/DELETE is prohibited. | Concurrency Control |
 | **Diagnostic Probe Semantics** | Connectivity probes (`POST /api/v1/data-connections/test`) return HTTP 200 OK with `ApiResponse<TestDataConnectionResultDto>` (`{ success: false, message }`). HTTP 4xx is reserved strictly for malformed JSON or SSRF blocks. | Integration Diagnostics |
 | **SSRF Perimeter Defense** | Network reachability endpoints execute pre-flight `ConnectionHostValidator.EnsureSafeTarget(host)` blocking loopback, link-local, cloud metadata, and container aliases. | Network Boundary |
 | **Zero-LOH Streaming Egress** | Binary render/download endpoints stream live `Stream` directly to `Response.Body` or `File(stream, ...)` with bounded `81,920`-byte buffers. Whole-file `byte[]` buffering is prohibited. | Memory & GC |
@@ -65,8 +65,8 @@ VariableNamingFirewall:
   ActionOnViolation: "Rename pagedResult, pagedLogs, pdfStream, response to var result."
 
 MutationSemanticsFirewall:
-  Invariant: "Apply [Idempotent] strictly to POST; enforce If-Match on PUT/DELETE."
-  ActionOnViolation: "Remove [Idempotent] from PUT/DELETE and add [FromHeader(Name = 'If-Match')]."
+  Invariant: "Apply [Idempotent] strictly to POST; enforce ambient If-Match on PUT/DELETE."
+  ActionOnViolation: "Remove [Idempotent] from PUT/DELETE and decorate with [ProducesResponseType(StatusCodes.Status412PreconditionFailed)]."
 
 RateLimitingPolicyFirewall:
   Invariant: "Every controller must be decorated with [EnableRateLimiting] policy."
@@ -143,7 +143,7 @@ When an aggregate's capabilities exceed 5 UseCases, or encompass specialized ope
 * Inherits from `ControllerBase`, applies `[ApiController]`, marks class `sealed`, and defines route as `[Route("api/v1/{plural-kebab-resource}")]`.
 * Injects single-responsibility `IUseCase<TRequest, TResponse>` abstractions via primary constructor ($\le 5$ dependencies).
 * Action methods stay thin ($\le 5$ LOC): execute 3-step dispatcher (Instantiate Input, Execute UseCase to `var result`, Envelope Return).
-* Applies `[Idempotent]` strictly to `POST` mutations; enforces `[FromHeader(Name = "If-Match")]` on `PUT` and `DELETE`.
+* Applies `[Idempotent]` strictly to `POST` mutations; declares `[ProducesResponseType(StatusCodes.Status412PreconditionFailed)]` on `PUT` and `DELETE` (with `If-Match` and `ETag` handled transparently by global `ETagFilter`).
 
 ```csharp
 [ApiController]
@@ -181,8 +181,7 @@ public sealed class {Aggregate}sController(
         // Step 2: Execute UseCase <Why: throws strongly-typed NotFoundException if missing>
         var result = await getByIdUseCase.ExecuteAsync(query, ct);
 
-        // Step 3: Attach Concurrency Header & Envelope <Why: optimistic concurrency support>
-        Response.Headers.ETag = $"\"{result.ConcurrencyToken}\"";
+        // Step 3: Envelope Egress <Why: ETagFilter attaches ETag header from IHasConcurrencyToken>
         return Ok(new ApiResponse<{Aggregate}ResultDto>(result));
     }
 
@@ -212,17 +211,15 @@ public sealed class {Aggregate}sController(
     public async Task<IActionResult> Update(
         [FromRoute] Guid id,
         [FromBody] Update{Aggregate}Request request,
-        [FromHeader(Name = "If-Match")] string? ifMatch,
         CancellationToken ct)
     {
-        // Step 1: Instantiate Command with Concurrency Token <Why: prevent lost update overwrites>
-        var command = new Update{Aggregate}Command(id, request.Name, request.Category, ifMatch);
+        // Step 1: Instantiate Command <Why: ambient ETagFilter captures If-Match header>
+        var command = new Update{Aggregate}Command(id, request.Name, request.Category);
 
-        // Step 2: Execute UseCase <Why: verify optimistic concurrency against PostgreSQL xmin>
+        // Step 2: Execute UseCase <Why: ConcurrencySaveChangesInterceptor verifies precondition on commit>
         var result = await updateUseCase.ExecuteAsync(command, ct);
 
-        // Step 3: Attach New ETag & Envelope <Why: update client cache header>
-        Response.Headers.ETag = $"\"{result.ConcurrencyToken}\"";
+        // Step 3: Envelope Egress <Why: ETagFilter emits updated ETag header automatically>
         return Ok(new ApiResponse<{Aggregate}ResultDto>(result));
     }
 
@@ -232,11 +229,10 @@ public sealed class {Aggregate}sController(
     [ProducesResponseType(StatusCodes.Status412PreconditionFailed)]
     public async Task<IActionResult> Deactivate(
         [FromRoute] Guid id,
-        [FromHeader(Name = "If-Match")] string? ifMatch,
         CancellationToken ct)
     {
-        // Step 1: Instantiate Command <Why: capture target id and concurrency guard>
-        var command = new Deactivate{Aggregate}Command(id, ifMatch);
+        // Step 1: Instantiate Command <Why: capture target id; ambient filter captures If-Match>
+        var command = new Deactivate{Aggregate}Command(id);
 
         // Step 2: Execute UseCase <Why: soft deactivation in domain aggregate>
         await deactivateUseCase.ExecuteAsync(command, ct);
@@ -369,41 +365,40 @@ public sealed class GlobalExceptionHandler(
 }
 ```
 
-### 3.3 Unified Response Envelopes Archetype
+### 3.3 Unified Response Envelopes & Global ETag Filter Archetypes
 >> MANDATORY CANONICAL BLUEPRINT [RULE-API-003]:
-* Encapsulates single-resource responses in immutable `ApiResponse<T>(T Data)`.
+* Encapsulates single-resource responses in immutable `ApiResponse<T>(T Data) : IApiResponse`.
 * Encapsulates collection responses in `PagedApiResponse<T>(IEnumerable<T> Data, PaginationMetadata Pagination)`.
+* `ETagFilter` hydrates `IConcurrencyContext.IfMatch` on ingress and attaches `Response.Headers.ETag` from `IApiResponse` + `IHasConcurrencyToken` on 2xx egress without reflection.
 >> SSoT DELEGATION: Universal response envelopes (`ApiResponse<T>`, `PagedApiResponse<T>`) and RFC 9457 error wire schemas are governed strictly by [06_api_contract_standards.md](../00_architecture_core/06_api_contract_standards.md).
 
 ```csharp
-public record ApiResponse<T>(T Data);
-
-public record PaginationMetadata(
-    int Page,
-    int Limit,
-    int TotalCount,
-    int TotalPages
-)
+public interface IApiResponse
 {
-    public static PaginationMetadata Create(int totalCount, int page, int limit)
-    {
-        var safeLimit = Math.Max(1, limit);
-        var safePage = Math.Max(1, page);
-        var safeTotal = Math.Max(0, totalCount);
-        var totalPages = (int)Math.Ceiling((double)safeTotal / safeLimit);
-
-        return new PaginationMetadata(safePage, safeLimit, safeTotal, totalPages);
-    }
+    object? Data { get; }
 }
 
-public record PagedApiResponse<T>(
-    IEnumerable<T> Data,
-    PaginationMetadata Pagination
-) : ApiResponse<IEnumerable<T>>(Data)
+public record ApiResponse<T>(T Data) : IApiResponse
 {
-    public PagedApiResponse(IEnumerable<T> data, int totalCount, int page, int limit)
-        : this(data, PaginationMetadata.Create(totalCount, page, limit))
+    object? IApiResponse.Data => Data;
+}
+
+public sealed class ETagFilter(IConcurrencyContext concurrencyContext) : IAsyncActionFilter
+{
+    public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
     {
+        // Step 1: Capture If-Match Header on Ingress <Why: auto-sanitizes inside IConcurrencyContext.IfMatch setter>
+        if (context.HttpContext.Request.Headers.TryGetValue(HttpHeaderConstants.IfMatch, out var rawIfMatch))
+            concurrencyContext.IfMatch = rawIfMatch.ToString();
+
+        var executed = await next();
+
+        // Step 2: Emit ETag Header on 2xx Egress <Why: zero-reflection unwrapping via IApiResponse & IHasConcurrencyToken>
+        if (executed.Exception is null &&
+            executed.Result is ObjectResult { StatusCode: null or (>= 200 and < 300), Value: IApiResponse { Data: IHasConcurrencyToken { ConcurrencyToken: { Length: > 0 } token } } })
+        {
+            context.HttpContext.Response.Headers.ETag = $"\"{token}\"";
+        }
     }
 }
 ```
@@ -458,15 +453,16 @@ public sealed class {Resource}DiagnosticsController(
 ```
 *Rationale: Anonymous object returns produce untyped OpenAPI schemas and break client code-generator typing.*
 
-### [TRAP-API-003]: Split-Brain Mutation Semantics (Applying `[Idempotent]` to PUT/DELETE instead of `If-Match` Concurrency)
+### [TRAP-API-003]: Split-Brain Mutation Semantics or Imperative ETag/If-Match Controller Plumbing
 ```diff
 - [HttpPut("{id:guid}")]
 - [Idempotent]
-- public async Task<IActionResult> Update([FromRoute] Guid id, [FromBody] Update{Aggregate}Request request)
+- public async Task<IActionResult> Update([FromRoute] Guid id, [FromBody] Update{Aggregate}Request request, [FromHeader(Name = "If-Match")] string? ifMatch)
 + [HttpPut("{id:guid}")]
-+ public async Task<IActionResult> Update([FromRoute] Guid id, [FromBody] Update{Aggregate}Request request, [FromHeader(Name = "If-Match")] string? ifMatch, CancellationToken ct)
++ [ProducesResponseType(StatusCodes.Status412PreconditionFailed)]
++ public async Task<IActionResult> Update([FromRoute] Guid id, [FromBody] Update{Aggregate}Request request, CancellationToken ct)
 ```
-*Rationale: PUT and DELETE are naturally idempotent by HTTP specification; applying Redis-lock idempotency introduces distributed lock overhead while failing to prevent lost-update concurrency anomalies.*
+*Rationale: PUT and DELETE are naturally idempotent by HTTP specification; applying `[Idempotent]` introduces distributed lock overhead, while manually binding `[FromHeader(Name = "If-Match")]` or setting `Response.Headers.ETag` in controllers duplicates cross-cutting logic handled by `ETagFilter`.*
 
 ### [TRAP-API-004]: Multi-MB File Download via RAM Byte Array
 ```diff

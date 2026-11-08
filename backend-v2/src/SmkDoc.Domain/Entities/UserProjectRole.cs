@@ -14,6 +14,7 @@ public sealed class UserProjectRole : IConcurrencyAware, IEquatable<UserProjectR
 {
     public UserId UserId { get; private set; }
     public ProjectId ProjectId { get; private set; }
+    public object EntityId => UserId.Value;
     public RoleType Role { get; private set; } = RoleType.Viewer;
     public DateTimeOffset CreatedAt { get; private set; }
     DateTimeOffset? IConcurrencyAware.UpdatedAt => null;

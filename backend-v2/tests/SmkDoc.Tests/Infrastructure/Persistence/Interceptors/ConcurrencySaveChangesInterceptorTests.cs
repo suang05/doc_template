@@ -30,7 +30,7 @@ public sealed class ConcurrencySaveChangesInterceptorTests
 
         Template template = TemplateBuilder.ATemplate().WithName("Old Name").WithSlug("invoice");
         var originalToken = template.GetConcurrencyToken();
-        concurrencyContext.SetIfMatch($"\"{originalToken}\"");
+        concurrencyContext.IfMatch = $"\"{originalToken}\"";
 
         dbContext.Attach(template);
         template.UpdateDetails(TemplateName.Create("New Name"), "Billing", template.CreatedAt.AddMinutes(5));
@@ -52,7 +52,7 @@ public sealed class ConcurrencySaveChangesInterceptorTests
         var sut = new ConcurrencySaveChangesInterceptor(concurrencyContext);
 
         Template template = TemplateBuilder.ATemplate().WithName("Old Name").WithSlug("invoice");
-        concurrencyContext.SetIfMatch("\"stale-token-000\"");
+        concurrencyContext.IfMatch = "\"stale-token-000\"";
 
         dbContext.Attach(template);
         template.UpdateDetails(TemplateName.Create("New Name"), "Billing", template.CreatedAt.AddMinutes(5));
@@ -75,7 +75,7 @@ public sealed class ConcurrencySaveChangesInterceptorTests
 
         Template template = TemplateBuilder.ATemplate().WithName("Name").WithSlug("invoice");
         var mapping = FieldMapping.Create(template.Id, "customer_name", "$.customer.name", "Customer Name", true, 0, template.CreatedAt);
-        concurrencyContext.SetIfMatch("\"unrelated-token\"");
+        concurrencyContext.IfMatch = "\"unrelated-token\"";
 
         dbContext.Attach(mapping);
         dbContext.Entry(mapping).State = EntityState.Modified;

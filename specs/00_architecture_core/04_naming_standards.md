@@ -48,7 +48,7 @@ All local variables and parameters across layers must strictly conform to these 
 | **Application Query** | `query` | request, q, qry, req, payload | `ExecuteAsync(Get{Aggregate}Query query, ct)` |
 | **UseCase Output / Controller Return** | `result` | response, res, output, data, dto, entity | `var result = await useCase.ExecuteAsync(command, ct);` |
 | **Temporal Injection** | `now` | currentTime, utc, time, dt, dateTime | `{Aggregate}.Create(..., now)` |
-| **Optimistic Concurrency Header** | `ifMatch` | etag, if_match, concurrencyToken, header | `[FromHeader(Name = "If-Match")] string? ifMatch` |
+| **Ambient Concurrency Context** | `concurrencyContext` | etag, ifMatchHeader, tokenChecker | `IConcurrencyContext concurrencyContext` |
 | **Cancellation Token** | `ct` | cancellationToken, cancelToken, token | `CancellationToken ct = default` |
 
 ### 1.3 Anti-Abbreviation Standards
@@ -80,7 +80,8 @@ Every non-entity class must terminate with a deterministic suffix declaring its 
 | **Pure Calculation / Resolution / Parsing** | `*Calculator`, `*Resolver`, `*Parser` | `*Helper`, `*Utils`, `*Processor` | `RequestFingerprintCalculator`, `RateLimitPartitionKeyResolver` |
 | **Validation & Security Sanitization** | `*Validator`, `*Sanitizer` | `*Checker`, `*Helper`, `*Guard` (for services) | `ConnectionHostValidator`, `HtmlContentSanitizer` |
 | **OpenAPI / Schema Transformation** | `*Transformer`, `*Deduplicator` | `*Modifier`, `*Helper`, `*Patcher` | `OpenApiDocumentTransformer`, `OpenApiOperationTransformer` |
-| **HTTP Pipeline Interception** | `*Middleware`, `*Filter`, `*ExceptionHandler` | `*Interceptor`, `*Hook`, `*Manager` | `ProjectContextMiddleware`, `IdempotencyFilter`, `GlobalExceptionHandler` |
+| **HTTP Pipeline Interception** | `*Middleware`, `*Filter`, `*ExceptionHandler` | `*Hook`, `*Manager`, `*Handler` | `ProjectContextMiddleware`, `ETagFilter`, `IdempotencyFilter`, `GlobalExceptionHandler` |
+| **EF Core Persistence Interception** | `*SaveChangesInterceptor` | `*Hook`, `*Helper`, `*Listener` | `ConcurrencySaveChangesInterceptor`, `TenantSecuritySaveChangesInterceptor` |
 | **Static Policy & Protocol Tokens** | `*Policies`, `*Constants`, `*Names` | `*Config`, `*Strings`, `*Values` | `AuthorizationPolicies`, `RoleConstants`, `HttpHeaderConstants` |
 
 ---

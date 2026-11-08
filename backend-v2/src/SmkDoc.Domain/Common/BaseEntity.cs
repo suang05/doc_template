@@ -8,6 +8,7 @@ public abstract class BaseEntity<TId> : IHaveDomainEvents, IEquatable<BaseEntity
     where TId : struct, IComparable<TId>, IEquatable<TId>
 {
     public TId Id { get; protected set; }
+    public object EntityId => Id;
     public DateTimeOffset CreatedAt { get; protected set; }
     public DateTimeOffset? UpdatedAt { get; protected set; }
     private readonly List<IDomainEvent> _domainEvents = new();

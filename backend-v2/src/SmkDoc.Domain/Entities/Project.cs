@@ -53,4 +53,7 @@ public sealed class Project : BaseEntity<ProjectId>, IConcurrencyAware
         IsActive = false;
         SetUpdated(now);
     }
+
+    public void RecordOwnershipTransfer(DateTimeOffset now) =>
+        SetUpdated(now);
 }

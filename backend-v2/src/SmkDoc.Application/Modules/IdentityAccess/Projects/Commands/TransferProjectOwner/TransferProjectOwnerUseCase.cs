@@ -17,16 +17,13 @@ public sealed class TransferProjectOwnerUseCase(
     IUserRepository userRepo,
     IUserProjectRoleRepository userRoleRepo,
     IUnitOfWork unitOfWork,
-    TimeProvider timeProvider,
-    IConcurrencyContext? concurrencyContext = null) : IUseCase<TransferProjectOwnerCommand>
+    TimeProvider timeProvider) : IUseCase<TransferProjectOwnerCommand>
 {
     public async Task ExecuteAsync(TransferProjectOwnerCommand command, CancellationToken ct = default)
     {
         var projectId = new ProjectId(command.ProjectId);
         var project = await projectRepo.GetByIdAsync(projectId, ct)
             ?? throw new NotFoundException($"Project '{command.ProjectId}' not found.");
-
-        concurrencyContext?.EnsureMatches(project);
 
         var newOwnerId = new UserId(command.NewOwnerUserId);
         var newOwner = await userRepo.GetByIdAsync(newOwnerId, ct)
@@ -39,6 +36,9 @@ public sealed class TransferProjectOwnerUseCase(
 
         var existingRoles = await userRoleRepo.ListByProjectAsync(projectId, ct);
         var now = timeProvider.GetUtcNow();
+
+        project.RecordOwnershipTransfer(now);
+        projectRepo.Update(project);
 
         // Downgrade any prior Project Admin to Developer to maintain clear single ownership
         foreach (var role in existingRoles.Where(r => r.Role == RoleType.Admin && r.UserId != newOwnerId))

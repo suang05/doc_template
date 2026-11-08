@@ -1,5 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Entities;
@@ -13,8 +12,6 @@ namespace SmkDoc.Infrastructure.Persistence.Interceptors;
 /// </summary>
 public sealed class ConcurrencySaveChangesInterceptor(IConcurrencyContext concurrencyContext) : SaveChangesInterceptor
 {
-    private readonly IConcurrencyContext _concurrencyContext = concurrencyContext;
-
     public override InterceptionResult<int> SavingChanges(
         DbContextEventData eventData,
         InterceptionResult<int> result)
@@ -34,67 +31,31 @@ public sealed class ConcurrencySaveChangesInterceptor(IConcurrencyContext concur
 
     internal void ValidateConcurrency(DbContext? context)
     {
-        if (context is null || !_concurrencyContext.HasIfMatch || _concurrencyContext.IsWildcard || _concurrencyContext.IsVerified)
+        if (context is null || string.IsNullOrWhiteSpace(concurrencyContext.IfMatch) ||
+            concurrencyContext.IfMatch == "*" || concurrencyContext.IsVerified)
         {
             return;
         }
 
-        foreach (var entry in context.ChangeTracker.Entries<IConcurrencyAware>())
+        var entry = context.ChangeTracker.Entries<IConcurrencyAware>()
+            .FirstOrDefault(e => e.State is EntityState.Modified or EntityState.Deleted);
+
+        if (entry is null)
         {
-            if (entry.State is not (EntityState.Modified or EntityState.Deleted))
-            {
-                continue;
-            }
-
-            var originalToken = ResolveOriginalToken(entry);
-            var alternateToken = ResolveAlternateToken(entry);
-            var entityId = ResolveEntityId(entry);
-
-            _concurrencyContext.EnsureTokenMatches(
-                originalToken,
-                entry.Entity.GetType().Name,
-                entityId,
-                alternateToken);
-
-            // Once the root aggregate precondition is verified for this request, stop checking remaining entries
             return;
         }
-    }
 
-    private static string ResolveOriginalToken(EntityEntry<IConcurrencyAware> entry)
-    {
-        DateTimeOffset? originalUpdated = null;
-        var updatedProp = entry.Metadata.FindProperty(nameof(IConcurrencyAware.UpdatedAt));
-        if (updatedProp is not null)
-        {
-            originalUpdated = entry.Property<DateTimeOffset?>(nameof(IConcurrencyAware.UpdatedAt)).OriginalValue;
-        }
-
+        var originalUpdated = entry.Metadata.FindProperty(nameof(IConcurrencyAware.UpdatedAt)) is not null
+            ? entry.Property<DateTimeOffset?>(nameof(IConcurrencyAware.UpdatedAt)).OriginalValue
+            : null;
         var originalCreated = entry.Property<DateTimeOffset>(nameof(IConcurrencyAware.CreatedAt)).OriginalValue;
-        return (originalUpdated ?? originalCreated).ToUnixTimeMilliseconds().ToString();
+        var originalToken = (originalUpdated ?? originalCreated).ToUnixTimeMilliseconds().ToString();
+
+        var alternateToken = entry.Entity is Template template
+            ? entry.Property<Guid?>(nameof(Template.CurrentVersionId)).OriginalValue?.ToString() ?? template.CurrentVersion?.Version.ToString()
+            : entry.Entity.GetAlternateConcurrencyToken();
+
+        concurrencyContext.EnsureTokenMatches(originalToken, entry.Entity.GetType().Name, entry.Entity.EntityId, alternateToken);
     }
-
-    private static string? ResolveAlternateToken(EntityEntry<IConcurrencyAware> entry)
-    {
-        if (entry.Entity is Template template)
-        {
-            var originalVersionId = entry.Property<Guid?>(nameof(Template.CurrentVersionId)).OriginalValue;
-            return originalVersionId?.ToString() ?? template.CurrentVersion?.Version.ToString();
-        }
-
-        return entry.Entity.GetAlternateConcurrencyToken();
-    }
-
-    private static object ResolveEntityId(EntityEntry<IConcurrencyAware> entry) =>
-        entry.Entity switch
-        {
-            Template t => t.Id.Value,
-            Dataset d => d.Id.Value,
-            DataConnection c => c.Id.Value,
-            Project p => p.Id.Value,
-            ApiKey k => k.Id.Value,
-            UserProjectRole r => r.UserId.Value,
-            _ => string.Empty
-        };
 }
 

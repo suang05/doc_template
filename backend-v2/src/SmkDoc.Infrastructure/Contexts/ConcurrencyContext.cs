@@ -5,67 +5,46 @@ using SmkDoc.Domain.Interfaces;
 namespace SmkDoc.Infrastructure.Contexts;
 
 /// <summary>
-/// Scoped implementation of <see cref="IConcurrencyContext"/> and <see cref="IConcurrencyContextSetter"/>.
-/// Holds the sanitized HTTP If-Match precondition token and tracks verification state per request scope.
+/// Scoped implementation of <see cref="IConcurrencyContext"/>.
+/// Automatically sanitizes the HTTP If-Match precondition token and tracks verification state per request.
 /// </summary>
-public sealed class ConcurrencyContext : IConcurrencyContext, IConcurrencyContextSetter
+public sealed class ConcurrencyContext : IConcurrencyContext
 {
-    public string? IfMatch { get; private set; }
-    public bool HasIfMatch => !string.IsNullOrWhiteSpace(IfMatch);
-    public bool IsWildcard => string.Equals(IfMatch, "*", StringComparison.Ordinal);
+    private string? _ifMatch;
+
+    public string? IfMatch
+    {
+        get => _ifMatch;
+        set => _ifMatch = string.IsNullOrWhiteSpace(value)
+            ? null
+            : value.Trim() is "*" ? "*" : value.Trim('\"', 'W', '/', ' ');
+    }
+
     public bool IsVerified { get; private set; }
 
-    public void SetIfMatch(string? rawIfMatch)
-    {
-        if (string.IsNullOrWhiteSpace(rawIfMatch))
-        {
-            IfMatch = null;
-            return;
-        }
-
-        var trimmed = rawIfMatch.Trim();
-        IfMatch = trimmed == "*" ? "*" : trimmed.Trim('\"', 'W', '/', ' ');
-    }
-
-    public void EnsureMatches(IConcurrencyAware entity, string? alternateToken = null)
-    {
-        var currentToken = entity.GetConcurrencyToken();
-        var effectiveAlternate = alternateToken ?? entity.GetAlternateConcurrencyToken();
-        var entityId = ResolveEntityId(entity);
-        EnsureTokenMatches(currentToken, entity.GetType().Name, entityId, effectiveAlternate);
-    }
+    public void EnsureMatches(IConcurrencyAware entity, string? alternateToken = null) =>
+        EnsureTokenMatches(
+            entity.GetConcurrencyToken(),
+            entity.GetType().Name,
+            entity.EntityId,
+            alternateToken ?? entity.GetAlternateConcurrencyToken());
 
     public void EnsureTokenMatches(string currentToken, string entityName, object entityId, string? alternateToken = null)
     {
-        if (!HasIfMatch || IsWildcard || IsVerified)
+        if (string.IsNullOrWhiteSpace(_ifMatch) || _ifMatch == "*" || IsVerified)
         {
             IsVerified = true;
             return;
         }
 
-        bool matchesPrimary = string.Equals(IfMatch, currentToken, StringComparison.OrdinalIgnoreCase);
-        bool matchesAlternate = !string.IsNullOrWhiteSpace(alternateToken) &&
-                                string.Equals(IfMatch, alternateToken, StringComparison.OrdinalIgnoreCase);
-
-        if (!matchesPrimary && !matchesAlternate)
+        if (!string.Equals(_ifMatch, currentToken, StringComparison.OrdinalIgnoreCase) &&
+            (string.IsNullOrWhiteSpace(alternateToken) || !string.Equals(_ifMatch, alternateToken, StringComparison.OrdinalIgnoreCase)))
         {
             throw new PreconditionFailedException(
-                $"Precondition failed for {entityName} '{entityId}'. ETag '{IfMatch}' does not match current state.");
+                $"Precondition failed for {entityName} '{entityId}'. ETag '{_ifMatch}' does not match current state.");
         }
 
         IsVerified = true;
     }
-
-    private static object ResolveEntityId(IConcurrencyAware entity) =>
-        entity switch
-        {
-            SmkDoc.Domain.Entities.Template t => t.Id.Value,
-            SmkDoc.Domain.Entities.Dataset d => d.Id.Value,
-            SmkDoc.Domain.Entities.DataConnection c => c.Id.Value,
-            SmkDoc.Domain.Entities.Project p => p.Id.Value,
-            SmkDoc.Domain.Entities.ApiKey k => k.Id.Value,
-            SmkDoc.Domain.Entities.UserProjectRole r => r.UserId.Value,
-            _ => string.Empty
-        };
 }
 

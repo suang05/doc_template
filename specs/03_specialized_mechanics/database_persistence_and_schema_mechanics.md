@@ -207,10 +207,10 @@ public sealed class {Aggregate}VersionConfiguration : IEntityTypeConfiguration<{
 
 ---
 
-### 3.3 Multi-Tenant Global Query Filter Configuration in `AppDbContext`
+### 3.3 Multi-Tenant Global Query Filter & Concurrency Token Configuration in `AppDbContext`
 >> MANDATORY CANONICAL BLUEPRINT [RULE-DB-003]:
-* Scans assembly for `IMustHaveProject` implementations.
-* Configures automatic tenant filtering on root entities.
+* Scans assembly for `IMustHaveProject` and `IConcurrencyAware` implementations.
+* Configures automatic tenant filtering on root entities and `.IsConcurrencyToken()` on `IConcurrencyAware.UpdatedAt`.
 * Configures matching child query filters to eliminate EF Core warning 10622.
 
 ```csharp
@@ -226,14 +226,23 @@ public sealed class AppDbContext : DbContext
         // Step 1: Apply all IEntityTypeConfiguration classes from assembly
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
 
-        // Step 2: Automatic Multi-Tenant Filter for Root IMustHaveProject entities
+        // Step 2: Automatic Multi-Tenant Filter & Optimistic Concurrency Token Registration
         foreach (var entityType in modelBuilder.Model.GetEntityTypes().ToList())
         {
-            if (entityType.ClrType != null && typeof(IMustHaveProject).IsAssignableFrom(entityType.ClrType))
+            if (entityType.ClrType is null) continue;
+
+            if (typeof(IMustHaveProject).IsAssignableFrom(entityType.ClrType))
             {
                 ConfigureProjectFilterMethod
                     .MakeGenericMethod(entityType.ClrType)
                     .Invoke(this, [modelBuilder]);
+            }
+
+            if (typeof(IConcurrencyAware).IsAssignableFrom(entityType.ClrType))
+            {
+                modelBuilder.Entity(entityType.ClrType)
+                    .Property(nameof(IConcurrencyAware.UpdatedAt))
+                    .IsConcurrencyToken();
             }
         }
 
@@ -245,6 +254,52 @@ public sealed class AppDbContext : DbContext
     private void ConfigureProjectFilter<TEntity>(ModelBuilder modelBuilder) where TEntity : class, IMustHaveProject
     {
         modelBuilder.Entity<TEntity>().HasQueryFilter(e => IsTenantResolved && e.ProjectId == CurrentTenantId);
+    }
+}
+```
+
+---
+
+### 3.4 Ambient Optimistic Concurrency SaveChanges Interceptor (`ConcurrencySaveChangesInterceptor`)
+>> MANDATORY CANONICAL BLUEPRINT [RULE-DB-004]:
+* Intercepts `SavingChangesAsync` before relational SQL execution.
+* Evaluates `IConcurrencyContext.IfMatch` against EF Core `OriginalValue` of `UpdatedAt ?? CreatedAt` on `Modified` or `Deleted` `IConcurrencyAware` entries, throwing `PreconditionFailedException` (`412`) on mismatch.
+* Skips evaluation when `concurrencyContext.IsVerified` is already true (e.g. after pre-flight check prior to external S3 upload) or when `IfMatch` is absent/wildcard `*`.
+
+```csharp
+public sealed class ConcurrencySaveChangesInterceptor(
+    IConcurrencyContext concurrencyContext) : SaveChangesInterceptor
+{
+    public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
+        DbContextEventData eventData,
+        InterceptionResult<int> result,
+        CancellationToken ct = default)
+    {
+        // Step 1: Verify Pre-Mutation OriginalValue against Ambient If-Match <Why: zero-plumbing 412 guard>
+        VerifyConcurrencyTokens(eventData.Context);
+        return base.SavingChangesAsync(eventData, result, ct);
+    }
+
+    private void VerifyConcurrencyTokens(DbContext? context)
+    {
+        if (context is null || concurrencyContext.IsVerified || string.IsNullOrWhiteSpace(concurrencyContext.IfMatch) || concurrencyContext.IfMatch == "*")
+            return;
+
+        foreach (var entry in context.ChangeTracker.Entries<IConcurrencyAware>())
+        {
+            if (entry.State is not (EntityState.Modified or EntityState.Deleted))
+                continue;
+
+            var originalUpdatedAt = entry.Property(nameof(IConcurrencyAware.UpdatedAt)).OriginalValue as DateTimeOffset?;
+            var originalCreatedAt = (DateTimeOffset)entry.Property(nameof(IConcurrencyAware.CreatedAt)).OriginalValue!;
+            var originalToken = (originalUpdatedAt ?? originalCreatedAt).ToUnixTimeMilliseconds().ToString();
+
+            concurrencyContext.EnsureTokenMatches(
+                entry.Entity.GetType().Name,
+                entry.Entity.EntityId,
+                originalToken,
+                entry.Entity.GetAlternateConcurrencyToken());
+        }
     }
 }
 ```

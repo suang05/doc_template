@@ -6,6 +6,7 @@ namespace SmkDoc.Domain.Interfaces;
 /// </summary>
 public interface IConcurrencyAware
 {
+    object EntityId { get; }
     DateTimeOffset CreatedAt { get; }
     DateTimeOffset? UpdatedAt { get; }
 
