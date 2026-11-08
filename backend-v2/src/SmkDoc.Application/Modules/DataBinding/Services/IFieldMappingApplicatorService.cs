@@ -2,7 +2,7 @@ using System.Text.Json;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 using SmkDoc.Domain.Entities;
 
-namespace SmkDoc.Application.Common.Interfaces;
+namespace SmkDoc.Application.Modules.DataBinding.Services;
 
 public interface IFieldMappingApplicatorService
 {
@@ -24,3 +24,4 @@ public interface IFieldMappingApplicatorService
         IReadOnlyDictionary<string, ResolvedDatasetContext> datasetAliases,
         CancellationToken ct);
 }
+

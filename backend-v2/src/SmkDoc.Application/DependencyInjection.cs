@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using SmkDoc.Application.Common.Helpers;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring;
+using SmkDoc.Application.Modules.DataBinding.Services;
 using SmkDoc.Application.Modules.IdentityAccess;
 using SmkDoc.Application.Modules.Integration;
 using SmkDoc.Application.Modules.Rendering;
@@ -17,6 +18,7 @@ public static class DependencyInjection
         // Shared Kernel & Helpers
         services.AddSingleton<IMathExpressionResolver, MathExpressionResolverService>();
         services.AddScoped<IFieldMappingApplicatorService, FieldMappingApplicatorService>();
+        services.AddScoped<IDataBindingEngine, DataBindingEngine>();
 
         // 1. Rendering Bounded Context (Stateless Document Generation, Logs)
         services.AddRenderingModule();

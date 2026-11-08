@@ -12,6 +12,8 @@ using SmkDoc.Application.Modules.Rendering.Documents.Services;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
+using SmkDoc.Application.Modules.DataBinding.DTOs;
+using SmkDoc.Application.Modules.DataBinding.Services;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.ValueObjects.Ids;
@@ -31,6 +33,7 @@ public sealed class GenerateDocumentUseCaseTests
     private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
     private readonly IJsonSchemaValidationService _schemaValidation = Substitute.For<IJsonSchemaValidationService>();
+    private readonly IDataBindingEngine _dataBindingEngine = Substitute.For<IDataBindingEngine>();
     private readonly FakeTimeProvider _timeProvider = TestConstants.CreateFakeClock();
 
     public GenerateDocumentUseCaseTests()
@@ -41,11 +44,29 @@ public sealed class GenerateDocumentUseCaseTests
         _projectContext.IsResolved.Returns(true);
         _projectContext.ProjectId.Returns(new ProjectId(projectId));
         _projectContext.CallerIdentity.Returns("sales-app");
+
+        _dataBindingEngine.BindAndValidateAsync(
+            Arg.Any<Template>(),
+            Arg.Any<TemplateVersion>(),
+            Arg.Any<JsonElement>(),
+            Arg.Any<bool>(),
+            Arg.Any<CancellationToken>())
+            .Returns(callInfo =>
+            {
+                var elem = callInfo.ArgAt<JsonElement>(2);
+                var json = elem.ValueKind != JsonValueKind.Undefined ? elem.GetRawText() : "{}";
+                var skip = callInfo.ArgAt<bool>(3);
+                var version = callInfo.ArgAt<TemplateVersion>(1);
+                var valResult = (!skip && !string.IsNullOrWhiteSpace(version.DataSchema))
+                    ? _schemaValidation.Validate(version.DataSchema, json)
+                    : null;
+                return new BoundDocumentData(json, valResult);
+            });
     }
 
     private GenerateDocumentUseCase CreateSut()
     {
-        var dataPrep = new DocumentDataPreparationService(_schemaValidation);
+        var dataPrep = new DocumentDataPreparationService(_dataBindingEngine);
 
         var audit = new DocumentAuditService(
             _logQueue,

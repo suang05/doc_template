@@ -313,7 +313,9 @@ public sealed class PerformanceBenchmarkTests
             .Returns(callInfo => Task.FromResult<Stream>(new MemoryStream(Encoding.UTF8.GetBytes(callInfo.ArgAt<string>(0)))));
 
         var htmlMediaService = new MediaGenerationService(Substitute.For<IQrCodeService>(), Substitute.For<IBarcodeService>());
-        var engine = new HtmlTemplateEngine(mockPdf, new HtmlHelperRegistry(htmlMediaService));
+        var handlebars1 = HandlebarsDotNet.Handlebars.Create();
+        new HtmlHelperRegistry(htmlMediaService).RegisterHelpers(handlebars1);
+        var engine = new HtmlTemplateEngine(mockPdf, handlebars1);
 
         // Warm up
         using (var warmStream = new MemoryStream(templateBytes))
@@ -357,7 +359,9 @@ public sealed class PerformanceBenchmarkTests
             .Returns(callInfo => Task.FromResult<Stream>(new MemoryStream(Encoding.UTF8.GetBytes(callInfo.ArgAt<string>(0)))));
 
         var htmlMediaService = new MediaGenerationService(Substitute.For<IQrCodeService>(), Substitute.For<IBarcodeService>());
-        var engine = new HtmlTemplateEngine(mockPdf, new HtmlHelperRegistry(htmlMediaService));
+        var handlebars1 = HandlebarsDotNet.Handlebars.Create();
+        new HtmlHelperRegistry(htmlMediaService).RegisterHelpers(handlebars1);
+        var engine = new HtmlTemplateEngine(mockPdf, handlebars1);
         var payload = "{}";
 
         var sw = Stopwatch.StartNew();

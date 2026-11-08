@@ -2,7 +2,7 @@ using System.Text.Json;
 using SmkDoc.Application.Common;
 using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.Modules.Authoring.FieldMappings.Services;
+using SmkDoc.Application.Modules.DataBinding.Services;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
@@ -20,7 +20,7 @@ public sealed class PreviewMappingUseCase(
     ITemplateRepository templateRepo,
     IStorageService storageService,
     IRenderEngineFactory engineFactory,
-    IDataBindingOrchestrator dataBindingOrchestrator) : IUseCase<PreviewMappingQuery, Stream>
+    IDataBindingEngine dataBindingEngine) : IUseCase<PreviewMappingQuery, Stream>
 {
     public async Task<Stream> ExecuteAsync(PreviewMappingQuery query, CancellationToken ct = default)
     {
@@ -45,9 +45,9 @@ public sealed class PreviewMappingUseCase(
             ?? await templateRepo.GetByIdAsync(tId, ct)
             ?? throw new NotFoundException($"Template '{templateId}' not found.");
 
-        string dataJson = await dataBindingOrchestrator.AssemblePayloadAsync(template, sampleData, ct);
-
         var version = template.GetPublishedVersion();
+        var bound = await dataBindingEngine.BindAndValidateAsync(template, version, sampleData, skipValidation: false, ct);
+
         var engineType = version.GetRenderEngineType();
         IRenderEngine engine;
         try
@@ -59,6 +59,6 @@ public sealed class PreviewMappingUseCase(
             throw new RenderException(templateId.ToString(), engineType.ToString(), ex.Message, ex);
         }
 
-        return (version, dataJson, engine);
+        return (version, bound.DataJson, engine);
     }
 }

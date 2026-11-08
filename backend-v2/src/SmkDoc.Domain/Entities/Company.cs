@@ -8,7 +8,7 @@ namespace SmkDoc.Domain.Entities;
 /// <summary>
 /// Domain entity representing a company / root tenant organization.
 /// </summary>
-public sealed class Company : BaseEntity<CompanyId>
+public sealed class Company : AggregateRoot<CompanyId>
 {
     public CompanyName Name { get; private set; } = null!;
     public bool IsActive { get; private set; }

@@ -1,4 +1,5 @@
 using System.Text;
+using HandlebarsDotNet;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Infrastructure.Engines.Html;
@@ -16,9 +17,9 @@ public sealed class HtmlTemplateEngineTests
             Substitute.For<IBarcodeService>(),
             new ImageOptimizerService());
         var registry = new HtmlHelperRegistry(mediaService);
-        return cache != null
-            ? new HtmlTemplateEngine(pdfRenderer, registry, cache)
-            : new HtmlTemplateEngine(pdfRenderer, registry);
+        var handlebars = Handlebars.Create();
+        registry.RegisterHelpers(handlebars);
+        return new HtmlTemplateEngine(pdfRenderer, handlebars, cache);
     }
 
     private static async Task<string> RenderAndCaptureHtmlAsync(
@@ -126,5 +127,60 @@ public sealed class HtmlTemplateEngineTests
         var resultStream = await engine.RenderStreamAsync(stream, "{}", OutputFormat.Pdf);
 
         resultStream.Should().BeSameAs(expectedStream);
+    }
+
+    [Fact]
+    public async Task RenderStreamAsync_WithSingletonHandlebarsInstance_ShouldRenderSuccessfully()
+    {
+        var pdfRenderer = Substitute.For<IPdfRenderer>();
+        string capturedHtml = string.Empty;
+        pdfRenderer.RenderHtmlToPdfStreamAsync(
+            Arg.Do<string>(h => capturedHtml = h),
+            Arg.Any<string?>(),
+            Arg.Any<string?>(),
+            Arg.Any<CancellationToken>())
+            .Returns(_ => new MemoryStream(Encoding.UTF8.GetBytes("%PDF-1.4 mock")));
+
+        var mediaService = new MediaGenerationService(
+            Substitute.For<IQrCodeService>(),
+            Substitute.For<IBarcodeService>(),
+            new ImageOptimizerService());
+        var registry = new HtmlHelperRegistry(mediaService);
+        var singletonHandlebars = Handlebars.Create();
+        registry.RegisterHelpers(singletonHandlebars);
+
+        var engine = new HtmlTemplateEngine(pdfRenderer, singletonHandlebars);
+
+        string template = "<html><body><h1>Welcome {{name}}!</h1></body></html>";
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(template));
+        await using var result = await engine.RenderStreamAsync(stream, "{\"name\":\"Antigravity\"}", OutputFormat.Pdf);
+
+        result.Should().NotBeNull();
+        capturedHtml.Should().Contain("Welcome Antigravity!");
+    }
+
+    [Fact]
+    public async Task RenderStreamAsync_ConcurrentlyWithSameEngine_ShouldBeThreadSafe()
+    {
+        var pdfRenderer = Substitute.For<IPdfRenderer>();
+        pdfRenderer.RenderHtmlToPdfStreamAsync(
+            Arg.Any<string>(),
+            Arg.Any<string?>(),
+            Arg.Any<string?>(),
+            Arg.Any<CancellationToken>())
+            .Returns(_ => new MemoryStream(Encoding.UTF8.GetBytes("%PDF-1.4 mock")));
+
+        var engine = CreateEngine(pdfRenderer);
+
+        var tasks = Enumerable.Range(1, 20).Select(async i =>
+        {
+            string template = $"<html><body><h1>Doc {{{{id}}}} - {{{{title}}}}</h1></body></html>";
+            using var stream = new MemoryStream(Encoding.UTF8.GetBytes(template));
+            string json = $"{{\"id\": {i}, \"title\": \"Document {i}\"}}";
+            await using var result = await engine.RenderStreamAsync(stream, json, OutputFormat.Pdf);
+            result.Should().NotBeNull();
+        });
+
+        await Task.WhenAll(tasks);
     }
 }

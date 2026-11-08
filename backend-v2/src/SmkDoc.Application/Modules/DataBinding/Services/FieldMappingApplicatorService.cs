@@ -5,13 +5,14 @@ using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using SmkDoc.Application.Common.Exceptions;
+using SmkDoc.Application.Common.Helpers;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 
-namespace SmkDoc.Application.Common.Helpers;
+namespace SmkDoc.Application.Modules.DataBinding.Services;
 
 public sealed class FieldMappingApplicatorService(
     ISqlExecutorService sqlExecutor,
@@ -365,3 +366,4 @@ public sealed class FieldMappingApplicatorService(
         };
     }
 }
+

@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using SmkDoc.Application.Common.Interfaces;
@@ -9,7 +10,8 @@ namespace SmkDoc.Infrastructure.Queue;
 
 /// <summary>
 /// Distributed enterprise queue implementation of <see cref="IDocumentRenderQueue"/>
-/// backed by Redis List and Hash with 24-hour TTL.
+/// backed by Redis Streams with Consumer Groups (XADD, XREADGROUP, XACK)
+/// providing guaranteed at-least-once document delivery.
 /// </summary>
 public sealed class RedisDocumentRenderQueue(
     IConnectionMultiplexer multiplexer,
@@ -19,7 +21,12 @@ public sealed class RedisDocumentRenderQueue(
     private static readonly TimeSpan JobTtl = TimeSpan.FromHours(24);
     private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web);
 
-    private readonly RedisKey _queueKey = $"{instancePrefix}render:queue";
+    private readonly RedisKey _streamKey = $"{instancePrefix}render:stream";
+    private readonly RedisValue _groupName = $"{instancePrefix}render:group";
+    private readonly RedisValue _consumerName = $"{Environment.MachineName}_{Environment.ProcessId}";
+
+    private readonly ConcurrentDictionary<Guid, string> _activeStreamIds = new();
+    private volatile bool _groupInitialized;
 
     public async Task<Guid> EnqueueAsync(DocumentJob job, CancellationToken ct = default)
     {
@@ -33,12 +40,12 @@ public sealed class RedisDocumentRenderQueue(
         try
         {
             await db.StringSetAsync(jobKey, json, JobTtl);
-            await db.ListLeftPushAsync(_queueKey, job.JobId.ToString());
+            await db.StreamAddAsync(_streamKey, [new NameValueEntry("jobId", job.JobId.ToString())]);
             return job.JobId;
         }
         catch (RedisException ex)
         {
-            logger.LogError(ex, "Failed to enqueue document job {JobId} in Redis", job.JobId);
+            logger.LogError(ex, "Failed to enqueue document job {JobId} in Redis Streams", job.JobId);
             throw;
         }
     }
@@ -48,20 +55,65 @@ public sealed class RedisDocumentRenderQueue(
         ct.ThrowIfCancellationRequested();
 
         var db = multiplexer.GetDatabase();
+        await EnsureConsumerGroupAsync(db);
 
         try
         {
-            var rawJobId = await db.ListRightPopAsync(_queueKey);
-            if (rawJobId.IsNullOrEmpty || !Guid.TryParse(rawJobId.ToString(), out var jobId))
+            // 1. Read new pending messages for this consumer group
+            var entries = await db.StreamReadGroupAsync(
+                _streamKey,
+                _groupName,
+                _consumerName,
+                ">",
+                count: 1);
+
+            // 2. If no new messages, check for pending messages abandoned by crashed workers
+            if (entries.Length == 0)
+            {
+                var pendingInfo = await db.StreamPendingAsync(_streamKey, _groupName);
+                if (pendingInfo.PendingMessageCount > 0)
+                {
+                    entries = await db.StreamReadGroupAsync(
+                        _streamKey,
+                        _groupName,
+                        _consumerName,
+                        "0-0",
+                        count: 1);
+                }
+            }
+
+            if (entries.Length == 0)
             {
                 return null;
             }
+
+            var entry = entries[0];
+            string? rawJobId = null;
+            foreach (var nv in entry.Values)
+            {
+                if (nv.Name == "jobId")
+                {
+                    rawJobId = nv.Value;
+                    break;
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(rawJobId) || !Guid.TryParse(rawJobId, out var jobId))
+            {
+                await db.StreamAcknowledgeAsync(_streamKey, _groupName, entry.Id);
+                await db.StreamDeleteAsync(_streamKey, [entry.Id]);
+                return null;
+            }
+
+            string streamId = entry.Id.ToString();
+            _activeStreamIds[jobId] = streamId;
+            await db.StringSetAsync(PrefixedStreamIdKey(jobId), streamId, JobTtl);
 
             return await GetJobAsync(jobId, ct);
         }
         catch (RedisException ex)
         {
-            logger.LogError(ex, "Failed to dequeue next document job from Redis");
+            logger.LogError(ex, "Failed to dequeue next document job from Redis Streams");
             throw;
         }
     }
@@ -102,6 +154,26 @@ public sealed class RedisDocumentRenderQueue(
         try
         {
             await db.StringSetAsync(jobKey, json, JobTtl);
+
+            if (job.Status is DocumentJobStatus.Completed or DocumentJobStatus.Failed)
+            {
+                if (!_activeStreamIds.TryRemove(job.JobId, out var streamId))
+                {
+                    var streamIdKey = PrefixedStreamIdKey(job.JobId);
+                    var redisStreamId = await db.StringGetAsync(streamIdKey);
+                    if (!redisStreamId.IsNullOrEmpty)
+                    {
+                        streamId = redisStreamId.ToString();
+                        await db.KeyDeleteAsync(streamIdKey);
+                    }
+                }
+
+                if (!string.IsNullOrEmpty(streamId))
+                {
+                    await db.StreamAcknowledgeAsync(_streamKey, _groupName, streamId);
+                    await db.StreamDeleteAsync(_streamKey, [streamId]);
+                }
+            }
         }
         catch (RedisException ex)
         {
@@ -110,6 +182,25 @@ public sealed class RedisDocumentRenderQueue(
         }
     }
 
-    private RedisKey PrefixedJobKey(Guid jobId) => $"{instancePrefix}render:jobs:{jobId}";
-}
+    private async Task EnsureConsumerGroupAsync(IDatabase db)
+    {
+        if (_groupInitialized) return;
 
+        try
+        {
+            await db.StreamCreateConsumerGroupAsync(_streamKey, _groupName, "0-0", createStream: true);
+            _groupInitialized = true;
+        }
+        catch (RedisServerException ex) when (ex.Message.Contains("BUSYGROUP"))
+        {
+            _groupInitialized = true;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Could not create consumer group {GroupName} on stream {StreamKey}", _groupName, _streamKey);
+        }
+    }
+
+    private RedisKey PrefixedJobKey(Guid jobId) => $"{instancePrefix}render:jobs:{jobId}";
+    private RedisKey PrefixedStreamIdKey(Guid jobId) => $"{instancePrefix}render:jobs:{jobId}:stream_id";
+}

@@ -1,5 +1,6 @@
 using System.Text.Json;
-using SmkDoc.Application.Common.Interfaces;
+using SmkDoc.Application.Modules.DataBinding.DTOs;
+using SmkDoc.Application.Modules.DataBinding.Services;
 using SmkDoc.Application.Modules.Rendering.Documents.Services;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.ValueObjects.Validation;
@@ -10,12 +11,12 @@ namespace SmkDoc.Tests.Application.Modules.Rendering.Documents.Services;
 
 public sealed class DocumentDataPreparationServiceTests
 {
-    private readonly IJsonSchemaValidationService _schemaValidation = Substitute.For<IJsonSchemaValidationService>();
+    private readonly IDataBindingEngine _dataBindingEngine = Substitute.For<IDataBindingEngine>();
 
-    private DocumentDataPreparationService CreateSut() => new(_schemaValidation);
+    private DocumentDataPreparationService CreateSut() => new(_dataBindingEngine);
 
     [Fact]
-    public async Task PrepareDataAsync_WhenPayloadProvided_ShouldReturnRawJsonWithoutMutation()
+    public async Task PrepareDataAsync_WhenPayloadProvided_DelegatesToDataBindingEngine()
     {
         // Arrange
         var template = new TemplateBuilder().WithName("Tpl").WithSlug("tpl").Build();
@@ -23,8 +24,11 @@ public sealed class DocumentDataPreparationServiceTests
 
         using var jsonDoc = JsonDocument.Parse("""{"key":"value","nested":{"count":42}}""");
 
+        _dataBindingEngine.BindAndValidateAsync(template, version, Arg.Any<JsonElement>(), true, Arg.Any<CancellationToken>())
+            .Returns(new BoundDocumentData("""{"key":"value","nested":{"count":42}}""", null));
+
         // Act
-        var result = await CreateSut().PrepareDataAsync(version, jsonDoc.RootElement, skipValidation: true);
+        var result = await CreateSut().PrepareDataAsync(template, version, jsonDoc.RootElement, skipValidation: true);
 
         // Assert
         result.DataJson.Should().Be("""{"key":"value","nested":{"count":42}}""");
@@ -32,22 +36,20 @@ public sealed class DocumentDataPreparationServiceTests
     }
 
     [Fact]
-    public async Task PrepareDataAsync_WhenValidationFails_ShouldReturnFailedValidationResult()
+    public async Task PrepareDataAsync_WhenValidationFails_ReturnsFailedValidationResult()
     {
         // Arrange
         var template = new TemplateBuilder().WithName("Tpl").WithSlug("tpl").Build();
         var version = TemplateVersionBuilder.PublishedHtml(templateId: template.Id, version: 1, storageKey: "tpl.html");
-        const string schema = """{"required":["field"]}""";
-        version.UpdateDataSchema(schema, null, TestConstants.BaselineTime);
 
         var errors = new List<ValidationErrorItem> { new("/field", "required", "Missing required property: field") };
-        _schemaValidation.Validate(schema, Arg.Any<string>())
-            .Returns(SchemaValidationResult.Failure(errors));
+        _dataBindingEngine.BindAndValidateAsync(template, version, Arg.Any<JsonElement>(), false, Arg.Any<CancellationToken>())
+            .Returns(new BoundDocumentData("{}", SchemaValidationResult.Failure(errors)));
 
         using var jsonDoc = JsonDocument.Parse("""{}""");
 
         // Act
-        var result = await CreateSut().PrepareDataAsync(version, jsonDoc.RootElement, skipValidation: false);
+        var result = await CreateSut().PrepareDataAsync(template, version, jsonDoc.RootElement, skipValidation: false);
 
         // Assert
         result.ValidationResult.Should().NotBeNull();

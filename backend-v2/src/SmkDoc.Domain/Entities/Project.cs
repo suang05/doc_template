@@ -9,7 +9,7 @@ namespace SmkDoc.Domain.Entities;
 /// <summary>
 /// Aggregate root representing a business project / tenant boundary.
 /// </summary>
-public sealed class Project : BaseEntity<ProjectId>, IConcurrencyAware
+public sealed class Project : AggregateRoot<ProjectId>
 {
     public CompanyId CompanyId { get; private set; }
     public ProjectName Name { get; private set; } = null!;

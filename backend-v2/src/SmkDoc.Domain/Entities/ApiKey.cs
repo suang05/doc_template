@@ -12,7 +12,7 @@ namespace SmkDoc.Domain.Entities;
 /// Aggregate root representing a cryptographic API key credential for machine-to-machine access.
 /// References its owning <see cref="Project"/> by Id only (no cross-aggregate navigation).
 /// </summary>
-public sealed class ApiKey : BaseEntity<ApiKeyId>, IMustHaveProject, IConcurrencyAware
+public sealed class ApiKey : AggregateRoot<ApiKeyId>, IMustHaveProject
 {
     public const int CallerAppMaxLength = 50;
 

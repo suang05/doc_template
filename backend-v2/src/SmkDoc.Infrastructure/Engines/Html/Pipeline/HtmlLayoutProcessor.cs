@@ -5,9 +5,15 @@ namespace SmkDoc.Infrastructure.Engines.Html.Pipeline;
 
 public record HtmlLayoutResult(string BodyHtml, string? HeaderHtml, string? FooterHtml);
 
-public class HtmlLayoutProcessor
+public partial class HtmlLayoutProcessor
 {
     private const string FontHead = "<link rel=\"stylesheet\" href=\"https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap\"><style>body { font-family: 'Sarabun', sans-serif; }</style>";
+
+    [GeneratedRegex(@"<template\s+id=[""']header[""'][^>]*>(.*?)</template>", RegexOptions.Singleline | RegexOptions.IgnoreCase)]
+    private static partial Regex HeaderTemplateRegex();
+
+    [GeneratedRegex(@"<template\s+id=[""']footer[""'][^>]*>(.*?)</template>", RegexOptions.Singleline | RegexOptions.IgnoreCase)]
+    private static partial Regex FooterTemplateRegex();
 
     public HtmlLayoutResult Process(string html, TemplatePageSettings? settings = null)
     {
@@ -35,29 +41,37 @@ public class HtmlLayoutProcessor
                 : $"{FontHead}\n{processedHtml}";
         }
 
-        // 3. Extract header template if present in HTML, or fallback to settings.HeaderHtml
+        // 3 & 4. Extract header/footer template if present in HTML, or fallback to settings
         string? headerHtml = null;
-        var headerMatch = Regex.Match(processedHtml, @"<template\s+id=[""']header[""'][^>]*>(.*?)</template>", RegexOptions.Singleline | RegexOptions.IgnoreCase);
-        if (headerMatch.Success)
+        string? footerHtml = null;
+
+        if (processedHtml.Contains("<template", StringComparison.OrdinalIgnoreCase))
         {
-            headerHtml = headerMatch.Groups[1].Value;
-            processedHtml = processedHtml.Replace(headerMatch.Value, string.Empty);
+            var headerMatch = HeaderTemplateRegex().Match(processedHtml);
+            if (headerMatch.Success)
+            {
+                headerHtml = headerMatch.Groups[1].Value;
+                processedHtml = processedHtml.Remove(headerMatch.Index, headerMatch.Length);
+            }
+            else if (!string.IsNullOrWhiteSpace(effectiveSettings.HeaderHtml))
+            {
+                headerHtml = effectiveSettings.HeaderHtml;
+            }
+
+            var footerMatch = FooterTemplateRegex().Match(processedHtml);
+            if (footerMatch.Success)
+            {
+                footerHtml = footerMatch.Groups[1].Value;
+                processedHtml = processedHtml.Remove(footerMatch.Index, footerMatch.Length);
+            }
+            else if (!string.IsNullOrWhiteSpace(effectiveSettings.FooterHtml))
+            {
+                footerHtml = effectiveSettings.FooterHtml;
+            }
         }
-        else if (!string.IsNullOrWhiteSpace(effectiveSettings.HeaderHtml))
+        else
         {
             headerHtml = effectiveSettings.HeaderHtml;
-        }
-
-        // 4. Extract footer template if present in HTML, or fallback to settings.FooterHtml
-        string? footerHtml = null;
-        var footerMatch = Regex.Match(processedHtml, @"<template\s+id=[""']footer[""'][^>]*>(.*?)</template>", RegexOptions.Singleline | RegexOptions.IgnoreCase);
-        if (footerMatch.Success)
-        {
-            footerHtml = footerMatch.Groups[1].Value;
-            processedHtml = processedHtml.Replace(footerMatch.Value, string.Empty);
-        }
-        else if (!string.IsNullOrWhiteSpace(effectiveSettings.FooterHtml))
-        {
             footerHtml = effectiveSettings.FooterHtml;
         }
 

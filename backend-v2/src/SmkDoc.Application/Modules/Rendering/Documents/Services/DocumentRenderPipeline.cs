@@ -35,7 +35,7 @@ public sealed class DocumentRenderPipeline(
         try
         {
             var preparedData = await dataPreparationService.PrepareDataAsync(
-                currentVersion, payload, skipValidation, ct);
+                template, currentVersion, payload, skipValidation, ct);
             preparedDataJson = preparedData.DataJson;
 
             if (preparedData.ValidationResult is { IsValid: false })

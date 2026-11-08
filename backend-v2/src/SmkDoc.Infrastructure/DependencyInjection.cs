@@ -1,4 +1,5 @@
 using System;
+using HandlebarsDotNet;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -199,16 +200,20 @@ public static class DependencyInjection
         services.AddSingleton<ISchemaInferenceService, SchemaInferenceService>();
         services.AddSingleton<IJsonSchemaValidationService, JsonSchemaValidationService>();
         services.AddMemoryCache();
-        services.AddSingleton<ITemplateDraftCache, InMemoryTemplateDraftCache>();
         services.AddSingleton<ICompiledTemplateCache, MemoryCompiledTemplateCache>();
-        services.AddSingleton<IDatasetResultCache, MemoryDatasetResultCache>();
-        services.AddSingleton<IIdempotencyStore, MemoryIdempotencyStore>();
         services.AddSingleton<IDocumentMetrics, DocumentMetrics>();
 
         // 6b. Render Engines
         services.AddScoped<WordMediaInjector>();
         services.AddScoped<ExcelMediaInjector>();
-        services.AddScoped<IHtmlHelperRegistry, HtmlHelperRegistry>();
+        services.AddSingleton<IHtmlHelperRegistry, HtmlHelperRegistry>();
+        services.AddSingleton<IHandlebars>(sp =>
+        {
+            var handlebars = Handlebars.Create();
+            var helperRegistry = sp.GetRequiredService<IHtmlHelperRegistry>();
+            helperRegistry.RegisterHelpers(handlebars);
+            return handlebars;
+        });
         services.AddSingleton<HtmlPlaceholderTransformer>();
         services.AddSingleton<HtmlLayoutProcessor>();
         services.AddScoped<IRenderEngine, HtmlTemplateEngine>();
@@ -227,22 +232,44 @@ public static class DependencyInjection
         services.AddSingleton<IJwtTokenGenerator, JwtTokenGenerator>();
         services.AddSingleton<ISecurityAuditService, SecurityAuditService>();
 
-        // 9. Document Render Queue & Gotenberg Backpressure Worker (Track 2)
+        // 9. Distributed Cache, Render Queue & Gotenberg Backpressure Worker (Track 2)
         services.Configure<DocumentRenderWorkerOptions>(configuration.GetSection("DocumentRenderWorker"));
         var redisConn = RedisConfigurationResolver.ResolveConnectionString(configuration);
+        var prefix = RedisConfigurationResolver.ResolveInstancePrefix(configuration);
+
+        services.AddSingleton<ITemplateDraftCache>(sp => new HybridTemplateDraftCache(
+            sp.GetService<IConnectionMultiplexer>(),
+            sp.GetRequiredService<IStorageService>(),
+            sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<HybridTemplateDraftCache>>(),
+            sp.GetRequiredService<Microsoft.Extensions.Caching.Memory.IMemoryCache>(),
+            prefix));
+
         if (redisConn is not null)
         {
             services.AddSingleton<IConnectionMultiplexer>(_ => ConnectionMultiplexer.Connect(redisConn));
+
+            services.AddSingleton<IDatasetResultCache>(sp => new RedisDatasetResultCache(
+                sp.GetRequiredService<IConnectionMultiplexer>(),
+                sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<RedisDatasetResultCache>>(),
+                prefix));
+
+            services.AddSingleton<IIdempotencyStore>(sp => new RedisIdempotencyStore(
+                sp.GetRequiredService<IConnectionMultiplexer>(),
+                sp.GetRequiredService<TimeProvider>(),
+                sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<RedisIdempotencyStore>>(),
+                prefix));
+
             services.AddSingleton<IDocumentRenderQueue>(sp =>
             {
                 var multiplexer = sp.GetRequiredService<IConnectionMultiplexer>();
                 var logger = sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<RedisDocumentRenderQueue>>();
-                var prefix = RedisConfigurationResolver.ResolveInstancePrefix(configuration);
                 return new RedisDocumentRenderQueue(multiplexer, logger, prefix);
             });
         }
         else
         {
+            services.AddSingleton<IDatasetResultCache, MemoryDatasetResultCache>();
+            services.AddSingleton<IIdempotencyStore, MemoryIdempotencyStore>();
             services.AddSingleton<IDocumentRenderQueue, MemoryDocumentRenderQueue>();
         }
         services.AddHostedService<DocumentRenderQueueWorker>();

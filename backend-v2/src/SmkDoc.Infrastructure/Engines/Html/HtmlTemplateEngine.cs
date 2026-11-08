@@ -25,20 +25,18 @@ public sealed class HtmlTemplateEngine : IRenderEngine
     [ActivatorUtilitiesConstructor]
     public HtmlTemplateEngine(
         IPdfRenderer pdfRenderer,
-        IHtmlHelperRegistry helperRegistry,
+        IHandlebars handlebars,
         ICompiledTemplateCache? templateCache = null,
         IJsonHierarchyParser? jsonHierarchyParser = null,
         HtmlPlaceholderTransformer? placeholderTransformer = null,
         HtmlLayoutProcessor? layoutProcessor = null)
     {
         _pdfRenderer = pdfRenderer;
+        _handlebars = handlebars;
         _templateCache = templateCache;
         _jsonHierarchyParser = jsonHierarchyParser ?? new JsonDataParser();
         _placeholderTransformer = placeholderTransformer ?? new HtmlPlaceholderTransformer();
         _layoutProcessor = layoutProcessor ?? new HtmlLayoutProcessor();
-
-        _handlebars = Handlebars.Create();
-        helperRegistry.RegisterHelpers(_handlebars);
     }
 
     public RenderEngineType EngineType => RenderEngineType.Html;

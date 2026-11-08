@@ -3,6 +3,7 @@ using SmkDoc.Application.Common;
 using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Common.Streams;
+using SmkDoc.Application.Modules.DataBinding.Services;
 using SmkDoc.Application.Modules.Rendering.Documents.Queries.PreviewDocument;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
@@ -16,30 +17,44 @@ namespace SmkDoc.Application.Modules.Rendering.Documents;
 public sealed class PreviewDocumentUseCase(
     ITemplateRepository templateRepo,
     IStorageService storageService,
-    IRenderEngineFactory engineFactory) : IUseCase<PreviewDocumentQuery, Stream>
+    IRenderEngineFactory engineFactory,
+    IDataBindingEngine? dataBindingEngine = null) : IUseCase<PreviewDocumentQuery, Stream>
 {
     public async Task<Stream> ExecuteAsync(PreviewDocumentQuery query, CancellationToken ct = default)
     {
         Stream templateStream;
         RenderEngineType engineType;
+        string dataJson;
 
         // If Monaco editor supplied the active HTML in the body, use it directly!
         if (!string.IsNullOrWhiteSpace(query.Html))
         {
             templateStream = await HybridSpoolStream.CreateFromUtf8StringAsync(query.Html, ct: ct);
             engineType = RenderEngineType.Html;
+            dataJson = query.Payload.ValueKind != JsonValueKind.Undefined ? query.Payload.GetRawText() : "{}";
         }
         else
         {
             if (string.IsNullOrWhiteSpace(query.Slug))
                 throw new DomainValidationException("Template slug or HTML content is required for preview.");
 
-            var template = await templateRepo.GetBySlugAsync(query.Slug, ct)
+            var template = await templateRepo.GetBySlugWithDetailsAsync(query.Slug, ct)
+                ?? await templateRepo.GetBySlugAsync(query.Slug, ct)
                 ?? throw new NotFoundException($"Template '{query.Slug}' not found.");
 
             var version = template.GetPublishedVersion();
-
             engineType = version.GetRenderEngineType();
+
+            if (dataBindingEngine != null)
+            {
+                var bound = await dataBindingEngine.BindAndValidateAsync(
+                    template, version, query.Payload, skipValidation: false, ct);
+                dataJson = bound.DataJson;
+            }
+            else
+            {
+                dataJson = query.Payload.ValueKind != JsonValueKind.Undefined ? query.Payload.GetRawText() : "{}";
+            }
 
             templateStream = await storageService.DownloadAsync(StorageBuckets.Templates, version.StorageKey, ct);
         }
@@ -47,8 +62,6 @@ public sealed class PreviewDocumentUseCase(
         try
         {
             var engine = engineFactory.GetEngine(engineType);
-
-            string dataJson = query.Payload.ValueKind != JsonValueKind.Undefined ? query.Payload.GetRawText() : "{}";
 
             // Always render to PDF for preview
             return await engine.RenderStreamAsync(templateStream, dataJson, OutputFormat.Pdf, ct);

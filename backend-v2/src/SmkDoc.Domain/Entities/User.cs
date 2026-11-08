@@ -10,7 +10,7 @@ namespace SmkDoc.Domain.Entities;
 /// <summary>
 /// Aggregate root representing an authenticated system user.
 /// </summary>
-public sealed class User : BaseEntity<UserId>
+public sealed class User : AggregateRoot<UserId>
 {
     public EmailAddress Email { get; private set; } = null!;
     public string PasswordHash { get; private set; } = string.Empty;

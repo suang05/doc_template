@@ -4,17 +4,13 @@ namespace SmkDoc.Domain.Common;
 /// Generic abstract base class for Domain Entities with strongly-typed identity.
 /// Provides primary identity, audit timestamps, and entity equality based on identity.
 /// </summary>
-public abstract class BaseEntity<TId> : IHaveDomainEvents, IEquatable<BaseEntity<TId>>
+public abstract class BaseEntity<TId> : IEquatable<BaseEntity<TId>>
     where TId : struct, IComparable<TId>, IEquatable<TId>
 {
     public TId Id { get; protected set; }
     public object EntityId => Id;
     public DateTimeOffset CreatedAt { get; protected set; }
     public DateTimeOffset? UpdatedAt { get; protected set; }
-    private readonly List<IDomainEvent> _domainEvents = new();
-    public IReadOnlyCollection<IDomainEvent> DomainEvents => _domainEvents.AsReadOnly();
-    protected void AddDomainEvent(IDomainEvent domainEvent) => _domainEvents.Add(domainEvent);
-    public void ClearDomainEvents() => _domainEvents.Clear();
 
     protected BaseEntity()
     {
@@ -28,9 +24,6 @@ public abstract class BaseEntity<TId> : IHaveDomainEvents, IEquatable<BaseEntity
 
     protected void SetUpdated(DateTimeOffset now) =>
         UpdatedAt = now;
-
-    public string GetConcurrencyToken() =>
-        (UpdatedAt ?? CreatedAt).ToUnixTimeMilliseconds().ToString();
 
     public override bool Equals(object? obj) =>
         obj is BaseEntity<TId> other && Equals(other);

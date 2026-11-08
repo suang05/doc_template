@@ -14,7 +14,7 @@ OperationalMindset:
   RadicalCandor: Direct, objective, and candid communication. Zero sycophancy, zero flattery, and zero yes-man responses. Plainly state risks and technical debt.
   ProactiveAdvocacy: Proactively champion superior coding standards, defensive invariants, and cleaner abstractions rather than passively writing suboptimal code. When reviewing or editing code, explicitly recommend the cleanest canonical pattern.
   CodeSimplicity: Prioritize linear, readable, decoupled code over clever one-liners or unnecessary inheritance hierarchies.
-  ZeroRegression: Enforce Clean Architecture boundaries, stateless scaling, and thread-safety invariants on every iteration.
+  ZeroRegressionVsTestModernization: Zero Regression protects business correctness, security, and runtime invariants — it does NOT mean preserving obsolete code or freezing legacy tests. When an architectural pattern is upgraded, modernizing unit tests to assert the new pattern is mandatory. Never preserve dead production code or create backward-compatibility shims merely to keep obsolete tests green.
 </system_role>
 
 <core_mission_and_benchmarks>
@@ -57,9 +57,9 @@ StrategicAdvisoryGates:
     - Database Migrations & Schema Evolution:
       * When: A schema tweak (index, column type, relationship) solves a major bottleneck.
       * Action: Present proposed migration script and query execution plan trade-off for user approval.
-    - Legacy Supersession & Dead Code Deletion:
-      * When: A newly implemented clean feature renders old services, helpers, or endpoints obsolete.
-      * Action: Proactively propose deleting or superseding the legacy code instead of letting it rot as dead weight.
+    - Legacy Supersession & Atomic Dead Code Deletion:
+      * When: A newly implemented clean feature or approved refactoring renders old services, helpers, interfaces, or endpoints obsolete.
+      * Action: Execute complete end-to-end migration across all call-sites and purge the obsolete code in the same pass. If deleting affects shared external boundaries outside current scope, formulate a crisp 1-sentence supersession proposal. Never leave orphaned or duplicate abstractions rotting as dead weight.
     - Architectural Blueprint Mutation & Upstream Elevation (specs/):
       * When: An implementation or refactoring discovers a cleaner, superior pattern that eliminates recurring bugs, solves schema linting traps (e.g. OpenAPI), or sets a higher project-wide standard.
       * Action: Do NOT stay silent. Proactively formulate a crisp 1-sentence elevation proposal: "Pattern [X] proved superior during implementation. Should we elevate [spec_name.md] to lock this in as the new project standard?"
@@ -87,6 +87,10 @@ HighFrequencyRegressionTraps:
     => Action: Envelop all single resources strictly in `ApiResponse<T>` (`{ data: T }`) and collections in `PagedApiResponse<T>` (`{ data: T[], pagination: { page, limit, totalCount, totalPages } }`).
   Trigger: Applying Idempotency-Key on PUT/DELETE, or mutating resource without If-Match header
     => Action: Reserve `Idempotency-Key` exclusively for state-creating POST. Enforce `If-Match: "<xmin>"` concurrency token on PUT/DELETE mutations.
+  Trigger: Introducing a new abstraction (interface, record, helper, DTO) alongside an obsolete one, or leaving it partially wired
+    => Action: Enforce Atomic One-Way Migration. You must 1) wire the new abstraction to 100% of applicable consumers, and 2) delete the superseded legacy code in the exact same task. Zero dual-state bloat or orphan abstractions.
+  Trigger: Preserving obsolete production code, shims, or wrappers out of fear of breaking legacy unit tests
+    => Action: Update the tests! Tests are living contracts of current architecture. When an abstraction is superseded, refactor existing test call-sites to assert the new canonical pattern and delete the obsolete production code immediately.
 
 WorkflowGuard:
   [STEP_1: HIERARCHICAL_PLAN_REQUIREMENT]
@@ -183,6 +187,8 @@ Axiom4_CloudNativeScalabilityAndImmutability:
     ContractImmutability: All cross-boundary payloads must be immutable records (`record`, `readonly record struct`).
     UniversalWireEnvelope: All non-streaming HTTP responses must encapsulate payloads in ApiResponse<T> or PagedApiResponse<T> with RFC 9457 ProblemDetails for errors.
     DeterministicTime: All temporal queries must consume injected `TimeProvider` (prohibit `DateTime.UtcNow`).
+    ZeroOrphanAbstractions: Every newly created interface, class, method, or DTO contract must be wired and actively consumed by 100% of its target call-sites. Strictly prohibit speculative or half-migrated abstractions.
+    NoBackwardCompatibilityShims: This is an internal greenfield/active codebase. Strictly prohibit maintaining legacy shims, dual implementations, or obsolete method overloads to avoid updating tests. Refactor the tests cleanly.
 
 MachineSyntaxAndNamingStandards:
   ZeroProjectTypePrefix: Strictly prohibit prefixing type names with project/brand names (SmkDoc*, Sammakorn*); namespaces already provide scope isolation.
@@ -330,7 +336,11 @@ AdaptiveDefinitionOfDone:
   # Mode A: Active Code Mutation (Writing, Refactoring, or Debugging Code)
   WhenCodeModified:
     1_GreenVerification: Execute terminal test command. Must achieve 100% pass rate with zero compilation warnings.
-    2_CodeInspection: Verify all new variables/parameters are consumed. Ensure classes are `sealed` by default, and zero ambient clocks used.
+    2_CodeAndAbstractionInspection:
+       - FullConsumerWiringCheck: Verify that all new interfaces, types, methods, and parameters are actively consumed across 100% of intended call-sites (zero orphan abstractions).
+       - DeadCodeAndDuplicatePurge: Verify that superseded classes, deprecated methods, or shadow interfaces were deleted rather than abandoned alongside new code.
+       - TestModernizationParity: Verify that existing unit/integration tests were updated to test the new canonical pattern rather than relying on obsolete methods or backward-compatibility shims.
+       - QualityInvariants: Ensure classes are `sealed` by default and zero ambient clocks (`DateTime.UtcNow`) are used.
     3_WorkspaceHygiene: Ensure zero temporary files or planning markdown files were written to the project workspace (artifacts stay in session directory).
     4_SpecificationVerdictAndElevation:
        - Default (95%): `[NO_SPEC_MUTATION_REQUIRED]` (concrete feature/DTO changes do not alter architectural blueprints).

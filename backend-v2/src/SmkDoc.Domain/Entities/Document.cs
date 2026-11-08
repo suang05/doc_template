@@ -10,7 +10,7 @@ namespace SmkDoc.Domain.Entities;
 /// <summary>
 /// Domain aggregate root representing a tracked business document across versions.
 /// </summary>
-public sealed class Document : BaseEntity<DocumentId>, IMustHaveProject
+public sealed class Document : AggregateRoot<DocumentId>, IMustHaveProject
 {
     public ProjectId ProjectId { get; private set; }
     public DocumentReference DocumentRef { get; private set; } = null!;

@@ -2,7 +2,8 @@ using System.Text.Json;
 using SmkDoc.Application.Common;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.Queries.PreviewMapping;
-using SmkDoc.Application.Modules.Authoring.FieldMappings.Services;
+using SmkDoc.Application.Modules.DataBinding.DTOs;
+using SmkDoc.Application.Modules.DataBinding.Services;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects.Ids;
@@ -16,7 +17,7 @@ public sealed class PreviewMappingUseCaseTests
     private readonly IStorageService _storage = Substitute.For<IStorageService>();
     private readonly IRenderEngine _htmlEngine = Substitute.For<IRenderEngine>();
     private readonly IRenderEngineFactory _engineFactory = Substitute.For<IRenderEngineFactory>();
-    private readonly IDataBindingOrchestrator _orchestrator = Substitute.For<IDataBindingOrchestrator>();
+    private readonly IDataBindingEngine _dataBindingEngine = Substitute.For<IDataBindingEngine>();
 
     public PreviewMappingUseCaseTests()
     {
@@ -31,7 +32,7 @@ public sealed class PreviewMappingUseCaseTests
             _templateRepo,
             _storage,
             _engineFactory,
-            _orchestrator
+            _dataBindingEngine
         );
 
     private Template SetupTemplate(Guid templateId, Guid versionId, RenderEngineType? engineType = null, IEnumerable<FieldMapping>? mappings = null)
@@ -86,8 +87,8 @@ public sealed class PreviewMappingUseCaseTests
             .Returns(new MemoryStream("<html></html>"u8.ToArray()));
         _htmlEngine.RenderStreamAsync(Arg.Any<Stream>(), Arg.Any<string>(), OutputFormat.Pdf, Arg.Any<CancellationToken>())
             .Returns(expectedStream);
-        _orchestrator.AssemblePayloadAsync(Arg.Any<Template>(), Arg.Any<JsonElement>(), Arg.Any<CancellationToken>())
-            .Returns("{\"name\":\"John\"}");
+        _dataBindingEngine.BindAndValidateAsync(Arg.Any<Template>(), Arg.Any<TemplateVersion>(), Arg.Any<JsonElement>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .Returns(new BoundDocumentData("{\"name\":\"John\"}", null));
 
         var sampleData = JsonDocument.Parse("{\"name\":\"John\"}").RootElement;
         var query = new PreviewMappingQuery(templateId, sampleData);
@@ -100,9 +101,11 @@ public sealed class PreviewMappingUseCaseTests
             "{\"name\":\"John\"}",
             OutputFormat.Pdf,
             Arg.Any<CancellationToken>());
-        await _orchestrator.Received(1).AssemblePayloadAsync(
+        await _dataBindingEngine.Received(1).BindAndValidateAsync(
             Arg.Any<Template>(),
+            Arg.Any<TemplateVersion>(),
             Arg.Any<JsonElement>(),
+            false,
             Arg.Any<CancellationToken>());
     }
 
@@ -118,8 +121,8 @@ public sealed class PreviewMappingUseCaseTests
             .Returns(new MemoryStream());
         _htmlEngine.RenderStreamAsync(Arg.Any<Stream>(), Arg.Any<string>(), OutputFormat.Pdf, Arg.Any<CancellationToken>())
             .Returns(expectedStream);
-        _orchestrator.AssemblePayloadAsync(Arg.Any<Template>(), Arg.Any<JsonElement>(), Arg.Any<CancellationToken>())
-            .Returns("{}");
+        _dataBindingEngine.BindAndValidateAsync(Arg.Any<Template>(), Arg.Any<TemplateVersion>(), Arg.Any<JsonElement>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .Returns(new BoundDocumentData("{}", null));
 
         var undefined = default(JsonElement);
         var query = new PreviewMappingQuery(templateId, undefined);
@@ -135,7 +138,7 @@ public sealed class PreviewMappingUseCaseTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_WithMappings_ShouldCallDataBindingOrchestrator()
+    public async Task ExecuteAsync_WithMappings_ShouldCallDataBindingEngine()
     {
         var templateId = Guid.NewGuid();
         var versionId = Guid.NewGuid();
@@ -157,8 +160,8 @@ public sealed class PreviewMappingUseCaseTests
         var expectedStream = new MemoryStream([0x25, 0x50, 0x44, 0x46]);
         _storage.DownloadAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(new MemoryStream());
-        _orchestrator.AssemblePayloadAsync(Arg.Any<Template>(), Arg.Any<JsonElement>(), Arg.Any<CancellationToken>())
-            .Returns("{\"fullName\":\"John Doe\"}");
+        _dataBindingEngine.BindAndValidateAsync(Arg.Any<Template>(), Arg.Any<TemplateVersion>(), Arg.Any<JsonElement>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .Returns(new BoundDocumentData("{\"fullName\":\"John Doe\"}", null));
         _htmlEngine.RenderStreamAsync(Arg.Any<Stream>(), "{\"fullName\":\"John Doe\"}", OutputFormat.Pdf, Arg.Any<CancellationToken>())
             .Returns(expectedStream);
 
@@ -168,9 +171,11 @@ public sealed class PreviewMappingUseCaseTests
         var resultStream = await CreateSut().ExecuteAsync(query);
 
         resultStream.Should().BeSameAs(expectedStream);
-        await _orchestrator.Received(1).AssemblePayloadAsync(
+        await _dataBindingEngine.Received(1).BindAndValidateAsync(
             Arg.Any<Template>(),
+            Arg.Any<TemplateVersion>(),
             Arg.Any<JsonElement>(),
+            false,
             Arg.Any<CancellationToken>());
     }
 

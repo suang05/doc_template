@@ -39,7 +39,6 @@ public sealed class TemplateRepository(AppDbContext context) : ITemplateReposito
         return await _context.Templates
             .AsSplitQuery()
             .Include(t => t.CurrentVersion)
-            .Include(t => t.Versions)
             .Include(t => t.FieldMappings)
             .Include(t => t.TemplateDatasets)
             .FirstOrDefaultAsync(t => t.Slug == slug, ct);

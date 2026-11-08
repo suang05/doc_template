@@ -71,7 +71,7 @@ public sealed class DocumentRenderPipelineTests
         using var jsonDoc = JsonDocument.Parse("{\"name\":\"Alice\"}");
         var preparedJson = "{\"name\":\"Alice\",\"mapped\":true}";
 
-        _dataPreparationService.PrepareDataAsync(version, Arg.Any<JsonElement>(), false, Arg.Any<CancellationToken>())
+        _dataPreparationService.PrepareDataAsync(template, version, Arg.Any<JsonElement>(), false, Arg.Any<CancellationToken>())
             .Returns(new PreparedDocumentData(preparedJson, SchemaValidationResult.Success()));
 
         var templateBytes = Encoding.UTF8.GetBytes("<html><body>{{name}}</body></html>");
@@ -113,7 +113,7 @@ public sealed class DocumentRenderPipelineTests
             new("/", "required", "Missing required field")
         };
 
-        _dataPreparationService.PrepareDataAsync(version, Arg.Any<JsonElement>(), false, Arg.Any<CancellationToken>())
+        _dataPreparationService.PrepareDataAsync(template, version, Arg.Any<JsonElement>(), false, Arg.Any<CancellationToken>())
             .Returns(new PreparedDocumentData("{}", SchemaValidationResult.Failure(errors)));
 
         // Act
@@ -146,7 +146,7 @@ public sealed class DocumentRenderPipelineTests
         var (template, version) = CreateSampleTemplate();
         using var jsonDoc = JsonDocument.Parse("{\"key\":\"value\"}");
 
-        _dataPreparationService.PrepareDataAsync(version, Arg.Any<JsonElement>(), false, Arg.Any<CancellationToken>())
+        _dataPreparationService.PrepareDataAsync(template, version, Arg.Any<JsonElement>(), false, Arg.Any<CancellationToken>())
             .Returns(new PreparedDocumentData("{\"key\":\"value\"}", SchemaValidationResult.Success()));
 
         _storageService.DownloadAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())

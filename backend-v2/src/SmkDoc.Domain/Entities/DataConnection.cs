@@ -10,7 +10,7 @@ namespace SmkDoc.Domain.Entities;
 /// <summary>
 /// Domain entity representing an encrypted database connection configuration.
 /// </summary>
-public sealed class DataConnection : BaseEntity<DataConnectionId>, IMustHaveProject, IConcurrencyAware
+public sealed class DataConnection : AggregateRoot<DataConnectionId>, IMustHaveProject
 {
     public ProjectId ProjectId { get; private set; }
     public ConnectionName Name { get; private set; } = null!;
