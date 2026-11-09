@@ -34,15 +34,20 @@ public sealed class DataBindingEngine(
         ArgumentNullException.ThrowIfNull(version);
 
         var assignments = template.TemplateDatasets.ToList();
-        var mappings = template.FieldMappings.ToList();
 
-        // If template aggregate has no relational mappings, fallback to immutable version snapshot
-        if (mappings.Count == 0 && !string.IsNullOrWhiteSpace(version.MappingsSnapshot))
+        // Template Package / Manifest SSoT:
+        // Runtime execution strictly prioritizes the immutable version manifest snapshot over relational tables.
+        List<FieldMapping> mappings;
+        if (!string.IsNullOrWhiteSpace(version.MappingsSnapshot))
         {
             mappings = FieldMappingSnapshotSerializer.Deserialize(
                 template.Id,
                 version.MappingsSnapshot,
                 timeProvider.GetUtcNow());
+        }
+        else
+        {
+            mappings = template.FieldMappings.ToList();
         }
 
         // 1. Resolve dataset aliases if template has linked datasets

@@ -66,8 +66,6 @@ public sealed class GenerateDocumentUseCaseTests
 
     private GenerateDocumentUseCase CreateSut()
     {
-        var dataPrep = new DocumentDataPreparationService(_dataBindingEngine);
-
         var audit = new DocumentAuditService(
             _logQueue,
             _projectContext,
@@ -80,7 +78,7 @@ public sealed class GenerateDocumentUseCaseTests
 
         var pipeline = new DocumentRenderPipeline(
             _engineFactory,
-            dataPrep,
+            _dataBindingEngine,
             _storageService,
             audit,
             _unitOfWork);

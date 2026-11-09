@@ -5,7 +5,7 @@ using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.Commands.SaveTemplateMappings;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.Queries.GetTemplateMappings;
-using SmkDoc.Application.Modules.Authoring.FieldMappings.Queries.PreviewMapping;
+using SmkDoc.Application.Modules.Rendering.Documents.Queries.PreviewDocument;
 
 namespace SmkDoc.Api.Controllers.Authoring;
 
@@ -18,7 +18,7 @@ namespace SmkDoc.Api.Controllers.Authoring;
 public sealed class TemplateMappingController(
     IUseCase<GetTemplateMappingsQuery, List<FieldMappingDto>> getMappingsUseCase,
     IUseCase<SaveTemplateMappingsCommand, List<FieldMappingDto>> saveMappingsUseCase,
-    IUseCase<PreviewMappingQuery, Stream> previewMappingUseCase) : ControllerBase
+    IUseCase<PreviewDocumentQuery, Stream> previewDocumentUseCase) : ControllerBase
 {
     /// <summary>Get all field mappings for a template.</summary>
     [HttpGet]
@@ -61,8 +61,8 @@ public sealed class TemplateMappingController(
         [FromBody] PreviewMappingRequest request,
         CancellationToken ct)
     {
-        var query = new PreviewMappingQuery(id, request.SampleData);
-        var result = await previewMappingUseCase.ExecuteAsync(query, ct);
+        var query = new PreviewDocumentQuery(request.SampleData, Html: null, Slug: null, TemplateId: id);
+        var result = await previewDocumentUseCase.ExecuteAsync(query, ct);
         Response.Headers.ContentDisposition = "inline";
         return File(result, "application/pdf");
     }

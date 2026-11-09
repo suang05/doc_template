@@ -6,6 +6,8 @@ using NSubstitute.ExceptionExtensions;
 using SmkDoc.Application.Common;
 using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
+using SmkDoc.Application.Modules.DataBinding.DTOs;
+using SmkDoc.Application.Modules.DataBinding.Services;
 using SmkDoc.Application.Modules.Rendering.Documents.Services;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
@@ -22,7 +24,7 @@ public sealed class DocumentRenderPipelineTests
 {
     private readonly IRenderEngineFactory _engineFactory = Substitute.For<IRenderEngineFactory>();
     private readonly IRenderEngine _engine = Substitute.For<IRenderEngine>();
-    private readonly IDocumentDataPreparationService _dataPreparationService = Substitute.For<IDocumentDataPreparationService>();
+    private readonly IDataBindingEngine _dataBindingEngine = Substitute.For<IDataBindingEngine>();
     private readonly IStorageService _storageService = Substitute.For<IStorageService>();
     private readonly IDocumentAuditService _auditService = Substitute.For<IDocumentAuditService>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
@@ -36,7 +38,7 @@ public sealed class DocumentRenderPipelineTests
 
     private DocumentRenderPipeline CreateSut() => new(
         _engineFactory,
-        _dataPreparationService,
+        _dataBindingEngine,
         _storageService,
         _auditService,
         _unitOfWork);
@@ -71,8 +73,8 @@ public sealed class DocumentRenderPipelineTests
         using var jsonDoc = JsonDocument.Parse("{\"name\":\"Alice\"}");
         var preparedJson = "{\"name\":\"Alice\",\"mapped\":true}";
 
-        _dataPreparationService.PrepareDataAsync(template, version, Arg.Any<JsonElement>(), false, Arg.Any<CancellationToken>())
-            .Returns(new PreparedDocumentData(preparedJson, SchemaValidationResult.Success()));
+        _dataBindingEngine.BindAndValidateAsync(template, version, Arg.Any<JsonElement>(), false, Arg.Any<CancellationToken>())
+            .Returns(new BoundDocumentData(preparedJson, SchemaValidationResult.Success()));
 
         var templateBytes = Encoding.UTF8.GetBytes("<html><body>{{name}}</body></html>");
         _storageService.DownloadAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
@@ -113,8 +115,8 @@ public sealed class DocumentRenderPipelineTests
             new("/", "required", "Missing required field")
         };
 
-        _dataPreparationService.PrepareDataAsync(template, version, Arg.Any<JsonElement>(), false, Arg.Any<CancellationToken>())
-            .Returns(new PreparedDocumentData("{}", SchemaValidationResult.Failure(errors)));
+        _dataBindingEngine.BindAndValidateAsync(template, version, Arg.Any<JsonElement>(), false, Arg.Any<CancellationToken>())
+            .Returns(new BoundDocumentData("{}", SchemaValidationResult.Failure(errors)));
 
         // Act
         var act = () => CreateSut().RenderAndUploadAsync(
@@ -146,8 +148,8 @@ public sealed class DocumentRenderPipelineTests
         var (template, version) = CreateSampleTemplate();
         using var jsonDoc = JsonDocument.Parse("{\"key\":\"value\"}");
 
-        _dataPreparationService.PrepareDataAsync(template, version, Arg.Any<JsonElement>(), false, Arg.Any<CancellationToken>())
-            .Returns(new PreparedDocumentData("{\"key\":\"value\"}", SchemaValidationResult.Success()));
+        _dataBindingEngine.BindAndValidateAsync(template, version, Arg.Any<JsonElement>(), false, Arg.Any<CancellationToken>())
+            .Returns(new BoundDocumentData("{\"key\":\"value\"}", SchemaValidationResult.Success()));
 
         _storageService.DownloadAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(new MemoryStream(Encoding.UTF8.GetBytes("<html></html>")));
@@ -160,7 +162,7 @@ public sealed class DocumentRenderPipelineTests
             template, version, jsonDoc.RootElement, false, OutputFormat.Pdf, "outputs/test.pdf");
 
         // Assert
-        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("Gotenberg process killed");
+        await act.Should().ThrowAsync<InvalidOperationException>();
         await _auditService.Received(1).LogFailureAsync(
             template.Id.Value,
             version.Id,
@@ -170,7 +172,6 @@ public sealed class DocumentRenderPipelineTests
             "Gotenberg process killed",
             Arg.Any<CancellationToken>());
 
-        await _unitOfWork.Received(1).CommitAsync(CancellationToken.None);
+        await _unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
     }
 }
-

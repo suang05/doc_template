@@ -4,6 +4,7 @@ using SmkDoc.Application.Common;
 using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Helpers;
 using SmkDoc.Application.Common.Interfaces;
+using SmkDoc.Application.Modules.DataBinding.Services;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
@@ -13,7 +14,7 @@ namespace SmkDoc.Application.Modules.Rendering.Documents.Services;
 
 public sealed class DocumentRenderPipeline(
     IRenderEngineFactory engineFactory,
-    IDocumentDataPreparationService dataPreparationService,
+    IDataBindingEngine dataBindingEngine,
     IStorageService storageService,
     IDocumentAuditService auditService,
     IUnitOfWork unitOfWork) : IDocumentRenderPipeline
@@ -34,18 +35,18 @@ public sealed class DocumentRenderPipeline(
 
         try
         {
-            var preparedData = await dataPreparationService.PrepareDataAsync(
+            var boundData = await dataBindingEngine.BindAndValidateAsync(
                 template, currentVersion, payload, skipValidation, ct);
-            preparedDataJson = preparedData.DataJson;
+            preparedDataJson = boundData.DataJson;
 
-            if (preparedData.ValidationResult is { IsValid: false })
+            if (boundData.ValidationResult is { IsValid: false })
             {
                 sw.Stop();
-                var errorMessage = $"{preparedData.ValidationResult.Errors.Count} schema violation(s) detected.";
+                var errorMessage = $"{boundData.ValidationResult.Errors.Count} schema violation(s) detected.";
                 await auditService.LogValidationFailureAsync(
                     template.Id.Value,
                     currentVersion.Id,
-                    preparedData.DataJson,
+                    boundData.DataJson,
                     outputFormat,
                     (int)sw.ElapsedMilliseconds,
                     errorMessage,
@@ -54,11 +55,11 @@ public sealed class DocumentRenderPipeline(
                 await unitOfWork.CommitAsync(ct);
 
                 throw new SchemaValidationException(
-                    template.Slug.Value, currentVersion.Version, preparedData.ValidationResult.Errors);
+                    template.Slug.Value, currentVersion.Version, boundData.ValidationResult.Errors);
             }
 
             using var templateStream = await storageService.DownloadAsync(StorageBuckets.Templates, currentVersion.StorageKey, ct);
-            var rawOutputStream = await engine.RenderStreamAsync(templateStream, preparedData.DataJson, outputFormat, ct);
+            var rawOutputStream = await engine.RenderStreamAsync(templateStream, boundData.DataJson, outputFormat, ct);
 
             await using var spooled = await SpooledOutputStream.CreateAndDisposeSourceAsync(rawOutputStream, ct);
             sw.Stop();
@@ -67,7 +68,7 @@ public sealed class DocumentRenderPipeline(
                 StorageBuckets.Outputs, outputKey, spooled.ContentStream, outputFormat.MimeType, ct);
 
             return new DocumentRenderResult(
-                preparedData.DataJson,
+                boundData.DataJson,
                 spooled.FileSizeBytes,
                 spooled.Sha256Hex,
                 (int)sw.ElapsedMilliseconds);

@@ -26,7 +26,6 @@ public static class RenderingModuleExtensions
     public static IServiceCollection AddRenderingModule(this IServiceCollection services)
     {
         // Sub-Domain Collaborator Services
-        services.AddScoped<IDocumentDataPreparationService, DocumentDataPreparationService>();
         services.AddScoped<IDocumentAuditService, DocumentAuditService>();
         services.AddScoped<IDocumentVersioningService, DocumentVersioningService>();
         services.AddScoped<IDocumentRetentionService, DocumentRetentionService>();

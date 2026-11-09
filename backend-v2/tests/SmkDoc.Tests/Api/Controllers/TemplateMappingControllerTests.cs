@@ -8,7 +8,7 @@ using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.Commands.SaveTemplateMappings;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.Queries.GetTemplateMappings;
-using SmkDoc.Application.Modules.Authoring.FieldMappings.Queries.PreviewMapping;
+using SmkDoc.Application.Modules.Rendering.Documents.Queries.PreviewDocument;
 
 namespace SmkDoc.Tests.Api.Controllers;
 
@@ -16,14 +16,14 @@ public sealed class TemplateMappingControllerTests
 {
     private readonly IUseCase<GetTemplateMappingsQuery, List<FieldMappingDto>> _getMappingsUseCase = Substitute.For<IUseCase<GetTemplateMappingsQuery, List<FieldMappingDto>>>();
     private readonly IUseCase<SaveTemplateMappingsCommand, List<FieldMappingDto>> _saveMappingsUseCase = Substitute.For<IUseCase<SaveTemplateMappingsCommand, List<FieldMappingDto>>>();
-    private readonly IUseCase<PreviewMappingQuery, Stream> _previewMappingUseCase = Substitute.For<IUseCase<PreviewMappingQuery, Stream>>();
+    private readonly IUseCase<PreviewDocumentQuery, Stream> _previewDocumentUseCase = Substitute.For<IUseCase<PreviewDocumentQuery, Stream>>();
 
     private TemplateMappingController CreateSut()
     {
         var controller = new TemplateMappingController(
             _getMappingsUseCase,
             _saveMappingsUseCase,
-            _previewMappingUseCase)
+            _previewDocumentUseCase)
         {
             ControllerContext = new ControllerContext
             {
@@ -88,7 +88,7 @@ public sealed class TemplateMappingControllerTests
         var sut = CreateSut();
         var templateId = Guid.NewGuid();
         using var stream = new MemoryStream([1, 2, 3]);
-        _previewMappingUseCase.ExecuteAsync(Arg.Is<PreviewMappingQuery>(q => q.TemplateId == templateId), Arg.Any<CancellationToken>())
+        _previewDocumentUseCase.ExecuteAsync(Arg.Is<PreviewDocumentQuery>(q => q.TemplateId == templateId), Arg.Any<CancellationToken>())
             .Returns(stream);
 
         var request = new PreviewMappingRequest(JsonDocument.Parse("{}").RootElement);
