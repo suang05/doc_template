@@ -1,7 +1,7 @@
 # [MECH-003]: database_persistence_and_schema_mechanics.md — Database Persistence, Schema Governance & Concurrency Mechanics SSoT
 
 <context>
-Scope: PostgreSQL Physical Schema Invariants, Table & Column Naming (`snake_case`), Primary Key Strategy (C# UUIDv7 with `.ValueGeneratedNever()`), Multi-Tenant Data Isolation (`IMustHaveProject` Global Query Filters & Matching Child Filters), Optimistic Concurrency Engine (`xmin` / `If-Match`), Composite Index Governance (`(project_id, slug)`, `(project_id, created_at DESC)`), Foreign Key Cascade Boundaries (`Cascade` for intra-aggregate vs `Restrict` for cross-aggregate), JSONB Storage & GIN Indexes, Strongly-Typed ID Value Converters, and Zero-Downtime Migration Protocols.
+Scope: PostgreSQL Physical Schema Invariants, Table & Column Naming (`snake_case`), Primary Key Strategy (C# UUIDv7 with `.ValueGeneratedNever()`), Multi-Tenant Data Isolation (`IMustHaveProject` Global Query Filters & Matching Child Filters), Optimistic Concurrency Engine (`(UpdatedAt ?? CreatedAt)` Unix Milliseconds / `If-Match`), Composite Index Governance (`(project_id, slug)`, `(project_id, created_at DESC)`), Foreign Key Cascade Boundaries (`Cascade` for intra-aggregate vs `Restrict` for cross-aggregate), JSONB Storage & GIN Indexes, Strongly-Typed ID Value Converters, and Zero-Downtime Migration Protocols.
 SSoT_For: Database Table Configurations (`IEntityTypeConfiguration<T>`), Global Query Filters, PostgreSQL Concurrency Tokens, Migration Lifecycle (`dotnet ef migrations`), and Database Seeding.
 Out_Of_Scope: Infrastructure Port Adapters, Repositories, Unit of Work, Object Storage, and Gotenberg streaming clients (see: ../01_clean_arch_patterns/03_infrastructure_layer.md), Application UseCase orchestration (see: ../01_clean_arch_patterns/02_application_layer.md), HTTP wire contracts (see: ../00_architecture_core/06_api_contract_standards.md), Multi-tenant dual-auth middleware (see: multi_tenant_security_pipeline.md).
 Target: `backend-v2/` (`SmkDoc.Infrastructure/Persistence/`, `Configurations/`, `Converters/`, `Migrations/`, `AppDbContext.cs`).
@@ -17,7 +17,7 @@ ArchitecturalSignals: [ARCH_EVOLUTION_DATABASE]
 |---|---|---|---|
 | **Entity Mutation** | Application UseCase (`IUnitOfWork.CommitAsync`) | Translates Domain POCO to Relational Rows via EF Core | PostgreSQL Database Engine |
 | **Tenant Boundary** | `ICurrentProjectContext` (`ProjectId`) | Applies Automatic Row-Level Query Filter (`IMustHaveProject`) | EF Core SQL Generation Pipeline |
-| **Concurrency Safeguard**| HTTP Wire `If-Match` Header | Compares against PostgreSQL System Column `xmin` | PostgreSQL Transaction Engine |
+| **Concurrency Safeguard**| HTTP Wire `If-Match` Header | Compares against Entity OriginalValue of `(UpdatedAt ?? CreatedAt).ToUnixTimeMilliseconds()` | `ConcurrencySaveChangesInterceptor` |
 | **Identity Assignment**| Domain Factory (`Guid.CreateVersion7()`) | Persists pre-allocated sequential UUID (`ValueGeneratedNever`) | Primary Key Column (`uuid`) |
 | **Unstructured Data** | Complex JSON Payloads / Schemas | Serializes directly to binary JSON (`jsonb`) | Column Storage (`jsonb`) |
 | **Audit Tracking** | Ambient Injected Time (`TimeProvider`) | Tracks creation and modification timestamps in UTC | Audit Columns (`created_at`, `updated_at`) |
@@ -32,7 +32,8 @@ ArchitecturalSignals: [ARCH_EVOLUTION_DATABASE]
 | **Child Filter Alignment** | All child entities in an aggregate declare matching Global Query Filters through navigation properties (`v.Template != null && v.Template.ProjectId == CurrentTenantId`) to eliminate EF Core warning 10622. | Query Filter Integrity |
 | **Composite Unique Indexes** | Unique constraints on tenant-scoped entities combine `(project_id, slug)` or `(project_id, identifier)`. Global unique indexes on tenant entities are prohibited. | Index Strategy |
 | **Cascade Boundary Rules** | `DeleteBehavior.Cascade` is strictly restricted to owned child entities within the same aggregate root (`Template` -> `TemplateVersion`). Cross-aggregate foreign keys enforce `DeleteBehavior.Restrict`. | Referential Integrity |
-| **Optimistic Concurrency Engine**| State-mutating tables map the PostgreSQL system column `builder.Property<uint>("xmin").HasColumnType("xid").ValueGeneratedOnAddOrUpdate().IsConcurrencyToken()`. Timestamp rowversion columns are prohibited. | Concurrency Control |
+| **Runtime Query Footprint Isolation** | Production document generation queries (`TemplateRepository.GetBySlugWithDetailsAsync`) fetch strictly the template and its published version, excluding historical version collections (`.Include(t => t.Versions)`). Eager loading historical versions in hot paths is prohibited. | Query Footprint & Throughput |
+| **Optimistic Concurrency Engine**| Mutable entities implement `IConcurrencyAware`. Concurrency token is computed from `(UpdatedAt ?? CreatedAt).ToUnixTimeMilliseconds().ToString()` and mapped in EF Core via `builder.Property(e => e.UpdatedAt).IsConcurrencyToken()`. Proprietary database engine column dependencies are prohibited. | Concurrency Control |
 | **Unstructured Document Storage**| Dynamic schemas, layout trees, and JSON bindings utilize PostgreSQL `jsonb` with optional GIN indexes for queried keys. Relational decomposition of volatile schema trees is prohibited. | Document Storage |
 | **Zero-Downtime Migration Policy**| Database migrations follow the Expand and Contract pattern: adding nullable columns first, backfilling, and dropping columns in a subsequent deployment. Breaking single-phase column drops are prohibited. | Migration Lifecycle |
 
@@ -42,7 +43,7 @@ ArchitecturalSignals: [ARCH_EVOLUTION_DATABASE]
 | Strongly-Typed ID (`ProjectId`) | `uuid` | `.HasConversion(DomainValueConverters.ProjectIdConverter)` | 16-byte binary UUIDv7; sequential, time-sortable, zero lock contention |
 | Monomorphic String (`Slug`) | `varchar(100)` | `.HasMaxLength(100).IsRequired()` | Bounded length string for indexed query parameters |
 | Dynamic Content (`DataSchema`)| `jsonb` | `.HasColumnType("jsonb")` | Binary structured JSON allowing native PostgreSQL path querying |
-| Concurrency Token (`xmin`) | `xid` | `.Property<uint>("xmin").HasColumnType("xid").IsConcurrencyToken()` | PostgreSQL internal transaction ID; automatically updated per row mutation |
+| Concurrency Token (`UpdatedAt`) | `timestamptz` | `.Property(e => e.UpdatedAt).IsConcurrencyToken()` | UTC timestamp with millisecond precision; mapped as EF Core concurrency token while wire ETag uses `(UpdatedAt ?? CreatedAt).ToUnixTimeMilliseconds().ToString()` |
 | Audit Timestamp (`CreatedAt`) | `timestamptz` | `.HasDefaultValueSql("NOW()")` | Absolute UTC timestamp with microsecond precision |
 | Lifecycle Flag (`IsActive`) | `boolean` | `.HasDefaultValue(true)` | Soft-deactivation flag for non-destructive entity retirement |
 
@@ -52,7 +53,7 @@ ArchitecturalSignals: [ARCH_EVOLUTION_DATABASE]
 
 ### 2.1 Engineering Rationale & Architectural Decisions
 * **Why Application UUIDv7 over Database Sequences:** Sequential UUIDv7 generated in C# provides chronological time-ordering and index locality in B-Trees (eliminating page splits), allows ID allocation before persistence (pure domain event emission), and eliminates database roundtrips required by database sequence triggers.
-* **Why PostgreSQL `xmin` over Dedicated RowVersion Columns:** PostgreSQL manages `xmin` natively at the engine tuple header level. Mapping `xmin` as a concurrency token provides bulletproof Optimistic Concurrency Control without application-managed counter columns, triggers, or race conditions. When loading entities, the repository adapter reads `Entry(entity).Property<uint>("xmin").CurrentValue` to hydrate the DTO's `ConcurrencyToken`, guaranteeing 100% parity with HTTP `ETag` headers.
+* **Why Unix Millisecond Timestamp Concurrency Token (`(UpdatedAt ?? CreatedAt).ToUnixTimeMilliseconds()`):** Using `(UpdatedAt ?? CreatedAt).ToUnixTimeMilliseconds().ToString()` provides a deterministic, portable Unix millisecond timestamp token. It avoids proprietary database column dependencies, guarantees exact alignment between HTTP `ETag` / `If-Match` headers and entity state, and integrates seamlessly with EF Core's `ConcurrencySaveChangesInterceptor` (which checks original values before commit) and `.IsConcurrencyToken()` on `UpdatedAt`.
 * **Why `snake_case` in SQL vs `camelCase` on the Wire:** PostgreSQL folds unquoted identifiers to lowercase; `snake_case` provides natural readability in raw SQL queries, pgAdmin, and monitoring scripts, while ASP.NET Core EF Core conventions handle the mapping transparently.
 * **Why `DeleteBehavior.Cascade` is Prohibited Across Aggregates:** Accidental deletion of a `User` or `Project` must never automatically wipe business documents, templates, or audit logs via hidden database cascades. Cross-aggregate links must enforce `DeleteBehavior.Restrict` or `SetNull`.
 * **Why Matching Child Filters are Mandatory:** When an aggregate root has an EF Core Global Query Filter, querying child entities directly (or via navigation properties) without an equivalent filter bypasses tenant security or triggers EF Core warning 10622 (Required navigation filter mismatch).
@@ -76,8 +77,8 @@ MultiTenantIndexFirewall:
   ActionOnViolation: "Change HasIndex(e => e.Slug) to HasIndex(e => new { e.ProjectId, e.Slug })."
 
 ConcurrencyTokenFirewall:
-  Invariant: "Mutable tables must map PostgreSQL system column xmin as concurrency token."
-  ActionOnViolation: "Add builder.Property<uint>('xmin').HasColumnType('xid').IsConcurrencyToken()."
+  Invariant: "Mutable entities must implement IConcurrencyAware with UpdatedAt mapped as concurrency token."
+  ActionOnViolation: "Implement IConcurrencyAware and add builder.Property(e => e.UpdatedAt).IsConcurrencyToken()."
 
 MigrationExpandContractFirewall:
   Invariant: "Never drop or rename a column in a single migration pass while old code is running."
@@ -117,7 +118,7 @@ Every entity in the database belongs to one of three multi-tenant tiers:
 * Implements `IEntityTypeConfiguration<{Aggregate}>`.
 * Sets plural `snake_case` table name.
 * Configures sequential UUIDv7 with `.ValueGeneratedNever()`.
-* Enforces composite unique index `(ProjectId, Slug)` and optimistic concurrency token via PostgreSQL `xmin`.
+* Enforces composite unique index `(ProjectId, Slug)` and optimistic concurrency token on `UpdatedAt`.
 
 ```csharp
 public sealed class {Aggregate}Configuration : IEntityTypeConfiguration<{Aggregate}>
@@ -148,10 +149,8 @@ public sealed class {Aggregate}Configuration : IEntityTypeConfiguration<{Aggrega
         builder.Property(e => e.CreatedAt).HasDefaultValueSql("NOW()");
         builder.Property(e => e.UpdatedAt).HasDefaultValueSql("NOW()");
 
-        // Step 5: Concurrency Token via PostgreSQL xmin <Why: zero-overhead optimistic lock>
-        builder.Property<uint>("xmin")
-            .HasColumnType("xid")
-            .ValueGeneratedOnAddOrUpdate()
+        // Step 5: Optimistic Concurrency Token on UpdatedAt <Why: detects concurrent updates via EF Core ChangeTracker>
+        builder.Property(e => e.UpdatedAt)
             .IsConcurrencyToken();
 
         // Step 6: Referential Integrity <Why: cascade only from parent project>
@@ -336,12 +335,12 @@ public sealed class ConcurrencySaveChangesInterceptor(
 ```
 *Rationale: Missing matching query filters on child entities bypasses tenant isolation during direct child queries and causes EF Core 10622 navigation filter mismatch warnings.*
 
-### [TRAP-DB-005]: Timestamp-Based Concurrency Token instead of PostgreSQL `xmin`
+### [TRAP-DB-005]: Unmapped Concurrency Token Allowing Lost Updates
 ```diff
-- builder.Property(e => e.RowVersion).IsRowVersion();
-+ builder.Property<uint>("xmin").HasColumnType("xid").ValueGeneratedOnAddOrUpdate().IsConcurrencyToken();
+- builder.Property(e => e.UpdatedAt);
++ builder.Property(e => e.UpdatedAt).IsConcurrencyToken();
 ```
-*Rationale: Application-managed row version or timestamp columns are vulnerable to clock skew and require extra database columns, whereas PostgreSQL `xmin` is updated atomically by the storage engine.*
+*Rationale: The platform computes optimistic concurrency tokens deterministically from `(UpdatedAt ?? CreatedAt).ToUnixTimeMilliseconds().ToString()`. Mapping `UpdatedAt` with `.IsConcurrencyToken()` allows EF Core ChangeTracker to detect mid-flight concurrent updates while `ConcurrencySaveChangesInterceptor` validates `If-Match` headers against original timestamp values.*
 
 ### [TRAP-DB-006]: Destructive Single-Step Column Drop Breaking Active Application Pods
 ```diff

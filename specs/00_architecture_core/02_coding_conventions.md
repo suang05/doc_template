@@ -27,6 +27,7 @@ ArchitecturalSignals: [ARCH_EVOLUTION_CONVENTIONS]
 | **Concurrency Guard** | Ambient optimistic concurrency via global `ETagFilter`, `IConcurrencyContext`, and `ConcurrencySaveChangesInterceptor`. | Cross-Cutting Pipeline |
 | **Traffic Protection** | Declarative endpoint rate limiting via `[EnableRateLimiting("...")]` policies. | Controller Action |
 | **Test Rhythm** | 3-Phase DAMP Arrange-Act-Assert (AAA) layout with explicit test setups. | Test suites |
+| **Inline Attention Anchor** | Universal `// <Why: {causal-intent}>` annotations for non-obvious guards, invariants, limits, and steps. | Universal |
 
 ---
 
@@ -37,6 +38,7 @@ ArchitecturalSignals: [ARCH_EVOLUTION_CONVENTIONS]
 * **Why Collection Expressions (`[]`)**: Standardizes collection instantiation across spans, arrays, and lists in a single, high-performance idiom optimized by Roslyn.
 * **Why File-Scoped Namespaces**: Removes 4 whitespace characters of horizontal indentation across all files, maximizing line-length readability and eliminating token waste.
 * **Why DAMP Over DRY in Tests**: Over-abstracted helper chains hide test failure rationale. Explicit Arrange-Act-Assert (AAA) ensures failures are self-evident and self-documenting.
+* **Why Universal Inline Why-Anchors (`// <Why: ...>`)**: Eliminates attention leakage in downstream LLMs by colocating causal rationale directly on the target syntax token (Attention Proximity). Avoids multi-paragraph prose while clarifying non-obvious invariants and preventing accidental regression.
 
 ### 2.2 Proactive Syntax Firewalls
 ```yaml

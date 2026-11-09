@@ -1476,7 +1476,7 @@
             "description": "OK",
             "headers": {
               "ETag": {
-                "description": "Updated resource concurrency token (quoted rowversion).",
+                "description": "Updated resource concurrency token (quoted Unix millisecond timestamp derived from UpdatedAt ?? CreatedAt).",
                 "schema": {
                   "type": "string"
                 }
@@ -1592,7 +1592,7 @@
             "description": "OK",
             "headers": {
               "ETag": {
-                "description": "Updated resource concurrency token (quoted rowversion).",
+                "description": "Updated resource concurrency token (quoted Unix millisecond timestamp derived from UpdatedAt ?? CreatedAt).",
                 "schema": {
                   "type": "string"
                 }
@@ -2034,7 +2034,7 @@
             "description": "OK",
             "headers": {
               "ETag": {
-                "description": "Updated resource concurrency token (quoted rowversion).",
+                "description": "Updated resource concurrency token (quoted Unix millisecond timestamp derived from UpdatedAt ?? CreatedAt).",
                 "schema": {
                   "type": "string"
                 }
@@ -2150,7 +2150,7 @@
             "description": "OK",
             "headers": {
               "ETag": {
-                "description": "Updated resource concurrency token (quoted rowversion).",
+                "description": "Updated resource concurrency token (quoted Unix millisecond timestamp derived from UpdatedAt ?? CreatedAt).",
                 "schema": {
                   "type": "string"
                 }
@@ -3308,7 +3308,7 @@
             "description": "OK",
             "headers": {
               "ETag": {
-                "description": "Updated resource concurrency token (quoted rowversion).",
+                "description": "Updated resource concurrency token (quoted Unix millisecond timestamp derived from UpdatedAt ?? CreatedAt).",
                 "schema": {
                   "type": "string"
                 }
@@ -3719,7 +3719,7 @@
             "description": "OK",
             "headers": {
               "ETag": {
-                "description": "Updated resource concurrency token (quoted rowversion).",
+                "description": "Updated resource concurrency token (quoted Unix millisecond timestamp derived from UpdatedAt ?? CreatedAt).",
                 "schema": {
                   "type": "string"
                 }
@@ -3972,7 +3972,7 @@
             "description": "OK",
             "headers": {
               "ETag": {
-                "description": "Updated resource concurrency token (quoted rowversion).",
+                "description": "Updated resource concurrency token (quoted Unix millisecond timestamp derived from UpdatedAt ?? CreatedAt).",
                 "schema": {
                   "type": "string"
                 }
@@ -5019,7 +5019,7 @@
             "description": "OK",
             "headers": {
               "ETag": {
-                "description": "Updated resource concurrency token (quoted rowversion).",
+                "description": "Updated resource concurrency token (quoted Unix millisecond timestamp derived from UpdatedAt ?? CreatedAt).",
                 "schema": {
                   "type": "string"
                 }
@@ -5684,7 +5684,7 @@
             "description": "OK",
             "headers": {
               "ETag": {
-                "description": "Updated resource concurrency token (quoted rowversion).",
+                "description": "Updated resource concurrency token (quoted Unix millisecond timestamp derived from UpdatedAt ?? CreatedAt).",
                 "schema": {
                   "type": "string"
                 }
@@ -5800,7 +5800,7 @@
             "description": "OK",
             "headers": {
               "ETag": {
-                "description": "Updated resource concurrency token (quoted rowversion).",
+                "description": "Updated resource concurrency token (quoted Unix millisecond timestamp derived from UpdatedAt ?? CreatedAt).",
                 "schema": {
                   "type": "string"
                 }
@@ -6099,7 +6099,7 @@
             "description": "OK",
             "headers": {
               "ETag": {
-                "description": "Updated resource concurrency token (quoted rowversion).",
+                "description": "Updated resource concurrency token (quoted Unix millisecond timestamp derived from UpdatedAt ?? CreatedAt).",
                 "schema": {
                   "type": "string"
                 }
@@ -6391,7 +6391,7 @@
             "description": "OK",
             "headers": {
               "ETag": {
-                "description": "Updated resource concurrency token (quoted rowversion).",
+                "description": "Updated resource concurrency token (quoted Unix millisecond timestamp derived from UpdatedAt ?? CreatedAt).",
                 "schema": {
                   "type": "string"
                 }

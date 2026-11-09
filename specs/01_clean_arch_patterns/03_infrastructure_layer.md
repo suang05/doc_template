@@ -1,10 +1,10 @@
 # [PATTERN-003]: 03_infrastructure_layer.md — Infrastructure Layer Design Patterns & Port Adapters SSoT
 
 <context>
-Scope: Infrastructure Port Adapters, Repository Implementations, Transactional Unit of Work, Object Storage Clients (MinIO), PDF Rendering Streaming (Gotenberg), Polymorphic External SQL Drivers, and Redis Distributed State.
-SSoT_For: Infrastructure Port Implementations (`I{Aggregate}Repository`, `IUnitOfWork`, `IStorageService`, `IRenderEngine`, `ISqlDriverFactory`), Storage Buckets Catalog (`StorageBuckets.cs`), and Zero-LOH Streaming Pipeline.
+Scope: Infrastructure Port Adapters, Repository Implementations, Transactional Unit of Work, Object Storage Clients (MinIO), PDF Rendering Streaming (Gotenberg), Polymorphic External SQL Drivers, Modular Feature Installers, and Redis Distributed State.
+SSoT_For: Infrastructure Port Implementations (`I{Aggregate}Repository`, `IUnitOfWork`, `IStorageService`, `IRenderEngine`, `ISqlDriverFactory`), Storage Buckets Catalog (`StorageBuckets.cs`), Modular DI Extensions, and Zero-LOH Streaming Pipeline.
 Out_Of_Scope: Application UseCase orchestration (see: 02_application_layer.md), Pure Domain Entities (see: 01_domain_layer.md), HTTP Controllers (see: 04_api_presentation_layer.md), Multi-Tenant Dual-Auth Pipeline (see: ../03_specialized_mechanics/multi_tenant_security_pipeline.md), PostgreSQL Physical Schema, Entity Configurations, Indexing & Concurrency Tokens (see: ../03_specialized_mechanics/database_persistence_and_schema_mechanics.md).
-Target: `SmkDoc.Infrastructure/` (`Repositories/`, `Storage/`, `Gotenberg/`, `Data/Drivers/`, `Persistence/TransactionalUnitOfWork.cs`).
+Target: `SmkDoc.Infrastructure/` (`Repositories/`, `Storage/`, `Gotenberg/`, `Data/Drivers/`, `Extensions/`, `Persistence/TransactionalUnitOfWork.cs`).
 ArchitecturalSignals: [ARCH_EVOLUTION_INFRASTRUCTURE]
 </context>
 
@@ -33,9 +33,12 @@ ArchitecturalSignals: [ARCH_EVOLUTION_INFRASTRUCTURE]
 | **Response-Owning Gotenberg Streams**| Wrap Gotenberg HTTP responses in `ResponseDisposingStream` using `ResponseHeadersRead` to deterministically release sockets upon stream closure. | Network Socket Lifecycle |
 | **Zero-LOH Stream Sizing** | Object storage uploads require seekable streams with known `Stream.Length` spooled via `HybridSpoolStream`; initialized buckets are cached in `ConcurrentDictionary`. | Storage Gateway |
 | **Distributed State Topology** | Redis stores utilize atomic Lua scripts with fail-closed semantics for idempotency (`503`), fail-open for result caches, and `pg_advisory_lock` for multi-pod migrations. | Multi-Pod Scalability |
+| **Modular Feature Installers** | Infrastructure DI registers dependencies through 5 single-responsibility extension installers (`Persistence`, `Storage`, `RenderingEngines`, `DistributedInfrastructure`, `SecurityInfrastructure`). The composition root `SmkDoc.Infrastructure/DependencyInjection.cs` remains a lean $\le 25$ LOC coordinator. | Composition Root |
+| **Hybrid Draft Cache SSoT** | Ephemeral template drafts are cached via `HybridTemplateDraftCache` (L1 in-memory LRU with transparent L2 Redis synchronization), guaranteeing zero conditional DI branching between Redis and standalone developer modes. | Ephemeral Cache |
+| **Singleton Handlebars Registry** | Pre-registers custom helpers once at application startup and injects `IHandlebars` as a thread-safe singleton. Per-request or scoped re-instantiation of Handlebars is prohibited. | Engine Initialization |
 | **Polymorphic SQL Execution** | Execute external SQL datasets via `ISqlDriverFactory` resolving provider-specific strategies (`PostgresDriverStrategy`, `SqlServerDriverStrategy`) with AST and transaction read-only isolation. | Data Federation |
 
->> SSoT DELEGATION: PostgreSQL physical table configurations (`IEntityTypeConfiguration<T>`), primary key UUIDv7, composite indexing, foreign key cascade boundaries, JSONB mapping, and `xmin` concurrency mechanics are governed strictly by [database_persistence_and_schema_mechanics.md](../03_specialized_mechanics/database_persistence_and_schema_mechanics.md).
+>> SSoT DELEGATION: PostgreSQL physical table configurations (`IEntityTypeConfiguration<T>`), primary key UUIDv7, composite indexing, foreign key cascade boundaries, JSONB mapping, and optimistic concurrency mechanics are governed strictly by [database_persistence_and_schema_mechanics.md](../03_specialized_mechanics/database_persistence_and_schema_mechanics.md).
 
 ---
 
@@ -47,6 +50,8 @@ ArchitecturalSignals: [ARCH_EVOLUTION_INFRASTRUCTURE]
 * **Why Post-Commit Domain Event Dispatching:** If events are dispatched before `SaveChangesAsync` succeeds, side-effects (such as webhook notifications or audit queue pushes) execute even when database transaction commits fail, causing catastrophic state corruption.
 * **Why Response-Owning Gotenberg Streams & Known-Size S3 Uploads:** Returning raw `response.Content.ReadAsStreamAsync()` without disposing `HttpResponseMessage` leaks sockets, while passing `ObjectSize(-1)` to MinIO SDK forces a 5 MB+ multipart LOH buffer allocation. Wrapping HTTP streams in a response-disposing decorator and spooling production outputs via `ArrayPool<byte>` yields deterministic socket release, exact `FileSizeBytes`, and zero-LOH S3 uploads.
 * **Why Polymorphic SQL Driver Strategies:** Eliminates monolithic switch statements and provider-specific branching by abstracting external SQL execution behind isolated driver strategies with strict read-only token analysis.
+* **Why Modular Feature Installers over Monolithic Composition Root:** Scattering hundreds of service registrations into a single monolithic `DependencyInjection.cs` creates an unmaintainable dumping ground where lifecycle mismatches, captive dependencies, and duplicate registrations thrive. Decomposing by subsystem guarantees single responsibility and strict visibility.
+* **Why Hybrid Draft Cache SSoT:** Maintaining separate in-memory and Redis cache classes forces dual maintenance and conditional DI branching (`if (redisConn != null) ... else ...`). A unified hybrid cache with graceful L1 fallback operates transparently across both local developer workstations and distributed Kubernetes clusters.
 
 ### 2.2 Proactive Infrastructure Firewalls
 ```yaml
@@ -82,7 +87,7 @@ S3StreamSizeFirewall:
 
 ---
 
-## 3. Level 3: Canonical Infrastructure Archetypes (Surgical AST Recipes)
+## 3. Level 3: Canonical Infrastructure Archetypes (100% Fully-Hydrated Recipes)
 
 ### 3.1 Repository Implementation Archetype (`{Aggregate}Repository`)
 >> MANDATORY CANONICAL BLUEPRINT [RULE-INFRA-001]:
@@ -131,8 +136,6 @@ public sealed class {Aggregate}Repository(AppDbContext dbContext) : I{Aggregate}
 }
 ```
 
----
-
 ### 3.2 Transactional Unit of Work Archetype (`TransactionalUnitOfWork`)
 >> MANDATORY CANONICAL BLUEPRINT [RULE-INFRA-002]:
 * Commits database changes via `SaveChangesAsync` BEFORE dispatching events.
@@ -170,8 +173,6 @@ public sealed class TransactionalUnitOfWork(
 }
 ```
 
----
-
 ### 3.3 Zero-LOH Gotenberg HTTP Streaming Client Archetype
 >> MANDATORY CANONICAL BLUEPRINT [RULE-INFRA-003]:
 * Uses `HttpCompletionOption.ResponseHeadersRead` to stream payload directly.
@@ -192,6 +193,7 @@ public sealed class GotenbergClient(HttpClient httpClient)
 
         // Step 1: Send with ResponseHeadersRead <Why: do not buffer response body in memory>
         var httpResponse = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+
         try
         {
             httpResponse.EnsureSuccessStatusCode();
@@ -213,8 +215,6 @@ public sealed class GotenbergClient(HttpClient httpClient)
     }
 }
 ```
-
----
 
 ### 3.4 S3 Object Storage Service Archetype (MinIO)
 >> MANDATORY CANONICAL BLUEPRINT [RULE-INFRA-004]:
@@ -265,8 +265,6 @@ public sealed class MinioStorageService(
 }
 ```
 
----
-
 ### 3.5 Polymorphic SQL Driver Strategy Archetype
 >> MANDATORY CANONICAL BLUEPRINT [RULE-INFRA-005]:
 * Resolves SQL execution drivers via polymorphic dictionary lookup (`ISqlDriverFactory`).
@@ -280,13 +278,106 @@ public sealed class SqlDriverFactory(IEnumerable<ISqlDriverStrategy> strategies)
 
     public ISqlDriverStrategy GetStrategy(string provider)
     {
-        // Step 1: Polymorphic Provider Dispatch <Why: zero if/else or switch-case extension fragility>
         if (_strategies.TryGetValue(provider, out var strategy))
         {
             return strategy;
         }
 
         throw new NotSupportedException($"Database provider '{provider}' is not supported.");
+    }
+}
+```
+
+### 3.6 Modular Feature Installer Archetype (`PersistenceServiceExtensions`)
+>> MANDATORY CANONICAL BLUEPRINT [RULE-INFRA-006]:
+* Subsystem registrations are partitioned into single-responsibility extension classes under `SmkDoc.Infrastructure/Extensions/`.
+* Encapsulates connection string fallbacks, interceptor registration, repository bindings, and query services.
+
+```csharp
+public static class PersistenceServiceExtensions
+{
+    public static IServiceCollection AddPersistenceInfrastructure(this IServiceCollection services, IConfiguration configuration)
+    {
+        // Step 1: Register Contexts <Why: ambient tenant isolation & optimistic concurrency token resolution>
+        services.AddScoped<CurrentProjectContext>();
+        services.AddScoped<ICurrentProjectContext>(sp => sp.GetRequiredService<CurrentProjectContext>());
+        services.AddScoped<IConcurrencyContext, ConcurrencyContext>();
+
+        // Step 2: Configure EF Core with Interceptors <Why: transparent multi-tenant guards & optimistic concurrency verification>
+        var connectionString = configuration.GetConnectionString("DefaultConnection") 
+            ?? throw new InvalidOperationException("Connection string required.");
+        services.AddDbContext<AppDbContext>((sp, options) =>
+        {
+            options.UseNpgsql(connectionString, sql => sql.EnableRetryOnFailure(5, TimeSpan.FromSeconds(10), null));
+            options.AddInterceptors(
+                sp.GetRequiredService<TenantSecuritySaveChangesInterceptor>(),
+                sp.GetRequiredService<ConcurrencySaveChangesInterceptor>());
+        });
+
+        // Step 3: Register Repositories & UoW <Why: atomic persistence with post-commit domain event dispatch>
+        services.AddScoped<IUnitOfWork, TransactionalUnitOfWork>();
+        services.AddScoped<ITemplateRepository, TemplateRepository>();
+        return services;
+    }
+}
+```
+
+### 3.7 Clean Infrastructure Composition Root Archetype (`DependencyInjection`)
+>> MANDATORY CANONICAL BLUEPRINT [RULE-INFRA-007]:
+* Coordinates subsystem feature installers in $\le 25$ LOC without direct service instantiation.
+* Injects `TimeProvider.System` as singleton at root.
+
+```csharp
+public static class DependencyInjection
+{
+    public static IServiceCollection AddInfrastructureServices(this IServiceCollection services, IConfiguration configuration)
+    {
+        // Step 1: Register Time Provider <Why: deterministic testability across infrastructure>
+        services.AddSingleton(TimeProvider.System);
+
+        // Step 2: Chain Modular Subsystem Installers <Why: single responsibility & modular testability>
+        return services
+            .AddSecurityInfrastructure()
+            .AddPersistenceInfrastructure(configuration)
+            .AddStorageInfrastructure(configuration)
+            .AddRenderingEnginesInfrastructure(configuration)
+            .AddDistributedInfrastructure(configuration);
+    }
+}
+```
+
+### 3.8 Hybrid Template Draft Cache Archetype (`HybridTemplateDraftCache`)
+>> MANDATORY CANONICAL BLUEPRINT [RULE-INFRA-008]:
+* Unified hybrid L1 (in-memory LRU) + L2 (Redis with graceful fallback) implementation of `ITemplateDraftCache`.
+* Operates deterministically in both standalone local dev and distributed multi-pod Kubernetes clusters.
+* Persists binary streams to MinIO `StorageBuckets.Drafts` and caches metadata entries (`TemplateDraftEntry`) across L1 memory and L2 Redis.
+
+```csharp
+public sealed class HybridTemplateDraftCache(
+    IConnectionMultiplexer? multiplexer,
+    IStorageService storageService,
+    IMemoryCache memoryCache,
+    string prefix = RedisConfigurationResolver.DefaultInstancePrefix) : ITemplateDraftCache
+{
+    public async Task<string> StoreAsync(ProjectId projectId, Stream stream, string name, string ext, IReadOnlyList<string> placeholders, CancellationToken ct = default)
+    {
+        // Step 1: Invariant & Size Guard <Why: reject unseekable streams and drafts > 20MB>
+        if (!stream.CanSeek) throw new InvalidOperationException("Draft stream must be seekable.");
+        var draftId = Guid.NewGuid().ToString("N");
+
+        // Step 2: Object Storage Spooling <Why: draft binary files persist in MinIO bucket without memory leaks>
+        var storageKey = StorageBuckets.DraftTemplateKey(projectId, draftId, ext);
+        await storageService.UploadAsync(StorageBuckets.Drafts, storageKey, stream, "application/octet-stream", ct);
+
+        // Step 3: L1 In-Memory Cache Insertion <Why: sub-millisecond instant retrieval for Monaco preview>
+        var entry = new TemplateDraftEntry(draftId, projectId.Value, storageKey, name, ext, placeholders);
+        memoryCache.Set($"draft:{projectId}:{draftId}", entry, TimeSpan.FromMinutes(30));
+
+        // Step 4: L2 Redis Multi-Pod Sync <Why: transparent fallback in standalone environments without DI branching>
+        if (multiplexer is { IsConnected: true })
+            await multiplexer.GetDatabase().StringSetAsync($"{prefix}:draft:{projectId}:{draftId}", JsonSerializer.Serialize(entry), TimeSpan.FromMinutes(30));
+
+        return draftId;
     }
 }
 ```
@@ -329,3 +420,18 @@ public sealed class SqlDriverFactory(IEnumerable<ISqlDriverStrategy> strategies)
 + if (!stream.CanSeek) throw new InvalidOperationException("Seekable stream required."); var args = new PutObjectArgs().WithStreamData(stream).WithObjectSize(stream.Length - stream.Position);
 ```
 *Rationale: Passing `ObjectSize(-1)` forces the S3 SDK to allocate 5MB+ memory chunks in Large Object Heap (LOH) to perform multipart buffering.*
+
+### [TRAP-INFRA-006]: Monolithic Dependency Injection Composition Root
+```diff
+- public static class DependencyInjection { public static IServiceCollection AddInfrastructureServices(...) { /* monolithic registration mixing all subsystems */ } }
++ public static class DependencyInjection { public static IServiceCollection AddInfrastructureServices(...) => services.AddSecurityInfrastructure().AddPersistenceInfrastructure(config).AddStorageInfrastructure(config).AddRenderingEnginesInfrastructure(config).AddDistributedInfrastructure(config); }
+```
+*Rationale: Monolithic DI composition roots violate single responsibility and obscure dependencies. Partition registrations into modular feature installers under `Extensions/`.*
+
+### [TRAP-INFRA-007]: Dual State Draft Cache Implementations with DI Branching
+```diff
+- if (redisConn != null) services.AddSingleton<ITemplateDraftCache, RedisTemplateDraftCache>();
+- else services.AddSingleton<ITemplateDraftCache, InMemoryTemplateDraftCache>();
++ services.AddSingleton<ITemplateDraftCache>(sp => new HybridTemplateDraftCache(sp.GetService<IConnectionMultiplexer>(), ...));
+```
+*Rationale: Branching DI between two distinct cache classes creates divergence and requires dual maintenance. A single hybrid cache with transparent fallback operates deterministically in both standalone and distributed environments.*

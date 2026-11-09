@@ -156,7 +156,7 @@ public sealed class OpenApiOperationTransformer : IOpenApiOperationTransformer
         concreteResponse.Headers ??= new Dictionary<string, IOpenApiHeader>();
         concreteResponse.Headers[OpenApiNames.ETagHeader] = new OpenApiHeader
         {
-            Description = "Updated resource concurrency token (quoted rowversion).",
+            Description = "Updated resource concurrency token (quoted Unix millisecond timestamp derived from UpdatedAt ?? CreatedAt).",
             Schema = new OpenApiSchema { Type = JsonSchemaType.String }
         };
     }

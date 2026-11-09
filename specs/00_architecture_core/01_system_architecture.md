@@ -34,12 +34,13 @@ graph TD
 | **`SmkDoc.Infrastructure`**| `Api` (Composition Root only) | Implements Application ports (EF Core, MinIO, Gotenberg, SQL Drivers). Enforces ambient multi-tenancy via EF Core global query filters. Streams binary outputs directly through bounded 81,920-byte buffers. Pluggable adapters via Factory/Strategy patterns. | Inward => Domain & Application |
 | **`SmkDoc.Api`** | None (Entry Point) | Thin HTTP orchestrators ($\le 5$ LOC per action) with C# 13 Primary Constructors. Translates HTTP requests to Commands/Queries and delegates directly to UseCases. Centralizes RFC 9457 `ProblemDetails` via `IExceptionHandler`. | Inward => Application |
 
-### 1.3 The 4 Bounded Context Collaboration Matrix
+### 1.3 The Bounded Context Collaboration Matrix
 | Bounded Context | Core Aggregates (Domain) | Upstream Dependencies | Downstream Consumers | Shared Boundary Contracts |
 |---|---|---|---|---|
-| **`Authoring`** | `Template`, `TemplateVersion`, `FieldMapping`, `Font` | `IdentityAccess` (Project scoping) | `Rendering` (Template resolution) | `TemplateId`, `TemplateSlug`, `TemplateVersionId`, `TemplatePublishedDomainEvent` |
-| **`Rendering`** | `Document`, `DocumentVersion`, `GenerationLog` | `Authoring` (Templates), `Integration` (Datasets) | External Callers, Portal UI | `DocumentId`, `RenderEngineType`, `OutputFormat`, `Stream` |
-| **`Integration`**| `DataConnection`, `Dataset` | `IdentityAccess` (Project scoping) | `Rendering` (Data extraction) | `DataConnectionId`, `DatasetId`, `ExtractionStrategy` |
+| **`Authoring`** | `Template`, `TemplateVersion`, `FieldMapping`, `Font` | `IdentityAccess` (Project scoping) | `Rendering`, `DataBinding` | `TemplateId`, `TemplateSlug`, `TemplateVersionId`, `TemplatePublishedDomainEvent` |
+| **`DataBinding`** | None (Pure Engine Services) | `Authoring` (Mappings/Schema), `Integration` (Datasets) | `Rendering` (Pipeline synthesis) | `IDataBindingEngine`, `BoundDocumentData`, `ResolvedDatasetContext` |
+| **`Rendering`** | `Document`, `DocumentVersion`, `GenerationLog` | `Authoring` (Templates), `DataBinding` (Bound data) | External Callers, Portal UI | `DocumentId`, `RenderEngineType`, `OutputFormat`, `Stream` |
+| **`Integration`**| `DataConnection`, `Dataset` | `IdentityAccess` (Project scoping) | `DataBinding` (Data extraction) | `DataConnectionId`, `DatasetId`, `ExtractionStrategy` |
 | **`IdentityAccess`**| `Company`, `Project`, `User`, `ApiKey` | Edge Authentication Middleware | All other Contexts (Tenant filtering) | `ProjectId`, `CompanyId`, `UserId`, `ApiKeyId`, `ICurrentProjectContext` |
 
 ### 1.4 The 2 Core Execution Pipelines
@@ -67,13 +68,16 @@ HTTP Request (JWT Bearer)
 ```
 backend-v2/src/SmkDoc.Application/Modules/
   Authoring/
-    Commands/ # CreateTemplate, UpdateTemplate, PublishVersion, MapFields
-    Queries/  # GetTemplateById, ListTemplates, GetTemplateVersion
-    DTOs/     # TemplateResultDto, TemplateVersionResultDto, FieldMappingDto
+    Commands/ # CreateTemplate, UpdateTemplate, PublishVersion, SaveMappings, CommitDraft
+    Queries/  # GetTemplateById, ListTemplates, ListVersions, GetMappings, GetStudioBundle
+    DTOs/     # TemplateResultDto, TemplateVersionResultDto, FieldMappingDto, TemplateStudioDto
+  DataBinding/
+    Services/ # DataBindingEngine (IDataBindingEngine SSoT), FieldMappingApplicatorService
+    DTOs/     # BoundDocumentData, ResolvedDatasetContext
   Rendering/
-    Commands/ # RenderDocument, RenderPreview, CancelGeneration
-    Queries/  # GetDocumentById, GetGenerationLog, StreamDocument
-    DTOs/     # RenderDocumentResultDto, PreviewResultDto, GenerationLogDto
+    Commands/ # GenerateDocument, EnqueueGeneration
+    Queries/  # PreviewDocument (Unified SSoT), GetVersions, GetJob, ListLogs
+    DTOs/     # GenerateDocumentResultDto, DocumentJobDto, DocumentVersionDto
   Integration/
     Commands/ # CreateDataConnection, TestConnection, SaveDataset
     Queries/  # GetDataConnectionById, ExecuteDatasetQuery, ListDatasets

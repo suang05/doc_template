@@ -30,6 +30,9 @@ ArchitecturalSignals: [ARCH_EVOLUTION_FIREWALL]
 | **[TRAP-POD-014]** | Statelessness | In-memory singleton state breaks horizontal pod scaling and allows rate-limit bypasses. | Enforce distributed state via Redis Lua scripts and declarative `[EnableRateLimiting]`. | CRITICAL |
 | **[TRAP-ARCH-015]** | Simplicity | Generic CRUD base classes create tight coupling and obscure business invariants. | Enforce flat composition and single-responsibility `IUseCase<TReq, TRes>` slices. | HIGH |
 | **[TRAP-SCALE-016]** | Scalability | In-memory dictionaries in singletons cause state divergence across Kubernetes replicas. | State must reside in external distributed backends or immutable stateless services. | FATAL |
+| **[TRAP-SSOT-017]** | Architecture | Querying mutable relational tables during versioned runtime execution causes published versions to drift. | Runtime generation must strictly read immutable `TemplateVersion.MappingsSnapshot` manifest. | CRITICAL |
+| **[TRAP-WRAPPER-018]**| Simplicity | Artificial pass-through wrappers duplicating identical DTOs create cognitive bloat and GC allocations. | Pipeline must consume domain engines (`IDataBindingEngine`) directly without wrapper indirection. | HIGH |
+| **[TRAP-DI-019]** | Modularity | Monolithic DI composition roots accumulating hundreds of lines across multiple subsystems hide dependencies. | Decompose DI into single-responsibility Feature Installers under `SmkDoc.Infrastructure/Extensions/`. | HIGH |
 
 ---
 
@@ -221,3 +224,40 @@ EventConsistencyFirewall:
 + [EnableRateLimiting("rendering")] // Backed by distributed partition key
 + public sealed class {Aggregate}sController(...) : ControllerBase { ... }
 ```
+
+### [TRAP-SSOT-017]: Relational Table Querying During Versioned Runtime Execution
+```diff
+- // Bypassing version snapshot manifest to query mutable relational table:
+- var mappings = template.FieldMappings.ToList();
++ // Authoritative Template Manifest SSoT:
++ List<FieldMapping> mappings = !string.IsNullOrWhiteSpace(version.MappingsSnapshot)
++     ? FieldMappingSnapshotSerializer.Deserialize(template.Id, version.MappingsSnapshot, now)
++     : template.FieldMappings.ToList();
+```
+*Rationale: Querying mutable relational tables during document generation breaks version immutability. An author editing field mappings in the studio causes historical published versions to immediately drift and produce corrupt outputs. The frozen `TemplateVersion.MappingsSnapshot` is the single source of truth at runtime.*
+
+### [TRAP-WRAPPER-018]: Anemic Pass-Through Wrapper & Redundant Intermediate DTOs
+```diff
+- // Useless single-method pass-through wrapper duplicating DTOs:
+- var prepared = await dataPreparationWrapper.PrepareAsync(template, version, payload, ct);
+- var stream = await engine.RenderStreamAsync(templateStream, prepared.DataJson, format, ct);
++ // Direct pipeline integration consuming domain engine:
++ var bound = await dataBindingEngine.BindAndValidateAsync(template, version, payload, skipValidation, ct);
++ var stream = await engine.RenderStreamAsync(templateStream, bound.DataJson, format, ct);
+```
+*Rationale: Creating single-method wrappers that merely forward arguments and duplicate DTO records adds cognitive overhead, increases maintenance debt, and allocates useless intermediate objects without providing any domain abstraction.*
+
+### [TRAP-DI-019]: Monolithic Composition Root Sprawl
+```diff
+- // Monolithic service registration mixing all subsystems in one class:
+- public static IServiceCollection AddInfrastructure(this IServiceCollection services) { /* all subsystems inline */ }
++ // Modular Feature Installers partitioned by subsystem under Extensions/:
++ public static IServiceCollection AddInfrastructureServices(this IServiceCollection services, IConfiguration config) =>
++     services
++         .AddSecurityInfrastructure()
++         .AddPersistenceInfrastructure(config)
++         .AddStorageInfrastructure(config)
++         .AddRenderingEnginesInfrastructure(config)
++         .AddDistributedInfrastructure(config);
+```
+*Rationale: Monolithic composition roots accumulate technical debt rapidly as developers append lines indiscriminately. Decomposing by subsystem enforces single responsibility and makes subsystem testing and lifecycle auditing straightforward.*

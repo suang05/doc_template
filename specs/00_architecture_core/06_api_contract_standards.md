@@ -107,14 +107,49 @@ The wire protocol strictly enforces optimistic concurrency across all state-muta
 
 | Header | Direction | Format / Syntax | Semantic Meaning & Wire Invariant |
 |---|---|---|---|
-| `ETag` | Response (`GET`, `PUT`) | `ETag: "54218"` | Resource state token derived from database rowversion. Enclosed in double quotes. |
-| `If-Match` | Request (`PUT`, `DELETE`) | `If-Match: "54218"` or `*` | Ingress concurrency precondition. Must match target resource's current token. Wildcard `*` bypasses pre-check. |
+| `ETag` | Response (`GET`, `PUT`) | `ETag: "1727788800000"` | Resource state token derived from `(UpdatedAt ?? CreatedAt).ToUnixTimeMilliseconds()`. Enclosed in double quotes. |
+| `If-Match` | Request (`PUT`, `DELETE`) | `If-Match: "1727788800000"` or `*` | Ingress concurrency precondition. Must match target resource's current token. Wildcard `*` bypasses pre-check. |
 
 #### Wire Concurrency Error Resolution Matrix
 | Failure Scenario | HTTP Wire Status | RFC 9457 `errorCode` | Wire Resolution & Client Behavior |
 |---|---|---|---|
 | **Pre-flight Token Mismatch** | `412 Precondition Failed` | `PRECONDITION_FAILED` | Ingress `If-Match` differs from current resource state. Request terminates before domain execution. Client must refetch latest state. |
 | **Mid-flight Mutation Collision** | `409 Conflict` | `CONCURRENCY_CONFLICT` | Resource was modified concurrently by another transaction during processing. Client must reload latest state and prompt user to reconcile. |
+
+#### End-to-End Ambient Concurrency Pipeline Flow
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Client
+    participant ETagFilter as ETagFilter (MVC Filter)
+    participant Ctx as IConcurrencyContext (Scoped)
+    participant Controller as ApiController
+    participant UseCase as Update{Aggregate}UseCase
+    participant Interceptor as ConcurrencySaveChangesInterceptor
+    participant DbContext as ApplicationDbContext
+
+    Client->>ETagFilter: PUT /api/v1/{resources}/{id} (If-Match: "1727788800000")
+    Note over ETagFilter,Ctx: Ingress: Sanitizes quotes/weak prefix, sets Ctx.IfMatch
+    ETagFilter->>Ctx: IfMatch = "1727788800000"
+    ETagFilter->>Controller: Route to Action
+    Controller->>UseCase: ExecuteAsync(command)
+    Note over UseCase: Zero IfMatch parameter pollution.<br/>Mutates aggregate root via domain methods.
+    UseCase->>DbContext: CommitAsync()
+    DbContext->>Interceptor: SavingChangesAsync()
+    Note over Interceptor: Validates Ctx.IfMatch against entity OriginalValue(UpdatedAt).<br/>Throws PreconditionFailedException (412) if mismatched.
+    Interceptor->>DbContext: SaveChanges to Database (WHERE UpdatedAt == OriginalValue)
+    alt Mid-Flight Collision (Another transaction committed first)
+        DbContext-->>Client: 409 Conflict (CONCURRENCY_CONFLICT)
+    else Pre-Flight Token Mismatch
+        Interceptor-->>Client: 412 Precondition Failed (PRECONDITION_FAILED)
+    else Success
+        DbContext-->>UseCase: Changes Saved (UpdatedAt advanced)
+        UseCase-->>Controller: {Aggregate}ResultDto (implements IHasConcurrencyToken)
+        Controller-->>ETagFilter: Ok(ApiResponse<ResultDto>)
+        Note over ETagFilter: Egress: Extracts token from IHasConcurrencyToken.<br/>Sets Response.Headers.ETag = "1727789999999"
+        ETagFilter-->>Client: 200 OK (ETag: "1727789999999", Body: ApiResponse)
+    end
+```
 
 ---
 

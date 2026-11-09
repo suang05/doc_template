@@ -15,8 +15,9 @@ ArchitecturalSignals: [ARCH_EVOLUTION_RENDERING]
 ### 1.1 Architectural Wiring & Rendering Contracts
 | Direction | Upstream Origin | Current Role (Document Synthesis Core) | Downstream Destination |
 |---|---|---|---|
-| **Render Request** | Application UseCase (`RenderDocumentUseCase`)| Resolves polymorphic engine via resolver | `IRenderEngine` Implementation |
-| **Data Enrichment**| Raw JSON Payload | Applies Buddhist Era date & Baht text | Centralized `ThaiDataTransformer` |
+| **Render Request** | Application UseCase (`RenderDocumentUseCase`)| Resolves polymorphic engine via factory | `IRenderEngine` Implementation |
+| **Data Binding** | Raw JSON Payload + Version Manifest | Binds external datasets & transforms data | `IDataBindingEngine` |
+| **Data Enrichment**| Bound Data JSON | Applies Buddhist Era date & Baht text | Centralized `ThaiDataTransformer` |
 | **HTML / Chromium**| HTML Template + CSS + Google Fonts | Synthesizes PDF via Gotenberg 8 | Gotenberg HTTP Microservice |
 | **DOCX Synthesis** | OpenXML Document Package | Fixes DrawingML `nvPr.Id` graphic IDs | Native Word Document Stream |
 | **XLSX Synthesis** | ClosedXML Workbook Package | Configures A4 portrait 1-page fit | Native Excel Document Stream |
@@ -27,9 +28,11 @@ ArchitecturalSignals: [ARCH_EVOLUTION_RENDERING]
 | Rendering Architectural Concern | Affirmative Rendering Invariant (Positive SSoT Law) | Boundary Vector |
 |---|---|---|
 | **Zero-LOH Stream Purity** | Render and PDF contracts expose pure `Task<Stream>` types. Output streams are piped with bounded `81,920`-byte buffers, dry-run validations drain to `Stream.Null`, and seekable packages use `HybridSpoolStream`. Multi-MB `byte[]` arrays are prohibited. | Memory & GC Boundary |
-| **Polymorphic Engine Resolution**| Document synthesis resolves engines dynamically via `IRenderEngineResolver` based on `RenderEngineType`. Hardcoded switch/if-else branching is prohibited. | Engine Extensibility |
+| **Template Manifest SSoT** | Runtime document generation strictly deserializes the immutable version manifest (`TemplateVersion.MappingsSnapshot`), bypassing relational `field_mappings` queries to guarantee version immutability and zero-drift execution. | Data Binding Boundary |
+| **Unified Preview Gateway** | Live preview requests (Monaco raw HTML, template slug, or template UUID) route exclusively through the unified `PreviewDocumentUseCase`. Duplicate preview use cases are prohibited. | Preview Perimeter |
+| **Polymorphic Engine Resolution**| Document synthesis resolves engines dynamically via `IRenderEngineFactory.GetEngine(engineType)` using an immutable `FrozenDictionary`. Hardcoded switch/if-else branching is prohibited. | Engine Extensibility |
 | **Storage Perimeter Isolation** | Generated documents and templates stream server-side through API Gateway (`File(stream, ...)`). Emitting HTTP 307 redirects or raw internal MinIO URLs to clients is prohibited. | Network Perimeter |
-| **2-Track Rendering Pipeline** | Rendering architecture is partitioned into Track 1 (Synchronous Monaco Live Preview with `rendering` rate limit 30 req/min) and Track 2 (Asynchronous Batch Queue via `POST generate-async`, `202 Accepted` + `Location` header, drained by `DocumentRenderQueueWorker` with `SemaphoreSlim(4)` backpressure). | Workload Partitioning |
+| **2-Track Rendering Pipeline** | Rendering architecture is partitioned into Track 1 (Synchronous Monaco Live Preview with `rendering` rate limit 30 req/min) and Track 2 (Asynchronous Batch Queue via `POST generate-async`, `202 Accepted` + `Location` header, backed by Redis Streams with Consumer Groups `XADD`/`XREADGROUP` and drained by `DocumentRenderQueueWorker` with `SemaphoreSlim(4)` backpressure). | Workload Partitioning |
 | **Chromium Pod Protection** | Document rendering endpoints enforce the dedicated `rendering` rate-limiting policy (30 req/min per tenant) returning RFC 9457 ProblemDetails (`429 Too Many Requests`). | Service Resilience |
 | **OpenXML Graphic Frame IDs** | All OpenXML drawing elements are intercepted via `DrawingMlIdFixer` to enforce explicit positive non-zero integers ($\ge 1$) for `nvPr.Id`. Prohibit zero or duplicate graphic IDs. | Document Integrity |
 | **Excel Print-Width Clamping** | All ClosedXML spreadsheet worksheets apply A4 portrait fit: `worksheet.PageSetup.FitToPages(1, 0)` and `AdjustToContents()`. Horizontal content clipping is prohibited. | Spreadsheet Geometry |
@@ -47,9 +50,11 @@ ArchitecturalSignals: [ARCH_EVOLUTION_RENDERING]
 * **Why 2-Track Rendering Architecture:** Live preview in Monaco Studio requires sub-second synchronous turnaround to provide instant visual feedback. High-volume ERP batch generation (e.g. 5,000 invoices at month-end) would exhaust Chromium memory pods if submitted synchronously. Decoupling batch into an asynchronous job queue (`202 Accepted`) allows background workers to drain tasks at a concurrency rate matched to Gotenberg pod capacity.
 * **Why Banning HTTP 307 Redirects to Internal MinIO:** MinIO operates inside an internal container network (`http://minio:9000`). Emitting a 307 redirect exposes private infrastructure endpoints to outside clients, breaks corporate firewalls, and leaks storage topology. Streaming through the API gateway enforces Zero-Trust isolation.
 * **Why 81,920-Byte Buffer Threshold:** The .NET runtime allocates objects $\ge 85,000$ bytes on the Large Object Heap (LOH). The LOH is never compacted during Gen 0/1 sweeps; continuous multi-MB PDF buffering produces severe LOH fragmentation and costly Gen 2 stop-the-world GC pauses. Direct streaming bounded at 81,920 bytes completely avoids LOH allocation.
-* **Why Polymorphic Engine Resolver over Switch Statements:** Allows new document engines (e.g., Markdown, Typst, PDF Forms) to be introduced by simply registering a new `IRenderEngine` implementation in DI, honoring the Open/Closed Principle.
+* **Why Polymorphic Engine Factory with FrozenDictionary:** Using `IRenderEngineFactory` with `FrozenDictionary<RenderEngineType, IRenderEngine>` provides $O(1)$ zero-allocation engine lookup while honoring the Open/Closed Principle.
 * **Why OpenXML DrawingML Graphic Frame Non-Zero IDs:** Microsoft Word strictly rejects OpenXML packages where image or chart graphic frame IDs are `0` or duplicated, triggering file corruption warnings on user workstations.
 * **Why Centralized Thai Formatting:** Thai Buddhist Era dates and Baht text currency require specialized linguistic rules (tone mark positioning, grammatical edge cases, year +543); centralized transformers guarantee 100% deterministic outputs across PDF, DOCX, and XLSX exports.
+* **Why Template Version Manifest over Relational Field Mappings in Runtime:** If the runtime engine queries the mutable `field_mappings` table, edits made in authoring or draft rollback sessions immediately alter the output of previously published versions. Freezing mappings into `TemplateVersion.MappingsSnapshot` at commit/publish time guarantees 100% deterministic reproducibility and enables zero-DB high-throughput caching.
+* **Why Redis Streams over Simple List Queues (RPOP):** Lossy RPOP drops jobs if a worker crashes before completion. Redis Streams (`XADD`, `XREADGROUP`, `XACK`, `XDEL`) with Consumer Groups provide at-least-once delivery, consumer failure detection, and automatic pending job reclamation (`XCLAIM`).
 
 ### 2.2 Proactive Rendering Guards
 ```yaml
@@ -74,7 +79,7 @@ ThaiFormattingGuard:
   ActionOnViolation: "Route transformations through centralized ThaiDataTransformer."
 ```
 
-### 2.3 Polymorphic Rendering Engine Strategy Contract
+### 2.3 Polymorphic Rendering Engine Strategy Contracts
 ```csharp
 public interface IRenderEngine
 {
@@ -86,9 +91,9 @@ public interface IRenderEngine
         CancellationToken ct = default);
 }
 
-public interface IRenderEngineResolver
+public interface IRenderEngineFactory
 {
-    IRenderEngine Resolve(RenderEngineType engineType);
+    IRenderEngine GetEngine(RenderEngineType engineType);
 }
 ```
 
@@ -106,7 +111,7 @@ public interface IRenderEngineResolver
 
 ---
 
-## 3. Level 3: Canonical Rendering Archetypes (Surgical AST Recipes)
+## 3. Level 3: Canonical Working Archetypes (100% Fully-Hydrated Recipes)
 
 ### 3.1 Gotenberg Direct Response Streaming Archetype
 >> MANDATORY CANONICAL BLUEPRINT [RULE-MECH-001]:
@@ -179,8 +184,6 @@ public sealed class GotenbergHtmlRenderer(HttpClient httpClient)
 
 public sealed class ResponseDisposingStream(Stream innerStream, HttpResponseMessage response) : Stream
 {
-    // Invariant: Pure delegating stream forwarders (CanRead, ReadAsync, Flush, Seek, etc.) pass through directly to innerStream.
-
     protected override void Dispose(bool disposing)
     {
         if (disposing)
@@ -193,89 +196,261 @@ public sealed class ResponseDisposingStream(Stream innerStream, HttpResponseMess
 }
 ```
 
-### 3.2 2-Track Rendering Pipeline Presentation Archetype
->> MANDATORY CANONICAL BLUEPRINT [RULE-MECH-006]:
-* Track 1 (Live Preview & Sync Generation): synchronous streaming return via `File(stream, "application/pdf")`.
-* Track 2 (Async Batch Queue): enqueue background render job and return `AcceptedAtAction` (`202 Accepted`) with `JobId` and polling status URL.
-* Direct server-side streaming pass-through for downloads; zero HTTP 307 redirects to MinIO.
+### 3.2 Unified Live Preview Gateway Archetype (`Preview{Resource}UseCase` & `Preview{Resource}Query`)
+>> MANDATORY CANONICAL BLUEPRINT [RULE-MECH-002]:
+* Unified preview entry-point supporting: 1) Monaco raw HTML, 2) Template Slug, 3) Template UUID.
+* Zero persistence: NEVER uploads to MinIO, NEVER logs to audit tables, NEVER increments version counters.
+* Direct in-memory stream return to browser (`application/pdf`) with `inline` disposition.
 
 ```csharp
-[ApiController]
-[Route("api/v1/{resources}")]
-[Authorize(Policy = AuthorizationPolicies.CanGenerateDocuments)]
-public sealed class {Resource}RenderingController(
-    IUseCase<Generate{Resource}Command, {Resource}ResultDto> generateUseCase,
-    IUseCase<Preview{Resource}Query, Stream> previewUseCase,
-    IUseCase<Enqueue{Resource}JobCommand, DocumentJobDto> enqueueJobUseCase,
-    IUseCase<Get{Resource}JobQuery, DocumentJobDto> getJobUseCase) : ControllerBase
+public sealed record Preview{Resource}Query(
+    JsonElement Payload,
+    string? Html = null,
+    string? Slug = null,
+    Guid? {Aggregate}Id = null
+);
+
+public sealed class Preview{Resource}UseCase(
+    I{Aggregate}Repository repository,
+    IStorageService storageService,
+    IRenderEngineFactory engineFactory,
+    IDataBindingEngine? dataBindingEngine = null) : IUseCase<Preview{Resource}Query, Stream>
 {
-    // Track 1: Synchronous Live Preview & Instant Generation (Dedicated "rendering" rate-limiting partition)
-    [HttpPost("generate/{slug}")]
-    [Idempotent]
-    [EnableRateLimiting("rendering")]
-    [ProducesResponseType(typeof(ApiResponse<{Resource}ResultDto>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> Generate([FromRoute] string slug, [FromBody] Generate{Resource}Request request, CancellationToken ct)
+    public async Task<Stream> ExecuteAsync(Preview{Resource}Query query, CancellationToken ct = default)
     {
-        // Step 1: Translate Request to Command <Why: map transport payload to application command>
-        var command = new Generate{Resource}Command(slug, request.Payload, request.OutputFormat, request.DocumentRef, request.ChangeNote, request.SkipValidation);
+        // Step 1: Dual-Path Resolution <Why: Monaco editor previews draft markup without persistence or DB hit>
+        var (templateStream, engineType, dataJson) = !string.IsNullOrWhiteSpace(query.Html)
+            ? (await HybridSpoolStream.CreateFromUtf8StringAsync(query.Html, ct), RenderEngineType.Html, query.Payload.GetRawText())
+            : await ResolvePublishedTemplateStreamAsync(query, ct);
 
-        // Step 2: Execute UseCase <Why: execute synchronous document generation>
-        var result = await generateUseCase.ExecuteAsync(command, ct);
-
-        // Step 3: Envelope Egress <Why: standardized envelope with generation metadata>
-        return Ok(new ApiResponse<{Resource}ResultDto>(result));
+        // Step 2: Render Ephemeral Stream <Why: zero MinIO persistence, zero generation log mutations>
+        try
+        {
+            var engine = engineFactory.GetEngine(engineType);
+            return await engine.RenderStreamAsync(templateStream, dataJson, OutputFormat.Pdf, ct);
+        }
+        finally
+        {
+            await templateStream.DisposeAsync();
+        }
     }
 
-    [HttpPost("preview")]
-    [EnableRateLimiting("rendering")]
-    [Produces("application/pdf")]
-    public async Task<IActionResult> Preview([FromBody] Preview{Resource}Request request, CancellationToken ct)
+    private async Task<(Stream Stream, RenderEngineType Engine, string DataJson)> ResolvePublishedTemplateStreamAsync(
+        Preview{Resource}Query query, CancellationToken ct)
     {
-        // Step 1: Translate Request to Query <Why: build ephemeral preview query>
-        var query = new Preview{Resource}Query(request.Payload, request.Html, null);
+        var aggregate = await repository.GetBySlugAsync(query.Slug!, ct)
+            ?? throw new NotFoundException($"Template '{query.Slug}' not found.");
+        var version = aggregate.GetPublishedVersion();
 
-        // Step 2: Execute UseCase <Why: render ephemeral stream via Gotenberg>
-        var result = await previewUseCase.ExecuteAsync(query, ct);
+        var dataJson = dataBindingEngine != null
+            ? (await dataBindingEngine.BindAndValidateAsync(aggregate, version, query.Payload, skipValidation: false, ct)).DataJson
+            : query.Payload.GetRawText();
 
-        // Step 3: Stream Live PDF Egress <Why: Zero-LOH stream return for browser display>
-        Response.Headers.ContentDisposition = "inline";
-        return File(result, "application/pdf");
-    }
-
-    // Track 2: Asynchronous High-Volume Batch Queue (202 Accepted + Location Header)
-    [HttpPost("generate-async/{slug}")]
-    [Idempotent]
-    [EnableRateLimiting("rendering")]
-    [ProducesResponseType(typeof(ApiResponse<DocumentJobDto>), StatusCodes.Status202Accepted)]
-    public async Task<IActionResult> GenerateAsync([FromRoute] string slug, [FromBody] Generate{Resource}Request request, CancellationToken ct)
-    {
-        // Step 1: Translate Request to Batch Command <Why: capture batch render request>
-        var command = new Enqueue{Resource}JobCommand(slug, request.Payload, request.OutputFormat, request.DocumentRef, request.ChangeNote, request.SkipValidation);
-
-        // Step 2: Enqueue Job <Why: place job in queue with backpressure>
-        var result = await enqueueJobUseCase.ExecuteAsync(command, ct);
-
-        // Step 3: Return REST 202 Accepted <Why: provide job status polling URI>
-        return AcceptedAtAction(nameof(GetJobStatus), new { jobId = result.JobId }, new ApiResponse<DocumentJobDto>(result));
-    }
-
-    [HttpGet("jobs/{jobId:guid}")]
-    [ProducesResponseType(typeof(ApiResponse<DocumentJobDto>), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetJobStatus([FromRoute] Guid jobId, CancellationToken ct)
-    {
-        // Step 1: Query Job Status <Why: inspect background worker render progress>
-        var query = new Get{Resource}JobQuery(jobId);
-        var result = await getJobUseCase.ExecuteAsync(query, ct);
-
-        // Step 2: Return Status Envelope <Why: client polling interface>
-        return Ok(new ApiResponse<DocumentJobDto>(result));
+        var stream = await storageService.DownloadAsync(StorageBuckets.Templates, version.StorageKey, ct);
+        return (stream, version.GetRenderEngineType(), dataJson);
     }
 }
 ```
 
-### 3.3 Ephemeral Storage Retention & Auto-Purge Worker Archetype
+### 3.3 Template Version Manifest SSoT & Data Binding Engine Archetype (`DataBindingEngine`)
+>> MANDATORY CANONICAL BLUEPRINT [RULE-MECH-003]:
+* Prioritizes the immutable `{Aggregate}Version.MappingsSnapshot` manifest over relational `field_mappings` tables.
+* Resolves external SQL dataset aliases in parallel via `DatasetAliasMapBuilder`.
+* Applies field mappings and math expressions, then executes fail-fast Draft-07 JSON Schema validation.
+
+```csharp
+public sealed class DataBindingEngine(
+    IDatasetAliasMapBuilder aliasBuilder,
+    IFieldMappingApplicatorService fieldMappingApplicator,
+    IJsonSchemaValidationService schemaValidation,
+    TimeProvider timeProvider) : IDataBindingEngine
+{
+    public async Task<BoundDocumentData> BindAndValidateAsync(
+        {Aggregate} aggregate,
+        {Aggregate}Version version,
+        JsonElement rawPayload,
+        bool skipValidation,
+        CancellationToken ct = default)
+    {
+        // Step 1: Resolve Field Mappings from Manifest SSoT <Why: version snapshot prevents relational drift>
+        var mappings = !string.IsNullOrWhiteSpace(version.MappingsSnapshot)
+            ? FieldMappingSnapshotSerializer.Deserialize(aggregate.Id, version.MappingsSnapshot, timeProvider.GetUtcNow())
+            : aggregate.FieldMappings.ToList();
+
+        // Step 2: Resolve External SQL Dataset Aliases in Parallel <Why: aggregate external database tables>
+        var aliasMap = await aliasBuilder.BuildAsync(aggregate.TemplateDatasets, ct);
+
+        // Step 3: Apply Transformations & Field Mappings <Why: evaluate math expressions and Thai formatting>
+        var dataJson = await fieldMappingApplicator.ApplyAsync(rawPayload, mappings, aliasMap, ct);
+
+        // Step 4: Fail-Fast JSON Schema Gate <Why: prevent rendering invalid data against Draft-07 schema>
+        var validation = !skipValidation && !string.IsNullOrWhiteSpace(version.DataSchema)
+            ? schemaValidation.Validate(version.DataSchema, dataJson)
+            : null;
+
+        return new BoundDocumentData(dataJson, validation);
+    }
+}
+```
+
+### 3.4 Direct Render Execution Pipeline Archetype (`{Resource}RenderPipeline`)
+>> MANDATORY CANONICAL BLUEPRINT [RULE-MECH-004]:
+* Direct pipeline execution connecting Application to `IDataBindingEngine` (Zero pass-through wrappers).
+* Enforces fail-fast JSON Schema Draft-07 validation prior to invoking Gotenberg/OpenXML engines.
+* Spools unseekable engine outputs to `SpooledOutputStream` (bounded at 81,920 bytes) before S3 upload.
+
+```csharp
+public sealed class {Resource}RenderPipeline(
+    IRenderEngineFactory engineFactory,
+    IDataBindingEngine dataBindingEngine,
+    IStorageService storageService,
+    IDocumentAuditService auditService,
+    IUnitOfWork unitOfWork) : I{Resource}RenderPipeline
+{
+    public async Task<DocumentRenderResult> RenderAndUploadAsync(
+        {Aggregate} aggregate,
+        {Aggregate}Version currentVersion,
+        JsonElement payload,
+        bool skipValidation,
+        OutputFormat outputFormat,
+        string outputKey,
+        CancellationToken ct = default)
+    {
+        // Step 1: Bind & Validate via Unified DataBindingEngine <Why: zero intermediate wrappers>
+        var bound = await dataBindingEngine.BindAndValidateAsync(aggregate, currentVersion, payload, skipValidation, ct);
+
+        // Step 2: Fail-Fast JSON Schema Gate & Audit On Violation <Why: prevent bad renders and record failure>
+        if (bound.ValidationResult is { IsValid: false })
+            throw new SchemaValidationException(aggregate.Slug.Value, currentVersion.Version, bound.ValidationResult.Errors);
+
+        // Step 3: Stream Synthesis & Bounded Spooling <Why: strictly bounded 81,920 buffer avoids LOH Gen 2 spikes>
+        using var templateStream = await storageService.DownloadAsync(StorageBuckets.Templates, currentVersion.StorageKey, ct);
+        var rawOutputStream = await engineFactory.GetEngine(currentVersion.GetRenderEngineType()).RenderStreamAsync(templateStream, bound.DataJson, outputFormat, ct);
+        await using var spooled = await SpooledOutputStream.CreateAndDisposeSourceAsync(rawOutputStream, ct);
+
+        // Step 4: Storage Upload & Metrics Egress <Why: immutable artifact persistence and audit telemetry>
+        await storageService.UploadAsync(StorageBuckets.Outputs, outputKey, spooled.ContentStream, outputFormat.MimeType, ct);
+        return new DocumentRenderResult(bound.DataJson, spooled.FileSizeBytes, spooled.Sha256Hex, elapsedMilliseconds);
+    }
+}
+```
+
+### 3.5 Polymorphic Render Engine Factory Archetype (`RenderEngineFactory`)
+>> MANDATORY CANONICAL BLUEPRINT [RULE-MECH-005]:
+* Injects all `IRenderEngine` implementations via DI into `RenderEngineFactory`.
+* Stores engines in an immutable `FrozenDictionary<RenderEngineType, IRenderEngine>` for zero-allocation $O(1)$ dispatch.
+
+```csharp
+public sealed class RenderEngineFactory(IEnumerable<IRenderEngine> engines) : IRenderEngineFactory
+{
+    private readonly FrozenDictionary<RenderEngineType, IRenderEngine> _engines =
+        engines.ToFrozenDictionary(e => e.EngineType);
+
+    public IRenderEngine GetEngine(RenderEngineType engineType)
+    {
+        if (_engines.TryGetValue(engineType, out var engine))
+        {
+            return engine;
+        }
+
+        throw new RenderException(
+            templateSlug: "system",
+            engineType: engineType.ToString(),
+            reason: $"No render engine registered for engine type '{engineType}'.");
+    }
+}
+```
+
+### 3.6 Centralized ThaiDataTransformer Contract & Linguistic Invariants
+>> MANDATORY CANONICAL BLUEPRINT [RULE-MECH-006]:
+* Formats dates strictly with Buddhist Era offset (+543 years) and formal Thai month names.
+* Converts numerical currency amounts to standardized Thai Baht text (`บาทถ้วน` or satang suffix).
+* Enforces canonical mask formatting for phone numbers (`0xx-xxx-xxxx`) and national IDs (`x-xxxx-xxxxx-xx-x`).
+* Pure stateless static transformer; templates must never perform inline arithmetic or currency conversions.
+
+```csharp
+public static class ThaiDataTransformer
+{
+    public static string FormatThaiDate(DateTimeOffset date)
+    {
+        var buddhistYear = date.Year + 543;
+        var monthName = ResolveThaiMonthName(date.Month);
+        return $"{date.Day} {monthName} {buddhistYear}";
+    }
+
+    public static string ToThaiBahtText(decimal amount)
+    {
+        if (amount == 0) return "ศูนย์บาทถ้วน";
+        return ResolveBahtWords(amount);
+    }
+
+    public static string FormatPhone(string? phone)
+    {
+        var digits = ExtractDigits(phone);
+        return digits.Length switch
+        {
+            10 => $"{digits[..3]}-{digits.Substring(3, 3)}-{digits[6..]}",
+            9 => $"{digits[..2]}-{digits.Substring(2, 3)}-{digits[5..]}",
+            _ => phone ?? string.Empty
+        };
+    }
+
+    public static string FormatThaiIdCard(string? idCard)
+    {
+        var digits = ExtractDigits(idCard);
+        return digits.Length == 13
+            ? $"{digits[0]}-{digits.Substring(1, 4)}-{digits.Substring(5, 5)}-{digits.Substring(10, 2)}-{digits[12]}"
+            : idCard ?? string.Empty;
+    }
+
+    private static string ResolveThaiMonthName(int month) => throw new NotImplementedException();
+    private static string ResolveBahtWords(decimal amount) => throw new NotImplementedException();
+    private static string ExtractDigits(string? input) => throw new NotImplementedException();
+}
+```
+
+### 3.7 OpenXML DrawingML Non-Zero ID Fix Archetype (`DrawingMlIdFixer`)
 >> MANDATORY CANONICAL BLUEPRINT [RULE-MECH-007]:
+* Intercepts all `NonVisualDrawingProperties` (`nvPr`) during OpenXML DOCX manipulation.
+* Ensures `nvPr.Id` is assigned an explicit, thread-safe non-zero positive integer ($\ge 1$).
+
+```csharp
+public static class DrawingMlIdFixer
+{
+    private static uint _nextId = 1;
+
+    public static uint GenerateNonZeroId() => Interlocked.Increment(ref _nextId);
+
+    public static void EnsureNonZeroGraphicFrameId(NonVisualDrawingProperties nvPr)
+    {
+        if (nvPr.Id == null || nvPr.Id.Value == 0)
+        {
+            nvPr.Id = GenerateNonZeroId();
+        }
+    }
+}
+```
+
+### 3.8 ClosedXML A4 Auto-Fit Archetype (`ExcelPageSetupExtensions`)
+>> MANDATORY CANONICAL BLUEPRINT [RULE-MECH-008]:
+* Configures `worksheet.PageSetup.PaperSize = XLPaperSize.A4Paper` and `PageOrientation = XLPageOrientation.Portrait`.
+* Calls `worksheet.PageSetup.FitToPages(1, 0)` so columns fit horizontally on a single page width.
+
+```csharp
+public static class ExcelPageSetupExtensions
+{
+    public static void ApplyA4FitToWidth(IXLWorksheet worksheet)
+    {
+        worksheet.PageSetup.PaperSize = XLPaperSize.A4Paper;
+        worksheet.PageSetup.PageOrientation = XLPageOrientation.Portrait;
+        worksheet.PageSetup.FitToPages(1, 0);
+        worksheet.Columns().AdjustToContents();
+    }
+}
+```
+
+### 3.9 Ephemeral Storage Retention & Auto-Purge Worker Archetype (`DocumentRetentionWorker`)
+>> MANDATORY CANONICAL BLUEPRINT [RULE-MECH-009]:
 * Purges expired output files from MinIO `StorageBuckets.Outputs` on a background schedule.
 * Uses injected `TimeProvider` for all timestamp evaluations (`timeProvider.GetUtcNow()`).
 
@@ -294,11 +469,9 @@ public sealed class DocumentRetentionWorker(
         {
             try
             {
-                // Step 1: Create Execution Scope <Why: resolve scoped persistence services in background worker>
                 using var scope = scopeFactory.CreateScope();
                 var retentionService = scope.ServiceProvider.GetRequiredService<IDocumentRetentionService>();
 
-                // Step 2: Execute Purge Batch <Why: delete expired MinIO objects and update audit logs>
                 var purgedCount = await retentionService.PurgeExpiredOutputsAsync(
                     _options.RetentionPeriod,
                     _options.BatchSize,
@@ -314,139 +487,8 @@ public sealed class DocumentRetentionWorker(
                 logger.LogError(ex, "Error occurred during document retention purge cycle.");
             }
 
-            // Step 3: Delay with TimeProvider <Why: deterministic time control for unit and integration testing>
             await Task.Delay(_options.CheckInterval, timeProvider, stoppingToken);
         }
-    }
-}
-```
-
-### 3.4 OpenXML DrawingML Non-Zero ID Fix Archetype
->> MANDATORY CANONICAL BLUEPRINT [RULE-MECH-002]:
-* Intercepts all `NonVisualDrawingProperties` (`nvPr`) during OpenXML DOCX manipulation.
-* Ensures `nvPr.Id` is assigned an explicit, thread-safe non-zero positive integer ($\ge 1$).
-
-```csharp
-public static class DrawingMlIdFixer
-{
-    private static uint _nextId = 1;
-
-    public static uint GenerateNonZeroId() => Interlocked.Increment(ref _nextId);
-
-    public static void EnsureNonZeroGraphicFrameId(NonVisualDrawingProperties nvPr)
-    {
-        // Step 1: Check ID Validity <Why: Word corrupts on 0 or null graphic IDs>
-        if (nvPr.Id == null || nvPr.Id.Value == 0)
-        {
-            // Step 2: Assign Thread-Safe Non-Zero ID <Why: guarantees unique positive ID across threads>
-            nvPr.Id = GenerateNonZeroId();
-        }
-    }
-}
-```
-
-### 3.5 ClosedXML A4 Auto-Fit Archetype
->> MANDATORY CANONICAL BLUEPRINT [RULE-MECH-003]:
-* Configures `worksheet.PageSetup.PaperSize = XLPaperSize.A4Paper` and `PageOrientation = XLPageOrientation.Portrait`.
-* Calls `worksheet.PageSetup.FitToPages(1, 0)` so columns fit horizontally on a single page width.
-
-```csharp
-public static class ExcelPageSetupExtensions
-{
-    public static void ApplyA4FitToWidth(IXLWorksheet worksheet)
-    {
-        // Step 1: Configure A4 Paper Dimensions <Why: standardize target print sheet size>
-        worksheet.PageSetup.PaperSize = XLPaperSize.A4Paper;
-        worksheet.PageSetup.PageOrientation = XLPageOrientation.Portrait;
-
-        // Step 2: Enforce 1-Page Width Clamping <Why: prevent horizontal table splitting and text clipping>
-        worksheet.PageSetup.FitToPages(1, 0);
-
-        // Step 3: Adjust Column Margins <Why: dynamic cell padding based on text length>
-        worksheet.Columns().AdjustToContents();
-    }
-}
-```
-
-### 3.6 Centralized ThaiDataTransformer Contract & Linguistic Invariants
->> MANDATORY CANONICAL BLUEPRINT [RULE-MECH-004]:
-* Formats dates strictly with Buddhist Era offset (+543 years) and formal Thai month names.
-* Converts numerical currency amounts to standardized Thai Baht text (`บาทถ้วน` or satang suffix).
-* Enforces canonical mask formatting for phone numbers (`0xx-xxx-xxxx`) and national IDs (`x-xxxx-xxxxx-xx-x`).
-* Pure stateless static transformer; templates must never perform inline arithmetic or currency conversions.
-
-```csharp
-public static class ThaiDataTransformer
-{
-    // Linguistic Invariants:
-    // 1. Buddhist Era: Year + 543 with formal Thai month names (e.g. 21 ตุลาคม 2569).
-    // 2. Baht Text: Deterministic integer and satang conversion terminating with "บาทถ้วน" or "สตางค์".
-    // 3. Mask Enforcement: Pure numeric extraction before applying standard hyphenation delimiters.
-
-    public static string FormatThaiDate(DateTimeOffset date)
-    {
-        var buddhistYear = date.Year + 543;
-        var monthName = ResolveThaiMonthName(date.Month);
-        return $"{date.Day} {monthName} {buddhistYear}";
-    }
-
-    public static string ToThaiBahtText(decimal amount)
-    {
-        // Contract: Converts decimal to authoritative Thai Baht text (e.g. 1200.00m => "หนึ่งพันสองร้อยบาทถ้วน")
-        // Resolves integer baht words and decimal satang words, terminating with "ถ้วน" when satang is zero.
-        if (amount == 0) return "ศูนย์บาทถ้วน";
-        return ResolveBahtWords(amount);
-    }
-
-    public static string FormatPhone(string? phone)
-    {
-        // Contract: Extracts digits and standardizes to 0xx-xxx-xxxx (10 digits) or 0x-xxx-xxxx (9 digits).
-        var digits = ExtractDigits(phone);
-        return digits.Length switch
-        {
-            10 => $"{digits[..3]}-{digits.Substring(3, 3)}-{digits[6..]}",
-            9 => $"{digits[..2]}-{digits.Substring(2, 3)}-{digits[5..]}",
-            _ => phone ?? string.Empty
-        };
-    }
-
-    public static string FormatThaiIdCard(string? idCard)
-    {
-        // Contract: Standardizes 13-digit Thai National ID to canonical mask x-xxxx-xxxxx-xx-x.
-        var digits = ExtractDigits(idCard);
-        return digits.Length == 13
-            ? $"{digits[0]}-{digits.Substring(1, 4)}-{digits.Substring(5, 5)}-{digits.Substring(10, 2)}-{digits[12]}"
-            : idCard ?? string.Empty;
-    }
-
-    // Concrete linguistic dictionary tables and digit-stepping loop algorithms are encapsulated
-    // strictly in production implementation: SmkDoc.Application/Common/Helpers/ThaiDataTransformer.cs
-    private static string ResolveThaiMonthName(int month) => throw new NotImplementedException();
-    private static string ResolveBahtWords(decimal amount) => throw new NotImplementedException();
-    private static string ExtractDigits(string? input) => throw new NotImplementedException();
-}
-```
-
-### 3.7 Polymorphic Rendering Engine Resolver Archetype
->> MANDATORY CANONICAL BLUEPRINT [RULE-MECH-005]:
-* Injects `IEnumerable<IRenderEngine>` into `RenderEngineResolver`.
-* Resolves target engine using `EngineType` dictionary lookup, throwing strongly-typed exception on unsupported engines.
-
-```csharp
-public sealed class RenderEngineResolver(IEnumerable<IRenderEngine> engines) : IRenderEngineResolver
-{
-    private readonly Dictionary<RenderEngineType, IRenderEngine> _engines =
-        engines.ToDictionary(e => e.EngineType, e => e);
-
-    public IRenderEngine Resolve(RenderEngineType engineType)
-    {
-        // Step 1: Dictionary Lookup <Why: O(1) polymorphic engine dispatch without switch statements>
-        if (_engines.TryGetValue(engineType, out var engine))
-        {
-            return engine;
-        }
-
-        throw new DocumentRenderException($"No rendering engine registered for engine type '{engineType}'.");
     }
 }
 ```
@@ -471,8 +513,8 @@ public sealed class RenderEngineResolver(IEnumerable<IRenderEngine> engines) : I
 
 ### [TRAP-MECH-003]: Hardcoded Switch / If-Else Engine Selection
 ```diff
-- if (type == "html") return new HtmlEngine(); else if (type == "docx") return new DocxEngine();
-+ return engineResolver.Resolve(engineType);
+- if (type == RenderEngineType.Html) return new HtmlEngine(); else if (type == RenderEngineType.Docx) return new DocxEngine();
++ return engineFactory.GetEngine(engineType);
 ```
 *Rationale: Hardcoded switch branches violate the Open/Closed Principle and prevent adding new rendering plugins via DI.*
 
@@ -497,3 +539,21 @@ public sealed class RenderEngineResolver(IEnumerable<IRenderEngine> engines) : I
 + return File(stream, "application/pdf", "doc-123.pdf");
 ```
 *Rationale: Returning HTTP 307 redirects to internal Docker hostnames fails for external clients, violates Zero-Trust boundaries, and exposes private network infrastructure.*
+
+### [TRAP-MECH-007]: Relational Table Querying During Versioned Runtime Execution
+```diff
+- var mappings = template.FieldMappings.ToList();
++ List<FieldMapping> mappings = !string.IsNullOrWhiteSpace(version.MappingsSnapshot)
++     ? FieldMappingSnapshotSerializer.Deserialize(template.Id, version.MappingsSnapshot, now)
++     : template.FieldMappings.ToList();
+```
+*Rationale: Querying mutable relational `field_mappings` during document generation breaks version immutability. An author editing field mappings in the studio causes historical published versions to immediately drift and produce altered outputs. The frozen `TemplateVersion.MappingsSnapshot` is the authoritative runtime manifest.*
+
+### [TRAP-MECH-008]: Pass-Through Indirection Wrapper in Rendering Pipeline
+```diff
+- var prepared = await dataPreparationWrapper.PrepareDataAsync(template, version, payload, skip, ct);
+- var rawStream = await engine.RenderStreamAsync(templateStream, prepared.DataJson, format, ct);
++ var bound = await dataBindingEngine.BindAndValidateAsync(template, version, payload, skip, ct);
++ var rawStream = await engine.RenderStreamAsync(templateStream, bound.DataJson, format, ct);
+```
+*Rationale: Single-method pass-through wrappers that merely wrap calls and convert DTOs introduce artificial maintenance overhead and redundant object allocations without adding business value. Connect the pipeline directly to `IDataBindingEngine`.*

@@ -345,6 +345,16 @@ public sealed record Update{Aggregate}Command(
     string Name,
     string? Category);
 
+// --- File: Commands/Update{Aggregate}/Update{Aggregate}CommandValidator.cs ---
+public sealed class Update{Aggregate}CommandValidator : AbstractValidator<Update{Aggregate}Command>
+{
+    public Update{Aggregate}CommandValidator()
+    {
+        RuleFor(x => x.Id).NotEmpty();
+        RuleFor(x => x.Name).NotEmpty().MaximumLength(100);
+    }
+}
+
 // --- File: Commands/Update{Aggregate}/Update{Aggregate}UseCase.cs ---
 public sealed class Update{Aggregate}UseCase(
     I{Aggregate}Repository repository,
