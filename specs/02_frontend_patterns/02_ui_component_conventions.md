@@ -1,11 +1,15 @@
 # [FRONT-002]: 02_ui_component_conventions.md — Design Tokens, UI Primitives & Zod SSoT
 
 <context>
-Scope: UI Component Conventions, Ice-White Design Tokens, CVA Component Variants, Lucide Icons, Zod Schemas & Vitest Component Testing.
-SSoT_For: Frontend Component Design System, Tailwind CSS Tokens, Radix Primitives, Form Validation Schemas, and Vitest Component Testing.
-Out_Of_Scope: Next.js App Router data fetching and proxy architecture (see: 01_app_router_and_data_fetching.md), Backend API presentation (see: ../01_clean_arch_patterns/04_api_presentation_layer.md).
-Target: `frontend-v2/` (`src/components/ui/`, `src/features/*/schemas/`, `src/__tests__/`).
-ArchitecturalSignals: [ARCH_EVOLUTION_FRONTEND_UI]
+Category: 02_frontend_patterns
+Domain: UI Component Architecture, Design Tokens & Client-Side Validation
+SoleResponsibilities:
+  - Ice-White enterprise theme design tokens and Tailwind CSS utility conventions
+  - Headless UI primitives (Radix UI), CVA component variants, and Lucide icons
+  - Monaco Editor template authoring studio integration and live preview panels
+  - Client-side Zod validation schemas (`*.schema.ts`) and Vitest component testing
+Target: `frontend-v2/` (`src/components/ui/`, `src/features/*/components/`, `src/features/*/schemas/`)
+Signal: [ARCH_EVOLUTION_FRONTEND_UI]
 </context>
 
 ---

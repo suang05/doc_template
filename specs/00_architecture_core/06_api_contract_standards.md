@@ -1,11 +1,15 @@
 # [CORE-006]: 06_api_contract_standards.md — Universal API Contract & Wire Protocol SSoT
 
 <context>
-Scope: Universal Response Envelopes (`ApiResponse<T>`, `PagedApiResponse<T>`), Pagination Metadata, RFC 9457 `ProblemDetails` Wire Schema, JSON Serialization Invariants (camelCase, ISO-8601 UTC with `Z`), HTTP Status & Mutation Semantics Matrix, Header Protocol (`Idempotency-Key`, `If-Match`, `ETag`, `x-project-id`), Pagination/Query Taxonomy, and OpenAPI Synchronization Governance.
-SSoT_For: Cross-Boundary API Wire Contracts between .NET 10 Web API and Next.js 15 Client, OpenAPI Schema Alignment (`specs/openapi.json`), Response Envelope Schema, and Error Schema Protocol.
-Out_Of_Scope: Controller implementation details (see: ../01_clean_arch_patterns/04_api_presentation_layer.md), Next.js Route Handlers and React query caching (see: ../02_frontend_patterns/01_app_router_and_data_fetching.md), CQRS internal variable naming (see: 04_naming_standards.md).
-Target: Cross-boundary contracts in `backend-v2/` (`SmkDoc.Api/Contracts/`, `SmkDoc.Api/Common/Responses/`, `specs/openapi.json`) and `frontend-v2/` (`src/types/api.ts`, `src/lib/api/client.ts`, `src/features/*/schemas/`).
-ArchitecturalSignals: [ARCH_EVOLUTION_CONTRACT]
+Category: 00_architecture_core
+Domain: Universal API Contract, Wire Protocols & Optimistic Concurrency SSoT
+SoleResponsibilities:
+  - Universal response envelopes (`ApiResponse<T>`, `PagedApiResponse<T>`) and pagination schemas
+  - RFC 9457 `ProblemDetails` error wire formats with actionable error codes
+  - HTTP mutation semantics and wire-level optimistic concurrency (`ETag`, `If-Match: "<unix_ms_token>"`)
+  - OpenAPI 3.1 specification sync governance (`specs/openapi.json`)
+Target: Cross-boundary contracts in `backend-v2/` (`SmkDoc.Api/Contracts/`) and `frontend-v2/` (`src/types/api.ts`)
+Signal: [ARCH_EVOLUTION_CONTRACT]
 </context>
 
 ---

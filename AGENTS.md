@@ -102,6 +102,12 @@ HighFrequencyRegressionTraps:
     => Action: Enforce Codebase SSoT and Atomic One-Way Migration. You must 1) wire the new abstraction to 100% of applicable consumers, and 2) delete the superseded legacy code in the exact same task. Zero dual-state bloat, zero duplicate helper methods, and zero orphan abstractions.
   Trigger: Preserving obsolete production code, shims, wrappers, or legacy test files out of fear of breaking existing tests
     => Action: Update or purge the tests! Tests are living contracts of current architecture. When an abstraction is superseded, refactor existing test call-sites to assert the new canonical pattern and atomically delete superseded test files (*Tests.cs). Prohibit commented-out tests (`// [Fact]`) or warping production code to appease brittle legacy mocks.
+  Trigger: Appending service registrations to a monolithic DependencyInjection.cs class
+    => Action: Strictly prohibit monolithic DI composition roots. Partition registrations into single-responsibility Feature Installers under Extensions/ (e.g., PersistenceServiceExtensions, StorageServiceExtensions, {Module}ModuleExtensions) and keep the composition root <= 25 LOC.
+  Trigger: Creating single-method pass-through services, god classes, or redundant intermediate DTOs between pipeline callers and engines
+    => Action: Demolish anemic pass-through wrappers. Pipelines must consume domain engines (IDataBindingEngine) directly. Enforce complexity firewalls: class <= 200 LOC, method <= 20 LOC, constructor injections <= 5.
+  Trigger: Querying mutable relational field_mappings table during runtime document generation, or creating duplicate preview use cases
+    => Action: Runtime document generation must strictly deserialize frozen TemplateVersion.MappingsSnapshot manifest as SSoT. All preview endpoints (Monaco HTML, Slug, TemplateId, Mappings preview) must route exclusively through PreviewDocumentUseCase.
 
 StrategicAdvisoryGates:
   [PROACTIVE_PROPOSAL_REQUIRED: Proactively analyze high-ROI alternatives, present trade-offs, and consult User before proceeding]
@@ -216,6 +222,7 @@ MachineSyntaxAndNamingStandards:
 # [SINGLE SOURCE OF TRUTH ROUTER: Governs both Ingress Context Loading and Egress Mutation Discovery]
 # Active Context Budget <= 15,000 tokens. Load strictly the minimal relevant slice.
 
+### Category 00: Architecture Core (System Foundation & Cross-Cutting Laws)
 | Architectural Domain & Intent | Evolution Signal | Primary SSoT Blueprint | Mandatory Satellite Guards |
 |---|---|---|---|
 | **System Blueprint & Clean Architecture Topology** | `[ARCH_EVOLUTION_CORE]` | `specs/00_architecture_core/01_system_architecture.md` | `specs/00_architecture_core/02_coding_conventions.md` |
@@ -223,18 +230,29 @@ MachineSyntaxAndNamingStandards:
 | **Security Architecture, Zero-LOH & Performance** | `[ARCH_EVOLUTION_SECURITY]` | `specs/00_architecture_core/03_security_and_performance.md` | `specs/03_specialized_mechanics/multi_tenant_security_pipeline.md` |
 | **Naming Conventions & ResultDto Lexicon** | `[ARCH_EVOLUTION_NAMING]` | `specs/00_architecture_core/04_naming_standards.md` | `specs/01_clean_arch_patterns/02_application_layer.md` |
 | **Anti-Patterns & Architectural Firewalls** | `[ARCH_EVOLUTION_FIREWALL]` | `specs/00_architecture_core/05_anti_pattern_firewall.md` | `specs/01_clean_arch_patterns/03_infrastructure_layer.md` |
-| **API Contracts, Wire Protocols & Envelopes** | `[ARCH_EVOLUTION_CONTRACT]` | `specs/00_architecture_core/06_api_contract_standards.md` | `specs/01_clean_arch_patterns/04_api_presentation_layer.md` |
+| **API Contracts, Wire Protocols & Concurrency** | `[ARCH_EVOLUTION_CONTRACT]` | `specs/00_architecture_core/06_api_contract_standards.md` | `specs/01_clean_arch_patterns/04_api_presentation_layer.md` |
+
+### Category 01: Clean Architecture Layers (Code Slices & Boundaries)
+| Architectural Domain & Intent | Evolution Signal | Primary SSoT Blueprint | Mandatory Satellite Guards |
+|---|---|---|---|
 | **Domain Entities, Value Objects & Events** | `[ARCH_EVOLUTION_DOMAIN]` | `specs/01_clean_arch_patterns/01_domain_layer.md` | `specs/00_architecture_core/01_system_architecture.md` |
 | **Application UseCases, Commands & PEMR** | `[ARCH_EVOLUTION_APPLICATION]` | `specs/01_clean_arch_patterns/02_application_layer.md` | `specs/00_architecture_core/04_naming_standards.md` |
-| **Infrastructure Adapters, Repos & Drivers** | `[ARCH_EVOLUTION_INFRASTRUCTURE]` | `specs/01_clean_arch_patterns/03_infrastructure_layer.md` | `specs/00_architecture_core/05_anti_pattern_firewall.md` |
-| **API Presentation, Controllers & Diagnostics** | `[ARCH_EVOLUTION_API]` | `specs/01_clean_arch_patterns/04_api_presentation_layer.md` | `specs/01_clean_arch_patterns/02_application_layer.md` |
+| **Infrastructure Adapters, Repos & Modular DI** | `[ARCH_EVOLUTION_INFRASTRUCTURE]` | `specs/01_clean_arch_patterns/03_infrastructure_layer.md` | `specs/00_architecture_core/05_anti_pattern_firewall.md` |
+| **API Presentation, Controllers & Preview Routing** | `[ARCH_EVOLUTION_API]` | `specs/01_clean_arch_patterns/04_api_presentation_layer.md` | `specs/01_clean_arch_patterns/02_application_layer.md` |
 | **Testing Archetypes & SUT Factory Patterns** | `[ARCH_EVOLUTION_TESTING]` | `specs/01_clean_arch_patterns/05_testing_archetypes.md` | Target Layer Spec |
+
+### Category 02: Frontend Architecture (Next.js 15 & UI System)
+| Architectural Domain & Intent | Evolution Signal | Primary SSoT Blueprint | Mandatory Satellite Guards |
+|---|---|---|---|
 | **Next.js App Router, Data Fetching & Proxy** | `[ARCH_EVOLUTION_FRONTEND_DATA]` | `specs/02_frontend_patterns/01_app_router_and_data_fetching.md` | `specs/02_frontend_patterns/02_ui_component_conventions.md` |
 | **UI Components, Design Tokens & Zod Contracts** | `[ARCH_EVOLUTION_FRONTEND_UI]` | `specs/02_frontend_patterns/02_ui_component_conventions.md` | `specs/02_frontend_patterns/01_app_router_and_data_fetching.md` |
+
+### Category 03: Specialized Mechanics (Deep Platform Engines)
+| Architectural Domain & Intent | Evolution Signal | Primary SSoT Blueprint | Mandatory Satellite Guards |
+|---|---|---|---|
 | **Multi-Tenant Dual-Auth & Project Context** | `[ARCH_EVOLUTION_TENANCY]` | `specs/03_specialized_mechanics/multi_tenant_security_pipeline.md` | `specs/00_architecture_core/03_security_and_performance.md` |
-| **Document Rendering Engines & Thai Formatting** | `[ARCH_EVOLUTION_RENDERING]` | `specs/03_specialized_mechanics/document_rendering_mechanics.md` | `specs/00_architecture_core/05_anti_pattern_firewall.md` |
+| **Document Rendering, Manifest SSoT & DataBinding** | `[ARCH_EVOLUTION_RENDERING]` | `specs/03_specialized_mechanics/document_rendering_mechanics.md` | `specs/00_architecture_core/05_anti_pattern_firewall.md` |
 | **Database Persistence, Schema & Concurrency** | `[ARCH_EVOLUTION_DATABASE]` | `specs/03_specialized_mechanics/database_persistence_and_schema_mechanics.md` | `specs/01_clean_arch_patterns/03_infrastructure_layer.md` |
-| **Optimistic Concurrency & ETag/If-Match Parity** | `[ARCH_EVOLUTION_CONCURRENCY]` | `specs/00_architecture_core/06_api_contract_standards.md` | `specs/01_clean_arch_patterns/02_application_layer.md`, `specs/02_frontend_patterns/01_app_router_and_data_fetching.md` |
 
 TopologyMap:
 specs/

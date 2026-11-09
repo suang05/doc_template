@@ -1,11 +1,15 @@
 # [PATTERN-001]: 01_domain_layer.md — Domain Layer Design Patterns & SSoT Catalog
 
 <context>
-Scope: Domain Layer Patterns, Aggregate Roots, Child Entities, Value Objects, Smart Enums, Domain Events, and Global User vs Tenant Membership.
-SSoT_For: Domain Entity Encapsulation, BaseEntity<TId>, UUIDv7 Identifiers, Domain Event Harvesting, Smart Enums, Value Objects, and Global Identity Scoping.
-Out_Of_Scope: EF Core DbContext mapping and persistence configurations (see: 03_infrastructure_layer.md), UseCase orchestration (see: 02_application_layer.md).
-Target: `SmkDoc.Domain/` (`Entities/`, `ValueObjects/`, `Enums/`, `Common/`, `Exceptions/`, `Events/`, `Interfaces/`).
-ArchitecturalSignals: [ARCH_EVOLUTION_DOMAIN]
+Category: 01_clean_arch_patterns
+Domain: Domain Layer Architecture, Aggregates & Pure Business Invariants
+SoleResponsibilities:
+  - Pure Domain POCOs free of framework or persistence dependencies
+  - `AggregateRoot<TId>` identity encapsulation and sole ownership of domain event harvesting
+  - `BaseEntity` child entity modeling and `IConcurrencyAware` contract
+  - Strongly-typed sequential UUIDv7 identities and immutable Value Objects
+Target: `SmkDoc.Domain/` (`Entities/`, `ValueObjects/`, `Events/`, `Common/`)
+Signal: [ARCH_EVOLUTION_DOMAIN]
 </context>
 
 ---

@@ -1,11 +1,15 @@
 # [CORE-002]: 02_coding_conventions.md — Language Idioms, Syntax Grammar & Clean Code Standards
 
 <context>
-Scope: C# 13 & TypeScript Coding Idioms, 6 Universal Linear Cadences, Primary Constructors, Collection Expressions, File-Scoped Namespaces, 1-Type-Per-File Rule, and Async/Await Invariants.
-SSoT_For: Language Grammar, Syntax Layout, Method Signatures, Constructor Dependency Injection, and Linear Execution Cadences.
-Out_Of_Scope: Variable naming and Lexicon verbs (see: 04_naming_standards.md), System Architecture tiers (see: 01_system_architecture.md), Security & Performance bounds (see: 03_security_and_performance.md), Comprehensive Testing Archetypes & Testcontainers (see: ../01_clean_arch_patterns/05_testing_archetypes.md).
-Target: `backend-v2/` and `frontend-v2/`.
-ArchitecturalSignals: [ARCH_EVOLUTION_CONVENTIONS]
+Category: 00_architecture_core
+Domain: Language Idioms, Syntax Grammar & Clean Code Standards
+SoleResponsibilities:
+  - Modern .NET 10 / C# 13 language idioms (Primary Constructors, Collection Expressions, TimeProvider)
+  - 7 Universal Linear Cadences (Controller, UseCase, Entity, ValueObject, Adapter, UnitTest, Page)
+  - Step comment anchors (`// Step N: ...`) and dense inline rationale (`// <Why: ...>`)
+  - Single-type-per-file and file-scoped namespace invariants
+Target: Full Stack (`backend-v2/` and `frontend-v2/`)
+Signal: [ARCH_EVOLUTION_CONVENTIONS]
 </context>
 
 ---

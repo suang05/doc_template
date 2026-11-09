@@ -1,11 +1,15 @@
 # [PATTERN-004]: 04_api_presentation_layer.md — Presentation Layer Design Patterns & HTTP SSoT
 
 <context>
-Scope: Presentation Layer Patterns, Thin Controllers (<= 5 LOC), 3-Step Dispatcher, ApiResponse Envelopes, Mutation Semantics (POST Idempotency vs PUT/DELETE ETag), Controller Partitioning, and RFC 9457 Exceptions.
-SSoT_For: Controller Action Contracts, 3-Step Dispatcher Pattern, HTTP Status Mapping, Controller Partitioning & Diagnostics, and RFC 9457 ProblemDetails Translation.
-Out_Of_Scope: Application UseCase orchestration (see: 02_application_layer.md), Multi-tenant dual-auth middleware (see: ../03_specialized_mechanics/multi_tenant_security_pipeline.md), SSRF network validator mechanics (see: ../00_architecture_core/03_security_and_performance.md).
-Target: `backend-v2/` (`SmkDoc.Api/Controllers/`, `SmkDoc.Api/Common/Responses/`, `SmkDoc.Api/Filters/`, `SmkDoc.Api/Middleware/`).
-ArchitecturalSignals: [ARCH_EVOLUTION_API]
+Category: 01_clean_arch_patterns
+Domain: Presentation Layer HTTP Controllers, Routing & Endpoint Authorization
+SoleResponsibilities:
+  - Thin ASP.NET Core API controllers (<= 5 LOC per action) with C# 13 Primary Constructors
+  - Unified Preview Gateway routing (delegating preview endpoints to `PreviewDocumentUseCase`)
+  - Declarative policy authorization (`[Authorize(Policy = "...")]`) and tenant sub-key routing
+  - RFC 9457 `ProblemDetails` exception filter mapping
+Target: `backend-v2/` (`SmkDoc.Api/Controllers/`, `SmkDoc.Api/Filters/`, `SmkDoc.Api/Middleware/`)
+Signal: [ARCH_EVOLUTION_API]
 </context>
 
 ---
@@ -561,3 +565,12 @@ public sealed class {Resource}DiagnosticsController(
 + var problem = ProblemDetailsBuilder.Create(StatusCodes.Status400BadRequest, "Bad Request", msg, "BAD_REQUEST", context.Request.Path, context.TraceIdentifier);
 ```
 *Rationale: Instantiating raw ProblemDetails inline omits mandatory errorCode and traceId extensions. Declaring typeof(ApiResponse<object>) or typeof(ValidationProblemDetails) on 4xx attributes pollutes OpenAPI components.schemas with unused types that fail Redocly lint.*
+
+### [TRAP-API-013]: Duplicate Preview UseCase or Bypassing Unified Preview Pipeline
+```diff
+- // Creating duplicate preview use case in controller:
+- var result = await previewMappingUseCase.ExecuteAsync(query, ct);
++ // Delegating to unified PreviewDocumentUseCase SSoT:
++ var result = await previewDocumentUseCase.ExecuteAsync(new PreviewDocumentQuery(templateId, ...), ct);
+```
+*Rationale: All live preview operations (Monaco raw HTML, template slug, template ID, or mapping studio preview) must route through the single unified `PreviewDocumentUseCase`. Duplicate preview use cases cause rendering logic divergence and dual maintenance.*

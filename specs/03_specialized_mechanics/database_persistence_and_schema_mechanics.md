@@ -1,11 +1,16 @@
 # [MECH-003]: database_persistence_and_schema_mechanics.md — Database Persistence, Schema Governance & Concurrency Mechanics SSoT
 
 <context>
-Scope: PostgreSQL Physical Schema Invariants, Table & Column Naming (`snake_case`), Primary Key Strategy (C# UUIDv7 with `.ValueGeneratedNever()`), Multi-Tenant Data Isolation (`IMustHaveProject` Global Query Filters & Matching Child Filters), Optimistic Concurrency Engine (`(UpdatedAt ?? CreatedAt)` Unix Milliseconds / `If-Match`), Composite Index Governance (`(project_id, slug)`, `(project_id, created_at DESC)`), Foreign Key Cascade Boundaries (`Cascade` for intra-aggregate vs `Restrict` for cross-aggregate), JSONB Storage & GIN Indexes, Strongly-Typed ID Value Converters, and Zero-Downtime Migration Protocols.
-SSoT_For: Database Table Configurations (`IEntityTypeConfiguration<T>`), Global Query Filters, PostgreSQL Concurrency Tokens, Migration Lifecycle (`dotnet ef migrations`), and Database Seeding.
-Out_Of_Scope: Infrastructure Port Adapters, Repositories, Unit of Work, Object Storage, and Gotenberg streaming clients (see: ../01_clean_arch_patterns/03_infrastructure_layer.md), Application UseCase orchestration (see: ../01_clean_arch_patterns/02_application_layer.md), HTTP wire contracts (see: ../00_architecture_core/06_api_contract_standards.md), Multi-tenant dual-auth middleware (see: multi_tenant_security_pipeline.md).
-Target: `backend-v2/` (`SmkDoc.Infrastructure/Persistence/`, `Configurations/`, `Converters/`, `Migrations/`, `AppDbContext.cs`).
-ArchitecturalSignals: [ARCH_EVOLUTION_DATABASE]
+Category: 03_specialized_mechanics
+Domain: PostgreSQL Physical Schema, EF Core Persistence & Concurrency Mechanics
+SoleResponsibilities:
+  - PostgreSQL physical table configurations (`IEntityTypeConfiguration<T>`) in strict snake_case
+  - Multi-tenant data isolation via EF Core Global Query Filters (`IMustHaveProject`) and matching child filters
+  - Optimistic concurrency detection on `UpdatedAt` via `ConcurrencySaveChangesInterceptor`
+  - Foreign key cascade isolation (restrict cross-aggregate, cascade owned children only)
+  - Zero-downtime expand/contract schema migration protocols
+Target: `backend-v2/` (`SmkDoc.Infrastructure/Persistence/`, `Configurations/`, `Migrations/`, `AppDbContext.cs`)
+Signal: [ARCH_EVOLUTION_DATABASE]
 </context>
 
 ---

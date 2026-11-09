@@ -1,11 +1,14 @@
 # [CORE-005]: 05_anti_pattern_firewall.md — Fatal Traps, Architectural Interceptors & Diagnostics
 
 <context>
-Scope: Fatal Production Traps, Memory Safety Interceptors, Security Hardening, and Diagnostic Remediation Cards.
-SSoT_For: System-Wide Anti-Pattern Traps (TRAP-001 to TRAP-016), Interceptor Triggers, and Critical Failure Modes.
-Out_Of_Scope: Basic language syntax (see: 02_coding_conventions.md), System Architecture layers (see: 01_system_architecture.md).
-Target: Full Stack (`backend-v2/` and `frontend-v2/`).
-ArchitecturalSignals: [ARCH_EVOLUTION_FIREWALL]
+Category: 00_architecture_core
+Domain: System-Wide Anti-Pattern Traps & Architectural Interceptors
+SoleResponsibilities:
+  - Registry of 20 compiler-grade fatal architectural traps (`[TRAP-MEM-001]` to `[TRAP-PREVIEW-020]`)
+  - Unified micro-diffs (`-` bad / `+` good) illustrating forbidden implementations and remediations
+  - Pre-commit architectural violation checks across all layers
+Target: Full Stack (`backend-v2/` and `frontend-v2/`)
+Signal: [ARCH_EVOLUTION_FIREWALL]
 </context>
 
 ---
@@ -33,6 +36,7 @@ ArchitecturalSignals: [ARCH_EVOLUTION_FIREWALL]
 | **[TRAP-SSOT-017]** | Architecture | Querying mutable relational tables during versioned runtime execution causes published versions to drift. | Runtime generation must strictly read immutable `TemplateVersion.MappingsSnapshot` manifest. | CRITICAL |
 | **[TRAP-WRAPPER-018]**| Simplicity | Artificial pass-through wrappers duplicating identical DTOs create cognitive bloat and GC allocations. | Pipeline must consume domain engines (`IDataBindingEngine`) directly without wrapper indirection. | HIGH |
 | **[TRAP-DI-019]** | Modularity | Monolithic DI composition roots accumulating hundreds of lines across multiple subsystems hide dependencies. | Decompose DI into single-responsibility Feature Installers under `SmkDoc.Infrastructure/Extensions/`. | HIGH |
+| **[TRAP-PREVIEW-020]**| Architecture | Parallel duplicate preview use cases cause rendering logic divergence and dual-pipeline maintenance. | Route all preview variants exclusively through `PreviewDocumentUseCase` SSoT. | HIGH |
 
 ---
 
@@ -226,38 +230,17 @@ EventConsistencyFirewall:
 ```
 
 ### [TRAP-SSOT-017]: Relational Table Querying During Versioned Runtime Execution
-```diff
-- // Bypassing version snapshot manifest to query mutable relational table:
-- var mappings = template.FieldMappings.ToList();
-+ // Authoritative Template Manifest SSoT:
-+ List<FieldMapping> mappings = !string.IsNullOrWhiteSpace(version.MappingsSnapshot)
-+     ? FieldMappingSnapshotSerializer.Deserialize(template.Id, version.MappingsSnapshot, now)
-+     : template.FieldMappings.ToList();
-```
+>> SSoT DELEGATION: Full archetype and diff governed strictly by [document_rendering_mechanics.md](../03_specialized_mechanics/document_rendering_mechanics.md#trap-mech-007).
 *Rationale: Querying mutable relational tables during document generation breaks version immutability. An author editing field mappings in the studio causes historical published versions to immediately drift and produce corrupt outputs. The frozen `TemplateVersion.MappingsSnapshot` is the single source of truth at runtime.*
 
 ### [TRAP-WRAPPER-018]: Anemic Pass-Through Wrapper & Redundant Intermediate DTOs
-```diff
-- // Useless single-method pass-through wrapper duplicating DTOs:
-- var prepared = await dataPreparationWrapper.PrepareAsync(template, version, payload, ct);
-- var stream = await engine.RenderStreamAsync(templateStream, prepared.DataJson, format, ct);
-+ // Direct pipeline integration consuming domain engine:
-+ var bound = await dataBindingEngine.BindAndValidateAsync(template, version, payload, skipValidation, ct);
-+ var stream = await engine.RenderStreamAsync(templateStream, bound.DataJson, format, ct);
-```
+>> SSoT DELEGATION: Full archetype and diff governed strictly by [document_rendering_mechanics.md](../03_specialized_mechanics/document_rendering_mechanics.md#trap-mech-008).
 *Rationale: Creating single-method wrappers that merely forward arguments and duplicate DTO records adds cognitive overhead, increases maintenance debt, and allocates useless intermediate objects without providing any domain abstraction.*
 
 ### [TRAP-DI-019]: Monolithic Composition Root Sprawl
-```diff
-- // Monolithic service registration mixing all subsystems in one class:
-- public static IServiceCollection AddInfrastructure(this IServiceCollection services) { /* all subsystems inline */ }
-+ // Modular Feature Installers partitioned by subsystem under Extensions/:
-+ public static IServiceCollection AddInfrastructureServices(this IServiceCollection services, IConfiguration config) =>
-+     services
-+         .AddSecurityInfrastructure()
-+         .AddPersistenceInfrastructure(config)
-+         .AddStorageInfrastructure(config)
-+         .AddRenderingEnginesInfrastructure(config)
-+         .AddDistributedInfrastructure(config);
-```
+>> SSoT DELEGATION: Full archetype and diff governed strictly by [03_infrastructure_layer.md](../01_clean_arch_patterns/03_infrastructure_layer.md#trap-infra-006).
 *Rationale: Monolithic composition roots accumulate technical debt rapidly as developers append lines indiscriminately. Decomposing by subsystem enforces single responsibility and makes subsystem testing and lifecycle auditing straightforward.*
+
+### [TRAP-PREVIEW-020]: Parallel Duplicate Preview UseCases
+>> SSoT DELEGATION: Presentation routing governed strictly by [04_api_presentation_layer.md](../01_clean_arch_patterns/04_api_presentation_layer.md#trap-api-013); preview execution archetype governed strictly by [document_rendering_mechanics.md](../03_specialized_mechanics/document_rendering_mechanics.md#32-previewresourceusecase-previewdocumentusecase-archetype).
+*Rationale: Having separate preview use cases for Monaco live HTML, template slugs, and studio mapping editors causes business logic duplication and engine divergence. Consolidate all preview modes into `PreviewDocumentUseCase`.*

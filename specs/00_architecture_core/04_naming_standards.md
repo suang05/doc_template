@@ -1,11 +1,15 @@
 # [CORE-004]: 04_naming_standards.md — Universal Lexicon, Canonical Verbs & Identifier Standards
 
 <context>
-Scope: Lexical Verbs, Payload Variable Naming, Anti-Abbreviation Policy, RESTful Route Syntax, and C# PascalCase to JSON camelCase Wire Matching.
-SSoT_For: Method Verb Conventions, DTO Casing, Route Segment Formatting, and CQRS Variable Standard in Source Code.
-Out_Of_Scope: Documentation prose, Markdown content/headings, architectural narratives, and chat dialogue. Governs STRICTLY Source Code Identifiers (Class, Record, Method, Property, and Variable AST tokens) inside backend-v2/ and frontend-v2/. Also out of scope: C# 13 language syntax (see: 02_coding_conventions.md), System Architecture tiers (see: 01_system_architecture.md).
-Target: Source Code Identifiers in `backend-v2/` and `frontend-v2/` (Rules govern code only; strictly prohibited from restricting markdown documentation text or chat dialogue).
-ArchitecturalSignals: [ARCH_EVOLUTION_NAMING]
+Category: 00_architecture_core
+Domain: Universal Lexicon, Canonical Verbs & Identifier Standards
+SoleResponsibilities:
+  - Role-based suffix taxonomy (*UseCase, *Builder, *Factory, *Resolver, *Policies, *ResultDto)
+  - Canonical verbs for commands, queries, and aggregate state transitions
+  - Strict anti-abbreviation rules (prohibiting repo, uow, ctx, svc, t, v, d)
+  - Plural kebab-case RESTful URI route grammar (`api/v1/{resources}`)
+Target: Source Code Identifiers in `backend-v2/` and `frontend-v2/`
+Signal: [ARCH_EVOLUTION_NAMING]
 </context>
 
 ---

@@ -1,11 +1,15 @@
 # [PATTERN-003]: 03_infrastructure_layer.md — Infrastructure Layer Design Patterns & Port Adapters SSoT
 
 <context>
-Scope: Infrastructure Port Adapters, Repository Implementations, Transactional Unit of Work, Object Storage Clients (MinIO), PDF Rendering Streaming (Gotenberg), Polymorphic External SQL Drivers, Modular Feature Installers, and Redis Distributed State.
-SSoT_For: Infrastructure Port Implementations (`I{Aggregate}Repository`, `IUnitOfWork`, `IStorageService`, `IRenderEngine`, `ISqlDriverFactory`), Storage Buckets Catalog (`StorageBuckets.cs`), Modular DI Extensions, and Zero-LOH Streaming Pipeline.
-Out_Of_Scope: Application UseCase orchestration (see: 02_application_layer.md), Pure Domain Entities (see: 01_domain_layer.md), HTTP Controllers (see: 04_api_presentation_layer.md), Multi-Tenant Dual-Auth Pipeline (see: ../03_specialized_mechanics/multi_tenant_security_pipeline.md), PostgreSQL Physical Schema, Entity Configurations, Indexing & Concurrency Tokens (see: ../03_specialized_mechanics/database_persistence_and_schema_mechanics.md).
-Target: `SmkDoc.Infrastructure/` (`Repositories/`, `Storage/`, `Gotenberg/`, `Data/Drivers/`, `Extensions/`, `Persistence/TransactionalUnitOfWork.cs`).
-ArchitecturalSignals: [ARCH_EVOLUTION_INFRASTRUCTURE]
+Category: 01_clean_arch_patterns
+Domain: Infrastructure Layer Architecture, Port Adapters & Modular DI
+SoleResponsibilities:
+  - External port implementations (`IStorageService` MinIO, `ISqlDriverFactory`, Redis distributed state)
+  - Modular Infrastructure DI composition root (`Extensions/` feature installers <= 25 LOC)
+  - `HybridTemplateDraftCache` (L1 MemoryCache + L2 Redis multiplexer)
+  - Transactional unit of work implementation (`TransactionalUnitOfWork.cs`)
+Target: `SmkDoc.Infrastructure/` (`Storage/`, `Data/Drivers/`, `Cache/`, `Extensions/`, `Persistence/`)
+Signal: [ARCH_EVOLUTION_INFRASTRUCTURE]
 </context>
 
 ---

@@ -1,11 +1,15 @@
 # [CORE-001]: 01_system_architecture.md — Master System Architecture, Tier Topology & Layer Boundaries
 
 <context>
-Scope: Macro Container Topology, 4 Bounded Contexts Collaboration, Tier Matrix, 2 Execution Pipelines, Clean Architecture Layer Boundaries, and System Structural Interceptors.
-SSoT_For: Overall System Architecture, Layer Dependency Invariants, Container Topology, and Execution Pipeline Lifecycles.
-Out_Of_Scope: C# 13 syntax and linear cadences (see: 02_coding_conventions.md), M2M security and performance limits (see: 03_security_and_performance.md), Lexical naming (see: 04_naming_standards.md), Anti-patterns (see: 05_anti_pattern_firewall.md).
-Target: `backend-v2/` (`SmkDoc.Domain`, `SmkDoc.Application`, `SmkDoc.Infrastructure`, `SmkDoc.Api`) and `frontend-v2/`.
-ArchitecturalSignals: [ARCH_EVOLUTION_CORE]
+Category: 00_architecture_core
+Domain: Master System Architecture, Tier Topology & Bounded Context Matrix
+SoleResponsibilities:
+  - Macro container topology (API, Gotenberg, MinIO, Redis, PostgreSQL) and physical solution structure
+  - Bounded Context collaboration matrix (Authoring, DataBinding, Rendering, Integration, IdentityAccess)
+  - 2-track execution pipelines (Sync preview vs Async batch generation)
+  - Cross-cutting layer dependency rules and Clean Architecture boundary invariants
+Target: Full Stack (`backend-v2/` and `frontend-v2/`)
+Signal: [ARCH_EVOLUTION_CORE]
 </context>
 
 ---

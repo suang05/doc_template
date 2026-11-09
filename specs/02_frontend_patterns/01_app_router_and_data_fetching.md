@@ -1,11 +1,15 @@
 # [FRONT-001]: 01_app_router_and_data_fetching.md — Next.js 15 App Router & API Proxy SSoT
 
 <context>
-Scope: Next.js 15 App Router Architecture, Server/Client Component Boundaries, Route Handler Proxy & Live Preview Pipeline.
-SSoT_For: App Router Data Fetching, Next.js API Proxy Gateway (`/api/proxy/[...path]`), Live Document Preview Streaming, and TanStack Query Hydration.
-Out_Of_Scope: UI Design tokens and Tailwind styling (see: 02_ui_component_conventions.md), Backend API presentation (see: ../01_clean_arch_patterns/04_api_presentation_layer.md).
-Target: `frontend-v2/` (`src/app/(app)/`, `src/features/`, `src/hooks/`, `src/lib/api/`).
-ArchitecturalSignals: [ARCH_EVOLUTION_FRONTEND_DATA]
+Category: 02_frontend_patterns
+Domain: Next.js 15 App Router Architecture, Server Components & API Gateway Proxy
+SoleResponsibilities:
+  - Next.js 15 App Router topology (`src/app/(app)/`) and Server/Client Component boundaries
+  - Async route parameters handling (`const { id } = await params`)
+  - Server-side data fetching with ambient tenant headers and TanStack Query hydration
+  - Next.js API Gateway Proxy (`/api/proxy/[...path]`) for secure credential isolation
+Target: `frontend-v2/` (`src/app/`, `src/features/`, `src/hooks/`, `src/lib/api/`)
+Signal: [ARCH_EVOLUTION_FRONTEND_DATA]
 </context>
 
 ---

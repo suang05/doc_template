@@ -1,11 +1,16 @@
 # [MECH-002]: document_rendering_mechanics.md — Rendering Engines, OpenXML & Thai Formatting SSoT
 
 <context>
-Scope: Polymorphic Rendering Engines, 2-Track Rendering Pipeline, Gotenberg Chromium Microservice, Zero-LOH Bounded Streaming, OpenXML DrawingML Fix, Thai Formatting Transformers, and ClosedXML Print Fit.
-SSoT_For: Render Engine Resolution, Gotenberg Response Streaming, Storage Perimeter Egress, Thai Formatting, OpenXML DrawingML Fix, and ClosedXML Print Fit.
-Out_Of_Scope: Presentation layer routing and RFC 9457 exceptions (see: ../01_clean_arch_patterns/04_api_presentation_layer.md), General Security and Performance bounds (see: ../00_architecture_core/03_security_and_performance.md).
-Target: `backend-v2/` (`SmkDoc.Infrastructure/Engines/`, `SmkDoc.Infrastructure/Pdf/`, `SmkDoc.Application/Common/Helpers/`, `SmkDoc.Api/Controllers/Rendering/`).
-ArchitecturalSignals: [ARCH_EVOLUTION_RENDERING]
+Category: 03_specialized_mechanics
+Domain: Document Rendering Engine, Template Manifest SSoT & Thai Typography
+SoleResponsibilities:
+  - Polymorphic Render Engine Factory (`IRenderEngineFactory`) and Gotenberg Chromium PDF synthesis
+  - Template Version Manifest SSoT (`TemplateVersion.MappingsSnapshot` immutable runtime deserialization)
+  - Direct pipeline DataBinding integration (`IDataBindingEngine`) and Unified Preview Gateway execution
+  - Centralized Thai typography determinism (`ThaiDataTransformer`, BE +543, Baht text, Sarabun font)
+  - OpenXML DrawingML graphic ID normalization and ClosedXML A4 fit-to-page automation
+Target: `backend-v2/` (`SmkDoc.Infrastructure/Engines/`, `SmkDoc.Infrastructure/Pdf/`, `SmkDoc.Application/Modules/Rendering/`, `SmkDoc.Application/Modules/DataBinding/`)
+Signal: [ARCH_EVOLUTION_RENDERING]
 </context>
 
 ---

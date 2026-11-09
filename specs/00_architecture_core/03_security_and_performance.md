@@ -1,11 +1,15 @@
 # [CORE-003]: 03_security_and_performance.md — M2M Security, Tenant Isolation & High-Throughput Performance SSoT
 
 <context>
-Scope: Cross-Cutting Security Standards, High-Throughput Performance Limits, Zero-LOH Memory Thresholds (<=81,920 buffer), SSRF IP/Host Perimeter Validation, and Constant-Time Hashing.
-SSoT_For: Performance Thresholds, Stream Buffer Limits (<=81,920 bytes), Constant-Time Comparison, and SSRF Network Boundary Invariants.
-Out_Of_Scope: Concrete multi-tenant middleware execution and dual-auth pipeline (see: ../03_specialized_mechanics/multi_tenant_security_pipeline.md), Presentation layer routing and RFC 9457 error translation (see: ../01_clean_arch_patterns/04_api_presentation_layer.md).
-Target: `backend-v2/` (`SmkDoc.Infrastructure/`, `SmkDoc.Api/Middleware/`, and `SmkDoc.Domain/Entities/`).
-ArchitecturalSignals: [ARCH_EVOLUTION_SECURITY]
+Category: 00_architecture_core
+Domain: Platform Security Perimeter, Zero-LOH Memory & Performance SLAs
+SoleResponsibilities:
+  - Platform-wide dual-channel security architecture (Channel A M2M API Keys vs Channel B Internal JWT)
+  - Memory & GC boundaries: strictly bounded streaming (<= 81,920 bytes) guaranteeing Zero-LOH
+  - SSRF elimination via private IP/loopback address validation (`ConnectionHostValidator`)
+  - Cryptographic constant-time comparison for sensitive credentials and API key tokens
+Target: `backend-v2/` (`SmkDoc.Infrastructure/`, `SmkDoc.Api/`, `SmkDoc.Domain/`)
+Signal: [ARCH_EVOLUTION_SECURITY]
 </context>
 
 ---

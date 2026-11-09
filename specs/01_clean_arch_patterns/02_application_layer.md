@@ -1,11 +1,15 @@
 # [PATTERN-002]: 02_application_layer.md — Application Layer Design Patterns & PEMR Pipeline
 
 <context>
-Scope: Application Layer SSoT, Vertical Slice CQRS, IUseCase<TReq, TRes> PEMR Pipeline, UnitOfWork Commit, and Post-Commit Event Dispatching.
-SSoT_For: Application Orchestration, Single-Responsibility UseCase Execution, Command/Query Feature Slices, and ResultDto Contract Boundaries.
-Out_Of_Scope: HTTP Controller routing and envelopes (see: 04_api_presentation_layer.md), Pure Domain Entities and Invariants (see: 01_domain_layer.md), EF Core persistence (see: 03_infrastructure_layer.md).
-Target: `SmkDoc.Application/` (`Modules/{BoundedContext}/{Aggregate}/{Commands|Queries|DTOs}/`, `Common/`).
-ArchitecturalSignals: [ARCH_EVOLUTION_APPLICATION]
+Category: 01_clean_arch_patterns
+Domain: Application Layer CQRS Architecture, UseCases & PEMR Pipeline
+SoleResponsibilities:
+  - Vertical CQRS slice topology under `Modules/{BoundedContext}/{Aggregate}/`
+  - Action-centric `IUseCase<TReq, TRes>` execution and 4-step PEMR pipeline
+  - Request validation (`FluentValidation`), immutable `*ResultDto` returns, and ambient concurrency
+  - Modular Application DI feature installers (`{Module}ModuleExtensions.cs`)
+Target: `SmkDoc.Application/` (`Modules/`, `Common/`)
+Signal: [ARCH_EVOLUTION_APPLICATION]
 </context>
 
 ---
@@ -36,6 +40,8 @@ ArchitecturalSignals: [ARCH_EVOLUTION_APPLICATION]
 | **Pagination Clamping** | Paginated queries clamp `Page >= 1` and `PageSize` between 1 and 100 (`Math.Clamp(query.PageSize, 1, 100)`). Hot-path list projections select scalar columns only, bypassing `jsonb` payloads. | Query Scaling |
 | **Ambient Concurrency Guard** | Commands and UseCases remain free of `string? IfMatch` plumbing. Mutable `*ResultDto` records implement `IHasConcurrencyToken` (`entity.GetConcurrencyToken()`). Pre-commit `412` verification executes automatically via `ConcurrencySaveChangesInterceptor` on `CommitAsync(ct)` (or explicitly via `IConcurrencyContext.EnsureMatches(entity)` only when external I/O precedes `CommitAsync`). | Concurrency Control |
 | **Single-Type File Topology** | Every `*Command`, `*Query`, `*Validator`, and `*UseCase` resides in its own isolated `{TypeName}.cs` file inside its vertical slice directory (`Commands/{SliceName}/` or `Queries/{SliceName}/`). | Physical Structure |
+| **Modular Module Installers** | Each bounded context slice registers its use cases and services through dedicated `{Module}ModuleExtensions.cs` (e.g. `AuthoringModuleExtensions`, `RenderingModuleExtensions`). Monolithic Application composition roots are prohibited. | DI Container |
+| **Direct Pipeline Composition** | Workflows and rendering pipelines consume domain services (`IDataBindingEngine`) directly. Single-method pass-through wrapper classes and duplicate intermediate DTOs are prohibited. | Pipeline Structure |
 
 ---
 
@@ -461,3 +467,5 @@ public sealed class Update{Aggregate}UseCase(
 + // (Or call concurrencyContext.EnsureMatches(entity) before pre-commit external S3 I/O)
 ```
 *Rationale: Threading HTTP `If-Match` strings through Commands and UseCases violates Clean Architecture separation and duplicates token formatting logic across slices.*
+
+>> SSoT DELEGATION: Document rendering pipeline composition, data binding integration, and anemic pass-through wrapper prohibitions are governed strictly by [document_rendering_mechanics.md](../03_specialized_mechanics/document_rendering_mechanics.md#trap-mech-008).
