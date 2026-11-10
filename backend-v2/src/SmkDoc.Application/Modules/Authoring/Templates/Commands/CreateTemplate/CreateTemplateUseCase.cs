@@ -4,6 +4,7 @@ using SmkDoc.Application.Common;
 using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Common.Streams;
+using SmkDoc.Application.Modules.Authoring.FieldMappings.Helpers;
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
@@ -23,6 +24,7 @@ public sealed class CreateTemplateUseCase(
     IDocxSecurityScanner securityScanner,
     ICurrentProjectContext projectContext,
     IUnitOfWork unitOfWork,
+    ISchemaInferenceService schemaInferenceService,
     TimeProvider timeProvider) : IUseCase<CreateTemplateCommand, TemplateResultDto>
 {
     private const long MaxTemplateFileSizeBytes = 20L * 1024 * 1024;
@@ -34,14 +36,11 @@ public sealed class CreateTemplateUseCase(
             throw new ForbiddenException("Creating a template requires an active project context.");
         }
 
-        // 1. Domain Rule Check (Slug uniqueness within active tenant)
-        var slugExists = await templateRepo.SlugExistsAsync(command.Slug, ct);
-        if (slugExists)
+        if (await templateRepo.SlugExistsAsync(command.Slug, ct))
         {
             throw ConflictException.DuplicateSlug(command.Slug);
         }
 
-        // 2. Domain Aggregate Instantiation (provides canonical TemplateId for immutable object storage key)
         var now = timeProvider.GetUtcNow();
         var template = Template.Create(
             projectContext.ProjectId,
@@ -50,17 +49,52 @@ public sealed class CreateTemplateUseCase(
             command.Category?.Trim(),
             now);
 
-        string storageKey;
-        TemplateFormat fileFormat;
+        var (storageKey, fileFormat, htmlContent) = await PrepareTemplateAssetAsync(command, template, ct);
 
-        // 3. Asset Security Scanning & Immutable Storage Upload
+        var initialVersion = template.CreateNextVersion(
+            storageKey,
+            fileFormat,
+            projectContext.CallerIdentity ?? "system",
+            now,
+            "Initial version");
+
+        PopulateInitialVersionManifest(initialVersion, template, fileFormat, htmlContent, now);
+
+        try
+        {
+            await templateRepo.AddAsync(template, ct);
+            await unitOfWork.CommitAsync(ct);
+        }
+        catch (Exception primaryEx)
+        {
+            await CompensateStorageDeleteAsync(storageKey, primaryEx);
+            throw;
+        }
+
+        return new TemplateResultDto(
+            template.Id.Value,
+            template.ProjectId.Value,
+            template.Name,
+            template.Slug,
+            template.Category,
+            template.IsActive,
+            template.CurrentVersionId,
+            initialVersion.FileFormat?.Name,
+            template.CreatedAt,
+            template.UpdatedAt,
+            template.GetConcurrencyToken()
+        );
+    }
+
+    private async Task<(string StorageKey, TemplateFormat Format, string? HtmlContent)> PrepareTemplateAssetAsync(
+        CreateTemplateCommand command,
+        Template template,
+        CancellationToken ct)
+    {
         if (command.FileStream != null && !string.IsNullOrWhiteSpace(command.FileName))
         {
             string ext = Path.GetExtension(command.FileName).ToLowerInvariant();
-            if (string.IsNullOrWhiteSpace(ext))
-            {
-                ext = ".html";
-            }
+            if (string.IsNullOrWhiteSpace(ext)) ext = ".html";
 
             if (!TemplateFormat.TryFromExtension(ext, out var format) || format == null)
             {
@@ -68,8 +102,7 @@ public sealed class CreateTemplateUseCase(
                     $"Unsupported template file extension: '{ext}'. Allowed formats: .html, .docx, .xlsx");
             }
 
-            fileFormat = format;
-            storageKey = StorageBuckets.TemplateVersionKey(template.ProjectId, template.Id, 1, ext);
+            var storageKey = StorageBuckets.TemplateVersionKey(template.ProjectId, template.Id, 1, ext);
 
             if (command.FileStream.CanSeek && command.FileStream.Length > MaxTemplateFileSizeBytes)
             {
@@ -94,62 +127,62 @@ public sealed class CreateTemplateUseCase(
                 }
             }
 
+            string? htmlContent = null;
+            if (format == TemplateFormat.Html)
+            {
+                spooled.Position = 0;
+                using var reader = new StreamReader(spooled, Encoding.UTF8, leaveOpen: true);
+                htmlContent = await reader.ReadToEndAsync(ct);
+            }
+
             spooled.Position = 0;
-            await storageService.UploadAsync(StorageBuckets.Templates, storageKey, spooled, fileFormat.MimeType, ct);
+            await storageService.UploadAsync(StorageBuckets.Templates, storageKey, spooled, format.MimeType, ct);
+            return (storageKey, format, htmlContent);
+        }
+
+        var defaultStorageKey = StorageBuckets.TemplateVersionKey(template.ProjectId, template.Id, 1, ".html");
+        const string defaultHtml = "<!DOCTYPE html>\n<html lang=\"th\">\n<head>\n  <meta charset=\"UTF-8\" />\n</head>\n<body>\n  <h2>Template</h2>\n</body>\n</html>";
+        await using var htmlStream = await HybridSpoolStream.CreateFromUtf8StringAsync(defaultHtml, ct: ct);
+        await storageService.UploadAsync(StorageBuckets.Templates, defaultStorageKey, htmlStream, "text/html; charset=utf-8", ct);
+        return (defaultStorageKey, TemplateFormat.Html, defaultHtml);
+    }
+
+    private void PopulateInitialVersionManifest(
+        TemplateVersion version,
+        Template template,
+        TemplateFormat format,
+        string? htmlContent,
+        DateTimeOffset now)
+    {
+        if (format == TemplateFormat.Html && !string.IsNullOrWhiteSpace(htmlContent))
+        {
+            var (schema, samplePayload) = schemaInferenceService.InferFromHtml(htmlContent, null, template.Slug);
+            version.UpdateDataSchema(schema, samplePayload, now);
         }
         else
         {
-            fileFormat = TemplateFormat.Html;
-            storageKey = StorageBuckets.TemplateVersionKey(template.ProjectId, template.Id, 1, ".html");
-            const string defaultHtml = "<!DOCTYPE html>\n<html lang=\"th\">\n<head>\n  <meta charset=\"UTF-8\" />\n</head>\n<body>\n  <h2>Template</h2>\n</body>\n</html>";
-            await using var htmlStream = await HybridSpoolStream.CreateFromUtf8StringAsync(defaultHtml, ct: ct);
-            await storageService.UploadAsync(StorageBuckets.Templates, storageKey, htmlStream, "text/html; charset=utf-8", ct);
+            var schema = schemaInferenceService.InferSchemaFromPlaceholders([], templateSlug: template.Slug);
+            var samplePayload = schemaInferenceService.GenerateDefaultSamplePayload([]);
+            version.UpdateDataSchema(schema, samplePayload, now);
         }
 
-        // 4. Append-Only Initial Version & Compensating Storage Cleanup on Persistence Failure
-        var initialVersion = template.CreateNextVersion(
-            storageKey,
-            fileFormat,
-            projectContext.CallerIdentity ?? "system",
-            now,
-            "Initial version");
+        version.UpdateMappingsSnapshot(FieldMappingSnapshotSerializer.Serialize(template.FieldMappings), now);
+    }
 
+    private async Task CompensateStorageDeleteAsync(string storageKey, Exception primaryEx)
+    {
         try
         {
-            await templateRepo.AddAsync(template, ct);
-            await unitOfWork.CommitAsync(ct);
+            await storageService.DeleteAsync(StorageBuckets.Templates, storageKey, CancellationToken.None);
         }
-        catch (Exception primaryEx)
+        catch (Exception cleanupEx)
         {
-            try
-            {
-                await storageService.DeleteAsync(StorageBuckets.Templates, storageKey, CancellationToken.None);
-            }
-            catch (Exception cleanupEx)
-            {
-                primaryEx.Data["OrphanedStorageKey"] = storageKey;
-                primaryEx.Data["CompensatingDeleteError"] = cleanupEx.Message;
-                Trace.TraceWarning(
-                    "Failed to delete orphaned template object '{0}' after database commit failure: {1}",
-                    storageKey,
-                    cleanupEx.Message);
-            }
-
-            throw;
+            primaryEx.Data["OrphanedStorageKey"] = storageKey;
+            primaryEx.Data["CompensatingDeleteError"] = cleanupEx.Message;
+            Trace.TraceWarning(
+                "Failed to delete orphaned template object '{0}' after database commit failure: {1}",
+                storageKey,
+                cleanupEx.Message);
         }
-
-        return new TemplateResultDto(
-            template.Id.Value,
-            template.ProjectId.Value,
-            template.Name,
-            template.Slug,
-            template.Category,
-            template.IsActive,
-            template.CurrentVersionId,
-            initialVersion.FileFormat?.Name,
-            template.CreatedAt,
-            template.UpdatedAt,
-            template.GetConcurrencyToken()
-        );
     }
 }

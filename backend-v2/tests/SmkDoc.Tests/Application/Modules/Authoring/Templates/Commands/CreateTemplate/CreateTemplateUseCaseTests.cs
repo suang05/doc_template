@@ -21,6 +21,7 @@ public sealed class CreateTemplateUseCaseTests
     private readonly IDocxSecurityScanner _securityScanner = Substitute.For<IDocxSecurityScanner>();
     private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
+    private readonly ISchemaInferenceService _schemaInference = Substitute.For<ISchemaInferenceService>();
     private readonly FakeTimeProvider _timeProvider = TestConstants.CreateFakeClock();
 
     public CreateTemplateUseCaseTests()
@@ -30,6 +31,13 @@ public sealed class CreateTemplateUseCaseTests
         _projectContext.CallerIdentity.Returns("erp-system");
         _securityScanner.Scan(Arg.Any<Stream>()).Returns(new DocxScanResult(true, []));
         _unitOfWork.CommitAsync(Arg.Any<CancellationToken>()).Returns(1);
+
+        _schemaInference.InferFromHtml(Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<string?>())
+            .Returns(("{\"$schema\":\"mock-schema\"}", "{}"));
+        _schemaInference.InferSchemaFromPlaceholders(Arg.Any<IEnumerable<string>>(), Arg.Any<string?>(), Arg.Any<string?>())
+            .Returns("{\"$schema\":\"mock-schema\"}");
+        _schemaInference.GenerateDefaultSamplePayload(Arg.Any<IEnumerable<string>>())
+            .Returns("{}");
     }
 
     private CreateTemplateUseCase CreateSut() => new(
@@ -38,6 +46,7 @@ public sealed class CreateTemplateUseCaseTests
         _securityScanner,
         _projectContext,
         _unitOfWork,
+        _schemaInference,
         _timeProvider);
 
     [Fact]
@@ -124,7 +133,10 @@ public sealed class CreateTemplateUseCaseTests
             Arg.Is<Template>(t =>
                 t.Versions.Count == 1 &&
                 t.Versions.Single().Version == 1 &&
-                t.Versions.Single().StorageKey == expectedKey),
+                t.Versions.Single().StorageKey == expectedKey &&
+                t.Versions.Single().MappingsSnapshot == "[]" &&
+                t.Versions.Single().DataSchema == "{\"$schema\":\"mock-schema\"}" &&
+                t.Versions.Single().SamplePayload == "{}"),
             Arg.Any<CancellationToken>());
         await _unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
     }

@@ -591,6 +591,24 @@ public sealed class CleanArchitectureTests
     }
 
     [Fact]
+    public void CommitTemplateDraftUseCase_Must_Not_Inject_IProjectRepository()
+    {
+        // Arrange
+        var appAssembly = typeof(ICurrentProjectContext).Assembly;
+        var useCaseType = appAssembly.GetType("SmkDoc.Application.Modules.Authoring.Templates.Commands.CommitTemplateDraft.CommitTemplateDraftUseCase");
+        useCaseType.Should().NotBeNull();
+
+        // Assert
+        var ctors = useCaseType!.GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+        foreach (var ctor in ctors)
+        {
+            var paramTypes = ctor.GetParameters().Select(p => p.ParameterType.Name).ToList();
+            paramTypes.Should().NotContain("IProjectRepository",
+                "CommitTemplateDraftUseCase must not inject IProjectRepository; ambient tenant validation is performed via ICurrentProjectContext.IsResolved.");
+        }
+    }
+
+    [Fact]
     public void Streaming_Ports_Must_Not_Expose_ByteArray_Return_Types()
     {
         var streamingPorts = new[]

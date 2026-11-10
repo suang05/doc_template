@@ -121,6 +121,43 @@ public sealed class SaveTemplateHtmlUseCaseTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_WhenNoPriorMappingsExist_ShouldSetDefaultEmptyArrayMappingsSnapshot()
+    {
+        // Arrange
+        var templateId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+
+        Template template = TemplateBuilder.ATemplate()
+            .WithId(templateId)
+            .WithProjectId(projectId)
+            .WithSlug("new-contract")
+            .WithName("new-contract");
+
+        _templateRepo.GetByIdWithDetailsAsync(new TemplateId(templateId), Arg.Any<CancellationToken>())
+            .Returns(template);
+
+        _schemaInference.InferFromHtml(Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<string?>())
+            .Returns(("{\"$schema\":\"mock\"}", "{}"));
+
+        var request = new SaveTemplateHtmlCommand(
+            TemplateId: templateId,
+            Html: "<html><body>Blank</body></html>",
+            SamplePayload: "{}",
+            ChangeNote: "Initial HTML"
+        );
+
+        // Act
+        var result = await CreateSut().ExecuteAsync(request);
+
+        // Assert
+        result.Version.Should().Be(1);
+        _templateRepo.Received(1).Update(
+            Arg.Is<Template>(t => t.Versions.Any(v =>
+                v.Version == 1 &&
+                v.MappingsSnapshot == "[]")));
+    }
+
+    [Fact]
     public async Task ExecuteAsync_WhenDbCommitFails_ShouldDeleteOrphanedVersionObjectFromMinio()
     {
         // Arrange

@@ -20,7 +20,6 @@ public sealed class CommitTemplateDraftUseCaseTests
     private readonly IStorageService _storageService = Substitute.For<IStorageService>();
     private readonly ITemplateRepository _templateRepo = Substitute.For<ITemplateRepository>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
-    private readonly IProjectRepository _projectRepo = Substitute.For<IProjectRepository>();
     private readonly ISchemaInferenceService _schemaInference = Substitute.For<ISchemaInferenceService>();
     private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
     private readonly FakeTimeProvider _timeProvider = TestConstants.CreateFakeClock();
@@ -32,15 +31,6 @@ public sealed class CommitTemplateDraftUseCaseTests
         _projectContext.IsResolved.Returns(true);
         _projectContext.ProjectId.Returns(_defaultProjectId);
         _projectContext.CallerIdentity.Returns("studio-user");
-
-        Project sampleProject = Project.Create(
-            CompanyId.New(),
-            ProjectName.Create("Default Project"),
-            ProjectSlug.Create("default-proj"),
-            _timeProvider.GetUtcNow());
-
-        _projectRepo.GetByIdAsync(Arg.Any<ProjectId>(), Arg.Any<CancellationToken>())
-            .Returns(sampleProject);
     }
 
     private CommitTemplateDraftUseCase CreateSut() => new(
@@ -48,7 +38,6 @@ public sealed class CommitTemplateDraftUseCaseTests
         _storageService,
         _templateRepo,
         _unitOfWork,
-        _projectRepo,
         _schemaInference,
         _projectContext,
         _timeProvider);
@@ -79,8 +68,46 @@ public sealed class CommitTemplateDraftUseCaseTests
             Arg.Any<Stream>(),
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             Arg.Any<CancellationToken>());
+        await _templateRepo.Received(1).AddAsync(
+            Arg.Is<Template>(t =>
+                t.Versions.Single().MappingsSnapshot == "[]"),
+            Arg.Any<CancellationToken>());
         await _unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
         await _draftCache.Received(1).RemoveAsync(_defaultProjectId, "draft-commit", Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenNoMappingsProvided_ShouldFallbackToDraftPlaceholdersAndSetEmptyMappingsSnapshot()
+    {
+        // Arrange
+        var placeholders = new List<string> { "invoice_no", "customer_name" };
+        var entry = new TemplateDraftEntry("draft-fallback", _defaultProjectId.Value, "drafts/contract.docx", "contract.docx", ".docx", placeholders);
+        var command = new CommitTemplateDraftCommand("draft-fallback", "Contract", "contract", "legal", []);
+
+        _draftCache.GetAsync(_defaultProjectId, "draft-fallback", Arg.Any<CancellationToken>()).Returns(entry);
+        _draftCache.OpenStreamAsync(entry, Arg.Any<CancellationToken>()).Returns(new MemoryStream(Encoding.UTF8.GetBytes("docx-content")));
+        _storageService.UploadAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<Stream>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(ci => ci.ArgAt<string>(1));
+        _schemaInference.InferSchemaFromPlaceholders(Arg.Any<IEnumerable<string>>(), Arg.Any<string?>(), Arg.Any<string?>())
+            .Returns("{\"$schema\":\"mock-schema\"}");
+        _schemaInference.GenerateDefaultSamplePayload(Arg.Any<IEnumerable<string>>())
+            .Returns("{\"invoice_no\":\"INV-001\"}");
+
+        // Act
+        var result = await CreateSut().ExecuteAsync(command, CancellationToken.None);
+
+        // Assert
+        result.TemplateId.Should().NotBeEmpty();
+        _schemaInference.Received(1).InferSchemaFromPlaceholders(
+            Arg.Is<IEnumerable<string>>(p => p.SequenceEqual(placeholders)),
+            null,
+            "contract");
+        await _templateRepo.Received(1).AddAsync(
+            Arg.Is<Template>(t =>
+                t.Versions.Single().MappingsSnapshot == "[]" &&
+                t.Versions.Single().DataSchema == "{\"$schema\":\"mock-schema\"}" &&
+                t.Versions.Single().SamplePayload == "{\"invoice_no\":\"INV-001\"}"),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -142,7 +169,8 @@ public sealed class CommitTemplateDraftUseCaseTests
         await _templateRepo.Received(1).AddAsync(
             Arg.Is<Template>(t =>
                 t.FieldMappings.Count == 2 &&
-                !string.IsNullOrWhiteSpace(t.Versions.Single().MappingsSnapshot)),
+                !string.IsNullOrWhiteSpace(t.Versions.Single().MappingsSnapshot) &&
+                t.Versions.Single().MappingsSnapshot!.Contains("customer.name")),
             Arg.Any<CancellationToken>());
     }
 

@@ -78,14 +78,13 @@ public sealed class SaveTemplateHtmlUseCase(
                 ?? TemplatePageSettings.Default;
             newVersion.UpdatePageSettings(effectivePageSettings, now);
 
-            string? mappingsSnapshot = template.FieldMappings.Count > 0
+            string mappingsSnapshot = template.FieldMappings.Count > 0
                 ? FieldMappingSnapshotSerializer.Serialize(template.FieldMappings)
-                : priorPublishedVersion?.MappingsSnapshot;
+                : (!string.IsNullOrWhiteSpace(priorPublishedVersion?.MappingsSnapshot)
+                    ? priorPublishedVersion.MappingsSnapshot
+                    : "[]");
 
-            if (!string.IsNullOrWhiteSpace(mappingsSnapshot))
-            {
-                newVersion.UpdateMappingsSnapshot(mappingsSnapshot, now);
-            }
+            newVersion.UpdateMappingsSnapshot(mappingsSnapshot, now);
 
             // 4. Persist aggregate update
             templateRepo.Update(template);

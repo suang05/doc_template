@@ -17,7 +17,6 @@ public sealed class CommitTemplateDraftUseCase(
     IStorageService storageService,
     ITemplateRepository templateRepo,
     IUnitOfWork unitOfWork,
-    IProjectRepository projectRepo,
     ISchemaInferenceService schemaInferenceService,
     ICurrentProjectContext projectContext,
     TimeProvider timeProvider) : IUseCase<CommitTemplateDraftCommand, CommitDraftResultDto>
@@ -31,12 +30,6 @@ public sealed class CommitTemplateDraftUseCase(
 
         var draft = await draftCache.GetAsync(projectContext.ProjectId, command.DraftId, ct)
             ?? throw new DraftExpiredException(command.DraftId);
-
-        if (projectRepo != null)
-        {
-            _ = await projectRepo.GetByIdAsync(projectContext.ProjectId, ct)
-                ?? throw new NotFoundException($"Project '{projectContext.ProjectId}' not found.");
-        }
 
         if (await templateRepo.SlugExistsAsync(command.Slug, ct))
         {
@@ -68,7 +61,10 @@ public sealed class CommitTemplateDraftUseCase(
 
         try
         {
-            var placeholderList = command.Mappings?.Select(m => m.Placeholder).ToList() ?? [];
+            var placeholderList = command.Mappings is { Count: > 0 }
+                ? command.Mappings.Select(m => m.Placeholder).Where(p => !string.IsNullOrWhiteSpace(p)).Distinct(StringComparer.OrdinalIgnoreCase).ToList()
+                : (draft.Placeholders ?? []).Where(p => !string.IsNullOrWhiteSpace(p)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+
             string? inferredSchema = schemaInferenceService?.InferSchemaFromPlaceholders(placeholderList, templateSlug: command.Slug);
             string? samplePayload = schemaInferenceService?.GenerateDefaultSamplePayload(placeholderList);
 
@@ -111,8 +107,9 @@ public sealed class CommitTemplateDraftUseCase(
                 }
 
                 template.ReplaceFieldMappings(mappings, now);
-                version.UpdateMappingsSnapshot(FieldMappingSnapshotSerializer.Serialize(template.FieldMappings), now);
             }
+
+            version.UpdateMappingsSnapshot(FieldMappingSnapshotSerializer.Serialize(template.FieldMappings), now);
 
             template.PublishVersion(version, now);
 
