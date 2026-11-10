@@ -41,16 +41,35 @@ public class MinioStorageService : IStorageService
     {
         await EnsureBucketExistsAsync(bucket, ct);
 
-        long length = data.CanSeek ? (data.Length - data.Position) : -1;
-        var args = new PutObjectArgs()
-            .WithBucket(bucket)
-            .WithObject(objectName)
-            .WithStreamData(data)
-            .WithObjectSize(length)
-            .WithContentType(contentType);
+        Stream uploadStream = data;
+        HybridSpoolStream? temporarySpool = null;
 
-        await _client.PutObjectAsync(args, ct);
-        return objectName;
+        if (!data.CanSeek)
+        {
+            temporarySpool = await HybridSpoolStream.SpoolFromAsync(data, ct: ct);
+            uploadStream = temporarySpool;
+        }
+
+        try
+        {
+            long length = uploadStream.Length - uploadStream.Position;
+            var args = new PutObjectArgs()
+                .WithBucket(bucket)
+                .WithObject(objectName)
+                .WithStreamData(uploadStream)
+                .WithObjectSize(length)
+                .WithContentType(contentType);
+
+            await _client.PutObjectAsync(args, ct);
+            return objectName;
+        }
+        finally
+        {
+            if (temporarySpool is not null)
+            {
+                await temporarySpool.DisposeAsync();
+            }
+        }
     }
 
     public async Task<Stream> DownloadAsync(string bucket, string objectName, CancellationToken ct = default)

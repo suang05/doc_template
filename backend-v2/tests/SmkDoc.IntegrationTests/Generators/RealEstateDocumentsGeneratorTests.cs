@@ -8,6 +8,7 @@ using SmkDoc.Domain.Enums;
 using SmkDoc.Infrastructure.Engines.Excel;
 using SmkDoc.Infrastructure.Engines.Word;
 using SmkDoc.Infrastructure.Imaging;
+using SmkDoc.Infrastructure.Parsing;
 
 namespace SmkDoc.IntegrationTests.Generators;
 
@@ -149,7 +150,12 @@ public sealed class RealEstateDocumentsGeneratorTests
         // 3. Test render via DocxTemplateEngine
         var mediaService = new MediaGenerationService(new QrCodeService(), new BarcodeService(), Substitute.For<IImageOptimizer>());
         var mediaInjector = new WordMediaInjector(mediaService);
-        var docxEngine = new DocxTemplateEngine(Substitute.For<IPdfRenderer>(), mediaInjector);
+        var docxEngine = new DocxTemplateEngine(
+            Substitute.For<IPdfRenderer>(),
+            mediaInjector,
+            new WordTextReplacer(),
+            new WordTableExpander(),
+            new JsonDataParser());
 
         using var templateStream = File.OpenRead(docxPath);
         await using var renderedStream = await docxEngine.RenderStreamAsync(templateStream, jsonString, OutputFormat.Docx);
@@ -280,7 +286,11 @@ public sealed class RealEstateDocumentsGeneratorTests
         // 3. Test render via ExcelTemplateEngine
         var excelMediaService = new MediaGenerationService(new QrCodeService(), new BarcodeService(), Substitute.For<IImageOptimizer>());
         var mediaInjector = new ExcelMediaInjector(excelMediaService);
-        var excelEngine = new ExcelTemplateEngine(Substitute.For<IPdfRenderer>(), mediaInjector);
+        var excelEngine = new ExcelTemplateEngine(
+            Substitute.For<IPdfRenderer>(),
+            mediaInjector,
+            new ExcelTableExpander(),
+            new JsonDataParser());
 
         using var templateStream = File.OpenRead(xlsxPath);
         await using var renderedStream = await excelEngine.RenderStreamAsync(templateStream, jsonString, OutputFormat.Xlsx);

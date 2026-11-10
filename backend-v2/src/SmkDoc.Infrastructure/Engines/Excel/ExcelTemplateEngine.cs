@@ -11,11 +11,9 @@ namespace SmkDoc.Infrastructure.Engines.Excel;
 public sealed class ExcelTemplateEngine(
     IPdfRenderer pdfRenderer,
     ExcelMediaInjector mediaInjector,
-    IJsonNamedArrayParser? jsonNamedArrayParser = null) : IRenderEngine
+    ExcelTableExpander tableExpander,
+    IJsonNamedArrayParser jsonNamedArrayParser) : IRenderEngine
 {
-    private readonly ExcelTableExpander _tableExpander = new();
-    private readonly IJsonNamedArrayParser _jsonNamedArrayParser = jsonNamedArrayParser ?? new JsonDataParser();
-
     public RenderEngineType EngineType => RenderEngineType.Excel;
 
     public async Task<Stream> RenderStreamAsync(
@@ -24,7 +22,7 @@ public sealed class ExcelTemplateEngine(
         OutputFormat outputFormat,
         CancellationToken ct = default)
     {
-        var (replacements, arrays) = _jsonNamedArrayParser.FlattenNamed(inputDataJson);
+        var (replacements, arrays) = jsonNamedArrayParser.FlattenNamed(inputDataJson);
 
         await using var inputSpool = await HybridSpoolStream.SpoolFromAsync(templateStream, ct: ct);
         using var workbook = new XLWorkbook(inputSpool);
@@ -43,7 +41,7 @@ public sealed class ExcelTemplateEngine(
             }
 
             mediaInjector.InjectMedia(worksheet, replacements);
-            _tableExpander.ExpandTables(worksheet, arrays);
+            tableExpander.ExpandTables(worksheet, arrays);
 
             foreach (var cell in worksheet.CellsUsed())
             {

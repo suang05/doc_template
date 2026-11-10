@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
@@ -155,6 +156,45 @@ public sealed class GenerationLogBatchWorkerTests
         // Assert: remaining items drained during shutdown
         await _logRepo.Received().AddRangeAsync(
             Arg.Is<IEnumerable<GenerationLog>>(logs => logs.Count() == 2),
+            Arg.Any<CancellationToken>());
+        await _unitOfWork.Received().CommitAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenApplicationStoppingTriggered_CompletesQueueAndDrainsBatch()
+    {
+        // Arrange
+        var queue = new ChannelGenerationLogQueue(capacity: 100);
+        var options = Options.Create(new GenerationLogWorkerOptions
+        {
+            BatchSize = 100,
+            FlushInterval = TimeSpan.FromMinutes(1)
+        });
+
+        using var stoppingCts = new CancellationTokenSource();
+        var lifetime = Substitute.For<IHostApplicationLifetime>();
+        lifetime.ApplicationStopping.Returns(stoppingCts.Token);
+
+        var sut = new GenerationLogBatchWorker(
+            queue,
+            _scopeFactory,
+            NullLogger<GenerationLogBatchWorker>.Instance,
+            _timeProvider,
+            options,
+            lifetime);
+
+        await queue.EnqueueAsync(CreateSampleLog());
+
+        // Act
+        await sut.StartAsync(CancellationToken.None);
+        await Task.Delay(50);
+        stoppingCts.Cancel();
+        await Task.Delay(50);
+        await sut.StopAsync(CancellationToken.None);
+
+        // Assert
+        await _logRepo.Received().AddRangeAsync(
+            Arg.Is<IEnumerable<GenerationLog>>(logs => logs.Count() == 1),
             Arg.Any<CancellationToken>());
         await _unitOfWork.Received().CommitAsync(Arg.Any<CancellationToken>());
     }

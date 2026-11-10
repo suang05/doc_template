@@ -5,6 +5,7 @@ using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Infrastructure.Engines.Word;
 using SmkDoc.Infrastructure.Imaging;
+using SmkDoc.Infrastructure.Parsing;
 
 namespace SmkDoc.Tests.Infrastructure.Engines.Word;
 
@@ -18,7 +19,12 @@ public sealed class DocxTemplateEngineTests
             Substitute.For<IBarcodeService>(),
             Substitute.For<IImageOptimizer>());
         var media = new WordMediaInjector(mediaService);
-        return new DocxTemplateEngine(pdfRenderer, media);
+        return new DocxTemplateEngine(
+            pdfRenderer,
+            media,
+            new WordTextReplacer(),
+            new WordTableExpander(),
+            new JsonDataParser());
     }
 
     private static MemoryStream BuildDocx(string paragraphText)

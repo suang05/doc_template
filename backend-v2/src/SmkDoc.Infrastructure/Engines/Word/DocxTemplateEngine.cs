@@ -10,12 +10,10 @@ namespace SmkDoc.Infrastructure.Engines.Word;
 public sealed class DocxTemplateEngine(
     IPdfRenderer pdfRenderer,
     WordMediaInjector mediaInjector,
-    IJsonTableParser? jsonTableParser = null) : IRenderEngine
+    WordTextReplacer textReplacer,
+    WordTableExpander tableExpander,
+    IJsonTableParser jsonTableParser) : IRenderEngine
 {
-    private readonly WordTextReplacer _textReplacer = new();
-    private readonly WordTableExpander _tableExpander = new();
-    private readonly IJsonTableParser _jsonTableParser = jsonTableParser ?? new JsonDataParser();
-
     public RenderEngineType EngineType => RenderEngineType.Docx;
 
     public async Task<Stream> RenderStreamAsync(
@@ -24,7 +22,7 @@ public sealed class DocxTemplateEngine(
         OutputFormat outputFormat,
         CancellationToken ct = default)
     {
-        var (replacements, tables) = _jsonTableParser.Flatten(inputDataJson);
+        var (replacements, tables) = jsonTableParser.Flatten(inputDataJson);
 
         var spoolStream = await HybridSpoolStream.SpoolFromAsync(templateStream, ct: ct);
         try
@@ -38,10 +36,10 @@ public sealed class DocxTemplateEngine(
                 mediaInjector.InjectMedia(mainPart, replacements);
 
                 // 2. Expand dynamic table rows
-                _tableExpander.ExpandTables(mainPart, tables);
+                tableExpander.ExpandTables(mainPart, tables);
 
                 // 3. Replace text placeholders and Thai transforms
-                _textReplacer.ReplaceTexts(mainPart, replacements);
+                textReplacer.ReplaceTexts(mainPart, replacements);
 
                 mainPart.Document.Save();
             }

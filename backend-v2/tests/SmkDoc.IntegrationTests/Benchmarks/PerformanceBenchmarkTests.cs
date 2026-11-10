@@ -12,6 +12,7 @@ using SmkDoc.Infrastructure.Engines.Html;
 using SmkDoc.Infrastructure.Engines.Html.Helpers;
 using SmkDoc.Infrastructure.Engines.Word;
 using SmkDoc.Infrastructure.Imaging;
+using SmkDoc.Infrastructure.Parsing;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -137,7 +138,11 @@ public sealed class PerformanceBenchmarkTests
         // 2. Measure Execution
         var excelMediaService = new MediaGenerationService(Substitute.For<IQrCodeService>(), Substitute.For<IBarcodeService>(), Substitute.For<IImageOptimizer>());
         var mediaInjector = new ExcelMediaInjector(excelMediaService);
-        var engine = new ExcelTemplateEngine(Substitute.For<IPdfRenderer>(), mediaInjector);
+        var engine = new ExcelTemplateEngine(
+            Substitute.For<IPdfRenderer>(),
+            mediaInjector,
+            new ExcelTableExpander(),
+            new JsonDataParser());
 
         // Warm up
         using (var warmStream = new MemoryStream(templateBytes))
@@ -218,7 +223,12 @@ public sealed class PerformanceBenchmarkTests
         // 2. Measure Execution
         var wordMediaService = new MediaGenerationService(Substitute.For<IQrCodeService>(), Substitute.For<IBarcodeService>(), Substitute.For<IImageOptimizer>());
         var mediaInjector = new WordMediaInjector(wordMediaService);
-        var engine = new DocxTemplateEngine(Substitute.For<IPdfRenderer>(), mediaInjector);
+        var engine = new DocxTemplateEngine(
+            Substitute.For<IPdfRenderer>(),
+            mediaInjector,
+            new WordTextReplacer(),
+            new WordTableExpander(),
+            new JsonDataParser());
 
         // Warm up
         using (var warmStream = new MemoryStream(templateBytes))

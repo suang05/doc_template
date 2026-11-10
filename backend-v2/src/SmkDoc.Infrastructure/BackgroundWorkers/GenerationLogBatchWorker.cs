@@ -20,14 +20,23 @@ public sealed class GenerationLogBatchWorker(
     IServiceScopeFactory scopeFactory,
     ILogger<GenerationLogBatchWorker> logger,
     TimeProvider timeProvider,
-    IOptions<GenerationLogWorkerOptions>? options = null) : BackgroundService
+    IOptions<GenerationLogWorkerOptions>? options = null,
+    IHostApplicationLifetime? lifetime = null) : BackgroundService
 {
     private readonly int _batchSize = options?.Value.BatchSize ?? 100;
     private readonly TimeSpan _flushInterval = options?.Value.FlushInterval ?? TimeSpan.FromMilliseconds(500);
     private readonly TimeProvider _timeProvider = timeProvider;
 
+    public override async Task StopAsync(CancellationToken cancellationToken)
+    {
+        queue.Complete();
+        await base.StopAsync(cancellationToken);
+    }
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        using var stoppingRegistration = lifetime?.ApplicationStopping.Register(() => queue.Complete());
+
         logger.LogInformation(
             "GenerationLogBatchWorker started with batch size {BatchSize} and flush interval {FlushIntervalMs}ms.",
             _batchSize,

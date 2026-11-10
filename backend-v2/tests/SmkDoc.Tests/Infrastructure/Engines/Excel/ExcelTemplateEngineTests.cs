@@ -3,6 +3,7 @@ using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Infrastructure.Engines.Excel;
 using SmkDoc.Infrastructure.Imaging;
+using SmkDoc.Infrastructure.Parsing;
 
 namespace SmkDoc.Tests.Infrastructure.Engines.Excel;
 
@@ -25,7 +26,11 @@ public sealed class ExcelTemplateEngineTests
 
         var mediaService = new MediaGenerationService(qr, bc, opt);
         var mediaInjector = new ExcelMediaInjector(mediaService);
-        return new ExcelTemplateEngine(pdf, mediaInjector);
+        return new ExcelTemplateEngine(
+            pdf,
+            mediaInjector,
+            new ExcelTableExpander(),
+            new JsonDataParser());
     }
 
     private static MemoryStream BuildWorkbook(Action<IXLWorksheet> setup)

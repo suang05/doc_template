@@ -116,6 +116,9 @@ public static class RenderingEngineServiceExtensions
         services.AddSingleton<IDocumentMetrics, DocumentMetrics>();
 
         // 3. Render Engines (HTML, DOCX, XLSX)
+        services.AddSingleton<WordTextReplacer>();
+        services.AddSingleton<WordTableExpander>();
+        services.AddSingleton<ExcelTableExpander>();
         services.AddScoped<WordMediaInjector>();
         services.AddScoped<ExcelMediaInjector>();
         services.AddSingleton<IHtmlHelperRegistry, HtmlHelperRegistry>();

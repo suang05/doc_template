@@ -8,6 +8,7 @@ using SmkDoc.Domain.Enums;
 using SmkDoc.Infrastructure.Engines.Excel;
 using SmkDoc.Infrastructure.Engines.Word;
 using SmkDoc.Infrastructure.Imaging;
+using SmkDoc.Infrastructure.Parsing;
 
 namespace SmkDoc.IntegrationTests.Generators;
 
@@ -165,7 +166,12 @@ public sealed class MultiPageFixturesGeneratorTests
         // 3. Render and verify using DocxTemplateEngine
         var mediaService = new MediaGenerationService(Substitute.For<IQrCodeService>(), Substitute.For<IBarcodeService>(), Substitute.For<IImageOptimizer>());
         var mediaInjector = new WordMediaInjector(mediaService);
-        var engine = new DocxTemplateEngine(Substitute.For<IPdfRenderer>(), mediaInjector);
+        var engine = new DocxTemplateEngine(
+            Substitute.For<IPdfRenderer>(),
+            mediaInjector,
+            new WordTextReplacer(),
+            new WordTableExpander(),
+            new JsonDataParser());
 
         using var templateStream = File.OpenRead(docxPath);
         await using var renderedStream = await engine.RenderStreamAsync(templateStream, jsonString, OutputFormat.Docx);
@@ -301,7 +307,11 @@ public sealed class MultiPageFixturesGeneratorTests
         // 3. Render and verify using ExcelTemplateEngine
         var excelMediaService = new MediaGenerationService(Substitute.For<IQrCodeService>(), Substitute.For<IBarcodeService>(), Substitute.For<IImageOptimizer>());
         var mediaInjector = new ExcelMediaInjector(excelMediaService);
-        var engine = new ExcelTemplateEngine(Substitute.For<IPdfRenderer>(), mediaInjector);
+        var engine = new ExcelTemplateEngine(
+            Substitute.For<IPdfRenderer>(),
+            mediaInjector,
+            new ExcelTableExpander(),
+            new JsonDataParser());
 
         using var templateStream = File.OpenRead(xlsxPath);
         await using var renderedStream = await engine.RenderStreamAsync(templateStream, jsonString, OutputFormat.Xlsx);

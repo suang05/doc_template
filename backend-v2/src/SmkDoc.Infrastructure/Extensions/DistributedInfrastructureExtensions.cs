@@ -32,9 +32,18 @@ public static class DistributedInfrastructureExtensions
             prefix));
 
         // 2. Distributed Store & Streams Queue
+        bool enforceDistributed = string.Equals(configuration["ASPNETCORE_ENVIRONMENT"], "Production", StringComparison.OrdinalIgnoreCase)
+            || configuration.GetValue<bool>("EnforceDistributedInfrastructure");
+
         if (redisConn is not null)
         {
-            services.AddSingleton<IConnectionMultiplexer>(_ => ConnectionMultiplexer.Connect(redisConn));
+            services.AddSingleton<IConnectionMultiplexer>(_ =>
+            {
+                var options = ConfigurationOptions.Parse(redisConn);
+                options.AbortOnConnectFail = false;
+                options.ConnectRetry = 5;
+                return ConnectionMultiplexer.Connect(options);
+            });
 
             services.AddSingleton<IDatasetResultCache>(sp => new RedisDatasetResultCache(
                 sp.GetRequiredService<IConnectionMultiplexer>(),
@@ -53,6 +62,12 @@ public static class DistributedInfrastructureExtensions
                 var logger = sp.GetRequiredService<ILogger<RedisDocumentRenderQueue>>();
                 return new RedisDocumentRenderQueue(multiplexer, logger, prefix);
             });
+        }
+        else if (enforceDistributed)
+        {
+            throw new InvalidOperationException(
+                "Distributed infrastructure is strictly required in Production environment (or when EnforceDistributedInfrastructure is enabled). " +
+                "Configure ConnectionStrings:Redis or REDIS_URL to prevent split-brain idempotency and trapped in-memory jobs.");
         }
         else
         {

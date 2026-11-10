@@ -3,6 +3,7 @@ using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Infrastructure.Engines.Excel;
 using SmkDoc.Infrastructure.Imaging;
+using SmkDoc.Infrastructure.Parsing;
 
 namespace SmkDoc.IntegrationTests.Generators;
 
@@ -20,7 +21,11 @@ public sealed class ExcelFixtureTemplateTests
 
         var mediaService = new MediaGenerationService(qr, bc, opt);
         var mediaInjector = new ExcelMediaInjector(mediaService);
-        return new ExcelTemplateEngine(pdf, mediaInjector);
+        return new ExcelTemplateEngine(
+            pdf,
+            mediaInjector,
+            new ExcelTableExpander(),
+            new JsonDataParser());
     }
 
     [Fact]
