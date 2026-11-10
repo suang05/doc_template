@@ -561,4 +561,4 @@ public sealed class DocumentRetentionWorker(
 + var bound = await dataBindingEngine.BindAndValidateAsync(template, version, payload, skip, ct);
 + var rawStream = await engine.RenderStreamAsync(templateStream, bound.DataJson, format, ct);
 ```
-*Rationale: Single-method pass-through wrappers that merely wrap calls and convert DTOs introduce artificial maintenance overhead and redundant object allocations without adding business value. Connect the pipeline directly to `IDataBindingEngine`.*
+*Rationale: Concrete pipeline violation of system-wide CodebaseSSoTAndDeduplicationFirewall. Single-method pass-through wrappers that merely wrap calls and convert DTOs introduce artificial maintenance overhead and redundant object allocations without adding business value. Connect the pipeline directly to `IDataBindingEngine`.*

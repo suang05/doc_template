@@ -100,6 +100,9 @@ backend-v2/src/SmkDoc.Application/Modules/
 * **Why Inward-Only Dependency Flow**: Prevents database schema changes and third-party library churn from forcing breaking changes onto core business invariants.
 * **Why Single-Responsibility `IUseCase` over MediatR**: Eliminates runtime reflection, assembly scanning allocations, and opaque call stacks. Direct `IUseCase<TRequest, TResponse>` gives compile-time verification, clean stack traces, and straightforward unit testing via `CreateSut()`.
 * **Why Decoupled Gotenberg Chromium Cluster**: Embedded headless browser processes are prone to memory leaks, font shifting across OS platforms, and sudden SIGSEGV process crashes. External Gotenberg pods isolate rendering compute from the core API gateway.
+* **Why Modular Composition Roots across All Layers**: Monolithic service registration classes accumulate debt indiscriminately, mask lifetime mismatches (e.g. captive dependencies), and bloat git merge conflicts. Decomposing DI by Bounded Context and Subsystem isolates concerns and ensures test harness parity.
+* **Why Total Elimination of God Services**: Multi-action services inevitably accumulate unrelated dependencies, cross-cutting baggage, and hidden state couplings. Action-Centric Vertical Slices (1 UseCase = 1 Responsibility) isolate failure blast radiuses and eliminate regression bleed.
+* **Why Zero Pass-Through Indirection & Strict Codebase SSoT**: Artificial forwarding wrappers and duplicate helper methods create cognitive noise and memory allocations without delivering domain value. Every domain rule and engine must have exactly ONE authoritative implementation.
 
 ### 2.2 Proactive Structural Firewalls
 ```yaml
@@ -118,6 +121,18 @@ ApiOrchestrationFirewall:
 SliceModularityFirewall:
   Invariant: "Enforce 1-Primary-Type-Per-File co-located within feature slices."
   ActionOnViolation: "Split bundled types into separate dedicated files ({TypeName}.cs)."
+
+CompositionRootFirewall:
+  Invariant: "All DI registrations across ALL layers must be modularized by Bounded Context / Subsystem. Monolithic Program.cs or dumping registrations into root DependencyInjection.cs is strictly prohibited."
+  ActionOnViolation: "Decompose into Add{Context}Module() or Add{Subsystem}Infrastructure() extension methods."
+
+GodServiceEliminationFirewall:
+  Invariant: "Multi-action service classes are 100% prohibited across the entire platform. Every business capability must be an isolated Action-Centric Vertical Slice (1 UseCase = 1 Command/Query = 1 Responsibility). Boilerplate must be eliminated via C# 13 Primary Constructors and positional records, NEVER via generic CRUD base classes or runtime reflection."
+  ActionOnViolation: "Refactor fat multi-action service into isolated UseCase slices."
+
+CodebaseSSoTAndDeduplicationFirewall:
+  Invariant: "Every business rule, transformer, and engine must have exactly ONE authoritative implementation (Codebase SSoT). Zero duplicate services, zero pass-through indirection wrappers, and zero parallel shims."
+  ActionOnViolation: "Purge obsolete/wrapper services and route 100% of callers to the canonical SSoT implementation."
 ```
 
 ---

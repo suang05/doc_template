@@ -89,7 +89,7 @@ EventConsistencyFirewall:
 
 ---
 
-## 4. Level 4: Anti-Patterns & Unified Micro-Diffs (The 16 Fatal Traps)
+## 4. Level 4: Anti-Patterns & Unified Micro-Diffs (The 20 Fatal Traps)
 
 ### [TRAP-LOH-001]: Buffer Exceeding Large Object Heap Threshold
 ```diff
@@ -209,13 +209,14 @@ EventConsistencyFirewall:
 - // Over-engineered generic CRUD base class
 - public abstract class CrudServiceBase<TEntity, TDto, TId> : ICrudService<TDto, TId> { ... }
 - public class {Aggregate}Service : CrudServiceBase<{Aggregate}, {Aggregate}Dto, Guid> { ... }
-+ // Flat, single-responsibility vertical slice
++ // Flat, single-responsibility vertical slice complying with GodServiceEliminationFirewall
 + public sealed class {Verb}{Aggregate}UseCase(
 +     I{Aggregate}Repository {aggregate}Repository,
 +     IUnitOfWork unitOfWork) : IUseCase<{Verb}{Aggregate}Command, {Aggregate}ResultDto> {
 +     public async Task<{Aggregate}ResultDto> ExecuteAsync({Verb}{Aggregate}Command command, CancellationToken ct) { ... }
 + }
 ```
+*Rationale: Concrete layer violation of system-wide GodServiceEliminationFirewall. Multi-action generic base classes and fat services introduce artificial inheritance hierarchies, tight coupling, and obscure domain invariants. Every business capability must remain a flat, single-responsibility Action-Centric Vertical Slice.*
 
 ### [TRAP-SCALE-016]: Stateful In-Memory Singleton Preventing Horizontal Scaling
 ```diff
@@ -230,17 +231,48 @@ EventConsistencyFirewall:
 ```
 
 ### [TRAP-SSOT-017]: Relational Table Querying During Versioned Runtime Execution
->> SSoT DELEGATION: Full archetype and diff governed strictly by [document_rendering_mechanics.md](../03_specialized_mechanics/document_rendering_mechanics.md#trap-mech-007).
+```diff
+- var mappings = template.FieldMappings.ToList(); // REJECTED: Mutable relational query causes version drift
++ List<FieldMapping> mappings = !string.IsNullOrWhiteSpace(version.MappingsSnapshot)
++     ? FieldMappingSnapshotSerializer.Deserialize(template.Id, version.MappingsSnapshot, now)
++     : template.FieldMappings.ToList();
+```
+>> SSoT DELEGATION: Full archetype and mechanics governed strictly by [document_rendering_mechanics.md](../03_specialized_mechanics/document_rendering_mechanics.md#trap-mech-007).
 *Rationale: Querying mutable relational tables during document generation breaks version immutability. An author editing field mappings in the studio causes historical published versions to immediately drift and produce corrupt outputs. The frozen `TemplateVersion.MappingsSnapshot` is the single source of truth at runtime.*
 
 ### [TRAP-WRAPPER-018]: Anemic Pass-Through Wrapper & Redundant Intermediate DTOs
->> SSoT DELEGATION: Full archetype and diff governed strictly by [document_rendering_mechanics.md](../03_specialized_mechanics/document_rendering_mechanics.md#trap-mech-008).
-*Rationale: Creating single-method wrappers that merely forward arguments and duplicate DTO records adds cognitive overhead, increases maintenance debt, and allocates useless intermediate objects without providing any domain abstraction.*
+```diff
+- var prepared = await dataPreparationWrapper.PrepareDataAsync(template, version, payload, skip, ct);
+- var rawStream = await engine.RenderStreamAsync(templateStream, prepared.DataJson, format, ct);
++ var bound = await dataBindingEngine.BindAndValidateAsync(template, version, payload, skip, ct);
++ var rawStream = await engine.RenderStreamAsync(templateStream, bound.DataJson, format, ct);
+```
+>> SSoT DELEGATION: Governed system-wide by CodebaseSSoTAndDeduplicationFirewall in [01_system_architecture.md](./01_system_architecture.md#22-proactive-structural-firewalls); concrete pipeline application archetype governed by [document_rendering_mechanics.md](../03_specialized_mechanics/document_rendering_mechanics.md#trap-mech-008).
+*Rationale: Concrete layer violation of system-wide CodebaseSSoTAndDeduplicationFirewall. Creating single-method wrappers or parallel services that merely forward arguments and duplicate DTO records adds cognitive bloat and GC allocations without delivering any domain abstraction. Pipelines must consume canonical domain engines directly.*
 
 ### [TRAP-DI-019]: Monolithic Composition Root Sprawl
->> SSoT DELEGATION: Full archetype and diff governed strictly by [03_infrastructure_layer.md](../01_clean_arch_patterns/03_infrastructure_layer.md#trap-infra-006).
-*Rationale: Monolithic composition roots accumulate technical debt rapidly as developers append lines indiscriminately. Decomposing by subsystem enforces single responsibility and makes subsystem testing and lifecycle auditing straightforward.*
+```diff
+- // Root DependencyInjection.cs dumping 50+ registrations across unrelated modules
+- services.AddUseCase<GenerateDocumentCommand, ...>();
+- services.AddUseCase<CreateTemplateCommand, ...>();
+- services.AddUseCase<LoginUserCommand, ...>();
++ // Modular Bounded Context Installers complying with CompositionRootFirewall
++ services.AddRenderingModule();
++ services.AddAuthoringModule();
++ services.AddIntegrationModule();
++ services.AddIdentityAccessModule();
+```
+>> SSoT DELEGATION: Governed system-wide by CompositionRootFirewall in [01_system_architecture.md](./01_system_architecture.md#22-proactive-structural-firewalls); concrete Application module archetypes governed by [02_application_layer.md](../01_clean_arch_patterns/02_application_layer.md#36-modular-application-di-composition-archetype-addapplicationservices--bounded-context-modules); Infrastructure module archetypes governed by [03_infrastructure_layer.md](../01_clean_arch_patterns/03_infrastructure_layer.md#36-infrastructure-dependency-injection-composition-archetype).
+*Rationale: Concrete layer violation of system-wide CompositionRootFirewall. Monolithic composition roots accumulate technical debt rapidly as developers append registrations indiscriminately. Decomposing by Bounded Context and Subsystem enforces single responsibility and makes subsystem testing and lifecycle auditing straightforward.*
 
 ### [TRAP-PREVIEW-020]: Parallel Duplicate Preview UseCases
->> SSoT DELEGATION: Presentation routing governed strictly by [04_api_presentation_layer.md](../01_clean_arch_patterns/04_api_presentation_layer.md#trap-api-013); preview execution archetype governed strictly by [document_rendering_mechanics.md](../03_specialized_mechanics/document_rendering_mechanics.md#32-previewresourceusecase-previewdocumentusecase-archetype).
+```diff
+- // Divergent preview use cases maintaining duplicate rendering logic
+- public class PreviewMonacoUseCase { ... }
+- public class PreviewSlugUseCase { ... }
+- public class PreviewDraftUseCase { ... }
++ // Unified preview gateway routing all inputs through single non-persisting engine
++ public class PreviewDocumentUseCase(ITemplateRepository repo, IRenderEngineFactory factory, ...) : IUseCase<PreviewDocumentQuery, Stream> { ... }
+```
+>> SSoT DELEGATION: Presentation routing governed strictly by [04_api_presentation_layer.md](../01_clean_arch_patterns/04_api_presentation_layer.md#trap-api-013); preview execution archetype governed strictly by [document_rendering_mechanics.md](../03_specialized_mechanics/document_rendering_mechanics.md#32-unified-live-preview-gateway-archetype-previewresourceusecase--previewresourcequery).
 *Rationale: Having separate preview use cases for Monaco live HTML, template slugs, and studio mapping editors causes business logic duplication and engine divergence. Consolidate all preview modes into `PreviewDocumentUseCase`.*

@@ -188,6 +188,8 @@ Axiom3_ComplexityFirewallAndAntiOverEngineering:
     InheritanceDepth: <= 1 level (all classes marked `sealed` by default)
     NestingDepth: <= 2 levels (mandatory guard clauses and early exits; prohibit deeply nested if-else)
   AntiOverEngineeringRules:
+    ZeroGodServices: Multi-action service classes (e.g. giant *Service classes with 10+ methods) are 100% prohibited across the entire platform. Every business capability must be an isolated Action-Centric Vertical Slice (1 UseCase = 1 Command/Query = 1 Responsibility). Boilerplate must be eliminated via C# 13 Primary Constructors and positional records, NEVER via generic CRUD base classes or runtime reflection hacks.
+    ModularDependencyInjection: Monolithic DI composition roots and god-registrations in Program.cs or root DependencyInjection.cs are strictly prohibited. Every layer (Presentation, Application, Infrastructure) must decompose registrations into cohesive Bounded Context / Subsystem installers (e.g. AddRenderingModule(), AddAuthoringModule(), AddPersistenceInfrastructure()).
     RuleOfThree: Strictly prohibit generic base services, generic repositories, or speculative interfaces until >= 2 distinct, existing production implementations require them.
     CompositionOverInheritance: Prefer flat composition and single-responsibility UseCases (IUseCase<TReq, TRes>) over abstract base hierarchies.
     ZeroRuntimeMagic: Prohibit reflection-based assembly scanning, dynamic method invocation, or opaque runtime dispatch.
@@ -201,7 +203,7 @@ Axiom4_CloudNativeScalabilityAndImmutability:
     UniversalWireEnvelope: All non-streaming HTTP responses must encapsulate payloads in ApiResponse<T> or PagedApiResponse<T> with RFC 9457 ProblemDetails for errors.
     DeterministicTime: All temporal queries must consume injected `TimeProvider` (prohibit `DateTime.UtcNow`).
   AtomicEvolutionAndCodebaseSSoT:
-    CodebaseSSoT: Every business calculation, domain rule, linguistic formatter, and data mapping must reside in exactly ONE authoritative implementation. Strictly prohibit duplicate logic, parallel helper methods, or copy-pasting logic into local private methods.
+    CodebaseSSoTAndDeduplication: Every business calculation, domain rule, linguistic formatter, and data access must reside in exactly ONE authoritative implementation (Codebase SSoT). Strictly prohibit duplicate services, parallel shims, or pass-through indirection wrappers that add zero domain value (Zero Pass-Through Indirection).
     ZeroOrphanAbstractions: Every newly created interface, class, method, or DTO contract must be wired and actively consumed by 100% of its target call-sites. Strictly prohibit speculative or half-migrated abstractions.
     NoBackwardCompatibilityShims: This is an internal greenfield/active codebase. Strictly prohibit maintaining legacy shims, dual implementations, or obsolete method overloads to avoid updating tests. Refactor the tests cleanly.
     AtomicDeadCodePurge: When an abstraction or method is superseded, delete the obsolete production code and its dedicated test fixtures (*Tests.cs) across all call-sites in the exact same task. Zero zombie files, zero commented-out tests (`// [Fact]`), zero dead methods, and zero dual-state maintenance.

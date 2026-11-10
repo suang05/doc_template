@@ -40,6 +40,7 @@ Signal: [ARCH_EVOLUTION_DOMAIN]
 | **Aggregate Boundaries** | Aggregate roots inherit `AggregateRoot<TId>`, encapsulating state and domain event collection. Referenced by other aggregates strictly via `{Aggregate}Id`. | Aggregate Root Boundary |
 | **Concurrency Token Contract**| Mutable aggregates implement `IConcurrencyAware`, exposing `EntityId` and deterministic `GetConcurrencyToken()` (`(UpdatedAt ?? CreatedAt).ToUnixTimeMilliseconds().ToString()`) inherited from `BaseEntity<TId>`. | Optimistic Concurrency |
 | **Decoupled Side-Effects** | Side-effects appended in-memory strictly on `AggregateRoot<TId>` as immutable `IDomainEvent` records and harvested post-commit by the application layer. | Event Outbox |
+| **Stateless Domain Logic (GodServiceEliminationFirewall)** | Domain business invariants belong primarily inside Aggregate Roots. Multi-aggregate calculations are modeled as stateless, single-purpose Domain Services ($\le 2$ methods). Multi-action God domain services or catch-all helpers (`*Helper`) are strictly prohibited. | Domain Logic Boundary |
 
 ---
 
@@ -52,6 +53,7 @@ Signal: [ARCH_EVOLUTION_DOMAIN]
 * **Why Global `User` vs `UserProjectRole`**: Modeling `User` with a `ProjectId` column forces duplicate user accounts across projects, breaks single-sign-on (SSO), and makes enterprise user management impossible. `User` is a Global Identity; multi-tenancy is scoped strictly via the `UserProjectRole` join entity.
 * **Why Injected `DateTimeOffset now`**: Eliminates ambient system clock queries, guaranteeing 100% deterministic unit testing via `FakeTimeProvider`.
 * **Why In-Memory Domain Events**: Decouples domain aggregates from messaging infrastructure; side-effects are dispatched strictly post-transaction.
+* **Why Single-Purpose Domain Services over Fat Services (GodServiceEliminationFirewall):** Placing multi-aggregate business rules inside fat, multi-method domain services recreates the God Service anti-pattern inside the Domain Core. Domain logic must reside inside Aggregate Roots first, and any cross-aggregate service must be lean, stateless, and single-purpose.
 
 ### 2.2 Proactive Domain Firewalls
 ```yaml
@@ -70,6 +72,10 @@ TemporalDeterminismFirewall:
 StronglyTypedIdFirewall:
   Invariant: "Cross-domain implicit conversions between Guid and strongly-typed IDs are prohibited."
   ActionOnViolation: "Enforce explicit cast operators to/from Guid on all ID structs."
+
+DomainServiceBoundaryFirewall:
+  Invariant: "Domain services must be 100% stateless and single-purpose (<= 2 methods). Catch-all *Helper classes or multi-action domain services are strictly prohibited."
+  ActionOnViolation: "Decompose into dedicated single-purpose domain services or relocate logic into Aggregate Root verbs."
 ```
 
 ---
@@ -408,3 +414,16 @@ public sealed class {Domain}Type : Enumeration
 + public sealed class {Aggregate} : AggregateRoot<{Aggregate}Id>, IMustHaveProject
 ```
 *Rationale: Domain event harvesting (`AddDomainEvent`, `DomainEvents`, `ClearDomainEvents`) is strictly isolated to `AggregateRoot<TId>`. Child entities inherit `BaseEntity` without domain event collections.*
+
+### [TRAP-DOM-007]: Fat Multi-Method Domain Service or Catch-All Domain Helper
+```diff
+- // Multi-action Fat Domain Service or static Helper class collecting unrelated methods
+- public sealed class TemplateDomainService {
+-     public void Validate(...) { ... }
+-     public void CalculatePricing(...) { ... }
+-     public void FormatFields(...) { ... }
+- }
++ // Invariant encapsulated inside Aggregate Root verb, or dedicated single-purpose domain service
++ template.Publish(version, now);
+```
+*Rationale: Concrete Domain violation of system-wide GodServiceEliminationFirewall. Multi-action domain services and catch-all `*Helper` classes degenerate into God Classes and strip domain entities of rich business behaviors (Anemic Domain Model). Enforce rich Aggregate Root verbs and single-purpose domain logic.*

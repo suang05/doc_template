@@ -125,6 +125,14 @@ ZeroLOHStreamingFirewall:
 FileTopologyFirewall:
   Invariant: "Every *Command, *Query, *Validator, and *UseCase must live in its own {TypeName}.cs file."
   ActionOnViolation: "Split bundled types into dedicated files co-located in slice folders."
+
+ApplicationModularDiFirewall:
+  Invariant: "Application use cases and services must register strictly within their Bounded Context module extension methods, never in a monolithic root file."
+  ActionOnViolation: "Extract slice registrations into Modules/{BoundedContext}/{BoundedContext}ModuleExtensions.cs."
+
+GodServiceEliminationFirewall:
+  Invariant: "Multi-action application services are 100% prohibited. Every business capability must be an isolated Action-Centric Vertical Slice implementing IUseCase<TReq, TRes>."
+  ActionOnViolation: "Decompose multi-method service into discrete single-purpose UseCases."
 ```
 
 ---
@@ -400,6 +408,48 @@ public sealed class Update{Aggregate}UseCase(
 }
 ```
 
+### 3.6 Modular Application DI Composition Archetype (`AddApplicationServices` & Bounded Context Modules)
+>> MANDATORY CANONICAL BLUEPRINT [RULE-APP-DI-006]:
+* Root `AddApplicationServices()` acts strictly as a lightweight orchestrator (< 25 LOC), delegating to modular Bounded Context extensions.
+* Each Bounded Context manages its own registrations via `{BoundedContext}ModuleExtensions.cs` using `services.AddUseCase<TReq, TRes, TImpl>()`.
+* Prohibits monolithic dumping of all use cases or services directly into root `DependencyInjection.cs`.
+
+```csharp
+// --- File: DependencyInjection.cs (Root Application Orchestrator) ---
+public static class DependencyInjection
+{
+    public static IServiceCollection AddApplicationServices(this IServiceCollection services)
+    {
+        // 1. Shared Engine Services & Helpers <Why: cross-cutting calculation & binding SSoT>
+        services.AddScoped<IDataBindingEngine, DataBindingEngine>();
+
+        // 2. Modular Bounded Context Installers <Why: isolates slice registrations by domain boundary>
+        services.AddRenderingModule();
+        services.AddAuthoringModule();
+        services.AddIntegrationModule();
+        services.AddIdentityAccessModule();
+
+        // 3. Automated FluentValidation Assembly Scanning <Why: fail-fast request validation>
+        services.AddValidatorsFromAssemblyContaining<{AnyCommandValidator}>();
+
+        return services;
+    }
+}
+
+// --- File: Modules/{BoundedContext}/{BoundedContext}ModuleExtensions.cs ---
+public static class {BoundedContext}ModuleExtensions
+{
+    public static IServiceCollection Add{BoundedContext}Module(this IServiceCollection services)
+    {
+        // Action-Centric Vertical Slices (Strictly 1 UseCase per Command/Query)
+        services.AddUseCase<{Verb}{Aggregate}Command, {Aggregate}ResultDto, {Verb}{Aggregate}UseCase>();
+        services.AddUseCase<Get{Aggregate}Query, {Aggregate}ResultDto, Get{Aggregate}UseCase>();
+
+        return services;
+    }
+}
+```
+
 ---
 
 ## 4. Level 4: Anti-Patterns & Unified Micro-Diffs
@@ -467,5 +517,20 @@ public sealed class Update{Aggregate}UseCase(
 + // (Or call concurrencyContext.EnsureMatches(entity) before pre-commit external S3 I/O)
 ```
 *Rationale: Threading HTTP `If-Match` strings through Commands and UseCases violates Clean Architecture separation and duplicates token formatting logic across slices.*
+
+### [TRAP-APP-009]: Application Monolithic Composition Root & God Registration Sprawl
+```diff
+- // Root DependencyInjection.cs dumping 50+ UseCases across unrelated Bounded Contexts
+- services.AddUseCase<GenerateDocumentCommand, ...>();
+- services.AddUseCase<PreviewDocumentQuery, ...>();
+- services.AddUseCase<CreateTemplateCommand, ...>();
+- services.AddUseCase<LoginUserCommand, ...>();
++ // Modular Bounded Context Installers complying with system-wide CompositionRootFirewall
++ services.AddRenderingModule();
++ services.AddAuthoringModule();
++ services.AddIntegrationModule();
++ services.AddIdentityAccessModule();
+```
+*Rationale: Violates system-wide CompositionRootFirewall. Dumping UseCases across multiple Bounded Contexts into a single root file breaks domain isolation, masks dependencies, and generates severe merge conflicts.*
 
 >> SSoT DELEGATION: Document rendering pipeline composition, data binding integration, and anemic pass-through wrapper prohibitions are governed strictly by [document_rendering_mechanics.md](../03_specialized_mechanics/document_rendering_mechanics.md#trap-mech-008).
