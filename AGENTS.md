@@ -108,6 +108,10 @@ HighFrequencyRegressionTraps:
     => Action: Demolish anemic pass-through wrappers. Pipelines must consume domain engines (IDataBindingEngine) directly. Enforce complexity firewalls: class <= 200 LOC, method <= 20 LOC, constructor injections <= 5.
   Trigger: Querying mutable relational field_mappings table during runtime document generation, or creating duplicate preview use cases
     => Action: Runtime document generation must strictly deserialize frozen TemplateVersion.MappingsSnapshot manifest as SSoT. All preview endpoints (Monaco HTML, Slug, TemplateId, Mappings preview) must route exclusively through PreviewDocumentUseCase.
+  Trigger: Introducing speculative parameters, unrequested interfaces, or redundant DTO properties "just in case" (YAGNI breach)
+    => Action: Enforce strict YAGNI. Implement strictly the minimal sufficient code required by active requirements. Prohibit speculative extensibility hooks, phantom parameters, and premature generic abstractions.
+  Trigger: Leaving unreferenced methods, unused constructor parameters/fields, or commented-out code after refactoring (Residue/Debris)
+    => Action: Execute immediate Post-Mutation Hygiene. Atomically delete all dead methods, unreferenced variables, unused dependencies, and commented-out code in the exact same pass.
 
 StrategicAdvisoryGates:
   [PROACTIVE_PROPOSAL_REQUIRED: Proactively analyze high-ROI alternatives, present trade-offs, and consult User before proceeding]
@@ -188,6 +192,8 @@ Axiom3_ComplexityFirewallAndAntiOverEngineering:
     InheritanceDepth: <= 1 level (all classes marked `sealed` by default)
     NestingDepth: <= 2 levels (mandatory guard clauses and early exits; prohibit deeply nested if-else)
   AntiOverEngineeringRules:
+    StrictYagniDiscipline: Strictly prohibit speculative abstractions, phantom parameters ("just in case"), and over-generalized interfaces. Implement only what is required by current, active business deliverables. If a capability is needed later, evolve it then (Simplicity First).
+    SearchBeforeCreateSSoT: Before writing any new utility, calculation, DTO, or extension method, execute a codebase search. If an authoritative implementation exists, reuse or extend it in-place. Creating parallel duplicate helpers or shadow abstractions is strictly forbidden.
     ZeroGodServices: Multi-action service classes (e.g. giant *Service classes with 10+ methods) are 100% prohibited across the entire platform. Every business capability must be an isolated Action-Centric Vertical Slice (1 UseCase = 1 Command/Query = 1 Responsibility). Boilerplate must be eliminated via C# 13 Primary Constructors and positional records, NEVER via generic CRUD base classes or runtime reflection hacks.
     ModularDependencyInjection: Monolithic DI composition roots and god-registrations in Program.cs or root DependencyInjection.cs are strictly prohibited. Every layer (Presentation, Application, Infrastructure) must decompose registrations into cohesive Bounded Context / Subsystem installers (e.g. AddRenderingModule(), AddAuthoringModule(), AddPersistenceInfrastructure()).
     RuleOfThree: Strictly prohibit generic base services, generic repositories, or speculative interfaces until >= 2 distinct, existing production implementations require them.
@@ -371,6 +377,7 @@ AdaptiveDefinitionOfDone:
     2_CodeAndAbstractionInspection:
        - FullConsumerWiringCheck: Verify that all new interfaces, types, methods, and parameters are actively consumed across 100% of intended call-sites (zero orphan abstractions).
        - DeadCodeAndDuplicatePurge: Verify that superseded classes, deprecated methods, shadow interfaces, and obsolete test fixtures (*Tests.cs) were deleted rather than abandoned alongside new code.
+       - PostMutationHygieneAndBoilerplatePurge: Verify that all unreferenced private methods, unused constructor parameters/fields, unused usings, and commented-out code resulting from the mutation were deleted. Eliminate verbose boilerplate using modern C# 13 idioms (Primary Constructors, pattern matching, collection expressions `[]`).
        - TestModernizationParity: Verify that existing unit/integration tests were updated to test the new canonical pattern rather than relying on obsolete methods, commented-out facts, or backward-compatibility shims.
        - QualityInvariants: Ensure classes are `sealed` by default and zero ambient clocks (`DateTime.UtcNow`) are used.
     3_WorkspaceHygiene: Ensure zero temporary files or planning markdown files were written to the project workspace (artifacts stay in session directory).
@@ -389,6 +396,7 @@ CollaborativeHandoffStandards:
   Content:
     - Summarize what was accomplished and verified.
     - Surface concrete technical trade-offs or latent risks plainly.
+    - Proactive Boy Scout Clean-up Offer: If any nearby boilerplate, fat classes, obsolete wrappers, or unusable code was observed outside the current task scope, formulate a crisp 1-sentence clean-up proposal: "Observed [debt] in nearby [file/module]. Would you like me to clean this up in the next step?"
     - Proactively champion code quality: If any nearby code smells or suboptimal patterns were detected, suggest the clean refactoring path.
     - Declare the Specification Verdict (`[NO_SPEC_MUTATION_REQUIRED]`, `[STANDARD_GAP_DETECTED]`, or `[SPEC_ELEVATION_RECOMMENDED]`).
     - Suggest the natural next move (e.g., wiring downstream callers, replacing legacy code, or transitioning to the next phase) organically.

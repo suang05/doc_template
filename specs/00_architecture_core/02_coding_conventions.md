@@ -32,6 +32,7 @@ Signal: [ARCH_EVOLUTION_CONVENTIONS]
 | **Traffic Protection** | Declarative endpoint rate limiting via `[EnableRateLimiting("...")]` policies. | Controller Action |
 | **Test Rhythm** | 3-Phase DAMP Arrange-Act-Assert (AAA) layout with explicit test setups. | Test suites |
 | **Inline Attention Anchor** | Universal `// <Why: {causal-intent}>` annotations for non-obvious guards, invariants, limits, and steps. | Universal |
+| **YAGNI & Post-Mutation Cleanliness** | Implement strictly minimal sufficient code required by active requirements. Post-mutation hygiene must atomically purge dead methods, unused constructor parameters, and unreferenced variables. | Code Hygiene |
 
 ---
 
@@ -43,6 +44,7 @@ Signal: [ARCH_EVOLUTION_CONVENTIONS]
 * **Why File-Scoped Namespaces**: Removes 4 whitespace characters of horizontal indentation across all files, maximizing line-length readability and eliminating token waste.
 * **Why DAMP Over DRY in Tests**: Over-abstracted helper chains hide test failure rationale. Explicit Arrange-Act-Assert (AAA) ensures failures are self-evident and self-documenting.
 * **Why Universal Inline Why-Anchors (`// <Why: ...>`)**: Eliminates attention leakage in downstream LLMs by colocating causal rationale directly on the target syntax token (Attention Proximity). Avoids multi-paragraph prose while clarifying non-obvious invariants and preventing accidental regression.
+* **Why Strict YAGNI & Post-Mutation Cleanliness**: Speculative generalization, phantom parameters, and leftover dead code degrade LLM context saliency and invite maintenance rot. Codebases must stay lean, idiomatic, and strictly aligned with active business needs.
 
 ### 2.2 Proactive Syntax Firewalls
 ```yaml
@@ -61,6 +63,10 @@ AsyncPurityFirewall:
 InstantiationClarityFirewall:
   Invariant: "Disallow inlined argument instantiation inside method calls."
   ActionOnViolation: "Extract nested instantiation into explicit intermediate local variable."
+
+PostMutationCleanlinessFirewall:
+  Invariant: "Code modifications must leave zero unreferenced private methods, unused dependencies, or commented-out debris."
+  ActionOnViolation: "Atomically purge all dead code, unused constructor parameters, and boilerplate debris in the same pass."
 ```
 
 ---
@@ -310,3 +316,13 @@ public sealed class {Verb}{Aggregate}UseCaseTests
 + return ExecuteInternal();
 ```
 *Rationale: Deeply nested indentation structures increase cyclomatic complexity, waste context tokens, and hinder linear readability. Early guard clauses guarantee flat, fail-fast execution.*
+
+### [TRAP-CONV-006]: Speculative Over-Engineering (YAGNI Breach) & Post-Mutation Debris
+```diff
+- // Speculative parameters not requested, plus dead unreferenced private helper left behind
+- public async Task<{Aggregate}ResultDto> ExecuteAsync({Verb}{Aggregate}Command command, bool? dryRun = false, CancellationToken ct = default) { ... }
+- private void ObsoleteHelper() { /* Leftover dead code */ }
++ // Minimal sufficient signature strictly meeting current requirements; dead code purged
++ public async Task<{Aggregate}ResultDto> ExecuteAsync({Verb}{Aggregate}Command command, CancellationToken ct = default) { ... }
+```
+*Rationale: Speculative parameters (YAGNI violations) and leftover dead code increase cognitive debt, confuse downstream LLMs, and expand test maintenance surface for zero business ROI. Purge unused code atomically and implement only minimal sufficient capabilities.*
