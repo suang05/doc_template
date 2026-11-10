@@ -156,16 +156,6 @@ export const templatesApi = {
     return res.data.placeholders;
   },
 
-  async scanFieldsFromFile(file: File): Promise<string[]> {
-    const form = new FormData();
-    form.append('file', file);
-    const res = await apiClient<ApiResponse<{ placeholders: string[] }>>('/api/v1/templates/scan-fields', {
-      method: 'POST',
-      body: form,
-    });
-    return res.data.placeholders;
-  },
-
   async previewMappings(
     id: string,
     sampleData: Record<string, unknown>,

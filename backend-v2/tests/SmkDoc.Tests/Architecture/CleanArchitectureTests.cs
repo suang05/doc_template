@@ -584,6 +584,10 @@ public sealed class CleanArchitectureTests
             .Should().BeNull("DocumentRenderPipeline was retired in Phase 4.");
         appAssembly.GetType("SmkDoc.Application.Modules.Rendering.Documents.Services.DocumentRenderResult")
             .Should().BeNull("DocumentRenderResult was retired in Phase 4.");
+        appAssembly.GetType("SmkDoc.Application.Modules.Authoring.Templates.Queries.ScanUploadedTemplate.ScanUploadedTemplateUseCase")
+            .Should().BeNull("ScanUploadedTemplateUseCase was retired in favor of ParseTemplateDraftUseCase SSoT.");
+        appAssembly.GetType("SmkDoc.Application.Modules.Authoring.Templates.Queries.ScanUploadedTemplate.ScanUploadedTemplateQuery")
+            .Should().BeNull("ScanUploadedTemplateQuery was retired in favor of ParseTemplateDraftCommand SSoT.");
     }
 
     [Fact]

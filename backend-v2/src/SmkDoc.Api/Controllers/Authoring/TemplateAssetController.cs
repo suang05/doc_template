@@ -5,7 +5,6 @@ using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.DownloadTemplate;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.ScanTemplatePlaceholders;
-using SmkDoc.Application.Modules.Authoring.Templates.Queries.ScanUploadedTemplate;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.ValidateTemplatePayload;
 using SmkDoc.Domain.Exceptions;
 
@@ -19,7 +18,6 @@ namespace SmkDoc.Api.Controllers.Authoring;
 [Route("api/v1/templates")]
 public sealed class TemplateAssetController(
     IUseCase<DownloadTemplateQuery, DownloadTemplateResult> downloadTemplateUseCase,
-    IUseCase<ScanUploadedTemplateQuery, ScanFieldsResultDto> scanUploadedUseCase,
     IUseCase<ScanTemplatePlaceholdersQuery, ScanFieldsResultDto> scanStoredUseCase,
     IUseCase<ValidateTemplatePayloadQuery, ValidateTemplatePayloadResult> validatePayloadUseCase) : ControllerBase
 {
@@ -32,25 +30,6 @@ public sealed class TemplateAssetController(
         var query = new DownloadTemplateQuery(id);
         var result = await downloadTemplateUseCase.ExecuteAsync(query, ct);
         return File(result.Stream, result.ContentType, result.FileName);
-    }
-
-    /// <summary>
-    /// Stateless scan — upload any file and get its placeholders without creating a template.
-    /// Zero side-effects (no DB writes, no MinIO uploads).
-    /// </summary>
-    [HttpPost("scan-fields")]
-    [ProducesResponseType(typeof(ApiResponse<ScanFieldsResultDto>), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> ScanFieldsStateless(IFormFile file, CancellationToken ct)
-    {
-        if (file is not { Length: > 0 })
-            throw new DomainValidationException("File is required and must not be empty.");
-
-        var ext = Path.GetExtension(file.FileName);
-        await using var stream = file.OpenReadStream();
-        var query = new ScanUploadedTemplateQuery(stream, ext);
-        var result = await scanUploadedUseCase.ExecuteAsync(query, ct);
-        return Ok(new ApiResponse<ScanFieldsResultDto>(result));
     }
 
     /// <summary>Scan placeholders from a stored template file in MinIO.</summary>

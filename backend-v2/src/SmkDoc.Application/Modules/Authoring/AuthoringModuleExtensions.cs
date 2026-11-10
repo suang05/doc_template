@@ -30,7 +30,6 @@ using SmkDoc.Application.Modules.Authoring.Templates.Queries.GetTemplateStudioBu
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.ListTemplates;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.ListTemplateVersions;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.ScanTemplatePlaceholders;
-using SmkDoc.Application.Modules.Authoring.Templates.Queries.ScanUploadedTemplate;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.ValidateTemplateHtml;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.ValidateTemplatePayload;
 using SmkDoc.Domain.Events;
@@ -56,7 +55,6 @@ public static class AuthoringModuleExtensions
         services.AddUseCase<ListTemplateVersionsQuery, List<TemplateVersionDto>, ListTemplateVersionsUseCase>();
         services.AddUseCase<DownloadTemplateQuery, DownloadTemplateResult, DownloadTemplateUseCase>();
         services.AddUseCase<ScanTemplatePlaceholdersQuery, ScanFieldsResultDto, ScanTemplatePlaceholdersUseCase>();
-        services.AddUseCase<ScanUploadedTemplateQuery, ScanFieldsResultDto, ScanUploadedTemplateUseCase>();
 
         // Monaco Studio & Draft Pipeline (Action-Centric Vertical Slice)
         services.AddUseCase<GetTemplateHtmlSourceQuery, string, GetTemplateHtmlSourceUseCase>();

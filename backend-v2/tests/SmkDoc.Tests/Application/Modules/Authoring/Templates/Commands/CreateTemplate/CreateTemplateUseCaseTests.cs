@@ -170,4 +170,44 @@ public sealed class CreateTemplateUseCaseTests
             Arg.Is<string>(k => k.StartsWith($"templates/{TestConstants.DefaultProjectId:N}/") && k.EndsWith("/v1.html")),
             Arg.Any<CancellationToken>());
     }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenFileExceeds20Mb_ShouldThrowDomainValidationException()
+    {
+        // Arrange
+        _templateRepo.SlugExistsAsync("giant-doc", Arg.Any<CancellationToken>()).Returns(false);
+        var mockStream = Substitute.For<Stream>();
+        mockStream.CanRead.Returns(true);
+        mockStream.CanSeek.Returns(true);
+        mockStream.Length.Returns(21L * 1024 * 1024);
+
+        var command = new CreateTemplateCommand("Giant Doc", "giant-doc", "General", mockStream, "giant.html");
+
+        // Act
+        var act = () => CreateSut().ExecuteAsync(command);
+
+        // Assert
+        await act.Should().ThrowAsync<DomainValidationException>()
+            .WithMessage("*exceeds the 20 MB limit*");
+        await _storageService.DidNotReceive().UploadAsync(
+            Arg.Any<string>(), Arg.Any<string>(), Arg.Any<Stream>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenFileExtensionUnsupported_ShouldThrowDomainValidationException()
+    {
+        // Arrange
+        _templateRepo.SlugExistsAsync("invalid-ext", Arg.Any<CancellationToken>()).Returns(false);
+        using var stream = new MemoryStream([1, 2, 3]);
+        var command = new CreateTemplateCommand("Invalid Ext", "invalid-ext", "General", stream, "script.exe");
+
+        // Act
+        var act = () => CreateSut().ExecuteAsync(command);
+
+        // Assert
+        await act.Should().ThrowAsync<DomainValidationException>()
+            .WithMessage("*Unsupported template file extension*");
+        await _storageService.DidNotReceive().UploadAsync(
+            Arg.Any<string>(), Arg.Any<string>(), Arg.Any<Stream>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
 }

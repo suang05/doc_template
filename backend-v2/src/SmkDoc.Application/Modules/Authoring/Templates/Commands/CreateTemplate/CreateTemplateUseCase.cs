@@ -25,6 +25,8 @@ public sealed class CreateTemplateUseCase(
     IUnitOfWork unitOfWork,
     TimeProvider timeProvider) : IUseCase<CreateTemplateCommand, TemplateResultDto>
 {
+    private const long MaxTemplateFileSizeBytes = 20L * 1024 * 1024;
+
     public async Task<TemplateResultDto> ExecuteAsync(CreateTemplateCommand command, CancellationToken ct = default)
     {
         if (!projectContext.IsResolved)
@@ -60,35 +62,40 @@ public sealed class CreateTemplateUseCase(
                 ext = ".html";
             }
 
-            fileFormat = TemplateFormat.TryFromExtension(ext, out var format) && format != null
-                ? format
-                : TemplateFormat.Html;
+            if (!TemplateFormat.TryFromExtension(ext, out var format) || format == null)
+            {
+                throw new DomainValidationException(
+                    $"Unsupported template file extension: '{ext}'. Allowed formats: .html, .docx, .xlsx");
+            }
 
+            fileFormat = format;
             storageKey = StorageBuckets.TemplateVersionKey(template.ProjectId, template.Id, 1, ext);
+
+            if (command.FileStream.CanSeek && command.FileStream.Length > MaxTemplateFileSizeBytes)
+            {
+                throw new DomainValidationException(
+                    $"Template file size ({command.FileStream.Length / (1024 * 1024)} MB) exceeds the 20 MB limit.");
+            }
+
+            await using var spooled = await HybridSpoolStream.SpoolFromAsync(command.FileStream, ct: ct);
+            if (spooled.Length > MaxTemplateFileSizeBytes)
+            {
+                throw new DomainValidationException(
+                    $"Template file size ({spooled.Length / (1024 * 1024)} MB) exceeds the 20 MB limit.");
+            }
 
             if (ext == ".docx")
             {
-                await using var scanCopy = await HybridSpoolStream.SpoolFromAsync(command.FileStream, ct: ct);
-
-                var scanResult = securityScanner.Scan(scanCopy);
+                var scanResult = securityScanner.Scan(spooled);
                 if (scanResult is { IsSafe: false })
                 {
                     throw new DomainValidationException(
                         $"DOCX file failed security scan: {string.Join("; ", scanResult.Threats)}");
                 }
-
-                scanCopy.Position = 0;
-                await storageService.UploadAsync(StorageBuckets.Templates, storageKey, scanCopy, fileFormat.MimeType, ct);
             }
-            else
-            {
-                if (command.FileStream.CanSeek)
-                {
-                    command.FileStream.Position = 0;
-                }
 
-                await storageService.UploadAsync(StorageBuckets.Templates, storageKey, command.FileStream, fileFormat.MimeType, ct);
-            }
+            spooled.Position = 0;
+            await storageService.UploadAsync(StorageBuckets.Templates, storageKey, spooled, fileFormat.MimeType, ct);
         }
         else
         {
