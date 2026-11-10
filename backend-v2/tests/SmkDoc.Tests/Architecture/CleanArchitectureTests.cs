@@ -568,12 +568,22 @@ public sealed class CleanArchitectureTests
             .Should().NotBeNull("JsonTemplateDataParser is the authoritative SSoT parser implementation.");
         infraAssembly.GetType("SmkDoc.Infrastructure.Parsing.JsonDataParser")
             .Should().BeNull("JsonDataParser was renamed to JsonTemplateDataParser in Phase 2.");
+        appAssembly.GetType("SmkDoc.Application.Modules.Authoring.Templates.Queries.PreviewTemplateDraft.PreviewTemplateDraftUseCase")
+            .Should().BeNull("PreviewTemplateDraftUseCase was retired in favor of PreviewDocumentUseCase SSoT.");
+        appAssembly.GetType("SmkDoc.Application.Modules.Authoring.Templates.Queries.PreviewTemplateDraft.PreviewTemplateDraftQuery")
+            .Should().BeNull("PreviewTemplateDraftQuery was retired in favor of PreviewDocumentQuery SSoT.");
         appAssembly.GetType("SmkDoc.Application.Modules.Authoring.Templates.Queries.PreviewTemplateHtml.PreviewTemplateHtmlUseCase")
             .Should().BeNull("Dead PreviewTemplateHtml slice was retired in Phase P1.");
         appAssembly.GetType("SmkDoc.Application.Modules.Rendering.Documents.Commands.HtmlToPdf.HtmlToPdfUseCase")
             .Should().BeNull("Dead HtmlToPdf slice was retired in Phase P1.");
         appAssembly.GetType("SmkDoc.Application.Modules.Authoring.Templates.Commands.CommitTemplateDraft.CommitDraftCommand")
             .Should().BeNull("2-level nested CommitDraftCommand was flattened into CommitTemplateDraftCommand.");
+        appAssembly.GetType("SmkDoc.Application.Modules.Rendering.Documents.Services.IDocumentRenderPipeline")
+            .Should().BeNull("IDocumentRenderPipeline was retired in Phase 4 in favor of direct PEMR in GenerateDocumentUseCase.");
+        appAssembly.GetType("SmkDoc.Application.Modules.Rendering.Documents.Services.DocumentRenderPipeline")
+            .Should().BeNull("DocumentRenderPipeline was retired in Phase 4.");
+        appAssembly.GetType("SmkDoc.Application.Modules.Rendering.Documents.Services.DocumentRenderResult")
+            .Should().BeNull("DocumentRenderResult was retired in Phase 4.");
     }
 
     [Fact]

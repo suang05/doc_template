@@ -3,6 +3,7 @@ using System.Text.Json;
 using FluentAssertions;
 using NSubstitute;
 using SmkDoc.Application.Common.Interfaces;
+using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Application.Modules.DataBinding.DTOs;
 using SmkDoc.Application.Modules.DataBinding.Services;
 using SmkDoc.Application.Modules.Rendering.Documents;
@@ -24,9 +25,14 @@ public sealed class PreviewDocumentUseCaseTests
     private readonly IRenderEngine _engine = Substitute.For<IRenderEngine>();
     private readonly IRenderEngineFactory _engineFactory = Substitute.For<IRenderEngineFactory>();
     private readonly IDataBindingEngine _dataBindingEngine = Substitute.For<IDataBindingEngine>();
+    private readonly ITemplateDraftCache _draftCache = Substitute.For<ITemplateDraftCache>();
+    private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
+    private readonly ProjectId _projectId = ProjectId.New();
 
     public PreviewDocumentUseCaseTests()
     {
+        _projectContext.IsResolved.Returns(true);
+        _projectContext.ProjectId.Returns(_projectId);
         _engine.EngineType.Returns(RenderEngineType.Html);
         _engineFactory.GetEngine(Arg.Any<RenderEngineType>()).Returns(_engine);
     }
@@ -35,7 +41,9 @@ public sealed class PreviewDocumentUseCaseTests
         _templateRepo,
         _storage,
         _engineFactory,
-        _dataBindingEngine
+        _dataBindingEngine,
+        _draftCache,
+        _projectContext
     );
 
     [Fact]
@@ -184,5 +192,66 @@ public sealed class PreviewDocumentUseCaseTests
 
         // Assert
         await act.Should().ThrowAsync<BusinessRuleViolationException>();
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenValidDraftId_ShouldRenderStreamWithoutSideEffects()
+    {
+        // Arrange
+        var pdfBytes = Encoding.UTF8.GetBytes("%PDF-preview");
+        var entry = new TemplateDraftEntry("draft-1", _projectId.Value, "drafts/t.docx", "t.docx", ".docx", ["field"]);
+
+        _draftCache.GetAsync(_projectId, "draft-1", Arg.Any<CancellationToken>()).Returns(entry);
+        _draftCache.OpenStreamAsync(entry, Arg.Any<CancellationToken>()).Returns(new MemoryStream(Encoding.UTF8.GetBytes("docx-stream")));
+        _engine.RenderStreamAsync(Arg.Any<Stream>(), Arg.Any<string>(), OutputFormat.Pdf, Arg.Any<CancellationToken>())
+            .Returns(_ => new MemoryStream(pdfBytes));
+
+        using var jsonDoc = JsonDocument.Parse("{\"field\":\"val\"}");
+        var request = new PreviewDocumentQuery(Payload: jsonDoc.RootElement, DraftId: "draft-1");
+
+        // Act
+        await using var resultStream = await CreateSut().ExecuteAsync(request, CancellationToken.None);
+
+        // Assert
+        resultStream.Should().NotBeNull();
+        using var ms = new MemoryStream();
+        await resultStream.CopyToAsync(ms);
+        ms.ToArray().Should().BeEquivalentTo(pdfBytes);
+
+        // Zero side-effects — no storage upload or cache eviction:
+        await _draftCache.DidNotReceive().RemoveAsync(_projectId, Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await _storage.DidNotReceive().UploadAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<Stream>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenDraftNotFound_ShouldThrowDraftExpiredException()
+    {
+        // Arrange
+        _draftCache.GetAsync(_projectId, "gone", Arg.Any<CancellationToken>()).Returns((TemplateDraftEntry?)null);
+
+        using var jsonDoc = JsonDocument.Parse("{}");
+        var request = new PreviewDocumentQuery(Payload: jsonDoc.RootElement, DraftId: "gone");
+
+        // Act
+        var act = () => CreateSut().ExecuteAsync(request, CancellationToken.None);
+
+        // Assert
+        await act.Should().ThrowAsync<DraftExpiredException>();
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenDraftWithoutProjectContext_ShouldThrowForbiddenException()
+    {
+        // Arrange
+        _projectContext.IsResolved.Returns(false);
+
+        using var jsonDoc = JsonDocument.Parse("{}");
+        var request = new PreviewDocumentQuery(Payload: jsonDoc.RootElement, DraftId: "draft-no-ctx");
+
+        // Act
+        var act = () => CreateSut().ExecuteAsync(request, CancellationToken.None);
+
+        // Assert
+        await act.Should().ThrowAsync<ForbiddenException>();
     }
 }

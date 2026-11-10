@@ -29,7 +29,6 @@ public static class RenderingModuleExtensions
         services.AddScoped<IDocumentAuditService, DocumentAuditService>();
         services.AddScoped<IDocumentVersioningService, DocumentVersioningService>();
         services.AddScoped<IDocumentRetentionService, DocumentRetentionService>();
-        services.AddScoped<IDocumentRenderPipeline, DocumentRenderPipeline>();
 
         // Domain Event Handlers
         services.AddScoped<IDomainEventHandler<DocumentVersionCreatedDomainEvent>, DocumentVersionCreatedEventHandler>();

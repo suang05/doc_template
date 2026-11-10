@@ -29,7 +29,6 @@ using SmkDoc.Application.Modules.Authoring.Templates.Queries.GetTemplateSchema;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.GetTemplateStudioBundle;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.ListTemplates;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.ListTemplateVersions;
-using SmkDoc.Application.Modules.Authoring.Templates.Queries.PreviewTemplateDraft;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.ScanTemplatePlaceholders;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.ScanUploadedTemplate;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.ValidateTemplateHtml;
@@ -65,7 +64,6 @@ public static class AuthoringModuleExtensions
         services.AddUseCase<GetTemplateSchemaQuery, TemplateSchemaDto, GetTemplateSchemaUseCase>();
         services.AddUseCase<SaveTemplateHtmlCommand, SaveHtmlResultDto, SaveTemplateHtmlUseCase>();
         services.AddUseCase<ParseTemplateDraftCommand, ParseDraftResultDto, ParseTemplateDraftUseCase>();
-        services.AddUseCase<PreviewTemplateDraftQuery, Stream, PreviewTemplateDraftUseCase>();
         services.AddUseCase<CommitTemplateDraftCommand, CommitDraftResultDto, CommitTemplateDraftUseCase>();
         services.AddUseCase<ValidateTemplateHtmlQuery, TemplateValidationResultDto, ValidateTemplateHtmlUseCase>();
         services.AddUseCase<ValidateTemplatePayloadQuery, ValidateTemplatePayloadResult, ValidateTemplatePayloadUseCase>();

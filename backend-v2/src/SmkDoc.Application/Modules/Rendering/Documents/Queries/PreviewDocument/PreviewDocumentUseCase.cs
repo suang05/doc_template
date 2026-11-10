@@ -13,15 +13,18 @@ using SmkDoc.Domain.ValueObjects.Ids;
 namespace SmkDoc.Application.Modules.Rendering.Documents;
 
 /// <summary>
-/// Preview use-case: Generates PDF stream directly for Monaco/Form preview with zero side-effects.
-/// Supports preview via raw HTML string, template slug, or template UUID.
-/// Rule: NEVER upload to MinIO, NEVER write to generation_logs, NEVER increment versions.
+/// Unified live preview use-case: Generates PDF stream directly for Monaco editor, draft files,
+/// or published templates with zero side-effects.
+/// Supports preview via raw HTML string, draft ID, template slug, or template UUID.
+/// Rule: NEVER upload to MinIO output bucket, NEVER write to generation_logs, NEVER increment versions.
 /// </summary>
 public sealed class PreviewDocumentUseCase(
     ITemplateRepository templateRepo,
     IStorageService storageService,
     IRenderEngineFactory engineFactory,
-    IDataBindingEngine? dataBindingEngine = null) : IUseCase<PreviewDocumentQuery, Stream>
+    IDataBindingEngine? dataBindingEngine = null,
+    ITemplateDraftCache? draftCache = null,
+    ICurrentProjectContext? projectContext = null) : IUseCase<PreviewDocumentQuery, Stream>
 {
     public async Task<Stream> ExecuteAsync(PreviewDocumentQuery query, CancellationToken ct = default)
     {
@@ -29,13 +32,39 @@ public sealed class PreviewDocumentUseCase(
         RenderEngineType engineType;
         string dataJson;
 
-        // If Monaco editor supplied the active HTML in the body, use it directly!
+        // 1. Monaco editor raw HTML preview
         if (!string.IsNullOrWhiteSpace(query.Html))
         {
             templateStream = await HybridSpoolStream.CreateFromUtf8StringAsync(query.Html, ct: ct);
             engineType = RenderEngineType.Html;
             dataJson = query.Payload.ValueKind != JsonValueKind.Undefined ? query.Payload.GetRawText() : "{}";
         }
+        // 2. RAM-cached draft template preview
+        else if (!string.IsNullOrWhiteSpace(query.DraftId))
+        {
+            if (projectContext is null || !projectContext.IsResolved)
+            {
+                throw new ForbiddenException("Previewing a template draft requires an active project context.");
+            }
+
+            if (draftCache is null)
+            {
+                throw new BusinessRuleViolationException("Draft cache is not available for preview.", "DRAFT_CACHE_UNAVAILABLE");
+            }
+
+            var draft = await draftCache.GetAsync(projectContext.ProjectId, query.DraftId, ct)
+                ?? throw new DraftExpiredException(query.DraftId);
+
+            if (!TemplateFormat.TryFromExtension(draft.FileExtension, out var format))
+            {
+                throw new DomainValidationException($"Unsupported template file format: '{draft.FileExtension}'.");
+            }
+
+            engineType = format.DefaultEngineType;
+            templateStream = await draftCache.OpenStreamAsync(draft, ct);
+            dataJson = query.Payload.ValueKind != JsonValueKind.Undefined ? query.Payload.GetRawText() : "{}";
+        }
+        // 3. Published template by ID or Slug
         else
         {
             Template? template = null;
@@ -52,7 +81,7 @@ public sealed class PreviewDocumentUseCase(
             }
             else
             {
-                throw new DomainValidationException("Template slug, template ID, or HTML content is required for preview.");
+                throw new DomainValidationException("Template slug, template ID, draft ID, or HTML content is required for preview.");
             }
 
             if (template == null)

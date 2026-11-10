@@ -11,7 +11,7 @@ using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.CommitTemplateDraft;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.ParseTemplateDraft;
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
-using SmkDoc.Application.Modules.Authoring.Templates.Queries.PreviewTemplateDraft;
+using SmkDoc.Application.Modules.Rendering.Documents.Queries.PreviewDocument;
 using SmkDoc.Domain.Exceptions;
 
 namespace SmkDoc.Tests.Api.Controllers;
@@ -20,8 +20,8 @@ public sealed class TemplateDraftControllerTests
 {
     private readonly IUseCase<ParseTemplateDraftCommand, ParseDraftResultDto> _parseUseCase =
         Substitute.For<IUseCase<ParseTemplateDraftCommand, ParseDraftResultDto>>();
-    private readonly IUseCase<PreviewTemplateDraftQuery, Stream> _previewUseCase =
-        Substitute.For<IUseCase<PreviewTemplateDraftQuery, Stream>>();
+    private readonly IUseCase<PreviewDocumentQuery, Stream> _previewUseCase =
+        Substitute.For<IUseCase<PreviewDocumentQuery, Stream>>();
     private readonly IUseCase<CommitTemplateDraftCommand, CommitDraftResultDto> _commitUseCase =
         Substitute.For<IUseCase<CommitTemplateDraftCommand, CommitDraftResultDto>>();
 
@@ -101,7 +101,7 @@ public sealed class TemplateDraftControllerTests
         var sut = CreateSut();
         var pdfBytes = Encoding.UTF8.GetBytes("%PDF-1.4 Mock Preview Content");
         var pdfStream = new MemoryStream(pdfBytes);
-        _previewUseCase.ExecuteAsync(Arg.Is<PreviewTemplateDraftQuery>(q => q.DraftId == "draft-123"), Arg.Any<CancellationToken>())
+        _previewUseCase.ExecuteAsync(Arg.Is<PreviewDocumentQuery>(q => q.DraftId == "draft-123"), Arg.Any<CancellationToken>())
             .Returns(pdfStream);
 
         var request = new PreviewDraftRequest("{\"name\":\"Test\"}");

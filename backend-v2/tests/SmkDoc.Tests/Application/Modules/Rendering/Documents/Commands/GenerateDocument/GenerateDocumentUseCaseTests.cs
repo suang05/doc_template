@@ -76,17 +76,11 @@ public sealed class GenerateDocumentUseCaseTests
             _projectContext,
             _timeProvider);
 
-        var pipeline = new DocumentRenderPipeline(
-            _engineFactory,
-            _dataBindingEngine,
-            _storageService,
-            audit,
-            _unitOfWork);
-
         return new GenerateDocumentUseCase(
             _templateRepo,
             _storageService,
-            pipeline,
+            _engineFactory,
+            _dataBindingEngine,
             audit,
             versioning,
             _unitOfWork,

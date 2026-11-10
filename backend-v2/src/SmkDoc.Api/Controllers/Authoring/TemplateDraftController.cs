@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Common.Responses;
@@ -8,7 +9,7 @@ using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.CommitTemplateDraft;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.ParseTemplateDraft;
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
-using SmkDoc.Application.Modules.Authoring.Templates.Queries.PreviewTemplateDraft;
+using SmkDoc.Application.Modules.Rendering.Documents.Queries.PreviewDocument;
 using SmkDoc.Domain.Exceptions;
 
 namespace SmkDoc.Api.Controllers.Authoring;
@@ -22,7 +23,7 @@ namespace SmkDoc.Api.Controllers.Authoring;
 [Authorize(Policy = AuthorizationPolicies.CanManageTemplates)]
 public sealed class TemplateDraftController(
     IUseCase<ParseTemplateDraftCommand, ParseDraftResultDto> parseUseCase,
-    IUseCase<PreviewTemplateDraftQuery, Stream> previewUseCase,
+    IUseCase<PreviewDocumentQuery, Stream> previewUseCase,
     IUseCase<CommitTemplateDraftCommand, CommitDraftResultDto> commitUseCase) : ControllerBase
 {
     /// <summary>
@@ -56,7 +57,19 @@ public sealed class TemplateDraftController(
         [FromBody] PreviewDraftRequest request,
         CancellationToken ct)
     {
-        var query = new PreviewTemplateDraftQuery(draftId, request.DataJson);
+        JsonElement payload;
+        if (!string.IsNullOrWhiteSpace(request.DataJson))
+        {
+            using var doc = JsonDocument.Parse(request.DataJson);
+            payload = doc.RootElement.Clone();
+        }
+        else
+        {
+            using var doc = JsonDocument.Parse("{}");
+            payload = doc.RootElement.Clone();
+        }
+
+        var query = new PreviewDocumentQuery(payload, DraftId: draftId);
         var result = await previewUseCase.ExecuteAsync(query, ct);
         Response.Headers.ContentDisposition = "inline";
         return File(result, "application/pdf");
