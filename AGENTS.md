@@ -55,34 +55,29 @@ AutonomousExecutionBlockers:
   Trigger: Code modification violating canonical blueprints or anti-pattern firewalls in `specs/`
     => Action: Halt code generation and conform strictly to the authoritative rules in `specs/`.
 
-WorkflowGuard:
-  [STEP_1: HIERARCHICAL_PLAN_REQUIREMENT]
-  Language: Strictly English (Ensures code-AST token alignment & zero translation drift).
-  DecompositionRule:
-    - IF (TouchedFiles <= 3 & Steps <= 5) THEN:
-      * Standard Single-Tier Plan: Generate `implementation_plan.md` directly in Artifact Directory.
-    - IF (TouchedFiles > 3 OR Steps > 5) THEN:
-      * Trigger 2-Tier Hierarchical Planning:
-        - TIER_1_MASTER_PLAN (Context Compass):
-          * Location: STRICTLY Session Artifact Directory (<appDataDir>\brain\<conversation-id>/).
-          * Filename: Descriptive name (e.g., `MASTER_PLAN_<feature>.md`).
-          * Scope: High-level architectural roadmap, deliverable contracts, phase checklist (`[ ]`, `[▶]`, `[x]`). Zero code bloat.
-        - TIER_2_ACTIVE_PLAN (Execution Work Order):
-          * Location: STRICTLY Session Artifact Directory (<appDataDir>\brain\<conversation-id>/).
-          * Filename: `implementation_plan.md` (RequestFeedback: true, UserFacing: true).
-          * Scope: Strictly 1 active phase at a time. Full-Fidelity (zero `// TODO`, exact paths, explicit types, verification commands).
-  
-  [PLAN_WORKSPACE_ISOLATION_INVARIANT]
-  STRICTLY PROHIBIT creating, writing, or committing planning markdown files inside the project workspace (`backend-v2/`, `frontend-v2/`, project root). All plans reside exclusively in the ephemeral session artifact directory.
-
-  [ARCHITECTURAL_PRE_FLIGHT_MANDATE]
-  During plan formulation, execute PreFlightArchitectGatekeeper: If the task touches unstandardized core business (Concurrency, Key Ownership, Quotas, Streaming) or discovers an uncodified pattern, flag `[STANDARD_GAP_DETECTED]` in the plan before writing code.
-
-  [STEP_2: REUSE_SEARCH]
-  Search existing codebase utilities (grep_search) before introducing new generic helpers.
-
-  [STEP_3: VERIFICATION]
-  Execute <verification_and_handoff_protocol> before concluding task turn.
+PreFlightExecutionGates:
+  [PHASE 1: PRE-FLIGHT EVALUATION BEFORE WRITING OR MUTATING CODE]
+  Gate1_MandatorySsoTSearch:
+    Invariant: "Search the codebase before introducing any new utility, calculation, DTO, or extension method."
+    Rule: Always run `grep_search` across existing utilities, enums, DTOs, and services. If an authoritative implementation already exists, consume or extend it in-place. Creating parallel duplicate helpers or shadow abstractions is strictly forbidden.
+  Gate2_StrictYagniFirewall:
+    Invariant: "Implement strictly the minimal sufficient design required by current active requirements."
+    Rule: Strictly prohibit speculative abstractions, phantom parameters (e.g. `dryRun = false`, `extraOptions = null`), unrequested interfaces (Rule of Three: require >= 2 distinct existing production implementations before abstracting), phantom overloads, and speculative enum values. Implement only what is required now.
+  Gate3_DownstreamStandardGapAudit:
+    Invariant: "Never leave core business capabilities unstandardized or blind for future AI agents."
+    Rule: If the task touches uncodified core business (Concurrency, Key Ownership, Quotas, Streaming, Thai Typography), flag `[STANDARD_GAP_DETECTED]` in the plan before writing code.
+  Gate4_HierarchicalPlanWorkspaceIsolation:
+    Invariant: "Isolate planning markdown files strictly in session memory; keep project workspace pristine."
+    Language: Strictly English (Ensures code-AST token alignment & zero translation drift).
+    DecompositionRule:
+      - IF (TouchedFiles <= 3 & Steps <= 5) THEN:
+        * Standard Single-Tier Plan: Generate `implementation_plan.md` directly in Artifact Directory.
+      - IF (TouchedFiles > 3 OR Steps > 5) THEN:
+        * Trigger 2-Tier Hierarchical Planning:
+          - TIER_1_MASTER_PLAN (Context Compass): Session Artifact Directory (<appDataDir>\brain\<conversation-id>/). Descriptive name (e.g., `MASTER_PLAN_<feature>.md`). High-level roadmap, deliverables, phase checklist (`[ ]`, `[▶]`, `[x]`). Zero code bloat.
+          - TIER_2_ACTIVE_PLAN (Execution Work Order): Session Artifact Directory. `implementation_plan.md` (RequestFeedback: true, UserFacing: true). Exactly 1 active phase with full fidelity (zero `// TODO`, exact paths, explicit types, verification commands).
+    WorkspaceIsolation:
+      STRICTLY PROHIBIT creating, writing, or committing planning markdown files inside the project workspace (`backend-v2/`, `frontend-v2/`, project root). All plans reside exclusively in the ephemeral session artifact directory.
 
 HighFrequencyRegressionTraps:
   [PRE-TRAINING BIAS INTERCEPTORS: Guardrails preventing statistical drift to legacy patterns]
@@ -98,7 +93,7 @@ HighFrequencyRegressionTraps:
     => Action: Envelop all single resources strictly in `ApiResponse<T>` (`{ data: T }`) and collections in `PagedApiResponse<T>` (`{ data: T[], pagination: { page, limit, totalCount, totalPages } }`).
   Trigger: Applying Idempotency-Key on PUT/DELETE, or mutating resource without If-Match header
     => Action: Reserve `Idempotency-Key` exclusively for state-creating POST. Enforce `If-Match: "<unix_ms_token>"` concurrency token on PUT/DELETE mutations.
-  Trigger: Introducing a new abstraction (interface, record, helper, DTO) alongside an obsolete one, leaving it partially wired, or creating parallel duplicate logic
+  Trigger: Introducing a new abstraction alongside an obsolete one, leaving it partially wired, or creating parallel duplicate logic
     => Action: Enforce Codebase SSoT and Atomic One-Way Migration. You must 1) wire the new abstraction to 100% of applicable consumers, and 2) delete the superseded legacy code in the exact same task. Zero dual-state bloat, zero duplicate helper methods, and zero orphan abstractions.
   Trigger: Preserving obsolete production code, shims, wrappers, or legacy test files out of fear of breaking existing tests
     => Action: Update or purge the tests! Tests are living contracts of current architecture. When an abstraction is superseded, refactor existing test call-sites to assert the new canonical pattern and atomically delete superseded test files (*Tests.cs). Prohibit commented-out tests (`// [Fact]`) or warping production code to appease brittle legacy mocks.
@@ -109,30 +104,19 @@ HighFrequencyRegressionTraps:
   Trigger: Querying mutable relational field_mappings table during runtime document generation, or creating duplicate preview use cases
     => Action: Runtime document generation must strictly deserialize frozen TemplateVersion.MappingsSnapshot manifest as SSoT. All preview endpoints (Monaco HTML, Slug, TemplateId, Mappings preview) must route exclusively through PreviewDocumentUseCase.
   Trigger: Introducing speculative parameters, unrequested interfaces, or redundant DTO properties "just in case" (YAGNI breach)
-    => Action: Enforce strict YAGNI. Implement strictly the minimal sufficient code required by active requirements. Prohibit speculative extensibility hooks, phantom parameters, and premature generic abstractions.
+    => Action: Enforce strict YAGNI. Implement strictly the minimal sufficient code required by active requirements. Prohibit speculative extensibility hooks and premature generic abstractions.
   Trigger: Leaving unreferenced methods, unused constructor parameters/fields, or commented-out code after refactoring (Residue/Debris)
     => Action: Execute immediate Post-Mutation Hygiene. Atomically delete all dead methods, unreferenced variables, unused dependencies, and commented-out code in the exact same pass.
 
 StrategicAdvisoryGates:
   [PROACTIVE_PROPOSAL_REQUIRED: Proactively analyze high-ROI alternatives, present trade-offs, and consult User before proceeding]
   Principle: "You have 100% intellectual freedom to propose high-value architectural evolution. Never silently tolerate technical debt or suboptimal constraints. If bending or updating a boundary yields massive ROI (cleaner architecture, 10x throughput, lower maintenance), formulate a concrete proposal and ask the User first."
-  
   TriggersForProactiveConsultation:
-    - Breaking Contracts / DTOs:
-      * When: Current DTO contract causes ugly workarounds, N+1 queries, or leaking domain logic.
-      * Action: Propose clean DTO contract + migration path + trade-offs, and ask: "If we adjust this contract, we gain [Benefit] at the cost of [Impact]. Would you like to proceed with this direction?"
-    - Package Introductions (NuGet / npm):
-      * When: A battle-tested, lightweight package eliminates hundreds of lines of complex custom wheel-reinvention.
-      * Action: Present package name, dependency cost vs. maintenance savings, and ask for user confirmation.
-    - Database Migrations & Schema Evolution:
-      * When: A schema tweak (index, column type, relationship) solves a major bottleneck.
-      * Action: Present proposed migration script and query execution plan trade-off for user approval.
-    - Legacy Supersession & Atomic Dead Code Deletion:
-      * When: A newly implemented clean feature or approved refactoring renders old services, helpers, interfaces, or endpoints obsolete.
-      * Action: Execute complete end-to-end migration across all call-sites and purge the obsolete code in the same pass. If deleting affects shared external boundaries outside current scope, formulate a crisp 1-sentence supersession proposal. Never leave orphaned or duplicate abstractions rotting as dead weight.
-    - Architectural Blueprint Mutation & Upstream Elevation (specs/):
-      * When: An implementation discovers a superior pattern, or identifies an unstandardized core business area (Concurrency, Key Ownership, Quotas) that would leave downstream AI agents blind.
-      * Action: Do NOT stay silent. Proactively formulate a crisp 1-sentence proposal: "[STANDARD_GAP_DETECTED / SPEC_ELEVATION_RECOMMENDED]: Propose elevating [target_spec.md] to establish canonical standard [X] for downstream agents."
+    - Breaking Contracts / DTOs: Current DTO contract causes ugly workarounds, N+1 queries, or leaking domain logic -> propose clean DTO contract + migration path + trade-offs.
+    - Package Introductions (NuGet / npm): Lightweight package eliminates hundreds of lines of complex custom wheel-reinvention -> present package name, cost vs maintenance savings.
+    - Database Migrations & Schema Evolution: Schema tweak solves a major bottleneck -> present proposed migration script and query plan trade-off.
+    - Legacy Supersession & Dead Code Purge: Refactoring renders old code obsolete -> execute end-to-end migration and delete old code in the same pass. If deleting affects external boundaries outside scope, formulate a crisp 1-sentence proposal.
+    - Architectural Blueprint Mutation (specs/): Implementation discovers superior pattern or unstandardized core business -> formulate `[STANDARD_GAP_DETECTED / SPEC_ELEVATION_RECOMMENDED]`.
 </operational_boundaries>
 
 <core_engineering_axioms>
@@ -141,11 +125,11 @@ StrategicAdvisoryGates:
 Axiom1_CleanTopologyAndBoundedSlices:
   ArchitecturalPhilosophy: Clean Architecture + Feature Slices under Bounded Contexts (High Cohesion, Loose Coupling).
   PhysicalStructure:
-    Domain (SmkDoc.Domain): Pure C# POCOs isolated from frameworks. Encapsulated state, factory methods, expressive domain verbs.
+    Domain (SmkDoc.Domain): Pure C# POCOs isolated from frameworks. Encapsulated state via private set, factory methods, expressive domain verbs. Zero external dependencies.
     Application (SmkDoc.Application): Feature slices under `Modules/{BoundedContext}/{Aggregate}/{Commands|Queries|DTOs}`. Orchestrates workflows via `IUseCase<TReq, TRes>`. Strictly returns ResultDto or Stream. Never leaks Domain Entities.
     Infrastructure (SmkDoc.Infrastructure): Implements persistence & wire I/O (EF Core, MinIO, Gotenberg, SQL Drivers). Completely hides low-level transport details.
-    Presentation (SmkDoc.Api): Thin HTTP orchestrators dispatching to UseCases via C# 13 Primary Constructors. Centralized RFC 9457 `ProblemDetails`. Routes `api/v1/{resource}`.
-    Frontend (frontend-v2): Next.js 15 App Router (`src/app/`, `src/features/`, `src/components/`, `src/lib/api/`). Strictly partitions Server Components (data fetching & SEO) from Client Components (interactive forms & state). API mutations route through dedicated API client or Server Actions with Zod validation.
+    Presentation (SmkDoc.Api): Thin HTTP orchestrators (<= 5 LOC per action) dispatching to UseCases via C# 13 Primary Constructors. Centralized RFC 9457 `ProblemDetails`. Routes `api/v1/{resource}`.
+    Frontend (frontend-v2): Next.js 15 App Router (`src/app/`, `src/features/`, `src/components/`, `src/lib/api/`). Strictly partitions Server Components (data fetching & SEO) from Client Components (interactive forms & state).
 
 Axiom2_UniversalLinearCadences:
   ArchitecturalPhilosophy: KISS & Absolute Visual Uniformity (Linear code read top-to-bottom in a single pass without cognitive friction).
@@ -188,14 +172,12 @@ Axiom3_ComplexityFirewallAndAntiOverEngineering:
   QuantitativeBounds:
     ControllerActionLoc: <= 5 lines per action (strictly 3-step dispatcher)
     MethodLoc: <= 20 lines per method (decompose via private helper if exceeded)
-    ConstructorInjections: <= 5 dependencies per class (prohibit god-constructors)
+    ConstructorInjections: <= 5 dependencies per class via C# 13 Primary Constructors
     InheritanceDepth: <= 1 level (all classes marked `sealed` by default)
     NestingDepth: <= 2 levels (mandatory guard clauses and early exits; prohibit deeply nested if-else)
   AntiOverEngineeringRules:
-    StrictYagniDiscipline: Strictly prohibit speculative abstractions, phantom parameters ("just in case"), and over-generalized interfaces. Implement only what is required by current, active business deliverables. If a capability is needed later, evolve it then (Simplicity First).
-    SearchBeforeCreateSSoT: Before writing any new utility, calculation, DTO, or extension method, execute a codebase search. If an authoritative implementation exists, reuse or extend it in-place. Creating parallel duplicate helpers or shadow abstractions is strictly forbidden.
-    ZeroGodServices: Multi-action service classes (e.g. giant *Service classes with 10+ methods) are 100% prohibited across the entire platform. Every business capability must be an isolated Action-Centric Vertical Slice (1 UseCase = 1 Command/Query = 1 Responsibility). Boilerplate must be eliminated via C# 13 Primary Constructors and positional records, NEVER via generic CRUD base classes or runtime reflection hacks.
-    ModularDependencyInjection: Monolithic DI composition roots and god-registrations in Program.cs or root DependencyInjection.cs are strictly prohibited. Every layer (Presentation, Application, Infrastructure) must decompose registrations into cohesive Bounded Context / Subsystem installers (e.g. AddRenderingModule(), AddAuthoringModule(), AddPersistenceInfrastructure()).
+    ZeroGodServices: Multi-action service classes (e.g. giant *Service classes with 10+ methods) are 100% prohibited across the entire platform. Every business capability must be an isolated Action-Centric Vertical Slice (1 UseCase = 1 Command/Query = 1 Responsibility).
+    ModularDependencyInjection: Monolithic DI composition roots and god-registrations in Program.cs or root DependencyInjection.cs are strictly prohibited. Every layer (Presentation, Application, Infrastructure) decomposes registrations into cohesive Bounded Context / Subsystem installers (e.g. AddRenderingModule(), AddAuthoringModule(), AddPersistenceInfrastructure()).
     RuleOfThree: Strictly prohibit generic base services, generic repositories, or speculative interfaces until >= 2 distinct, existing production implementations require them.
     CompositionOverInheritance: Prefer flat composition and single-responsibility UseCases (IUseCase<TReq, TRes>) over abstract base hierarchies.
     ZeroRuntimeMagic: Prohibit reflection-based assembly scanning, dynamic method invocation, or opaque runtime dispatch.
@@ -205,11 +187,11 @@ Axiom4_CloudNativeScalabilityAndImmutability:
   ScalingRules:
     StatelessTopology: All UseCases and domain services must be 100% stateless. Prohibit shared in-memory dictionaries, stateful singletons, or static caches.
     ZeroLohStreaming: Stream binary outputs directly with bounded 81,920-byte buffers; strictly prohibit unbounded `byte[]` arrays or in-memory `MemoryStream.ToArray()`.
-    ContractImmutability: All cross-boundary payloads must be immutable records (`record`, `readonly record struct`).
+    ContractImmutability: All cross-boundary payloads must be immutable records (`sealed record`, `readonly record struct`).
     UniversalWireEnvelope: All non-streaming HTTP responses must encapsulate payloads in ApiResponse<T> or PagedApiResponse<T> with RFC 9457 ProblemDetails for errors.
     DeterministicTime: All temporal queries must consume injected `TimeProvider` (prohibit `DateTime.UtcNow`).
   AtomicEvolutionAndCodebaseSSoT:
-    CodebaseSSoTAndDeduplication: Every business calculation, domain rule, linguistic formatter, and data access must reside in exactly ONE authoritative implementation (Codebase SSoT). Strictly prohibit duplicate services, parallel shims, or pass-through indirection wrappers that add zero domain value (Zero Pass-Through Indirection).
+    CodebaseSSoTAndDeduplication: Every business calculation, domain rule, linguistic formatter, and data access must reside in exactly ONE authoritative implementation (Codebase SSoT). Strictly prohibit duplicate services, parallel shims, or pass-through indirection wrappers that add zero domain value.
     ZeroOrphanAbstractions: Every newly created interface, class, method, or DTO contract must be wired and actively consumed by 100% of its target call-sites. Strictly prohibit speculative or half-migrated abstractions.
     NoBackwardCompatibilityShims: This is an internal greenfield/active codebase. Strictly prohibit maintaining legacy shims, dual implementations, or obsolete method overloads to avoid updating tests. Refactor the tests cleanly.
     AtomicDeadCodePurge: When an abstraction or method is superseded, delete the obsolete production code and its dedicated test fixtures (*Tests.cs) across all call-sites in the exact same task. Zero zombie files, zero commented-out tests (`// [Fact]`), zero dead methods, and zero dual-state maintenance.
@@ -377,9 +359,9 @@ AdaptiveDefinitionOfDone:
     2_CodeAndAbstractionInspection:
        - FullConsumerWiringCheck: Verify that all new interfaces, types, methods, and parameters are actively consumed across 100% of intended call-sites (zero orphan abstractions).
        - DeadCodeAndDuplicatePurge: Verify that superseded classes, deprecated methods, shadow interfaces, and obsolete test fixtures (*Tests.cs) were deleted rather than abandoned alongside new code.
-       - PostMutationHygieneAndBoilerplatePurge: Verify that all unreferenced private methods, unused constructor parameters/fields, unused usings, and commented-out code resulting from the mutation were deleted. Eliminate verbose boilerplate using modern C# 13 idioms (Primary Constructors, pattern matching, collection expressions `[]`).
+       - PostMutationHygieneAndDebrisPurge: Verify that all unreferenced private methods, local variables, unused constructor parameters/fields, unused usings, and commented-out code (`// old implementation`, `// [Fact]`) resulting from the mutation were deleted in the exact same pass. Eliminate remaining boilerplate using modern C# 13 idioms (Primary Constructors, pattern matching, collection expressions `[]`).
        - TestModernizationParity: Verify that existing unit/integration tests were updated to test the new canonical pattern rather than relying on obsolete methods, commented-out facts, or backward-compatibility shims.
-       - QualityInvariants: Ensure classes are `sealed` by default and zero ambient clocks (`DateTime.UtcNow`) are used.
+       - QualityInvariants: Ensure classes are `sealed` by default, constructor injections <= 5, and zero ambient clocks (`DateTime.UtcNow`) are used.
     3_WorkspaceHygiene: Ensure zero temporary files or planning markdown files were written to the project workspace (artifacts stay in session directory).
     4_SpecificationVerdictAndElevation:
        - Default (90%): `[NO_SPEC_MUTATION_REQUIRED]` (concrete feature/DTO changes already 100% governed by existing archetypes).
@@ -396,8 +378,8 @@ CollaborativeHandoffStandards:
   Content:
     - Summarize what was accomplished and verified.
     - Surface concrete technical trade-offs or latent risks plainly.
-    - Proactive Boy Scout Clean-up Offer: If any nearby boilerplate, fat classes, obsolete wrappers, or unusable code was observed outside the current task scope, formulate a crisp 1-sentence clean-up proposal: "Observed [debt] in nearby [file/module]. Would you like me to clean this up in the next step?"
+    - Proactive Boy Scout Clean-up Offer: If any nearby boilerplate, fat classes, obsolete wrappers, or unusable code was observed outside the current task scope, formulate a crisp 1-sentence clean-up proposal in handoff: "Observed [debt] in nearby [file/module]. Would you like me to clean this up in the next step?"
     - Proactively champion code quality: If any nearby code smells or suboptimal patterns were detected, suggest the clean refactoring path.
     - Declare the Specification Verdict (`[NO_SPEC_MUTATION_REQUIRED]`, `[STANDARD_GAP_DETECTED]`, or `[SPEC_ELEVATION_RECOMMENDED]`).
-    - Suggest the natural next move (e.g., wiring downstream callers, replacing legacy code, or transitioning to the next phase) organically.
+    - Suggest the natural next move organically.
 </verification_and_handoff_protocol>
