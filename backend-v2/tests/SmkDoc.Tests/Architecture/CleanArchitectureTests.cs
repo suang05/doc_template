@@ -542,6 +542,7 @@ public sealed class CleanArchitectureTests
     {
         var appAssembly = typeof(ICurrentProjectContext).Assembly;
         var apiAssembly = typeof(SmkDoc.Api.Controllers.Rendering.DocumentGenerationController).Assembly;
+        var infraAssembly = typeof(AppDbContext).Assembly;
 
         apiAssembly.GetType("SmkDoc.Api.Controllers.Rendering.DocumentController")
             .Should().BeNull("Monolithic DocumentController was decomposed into DocumentGenerationController, DocumentArtifactController, and DocumentHistoryController.");
@@ -559,6 +560,14 @@ public sealed class CleanArchitectureTests
             .Should().BeNull("Fragmented IJsonNamedArrayParser was consolidated into ITemplateDataParser.");
         appAssembly.GetType("SmkDoc.Application.Common.Interfaces.ITemplateDataParser")
             .Should().NotBeNull("ITemplateDataParser is the SSoT parser contract.");
+        appAssembly.GetType("SmkDoc.Application.Modules.Authoring.Templates.Services.ITemplateDraftHandler")
+            .Should().BeNull("ITemplateDraftHandler was retired in Phase 2.");
+        appAssembly.GetType("SmkDoc.Application.Modules.Authoring.Templates.Services.ITemplateDraftHandlerRegistry")
+            .Should().BeNull("ITemplateDraftHandlerRegistry was retired in Phase 2.");
+        infraAssembly.GetType("SmkDoc.Infrastructure.Parsing.JsonTemplateDataParser")
+            .Should().NotBeNull("JsonTemplateDataParser is the authoritative SSoT parser implementation.");
+        infraAssembly.GetType("SmkDoc.Infrastructure.Parsing.JsonDataParser")
+            .Should().BeNull("JsonDataParser was renamed to JsonTemplateDataParser in Phase 2.");
         appAssembly.GetType("SmkDoc.Application.Modules.Authoring.Templates.Queries.PreviewTemplateHtml.PreviewTemplateHtmlUseCase")
             .Should().BeNull("Dead PreviewTemplateHtml slice was retired in Phase P1.");
         appAssembly.GetType("SmkDoc.Application.Modules.Rendering.Documents.Commands.HtmlToPdf.HtmlToPdfUseCase")

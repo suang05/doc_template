@@ -1,12 +1,12 @@
-﻿using FluentAssertions;
+using FluentAssertions;
 using SmkDoc.Infrastructure.Parsing;
 using Xunit;
 
 namespace SmkDoc.Tests.Infrastructure.Parsing;
 
-public sealed class JsonDataParserTests
+public sealed class JsonTemplateDataParserTests
 {
-    private readonly JsonDataParser _parser = new();
+    private readonly JsonTemplateDataParser _parser = new();
 
     [Fact]
     public void ToHierarchy_ShouldParseNestedObjectsAndArrays()
@@ -83,3 +83,4 @@ public sealed class JsonDataParserTests
         arrays["payments"].Should().HaveCount(1);
     }
 }
+

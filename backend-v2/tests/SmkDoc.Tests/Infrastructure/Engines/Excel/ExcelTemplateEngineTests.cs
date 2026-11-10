@@ -30,7 +30,7 @@ public sealed class ExcelTemplateEngineTests
             pdf,
             mediaInjector,
             new ExcelTableExpander(),
-            new JsonDataParser());
+            new JsonTemplateDataParser());
     }
 
     private static MemoryStream BuildWorkbook(Action<IXLWorksheet> setup)

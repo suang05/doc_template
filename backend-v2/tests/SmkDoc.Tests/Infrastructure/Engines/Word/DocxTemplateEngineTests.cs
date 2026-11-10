@@ -24,7 +24,7 @@ public sealed class DocxTemplateEngineTests
             media,
             new WordTextReplacer(),
             new WordTableExpander(),
-            new JsonDataParser());
+            new JsonTemplateDataParser());
     }
 
     private static MemoryStream BuildDocx(string paragraphText)

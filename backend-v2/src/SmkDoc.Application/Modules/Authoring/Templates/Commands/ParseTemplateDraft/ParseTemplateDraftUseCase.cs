@@ -2,13 +2,14 @@ using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Common.Streams;
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
-using SmkDoc.Application.Modules.Authoring.Templates.Services;
+using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 
 namespace SmkDoc.Application.Modules.Authoring.Templates.Commands.ParseTemplateDraft;
 
 public sealed class ParseTemplateDraftUseCase(
-    ITemplateDraftHandlerRegistry draftHandlerRegistry,
+    ITemplateScannerService scannerService,
+    IDocxSecurityScanner docxSecurityScanner,
     ITemplateDraftCache draftCache,
     ICurrentProjectContext projectContext) : IUseCase<ParseTemplateDraftCommand, ParseDraftResultDto>
 {
@@ -22,7 +23,11 @@ public sealed class ParseTemplateDraftUseCase(
         }
 
         var ext = Path.GetExtension(command.FileName).ToLowerInvariant();
-        var handler = draftHandlerRegistry.GetHandler(ext);
+        if (!TemplateFormat.TryFromExtension(ext, out _))
+        {
+            throw new DomainValidationException(
+                $"Unsupported template file extension: '{ext}'. Allowed formats: .html, .docx, .xlsx");
+        }
 
         await using var spooled = await HybridSpoolStream.SpoolFromAsync(command.FileStream, ct: ct);
         if (spooled.Length > MaxDraftFileSizeBytes)
@@ -31,11 +36,19 @@ public sealed class ParseTemplateDraftUseCase(
                 $"Draft file size ({spooled.Length / (1024 * 1024)} MB) exceeds the 20 MB limit.");
         }
 
-        spooled.Position = 0;
-        await handler.ValidateSecurityAsync(spooled, ct);
+        if (string.Equals(ext, ".docx", StringComparison.OrdinalIgnoreCase))
+        {
+            spooled.Position = 0;
+            var scanResult = docxSecurityScanner.Scan(spooled);
+            if (scanResult is { IsSafe: false })
+            {
+                throw new DomainValidationException(
+                    $"DOCX file failed security scan: {string.Join("; ", scanResult.Threats)}");
+            }
+        }
 
         spooled.Position = 0;
-        var detailedPlaceholders = await handler.ExtractDetailedPlaceholdersAsync(spooled, ct);
+        var detailedPlaceholders = await scannerService.ScanDetailedPlaceholdersAsync(spooled, ext, ct);
         var placeholders = detailedPlaceholders.Select(p => p.Name).Distinct().ToList();
 
         spooled.Position = 0;

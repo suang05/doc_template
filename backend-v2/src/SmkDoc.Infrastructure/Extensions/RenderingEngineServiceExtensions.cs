@@ -8,12 +8,10 @@ using Microsoft.Extensions.Http.Resilience;
 using Polly;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Fonts.Services;
-using SmkDoc.Application.Modules.Authoring.Templates.Services;
 using SmkDoc.Application.Modules.Rendering.Documents.Services;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Infrastructure.Cache;
 using SmkDoc.Infrastructure.Engines;
-using SmkDoc.Infrastructure.Engines.DraftHandlers;
 using SmkDoc.Infrastructure.Engines.Excel;
 using SmkDoc.Infrastructure.Engines.Fonts;
 using SmkDoc.Infrastructure.Engines.Html;
@@ -103,7 +101,7 @@ public static class RenderingEngineServiceExtensions
         services.AddSingleton<IBarcodeService, BarcodeService>();
         services.AddSingleton<IImageOptimizer, ImageOptimizerService>();
         services.AddSingleton<IMediaGenerationService, MediaGenerationService>();
-        services.AddSingleton<ITemplateDataParser, JsonDataParser>();
+        services.AddSingleton<ITemplateDataParser, JsonTemplateDataParser>();
         services.AddSingleton<ITemplateScannerService, TemplateScannerService>();
         services.AddScoped<IFontCatalogService, FontCatalogService>();
         services.AddSingleton<ISchemaInferenceService, SchemaInferenceService>();
@@ -132,12 +130,6 @@ public static class RenderingEngineServiceExtensions
         services.AddScoped<IRenderEngine, DocxTemplateEngine>();
         services.AddScoped<IRenderEngine, ExcelTemplateEngine>();
         services.AddScoped<IRenderEngineFactory, RenderEngineFactory>();
-
-        // 4. Template Draft Handlers
-        services.AddScoped<ITemplateDraftHandler, DocxDraftHandler>();
-        services.AddScoped<ITemplateDraftHandler, HtmlDraftHandler>();
-        services.AddScoped<ITemplateDraftHandler, XlsxDraftHandler>();
-        services.AddScoped<ITemplateDraftHandlerRegistry, TemplateDraftHandlerRegistry>();
 
         return services;
     }

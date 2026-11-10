@@ -24,7 +24,7 @@ public sealed class HtmlTemplateEngineTests
         return new HtmlTemplateEngine(
             pdfRenderer,
             handlebars,
-            new JsonDataParser(),
+            new JsonTemplateDataParser(),
             new HtmlPlaceholderTransformer(),
             new HtmlLayoutProcessor(),
             cache);
@@ -160,7 +160,7 @@ public sealed class HtmlTemplateEngineTests
         var engine = new HtmlTemplateEngine(
             pdfRenderer,
             singletonHandlebars,
-            new JsonDataParser(),
+            new JsonTemplateDataParser(),
             new HtmlPlaceholderTransformer(),
             new HtmlLayoutProcessor());
 
