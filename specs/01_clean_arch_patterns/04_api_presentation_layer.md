@@ -40,7 +40,7 @@ Signal: [ARCH_EVOLUTION_API]
 | **Zero-LOH Streaming Egress** | Binary render/download endpoints stream live `Stream` directly to `Response.Body` or `File(stream, ...)` with bounded `81,920`-byte buffers. Whole-file `byte[]` buffering is prohibited. | Memory & GC |
 | **Plural RESTful Taxonomy** | Routes adhere to plural kebab-case `api/v1/{resources}` on `{Aggregate}sController`. Legacy `/api/*` and verb-based route segments are prohibited. | Route Routing |
 | **Dual-Track Rendering** | Document generation is partitioned into Track 1 (Sync Monaco preview / instant generate with `rendering` rate limit 30 req/min) and Track 2 (`POST generate-async`, returning `202 Accepted` + `Location`). | Rendering Gateway |
-| **Unified Preview Gateway** | Live preview requests (Monaco raw HTML, template slug, or template UUID) route exclusively through `PreviewDocumentUseCase`. In `TemplateMappingController` (`POST /api/v1/templates/{id}/mappings/preview`), preview calls delegate to `PreviewDocumentUseCase` with `TemplateId`, enforcing a single preview pipeline. | Preview SSoT |
+| **Unified Preview Gateway** | Live preview requests (Monaco raw HTML, template draft ID, template slug, or template UUID) route exclusively through `PreviewDocumentUseCase`. In `TemplateMappingController` (`POST /api/v1/templates/{id}/mappings/preview`) and `TemplateDraftController` (`POST /api/v1/authoring/templates/drafts/{draftId}/preview`), preview calls delegate to `PreviewDocumentUseCase`, enforcing a single preview pipeline. | Preview SSoT |
 | **Pure Schema Ingestion** | Incoming JSON payloads are validated fail-fast during generation without mutating payload data or duplicating validation endpoints. | Ingestion Pipeline |
 | **Declarative Policy Security**| Actions are authorized via declarative `[Authorize(Policy = "...")]` attributes matching the Declarative Authorization Policies Matrix. | Endpoint Authorization |
 | **Separated API Key Routes** | Tenant sub-key operations reside on `/api/v1/api-keys` (Project Admin, quota max 2), while platform-wide governance resides on `/api/v1/management/api-keys` (SuperAdmin). | Key Governance |
@@ -568,9 +568,9 @@ public sealed class {Resource}DiagnosticsController(
 
 ### [TRAP-API-013]: Duplicate Preview UseCase or Bypassing Unified Preview Pipeline
 ```diff
-- // Creating duplicate preview use case in controller:
-- var result = await previewMappingUseCase.ExecuteAsync(query, ct);
-+ // Delegating to unified PreviewDocumentUseCase SSoT:
-+ var result = await previewDocumentUseCase.ExecuteAsync(new PreviewDocumentQuery(templateId, ...), ct);
+- // Creating duplicate preview use cases across controllers (e.g. PreviewTemplateDraftUseCase, PreviewTemplateMappingUseCase):
+- var result = await previewTemplateDraftUseCase.ExecuteAsync(query, ct);
++ // Delegating to unified PreviewDocumentUseCase SSoT across all authoring/draft controllers:
++ var result = await previewDocumentUseCase.ExecuteAsync(new PreviewDocumentQuery(payload, DraftId: draftId), ct);
 ```
-*Rationale: All live preview operations (Monaco raw HTML, template slug, template ID, or mapping studio preview) must route through the single unified `PreviewDocumentUseCase`. Duplicate preview use cases cause rendering logic divergence and dual maintenance.*
+*Rationale: All live preview operations (Monaco raw HTML, template draft ID, template slug, template ID, or mapping studio preview) must route through the single unified `PreviewDocumentUseCase`. Duplicate preview use cases cause rendering logic divergence and dual maintenance.*

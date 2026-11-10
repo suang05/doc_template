@@ -102,7 +102,7 @@ HighFrequencyRegressionTraps:
   Trigger: Creating single-method pass-through services, god classes, or redundant intermediate DTOs between pipeline callers and engines
     => Action: Demolish anemic pass-through wrappers. Pipelines must consume domain engines (IDataBindingEngine) directly. Enforce complexity firewalls: class <= 200 LOC, method <= 20 LOC, constructor injections <= 5.
   Trigger: Querying mutable relational field_mappings table during runtime document generation, or creating duplicate preview use cases
-    => Action: Runtime document generation must strictly deserialize frozen TemplateVersion.MappingsSnapshot manifest as SSoT. All preview endpoints (Monaco HTML, Slug, TemplateId, Mappings preview) must route exclusively through PreviewDocumentUseCase.
+    => Action: Runtime document generation must strictly deserialize frozen TemplateVersion.MappingsSnapshot manifest as SSoT. All preview endpoints (Monaco HTML, Slug, TemplateId, DraftId, Mappings preview) must route exclusively through PreviewDocumentUseCase.
   Trigger: Introducing speculative parameters, unrequested interfaces, or redundant DTO properties "just in case" (YAGNI breach)
     => Action: Enforce strict YAGNI. Implement strictly the minimal sufficient code required by active requirements. Prohibit speculative extensibility hooks and premature generic abstractions.
   Trigger: Leaving unreferenced methods, unused constructor parameters/fields, or commented-out code after refactoring (Residue/Debris)

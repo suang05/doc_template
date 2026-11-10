@@ -34,7 +34,7 @@ Signal: [ARCH_EVOLUTION_RENDERING]
 |---|---|---|
 | **Zero-LOH Stream Purity** | Render and PDF contracts expose pure `Task<Stream>` types. Output streams are piped with bounded `81,920`-byte buffers, dry-run validations drain to `Stream.Null`, and seekable packages use `HybridSpoolStream`. Multi-MB `byte[]` arrays are prohibited. | Memory & GC Boundary |
 | **Template Manifest SSoT** | Runtime document generation strictly deserializes the immutable version manifest (`TemplateVersion.MappingsSnapshot`), bypassing relational `field_mappings` queries to guarantee version immutability and zero-drift execution. | Data Binding Boundary |
-| **Unified Preview Gateway** | Live preview requests (Monaco raw HTML, template slug, or template UUID) route exclusively through the unified `PreviewDocumentUseCase`. Duplicate preview use cases are prohibited. | Preview Perimeter |
+| **Unified Preview Gateway** | Live preview requests (Monaco raw HTML, RAM-cached template drafts, template slug, or template UUID) route exclusively through the unified `PreviewDocumentUseCase`. Duplicate preview use cases are prohibited. | Preview Perimeter |
 | **Polymorphic Engine Resolution**| Document synthesis resolves engines dynamically via `IRenderEngineFactory.GetEngine(engineType)` using an immutable `FrozenDictionary`. Hardcoded switch/if-else branching is prohibited. | Engine Extensibility |
 | **Storage Perimeter Isolation** | Generated documents and templates stream server-side through API Gateway (`File(stream, ...)`). Emitting HTTP 307 redirects or raw internal MinIO URLs to clients is prohibited. | Network Perimeter |
 | **2-Track Rendering Pipeline** | Rendering architecture is partitioned into Track 1 (Synchronous Monaco Live Preview with `rendering` rate limit 30 req/min) and Track 2 (Asynchronous Batch Queue via `POST generate-async`, `202 Accepted` + `Location` header, backed by Redis Streams with Consumer Groups `XADD`/`XREADGROUP` and drained by `DocumentRenderQueueWorker` with `SemaphoreSlim(4)` backpressure). | Workload Partitioning |
@@ -203,8 +203,8 @@ public sealed class ResponseDisposingStream(Stream innerStream, HttpResponseMess
 
 ### 3.2 Unified Live Preview Gateway Archetype (`Preview{Resource}UseCase` & `Preview{Resource}Query`)
 >> MANDATORY CANONICAL BLUEPRINT [RULE-MECH-002]:
-* Unified preview entry-point supporting: 1) Monaco raw HTML, 2) Template Slug, 3) Template UUID.
-* Zero persistence: NEVER uploads to MinIO, NEVER logs to audit tables, NEVER increments version counters.
+* Unified preview entry-point supporting: 1) Monaco raw HTML, 2) RAM-cached Template Draft ID, 3) Template Slug, 4) Template UUID.
+* Zero persistence: NEVER uploads to MinIO output bucket, NEVER logs to audit tables, NEVER increments version counters.
 * Direct in-memory stream return to browser (`application/pdf`) with `inline` disposition.
 
 ```csharp
@@ -212,23 +212,55 @@ public sealed record Preview{Resource}Query(
     JsonElement Payload,
     string? Html = null,
     string? Slug = null,
-    Guid? {Aggregate}Id = null
+    Guid? {Aggregate}Id = null,
+    string? DraftId = null
 );
 
 public sealed class Preview{Resource}UseCase(
     I{Aggregate}Repository repository,
     IStorageService storageService,
     IRenderEngineFactory engineFactory,
-    IDataBindingEngine? dataBindingEngine = null) : IUseCase<Preview{Resource}Query, Stream>
+    IDataBindingEngine? dataBindingEngine = null,
+    ITemplateDraftCache? draftCache = null,
+    ICurrentProjectContext? projectContext = null) : IUseCase<Preview{Resource}Query, Stream>
 {
     public async Task<Stream> ExecuteAsync(Preview{Resource}Query query, CancellationToken ct = default)
     {
-        // Step 1: Dual-Path Resolution <Why: Monaco editor previews draft markup without persistence or DB hit>
-        var (templateStream, engineType, dataJson) = !string.IsNullOrWhiteSpace(query.Html)
-            ? (await HybridSpoolStream.CreateFromUtf8StringAsync(query.Html, ct), RenderEngineType.Html, query.Payload.GetRawText())
-            : await ResolvePublishedTemplateStreamAsync(query, ct);
+        Stream templateStream;
+        RenderEngineType engineType;
+        string dataJson;
 
-        // Step 2: Render Ephemeral Stream <Why: zero MinIO persistence, zero generation log mutations>
+        // Path 1: Monaco editor raw HTML preview
+        if (!string.IsNullOrWhiteSpace(query.Html))
+        {
+            templateStream = await HybridSpoolStream.CreateFromUtf8StringAsync(query.Html, ct: ct);
+            engineType = RenderEngineType.Html;
+            dataJson = query.Payload.ValueKind != JsonValueKind.Undefined ? query.Payload.GetRawText() : "{}";
+        }
+        // Path 2: RAM-cached template draft preview (authoring studio)
+        else if (!string.IsNullOrWhiteSpace(query.DraftId))
+        {
+            if (projectContext is null || !projectContext.IsResolved)
+                throw new ForbiddenException("Previewing a draft requires an active project context.");
+            if (draftCache is null)
+                throw new BusinessRuleViolationException("Draft cache is not available for preview.", "DRAFT_CACHE_UNAVAILABLE");
+
+            var draft = await draftCache.GetAsync(projectContext.ProjectId, query.DraftId, ct)
+                ?? throw new DraftExpiredException(query.DraftId);
+            if (!TemplateFormat.TryFromExtension(draft.FileExtension, out var format))
+                throw new DomainValidationException($"Unsupported template file format: '{draft.FileExtension}'.");
+
+            engineType = format.DefaultEngineType;
+            templateStream = await draftCache.OpenStreamAsync(draft, ct);
+            dataJson = query.Payload.ValueKind != JsonValueKind.Undefined ? query.Payload.GetRawText() : "{}";
+        }
+        // Path 3 & 4: Published template by ID or Slug
+        else
+        {
+            (templateStream, engineType, dataJson) = await ResolvePublishedTemplateStreamAsync(query, ct);
+        }
+
+        // Render Ephemeral Stream <Why: zero MinIO persistence, zero generation log mutations>
         try
         {
             var engine = engineFactory.GetEngine(engineType);
@@ -243,13 +275,17 @@ public sealed class Preview{Resource}UseCase(
     private async Task<(Stream Stream, RenderEngineType Engine, string DataJson)> ResolvePublishedTemplateStreamAsync(
         Preview{Resource}Query query, CancellationToken ct)
     {
-        var aggregate = await repository.GetBySlugAsync(query.Slug!, ct)
-            ?? throw new NotFoundException($"Template '{query.Slug}' not found.");
-        var version = aggregate.GetPublishedVersion();
+        var aggregate = query.{Aggregate}Id.HasValue
+            ? await repository.GetByIdAsync(query.{Aggregate}Id.Value, ct)
+            : await repository.GetBySlugAsync(query.Slug!, ct);
 
+        if (aggregate == null)
+            throw new NotFoundException($"Template not found.");
+
+        var version = aggregate.GetPublishedVersion();
         var dataJson = dataBindingEngine != null
             ? (await dataBindingEngine.BindAndValidateAsync(aggregate, version, query.Payload, skipValidation: false, ct)).DataJson
-            : query.Payload.GetRawText();
+            : (query.Payload.ValueKind != JsonValueKind.Undefined ? query.Payload.GetRawText() : "{}");
 
         var stream = await storageService.DownloadAsync(StorageBuckets.Templates, version.StorageKey, ct);
         return (stream, version.GetRenderEngineType(), dataJson);
@@ -298,45 +334,170 @@ public sealed class DataBindingEngine(
 }
 ```
 
-### 3.4 Direct Render Execution Pipeline Archetype (`{Resource}RenderPipeline`)
+### 3.4 Linear PEMR Generation Pipeline Archetype (`Generate{Resource}UseCase`)
 >> MANDATORY CANONICAL BLUEPRINT [RULE-MECH-004]:
-* Direct pipeline execution connecting Application to `IDataBindingEngine` (Zero pass-through wrappers).
-* Enforces fail-fast JSON Schema Draft-07 validation prior to invoking Gotenberg/OpenXML engines.
-* Spools unseekable engine outputs to `SpooledOutputStream` (bounded at 81,920 bytes) before S3 upload.
+* Direct linear 4-step PEMR execution pipeline inside `Generate{Resource}UseCase` (Zero intermediate pipeline wrappers).
+* Connects Application directly to `IDataBindingEngine` and `IRenderEngineFactory`.
+* Enforces fail-fast JSON Schema Draft-07 validation with immediate validation failure auditing and rollback.
+* Spools unseekable engine outputs to `SpooledOutputStream` (bounded at 81,920 bytes) before MinIO S3 upload.
+* Provides full transactional resilience: presigned download URL generation, document versioning, success audit, atomic commit, and compensating storage deletion if post-upload commit fails.
 
 ```csharp
-public sealed class {Resource}RenderPipeline(
+public sealed class Generate{Resource}UseCase(
+    I{Aggregate}Repository repository,
+    IStorageService storageService,
     IRenderEngineFactory engineFactory,
     IDataBindingEngine dataBindingEngine,
-    IStorageService storageService,
     IDocumentAuditService auditService,
-    IUnitOfWork unitOfWork) : I{Resource}RenderPipeline
+    IDocumentVersioningService versioningService,
+    IUnitOfWork unitOfWork,
+    ICurrentProjectContext projectContext,
+    TimeProvider timeProvider) : IUseCase<Generate{Resource}Command, Generate{Resource}ResultDto>
 {
-    public async Task<DocumentRenderResult> RenderAndUploadAsync(
+    public async Task<Generate{Resource}ResultDto> ExecuteAsync(
+        Generate{Resource}Command command, CancellationToken ct = default)
+    {
+        // Step 1: Parse & Guard <Why: fail-fast ambient tenant validation>
+        if (!projectContext.IsResolved)
+            throw new ForbiddenException("Document generation requires an active project context.");
+
+        var outputFormat = ParseOutputFormat(command.OutputFormat);
+
+        // Step 2: Ensure <Why: precondition aggregate check & version resolution>
+        var aggregate = await repository.GetBySlugWithDetailsAsync(command.Slug, ct);
+        if (aggregate == null || !aggregate.IsActive)
+            throw new NotFoundException($"Template '{command.Slug}' not found or inactive.");
+
+        var currentVersion = aggregate.GetPublishedVersion();
+        var generationId = Guid.CreateVersion7();
+        var tenantId = projectContext.ProjectId.Value;
+        string ext = outputFormat.Extension;
+        string outputKey = $"outputs/{tenantId:N}/{timeProvider.GetUtcNow():yyyy/MM/dd}/{command.Slug}_{generationId:N}.{ext}";
+
+        // Step 3: Mutate & Render/Upload <Why: streaming synthesis and bounded spooling>
+        var render = await RenderAndUploadAsync(
+            aggregate, currentVersion, command.Payload, command.SkipValidation, outputFormat, outputKey, ct);
+
+        // Step 4: Finalize & Return <Why: atomic commit, audit, and compensating storage deletion>
+        return await FinalizeDocumentAsync(
+            command, aggregate, currentVersion, generationId, outputKey, outputFormat, render, ct);
+    }
+
+    private async Task<RenderOutput> RenderAndUploadAsync(
         {Aggregate} aggregate,
         {Aggregate}Version currentVersion,
         JsonElement payload,
         bool skipValidation,
         OutputFormat outputFormat,
         string outputKey,
-        CancellationToken ct = default)
+        CancellationToken ct)
     {
-        // Step 1: Bind & Validate via Unified DataBindingEngine <Why: zero intermediate wrappers>
-        var bound = await dataBindingEngine.BindAndValidateAsync(aggregate, currentVersion, payload, skipValidation, ct);
+        var sw = Stopwatch.StartNew();
+        var engine = engineFactory.GetEngine(currentVersion.GetRenderEngineType());
+        string? preparedDataJson = null;
 
-        // Step 2: Fail-Fast JSON Schema Gate & Audit On Violation <Why: prevent bad renders and record failure>
-        if (bound.ValidationResult is { IsValid: false })
-            throw new SchemaValidationException(aggregate.Slug.Value, currentVersion.Version, bound.ValidationResult.Errors);
+        try
+        {
+            var boundData = await dataBindingEngine.BindAndValidateAsync(
+                aggregate, currentVersion, payload, skipValidation, ct);
+            preparedDataJson = boundData.DataJson;
 
-        // Step 3: Stream Synthesis & Bounded Spooling <Why: strictly bounded 81,920 buffer avoids LOH Gen 2 spikes>
-        using var templateStream = await storageService.DownloadAsync(StorageBuckets.Templates, currentVersion.StorageKey, ct);
-        var rawOutputStream = await engineFactory.GetEngine(currentVersion.GetRenderEngineType()).RenderStreamAsync(templateStream, bound.DataJson, outputFormat, ct);
-        await using var spooled = await SpooledOutputStream.CreateAndDisposeSourceAsync(rawOutputStream, ct);
+            if (boundData.ValidationResult is { IsValid: false })
+            {
+                sw.Stop();
+                var errorMsg = $"{boundData.ValidationResult.Errors.Count} schema violation(s) detected.";
+                await auditService.LogValidationFailureAsync(
+                    aggregate.Id.Value, currentVersion.Id, boundData.DataJson, outputFormat, (int)sw.ElapsedMilliseconds, errorMsg, ct);
+                await unitOfWork.CommitAsync(ct);
 
-        // Step 4: Storage Upload & Metrics Egress <Why: immutable artifact persistence and audit telemetry>
-        await storageService.UploadAsync(StorageBuckets.Outputs, outputKey, spooled.ContentStream, outputFormat.MimeType, ct);
-        return new DocumentRenderResult(bound.DataJson, spooled.FileSizeBytes, spooled.Sha256Hex, elapsedMilliseconds);
+                throw new SchemaValidationException(
+                    aggregate.Slug.Value, currentVersion.Version, boundData.ValidationResult.Errors);
+            }
+
+            using var templateStream = await storageService.DownloadAsync(StorageBuckets.Templates, currentVersion.StorageKey, ct);
+            var rawOutputStream = await engine.RenderStreamAsync(templateStream, boundData.DataJson, outputFormat, ct);
+
+            await using var spooled = await SpooledOutputStream.CreateAndDisposeSourceAsync(rawOutputStream, ct);
+            sw.Stop();
+
+            await storageService.UploadAsync(
+                StorageBuckets.Outputs, outputKey, spooled.ContentStream, outputFormat.MimeType, ct);
+
+            return new RenderOutput(boundData.DataJson, spooled.FileSizeBytes, spooled.Sha256Hex, (int)sw.ElapsedMilliseconds);
+        }
+        catch (Exception ex) when (ex is not SchemaValidationException and not OperationCanceledException)
+        {
+            sw.Stop();
+            try
+            {
+                var fallbackPayload = preparedDataJson ?? (payload.ValueKind != JsonValueKind.Undefined ? payload.GetRawText() : "{}");
+                await auditService.LogFailureAsync(
+                    aggregate.Id.Value, currentVersion.Id, fallbackPayload, outputFormat, (int)sw.ElapsedMilliseconds, ex.Message, CancellationToken.None);
+                await unitOfWork.CommitAsync(CancellationToken.None);
+            }
+            catch (Exception auditEx)
+            {
+                Trace.TraceWarning("Failed to persist FAILED audit log: {0}", auditEx.Message);
+            }
+
+            throw;
+        }
     }
+
+    private async Task<Generate{Resource}ResultDto> FinalizeDocumentAsync(
+        Generate{Resource}Command command,
+        {Aggregate} aggregate,
+        {Aggregate}Version currentVersion,
+        Guid generationId,
+        string outputKey,
+        OutputFormat outputFormat,
+        RenderOutput render,
+        CancellationToken ct)
+    {
+        try
+        {
+            var expiry = TimeSpan.FromHours(24);
+            string downloadUrl = await storageService.GetPresignedUrlAsync(StorageBuckets.Outputs, outputKey, expiry, ct);
+
+            await auditService.LogSuccessAsync(
+                generationId, aggregate.Id.Value, currentVersion.Id, render.PreparedDataJson, outputKey, outputFormat, render.FileSizeBytes, render.ElapsedMilliseconds, ct);
+
+            if (!string.IsNullOrWhiteSpace(command.DocumentRef))
+            {
+                await versioningService.RecordVersionAsync(
+                    command.DocumentRef, aggregate.Id.Value, currentVersion.Id, generationId, command.ChangeNote, ct);
+            }
+
+            await unitOfWork.CommitAsync(ct);
+
+            return new Generate{Resource}ResultDto(
+                generationId, command.DocumentRef, outputFormat.Extension, render.FileSizeBytes, render.Sha256Hex, downloadUrl, timeProvider.GetUtcNow().Add(expiry));
+        }
+        catch (Exception primaryEx)
+        {
+            try
+            {
+                await storageService.DeleteAsync(StorageBuckets.Outputs, outputKey, CancellationToken.None);
+            }
+            catch (Exception cleanupEx)
+            {
+                Trace.TraceWarning("Failed to delete orphaned output '{0}': {1}", outputKey, cleanupEx.Message);
+            }
+
+            throw;
+        }
+    }
+
+    private static OutputFormat ParseOutputFormat(string format) =>
+        format.Trim().ToLowerInvariant() switch
+        {
+            "docx" => OutputFormat.Docx,
+            "xlsx" => OutputFormat.Xlsx,
+            _ => OutputFormat.Pdf
+        };
+
+    private readonly record struct RenderOutput(
+        string PreparedDataJson, long FileSizeBytes, string Sha256Hex, int ElapsedMilliseconds);
 }
 ```
 
@@ -554,11 +715,13 @@ public sealed class DocumentRetentionWorker(
 ```
 *Rationale: Querying mutable relational `field_mappings` during document generation breaks version immutability. An author editing field mappings in the studio causes historical published versions to immediately drift and produce altered outputs. The frozen `TemplateVersion.MappingsSnapshot` is the authoritative runtime manifest.*
 
-### [TRAP-MECH-008]: Pass-Through Indirection Wrapper in Rendering Pipeline
+### [TRAP-MECH-008]: Pass-Through Indirection Wrapper or Intermediate Pipeline in Rendering
 ```diff
-- var prepared = await dataPreparationWrapper.PrepareDataAsync(template, version, payload, skip, ct);
-- var rawStream = await engine.RenderStreamAsync(templateStream, prepared.DataJson, format, ct);
+- // Artificial intermediate render pipeline wrapper between UseCase and engines:
+- public class DocumentRenderPipeline(IRenderEngineFactory f, IDataBindingEngine d, ...) : IDocumentRenderPipeline { ... }
+- var renderResult = await renderPipeline.RenderAndUploadAsync(template, version, ...);
++ // Direct PEMR orchestration in GenerateDocumentUseCase connecting directly to domain engines:
 + var bound = await dataBindingEngine.BindAndValidateAsync(template, version, payload, skip, ct);
 + var rawStream = await engine.RenderStreamAsync(templateStream, bound.DataJson, format, ct);
 ```
-*Rationale: Concrete pipeline violation of system-wide CodebaseSSoTAndDeduplicationFirewall. Single-method pass-through wrappers that merely wrap calls and convert DTOs introduce artificial maintenance overhead and redundant object allocations without adding business value. Connect the pipeline directly to `IDataBindingEngine`.*
+*Rationale: Concrete pipeline violation of system-wide CodebaseSSoTAndDeduplicationFirewall. Intermediate pipeline classes (e.g. `DocumentRenderPipeline`) or pass-through wrappers that merely forward calls and convert DTOs split error handling across classes, obscure stack traces, and introduce artificial maintenance overhead without adding domain value. Orchestrate generation directly in `Generate{Resource}UseCase` following 4-step PEMR.*

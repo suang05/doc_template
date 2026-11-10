@@ -37,6 +37,7 @@ Signal: [ARCH_EVOLUTION_FIREWALL]
 | **[TRAP-WRAPPER-018]**| Simplicity | Artificial pass-through wrappers duplicating identical DTOs create cognitive bloat and GC allocations. | Pipeline must consume domain engines (`IDataBindingEngine`) directly without wrapper indirection. | HIGH |
 | **[TRAP-DI-019]** | Modularity | Monolithic DI composition roots accumulating hundreds of lines across multiple subsystems hide dependencies. | Decompose DI into single-responsibility Feature Installers under `SmkDoc.Infrastructure/Extensions/`. | HIGH |
 | **[TRAP-PREVIEW-020]**| Architecture | Parallel duplicate preview use cases cause rendering logic divergence and dual-pipeline maintenance. | Route all preview variants exclusively through `PreviewDocumentUseCase` SSoT. | HIGH |
+| **[TRAP-PIPELINE-021]**| Simplicity | Artificial intermediate render pipeline classes between UseCases and domain engines fragment error handling and violate Linear PEMR. | Fold generation orchestration directly into `Generate{Resource}UseCase` following 4-step PEMR. | HIGH |
 
 ---
 
@@ -267,12 +268,22 @@ EventConsistencyFirewall:
 
 ### [TRAP-PREVIEW-020]: Parallel Duplicate Preview UseCases
 ```diff
-- // Divergent preview use cases maintaining duplicate rendering logic
-- public class PreviewMonacoUseCase { ... }
-- public class PreviewSlugUseCase { ... }
-- public class PreviewDraftUseCase { ... }
-+ // Unified preview gateway routing all inputs through single non-persisting engine
-+ public class PreviewDocumentUseCase(ITemplateRepository repo, IRenderEngineFactory factory, ...) : IUseCase<PreviewDocumentQuery, Stream> { ... }
+- // Divergent preview use cases maintaining duplicate rendering logic (e.g. PreviewTemplateDraftUseCase, PreviewTemplateHtmlUseCase)
+- public class PreviewTemplateDraftUseCase(ITemplateDraftCache c, ...) : IUseCase<PreviewTemplateDraftQuery, Stream> { ... }
++ // Unified preview gateway routing all inputs (Monaco HTML, DraftId, Slug, TemplateId) through single non-persisting engine
++ public class PreviewDocumentUseCase(ITemplateRepository repo, IStorageService s, IRenderEngineFactory f, ...) : IUseCase<PreviewDocumentQuery, Stream> { ... }
 ```
 >> SSoT DELEGATION: Presentation routing governed strictly by [04_api_presentation_layer.md](../01_clean_arch_patterns/04_api_presentation_layer.md#trap-api-013); preview execution archetype governed strictly by [document_rendering_mechanics.md](../03_specialized_mechanics/document_rendering_mechanics.md#32-unified-live-preview-gateway-archetype-previewresourceusecase--previewresourcequery).
-*Rationale: Having separate preview use cases for Monaco live HTML, template slugs, and studio mapping editors causes business logic duplication and engine divergence. Consolidate all preview modes into `PreviewDocumentUseCase`.*
+*Rationale: Having separate preview use cases for Monaco live HTML, template slugs, RAM-cached drafts, and studio mapping editors causes business logic duplication and engine divergence. Consolidate all preview modes into `PreviewDocumentUseCase`.*
+
+### [TRAP-PIPELINE-021]: Artificial Intermediate Render Pipeline Wrappers
+```diff
+- // Redundant intermediate pipeline wrapper between UseCase and domain engines:
+- public class DocumentRenderPipeline(IRenderEngineFactory f, IDataBindingEngine d, ...) : IDocumentRenderPipeline { ... }
+- var result = await renderPipeline.RenderAndUploadAsync(template, version, payload, ...);
++ // Direct linear PEMR orchestration inside UseCase consuming domain engines directly:
++ var bound = await dataBindingEngine.BindAndValidateAsync(template, version, payload, skip, ct);
++ var rawStream = await engine.RenderStreamAsync(templateStream, bound.DataJson, format, ct);
+```
+>> SSoT DELEGATION: Document generation execution archetype governed strictly by [document_rendering_mechanics.md](../03_specialized_mechanics/document_rendering_mechanics.md#34-linear-pemr-generation-pipeline-archetype-generateresourceusecase).
+*Rationale: Intermediate pipeline classes (e.g. `DocumentRenderPipeline`) that sit between UseCases and domain engines fragment error handling, obscure call stacks, and violate the Universal Linear PEMR cadence. UseCases must coordinate parsing, precondition checks, rendering, and persistence directly.*
