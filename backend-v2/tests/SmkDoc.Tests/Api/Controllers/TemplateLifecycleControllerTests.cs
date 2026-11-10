@@ -23,7 +23,6 @@ public sealed class TemplateLifecycleControllerTests
     private readonly IUseCase<CreateTemplateCommand, TemplateResultDto> _createTemplateUseCase = Substitute.For<IUseCase<CreateTemplateCommand, TemplateResultDto>>();
     private readonly IUseCase<UpdateTemplateDetailsCommand, TemplateResultDto> _updateTemplateDetailsUseCase = Substitute.For<IUseCase<UpdateTemplateDetailsCommand, TemplateResultDto>>();
     private readonly IUseCase<DeactivateTemplateCommand> _deactivateTemplateUseCase = Substitute.For<IUseCase<DeactivateTemplateCommand>>();
-    private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
 
     private TemplateLifecycleController CreateSut()
     {
@@ -32,8 +31,7 @@ public sealed class TemplateLifecycleControllerTests
             _getTemplateByIdUseCase,
             _createTemplateUseCase,
             _updateTemplateDetailsUseCase,
-            _deactivateTemplateUseCase,
-            _projectContext)
+            _deactivateTemplateUseCase)
         {
             ControllerContext = new ControllerContext
             {
@@ -45,58 +43,30 @@ public sealed class TemplateLifecycleControllerTests
     }
 
     [Fact]
-    public async Task ListTemplates_WhenContextNotResolved_ShouldThrowForbiddenException()
+    public async Task ListTemplates_WhenValid_ShouldDispatchQueryAndReturnPagedResponse()
     {
         // Arrange
         var sut = CreateSut();
-        _projectContext.IsResolved.Returns(false);
-
-        // Act
-        var act = () => sut.ListTemplates(null, null, null, null, 1, 20, CancellationToken.None);
-
-        // Assert
-        await act.Should().ThrowAsync<ForbiddenException>()
-            .WithMessage("*Active project context is required*");
-    }
-
-    [Fact]
-    public async Task ListTemplates_WhenProjectIdDoesNotMatchContext_ShouldThrowForbiddenException()
-    {
-        // Arrange
-        var sut = CreateSut();
-        var contextProjectId = Guid.NewGuid();
-        var callerProjectId = Guid.NewGuid();
-        _projectContext.IsResolved.Returns(true);
-        _projectContext.ProjectId.Returns(new ProjectId(contextProjectId));
-
-        // Act
-        var act = () => sut.ListTemplates(callerProjectId, null, null, null, 1, 20, CancellationToken.None);
-
-        // Assert
-        await act.Should().ThrowAsync<ForbiddenException>()
-            .WithMessage("*does not match the active project context*");
-    }
-
-    [Fact]
-    public async Task ListTemplates_WhenValid_ShouldReturnPagedResponse()
-    {
-        // Arrange
-        var sut = CreateSut();
-        var contextProjectId = Guid.NewGuid();
-        _projectContext.IsResolved.Returns(true);
-        _projectContext.ProjectId.Returns(new ProjectId(contextProjectId));
-
         var pagedResult = new TemplatePagedResultDto([], 0, 1, 20);
         _listTemplatesUseCase.ExecuteAsync(Arg.Any<ListTemplatesQuery>(), Arg.Any<CancellationToken>())
             .Returns(pagedResult);
 
         // Act
-        var result = await sut.ListTemplates(contextProjectId, null, null, null, 1, 20, CancellationToken.None);
+        var result = await sut.ListTemplates("search", "cat", true, 1, 20, CancellationToken.None);
 
         // Assert
         var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
         var paged = okResult.Value.Should().BeOfType<PagedApiResponse<TemplateResultDto>>().Subject;
         paged.Pagination.Page.Should().Be(1);
+
+        await _listTemplatesUseCase.Received(1).ExecuteAsync(
+            Arg.Is<ListTemplatesQuery>(q =>
+                q.SearchTerm == "search" &&
+                q.Category == "cat" &&
+                q.IsActive == true &&
+                q.Page == 1 &&
+                q.PageSize == 20),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]

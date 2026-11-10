@@ -57,19 +57,8 @@ public sealed class TemplateDraftController(
         [FromBody] PreviewDraftRequest request,
         CancellationToken ct)
     {
-        JsonElement payload;
-        if (!string.IsNullOrWhiteSpace(request.DataJson))
-        {
-            using var doc = JsonDocument.Parse(request.DataJson);
-            payload = doc.RootElement.Clone();
-        }
-        else
-        {
-            using var doc = JsonDocument.Parse("{}");
-            payload = doc.RootElement.Clone();
-        }
-
-        var query = new PreviewDocumentQuery(payload, DraftId: draftId);
+        using var doc = JsonDocument.Parse(string.IsNullOrWhiteSpace(request.DataJson) ? "{}" : request.DataJson);
+        var query = new PreviewDocumentQuery(doc.RootElement.Clone(), DraftId: draftId);
         var result = await previewUseCase.ExecuteAsync(query, ct);
         Response.Headers.ContentDisposition = "inline";
         return File(result, "application/pdf");

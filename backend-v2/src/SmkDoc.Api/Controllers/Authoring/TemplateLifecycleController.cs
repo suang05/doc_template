@@ -2,7 +2,6 @@ using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.Contracts.Authoring.Templates;
 using SmkDoc.Api.Filters;
-using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.CreateTemplate;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.DeactivateTemplate;
@@ -24,14 +23,12 @@ public sealed class TemplateLifecycleController(
     IUseCase<GetTemplateByIdQuery, TemplateResultDto> getTemplateByIdUseCase,
     IUseCase<CreateTemplateCommand, TemplateResultDto> createTemplateUseCase,
     IUseCase<UpdateTemplateDetailsCommand, TemplateResultDto> updateTemplateDetailsUseCase,
-    IUseCase<DeactivateTemplateCommand> deactivateTemplateUseCase,
-    ICurrentProjectContext projectContext) : ControllerBase
+    IUseCase<DeactivateTemplateCommand> deactivateTemplateUseCase) : ControllerBase
 {
     /// <summary>List templates belonging to the active project with optional search, category filter, and server-side pagination.</summary>
     [HttpGet]
     [ProducesResponseType(typeof(PagedApiResponse<TemplateResultDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> ListTemplates(
-        [FromQuery] Guid? projectId,
         [FromQuery] string? search,
         [FromQuery] string? category,
         [FromQuery] bool? isActive,
@@ -39,16 +36,6 @@ public sealed class TemplateLifecycleController(
         [FromQuery] int pageSize = 20,
         CancellationToken ct = default)
     {
-        if (!projectContext.IsResolved)
-        {
-            throw new ForbiddenException("Active project context is required to list templates.");
-        }
-
-        if (projectId.HasValue && projectId.Value != Guid.Empty && projectId.Value != projectContext.ProjectId.Value)
-        {
-            throw new ForbiddenException("Access denied: requested projectId does not match the active project context.");
-        }
-
         var query = new ListTemplatesQuery(search, category, isActive, page, pageSize);
         var result = await listTemplatesUseCase.ExecuteAsync(query, ct);
         return Ok(new PagedApiResponse<TemplateResultDto>(result.Items, result.TotalCount, result.Page, result.PageSize));

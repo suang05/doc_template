@@ -95,16 +95,21 @@ public sealed class TemplateAssetControllerTests
     }
 
     [Fact]
-    public async Task ValidatePayload_WithNullOrUndefinedData_ShouldThrowDomainValidationException()
+    public async Task ValidatePayload_WithNullOrUndefinedData_ShouldDelegateToUseCase()
     {
         // Arrange
         var sut = CreateSut();
         var defaultElement = default(JsonElement);
+        _validatePayloadUseCase.ExecuteAsync(Arg.Any<ValidateTemplatePayloadQuery>(), Arg.Any<CancellationToken>())
+            .ThrowsAsync(new DomainValidationException("Request payload body cannot be null or empty."));
 
         // Act
         var act = () => sut.ValidatePayload("invoice", defaultElement, CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<DomainValidationException>();
+        await _validatePayloadUseCase.Received(1).ExecuteAsync(
+            Arg.Is<ValidateTemplatePayloadQuery>(q => q.Slug == "invoice" && q.Data.ValueKind == JsonValueKind.Undefined),
+            Arg.Any<CancellationToken>());
     }
 }

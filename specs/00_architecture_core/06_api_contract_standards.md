@@ -37,7 +37,7 @@ Signal: [ARCH_EVOLUTION_CONTRACT]
 | **Null vs Undefined Semantics** | Missing optional values serialize explicitly as `null` or are omitted per schema. Emitting string `"undefined"` or `"null"` is prohibited. | Wire Payload Fidelity |
 | **Mutation Deduplication** | Non-idempotent state mutations (`POST`) require `Idempotency-Key: <uuidv7>`. Duplicate requests replay cached responses without re-execution. | Mutation Boundary |
 | **Optimistic Concurrency Wire** | Resource mutations (`PUT`, `DELETE`) require `If-Match: "<token>"` evaluated by the ambient concurrency pipeline (`ETagFilter` + `ConcurrencySaveChangesInterceptor`). Server emits updated token in `ETag` header automatically from `IHasConcurrencyToken`. | Concurrency Control |
-| **Tenant Scope Header** | Multi-tenant context passes explicitly via `x-project-id: <guid>` header or JWT `projectId` claim. Tenant identity in request JSON body is prohibited. | Multi-Tenant Perimeter |
+| **Tenant Scope Header** | Multi-tenant context passes explicitly via `x-project-id: <guid>` header or JWT `projectId` claim. Tenant identity in request JSON body, route query string (`[FromQuery]`), or form data is strictly prohibited. | Multi-Tenant Perimeter |
 | **RESTful Route Taxonomy** | Public routes use plural kebab-case nouns prefixed with `api/v1/{resources}`. Verb-based routes (`/api/createTemplate`) and legacy `/api/*` are prohibited. | Wire URL Addressing |
 | **OpenAPI SSoT Fidelity** | `specs/openapi.json` is the sole machine-readable schema authority, generated deterministically during `.NET` build. Manual edits to `specs/openapi.json` are prohibited. | Schema Governance |
 

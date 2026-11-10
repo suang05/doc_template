@@ -45,6 +45,7 @@ Signal: [ARCH_EVOLUTION_API]
 | **Declarative Policy Security**| Actions are authorized via declarative `[Authorize(Policy = "...")]` attributes matching the Declarative Authorization Policies Matrix. | Endpoint Authorization |
 | **Separated API Key Routes** | Tenant sub-key operations reside on `/api/v1/api-keys` (Project Admin, quota max 2), while platform-wide governance resides on `/api/v1/management/api-keys` (SuperAdmin). | Key Governance |
 | **OpenAPI Schema Contracts** | Every controller action declares explicit `[ProducesResponseType(typeof(ApiResponse<T>), 2xx)]` for success envelopes and type-less `[ProducesResponseType(StatusCodes.Status4xx)]` for error statuses (automatically bound to `ProblemDetails` by `OpenApiOperationTransformer`). | Contract Metadata |
+| **Ambient Tenant Ingress Purity** | Multi-tenant context resolves exclusively via middleware into ambient `ICurrentProjectContext`. Controllers must never declare `[FromQuery] Guid? projectId`, accept `projectId` in JSON bodies, or inject `ICurrentProjectContext`. Ambient tenant validation (`!projectContext.IsResolved`) belongs 100% inside UseCases (Step 1 PEMR). | Controller Tenancy |
 
 ---
 
@@ -574,3 +575,22 @@ public sealed class {Resource}DiagnosticsController(
 + var result = await previewDocumentUseCase.ExecuteAsync(new PreviewDocumentQuery(payload, DraftId: draftId), ct);
 ```
 *Rationale: All live preview operations (Monaco raw HTML, template draft ID, template slug, template ID, or mapping studio preview) must route through the single unified `PreviewDocumentUseCase`. Duplicate preview use cases cause rendering logic divergence and dual maintenance.*
+
+### [TRAP-API-014]: Controller Tenancy Injection or Query String ProjectId
+```diff
+- // Controller injecting ICurrentProjectContext and declaring [FromQuery] Guid? projectId:
+- public sealed class TemplateController(..., ICurrentProjectContext context) : ControllerBase {
+-     [HttpGet] public async Task<IActionResult> List([FromQuery] Guid? projectId, ...) {
+-         if (!context.IsResolved || projectId != context.ProjectId.Value) throw ...;
+-     }
+- }
++ // Pure thin dispatcher delegating ambient resolution exclusively to UseCase PEMR:
++ public sealed class TemplateController(...) : ControllerBase {
++     [HttpGet] public async Task<IActionResult> List([FromQuery] string? search, ...) {
++         var query = new ListTemplatesQuery(search);
++         var result = await listUseCase.ExecuteAsync(query, ct);
++         return Ok(new PagedApiResponse<TemplateResultDto>(result.Items, ...));
++     }
++ }
+```
+*Rationale: Declaring `[FromQuery] Guid? projectId` leaks tenancy parameters into the public API query string, while injecting `ICurrentProjectContext` into controllers bloats constructor dependencies (> 5) and duplicates ambient tenancy checks. Controllers must remain pure 3-step dispatchers (<= 5 LOC); ambient tenant validation belongs 100% inside UseCases (Step 1 PEMR).*

@@ -93,6 +93,8 @@ HighFrequencyRegressionTraps:
     => Action: Envelop all single resources strictly in `ApiResponse<T>` (`{ data: T }`) and collections in `PagedApiResponse<T>` (`{ data: T[], pagination: { page, limit, totalCount, totalPages } }`).
   Trigger: Applying Idempotency-Key on PUT/DELETE, or mutating resource without If-Match header
     => Action: Reserve `Idempotency-Key` exclusively for state-creating POST. Enforce `If-Match: "<unix_ms_token>"` concurrency token on PUT/DELETE mutations.
+  Trigger: Declaring caller ProjectId in tenant Command/Query records, route query string ([FromQuery]), or accepting projectId in request JSON body
+    => Action: Prohibit caller-supplied ProjectId across bodies and query strings. Controllers must never inject ICurrentProjectContext; resolve ambient tenancy strictly in UseCase PEMR Step 1.
   Trigger: Introducing a new abstraction alongside an obsolete one, leaving it partially wired, or creating parallel duplicate logic
     => Action: Enforce Codebase SSoT and Atomic One-Way Migration. You must 1) wire the new abstraction to 100% of applicable consumers, and 2) delete the superseded legacy code in the exact same task. Zero dual-state bloat, zero duplicate helper methods, and zero orphan abstractions.
   Trigger: Preserving obsolete production code, shims, wrappers, or legacy test files out of fear of breaking existing tests
@@ -211,6 +213,7 @@ MachineSyntaxAndNamingStandards:
 <unified_architectural_router>
 # [SINGLE SOURCE OF TRUTH ROUTER: Governs both Ingress Context Loading and Egress Mutation Discovery]
 # Active Context Budget <= 15,000 tokens. Load strictly the minimal relevant slice.
+# Each blueprint is indexed by a standardized <context> metadata card (lines 3-12) for fast ingress triage.
 
 ### Category 00: Architecture Core (System Foundation & Cross-Cutting Laws)
 | Architectural Domain & Intent | Evolution Signal | Primary SSoT Blueprint | Mandatory Satellite Guards |
@@ -330,6 +333,19 @@ FivePointBlueprintIntegrityProtocol:
   5. CONTRADICTION_SWEEP: Grep for obsolete rules or syntax across all `specs/` files to guarantee zero inter-document conflict.
 
 AuthoringAndRepresentationStandards:
+  SpecHeaderCardProtocol:
+    Tag: "<context>...</context>"
+    Placement: "Strictly lines 3-12 immediately below the primary H1 title in every spec file."
+    CognitivePurpose:
+      IngressTriage: "Enables fast relevance scoring in <= 100 tokens. Agents read <context> first to verify boundary alignment before ingesting full spec bodies."
+      EgressGovernance: "Enforces strict Single Source of Truth (SSoT). A spec may only govern topics declared in its SoleResponsibilities."
+    MandatorySchema:
+      Category: "Macro folder (00_architecture_core | 01_clean_arch_patterns | 02_frontend_patterns | 03_specialized_mechanics)"
+      Domain: "Concise architectural boundary definition"
+      SoleResponsibilities: "Exhaustive bullet list of concerns this spec exclusively owns"
+      Target: "Physical codebase directories governed (e.g. backend-v2/src/SmkDoc.Domain/)"
+      Signal: "Evolution trigger tag matching Unified Architectural Router (e.g. [ARCH_EVOLUTION_DATABASE])"
+    InvariantRule: "SoleResponsibilities across all 16 specs must be mutually exclusive (zero topical overlap)."
   LanguageDiscipline:
     ChatTrack: Casual, direct, professional Thai in conversation. Zero robotic AI jargon.
     DocsTrack: 100% English ASTs in `specs/` and `AGENTS.md`. Zero Thai characters.

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Exceptions;
 
@@ -20,6 +21,11 @@ public sealed class ValidateTemplatePayloadUseCase(
         if (string.IsNullOrWhiteSpace(query.Slug))
         {
             throw new NotFoundException("Template slug cannot be empty.");
+        }
+
+        if (query.Data.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null)
+        {
+            throw new DomainValidationException("Request payload body cannot be null or empty.");
         }
 
         // 1. Fetch template with tenant isolation via Global Query Filter

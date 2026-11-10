@@ -591,6 +591,46 @@ public sealed class CleanArchitectureTests
     }
 
     [Fact]
+    public void Authoring_Controllers_Must_Not_Exceed_5_Constructor_Dependencies()
+    {
+        // Arrange
+        var apiAssembly = typeof(SmkDoc.Api.Controllers.Authoring.TemplateLifecycleController).Assembly;
+        var authoringControllers = apiAssembly.GetTypes()
+            .Where(t => t.IsClass && !t.IsAbstract && t.Namespace == "SmkDoc.Api.Controllers.Authoring")
+            .ToList();
+
+        authoringControllers.Should().NotBeEmpty();
+
+        // Assert
+        foreach (var controller in authoringControllers)
+        {
+            var ctors = controller.GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+            foreach (var ctor in ctors)
+            {
+                var count = ctor.GetParameters().Length;
+                count.Should().BeLessOrEqualTo(5,
+                    $"Controller '{controller.Name}' has {count} constructor parameters, which exceeds the complexity bound (<= 5).");
+            }
+        }
+    }
+
+    [Fact]
+    public void TemplateLifecycleController_Must_Not_Inject_ProjectContext()
+    {
+        // Arrange
+        var controllerType = typeof(SmkDoc.Api.Controllers.Authoring.TemplateLifecycleController);
+        var ctors = controllerType.GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+
+        // Assert
+        foreach (var ctor in ctors)
+        {
+            var paramNames = ctor.GetParameters().Select(p => p.ParameterType.Name).ToList();
+            paramNames.Should().NotContain("ICurrentProjectContext",
+                "TemplateLifecycleController must not inject ICurrentProjectContext; ambient tenant validation belongs to UseCases.");
+        }
+    }
+
+    [Fact]
     public void CommitTemplateDraftUseCase_Must_Not_Inject_IProjectRepository()
     {
         // Arrange

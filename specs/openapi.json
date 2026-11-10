@@ -5341,14 +5341,6 @@
         "operationId": "TemplateLifecycle_ListTemplates",
         "parameters": [
           {
-            "name": "projectId",
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          {
             "name": "search",
             "in": "query",
             "schema": {

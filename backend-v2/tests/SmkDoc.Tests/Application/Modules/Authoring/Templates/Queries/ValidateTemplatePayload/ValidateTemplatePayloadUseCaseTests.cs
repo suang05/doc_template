@@ -144,4 +144,15 @@ public sealed class ValidateTemplatePayloadUseCaseTests
 
         await act.Should().ThrowAsync<NotFoundException>();
     }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenPayloadUndefinedOrNull_ThrowsDomainValidationException()
+    {
+        var command = new ValidateTemplatePayloadQuery("invoice-th", default);
+
+        var act = async () => await CreateSut().ExecuteAsync(command);
+
+        await act.Should().ThrowAsync<DomainValidationException>()
+            .WithMessage("*Request payload body cannot be null or empty*");
+    }
 }

@@ -6,7 +6,6 @@ using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.DownloadTemplate;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.ScanTemplatePlaceholders;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.ValidateTemplatePayload;
-using SmkDoc.Domain.Exceptions;
 
 namespace SmkDoc.Api.Controllers.Authoring;
 
@@ -56,11 +55,6 @@ public sealed class TemplateAssetController(
         [FromBody] JsonElement data,
         CancellationToken ct)
     {
-        if (data.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null)
-        {
-            throw new DomainValidationException("Request payload body cannot be null or empty.");
-        }
-
         var query = new ValidateTemplatePayloadQuery(slug, data);
         var result = await validatePayloadUseCase.ExecuteAsync(query, ct);
         return Ok(new ApiResponse<ValidateTemplatePayloadResult>(result));
