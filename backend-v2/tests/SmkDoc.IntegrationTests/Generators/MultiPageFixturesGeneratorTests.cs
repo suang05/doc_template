@@ -171,7 +171,7 @@ public sealed class MultiPageFixturesGeneratorTests
             mediaInjector,
             new WordTextReplacer(),
             new WordTableExpander(),
-            new JsonDataParser());
+            new JsonTemplateDataParser());
 
         using var templateStream = File.OpenRead(docxPath);
         await using var renderedStream = await engine.RenderStreamAsync(templateStream, jsonString, OutputFormat.Docx);
@@ -311,7 +311,7 @@ public sealed class MultiPageFixturesGeneratorTests
             Substitute.For<IPdfRenderer>(),
             mediaInjector,
             new ExcelTableExpander(),
-            new JsonDataParser());
+            new JsonTemplateDataParser());
 
         using var templateStream = File.OpenRead(xlsxPath);
         await using var renderedStream = await engine.RenderStreamAsync(templateStream, jsonString, OutputFormat.Xlsx);

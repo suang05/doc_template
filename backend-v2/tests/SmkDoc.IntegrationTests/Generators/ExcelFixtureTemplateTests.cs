@@ -25,7 +25,7 @@ public sealed class ExcelFixtureTemplateTests
             pdf,
             mediaInjector,
             new ExcelTableExpander(),
-            new JsonDataParser());
+            new JsonTemplateDataParser());
     }
 
     [Fact]

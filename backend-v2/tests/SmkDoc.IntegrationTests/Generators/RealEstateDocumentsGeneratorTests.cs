@@ -155,7 +155,7 @@ public sealed class RealEstateDocumentsGeneratorTests
             mediaInjector,
             new WordTextReplacer(),
             new WordTableExpander(),
-            new JsonDataParser());
+            new JsonTemplateDataParser());
 
         using var templateStream = File.OpenRead(docxPath);
         await using var renderedStream = await docxEngine.RenderStreamAsync(templateStream, jsonString, OutputFormat.Docx);
@@ -290,7 +290,7 @@ public sealed class RealEstateDocumentsGeneratorTests
             Substitute.For<IPdfRenderer>(),
             mediaInjector,
             new ExcelTableExpander(),
-            new JsonDataParser());
+            new JsonTemplateDataParser());
 
         using var templateStream = File.OpenRead(xlsxPath);
         await using var renderedStream = await excelEngine.RenderStreamAsync(templateStream, jsonString, OutputFormat.Xlsx);

@@ -143,7 +143,7 @@ public sealed class PerformanceBenchmarkTests
             Substitute.For<IPdfRenderer>(),
             mediaInjector,
             new ExcelTableExpander(),
-            new JsonDataParser());
+            new JsonTemplateDataParser());
 
         // Warm up
         using (var warmStream = new MemoryStream(templateBytes))
@@ -229,7 +229,7 @@ public sealed class PerformanceBenchmarkTests
             mediaInjector,
             new WordTextReplacer(),
             new WordTableExpander(),
-            new JsonDataParser());
+            new JsonTemplateDataParser());
 
         // Warm up
         using (var warmStream = new MemoryStream(templateBytes))
@@ -326,7 +326,7 @@ public sealed class PerformanceBenchmarkTests
         var htmlMediaService = new MediaGenerationService(Substitute.For<IQrCodeService>(), Substitute.For<IBarcodeService>());
         var handlebars1 = HandlebarsDotNet.Handlebars.Create();
         new HtmlHelperRegistry(htmlMediaService).RegisterHelpers(handlebars1);
-        var engine = new HtmlTemplateEngine(mockPdf, handlebars1, new JsonDataParser(), new HtmlPlaceholderTransformer(), new HtmlLayoutProcessor());
+        var engine = new HtmlTemplateEngine(mockPdf, handlebars1, new JsonTemplateDataParser(), new HtmlPlaceholderTransformer(), new HtmlLayoutProcessor());
 
         // Warm up
         using (var warmStream = new MemoryStream(templateBytes))
@@ -372,7 +372,7 @@ public sealed class PerformanceBenchmarkTests
         var htmlMediaService = new MediaGenerationService(Substitute.For<IQrCodeService>(), Substitute.For<IBarcodeService>());
         var handlebars1 = HandlebarsDotNet.Handlebars.Create();
         new HtmlHelperRegistry(htmlMediaService).RegisterHelpers(handlebars1);
-        var engine = new HtmlTemplateEngine(mockPdf, handlebars1, new JsonDataParser(), new HtmlPlaceholderTransformer(), new HtmlLayoutProcessor());
+        var engine = new HtmlTemplateEngine(mockPdf, handlebars1, new JsonTemplateDataParser(), new HtmlPlaceholderTransformer(), new HtmlLayoutProcessor());
         var payload = "{}";
 
         var sw = Stopwatch.StartNew();
