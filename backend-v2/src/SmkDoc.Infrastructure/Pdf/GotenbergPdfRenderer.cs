@@ -8,9 +8,6 @@ namespace SmkDoc.Infrastructure.Pdf;
 
 public sealed class GotenbergPdfRenderer(HttpClient httpClient, ILogger<GotenbergPdfRenderer> logger) : IPdfRenderer
 {
-    private readonly HttpClient _httpClient = httpClient;
-    private readonly ILogger<GotenbergPdfRenderer> _logger = logger;
-
     public async Task<Stream> RenderHtmlToPdfStreamAsync(string html, string? headerHtml = null, string? footerHtml = null, CancellationToken ct = default)
     {
         using var content = new MultipartFormDataContent();
@@ -33,14 +30,14 @@ public sealed class GotenbergPdfRenderer(HttpClient httpClient, ILogger<Gotenber
         }
 
         using var request = new HttpRequestMessage(HttpMethod.Post, "/forms/chromium/convert/html") { Content = content };
-        var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+        var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
 
         if (!response.IsSuccessStatusCode)
         {
             try
             {
                 string err = await response.Content.ReadAsStringAsync(ct);
-                _logger.LogError("Gotenberg Chromium HTML render failed ({StatusCode}): {Error}", response.StatusCode, err);
+                logger.LogError("Gotenberg Chromium HTML render failed ({StatusCode}): {Error}", response.StatusCode, err);
                 throw new RenderException("html", "GotenbergChromium", err);
             }
             finally
@@ -69,14 +66,14 @@ public sealed class GotenbergPdfRenderer(HttpClient httpClient, ILogger<Gotenber
         content.Add(streamContent, "files", fileName);
 
         using var request = new HttpRequestMessage(HttpMethod.Post, "/forms/libreoffice/convert") { Content = content };
-        var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+        var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
 
         if (!response.IsSuccessStatusCode)
         {
             try
             {
                 string err = await response.Content.ReadAsStringAsync(ct);
-                _logger.LogError("Gotenberg LibreOffice render failed ({StatusCode}): {Error}", response.StatusCode, err);
+                logger.LogError("Gotenberg LibreOffice render failed ({StatusCode}): {Error}", response.StatusCode, err);
                 throw new RenderException(fileName, "GotenbergLibreOffice", err);
             }
             finally

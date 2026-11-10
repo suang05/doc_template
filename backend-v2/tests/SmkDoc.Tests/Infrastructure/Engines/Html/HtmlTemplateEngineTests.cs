@@ -4,7 +4,9 @@ using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Infrastructure.Engines.Html;
 using SmkDoc.Infrastructure.Engines.Html.Helpers;
+using SmkDoc.Infrastructure.Engines.Html.Pipeline;
 using SmkDoc.Infrastructure.Imaging;
+using SmkDoc.Infrastructure.Parsing;
 
 namespace SmkDoc.Tests.Infrastructure.Engines.Html;
 
@@ -19,7 +21,13 @@ public sealed class HtmlTemplateEngineTests
         var registry = new HtmlHelperRegistry(mediaService);
         var handlebars = Handlebars.Create();
         registry.RegisterHelpers(handlebars);
-        return new HtmlTemplateEngine(pdfRenderer, handlebars, cache);
+        return new HtmlTemplateEngine(
+            pdfRenderer,
+            handlebars,
+            new JsonDataParser(),
+            new HtmlPlaceholderTransformer(),
+            new HtmlLayoutProcessor(),
+            cache);
     }
 
     private static async Task<string> RenderAndCaptureHtmlAsync(
@@ -149,7 +157,12 @@ public sealed class HtmlTemplateEngineTests
         var singletonHandlebars = Handlebars.Create();
         registry.RegisterHelpers(singletonHandlebars);
 
-        var engine = new HtmlTemplateEngine(pdfRenderer, singletonHandlebars);
+        var engine = new HtmlTemplateEngine(
+            pdfRenderer,
+            singletonHandlebars,
+            new JsonDataParser(),
+            new HtmlPlaceholderTransformer(),
+            new HtmlLayoutProcessor());
 
         string template = "<html><body><h1>Welcome {{name}}!</h1></body></html>";
         using var stream = new MemoryStream(Encoding.UTF8.GetBytes(template));

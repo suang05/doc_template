@@ -10,6 +10,7 @@ using SmkDoc.Domain.Enums;
 using SmkDoc.Infrastructure.Engines.Excel;
 using SmkDoc.Infrastructure.Engines.Html;
 using SmkDoc.Infrastructure.Engines.Html.Helpers;
+using SmkDoc.Infrastructure.Engines.Html.Pipeline;
 using SmkDoc.Infrastructure.Engines.Word;
 using SmkDoc.Infrastructure.Imaging;
 using SmkDoc.Infrastructure.Parsing;
@@ -325,7 +326,7 @@ public sealed class PerformanceBenchmarkTests
         var htmlMediaService = new MediaGenerationService(Substitute.For<IQrCodeService>(), Substitute.For<IBarcodeService>());
         var handlebars1 = HandlebarsDotNet.Handlebars.Create();
         new HtmlHelperRegistry(htmlMediaService).RegisterHelpers(handlebars1);
-        var engine = new HtmlTemplateEngine(mockPdf, handlebars1);
+        var engine = new HtmlTemplateEngine(mockPdf, handlebars1, new JsonDataParser(), new HtmlPlaceholderTransformer(), new HtmlLayoutProcessor());
 
         // Warm up
         using (var warmStream = new MemoryStream(templateBytes))
@@ -371,7 +372,7 @@ public sealed class PerformanceBenchmarkTests
         var htmlMediaService = new MediaGenerationService(Substitute.For<IQrCodeService>(), Substitute.For<IBarcodeService>());
         var handlebars1 = HandlebarsDotNet.Handlebars.Create();
         new HtmlHelperRegistry(htmlMediaService).RegisterHelpers(handlebars1);
-        var engine = new HtmlTemplateEngine(mockPdf, handlebars1);
+        var engine = new HtmlTemplateEngine(mockPdf, handlebars1, new JsonDataParser(), new HtmlPlaceholderTransformer(), new HtmlLayoutProcessor());
         var payload = "{}";
 
         var sw = Stopwatch.StartNew();

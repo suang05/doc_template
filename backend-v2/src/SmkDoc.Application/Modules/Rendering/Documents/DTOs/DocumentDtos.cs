@@ -1,8 +1,3 @@
-using System.Text.Json;
-using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.ValueObjects.Validation;
-
 namespace SmkDoc.Application.Modules.Rendering.Documents.DTOs;
 
 /// <summary>
@@ -31,16 +26,6 @@ public sealed record DocumentVersionDto(
     string? ChangeNote,
     string? CreatedBy,
     DateTimeOffset CreatedAt
-);
-
-/// <summary>
-/// Result DTO for pre-flight JSON schema validation.
-/// </summary>
-public sealed record PayloadValidationResultDto(
-    bool IsValid,
-    string TemplateSlug,
-    int SchemaVersion,
-    IReadOnlyList<ValidationErrorItem> Errors
 );
 
 /// <summary>

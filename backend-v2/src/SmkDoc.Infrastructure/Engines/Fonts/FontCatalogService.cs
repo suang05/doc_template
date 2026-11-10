@@ -11,8 +11,8 @@ public sealed class FontCatalogService(
     IStorageService storageService,
     ICurrentProjectContext projectContext) : IFontCatalogService
 {
-    private static readonly IReadOnlyList<FontDescriptorDto> CuratedGoogleFontsList = new List<FontDescriptorDto>
-    {
+    private static readonly FontDescriptorDto[] CuratedGoogleFontsList =
+    [
         new("Sarabun", "Sarabun (สารบรรณ)", FontSource.GoogleFonts,
             GoogleFontUrl: "https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap",
             AvailableWeights: ["300", "400", "600", "700"]),
@@ -44,7 +44,7 @@ public sealed class FontCatalogService(
         new("Roboto", "Roboto", FontSource.GoogleFonts,
             GoogleFontUrl: "https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap",
             AvailableWeights: ["400", "500", "700"])
-    }.AsReadOnly();
+    ];
 
     public IReadOnlyList<FontDescriptorDto> GetCuratedGoogleFonts() => CuratedGoogleFontsList;
 

@@ -4,10 +4,9 @@ using SmkDoc.Domain.Events;
 namespace SmkDoc.Application.Modules.Authoring.Templates.EventHandlers;
 
 public sealed class TemplatePublishedEventHandler(
-    ISecurityAuditService securityAuditService,
-    ITemplateCacheInvalidationBus cacheInvalidationBus) : IDomainEventHandler<TemplatePublishedDomainEvent>
+    ISecurityAuditService securityAuditService) : IDomainEventHandler<TemplatePublishedDomainEvent>
 {
-    public async Task HandleAsync(TemplatePublishedDomainEvent domainEvent, CancellationToken ct = default)
+    public Task HandleAsync(TemplatePublishedDomainEvent domainEvent, CancellationToken ct = default)
     {
         securityAuditService.LogTemplatePublished(
             domainEvent.ProjectId.Value,
@@ -15,10 +14,6 @@ public sealed class TemplatePublishedEventHandler(
             domainEvent.VersionId,
             domainEvent.Version);
 
-        await cacheInvalidationBus.PublishTemplateInvalidationAsync(
-            domainEvent.ProjectId,
-            domainEvent.TemplateId,
-            domainEvent.Version,
-            ct);
+        return Task.CompletedTask;
     }
 }
