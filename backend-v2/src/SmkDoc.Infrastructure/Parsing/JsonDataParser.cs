@@ -3,7 +3,7 @@ using SmkDoc.Application.Common.Interfaces;
 
 namespace SmkDoc.Infrastructure.Parsing;
 
-public sealed class JsonDataParser : IJsonHierarchyParser, IJsonTableParser, IJsonNamedArrayParser
+public sealed class JsonDataParser : ITemplateDataParser
 {
     public Dictionary<string, object> ToHierarchy(string json)
     {

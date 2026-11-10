@@ -550,7 +550,15 @@ public sealed class CleanArchitectureTests
         apiAssembly.GetType("SmkDoc.Api.Filters.ValidateCommandFilter")
             .Should().BeNull("ValidateCommandFilter was retired in favor of ValidatingUseCaseDecorator.");
         appAssembly.GetType("SmkDoc.Application.Common.Interfaces.IJsonDataParser")
-            .Should().BeNull("Fat IJsonDataParser interface was segregated into IJsonHierarchyParser, IJsonTableParser, and IJsonNamedArrayParser.");
+            .Should().BeNull("Fat IJsonDataParser was retired in favor of ITemplateDataParser.");
+        appAssembly.GetType("SmkDoc.Application.Common.Interfaces.IJsonHierarchyParser")
+            .Should().BeNull("Fragmented IJsonHierarchyParser was consolidated into ITemplateDataParser.");
+        appAssembly.GetType("SmkDoc.Application.Common.Interfaces.IJsonTableParser")
+            .Should().BeNull("Fragmented IJsonTableParser was consolidated into ITemplateDataParser.");
+        appAssembly.GetType("SmkDoc.Application.Common.Interfaces.IJsonNamedArrayParser")
+            .Should().BeNull("Fragmented IJsonNamedArrayParser was consolidated into ITemplateDataParser.");
+        appAssembly.GetType("SmkDoc.Application.Common.Interfaces.ITemplateDataParser")
+            .Should().NotBeNull("ITemplateDataParser is the SSoT parser contract.");
         appAssembly.GetType("SmkDoc.Application.Modules.Authoring.Templates.Queries.PreviewTemplateHtml.PreviewTemplateHtmlUseCase")
             .Should().BeNull("Dead PreviewTemplateHtml slice was retired in Phase P1.");
         appAssembly.GetType("SmkDoc.Application.Modules.Rendering.Documents.Commands.HtmlToPdf.HtmlToPdfUseCase")

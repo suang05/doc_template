@@ -11,7 +11,7 @@ namespace SmkDoc.Infrastructure.Engines.Html;
 public sealed class HtmlTemplateEngine(
     IPdfRenderer pdfRenderer,
     IHandlebars handlebars,
-    IJsonHierarchyParser jsonHierarchyParser,
+    ITemplateDataParser dataParser,
     HtmlPlaceholderTransformer placeholderTransformer,
     HtmlLayoutProcessor layoutProcessor,
     ICompiledTemplateCache? templateCache = null) : IRenderEngine
@@ -30,7 +30,7 @@ public sealed class HtmlTemplateEngine(
         string rawHtml = await reader.ReadToEndAsync(ct);
 
         // 1. Parse JSON input into object hierarchy for Handlebars
-        var dataHierarchy = jsonHierarchyParser.ToHierarchy(inputDataJson);
+        var dataHierarchy = dataParser.ToHierarchy(inputDataJson);
 
         // 2. Normalize template placeholders and media markers into Handlebars expressions
         string normalizedHtml = placeholderTransformer.Transform(rawHtml);

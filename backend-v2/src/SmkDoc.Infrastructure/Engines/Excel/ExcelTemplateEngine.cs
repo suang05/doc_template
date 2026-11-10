@@ -11,7 +11,7 @@ public sealed class ExcelTemplateEngine(
     IPdfRenderer pdfRenderer,
     ExcelMediaInjector mediaInjector,
     ExcelTableExpander tableExpander,
-    IJsonNamedArrayParser jsonNamedArrayParser) : IRenderEngine
+    ITemplateDataParser dataParser) : IRenderEngine
 {
     public RenderEngineType EngineType => RenderEngineType.Excel;
 
@@ -21,7 +21,7 @@ public sealed class ExcelTemplateEngine(
         OutputFormat outputFormat,
         CancellationToken ct = default)
     {
-        var (replacements, arrays) = jsonNamedArrayParser.FlattenNamed(inputDataJson);
+        var (replacements, arrays) = dataParser.FlattenNamed(inputDataJson);
 
         await using var inputSpool = await HybridSpoolStream.SpoolFromAsync(templateStream, ct: ct);
         using var workbook = new XLWorkbook(inputSpool);

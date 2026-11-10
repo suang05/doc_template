@@ -11,7 +11,7 @@ public sealed class DocxTemplateEngine(
     WordMediaInjector mediaInjector,
     WordTextReplacer textReplacer,
     WordTableExpander tableExpander,
-    IJsonTableParser jsonTableParser) : IRenderEngine
+    ITemplateDataParser dataParser) : IRenderEngine
 {
     public RenderEngineType EngineType => RenderEngineType.Docx;
 
@@ -21,7 +21,7 @@ public sealed class DocxTemplateEngine(
         OutputFormat outputFormat,
         CancellationToken ct = default)
     {
-        var (replacements, tables) = jsonTableParser.Flatten(inputDataJson);
+        var (replacements, tables) = dataParser.Flatten(inputDataJson);
 
         var spoolStream = await HybridSpoolStream.SpoolFromAsync(templateStream, ct: ct);
         try

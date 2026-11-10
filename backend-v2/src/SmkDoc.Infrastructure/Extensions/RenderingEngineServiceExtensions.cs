@@ -103,10 +103,7 @@ public static class RenderingEngineServiceExtensions
         services.AddSingleton<IBarcodeService, BarcodeService>();
         services.AddSingleton<IImageOptimizer, ImageOptimizerService>();
         services.AddSingleton<IMediaGenerationService, MediaGenerationService>();
-        services.AddSingleton<JsonDataParser>();
-        services.AddSingleton<IJsonHierarchyParser>(sp => sp.GetRequiredService<JsonDataParser>());
-        services.AddSingleton<IJsonTableParser>(sp => sp.GetRequiredService<JsonDataParser>());
-        services.AddSingleton<IJsonNamedArrayParser>(sp => sp.GetRequiredService<JsonDataParser>());
+        services.AddSingleton<ITemplateDataParser, JsonDataParser>();
         services.AddSingleton<ITemplateScannerService, TemplateScannerService>();
         services.AddScoped<IFontCatalogService, FontCatalogService>();
         services.AddSingleton<ISchemaInferenceService, SchemaInferenceService>();
