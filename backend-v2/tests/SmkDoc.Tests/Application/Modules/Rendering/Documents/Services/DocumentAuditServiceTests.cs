@@ -1,6 +1,7 @@
 using FluentAssertions;
 using NSubstitute;
 using SmkDoc.Application.Common;
+using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Rendering.Documents.Services;
 using SmkDoc.Domain.Entities;
@@ -192,7 +193,7 @@ public sealed class DocumentAuditServiceTests
     }
 
     [Fact]
-    public async Task LogSuccessAsync_WithoutProjectId_ThrowsBusinessRuleViolationException()
+    public async Task LogSuccessAsync_WithoutProjectId_ThrowsForbiddenException()
     {
         // Arrange
         _projectContext.IsResolved.Returns(false);
@@ -202,7 +203,7 @@ public sealed class DocumentAuditServiceTests
             Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "{}", "outputs/test.pdf", OutputFormat.Pdf, 100, 10);
 
         // Assert
-        await act.Should().ThrowAsync<BusinessRuleViolationException>()
+        await act.Should().ThrowAsync<ForbiddenException>()
             .WithMessage("*project context*");
     }
 }

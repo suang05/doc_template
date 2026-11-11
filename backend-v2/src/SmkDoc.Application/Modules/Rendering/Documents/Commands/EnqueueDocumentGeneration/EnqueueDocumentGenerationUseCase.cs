@@ -15,10 +15,7 @@ public sealed class EnqueueDocumentGenerationUseCase(
 {
     public async Task<DocumentJobDto> ExecuteAsync(EnqueueDocumentGenerationCommand command, CancellationToken ct = default)
     {
-        if (!projectContext.IsResolved)
-        {
-            throw new ForbiddenException("Active project context is required to enqueue a document generation job.");
-        }
+        var projectId = projectContext.EnsureResolved("Active project context is required to enqueue a document generation job.");
 
         var template = await templateRepo.GetBySlugWithDetailsAsync(command.Slug, ct);
         if (template == null || !template.IsActive)
@@ -36,7 +33,7 @@ public sealed class EnqueueDocumentGenerationUseCase(
 
         var job = new DocumentJob(
             jobId,
-            projectContext.ProjectId.Value,
+            projectId.Value,
             projectContext.CallerIdentity ?? "m2m-client",
             command.Slug,
             payloadJson,

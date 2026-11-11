@@ -19,12 +19,8 @@ public sealed class CreateApiKeyUseCase(
 {
     public async Task<CreateApiKeyResultDto> ExecuteAsync(CreateApiKeyCommand command, CancellationToken ct = default)
     {
-        if (!projectContext.IsResolved)
-        {
-            throw new ForbiddenException("Active project context is required to create an API key.");
-        }
+        var pId = projectContext.EnsureResolved("Active project context is required to create an API key.");
 
-        var pId = projectContext.ProjectId;
         _ = await projectRepo.GetByIdAsync(pId, ct)
             ?? throw new NotFoundException($"Project '{pId.Value}' not found.");
 

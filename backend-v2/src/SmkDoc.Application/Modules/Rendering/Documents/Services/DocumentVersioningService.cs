@@ -27,10 +27,8 @@ public sealed class DocumentVersioningService(
 
         if (document is null)
         {
-            var projectId = projectContext.IsResolved
-                ? projectContext.ProjectId
-                : throw new BusinessRuleViolationException(
-                    "Document versioning requires a valid project context.", "MISSING_PROJECT_CONTEXT");
+            var projectId = projectContext.EnsureResolved(
+                "Document versioning requires a valid project context.");
 
             document = Document.Create(
                 docRef,

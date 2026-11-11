@@ -588,6 +588,24 @@ public sealed class CleanArchitectureTests
             .Should().BeNull("ScanUploadedTemplateUseCase was retired in favor of ParseTemplateDraftUseCase SSoT.");
         appAssembly.GetType("SmkDoc.Application.Modules.Authoring.Templates.Queries.ScanUploadedTemplate.ScanUploadedTemplateQuery")
             .Should().BeNull("ScanUploadedTemplateQuery was retired in favor of ParseTemplateDraftCommand SSoT.");
+
+        var domainAssembly = typeof(BaseEntity).Assembly;
+        domainAssembly.GetType("SmkDoc.Domain.Exceptions.DuplicateDocumentVersionException")
+            .Should().BeNull("DuplicateDocumentVersionException was consolidated into ConflictException.");
+        domainAssembly.GetType("SmkDoc.Domain.Exceptions.DuplicateVersionException")
+            .Should().BeNull("DuplicateVersionException was consolidated into ConflictException.");
+        domainAssembly.GetType("SmkDoc.Domain.Exceptions.DuplicatePlaceholderException")
+            .Should().BeNull("DuplicatePlaceholderException was consolidated into ConflictException.");
+        domainAssembly.GetType("SmkDoc.Domain.Exceptions.DuplicateDatasetAliasException")
+            .Should().BeNull("DuplicateDatasetAliasException was consolidated into ConflictException.");
+        domainAssembly.GetType("SmkDoc.Domain.Exceptions.ArchivedVersionImmutableException")
+            .Should().BeNull("ArchivedVersionImmutableException was consolidated into BusinessRuleViolationException.");
+        domainAssembly.GetType("SmkDoc.Domain.Exceptions.VersionNotInTemplateException")
+            .Should().BeNull("VersionNotInTemplateException was consolidated into NotFoundException.");
+        appAssembly.GetType("SmkDoc.Application.Common.Exceptions.ConflictException")
+            .Should().BeNull("Application layer ConflictException was consolidated into SmkDoc.Domain.Exceptions.ConflictException.");
+        appAssembly.GetType("SmkDoc.Application.Common.Exceptions.NotFoundException")
+            .Should().BeNull("Application layer NotFoundException was consolidated into SmkDoc.Domain.Exceptions.NotFoundException.");
     }
 
     [Fact]
@@ -644,7 +662,7 @@ public sealed class CleanArchitectureTests
         {
             var paramTypes = ctor.GetParameters().Select(p => p.ParameterType.Name).ToList();
             paramTypes.Should().NotContain("IProjectRepository",
-                "CommitTemplateDraftUseCase must not inject IProjectRepository; ambient tenant validation is performed via ICurrentProjectContext.IsResolved.");
+                "CommitTemplateDraftUseCase must not inject IProjectRepository; ambient tenant validation is performed via ICurrentProjectContext.EnsureResolved().");
         }
     }
 

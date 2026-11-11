@@ -11,12 +11,10 @@ namespace SmkDoc.Application.Common.Extensions;
 public static class CurrentProjectContextExtensions
 {
     public static ProjectId EnsureResolved(
-        this ICurrentProjectContext context,
+        this ICurrentProjectContext? context,
         string? failureMessage = null)
     {
-        ArgumentNullException.ThrowIfNull(context);
-
-        if (!context.IsResolved)
+        if (context is null || !context.IsResolved)
         {
             throw new ForbiddenException(
                 failureMessage ?? "Project context is not resolved.");

@@ -31,10 +31,7 @@ public sealed class CreateTemplateUseCase(
 
     public async Task<TemplateResultDto> ExecuteAsync(CreateTemplateCommand command, CancellationToken ct = default)
     {
-        if (!projectContext.IsResolved)
-        {
-            throw new ForbiddenException("Creating a template requires an active project context.");
-        }
+        var projectId = projectContext.EnsureResolved("Creating a template requires an active project context.");
 
         if (await templateRepo.SlugExistsAsync(command.Slug, ct))
         {
@@ -43,7 +40,7 @@ public sealed class CreateTemplateUseCase(
 
         var now = timeProvider.GetUtcNow();
         var template = Template.Create(
-            projectContext.ProjectId,
+            projectId,
             TemplateName.Create(command.Name),
             TemplateSlug.Create(command.Slug),
             command.Category?.Trim(),

@@ -129,10 +129,7 @@ public sealed class DocumentAuditService(
     }
 
     private ProjectId ResolveProjectId() =>
-        projectContext.IsResolved
-            ? projectContext.ProjectId
-            : throw new BusinessRuleViolationException(
-                "Document audit logging requires a valid project context.", "MISSING_PROJECT_CONTEXT");
+        projectContext.EnsureResolved("Document audit logging requires a valid project context.");
 
     private GenerationContext BuildGenerationContext()
     {

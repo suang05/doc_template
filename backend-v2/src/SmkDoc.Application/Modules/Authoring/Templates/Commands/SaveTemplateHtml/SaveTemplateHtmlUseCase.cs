@@ -25,10 +25,7 @@ public sealed class SaveTemplateHtmlUseCase(
 {
     public async Task<SaveHtmlResultDto> ExecuteAsync(SaveTemplateHtmlCommand command, CancellationToken ct = default)
     {
-        if (!projectContext.IsResolved)
-        {
-            throw new ForbiddenException("Saving template HTML requires an active project context.");
-        }
+        projectContext.EnsureResolved("Saving template HTML requires an active project context.");
 
         var templateId = new TemplateId(command.TemplateId);
         var template = await templateRepo.GetByIdWithDetailsAsync(templateId, ct)

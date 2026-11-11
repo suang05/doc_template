@@ -18,29 +18,25 @@ public sealed class ListApiKeysUseCase(
         if (query.ProjectId.HasValue && query.ProjectId.Value != Guid.Empty)
         {
             var targetProjectId = new ProjectId(query.ProjectId.Value);
-            if (!projectContext.IsResolved && projectContext.SystemRole != SystemRole.SuperAdmin)
+            if (projectContext.SystemRole != SystemRole.SuperAdmin)
             {
-                throw new ForbiddenException("Active project context or SuperAdmin role is required to list API keys for a specific project.");
-            }
-
-            if (projectContext.IsResolved && projectContext.ProjectId != targetProjectId && projectContext.SystemRole != SystemRole.SuperAdmin)
-            {
-                throw new ForbiddenException("Access denied: caller does not have permission to list API keys for another project.");
+                var currentProjectId = projectContext.EnsureResolved("Active project context or SuperAdmin role is required to list API keys for a specific project.");
+                if (currentProjectId != targetProjectId)
+                {
+                    throw new ForbiddenException("Access denied: caller does not have permission to list API keys for another project.");
+                }
             }
 
             keys = await apiKeyRepo.ListByProjectAsync(targetProjectId, ct);
         }
-        else if (projectContext.IsResolved)
-        {
-            keys = await apiKeyRepo.ListByProjectAsync(projectContext.ProjectId, ct);
-        }
-        else if (projectContext.SystemRole == SystemRole.SuperAdmin)
+        else if (projectContext.SystemRole == SystemRole.SuperAdmin && !projectContext.IsResolved)
         {
             keys = await apiKeyRepo.ListAllAsync(ct);
         }
         else
         {
-            throw new ForbiddenException("Active project context is required to list API keys.");
+            var currentProjectId = projectContext.EnsureResolved("Active project context is required to list API keys.");
+            keys = await apiKeyRepo.ListByProjectAsync(currentProjectId, ct);
         }
 
         return keys

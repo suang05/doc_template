@@ -32,10 +32,7 @@ public sealed partial class UploadFontUseCase(
 
     public async Task<UploadFontResultDto> ExecuteAsync(UploadFontCommand command, CancellationToken ct = default)
     {
-        if (!projectContext.IsResolved)
-        {
-            throw new ForbiddenException("Uploading a custom font requires an active project context.");
-        }
+        var projectId = projectContext.EnsureResolved("Uploading a custom font requires an active project context.");
 
         if (string.IsNullOrWhiteSpace(command.ContentType) || !AllowedContentTypes.Contains(command.ContentType.Trim()))
         {
@@ -61,7 +58,7 @@ public sealed partial class UploadFontUseCase(
         }
 
         buffer.Position = 0;
-        var objectKey = StorageBuckets.TenantFontKey(projectContext.ProjectId, safeFileName);
+        var objectKey = StorageBuckets.TenantFontKey(projectId, safeFileName);
         await storageService.UploadAsync(StorageBuckets.Fonts, objectKey, buffer, command.ContentType.Trim(), ct);
         return new UploadFontResultDto("Font uploaded successfully.", safeFileName);
     }

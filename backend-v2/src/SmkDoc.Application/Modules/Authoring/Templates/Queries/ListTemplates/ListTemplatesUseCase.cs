@@ -14,10 +14,7 @@ public sealed class ListTemplatesUseCase(
 {
     public async Task<TemplatePagedResultDto> ExecuteAsync(ListTemplatesQuery query, CancellationToken ct = default)
     {
-        if (!projectContext.IsResolved)
-        {
-            throw new ForbiddenException("Active project context is required to list templates.");
-        }
+        projectContext.EnsureResolved("Active project context is required to list templates.");
 
         int page = Math.Max(1, query.Page);
         int pageSize = Math.Clamp(query.PageSize, 1, 100);

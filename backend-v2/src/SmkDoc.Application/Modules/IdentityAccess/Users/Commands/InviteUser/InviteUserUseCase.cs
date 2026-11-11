@@ -20,15 +20,11 @@ public sealed class InviteUserUseCase(
 {
     public async Task<UserResultDto> ExecuteAsync(InviteUserCommand command, CancellationToken ct = default)
     {
-        if (!projectContext.IsResolved)
-        {
-            throw new ForbiddenException("Active project context is required to invite a user.");
-        }
+        var pId = projectContext.EnsureResolved("Active project context is required to invite a user.");
 
         var roleType = Enumeration.FromDisplayName<RoleType>(command.Role);
         var normalizedEmail = command.Email.Trim().ToLowerInvariant();
         var now = timeProvider.GetUtcNow();
-        var pId = projectContext.ProjectId;
 
         var existingUser = await userRepo.GetByEmailAsync(normalizedEmail, ct);
         if (existingUser != null)

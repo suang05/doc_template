@@ -1,5 +1,6 @@
 using SmkDoc.Application.Common;
 using SmkDoc.Application.Common.Exceptions;
+using SmkDoc.Application.Common.Extensions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Fonts.DTOs;
 using SmkDoc.Application.Modules.Authoring.Fonts.Services;
@@ -50,12 +51,9 @@ public sealed class FontCatalogService(
 
     public async Task<FontCatalogDto> GetCatalogAsync(CancellationToken ct = default)
     {
-        if (!projectContext.IsResolved)
-        {
-            throw new ForbiddenException("Listing font catalog requires an active project context.");
-        }
+        var projectId = projectContext.EnsureResolved("Listing font catalog requires an active project context.");
 
-        string tenantPrefix = $"fonts/{projectContext.ProjectId.Value:N}/";
+        string tenantPrefix = $"fonts/{projectId.Value:N}/";
         var customFontKeys = await storageService.ListObjectsAsync(StorageBuckets.Fonts, tenantPrefix, ct) ?? [];
 
         var customFonts = new List<FontDescriptorDto>();

@@ -19,17 +19,14 @@ public sealed class RevokeApiKeyUseCase(
         ApiKey? key;
         var keyId = new ApiKeyId(command.Id);
 
-        if (projectContext.IsResolved)
-        {
-            key = await apiKeyRepo.GetByIdAsync(keyId, projectContext.ProjectId, ct);
-        }
-        else if (projectContext.SystemRole == SystemRole.SuperAdmin)
+        if (projectContext.SystemRole == SystemRole.SuperAdmin && !projectContext.IsResolved)
         {
             key = await apiKeyRepo.GetByIdWithoutProjectAsync(keyId, ct);
         }
         else
         {
-            throw new ForbiddenException("Active project context is required to revoke an API key.");
+            var pId = projectContext.EnsureResolved("Active project context is required to revoke an API key.");
+            key = await apiKeyRepo.GetByIdAsync(keyId, pId, ct);
         }
 
         if (key == null)
