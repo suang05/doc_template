@@ -122,12 +122,12 @@ The portal operates as an internal operator and authoring console (SuperAdmin an
 
 | Policy Name | Target Endpoints & Controller Scope | Allowed Subject Identities | Policy Enforcement Criteria |
 |---|---|---|---|
-| `RequireSuperAdmin` | `api/v1/management/api-keys`, `api/v1/management/projects/*` | Platform SuperAdmin exclusively | `ctx.User.IsInRole(RoleConstants.SuperAdmin)` \| `ctx.User.HasClaim("SystemRole", SuperAdmin)` |
-| `RequireProjectAdmin` | `api/v1/api-keys`, `api/v1/audit-logs`, `api/v1/users` | Project Admin, SuperAdmin, or M2M ReadWrite | `ctx.User.IsInRole(RoleConstants.Admin)` \| `ctx.User.IsInRole(RoleConstants.SuperAdmin)` \| `(IsInRole("M2MClient") & Scope == "ReadWrite")` |
-| `CanManageTemplates` | `api/v1/templates`, `api/v1/templates/{id}/studio/*`, `mappings`, `datasets` | Template Designer (`Developer`), Admin, SuperAdmin, or M2M ReadWrite | `IsInRole(RoleConstants.Developer)` \| `IsInRole(RoleConstants.Admin)` \| `IsInRole(RoleConstants.SuperAdmin)` \| `Scope == "ReadWrite"` |
-| `CanGenerateDocuments` | `api/v1/documents/*` (`generate`, `generate-async`, `preview`, `download`, `versions`) | Any authenticated user or M2M key (ReadOnly/ReadWrite) | `ctx.User.Identity.IsAuthenticated == true` |
-| `CanManageDataConnections`| `api/v1/data-connections/*` (`GET`, `POST`, `PUT`, `DELETE`, `test`) | Project Admin or SuperAdmin | `ctx.User.IsInRole(RoleConstants.Admin)` \| `ctx.User.IsInRole(RoleConstants.SuperAdmin)` |
-| `CanManageDatasets` | `api/v1/datasets/*` (`GET`, `POST`, `PUT`, `DELETE`) | Template Designer (`Developer`), Admin, SuperAdmin, or M2M ReadWrite | `IsInRole(RoleConstants.Developer)` \| `IsInRole(RoleConstants.Admin)` \| `IsInRole(RoleConstants.SuperAdmin)` \| `Scope == "ReadWrite"` |
+| `RequireSuperAdmin` | `api/v1/management/api-keys`, `api/v1/management/projects/*`, `api/v1/management/users/*/status`, `api/v1/management/settings/fonts` | Platform SuperAdmin exclusively (Control Plane) | `ctx.User.IsInRole(RoleConstants.SuperAdmin)` \| `ctx.User.HasClaim("SystemRole", SuperAdmin)` |
+| `RequireProjectAdmin` | `api/v1/api-keys`, `api/v1/logs`, `api/v1/users` | Project Admin or M2M ReadWrite (Zero Standing Access for SuperAdmin) | `ctx.User.IsInRole(RoleConstants.Admin)` \| `(ctx.User.IsInRole("M2MClient") & Scope == "ReadWrite")` |
+| `CanManageTemplates` | `api/v1/templates`, `api/v1/templates/{id}/*`, `mappings`, `datasets`, `fonts` | Template Designer (`Developer`), Admin, or M2M ReadWrite | `IsInRole(RoleConstants.Developer)` \| `IsInRole(RoleConstants.Admin)` \| `(IsInRole("M2MClient") & Scope == "ReadWrite")` |
+| `CanGenerateDocuments` | `api/v1/documents/*` (`generate`, `generate-async`, `preview`, `download`, `versions`) | Any authenticated user with tenant membership or M2M key (ReadOnly/ReadWrite) | `ctx.User.Identity.IsAuthenticated == true` |
+| `CanManageDataConnections`| `api/v1/data-connections/*` (`GET`, `POST`, `PUT`, `DELETE`, `test`) | Project Admin exclusively | `ctx.User.IsInRole(RoleConstants.Admin)` |
+| `CanManageDatasets` | `api/v1/datasets/*` (`GET`, `POST`, `PUT`, `DELETE`) | Template Designer (`Developer`), Admin, or M2M ReadWrite | `IsInRole(RoleConstants.Developer)` \| `IsInRole(RoleConstants.Admin)` \| `(IsInRole("M2MClient") & Scope == "ReadWrite")` |
 
 ### 2.6 Controller Partitioning & Companion Diagnostics Pattern
 When an aggregate's capabilities exceed 5 UseCases, or encompass specialized operational concerns (e.g. diagnostics, reachability tests, dry-run schema introspection), enforce single-responsibility by decomposing into cohesive companion controllers sharing the same route prefix:
@@ -136,9 +136,10 @@ When an aggregate's capabilities exceed 5 UseCases, or encompass specialized ope
 
 | Partitioning Strategy | Route Scope | Typical Invariants & Policies | Canonical Example |
 |---|---|---|---|
-| **Primary Resource CRUD** | `api/v1/{resources}` | Standard 3-step dispatcher, `[EnableRateLimiting("api")]`, `[Idempotent]` on POST, `If-Match` on PUT/DELETE | `TemplatesController`, `DataConnectionsController` |
-| **Companion Diagnostics** | `api/v1/{resources}` | Reachability checks, dry-run schema introspection, `[EnableRateLimiting("test-conn")]` (10 req/min) | `DataConnectionDiagnosticsController`, `DatasetDiagnosticsController` |
-| **Interactive Studio Draft**| `api/v1/{resources}/draft` | RAM-only preview lifecycle, ephemeral streaming, Monaco syntax validation | `TemplateDraftController`, `TemplateStudioController` |
+| **Primary Resource Lifecycle**| `api/v1/{resources}` | Standard 3-step dispatcher, `[EnableRateLimiting("api")]`, `[Idempotent]` on POST, `If-Match` on PUT/DELETE ($\le 5$ ctor dependencies) | `TemplateLifecycleController`, `DataConnectionsController` |
+| **Companion Asset & Validation** | `api/v1/{resources}` | File download streaming, schema introspection, dry-run payload validation | `TemplateAssetController` |
+| **Interactive Studio Draft**| `api/v1/{resources}/draft` | RAM-only preview lifecycle, ephemeral streaming, Monaco syntax validation, delegates to `PreviewDocumentUseCase` | `TemplateDraftController`, `TemplateStudioController` |
+| **Companion Diagnostics** | `api/v1/{resources}` | Reachability checks, test connection probes, `[EnableRateLimiting("test-conn")]` (10 req/min) | `DataConnectionDiagnosticsController`, `DatasetDiagnosticsController` |
 
 ---
 
@@ -579,16 +580,16 @@ public sealed class {Resource}DiagnosticsController(
 ### [TRAP-API-014]: Controller Tenancy Injection or Query String ProjectId
 ```diff
 - // Controller injecting ICurrentProjectContext and declaring [FromQuery] Guid? projectId:
-- public sealed class TemplateController(..., ICurrentProjectContext context) : ControllerBase {
--     [HttpGet] public async Task<IActionResult> List([FromQuery] Guid? projectId, ...) {
+- public sealed class TemplateLifecycleController(..., ICurrentProjectContext context) : ControllerBase {
+-     [HttpGet] public async Task<IActionResult> ListTemplates([FromQuery] Guid? projectId, ...) {
 -         if (!context.IsResolved || projectId != context.ProjectId.Value) throw ...;
 -     }
 - }
 + // Pure thin dispatcher delegating ambient resolution exclusively to UseCase PEMR:
-+ public sealed class TemplateController(...) : ControllerBase {
-+     [HttpGet] public async Task<IActionResult> List([FromQuery] string? search, ...) {
++ public sealed class TemplateLifecycleController(...) : ControllerBase {
++     [HttpGet] public async Task<IActionResult> ListTemplates([FromQuery] string? search, ...) {
 +         var query = new ListTemplatesQuery(search);
-+         var result = await listUseCase.ExecuteAsync(query, ct);
++         var result = await listTemplatesUseCase.ExecuteAsync(query, ct);
 +         return Ok(new PagedApiResponse<TemplateResultDto>(result.Items, ...));
 +     }
 + }

@@ -4,7 +4,7 @@
 Category: 00_architecture_core
 Domain: System-Wide Anti-Pattern Traps & Architectural Interceptors
 SoleResponsibilities:
-  - Registry of 21 compiler-grade fatal architectural traps (`[TRAP-LOH-001]` to `[TRAP-PIPELINE-021]`)
+  - Registry of 23 compiler-grade fatal architectural traps (`[TRAP-LOH-001]` to `[TRAP-TENANT-023]`)
   - Unified micro-diffs (`-` bad / `+` good) illustrating forbidden implementations and remediations
   - Pre-commit architectural violation checks across all layers
 Target: Full Stack (`backend-v2/` and `frontend-v2/`)
@@ -38,6 +38,8 @@ Signal: [ARCH_EVOLUTION_FIREWALL]
 | **[TRAP-DI-019]** | Modularity | Monolithic DI composition roots accumulating hundreds of lines across multiple subsystems hide dependencies. | Decompose DI into single-responsibility Feature Installers under `SmkDoc.Infrastructure/Extensions/`. | HIGH |
 | **[TRAP-PREVIEW-020]**| Architecture | Parallel duplicate preview use cases cause rendering logic divergence and dual-pipeline maintenance. | Route all preview variants exclusively through `PreviewDocumentUseCase` SSoT. | HIGH |
 | **[TRAP-PIPELINE-021]**| Simplicity | Artificial intermediate render pipeline classes between UseCases and domain engines fragment error handling and violate Linear PEMR. | Fold generation orchestration directly into `Generate{Resource}UseCase` following 4-step PEMR. | HIGH |
+| **[TRAP-TENANT-022]**| Multi-Tenancy / Architecture | Declaring caller ProjectId in tenant Command/Query records, route query string ([FromQuery]), or request JSON body, or injecting ICurrentProjectContext into controllers. | Prohibit caller-supplied ProjectId across bodies and query strings. Controllers must never inject ICurrentProjectContext; resolve ambient tenancy strictly in UseCase PEMR Step 1. | CRITICAL |
+| **[TRAP-TENANT-023]**| Multi-Tenancy / Security | Auto-hydrating Admin onto SuperAdmin and bypassing tenant membership check on Data Plane routes. | Enforce Zero Standing Access: SuperAdmin receives strictly SuperAdmin claim. On Data Plane routes, reject callers without active UserProjectRole membership with 403 Forbidden. | CRITICAL |
 
 ---
 
@@ -287,3 +289,42 @@ EventConsistencyFirewall:
 ```
 >> SSoT DELEGATION: Document generation execution archetype governed strictly by [document_rendering_mechanics.md](../03_specialized_mechanics/document_rendering_mechanics.md#34-linear-pemr-generation-pipeline-archetype-generateresourceusecase).
 *Rationale: Intermediate pipeline classes (e.g. `DocumentRenderPipeline`) that sit between UseCases and domain engines fragment error handling, obscure call stacks, and violate the Universal Linear PEMR cadence. UseCases must coordinate parsing, precondition checks, rendering, and persistence directly.*
+
+### [TRAP-TENANT-022]: Controller Tenancy Injection & Query String ProjectId Leakage
+```diff
+- // Controller injecting ICurrentProjectContext and declaring [FromQuery] Guid? projectId:
+- public sealed class TemplateLifecycleController(..., ICurrentProjectContext projectContext) : ControllerBase {
+-     [HttpGet] public async Task<IActionResult> ListTemplates([FromQuery] Guid? projectId, [FromQuery] string? search, ...) {
+-         if (!projectContext.IsResolved || projectId != projectContext.ProjectId.Value) throw ...;
+-     }
+- }
++ // Pure thin dispatcher delegating ambient resolution exclusively to UseCase PEMR Step 1:
++ public sealed class TemplateLifecycleController(...) : ControllerBase {
++     [HttpGet] public async Task<IActionResult> ListTemplates([FromQuery] string? search, ...) {
++         var query = new ListTemplatesQuery(search);
++         var result = await listTemplatesUseCase.ExecuteAsync(query, ct);
++         return Ok(new PagedApiResponse<TemplateResultDto>(result.Items, ...));
++     }
++ }
+```
+>> SSoT DELEGATION: Controller tenancy purity governed strictly by [04_api_presentation_layer.md](../01_clean_arch_patterns/04_api_presentation_layer.md#trap-api-014); multi-tenant perimeter resolution governed strictly by [multi_tenant_security_pipeline.md](../03_specialized_mechanics/multi_tenant_security_pipeline.md#trap-sec-004).
+*Rationale: Declaring `[FromQuery] Guid? projectId` leaks internal tenancy parameters into public query strings, while injecting `ICurrentProjectContext` into controllers bloats constructor dependencies (> 5) and duplicates ambient tenancy checks. Controllers must remain pure 3-step dispatchers (<= 5 LOC); ambient tenant validation belongs 100% inside UseCases (Step 1 PEMR).*
+
+### [TRAP-TENANT-023]: SuperAdmin Standing Access Breach on Tenant Data Plane
+```diff
+- // Auto-hydrating Admin onto SuperAdmin and skipping UserProjectRole membership check:
+- if (isSuperAdmin) { EnsureRoleClaim(superIdentity, RoleConstants.Admin); }
+- if (!isSuperAdmin) { var mapping = await userProjectRoleRepo.GetAsync(projectId, userId); ... }
++ // Zero Standing Access: SuperAdmin receives strictly SuperAdmin claim; Data Plane requires tenant membership:
++ if (isSuperAdmin) { EnsureRoleClaim(superIdentity, RoleConstants.SuperAdmin); }
++ if (isManagementRoute && isSuperAdmin) {
++     projectContextSetter.SetProject(targetProjectId, actorIdentity);
++ } else {
++     var mapping = await userProjectRoleRepo.GetAsync(targetProjectId, userId);
++     if (mapping == null) return 403 Forbidden;
++     EnsureRoleClaim(projectIdentity, mapping.Role.Name);
++     projectContextSetter.SetProject(targetProjectId, actorIdentity);
++ }
+```
+>> SSoT DELEGATION: Zero Standing Access and Control Plane vs Data Plane partitioning governed strictly by [multi_tenant_security_pipeline.md](../03_specialized_mechanics/multi_tenant_security_pipeline.md#trap-sec-008) and [01_system_architecture.md](01_system_architecture.md#111-architectural-planes-control-plane-vs-data-plane-partitioning).
+*Rationale: Providing platform SuperAdmin accounts with permanent standing read/write access to customer templates, datasets, and documents creates a critical Insider Threat and violates SOC 2 Type II, ISO 27001, and Separation of Duties (SoD). SuperAdmin is restricted to the Control Plane (`/api/v1/management/**`). On Data Plane routes (`/api/v1/**`), all interactive callers without an active `UserProjectRole` row are rejected with `403 Forbidden`.*

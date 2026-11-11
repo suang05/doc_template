@@ -184,7 +184,6 @@ public static class ServiceCollectionExtensions
             {
                 policy.RequireAssertion(ctx =>
                     ctx.User.IsInRole(RoleConstants.Admin) ||
-                    ctx.User.IsInRole(RoleConstants.SuperAdmin) ||
                     (ctx.User.IsInRole("M2MClient") && ctx.User.HasClaim(c => c.Type is "Scope" or "ApiKeyScope" && c.Value == "ReadWrite")));
             });
 
@@ -193,7 +192,6 @@ public static class ServiceCollectionExtensions
                 policy.RequireAssertion(ctx =>
                     ctx.User.IsInRole(RoleConstants.Developer) ||
                     ctx.User.IsInRole(RoleConstants.Admin) ||
-                    ctx.User.IsInRole(RoleConstants.SuperAdmin) ||
                     (ctx.User.IsInRole("M2MClient") && ctx.User.HasClaim(c => c.Type is "Scope" or "ApiKeyScope" && c.Value == "ReadWrite")));
             });
 
@@ -205,8 +203,7 @@ public static class ServiceCollectionExtensions
             options.AddPolicy(AuthorizationPolicies.CanManageDataConnections, policy =>
             {
                 policy.RequireAssertion(ctx =>
-                    ctx.User.IsInRole(RoleConstants.Admin) ||
-                    ctx.User.IsInRole(RoleConstants.SuperAdmin));
+                    ctx.User.IsInRole(RoleConstants.Admin));
             });
 
             options.AddPolicy(AuthorizationPolicies.CanManageDatasets, policy =>
@@ -214,7 +211,6 @@ public static class ServiceCollectionExtensions
                 policy.RequireAssertion(ctx =>
                     ctx.User.IsInRole(RoleConstants.Developer) ||
                     ctx.User.IsInRole(RoleConstants.Admin) ||
-                    ctx.User.IsInRole(RoleConstants.SuperAdmin) ||
                     (ctx.User.IsInRole("M2MClient") && ctx.User.HasClaim(c => c.Type is "Scope" or "ApiKeyScope" && c.Value == "ReadWrite")));
             });
         });

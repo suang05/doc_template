@@ -18,9 +18,20 @@ Signal: [ARCH_EVOLUTION_CORE]
 
 ### 1.1 Core Mission & Caller Personas
 `smk-doc-server` is an enterprise-grade, high-throughput centralized document gateway ingesting structured JSON payloads and external database queries to produce deterministic outputs across three target formats: **PDF**, **DOCX**, and **XLSX**.
-* **Primary Persona**: Automated Machine-to-Machine (M2M) callers (Enterprise ERPs, Core Banking, Billing Engines) communicating via SHA-256 API Keys.
-* **Secondary Persona**: Template Authors and Administrators interacting with the Web Studio Portal (`frontend-v2`) via JWT Bearer sessions.
+* **Primary Persona**: Automated Machine-to-Machine (M2M) callers (Enterprise ERPs, Core Banking, Billing Engines) communicating via SHA-256 API Keys on the Data Plane.
+* **Secondary Persona**: Template Authors and Administrators interacting with the Web Studio Portal (`frontend-v2`) via JWT Bearer sessions on the Data Plane.
+* **Platform Governance Persona**: System Administrators managing tenant lifecycle, quotas, and bootstrap keys via the Control Plane (`/api/v1/management/**`).
 * **Non-Persona**: End-users of client systems (e.g., banking customers receiving invoices) never exist as accounts in this system.
+
+### 1.1.1 Architectural Planes: Control Plane vs Data Plane Partitioning
+The system enforces strict architectural separation between two decoupled operational planes (SOC 2 Type II / ISO 27001 / AWS Model):
+1. **Control Plane (`/api/v1/management/**`)**:
+   - Governance & tenant lifecycle: Project provisioning, quota allocations, global font management, bootstrap admin keys.
+   - Authorized strictly via `RequireSuperAdmin`. SuperAdmin operates on project containers without requiring tenant membership.
+2. **Data Plane (`/api/v1/**` excluding `/management/` and `/auth/`)**:
+   - Tenant workload resources: Templates, Documents, Datasets, Mappings, Tenant Sub-Keys, Project Users.
+   - Requires valid ambient tenant context (`ICurrentProjectContext`).
+   - **Zero Standing Access for SuperAdmin**: SuperAdmin receives strictly `RoleConstants.SuperAdmin` (never `Admin`). On Data Plane routes, SuperAdmin has zero standing access and is rejected with `403 Forbidden` unless explicitly invited and mapped in `UserProjectRole` by the tenant.
 
 ### 1.2 Clean Architecture Layer Invariants Matrix
 ```mermaid
@@ -51,18 +62,18 @@ graph TD
 ```
 [PIPELINE_A: M2M DOCUMENT GENERATION (Persistent & Audited)]
 HTTP Request (API Key) 
-  => ApiKeyAuthMiddleware (Resolves ProjectContext)
-  => RenderDocumentController (<= 5 LOC)
-  => RenderDocumentUseCase (PEMR Cadence)
+  => ProjectContextMiddleware (Dual-Channel Auth: Channel A M2M API Key)
+  => DocumentGenerationController (<= 5 LOC)
+  => GenerateDocumentUseCase (PEMR Cadence)
   => Engine Dispatcher (Gotenberg / OpenXML / ClosedXML)
   => ResponseDisposingStream (Bounded 81,920 buffer passthrough)
   => Async Background Audit & MinIO Archive
 
 [PIPELINE_B: WEB STUDIO LIVE PREVIEW (100% In-Memory & Non-Persistent)]
 HTTP Request (JWT Bearer)
-  => JwtSessionMiddleware (Resolves User & Draft ProjectContext)
+  => ProjectContextMiddleware (Dual-Channel Auth: Channel B JWT Session)
   => PreviewController (<= 5 LOC)
-  => RenderPreviewUseCase (In-Memory Draft Rendering)
+  => PreviewDocumentUseCase (Unified SSoT for Monaco HTML, Template Slug, ID, or RAM Draft)
   => Gotenberg Sandboxed Chromium Cluster (In-Memory HTML/CSS)
   => Direct MemoryStream Passthrough to Response
   => ZERO Database Mutation & ZERO MinIO Persistence
@@ -72,9 +83,9 @@ HTTP Request (JWT Bearer)
 ```
 backend-v2/src/SmkDoc.Application/Modules/
   Authoring/
-    Commands/ # CreateTemplate, UpdateTemplate, PublishVersion, SaveMappings, CommitDraft
-    Queries/  # GetTemplateById, ListTemplates, ListVersions, GetMappings, GetStudioBundle
-    DTOs/     # TemplateResultDto, TemplateVersionResultDto, FieldMappingDto, TemplateStudioDto
+    Commands/ # CreateTemplate, UpdateTemplateDetails, DeactivateTemplate, SaveTemplateHtml, ParseTemplateDraft, CommitTemplateDraft, RollbackTemplateVersion
+    Queries/  # GetTemplateById, ListTemplates, ListTemplateVersions, DownloadTemplate, ScanTemplatePlaceholders, GetTemplateHtmlSource, GetTemplateStudioBundle, GetTemplateSchema, ValidateTemplateHtml, ValidateTemplatePayload
+    DTOs/     # TemplateResultDto, TemplateVersionDto, ParseDraftResultDto, CommitDraftResultDto, ScanFieldsResultDto, TemplateStudioDto, TemplateSchemaDto
   DataBinding/
     Services/ # DataBindingEngine (IDataBindingEngine SSoT), FieldMappingApplicatorService
     DTOs/     # BoundDocumentData, ResolvedDatasetContext

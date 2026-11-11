@@ -42,6 +42,8 @@ Signal: [ARCH_EVOLUTION_APPLICATION]
 | **Single-Type File Topology** | Every `*Command`, `*Query`, `*Validator`, and `*UseCase` resides in its own isolated `{TypeName}.cs` file inside its vertical slice directory (`Commands/{SliceName}/` or `Queries/{SliceName}/`). | Physical Structure |
 | **Modular Module Installers** | Each bounded context slice registers its use cases and services through dedicated `{Module}ModuleExtensions.cs` (e.g. `AuthoringModuleExtensions`, `RenderingModuleExtensions`). Monolithic Application composition roots are prohibited. | DI Container |
 | **Direct Pipeline Composition** | Workflows and rendering pipelines consume domain services (`IDataBindingEngine`) directly. Single-method pass-through wrapper classes and duplicate intermediate DTOs are prohibited. | Pipeline Structure |
+| **Ingestion Consolidation SSoT** | Template file placeholder scanning and draft parsing execute exclusively within `CreateTemplateUseCase` and `ParseTemplateDraftUseCase`. Standalone file scanning endpoints or un-cached scanner use cases (`/scan-fields`) outside the draft/creation lifecycle are strictly prohibited. | Ingestion Pipeline |
+| **PEMR Step 1 Tenancy Guard** | Multi-tenant scoping and ambient identity validation execute strictly at Step 1 (Parse & Guard) of UseCases (`if (!projectContext.IsResolved) throw new ForbiddenException(...)`). Controllers must never inject `ICurrentProjectContext` or validate tenancy before UseCase invocation. | PEMR Cadence |
 
 ---
 
@@ -133,6 +135,14 @@ ApplicationModularDiFirewall:
 GodServiceEliminationFirewall:
   Invariant: "Multi-action application services are 100% prohibited. Every business capability must be an isolated Action-Centric Vertical Slice implementing IUseCase<TReq, TRes>."
   ActionOnViolation: "Decompose multi-method service into discrete single-purpose UseCases."
+
+IngestionConsolidationFirewall:
+  Invariant: "File scanning and placeholder extraction must be co-located within CreateTemplate and ParseTemplateDraft UseCases."
+  ActionOnViolation: "Purge standalone scanner use cases and endpoints (/scan-fields); route all ingestion through draft/creation pipelines."
+
+UseCaseTenancyPerimeterFirewall:
+  Invariant: "Tenant boundary resolution belongs strictly in Step 1 (Parse & Guard) of UseCase execution."
+  ActionOnViolation: "Remove ICurrentProjectContext from controllers; insert if (!projectContext.IsResolved) throw new ForbiddenException(...) at Line 1 of UseCase."
 ```
 
 ---

@@ -33,7 +33,7 @@ Signal: [ARCH_EVOLUTION_RENDERING]
 | Rendering Architectural Concern | Affirmative Rendering Invariant (Positive SSoT Law) | Boundary Vector |
 |---|---|---|
 | **Zero-LOH Stream Purity** | Render and PDF contracts expose pure `Task<Stream>` types. Output streams are piped with bounded `81,920`-byte buffers, dry-run validations drain to `Stream.Null`, and seekable packages use `HybridSpoolStream`. Multi-MB `byte[]` arrays are prohibited. | Memory & GC Boundary |
-| **Template Manifest SSoT** | Runtime document generation strictly deserializes the immutable version manifest (`TemplateVersion.MappingsSnapshot`), bypassing relational `field_mappings` queries to guarantee version immutability and zero-drift execution. | Data Binding Boundary |
+| **Template Manifest SSoT** | Runtime document generation strictly deserializes the immutable version manifest (`TemplateVersion.MappingsSnapshot`), bypassing relational `field_mappings` queries to guarantee version immutability and zero-drift execution. Version creation workflows (`CreateTemplate`, `SaveTemplateHtml`, `CommitTemplateDraft`) must guarantee non-null frozen `MappingsSnapshot` persistence. | Data Binding Boundary |
 | **Unified Preview Gateway** | Live preview requests (Monaco raw HTML, RAM-cached template drafts, template slug, or template UUID) route exclusively through the unified `PreviewDocumentUseCase` with fail-fast JSON Schema Draft-07 validation. Duplicate preview use cases are prohibited. | Preview Perimeter |
 | **Polymorphic Engine Resolution**| Document synthesis resolves engines dynamically via `IRenderEngineFactory.GetEngine(engineType)` using an immutable `FrozenDictionary`. Hardcoded switch/if-else branching is prohibited. | Engine Extensibility |
 | **Storage Perimeter Isolation** | Generated documents and templates stream server-side through API Gateway (`File(stream, ...)`). Emitting HTTP 307 redirects or raw internal MinIO URLs to clients is prohibited. | Network Perimeter |
@@ -789,6 +789,10 @@ public sealed class DocumentRetentionWorker(
 +     : template.FieldMappings.ToList();
 ```
 *Rationale: Querying mutable relational `field_mappings` during document generation breaks version immutability. An author editing field mappings in the studio causes historical published versions to immediately drift and produce altered outputs. The frozen `TemplateVersion.MappingsSnapshot` is the authoritative runtime manifest.*
+*Authoring Invariant: To guarantee snapshot fidelity, every version creation operation must populate non-null frozen snapshots:*
+*1. `CreateTemplateUseCase`: Generates Draft-07 DataSchema, default SamplePayload, and initializes `MappingsSnapshot = "[]"`.*
+*2. `SaveTemplateHtmlUseCase`: Preserves prior version's `MappingsSnapshot` (defaulting to `"[]"` if none existed) alongside inferred Draft-07 schema.*
+*3. `CommitTemplateDraftUseCase`: Discovers fallback placeholders from `draft.Placeholders` if `command.Mappings` is empty, freezes `MappingsSnapshot`, and generates schema.*
 
 ### [TRAP-MECH-008]: Pass-Through Indirection Wrapper or Intermediate Pipeline in Rendering
 ```diff

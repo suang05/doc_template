@@ -100,6 +100,7 @@ public sealed class UsersController(
 
     /// <summary>Activate or deactivate a global user account. SuperAdmin only.</summary>
     [HttpPatch("{userId:guid}/status")]
+    [HttpPatch("/api/v1/management/users/{userId:guid}/status")]
     [Authorize(Policy = AuthorizationPolicies.RequireSuperAdmin)]
     [ProducesResponseType(typeof(ApiResponse<UserResultDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]

@@ -34,13 +34,13 @@ Signal: [ARCH_EVOLUTION_TENANCY]
 | **Fail-Closed Tenancy SQL** | EF Core Global Query Filter enforces `IsResolved && e.ProjectId == CurrentTenantId` across all `IMustHaveProject` entities. Manual `WHERE project_id = @id` clauses and `.IgnoreQueryFilters()` in tenant routes are prohibited. | Relational Boundary |
 | **Timing Side-Channel Immunity**| All API key and secret comparisons execute via `CryptographicOperations.FixedTimeEquals` across byte representations. Variable-time string equality is prohibited. | Cryptographic Engine |
 | **First-Class M2M Identity** | Channel A hydrates `ClaimsPrincipal` (`AuthenticationScheme: ApiKeyScheme`, `Role: M2MClient`, `ProjectId`, `Scope`, `ApiKeyId`) onto `HttpContext.User`. Prohibit setting ambient context without updating `HttpContext.User`. | Security Context |
-| **Anti-Spoofing Parameter Policy**| Tenant UseCases resolve tenancy strictly from ambient `ICurrentProjectContext`. Declaring caller `ProjectId` overrides on tenant Command/Query records or payloads is prohibited. | Ingress Parameter |
+| **Anti-Spoofing Parameter Policy**| Tenant UseCases resolve tenancy strictly from ambient `ICurrentProjectContext`. Declaring caller `ProjectId` overrides on tenant Command/Query records, query strings (`[FromQuery]`), or JSON payloads is strictly prohibited. Controllers must never inject `ICurrentProjectContext`. | Ingress Parameter |
 | **Global Identity Scoping** | `User` is a Global Identity (zero `ProjectId` column, zero `IMustHaveProject`). Multi-project tenancy is mapped exclusively through `UserProjectRole`. | Identity Model |
 | **Delegated Sub-Key Quota** | Project Admins manage operational sub-keys on `/api/v1/api-keys` under a strict budget of maximum 2 active keys per tenant (1 `ReadOnly` + 1 `ReadWrite`), returning `409 Conflict` on duplicate scope. | Key Governance |
 | **Key Masking Wire Egress** | Key list and get endpoints return masked keys derived from authentic components (`$"{KeyPrefix}****{KeySuffix}"`). Synthesizing pseudo-suffixes from the SHA-256 hash or returning raw keys is prohibited. | Contract Privacy |
 | **Canonical REST Routes** | User and project access endpoints reside on flat RESTful routes (`/api/v1/users`, `/api/v1/users/{userId}/role`). Duplicate nested controller routes are prohibited. | Route Taxonomy |
 | **Deterministic Route Precedence**| Tenant resolution resolves following strict hierarchy: Route (`{projectId}`) => Header (`X-Project-Id`) => JWT Claim (`ProjectId`), rejecting Route vs Header conflicts with RFC 9457 `400 Bad Request`. | Tenant Extraction |
-| **Unconditional Admin Hydration** | `SystemRole.SuperAdmin` users receive `SuperAdmin` and `Admin` role claims unconditionally prior to tenant resolution to permit global platform operations. | Privilege Elevation |
+| **Zero Standing Access & Plane Partitioning** | SuperAdmin receives strictly `RoleConstants.SuperAdmin` (never `Admin`). On Data Plane routes (`/api/v1/**`), SuperAdmin has Zero Standing Access and is rejected with `403 Forbidden` unless explicitly mapped in `UserProjectRole` by the tenant. | Zero Trust Perimeter |
 | **Perimeter Scope Enforcement** | Channel A keys with `ApiKeyScope.ReadOnly` are blocked at `ProjectContextMiddleware` from executing mutating HTTP verbs (`POST`/`PUT`/`PATCH`/`DELETE`) returning `403 Forbidden`, permitting only stateless `/preview` and `/validate`. | Perimeter Firewall |
 | **Authenticated Preview Protection**| Preview endpoints require authenticated tenant context to resolve templates and protect Gotenberg Chromium pods. Anonymous public access to `/preview` is prohibited. | Render Perimeter |
 | **Tenant Idempotency Partition**| Distributed idempotency keys are partitioned strictly by resolved project: `idempotency:{ProjectId:N}:{IdempotencyKey}`. Shared caller keying is prohibited. | Cache Partitioning |
@@ -59,7 +59,7 @@ Signal: [ARCH_EVOLUTION_TENANCY]
 * **Why Global `User` vs `UserProjectRole`:** Modeling `User` with a `ProjectId` column forces duplicate user accounts across projects, breaks single-sign-on (SSO), and makes enterprise user management impossible. `User` is a Global Identity; multi-tenancy is scoped strictly via the `UserProjectRole` join entity.
 * **Why Omitting `ProjectId` from Tenant Payloads:** Eliminating `Guid ProjectId` from tenant-scoped Commands and Queries removes confused-deputy attack vectors by construction rather than relying on repetitive per-handler checks.
 * **Why Route Precedence with Conflict Rejection:** Administrative endpoints define resource hierarchy in the URI (`/api/v1/projects/{projectId}/...`). Parsing `{projectId}` from route values and rejecting mismatches against `X-Project-Id` prevents cross-project header bleed attacks.
-* **Why Unconditional SuperAdmin Claim Hydration:** Global endpoints such as `POST /api/v1/management/projects` execute before a target project exists. Hydrating `SuperAdmin` and `Admin` role claims prior to tenant resolution allows `[Authorize(Roles = RoleConstants.AdminOrSuperAdmin)]` to succeed without weakening tenant checks on project-scoped routes.
+* **Why Zero Standing Access & Strict Plane Partitioning (SOC 2 / ISO 27001):** SuperAdmin manages platform governance on the Control Plane (`/api/v1/management/**`) via `RequireSuperAdmin`. Auto-hydrating `Admin` onto SuperAdmin creates dangerous standing access across customer data planes. By enforcing `UserProjectRole` membership across all interactive callers on Data Plane routes, tenant templates, documents, and datasets remain 100% isolated and compliant with Separation of Duties (SoD).
 * **Why Perimeter Enforcement of `ApiKeyScope.ReadOnly`:** Blocking state-mutating HTTP methods at `ProjectContextMiddleware` prevents read-only integration keys from creating templates, uploading fonts, or mutating documents while still permitting stateless POST `preview` and `validate` calls.
 * **Why Master Key / Delegated Ownership Pattern under Guardrails:** Eliminates operational bottlenecks by empowering Project Admins to self-service sub-key creation and rotation (`/api/v1/api-keys`) for daily integration needs (ERP, CRM) without waiting on platform operators. Preserves the Chain of Trust by restricting Master Credential changes and project ownership transfers strictly to SuperAdmin verification (`/api/v1/management/projects/{projectId}/transfer-owner`), while runtime guardrails enforce a hard budget of maximum 2 active keys per project (1 ReadOnly + 1 ReadWrite) returning `409 Conflict` on quota violation.
 * **Why Relational `KeyPrefix` and `KeySuffix` Storage:** Masking API keys using the trailing characters of the SHA-256 hash causes serious confusion because the characters displayed in the authoring console do not match the actual secret key possessed by the developer or enterprise ERP system. Storing `KeyPrefix` (e.g. `smk_crm_`) and authentic `KeySuffix` (e.g. `abcd`) in the database allows safe, authentic key identification without ever persisting or exposing the raw secret.
@@ -217,7 +217,8 @@ public static class ApiKeyValidator
 * Hydrates `ClaimsPrincipal` onto `HttpContext.User` on Channel A (`Role: M2MClient`, `ProjectId`, `Scope`, `ApiKeyId`, `CallerApp`) so `[Authorize]` succeeds.
 * Enforces `ApiKeyScope.ReadOnly` on Channel A at perimeter: rejects `POST`/`PUT`/`PATCH`/`DELETE` with RFC 9457 `403 Forbidden` except stateless `/preview` and `/validate`.
 * Extracts Channel B tenant identifier following precedence: Route `{projectId}` => Header `X-Project-Id` => JWT Claim `ProjectId`, rejecting Route vs Header conflicts with RFC 9457 `400 Bad Request`.
-* Hydrates `SuperAdmin` and `Admin` role claims unconditionally for authenticated `SystemRole.SuperAdmin` users before project checks.
+* Hydrates strictly `SuperAdmin` role claim for authenticated `SystemRole.SuperAdmin` users (Zero Standing Access: do NOT hydrate `Admin`).
+* Enforces `UserProjectRole` membership checks across all interactive callers on Data Plane routes (`/api/v1/**`), permitting bypass only on Control Plane (`/api/v1/management/**`).
 
 ```csharp
 public sealed class ProjectContextMiddleware(RequestDelegate next)
@@ -294,17 +295,38 @@ public sealed class ProjectContextMiddleware(RequestDelegate next)
                 systemRole: systemRole,
                 callerIdentity: userId is { } uid ? $"User:{uid.Value:N}" : "portal");
 
-            // Unconditional Admin Claims Hydration <Why: SuperAdmin access to unpartitioned platform routes>
+            // Zero Standing Access: Hydrate SuperAdmin claim only (do NOT auto-escalate to tenant Admin)
             if (isSuperAdmin && context.User.Identity is ClaimsIdentity superIdentity)
             {
                 EnsureRoleClaim(superIdentity, RoleConstants.SuperAdmin);
-                EnsureRoleClaim(superIdentity, RoleConstants.Admin);
             }
 
+            var isManagementRoute = context.Request.Path.Value?.StartsWith("/api/v1/management/", StringComparison.OrdinalIgnoreCase) == true;
             var effectiveProjectId = routeProjectId ?? headerProjectId ?? ExtractClaimProjectId(context);
             if (effectiveProjectId.HasValue)
             {
-                projectContextSetter.SetProject(new ProjectId(effectiveProjectId.Value));
+                var targetProjectId = new ProjectId(effectiveProjectId.Value);
+                if (isManagementRoute && isSuperAdmin)
+                {
+                    // Control Plane: SuperAdmin manages project container without tenant membership
+                    projectContextSetter.SetProject(targetProjectId, actorIdentity);
+                }
+                else
+                {
+                    // Data Plane: Strict tenant membership verification required (Zero Standing Access)
+                    var mapping = await userProjectRoleRepo.GetAsync(targetProjectId, userId!.Value, context.RequestAborted);
+                    if (mapping == null)
+                    {
+                        await WriteProblemAsync(context, StatusCodes.Status403Forbidden, "Forbidden",
+                            $"User does not have permission to access project '{targetProjectId}'.");
+                        return;
+                    }
+                    if (context.User.Identity is ClaimsIdentity projectIdentity)
+                    {
+                        EnsureRoleClaim(projectIdentity, mapping.Role.Name);
+                    }
+                    projectContextSetter.SetProject(targetProjectId, actorIdentity);
+                }
             }
 
             await next(context);
@@ -415,11 +437,13 @@ var activeProjectId = projectContext.ProjectId;
 
 ### [TRAP-SEC-004]: Dual Ambient Context & Caller ProjectId Override
 ```diff
-- var targetProject = command.ProjectId != Guid.Empty ? command.ProjectId : legacyContext.ProjectId!.Value;
-+ if (!projectContext.IsResolved) throw new ForbiddenException("Tenant context required.");
-+ var targetProject = projectContext.ProjectId;
+- public async Task<IActionResult> ListTemplates([FromQuery] Guid? projectId, ...) {
+-     var targetProject = projectId ?? legacyContext.ProjectId!.Value;
++ [HttpGet] public async Task<IActionResult> ListTemplates([FromQuery] string? search, ...) {
++     var query = new ListTemplatesQuery(search);
++     var result = await listTemplatesUseCase.ExecuteAsync(query, ct);
 ```
-*Rationale: Maintaining a parallel execution context or accepting caller-supplied `ProjectId` overrides creates split-brain cross-tenant writes bypassing EF Core query filters.*
+*Rationale: Maintaining parallel execution contexts, injecting `ICurrentProjectContext` into controllers, or accepting caller-supplied `ProjectId` overrides creates split-brain cross-tenant queries and controller dependency bloat. Multi-tenant context resolves exclusively via middleware into ambient `ICurrentProjectContext`, and UseCases enforce `!projectContext.IsResolved` fail-fast in Step 1 PEMR.*
 
 ### [TRAP-SEC-005]: M2M Missing ClaimsPrincipal (Dropping to 401 Unauthorized under `[Authorize]`)
 ```diff
@@ -441,3 +465,21 @@ var activeProjectId = projectContext.ProjectId;
 + var masked = $"{apiKey.KeyPrefix}****{apiKey.KeySuffix}";
 ```
 *Rationale: Generating masked keys from the trailing characters of the SHA-256 hash causes total confusion because the masked string displayed in the console differs from the physical credentials held by the operator or enterprise ERP. Storing `KeyPrefix` and authentic `KeySuffix` alongside `KeyHash` guarantees accurate, non-sensitive key identification.*
+
+### [TRAP-SEC-008]: SuperAdmin Standing Access Breach (Data Plane Bypass)
+```diff
+- // ANTI-PATTERN: Auto-hydrating Admin onto SuperAdmin and bypassing tenant membership check
+- if (isSuperAdmin) { EnsureRoleClaim(superIdentity, RoleConstants.Admin); }
+- if (!isSuperAdmin) { var mapping = await userProjectRoleRepo.GetAsync(targetProjectId, userId); ... }
++ // CANONICAL: Zero Standing Access - Partition Control Plane vs Data Plane
++ if (isSuperAdmin) { EnsureRoleClaim(superIdentity, RoleConstants.SuperAdmin); } // ONLY SuperAdmin
++ if (isManagementRoute && isSuperAdmin) {
++     projectContextSetter.SetProject(targetProjectId, actorIdentity);
++ } else {
++     var mapping = await userProjectRoleRepo.GetAsync(targetProjectId, userId);
++     if (mapping == null) return 403 Forbidden;
++     EnsureRoleClaim(projectIdentity, mapping.Role.Name);
++     projectContextSetter.SetProject(targetProjectId, actorIdentity);
++ }
+```
+*Rationale: Giving platform SuperAdmin permanent standing read/write access to customer templates, datasets, and rendered documents violates SOC 2 Type II, ISO 27001, and Separation of Duties (SoD). SuperAdmin operates strictly within the Control Plane (`/api/v1/management/**`). On Data Plane routes, every interactive caller without an explicit `UserProjectRole` row is rejected with `403 Forbidden`.*

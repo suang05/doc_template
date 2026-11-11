@@ -71,12 +71,13 @@ public sealed class ProjectContextMiddleware(
                 systemRole: parsedSystemRole,
                 callerIdentity: actorIdentity);
 
-            // Unconditionally hydrate SuperAdmin + Admin claims even on global routes without a target ProjectId
+            // Zero Standing Access: Hydrate SuperAdmin claim only (do NOT auto-escalate SuperAdmin to tenant Admin)
             if (isSuperAdmin && context.User.Identity is ClaimsIdentity superIdentity)
             {
                 EnsureRoleClaim(superIdentity, RoleConstants.SuperAdmin);
-                EnsureRoleClaim(superIdentity, RoleConstants.Admin);
             }
+
+            bool isManagementRoute = path.StartsWith("/api/v1/management/", StringComparison.OrdinalIgnoreCase);
 
             Guid? routeProjectIdGuid = ExtractRouteProjectId(context);
             Guid? headerProjectIdGuid = ExtractHeaderProjectId(context);
@@ -144,9 +145,14 @@ public sealed class ProjectContextMiddleware(
                     return;
                 }
 
-                string roleName = RoleConstants.SuperAdmin;
-                if (!isSuperAdmin)
+                if (isManagementRoute && isSuperAdmin)
                 {
+                    // Control Plane: SuperAdmin manages project container without requiring tenant membership
+                    projectContextSetter.SetProject(targetProjectId, actorIdentity);
+                }
+                else
+                {
+                    // Data Plane (or non-SuperAdmin): Strict tenant membership verification required (Zero Standing Access)
                     var roleMapping = await userProjectRoleRepo.GetAsync(
                         targetProjectId,
                         new UserId(userIdGuid),
@@ -155,8 +161,9 @@ public sealed class ProjectContextMiddleware(
                     if (roleMapping == null)
                     {
                         logger.LogWarning(
-                            "IDOR defense: User {UserId} denied access to project {ProjectId}",
+                            "Zero Standing Access defense: User {UserId} (SystemRole: {SystemRole}) denied access to project {ProjectId} - no project membership",
                             userIdGuid,
+                            parsedSystemRole,
                             targetProjectId);
 
                         await WriteProblemDetailsAsync(
@@ -168,15 +175,15 @@ public sealed class ProjectContextMiddleware(
                         return;
                     }
 
-                    roleName = roleMapping.Role.Name;
+                    var roleName = roleMapping.Role.Name;
 
                     if (context.User.Identity is ClaimsIdentity projectIdentity)
                     {
                         EnsureRoleClaim(projectIdentity, roleName);
                     }
-                }
 
-                projectContextSetter.SetProject(targetProjectId, actorIdentity);
+                    projectContextSetter.SetProject(targetProjectId, actorIdentity);
+                }
             }
 
             await next(context);

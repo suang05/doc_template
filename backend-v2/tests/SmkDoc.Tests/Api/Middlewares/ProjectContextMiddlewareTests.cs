@@ -384,9 +384,9 @@ public sealed class ProjectContextMiddlewareTests
     }
 
     [Fact]
-    public async Task InvokeAsync_AuthenticatedPortalUser_WithSuperAdminRole_BypassesMembershipCheck()
+    public async Task InvokeAsync_SuperAdmin_OnDataPlaneRoute_WithoutProjectMembership_Returns403Forbidden()
     {
-        // Arrange
+        // Arrange: SuperAdmin accessing Data Plane (/api/v1/templates) without tenant membership
         var sut = CreateSut();
         var (httpContext, projectContext) = CreateContexts("/api/v1/templates");
 
@@ -401,6 +401,18 @@ public sealed class ProjectContextMiddlewareTests
         httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(claims, "Bearer"));
         httpContext.Request.Headers["X-Project-Id"] = targetProjectId.ToString();
 
+        var activeProject = Project.Create(
+            CompanyId.New(),
+            ProjectName.Create("Test Project"),
+            ProjectSlug.Create("test-project"),
+            DateTimeOffset.UtcNow);
+
+        _projectRepo.GetByIdAsync(targetProjectId, Arg.Any<CancellationToken>())
+            .Returns(activeProject);
+
+        _userProjectRoleRepo.GetAsync(targetProjectId, new UserId(userId), Arg.Any<CancellationToken>())
+            .Returns((UserProjectRole?)null);
+
         // Act
         await sut.InvokeAsync(
             httpContext,
@@ -409,12 +421,60 @@ public sealed class ProjectContextMiddlewareTests
             _userProjectRoleRepo,
             _projectRepo);
 
-        // Assert
+        // Assert: Zero Standing Access blocks SuperAdmin without tenant membership
+        await _next.DidNotReceive().Invoke(httpContext);
+        projectContext.IsResolved.Should().BeFalse();
+        httpContext.Response.StatusCode.Should().Be(StatusCodes.Status403Forbidden);
+        httpContext.Response.ContentType.Should().StartWith("application/problem+json");
+        await _userProjectRoleRepo.Received(1).GetAsync(targetProjectId, new UserId(userId), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task InvokeAsync_SuperAdmin_OnDataPlaneRoute_WithProjectMembership_SucceedsWithMappedRole()
+    {
+        // Arrange: SuperAdmin invited into project membership by tenant (Break-Glass / Delegated Access)
+        var sut = CreateSut();
+        var (httpContext, projectContext) = CreateContexts("/api/v1/templates");
+
+        var userId = Guid.NewGuid();
+        var targetProjectId = ProjectId.New();
+
+        var claims = new[]
+        {
+            new Claim(ClaimTypes.NameIdentifier, userId.ToString()),
+            new Claim("SystemRole", "SuperAdmin")
+        };
+        httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(claims, "Bearer"));
+        httpContext.Request.Headers["X-Project-Id"] = targetProjectId.ToString();
+
+        var activeProject = Project.Create(
+            CompanyId.New(),
+            ProjectName.Create("Test Project"),
+            ProjectSlug.Create("test-project"),
+            DateTimeOffset.UtcNow);
+
+        _projectRepo.GetByIdAsync(targetProjectId, Arg.Any<CancellationToken>())
+            .Returns(activeProject);
+
+        var membership = UserProjectRole.Create(new UserId(userId), targetProjectId, RoleType.Developer, DateTimeOffset.UtcNow);
+        _userProjectRoleRepo.GetAsync(targetProjectId, new UserId(userId), Arg.Any<CancellationToken>())
+            .Returns(membership);
+
+        // Act
+        await sut.InvokeAsync(
+            httpContext,
+            projectContext,
+            _validateApiKeyUseCase,
+            _userProjectRoleRepo,
+            _projectRepo);
+
+        // Assert: Request succeeds with tenant-scoped role
         await _next.Received(1).Invoke(httpContext);
         projectContext.IsResolved.Should().BeTrue();
         projectContext.ProjectId.Should().Be(targetProjectId);
-        projectContext.SystemRole.Should().Be(SystemRole.SuperAdmin);
-        await _userProjectRoleRepo.DidNotReceive().GetAsync(Arg.Any<ProjectId>(), Arg.Any<UserId>(), Arg.Any<CancellationToken>());
+        httpContext.User.IsInRole(RoleConstants.SuperAdmin).Should().BeTrue();
+        httpContext.User.IsInRole("Developer").Should().BeTrue();
+        httpContext.User.IsInRole("Admin").Should().BeFalse();
     }
 
     [Fact]
@@ -440,13 +500,13 @@ public sealed class ProjectContextMiddlewareTests
             _userProjectRoleRepo,
             _projectRepo);
 
-        // Assert
+        // Assert: SuperAdmin has SuperAdmin role, but NOT tenant Admin role
         await _next.Received(1).Invoke(httpContext);
         projectContext.IsResolved.Should().BeFalse();
         projectContext.UserId.Should().Be(new UserId(userId));
         projectContext.SystemRole.Should().Be(SystemRole.SuperAdmin);
         httpContext.User.IsInRole(RoleConstants.SuperAdmin).Should().BeTrue();
-        httpContext.User.IsInRole(RoleConstants.Admin).Should().BeTrue();
+        httpContext.User.IsInRole(RoleConstants.Admin).Should().BeFalse();
     }
 
     [Fact]
@@ -518,6 +578,19 @@ public sealed class ProjectContextMiddlewareTests
         httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(claims, "Bearer"));
         httpContext.Request.Headers["X-Project-Id"] = targetProjectId.ToString();
         httpContext.Request.Headers["X-API-Key"] = "some-m2m-api-key";
+
+        var activeProject = Project.Create(
+            CompanyId.New(),
+            ProjectName.Create("Test Project"),
+            ProjectSlug.Create("test-project"),
+            DateTimeOffset.UtcNow);
+
+        _projectRepo.GetByIdAsync(targetProjectId, Arg.Any<CancellationToken>())
+            .Returns(activeProject);
+
+        var membership = UserProjectRole.Create(new UserId(userId), targetProjectId, RoleType.Developer, DateTimeOffset.UtcNow);
+        _userProjectRoleRepo.GetAsync(targetProjectId, new UserId(userId), Arg.Any<CancellationToken>())
+            .Returns(membership);
 
         // Act
         await sut.InvokeAsync(
@@ -740,9 +813,9 @@ public sealed class ProjectContextMiddlewareTests
     }
 
     [Fact]
-    public async Task InvokeAsync_PortalUser_SuperAdmin_HydratesBothSuperAdminAndAdminRoles()
+    public async Task InvokeAsync_PortalUser_SuperAdmin_OnManagementRoute_ResolvesProjectWithoutProjectMembership()
     {
-        // Arrange
+        // Arrange: SuperAdmin managing a project on Control Plane (/api/v1/management/...)
         var sut = CreateSut();
         var (httpContext, projectContext) = CreateContexts("/api/v1/management/projects/users");
 
@@ -775,12 +848,13 @@ public sealed class ProjectContextMiddlewareTests
             _userProjectRoleRepo,
             _projectRepo);
 
-        // Assert
+        // Assert: Resolves project for management, retains SuperAdmin role, does NOT grant Admin, does NOT query membership
         await _next.Received(1).Invoke(httpContext);
         projectContext.IsResolved.Should().BeTrue();
         projectContext.ProjectId.Should().Be(targetProjectId);
         httpContext.User.IsInRole("SuperAdmin").Should().BeTrue();
-        httpContext.User.IsInRole("Admin").Should().BeTrue();
+        httpContext.User.IsInRole("Admin").Should().BeFalse();
+        await _userProjectRoleRepo.DidNotReceive().GetAsync(Arg.Any<ProjectId>(), Arg.Any<UserId>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
