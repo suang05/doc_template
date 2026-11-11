@@ -92,6 +92,41 @@ backend-v2/src/SmkDoc.Application/Modules/
     DTOs/     # AuthTokenResultDto, UserProfileResultDto, ApiKeyResultDto
 ```
 
+### 1.6 Domain Bounded Context Taxonomy Tree
+```
+backend-v2/src/SmkDoc.Domain/
+  Common/                        # Shared domain primitives & base classes
+    BaseEntity.cs                # Generic BaseEntity<TId> (Identity & Timestamps) & BaseEntity (Guid)
+    AggregateRoot.cs             # Generic AggregateRoot<TId> (Domain Events & Concurrency)
+    Guard.cs                     # Invariant guards
+    Enumeration.cs               # Smart enum base
+    IDomainEvent.cs              # Domain event marker
+    IHaveDomainEvents.cs         # Event harvesting contract
+  Interfaces/                    # Universal domain contracts
+    IUnitOfWork.cs
+    ICurrentProjectContext.cs
+    IMustHaveProject.cs
+    IConcurrencyAware.cs
+  Authoring/                     # Authoring Bounded Context
+    Entities/                    # Template, TemplateVersion, FieldMapping, Font
+    ValueObjects/                # TemplateSlug, TemplateName, VersionNumber
+    Events/                      # TemplateCreatedDomainEvent, TemplatePublishedDomainEvent
+    Exceptions/                  # TemplateNotFoundException, TemplateVersionNotFoundException
+  Rendering/                     # Rendering Bounded Context
+    Entities/                    # Document, DocumentVersion, GenerationLog
+    ValueObjects/                # StorageKey, Checksum
+    Enums/                       # RenderEngineType, OutputFormat, GenerationStatus
+    Events/                      # DocumentRenderedDomainEvent
+  Integration/                   # Integration Bounded Context
+    Entities/                    # DataConnection, Dataset, TemplateDataset
+    ValueObjects/                # ConnectionStringEncrypted, DatasetQuery
+    Enums/                       # DataConnectionType
+  IdentityAccess/                # Identity & Access Bounded Context
+    Entities/                    # Company, Project, User, ApiKey, UserProjectRole
+    ValueObjects/                # KeyHash, EmailAddress, ProjectSlug
+    Enums/                       # SystemRole, RoleType, ApiKeyScope
+```
+
 ---
 
 ## 2. Level 2: Architectural Rationales & Structural Firewalls
@@ -160,7 +195,19 @@ public sealed record {Verb}{Aggregate}Command(
     string Slug,
     string? Category = null);
 
-// 2. {Verb}{Aggregate}UseCase.cs (Surgical AST: 4-Step PEMR Cadence)
+// 2. {Aggregate}ResultDto.cs (Surgical AST: Canonical Output Contract co-located in DTOs/ or Slice)
+public sealed record {Aggregate}ResultDto(
+    Guid Id,
+    Guid ProjectId,
+    string Name,
+    string Slug,
+    string? Category,
+    bool IsActive,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset? UpdatedAt,
+    string ConcurrencyToken) : IHasConcurrencyToken;
+
+// 3. {Verb}{Aggregate}UseCase.cs (Surgical AST: 4-Step PEMR Cadence)
 public sealed class {Verb}{Aggregate}UseCase(
     I{Aggregate}Repository {aggregate}Repository,
     ICurrentProjectContext projectContext,
@@ -190,7 +237,16 @@ public sealed class {Verb}{Aggregate}UseCase(
 
         // Step 4: Return ResultDto (Atomic transaction commit & immutable output)
         await unitOfWork.CommitAsync(ct);
-        return new {Aggregate}ResultDto(entity.Id.Value, entity.Name.Value, entity.Slug.Value, entity.Category);
+        return new {Aggregate}ResultDto(
+            entity.Id.Value,
+            entity.ProjectId.Value,
+            entity.Name.Value,
+            entity.Slug.Value,
+            entity.Category,
+            entity.IsActive,
+            entity.CreatedAt,
+            entity.UpdatedAt,
+            entity.GetConcurrencyToken());
     }
 }
 ```

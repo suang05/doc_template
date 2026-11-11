@@ -64,9 +64,9 @@ Signal: [ARCH_EVOLUTION_CONTRACT]
 * **Why HTTP 200 for Diagnostic Connection Probes:** An unreachable database or invalid credential is a valid diagnostic business result, NOT an HTTP transport failure. Emitting HTTP 400 confuses automated monitoring and breaks client error handlers.
 * **Why Dedicated Machine-Readable `specs/openapi.json`:** Eliminates documentation drift by generating contracts directly from the compiled ASP.NET Core API reflection pipeline, providing frontend TypeScript code-generators a single source of truth.
 * **Why Optimistic Concurrency (`ETag` / `If-Match`) over Distributed Locks for Mutations:** Mutating existing resources (`PUT`, `DELETE`) is naturally idempotent by HTTP semantics; acquiring distributed Redis locks introduces latency and deadlocks while failing to catch lost-update anomalies if two users read stale data minutes apart. `If-Match` carrying the resource state token (`IConcurrencyAware.GetConcurrencyToken()`) completely eliminates lost updates with zero distributed locking overhead.
-* **Why Ambient Cross-Cutting Concurrency over Controller/Command Plumbing:** Parsing `If-Match` headers and setting `Response.Headers.ETag` manually inside every Controller action and Command pollutes business contracts. A global `ETagFilter` captures and sanitizes `If-Match` into scoped `IConcurrencyContext` on ingress and extracts `IHasConcurrencyToken.ConcurrencyToken` from `IApiResponse` on egress, while `ConcurrencySaveChangesInterceptor` verifies the token against EF Core `OriginalValue` on `CommitAsync`.
+* **Why Ambient Cross-Cutting Concurrency over Controller/Command Plumbing:** Parsing `If-Match` headers and setting `Response.Headers.ETag` manually inside every Controller action and Command pollutes business contracts. A global `ETagFilter` captures and sanitizes `If-Match` into scoped `IConcurrencyContext` on ingress and extracts `IHasConcurrencyToken.ConcurrencyToken` from `IApiResponse` on egress, while UseCases verify `concurrencyContext.EnsureMatches(entity)` fail-fast in Step 2.
 * **Why Distinct 412 Precondition Failed vs 409 Conflict:**
-  * `412 Precondition Failed`: Pre-execution or pre-commit validation failure. The caller's `If-Match` token does not match the current database state (verified by `ConcurrencySaveChangesInterceptor` on `SaveChangesAsync` or pre-flight `IConcurrencyContext.EnsureMatches` prior to external I/O).
+  * `412 Precondition Failed`: Precondition validation failure. The caller's `If-Match` token does not match the target resource's current token (verified fail-fast in UseCase Step 2 via `concurrencyContext.EnsureMatches(entity)` before executing domain mutations or external I/O).
   * `409 Conflict`: Mid-flight concurrency collision. The `If-Match` matched at read-time, but another concurrent transaction committed changes at the exact microsecond before this transaction called `CommitAsync` (detected via EF Core `DbUpdateConcurrencyException` on `.IsConcurrencyToken()`).
 
 ### 2.2 Proactive Wire Protocol Firewalls
@@ -137,21 +137,24 @@ sequenceDiagram
     ETagFilter->>Ctx: IfMatch = "1727788800000"
     ETagFilter->>Controller: Route to Action
     Controller->>UseCase: ExecuteAsync(command)
-    Note over UseCase: Zero IfMatch parameter pollution.<br/>Mutates aggregate root via domain methods.
-    UseCase->>DbContext: CommitAsync()
-    DbContext->>Interceptor: SavingChangesAsync()
-    Note over Interceptor: Validates Ctx.IfMatch against entity OriginalValue(UpdatedAt).<br/>Throws PreconditionFailedException (412) if mismatched.
-    Interceptor->>DbContext: SaveChanges to Database (WHERE UpdatedAt == OriginalValue)
-    alt Mid-Flight Collision (Another transaction committed first)
-        DbContext-->>Client: 409 Conflict (CONCURRENCY_CONFLICT)
-    else Pre-Flight Token Mismatch
-        Interceptor-->>Client: 412 Precondition Failed (PRECONDITION_FAILED)
-    else Success
-        DbContext-->>UseCase: Changes Saved (UpdatedAt advanced)
-        UseCase-->>Controller: {Aggregate}ResultDto (implements IHasConcurrencyToken)
-        Controller-->>ETagFilter: Ok(ApiResponse<ResultDto>)
-        Note over ETagFilter: Egress: Extracts token from IHasConcurrencyToken.<br/>Sets Response.Headers.ETag = "1727789999999"
-        ETagFilter-->>Client: 200 OK (ETag: "1727789999999", Body: ApiResponse)
+    Note over UseCase: PEMR Step 2: Ensure Preconditions.<br/>Calls Ctx.EnsureMatches(entity) -> sets IsVerified=true.<br/>Throws PreconditionFailedException (412) if mismatched.
+    UseCase->>Ctx: EnsureMatches(entity)
+    alt Pre-Flight Token Mismatch
+        UseCase-->>Client: 412 Precondition Failed (PRECONDITION_FAILED)
+    else Precondition Passed
+        Note over UseCase: PEMR Step 3: Mutate domain state.<br/>PEMR Step 4: Commit transaction.
+        UseCase->>DbContext: CommitAsync()
+        DbContext->>Interceptor: SavingChangesAsync()
+        Note over Interceptor: Sees Ctx.IsVerified == true (skips redundant check).<br/>EF Core detects mid-flight DB concurrency races.
+        alt Mid-Flight Collision (Another transaction committed first)
+            DbContext-->>Client: 409 Conflict (CONCURRENCY_CONFLICT)
+        else Success
+            DbContext-->>UseCase: Changes Saved (UpdatedAt advanced)
+            UseCase-->>Controller: {Aggregate}ResultDto (implements IHasConcurrencyToken)
+            Controller-->>ETagFilter: Ok(ApiResponse<ResultDto>)
+            Note over ETagFilter: Egress: Extracts token from IHasConcurrencyToken.<br/>Sets Response.Headers.ETag = "1727789999999"
+            ETagFilter-->>Client: 200 OK (ETag: "1727789999999", Body: ApiResponse)
+        end
     end
 ```
 

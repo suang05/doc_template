@@ -31,6 +31,7 @@ Signal: [ARCH_EVOLUTION_CONVENTIONS]
 | **Concurrency Guard** | Ambient optimistic concurrency via global `ETagFilter`, `IConcurrencyContext`, and `ConcurrencySaveChangesInterceptor`. | Cross-Cutting Pipeline |
 | **Traffic Protection** | Declarative endpoint rate limiting via `[EnableRateLimiting("...")]` policies. | Controller Action |
 | **Test Rhythm** | 3-Phase DAMP Arrange-Act-Assert (AAA) layout with explicit test setups. | Test suites |
+| **Page Rhythm** | Pure 3-Step Async Server Orchestrator: (1) Await Params => (2) Server Fetch / Guard => (3) Render Client Boundary. | Frontend RSC |
 | **Inline Attention Anchor** | Universal `// <Why: {causal-intent}>` annotations for non-obvious guards, invariants, limits, and steps. | Universal |
 | **YAGNI & Post-Mutation Cleanliness** | Implement strictly minimal sufficient code required by active requirements. Post-mutation hygiene must atomically purge dead methods, unused constructor parameters, and unreferenced variables. | Code Hygiene |
 
@@ -71,7 +72,7 @@ PostMutationCleanlinessFirewall:
 
 ---
 
-## 3. Level 3: The 6 Universal Linear Cadences (Surgical AST Recipes)
+## 3. Level 3: The 7 Universal Linear Cadences (Surgical AST Recipes)
 
 >> MANDATORY CANONICAL BLUEPRINT [RULE-CONV-001]:
 * All components must follow their designated linear cadence.
@@ -109,7 +110,7 @@ public sealed class {Verb}{Aggregate}UseCase(
         if (!projectContext.IsResolved)
             throw new ForbiddenException("Active project context is required.");
 
-        // Step 2: Ensure Preconditions (Business rules & slug collision queries)
+        // Step 2: Ensure Preconditions (Business rules, slug collision queries, or concurrencyContext.EnsureMatches)
         if (await {aggregate}Repository.SlugExistsAsync(command.Slug, ct))
             throw ConflictException.DuplicateSlug(command.Slug);
 
@@ -120,7 +121,16 @@ public sealed class {Verb}{Aggregate}UseCase(
 
         // Step 4: Return ResultDto (Atomic transaction commit & immutable output record)
         await unitOfWork.CommitAsync(ct);
-        return new {Aggregate}ResultDto(entity.Id.Value, entity.Name.Value, entity.Slug.Value, entity.Category);
+        return new {Aggregate}ResultDto(
+            entity.Id.Value,
+            entity.ProjectId.Value,
+            entity.Name.Value,
+            entity.Slug.Value,
+            entity.Category,
+            entity.IsActive,
+            entity.CreatedAt,
+            entity.UpdatedAt,
+            entity.GetConcurrencyToken());
     }
 }
 ```
@@ -144,7 +154,7 @@ public sealed class {Aggregate} : AggregateRoot<{Aggregate}Id>
 
         // Step 3: State Mutation (Encapsulated scalar transitions)
         Name = newName;
-        UpdatedAt = now;
+        SetUpdated(now);
 
         // Step 4: Event Harvesting (Record domain event for outbox dispatch)
         AddDomainEvent(new {Aggregate}{Verb}edDomainEvent(Id, Name, now));
@@ -246,6 +256,47 @@ public sealed class {Verb}{Aggregate}UseCaseTests
         await repository.Received(1).AddAsync(Arg.Any<{Aggregate}>(), Arg.Any<CancellationToken>());
         await unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
     }
+}
+```
+
+### 3.7 Cadence 7: Next.js 15 Async Server Component & Page Cadence
+>> MANDATORY CANONICAL BLUEPRINT [RULE-CONV-007]:
+* Strictly a 3-step async server orchestrator executing in React Server Component (RSC) realm.
+* Route parameters are strictly typed as asynchronous promises (`params: Promise<{ id: string }>`) and awaited.
+* Server-side data fetching passes ambient tenant headers (`x-project-id`); leaf interactive widgets are rendered across the client boundary.
+
+```tsx
+// --- File: src/app/(app)/templates/[id]/page.tsx ---
+import { auth } from '@/auth';
+import { notFound } from 'next/navigation';
+import { apiServerClient } from '@/lib/api/server-client';
+import { TemplateEditorFeature } from '@/features/templates/components/TemplateEditorFeature';
+
+interface PageProps {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}
+
+export default async function TemplateDetailsPage({ params, searchParams }: PageProps) {
+  // Step 1: Await Route Parameters <Why: Next.js 15 partial prerendering asynchronous contract>
+  const { id } = await params;
+  const session = await auth();
+
+  // Step 2: Server Fetch & Session Guard <Why: fail-fast on unauthenticated access at RSC level>
+  if (!session?.user?.projectId) {
+    notFound();
+  }
+
+  const initialData = await apiServerClient.templates.getById(id, {
+    headers: { 'x-project-id': session.user.projectId },
+  });
+
+  // Step 3: Render Client Boundary <Why: pass immutable DTO across RSC/Client Component boundary>
+  return (
+    <main className="flex h-full flex-col">
+      <TemplateEditorFeature templateId={id} initialData={initialData} />
+    </main>
+  );
 }
 ```
 

@@ -287,7 +287,7 @@ ArchitecturalMetasyntax:
       - WhereToProhibit: Strictly prohibit tagging obvious self-describing syntax, standard DTO properties, or routine variable declarations to prevent comment pollution.
   MetasyntaxBalance:
     - Generic CRUD Boilerplate: Use Metasyntax placeholders (`{Aggregate}`, `{Verb}`, `{Modifier}`) for repetitive CQRS slices to eliminate catalog bloat.
-    - Specialized Platform Engines: Use real canonical names and interfaces (`GotenbergHtmlRenderer`, `DataBindingEngine`, `DrawingMlIdFixer`, `ThaiDataTransformer`, `PersistenceServiceExtensions`) but present them as concise, surgical cadence skeletons, NOT raw copy-paste dumps.
+    - Specialized Platform Engines: Use real canonical names and interfaces (`GotenbergHtmlRenderer`, `DataBindingEngine`, `DocumentDrawingMlIdGenerator`, `ThaiDataFormatter`, `PersistenceServiceExtensions`) but present them as concise, surgical cadence skeletons, NOT raw copy-paste dumps.
 
 ArchetypePurityAndSurgicalASTFirewall:
   [SURGICAL COMPACTNESS & CAUSAL RATIONALE MANDATE]

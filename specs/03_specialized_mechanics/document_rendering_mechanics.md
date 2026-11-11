@@ -7,7 +7,7 @@ SoleResponsibilities:
   - Polymorphic Render Engine Factory (`IRenderEngineFactory`) and Gotenberg Chromium PDF synthesis
   - Template Version Manifest SSoT (`TemplateVersion.MappingsSnapshot` immutable runtime deserialization)
   - Direct pipeline DataBinding integration (`IDataBindingEngine`) and Unified Preview Gateway execution
-  - Centralized Thai typography determinism (`ThaiDataTransformer`, BE +543, Baht text, Sarabun font)
+  - Open/Closed linguistic localization strategy (`ILocalizedDataFormatter`, `ThaiDataFormatter`, BE +543, Baht text, Sarabun font)
   - OpenXML DrawingML graphic ID normalization and ClosedXML A4 fit-to-page automation
 Target: `backend-v2/` (`SmkDoc.Infrastructure/Engines/`, `SmkDoc.Infrastructure/Pdf/`, `SmkDoc.Application/Modules/Rendering/`, `SmkDoc.Application/Modules/DataBinding/`)
 Signal: [ARCH_EVOLUTION_RENDERING]
@@ -22,9 +22,9 @@ Signal: [ARCH_EVOLUTION_RENDERING]
 |---|---|---|---|
 | **Render Request** | Application UseCase (`RenderDocumentUseCase`)| Resolves polymorphic engine via factory | `IRenderEngine` Implementation |
 | **Data Binding** | Raw JSON Payload + Version Manifest | Binds external datasets & transforms data | `IDataBindingEngine` |
-| **Data Enrichment**| Bound Data JSON | Applies Buddhist Era date & Baht text | Centralized `ThaiDataTransformer` |
+| **Data Enrichment**| Bound Data JSON | Applies localized formatting (BE +543, currency words) | Strategy `ILocalizedDataFormatter` |
 | **HTML / Chromium**| HTML Template + CSS + Google Fonts | Synthesizes PDF via Gotenberg 8 | Gotenberg HTTP Microservice |
-| **DOCX Synthesis** | OpenXML Document Package | Fixes DrawingML `nvPr.Id` graphic IDs | Native Word Document Stream |
+| **DOCX Synthesis** | OpenXML Document Package | Fixes DrawingML `nvPr.Id` graphic IDs via document-scoped generator | Native Word Document Stream |
 | **XLSX Synthesis** | ClosedXML Workbook Package | Configures A4 portrait 1-page fit | Native Excel Document Stream |
 | **Streaming Egress**| Engine Render Result | Direct Stream pass-through with bounded buffer | HTTP Wire Response (`Response.Body`) |
 | **Storage Egress** | MinIO S3 Object Store | Server-side reverse-proxy streaming via Gateway | Client Download (Zero 307 Redirects) |
@@ -34,14 +34,14 @@ Signal: [ARCH_EVOLUTION_RENDERING]
 |---|---|---|
 | **Zero-LOH Stream Purity** | Render and PDF contracts expose pure `Task<Stream>` types. Output streams are piped with bounded `81,920`-byte buffers, dry-run validations drain to `Stream.Null`, and seekable packages use `HybridSpoolStream`. Multi-MB `byte[]` arrays are prohibited. | Memory & GC Boundary |
 | **Template Manifest SSoT** | Runtime document generation strictly deserializes the immutable version manifest (`TemplateVersion.MappingsSnapshot`), bypassing relational `field_mappings` queries to guarantee version immutability and zero-drift execution. | Data Binding Boundary |
-| **Unified Preview Gateway** | Live preview requests (Monaco raw HTML, RAM-cached template drafts, template slug, or template UUID) route exclusively through the unified `PreviewDocumentUseCase`. Duplicate preview use cases are prohibited. | Preview Perimeter |
+| **Unified Preview Gateway** | Live preview requests (Monaco raw HTML, RAM-cached template drafts, template slug, or template UUID) route exclusively through the unified `PreviewDocumentUseCase` with fail-fast JSON Schema Draft-07 validation. Duplicate preview use cases are prohibited. | Preview Perimeter |
 | **Polymorphic Engine Resolution**| Document synthesis resolves engines dynamically via `IRenderEngineFactory.GetEngine(engineType)` using an immutable `FrozenDictionary`. Hardcoded switch/if-else branching is prohibited. | Engine Extensibility |
 | **Storage Perimeter Isolation** | Generated documents and templates stream server-side through API Gateway (`File(stream, ...)`). Emitting HTTP 307 redirects or raw internal MinIO URLs to clients is prohibited. | Network Perimeter |
 | **2-Track Rendering Pipeline** | Rendering architecture is partitioned into Track 1 (Synchronous Monaco Live Preview with `rendering` rate limit 30 req/min) and Track 2 (Asynchronous Batch Queue via `POST generate-async`, `202 Accepted` + `Location` header, backed by Redis Streams with Consumer Groups `XADD`/`XREADGROUP` and drained by `DocumentRenderQueueWorker` with `SemaphoreSlim(4)` backpressure). | Workload Partitioning |
 | **Chromium Pod Protection** | Document rendering endpoints enforce the dedicated `rendering` rate-limiting policy (30 req/min per tenant) returning RFC 9457 ProblemDetails (`429 Too Many Requests`). | Service Resilience |
-| **OpenXML Graphic Frame IDs** | All OpenXML drawing elements are intercepted via `DrawingMlIdFixer` to enforce explicit positive non-zero integers ($\ge 1$) for `nvPr.Id`. Prohibit zero or duplicate graphic IDs. | Document Integrity |
+| **OpenXML Graphic Frame IDs** | All OpenXML drawing elements are intercepted via document-scoped `IDrawingMlIdGenerator` to enforce explicit positive non-zero integers ($\ge 1$) for `nvPr.Id`. Prohibit global static mutable counters or zero/duplicate graphic IDs. | Document Integrity |
 | **Excel Print-Width Clamping** | All ClosedXML spreadsheet worksheets apply A4 portrait fit: `worksheet.PageSetup.FitToPages(1, 0)` and `AdjustToContents()`. Horizontal content clipping is prohibited. | Spreadsheet Geometry |
-| **Centralized Thai Typography** | Thai Buddhist Era calendar conversion (+543 years) and Baht text currency formatting execute exclusively through `ThaiDataTransformer`. Inline date math in templates is prohibited. | Linguistic Determinism |
+| **Linguistic Localization Determinism** | Thai Buddhist Era calendar conversion (+543 years), Baht text currency, and international formatting execute exclusively through injectable `ILocalizedDataFormatter` strategies (default: `ThaiDataFormatter` for `th-TH`). Inline date math in templates is prohibited. | Linguistic Determinism |
 | **Thai Font Injection** | HTML render templates inject Google Fonts Sarabun font declarations via `HtmlLayoutProcessor` to guarantee accurate tone mark positioning in headless Chromium. | Font Rendering |
 | **Ephemeral Storage Purging** | Expired MinIO document outputs in `StorageBuckets.Outputs` are purged on a background schedule via `DocumentRetentionWorker` using `TimeProvider.GetUtcNow()`. | Storage Lifecycle |
 | **Pure Payload Ingestion** | JSON payloads are validated against JSON Schema Draft-07 fail-fast during generation without mutating payload data or duplicating validation endpoints. | Ingestion Pipeline |
@@ -56,8 +56,8 @@ Signal: [ARCH_EVOLUTION_RENDERING]
 * **Why Banning HTTP 307 Redirects to Internal MinIO:** MinIO operates inside an internal container network (`http://minio:9000`). Emitting a 307 redirect exposes private infrastructure endpoints to outside clients, breaks corporate firewalls, and leaks storage topology. Streaming through the API gateway enforces Zero-Trust isolation.
 * **Why 81,920-Byte Buffer Threshold:** The .NET runtime allocates objects $\ge 85,000$ bytes on the Large Object Heap (LOH). The LOH is never compacted during Gen 0/1 sweeps; continuous multi-MB PDF buffering produces severe LOH fragmentation and costly Gen 2 stop-the-world GC pauses. Direct streaming bounded at 81,920 bytes completely avoids LOH allocation.
 * **Why Polymorphic Engine Factory with FrozenDictionary:** Using `IRenderEngineFactory` with `FrozenDictionary<RenderEngineType, IRenderEngine>` provides $O(1)$ zero-allocation engine lookup while honoring the Open/Closed Principle.
-* **Why OpenXML DrawingML Graphic Frame Non-Zero IDs:** Microsoft Word strictly rejects OpenXML packages where image or chart graphic frame IDs are `0` or duplicated, triggering file corruption warnings on user workstations.
-* **Why Centralized Thai Formatting:** Thai Buddhist Era dates and Baht text currency require specialized linguistic rules (tone mark positioning, grammatical edge cases, year +543); centralized transformers guarantee 100% deterministic outputs across PDF, DOCX, and XLSX exports.
+* **Why OpenXML DrawingML Graphic Frame Non-Zero IDs:** Microsoft Word strictly rejects OpenXML packages where image or chart graphic frame IDs are `0` or duplicated, triggering file corruption warnings. Scoping sequential ID generation per document render session guarantees ECMA-376 compliance while preserving stateless horizontal scalability.
+* **Why Pluggable Linguistic Localization Strategy:** Thai Buddhist Era dates, Baht text, and international formatting require specialized grammatical rules; isolating formatters behind `ILocalizedDataFormatter` ensures 100% deterministic outputs across formats while honoring the Open/Closed Principle for global enterprise expansion.
 * **Why Template Version Manifest over Relational Field Mappings in Runtime:** If the runtime engine queries the mutable `field_mappings` table, edits made in authoring or draft rollback sessions immediately alter the output of previously published versions. Freezing mappings into `TemplateVersion.MappingsSnapshot` at commit/publish time guarantees 100% deterministic reproducibility and enables zero-DB high-throughput caching.
 * **Why Redis Streams over Simple List Queues (RPOP):** Lossy RPOP drops jobs if a worker crashes before completion. Redis Streams (`XADD`, `XREADGROUP`, `XACK`, `XDEL`) with Consumer Groups provide at-least-once delivery, consumer failure detection, and automatic pending job reclamation (`XCLAIM`).
 
@@ -72,16 +72,16 @@ MinioRedirectProhibitionGuard:
   ActionOnViolation: "Stream binary content directly through gateway using File(stream, ...)."
 
 OpenXmlZeroIdGuard:
-  Invariant: "OpenXML NonVisualDrawingProperties.Id must not be 0 or null."
-  ActionOnViolation: "Invoke DrawingMlIdFixer.EnsureNonZeroGraphicFrameId(nvPr)."
+  Invariant: "OpenXML NonVisualDrawingProperties.Id must not be 0, null, or shared globally across requests."
+  ActionOnViolation: "Invoke drawingMlIdGenerator.EnsureNonZeroGraphicFrameId(nvPr) using document-scoped generator."
 
 ExcelPrintFitGuard:
   Invariant: "ClosedXML worksheets must fit horizontally on a single page."
   ActionOnViolation: "Call worksheet.PageSetup.FitToPages(1, 0) and AdjustToContents()."
 
-ThaiFormattingGuard:
+LinguisticFormattingGuard:
   Invariant: "Templates must not perform inline date math or currency conversions."
-  ActionOnViolation: "Route transformations through centralized ThaiDataTransformer."
+  ActionOnViolation: "Route transformations through injectable ILocalizedDataFormatter strategy."
 ```
 
 ### 2.3 Polymorphic Rendering Engine Strategy Contracts
@@ -189,6 +189,40 @@ public sealed class GotenbergHtmlRenderer(HttpClient httpClient)
 
 public sealed class ResponseDisposingStream(Stream innerStream, HttpResponseMessage response) : Stream
 {
+    public override bool CanRead => innerStream.CanRead;
+    public override bool CanSeek => innerStream.CanSeek;
+    public override bool CanWrite => innerStream.CanWrite;
+    public override long Length => innerStream.Length;
+    public override long Position
+    {
+        get => innerStream.Position;
+        set => innerStream.Position = value;
+    }
+
+    public override void Flush() => innerStream.Flush();
+    public override Task FlushAsync(CancellationToken ct) => innerStream.FlushAsync(ct);
+
+    public override int Read(byte[] buffer, int offset, int count) =>
+        innerStream.Read(buffer, offset, count);
+
+    public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken ct) =>
+        innerStream.ReadAsync(buffer, offset, count, ct);
+
+    public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken ct = default) =>
+        innerStream.ReadAsync(buffer, ct);
+
+    public override long Seek(long offset, SeekOrigin origin) => innerStream.Seek(offset, origin);
+    public override void SetLength(long value) => innerStream.SetLength(value);
+
+    public override void Write(byte[] buffer, int offset, int count) =>
+        innerStream.Write(buffer, offset, count);
+
+    public override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken ct) =>
+        innerStream.WriteAsync(buffer, offset, count, ct);
+
+    public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken ct = default) =>
+        innerStream.WriteAsync(buffer, ct);
+
     protected override void Dispose(bool disposing)
     {
         if (disposing)
@@ -197,6 +231,13 @@ public sealed class ResponseDisposingStream(Stream innerStream, HttpResponseMess
             response.Dispose(); // Invariant: Releases underlying socket connection deterministically
         }
         base.Dispose(disposing);
+    }
+
+    public override async ValueTask DisposeAsync()
+    {
+        await innerStream.DisposeAsync();
+        response.Dispose();
+        GC.SuppressFinalize(this);
     }
 }
 ```
@@ -283,9 +324,21 @@ public sealed class Preview{Resource}UseCase(
             throw new NotFoundException($"Template not found.");
 
         var version = aggregate.GetPublishedVersion();
-        var dataJson = dataBindingEngine != null
-            ? (await dataBindingEngine.BindAndValidateAsync(aggregate, version, query.Payload, skipValidation: false, ct)).DataJson
-            : (query.Payload.ValueKind != JsonValueKind.Undefined ? query.Payload.GetRawText() : "{}");
+        string dataJson;
+        if (dataBindingEngine != null)
+        {
+            var boundData = await dataBindingEngine.BindAndValidateAsync(aggregate, version, query.Payload, skipValidation: false, ct);
+            if (boundData.ValidationResult is { IsValid: false })
+            {
+                throw new SchemaValidationException(
+                    aggregate.Slug.Value, version.Version, boundData.ValidationResult.Errors);
+            }
+            dataJson = boundData.DataJson;
+        }
+        else
+        {
+            dataJson = query.Payload.ValueKind != JsonValueKind.Undefined ? query.Payload.GetRawText() : "{}";
+        }
 
         var stream = await storageService.DownloadAsync(StorageBuckets.Templates, version.StorageKey, ct);
         return (stream, version.GetRenderEngineType(), dataJson);
@@ -339,7 +392,7 @@ public sealed class DataBindingEngine(
 * Direct linear 4-step PEMR execution pipeline inside `Generate{Resource}UseCase` (Zero intermediate pipeline wrappers).
 * Connects Application directly to `IDataBindingEngine` and `IRenderEngineFactory`.
 * Enforces fail-fast JSON Schema Draft-07 validation with immediate validation failure auditing and rollback.
-* Spools unseekable engine outputs to `SpooledOutputStream` (bounded at 81,920 bytes) before MinIO S3 upload.
+* Spools unseekable engine outputs to `HybridSpoolStream` (bounded at 81,920 bytes) before MinIO S3 upload.
 * Provides full transactional resilience: presigned download URL generation, document versioning, success audit, atomic commit, and compensating storage deletion if post-upload commit fails.
 
 ```csharp
@@ -417,7 +470,7 @@ public sealed class Generate{Resource}UseCase(
             using var templateStream = await storageService.DownloadAsync(StorageBuckets.Templates, currentVersion.StorageKey, ct);
             var rawOutputStream = await engine.RenderStreamAsync(templateStream, boundData.DataJson, outputFormat, ct);
 
-            await using var spooled = await SpooledOutputStream.CreateAndDisposeSourceAsync(rawOutputStream, ct);
+            await using var spooled = await HybridSpoolStream.CreateAndDisposeSourceAsync(rawOutputStream, ct);
             sw.Stop();
 
             await storageService.UploadAsync(
@@ -527,30 +580,37 @@ public sealed class RenderEngineFactory(IEnumerable<IRenderEngine> engines) : IR
 }
 ```
 
-### 3.6 Centralized ThaiDataTransformer Contract & Linguistic Invariants
+### 3.6 Open/Closed Linguistic Localization Strategy (`ILocalizedDataFormatter` & `ThaiDataFormatter`)
 >> MANDATORY CANONICAL BLUEPRINT [RULE-MECH-006]:
-* Formats dates strictly with Buddhist Era offset (+543 years) and formal Thai month names.
-* Converts numerical currency amounts to standardized Thai Baht text (`บาทถ้วน` or satang suffix).
-* Enforces canonical mask formatting for phone numbers (`0xx-xxx-xxxx`) and national IDs (`x-xxxx-xxxxx-xx-x`).
-* Pure stateless static transformer; templates must never perform inline arithmetic or currency conversions.
+* Formats dates, numbers, currency text words, and identification masks via injectable `ILocalizedDataFormatter` strategies conforming to the Open/Closed Principle.
+* `ThaiDataFormatter` formats dates with Buddhist Era offset (+543 years), formal Thai months, and standardized Thai Baht text (`บาทถ้วน`).
+* Pure stateless strategy instances registered via DI (`IEnumerable<ILocalizedDataFormatter>`); templates must never perform inline arithmetic or currency conversions.
 
 ```csharp
-public static class ThaiDataTransformer
+public interface ILocalizedDataFormatter
 {
-    public static string FormatThaiDate(DateTimeOffset date)
+    string Locale { get; }
+    string FormatDate(DateTimeOffset date);
+    string FormatCurrencyWords(decimal amount);
+    string FormatPhoneNumber(string? phone);
+    string FormatNationalId(string? nationalId);
+}
+
+public sealed class ThaiDataFormatter : ILocalizedDataFormatter
+{
+    public string Locale => "th-TH";
+
+    public string FormatDate(DateTimeOffset date)
     {
         var buddhistYear = date.Year + 543;
         var monthName = ResolveThaiMonthName(date.Month);
         return $"{date.Day} {monthName} {buddhistYear}";
     }
 
-    public static string ToThaiBahtText(decimal amount)
-    {
-        if (amount == 0) return "ศูนย์บาทถ้วน";
-        return ResolveBahtWords(amount);
-    }
+    public string FormatCurrencyWords(decimal amount) =>
+        amount == 0 ? "ศูนย์บาทถ้วน" : ResolveBahtWords(amount);
 
-    public static string FormatPhone(string? phone)
+    public string FormatPhoneNumber(string? phone)
     {
         var digits = ExtractDigits(phone);
         return digits.Length switch
@@ -561,7 +621,7 @@ public static class ThaiDataTransformer
         };
     }
 
-    public static string FormatThaiIdCard(string? idCard)
+    public string FormatNationalId(string? idCard)
     {
         var digits = ExtractDigits(idCard);
         return digits.Length == 13
@@ -575,23 +635,37 @@ public static class ThaiDataTransformer
 }
 ```
 
-### 3.7 OpenXML DrawingML Non-Zero ID Fix Archetype (`DrawingMlIdFixer`)
+### 3.7 OpenXML DrawingML Document-Scoped Graphic Frame ID Generator (`IDrawingMlIdGenerator`)
 >> MANDATORY CANONICAL BLUEPRINT [RULE-MECH-007]:
 * Intercepts all `NonVisualDrawingProperties` (`nvPr`) during OpenXML DOCX manipulation.
-* Ensures `nvPr.Id` is assigned an explicit, thread-safe non-zero positive integer ($\ge 1$).
+* Instantiates `DocumentDrawingMlIdGenerator` scoped strictly to each DOCX package render session.
+* Ensures `nvPr.Id` is assigned a sequential, non-zero positive integer ($\ge 1$) within the document scope conforming to ECMA-376, eliminating application-wide static counters and wraparound corruption.
 
 ```csharp
-public static class DrawingMlIdFixer
+public interface IDrawingMlIdGenerator
 {
-    private static uint _nextId = 1;
+    uint NextId();
+    void EnsureNonZeroGraphicFrameId(NonVisualDrawingProperties nvPr);
+}
 
-    public static uint GenerateNonZeroId() => Interlocked.Increment(ref _nextId);
+public sealed class DocumentDrawingMlIdGenerator(uint initialId = 1) : IDrawingMlIdGenerator
+{
+    private uint _currentId = initialId;
 
-    public static void EnsureNonZeroGraphicFrameId(NonVisualDrawingProperties nvPr)
+    public uint NextId()
+    {
+        if (_currentId == uint.MaxValue)
+        {
+            _currentId = 1; // Wraparound protection strictly within local document scope
+        }
+        return _currentId++;
+    }
+
+    public void EnsureNonZeroGraphicFrameId(NonVisualDrawingProperties nvPr)
     {
         if (nvPr.Id == null || nvPr.Id.Value == 0)
         {
-            nvPr.Id = GenerateNonZeroId();
+            nvPr.Id = NextId();
         }
     }
 }
@@ -670,12 +744,13 @@ public sealed class DocumentRetentionWorker(
 ```
 *Rationale: Buffering Gotenberg binary outputs into multi-MB byte arrays forces allocations into LOH Gen 2, inducing GC stalls.*
 
-### [TRAP-MECH-002]: OpenXML Zero Graphic Frame ID Corruption
+### [TRAP-MECH-002]: OpenXML Zero Graphic Frame ID & Global Counter State
 ```diff
 - nvPr.Id = 0; // REJECTED: Word file corruption prompt
-+ DrawingMlIdFixer.EnsureNonZeroGraphicFrameId(nvPr);
+- // or: DrawingMlIdFixer.EnsureNonZeroGraphicFrameId(nvPr); // REJECTED: Global static mutable counter
++ drawingMlIdGenerator.EnsureNonZeroGraphicFrameId(nvPr); // Scoped per document render package
 ```
-*Rationale: Default OpenXML ID 0 or duplicates corrupt DOCX drawing XML parts, triggering repair prompts in Microsoft Word.*
+*Rationale: Default OpenXML ID 0 or duplicates corrupt DOCX drawing XML parts, triggering repair prompts in Microsoft Word. Using an application-wide static counter violates stateless horizontal scaling and risks wraparound. Document-scoped `IDrawingMlIdGenerator` guarantees ECMA-376 compliance safely.*
 
 ### [TRAP-MECH-003]: Hardcoded Switch / If-Else Engine Selection
 ```diff
@@ -684,12 +759,12 @@ public sealed class DocumentRetentionWorker(
 ```
 *Rationale: Hardcoded switch branches violate the Open/Closed Principle and prevent adding new rendering plugins via DI.*
 
-### [TRAP-MECH-004]: Inline Thai Transformation in Templates
+### [TRAP-MECH-004]: Inline Linguistic Arithmetic vs Open/Closed Formatter Strategy
 ```diff
 - "{{date.Year + 543}}"
-+ "{{thai_date date}}"
++ "{{localized_date date}}" // Routed to ILocalizedDataFormatter strategy (ThaiDataFormatter for th-TH)
 ```
-*Rationale: Inline arithmetic fails on edge cases and produces inconsistent date and currency strings across output formats.*
+*Rationale: Inline arithmetic fails on edge cases and produces inconsistent date and currency strings across output formats. Hardcoding static transformers violates OCP. Route linguistic transformations through injectable `ILocalizedDataFormatter` strategies.*
 
 ### [TRAP-MECH-005]: Spreadsheets Clipping Content on Print / PDF
 ```diff

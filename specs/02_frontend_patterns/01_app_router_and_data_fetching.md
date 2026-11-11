@@ -29,7 +29,7 @@ Signal: [ARCH_EVOLUTION_FRONTEND_DATA]
 | App Router & Data Concern | Affirmative Frontend Invariant (Positive SSoT Law) | Boundary Vector |
 |---|---|---|
 | **Server Component Default** | React Server Components (RSC) are the default for all pages and layouts. `'use client'` is strictly confined to leaf interactive components. Root page `'use client'` is prohibited. | Component Boundary |
-| **Proxy Token Boundary** | Backend JWT tokens and tenant project IDs are injected exclusively server-side via Next.js Server Proxy (`/api/proxy/[...path]`) using `httpOnly` cookies. Storing tokens in `localStorage` is prohibited. | Session Security |
+| **Proxy Token Boundary & Silent Refresh** | Backend JWT tokens and tenant project IDs are injected exclusively server-side via Next.js Server Proxy (`/api/proxy/[...path]`) using `httpOnly` cookies. The proxy intercepts HTTP 401 and transparently performs silent token refresh via `POST /api/v1/auth/refresh` before retrying the upstream call. Storing tokens in `localStorage` or unhandled session drops are prohibited. | Session Security |
 | **Perimeter Proxy Routing** | All browser client API traffic routes strictly through `/api/proxy/[...path]`. Direct browser calls to internal backend ports are prohibited. | Network Ingress |
 | **Debounced Live Preview** | Template live preview triggers are debounced by at least 800ms and linked to an `AbortController`. Firing unthrottled preview requests on keystrokes is prohibited. | Rendering Throttling |
 | **Blob URL Memory Lifecycle**| Every newly generated Blob URL must revoke the preceding URL via `URL.revokeObjectURL(oldUrl)` and clean up on component unmount. Unrevoked URL allocation is prohibited. | Browser Memory & GC |
@@ -50,6 +50,7 @@ Signal: [ARCH_EVOLUTION_FRONTEND_DATA]
 * **Why TanStack Query over Ad-hoc useEffect:** Eliminates duplicate network requests, provides stale-while-revalidate background caching, and automates cache invalidation across disparate feature widgets without props drilling.
 * **Why Client-Side If-Match Parity over Blind Last-Write-Wins:** In an authoring console where template designers edit complex schemas or HTML concurrently in multiple browser tabs, blind mutations cause silent lost updates. Forwarding `If-Match` ensures that if another tab saved in the interim, the browser receives `412 Precondition Failed` or `409 Conflict`, preserving uncommitted editor changes and alerting the designer.
 * **Why Feature-Sliced Taxonomy over Flat Layered Folders:** Grouping related components, hooks, APIs, and schemas by domain capability ensures high cohesion and low coupling. Developers modify feature mechanics in a single directory without navigating across 6 disparate root folders, preventing circular dependencies and git merge conflicts.
+* **Why Server-Side Silent Token Refresh in API Proxy:** JWT access tokens have a short lifespan (15 minutes). If the proxy did not intercept 401 responses, a template designer actively typing or testing in Monaco Studio would experience abrupt network failures or session terminations upon access token expiration. The server-side proxy intercepts 401, issues a refresh request using the secure `httpOnly` refresh token, updates the session, and seamlessly replays the request without client disruption.
 
 ### 2.2 Proactive Frontend Guards
 ```yaml
@@ -164,13 +165,36 @@ async function proxy(request: NextRequest, { params }: { params: Promise<{ path:
 
   const hasBody = request.method !== 'GET' && request.method !== 'HEAD';
 
-  // Step 4: Stream Body Duplex <Why: direct response pass-through without memory buffering>
-  const backendResponse = await fetch(targetUrl, {
+  // Step 4: Dispatch Request via Duplex Stream <Why: direct response pass-through without memory buffering>
+  let backendResponse = await fetch(targetUrl, {
     method: request.method,
     headers,
     body: hasBody ? request.body : undefined,
     duplex: hasBody ? 'half' : undefined,
   } as RequestInit);
+
+  // Step 5: Transparent Silent Refresh on 401 Unauthorized <Why: prevent abrupt user session drops on access token expiry>
+  if (backendResponse.status === 401 && session?.refreshToken) {
+    const refreshResponse = await fetch(`${BACKEND_INTERNAL_URL}/api/v1/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken: session.refreshToken }),
+    });
+
+    if (refreshResponse.ok) {
+      const refreshPayload = await refreshResponse.json();
+      const newAccessToken = refreshPayload.data.accessToken;
+
+      // Retry original request once with fresh access token
+      headers.set('Authorization', `Bearer ${newAccessToken}`);
+      backendResponse = await fetch(targetUrl, {
+        method: request.method,
+        headers,
+        body: hasBody ? request.body : undefined,
+        duplex: hasBody ? 'half' : undefined,
+      } as RequestInit);
+    }
+  }
 
   const responseHeaders = new Headers(backendResponse.headers);
   responseHeaders.delete('content-encoding');
@@ -625,3 +649,20 @@ export function useUpdateTemplate() {
 + });
 ```
 *Rationale: Executing PUT/DELETE without If-Match allows multiple browser tabs or operators to silently overwrite each other's changes without detection.*
+
+### [TRAP-FRONT-007]: Unhandled 401 Session Drop in API Proxy
+```diff
+  let backendResponse = await fetch(targetUrl, { method: request.method, headers, body });
+- // Returning 401 directly drops active user session when 15-minute access token expires!
+- return new Response(backendResponse.body, { status: backendResponse.status });
++ if (backendResponse.status === 401 && session?.refreshToken) {
++   // Transparent silent refresh on server side before failing to client
++   const refreshRes = await fetch(`${BACKEND_INTERNAL_URL}/api/v1/auth/refresh`, { ... });
++   if (refreshRes.ok) {
++     headers.set('Authorization', `Bearer ${newAccessToken}`);
++     backendResponse = await fetch(targetUrl, { method: request.method, headers, body });
++   }
++ }
++ return new Response(backendResponse.body, { status: backendResponse.status });
+```
+*Rationale: Failing to intercept 401 in the Next.js reverse proxy abruptly disconnects active template designers upon short-lived JWT expiration. Transparent server-side silent refresh using the httpOnly refresh token preserves active Monaco Studio sessions without interrupting user input.*

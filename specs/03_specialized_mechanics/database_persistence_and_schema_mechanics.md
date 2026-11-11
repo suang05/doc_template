@@ -268,7 +268,7 @@ public sealed class AppDbContext : DbContext
 >> MANDATORY CANONICAL BLUEPRINT [RULE-DB-004]:
 * Intercepts `SavingChangesAsync` before relational SQL execution.
 * Evaluates `IConcurrencyContext.IfMatch` against EF Core `OriginalValue` of `UpdatedAt ?? CreatedAt` on `Modified` or `Deleted` `IConcurrencyAware` entries, throwing `PreconditionFailedException` (`412`) on mismatch.
-* Skips evaluation when `concurrencyContext.IsVerified` is already true (e.g. after pre-flight check prior to external S3 upload) or when `IfMatch` is absent/wildcard `*`.
+* Skips evaluation when `concurrencyContext.IsVerified` is already true (verified fail-fast in UseCase Step 2 via `concurrencyContext.EnsureMatches`) or when `IfMatch` is absent/wildcard `*`.
 
 ```csharp
 public sealed class ConcurrencySaveChangesInterceptor(
@@ -279,7 +279,7 @@ public sealed class ConcurrencySaveChangesInterceptor(
         InterceptionResult<int> result,
         CancellationToken ct = default)
     {
-        // Step 1: Verify Pre-Mutation OriginalValue against Ambient If-Match <Why: zero-plumbing 412 guard>
+        // Step 1: Verify Pre-Mutation OriginalValue against Ambient If-Match <Why: safety net 412 guard if not verified in UseCase Step 2>
         VerifyConcurrencyTokens(eventData.Context);
         return base.SavingChangesAsync(eventData, result, ct);
     }

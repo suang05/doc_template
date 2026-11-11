@@ -153,18 +153,18 @@ public sealed class TransactionalUnitOfWork(
     public async Task<int> CommitAsync(CancellationToken ct = default)
     {
         // Step 1: Harvest Events <Why: snapshot all domain events before commit>
-        var aggregates = dbContext.ChangeTracker.Entries<IAggregateRoot>()
+        var entitiesWithEvents = dbContext.ChangeTracker.Entries<IHaveDomainEvents>()
             .Where(e => e.Entity.DomainEvents.Count > 0)
             .Select(e => e.Entity)
             .ToList();
 
-        var events = aggregates.SelectMany(a => a.DomainEvents).ToList();
+        var events = entitiesWithEvents.SelectMany(a => a.DomainEvents).ToList();
 
         // Step 2: Commit Transaction <Why: atomic relational persistence>
         var rowsAffected = await dbContext.SaveChangesAsync(ct);
 
         // Step 3: Clear Harvested Events <Why: prevent ghost duplicate event dispatches>
-        aggregates.ForEach(a => a.ClearDomainEvents());
+        entitiesWithEvents.ForEach(a => a.ClearDomainEvents());
 
         // Step 4: Dispatch Events Post-Commit <Why: side-effects execute only upon successful commit>
         if (events.Count > 0)

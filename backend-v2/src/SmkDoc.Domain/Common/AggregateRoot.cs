@@ -9,7 +9,7 @@ namespace SmkDoc.Domain.Common;
 public abstract class AggregateRoot<TId> : BaseEntity<TId>, IHaveDomainEvents, IConcurrencyAware
     where TId : struct, IComparable<TId>, IEquatable<TId>
 {
-    private readonly List<IDomainEvent> _domainEvents = new();
+    private readonly List<IDomainEvent> _domainEvents = [];
 
     public IReadOnlyCollection<IDomainEvent> DomainEvents => _domainEvents.AsReadOnly();
 
@@ -31,3 +31,4 @@ public abstract class AggregateRoot<TId> : BaseEntity<TId>, IHaveDomainEvents, I
 
     public virtual string? GetAlternateConcurrencyToken() => null;
 }
+

@@ -36,7 +36,7 @@ Signal: [ARCH_EVOLUTION_API]
 | **POST Mutation Idempotency** | State-mutating `POST` endpoints enforce deduplication via `[Idempotent]` attribute consuming the `Idempotency-Key` HTTP header. | Mutation Safety |
 | **PUT/DELETE Concurrency** | Naturally idempotent `PUT` and `DELETE` endpoints enforce optimistic concurrency via global `ETagFilter` (capturing `If-Match` into `IConcurrencyContext` on ingress and emitting `ETag` from `IHasConcurrencyToken` on 2xx egress) and `[ProducesResponseType(StatusCodes.Status412PreconditionFailed)]`. Redis lock idempotency on PUT/DELETE is prohibited. | Concurrency Control |
 | **Diagnostic Probe Semantics** | Connectivity probes (`POST /api/v1/data-connections/test`) return HTTP 200 OK with `ApiResponse<TestDataConnectionResultDto>` (`{ success: false, message }`). HTTP 4xx is reserved strictly for malformed JSON or SSRF blocks. | Integration Diagnostics |
-| **SSRF Perimeter Defense** | Network reachability endpoints execute pre-flight `ConnectionHostValidator.EnsureSafeTarget(host)` blocking loopback, link-local, cloud metadata, and container aliases. | Network Boundary |
+| **SSRF Perimeter Defense** | Network reachability endpoints execute pre-flight `await hostValidator.ValidateHostAsync(host, ct)` via `IConnectionHostValidator` blocking loopback, link-local, cloud metadata, and container aliases. | Network Boundary |
 | **Zero-LOH Streaming Egress** | Binary render/download endpoints stream live `Stream` directly to `Response.Body` or `File(stream, ...)` with bounded `81,920`-byte buffers. Whole-file `byte[]` buffering is prohibited. | Memory & GC |
 | **Plural RESTful Taxonomy** | Routes adhere to plural kebab-case `api/v1/{resources}` on `{Aggregate}sController`. Legacy `/api/*` and verb-based route segments are prohibited. | Route Routing |
 | **Dual-Track Rendering** | Document generation is partitioned into Track 1 (Sync Monaco preview / instant generate with `rendering` rate limit 30 req/min) and Track 2 (`POST generate-async`, returning `202 Accepted` + `Location`). | Rendering Gateway |
@@ -499,7 +499,7 @@ public sealed class {Resource}DiagnosticsController(
 ```diff
 - var connection = new NpgsqlConnection(command.ConnectionString);
 - await connection.OpenAsync(ct);
-+ ConnectionHostValidator.EnsureSafeTarget(command.Host);
++ await hostValidator.ValidateHostAsync(command.Host, ct);
 + var connection = new NpgsqlConnection(command.ConnectionString);
 + await connection.OpenAsync(ct);
 ```

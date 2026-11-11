@@ -38,7 +38,7 @@ Signal: [ARCH_EVOLUTION_APPLICATION]
 | **Transaction Boundary** | State mutations commit exclusively via `IUnitOfWork.CommitAsync(ct)` at egress. Read queries remain read-only and never commit transactions. | Data Persistence |
 | **Zero-LOH Streaming** | Binary render/export operations consume and return live `Stream`. Spooling utilizes `HybridSpoolStream` (<= 64 KB pooled `ArrayPool<byte>`; > 64 KB `DeleteOnClose` temp `FileStream`). Zero unbounded `byte[]` in memory. | Memory & GC |
 | **Pagination Clamping** | Paginated queries clamp `Page >= 1` and `PageSize` between 1 and 100 (`Math.Clamp(query.PageSize, 1, 100)`). Hot-path list projections select scalar columns only, bypassing `jsonb` payloads. | Query Scaling |
-| **Ambient Concurrency Guard** | Commands and UseCases remain free of `string? IfMatch` plumbing. Mutable `*ResultDto` records implement `IHasConcurrencyToken` (`entity.GetConcurrencyToken()`). Pre-commit `412` verification executes automatically via `ConcurrencySaveChangesInterceptor` on `CommitAsync(ct)` (or explicitly via `IConcurrencyContext.EnsureMatches(entity)` only when external I/O precedes `CommitAsync`). | Concurrency Control |
+| **Ambient Concurrency Guard** | Commands and UseCases remain free of `string? IfMatch` parameter plumbing. Mutable `*ResultDto` records implement `IHasConcurrencyToken` (`entity.GetConcurrencyToken()`). Precondition `412` verification executes fail-fast in Step 2 (Ensure) via `concurrencyContext.EnsureMatches(entity)` on mutating update/delete operations, preventing wasted domain computation or external I/O on stale ETags; `ConcurrencySaveChangesInterceptor` serves as the fail-safe interceptor on `CommitAsync(ct)`. | Concurrency Control |
 | **Single-Type File Topology** | Every `*Command`, `*Query`, `*Validator`, and `*UseCase` resides in its own isolated `{TypeName}.cs` file inside its vertical slice directory (`Commands/{SliceName}/` or `Queries/{SliceName}/`). | Physical Structure |
 | **Modular Module Installers** | Each bounded context slice registers its use cases and services through dedicated `{Module}ModuleExtensions.cs` (e.g. `AuthoringModuleExtensions`, `RenderingModuleExtensions`). Monolithic Application composition roots are prohibited. | DI Container |
 | **Direct Pipeline Composition** | Workflows and rendering pipelines consume domain services (`IDataBindingEngine`) directly. Single-method pass-through wrapper classes and duplicate intermediate DTOs are prohibited. | Pipeline Structure |
@@ -54,8 +54,8 @@ Signal: [ARCH_EVOLUTION_APPLICATION]
 * **Why Application DTOs as Boundary Firewalls:** Domain entities must never cross the layer boundary into Presentation; prevents leaking internal domain state or triggering EF Core lazy-loading traps.
 * **Why Direct Stream Return for Render/Preview:** Guarantees zero Large Object Heap (LOH) RAM allocation (<85 KB Gen 2 threshold) during high-throughput document streaming.
 * **Why Post-Commit Domain Event Dispatch:** Dispatches domain side-effects (e.g. audit logging, cache invalidation) strictly after `unitOfWork.CommitAsync(ct)` succeeds, preventing ghost side-effects on transaction rollback.
-* **Why Ambient Concurrency Pipeline over Imperative Command/UseCase Plumbing:** Passing `string? IfMatch` through every Controller, Command, and UseCase pollutes business logic with HTTP string-trimming ceremony. Instead, `ETagFilter` populates scoped `IConcurrencyContext.IfMatch` on ingress, `ConcurrencySaveChangesInterceptor` verifies `IfMatch` against EF Core `OriginalValue` of `UpdatedAt ?? CreatedAt` on `CommitAsync` (throwing `PreconditionFailedException` -> `412`), and EF Core `.IsConcurrencyToken()` on `UpdatedAt` catches microsecond race conditions (throwing `DbUpdateConcurrencyException` -> `409` via `GlobalExceptionHandler`).
-* **Why Explicit `IConcurrencyContext.EnsureMatches` Only Before Pre-Commit External I/O:** When a UseCase uploads an object to MinIO S3 before calling `unitOfWork.CommitAsync(ct)`, calling `concurrencyContext.EnsureMatches(entity)` in Step 2 prevents orphan S3 uploads if the caller's `If-Match` header is already stale, and sets `IsVerified = true` so `ConcurrencySaveChangesInterceptor` skips redundant re-evaluation.
+* **Why Ambient Concurrency Pipeline over Imperative Command/UseCase Plumbing:** Passing `string? IfMatch` through every Controller, Command, and UseCase pollutes business logic with HTTP string-trimming ceremony. Instead, `ETagFilter` populates scoped `IConcurrencyContext.IfMatch` on ingress, UseCases invoke `concurrencyContext.EnsureMatches(entity)` in Step 2 (Ensure Preconditions) to fail-fast (`PreconditionFailedException` -> `412`), and EF Core `.IsConcurrencyToken()` on `UpdatedAt` catches microsecond mid-flight database race conditions (throwing `DbUpdateConcurrencyException` -> `409` via `GlobalExceptionHandler`).
+* **Why Fail-Fast `concurrencyContext.EnsureMatches` in PEMR Step 2:** Calling `concurrencyContext.EnsureMatches(entity)` immediately after retrieving the tracked entity in Step 2 enforces HTTP 412 Precondition Failed *before* executing domain state mutations, allocating domain events, or making external I/O (MinIO, Gotenberg). This eliminates the "Delayed 412" defect, and sets `concurrencyContext.IsVerified = true` so `ConcurrencySaveChangesInterceptor` skips redundant re-evaluation on `CommitAsync(ct)`.
 
 ### 2.2 Primary SSoT Interfaces & ProblemDetails RFC 9457 Mapping
 ```csharp
@@ -173,6 +173,12 @@ public sealed record {Aggregate}ResultDto(
     DateTimeOffset CreatedAt,
     DateTimeOffset? UpdatedAt,
     string? ConcurrencyToken = null) : IHasConcurrencyToken;
+
+public sealed record {Aggregate}PagedResultDto(
+    IReadOnlyList<{Aggregate}ResultDto> Items,
+    int TotalCount,
+    int Page,
+    int PageSize);
 
 // --- File: Commands/{Verb}{Aggregate}/{Verb}{Aggregate}UseCase.cs ---
 public sealed class {Verb}{Aggregate}UseCase(
@@ -348,9 +354,9 @@ public sealed class CachedTemplateRenderer(
 ### 3.5 Optimistic Concurrency Mutating Slice Archetype (`Update{Aggregate}` via Ambient Concurrency Pipeline)
 >> MANDATORY CANONICAL BLUEPRINT [RULE-APP-CMD-005]:
 * Co-located inside `Modules/{BoundedContext}/{Aggregate}/Commands/Update{Aggregate}/`.
-* Command and UseCase remain 100% free of manual `IfMatch` string parameters.
-* Standard relational mutations rely automatically on `ConcurrencySaveChangesInterceptor` during `unitOfWork.CommitAsync(ct)` (pre-commit `412`) and EF Core `.IsConcurrencyToken()` on `UpdatedAt` (mid-flight `409`).
-* When external I/O (e.g. MinIO `storageService.UploadAsync`) precedes `unitOfWork.CommitAsync(ct)`, inject `IConcurrencyContext concurrencyContext` and invoke `concurrencyContext.EnsureMatches(entity)` before the external upload.
+* Command remains 100% free of manual `IfMatch` string parameters (captured by `ETagFilter` into ambient `IConcurrencyContext`).
+* UseCase enforces fail-fast precondition verification in Step 2: Ensure Preconditions via `concurrencyContext.EnsureMatches(entity)`, terminating immediately with `PreconditionFailedException` (412) on stale ETag before domain state mutation or external I/O.
+* Sets `concurrencyContext.IsVerified = true`, allowing `ConcurrencySaveChangesInterceptor` on `unitOfWork.CommitAsync(ct)` to skip redundant evaluation while EF Core `.IsConcurrencyToken()` on `UpdatedAt` catches mid-flight race conditions (`DbUpdateConcurrencyException` -> `409 Conflict`).
 
 ```csharp
 // --- File: Commands/Update{Aggregate}/Update{Aggregate}Command.cs ---
@@ -374,6 +380,7 @@ public sealed class Update{Aggregate}UseCase(
     I{Aggregate}Repository repository,
     IUnitOfWork unitOfWork,
     ICurrentProjectContext projectContext,
+    IConcurrencyContext concurrencyContext,
     TimeProvider timeProvider) : IUseCase<Update{Aggregate}Command, {Aggregate}ResultDto>
 {
     public async Task<{Aggregate}ResultDto> ExecuteAsync(Update{Aggregate}Command command, CancellationToken ct = default)
@@ -382,16 +389,18 @@ public sealed class Update{Aggregate}UseCase(
         if (!projectContext.IsResolved)
             throw new ForbiddenException("Active project context is required.");
 
-        // Step 2: Ensure Preconditions <Why: fetch tracked aggregate root>
+        // Step 2: Ensure Preconditions <Why: fail-fast on stale If-Match before domain mutation or external I/O>
         var entity = await repository.GetByIdAsync(new {Aggregate}Id(command.Id), ct)
             ?? throw new NotFoundException($"Target {nameof({Aggregate})} '{command.Id}' not found.");
+
+        concurrencyContext.EnsureMatches(entity); // <Why: throws PreconditionFailedException (412) if ETag mismatch; sets IsVerified = true>
 
         // Step 3: Mutate Domain State <Why: enforce domain invariants and advance UpdatedAt>
         var now = timeProvider.GetUtcNow();
         entity.UpdateDetails({Aggregate}Name.Create(command.Name), command.Category, now);
         repository.Update(entity);
 
-        // Step 4: Commit & Egress <Why: ConcurrencySaveChangesInterceptor verifies If-Match against OriginalValue>
+        // Step 4: Commit & Egress <Why: atomic persistence; interceptor skips redundant check because IsVerified is true>
         await unitOfWork.CommitAsync(ct);
 
         return new {Aggregate}ResultDto(
@@ -513,8 +522,7 @@ public static class {BoundedContext}ModuleExtensions
 - var sanitized = command.IfMatch.Trim('\"', 'W', '/', ' ');
 - if (sanitized != (entity.UpdatedAt ?? entity.CreatedAt).ToUnixTimeMilliseconds().ToString()) throw new PreconditionFailedException(...);
 + public sealed record Update{Aggregate}Command(Guid Id, string Name);
-+ // ConcurrencySaveChangesInterceptor verifies ambient IConcurrencyContext.IfMatch automatically on unitOfWork.CommitAsync(ct)
-+ // (Or call concurrencyContext.EnsureMatches(entity) before pre-commit external S3 I/O)
++ // Ambient IConcurrencyContext captured by ETagFilter; UseCase verifies concurrencyContext.EnsureMatches(entity) fail-fast in Step 2
 ```
 *Rationale: Threading HTTP `If-Match` strings through Commands and UseCases violates Clean Architecture separation and duplicates token formatting logic across slices.*
 
@@ -532,5 +540,16 @@ public static class {BoundedContext}ModuleExtensions
 + services.AddIdentityAccessModule();
 ```
 *Rationale: Violates system-wide CompositionRootFirewall. Dumping UseCases across multiple Bounded Contexts into a single root file breaks domain isolation, masks dependencies, and generates severe merge conflicts.*
+
+### [TRAP-APP-010]: Delayed Concurrency Validation (Missing Step 2 EnsureMatches)
+```diff
+  // Step 2: Ensure Preconditions
+  var entity = await repository.GetByIdAsync(id, ct) ?? throw new NotFoundException(...);
++ concurrencyContext.EnsureMatches(entity); // Fail-fast 412 before mutation or external I/O
+  // Step 3: Mutate Domain State
+  entity.UpdateDetails(name, category, now);
+- // Concurrency check only happens later in Step 4 CommitAsync after wasting mutation and I/O cycles!
+```
+*Rationale: Deferring ETag validation to CommitAsync wastes CPU cycles on domain mutations and risks executing irreversible external I/O (S3 uploads, Gotenberg rendering) for requests doomed to fail HTTP 412. Calling `concurrencyContext.EnsureMatches(entity)` in Step 2 guarantees fail-fast rejection.*
 
 >> SSoT DELEGATION: Document rendering pipeline composition, data binding integration, and anemic pass-through wrapper prohibitions are governed strictly by [document_rendering_mechanics.md](../03_specialized_mechanics/document_rendering_mechanics.md#trap-mech-008).

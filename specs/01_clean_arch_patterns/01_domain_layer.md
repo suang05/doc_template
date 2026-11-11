@@ -6,9 +6,9 @@ Domain: Domain Layer Architecture, Aggregates & Pure Business Invariants
 SoleResponsibilities:
   - Pure Domain POCOs free of framework or persistence dependencies
   - `AggregateRoot<TId>` identity encapsulation and sole ownership of domain event harvesting
-  - `BaseEntity` child entity modeling and `IConcurrencyAware` contract
+  - `BaseEntity<TId>` base entity modeling and pure identity contracts
   - Strongly-typed sequential UUIDv7 identities and immutable Value Objects
-Target: `SmkDoc.Domain/` (`Entities/`, `ValueObjects/`, `Events/`, `Common/`)
+Target: `SmkDoc.Domain/` (`Authoring/`, `Rendering/`, `Integration/`, `IdentityAccess/`, `Common/`)
 Signal: [ARCH_EVOLUTION_DOMAIN]
 </context>
 
@@ -37,10 +37,45 @@ Signal: [ARCH_EVOLUTION_DOMAIN]
 | **Global vs Tenant Identity** | `User` is a Global Identity (Zero `ProjectId` column, zero `IMustHaveProject`). Multi-project tenancy is mapped exclusively through `UserProjectRole`. | Identity Context |
 | **Tenant Partitioning** | Tenant-scoped entities implement `IMustHaveProject` with mandatory fail-fast guard: `ProjectId = Guard.NotEmpty(projectId, nameof(ProjectId))`. | Multi-Tenancy |
 | **Child Entity Lifecycle** | Child entities created and mutated exclusively through their parent Aggregate Root (`aggregate.AddChild(...)`). Standard `Guid` identity inheriting `BaseEntity`. Zero domain event dispatching. | Entity Hierarchy |
-| **Aggregate Boundaries** | Aggregate roots inherit `AggregateRoot<TId>`, encapsulating state and domain event collection. Referenced by other aggregates strictly via `{Aggregate}Id`. | Aggregate Root Boundary |
-| **Concurrency Token Contract**| Mutable aggregates implement `IConcurrencyAware`, exposing `EntityId` and deterministic `GetConcurrencyToken()` (`(UpdatedAt ?? CreatedAt).ToUnixTimeMilliseconds().ToString()`) inherited from `BaseEntity<TId>`. | Optimistic Concurrency |
-| **Decoupled Side-Effects** | Side-effects appended in-memory strictly on `AggregateRoot<TId>` as immutable `IDomainEvent` records and harvested post-commit by the application layer. | Event Outbox |
+| **Aggregate Boundaries** | Aggregate roots inherit `AggregateRoot<TId>`, encapsulating state, optimistic concurrency (`IConcurrencyAware`), and domain event collection (`IHaveDomainEvents`). Referenced by other aggregates strictly via `{Aggregate}Id`. | Aggregate Root Boundary |
+| **Concurrency Token Contract**| Mutable aggregates implement `IConcurrencyAware` via `AggregateRoot<TId>`, exposing `EntityId` and deterministic `GetConcurrencyToken()` (`(UpdatedAt ?? CreatedAt).ToUnixTimeMilliseconds().ToString()`). Child entities remain pure identity. | Optimistic Concurrency |
+| **Decoupled Side-Effects** | Side-effects appended in-memory strictly on `AggregateRoot<TId>` as immutable `IDomainEvent` records and harvested post-commit by `UnitOfWork` via `IHaveDomainEvents`. | Event Outbox |
 | **Stateless Domain Logic (GodServiceEliminationFirewall)** | Domain business invariants belong primarily inside Aggregate Roots. Multi-aggregate calculations are modeled as stateless, single-purpose Domain Services ($\le 2$ methods). Multi-action God domain services or catch-all helpers (`*Helper`) are strictly prohibited. | Domain Logic Boundary |
+
+### 1.3 Domain Bounded Context Taxonomy Tree
+```
+backend-v2/src/SmkDoc.Domain/
+  Common/                        # Shared domain primitives & base classes
+    BaseEntity.cs                # BaseEntity<TId> (Identity & Timestamps) & BaseEntity (Guid)
+    AggregateRoot.cs             # AggregateRoot<TId> (Domain Events & Concurrency)
+    Guard.cs                     # Defensive precondition invariants
+    Enumeration.cs               # Strongly-typed smart enumeration base
+    IDomainEvent.cs              # Immutable domain event marker contract
+    IHaveDomainEvents.cs         # Event harvesting contract
+  Interfaces/                    # Universal domain contracts
+    IUnitOfWork.cs
+    ICurrentProjectContext.cs
+    IMustHaveProject.cs
+    IConcurrencyAware.cs
+  Authoring/                     # Authoring Bounded Context
+    Entities/                    # Template, TemplateVersion, FieldMapping, Font
+    ValueObjects/                # TemplateSlug, TemplateName, VersionNumber
+    Events/                      # TemplateCreatedDomainEvent, TemplatePublishedDomainEvent
+    Exceptions/                  # TemplateNotFoundException, TemplateVersionNotFoundException
+  Rendering/                     # Rendering Bounded Context
+    Entities/                    # Document, DocumentVersion, GenerationLog
+    ValueObjects/                # StorageKey, Checksum
+    Enums/                       # RenderEngineType, OutputFormat, GenerationStatus
+    Events/                      # DocumentRenderedDomainEvent
+  Integration/                   # Integration Bounded Context
+    Entities/                    # DataConnection, Dataset, TemplateDataset
+    ValueObjects/                # ConnectionStringEncrypted, DatasetQuery
+    Enums/                       # DataConnectionType
+  IdentityAccess/                # Identity & Access Bounded Context
+    Entities/                    # Company, Project, User, ApiKey, UserProjectRole
+    ValueObjects/                # KeyHash, EmailAddress, ProjectSlug
+    Enums/                       # SystemRole, RoleType, ApiKeyScope
+```
 
 ---
 
@@ -107,12 +142,12 @@ public readonly record struct {Aggregate}Id(Guid Value) : IComparable<{Aggregate
 }
 ```
 
-### 3.2 Base Entity, Aggregate Root & Concurrency Contracts (`IConcurrencyAware`, `BaseEntity<TId>`, `BaseEntity` & `AggregateRoot<TId>`)
+### 3.2 Canonical BaseEntity, AggregateRoot & Concurrency Contracts (`IConcurrencyAware`, `BaseEntity<TId>`, `BaseEntity` & `AggregateRoot<TId>`)
 >> MANDATORY CANONICAL BLUEPRINT [RULE-DOM-002]:
 * `IConcurrencyAware` defines the uniform identity and token extraction contract for optimistic concurrency verification.
-* `BaseEntity<TId>` encapsulates strongly-typed ID, audit timestamps, and `EntityId`. Pure identity; zero domain events.
-* `BaseEntity` encapsulates standard `Guid` identities for child entities.
-* `AggregateRoot<TId>` inherits `BaseEntity<TId>`, implements `IConcurrencyAware` (`GetConcurrencyToken()`), and is the SOLE owner of in-memory domain event harvesting (`AddDomainEvent`, `ClearDomainEvents`).
+* `BaseEntity<TId>` encapsulates strongly-typed ID, audit timestamps, and entity equality based on identity. Pure identity for both aggregates and child entities; zero domain events, zero concurrency mutations.
+* `BaseEntity` (inheriting `BaseEntity<Guid>`) provides parameterless and auto-UUIDv7 constructors for child domain entities (e.g. `TemplateVersion`, `FieldMapping`).
+* `AggregateRoot<TId>` inherits `BaseEntity<TId>`, implements `IHaveDomainEvents` and `IConcurrencyAware` (`GetConcurrencyToken()`), and is the SOLE owner of in-memory domain event harvesting (`AddDomainEvent`, `ClearDomainEvents`).
 
 ```csharp
 public interface IConcurrencyAware
@@ -124,7 +159,8 @@ public interface IConcurrencyAware
     string? GetAlternateConcurrencyToken() => null;
 }
 
-public abstract class BaseEntity<TId> where TId : struct, IComparable<TId>, IEquatable<TId>
+public abstract class BaseEntity<TId> : IEquatable<BaseEntity<TId>>
+    where TId : struct, IComparable<TId>, IEquatable<TId>
 {
     public TId Id { get; protected set; }
     public object EntityId => Id;
@@ -139,7 +175,49 @@ public abstract class BaseEntity<TId> where TId : struct, IComparable<TId>, IEqu
         CreatedAt = Guard.NotDefault(createdAt, nameof(CreatedAt));
     }
 
-    protected void SetUpdated(DateTimeOffset now) => UpdatedAt = Guard.NotDefault(now, nameof(now));
+    protected void SetUpdated(DateTimeOffset now) =>
+        UpdatedAt = Guard.NotDefault(now, nameof(now));
+
+    public override bool Equals(object? obj) =>
+        obj is BaseEntity<TId> other && Equals(other);
+
+    public bool Equals(BaseEntity<TId>? other)
+    {
+        if (other is null || other.GetType() != GetType())
+        {
+            return false;
+        }
+
+        if (EqualityComparer<TId>.Default.Equals(Id, default) ||
+            EqualityComparer<TId>.Default.Equals(other.Id, default))
+        {
+            return false;
+        }
+
+        return EqualityComparer<TId>.Default.Equals(Id, other.Id);
+    }
+
+    public override int GetHashCode() => HashCode.Combine(GetType(), Id);
+
+    public static bool operator ==(BaseEntity<TId>? left, BaseEntity<TId>? right)
+    {
+        if (left is null ^ right is null)
+        {
+            return false;
+        }
+
+        return left is null || left.Equals(right);
+    }
+
+    public static bool operator !=(BaseEntity<TId>? left, BaseEntity<TId>? right) => !(left == right);
+}
+
+public abstract class BaseEntity : BaseEntity<Guid>
+{
+    protected BaseEntity() { }
+
+    protected BaseEntity(Guid? id, DateTimeOffset createdAt)
+        : base(id.HasValue && id.Value != Guid.Empty ? id.Value : Guid.CreateVersion7(), createdAt) { }
 }
 
 public abstract class AggregateRoot<TId> : BaseEntity<TId>, IHaveDomainEvents, IConcurrencyAware
@@ -148,46 +226,26 @@ public abstract class AggregateRoot<TId> : BaseEntity<TId>, IHaveDomainEvents, I
     private readonly List<IDomainEvent> _domainEvents = [];
     public IReadOnlyCollection<IDomainEvent> DomainEvents => _domainEvents.AsReadOnly();
 
-    protected AggregateRoot() { }
-
-    protected AggregateRoot(TId id, DateTimeOffset createdAt) : base(id, createdAt) { }
-
-    public void AddDomainEvent(IDomainEvent domainEvent) =>
+    protected void AddDomainEvent(IDomainEvent domainEvent) =>
         _domainEvents.Add(Guard.NotNull(domainEvent, nameof(domainEvent)));
 
     public void ClearDomainEvents() => _domainEvents.Clear();
+
+    protected AggregateRoot() { }
+
+    protected AggregateRoot(TId id, DateTimeOffset createdAt) : base(id, createdAt) { }
 
     public virtual string GetConcurrencyToken() =>
         (UpdatedAt ?? CreatedAt).ToUnixTimeMilliseconds().ToString();
 
     public virtual string? GetAlternateConcurrencyToken() => null;
 }
-
-public abstract class BaseEntity
-{
-    public Guid Id { get; protected set; }
-    public object EntityId => Id;
-    public DateTimeOffset CreatedAt { get; protected set; }
-    public DateTimeOffset? UpdatedAt { get; protected set; }
-
-    protected BaseEntity() { }
-
-    protected BaseEntity(Guid? id, DateTimeOffset createdAt)
-    {
-        Id = id.HasValue && id.Value != Guid.Empty ? id.Value : Guid.CreateVersion7();
-        CreatedAt = Guard.NotDefault(createdAt, nameof(CreatedAt));
-    }
-
-    protected void SetUpdated(DateTimeOffset now) => UpdatedAt = Guard.NotDefault(now, nameof(now));
-
-    public string GetConcurrencyToken() =>
-        (UpdatedAt ?? CreatedAt).ToUnixTimeMilliseconds().ToString();
-}
 ```
 
 ### 3.3 Tenant-Scoped Aggregate Root Archetype
 >> MANDATORY CANONICAL BLUEPRINT [RULE-DOM-003]:
-* Sealed reference type inheriting `AggregateRoot<{Aggregate}Id>` and implementing `IMustHaveProject`.
+* Sealed reference type inheriting `AggregateRoot<{Aggregate}Id>`, implementing `IMustHaveProject`.
+* Encapsulates child entity collections with private backing lists (`List<{ChildEntity}>`) exposed as `IReadOnlyCollection<{ChildEntity}>`.
 * 1 Canonical static `Create(...)` factory method.
 * Business mutation verbs following the 4-Step State Mutation Verb Cadence.
 
@@ -266,7 +324,7 @@ public sealed class {Aggregate} : AggregateRoot<{Aggregate}Id>, IMustHaveProject
 * Multi-tenancy memberships managed exclusively through `UserProjectRole` join entity.
 
 ```csharp
-public sealed class User : BaseEntity<UserId>
+public sealed class User : AggregateRoot<UserId>
 {
     public EmailAddress Email { get; private set; } = null!;
     public string FullName { get; private set; } = null!;
@@ -366,8 +424,8 @@ public sealed class {Domain}Type : Enumeration
 
 ### [TRAP-DOM-001]: Entity Struct Identity Collapse
 ```diff
-- public struct {Aggregate} : BaseEntity { }
-+ public sealed class {Aggregate} : BaseEntity<{Aggregate}Id> { }
+- public struct {Aggregate} : Entity { }
++ public sealed class {Aggregate} : AggregateRoot<{Aggregate}Id> { }
 ```
 *Rationale: Struct entities cause state copy-loss on pass-by-value and break EF Core ChangeTracker snapshot fidelity.*
 
@@ -396,11 +454,11 @@ public sealed class {Domain}Type : Enumeration
 
 ### [TRAP-DOM-005]: Leaking ProjectId into Global User Entity (Tenancy Confusion)
 ```diff
-- public sealed class User : BaseEntity<UserId>, IMustHaveProject
+- public sealed class User : AggregateRoot<UserId>, IMustHaveProject
 - {
 -     public ProjectId ProjectId { get; private set; }
 - }
-+ public sealed class User : BaseEntity<UserId>
++ public sealed class User : AggregateRoot<UserId>
 + {
 +     // User is a Global Identity; tenancy is bridged strictly via UserProjectRole
 +     private readonly List<UserProjectRole> _projectRoles = [];
@@ -408,12 +466,21 @@ public sealed class {Domain}Type : Enumeration
 ```
 *Rationale: Attaching `ProjectId` directly to `User` binds credentials to a single project, preventing multi-tenant organization access and breaking single-sign-on (SSO).*
 
-### [TRAP-DOM-006]: Aggregate Root Inheriting BaseEntity Instead of AggregateRoot
+### [TRAP-DOM-006]: Copy-Pasting Event & Concurrency Plumbing into Aggregates
 ```diff
-- public sealed class {Aggregate} : BaseEntity<{Aggregate}Id>, IMustHaveProject
+- public sealed class {Aggregate} : BaseEntity<{Aggregate}Id>, IMustHaveProject, IConcurrencyAware, IHaveDomainEvents
+- {
+-     private readonly List<IDomainEvent> _domainEvents = [];
+-     public IReadOnlyCollection<IDomainEvent> DomainEvents => _domainEvents.AsReadOnly();
+-     public void ClearDomainEvents() => _domainEvents.Clear();
+-     private void AddDomainEvent(IDomainEvent domainEvent) => _domainEvents.Add(domainEvent);
+- }
 + public sealed class {Aggregate} : AggregateRoot<{Aggregate}Id>, IMustHaveProject
++ {
++     // Domain event management and concurrency token contracts inherited cleanly
++ }
 ```
-*Rationale: Domain event harvesting (`AddDomainEvent`, `DomainEvents`, `ClearDomainEvents`) is strictly isolated to `AggregateRoot<TId>`. Child entities inherit `BaseEntity` without domain event collections.*
+*Rationale: Aggregate roots must inherit `AggregateRoot<TId>` to encapsulate in-memory domain event collection (`AddDomainEvent`, `DomainEvents`, `ClearDomainEvents`) and optimistic concurrency (`IConcurrencyAware`) without duplicating boilerplate across individual entities (DRY). Child entities inherit `BaseEntity` with pure identity and zero event/concurrency overhead.*
 
 ### [TRAP-DOM-007]: Fat Multi-Method Domain Service or Catch-All Domain Helper
 ```diff

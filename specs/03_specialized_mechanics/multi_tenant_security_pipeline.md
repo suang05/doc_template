@@ -28,7 +28,7 @@ Signal: [ARCH_EVOLUTION_TENANCY]
 ### 1.2 Affirmative Tenancy & Dual-Auth Invariants
 | Security & Tenancy Concern | Affirmative Security Invariant (Positive SSoT Law) | Boundary Vector |
 |---|---|---|
-| **Cryptographic Key Storage** | API keys are stored exclusively as SHA-256 one-way hashes (`KeyHash`). Raw keys are emitted exactly once upon creation. Plaintext key persistence is prohibited. | Credential Storage |
+| **Cryptographic Key Storage** | API keys are stored exclusively as SHA-256 one-way hashes (`KeyHash`) alongside non-sensitive `KeyPrefix` (e.g. `smk_crm_`) and authentic `KeySuffix` (e.g. `...efgh`). Raw plaintext keys are emitted exactly once upon creation and never persisted. | Credential Storage |
 | **Browser Token Security** | Web session JWTs are stored in httpOnly, Secure, SameSite cookies managed via Next.js Proxy (`/api/proxy/[...path]`). Browser localStorage token persistence is prohibited. | Client Session |
 | **Unified Ambient Context** | Tenancy and caller identity converge exclusively into `ICurrentProjectContext`. `IExecutionContext` is retired. Dual ambient contexts are prohibited. | Orchestration Core |
 | **Fail-Closed Tenancy SQL** | EF Core Global Query Filter enforces `IsResolved && e.ProjectId == CurrentTenantId` across all `IMustHaveProject` entities. Manual `WHERE project_id = @id` clauses and `.IgnoreQueryFilters()` in tenant routes are prohibited. | Relational Boundary |
@@ -37,7 +37,7 @@ Signal: [ARCH_EVOLUTION_TENANCY]
 | **Anti-Spoofing Parameter Policy**| Tenant UseCases resolve tenancy strictly from ambient `ICurrentProjectContext`. Declaring caller `ProjectId` overrides on tenant Command/Query records or payloads is prohibited. | Ingress Parameter |
 | **Global Identity Scoping** | `User` is a Global Identity (zero `ProjectId` column, zero `IMustHaveProject`). Multi-project tenancy is mapped exclusively through `UserProjectRole`. | Identity Model |
 | **Delegated Sub-Key Quota** | Project Admins manage operational sub-keys on `/api/v1/api-keys` under a strict budget of maximum 2 active keys per tenant (1 `ReadOnly` + 1 `ReadWrite`), returning `409 Conflict` on duplicate scope. | Key Governance |
-| **Key Masking Wire Egress** | Key list and get endpoints return masked keys (`smk_crm_****abcd`). Returning raw keys or hashes in read responses is prohibited. | Contract Privacy |
+| **Key Masking Wire Egress** | Key list and get endpoints return masked keys derived from authentic components (`$"{KeyPrefix}****{KeySuffix}"`). Synthesizing pseudo-suffixes from the SHA-256 hash or returning raw keys is prohibited. | Contract Privacy |
 | **Canonical REST Routes** | User and project access endpoints reside on flat RESTful routes (`/api/v1/users`, `/api/v1/users/{userId}/role`). Duplicate nested controller routes are prohibited. | Route Taxonomy |
 | **Deterministic Route Precedence**| Tenant resolution resolves following strict hierarchy: Route (`{projectId}`) => Header (`X-Project-Id`) => JWT Claim (`ProjectId`), rejecting Route vs Header conflicts with RFC 9457 `400 Bad Request`. | Tenant Extraction |
 | **Unconditional Admin Hydration** | `SystemRole.SuperAdmin` users receive `SuperAdmin` and `Admin` role claims unconditionally prior to tenant resolution to permit global platform operations. | Privilege Elevation |
@@ -62,6 +62,7 @@ Signal: [ARCH_EVOLUTION_TENANCY]
 * **Why Unconditional SuperAdmin Claim Hydration:** Global endpoints such as `POST /api/v1/management/projects` execute before a target project exists. Hydrating `SuperAdmin` and `Admin` role claims prior to tenant resolution allows `[Authorize(Roles = RoleConstants.AdminOrSuperAdmin)]` to succeed without weakening tenant checks on project-scoped routes.
 * **Why Perimeter Enforcement of `ApiKeyScope.ReadOnly`:** Blocking state-mutating HTTP methods at `ProjectContextMiddleware` prevents read-only integration keys from creating templates, uploading fonts, or mutating documents while still permitting stateless POST `preview` and `validate` calls.
 * **Why Master Key / Delegated Ownership Pattern under Guardrails:** Eliminates operational bottlenecks by empowering Project Admins to self-service sub-key creation and rotation (`/api/v1/api-keys`) for daily integration needs (ERP, CRM) without waiting on platform operators. Preserves the Chain of Trust by restricting Master Credential changes and project ownership transfers strictly to SuperAdmin verification (`/api/v1/management/projects/{projectId}/transfer-owner`), while runtime guardrails enforce a hard budget of maximum 2 active keys per project (1 ReadOnly + 1 ReadWrite) returning `409 Conflict` on quota violation.
+* **Why Relational `KeyPrefix` and `KeySuffix` Storage:** Masking API keys using the trailing characters of the SHA-256 hash causes serious confusion because the characters displayed in the authoring console do not match the actual secret key possessed by the developer or enterprise ERP system. Storing `KeyPrefix` (e.g. `smk_crm_`) and authentic `KeySuffix` (e.g. `abcd`) in the database allows safe, authentic key identification without ever persisting or exposing the raw secret.
 
 ### 2.2 Proactive Tenancy Guards
 ```yaml
@@ -149,6 +150,25 @@ The system is partitioned into two distinct identity channels: Channel B (Intern
 ```csharp
 public static class ApiKeyValidator
 {
+    public const string KeyPrefixTemplate = "smk_";
+
+    public static (string RawKey, string KeyPrefix, string KeySuffix, string KeyHash) GenerateKey(string callerApp)
+    {
+        // Step 1: Generate Cryptographically Secure Secret <Why: eliminate PRNG predictability>
+        var randomBytes = RandomNumberGenerator.GetBytes(24);
+        var secret = Convert.ToHexString(randomBytes).ToLowerInvariant();
+
+        // Step 2: Format Structured Key <Why: human-readable prefix and authentic trailing suffix>
+        var prefix = $"{KeyPrefixTemplate}{callerApp.ToLowerInvariant()}_";
+        var rawKey = $"{prefix}{secret}";
+        var suffix = rawKey[^4..]; // Authentic trailing 4 characters of the raw key
+
+        // Step 3: Compute SHA-256 Digest <Why: one-way cryptographic storage>
+        var hash = HashApiKey(rawKey);
+
+        return (rawKey, prefix, suffix, hash);
+    }
+
     public static string HashApiKey(string rawApiKey)
     {
         // Step 1: Compute SHA-256 Hash <Why: one-way cryptographic digest for storage and lookup>
@@ -412,3 +432,12 @@ var activeProjectId = projectContext.ProjectId;
 + context.User = new ClaimsPrincipal(identity);
 ```
 *Rationale: ASP.NET Core `[Authorize]` attributes evaluate `HttpContext.User.Identity.IsAuthenticated`. Leaving `context.User` unhydrated causes M2M clients to fail authorization even with a valid API key.*
+
+### [TRAP-SEC-006]: Masking API Key from SHA-256 Hash Suffix
+```diff
+- var suffix = apiKey.KeyHash.Value[^4..]; // REJECTED: Hash suffix never matches the operator's actual key!
+- var masked = $"smk_{apiKey.CallerApp}_****{suffix}";
++ // Authentic key suffix persisted at generation time
++ var masked = $"{apiKey.KeyPrefix}****{apiKey.KeySuffix}";
+```
+*Rationale: Generating masked keys from the trailing characters of the SHA-256 hash causes total confusion because the masked string displayed in the console differs from the physical credentials held by the operator or enterprise ERP. Storing `KeyPrefix` and authentic `KeySuffix` alongside `KeyHash` guarantees accurate, non-sensitive key identification.*

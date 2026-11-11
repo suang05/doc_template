@@ -4,7 +4,7 @@
 Category: 00_architecture_core
 Domain: System-Wide Anti-Pattern Traps & Architectural Interceptors
 SoleResponsibilities:
-  - Registry of 20 compiler-grade fatal architectural traps (`[TRAP-MEM-001]` to `[TRAP-PREVIEW-020]`)
+  - Registry of 21 compiler-grade fatal architectural traps (`[TRAP-LOH-001]` to `[TRAP-PIPELINE-021]`)
   - Unified micro-diffs (`-` bad / `+` good) illustrating forbidden implementations and remediations
   - Pre-commit architectural violation checks across all layers
 Target: Full Stack (`backend-v2/` and `frontend-v2/`)
@@ -90,7 +90,7 @@ EventConsistencyFirewall:
 
 ---
 
-## 4. Level 4: Anti-Patterns & Unified Micro-Diffs (The 20 Fatal Traps)
+## 4. Level 4: Anti-Patterns & Unified Micro-Diffs (The 21 Fatal Traps)
 
 ### [TRAP-LOH-001]: Buffer Exceeding Large Object Heap Threshold
 ```diff
@@ -159,7 +159,7 @@ EventConsistencyFirewall:
 ### [TRAP-SQL-011]: Unchecked Database Host Opening SSRF Vector
 ```diff
 - using var connection = new NpgsqlConnection(request.ConnectionString);
-+ ConnectionHostValidator.EnsureSafeTarget(request.ConnectionString);
++ await hostValidator.ValidateHostAsync(targetHost, ct);
 + using var connection = new NpgsqlConnection(request.ConnectionString);
 ```
 
