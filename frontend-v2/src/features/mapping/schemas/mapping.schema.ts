@@ -28,8 +28,12 @@ export const SaveFieldMappingItemSchema = z.object({
 });
 export type SaveFieldMappingItem = z.infer<typeof SaveFieldMappingItemSchema>;
 
-export const FieldMappingDtoSchema = SaveFieldMappingItemSchema.extend({
+export const FieldMappingResultDtoSchema = SaveFieldMappingItemSchema.extend({
   id: z.string().uuid(),
   templateId: z.string().uuid(),
 });
-export type FieldMappingDto = z.infer<typeof FieldMappingDtoSchema>;
+export type FieldMappingResultDto = z.infer<typeof FieldMappingResultDtoSchema>;
+
+// Backward-compatible alias
+export const FieldMappingDtoSchema = FieldMappingResultDtoSchema;
+export type FieldMappingDto = FieldMappingResultDto;

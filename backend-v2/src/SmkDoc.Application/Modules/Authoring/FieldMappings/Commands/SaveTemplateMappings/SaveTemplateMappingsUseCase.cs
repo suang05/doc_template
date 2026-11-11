@@ -1,4 +1,3 @@
-using SmkDoc.Application.Common.Extensions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.Helpers;
@@ -14,9 +13,9 @@ namespace SmkDoc.Application.Modules.Authoring.FieldMappings.Commands.SaveTempla
 public sealed class SaveTemplateMappingsUseCase(
     ITemplateRepository templateRepo,
     IUnitOfWork unitOfWork,
-    TimeProvider timeProvider) : IUseCase<SaveTemplateMappingsCommand, List<FieldMappingDto>>
+    TimeProvider timeProvider) : IUseCase<SaveTemplateMappingsCommand, List<FieldMappingResultDto>>
 {
-    public async Task<List<FieldMappingDto>> ExecuteAsync(SaveTemplateMappingsCommand command, CancellationToken ct = default)
+    public async Task<List<FieldMappingResultDto>> ExecuteAsync(SaveTemplateMappingsCommand command, CancellationToken ct = default)
     {
         var templateId = new TemplateId(command.TemplateId);
         var template = await templateRepo.GetByIdWithDetailsAsync(templateId, ct)
@@ -60,7 +59,7 @@ public sealed class SaveTemplateMappingsUseCase(
 
         return template.FieldMappings
             .OrderBy(m => m.SortOrder)
-            .Select(m => new FieldMappingDto(
+            .Select(m => new FieldMappingResultDto(
                 m.Id,
                 m.TemplateId.Value,
                 m.Placeholder,

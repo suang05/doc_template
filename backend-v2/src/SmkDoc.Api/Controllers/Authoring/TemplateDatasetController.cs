@@ -18,22 +18,22 @@ namespace SmkDoc.Api.Controllers.Authoring;
 [Route("api/v1/templates/{id:guid}/datasets")]
 [Authorize(Policy = AuthorizationPolicies.CanManageTemplates)]
 public sealed class TemplateDatasetController(
-    IUseCase<GetTemplateDatasetsQuery, List<TemplateDatasetDto>> getDatasetsUseCase,
-    IUseCase<SaveTemplateDatasetsCommand, List<TemplateDatasetDto>> saveDatasetsUseCase) : ControllerBase
+    IUseCase<GetTemplateDatasetsQuery, List<TemplateDatasetResultDto>> getDatasetsUseCase,
+    IUseCase<SaveTemplateDatasetsCommand, List<TemplateDatasetResultDto>> saveDatasetsUseCase) : ControllerBase
 {
     /// <summary>Get datasets linked to this template.</summary>
     [HttpGet]
-    [ProducesResponseType(typeof(ApiResponse<IEnumerable<TemplateDatasetDto>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<IEnumerable<TemplateDatasetResultDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetDatasets([FromRoute] Guid id, CancellationToken ct)
     {
         var query = new GetTemplateDatasetsQuery(id);
         var result = await getDatasetsUseCase.ExecuteAsync(query, ct);
-        return Ok(new ApiResponse<IEnumerable<TemplateDatasetDto>>(result));
+        return Ok(new ApiResponse<IEnumerable<TemplateDatasetResultDto>>(result));
     }
 
     /// <summary>Save (replace-all) dataset links for a template.</summary>
     [HttpPut]
-    [ProducesResponseType(typeof(ApiResponse<IEnumerable<TemplateDatasetDto>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<IEnumerable<TemplateDatasetResultDto>>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status412PreconditionFailed)]
@@ -45,7 +45,7 @@ public sealed class TemplateDatasetController(
         var items = (request.Datasets ?? []).Select(i => new SaveTemplateDatasetItemDto(i.DatasetId, i.Alias, i.SortOrder)).ToList();
         var command = new SaveTemplateDatasetsCommand(id, items);
         var result = await saveDatasetsUseCase.ExecuteAsync(command, ct);
-        return Ok(new ApiResponse<IEnumerable<TemplateDatasetDto>>(result));
+        return Ok(new ApiResponse<IEnumerable<TemplateDatasetResultDto>>(result));
     }
 }
 

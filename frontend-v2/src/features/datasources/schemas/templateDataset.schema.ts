@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const TemplateDatasetDtoSchema = z.object({
+export const TemplateDatasetResultDtoSchema = z.object({
   id: z.string().uuid(),
   templateId: z.string().uuid(),
   datasetId: z.string().uuid(),
@@ -8,7 +8,11 @@ export const TemplateDatasetDtoSchema = z.object({
   alias: z.string().max(50),
   sortOrder: z.number().int(),
 });
-export type TemplateDatasetDto = z.infer<typeof TemplateDatasetDtoSchema>;
+export type TemplateDatasetResultDto = z.infer<typeof TemplateDatasetResultDtoSchema>;
+
+// Backward-compatible alias
+export const TemplateDatasetDtoSchema = TemplateDatasetResultDtoSchema;
+export type TemplateDatasetDto = TemplateDatasetResultDto;
 
 export const SaveTemplateDatasetItemSchema = z.object({
   datasetId: z.string().uuid(),

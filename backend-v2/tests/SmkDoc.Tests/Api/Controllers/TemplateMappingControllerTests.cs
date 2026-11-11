@@ -17,8 +17,8 @@ namespace SmkDoc.Tests.Api.Controllers;
 
 public sealed class TemplateMappingControllerTests
 {
-    private readonly IUseCase<GetTemplateMappingsQuery, List<FieldMappingDto>> _getMappingsUseCase = Substitute.For<IUseCase<GetTemplateMappingsQuery, List<FieldMappingDto>>>();
-    private readonly IUseCase<SaveTemplateMappingsCommand, List<FieldMappingDto>> _saveMappingsUseCase = Substitute.For<IUseCase<SaveTemplateMappingsCommand, List<FieldMappingDto>>>();
+    private readonly IUseCase<GetTemplateMappingsQuery, List<FieldMappingResultDto>> _getMappingsUseCase = Substitute.For<IUseCase<GetTemplateMappingsQuery, List<FieldMappingResultDto>>>();
+    private readonly IUseCase<SaveTemplateMappingsCommand, List<FieldMappingResultDto>> _saveMappingsUseCase = Substitute.For<IUseCase<SaveTemplateMappingsCommand, List<FieldMappingResultDto>>>();
     private readonly IUseCase<PreviewDocumentQuery, Stream> _previewDocumentUseCase = Substitute.For<IUseCase<PreviewDocumentQuery, Stream>>();
 
     [Fact]
@@ -53,7 +53,7 @@ public sealed class TemplateMappingControllerTests
         // Arrange
         var sut = CreateSut();
         var templateId = Guid.NewGuid();
-        var mappings = new List<FieldMappingDto>
+        var mappings = new List<FieldMappingResultDto>
         {
             new(Guid.NewGuid(), templateId, "company", "req.company", "Company", false, null, null, 1, "direct", null, null, null)
         };
@@ -65,7 +65,7 @@ public sealed class TemplateMappingControllerTests
 
         // Assert
         var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
-        var body = okResult.Value.Should().BeOfType<ApiResponse<IEnumerable<FieldMappingDto>>>().Subject;
+        var body = okResult.Value.Should().BeOfType<ApiResponse<IEnumerable<FieldMappingResultDto>>>().Subject;
         body.Data.Should().HaveCount(1);
     }
 
@@ -75,7 +75,7 @@ public sealed class TemplateMappingControllerTests
         // Arrange
         var sut = CreateSut();
         var templateId = Guid.NewGuid();
-        var mappings = new List<FieldMappingDto>
+        var mappings = new List<FieldMappingResultDto>
         {
             new(Guid.NewGuid(), templateId, "company", "req.company", "Company", false, null, null, 1, "direct", null, null, null)
         };
@@ -90,7 +90,7 @@ public sealed class TemplateMappingControllerTests
         // Assert
         await _saveMappingsUseCase.Received(1).ExecuteAsync(Arg.Is<SaveTemplateMappingsCommand>(c => c.TemplateId == templateId), Arg.Any<CancellationToken>());
         var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
-        var body = okResult.Value.Should().BeOfType<ApiResponse<IEnumerable<FieldMappingDto>>>().Subject;
+        var body = okResult.Value.Should().BeOfType<ApiResponse<IEnumerable<FieldMappingResultDto>>>().Subject;
         body.Data.Should().HaveCount(1);
     }
 

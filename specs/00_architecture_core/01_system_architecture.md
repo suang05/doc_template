@@ -136,7 +136,8 @@ backend-v2/src/SmkDoc.Application/Modules/
     Queries/  # GetTemplateById, ListTemplates, ListTemplateVersions, DownloadTemplate, ScanTemplatePlaceholders, GetTemplateHtmlSource, GetTemplateStudioBundle, GetTemplateSchema, ValidateTemplateHtml, ValidateTemplatePayload
     DTOs/     # TemplateResultDto, TemplateVersionDto, ParseDraftResultDto, CommitDraftResultDto, ScanFieldsResultDto, TemplateStudioDto, TemplateSchemaDto
   DataBinding/
-    Services/ # DataBindingEngine (IDataBindingEngine SSoT), FieldMappingApplicatorService
+    Services/ # DataBindingEngine (IDataBindingEngine SSoT), DatasetBatchExecutor (IDatasetBatchExecutor)
+    Helpers/  # JsonPathEvaluator, DatasetCacheKeyBuilder
     DTOs/     # BoundDocumentData, ResolvedDatasetContext
   Rendering/
     Commands/ # GenerateDocument, EnqueueGeneration

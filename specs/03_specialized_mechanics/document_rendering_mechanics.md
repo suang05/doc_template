@@ -348,13 +348,16 @@ public sealed class Preview{Resource}UseCase(
 ### 3.3 Template Version Manifest SSoT & Data Binding Engine Archetype (`DataBindingEngine`)
 >> MANDATORY CANONICAL BLUEPRINT [RULE-MECH-003]:
 * Prioritizes the immutable `{Aggregate}Version.MappingsSnapshot` manifest over relational `field_mappings` tables.
-* Resolves external SQL dataset aliases in parallel via `DatasetAliasMapBuilder`.
-* Applies field mappings and math expressions, then executes fail-fast Draft-07 JSON Schema validation.
+* Resolves external SQL dataset configurations via `IDatasetResolver` (4 dependencies: repo, data protection, validator).
+* Executes dataset queries in parallel with bounded semaphore concurrency (Max 4) and SHA-256 fingerprint caching via `IDatasetBatchExecutor`.
+* Applies field mappings, JSON path resolution, and math expressions directly without intermediate wrapper indirection.
+* Enforces fail-fast Draft-07 JSON Schema validation.
 
 ```csharp
 public sealed class DataBindingEngine(
-    IDatasetAliasMapBuilder aliasBuilder,
-    IFieldMappingApplicatorService fieldMappingApplicator,
+    IDatasetResolver datasetResolver,
+    IDatasetBatchExecutor datasetExecutor,
+    IMathExpressionResolver mathResolver,
     IJsonSchemaValidationService schemaValidation,
     TimeProvider timeProvider) : IDataBindingEngine
 {
@@ -370,11 +373,26 @@ public sealed class DataBindingEngine(
             ? FieldMappingSnapshotSerializer.Deserialize(aggregate.Id, version.MappingsSnapshot, timeProvider.GetUtcNow())
             : aggregate.FieldMappings.ToList();
 
-        // Step 2: Resolve External SQL Dataset Aliases in Parallel <Why: aggregate external database tables>
-        var aliasMap = await aliasBuilder.BuildAsync(aggregate.TemplateDatasets, ct);
+        // Step 2: Resolve External SQL Dataset Configurations <Why: decrypt connections and validate queries>
+        var aliasMap = aggregate.TemplateDatasets.Count > 0
+            ? await datasetResolver.ResolveAssignmentsAsync(aggregate.TemplateDatasets, ct)
+            : new Dictionary<string, ResolvedDatasetContext>(StringComparer.OrdinalIgnoreCase);
 
-        // Step 3: Apply Transformations & Field Mappings <Why: evaluate math expressions and Thai formatting>
-        var dataJson = await fieldMappingApplicator.ApplyAsync(rawPayload, mappings, aliasMap, ct);
+        // Step 3: Direct In-Memory Mapping, Batch Query Execution & Math Evaluation
+        var boundDict = InitializePayloadDict(rawPayload);
+        BindJsonMappings(rawPayload, mappings, boundDict);
+
+        if (aliasMap.Count > 0)
+        {
+            var aliasResults = await datasetExecutor.ExecuteBatchAsync(aliasMap, boundDict, aggregate.ProjectId.Value, ct);
+            BindSqlMappings(aliasResults, mappings, boundDict);
+        }
+
+        EvaluateMathExpressions(mappings, boundDict);
+
+        string dataJson = boundDict.Count > 0
+            ? JsonSerializer.Serialize(boundDict, JsonOptions)
+            : (rawPayload.ValueKind != JsonValueKind.Undefined ? rawPayload.GetRawText() : "{}");
 
         // Step 4: Fail-Fast JSON Schema Gate <Why: prevent rendering invalid data against Draft-07 schema>
         var validation = !skipValidation && !string.IsNullOrWhiteSpace(version.DataSchema)

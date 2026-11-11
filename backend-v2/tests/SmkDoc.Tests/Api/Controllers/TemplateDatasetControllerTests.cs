@@ -15,8 +15,8 @@ namespace SmkDoc.Tests.Api.Controllers;
 
 public sealed class TemplateDatasetControllerTests
 {
-    private readonly IUseCase<GetTemplateDatasetsQuery, List<TemplateDatasetDto>> _getDatasetsUseCase = Substitute.For<IUseCase<GetTemplateDatasetsQuery, List<TemplateDatasetDto>>>();
-    private readonly IUseCase<SaveTemplateDatasetsCommand, List<TemplateDatasetDto>> _saveDatasetsUseCase = Substitute.For<IUseCase<SaveTemplateDatasetsCommand, List<TemplateDatasetDto>>>();
+    private readonly IUseCase<GetTemplateDatasetsQuery, List<TemplateDatasetResultDto>> _getDatasetsUseCase = Substitute.For<IUseCase<GetTemplateDatasetsQuery, List<TemplateDatasetResultDto>>>();
+    private readonly IUseCase<SaveTemplateDatasetsCommand, List<TemplateDatasetResultDto>> _saveDatasetsUseCase = Substitute.For<IUseCase<SaveTemplateDatasetsCommand, List<TemplateDatasetResultDto>>>();
 
     [Fact]
     public void Controller_ShouldBeDecoratedWithTemplateManagementPolicy()
@@ -47,7 +47,7 @@ public sealed class TemplateDatasetControllerTests
         // Arrange
         var sut = CreateSut();
         var templateId = Guid.NewGuid();
-        var datasets = new List<TemplateDatasetDto>
+        var datasets = new List<TemplateDatasetResultDto>
         {
             new(Guid.NewGuid(), templateId, Guid.NewGuid(), "CustData", "Customer Dataset", 1)
         };
@@ -60,7 +60,7 @@ public sealed class TemplateDatasetControllerTests
 
         // Assert
         var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
-        var body = okResult.Value.Should().BeOfType<ApiResponse<IEnumerable<TemplateDatasetDto>>>().Subject;
+        var body = okResult.Value.Should().BeOfType<ApiResponse<IEnumerable<TemplateDatasetResultDto>>>().Subject;
         body.Data.Should().HaveCount(1);
     }
 
@@ -71,7 +71,7 @@ public sealed class TemplateDatasetControllerTests
         var sut = CreateSut();
         var templateId = Guid.NewGuid();
         var datasetId = Guid.NewGuid();
-        var datasets = new List<TemplateDatasetDto>
+        var datasets = new List<TemplateDatasetResultDto>
         {
             new(Guid.NewGuid(), templateId, datasetId, "CustData", "Customer Dataset", 1)
         };
@@ -89,7 +89,7 @@ public sealed class TemplateDatasetControllerTests
         // Assert
         await _saveDatasetsUseCase.Received(1).ExecuteAsync(Arg.Is<SaveTemplateDatasetsCommand>(c => c.TemplateId == templateId), Arg.Any<CancellationToken>());
         var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
-        var body = okResult.Value.Should().BeOfType<ApiResponse<IEnumerable<TemplateDatasetDto>>>().Subject;
+        var body = okResult.Value.Should().BeOfType<ApiResponse<IEnumerable<TemplateDatasetResultDto>>>().Subject;
         body.Data.Should().HaveCount(1);
     }
 }

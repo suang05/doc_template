@@ -67,10 +67,10 @@ public static class AuthoringModuleExtensions
         services.AddUseCase<ValidateTemplatePayloadQuery, ValidateTemplatePayloadResult, ValidateTemplatePayloadUseCase>();
 
         // Field Mappings & Datasets (Action-Centric Vertical Slice)
-        services.AddUseCase<GetTemplateMappingsQuery, List<FieldMappingDto>, GetTemplateMappingsUseCase>();
-        services.AddUseCase<SaveTemplateMappingsCommand, List<FieldMappingDto>, SaveTemplateMappingsUseCase>();
-        services.AddUseCase<GetTemplateDatasetsQuery, List<TemplateDatasetDto>, GetTemplateDatasetsUseCase>();
-        services.AddUseCase<SaveTemplateDatasetsCommand, List<TemplateDatasetDto>, SaveTemplateDatasetsUseCase>();
+        services.AddUseCase<GetTemplateMappingsQuery, List<FieldMappingResultDto>, GetTemplateMappingsUseCase>();
+        services.AddUseCase<SaveTemplateMappingsCommand, List<FieldMappingResultDto>, SaveTemplateMappingsUseCase>();
+        services.AddUseCase<GetTemplateDatasetsQuery, List<TemplateDatasetResultDto>, GetTemplateDatasetsUseCase>();
+        services.AddUseCase<SaveTemplateDatasetsCommand, List<TemplateDatasetResultDto>, SaveTemplateDatasetsUseCase>();
 
         // Fonts (Action-Centric Vertical Slice)
         services.AddUseCase<ListFontsQuery, List<string>, ListFontsUseCase>();

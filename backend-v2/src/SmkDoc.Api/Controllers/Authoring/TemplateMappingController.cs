@@ -19,23 +19,23 @@ namespace SmkDoc.Api.Controllers.Authoring;
 [Route("api/v1/templates/{id:guid}/mappings")]
 [Authorize(Policy = AuthorizationPolicies.CanManageTemplates)]
 public sealed class TemplateMappingController(
-    IUseCase<GetTemplateMappingsQuery, List<FieldMappingDto>> getMappingsUseCase,
-    IUseCase<SaveTemplateMappingsCommand, List<FieldMappingDto>> saveMappingsUseCase,
+    IUseCase<GetTemplateMappingsQuery, List<FieldMappingResultDto>> getMappingsUseCase,
+    IUseCase<SaveTemplateMappingsCommand, List<FieldMappingResultDto>> saveMappingsUseCase,
     IUseCase<PreviewDocumentQuery, Stream> previewDocumentUseCase) : ControllerBase
 {
     /// <summary>Get all field mappings for a template.</summary>
     [HttpGet]
-    [ProducesResponseType(typeof(ApiResponse<IEnumerable<FieldMappingDto>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<IEnumerable<FieldMappingResultDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetMappings([FromRoute] Guid id, CancellationToken ct)
     {
         var query = new GetTemplateMappingsQuery(id);
         var result = await getMappingsUseCase.ExecuteAsync(query, ct);
-        return Ok(new ApiResponse<IEnumerable<FieldMappingDto>>(result));
+        return Ok(new ApiResponse<IEnumerable<FieldMappingResultDto>>(result));
     }
 
     /// <summary>Save (replace-all) field mappings for a template.</summary>
     [HttpPut]
-    [ProducesResponseType(typeof(ApiResponse<IEnumerable<FieldMappingDto>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<IEnumerable<FieldMappingResultDto>>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status412PreconditionFailed)]
@@ -49,7 +49,7 @@ public sealed class TemplateMappingController(
             m.SortOrder, m.DataSourceType, m.DatasetAlias, m.ResultPath, m.MathExpression)).ToList();
         var command = new SaveTemplateMappingsCommand(id, mappings);
         var result = await saveMappingsUseCase.ExecuteAsync(command, ct);
-        return Ok(new ApiResponse<IEnumerable<FieldMappingDto>>(result));
+        return Ok(new ApiResponse<IEnumerable<FieldMappingResultDto>>(result));
     }
 
     /// <summary>

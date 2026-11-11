@@ -1,9 +1,9 @@
 namespace SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 
 /// <summary>
-/// DTO representing an individual template placeholder-to-datasource mapping rule.
+/// Result DTO representing an individual template placeholder-to-datasource mapping rule.
 /// </summary>
-public sealed record FieldMappingDto(
+public sealed record FieldMappingResultDto(
     Guid Id,
     Guid TemplateId,
     string Placeholder,
@@ -37,9 +37,9 @@ public sealed record SaveFieldMappingItemDto(
 );
 
 /// <summary>
-/// DTO representing a dataset attached to a template with an alias.
+/// Result DTO representing a dataset attached to a template with an alias.
 /// </summary>
-public sealed record TemplateDatasetDto(
+public sealed record TemplateDatasetResultDto(
     Guid Id,
     Guid TemplateId,
     Guid DatasetId,

@@ -4956,7 +4956,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfTemplateDatasetDto"
+                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfTemplateDatasetResultDto"
                 }
               }
             }
@@ -5062,7 +5062,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfTemplateDatasetDto"
+                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfTemplateDatasetResultDto"
                 }
               }
             }
@@ -6028,7 +6028,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfFieldMappingDto"
+                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfFieldMappingResultDto"
                 }
               }
             }
@@ -6134,7 +6134,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfFieldMappingDto"
+                  "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfFieldMappingResultDto"
                 }
               }
             }
@@ -7287,7 +7287,7 @@
         },
         "description": "Standard API Response wrapper for successful requests that return data.\r\nEnforces the \"Envelope Pattern\" for consistent JSON schemas."
       },
-      "ApiResponseOfIEnumerableOfFieldMappingDto": {
+      "ApiResponseOfIEnumerableOfFieldMappingResultDto": {
         "required": [
           "data"
         ],
@@ -7299,7 +7299,7 @@
               "array"
             ],
             "items": {
-              "$ref": "#/components/schemas/FieldMappingDto"
+              "$ref": "#/components/schemas/FieldMappingResultDto"
             }
           }
         },
@@ -7323,7 +7323,7 @@
         },
         "description": "Standard API Response wrapper for successful requests that return data.\r\nEnforces the \"Envelope Pattern\" for consistent JSON schemas."
       },
-      "ApiResponseOfIEnumerableOfTemplateDatasetDto": {
+      "ApiResponseOfIEnumerableOfTemplateDatasetResultDto": {
         "required": [
           "data"
         ],
@@ -7335,7 +7335,7 @@
               "array"
             ],
             "items": {
-              "$ref": "#/components/schemas/TemplateDatasetDto"
+              "$ref": "#/components/schemas/TemplateDatasetResultDto"
             }
           }
         },
@@ -8340,7 +8340,7 @@
         },
         "description": "Result returned from dry-running a SQL dataset query, containing discovered column schema and sample rows."
       },
-      "FieldMappingDto": {
+      "FieldMappingResultDto": {
         "required": [
           "id",
           "templateId",
@@ -8416,7 +8416,7 @@
             ]
           }
         },
-        "description": "DTO representing an individual template placeholder-to-datasource mapping rule."
+        "description": "Result DTO representing an individual template placeholder-to-datasource mapping rule."
       },
       "FontCatalogDto": {
         "required": [
@@ -9410,7 +9410,7 @@
           }
         }
       },
-      "TemplateDatasetDto": {
+      "TemplateDatasetResultDto": {
         "required": [
           "id",
           "templateId",
@@ -9444,7 +9444,7 @@
             "format": "int32"
           }
         },
-        "description": "DTO representing a dataset attached to a template with an alias."
+        "description": "Result DTO representing a dataset attached to a template with an alias."
       },
       "TemplateFormat": {
         "type": "object",

@@ -1,4 +1,3 @@
-using SmkDoc.Application.Common.Extensions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 using SmkDoc.Domain.Interfaces;
@@ -7,16 +6,16 @@ using SmkDoc.Domain.ValueObjects.Ids;
 namespace SmkDoc.Application.Modules.Authoring.FieldMappings.Queries.GetTemplateMappings;
 
 public sealed class GetTemplateMappingsUseCase(
-    ITemplateRepository templateRepo) : IUseCase<GetTemplateMappingsQuery, List<FieldMappingDto>>
+    ITemplateRepository templateRepo) : IUseCase<GetTemplateMappingsQuery, List<FieldMappingResultDto>>
 {
-    public async Task<List<FieldMappingDto>> ExecuteAsync(GetTemplateMappingsQuery query, CancellationToken ct = default)
+    public async Task<List<FieldMappingResultDto>> ExecuteAsync(GetTemplateMappingsQuery query, CancellationToken ct = default)
     {
         var template = await templateRepo.GetByIdWithDetailsAsync(new TemplateId(query.TemplateId), ct);
         if (template == null) return [];
 
         return template.FieldMappings
             .OrderBy(m => m.SortOrder)
-            .Select(m => new FieldMappingDto(
+            .Select(m => new FieldMappingResultDto(
                 m.Id,
                 m.TemplateId.Value,
                 m.Placeholder,
