@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using SmkDoc.Application.Common.Interfaces;
+using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
 
@@ -9,7 +10,7 @@ namespace SmkDoc.Infrastructure.Persistence.Interceptors;
 /// <summary>
 /// EF Core SaveChanges interceptor enforcing tenant isolation invariants.
 /// Auto-assigns ProjectId on newly added IMustHaveProject entities when empty,
-/// and rejects cross-tenant writes with an InvalidOperationException.
+/// and rejects cross-tenant writes with a CrossTenantAccessDeniedException.
 /// </summary>
 public sealed class TenantSecuritySaveChangesInterceptor(ICurrentProjectContext projectContext) : SaveChangesInterceptor
 {
@@ -51,8 +52,7 @@ public sealed class TenantSecuritySaveChangesInterceptor(ICurrentProjectContext 
                 }
                 else if (entry.Entity.ProjectId != currentTenantId)
                 {
-                    throw new InvalidOperationException(
-                        $"Cross-tenant write operation rejected: Entity belongs to project '{entry.Entity.ProjectId}', but active tenant context is '{currentTenantId}'.");
+                    throw new CrossTenantAccessDeniedException(entry.Entity.ProjectId);
                 }
             }
             else if (entry.State == EntityState.Modified)
@@ -61,8 +61,7 @@ public sealed class TenantSecuritySaveChangesInterceptor(ICurrentProjectContext 
 
                 if (originalProjectId != currentTenantId)
                 {
-                    throw new InvalidOperationException(
-                        $"Cross-tenant update operation rejected: Entity belongs to project '{originalProjectId}', but active tenant context is '{currentTenantId}'.");
+                    throw new CrossTenantAccessDeniedException(originalProjectId);
                 }
 
                 if (entry.Property(nameof(IMustHaveProject.ProjectId)).IsModified && entry.Entity.ProjectId != originalProjectId)
@@ -77,8 +76,7 @@ public sealed class TenantSecuritySaveChangesInterceptor(ICurrentProjectContext 
 
                 if (originalProjectId != currentTenantId)
                 {
-                    throw new InvalidOperationException(
-                        $"Cross-tenant delete operation rejected: Entity belongs to project '{originalProjectId}', but active tenant context is '{currentTenantId}'.");
+                    throw new CrossTenantAccessDeniedException(originalProjectId);
                 }
             }
         }

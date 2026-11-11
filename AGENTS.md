@@ -112,12 +112,14 @@ HighFrequencyRegressionTraps:
     => Action: Enforce strict YAGNI. Implement strictly the minimal sufficient code required by active requirements. Prohibit speculative extensibility hooks and premature generic abstractions.
   Trigger: Leaving unreferenced methods, unused constructor parameters/fields, or commented-out code after refactoring (Residue/Debris)
     => Action: Execute immediate Post-Mutation Hygiene. Atomically delete all dead methods, unreferenced variables, unused dependencies, and commented-out code in the exact same pass.
-  Trigger: Writing manual 4-line tenant check boilerplate (`if (!projectContext.IsResolved) throw ...`) in UseCases
-    => Action: Strictly prohibit manual `if (!projectContext.IsResolved)` boilerplate in UseCases. Invoke Tier 2 Application Guard 1-liner: `var projectId = projectContext.EnsureResolved();`.
+  Trigger: Writing manual 4-line tenant check boilerplate (`if (!projectContext.IsResolved) throw ...`) or custom magic strings in UseCases
+    => Action: Strictly prohibit manual `if (!projectContext.IsResolved)` boilerplate and custom magic strings. Extract ambient tenancy via Self-Guarding Smart Context fail-fast property: `var projectId = projectContext.ProjectId;` (throws `TenantContextRequiredException` automatically if unresolved).
   Trigger: Throwing 401 Unauthorized in Data Plane UseCases
-    => Action: Strictly prohibit throwing `UnauthorizedException` in Data Plane UseCases. Perimeter authentication belongs to Tier 1; Data Plane UseCases operate in a Trusted Ingress Zone and throw `ForbiddenException` (403), `NotFoundException` (404), `ConflictException` (409), `DraftExpiredException` (410), `PreconditionFailedException` (412), or `SchemaValidationException` (422).
+    => Action: Strictly prohibit throwing `UnauthorizedException` in Data Plane UseCases. Perimeter authentication belongs to Tier 1; Data Plane UseCases operate in a Trusted Ingress Zone and throw `TenantContextRequiredException` (403), `CrossTenantAccessDeniedException` (403), `ForbiddenException` (403), `NotFoundException` (404), `ConflictException` (409), `DraftExpiredException` (410), `PreconditionFailedException` (412), or `SchemaValidationException` (422).
   Trigger: Injecting ICurrentProjectContext into UseCases that do not consume ProjectId or CallerIdentity in domain logic
-    => Action: Strictly prohibit phantom context injection. Tier 1 Perimeter Guard already guarantees tenant resolution at HTTP ingress; EF Core Global Query Filter already isolates data by tenant. Inject ICurrentProjectContext ONLY in UseCases that actively pass ProjectId to aggregate factories, storage paths, cache partitions, or composite tenant queries. Prohibit injecting context solely to call EnsureResolved() (See [TRAP-TENANT-024]).
+    => Action: Strictly prohibit phantom context injection. Tier 1 Perimeter Guard already guarantees tenant resolution at HTTP ingress; EF Core Global Query Filter already isolates data by tenant. Inject ICurrentProjectContext ONLY in UseCases that actively pass ProjectId to aggregate factories, storage paths, cache partitions, or composite tenant queries (Archetype A). Prohibit phantom context injection in Archetype B (See [TRAP-TENANT-024]).
+  Trigger: Deferring projectContext.ProjectId evaluation after database queries or external I/O in Archetype A UseCases
+    => Action: Strictly enforce immediate Fail-Fast at PEMR Step 1 line 1 (`var projectId = projectContext.ProjectId;`). Prohibit running repository queries, cache lookups, or external network I/O before tenant context is verified (See [TRAP-TENANT-025]).
 
 StrategicAdvisoryGates:
   [PROACTIVE_PROPOSAL_REQUIRED: Proactively analyze high-ROI alternatives, present trade-offs, and consult User before proceeding]
@@ -150,7 +152,7 @@ Axiom2_UniversalLinearCadences:
       Step2: UseCase Invocation (`var result = await useCase.ExecuteAsync(command, ct);`)
       Step3: Envelope Return (`return CreatedAtAction(nameof(GetById), new { id = result.Id }, new ApiResponse<TDto>(result));`)
     2_UseCaseCadence: Strictly 4-step PEMR execution pipeline:
-      Step1_ParseAndGuard: When ProjectId is consumed, resolve ambient tenancy via `var projectId = projectContext.EnsureResolved();` (Tier 2 Application Guard). If ProjectId is not consumed, strictly prohibit injecting ICurrentProjectContext; validate request input invariants only.
+      Step1_ParseAndGuard: When ProjectId is consumed (Archetype A), extract ambient tenancy at line 1 via `var projectId = projectContext.ProjectId;` (Self-Guarding Smart Context fail-fast property, throwing `TenantContextRequiredException` automatically if unresolved). If ProjectId is not consumed (Archetype B), strictly prohibit injecting ICurrentProjectContext; validate request input invariants only.
       Step2_Ensure: Precondition business queries & slug collision checks (`if (await repo.SlugExistsAsync(...)) throw ConflictException.DuplicateSlug(...);`)
       Step3_Mutate: Domain state transitions via expressive verbs with injected time (`var entity = Entity.Create(projectId, ..., now);`)
       Step4_Return: Atomic persistence commit & immutable ResultDto return (`await unitOfWork.CommitAsync(ct); return new EntityResultDto(...);`)

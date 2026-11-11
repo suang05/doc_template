@@ -11,8 +11,15 @@ namespace SmkDoc.Infrastructure.Contexts;
 /// </summary>
 public sealed class CurrentProjectContext : ICurrentProjectContext, ICurrentProjectContextSetter
 {
-    public ProjectId ProjectId { get; private set; } = ProjectId.Empty;
-    public bool IsResolved => !ProjectId.IsEmpty;
+    private ProjectId _projectId = ProjectId.Empty;
+
+    public ProjectId ProjectId => IsResolved
+        ? _projectId
+        : throw new TenantContextRequiredException();
+
+    public ProjectId? OptionalProjectId => IsResolved ? _projectId : null;
+
+    public bool IsResolved => !_projectId.IsEmpty;
     public string? CallerIdentity { get; private set; }
     public UserId? UserId { get; private set; }
     public SystemRole? SystemRole { get; private set; }
@@ -30,7 +37,7 @@ public sealed class CurrentProjectContext : ICurrentProjectContext, ICurrentProj
             throw new DomainValidationException("ProjectId cannot be empty.");
         }
 
-        ProjectId = projectId;
+        _projectId = projectId;
         if (!string.IsNullOrWhiteSpace(callerIdentity))
         {
             CallerIdentity = callerIdentity;

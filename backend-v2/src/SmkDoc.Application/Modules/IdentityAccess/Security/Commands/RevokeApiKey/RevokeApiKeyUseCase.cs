@@ -31,8 +31,7 @@ public sealed class RevokeApiKeyUseCase(
         }
         else
         {
-            var pId = projectContext.EnsureResolved("Active project context is required to revoke an API key.");
-            key = await apiKeyRepo.GetByIdAsync(keyId, pId, ct);
+            key = await apiKeyRepo.GetByIdAsync(keyId, projectContext.ProjectId, ct);
         }
 
         return key ?? throw new NotFoundException($"API Key '{keyId.Value}' not found.");

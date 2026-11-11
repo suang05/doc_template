@@ -23,9 +23,7 @@ public sealed class CommitTemplateDraftUseCase(
 {
     public async Task<CommitDraftResultDto> ExecuteAsync(CommitTemplateDraftCommand command, CancellationToken ct = default)
     {
-        var projectId = projectContext.EnsureResolved("Committing a template draft requires an active project context.");
-
-        var draft = await draftCache.GetAsync(projectId, command.DraftId, ct)
+        var draft = await draftCache.GetAsync(projectContext.ProjectId, command.DraftId, ct)
             ?? throw new DraftExpiredException(command.DraftId);
 
         if (await templateRepo.SlugExistsAsync(command.Slug, ct))
@@ -35,7 +33,7 @@ public sealed class CommitTemplateDraftUseCase(
 
         var now = timeProvider.GetUtcNow();
         var template = Template.Create(
-            projectId,
+            projectContext.ProjectId,
             TemplateName.Create(command.Name),
             TemplateSlug.Create(command.Slug),
             command.Category,

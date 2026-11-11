@@ -27,14 +27,11 @@ public sealed class DocumentVersioningService(
 
         if (document is null)
         {
-            var projectId = projectContext.EnsureResolved(
-                "Document versioning requires a valid project context.");
-
             document = Document.Create(
                 docRef,
                 new TemplateId(templateId),
                 now,
-                projectId);
+                projectContext.ProjectId);
             await documentRepo.AddAsync(document, ct);
         }
 

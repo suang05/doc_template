@@ -20,7 +20,7 @@ public class AppDbContext : DbContext
         _projectContext = projectContext;
     }
 
-    public ProjectId CurrentTenantId => _projectContext?.ProjectId ?? ProjectId.Empty;
+    public ProjectId CurrentTenantId => _projectContext?.OptionalProjectId ?? ProjectId.Empty;
     public bool IsTenantResolved => _projectContext?.IsResolved ?? false;
 
     public DbSet<Company> Companies => Set<Company>();

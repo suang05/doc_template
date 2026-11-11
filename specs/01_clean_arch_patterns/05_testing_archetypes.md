@@ -121,7 +121,7 @@ SmkDoc.IntegrationTests/
 * Strictly 1 behavior per test method with 3-phase AAA naming (`Method_WhenCondition_ShouldExpectedResult`).
 * Domain interactions asserted using `.Received(1)` and `.DidNotReceive()`.
 * **The 3-Tier Guard Model & Zero Phantom Mocking Protocol**:
-  - **Archetype A (`Create{Aggregate}UseCaseTests`)**: Mocks `ICurrentProjectContext` strictly because SUT consumes `ProjectId` via Tier 2 Guard (`projectContext.EnsureResolved()`). Asserts fail-fast unresolved tenant rejection.
+  - **Archetype A (`Create{Aggregate}UseCaseTests`)**: Mocks `ICurrentProjectContext` strictly because SUT consumes `ProjectId` via Smart Context fail-fast property (`projectContext.ProjectId`). Asserts fail-fast `TenantContextRequiredException`.
   - **Archetype B (`Update{Aggregate}UseCaseTests`, `List{Aggregate}sUseCaseTests`, `GetById`, `Delete`)**: Strictly PROHIBITS mocking `ICurrentProjectContext` or testing unresolved tenancy. SUT constructor omits context; ambient tenancy is already guaranteed by Tier 1 Perimeter Guard and EF Core Global Query Filter.
 
 #### 3.1.1 Archetype A: Entity-Creating / Key-Consuming UseCase Test (`Create{Aggregate}UseCaseTests`)
@@ -137,10 +137,11 @@ public sealed class Create{Aggregate}UseCaseTests
         new(_{aggregate}Repo, _projectContext, _unitOfWork, _timeProvider);
 
     [Fact]
-    public async Task ExecuteAsync_WhenProjectContextIsUnresolved_ShouldThrowForbiddenWithoutTouchingPersistence()
+    public async Task ExecuteAsync_WhenProjectContextIsUnresolved_ShouldThrowTenantContextRequiredExceptionWithoutTouchingPersistence()
     {
-        // Step 1: Arrange <Why: explicit DAMP precondition setup for Tier 2 Application Guard>
+        // Step 1: Arrange <Why: explicit DAMP precondition setup for Smart Context fail-fast property>
         _projectContext.IsResolved.Returns(false);
+        _projectContext.ProjectId.Returns(_ => throw new TenantContextRequiredException());
         var command = new Create{Aggregate}Command("Sample Name", "sample-slug", "General");
         var sut = CreateSut();
 
@@ -148,7 +149,7 @@ public sealed class Create{Aggregate}UseCaseTests
         var act = () => sut.ExecuteAsync(command, CancellationToken.None);
 
         // Step 3: Assert <Why: verify fail-fast security guard and zero side-effects>
-        await act.Should().ThrowAsync<ForbiddenException>();
+        await act.Should().ThrowAsync<TenantContextRequiredException>();
         await _{aggregate}Repo.DidNotReceive().AddAsync(Arg.Any<{Aggregate}>(), Arg.Any<CancellationToken>());
         await _unitOfWork.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
     }

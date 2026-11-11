@@ -281,7 +281,7 @@ public sealed class Preview{Resource}UseCase(
         // Path 2: RAM-cached template draft preview (authoring studio)
         else if (!string.IsNullOrWhiteSpace(query.DraftId))
         {
-            var projectId = projectContext.EnsureResolved("Previewing a draft requires an active project context.");
+            var projectId = projectContext.ProjectId;
             if (draftCache is null)
                 throw new BusinessRuleViolationException("Draft cache is not available for preview.", "DRAFT_CACHE_UNAVAILABLE");
 
@@ -427,8 +427,8 @@ public sealed class Generate{Resource}UseCase(
     public async Task<Generate{Resource}ResultDto> ExecuteAsync(
         Generate{Resource}Command command, CancellationToken ct = default)
     {
-        // Step 1: Parse & Guard (Tier 2 Application Guard: 1-liner typed tenant resolution)
-        var projectId = projectContext.EnsureResolved("Document generation requires an active project context.");
+        // Step 1: Parse & Guard (Fail-fast Smart Context property: throws TenantContextRequiredException if unresolved)
+        var projectId = projectContext.ProjectId;
 
         var outputFormat = ParseOutputFormat(command.OutputFormat);
 

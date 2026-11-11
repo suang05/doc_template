@@ -16,20 +16,12 @@ public sealed class DownloadGenerationLogDocumentUseCase(
     public async Task<DownloadGenerationLogDocumentResult> ExecuteAsync(
         DownloadGenerationLogDocumentQuery query, CancellationToken ct = default)
     {
-        // Step 1: Parse & Guard
-        ProjectId? projectId = null;
-        if (projectContext.SystemRole != SystemRole.SuperAdmin)
-        {
-            projectId = projectContext.EnsureResolved("Active project context or SuperAdmin role is required to download documents.");
-        }
-
-        // Step 2: Ensure Preconditions
         var log = await logRepo.GetByIdAsync(query.LogId, ct)
             ?? throw new NotFoundException($"Generation log '{query.LogId}' not found.");
 
-        if (projectId.HasValue && log.ProjectId.Value != projectId.Value.Value)
+        if (projectContext.SystemRole != SystemRole.SuperAdmin && log.ProjectId.Value != projectContext.ProjectId.Value)
         {
-            throw new ForbiddenException("Access denied: caller does not have permission to download documents from another project.");
+            throw new CrossTenantAccessDeniedException(log.ProjectId);
         }
 
         if (string.IsNullOrWhiteSpace(log.OutputKey))

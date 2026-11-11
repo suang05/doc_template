@@ -51,9 +51,7 @@ public sealed class FontCatalogService(
 
     public async Task<FontCatalogDto> GetCatalogAsync(CancellationToken ct = default)
     {
-        var projectId = projectContext.EnsureResolved("Listing font catalog requires an active project context.");
-
-        string tenantPrefix = $"fonts/{projectId.Value:N}/";
+        string tenantPrefix = $"fonts/{projectContext.ProjectId.Value:N}/";
         var customFontKeys = await storageService.ListObjectsAsync(StorageBuckets.Fonts, tenantPrefix, ct) ?? [];
 
         var customFonts = new List<FontDescriptorDto>();

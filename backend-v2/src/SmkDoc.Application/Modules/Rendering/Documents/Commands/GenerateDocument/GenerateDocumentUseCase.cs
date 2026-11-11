@@ -29,8 +29,6 @@ public sealed class GenerateDocumentUseCase(
     public async Task<GenerateDocumentResultDto> ExecuteAsync(
         GenerateDocumentCommand command, CancellationToken ct = default)
     {
-        var projectId = projectContext.EnsureResolved("Document generation requires an active project context.");
-
         var outputFormat = ParseOutputFormat(command.OutputFormat);
 
         string slug = command.Slug;
@@ -42,7 +40,7 @@ public sealed class GenerateDocumentUseCase(
 
         var currentVersion = template.GetPublishedVersion();
         var generationId = Guid.CreateVersion7();
-        var tenantId = projectId.Value;
+        var tenantId = projectContext.ProjectId.Value;
         string ext = outputFormat.Extension;
         string outputKey = $"outputs/{tenantId:N}/{timeProvider.GetUtcNow():yyyy/MM/dd}/{slug}_{generationId:N}.{ext}";
 

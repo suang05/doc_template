@@ -119,6 +119,8 @@ public sealed class GlobalExceptionHandler(
     {
         var (status, title) = exception switch
         {
+            TenantContextRequiredException => (StatusCodes.Status403Forbidden, "Tenant Context Required"),
+            CrossTenantAccessDeniedException => (StatusCodes.Status403Forbidden, "Cross-Tenant Access Denied"),
             NotFoundException => (StatusCodes.Status404NotFound, "Not Found"),
             DraftExpiredException => (StatusCodes.Status410Gone, "Draft Expired"),
             ConflictException => (StatusCodes.Status409Conflict, "Conflict"),

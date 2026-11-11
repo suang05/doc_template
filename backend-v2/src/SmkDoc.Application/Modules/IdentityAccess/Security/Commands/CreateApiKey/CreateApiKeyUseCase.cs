@@ -20,7 +20,7 @@ public sealed class CreateApiKeyUseCase(
 {
     public async Task<CreateApiKeyResultDto> ExecuteAsync(CreateApiKeyCommand command, CancellationToken ct = default)
     {
-        var pId = projectContext.EnsureResolved("Active project context is required to create an API key.");
+        var pId = projectContext.ProjectId;
         await EnsureProjectExistsAsync(pId, ct);
 
         var now = timeProvider.GetUtcNow();

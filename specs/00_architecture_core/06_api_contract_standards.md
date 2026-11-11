@@ -368,7 +368,9 @@ export interface ProblemDetails {
 | Domain / Application Exception | Originating Tier | HTTP Status | ErrorCode Default | Business Context & Guidance |
 |---|---|---|---|---|
 | `UnauthorizedException` | Tier 1 (Perimeter) / Auth UseCases | `401 Unauthorized` | `UNAUTHORIZED` | Authentication failure (missing token, invalid API key, expired session). Prohibited in Data Plane UseCases. |
-| `ForbiddenException` | Tier 1 (Perimeter) / Tier 2 (Safety Net) | `403 Forbidden` | `FORBIDDEN` | Authorization failure (caller lacks project membership, or tenant context unresolved in Tier 2 guard). |
+| `TenantContextRequiredException` | Tier 2 (Application / Smart Context) | `403 Forbidden` | `TENANT_CONTEXT_REQUIRED` | Operation strictly requires an active resolved tenant project context. |
+| `CrossTenantAccessDeniedException` | Tier 2 (Application / Interceptor) | `403 Forbidden` | `CROSS_TENANT_ACCESS_DENIED` | Authenticated caller attempts access or mutation on resources belonging to a foreign tenant. |
+| `ForbiddenException` | Tier 1 (Perimeter) / Authorization | `403 Forbidden` | `FORBIDDEN` | Authorization failure (caller lacks required project membership, role, or permission). |
 | `ProjectDeactivatedException` | Tier 1 (Perimeter) | `403 Forbidden` | `PROJECT_DEACTIVATED` | Target tenant project is soft-deleted or marked inactive. |
 | `NotFoundException` | Tier 2 (Application) | `404 Not Found` | `NOT_FOUND` / `RESOURCE_NOT_FOUND` | Queried resource (Template, Document, ApiKey, User) does not exist in active tenant scope. |
 | `ConflictException` | Tier 2 (Application) | `409 Conflict` | `RESOURCE_CONFLICT`, `DUPLICATE_SLUG`, `DUPLICATE_VERSION`, `DUPLICATE_PLACEHOLDER`, `DUPLICATE_DATASET_ALIAS` | Resource collision (unique slug exists, active version collision, quota breach). |

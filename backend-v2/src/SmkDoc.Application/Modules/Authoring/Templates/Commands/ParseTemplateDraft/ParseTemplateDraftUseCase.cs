@@ -17,8 +17,6 @@ public sealed class ParseTemplateDraftUseCase(
 
     public async Task<ParseDraftResultDto> ExecuteAsync(ParseTemplateDraftCommand command, CancellationToken ct = default)
     {
-        var projectId = projectContext.EnsureResolved("Uploading a template draft requires an active project context.");
-
         var ext = Path.GetExtension(command.FileName).ToLowerInvariant();
         if (!TemplateFormat.TryFromExtension(ext, out _))
         {
@@ -50,7 +48,7 @@ public sealed class ParseTemplateDraftUseCase(
 
         spooled.Position = 0;
         var draftId = await draftCache.StoreAsync(
-            projectId,
+            projectContext.ProjectId,
             spooled,
             command.FileName,
             ext,

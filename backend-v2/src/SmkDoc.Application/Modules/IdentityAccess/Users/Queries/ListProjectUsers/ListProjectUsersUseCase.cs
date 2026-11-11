@@ -12,7 +12,7 @@ public sealed class ListProjectUsersUseCase(
 {
     public async Task<List<UserResultDto>> ExecuteAsync(ListProjectUsersQuery query, CancellationToken ct = default)
     {
-        var projectId = projectContext.EnsureResolved("Active project context is required to list users.");
+        var projectId = projectContext.ProjectId;
 
         var roles = await roleRepo.ListByProjectAsync(projectId, ct);
         var userIds = roles.Select(r => r.UserId).ToHashSet();

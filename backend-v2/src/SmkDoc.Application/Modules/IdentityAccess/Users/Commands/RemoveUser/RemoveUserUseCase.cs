@@ -14,7 +14,7 @@ public sealed class RemoveUserUseCase(
 {
     public async Task ExecuteAsync(RemoveUserCommand command, CancellationToken ct = default)
     {
-        var pId = projectContext.EnsureResolved("Active project context is required to remove a user.");
+        var pId = projectContext.ProjectId;
 
         var uId = new UserId(command.UserId);
         var roleEntry = await roleRepo.GetAsync(pId, uId, ct)

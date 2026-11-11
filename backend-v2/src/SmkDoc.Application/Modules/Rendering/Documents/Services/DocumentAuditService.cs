@@ -129,7 +129,7 @@ public sealed class DocumentAuditService(
     }
 
     private ProjectId ResolveProjectId() =>
-        projectContext.EnsureResolved("Document audit logging requires a valid project context.");
+        projectContext.ProjectId;
 
     private GenerationContext BuildGenerationContext()
     {

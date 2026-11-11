@@ -10,7 +10,18 @@ namespace SmkDoc.Application.Common.Interfaces;
 /// </summary>
 public interface ICurrentProjectContext
 {
+    /// <summary>
+    /// Gets the resolved ambient ProjectId.
+    /// Throws <see cref="SmkDoc.Domain.Exceptions.TenantContextRequiredException"/> if accessed when <see cref="IsResolved"/> is false.
+    /// </summary>
     ProjectId ProjectId { get; }
+
+    /// <summary>
+    /// Gets the ambient ProjectId if resolved; otherwise null.
+    /// Safe accessor for Control Plane, Auth, or Background Workers where tenant context is optional.
+    /// </summary>
+    ProjectId? OptionalProjectId { get; }
+
     bool IsResolved { get; }
     string? CallerIdentity { get; }
     UserId? UserId { get; }

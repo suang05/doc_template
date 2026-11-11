@@ -1,6 +1,6 @@
 using System;
-using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
+using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Common.Extensions;
@@ -16,8 +16,7 @@ public static class CurrentProjectContextExtensions
     {
         if (context is null || !context.IsResolved)
         {
-            throw new ForbiddenException(
-                failureMessage ?? "Project context is not resolved.");
+            throw new TenantContextRequiredException(failureMessage);
         }
 
         return context.ProjectId;

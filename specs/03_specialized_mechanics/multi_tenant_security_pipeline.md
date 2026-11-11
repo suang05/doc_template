@@ -34,7 +34,7 @@ Signal: [ARCH_EVOLUTION_TENANCY]
 | **Fail-Closed Tenancy SQL** | EF Core Global Query Filter enforces `IsResolved && e.ProjectId == CurrentTenantId` across all `IMustHaveProject` entities. Manual `WHERE project_id = @id` clauses and `.IgnoreQueryFilters()` in tenant routes are prohibited. | Relational Boundary |
 | **Timing Side-Channel Immunity**| All API key and secret comparisons execute via `CryptographicOperations.FixedTimeEquals` across byte representations. Variable-time string equality is prohibited. | Cryptographic Engine |
 | **First-Class M2M Identity** | Channel A hydrates `ClaimsPrincipal` (`AuthenticationScheme: ApiKeyScheme`, `Role: M2MClient`, `ProjectId`, `Scope`, `ApiKeyId`) onto `HttpContext.User`. Prohibit setting ambient context without updating `HttpContext.User`. | Security Context |
-| **Anti-Spoofing Parameter Policy**| Tenant UseCases consuming `ProjectId` or caller identity in domain logic resolve tenancy strictly from ambient `ICurrentProjectContext` via Tier 2 Guard (`EnsureResolved()`). Archetype B UseCases operating strictly by ID or using EF Core Global Query Filters omit context injection entirely. Declaring caller `ProjectId` overrides on tenant Command/Query records, query strings (`[FromQuery]`), or JSON payloads is strictly prohibited. Controllers must never inject `ICurrentProjectContext`. | Ingress Parameter |
+| **Anti-Spoofing Parameter Policy**| Tenant UseCases consuming `ProjectId` or caller identity in domain logic resolve tenancy strictly from ambient `ICurrentProjectContext` via Tier 2 Smart Context property (`projectContext.ProjectId`). Archetype B UseCases operating strictly by ID or using EF Core Global Query Filters omit context injection entirely. Declaring caller `ProjectId` overrides on tenant Command/Query records, query strings (`[FromQuery]`), or JSON payloads is strictly prohibited. Controllers must never inject `ICurrentProjectContext`. | Ingress Parameter |
 | **Global Identity Scoping** | `User` is a Global Identity (zero `ProjectId` column, zero `IMustHaveProject`). Multi-project tenancy is mapped exclusively through `UserProjectRole`. | Identity Model |
 | **Delegated Sub-Key Quota** | Project Admins manage operational sub-keys on `/api/v1/api-keys` under a strict budget of maximum 2 active keys per tenant (1 `ReadOnly` + 1 `ReadWrite`), returning `409 Conflict` on duplicate scope. | Key Governance |
 | **Key Masking Wire Egress** | Key list and get endpoints return masked keys derived from authentic components (`$"{KeyPrefix}****{KeySuffix}"`). Synthesizing pseudo-suffixes from the SHA-256 hash or returning raw keys is prohibited. | Contract Privacy |
@@ -387,28 +387,53 @@ public sealed class ProjectContextMiddleware(RequestDelegate next)
 }
 ```
 
-### 3.3 The 3-Tier Guard Model & Mandatory Ambient Tenant Resolution
+### 3.3 The 3-Tier Guard Model & Smart Context Blueprint
 >> MANDATORY CANONICAL BLUEPRINT [RULE-SEC-003]:
 * **Tier 1 (Perimeter Guard — `ProjectContextMiddleware`)**:
   - Rejects un-tenanted calls on Data Plane (`/api/v1/**` except `/management/`, `/auth/`, and whitelist) fail-fast with RFC 9457 HTTP `400 Bad Request` (`ErrorCode: PROJECT_CONTEXT_REQUIRED`).
   - Validates project existence (`404 Not Found`) and active status (`403 Forbidden: PROJECT_DEACTIVATED`).
   - Ensures Data Plane Controllers and UseCases operate strictly within a verified, trusted tenancy perimeter.
-* **Tier 2 (Application Guard — UseCase Step 1 PEMR)**:
+* **Tier 2 (Application Guard — Self-Guarding Smart Context & Domain Exceptions)**:
+  - **Self-Guarding Fail-Fast Property**: `ICurrentProjectContext.ProjectId` throws `TenantContextRequiredException` (`TENANT_CONTEXT_REQUIRED`, HTTP 403 Forbidden) immediately upon access when `IsResolved == false`. Eliminates 20+ fragmented magic strings.
+  - **Safe Optional Accessor**: `ICurrentProjectContext.OptionalProjectId` returns `ProjectId?` (or null if unresolved, never `ProjectId.Empty`). Utilized strictly by `AppDbContext` for compile-time global query filters, Control Plane operations, background workers, and migration seeding.
   - **Strict Selective Injection Rule**: UseCases inject `ICurrentProjectContext` strictly when `ProjectId` or caller identity is consumed in domain logic (e.g. `Aggregate.Create(projectId, ...)`, MinIO storage path, DraftCache, or composite key queries).
-  - UseCases operating on existing aggregates by ID (e.g. `GetById`, `Delete`, `List`) rely on Tier 1 Perimeter Guard and EF Core Global Query Filter; **they must NOT inject `ICurrentProjectContext` or call `EnsureResolved()`**.
-  - When injected, consumes `ICurrentProjectContext` via the canonical 1-liner SSoT: `var activeProjectId = projectContext.EnsureResolved();`.
-  - Provides strongly-typed `ProjectId` extraction and serves as a headless safety net for Background Queue Workers, Crons, and Unit Tests.
+  - UseCases operating on existing aggregates by ID (e.g. `GetById`, `Delete`, `List`) rely on Tier 1 Perimeter Guard and EF Core Global Query Filter; **they must NOT inject `ICurrentProjectContext`**.
+  - **Fail-Fast Line 1 Execution**: When injected (Archetype A), consumes `ICurrentProjectContext` strictly at line 1 of Step 1 (Parse & Guard): `var activeProjectId = projectContext.ProjectId;`. Deferring context evaluation to Step 3 after database queries or external network I/O is strictly prohibited ([TRAP-TENANT-025]).
+  - **Cross-Tenant Access Defense**: When checking resource ownership, throws `CrossTenantAccessDeniedException` (`CROSS_TENANT_ACCESS_DENIED`, HTTP 403 Forbidden).
   - Omits `Guid ProjectId` on tenant-scoped Command or Query records (anti-spoofing).
   - Partitions `IdempotencyFilter` cache keys by `projectContext.ProjectId.Value` (`idempotency:{ProjectId:N}:{IdempotencyKey}`).
   - Data Plane UseCases operate in a Trusted Zone and **never throw 401 Unauthorized**.
-* **Tier 3 (Domain Invariant Guard — Entities & Value Objects)**:
+* **Tier 3 (Persistence & Domain Invariant Guard — Interceptors, Entities & Value Objects)**:
+  - `TenantSecuritySaveChangesInterceptor` serves as the fail-safe persistence guard, throwing `CrossTenantAccessDeniedException` on foreign project ID mutation.
   - Aggregate factories (`Create`) and mutating verbs encapsulate invariants, throwing `DomainValidationException` (400) or `BusinessRuleViolationException` (400).
 
 ```csharp
-// Inside tenant-scoped UseCase ExecuteAsync (Archetype A: Entity-Creating / Key-Consuming):
-// Step 1: Parse & Guard (Tier 2 Application Guard: 1-liner typed tenant resolution)
-var activeProjectId = projectContext.EnsureResolved();
-// (Note: Archetype B UseCases operating strictly by ID or using EF Core Global Query Filter do NOT inject context or call EnsureResolved)
+// --- SSoT: ICurrentProjectContext Contract ---
+public interface ICurrentProjectContext
+{
+    /// <summary>
+    /// Gets the resolved ambient ProjectId.
+    /// THROWS TenantContextRequiredException immediately if accessed while unresolved!
+    /// </summary>
+    ProjectId ProjectId { get; }
+
+    /// <summary>
+    /// Safe accessor for Control Plane, Auth, Background Workers, or AppDbContext.
+    /// Returns null if unresolved (Never returns ProjectId.Empty).
+    /// </summary>
+    ProjectId? OptionalProjectId { get; }
+
+    bool IsResolved { get; }
+    string? CallerIdentity { get; }
+    UserId? UserId { get; }
+    SystemRole? SystemRole { get; }
+    ApiKeyId? ApiKeyId { get; }
+}
+
+// --- Canonical Usage in Archetype A UseCase ExecuteAsync ---
+// Step 1: Parse & Guard (Line 1 Fail-Fast via Smart Context Property; zero magic strings)
+var activeProjectId = projectContext.ProjectId;
+// (Note: Archetype B UseCases operating strictly by ID or using EF Core Global Query Filter do NOT inject context)
 ```
 
 ### 3.4 Compile-Time EF Core Global Tenancy Filter Configuration
@@ -448,7 +473,7 @@ var activeProjectId = projectContext.EnsureResolved();
 +     var query = new ListTemplatesQuery(search);
 +     var result = await listTemplatesUseCase.ExecuteAsync(query, ct);
 ```
-*Rationale: Maintaining parallel execution contexts, injecting `ICurrentProjectContext` into controllers, or accepting caller-supplied `ProjectId` overrides creates split-brain cross-tenant queries and controller dependency bloat. Multi-tenant context resolves exclusively via middleware into ambient `ICurrentProjectContext`, and UseCases consuming ProjectId bind tenancy via Tier 2 Guard `var activeProjectId = projectContext.EnsureResolved();` in Step 1 PEMR. UseCases operating by ID or querying collections filtered by EF Core omit context injection entirely.*
+*Rationale: Maintaining parallel execution contexts, injecting `ICurrentProjectContext` into controllers, or accepting caller-supplied `ProjectId` overrides creates split-brain cross-tenant queries and controller dependency bloat. Multi-tenant context resolves exclusively via middleware into ambient `ICurrentProjectContext`, and UseCases consuming ProjectId bind tenancy via Tier 2 Smart Context `var activeProjectId = projectContext.ProjectId;` at line 1 of Step 1 PEMR. UseCases operating by ID or querying collections filtered by EF Core omit context injection entirely.*
 
 ### [TRAP-SEC-005]: M2M Missing ClaimsPrincipal (Dropping to 401 Unauthorized under `[Authorize]`)
 ```diff

@@ -97,7 +97,7 @@ public async Task<IActionResult> {Verb}([FromBody] {Verb}{Aggregate}Request requ
 ```
 
 ### 3.2 Cadence 2: UseCase 4-Step PEMR Pipeline (Archetype A: Entity-Creating / Key-Consuming)
-*(Note: UseCases operating strictly on existing aggregates by ID or querying collections filtered by EF Core Global Query Filter belong to Archetype B: they must NOT inject `ICurrentProjectContext` or call `EnsureResolved()`).*
+*(Note: UseCases operating strictly on existing aggregates by ID or querying collections filtered by EF Core Global Query Filter belong to Archetype B: they must NOT inject `ICurrentProjectContext`).*
 ```csharp
 public sealed class Create{Aggregate}UseCase(
     I{Aggregate}Repository {aggregate}Repository,
@@ -107,8 +107,8 @@ public sealed class Create{Aggregate}UseCase(
 {
     public async Task<{Aggregate}ResultDto> ExecuteAsync(Create{Aggregate}Command command, CancellationToken ct = default)
     {
-        // Step 1: Parse & Guard (Tier 2 Application Guard: 1-liner typed tenant resolution for creation)
-        var projectId = projectContext.EnsureResolved();
+        // Step 1: Parse & Guard (Fail-fast Smart Context property: throws TenantContextRequiredException if unresolved)
+        var projectId = projectContext.ProjectId;
 
         // Step 2: Ensure Preconditions (Business rules, slug collision queries, or concurrencyContext.EnsureMatches)
         if (await {aggregate}Repository.SlugExistsAsync(command.Slug, ct))

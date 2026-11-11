@@ -54,12 +54,13 @@ flowchart TD
 
     subgraph Tier2 ["Tier 2: Application Guard (UseCase / Trusted Zone)"]
         C_Ctrl --> F
-        E -- Permitted --> F["var projectId = projectContext.EnsureResolved();\n(Archetype A: Strictly when ProjectId is consumed)"]
+        E -- Permitted --> F["var projectId = projectContext.ProjectId;\n(Archetype A: Fail-fast Smart Property)"]
         F --> G{Business Preconditions & Entity Existence?}
         G -- Missing --> G_404["404 NotFoundException"]
         G -- Collision --> G_409["409 ConflictException (DuplicateSlug, etc.)"]
         G -- Concurrency Mismatch --> G_412["412 PreconditionFailedException (If-Match)"]
         G -- Payload Schema Error --> G_422["422 SchemaValidationException"]
+        G -- Cross-Tenant Access --> G_Cross["403 CrossTenantAccessDeniedException"]
     end
 
     subgraph Tier3 ["Tier 3: Domain Invariants (Entities & Value Objects)"]
@@ -75,8 +76,9 @@ flowchart TD
    - Blocks un-tenanted Data Plane traffic immediately (`400 Bad Request`). Controllers and UseCases are guaranteed to never receive raw un-tenanted requests.
 2. **Tier 2 (Application Guard — UseCase Step 1 PEMR)**:
    - Operates in a **Trusted Zone**. Does not re-police HTTP headers or throw 401 Unauthorized.
-   - SSoT 1-Liner: `var projectId = projectContext.EnsureResolved();` applied strictly when `ProjectId` or caller identity is consumed in domain logic (Entity creation, MinIO storage path, DraftCache, composite key queries).
-   - **Zero Phantom Context Injection**: UseCases operating on existing aggregates by ID or relying on EF Core global query filters must NOT inject `ICurrentProjectContext` or call `EnsureResolved()`.
+   - **Self-Guarding Smart Context (Fail-Fast Property)**: `var projectId = projectContext.ProjectId;` applied at line 1 of Step 1 PEMR strictly when `ProjectId` or caller identity is consumed in domain logic (Entity creation, MinIO storage path, DraftCache, composite key queries). Throws `TenantContextRequiredException` (`TENANT_CONTEXT_REQUIRED`, 403 Forbidden) immediately if accessed while unresolved.
+   - **Zero Phantom Context Injection**: UseCases operating on existing aggregates by ID or relying on EF Core global query filters must NOT inject `ICurrentProjectContext`.
+   - **Cross-Tenant Ownership Defense**: Throws `CrossTenantAccessDeniedException` (`CROSS_TENANT_ACCESS_DENIED`, 403 Forbidden) when a tenant caller queries or mutates resources belonging to another project.
    - Evaluates Business Preconditions: `NotFoundException` (404), `ConflictException` (409), `DraftExpiredException` (410), `PreconditionFailedException` (412 via `IConcurrencyContext.EnsureMatches`), and `SchemaValidationException` (422).
 3. **Tier 3 (Domain Invariant Guard — Entities & Value Objects)**:
    - Self-validating aggregate roots and value objects.
@@ -278,8 +280,8 @@ public sealed class Create{Aggregate}UseCase(
 {
     public async Task<{Aggregate}ResultDto> ExecuteAsync(Create{Aggregate}Command command, CancellationToken ct = default)
     {
-        // Step 1: Parse & Guard (Tier 2 Application Guard: 1-liner typed tenant resolution for creation)
-        var projectId = projectContext.EnsureResolved();
+        // Step 1: Parse & Guard (Fail-fast Smart Context property: throws TenantContextRequiredException if unresolved)
+        var projectId = projectContext.ProjectId;
 
         // Step 2: Ensure Preconditions (Business rules & slug uniqueness)
         if (await {aggregate}Repository.SlugExistsAsync(command.Slug, ct))

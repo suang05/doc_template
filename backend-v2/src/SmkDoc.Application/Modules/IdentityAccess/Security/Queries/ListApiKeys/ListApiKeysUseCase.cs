@@ -31,18 +31,16 @@ public sealed class ListApiKeysUseCase(
             return await apiKeyRepo.ListAllAsync(ct);
         }
 
-        var currentProjectId = projectContext.EnsureResolved("Active project context is required to list API keys.");
-        return await apiKeyRepo.ListByProjectAsync(currentProjectId, ct);
+        return await apiKeyRepo.ListByProjectAsync(projectContext.ProjectId, ct);
     }
 
     private void EnsureListPermission(ProjectId targetProjectId)
     {
         if (projectContext.SystemRole == SystemRole.SuperAdmin) return;
 
-        var currentProjectId = projectContext.EnsureResolved("Active project context or SuperAdmin role is required to list API keys for a specific project.");
-        if (currentProjectId != targetProjectId)
+        if (projectContext.ProjectId != targetProjectId)
         {
-            throw new ForbiddenException("Access denied: caller does not have permission to list API keys for another project.");
+            throw new CrossTenantAccessDeniedException(targetProjectId);
         }
     }
 

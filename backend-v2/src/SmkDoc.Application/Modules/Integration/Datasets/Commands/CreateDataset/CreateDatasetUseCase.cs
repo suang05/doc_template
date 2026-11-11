@@ -18,8 +18,6 @@ public sealed class CreateDatasetUseCase(
 {
     public async Task<DatasetResultDto> ExecuteAsync(CreateDatasetCommand command, CancellationToken ct = default)
     {
-        var projectId = projectContext.EnsureResolved();
-
         var connection = await datasetResolver.ValidateAndResolveConnectionAsync(
             new DataConnectionId(command.DataConnectionId),
             command.SqlQuery,
@@ -33,7 +31,7 @@ public sealed class CreateDatasetUseCase(
             SqlQuery.Create(command.SqlQuery),
             command.CacheSeconds,
             now,
-            projectId);
+            projectContext.ProjectId);
 
         await datasetRepo.AddAsync(entity, ct);
         await unitOfWork.CommitAsync(ct);

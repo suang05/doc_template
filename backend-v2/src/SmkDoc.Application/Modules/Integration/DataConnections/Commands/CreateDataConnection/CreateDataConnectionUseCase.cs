@@ -19,8 +19,6 @@ public sealed class CreateDataConnectionUseCase(
 {
     public async Task<DataConnectionResultDto> ExecuteAsync(CreateDataConnectionCommand command, CancellationToken ct = default)
     {
-        var projectId = projectContext.EnsureResolved();
-
         var encryptedCs = await datasetResolver.ValidateAndEncryptAsync(command.Provider, command.ConnectionString, ct);
 
         var now = timeProvider.GetUtcNow();
@@ -29,7 +27,7 @@ public sealed class CreateDataConnectionUseCase(
             Enumeration.FromDisplayName<DatabaseProvider>(command.Provider),
             encryptedCs,
             now,
-            projectId);
+            projectContext.ProjectId);
 
         await repository.AddAsync(entity, ct);
         await unitOfWork.CommitAsync(ct);
