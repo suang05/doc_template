@@ -1,9 +1,9 @@
+using SmkDoc.Application.Common.Extensions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Integration.DataConnections.DTOs;
 using SmkDoc.Domain.Common;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
-using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
 
@@ -19,10 +19,7 @@ public sealed class CreateDataConnectionUseCase(
 {
     public async Task<DataConnectionResultDto> ExecuteAsync(CreateDataConnectionCommand command, CancellationToken ct = default)
     {
-        if (!projectContext.IsResolved)
-        {
-            throw new ForbiddenException("Creating a data connection requires an active project context.");
-        }
+        var projectId = projectContext.EnsureResolved();
 
         await sqlValidator.ValidateConnectionTargetAsync(command.Provider, command.ConnectionString, ct);
 
@@ -32,7 +29,7 @@ public sealed class CreateDataConnectionUseCase(
             Enumeration.FromDisplayName<DatabaseProvider>(command.Provider),
             EncryptedConnectionString.Create(dataProtection.Encrypt(command.ConnectionString)),
             now,
-            projectContext.ProjectId);
+            projectId);
 
         await repository.AddAsync(entity, ct);
         await unitOfWork.CommitAsync(ct);

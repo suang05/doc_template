@@ -1,7 +1,10 @@
+using System.Reflection;
 using System.Text.Json;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Common.Responses;
+using SmkDoc.Api.Constants;
 using SmkDoc.Api.Contracts.Authoring.FieldMappings;
 using SmkDoc.Api.Controllers.Authoring;
 using SmkDoc.Application.Common.Interfaces;
@@ -17,6 +20,16 @@ public sealed class TemplateMappingControllerTests
     private readonly IUseCase<GetTemplateMappingsQuery, List<FieldMappingDto>> _getMappingsUseCase = Substitute.For<IUseCase<GetTemplateMappingsQuery, List<FieldMappingDto>>>();
     private readonly IUseCase<SaveTemplateMappingsCommand, List<FieldMappingDto>> _saveMappingsUseCase = Substitute.For<IUseCase<SaveTemplateMappingsCommand, List<FieldMappingDto>>>();
     private readonly IUseCase<PreviewDocumentQuery, Stream> _previewDocumentUseCase = Substitute.For<IUseCase<PreviewDocumentQuery, Stream>>();
+
+    [Fact]
+    public void Controller_ShouldBeDecoratedWithTemplateManagementPolicy()
+    {
+        var type = typeof(TemplateMappingController);
+
+        var authAttr = type.GetCustomAttribute<AuthorizeAttribute>();
+        authAttr.Should().NotBeNull();
+        authAttr!.Policy.Should().Be(AuthorizationPolicies.CanManageTemplates);
+    }
 
     private TemplateMappingController CreateSut()
     {

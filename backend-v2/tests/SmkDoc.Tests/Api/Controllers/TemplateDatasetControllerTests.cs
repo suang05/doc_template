@@ -1,6 +1,9 @@
+using System.Reflection;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Common.Responses;
+using SmkDoc.Api.Constants;
 using SmkDoc.Api.Contracts.Authoring.Templates;
 using SmkDoc.Api.Controllers.Authoring;
 using SmkDoc.Application.Common.Interfaces;
@@ -14,6 +17,16 @@ public sealed class TemplateDatasetControllerTests
 {
     private readonly IUseCase<GetTemplateDatasetsQuery, List<TemplateDatasetDto>> _getDatasetsUseCase = Substitute.For<IUseCase<GetTemplateDatasetsQuery, List<TemplateDatasetDto>>>();
     private readonly IUseCase<SaveTemplateDatasetsCommand, List<TemplateDatasetDto>> _saveDatasetsUseCase = Substitute.For<IUseCase<SaveTemplateDatasetsCommand, List<TemplateDatasetDto>>>();
+
+    [Fact]
+    public void Controller_ShouldBeDecoratedWithTemplateManagementPolicy()
+    {
+        var type = typeof(TemplateDatasetController);
+
+        var authAttr = type.GetCustomAttribute<AuthorizeAttribute>();
+        authAttr.Should().NotBeNull();
+        authAttr!.Policy.Should().Be(AuthorizationPolicies.CanManageTemplates);
+    }
 
     private TemplateDatasetController CreateSut()
     {

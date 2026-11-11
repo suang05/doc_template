@@ -100,7 +100,7 @@ public sealed class DocumentTests
     }
 
     [Fact]
-    public void AddVersion_WithDuplicateVersionNumber_ThrowsDuplicateDocumentVersionException()
+    public void AddVersion_WithDuplicateVersionNumber_ThrowsConflictException()
     {
         var now = TestConstants.BaselineTime;
         var document = Document.Create(DocumentReference.Create("DOC-001"), null, now, _projectId);
@@ -110,9 +110,8 @@ public sealed class DocumentTests
         var duplicate = DocumentVersion.Create(document.Id, 1, null, null, "Duplicate v1", null, now);
         var act = () => document.AddVersion(duplicate, now);
 
-        var ex = act.Should().Throw<DuplicateDocumentVersionException>();
-        ex.Which.ErrorCode.Should().Be("DUPLICATE_DOCUMENT_VERSION");
-        ex.Which.Message.Should().Contain($"Version 1 already exists in document '{document.Id}'");
+        var ex = act.Should().Throw<ConflictException>();
+        ex.Which.ErrorCode.Should().Be("DUPLICATE_VERSION");
     }
 
     [Fact]
@@ -167,7 +166,7 @@ public sealed class DocumentTests
     }
 
     [Fact]
-    public void CreateVersion_WithDuplicateVersion_ThrowsDuplicateDocumentVersionException()
+    public void CreateVersion_WithDuplicateVersion_ThrowsConflictException()
     {
         var now = TestConstants.BaselineTime;
         var document = Document.Create(DocumentReference.Create("DOC-DUP"), null, now, _projectId);
@@ -175,7 +174,7 @@ public sealed class DocumentTests
 
         var act = () => document.CreateVersion(1, null, null, "Duplicate", null, now);
 
-        var ex = act.Should().Throw<DuplicateDocumentVersionException>();
-        ex.Which.ErrorCode.Should().Be("DUPLICATE_DOCUMENT_VERSION");
+        var ex = act.Should().Throw<ConflictException>();
+        ex.Which.ErrorCode.Should().Be("DUPLICATE_VERSION");
     }
 }

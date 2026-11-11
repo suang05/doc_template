@@ -17,18 +17,37 @@ public sealed class DryRunDatasetUseCaseTests
     private readonly ISqlConnectionValidator _sqlValidator = Substitute.For<ISqlConnectionValidator>();
     private readonly ISqlDriverFactory _driverFactory = Substitute.For<ISqlDriverFactory>();
     private readonly ISqlDriverStrategy _driverStrategy = Substitute.For<ISqlDriverStrategy>();
+    private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
 
     public DryRunDatasetUseCaseTests()
     {
         _driverStrategy.ProviderName.Returns("PostgreSQL");
         _driverFactory.GetStrategy(Arg.Any<string>()).Returns(_driverStrategy);
+        _projectContext.IsResolved.Returns(true);
+        _projectContext.ProjectId.Returns(ProjectId.New());
     }
 
     private DryRunDatasetUseCase CreateSut() => new(
         _connectionRepo,
         _dataProtection,
         _sqlValidator,
-        _driverFactory);
+        _driverFactory,
+        _projectContext);
+
+    [Fact]
+    public async Task ExecuteAsync_WhenProjectUnresolved_ThrowsForbiddenException()
+    {
+        // Arrange
+        _projectContext.IsResolved.Returns(false);
+        var command = new DryRunDatasetCommand(Guid.NewGuid(), null, null, "SELECT 1");
+
+        // Act
+        var act = () => CreateSut().ExecuteAsync(command);
+
+        // Assert
+        await act.Should().ThrowAsync<ForbiddenException>();
+        await _connectionRepo.DidNotReceive().GetByIdAsync(Arg.Any<DataConnectionId>(), Arg.Any<CancellationToken>());
+    }
 
     [Fact]
     public async Task ExecuteAsync_WithSavedConnection_ResolvesDecryptsAndExecutesDryRun()

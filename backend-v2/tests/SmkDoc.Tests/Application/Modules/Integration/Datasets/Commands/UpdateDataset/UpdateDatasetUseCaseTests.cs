@@ -1,4 +1,5 @@
 using SmkDoc.Application.Common.Behaviors;
+using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Integration.Datasets.Commands.UpdateDataset;
 using SmkDoc.Application.Modules.Integration.Datasets.DTOs;
@@ -16,11 +17,14 @@ public sealed class UpdateDatasetUseCaseTests
     private readonly IDataConnectionRepository _connectionRepo = Substitute.For<IDataConnectionRepository>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
     private readonly ISqlConnectionValidator _sqlValidator = Substitute.For<ISqlConnectionValidator>();
+    private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
     private readonly FakeTimeProvider _timeProvider = TestConstants.CreateFakeClock();
 
     public UpdateDatasetUseCaseTests()
     {
         _unitOfWork.CommitAsync(Arg.Any<CancellationToken>()).Returns(1);
+        _projectContext.IsResolved.Returns(true);
+        _projectContext.ProjectId.Returns(ProjectId.New());
     }
 
     private UpdateDatasetUseCase CreateSut() => new(
@@ -28,7 +32,23 @@ public sealed class UpdateDatasetUseCaseTests
         _connectionRepo,
         _unitOfWork,
         _sqlValidator,
+        _projectContext,
         _timeProvider);
+
+    [Fact]
+    public async Task ExecuteAsync_WhenProjectUnresolved_ThrowsForbiddenException()
+    {
+        // Arrange
+        _projectContext.IsResolved.Returns(false);
+        var command = new UpdateDatasetCommand(Guid.NewGuid(), "Name", null, Guid.NewGuid(), "SELECT 1");
+
+        // Act
+        var act = () => CreateSut().ExecuteAsync(command);
+
+        // Assert
+        await act.Should().ThrowAsync<ForbiddenException>();
+        _sqlValidator.DidNotReceive().ValidateReadOnlySql(Arg.Any<string>());
+    }
 
     [Fact]
     public async Task ExecuteAsync_WithInvalidCommand_ShouldThrowValidationException()

@@ -1,3 +1,5 @@
+using SmkDoc.Application.Common.Exceptions;
+using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.Queries.GetTemplateDatasets;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Interfaces;
@@ -12,9 +14,30 @@ public sealed class GetTemplateDatasetsUseCaseTests
 {
     private readonly ITemplateRepository _templateRepo = Substitute.For<ITemplateRepository>();
     private readonly IDatasetRepository _datasetRepo = Substitute.For<IDatasetRepository>();
+    private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
+
+    public GetTemplateDatasetsUseCaseTests()
+    {
+        _projectContext.IsResolved.Returns(true);
+        _projectContext.ProjectId.Returns(ProjectId.New());
+    }
 
     private GetTemplateDatasetsUseCase CreateSut() =>
-        new(_templateRepo, _datasetRepo);
+        new(_templateRepo, _datasetRepo, _projectContext);
+
+    [Fact]
+    public async Task ExecuteAsync_WhenProjectUnresolved_ThrowsForbiddenException()
+    {
+        // Arrange
+        _projectContext.IsResolved.Returns(false);
+
+        // Act
+        var act = () => CreateSut().ExecuteAsync(new GetTemplateDatasetsQuery(Guid.NewGuid()));
+
+        // Assert
+        await act.Should().ThrowAsync<ForbiddenException>();
+        await _templateRepo.DidNotReceive().GetByIdWithDetailsAsync(Arg.Any<TemplateId>(), Arg.Any<CancellationToken>());
+    }
 
     [Fact]
     public async Task ExecuteAsync_WhenTemplateExists_ReturnsEnrichedDtosOrderedBySortOrder()

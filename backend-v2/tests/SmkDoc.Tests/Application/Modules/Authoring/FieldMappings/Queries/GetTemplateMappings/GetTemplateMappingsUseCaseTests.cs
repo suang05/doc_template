@@ -1,3 +1,5 @@
+using SmkDoc.Application.Common.Exceptions;
+using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.Queries.GetTemplateMappings;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Interfaces;
@@ -11,9 +13,30 @@ namespace SmkDoc.Tests.Application.Modules.Authoring.FieldMappings.Queries.GetTe
 public sealed class GetTemplateMappingsUseCaseTests
 {
     private readonly ITemplateRepository _templateRepo = Substitute.For<ITemplateRepository>();
+    private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
+
+    public GetTemplateMappingsUseCaseTests()
+    {
+        _projectContext.IsResolved.Returns(true);
+        _projectContext.ProjectId.Returns(ProjectId.New());
+    }
 
     private GetTemplateMappingsUseCase CreateSut() =>
-        new(_templateRepo);
+        new(_templateRepo, _projectContext);
+
+    [Fact]
+    public async Task ExecuteAsync_WhenProjectUnresolved_ThrowsForbiddenException()
+    {
+        // Arrange
+        _projectContext.IsResolved.Returns(false);
+
+        // Act
+        var act = () => CreateSut().ExecuteAsync(new GetTemplateMappingsQuery(Guid.NewGuid()));
+
+        // Assert
+        await act.Should().ThrowAsync<ForbiddenException>();
+        await _templateRepo.DidNotReceive().GetByIdWithDetailsAsync(Arg.Any<TemplateId>(), Arg.Any<CancellationToken>());
+    }
 
     [Fact]
     public async Task ExecuteAsync_WhenTemplateExists_ReturnsSortedMappings()

@@ -1,4 +1,5 @@
 using SmkDoc.Application.Common.Exceptions;
+using SmkDoc.Application.Common.Extensions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Integration.Datasets.DTOs;
 using SmkDoc.Domain.Interfaces;
@@ -8,10 +9,13 @@ namespace SmkDoc.Application.Modules.Integration.Datasets.Queries.GetDatasetById
 
 public sealed class GetDatasetByIdUseCase(
     IDatasetRepository datasetRepo,
-    IDataConnectionRepository connectionRepo) : IUseCase<GetDatasetByIdQuery, DatasetResultDto>
+    IDataConnectionRepository connectionRepo,
+    ICurrentProjectContext projectContext) : IUseCase<GetDatasetByIdQuery, DatasetResultDto>
 {
     public async Task<DatasetResultDto> ExecuteAsync(GetDatasetByIdQuery query, CancellationToken ct = default)
     {
+        projectContext.EnsureResolved();
+
         var dataset = await datasetRepo.GetByIdAsync(new DatasetId(query.Id), ct)
             ?? throw new NotFoundException("Dataset", query.Id);
 

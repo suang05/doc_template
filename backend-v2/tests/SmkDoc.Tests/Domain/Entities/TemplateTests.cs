@@ -104,14 +104,14 @@ public sealed class TemplateTests
     }
 
     [Fact]
-    public void CreateDraftVersion_WithExistingVersionNumber_ThrowsDuplicateVersionException()
+    public void CreateDraftVersion_WithExistingVersionNumber_ThrowsConflictException()
     {
         var template = CreateTemplate("Contract", "contract-test", now: _initialTime);
         template.CreateDraftVersion(1, "templates/v1.html", TemplateFormat.Html, "author", _initialTime);
 
         var act = () => template.CreateDraftVersion(1, "templates/v1-dupe.html", TemplateFormat.Html, "author", _initialTime);
 
-        var ex = act.Should().Throw<DuplicateVersionException>();
+        var ex = act.Should().Throw<ConflictException>();
         ex.Which.ErrorCode.Should().Be("DUPLICATE_VERSION");
     }
 
@@ -157,15 +157,15 @@ public sealed class TemplateTests
     }
 
     [Fact]
-    public void CreateDraftVersion_DuplicateVersionNumber_ThrowsDuplicateVersionException()
+    public void CreateDraftVersion_DuplicateVersionNumber_ThrowsConflictException()
     {
         var template = CreateTemplate("Invoice", "invoice", now: _initialTime);
         template.CreateDraftVersion(1, "key-1", TemplateFormat.Html, "author", _initialTime);
 
         Action act = () => template.CreateDraftVersion(1, "key-2", TemplateFormat.Html, "author", _initialTime);
 
-        act.Should().Throw<DuplicateVersionException>()
-            .WithMessage("*already exists in template*");
+        act.Should().Throw<ConflictException>()
+            .WithMessage("*already contains version*");
     }
 
     [Fact]
@@ -201,7 +201,7 @@ public sealed class TemplateTests
     }
 
     [Fact]
-    public void AddVersion_DuplicateVersionNumber_ThrowsBusinessRuleViolationException()
+    public void AddVersion_DuplicateVersionNumber_ThrowsConflictException()
     {
         var template = CreateTemplate("Invoice", "invoice", now: _initialTime);
         var v1 = TemplateVersion.Draft(template.Id, 1, "key-1", TemplateFormat.Html, "author", _initialTime);
@@ -210,8 +210,8 @@ public sealed class TemplateTests
         template.AddVersion(v1, _initialTime);
 
         Action actDuplicate = () => template.AddVersion(v2, _initialTime);
-        var ex = actDuplicate.Should().Throw<BusinessRuleViolationException>()
-            .WithMessage("*already exists in template*");
+        var ex = actDuplicate.Should().Throw<ConflictException>()
+            .WithMessage("*already contains version*");
         ex.Which.ErrorCode.Should().Be("DUPLICATE_VERSION");
     }
 
@@ -228,7 +228,7 @@ public sealed class TemplateTests
     }
 
     [Fact]
-    public void SetCurrentVersion_VersionNotInTemplate_ThrowsBusinessRuleViolationException()
+    public void SetCurrentVersion_VersionNotInTemplate_ThrowsNotFoundException()
     {
         var template = CreateTemplate("Invoice", "invoice", now: _initialTime);
         var version = TemplateVersion.Draft(template.Id, 1, "key", TemplateFormat.Html, "author", _initialTime);
@@ -237,9 +237,9 @@ public sealed class TemplateTests
         var foreignVersionId = Guid.NewGuid();
         Action act = () => template.SetCurrentVersion(foreignVersionId, _initialTime);
 
-        var ex = act.Should().Throw<BusinessRuleViolationException>()
-            .WithMessage($"*does not belong to template '{template.Id}'*");
-        ex.Which.ErrorCode.Should().Be("VERSION_NOT_IN_TEMPLATE");
+        var ex = act.Should().Throw<NotFoundException>()
+            .WithMessage($"*TemplateVersion*was not found*");
+        ex.Which.ErrorCode.Should().Be("RESOURCE_NOT_FOUND");
     }
 
     [Fact]
@@ -356,7 +356,7 @@ public sealed class TemplateTests
     }
 
     [Fact]
-    public void ReplaceFieldMappings_DuplicatePlaceholders_ThrowsBusinessRuleViolationException()
+    public void ReplaceFieldMappings_DuplicatePlaceholders_ThrowsConflictException()
     {
         var template = CreateTemplate("Receipt", "receipt", now: _initialTime);
         var mappings = new List<FieldMapping>
@@ -367,7 +367,7 @@ public sealed class TemplateTests
 
         Action act = () => template.ReplaceFieldMappings(mappings, _initialTime);
 
-        var ex = act.Should().Throw<BusinessRuleViolationException>();
+        var ex = act.Should().Throw<ConflictException>();
         ex.Which.ErrorCode.Should().Be("DUPLICATE_PLACEHOLDER");
         ex.Which.Message.Should().Contain("customerName");
     }
@@ -399,20 +399,20 @@ public sealed class TemplateTests
     }
 
     [Fact]
-    public void AttachDataset_DuplicateAlias_ThrowsBusinessRuleViolationException()
+    public void AttachDataset_DuplicateAlias_ThrowsConflictException()
     {
         var template = CreateTemplate("Order", "order", now: _initialTime);
         template.AttachDataset(DatasetId.New(), DatasetAlias.Create("header"), 1, _initialTime);
 
         Action act = () => template.AttachDataset(DatasetId.New(), DatasetAlias.Create("HEADER"), 2, _initialTime);
 
-        var ex = act.Should().Throw<BusinessRuleViolationException>()
-            .WithMessage("*already assigned to template*");
+        var ex = act.Should().Throw<ConflictException>()
+            .WithMessage("*already defines dataset alias*");
         ex.Which.ErrorCode.Should().Be("DUPLICATE_DATASET_ALIAS");
     }
 
     [Fact]
-    public void ReplaceDatasets_DuplicateAliases_ThrowsBusinessRuleViolationException()
+    public void ReplaceDatasets_DuplicateAliases_ThrowsConflictException()
     {
         var template = CreateTemplate("Order", "order", now: _initialTime);
         var datasets = new List<TemplateDataset>
@@ -423,7 +423,7 @@ public sealed class TemplateTests
 
         Action act = () => template.ReplaceDatasets(datasets, _initialTime);
 
-        var ex = act.Should().Throw<BusinessRuleViolationException>();
+        var ex = act.Should().Throw<ConflictException>();
         ex.Which.ErrorCode.Should().Be("DUPLICATE_DATASET_ALIAS");
         ex.Which.Message.Should().Contain("customers");
     }

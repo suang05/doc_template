@@ -1,4 +1,5 @@
 using SmkDoc.Application.Common.Exceptions;
+using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Integration.DataConnections.Commands.DeleteDataConnection;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Interfaces;
@@ -11,18 +12,37 @@ public sealed class DeleteDataConnectionUseCaseTests
 {
     private readonly IDataConnectionRepository _connectionRepo = Substitute.For<IDataConnectionRepository>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
+    private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
 
     public DeleteDataConnectionUseCaseTests()
     {
         _unitOfWork.CommitAsync(Arg.Any<CancellationToken>()).Returns(1);
+        _projectContext.IsResolved.Returns(true);
+        _projectContext.ProjectId.Returns(ProjectId.New());
     }
 
     private DeleteDataConnectionUseCase CreateSut() => new(
         _connectionRepo,
-        _unitOfWork);
+        _unitOfWork,
+        _projectContext);
 
     [Fact]
-    public async Task ExecuteAsync_WhenFound_RemovesAndReturnsTrue()
+    public async Task ExecuteAsync_WhenProjectContextNotResolved_ThrowsForbiddenException()
+    {
+        // Arrange
+        _projectContext.IsResolved.Returns(false);
+        var command = new DeleteDataConnectionCommand(Guid.NewGuid());
+
+        // Act
+        var act = () => CreateSut().ExecuteAsync(command);
+
+        // Assert
+        await act.Should().ThrowAsync<ForbiddenException>();
+        _connectionRepo.DidNotReceive().Remove(Arg.Any<DataConnection>());
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenFound_RemovesAndCommits()
     {
         // Arrange
         var id = Guid.NewGuid();
@@ -34,10 +54,9 @@ public sealed class DeleteDataConnectionUseCaseTests
         var command = new DeleteDataConnectionCommand(id);
 
         // Act
-        var result = await CreateSut().ExecuteAsync(command);
+        await CreateSut().ExecuteAsync(command);
 
         // Assert
-        result.Should().BeTrue();
         _connectionRepo.Received(1).Remove(existing);
         await _unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
     }

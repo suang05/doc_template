@@ -66,7 +66,7 @@ public sealed class Document : AggregateRoot<DocumentId>, IMustHaveProject
 
         if (_versions.Any(v => v.Version == versionNumber))
         {
-            throw new DuplicateDocumentVersionException(Id.Value, versionNumber);
+            throw ConflictException.DuplicateVersion(Id.Value, versionNumber);
         }
 
         var version = DocumentVersion.Create(Id, versionNumber, templateVersionId, generationLogId, changeNote, createdBy, now);
@@ -88,7 +88,7 @@ public sealed class Document : AggregateRoot<DocumentId>, IMustHaveProject
 
         if (_versions.Any(v => v.Version == version.Version))
         {
-            throw new DuplicateDocumentVersionException(Id.Value, version.Version);
+            throw ConflictException.DuplicateVersion(Id.Value, version.Version);
         }
 
         _versions.Add(version);

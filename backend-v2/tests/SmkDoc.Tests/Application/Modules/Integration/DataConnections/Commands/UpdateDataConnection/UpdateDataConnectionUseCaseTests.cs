@@ -16,11 +16,14 @@ public sealed class UpdateDataConnectionUseCaseTests
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
     private readonly IDataProtectionService _dataProtection = Substitute.For<IDataProtectionService>();
     private readonly ISqlConnectionValidator _sqlValidator = Substitute.For<ISqlConnectionValidator>();
+    private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
     private readonly FakeTimeProvider _timeProvider = TestConstants.CreateFakeClock();
 
     public UpdateDataConnectionUseCaseTests()
     {
         _unitOfWork.CommitAsync(Arg.Any<CancellationToken>()).Returns(1);
+        _projectContext.IsResolved.Returns(true);
+        _projectContext.ProjectId.Returns(ProjectId.New());
     }
 
     private UpdateDataConnectionUseCase CreateSut() => new(
@@ -28,7 +31,23 @@ public sealed class UpdateDataConnectionUseCaseTests
         _unitOfWork,
         _dataProtection,
         _sqlValidator,
+        _projectContext,
         _timeProvider);
+
+    [Fact]
+    public async Task ExecuteAsync_WhenProjectUnresolved_ShouldThrowForbiddenException()
+    {
+        // Arrange
+        _projectContext.IsResolved.Returns(false);
+        var command = new UpdateDataConnectionCommand(Guid.NewGuid(), "Name", "PostgreSQL", "Host=db");
+
+        // Act
+        Func<Task> act = () => CreateSut().ExecuteAsync(command);
+
+        // Assert
+        await act.Should().ThrowAsync<ForbiddenException>();
+        await _connectionRepo.DidNotReceive().GetByIdAsync(Arg.Any<DataConnectionId>(), Arg.Any<CancellationToken>());
+    }
 
     [Fact]
     public async Task ExecuteAsync_WithInvalidCommand_ShouldThrowValidationException()

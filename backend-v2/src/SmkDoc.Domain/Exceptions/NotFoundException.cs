@@ -1,6 +1,4 @@
-using SmkDoc.Domain.Exceptions;
-
-namespace SmkDoc.Application.Common.Exceptions;
+namespace SmkDoc.Domain.Exceptions;
 
 /// <summary>
 /// Thrown when a requested entity or resource is not found.
@@ -18,3 +16,4 @@ public class NotFoundException : DomainException
     {
     }
 }
+

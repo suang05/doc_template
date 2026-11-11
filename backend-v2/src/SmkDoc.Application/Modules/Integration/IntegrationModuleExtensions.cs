@@ -24,7 +24,7 @@ public static class IntegrationModuleExtensions
         // Single-Responsibility UseCases - Datasets
         services.AddUseCase<CreateDatasetCommand, DatasetResultDto, CreateDatasetUseCase>();
         services.AddUseCase<UpdateDatasetCommand, DatasetResultDto, UpdateDatasetUseCase>();
-        services.AddUseCase<DeleteDatasetCommand, bool, DeleteDatasetUseCase>();
+        services.AddUseCase<DeleteDatasetCommand, DeleteDatasetUseCase>();
         services.AddUseCase<GetDatasetByIdQuery, DatasetResultDto, GetDatasetByIdUseCase>();
         services.AddUseCase<ListDatasetsQuery, List<DatasetResultDto>, ListDatasetsUseCase>();
         services.AddUseCase<DryRunDatasetCommand, DryRunDatasetResultDto, DryRunDatasetUseCase>();
@@ -32,7 +32,7 @@ public static class IntegrationModuleExtensions
         // Single-Responsibility UseCases - DataConnections
         services.AddUseCase<CreateDataConnectionCommand, DataConnectionResultDto, CreateDataConnectionUseCase>();
         services.AddUseCase<UpdateDataConnectionCommand, DataConnectionResultDto, UpdateDataConnectionUseCase>();
-        services.AddUseCase<DeleteDataConnectionCommand, bool, DeleteDataConnectionUseCase>();
+        services.AddUseCase<DeleteDataConnectionCommand, DeleteDataConnectionUseCase>();
         services.AddUseCase<TestDataConnectionCommand, TestDataConnectionResultDto, TestDataConnectionUseCase>();
         services.AddUseCase<GetDataConnectionByIdQuery, DataConnectionResultDto, GetDataConnectionByIdUseCase>();
         services.AddUseCase<ListDataConnectionsQuery, List<DataConnectionResultDto>, ListDataConnectionsUseCase>();

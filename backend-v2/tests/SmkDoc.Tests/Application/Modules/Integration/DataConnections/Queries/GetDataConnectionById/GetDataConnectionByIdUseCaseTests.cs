@@ -1,4 +1,5 @@
 using SmkDoc.Application.Common.Exceptions;
+using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Integration.DataConnections.DTOs;
 using SmkDoc.Application.Modules.Integration.DataConnections.Queries.GetDataConnectionById;
 using SmkDoc.Domain.Entities;
@@ -11,8 +12,29 @@ namespace SmkDoc.Tests.Application.Modules.Integration.DataConnections.Queries.G
 public sealed class GetDataConnectionByIdUseCaseTests
 {
     private readonly IDataConnectionRepository _connectionRepo = Substitute.For<IDataConnectionRepository>();
+    private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
 
-    private GetDataConnectionByIdUseCase CreateSut() => new(_connectionRepo);
+    public GetDataConnectionByIdUseCaseTests()
+    {
+        _projectContext.IsResolved.Returns(true);
+        _projectContext.ProjectId.Returns(ProjectId.New());
+    }
+
+    private GetDataConnectionByIdUseCase CreateSut() => new(_connectionRepo, _projectContext);
+
+    [Fact]
+    public async Task ExecuteAsync_WhenProjectUnresolved_ThrowsForbiddenException()
+    {
+        // Arrange
+        _projectContext.IsResolved.Returns(false);
+
+        // Act
+        var act = () => CreateSut().ExecuteAsync(new GetDataConnectionByIdQuery(Guid.NewGuid()));
+
+        // Assert
+        await act.Should().ThrowAsync<ForbiddenException>();
+        await _connectionRepo.DidNotReceive().GetByIdAsync(Arg.Any<DataConnectionId>(), Arg.Any<CancellationToken>());
+    }
 
     [Fact]
     public async Task ExecuteAsync_WhenConnectionFound_ReturnsDto()

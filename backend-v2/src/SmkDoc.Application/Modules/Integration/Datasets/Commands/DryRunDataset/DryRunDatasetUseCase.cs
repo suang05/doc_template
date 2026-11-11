@@ -1,4 +1,5 @@
 using SmkDoc.Application.Common.Exceptions;
+using SmkDoc.Application.Common.Extensions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Integration.Datasets.DTOs;
 using SmkDoc.Domain.Exceptions;
@@ -15,12 +16,15 @@ public sealed class DryRunDatasetUseCase(
     IDataConnectionRepository connectionRepo,
     IDataProtectionService dataProtection,
     ISqlConnectionValidator sqlValidator,
-    ISqlDriverFactory driverFactory) : IUseCase<DryRunDatasetCommand, DryRunDatasetResultDto>
+    ISqlDriverFactory driverFactory,
+    ICurrentProjectContext projectContext) : IUseCase<DryRunDatasetCommand, DryRunDatasetResultDto>
 {
     private const int CommandTimeoutSeconds = 15;
 
     public async Task<DryRunDatasetResultDto> ExecuteAsync(DryRunDatasetCommand command, CancellationToken ct = default)
     {
+        projectContext.EnsureResolved();
+
         string provider;
         string connectionString;
 

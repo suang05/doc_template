@@ -1,5 +1,7 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Common.Responses;
+using SmkDoc.Api.Constants;
 using SmkDoc.Api.Contracts.Authoring.Templates;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.Commands.SaveTemplateDatasets;
@@ -14,6 +16,7 @@ namespace SmkDoc.Api.Controllers.Authoring;
 /// </summary>
 [ApiController]
 [Route("api/v1/templates/{id:guid}/datasets")]
+[Authorize(Policy = AuthorizationPolicies.CanManageTemplates)]
 public sealed class TemplateDatasetController(
     IUseCase<GetTemplateDatasetsQuery, List<TemplateDatasetDto>> getDatasetsUseCase,
     IUseCase<SaveTemplateDatasetsCommand, List<TemplateDatasetDto>> saveDatasetsUseCase) : ControllerBase

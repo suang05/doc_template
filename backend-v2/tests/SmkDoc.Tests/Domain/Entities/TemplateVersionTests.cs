@@ -90,42 +90,42 @@ public sealed class TemplateVersionTests
     }
 
     [Fact]
-    public void UpdateStorageKey_WhenArchived_ThrowsArchivedVersionImmutableException()
+    public void UpdateStorageKey_WhenArchived_ThrowsBusinessRuleViolationException()
     {
         var version = CreateArchivedVersion();
         var act = () => version.UpdateStorageKey("new-key", Now.AddMinutes(5));
 
-        act.Should().Throw<ArchivedVersionImmutableException>()
+        act.Should().Throw<BusinessRuleViolationException>()
             .Which.ErrorCode.Should().Be("ARCHIVED_VERSION_IMMUTABLE");
     }
 
     [Fact]
-    public void UpdateDataSchema_WhenArchived_ThrowsArchivedVersionImmutableException()
+    public void UpdateDataSchema_WhenArchived_ThrowsBusinessRuleViolationException()
     {
         var version = CreateArchivedVersion();
         var act = () => version.UpdateDataSchema("{}", "{}", Now.AddMinutes(5));
 
-        act.Should().Throw<ArchivedVersionImmutableException>()
+        act.Should().Throw<BusinessRuleViolationException>()
             .Which.ErrorCode.Should().Be("ARCHIVED_VERSION_IMMUTABLE");
     }
 
     [Fact]
-    public void UpdateMappingsSnapshot_WhenArchived_ThrowsArchivedVersionImmutableException()
+    public void UpdateMappingsSnapshot_WhenArchived_ThrowsBusinessRuleViolationException()
     {
         var version = CreateArchivedVersion();
         var act = () => version.UpdateMappingsSnapshot("[]", Now.AddMinutes(5));
 
-        act.Should().Throw<ArchivedVersionImmutableException>()
+        act.Should().Throw<BusinessRuleViolationException>()
             .Which.ErrorCode.Should().Be("ARCHIVED_VERSION_IMMUTABLE");
     }
 
     [Fact]
-    public void Publish_WhenArchived_ThrowsArchivedVersionImmutableException()
+    public void Publish_WhenArchived_ThrowsBusinessRuleViolationException()
     {
         var version = CreateArchivedVersion();
         var act = () => version.Publish(Now.AddMinutes(5));
 
-        act.Should().Throw<ArchivedVersionImmutableException>()
+        act.Should().Throw<BusinessRuleViolationException>()
             .Which.ErrorCode.Should().Be("ARCHIVED_VERSION_IMMUTABLE");
     }
 
@@ -171,12 +171,12 @@ public sealed class TemplateVersionTests
     }
 
     [Fact]
-    public void UpdatePageSettings_WhenArchived_ThrowsArchivedVersionImmutableException()
+    public void UpdatePageSettings_WhenArchived_ThrowsBusinessRuleViolationException()
     {
         var version = CreateArchivedVersion();
         var act = () => version.UpdatePageSettings(new TemplatePageSettings(), Now.AddMinutes(5));
 
-        act.Should().Throw<ArchivedVersionImmutableException>()
+        act.Should().Throw<BusinessRuleViolationException>()
             .Which.ErrorCode.Should().Be("ARCHIVED_VERSION_IMMUTABLE");
     }
 }

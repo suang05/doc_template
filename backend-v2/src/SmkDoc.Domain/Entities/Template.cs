@@ -77,7 +77,7 @@ public sealed class Template : AggregateRoot<TemplateId>, IMustHaveProject
     {
         if (_versions.Any(v => v.Version == versionNumber))
         {
-            throw new DuplicateVersionException(Id.Value, versionNumber);
+            throw ConflictException.DuplicateVersion(Id.Value, versionNumber);
         }
 
         var version = TemplateVersion.Draft(Id, versionNumber, storageKey, fileFormat, createdBy, now, commitMessage);
@@ -180,7 +180,7 @@ public sealed class Template : AggregateRoot<TemplateId>, IMustHaveProject
 
         if (_versions.Any(v => v.Version == version.Version))
         {
-            throw new DuplicateVersionException(Id.Value, version.Version);
+            throw ConflictException.DuplicateVersion(Id.Value, version.Version);
         }
 
         _versions.Add(version);
@@ -200,7 +200,7 @@ public sealed class Template : AggregateRoot<TemplateId>, IMustHaveProject
 
         if (_versions.Count > 0 && !_versions.Any(v => v.Id == versionId))
         {
-            throw new VersionNotInTemplateException(Id.Value, versionId);
+            throw new NotFoundException("TemplateVersion", versionId);
         }
 
         CurrentVersionId = versionId;
@@ -254,7 +254,7 @@ public sealed class Template : AggregateRoot<TemplateId>, IMustHaveProject
 
         if (_fieldMappings.Any(m => string.Equals(m.Placeholder, mapping.Placeholder, StringComparison.OrdinalIgnoreCase)))
         {
-            throw new DuplicatePlaceholderException(Id.Value, mapping.Placeholder);
+            throw ConflictException.DuplicatePlaceholder(Id.Value, mapping.Placeholder);
         }
 
         _fieldMappings.Add(mapping);
@@ -284,7 +284,7 @@ public sealed class Template : AggregateRoot<TemplateId>, IMustHaveProject
 
         if (duplicates.Count > 0)
         {
-            throw new DuplicatePlaceholderException(Id.Value, string.Join(", ", duplicates));
+            throw ConflictException.DuplicatePlaceholder(Id.Value, string.Join(", ", duplicates));
         }
 
         _fieldMappings.Clear();
@@ -299,7 +299,7 @@ public sealed class Template : AggregateRoot<TemplateId>, IMustHaveProject
 
         if (_templateDatasets.Any(d => d.Alias == alias))
         {
-            throw new DuplicateDatasetAliasException(Id.Value, alias.Value);
+            throw ConflictException.DuplicateDatasetAlias(Id.Value, alias.Value);
         }
 
         _templateDatasets.Add(TemplateDataset.Create((TemplateId)Id, datasetId, alias, sortOrder, now));
@@ -339,7 +339,7 @@ public sealed class Template : AggregateRoot<TemplateId>, IMustHaveProject
 
         if (duplicateAliases.Count > 0)
         {
-            throw new DuplicateDatasetAliasException(Id.Value, string.Join(", ", duplicateAliases));
+            throw ConflictException.DuplicateDatasetAlias(Id.Value, string.Join(", ", duplicateAliases));
         }
 
         _templateDatasets.Clear();

@@ -1,3 +1,4 @@
+using SmkDoc.Application.Common.Extensions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.Helpers;
@@ -13,10 +14,13 @@ namespace SmkDoc.Application.Modules.Authoring.FieldMappings.Commands.SaveTempla
 public sealed class SaveTemplateMappingsUseCase(
     ITemplateRepository templateRepo,
     IUnitOfWork unitOfWork,
+    ICurrentProjectContext projectContext,
     TimeProvider timeProvider) : IUseCase<SaveTemplateMappingsCommand, List<FieldMappingDto>>
 {
     public async Task<List<FieldMappingDto>> ExecuteAsync(SaveTemplateMappingsCommand command, CancellationToken ct = default)
     {
+        projectContext.EnsureResolved();
+
         var templateId = new TemplateId(command.TemplateId);
         var template = await templateRepo.GetByIdWithDetailsAsync(templateId, ct)
             ?? await templateRepo.GetByIdAsync(templateId, ct)

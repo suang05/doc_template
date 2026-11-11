@@ -1,8 +1,8 @@
 using SmkDoc.Application.Common.Exceptions;
+using SmkDoc.Application.Common.Extensions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Integration.Datasets.DTOs;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.ValueObjects.Ids;
@@ -19,10 +19,7 @@ public sealed class CreateDatasetUseCase(
 {
     public async Task<DatasetResultDto> ExecuteAsync(CreateDatasetCommand command, CancellationToken ct = default)
     {
-        if (!projectContext.IsResolved)
-        {
-            throw new ForbiddenException("Creating a dataset requires an active project context.");
-        }
+        var projectId = projectContext.EnsureResolved();
 
         sqlValidator.ValidateReadOnlySql(command.SqlQuery);
 
@@ -37,7 +34,7 @@ public sealed class CreateDatasetUseCase(
             SqlQuery.Create(command.SqlQuery),
             command.CacheSeconds,
             now,
-            projectContext.ProjectId);
+            projectId);
 
         await datasetRepo.AddAsync(entity, ct);
         await unitOfWork.CommitAsync(ct);

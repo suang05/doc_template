@@ -5,6 +5,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Using Include="SmkDoc.Domain.Exceptions" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\SmkDoc.Domain\SmkDoc.Domain.csproj" />
   </ItemGroup>
 

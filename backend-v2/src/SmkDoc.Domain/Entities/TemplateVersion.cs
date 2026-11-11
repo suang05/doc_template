@@ -65,10 +65,7 @@ public sealed class TemplateVersion : BaseEntity
 
     public void Publish(DateTimeOffset now)
     {
-        if (Status == TemplateVersionStatus.Archived)
-        {
-            throw new ArchivedVersionImmutableException(Id, "Publish");
-        }
+        EnsureNotArchived("Publish");
 
         Status = TemplateVersionStatus.Published;
         SetUpdated(now);
@@ -135,7 +132,9 @@ public sealed class TemplateVersion : BaseEntity
     {
         if (Status == TemplateVersionStatus.Archived)
         {
-            throw new ArchivedVersionImmutableException(Id, operation);
+            throw new BusinessRuleViolationException(
+                $"TemplateVersion '{Id}' is archived and immutable. Operation '{operation}' is prohibited.",
+                "ARCHIVED_VERSION_IMMUTABLE");
         }
     }
 }

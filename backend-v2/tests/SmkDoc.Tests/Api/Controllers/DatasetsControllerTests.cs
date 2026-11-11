@@ -23,7 +23,7 @@ public sealed class DatasetsControllerTests
     private readonly IUseCase<GetDatasetByIdQuery, DatasetResultDto> _getByIdUseCase = Substitute.For<IUseCase<GetDatasetByIdQuery, DatasetResultDto>>();
     private readonly IUseCase<CreateDatasetCommand, DatasetResultDto> _createUseCase = Substitute.For<IUseCase<CreateDatasetCommand, DatasetResultDto>>();
     private readonly IUseCase<UpdateDatasetCommand, DatasetResultDto> _updateUseCase = Substitute.For<IUseCase<UpdateDatasetCommand, DatasetResultDto>>();
-    private readonly IUseCase<DeleteDatasetCommand, bool> _deleteUseCase = Substitute.For<IUseCase<DeleteDatasetCommand, bool>>();
+    private readonly IUseCase<DeleteDatasetCommand> _deleteUseCase = Substitute.For<IUseCase<DeleteDatasetCommand>>();
 
     private DatasetsController CreateSut()
     {
@@ -152,13 +152,14 @@ public sealed class DatasetsControllerTests
         var sut = CreateSut();
         var id = Guid.NewGuid();
         _deleteUseCase.ExecuteAsync(Arg.Is<DeleteDatasetCommand>(c => c.Id == id), Arg.Any<CancellationToken>())
-            .Returns(true);
+            .Returns(Task.CompletedTask);
 
         // Act
         var result = await sut.Delete(id, CancellationToken.None);
 
         // Assert
         result.Should().BeOfType<NoContentResult>();
+        await _deleteUseCase.Received(1).ExecuteAsync(Arg.Is<DeleteDatasetCommand>(c => c.Id == id), Arg.Any<CancellationToken>());
     }
 }
 

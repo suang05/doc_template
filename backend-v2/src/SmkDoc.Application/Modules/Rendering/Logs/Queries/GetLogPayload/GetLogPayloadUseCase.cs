@@ -27,7 +27,7 @@ public sealed class GetLogPayloadUseCase(
         {
             var objectKey = log.InputData[OffloadedPrefix.Length..^1];
             await using var stream = await storageService.DownloadAsync(StorageBuckets.AuditPayloads, objectKey, ct);
-            using var reader = new StreamReader(stream, Encoding.UTF8);
+            using var reader = new StreamReader(stream);
             var payloadJson = await reader.ReadToEndAsync(ct);
 
             return new LogPayloadResultDto(log.Id, payloadJson, true, objectKey);

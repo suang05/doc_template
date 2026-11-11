@@ -28,7 +28,7 @@ public sealed class DatasetsController(
     IUseCase<GetDatasetByIdQuery, DatasetResultDto> getByIdUseCase,
     IUseCase<CreateDatasetCommand, DatasetResultDto> createUseCase,
     IUseCase<UpdateDatasetCommand, DatasetResultDto> updateUseCase,
-    IUseCase<DeleteDatasetCommand, bool> deleteUseCase) : ControllerBase
+    IUseCase<DeleteDatasetCommand> deleteUseCase) : ControllerBase
 {
     /// <summary>List all configured SQL datasets.</summary>
     [HttpGet]

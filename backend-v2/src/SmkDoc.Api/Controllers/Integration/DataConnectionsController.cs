@@ -28,7 +28,7 @@ public sealed class DataConnectionsController(
     IUseCase<GetDataConnectionByIdQuery, DataConnectionResultDto> getByIdUseCase,
     IUseCase<CreateDataConnectionCommand, DataConnectionResultDto> createUseCase,
     IUseCase<UpdateDataConnectionCommand, DataConnectionResultDto> updateUseCase,
-    IUseCase<DeleteDataConnectionCommand, bool> deleteUseCase) : ControllerBase
+    IUseCase<DeleteDataConnectionCommand> deleteUseCase) : ControllerBase
 {
     /// <summary>List all configured database connections.</summary>
     [HttpGet]

@@ -1,3 +1,5 @@
+using SmkDoc.Application.Common.Exceptions;
+using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Integration.Datasets.DTOs;
 using SmkDoc.Application.Modules.Integration.Datasets.Queries.ListDatasets;
 using SmkDoc.Domain.Entities;
@@ -11,10 +13,32 @@ public sealed class ListDatasetsUseCaseTests
 {
     private readonly IDatasetRepository _datasetRepo = Substitute.For<IDatasetRepository>();
     private readonly IDataConnectionRepository _connectionRepo = Substitute.For<IDataConnectionRepository>();
+    private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
+
+    public ListDatasetsUseCaseTests()
+    {
+        _projectContext.IsResolved.Returns(true);
+        _projectContext.ProjectId.Returns(ProjectId.New());
+    }
 
     private ListDatasetsUseCase CreateSut() => new(
         _datasetRepo,
-        _connectionRepo);
+        _connectionRepo,
+        _projectContext);
+
+    [Fact]
+    public async Task ExecuteAsync_WhenProjectUnresolved_ThrowsForbiddenException()
+    {
+        // Arrange
+        _projectContext.IsResolved.Returns(false);
+
+        // Act
+        var act = () => CreateSut().ExecuteAsync(new ListDatasetsQuery());
+
+        // Assert
+        await act.Should().ThrowAsync<ForbiddenException>();
+        await _datasetRepo.DidNotReceive().ListAsync(Arg.Any<CancellationToken>());
+    }
 
     [Fact]
     public async Task ExecuteAsync_ShouldReturnEnrichedDatasets()

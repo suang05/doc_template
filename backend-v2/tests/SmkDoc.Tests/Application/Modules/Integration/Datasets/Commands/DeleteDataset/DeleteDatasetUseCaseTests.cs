@@ -1,4 +1,5 @@
 using SmkDoc.Application.Common.Exceptions;
+using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Integration.Datasets.Commands.DeleteDataset;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Interfaces;
@@ -11,18 +12,37 @@ public sealed class DeleteDatasetUseCaseTests
 {
     private readonly IDatasetRepository _datasetRepo = Substitute.For<IDatasetRepository>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
+    private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
 
     public DeleteDatasetUseCaseTests()
     {
         _unitOfWork.CommitAsync(Arg.Any<CancellationToken>()).Returns(1);
+        _projectContext.IsResolved.Returns(true);
+        _projectContext.ProjectId.Returns(ProjectId.New());
     }
 
     private DeleteDatasetUseCase CreateSut() => new(
         _datasetRepo,
-        _unitOfWork);
+        _unitOfWork,
+        _projectContext);
 
     [Fact]
-    public async Task ExecuteAsync_WhenFound_RemovesAndReturnsTrue()
+    public async Task ExecuteAsync_WhenProjectContextNotResolved_ThrowsForbiddenException()
+    {
+        // Arrange
+        _projectContext.IsResolved.Returns(false);
+        var command = new DeleteDatasetCommand(Guid.NewGuid());
+
+        // Act
+        var act = () => CreateSut().ExecuteAsync(command);
+
+        // Assert
+        await act.Should().ThrowAsync<ForbiddenException>();
+        _datasetRepo.DidNotReceive().Remove(Arg.Any<Dataset>());
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenFound_RemovesAndCommits()
     {
         // Arrange
         Dataset entity = new DatasetBuilder()
@@ -37,10 +57,9 @@ public sealed class DeleteDatasetUseCaseTests
         var command = new DeleteDatasetCommand(entity.Id.Value);
 
         // Act
-        var result = await CreateSut().ExecuteAsync(command);
+        await CreateSut().ExecuteAsync(command);
 
         // Assert
-        result.Should().BeTrue();
         _datasetRepo.Received(1).Remove(entity);
         await _unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
     }

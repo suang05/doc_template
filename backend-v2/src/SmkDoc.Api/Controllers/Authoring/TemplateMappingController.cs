@@ -1,5 +1,7 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Common.Responses;
+using SmkDoc.Api.Constants;
 using SmkDoc.Api.Contracts.Authoring.FieldMappings;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.Commands.SaveTemplateMappings;
@@ -15,6 +17,7 @@ namespace SmkDoc.Api.Controllers.Authoring;
 /// </summary>
 [ApiController]
 [Route("api/v1/templates/{id:guid}/mappings")]
+[Authorize(Policy = AuthorizationPolicies.CanManageTemplates)]
 public sealed class TemplateMappingController(
     IUseCase<GetTemplateMappingsQuery, List<FieldMappingDto>> getMappingsUseCase,
     IUseCase<SaveTemplateMappingsCommand, List<FieldMappingDto>> saveMappingsUseCase,

@@ -24,7 +24,7 @@ public sealed class DataConnectionsControllerTests
     private readonly IUseCase<GetDataConnectionByIdQuery, DataConnectionResultDto> _getByIdUseCase = Substitute.For<IUseCase<GetDataConnectionByIdQuery, DataConnectionResultDto>>();
     private readonly IUseCase<CreateDataConnectionCommand, DataConnectionResultDto> _createUseCase = Substitute.For<IUseCase<CreateDataConnectionCommand, DataConnectionResultDto>>();
     private readonly IUseCase<UpdateDataConnectionCommand, DataConnectionResultDto> _updateUseCase = Substitute.For<IUseCase<UpdateDataConnectionCommand, DataConnectionResultDto>>();
-    private readonly IUseCase<DeleteDataConnectionCommand, bool> _deleteUseCase = Substitute.For<IUseCase<DeleteDataConnectionCommand, bool>>();
+    private readonly IUseCase<DeleteDataConnectionCommand> _deleteUseCase = Substitute.For<IUseCase<DeleteDataConnectionCommand>>();
 
     private DataConnectionsController CreateSut()
     {
@@ -167,12 +167,13 @@ public sealed class DataConnectionsControllerTests
         var sut = CreateSut();
         var id = Guid.NewGuid();
         _deleteUseCase.ExecuteAsync(Arg.Is<DeleteDataConnectionCommand>(c => c.Id == id), Arg.Any<CancellationToken>())
-            .Returns(true);
+            .Returns(Task.CompletedTask);
 
         // Act
         var result = await sut.Delete(id, CancellationToken.None);
 
         // Assert
         result.Should().BeOfType<NoContentResult>();
+        await _deleteUseCase.Received(1).ExecuteAsync(Arg.Is<DeleteDataConnectionCommand>(c => c.Id == id), Arg.Any<CancellationToken>());
     }
 }

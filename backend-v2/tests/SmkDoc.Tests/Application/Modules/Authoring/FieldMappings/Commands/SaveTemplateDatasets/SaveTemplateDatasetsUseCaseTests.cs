@@ -1,3 +1,5 @@
+using SmkDoc.Application.Common.Exceptions;
+using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.Commands.SaveTemplateDatasets;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 using SmkDoc.Domain.Entities;
@@ -15,10 +17,32 @@ public sealed class SaveTemplateDatasetsUseCaseTests
     private readonly ITemplateRepository _templateRepo = Substitute.For<ITemplateRepository>();
     private readonly IDatasetRepository _datasetRepo = Substitute.For<IDatasetRepository>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
+    private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
     private readonly TimeProvider _timeProvider = TestConstants.CreateFakeClock();
 
+    public SaveTemplateDatasetsUseCaseTests()
+    {
+        _projectContext.IsResolved.Returns(true);
+        _projectContext.ProjectId.Returns(ProjectId.New());
+    }
+
     private SaveTemplateDatasetsUseCase CreateSut() =>
-        new(_templateRepo, _datasetRepo, _unitOfWork, _timeProvider);
+        new(_templateRepo, _datasetRepo, _unitOfWork, _projectContext, _timeProvider);
+
+    [Fact]
+    public async Task ExecuteAsync_WhenProjectUnresolved_ThrowsForbiddenException()
+    {
+        // Arrange
+        _projectContext.IsResolved.Returns(false);
+        var command = new SaveTemplateDatasetsCommand(Guid.NewGuid(), []);
+
+        // Act
+        var act = () => CreateSut().ExecuteAsync(command);
+
+        // Assert
+        await act.Should().ThrowAsync<ForbiddenException>();
+        await _templateRepo.DidNotReceive().GetByIdWithDetailsAsync(Arg.Any<TemplateId>(), Arg.Any<CancellationToken>());
+    }
 
     [Fact]
     public async Task ExecuteAsync_WhenValidCommand_ReplacesDatasetsAndCommits()
@@ -78,7 +102,7 @@ public sealed class SaveTemplateDatasetsUseCaseTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_WhenDuplicateAliasesProvided_ThrowsBusinessRuleViolationException()
+    public async Task ExecuteAsync_WhenDuplicateAliasesProvided_ThrowsConflictException()
     {
         // Arrange
         var templateId = Guid.NewGuid();
@@ -104,7 +128,7 @@ public sealed class SaveTemplateDatasetsUseCaseTests
         var act = () => CreateSut().ExecuteAsync(command);
 
         // Assert
-        var ex = await act.Should().ThrowAsync<BusinessRuleViolationException>();
+        var ex = await act.Should().ThrowAsync<ConflictException>();
         ex.Which.ErrorCode.Should().Be("DUPLICATE_DATASET_ALIAS");
     }
 }

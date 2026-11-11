@@ -510,11 +510,11 @@ public sealed class ProjectContextMiddlewareTests
     }
 
     [Fact]
-    public async Task InvokeAsync_AuthenticatedPortalUser_WithoutTargetProjectId_AllowsUnresolvedContext()
+    public async Task InvokeAsync_AuthenticatedPortalUser_WithoutTargetProjectId_OnManagementRoute_AllowsUnresolvedContext()
     {
-        // Arrange: User calling general endpoint like /api/v1/projects without project selection
+        // Arrange: User calling management endpoint like /api/v1/management/projects without project selection
         var sut = CreateSut();
-        var (httpContext, projectContext) = CreateContexts("/api/v1/projects");
+        var (httpContext, projectContext) = CreateContexts("/api/v1/management/projects");
 
         var userId = Guid.NewGuid();
         var claims = new[]
@@ -536,6 +536,36 @@ public sealed class ProjectContextMiddlewareTests
         await _next.Received(1).Invoke(httpContext);
         projectContext.IsResolved.Should().BeFalse();
         projectContext.UserId.Should().Be(new UserId(userId));
+    }
+
+    [Fact]
+    public async Task InvokeAsync_AuthenticatedPortalUser_WithoutTargetProjectId_OnDataPlane_Returns400BadRequest()
+    {
+        // Arrange: User calling Data Plane endpoint /api/v1/templates without project selection
+        var sut = CreateSut();
+        var (httpContext, projectContext) = CreateContexts("/api/v1/templates");
+
+        var userId = Guid.NewGuid();
+        var claims = new[]
+        {
+            new Claim(ClaimTypes.NameIdentifier, userId.ToString()),
+            new Claim("SystemRole", "Member")
+        };
+        httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(claims, "Bearer"));
+
+        // Act
+        await sut.InvokeAsync(
+            httpContext,
+            projectContext,
+            _validateApiKeyUseCase,
+            _userProjectRoleRepo,
+            _projectRepo);
+
+        // Assert
+        await _next.DidNotReceive().Invoke(httpContext);
+        projectContext.IsResolved.Should().BeFalse();
+        httpContext.Response.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
+        httpContext.Response.ContentType.Should().StartWith("application/problem+json");
     }
 
     [Fact]

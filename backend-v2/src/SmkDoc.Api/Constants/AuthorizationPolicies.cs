@@ -13,31 +13,31 @@ public static class AuthorizationPolicies
 
     /// <summary>
     /// Project administrator operations (User/Role management, project configuration).
-    /// Allows User Roles Admin/SuperAdmin, OR M2M keys with ReadWrite scope.
+    /// Requires tenant Admin role, OR M2M keys with ReadWrite scope.
     /// </summary>
     public const string RequireProjectAdmin = "RequireProjectAdmin";
 
     /// <summary>
     /// Template and asset authoring operations (Template design, dataset and font management).
-    /// Allows User Roles Developer/Admin/SuperAdmin, OR M2M keys with ReadWrite scope.
+    /// Allows tenant roles Developer/Admin, OR M2M keys with ReadWrite scope.
     /// </summary>
     public const string CanManageTemplates = "CanManageTemplates";
 
     /// <summary>
     /// Document rendering and validation operations (Sync Preview, Async Generation).
-    /// Allows User Roles Viewer/Member/Developer/Admin/SuperAdmin, OR any authenticated M2M key (ReadOnly/ReadWrite).
+    /// Allows authenticated tenant members, OR any authenticated M2M key (ReadOnly/ReadWrite).
     /// </summary>
     public const string CanGenerateDocuments = "CanGenerateDocuments";
 
     /// <summary>
     /// Database connection management (Credentials, test connection).
-    /// Requires User Roles Admin/SuperAdmin.
+    /// Requires tenant Admin role.
     /// </summary>
     public const string CanManageDataConnections = "CanManageDataConnections";
 
     /// <summary>
     /// Dataset SQL query management.
-    /// Allows User Roles Developer/Admin/SuperAdmin, OR M2M keys with ReadWrite scope.
+    /// Allows tenant roles Developer/Admin, OR M2M keys with ReadWrite scope.
     /// </summary>
     public const string CanManageDatasets = "CanManageDatasets";
 }

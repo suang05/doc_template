@@ -111,6 +111,20 @@ public sealed class ProjectContextMiddleware(
                 }
             }
 
+            // Fail-fast perimeter guard: Data plane operations strictly require a resolved tenant context
+            if (!isManagementRoute && !targetProjectIdGuid.HasValue)
+            {
+                logger.LogWarning("Perimeter defense: Project context required for data plane route {Path}", path);
+                await WriteProblemDetailsAsync(
+                    context,
+                    StatusCodes.Status400BadRequest,
+                    "Bad Request",
+                    "Project context is required. Provide an X-Project-Id header or valid project claim.",
+                    "https://tools.ietf.org/html/rfc9457",
+                    "PROJECT_CONTEXT_REQUIRED");
+                return;
+            }
+
             // If a specific project was requested, enforce active tenant validation & IDOR defense
             if (targetProjectIdGuid.HasValue)
             {
@@ -434,12 +448,13 @@ public sealed class ProjectContextMiddleware(
         int statusCode,
         string title,
         string detail,
-        string type)
+        string type,
+        string? customErrorCode = null)
     {
         context.Response.StatusCode = statusCode;
         context.Response.ContentType = "application/problem+json";
 
-        var errorCode = ProblemDetailsBuilder.ResolveDefaultErrorCode(statusCode);
+        var errorCode = customErrorCode ?? ProblemDetailsBuilder.ResolveDefaultErrorCode(statusCode);
         var problemDetails = ProblemDetailsBuilder.Create(
             status: statusCode,
             title: title,
