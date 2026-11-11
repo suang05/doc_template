@@ -15,6 +15,7 @@ using SmkDoc.Application.Modules.IdentityAccess.Security.EventHandlers;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Queries.GetCurrentUserProfile;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Queries.ListApiKeys;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Queries.ValidateApiKey;
+using SmkDoc.Application.Modules.IdentityAccess.Security.Services;
 using SmkDoc.Application.Modules.IdentityAccess.Users.Commands.InviteUser;
 using SmkDoc.Application.Modules.IdentityAccess.Users.Commands.RemoveUser;
 using SmkDoc.Application.Modules.IdentityAccess.Users.Commands.SetUserStatus;
@@ -33,6 +34,9 @@ public static class IdentityAccessModuleExtensions
         // Domain Event Handlers
         services.AddScoped<IDomainEventHandler<ApiKeyRevokedDomainEvent>, ApiKeyRevokedEventHandler>();
         services.AddScoped<IDomainEventHandler<UserDeactivatedDomainEvent>, UserDeactivatedEventHandler>();
+
+        // Services
+        services.AddScoped<ITokenIssuerService, TokenIssuerService>();
 
         // Users (Action-Centric Vertical Slice)
         services.AddUseCase<ListProjectUsersQuery, List<UserResultDto>, ListProjectUsersUseCase>();
