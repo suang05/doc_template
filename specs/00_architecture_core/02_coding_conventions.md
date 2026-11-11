@@ -229,9 +229,10 @@ public sealed class {ExternalService}Adapter(
 }
 ```
 
-### 3.6 Cadence 6: Unit Test 3-Step DAMP AAA Cadence
+### 3.6 Cadence 6: Unit Test 3-Step DAMP AAA Cadence (Archetype A: Entity-Creating / Key-Consuming)
+*(Note: For Archetype B UseCases operating strictly by ID or using EF Core Global Query Filter, omit `projectContext` mock; rely on Tier 1 Perimeter Guard and EF Core filter >> Ref: [05_testing_archetypes.md](../01_clean_arch_patterns/05_testing_archetypes.md#312-archetype-b-id-based--ef-filtered-query-or-mutation-usecase-test-updateaggregateusecasetests--listaggregatesusecasetests)).*
 ```csharp
-public sealed class {Verb}{Aggregate}UseCaseTests
+public sealed class Create{Aggregate}UseCaseTests
 {
     [Fact]
     public async Task ExecuteAsync_WhenValidCommand_ReturnsResultDtoAndCommits()
@@ -244,8 +245,8 @@ public sealed class {Verb}{Aggregate}UseCaseTests
         var unitOfWork = Substitute.For<IUnitOfWork>();
         var fakeClock = TestConstants.CreateFakeClock();
 
-        var sut = new {Verb}{Aggregate}UseCase(repository, projectContext, unitOfWork, fakeClock);
-        var command = new {Verb}{Aggregate}Command("Standard Name", "standard-slug", "Default");
+        var sut = new Create{Aggregate}UseCase(repository, projectContext, unitOfWork, fakeClock);
+        var command = new Create{Aggregate}Command("Standard Name", "standard-slug", "Default");
 
         // Step 2: Act (Target method execution)
         var result = await sut.ExecuteAsync(command, CancellationToken.None);

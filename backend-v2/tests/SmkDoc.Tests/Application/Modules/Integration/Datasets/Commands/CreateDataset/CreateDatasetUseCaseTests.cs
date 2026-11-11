@@ -1,8 +1,10 @@
+using NSubstitute.ExceptionExtensions;
 using SmkDoc.Application.Common.Behaviors;
 using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Integration.Datasets.Commands.CreateDataset;
 using SmkDoc.Application.Modules.Integration.Datasets.DTOs;
+using SmkDoc.Application.Modules.Integration.Datasets.Services;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
@@ -14,9 +16,8 @@ namespace SmkDoc.Tests.Application.Modules.Integration.Datasets.Commands.CreateD
 public sealed class CreateDatasetUseCaseTests
 {
     private readonly IDatasetRepository _datasetRepo = Substitute.For<IDatasetRepository>();
-    private readonly IDataConnectionRepository _connectionRepo = Substitute.For<IDataConnectionRepository>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
-    private readonly ISqlConnectionValidator _sqlValidator = Substitute.For<ISqlConnectionValidator>();
+    private readonly IDatasetResolver _datasetResolver = Substitute.For<IDatasetResolver>();
     private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
     private readonly FakeTimeProvider _timeProvider = TestConstants.CreateFakeClock();
     private readonly ProjectId _projectId = ProjectId.New();
@@ -30,9 +31,8 @@ public sealed class CreateDatasetUseCaseTests
 
     private CreateDatasetUseCase CreateSut() => new(
         _datasetRepo,
-        _connectionRepo,
         _unitOfWork,
-        _sqlValidator,
+        _datasetResolver,
         _projectContext,
         _timeProvider);
 
@@ -50,7 +50,7 @@ public sealed class CreateDatasetUseCaseTests
 
         // Assert
         await act.Should().ThrowAsync<SmkDoc.Application.Common.Exceptions.ValidationException>();
-        await _connectionRepo.DidNotReceive().GetByIdAsync(Arg.Any<DataConnectionId>(), Arg.Any<CancellationToken>());
+        await _datasetResolver.DidNotReceive().ValidateAndResolveConnectionAsync(Arg.Any<DataConnectionId>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
         await _datasetRepo.DidNotReceive().AddAsync(Arg.Any<Dataset>(), Arg.Any<CancellationToken>());
         await _unitOfWork.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
     }
@@ -67,7 +67,7 @@ public sealed class CreateDatasetUseCaseTests
 
         // Assert
         await act.Should().ThrowAsync<ForbiddenException>();
-        _sqlValidator.DidNotReceive().ValidateReadOnlySql(Arg.Any<string>());
+        await _datasetResolver.DidNotReceive().ValidateAndResolveConnectionAsync(Arg.Any<DataConnectionId>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -78,7 +78,7 @@ public sealed class CreateDatasetUseCaseTests
         DataConnection conn = DataConnectionBuilder.SqlServer(name: "DB1", connectionString: "enc_db1", id: connId);
         var command = new CreateDatasetCommand("OrdersSet", "desc", connId, "SELECT * FROM orders", 60);
 
-        _connectionRepo.GetByIdAsync(new DataConnectionId(connId), Arg.Any<CancellationToken>())
+        _datasetResolver.ValidateAndResolveConnectionAsync(new DataConnectionId(connId), "SELECT * FROM orders", Arg.Any<CancellationToken>())
             .Returns(conn);
 
         // Act
@@ -89,7 +89,7 @@ public sealed class CreateDatasetUseCaseTests
         result.DataConnectionName.Should().Be("DB1");
         result.CacheSeconds.Should().Be(60);
 
-        _sqlValidator.Received(1).ValidateReadOnlySql("SELECT * FROM orders");
+        await _datasetResolver.Received(1).ValidateAndResolveConnectionAsync(new DataConnectionId(connId), "SELECT * FROM orders", Arg.Any<CancellationToken>());
         await _datasetRepo.Received(1).AddAsync(
             Arg.Is<Dataset>(d =>
                 d.Name.Value == "OrdersSet" &&
@@ -103,8 +103,8 @@ public sealed class CreateDatasetUseCaseTests
     public async Task ExecuteAsync_WhenConnectionNotFound_ShouldThrowNotFoundException()
     {
         // Arrange
-        _connectionRepo.GetByIdAsync(Arg.Any<DataConnectionId>(), Arg.Any<CancellationToken>())
-            .Returns((DataConnection?)null);
+        _datasetResolver.ValidateAndResolveConnectionAsync(Arg.Any<DataConnectionId>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .ThrowsAsync(new NotFoundException("DataConnection", Guid.NewGuid()));
 
         var command = new CreateDatasetCommand("OrdersSet", null, Guid.NewGuid(), "SELECT 1");
 

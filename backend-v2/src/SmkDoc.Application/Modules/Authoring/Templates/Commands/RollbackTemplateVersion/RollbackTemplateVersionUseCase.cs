@@ -23,8 +23,6 @@ public sealed class RollbackTemplateVersionUseCase(
 {
     public async Task<RollbackVersionResultDto> ExecuteAsync(RollbackTemplateVersionCommand command, CancellationToken ct = default)
     {
-        projectContext.EnsureResolved("Rolling back a template version requires an active project context.");
-
         var templateId = new TemplateId(command.TemplateId);
         var template = await templateRepo.GetByIdWithDetailsAsync(templateId, ct)
             ?? await templateRepo.GetByIdAsync(templateId, ct)

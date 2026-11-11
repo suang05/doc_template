@@ -1,7 +1,7 @@
-using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Extensions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Integration.Datasets.DTOs;
+using SmkDoc.Application.Modules.Integration.Datasets.Services;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
@@ -11,9 +11,8 @@ namespace SmkDoc.Application.Modules.Integration.Datasets.Commands.CreateDataset
 
 public sealed class CreateDatasetUseCase(
     IDatasetRepository datasetRepo,
-    IDataConnectionRepository connectionRepo,
     IUnitOfWork unitOfWork,
-    ISqlConnectionValidator sqlValidator,
+    IDatasetResolver datasetResolver,
     ICurrentProjectContext projectContext,
     TimeProvider timeProvider) : IUseCase<CreateDatasetCommand, DatasetResultDto>
 {
@@ -21,10 +20,10 @@ public sealed class CreateDatasetUseCase(
     {
         var projectId = projectContext.EnsureResolved();
 
-        sqlValidator.ValidateReadOnlySql(command.SqlQuery);
-
-        var connection = await connectionRepo.GetByIdAsync(new DataConnectionId(command.DataConnectionId), ct)
-            ?? throw new NotFoundException($"DataConnection '{command.DataConnectionId}' not found.");
+        var connection = await datasetResolver.ValidateAndResolveConnectionAsync(
+            new DataConnectionId(command.DataConnectionId),
+            command.SqlQuery,
+            ct);
 
         var now = timeProvider.GetUtcNow();
         var entity = Dataset.Create(

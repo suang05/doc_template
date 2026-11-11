@@ -12,17 +12,16 @@ public sealed class GetDocumentJobUseCase(
 {
     public async Task<DocumentJobDto> ExecuteAsync(GetDocumentJobQuery query, CancellationToken ct = default)
     {
-        if (projectContext.SystemRole != SystemRole.SuperAdmin)
-        {
-            projectContext.EnsureResolved("Active project context or SuperAdmin role is required to query document jobs.");
-        }
-
         var job = await renderQueue.GetJobAsync(query.JobId, ct)
             ?? throw new NotFoundException($"Document job '{query.JobId}' not found.");
 
-        if (projectContext.SystemRole != SystemRole.SuperAdmin && job.ProjectId != projectContext.ProjectId.Value)
+        if (projectContext.SystemRole != SystemRole.SuperAdmin)
         {
-            throw new ForbiddenException("Access denied: caller does not have permission to access document jobs from another project.");
+            var projectId = projectContext.EnsureResolved("Active project context or SuperAdmin role is required to query document jobs.");
+            if (job.ProjectId != projectId.Value)
+            {
+                throw new ForbiddenException("Access denied: caller does not have permission to access document jobs from another project.");
+            }
         }
 
         return DocumentJobDto.FromJob(job);

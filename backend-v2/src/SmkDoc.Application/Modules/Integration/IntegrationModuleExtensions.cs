@@ -15,12 +15,17 @@ using SmkDoc.Application.Modules.Integration.Datasets.DTOs;
 using SmkDoc.Application.Modules.Integration.Datasets.Queries.GetDatasetById;
 using SmkDoc.Application.Modules.Integration.Datasets.Queries.ListDatasets;
 
+using SmkDoc.Application.Modules.Integration.Datasets.Services;
+
 namespace SmkDoc.Application.Modules.Integration;
 
 public static class IntegrationModuleExtensions
 {
     public static IServiceCollection AddIntegrationModule(this IServiceCollection services)
     {
+        // Core Subsystem Services
+        services.AddScoped<IDatasetResolver, DatasetResolver>();
+
         // Single-Responsibility UseCases - Datasets
         services.AddUseCase<CreateDatasetCommand, DatasetResultDto, CreateDatasetUseCase>();
         services.AddUseCase<UpdateDatasetCommand, DatasetResultDto, UpdateDatasetUseCase>();

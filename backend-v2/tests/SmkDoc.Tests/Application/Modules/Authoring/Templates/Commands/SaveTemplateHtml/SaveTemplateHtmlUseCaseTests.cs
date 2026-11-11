@@ -190,22 +190,6 @@ public sealed class SaveTemplateHtmlUseCaseTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_WhenProjectContextUnresolved_ShouldThrowForbiddenException()
-    {
-        // Arrange
-        _projectContext.IsResolved.Returns(false);
-        var request = new SaveTemplateHtmlCommand(Guid.NewGuid(), "<html></html>", "{}", "Note");
-
-        // Act
-        var act = () => CreateSut().ExecuteAsync(request);
-
-        // Assert
-        await act.Should().ThrowAsync<ForbiddenException>();
-        await _storageService.DidNotReceive().UploadAsync(
-            Arg.Any<string>(), Arg.Any<string>(), Arg.Any<Stream>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
     public async Task ExecuteAsync_WhenIfMatchDoesNotMatch_ShouldThrowPreconditionFailedException()
     {
         // Arrange

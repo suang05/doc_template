@@ -5,6 +5,7 @@ using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.Helpers;
 using SmkDoc.Application.Modules.DataBinding.Services;
+using SmkDoc.Application.Modules.Integration.Datasets.Services;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Interfaces;
@@ -17,17 +18,13 @@ namespace SmkDoc.Tests.Application.Modules.DataBinding;
 
 public sealed class DataBindingEngineTests
 {
-    private readonly IDatasetRepository _datasetRepo = Substitute.For<IDatasetRepository>();
-    private readonly IDataConnectionRepository _connectionRepo = Substitute.For<IDataConnectionRepository>();
-    private readonly IDataProtectionService _dataProtection = Substitute.For<IDataProtectionService>();
+    private readonly IDatasetResolver _datasetResolver = Substitute.For<IDatasetResolver>();
     private readonly IFieldMappingApplicatorService _fieldMappingApplicator = Substitute.For<IFieldMappingApplicatorService>();
     private readonly IJsonSchemaValidationService _schemaValidation = Substitute.For<IJsonSchemaValidationService>();
     private readonly FakeTimeProvider _timeProvider = TestConstants.CreateFakeClock();
 
     private DataBindingEngine CreateSut() => new(
-        _datasetRepo,
-        _connectionRepo,
-        _dataProtection,
+        _datasetResolver,
         _fieldMappingApplicator,
         _schemaValidation,
         _timeProvider);
@@ -158,6 +155,42 @@ public sealed class DataBindingEngineTests
         result.ValidationResult!.IsValid.Should().BeFalse();
         result.ValidationResult.Errors.Should().HaveCount(1);
         result.ValidationResult.Errors[0].Field.Should().Be("/mandatory_field");
+    }
+
+    [Fact]
+    public async Task BindAndValidateAsync_WhenTemplateHasDatasets_ResolvesThroughDatasetResolver()
+    {
+        // Arrange
+        var template = new TemplateBuilder().WithName("Invoice").WithSlug("inv").Build();
+        var td = new TemplateDatasetBuilder().WithTemplateId(template.Id.Value).WithDatasetId(Guid.NewGuid()).WithAlias("ds1").Build();
+        template.ReplaceDatasets([td], TestConstants.BaselineTime);
+
+        var version = TemplateVersionBuilder.PublishedHtml(templateId: template.Id, version: 1, storageKey: "inv.html");
+        using var jsonDoc = JsonDocument.Parse("{}");
+
+        _datasetResolver.ResolveAssignmentsAsync(Arg.Any<IEnumerable<TemplateDataset>>(), Arg.Any<CancellationToken>())
+            .Returns(new Dictionary<string, ResolvedDatasetContext>
+            {
+                ["ds1"] = new ResolvedDatasetContext("PostgreSQL", "conn", "SELECT 1", Guid.NewGuid(), Guid.NewGuid(), 0)
+            });
+
+        _fieldMappingApplicator.ApplyAsync(
+            Arg.Any<JsonElement>(),
+            Arg.Any<IEnumerable<FieldMapping>>(),
+            Arg.Any<IReadOnlyDictionary<string, ResolvedDatasetContext>>(),
+            Arg.Any<CancellationToken>())
+            .Returns("{}");
+
+        // Act
+        var result = await CreateSut().BindAndValidateAsync(template, version, jsonDoc.RootElement, skipValidation: true);
+
+        // Assert
+        await _datasetResolver.Received(1).ResolveAssignmentsAsync(Arg.Any<IEnumerable<TemplateDataset>>(), Arg.Any<CancellationToken>());
+        await _fieldMappingApplicator.Received(1).ApplyAsync(
+            Arg.Any<JsonElement>(),
+            Arg.Any<IEnumerable<FieldMapping>>(),
+            Arg.Is<IReadOnlyDictionary<string, ResolvedDatasetContext>>(d => d.ContainsKey("ds1")),
+            Arg.Any<CancellationToken>());
     }
 }
 

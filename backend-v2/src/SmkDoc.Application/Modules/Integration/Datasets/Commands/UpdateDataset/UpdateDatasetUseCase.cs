@@ -1,7 +1,7 @@
 using SmkDoc.Application.Common.Exceptions;
-using SmkDoc.Application.Common.Extensions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Integration.Datasets.DTOs;
+using SmkDoc.Application.Modules.Integration.Datasets.Services;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.ValueObjects.Ids;
@@ -10,20 +10,19 @@ namespace SmkDoc.Application.Modules.Integration.Datasets.Commands.UpdateDataset
 
 public sealed class UpdateDatasetUseCase(
     IDatasetRepository datasetRepo,
-    IDataConnectionRepository connectionRepo,
     IUnitOfWork unitOfWork,
-    ISqlConnectionValidator sqlValidator,
+    IDatasetResolver datasetResolver,
     TimeProvider timeProvider) : IUseCase<UpdateDatasetCommand, DatasetResultDto>
 {
     public async Task<DatasetResultDto> ExecuteAsync(UpdateDatasetCommand command, CancellationToken ct = default)
     {
-        sqlValidator.ValidateReadOnlySql(command.SqlQuery);
+        var connection = await datasetResolver.ValidateAndResolveConnectionAsync(
+            new DataConnectionId(command.DataConnectionId),
+            command.SqlQuery,
+            ct);
 
         var entity = await datasetRepo.GetByIdAsync(new DatasetId(command.Id), ct)
             ?? throw new NotFoundException("Dataset", command.Id);
-
-        var connection = await connectionRepo.GetByIdAsync(new DataConnectionId(command.DataConnectionId), ct)
-            ?? throw new NotFoundException($"DataConnection '{command.DataConnectionId}' not found.");
 
         var now = timeProvider.GetUtcNow();
         entity.UpdateDetails(

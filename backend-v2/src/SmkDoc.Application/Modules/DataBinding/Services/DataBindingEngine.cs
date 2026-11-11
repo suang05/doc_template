@@ -1,9 +1,9 @@
 using System.Text.Json;
-using SmkDoc.Application.Common.Helpers;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.Helpers;
 using SmkDoc.Application.Modules.DataBinding.DTOs;
+using SmkDoc.Application.Modules.Integration.Datasets.Services;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Validation;
@@ -16,9 +16,7 @@ namespace SmkDoc.Application.Modules.DataBinding.Services;
 /// and enforces fail-fast Draft-07 schema validation.
 /// </summary>
 public sealed class DataBindingEngine(
-    IDatasetRepository datasetRepo,
-    IDataConnectionRepository connectionRepo,
-    IDataProtectionService dataProtection,
+    IDatasetResolver datasetResolver,
     IFieldMappingApplicatorService fieldMappingApplicator,
     IJsonSchemaValidationService schemaValidation,
     TimeProvider timeProvider) : IDataBindingEngine
@@ -52,7 +50,7 @@ public sealed class DataBindingEngine(
 
         // 1. Resolve dataset aliases if template has linked datasets
         var aliasMap = assignments.Count > 0
-            ? await DatasetAliasMapBuilder.BuildAsync(assignments, datasetRepo, connectionRepo, dataProtection, ct)
+            ? await datasetResolver.ResolveAssignmentsAsync(assignments, ct)
             : new Dictionary<string, ResolvedDatasetContext>(StringComparer.OrdinalIgnoreCase);
 
         // 2. Execute parallel SQL dataset queries and field transformations if mappings or datasets exist

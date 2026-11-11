@@ -1,3 +1,4 @@
+using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 using SmkDoc.Domain.Entities;
@@ -5,20 +6,31 @@ using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
 
-namespace SmkDoc.Application.Common.Helpers;
+namespace SmkDoc.Application.Modules.Integration.Datasets.Services;
 
-public static class DatasetAliasMapBuilder
+/// <summary>
+/// Authoritative domain service for dataset connection validation and batch alias resolution.
+/// </summary>
+public sealed class DatasetResolver(
+    IDataConnectionRepository connectionRepo,
+    IDatasetRepository datasetRepo,
+    ISqlConnectionValidator sqlValidator,
+    IDataProtectionService dataProtection) : IDatasetResolver
 {
-    /// <summary>
-    /// Builds alias =&gt; <see cref="ResolvedDatasetContext"/> map for a template in 1 batch query
-    /// (with batch fallback for unhydrated <see cref="Dataset.DataConnection"/> navigations in unit tests).
-    /// </summary>
-    public static async Task<IReadOnlyDictionary<string, ResolvedDatasetContext>> BuildAsync(
+    public async Task<DataConnection> ValidateAndResolveConnectionAsync(
+        DataConnectionId connectionId,
+        string sqlQuery,
+        CancellationToken ct = default)
+    {
+        sqlValidator.ValidateReadOnlySql(sqlQuery);
+
+        return await connectionRepo.GetByIdAsync(connectionId, ct)
+            ?? throw new NotFoundException($"DataConnection '{connectionId.Value}' not found.");
+    }
+
+    public async Task<IReadOnlyDictionary<string, ResolvedDatasetContext>> ResolveAssignmentsAsync(
         IEnumerable<TemplateDataset> assignments,
-        IDatasetRepository datasetRepo,
-        IDataConnectionRepository connectionRepo,
-        IDataProtectionService dataProtection,
-        CancellationToken ct)
+        CancellationToken ct = default)
     {
         var assignmentList = assignments as IReadOnlyList<TemplateDataset> ?? assignments.ToList();
         if (assignmentList.Count == 0)
@@ -97,3 +109,4 @@ public static class DatasetAliasMapBuilder
         return result;
     }
 }
+

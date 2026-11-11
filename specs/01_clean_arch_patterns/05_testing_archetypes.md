@@ -114,30 +114,34 @@ SmkDoc.IntegrationTests/
 
 ## 3. Level 3: Canonical Testing Archetypes (Surgical AST Recipes)
 
-### 3.1 SSoT UseCase Test Archetype (NSubstitute Canonical)
+### 3.1 SSoT UseCase Test Archetypes (Archetype A vs Archetype B)
 >> MANDATORY CANONICAL BLUEPRINT [RULE-TEST-001]:
 * Follows DAMP (Descriptive And Meaningful Phrases) over DRY: explicitly declares Arrange, Act, and Assert in every test method.
 * Class-scoped private mocks (`Substitute.For<T>()`) and a single `private TUseCase CreateSut()` factory method.
 * Strictly 1 behavior per test method with 3-phase AAA naming (`Method_WhenCondition_ShouldExpectedResult`).
 * Domain interactions asserted using `.Received(1)` and `.DidNotReceive()`.
+* **The 3-Tier Guard Model & Zero Phantom Mocking Protocol**:
+  - **Archetype A (`Create{Aggregate}UseCaseTests`)**: Mocks `ICurrentProjectContext` strictly because SUT consumes `ProjectId` via Tier 2 Guard (`projectContext.EnsureResolved()`). Asserts fail-fast unresolved tenant rejection.
+  - **Archetype B (`Update{Aggregate}UseCaseTests`, `List{Aggregate}sUseCaseTests`, `GetById`, `Delete`)**: Strictly PROHIBITS mocking `ICurrentProjectContext` or testing unresolved tenancy. SUT constructor omits context; ambient tenancy is already guaranteed by Tier 1 Perimeter Guard and EF Core Global Query Filter.
 
+#### 3.1.1 Archetype A: Entity-Creating / Key-Consuming UseCase Test (`Create{Aggregate}UseCaseTests`)
 ```csharp
-public sealed class {Verb}{Aggregate}UseCaseTests
+public sealed class Create{Aggregate}UseCaseTests
 {
     private readonly I{Aggregate}Repository _{aggregate}Repo = Substitute.For<I{Aggregate}Repository>();
     private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
     private readonly FakeTimeProvider _timeProvider = TestConstants.CreateFakeClock();
 
-    private {Verb}{Aggregate}UseCase CreateSut() =>
-        new(_{aggregate}Repo, _unitOfWork, _projectContext, _timeProvider);
+    private Create{Aggregate}UseCase CreateSut() =>
+        new(_{aggregate}Repo, _projectContext, _unitOfWork, _timeProvider);
 
     [Fact]
     public async Task ExecuteAsync_WhenProjectContextIsUnresolved_ShouldThrowForbiddenWithoutTouchingPersistence()
     {
-        // Step 1: Arrange <Why: explicit DAMP precondition setup>
+        // Step 1: Arrange <Why: explicit DAMP precondition setup for Tier 2 Application Guard>
         _projectContext.IsResolved.Returns(false);
-        var command = new {Verb}{Aggregate}Command("Sample Name", "sample-slug", "General");
+        var command = new Create{Aggregate}Command("Sample Name", "sample-slug", "General");
         var sut = CreateSut();
 
         // Step 2: Act <Why: capture execution delegate for exception assertion>
@@ -156,8 +160,8 @@ public sealed class {Verb}{Aggregate}UseCaseTests
         var projectId = new ProjectId(Guid.NewGuid());
         _projectContext.IsResolved.Returns(true);
         _projectContext.ProjectId.Returns(projectId);
-        var command = new {Verb}{Aggregate}Command("Sample Name", "sample-slug", "General");
-        _{aggregate}Repo.ExistsBySlugAsync(projectId, command.Slug, Arg.Any<CancellationToken>())
+        var command = new Create{Aggregate}Command("Sample Name", "sample-slug", "General");
+        _{aggregate}Repo.SlugExistsAsync(command.Slug, Arg.Any<CancellationToken>())
             .Returns(true);
 
         var sut = CreateSut();
@@ -178,8 +182,8 @@ public sealed class {Verb}{Aggregate}UseCaseTests
         var projectId = new ProjectId(Guid.NewGuid());
         _projectContext.IsResolved.Returns(true);
         _projectContext.ProjectId.Returns(projectId);
-        var command = new {Verb}{Aggregate}Command("Sample Name", "sample-slug", "General");
-        _{aggregate}Repo.ExistsBySlugAsync(projectId, command.Slug, Arg.Any<CancellationToken>())
+        var command = new Create{Aggregate}Command("Sample Name", "sample-slug", "General");
+        _{aggregate}Repo.SlugExistsAsync(command.Slug, Arg.Any<CancellationToken>())
             .Returns(false);
 
         var sut = CreateSut();
@@ -195,6 +199,59 @@ public sealed class {Verb}{Aggregate}UseCaseTests
         result.Category.Should().Be("General");
 
         await _{aggregate}Repo.Received(1).AddAsync(Arg.Any<{Aggregate}>(), Arg.Any<CancellationToken>());
+        await _unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
+    }
+}
+```
+
+#### 3.1.2 Archetype B: ID-Based / EF-Filtered Query or Mutation UseCase Test (`Update{Aggregate}UseCaseTests` / `List{Aggregate}sUseCaseTests`)
+```csharp
+public sealed class Update{Aggregate}UseCaseTests
+{
+    private readonly I{Aggregate}Repository _{aggregate}Repo = Substitute.For<I{Aggregate}Repository>();
+    private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
+    private readonly IConcurrencyContext _concurrencyContext = Substitute.For<IConcurrencyContext>();
+    private readonly FakeTimeProvider _timeProvider = TestConstants.CreateFakeClock();
+
+    // Zero Phantom Context: No ICurrentProjectContext mock (Tier 1 & EF Core filter guarantee tenancy)
+    private Update{Aggregate}UseCase CreateSut() =>
+        new(_{aggregate}Repo, _unitOfWork, _concurrencyContext, _timeProvider);
+
+    [Fact]
+    public async Task ExecuteAsync_WhenEntityDoesNotExist_ShouldThrowNotFound()
+    {
+        // Step 1: Arrange <Why: entity not found in tenant partition via EF Core filter>
+        var aggregateId = new {Aggregate}Id(Guid.NewGuid());
+        _{aggregate}Repo.GetByIdAsync(aggregateId, Arg.Any<CancellationToken>())
+            .Returns(({Aggregate}?)null);
+
+        var command = new Update{Aggregate}Command(aggregateId.Value, "Updated Name");
+        var sut = CreateSut();
+
+        // Step 2: Act & Assert
+        var act = () => sut.ExecuteAsync(command, CancellationToken.None);
+        await act.Should().ThrowAsync<NotFoundException>();
+        await _unitOfWork.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenValidCommand_ShouldMutateStateAndCommit()
+    {
+        // Step 1: Arrange <Why: existing entity loaded>
+        var aggregateId = new {Aggregate}Id(Guid.NewGuid());
+        var entity = {Aggregate}Builder.CreateDefault(aggregateId);
+        _{aggregate}Repo.GetByIdAsync(aggregateId, Arg.Any<CancellationToken>())
+            .Returns(entity);
+
+        var command = new Update{Aggregate}Command(aggregateId.Value, "Updated Name");
+        var sut = CreateSut();
+
+        // Step 2: Act
+        var result = await sut.ExecuteAsync(command, CancellationToken.None);
+
+        // Step 3: Assert
+        result.Should().NotBeNull();
+        _concurrencyContext.Received(1).EnsureMatches(entity);
         await _unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
     }
 }

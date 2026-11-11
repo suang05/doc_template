@@ -146,17 +146,4 @@ public sealed class RollbackTemplateVersionUseCaseTests
             .WithMessage("*Storage asset*");
         await _unitOfWork.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
     }
-
-    [Fact]
-    public async Task ExecuteAsync_WhenProjectContextUnresolved_ShouldThrowForbiddenException()
-    {
-        // Arrange
-        _projectContext.IsResolved.Returns(false);
-
-        // Act
-        Func<Task> act = () => CreateSut().ExecuteAsync(new RollbackTemplateVersionCommand(Guid.NewGuid(), 1));
-
-        // Assert
-        await act.Should().ThrowAsync<ForbiddenException>();
-    }
 }

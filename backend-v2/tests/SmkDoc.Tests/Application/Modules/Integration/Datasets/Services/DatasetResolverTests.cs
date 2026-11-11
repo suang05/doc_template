@@ -1,46 +1,108 @@
 using System.Reflection;
+using NSubstitute.ExceptionExtensions;
 using SmkDoc.Application.Common.Exceptions;
-using SmkDoc.Application.Common.Helpers;
 using SmkDoc.Application.Common.Interfaces;
+using SmkDoc.Application.Modules.Integration.Datasets.Services;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
+using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common;
 using SmkDoc.Tests.Common.Builders;
 
-namespace SmkDoc.Tests.Application.Common.Helpers;
+namespace SmkDoc.Tests.Application.Modules.Integration.Datasets.Services;
 
-public sealed class DatasetAliasMapBuilderTests
+public sealed class DatasetResolverTests
 {
-    private readonly IDatasetRepository _datasetRepo = Substitute.For<IDatasetRepository>();
     private readonly IDataConnectionRepository _connectionRepo = Substitute.For<IDataConnectionRepository>();
+    private readonly IDatasetRepository _datasetRepo = Substitute.For<IDatasetRepository>();
+    private readonly ISqlConnectionValidator _sqlValidator = Substitute.For<ISqlConnectionValidator>();
     private readonly IDataProtectionService _dataProtection = Substitute.For<IDataProtectionService>();
 
+    private DatasetResolver CreateSut() => new(
+        _connectionRepo,
+        _datasetRepo,
+        _sqlValidator,
+        _dataProtection);
+
     [Fact]
-    public async Task BuildAsync_WhenAssignmentsEmpty_ReturnsEmptyMapWithoutCallingRepositories()
+    public async Task ValidateAndResolveConnectionAsync_WhenValid_ReturnsDataConnection()
+    {
+        // Arrange
+        var connectionId = Guid.NewGuid();
+        var connection = new DataConnectionBuilder().WithId(connectionId).Build();
+        _connectionRepo.GetByIdAsync(new DataConnectionId(connectionId), Arg.Any<CancellationToken>())
+            .Returns(connection);
+
+        // Act
+        var result = await CreateSut().ValidateAndResolveConnectionAsync(
+            new DataConnectionId(connectionId),
+            "SELECT 1",
+            CancellationToken.None);
+
+        // Assert
+        result.Should().BeSameAs(connection);
+        _sqlValidator.Received(1).ValidateReadOnlySql("SELECT 1");
+        await _connectionRepo.Received(1).GetByIdAsync(new DataConnectionId(connectionId), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ValidateAndResolveConnectionAsync_WhenConnectionNotFound_ThrowsNotFoundException()
+    {
+        // Arrange
+        var connectionId = Guid.NewGuid();
+        _connectionRepo.GetByIdAsync(new DataConnectionId(connectionId), Arg.Any<CancellationToken>())
+            .Returns((DataConnection?)null);
+
+        // Act
+        var act = () => CreateSut().ValidateAndResolveConnectionAsync(
+            new DataConnectionId(connectionId),
+            "SELECT 1",
+            CancellationToken.None);
+
+        // Assert
+        await act.Should().ThrowAsync<NotFoundException>();
+        _sqlValidator.Received(1).ValidateReadOnlySql("SELECT 1");
+    }
+
+    [Fact]
+    public async Task ValidateAndResolveConnectionAsync_WhenSqlValidatorThrows_BubblesException()
+    {
+        // Arrange
+        var connectionId = Guid.NewGuid();
+        _sqlValidator.When(v => v.ValidateReadOnlySql("DROP TABLE users"))
+            .Throw(new DomainValidationException("Mutating SQL is not allowed."));
+
+        // Act
+        var act = () => CreateSut().ValidateAndResolveConnectionAsync(
+            new DataConnectionId(connectionId),
+            "DROP TABLE users",
+            CancellationToken.None);
+
+        // Assert
+        await act.Should().ThrowAsync<DomainValidationException>()
+            .WithMessage("*Mutating SQL is not allowed*");
+        await _connectionRepo.DidNotReceive().GetByIdAsync(Arg.Any<DataConnectionId>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ResolveAssignmentsAsync_WhenAssignmentsEmpty_ReturnsEmptyMapWithoutCallingRepositories()
     {
         // Arrange
         var assignments = Enumerable.Empty<TemplateDataset>();
 
         // Act
-        var result = await DatasetAliasMapBuilder.BuildAsync(
-            assignments,
-            _datasetRepo,
-            _connectionRepo,
-            _dataProtection,
-            CancellationToken.None);
+        var result = await CreateSut().ResolveAssignmentsAsync(assignments, CancellationToken.None);
 
         // Assert
         result.Should().BeEmpty();
         await _datasetRepo.DidNotReceive().GetByIdsAsync(Arg.Any<IEnumerable<DatasetId>>(), Arg.Any<CancellationToken>());
-        await _datasetRepo.DidNotReceive().GetByIdAsync(Arg.Any<DatasetId>(), Arg.Any<CancellationToken>());
         await _connectionRepo.DidNotReceive().GetByIdsAsync(Arg.Any<IEnumerable<DataConnectionId>>(), Arg.Any<CancellationToken>());
-        await _connectionRepo.DidNotReceive().GetByIdAsync(Arg.Any<DataConnectionId>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task BuildAsync_WhenDatasetNavigationHydrated_UsesSingleBatchQueryWithoutCallingConnectionRepository()
+    public async Task ResolveAssignmentsAsync_WhenDatasetNavigationHydrated_UsesSingleBatchQueryWithoutCallingConnectionRepository()
     {
         // Arrange
         var datasetId = Guid.NewGuid();
@@ -73,12 +135,7 @@ public sealed class DatasetAliasMapBuilderTests
             .Returns("Host=pg;Port=5432");
 
         // Act
-        var result = await DatasetAliasMapBuilder.BuildAsync(
-            [td],
-            _datasetRepo,
-            _connectionRepo,
-            _dataProtection,
-            CancellationToken.None);
+        var result = await CreateSut().ResolveAssignmentsAsync([td], CancellationToken.None);
 
         // Assert
         result.Should().ContainKey("ds1");
@@ -90,13 +147,11 @@ public sealed class DatasetAliasMapBuilderTests
         result["ds1"].CacheSeconds.Should().Be(120);
 
         await _datasetRepo.Received(1).GetByIdsAsync(Arg.Any<IEnumerable<DatasetId>>(), Arg.Any<CancellationToken>());
-        await _datasetRepo.DidNotReceive().GetByIdAsync(Arg.Any<DatasetId>(), Arg.Any<CancellationToken>());
         await _connectionRepo.DidNotReceive().GetByIdsAsync(Arg.Any<IEnumerable<DataConnectionId>>(), Arg.Any<CancellationToken>());
-        await _connectionRepo.DidNotReceive().GetByIdAsync(Arg.Any<DataConnectionId>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task BuildAsync_WhenMultipleAliasesShareDataConnection_BatchesAndDecryptsConnectionOnce()
+    public async Task ResolveAssignmentsAsync_WhenMultipleAliasesShareDataConnection_BatchesAndDecryptsConnectionOnce()
     {
         // Arrange
         var datasetId1 = Guid.NewGuid();
@@ -122,12 +177,7 @@ public sealed class DatasetAliasMapBuilderTests
             .Returns("Host=shared-db");
 
         // Act
-        var result = await DatasetAliasMapBuilder.BuildAsync(
-            [td1, td2],
-            _datasetRepo,
-            _connectionRepo,
-            _dataProtection,
-            CancellationToken.None);
+        var result = await CreateSut().ResolveAssignmentsAsync([td1, td2], CancellationToken.None);
 
         // Assert
         result.Should().HaveCount(2);
@@ -137,7 +187,7 @@ public sealed class DatasetAliasMapBuilderTests
     }
 
     [Fact]
-    public async Task BuildAsync_WhenDatasetNotFound_SkipsGracefully()
+    public async Task ResolveAssignmentsAsync_WhenDatasetNotFound_SkipsGracefully()
     {
         // Arrange
         var datasetId = Guid.NewGuid();
@@ -152,12 +202,7 @@ public sealed class DatasetAliasMapBuilderTests
             .Returns(Array.Empty<Dataset>());
 
         // Act
-        var result = await DatasetAliasMapBuilder.BuildAsync(
-            [td],
-            _datasetRepo,
-            _connectionRepo,
-            _dataProtection,
-            CancellationToken.None);
+        var result = await CreateSut().ResolveAssignmentsAsync([td], CancellationToken.None);
 
         // Assert
         result.Should().BeEmpty();
@@ -165,7 +210,7 @@ public sealed class DatasetAliasMapBuilderTests
     }
 
     [Fact]
-    public async Task BuildAsync_WhenConnectionNotFound_SkipsGracefully()
+    public async Task ResolveAssignmentsAsync_WhenConnectionNotFound_SkipsGracefully()
     {
         // Arrange
         var datasetId = Guid.NewGuid();
@@ -187,12 +232,7 @@ public sealed class DatasetAliasMapBuilderTests
             .Returns(Array.Empty<DataConnection>());
 
         // Act
-        var result = await DatasetAliasMapBuilder.BuildAsync(
-            [td],
-            _datasetRepo,
-            _connectionRepo,
-            _dataProtection,
-            CancellationToken.None);
+        var result = await CreateSut().ResolveAssignmentsAsync([td], CancellationToken.None);
 
         // Assert
         result.Should().BeEmpty();
@@ -200,7 +240,7 @@ public sealed class DatasetAliasMapBuilderTests
     }
 
     [Fact]
-    public async Task BuildAsync_WhenDecryptionThrows_ThrowsDataConnectionDecryptionException()
+    public async Task ResolveAssignmentsAsync_WhenDecryptionThrows_ThrowsDataConnectionDecryptionException()
     {
         // Arrange
         var datasetId = Guid.NewGuid();
@@ -217,12 +257,7 @@ public sealed class DatasetAliasMapBuilderTests
             .Throws(new InvalidOperationException("Decryption error"));
 
         // Act
-        var act = () => DatasetAliasMapBuilder.BuildAsync(
-            [td],
-            _datasetRepo,
-            _connectionRepo,
-            _dataProtection,
-            CancellationToken.None);
+        var act = () => CreateSut().ResolveAssignmentsAsync([td], CancellationToken.None);
 
         // Assert
         var ex = await act.Should().ThrowAsync<DataConnectionDecryptionException>();
@@ -230,3 +265,4 @@ public sealed class DatasetAliasMapBuilderTests
         ex.Which.ErrorCode.Should().Be("DATA_CONNECTION_DECRYPTION_FAILED");
     }
 }
+
