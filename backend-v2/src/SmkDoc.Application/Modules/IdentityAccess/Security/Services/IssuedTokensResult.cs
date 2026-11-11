@@ -9,7 +9,7 @@ namespace SmkDoc.Application.Modules.IdentityAccess.Security.Services;
 public sealed record IssuedTokensResult(
     string AccessToken,
     string RefreshToken,
-    UserWorkspaceContextDto Workspace,
+    UserWorkspaceContextResultDto Workspace,
     IReadOnlyList<ApiKeyResultDto> ActiveApiKeys,
     int ExpiresIn = AuthConstants.AccessTokenLifetimeSeconds,
     string TokenType = AuthConstants.BearerTokenType);

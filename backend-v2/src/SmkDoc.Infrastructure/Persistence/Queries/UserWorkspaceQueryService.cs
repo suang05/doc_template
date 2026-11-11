@@ -11,7 +11,7 @@ namespace SmkDoc.Infrastructure.Persistence.Queries;
 
 public sealed class UserWorkspaceQueryService(AppDbContext context) : IUserWorkspaceQueryService
 {
-    public async Task<IReadOnlyList<AccessibleProjectDto>> GetAccessibleProjectsAsync(
+    public async Task<IReadOnlyList<AccessibleProjectResultDto>> GetAccessibleProjectsAsync(
         Guid userId,
         bool isSuperAdmin,
         CancellationToken ct = default)
@@ -25,7 +25,7 @@ public sealed class UserWorkspaceQueryService(AppDbContext context) : IUserWorks
                 .ToListAsync(ct);
 
             return projects
-                .Select(p => new AccessibleProjectDto(p.Id.Value, p.Name.Value, p.Slug.Value, "Admin"))
+                .Select(p => new AccessibleProjectResultDto(p.Id.Value, p.Name.Value, p.Slug.Value, "Admin"))
                 .ToList();
         }
 
@@ -46,7 +46,7 @@ public sealed class UserWorkspaceQueryService(AppDbContext context) : IUserWorks
         ).ToListAsync(ct);
 
         return results
-            .Select(x => new AccessibleProjectDto(x.Id.Value, x.Name.Value, x.Slug.Value, x.Role))
+            .Select(x => new AccessibleProjectResultDto(x.Id.Value, x.Name.Value, x.Slug.Value, x.Role))
             .ToList();
     }
 
@@ -74,7 +74,7 @@ public sealed class UserWorkspaceQueryService(AppDbContext context) : IUserWorks
             .ToList();
     }
 
-    public async Task<UserWorkspaceContextDto> ResolveWorkspaceContextAsync(
+    public async Task<UserWorkspaceContextResultDto> ResolveWorkspaceContextAsync(
         User user,
         Guid? requestedProjectId,
         bool throwOnUnauthorized = true,
@@ -122,7 +122,7 @@ public sealed class UserWorkspaceQueryService(AppDbContext context) : IUserWorks
             }
         }
 
-        return new UserWorkspaceContextDto(
+        return new UserWorkspaceContextResultDto(
             activeProjectId,
             activeRole,
             defaultProjectId,

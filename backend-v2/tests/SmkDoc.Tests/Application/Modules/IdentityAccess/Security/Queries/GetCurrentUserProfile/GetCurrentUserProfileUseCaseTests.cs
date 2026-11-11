@@ -35,12 +35,12 @@ public sealed class GetCurrentUserProfileUseCaseTests
             .WithTime(now);
 
         var projectId = Guid.NewGuid();
-        var projects = new List<AccessibleProjectDto>
+        var projects = new List<AccessibleProjectResultDto>
         {
             new(projectId, "Alpha", "alpha", "Admin")
         };
 
-        var workspaceContext = new UserWorkspaceContextDto(projectId, "Admin", projectId, projects);
+        var workspaceContext = new UserWorkspaceContextResultDto(projectId, "Admin", projectId, projects);
 
         _userRepo.GetByIdAsync(user.Id, Arg.Any<CancellationToken>())
             .Returns(user);
@@ -75,13 +75,13 @@ public sealed class GetCurrentUserProfileUseCaseTests
 
         var proj1 = Guid.NewGuid();
         var proj2 = Guid.NewGuid();
-        var projects = new List<AccessibleProjectDto>
+        var projects = new List<AccessibleProjectResultDto>
         {
             new(proj1, "Project 1", "proj-1", "Member"),
             new(proj2, "Project 2", "proj-2", "Admin")
         };
 
-        var workspaceContext = new UserWorkspaceContextDto(proj2, "Admin", proj1, projects);
+        var workspaceContext = new UserWorkspaceContextResultDto(proj2, "Admin", proj1, projects);
 
         _userRepo.GetByIdAsync(user.Id, Arg.Any<CancellationToken>())
             .Returns(user);
@@ -110,7 +110,7 @@ public sealed class GetCurrentUserProfileUseCaseTests
             .WithTime(now);
 
         var proj1 = Guid.NewGuid();
-        var projects = new List<AccessibleProjectDto>
+        var projects = new List<AccessibleProjectResultDto>
         {
             new(proj1, "Project 1", "proj-1", "Member")
         };
@@ -118,7 +118,7 @@ public sealed class GetCurrentUserProfileUseCaseTests
         var unauthorizedProjectId = Guid.NewGuid();
 
         // Since unauthorizedProjectId is not accessible, workspace context resolves active project to proj1
-        var workspaceContext = new UserWorkspaceContextDto(proj1, "Member", proj1, projects);
+        var workspaceContext = new UserWorkspaceContextResultDto(proj1, "Member", proj1, projects);
 
         _userRepo.GetByIdAsync(user.Id, Arg.Any<CancellationToken>())
             .Returns(user);
@@ -146,13 +146,13 @@ public sealed class GetCurrentUserProfileUseCaseTests
             .WithSystemRole(SystemRole.SuperAdmin)
             .WithTime(now);
 
-        var projects = new List<AccessibleProjectDto>
+        var projects = new List<AccessibleProjectResultDto>
         {
             new(Guid.NewGuid(), "P1", "p-1", "Admin"),
             new(Guid.NewGuid(), "P2", "p-2", "Admin")
         };
 
-        var workspaceContext = new UserWorkspaceContextDto(projects[0].Id, "Admin", projects[0].Id, projects);
+        var workspaceContext = new UserWorkspaceContextResultDto(projects[0].Id, "Admin", projects[0].Id, projects);
 
         _userRepo.GetByIdAsync(user.Id, Arg.Any<CancellationToken>())
             .Returns(user);
@@ -182,12 +182,12 @@ public sealed class GetCurrentUserProfileUseCaseTests
             .WithTime(now);
 
         var anyProject = Guid.NewGuid();
-        var projects = new List<AccessibleProjectDto>
+        var projects = new List<AccessibleProjectResultDto>
         {
             new(Guid.NewGuid(), "P1", "p-1", "Admin")
         };
 
-        var workspaceContext = new UserWorkspaceContextDto(anyProject, "Admin", projects[0].Id, projects);
+        var workspaceContext = new UserWorkspaceContextResultDto(anyProject, "Admin", projects[0].Id, projects);
 
         _userRepo.GetByIdAsync(user.Id, Arg.Any<CancellationToken>())
             .Returns(user);

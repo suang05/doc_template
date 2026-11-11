@@ -9,7 +9,7 @@ public sealed record CurrentUserProfileResultDto(
     string FirstName,
     string LastName,
     string SystemRole,
-    IReadOnlyList<AccessibleProjectDto> AccessibleProjects,
+    IReadOnlyList<AccessibleProjectResultDto> AccessibleProjects,
     Guid? DefaultProjectId,
     Guid? ActiveProjectId = null
 );

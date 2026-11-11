@@ -25,6 +25,18 @@ public sealed class ProjectRepository(AppDbContext context) : IProjectRepository
         return await _context.Projects.FirstOrDefaultAsync(p => p.CompanyId == companyId, ct);
     }
 
+    public async Task<CompanyId> GetOrCreateDefaultCompanyIdAsync(DateTimeOffset now, CancellationToken ct = default)
+    {
+        var company = await _context.Companies.FirstOrDefaultAsync(ct);
+        if (company == null)
+        {
+            company = Company.Create(CompanyName.Create("Default Company"), now);
+            await _context.Companies.AddAsync(company, ct);
+        }
+
+        return company.Id;
+    }
+
     public async Task<IReadOnlyList<Project>> ListByIdsAsync(IEnumerable<ProjectId> ids, CancellationToken ct = default)
     {
         var idSet = ids.ToHashSet();

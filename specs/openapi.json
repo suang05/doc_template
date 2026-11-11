@@ -3491,13 +3491,23 @@
     "/api/v1/users": {
       "get": {
         "tags": [
-          "Users"
+          "ProjectUsers"
         ],
         "summary": "List all users in the active project.",
-        "operationId": "Users_List",
+        "operationId": "ProjectUsers_List",
         "responses": {
           "401": {
             "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -3512,16 +3522,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseOfIEnumerableOfUserResultDto"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden - authenticated but not permitted.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
@@ -3550,10 +3550,10 @@
       },
       "post": {
         "tags": [
-          "Users"
+          "ProjectUsers"
         ],
         "summary": "Invite a new user to the active project.",
-        "operationId": "Users_AddUser",
+        "operationId": "ProjectUsers_Invite",
         "parameters": [
           {
             "name": "Idempotency-Key",
@@ -3595,6 +3595,16 @@
               }
             }
           },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
           "201": {
             "description": "Created",
             "content": {
@@ -3607,16 +3617,6 @@
           },
           "400": {
             "description": "Bad Request",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -3661,10 +3661,10 @@
     "/api/v1/users/{userId}/role": {
       "put": {
         "tags": [
-          "Users"
+          "ProjectUsers"
         ],
         "summary": "Update a user's role within the active project.",
-        "operationId": "Users_UpdateRole",
+        "operationId": "ProjectUsers_UpdateRole",
         "parameters": [
           {
             "name": "userId",
@@ -3715,6 +3715,16 @@
               }
             }
           },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
           "200": {
             "description": "OK",
             "headers": {
@@ -3735,16 +3745,6 @@
           },
           "400": {
             "description": "Bad Request",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -3809,10 +3809,10 @@
     "/api/v1/users/{userId}": {
       "delete": {
         "tags": [
-          "Users"
+          "ProjectUsers"
         ],
         "summary": "Remove a user from the active project.",
-        "operationId": "Users_Remove",
+        "operationId": "ProjectUsers_Remove",
         "parameters": [
           {
             "name": "userId",
@@ -3843,11 +3843,8 @@
               }
             }
           },
-          "204": {
-            "description": "No Content"
-          },
-          "400": {
-            "description": "Bad Request",
+          "403": {
+            "description": "Forbidden",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -3856,8 +3853,11 @@
               }
             }
           },
-          "403": {
-            "description": "Forbidden",
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "Bad Request",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -3919,13 +3919,13 @@
         }
       }
     },
-    "/api/v1/users/{userId}/status": {
+    "/api/v1/management/users/{userId}/status": {
       "patch": {
         "tags": [
-          "Users"
+          "UserManagement"
         ],
         "summary": "Activate or deactivate a global user account. SuperAdmin only.",
-        "operationId": "Users_SetStatus",
+        "operationId": "UserManagement_SetStatus_ManagementUsersUserIdStatus",
         "parameters": [
           {
             "name": "userId",
@@ -3968,6 +3968,16 @@
               }
             }
           },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
           "200": {
             "description": "OK",
             "headers": {
@@ -3988,16 +3998,6 @@
           },
           "400": {
             "description": "Bad Request",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -4039,13 +4039,13 @@
         }
       }
     },
-    "/api/v1/management/users/{userId}/status": {
+    "/api/v1/users/{userId}/status": {
       "patch": {
         "tags": [
-          "Users"
+          "UserManagement"
         ],
         "summary": "Activate or deactivate a global user account. SuperAdmin only.",
-        "operationId": "Users_SetStatus_ManagementUsersUserIdStatus",
+        "operationId": "UserManagement_SetStatus",
         "parameters": [
           {
             "name": "userId",
@@ -4088,6 +4088,16 @@
               }
             }
           },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
           "200": {
             "description": "OK",
             "headers": {
@@ -4108,16 +4118,6 @@
           },
           "400": {
             "description": "Bad Request",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -6948,7 +6948,7 @@
   },
   "components": {
     "schemas": {
-      "AccessibleProjectDto": {
+      "AccessibleProjectResultDto": {
         "required": [
           "id",
           "name",
@@ -6971,7 +6971,7 @@
             "type": "string"
           }
         },
-        "description": "Project access information for an authenticated user."
+        "description": "Result DTO representing a project accessible to an authenticated user, including their assigned role."
       },
       "ApiKeyResultDto": {
         "required": [
@@ -7959,7 +7959,7 @@
           "accessibleProjects": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/AccessibleProjectDto"
+              "$ref": "#/components/schemas/AccessibleProjectResultDto"
             }
           },
           "defaultProjectId": {
@@ -8729,12 +8729,12 @@
             "format": "int32"
           },
           "user": {
-            "$ref": "#/components/schemas/UserProfileDto"
+            "$ref": "#/components/schemas/UserProfileResultDto"
           },
           "accessibleProjects": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/AccessibleProjectDto"
+              "$ref": "#/components/schemas/AccessibleProjectResultDto"
             }
           },
           "activeApiKeys": {
@@ -10014,7 +10014,7 @@
         },
         "description": "Result DTO returned after successfully uploading a font file to storage."
       },
-      "UserProfileDto": {
+      "UserProfileResultDto": {
         "required": [
           "id",
           "email",
@@ -10035,13 +10035,16 @@
             "type": "string"
           },
           "lastName": {
-            "type": "string"
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "systemRole": {
             "type": "string"
           }
         },
-        "description": "User profile data embedded in login tokens and responses."
+        "description": "Result DTO representing the identity and profile information of an authenticated user."
       },
       "UserResultDto": {
         "required": [
@@ -10257,7 +10260,10 @@
       "name": "Projects"
     },
     {
-      "name": "Users"
+      "name": "ProjectUsers"
+    },
+    {
+      "name": "UserManagement"
     },
     {
       "name": "FontManagement"

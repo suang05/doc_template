@@ -20,19 +20,27 @@ public sealed class ValidateApiKeyUseCase(
         var hash = new Sha256Hash(ApiKeyGenerator.ComputeHash(query.PlainTextKey));
         var key = await apiKeyRepo.GetByKeyHashAsync(hash, ct);
         var now = timeProvider.GetUtcNow();
-        if (key != null && key.IsUsableAt(now))
-        {
-            var project = await projectRepo.GetByIdAsync(key.ProjectId, ct);
-            if (project == null || !project.IsActive)
-            {
-                throw new ProjectDeactivatedException(key.ProjectId.Value);
-            }
 
-            key.RecordUsage(now);
-            apiKeyRepo.Update(key);
-            await unitOfWork.CommitAsync(ct);
-            return new ValidatedApiKeyResultDto(key.Id.Value, key.CallerApp, key.ProjectId.Value, key.Scope.Name);
+        if (key == null || !key.IsUsableAt(now)) return null;
+
+        return await ActivateAndRecordUsageAsync(key, now, ct);
+    }
+
+    private async Task<ValidatedApiKeyResultDto> ActivateAndRecordUsageAsync(
+        Domain.Entities.ApiKey key,
+        DateTimeOffset now,
+        CancellationToken ct)
+    {
+        var project = await projectRepo.GetByIdAsync(key.ProjectId, ct);
+        if (project == null || !project.IsActive)
+        {
+            throw new ProjectDeactivatedException(key.ProjectId.Value);
         }
-        return null;
+
+        key.RecordUsage(now);
+        apiKeyRepo.Update(key);
+        await unitOfWork.CommitAsync(ct);
+
+        return new ValidatedApiKeyResultDto(key.Id.Value, key.CallerApp, key.ProjectId.Value, key.Scope.Name);
     }
 }

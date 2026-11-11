@@ -12,7 +12,7 @@ public interface IUserWorkspaceQueryService
     /// Gets all active projects accessible to the specified user, including their resolved role.
     /// If user is SuperAdmin, returns all active projects with Admin role.
     /// </summary>
-    Task<IReadOnlyList<AccessibleProjectDto>> GetAccessibleProjectsAsync(
+    Task<IReadOnlyList<AccessibleProjectResultDto>> GetAccessibleProjectsAsync(
         Guid userId,
         bool isSuperAdmin,
         CancellationToken ct = default);
@@ -28,7 +28,7 @@ public interface IUserWorkspaceQueryService
     /// Resolves the active workspace project, role, and default project for an authenticated user.
     /// Enforces project access rules and optional fallback behavior.
     /// </summary>
-    Task<UserWorkspaceContextDto> ResolveWorkspaceContextAsync(
+    Task<UserWorkspaceContextResultDto> ResolveWorkspaceContextAsync(
         SmkDoc.Domain.Entities.User user,
         Guid? requestedProjectId,
         bool throwOnUnauthorized = true,

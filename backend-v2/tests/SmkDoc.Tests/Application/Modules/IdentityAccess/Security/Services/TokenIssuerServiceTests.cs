@@ -37,11 +37,11 @@ public sealed class TokenIssuerServiceTests
         var projectId = Guid.NewGuid();
         User user = aUser.Active().WithTime(now);
 
-        var accessibleProjects = new List<AccessibleProjectDto>
+        var accessibleProjects = new List<AccessibleProjectResultDto>
         {
             new(projectId, "Project Alpha", "project-alpha", "Admin")
         };
-        var workspaceContext = new UserWorkspaceContextDto(projectId, "Admin", projectId, accessibleProjects);
+        var workspaceContext = new UserWorkspaceContextResultDto(projectId, "Admin", projectId, accessibleProjects);
 
         _workspaceQueryService.ResolveWorkspaceContextAsync(user, projectId, true, Arg.Any<CancellationToken>())
             .Returns(workspaceContext);
@@ -84,7 +84,7 @@ public sealed class TokenIssuerServiceTests
         _userRepo.GetByIdAsync(user.Id, Arg.Any<CancellationToken>())
             .Returns(user);
 
-        var workspaceContext = new UserWorkspaceContextDto(Guid.NewGuid(), "Admin", Guid.NewGuid(), []);
+        var workspaceContext = new UserWorkspaceContextResultDto(Guid.NewGuid(), "Admin", Guid.NewGuid(), []);
         _workspaceQueryService.ResolveWorkspaceContextAsync(user, Arg.Any<Guid?>(), true, Arg.Any<CancellationToken>())
             .Returns(workspaceContext);
 

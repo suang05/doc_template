@@ -22,44 +22,66 @@ public sealed class TransferProjectOwnerUseCase(
     public async Task ExecuteAsync(TransferProjectOwnerCommand command, CancellationToken ct = default)
     {
         var projectId = new ProjectId(command.ProjectId);
-        var project = await projectRepo.GetByIdAsync(projectId, ct)
-            ?? throw new NotFoundException($"Project '{command.ProjectId}' not found.");
-
         var newOwnerId = new UserId(command.NewOwnerUserId);
+        var project = await EnsureValidTransferEntitiesAsync(projectId, newOwnerId, ct);
+
+        var now = timeProvider.GetUtcNow();
+        project.RecordOwnershipTransfer(now);
+        projectRepo.Update(project);
+
+        await ReassignAdminRolesAsync(projectId, newOwnerId, now, ct);
+        await unitOfWork.CommitAsync(ct);
+    }
+
+    private async Task<Project> EnsureValidTransferEntitiesAsync(ProjectId projectId, UserId newOwnerId, CancellationToken ct)
+    {
+        var project = await projectRepo.GetByIdAsync(projectId, ct)
+            ?? throw new NotFoundException($"Project '{projectId.Value}' not found.");
+
         var newOwner = await userRepo.GetByIdAsync(newOwnerId, ct)
-            ?? throw new NotFoundException($"User '{command.NewOwnerUserId}' not found.");
+            ?? throw new NotFoundException($"User '{newOwnerId.Value}' not found.");
 
         if (!newOwner.IsActive)
         {
             throw new DomainValidationException("Cannot transfer project ownership to an inactive user.");
         }
 
+        return project;
+    }
+
+    private async Task ReassignAdminRolesAsync(ProjectId projectId, UserId newOwnerId, DateTimeOffset now, CancellationToken ct)
+    {
         var existingRoles = await userRoleRepo.ListByProjectAsync(projectId, ct);
-        var now = timeProvider.GetUtcNow();
+        DowngradePriorAdmins(existingRoles, newOwnerId);
+        await AssignNewOwnerAdminRoleAsync(existingRoles, projectId, newOwnerId, now, ct);
+    }
 
-        project.RecordOwnershipTransfer(now);
-        projectRepo.Update(project);
-
-        // Downgrade any prior Project Admin to Developer to maintain clear single ownership
+    private void DowngradePriorAdmins(IReadOnlyList<UserProjectRole> existingRoles, UserId newOwnerId)
+    {
         foreach (var role in existingRoles.Where(r => r.Role == RoleType.Admin && r.UserId != newOwnerId))
         {
             role.UpdateRole(RoleType.Developer);
             userRoleRepo.Update(role);
         }
+    }
 
+    private async Task AssignNewOwnerAdminRoleAsync(
+        IReadOnlyList<UserProjectRole> existingRoles,
+        ProjectId projectId,
+        UserId newOwnerId,
+        DateTimeOffset now,
+        CancellationToken ct)
+    {
         var targetRole = existingRoles.FirstOrDefault(r => r.UserId == newOwnerId);
         if (targetRole != null)
         {
             targetRole.UpdateRole(RoleType.Admin);
             userRoleRepo.Update(targetRole);
-        }
-        else
-        {
-            var newRole = UserProjectRole.Create(newOwnerId, projectId, RoleType.Admin, now);
-            await userRoleRepo.AddAsync(newRole, ct);
+            return;
         }
 
-        await unitOfWork.CommitAsync(ct);
+        var newRole = UserProjectRole.Create(newOwnerId, projectId, RoleType.Admin, now);
+        await userRoleRepo.AddAsync(newRole, ct);
     }
 }
 

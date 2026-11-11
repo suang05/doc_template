@@ -55,7 +55,7 @@ public sealed class LoginUseCase(
     private static LoginResultDto CreateLoginResult(User user, IssuedTokensResult issued) =>
         new(
             accessToken: issued.AccessToken,
-            user: new UserProfileDto(user.Id.Value, user.Email.Value, user.FirstName, user.LastName, user.SystemRole.Name),
+            user: new UserProfileResultDto(user.Id.Value, user.Email.Value, user.FirstName, user.LastName, user.SystemRole.Name),
             accessibleProjects: issued.Workspace.AccessibleProjects,
             defaultProjectId: issued.Workspace.DefaultProjectId,
             activeProjectId: issued.Workspace.ActiveProjectId,

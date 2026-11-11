@@ -46,11 +46,11 @@ public sealed class LoginUseCaseTests
             .WithSystemRole(SystemRole.Member)
             .WithTime(now);
 
-        var accessibleProjects = new List<AccessibleProjectDto>
+        var accessibleProjects = new List<AccessibleProjectResultDto>
         {
             new(projectId, "Project Alpha", "project-alpha", "Viewer")
         };
-        var workspaceContext = new UserWorkspaceContextDto(projectId, "Viewer", projectId, accessibleProjects);
+        var workspaceContext = new UserWorkspaceContextResultDto(projectId, "Viewer", projectId, accessibleProjects);
         var issuedTokens = new IssuedTokensResult(
             "valid_token",
             "raw_refresh_token",

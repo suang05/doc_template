@@ -50,7 +50,7 @@ public sealed class AuthControllerTests
         {
             AccessToken = "jwt-access-token",
             RefreshToken = "raw-refresh-token",
-            User = new UserProfileDto(_currentUserId, "admin@sammakorn.co.th", "Super", "Admin", "SuperAdmin"),
+            User = new UserProfileResultDto(_currentUserId, "admin@sammakorn.co.th", "Super", "Admin", "SuperAdmin"),
             AccessibleProjects = [],
             DefaultProjectId = null
         };

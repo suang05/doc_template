@@ -11,8 +11,8 @@ public record LoginResultDto
     public string? RefreshToken { get; init; }
     public string TokenType { get; init; } = AuthConstants.BearerTokenType;
     public int ExpiresIn { get; init; } = AuthConstants.AccessTokenLifetimeSeconds;
-    public UserProfileDto User { get; init; } = default!;
-    public IReadOnlyList<AccessibleProjectDto> AccessibleProjects { get; init; } = [];
+    public UserProfileResultDto User { get; init; } = default!;
+    public IReadOnlyList<AccessibleProjectResultDto> AccessibleProjects { get; init; } = [];
     public IReadOnlyList<ApiKeyResultDto> ActiveApiKeys { get; init; } = [];
     public Guid? DefaultProjectId { get; init; }
     public Guid? ActiveProjectId { get; init; }
@@ -22,8 +22,8 @@ public record LoginResultDto
 
     public LoginResultDto(
         string accessToken,
-        UserProfileDto user,
-        IReadOnlyList<AccessibleProjectDto> accessibleProjects,
+        UserProfileResultDto user,
+        IReadOnlyList<AccessibleProjectResultDto> accessibleProjects,
         Guid? defaultProjectId,
         Guid? activeProjectId = null,
         string? activeRole = null,

@@ -7,6 +7,7 @@ using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Modules.IdentityAccess.Security.Commands.CreateApiKey;
 
@@ -20,14 +21,32 @@ public sealed class CreateApiKeyUseCase(
     public async Task<CreateApiKeyResultDto> ExecuteAsync(CreateApiKeyCommand command, CancellationToken ct = default)
     {
         var pId = projectContext.EnsureResolved("Active project context is required to create an API key.");
-
-        _ = await projectRepo.GetByIdAsync(pId, ct)
-            ?? throw new NotFoundException($"Project '{pId.Value}' not found.");
+        await EnsureProjectExistsAsync(pId, ct);
 
         var now = timeProvider.GetUtcNow();
         var targetScope = ApiKeyScope.FromName(command.Scope);
+        await EnsureWithinQuotaAndUniqueScopeAsync(pId, targetScope, command.Scope, now, ct);
 
-        // Strict 2-Key Quota & Unique Scope Enforcement
+        var (key, rawSecret) = IssueKey(pId, command, targetScope, now);
+        await apiKeyRepo.AddAsync(key, ct);
+        await unitOfWork.CommitAsync(ct);
+
+        return new CreateApiKeyResultDto(key.Id.Value, key.Name.Value, key.CallerApp, rawSecret, key.Scope.Name, key.ExpiresAt);
+    }
+
+    private async Task EnsureProjectExistsAsync(ProjectId pId, CancellationToken ct)
+    {
+        _ = await projectRepo.GetByIdAsync(pId, ct)
+            ?? throw new NotFoundException($"Project '{pId.Value}' not found.");
+    }
+
+    private async Task EnsureWithinQuotaAndUniqueScopeAsync(
+        ProjectId pId,
+        ApiKeyScope targetScope,
+        string requestedScopeName,
+        DateTimeOffset now,
+        CancellationToken ct)
+    {
         var existingKeys = await apiKeyRepo.ListByProjectAsync(pId, ct);
         var activeKeys = existingKeys.Where(k => k.IsActive && !k.IsExpiredAt(now)).ToList();
 
@@ -38,10 +57,17 @@ public sealed class CreateApiKeyUseCase(
 
         if (activeKeys.Any(k => k.Scope == targetScope))
         {
-            throw new ConflictException($"Project already possesses an active {command.Scope} API key. Revoke the existing key before issuing a new one.");
+            throw new ConflictException($"Project already possesses an active {requestedScopeName} API key. Revoke the existing key before issuing a new one.");
         }
+    }
 
-        string rawSecret = $"smk_{command.CallerApp.ToLowerInvariant()}_{Guid.NewGuid():N}";
+    private static (ApiKey Key, string RawSecret) IssueKey(
+        ProjectId pId,
+        CreateApiKeyCommand command,
+        ApiKeyScope targetScope,
+        DateTimeOffset now)
+    {
+        var rawSecret = $"smk_{command.CallerApp.ToLowerInvariant()}_{Guid.NewGuid():N}";
         var hash = new Sha256Hash(ApiKeyGenerator.ComputeHash(rawSecret));
 
         var key = ApiKey.Issue(
@@ -53,9 +79,6 @@ public sealed class CreateApiKeyUseCase(
             now: now,
             scope: targetScope);
 
-        await apiKeyRepo.AddAsync(key, ct);
-        await unitOfWork.CommitAsync(ct);
-
-        return new CreateApiKeyResultDto(key.Id.Value, key.Name.Value, key.CallerApp, rawSecret, key.Scope.Name, key.ExpiresAt);
+        return (key, rawSecret);
     }
 }

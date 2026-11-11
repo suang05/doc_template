@@ -4,6 +4,7 @@ using SmkDoc.Application.Modules.IdentityAccess.Security.EventHandlers;
 using SmkDoc.Application.Modules.IdentityAccess.Users.EventHandlers;
 using SmkDoc.Application.Modules.Rendering.Documents.EventHandlers;
 using SmkDoc.Domain.Events;
+using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Tests.Application.Common.Events;
@@ -11,6 +12,7 @@ namespace SmkDoc.Tests.Application.Common.Events;
 public sealed class DomainEventHandlersTests
 {
     private readonly ISecurityAuditService _auditService = Substitute.For<ISecurityAuditService>();
+    private readonly IRefreshTokenRepository _refreshTokenRepo = Substitute.For<IRefreshTokenRepository>();
 
     [Fact]
     public async Task TemplatePublishedEventHandler_DelegatesToSecurityAuditService()
@@ -68,12 +70,13 @@ public sealed class DomainEventHandlersTests
         // Arrange
         var userId = UserId.New();
         var evt = new UserDeactivatedDomainEvent(userId, TestConstants.BaselineTime);
-        var sut = new UserDeactivatedEventHandler(_auditService);
+        var sut = new UserDeactivatedEventHandler(_refreshTokenRepo, _auditService);
 
         // Act
         await sut.HandleAsync(evt);
 
         // Assert
         _auditService.Received(1).LogUserDeactivated(userId.Value);
+        await _refreshTokenRepo.Received(1).RevokeAllByUserIdAsync(userId, TestConstants.BaselineTime, Arg.Any<CancellationToken>());
     }
 }

@@ -23,6 +23,7 @@ using SmkDoc.Application.Modules.IdentityAccess.Users.Commands.UpdateUserRole;
 using SmkDoc.Application.Modules.IdentityAccess.Users.DTOs;
 using SmkDoc.Application.Modules.IdentityAccess.Users.EventHandlers;
 using SmkDoc.Application.Modules.IdentityAccess.Users.Queries.ListProjectUsers;
+using SmkDoc.Application.Modules.IdentityAccess.Users.Services;
 using SmkDoc.Domain.Events;
 
 namespace SmkDoc.Application.Modules.IdentityAccess;
@@ -31,27 +32,50 @@ public static class IdentityAccessModuleExtensions
 {
     public static IServiceCollection AddIdentityAccessModule(this IServiceCollection services)
     {
-        // Domain Event Handlers
+        services.AddEventHandlers()
+                .AddDomainServices()
+                .AddUserSlices()
+                .AddProjectSlices()
+                .AddSecuritySlices();
+
+        return services;
+    }
+
+    private static IServiceCollection AddEventHandlers(this IServiceCollection services)
+    {
         services.AddScoped<IDomainEventHandler<ApiKeyRevokedDomainEvent>, ApiKeyRevokedEventHandler>();
         services.AddScoped<IDomainEventHandler<UserDeactivatedDomainEvent>, UserDeactivatedEventHandler>();
+        return services;
+    }
 
-        // Services
+    private static IServiceCollection AddDomainServices(this IServiceCollection services)
+    {
         services.AddScoped<ITokenIssuerService, TokenIssuerService>();
+        services.AddScoped<IUserProvisioningService, UserProvisioningService>();
+        return services;
+    }
 
-        // Users (Action-Centric Vertical Slice)
+    private static IServiceCollection AddUserSlices(this IServiceCollection services)
+    {
         services.AddUseCase<ListProjectUsersQuery, List<UserResultDto>, ListProjectUsersUseCase>();
         services.AddUseCase<InviteUserCommand, UserResultDto, InviteUserUseCase>();
         services.AddUseCase<UpdateUserRoleCommand, UserResultDto, UpdateUserRoleUseCase>();
         services.AddUseCase<RemoveUserCommand, RemoveUserUseCase>();
         services.AddUseCase<SetUserStatusCommand, UserResultDto, SetUserStatusUseCase>();
+        return services;
+    }
 
-        // Projects (Action-Centric Vertical Slice)
+    private static IServiceCollection AddProjectSlices(this IServiceCollection services)
+    {
         services.AddUseCase<CreateProjectCommand, ProjectResultDto, CreateProjectUseCase>();
         services.AddUseCase<TransferProjectOwnerCommand, TransferProjectOwnerUseCase>();
         services.AddUseCase<ListProjectsQuery, ProjectPagedResultDto, ListProjectsUseCase>();
         services.AddUseCase<GetProjectByIdQuery, ProjectResultDto, GetProjectByIdUseCase>();
+        return services;
+    }
 
-        // Security / Auth / ApiKey (Action-Centric Vertical Slice)
+    private static IServiceCollection AddSecuritySlices(this IServiceCollection services)
+    {
         services.AddUseCase<LoginCommand, LoginResultDto, LoginUseCase>();
         services.AddUseCase<RefreshTokenCommand, TokenResultDto, RefreshTokenUseCase>();
         services.AddUseCase<GetCurrentUserProfileQuery, CurrentUserProfileResultDto, GetCurrentUserProfileUseCase>();
@@ -59,7 +83,6 @@ public static class IdentityAccessModuleExtensions
         services.AddUseCase<RevokeApiKeyCommand, RevokeApiKeyUseCase>();
         services.AddUseCase<ListApiKeysQuery, List<ApiKeyResultDto>, ListApiKeysUseCase>();
         services.AddUseCase<ValidateApiKeyQuery, ValidatedApiKeyResultDto?, ValidateApiKeyUseCase>();
-
         return services;
     }
 }

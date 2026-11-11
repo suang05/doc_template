@@ -9,7 +9,6 @@ using SmkDoc.Api.Filters;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Users.Commands.InviteUser;
 using SmkDoc.Application.Modules.IdentityAccess.Users.Commands.RemoveUser;
-using SmkDoc.Application.Modules.IdentityAccess.Users.Commands.SetUserStatus;
 using SmkDoc.Application.Modules.IdentityAccess.Users.Commands.UpdateUserRole;
 using SmkDoc.Application.Modules.IdentityAccess.Users.DTOs;
 using SmkDoc.Application.Modules.IdentityAccess.Users.Queries.ListProjectUsers;
@@ -17,23 +16,23 @@ using SmkDoc.Application.Modules.IdentityAccess.Users.Queries.ListProjectUsers;
 namespace SmkDoc.Api.Controllers.IdentityAccess;
 
 /// <summary>
-/// Tenant User management endpoints operating on ambient project context.
-/// Auth: JWT Bearer — ProjectAdmin role required for tenant modifications, SuperAdmin for status toggles.
+/// Tenant project user membership lifecycle management operating on ambient project context.
+/// Auth: JWT Bearer — ProjectAdmin role required. Data Plane route.
 /// </summary>
 [ApiController]
 [Route("api/v1/users")]
+[Authorize(Policy = AuthorizationPolicies.RequireProjectAdmin)]
 [EnableRateLimiting("api")]
 [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-public sealed class UsersController(
+[ProducesResponseType(StatusCodes.Status403Forbidden)]
+public sealed class ProjectUsersController(
     IUseCase<ListProjectUsersQuery, List<UserResultDto>> listProjectUsersUseCase,
     IUseCase<InviteUserCommand, UserResultDto> inviteUserUseCase,
     IUseCase<UpdateUserRoleCommand, UserResultDto> updateUserRoleUseCase,
-    IUseCase<RemoveUserCommand> removeUserUseCase,
-    IUseCase<SetUserStatusCommand, UserResultDto> setUserStatusUseCase) : ControllerBase
+    IUseCase<RemoveUserCommand> removeUserUseCase) : ControllerBase
 {
     /// <summary>List all users in the active project.</summary>
     [HttpGet]
-    [Authorize(Policy = AuthorizationPolicies.RequireProjectAdmin)]
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<UserResultDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> List(CancellationToken ct)
     {
@@ -44,28 +43,23 @@ public sealed class UsersController(
 
     /// <summary>Invite a new user to the active project.</summary>
     [HttpPost]
-    [Authorize(Policy = AuthorizationPolicies.RequireProjectAdmin)]
     [Idempotent]
     [ProducesResponseType(typeof(ApiResponse<UserResultDto>), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
-    public async Task<IActionResult> AddUser(
+    public async Task<IActionResult> Invite(
         [FromBody] InviteUserRequest request,
         CancellationToken ct)
     {
         var command = new InviteUserCommand(request.Email, request.Password, request.FirstName, request.LastName, request.Role);
         var result = await inviteUserUseCase.ExecuteAsync(command, ct);
-
         return CreatedAtAction(nameof(List), new ApiResponse<UserResultDto>(result));
     }
 
     /// <summary>Update a user's role within the active project.</summary>
     [HttpPut("{userId:guid}/role")]
-    [Authorize(Policy = AuthorizationPolicies.RequireProjectAdmin)]
     [ProducesResponseType(typeof(ApiResponse<UserResultDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     [ProducesResponseType(StatusCodes.Status412PreconditionFailed)]
@@ -81,10 +75,8 @@ public sealed class UsersController(
 
     /// <summary>Remove a user from the active project.</summary>
     [HttpDelete("{userId:guid}")]
-    [Authorize(Policy = AuthorizationPolicies.RequireProjectAdmin)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     [ProducesResponseType(StatusCodes.Status412PreconditionFailed)]
@@ -96,24 +88,6 @@ public sealed class UsersController(
         var command = new RemoveUserCommand(userId, currentUserId);
         await removeUserUseCase.ExecuteAsync(command, ct);
         return NoContent();
-    }
-
-    /// <summary>Activate or deactivate a global user account. SuperAdmin only.</summary>
-    [HttpPatch("{userId:guid}/status")]
-    [HttpPatch("/api/v1/management/users/{userId:guid}/status")]
-    [Authorize(Policy = AuthorizationPolicies.RequireSuperAdmin)]
-    [ProducesResponseType(typeof(ApiResponse<UserResultDto>), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> SetStatus(
-        [FromRoute] Guid userId,
-        [FromBody] SetUserStatusRequest request,
-        CancellationToken ct)
-    {
-        var command = new SetUserStatusCommand(userId, request.IsActive);
-        var result = await setUserStatusUseCase.ExecuteAsync(command, ct);
-        return Ok(new ApiResponse<UserResultDto>(result));
     }
 }
 

@@ -85,14 +85,7 @@ public sealed class TokenIssuerService(
         var token = await tokenRepo.GetByHashAsync(tokenHash, ct)
             ?? throw new UnauthorizedException("Invalid refresh token.");
 
-        if (token.IsRevoked)
-        {
-            if (!token.IsWithinReuseLeeway(now, AuthConstants.RefreshTokenReuseLeewaySeconds))
-            {
-                await tokenRepo.RevokeAllByUserIdAsync(token.UserId, now, ct);
-                throw new TokenReuseCompromiseException(token.UserId);
-            }
-        }
+        await EnsureTokenNotCompromisedAsync(token, now, ct);
 
         if (token.IsExpired(now))
         {
@@ -100,6 +93,15 @@ public sealed class TokenIssuerService(
         }
 
         return token;
+    }
+
+    private async Task EnsureTokenNotCompromisedAsync(RefreshToken token, DateTimeOffset now, CancellationToken ct)
+    {
+        if (token.IsRevoked && !token.IsWithinReuseLeeway(now, AuthConstants.RefreshTokenReuseLeewaySeconds))
+        {
+            await tokenRepo.RevokeAllByUserIdAsync(token.UserId, now, ct);
+            throw new TokenReuseCompromiseException(token.UserId);
+        }
     }
 
     private async Task<User> ValidateUserAsync(UserId userId, CancellationToken ct)

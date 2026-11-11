@@ -1,3 +1,5 @@
+using FluentAssertions;
+using NSubstitute;
 using SmkDoc.Application.Common.Behaviors;
 using SmkDoc.Application.Modules.IdentityAccess.Projects.Commands.CreateProject;
 using SmkDoc.Application.Modules.IdentityAccess.Projects.DTOs;
@@ -6,7 +8,9 @@ using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common.Builders;
+using Xunit;
 using ValidationException = SmkDoc.Application.Common.Exceptions.ValidationException;
 
 namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Projects.Commands.CreateProject;
@@ -15,7 +19,7 @@ public sealed class CreateProjectUseCaseTests
 {
     private readonly IProjectRepository _projectRepo = Substitute.For<IProjectRepository>();
     private readonly IUserProjectRoleRepository _roleRepo = Substitute.For<IUserProjectRoleRepository>();
-    private readonly ICompanyRepository _companyRepo = Substitute.For<ICompanyRepository>();
+    private readonly IApiKeyRepository _apiKeyRepo = Substitute.For<IApiKeyRepository>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
     private readonly FakeTimeProvider _timeProvider = TestConstants.CreateFakeClock();
 
@@ -28,7 +32,7 @@ public sealed class CreateProjectUseCaseTests
         new(
             _projectRepo,
             _roleRepo,
-            _companyRepo,
+            _apiKeyRepo,
             _unitOfWork,
             _timeProvider);
 
@@ -56,18 +60,18 @@ public sealed class CreateProjectUseCaseTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_WhenValidCommand_CreatesProjectAndAssignsAdminRole()
+    public async Task ExecuteAsync_WhenValidCommand_CreatesProjectAssignsAdminAndProvisionsApiKeys()
     {
         // Arrange
         var now = TestConstants.BaselineTime;
         var userId = Guid.NewGuid();
-        Company company = new CompanyBuilder().WithName("Test Company").WithTime(now);
+        var companyId = CompanyId.New();
         var command = new CreateProjectCommand(userId, "New Project", "new-project");
 
         _projectRepo.GetBySlugAsync("new-project", Arg.Any<CancellationToken>())
             .Returns((Project?)null);
-        _companyRepo.GetFirstAsync(Arg.Any<CancellationToken>())
-            .Returns(company);
+        _projectRepo.GetOrCreateDefaultCompanyIdAsync(now, Arg.Any<CancellationToken>())
+            .Returns(companyId);
 
         Project? capturedProject = null;
         _projectRepo.AddAsync(Arg.Do<Project>(p => capturedProject = p), Arg.Any<CancellationToken>())
@@ -84,39 +88,15 @@ public sealed class CreateProjectUseCaseTests
         result.Should().NotBeNull();
         result.Name.Should().Be("New Project");
         result.Slug.Should().Be("new-project");
+        result.ReadApiKey.Should().NotBeNullOrWhiteSpace();
+        result.WriteApiKey.Should().NotBeNullOrWhiteSpace();
 
         capturedProject.Should().NotBeNull();
         capturedRole.Should().NotBeNull();
         capturedRole!.UserId.Value.Should().Be(userId);
         capturedRole.Role.Should().Be(RoleType.Admin);
 
-        await _unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task ExecuteAsync_WhenNoCompanyExists_CreatesDefaultCompanyAndCommitsOnceAtomically()
-    {
-        // Arrange
-        var userId = Guid.NewGuid();
-        var command = new CreateProjectCommand(userId, "Fallback Project", "fallback-project");
-
-        _projectRepo.GetBySlugAsync("fallback-project", Arg.Any<CancellationToken>())
-            .Returns((Project?)null);
-        _companyRepo.GetFirstAsync(Arg.Any<CancellationToken>())
-            .Returns((Company?)null);
-
-        Company? capturedCompany = null;
-        _companyRepo.AddAsync(Arg.Do<Company>(c => capturedCompany = c), Arg.Any<CancellationToken>())
-            .Returns(Task.CompletedTask);
-
-        // Act
-        ProjectResultDto result = await CreateSut().ExecuteAsync(command);
-
-        // Assert
-        result.Should().NotBeNull();
-        capturedCompany.Should().NotBeNull();
-        capturedCompany!.Name.Value.Should().Be("Default Company");
-        await _companyRepo.Received(1).AddAsync(Arg.Any<Company>(), Arg.Any<CancellationToken>());
+        await _apiKeyRepo.Received(2).AddAsync(Arg.Any<ApiKey>(), Arg.Any<CancellationToken>());
         await _unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
     }
 

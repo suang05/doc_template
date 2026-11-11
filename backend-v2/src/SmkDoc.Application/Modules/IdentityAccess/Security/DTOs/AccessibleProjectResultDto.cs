@@ -1,11 +1,12 @@
 namespace SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
 
 /// <summary>
-/// Project access information for an authenticated user.
+/// Result DTO representing a project accessible to an authenticated user, including their assigned role.
 /// </summary>
-public sealed record AccessibleProjectDto(
+public sealed record AccessibleProjectResultDto(
     Guid Id,
     string Name,
     string Slug,
     string Role
 );
+

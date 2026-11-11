@@ -1,19 +1,21 @@
 using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Users.DTOs;
+using SmkDoc.Application.Modules.IdentityAccess.Users.Services;
 using SmkDoc.Domain.Common;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
-using SmkDoc.Domain.ValueObjects;
 
 namespace SmkDoc.Application.Modules.IdentityAccess.Users.Commands.InviteUser;
 
+/// <summary>
+/// Invites an existing or new user to the active project context and assigns their tenant role.
+/// </summary>
 public sealed class InviteUserUseCase(
-    IUserRepository userRepo,
+    IUserProvisioningService userProvisioningService,
     IUserProjectRoleRepository roleRepo,
-    IPasswordHasher passwordHasher,
     IUnitOfWork uow,
     ICurrentProjectContext projectContext,
     TimeProvider timeProvider) : IUseCase<InviteUserCommand, UserResultDto>
@@ -21,62 +23,45 @@ public sealed class InviteUserUseCase(
     public async Task<UserResultDto> ExecuteAsync(InviteUserCommand command, CancellationToken ct = default)
     {
         var pId = projectContext.EnsureResolved("Active project context is required to invite a user.");
-
         var roleType = Enumeration.FromDisplayName<RoleType>(command.Role);
-        var normalizedEmail = command.Email.Trim().ToLowerInvariant();
         var now = timeProvider.GetUtcNow();
 
-        var existingUser = await userRepo.GetByEmailAsync(normalizedEmail, ct);
-        if (existingUser != null)
-        {
-            var existingRole = await roleRepo.GetAsync(pId, existingUser.Id, ct);
-            if (existingRole != null)
-            {
-                throw new ConflictException($"User '{normalizedEmail}' is already a member of this project.");
-            }
+        var user = await userProvisioningService.GetOrRegisterUserAsync(command.Email, command.Password, command.FirstName, command.LastName, now, ct);
+        await EnsureNotMemberAsync(pId, user, ct);
 
-            var newRole = UserProjectRole.Create(existingUser.Id, pId, roleType, now);
-            await roleRepo.AddAsync(newRole, ct);
-            await uow.CommitAsync(ct);
-
-            return new UserResultDto(
-                existingUser.Id.Value,
-                existingUser.Email,
-                existingUser.FirstName,
-                existingUser.LastName,
-                roleType.Name,
-                existingUser.IsActive,
-                existingUser.CreatedAt,
-                now.ToUnixTimeMilliseconds().ToString()
-            );
-        }
-
-        if (string.IsNullOrWhiteSpace(command.Password) || command.Password.Length < 8)
-        {
-            throw new ValidationException("Password", "Password must be at least 8 characters.");
-        }
-
-        var newUser = User.Register(
-            EmailAddress.Create(normalizedEmail),
-            passwordHasher.HashPassword(command.Password),
-            command.FirstName,
-            command.LastName,
-            now
-        );
-
-        await userRepo.AddAsync(newUser, ct);
-        await roleRepo.AddAsync(UserProjectRole.Create(newUser.Id, pId, roleType, now), ct);
+        await AssignProjectRoleAsync(pId, user.Id, roleType, now, ct);
         await uow.CommitAsync(ct);
 
-        return new UserResultDto(
-            newUser.Id.Value,
-            newUser.Email,
-            newUser.FirstName,
-            newUser.LastName,
-            roleType.Name,
-            newUser.IsActive,
-            newUser.CreatedAt,
-            now.ToUnixTimeMilliseconds().ToString()
-        );
+        return ToResultDto(user, roleType, now);
     }
+
+    private async Task EnsureNotMemberAsync(Domain.ValueObjects.Ids.ProjectId pId, User user, CancellationToken ct)
+    {
+        var existingRole = await roleRepo.GetAsync(pId, user.Id, ct);
+        if (existingRole != null)
+        {
+            throw new ConflictException($"User '{user.Email.Value}' is already a member of this project.");
+        }
+    }
+
+    private async Task AssignProjectRoleAsync(
+        Domain.ValueObjects.Ids.ProjectId pId,
+        Domain.ValueObjects.Ids.UserId userId,
+        RoleType roleType,
+        DateTimeOffset now,
+        CancellationToken ct)
+    {
+        var newRole = UserProjectRole.Create(userId, pId, roleType, now);
+        await roleRepo.AddAsync(newRole, ct);
+    }
+
+    private static UserResultDto ToResultDto(User user, RoleType roleType, DateTimeOffset now) =>
+        new(user.Id.Value,
+            user.Email.Value,
+            user.FirstName,
+            user.LastName,
+            roleType.Name,
+            user.IsActive,
+            user.CreatedAt,
+            now.ToUnixTimeMilliseconds().ToString());
 }

@@ -1,12 +1,13 @@
 namespace SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
 
 /// <summary>
-/// User profile data embedded in login tokens and responses.
+/// Result DTO representing the identity and profile information of an authenticated user.
 /// </summary>
-public sealed record UserProfileDto(
+public sealed record UserProfileResultDto(
     Guid Id,
     string Email,
     string FirstName,
-    string LastName,
+    string? LastName,
     string SystemRole
 );
+

@@ -16,9 +16,15 @@ public sealed class RevokeApiKeyUseCase(
 {
     public async Task ExecuteAsync(RevokeApiKeyCommand command, CancellationToken ct = default)
     {
-        ApiKey? key;
-        var keyId = new ApiKeyId(command.Id);
+        var key = await ResolveTargetKeyAsync(new ApiKeyId(command.Id), ct);
+        key.Revoke(timeProvider.GetUtcNow());
+        apiKeyRepo.Update(key);
+        await unitOfWork.CommitAsync(ct);
+    }
 
+    private async Task<ApiKey> ResolveTargetKeyAsync(ApiKeyId keyId, CancellationToken ct)
+    {
+        ApiKey? key;
         if (projectContext.SystemRole == SystemRole.SuperAdmin && !projectContext.IsResolved)
         {
             key = await apiKeyRepo.GetByIdWithoutProjectAsync(keyId, ct);
@@ -29,13 +35,6 @@ public sealed class RevokeApiKeyUseCase(
             key = await apiKeyRepo.GetByIdAsync(keyId, pId, ct);
         }
 
-        if (key == null)
-        {
-            throw new NotFoundException($"API Key '{command.Id}' not found.");
-        }
-
-        key.Revoke(timeProvider.GetUtcNow());
-        apiKeyRepo.Update(key);
-        await unitOfWork.CommitAsync(ct);
+        return key ?? throw new NotFoundException($"API Key '{keyId.Value}' not found.");
     }
 }

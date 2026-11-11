@@ -13,48 +13,52 @@ public sealed class ListApiKeysUseCase(
 {
     public async Task<List<ApiKeyResultDto>> ExecuteAsync(ListApiKeysQuery query, CancellationToken ct = default)
     {
-        IReadOnlyList<Domain.Entities.ApiKey> keys;
+        var keys = await ResolveTargetKeysAsync(query, ct);
+        return keys.Select(ToMaskedDto).ToList();
+    }
 
+    private async Task<IReadOnlyList<Domain.Entities.ApiKey>> ResolveTargetKeysAsync(ListApiKeysQuery query, CancellationToken ct)
+    {
         if (query.ProjectId.HasValue && query.ProjectId.Value != Guid.Empty)
         {
             var targetProjectId = new ProjectId(query.ProjectId.Value);
-            if (projectContext.SystemRole != SystemRole.SuperAdmin)
-            {
-                var currentProjectId = projectContext.EnsureResolved("Active project context or SuperAdmin role is required to list API keys for a specific project.");
-                if (currentProjectId != targetProjectId)
-                {
-                    throw new ForbiddenException("Access denied: caller does not have permission to list API keys for another project.");
-                }
-            }
-
-            keys = await apiKeyRepo.ListByProjectAsync(targetProjectId, ct);
-        }
-        else if (projectContext.SystemRole == SystemRole.SuperAdmin && !projectContext.IsResolved)
-        {
-            keys = await apiKeyRepo.ListAllAsync(ct);
-        }
-        else
-        {
-            var currentProjectId = projectContext.EnsureResolved("Active project context is required to list API keys.");
-            keys = await apiKeyRepo.ListByProjectAsync(currentProjectId, ct);
+            EnsureListPermission(targetProjectId);
+            return await apiKeyRepo.ListByProjectAsync(targetProjectId, ct);
         }
 
-        return keys
-            .Select(k =>
-            {
-                var suffix = k.KeyHash.Value.Length >= 4 ? k.KeyHash.Value[^4..] : "xxxx";
-                var masked = $"smk_{k.CallerApp.ToLowerInvariant()}_****{suffix}";
-                return new ApiKeyResultDto(
-                    k.Id.Value,
-                    k.Name.Value,
-                    k.CallerApp,
-                    k.IsActive,
-                    k.LastUsedAt,
-                    k.CreatedAt,
-                    k.Scope.Name,
-                    masked,
-                    ConcurrencyToken: k.GetConcurrencyToken());
-            })
-            .ToList();
+        if (projectContext.SystemRole == SystemRole.SuperAdmin && !projectContext.IsResolved)
+        {
+            return await apiKeyRepo.ListAllAsync(ct);
+        }
+
+        var currentProjectId = projectContext.EnsureResolved("Active project context is required to list API keys.");
+        return await apiKeyRepo.ListByProjectAsync(currentProjectId, ct);
+    }
+
+    private void EnsureListPermission(ProjectId targetProjectId)
+    {
+        if (projectContext.SystemRole == SystemRole.SuperAdmin) return;
+
+        var currentProjectId = projectContext.EnsureResolved("Active project context or SuperAdmin role is required to list API keys for a specific project.");
+        if (currentProjectId != targetProjectId)
+        {
+            throw new ForbiddenException("Access denied: caller does not have permission to list API keys for another project.");
+        }
+    }
+
+    private static ApiKeyResultDto ToMaskedDto(Domain.Entities.ApiKey k)
+    {
+        var suffix = k.KeyHash.Value.Length >= 4 ? k.KeyHash.Value[^4..] : "xxxx";
+        var masked = $"smk_{k.CallerApp.ToLowerInvariant()}_****{suffix}";
+        return new ApiKeyResultDto(
+            k.Id.Value,
+            k.Name.Value,
+            k.CallerApp,
+            k.IsActive,
+            k.LastUsedAt,
+            k.CreatedAt,
+            k.Scope.Name,
+            masked,
+            ConcurrencyToken: k.GetConcurrencyToken());
     }
 }
