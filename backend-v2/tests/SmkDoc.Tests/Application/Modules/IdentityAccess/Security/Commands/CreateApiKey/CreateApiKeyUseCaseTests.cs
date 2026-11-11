@@ -137,18 +137,18 @@ public sealed class CreateApiKeyUseCaseTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_WhenProjectContextUnresolved_ThrowsForbiddenException()
+    public async Task ExecuteAsync_WhenProjectContextUnresolved_ThrowsTenantContextRequiredException()
     {
         // Arrange
         _projectContext.IsResolved.Returns(false);
+        _projectContext.ProjectId.Returns(_ => throw new TenantContextRequiredException());
         var command = new CreateApiKeyCommand("Sales App", "sales");
 
         // Act
         var act = () => CreateSut().ExecuteAsync(command);
 
         // Assert
-        await act.Should().ThrowAsync<ForbiddenException>()
-            .WithMessage("*Active project context is required*");
+        await act.Should().ThrowAsync<TenantContextRequiredException>();
         await _apiKeyRepo.DidNotReceive().AddAsync(Arg.Any<ApiKey>(), Arg.Any<CancellationToken>());
     }
 }

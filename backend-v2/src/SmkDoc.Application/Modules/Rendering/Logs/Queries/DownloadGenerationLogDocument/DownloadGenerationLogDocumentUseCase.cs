@@ -19,9 +19,12 @@ public sealed class DownloadGenerationLogDocumentUseCase(
         var log = await logRepo.GetByIdAsync(query.LogId, ct)
             ?? throw new NotFoundException($"Generation log '{query.LogId}' not found.");
 
-        if (projectContext.SystemRole != SystemRole.SuperAdmin && log.ProjectId.Value != projectContext.ProjectId.Value)
+        if (projectContext.SystemRole != SystemRole.SuperAdmin)
         {
-            throw new CrossTenantAccessDeniedException(log.ProjectId);
+            if (log.ProjectId.Value != projectContext.ProjectId.Value)
+            {
+                throw new CrossTenantAccessDeniedException(log.ProjectId);
+            }
         }
 
         if (string.IsNullOrWhiteSpace(log.OutputKey))

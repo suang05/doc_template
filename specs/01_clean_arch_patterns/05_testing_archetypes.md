@@ -5,6 +5,7 @@ Category: 01_clean_arch_patterns
 Domain: Testing Archetypes, DAMP AAA Cadence & Test Modernization SSoT
 SoleResponsibilities:
   - Unit test archetypes using DAMP AAA cadence, SUT factory (`CreateSut()`), and NSubstitute mocking
+  - Testing the 3-Tier Guard Model (Archetype A fail-fast `TenantContextRequiredException` & Archetype B zero-mock isolation)
   - Integration test harness with Testcontainers (PostgreSQL, MinIO, Redis)
   - Injected `TimeProvider` temporal testing and FluentValidation isolation
   - Test modernization parity (purging obsolete fixtures, prohibiting commented-out `[Fact]` tests)
@@ -16,7 +17,42 @@ Signal: [ARCH_EVOLUTION_TESTING]
 
 ## 1. Level 1: Affirmative Testing Invariants Matrix
 
-### 1.1 Architectural Wiring & Testing Boundaries
+### 1.1 The Unified Tenancy & Security Governance Spine in Testing
+Testing is partitioned strictly across the 3-Tier Governance Hierarchy, ensuring each tier is verified at its appropriate isolation level without mock bleed or redundant verification:
+
+```mermaid
+flowchart TD
+    subgraph Macro ["1. Macro Architecture: Zoning Strategy"]
+        direction TB
+        IntMacro["Integration Test (SmkDocApiFactory / WebApplicationFactory)\n• Control Plane: Verify /api/v1/management/** allows SuperAdmin without tenant\n• Data Plane: Verify /api/v1/** rejects un-tenanted calls (400) & SuperAdmin (403)"]
+    end
+
+    subgraph Defense ["2. Defense Strategy: Defense-in-Depth (3-Tier Guard)"]
+        direction TB
+        TestT1["Tier 1 (Perimeter Test): Middleware / Integration\n• Test ProjectContextMiddleware with missing header -> 400 (PROJECT_CONTEXT_REQUIRED)\n• Test Zero Standing Access -> 403 (CROSS_TENANT_ACCESS_DENIED)"]
+        TestT2["Tier 2 (Application Guard Test): Unit Tests (SmkDoc.Tests)\n• Archetype A: Test var projectId = projectContext.ProjectId fail-fast\n• Archetype B: Test with ZERO context mock (Compile-time purity)"]
+        TestT3["Tier 3 (Domain Invariant Test): Pure POCO Tests (SmkDoc.Tests)\n• 100% Real POCOs (Zero Mock): Factory Create & Invariants"]
+        TestT1 --> TestT2 --> TestT3
+    end
+
+    subgraph Tactical ["3. Implementation Pattern: Testing Tactical Patterns"]
+        direction TB
+        MockA["Archetype A Test Pattern\n• Arrange: _projectContext.ProjectId.Returns(_ => throw new TenantContextRequiredException())\n• Assert: ThrowAsync<TenantContextRequiredException>() & zero DB writes"]
+        MockB["Archetype B Test Pattern\n• Arrange: CreateSut() with ZERO ICurrentProjectContext parameter\n• Assert: Relies exclusively on entity ID and UnitOfWork.CommitAsync"]
+    end
+
+    IntMacro --> TestT1
+    TestT2 --> Tactical
+```
+
+* **Tier 1 (Perimeter Guard) Test Strategy**: Verified via `SmkDoc.IntegrationTests` (`SmkDocApiFactory`). Verifies that Data Plane HTTP requests without tenant context terminate at the gateway with `400 Bad Request` (`PROJECT_CONTEXT_REQUIRED`), deactivated projects return `403 Forbidden` (`PROJECT_DEACTIVATED`), and SuperAdmin receives `403 Forbidden` (`CROSS_TENANT_ACCESS_DENIED`).
+* **Tier 2 (Application Guard) Test Strategy**: Verified via `SmkDoc.Tests` in isolation.
+  * **Archetype A**: Tests verify that unresolved context throws `TenantContextRequiredException` (`TENANT_CONTEXT_REQUIRED`, 403 Forbidden) fail-fast before any repository or external service calls.
+  * **Archetype B**: SUT factory constructor declares ZERO `ICurrentProjectContext` mock. Proves at compile time that the UseCase does not inject or depend on ambient context.
+  * **Cross-Tenant Guard**: Tests verify that cross-tenant access attempts throw `CrossTenantAccessDeniedException` (`CROSS_TENANT_ACCESS_DENIED`, 403 Forbidden).
+* **Tier 3 (Domain Invariant Guard) Test Strategy**: 100% Real POCO tests without mocking (`Substitute.For<Entity>` is strictly prohibited).
+
+### 1.2 Architectural Wiring & Testing Boundaries
 | SUT Layer | Inbound Test Arranger | Mocking Policy | Assertion Verification |
 |---|---|---|---|
 | **Domain Entities** | Real instantiation via `{Aggregate}.Create(...)` | ZERO MOCK (100% Real POCO) | Invariants, State mutations, Equality |
@@ -27,7 +63,7 @@ Signal: [ARCH_EVOLUTION_TESTING]
 | **Integration Web API** | `SmkDocApiFactory` (`WebApplicationFactory`) | Real Testcontainers Postgres & MinIO | HTTP status, JSON envelopes, Database commits |
 | **Architectural Boundaries**| NetArchTest on compiled assemblies | Pure Reflection | Inward layer dependencies, sealed classes |
 
-### 1.2 Affirmative Testing Standards & Invariants
+### 1.3 Affirmative Testing Standards & Invariants
 | Testing Architectural Concern | Affirmative Testing Invariant (Positive SSoT Law) | Boundary Vector |
 |---|---|---|
 | **Class-Scoped SUT Factory** | Every UseCase test class declares private class-scoped mocks and exactly 1 `private TUseCase CreateSut()` factory method. God Fixtures (`*TestFixture`) bundling mocks are prohibited. | Unit Test Isolation |

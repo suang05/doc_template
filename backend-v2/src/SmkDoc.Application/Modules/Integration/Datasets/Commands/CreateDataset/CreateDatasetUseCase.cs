@@ -1,4 +1,3 @@
-using SmkDoc.Application.Common.Extensions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Integration.Datasets.DTOs;
 using SmkDoc.Application.Modules.Integration.Datasets.Services;
@@ -18,6 +17,9 @@ public sealed class CreateDatasetUseCase(
 {
     public async Task<DatasetResultDto> ExecuteAsync(CreateDatasetCommand command, CancellationToken ct = default)
     {
+        // Step 1: Parse & Guard (Fail-fast at line 1 via Smart Context Property)
+        var projectId = projectContext.ProjectId;
+
         var connection = await datasetResolver.ValidateAndResolveConnectionAsync(
             new DataConnectionId(command.DataConnectionId),
             command.SqlQuery,
@@ -31,7 +33,7 @@ public sealed class CreateDatasetUseCase(
             SqlQuery.Create(command.SqlQuery),
             command.CacheSeconds,
             now,
-            projectContext.ProjectId);
+            projectId);
 
         await datasetRepo.AddAsync(entity, ct);
         await unitOfWork.CommitAsync(ct);

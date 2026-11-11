@@ -381,6 +381,10 @@ export interface ProblemDetails {
 | `BusinessRuleViolationException` | Tier 3 (Domain Core) | `400 Bad Request` | `BUSINESS_RULE_VIOLATION` | Illegal state transition (attempting to edit an archived version, or removing the last admin). |
 | `DistributedStateUnavailableException` | Infrastructure | `503 Service Unavailable` | `DISTRIBUTED_STATE_UNAVAILABLE` | Redis lock or cache cluster unavailable (fail-closed idempotency). |
 
+> [!NOTE] Tier 1 Perimeter Protocol Rejection vs Tier 2 Domain Exception Distinction
+> - **Tier 1 Perimeter Rejection (`400 Bad Request`)**: When an un-tenanted HTTP request targets a Data Plane route (`/api/v1/**`), `ProjectContextMiddleware` rejects fail-fast with HTTP `400 Bad Request` and `ErrorCode: "PROJECT_CONTEXT_REQUIRED"` (client protocol error: missing `X-Project-Id` header).
+> - **Tier 2 Domain Exception (`403 Forbidden`)**: When inner domain logic or Smart Context property `projectContext.ProjectId` is accessed while unresolved, `TenantContextRequiredException` is thrown with HTTP `403 Forbidden` and `ErrorCode: "TENANT_CONTEXT_REQUIRED"` (security boundary protection).
+
 ---
 
 ### 3.4 Diagnostic Probe Result Blueprint (`ApiResponse<TestResultDto>`)

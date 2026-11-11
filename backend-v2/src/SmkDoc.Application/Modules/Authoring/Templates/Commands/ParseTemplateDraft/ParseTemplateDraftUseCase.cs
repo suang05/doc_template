@@ -17,6 +17,9 @@ public sealed class ParseTemplateDraftUseCase(
 
     public async Task<ParseDraftResultDto> ExecuteAsync(ParseTemplateDraftCommand command, CancellationToken ct = default)
     {
+        // Step 1: Parse & Guard (Fail-fast at line 1 via Smart Context Property)
+        var projectId = projectContext.ProjectId;
+
         var ext = Path.GetExtension(command.FileName).ToLowerInvariant();
         if (!TemplateFormat.TryFromExtension(ext, out _))
         {
@@ -48,7 +51,7 @@ public sealed class ParseTemplateDraftUseCase(
 
         spooled.Position = 0;
         var draftId = await draftCache.StoreAsync(
-            projectContext.ProjectId,
+            projectId,
             spooled,
             command.FileName,
             ext,

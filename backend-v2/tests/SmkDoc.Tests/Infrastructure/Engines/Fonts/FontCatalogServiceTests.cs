@@ -4,6 +4,7 @@ using SmkDoc.Application.Common;
 using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Fonts.DTOs;
+using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Infrastructure.Engines.Fonts;
 using Xunit;
@@ -63,18 +64,18 @@ public sealed class FontCatalogServiceTests
     }
 
     [Fact]
-    public async Task GetCatalogAsync_WhenProjectNotResolved_ShouldThrowForbiddenException()
+    public async Task GetCatalogAsync_WhenProjectNotResolved_ShouldThrowTenantContextRequiredException()
     {
         // Arrange
         _projectContext.IsResolved.Returns(false);
+        _projectContext.ProjectId.Returns(_ => throw new TenantContextRequiredException());
         var sut = CreateSut();
 
         // Act
         var act = () => sut.GetCatalogAsync();
 
         // Assert
-        await act.Should().ThrowAsync<ForbiddenException>()
-            .WithMessage("*Listing font catalog requires an active project context*");
+        await act.Should().ThrowAsync<TenantContextRequiredException>();
     }
 }
 

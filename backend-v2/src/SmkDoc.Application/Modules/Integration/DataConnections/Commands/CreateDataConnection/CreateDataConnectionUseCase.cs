@@ -1,4 +1,3 @@
-using SmkDoc.Application.Common.Extensions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Integration.DataConnections.DTOs;
 using SmkDoc.Application.Modules.Integration.Datasets.Services;
@@ -19,6 +18,9 @@ public sealed class CreateDataConnectionUseCase(
 {
     public async Task<DataConnectionResultDto> ExecuteAsync(CreateDataConnectionCommand command, CancellationToken ct = default)
     {
+        // Step 1: Parse & Guard (Fail-fast at line 1 via Smart Context Property)
+        var projectId = projectContext.ProjectId;
+
         var encryptedCs = await datasetResolver.ValidateAndEncryptAsync(command.Provider, command.ConnectionString, ct);
 
         var now = timeProvider.GetUtcNow();
@@ -27,7 +29,7 @@ public sealed class CreateDataConnectionUseCase(
             Enumeration.FromDisplayName<DatabaseProvider>(command.Provider),
             encryptedCs,
             now,
-            projectContext.ProjectId);
+            projectId);
 
         await repository.AddAsync(entity, ct);
         await unitOfWork.CommitAsync(ct);

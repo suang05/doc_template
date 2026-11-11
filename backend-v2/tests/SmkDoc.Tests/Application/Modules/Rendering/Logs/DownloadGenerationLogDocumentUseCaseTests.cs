@@ -29,19 +29,28 @@ public sealed class DownloadGenerationLogDocumentUseCaseTests
         new(_logRepo, _storageService, _projectContext);
 
     [Fact]
-    public async Task ExecuteAsync_WhenProjectContextNotResolvedAndNotSuperAdmin_ShouldThrowForbiddenException()
+    public async Task ExecuteAsync_WhenProjectContextNotResolvedAndNotSuperAdmin_ShouldThrowTenantContextRequiredException()
     {
         // Arrange
+        var logId = Guid.NewGuid();
+        var log = GenerationLogBuilder.ALog()
+            .WithId(logId)
+            .WithProjectId(new ProjectId(Guid.NewGuid()))
+            .WithOutputKey("outputs/sample.pdf")
+            .Build();
+
+        _logRepo.GetByIdAsync(logId, Arg.Any<CancellationToken>())
+            .Returns(log);
         _projectContext.IsResolved.Returns(false);
+        _projectContext.ProjectId.Returns(_ => throw new TenantContextRequiredException());
         var sut = CreateSut();
-        var query = new DownloadGenerationLogDocumentQuery(Guid.NewGuid());
+        var query = new DownloadGenerationLogDocumentQuery(logId);
 
         // Act
         var act = () => sut.ExecuteAsync(query);
 
         // Assert
-        await act.Should().ThrowAsync<ForbiddenException>()
-            .WithMessage("*Active project context or SuperAdmin role is required*");
+        await act.Should().ThrowAsync<TenantContextRequiredException>();
     }
 
     [Fact]
@@ -62,7 +71,7 @@ public sealed class DownloadGenerationLogDocumentUseCaseTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_WhenLogBelongsToDifferentProject_ShouldThrowForbiddenException()
+    public async Task ExecuteAsync_WhenLogBelongsToDifferentProject_ShouldThrowCrossTenantAccessDeniedException()
     {
         // Arrange
         var logId = Guid.NewGuid();
@@ -81,8 +90,8 @@ public sealed class DownloadGenerationLogDocumentUseCaseTests
         var act = () => sut.ExecuteAsync(new DownloadGenerationLogDocumentQuery(logId));
 
         // Assert
-        await act.Should().ThrowAsync<ForbiddenException>()
-            .WithMessage("*Access denied*");
+        await act.Should().ThrowAsync<CrossTenantAccessDeniedException>()
+            .WithMessage($"*{foreignProjectId}*");
     }
 
     [Fact]

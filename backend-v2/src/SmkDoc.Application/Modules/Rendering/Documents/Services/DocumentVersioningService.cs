@@ -27,11 +27,12 @@ public sealed class DocumentVersioningService(
 
         if (document is null)
         {
+            var projectId = projectContext.ProjectId;
             document = Document.Create(
                 docRef,
                 new TemplateId(templateId),
                 now,
-                projectContext.ProjectId);
+                projectId);
             await documentRepo.AddAsync(document, ct);
         }
 

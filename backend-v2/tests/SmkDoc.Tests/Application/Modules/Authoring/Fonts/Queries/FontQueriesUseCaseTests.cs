@@ -77,18 +77,19 @@ public sealed class FontQueriesUseCaseTests
     }
 
     [Fact]
-    public async Task FontQueries_WhenProjectUnresolved_ThrowForbiddenException()
+    public async Task FontQueries_WhenProjectUnresolved_ThrowTenantContextRequiredException()
     {
         // Arrange
         _projectContext.IsResolved.Returns(false);
+        _projectContext.ProjectId.Returns(_ => throw new TenantContextRequiredException());
         _fontCatalog.GetCatalogAsync(Arg.Any<CancellationToken>())
-            .ThrowsAsync(new ForbiddenException("Listing font catalog requires an active project context."));
+            .ThrowsAsync(new TenantContextRequiredException());
 
         var listSut = new ListFontsUseCase(_fontCatalog);
         var getSut = new GetFontBase64UseCase(_storage, _projectContext);
 
         // Act & Assert
-        await listSut.Invoking(s => s.ExecuteAsync(new ListFontsQuery())).Should().ThrowAsync<ForbiddenException>();
-        await getSut.Invoking(s => s.ExecuteAsync(new GetFontBase64Query("Sarabun-Regular.ttf"))).Should().ThrowAsync<ForbiddenException>();
+        await listSut.Invoking(s => s.ExecuteAsync(new ListFontsQuery())).Should().ThrowAsync<TenantContextRequiredException>();
+        await getSut.Invoking(s => s.ExecuteAsync(new GetFontBase64Query("Sarabun-Regular.ttf"))).Should().ThrowAsync<TenantContextRequiredException>();
     }
 }

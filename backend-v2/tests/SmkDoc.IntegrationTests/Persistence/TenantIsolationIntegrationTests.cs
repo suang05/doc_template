@@ -2,6 +2,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Entities;
+using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.ValueObjects.Ids;
@@ -81,7 +82,15 @@ public sealed class TenantIsolationIntegrationTests
     {
         var context = Substitute.For<ICurrentProjectContext>();
         context.IsResolved.Returns(isResolved);
-        context.ProjectId.Returns(projectId);
+        if (isResolved)
+        {
+            context.ProjectId.Returns(projectId);
+        }
+        else
+        {
+            context.ProjectId.Returns(_ => throw new TenantContextRequiredException());
+        }
+        context.OptionalProjectId.Returns(isResolved ? projectId : null);
         return context;
     }
 
@@ -112,7 +121,7 @@ public sealed class TenantIsolationIntegrationTests
     }
 
     [Fact]
-    public void Interceptor_WhenTenantResolved_AddingCrossTenantEntity_ThrowsInvalidOperationException()
+    public void Interceptor_WhenTenantResolved_AddingCrossTenantEntity_ThrowsCrossTenantAccessDeniedException()
     {
         // Arrange
         var activeTenantId = ProjectId.New();
@@ -135,8 +144,7 @@ public sealed class TenantIsolationIntegrationTests
         var act = () => interceptor.ApplyTenantSecurity(dbContext);
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*Cross-tenant write operation rejected*");
+        act.Should().Throw<CrossTenantAccessDeniedException>();
     }
 
     [Fact]
@@ -215,7 +223,7 @@ public sealed class TenantIsolationIntegrationTests
     }
 
     [Fact]
-    public void Interceptor_WhenTenantResolved_ModifyingCrossTenantEntity_ThrowsInvalidOperationException()
+    public void Interceptor_WhenTenantResolved_ModifyingCrossTenantEntity_ThrowsCrossTenantAccessDeniedException()
     {
         // Arrange
         var activeTenantId = ProjectId.New();
@@ -239,12 +247,11 @@ public sealed class TenantIsolationIntegrationTests
         var act = () => interceptor.ApplyTenantSecurity(dbContext);
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*Cross-tenant update operation rejected*");
+        act.Should().Throw<CrossTenantAccessDeniedException>();
     }
 
     [Fact]
-    public void Interceptor_WhenTenantResolved_DeletingCrossTenantEntity_ThrowsInvalidOperationException()
+    public void Interceptor_WhenTenantResolved_DeletingCrossTenantEntity_ThrowsCrossTenantAccessDeniedException()
     {
         // Arrange
         var activeTenantId = ProjectId.New();
@@ -268,8 +275,7 @@ public sealed class TenantIsolationIntegrationTests
         var act = () => interceptor.ApplyTenantSecurity(dbContext);
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*Cross-tenant delete operation rejected*");
+        act.Should().Throw<CrossTenantAccessDeniedException>();
     }
 
     [Fact]

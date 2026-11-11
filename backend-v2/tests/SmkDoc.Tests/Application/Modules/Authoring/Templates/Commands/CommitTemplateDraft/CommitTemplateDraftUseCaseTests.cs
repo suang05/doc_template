@@ -175,10 +175,11 @@ public sealed class CommitTemplateDraftUseCaseTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_WhenProjectContextUnresolved_ShouldThrowForbiddenExceptionWithoutUploading()
+    public async Task ExecuteAsync_WhenProjectContextUnresolved_ShouldThrowTenantContextRequiredExceptionWithoutUploading()
     {
         // Arrange
         _projectContext.IsResolved.Returns(false);
+        _projectContext.ProjectId.Returns(_ => throw new TenantContextRequiredException());
         var entry = new TemplateDraftEntry("draft-no-proj", _defaultProjectId.Value, "drafts/report.docx", "report.docx", ".docx", []);
         var command = new CommitTemplateDraftCommand("draft-no-proj", "Report", "report", null, []);
 
@@ -186,8 +187,7 @@ public sealed class CommitTemplateDraftUseCaseTests
 
         // Act & Assert
         var act = () => CreateSut().ExecuteAsync(command, CancellationToken.None);
-        await act.Should().ThrowAsync<ForbiddenException>()
-            .WithMessage("*active project context*");
+        await act.Should().ThrowAsync<TenantContextRequiredException>();
 
         await _storageService.DidNotReceive().UploadAsync(
             Arg.Any<string>(), Arg.Any<string>(), Arg.Any<Stream>(), Arg.Any<string>(), Arg.Any<CancellationToken>());

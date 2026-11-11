@@ -662,7 +662,7 @@ public sealed class CleanArchitectureTests
         {
             var paramTypes = ctor.GetParameters().Select(p => p.ParameterType.Name).ToList();
             paramTypes.Should().NotContain("IProjectRepository",
-                "CommitTemplateDraftUseCase must not inject IProjectRepository; ambient tenant validation is performed via ICurrentProjectContext.EnsureResolved().");
+                "CommitTemplateDraftUseCase must not inject IProjectRepository; ambient tenant validation is performed via ICurrentProjectContext.ProjectId.");
         }
     }
 

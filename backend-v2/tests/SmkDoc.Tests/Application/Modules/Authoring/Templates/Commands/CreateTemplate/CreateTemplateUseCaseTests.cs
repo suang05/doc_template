@@ -68,18 +68,18 @@ public sealed class CreateTemplateUseCaseTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_WhenProjectContextUnresolved_ShouldThrowForbiddenException()
+    public async Task ExecuteAsync_WhenProjectContextUnresolved_ShouldThrowTenantContextRequiredException()
     {
         // Arrange
         _projectContext.IsResolved.Returns(false);
+        _projectContext.ProjectId.Returns(_ => throw new TenantContextRequiredException());
         var command = new CreateTemplateCommand("Tax Invoice", "tax-invoice", "Finance");
 
         // Act
         var act = () => CreateSut().ExecuteAsync(command);
 
         // Assert
-        await act.Should().ThrowAsync<ForbiddenException>()
-            .WithMessage("*active project context*");
+        await act.Should().ThrowAsync<TenantContextRequiredException>();
         await _templateRepo.DidNotReceive().AddAsync(Arg.Any<Template>(), Arg.Any<CancellationToken>());
     }
 

@@ -63,17 +63,18 @@ public sealed class ListProjectUsersUseCaseTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_WhenContextNotResolved_ShouldThrowForbiddenException()
+    public async Task ExecuteAsync_WhenContextNotResolved_ShouldThrowTenantContextRequiredException()
     {
         // Arrange
         _projectContext.IsResolved.Returns(false);
+        _projectContext.ProjectId.Returns(_ => throw new TenantContextRequiredException());
         var query = new ListProjectUsersQuery();
 
         // Act
         var act = () => CreateSut().ExecuteAsync(query);
 
         // Assert
-        await act.Should().ThrowAsync<ForbiddenException>();
+        await act.Should().ThrowAsync<TenantContextRequiredException>();
         await _roleRepo.DidNotReceive().ListByProjectAsync(Arg.Any<ProjectId>(), Arg.Any<CancellationToken>());
         await _userRepo.DidNotReceive().GetByIdsAsync(Arg.Any<IEnumerable<UserId>>(), Arg.Any<CancellationToken>());
     }

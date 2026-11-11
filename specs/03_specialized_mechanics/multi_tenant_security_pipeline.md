@@ -6,6 +6,7 @@ Domain: Multi-Tenant Security Pipeline, Dual-Channel Authentication & Context Hy
 SoleResponsibilities:
   - Edge dual-channel authentication pipeline (M2M Channel A SHA-256 API Key vs Channel B Internal JWT)
   - `ProjectContextMiddleware` and ambient `ICurrentProjectContext` hydration
+  - The 3-Tier Guard Model SSoT, Plane Zoning (Control vs Data Plane) & Ambient Tenancy Fail-Closed Isolation
   - ClaimsPrincipal claims transformation (`ClaimsPrincipalBuilder`)
   - Project sub-key quota enforcement (maximum 2 active keys per project) and ownership transfer
 Target: `backend-v2/` (`SmkDoc.Api/Middleware/`, `SmkDoc.Infrastructure/Security/`, `SmkDoc.Application/Common/Interfaces/`)
@@ -16,7 +17,41 @@ Signal: [ARCH_EVOLUTION_TENANCY]
 
 ## 1. Level 1: Multi-Tenant & Dual-Auth Invariants Matrix
 
-### 1.1 Architectural Wiring & Security Contracts
+### 1.1 The Unified Tenancy & Security Governance Spine (Master SSoT Chain)
+The system's multi-tenant architecture is governed by a single, unbroken linear pipeline operating from macro-zoning down to database row filters:
+
+```mermaid
+flowchart TD
+    subgraph Macro ["1. Macro Architecture: Zoning Strategy"]
+        direction TB
+        Req[Incoming HTTP Request] --> RouteCheck{Route Prefix?}
+        RouteCheck -- "/api/v1/management/**" --> CtrlPlane["Control Plane (ZSA Platform Governance)\n• Authorize: RequireSuperAdmin\n• Ingress Tenancy: Permitted without resolved tenant"]
+        RouteCheck -- "/api/v1/**" --> DataPlane["Data Plane (Tenant Workload Resources)\n• Authorize: Project/Resource Policies\n• Ingress Tenancy: 100% Mandatory Ambient Tenant"]
+    end
+
+    subgraph Defense ["2. Defense Strategy: Defense-in-Depth (3-Tier Guard)"]
+        direction TB
+        DataPlane --> T1["Tier 1: Perimeter Guard (ProjectContextMiddleware)\n• Channel A (X-API-Key) / Channel B (Bearer JWT)\n• Missing Tenant Header? -> 400 Bad Request (PROJECT_CONTEXT_REQUIRED)\n• SuperAdmin Standing Access? -> 403 Forbidden (CROSS_TENANT_ACCESS_DENIED)\n• Project Inactive? -> 403 Forbidden (PROJECT_DEACTIVATED)"]
+        T1 -- Tenant Resolved & Permitted --> T2["Tier 2: Application Guard (UseCase PEMR in Trusted Zone)\n• Never checks HTTP headers, never throws 401 Unauthorized\n• Evaluates business preconditions & domain context"]
+        T2 --> T3["Tier 3: Domain Invariants & Interceptor Guard\n• Entity Factory Methods (Create) enforce business invariants\n• EF Core Global Query Filter (WHERE IsResolved AND project_id = @Id)\n• ConcurrencySaveChangesInterceptor ensures transactional safety"]
+    end
+
+    subgraph Tactical ["3. Implementation Pattern: Tactical Design Patterns"]
+        direction TB
+        T2 --> ArchA["Archetype A (Create{Aggregate} / Key-Consuming)\n• Injects: ICurrentProjectContext\n• Line 1 Step 1: var projectId = projectContext.ProjectId;\n• Throws: TenantContextRequiredException (403) fail-fast"]
+        T2 --> ArchB["Archetype B (ID-Based / Collection Queries / Updates)\n• Injects: ZERO Context (Zero Phantom Context Injection)\n• Scoped automatically by Tier 1 Perimeter & Tier 3 EF Filter\n• Throws: CrossTenantAccessDeniedException (403) on cross-tenant breach"]
+    end
+
+    CtrlPlane --> T2
+```
+
+* **Linear Governance Invariant**: Every request passes sequentially through Macro Zoning $\rightarrow$ Tier 1 Perimeter $\rightarrow$ Tier 2 Application $\rightarrow$ Tier 3 Domain. No layer may skip or contradict an upstream boundary.
+* **Tier 1 vs Tier 2 Error Distinction**:
+  * **Tier 1 HTTP 400 (`PROJECT_CONTEXT_REQUIRED`)**: The HTTP client violated the Data Plane perimeter contract by failing to transmit the `X-Project-Id` header (or valid route `{projectId}`).
+  * **Tier 2 HTTP 403 (`TENANT_CONTEXT_REQUIRED`)**: An Archetype A UseCase accessed `projectContext.ProjectId` when no ambient tenant was hydrated, indicating an unauthorized execution context attempt.
+  * **Tier 1 vs Tier 2 HTTP 403 (`CROSS_TENANT_ACCESS_DENIED`)**: Tier 1 blocks SuperAdmin from standing access to Data Plane routes; Tier 2 blocks any tenant caller from referencing or mutating resources across tenant partitions.
+
+### 1.2 Architectural Wiring & Security Contracts
 | Direction | Upstream Origin | Current Role (Tenancy & Security Engine) | Downstream Destination |
 |---|---|---|---|
 | **Incoming HTTP** | M2M Client or Web Studio | Inspects auth headers (`X-API-Key` vs `Authorization: Bearer`) | Authentication Handler Dispatch |
@@ -25,7 +60,7 @@ Signal: [ARCH_EVOLUTION_TENANCY]
 | **Ambient Context** | Authenticated Channel | Exposes channel-agnostic `ICurrentProjectContext` (zero `IExecutionContext`) | EF Core `AppDbContext` & Inner Business Logic |
 | **Persistence Query**| UseCase / Repository Query | Enforces fail-closed global tenancy SQL partition | PostgreSQL Engine (`WHERE @IsResolved AND project_id = @Id`) |
 
-### 1.2 Affirmative Tenancy & Dual-Auth Invariants
+### 1.3 Affirmative Tenancy & Dual-Auth Invariants
 | Security & Tenancy Concern | Affirmative Security Invariant (Positive SSoT Law) | Boundary Vector |
 |---|---|---|
 | **Cryptographic Key Storage** | API keys are stored exclusively as SHA-256 one-way hashes (`KeyHash`) alongside non-sensitive `KeyPrefix` (e.g. `smk_crm_`) and authentic `KeySuffix` (e.g. `...efgh`). Raw plaintext keys are emitted exactly once upon creation and never persisted. | Credential Storage |
@@ -104,6 +139,10 @@ graph TD
 ```csharp
 public interface ICurrentProjectContext
 {
+    /// <summary>
+    /// Self-Guarding Smart Property. Returns strongly-typed ProjectId if resolved;
+    /// otherwise, throws TenantContextRequiredException (403 Forbidden) fail-fast.
+    /// </summary>
     ProjectId ProjectId { get; }
     bool IsResolved { get; }
     string? CallerIdentity { get; }

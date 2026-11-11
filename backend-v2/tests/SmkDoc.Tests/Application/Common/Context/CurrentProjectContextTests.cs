@@ -12,12 +12,14 @@ public sealed class CurrentProjectContextTests
     private readonly CurrentProjectContext _sut = new();
 
     [Fact]
-    public void UninitializedContext_ShouldHaveEmptyProjectIdAndUnresolvedState()
+    public void UninitializedContext_ShouldHaveUnresolvedState_AndThrowOnProjectIdAccess()
     {
         // Assert
-        _sut.ProjectId.Should().Be(ProjectId.Empty);
         _sut.IsResolved.Should().BeFalse();
+        _sut.OptionalProjectId.Should().BeNull();
         _sut.CallerIdentity.Should().BeNull();
+        var act = () => _sut.ProjectId;
+        act.Should().Throw<TenantContextRequiredException>();
     }
 
     [Fact]

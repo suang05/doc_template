@@ -15,6 +15,9 @@ public sealed class EnqueueDocumentGenerationUseCase(
 {
     public async Task<DocumentJobDto> ExecuteAsync(EnqueueDocumentGenerationCommand command, CancellationToken ct = default)
     {
+        // Step 1: Parse & Guard (Fail-fast at line 1 via Smart Context Property)
+        var projectId = projectContext.ProjectId;
+
         var template = await templateRepo.GetBySlugWithDetailsAsync(command.Slug, ct);
         if (template == null || !template.IsActive)
         {
@@ -31,7 +34,7 @@ public sealed class EnqueueDocumentGenerationUseCase(
 
         var job = new DocumentJob(
             jobId,
-            projectContext.ProjectId.Value,
+            projectId.Value,
             projectContext.CallerIdentity ?? "m2m-client",
             command.Slug,
             payloadJson,

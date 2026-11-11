@@ -31,6 +31,9 @@ public sealed class CreateTemplateUseCase(
 
     public async Task<TemplateResultDto> ExecuteAsync(CreateTemplateCommand command, CancellationToken ct = default)
     {
+        // Step 1: Parse & Guard (Fail-fast at line 1 via Smart Context Property)
+        var projectId = projectContext.ProjectId;
+
         if (await templateRepo.SlugExistsAsync(command.Slug, ct))
         {
             throw ConflictException.DuplicateSlug(command.Slug);
@@ -38,7 +41,7 @@ public sealed class CreateTemplateUseCase(
 
         var now = timeProvider.GetUtcNow();
         var template = Template.Create(
-            projectContext.ProjectId,
+            projectId,
             TemplateName.Create(command.Name),
             TemplateSlug.Create(command.Slug),
             command.Category?.Trim(),

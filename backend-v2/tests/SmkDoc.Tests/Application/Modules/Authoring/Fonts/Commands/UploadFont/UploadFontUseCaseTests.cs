@@ -43,10 +43,11 @@ public sealed class UploadFontUseCaseTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_WhenProjectContextUnresolved_ShouldThrowForbiddenException()
+    public async Task ExecuteAsync_WhenProjectContextUnresolved_ShouldThrowTenantContextRequiredException()
     {
         // Arrange
         _projectContext.IsResolved.Returns(false);
+        _projectContext.ProjectId.Returns(_ => throw new TenantContextRequiredException());
         using var stream = new MemoryStream([0x00, 0x01, 0x00, 0x00]);
         var command = new UploadFontCommand(stream, "Font.ttf", "font/ttf");
 
@@ -54,7 +55,7 @@ public sealed class UploadFontUseCaseTests
         Func<Task> act = () => CreateSut().ExecuteAsync(command);
 
         // Assert
-        await act.Should().ThrowAsync<ForbiddenException>();
+        await act.Should().ThrowAsync<TenantContextRequiredException>();
         await _storageService.DidNotReceive().UploadAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<Stream>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 

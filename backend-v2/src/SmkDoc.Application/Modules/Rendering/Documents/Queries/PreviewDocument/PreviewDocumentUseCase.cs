@@ -42,12 +42,15 @@ public sealed class PreviewDocumentUseCase(
         // 2. RAM-cached draft template preview
         else if (!string.IsNullOrWhiteSpace(query.DraftId))
         {
+            var projectId = projectContext?.ProjectId
+                ?? throw new TenantContextRequiredException("Draft preview");
+
             if (draftCache is null)
             {
                 throw new BusinessRuleViolationException("Draft cache is not available for preview.", "DRAFT_CACHE_UNAVAILABLE");
             }
 
-            var draft = await draftCache.GetAsync(projectContext.ProjectId, query.DraftId, ct)
+            var draft = await draftCache.GetAsync(projectId, query.DraftId, ct)
                 ?? throw new DraftExpiredException(query.DraftId);
 
             if (!TemplateFormat.TryFromExtension(draft.FileExtension, out var format))

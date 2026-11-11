@@ -193,17 +193,17 @@ public sealed class DocumentAuditServiceTests
     }
 
     [Fact]
-    public async Task LogSuccessAsync_WithoutProjectId_ThrowsForbiddenException()
+    public async Task LogSuccessAsync_WithoutProjectId_ThrowsTenantContextRequiredException()
     {
         // Arrange
         _projectContext.IsResolved.Returns(false);
+        _projectContext.ProjectId.Returns(_ => throw new TenantContextRequiredException());
 
         // Act
         var act = async () => await CreateSut().LogSuccessAsync(
             Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "{}", "outputs/test.pdf", OutputFormat.Pdf, 100, 10);
 
         // Assert
-        await act.Should().ThrowAsync<ForbiddenException>()
-            .WithMessage("*project context*");
+        await act.Should().ThrowAsync<TenantContextRequiredException>();
     }
 }

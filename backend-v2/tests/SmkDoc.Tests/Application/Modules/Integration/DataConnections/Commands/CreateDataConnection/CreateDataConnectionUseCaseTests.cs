@@ -56,17 +56,18 @@ public sealed class CreateDataConnectionUseCaseTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_WhenProjectUnresolved_ShouldThrowForbiddenException()
+    public async Task ExecuteAsync_WhenProjectUnresolved_ShouldThrowTenantContextRequiredException()
     {
         // Arrange
         _projectContext.IsResolved.Returns(false);
+        _projectContext.ProjectId.Returns(_ => throw new TenantContextRequiredException());
         var command = new CreateDataConnectionCommand("Warehouse", "PostgreSQL", "Host=10.0.0.5;Database=erp");
 
         // Act
         Func<Task> act = () => CreateSut().ExecuteAsync(command);
 
         // Assert
-        await act.Should().ThrowAsync<ForbiddenException>();
+        await act.Should().ThrowAsync<TenantContextRequiredException>();
         await _datasetResolver.DidNotReceive().ValidateAndEncryptAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 

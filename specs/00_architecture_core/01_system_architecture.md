@@ -5,6 +5,7 @@ Category: 00_architecture_core
 Domain: Master System Architecture, Tier Topology & Bounded Context Matrix
 SoleResponsibilities:
   - Macro container topology (API, Gotenberg, MinIO, Redis, PostgreSQL) and physical solution structure
+  - Macro Zoning (Control Plane vs Data Plane) and The 3-Tier Guard Model hierarchy
   - Bounded Context collaboration matrix (Authoring, DataBinding, Rendering, Integration, IdentityAccess)
   - 2-track execution pipelines (Sync preview vs Async batch generation)
   - Cross-cutting layer dependency rules and Clean Architecture boundary invariants
@@ -33,7 +34,7 @@ The system enforces strict architectural separation between two decoupled operat
    - Tenant workload resources: Templates, Documents, Datasets, Mappings, Tenant Sub-Keys, Project Users.
    - Requires valid ambient tenant context (`ICurrentProjectContext`).
    - Ingress Tenancy: **100% Mandatory Ambient Tenant**. Un-tenanted calls are rejected fail-fast at Tier 1 Perimeter with `400 Bad Request` (`ErrorCode: PROJECT_CONTEXT_REQUIRED`).
-   - **Zero Standing Access for SuperAdmin**: SuperAdmin receives strictly `RoleConstants.SuperAdmin` (never `Admin`). On Data Plane routes, SuperAdmin has zero standing access and is rejected with `403 Forbidden` unless explicitly invited and mapped in `UserProjectRole` by the tenant.
+   - **Zero Standing Access for SuperAdmin**: SuperAdmin receives strictly `RoleConstants.SuperAdmin` (never `Admin`). On Data Plane routes, SuperAdmin has zero standing access and is rejected with `403 Forbidden` (`ErrorCode: CROSS_TENANT_ACCESS_DENIED`) unless explicitly invited and mapped in `UserProjectRole` by the tenant.
 
 ### 1.1.2 The 3-Tier Guard Model & Defense-in-Depth Hierarchy
 To eliminate "Defensive Overkill", redundant checking, and cross-layer paranoia, boundary defense is strictly partitioned into 3 independent tiers:
@@ -48,7 +49,7 @@ flowchart TD
         D -- No --> D_Err["400 Bad Request (PROJECT_CONTEXT_REQUIRED)"]
         D -- Yes --> E{Active & Permitted?}
         E -- Deactivated --> E_Deact["403 Forbidden (PROJECT_DEACTIVATED)"]
-        E -- Not Member --> E_Forbid["403 Forbidden (FORBIDDEN)"]
+        E -- Not Member --> E_Forbid["403 Forbidden (CROSS_TENANT_ACCESS_DENIED)"]
         E -- Not Found --> E_404["404 NotFoundException"]
     end
 

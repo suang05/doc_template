@@ -37,10 +37,11 @@ public sealed class EnqueueDocumentGenerationUseCaseTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_WhenProjectContextNotResolved_ShouldThrowForbiddenException()
+    public async Task ExecuteAsync_WhenProjectContextNotResolved_ShouldThrowTenantContextRequiredException()
     {
         // Arrange
         _projectContext.IsResolved.Returns(false);
+        _projectContext.ProjectId.Returns(_ => throw new TenantContextRequiredException());
         var sut = CreateSut();
         var command = new EnqueueDocumentGenerationCommand("invoice", JsonDocument.Parse("{}").RootElement);
 
@@ -48,8 +49,7 @@ public sealed class EnqueueDocumentGenerationUseCaseTests
         var act = () => sut.ExecuteAsync(command);
 
         // Assert
-        await act.Should().ThrowAsync<ForbiddenException>()
-            .WithMessage("*Active project context is required*");
+        await act.Should().ThrowAsync<TenantContextRequiredException>();
     }
 
     [Fact]

@@ -27,17 +27,17 @@ public sealed class RevokeApiKeyUseCaseTests
     private RevokeApiKeyUseCase CreateSut() => new(_apiKeyRepo, _unitOfWork, _projectContext, _timeProvider);
 
     [Fact]
-    public async Task ExecuteAsync_WhenProjectContextUnresolved_ThrowsForbiddenException()
+    public async Task ExecuteAsync_WhenProjectContextUnresolved_ThrowsTenantContextRequiredException()
     {
         // Arrange
         _projectContext.IsResolved.Returns(false);
+        _projectContext.ProjectId.Returns(_ => throw new TenantContextRequiredException());
 
         // Act
         var act = () => CreateSut().ExecuteAsync(new RevokeApiKeyCommand(Guid.NewGuid()));
 
         // Assert
-        await act.Should().ThrowAsync<ForbiddenException>()
-            .WithMessage("*Active project context is required*");
+        await act.Should().ThrowAsync<TenantContextRequiredException>();
         await _unitOfWork.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
     }
 

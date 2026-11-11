@@ -7,6 +7,7 @@ SoleResponsibilities:
   - Vertical CQRS slice topology under `Modules/{BoundedContext}/{Aggregate}/`
   - Action-centric `IUseCase<TReq, TRes>` execution and 4-step PEMR pipeline
   - Request validation (`FluentValidation`), immutable `*ResultDto` returns, and ambient concurrency
+  - Tier 2 Application Guard, Smart Context (`projectContext.ProjectId`) fail-fast, and Archetype A vs B tenancy execution
   - Modular Application DI feature installers (`{Module}ModuleExtensions.cs`)
 Target: `SmkDoc.Application/` (`Modules/`, `Common/`)
 Signal: [ARCH_EVOLUTION_APPLICATION]
@@ -16,7 +17,43 @@ Signal: [ARCH_EVOLUTION_APPLICATION]
 
 ## 1. Level 1: Affirmative Application Invariants Matrix
 
-### 1.1 Architectural Wiring & Layer Contracts
+### 1.1 The Unified Tenancy & Security Governance Spine in Application Layer
+The Application Layer sits at the intersection of the system's 3-Tier Governance Hierarchy. To prevent cognitive fragmentation, every Application UseCase strictly adheres to this linear chain:
+
+```mermaid
+flowchart TD
+    subgraph Macro ["1. Macro Architecture: Zoning Strategy"]
+        direction TB
+        CtrlPlane["Control Plane (/api/v1/management/**)\n• SuperAdmin Governance Only\n• Tenancy: Un-tenanted / Zero Standing Access"]
+        DataPlane["Data Plane (/api/v1/**)\n• Tenant Business Operations\n• Tenancy: 100% Ambient Tenant Mandatory"]
+    end
+
+    subgraph Defense ["2. Defense Strategy: Defense-in-Depth (3-Tier Guard)"]
+        direction TB
+        Tier1["Tier 1: Perimeter Guard (ProjectContextMiddleware)\n• Gatekeeper: Who, Where, Which Tenant?\n• Rejects missing tenant with 400 Bad Request (PROJECT_CONTEXT_REQUIRED)"]
+        Tier2["Tier 2: Application Guard (UseCase PEMR Step 1 & 2)\n• Trusted Zone: Business Preconditions & Context Binding\n• Never checks HTTP headers or throws 401 Unauthorized"]
+        Tier3["Tier 3: Domain Invariants & Interceptor Guard\n• Aggregate Root Invariants (POCO Create/Verbs)\n• EF Core Global Query Filter (WHERE IsResolved AND project_id = @Id)"]
+        Tier1 --> Tier2 --> Tier3
+    end
+
+    subgraph Tactical ["3. Implementation Pattern: Application Tactical Patterns"]
+        direction TB
+        ArchA["Archetype A (Create{Aggregate} / Key-Consuming)\n• Injects: ICurrentProjectContext\n• Step 1: var projectId = projectContext.ProjectId; (Smart Fail-Fast)\n• Throws: TenantContextRequiredException (403) if unresolved"]
+        ArchB["Archetype B (ID-Based / Collection Queries / Updates)\n• Injects: ZERO Context (Zero Phantom Context Injection)\n• Relies on: Tier 1 Perimeter + Tier 3 EF Core Filter\n• Throws: CrossTenantAccessDeniedException (403) on cross-tenant breach"]
+    end
+
+    DataPlane --> Tier1
+    Tier2 --> ArchA
+    Tier2 --> ArchB
+```
+
+* **Application Layer Location in Defense Hierarchy**: Application UseCases execute strictly within **Tier 2 (Application Guard)** in a **Trusted Zone**.
+* **Zero Perimeter Duplication**: Application UseCases must NEVER re-parse HTTP headers, validate API keys, inspect JWT tokens, or throw `401 Unauthorized`. Tier 1 Perimeter Guard guarantees identity and route plane clearance before any UseCase is invoked.
+* **Archetype Tactical Selection Matrix**:
+  * **Archetype A (`Create{Aggregate}`, MinIO Storage, DraftCache, Tenant ApiKey)**: Injects `ICurrentProjectContext` and accesses `var projectId = projectContext.ProjectId;` at line 1 of Step 1. Throws `TenantContextRequiredException` (`TENANT_CONTEXT_REQUIRED`, 403 Forbidden) if context is missing.
+  * **Archetype B (`GetById`, `Update`, `Delete`, `List`, `Preview`)**: Strictly **prohibited** from injecting `ICurrentProjectContext`. Operates on aggregate IDs or collection queries where tenant isolation is guaranteed by Tier 1 Perimeter Guard and Tier 3 EF Core Global Query Filter. Throws `CrossTenantAccessDeniedException` (`CROSS_TENANT_ACCESS_DENIED`, 403 Forbidden) if a caller attempts to reference or mutate an entity belonging to another tenant partition.
+
+### 1.2 Architectural Wiring & Layer Contracts
 | Direction | Upstream Origin | Current Layer Role (Application Orchestrator) | Downstream Destination |
 |---|---|---|---|
 | **Inbound Request** | Presentation Controller | Validates line 1 via `ValidatingUseCaseDecorator` (`IValidator<T>`) | Application UseCase (`IUseCase<TReq, TRes>`) |
@@ -26,7 +63,7 @@ Signal: [ARCH_EVOLUTION_APPLICATION]
 | **Outbound Egress** | Mutated State | Maps directly to immutable Application DTO or Stream | Presentation Layer (`{Aggregate}ResultDto` / `Stream`) |
 | **Side-Effects** | Aggregate `DomainEvents` | Dispatches fault-isolated post-commit handlers | `IDomainEventHandler<T>` (Audit, Cache, Telemetry) |
 
-### 1.2 Affirmative Application Orchestration Invariants
+### 1.3 Affirmative Application Orchestration Invariants
 | Application Architectural Concern | Affirmative Application Invariant (Positive SSoT Law) | Boundary Vector |
 |---|---|---|
 | **Class Topology** | Exactly 1 public execution method per use case class: `Task<TResponse> ExecuteAsync(TRequest request, CancellationToken ct = default)`. | Class Contract |

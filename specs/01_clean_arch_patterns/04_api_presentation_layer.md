@@ -5,6 +5,7 @@ Category: 01_clean_arch_patterns
 Domain: Presentation Layer HTTP Controllers, Routing & Endpoint Authorization
 SoleResponsibilities:
   - Thin ASP.NET Core API controllers (<= 5 LOC per action) with C# 13 Primary Constructors
+  - Control Plane (`/api/v1/management/**`) vs Data Plane (`/api/v1/**`) controller partitioning & zero tenancy injection
   - Unified Preview Gateway routing (delegating preview endpoints to `PreviewDocumentUseCase`)
   - Declarative policy authorization (`[Authorize(Policy = "...")]`) and tenant sub-key routing
   - RFC 9457 `ProblemDetails` exception filter mapping
@@ -16,7 +17,41 @@ Signal: [ARCH_EVOLUTION_API]
 
 ## 1. Level 1: Affirmative Presentation Invariants Matrix
 
-### 1.1 Architectural Wiring & Layer Contracts
+### 1.1 The Unified Tenancy & Security Governance Spine in Presentation Layer
+The Presentation Layer serves as the gateway to the 3-Tier Governance Hierarchy, translating HTTP wire requests into CQRS command/query execution:
+
+```mermaid
+flowchart TD
+    subgraph Macro ["1. Macro Architecture: Zoning Strategy"]
+        direction TB
+        CP_Ctrl["Control Plane Controllers (/api/v1/management/**)\n• Management*Controller (Projects, Global Fonts, Quotas)\n• Policy: [Authorize(Policy = 'RequireSuperAdmin')]\n• Tenancy: Permitted without resolved tenant"]
+        DP_Ctrl["Data Plane Controllers (/api/v1/**)\n• *Controller (Templates, Documents, Datasets, API Keys)\n• Policy: [Authorize(Policy = 'Can*')]\n• Tenancy: 100% Ambient Tenant Mandatory (Tier 1 rejects missing)"]
+    end
+
+    subgraph Defense ["2. Defense Strategy: Defense-in-Depth (3-Tier Guard)"]
+        direction TB
+        T1["Tier 1: Perimeter Guard (ProjectContextMiddleware)\n• Executes BEFORE controller action\n• Blocks un-tenanted Data Plane (400 PROJECT_CONTEXT_REQUIRED)\n• Blocks SuperAdmin on Data Plane (403 CROSS_TENANT_ACCESS_DENIED)"]
+        T2["Tier 2: Application Guard (UseCase PEMR)\n• Controller delegates immediately: await useCase.ExecuteAsync(cmd, ct)\n• Zero controller-side tenancy checks, 0 LOC business logic"]
+        T1 --> CP_Ctrl
+        T1 --> DP_Ctrl
+        DP_Ctrl --> T2
+    end
+
+    subgraph Tactical ["3. Implementation Pattern: Presentation Tactical Patterns"]
+        direction TB
+        TP1["Zero Context Injection in Controllers\n• Prohibit: injecting ICurrentProjectContext into controllers\n• Prohibit: [FromQuery] Guid? projectId or body parameters"]
+        TP2["Uniform RFC 9457 Error Translation\n• GlobalExceptionHandler automatically maps all Tier 1/2/3 exceptions\n• Controllers NEVER catch or handle tenancy/business exceptions"]
+    end
+
+    T2 --> Tactical
+```
+
+* **Zoning Boundary Enforcement**:
+  * **Control Plane (`/api/v1/management/**`)**: Handled strictly by `Management*Controller` classes decorated with `[Authorize(Policy = "RequireSuperAdmin")]`. Un-tenanted access is permitted for platform lifecycle operations.
+  * **Data Plane (`/api/v1/**`)**: Handled by standard `*Controller` classes decorated with project-level policies (`RequireProjectAdmin`, `CanManageTemplates`, `CanGenerateDocuments`). Un-tenanted traffic is intercepted at Tier 1 before reaching controller actions.
+* **Perimeter Handoff**: Controllers are thin dispatchers ($\le 5$ LOC) that instantiate the command/query DTO from route/body parameters and forward directly to `IUseCase<TReq, TRes>`. Controllers MUST NOT inject `ICurrentProjectContext` or manually check tenant status.
+
+### 1.2 Architectural Wiring & Layer Contracts
 | Direction | Upstream Origin | Current Layer Role (HTTP Presentation Gateway) | Downstream Destination |
 |---|---|---|---|
 | **Wire Inbound** | HTTP Client (Next.js Proxy / ERP) | Resolves Tenant & Auth Context | Controller Action (`[ApiController]`) |
@@ -27,7 +62,7 @@ Signal: [ARCH_EVOLUTION_API]
 | **Streaming Egress** | Binary Render Stream | Streams directly to `Response.Body` | HTTP Chunked Stream (`application/pdf`) |
 | **Error Egress** | Unhandled Exceptions | Dispatches to RFC 9457 `ProblemDetails` | HTTP Client (`application/problem+json`) |
 
-### 1.2 Affirmative Presentation Invariants
+### 1.3 Affirmative Presentation Invariants
 | Presentation Architectural Concern | Affirmative Presentation Invariant (Positive SSoT Law) | Boundary Vector |
 |---|---|---|
 | **Thin Controller Boundary** | Controllers remain thin orchestrators ($\le 5$ LOC per action) delegating directly to a single-responsibility `IUseCase<TReq, TRes>`. Business logic is strictly sealed in Application/Domain. | Controller Action |

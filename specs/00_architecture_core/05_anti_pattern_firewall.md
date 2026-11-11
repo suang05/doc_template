@@ -4,7 +4,7 @@
 Category: 00_architecture_core
 Domain: System-Wide Anti-Pattern Traps & Architectural Interceptors
 SoleResponsibilities:
-  - Registry of 24 compiler-grade fatal architectural traps (`[TRAP-LOH-001]` to `[TRAP-TENANT-024]`)
+  - Registry of 25 compiler-grade fatal architectural traps (`[TRAP-LOH-001]` to `[TRAP-TENANT-025]`)
   - Unified micro-diffs (`-` bad / `+` good) illustrating forbidden implementations and remediations
   - Pre-commit architectural violation checks across all layers
 Target: Full Stack (`backend-v2/` and `frontend-v2/`)
@@ -82,6 +82,10 @@ EventConsistencyFirewall:
 ZeroPhantomContextFirewall:
   Trigger: Injecting ICurrentProjectContext into Archetype B UseCases (GetById, Update, Delete, List)
   Action: Remove context injection; rely on Tier 1 Perimeter Guard and EF Core Global Query Filter >> Ref: [RULE-APP-CMD-002]
+
+SmartContextFirewall:
+  Trigger: Manual if (!projectContext.IsResolved) boilerplate or throwing generic ForbiddenException for unresolved tenant
+  Action: Consume self-guarding property projectContext.ProjectId throwing TenantContextRequiredException (403) >> Ref: [RULE-APP-CMD-001]
 ```
 
 ---

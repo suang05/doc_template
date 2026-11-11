@@ -12,8 +12,11 @@ public sealed class GetFontBase64UseCase(
 {
     public async Task<string> ExecuteAsync(GetFontBase64Query query, CancellationToken ct = default)
     {
+        // Step 1: Parse & Guard (Fail-fast at line 1 via Smart Context Property)
+        var projectId = projectContext.ProjectId;
+
         string safeFileName = UploadFontUseCase.SanitizeAndValidateFileName(query.FontFileName);
-        string tenantKey = StorageBuckets.TenantFontKey(projectContext.ProjectId, safeFileName);
+        string tenantKey = StorageBuckets.TenantFontKey(projectId, safeFileName);
 
         string? resolvedKey = null;
         if (await storageService.ExistsAsync(StorageBuckets.Fonts, tenantKey, ct))

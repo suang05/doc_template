@@ -23,7 +23,10 @@ public sealed class CommitTemplateDraftUseCase(
 {
     public async Task<CommitDraftResultDto> ExecuteAsync(CommitTemplateDraftCommand command, CancellationToken ct = default)
     {
-        var draft = await draftCache.GetAsync(projectContext.ProjectId, command.DraftId, ct)
+        // Step 1: Parse & Guard (Fail-fast at line 1 via Smart Context Property)
+        var projectId = projectContext.ProjectId;
+
+        var draft = await draftCache.GetAsync(projectId, command.DraftId, ct)
             ?? throw new DraftExpiredException(command.DraftId);
 
         if (await templateRepo.SlugExistsAsync(command.Slug, ct))
@@ -33,7 +36,7 @@ public sealed class CommitTemplateDraftUseCase(
 
         var now = timeProvider.GetUtcNow();
         var template = Template.Create(
-            projectContext.ProjectId,
+            projectId,
             TemplateName.Create(command.Name),
             TemplateSlug.Create(command.Slug),
             command.Category,

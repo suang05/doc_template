@@ -25,18 +25,18 @@ public sealed class ListApiKeysUseCaseTests
     private ListApiKeysUseCase CreateSut() => new(_apiKeyRepo, _projectContext);
 
     [Fact]
-    public async Task ExecuteAsync_WhenProjectContextUnresolvedAndNotSuperAdmin_ThrowsForbiddenException()
+    public async Task ExecuteAsync_WhenProjectContextUnresolvedAndNotSuperAdmin_ThrowsTenantContextRequiredException()
     {
         // Arrange
         _projectContext.IsResolved.Returns(false);
         _projectContext.SystemRole.Returns(SystemRole.Member);
+        _projectContext.ProjectId.Returns(_ => throw new TenantContextRequiredException());
 
         // Act
         var act = () => CreateSut().ExecuteAsync(new ListApiKeysQuery());
 
         // Assert
-        await act.Should().ThrowAsync<ForbiddenException>()
-            .WithMessage("*Active project context is required*");
+        await act.Should().ThrowAsync<TenantContextRequiredException>();
     }
 
     [Fact]

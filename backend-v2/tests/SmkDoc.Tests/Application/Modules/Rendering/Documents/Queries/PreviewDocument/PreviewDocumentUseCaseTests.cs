@@ -240,10 +240,11 @@ public sealed class PreviewDocumentUseCaseTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_WhenDraftWithoutProjectContext_ShouldThrowForbiddenException()
+    public async Task ExecuteAsync_WhenDraftWithoutProjectContext_ShouldThrowTenantContextRequiredException()
     {
         // Arrange
         _projectContext.IsResolved.Returns(false);
+        _projectContext.ProjectId.Returns(_ => throw new TenantContextRequiredException());
 
         using var jsonDoc = JsonDocument.Parse("{}");
         var request = new PreviewDocumentQuery(Payload: jsonDoc.RootElement, DraftId: "draft-no-ctx");
@@ -252,6 +253,6 @@ public sealed class PreviewDocumentUseCaseTests
         var act = () => CreateSut().ExecuteAsync(request, CancellationToken.None);
 
         // Assert
-        await act.Should().ThrowAsync<ForbiddenException>();
+        await act.Should().ThrowAsync<TenantContextRequiredException>();
     }
 }
