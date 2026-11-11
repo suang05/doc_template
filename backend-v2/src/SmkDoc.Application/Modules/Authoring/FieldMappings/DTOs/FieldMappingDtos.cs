@@ -58,7 +58,7 @@ public sealed record SaveTemplateDatasetItemDto(
 );
 
 /// <summary>
-/// Pre-resolved dataset execution context passed to FieldMappingApplicatorService.
+/// Pre-resolved dataset execution context passed to IDatasetBatchExecutor.
 /// </summary>
 public sealed record ResolvedDatasetContext(
     string Provider,

@@ -19,13 +19,15 @@ namespace SmkDoc.Tests.Application.Modules.DataBinding;
 public sealed class DataBindingEngineTests
 {
     private readonly IDatasetResolver _datasetResolver = Substitute.For<IDatasetResolver>();
-    private readonly IFieldMappingApplicatorService _fieldMappingApplicator = Substitute.For<IFieldMappingApplicatorService>();
+    private readonly IDatasetBatchExecutor _datasetExecutor = Substitute.For<IDatasetBatchExecutor>();
+    private readonly IMathExpressionResolver _mathResolver = Substitute.For<IMathExpressionResolver>();
     private readonly IJsonSchemaValidationService _schemaValidation = Substitute.For<IJsonSchemaValidationService>();
     private readonly FakeTimeProvider _timeProvider = TestConstants.CreateFakeClock();
 
     private DataBindingEngine CreateSut() => new(
         _datasetResolver,
-        _fieldMappingApplicator,
+        _datasetExecutor,
+        _mathResolver,
         _schemaValidation,
         _timeProvider);
 
@@ -43,22 +45,18 @@ public sealed class DataBindingEngineTests
         // Assert
         result.DataJson.Should().Be("""{"customer":"ACME Corp","amount":1500}""");
         result.ValidationResult.Should().BeNull();
-        await _fieldMappingApplicator.DidNotReceive().ApplyAsync(
-            Arg.Any<JsonElement>(),
-            Arg.Any<IEnumerable<FieldMapping>>(),
-            Arg.Any<IReadOnlyDictionary<string, ResolvedDatasetContext>>(),
-            Arg.Any<CancellationToken>());
+        await _datasetExecutor.DidNotReceiveWithAnyArgs().ExecuteBatchAsync(default!, default!, default, default);
     }
 
     [Fact]
-    public async Task BindAndValidateAsync_WhenTemplateHasMappings_AppliesMappingsThroughApplicator()
+    public async Task BindAndValidateAsync_WhenTemplateHasJsonMappings_AppliesMappingsDirectly()
     {
         // Arrange
         var template = new TemplateBuilder().WithName("Receipt").WithSlug("rcpt").Build();
         var mapping = FieldMapping.Create(
             template.Id,
             "CustomerName",
-            "$.customer.name",
+            "customer.name",
             "Customer Name",
             true,
             1,
@@ -68,23 +66,12 @@ public sealed class DataBindingEngineTests
         var version = TemplateVersionBuilder.PublishedHtml(templateId: template.Id, version: 1, storageKey: "rcpt.html");
         using var jsonDoc = JsonDocument.Parse("""{"customer":{"name":"Alice"}}""");
 
-        _fieldMappingApplicator.ApplyAsync(
-            Arg.Any<JsonElement>(),
-            Arg.Any<IEnumerable<FieldMapping>>(),
-            Arg.Any<IReadOnlyDictionary<string, ResolvedDatasetContext>>(),
-            Arg.Any<CancellationToken>())
-            .Returns("{\"CustomerName\":\"Alice\"}");
-
         // Act
         var result = await CreateSut().BindAndValidateAsync(template, version, jsonDoc.RootElement, skipValidation: true);
 
         // Assert
-        result.DataJson.Should().Be("{\"CustomerName\":\"Alice\"}");
-        await _fieldMappingApplicator.Received(1).ApplyAsync(
-            Arg.Any<JsonElement>(),
-            Arg.Is<IEnumerable<FieldMapping>>(m => m.Any(x => x.Placeholder == "CustomerName")),
-            Arg.Any<IReadOnlyDictionary<string, ResolvedDatasetContext>>(),
-            Arg.Any<CancellationToken>());
+        using var parsedOutput = JsonDocument.Parse(result.DataJson);
+        parsedOutput.RootElement.GetProperty("CustomerName").GetString().Should().Be("Alice");
     }
 
     [Fact]
@@ -97,7 +84,7 @@ public sealed class DataBindingEngineTests
         var snapshotMapping = FieldMapping.Create(
             template.Id,
             "TaxId",
-            "$.tax_number",
+            "tax_number",
             "Tax ID",
             true,
             1,
@@ -109,23 +96,12 @@ public sealed class DataBindingEngineTests
 
         using var jsonDoc = JsonDocument.Parse("""{"tax_number":"1234567890"}""");
 
-        _fieldMappingApplicator.ApplyAsync(
-            Arg.Any<JsonElement>(),
-            Arg.Any<IEnumerable<FieldMapping>>(),
-            Arg.Any<IReadOnlyDictionary<string, ResolvedDatasetContext>>(),
-            Arg.Any<CancellationToken>())
-            .Returns("{\"TaxId\":\"1234567890\"}");
-
         // Act
         var result = await CreateSut().BindAndValidateAsync(template, version, jsonDoc.RootElement, skipValidation: true);
 
         // Assert
-        result.DataJson.Should().Be("{\"TaxId\":\"1234567890\"}");
-        await _fieldMappingApplicator.Received(1).ApplyAsync(
-            Arg.Any<JsonElement>(),
-            Arg.Is<IEnumerable<FieldMapping>>(m => m.Any(x => x.Placeholder == "TaxId")),
-            Arg.Any<IReadOnlyDictionary<string, ResolvedDatasetContext>>(),
-            Arg.Any<CancellationToken>());
+        using var parsedOutput = JsonDocument.Parse(result.DataJson);
+        parsedOutput.RootElement.GetProperty("TaxId").GetString().Should().Be("1234567890");
     }
 
     [Fact]
@@ -158,39 +134,98 @@ public sealed class DataBindingEngineTests
     }
 
     [Fact]
-    public async Task BindAndValidateAsync_WhenTemplateHasDatasets_ResolvesThroughDatasetResolver()
+    public async Task BindAndValidateAsync_WhenTemplateHasDatasets_ResolvesAndExecutesDatasets()
     {
         // Arrange
         var template = new TemplateBuilder().WithName("Invoice").WithSlug("inv").Build();
         var td = new TemplateDatasetBuilder().WithTemplateId(template.Id.Value).WithDatasetId(Guid.NewGuid()).WithAlias("ds1").Build();
         template.ReplaceDatasets([td], TestConstants.BaselineTime);
 
+        var mapping = FieldMapping.Create(
+            template.Id,
+            "TotalDue",
+            "ds1",
+            "Total Due",
+            true,
+            1,
+            TestConstants.BaselineTime);
+        mapping.ConfigureDataSource(
+            DataSourceType.Sql,
+            SmkDoc.Domain.ValueObjects.DatasetAlias.Create("ds1"),
+            "total",
+            null,
+            TestConstants.BaselineTime);
+        template.AddFieldMapping(mapping, TestConstants.BaselineTime);
+
         var version = TemplateVersionBuilder.PublishedHtml(templateId: template.Id, version: 1, storageKey: "inv.html");
         using var jsonDoc = JsonDocument.Parse("{}");
 
-        _datasetResolver.ResolveAssignmentsAsync(Arg.Any<IEnumerable<TemplateDataset>>(), Arg.Any<CancellationToken>())
-            .Returns(new Dictionary<string, ResolvedDatasetContext>
-            {
-                ["ds1"] = new ResolvedDatasetContext("PostgreSQL", "conn", "SELECT 1", Guid.NewGuid(), Guid.NewGuid(), 0)
-            });
+        var resolvedContexts = new Dictionary<string, ResolvedDatasetContext>
+        {
+            ["ds1"] = new("PostgreSQL", "conn", "SELECT 1", Guid.NewGuid(), Guid.NewGuid(), 0)
+        };
 
-        _fieldMappingApplicator.ApplyAsync(
-            Arg.Any<JsonElement>(),
-            Arg.Any<IEnumerable<FieldMapping>>(),
-            Arg.Any<IReadOnlyDictionary<string, ResolvedDatasetContext>>(),
+        _datasetResolver.ResolveAssignmentsAsync(Arg.Any<IEnumerable<TemplateDataset>>(), Arg.Any<CancellationToken>())
+            .Returns(resolvedContexts);
+
+        using var datasetResultDoc = JsonDocument.Parse("""[{"total":999.50}]""");
+        _datasetExecutor.ExecuteBatchAsync(
+            resolvedContexts,
+            Arg.Any<IReadOnlyDictionary<string, object?>>(),
+            template.ProjectId.Value,
             Arg.Any<CancellationToken>())
-            .Returns("{}");
+            .Returns(new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["ds1"] = datasetResultDoc.RootElement.Clone()
+            });
 
         // Act
         var result = await CreateSut().BindAndValidateAsync(template, version, jsonDoc.RootElement, skipValidation: true);
 
         // Assert
         await _datasetResolver.Received(1).ResolveAssignmentsAsync(Arg.Any<IEnumerable<TemplateDataset>>(), Arg.Any<CancellationToken>());
-        await _fieldMappingApplicator.Received(1).ApplyAsync(
-            Arg.Any<JsonElement>(),
-            Arg.Any<IEnumerable<FieldMapping>>(),
-            Arg.Is<IReadOnlyDictionary<string, ResolvedDatasetContext>>(d => d.ContainsKey("ds1")),
+        await _datasetExecutor.Received(1).ExecuteBatchAsync(
+            resolvedContexts,
+            Arg.Any<IReadOnlyDictionary<string, object?>>(),
+            template.ProjectId.Value,
             Arg.Any<CancellationToken>());
+
+        using var parsedOutput = JsonDocument.Parse(result.DataJson);
+        parsedOutput.RootElement.GetProperty("TotalDue").GetString().Should().Be("999.50");
+    }
+
+    [Fact]
+    public async Task BindAndValidateAsync_WithMathExpression_ResolvesEvaluatedExpression()
+    {
+        // Arrange
+        var template = new TemplateBuilder().WithName("TaxDoc").WithSlug("tax").Build();
+        var mapping = FieldMapping.Create(
+            template.Id,
+            "GrossTotal",
+            "",
+            "Gross Total",
+            true,
+            1,
+            TestConstants.BaselineTime);
+        mapping.ConfigureDataSource(
+            DataSourceType.Json,
+            null,
+            null,
+            "NetTotal * 1.07",
+            TestConstants.BaselineTime);
+        template.AddFieldMapping(mapping, TestConstants.BaselineTime);
+
+        var version = TemplateVersionBuilder.PublishedHtml(templateId: template.Id, version: 1, storageKey: "tax.html");
+        using var jsonDoc = JsonDocument.Parse("""{"NetTotal":100}""");
+
+        _mathResolver.Resolve("NetTotal * 1.07", Arg.Any<IReadOnlyDictionary<string, string?>>())
+            .Returns("107.00");
+
+        // Act
+        var result = await CreateSut().BindAndValidateAsync(template, version, jsonDoc.RootElement, skipValidation: true);
+
+        // Assert
+        using var parsedOutput = JsonDocument.Parse(result.DataJson);
+        parsedOutput.RootElement.GetProperty("GrossTotal").GetString().Should().Be("107.00");
     }
 }
-

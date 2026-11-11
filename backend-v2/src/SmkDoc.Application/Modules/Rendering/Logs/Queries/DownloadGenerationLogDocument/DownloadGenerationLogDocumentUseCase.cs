@@ -4,6 +4,7 @@ using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Modules.Rendering.Logs.Queries.DownloadGenerationLogDocument;
 
@@ -15,16 +16,20 @@ public sealed class DownloadGenerationLogDocumentUseCase(
     public async Task<DownloadGenerationLogDocumentResult> ExecuteAsync(
         DownloadGenerationLogDocumentQuery query, CancellationToken ct = default)
     {
+        // Step 1: Parse & Guard
+        ProjectId? projectId = null;
+        if (projectContext.SystemRole != SystemRole.SuperAdmin)
+        {
+            projectId = projectContext.EnsureResolved("Active project context or SuperAdmin role is required to download documents.");
+        }
+
+        // Step 2: Ensure Preconditions
         var log = await logRepo.GetByIdAsync(query.LogId, ct)
             ?? throw new NotFoundException($"Generation log '{query.LogId}' not found.");
 
-        if (projectContext.SystemRole != SystemRole.SuperAdmin)
+        if (projectId.HasValue && log.ProjectId.Value != projectId.Value.Value)
         {
-            var projectId = projectContext.EnsureResolved("Active project context or SuperAdmin role is required to download documents.");
-            if (log.ProjectId.Value != projectId.Value)
-            {
-                throw new ForbiddenException("Access denied: caller does not have permission to download documents from another project.");
-            }
+            throw new ForbiddenException("Access denied: caller does not have permission to download documents from another project.");
         }
 
         if (string.IsNullOrWhiteSpace(log.OutputKey))

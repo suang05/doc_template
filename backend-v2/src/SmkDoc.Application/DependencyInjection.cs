@@ -17,7 +17,7 @@ public static class DependencyInjection
     {
         // Shared Kernel & Helpers
         services.AddSingleton<IMathExpressionResolver, MathExpressionResolverService>();
-        services.AddScoped<IFieldMappingApplicatorService, FieldMappingApplicatorService>();
+        services.AddScoped<IDatasetBatchExecutor, DatasetBatchExecutor>();
         services.AddScoped<IDataBindingEngine, DataBindingEngine>();
 
         // 1. Rendering Bounded Context (Stateless Document Generation, Logs)
