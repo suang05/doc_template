@@ -1,5 +1,4 @@
 using SmkDoc.Application.Common.Exceptions;
-using SmkDoc.Application.Common.Extensions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Integration.Datasets.DTOs;
 using SmkDoc.Domain.Interfaces;

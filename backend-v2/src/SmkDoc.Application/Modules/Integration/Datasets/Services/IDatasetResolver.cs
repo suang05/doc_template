@@ -1,5 +1,6 @@
 using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 using SmkDoc.Domain.Entities;
+using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Modules.Integration.Datasets.Services;
@@ -15,6 +16,14 @@ public interface IDatasetResolver
     Task<DataConnection> ValidateAndResolveConnectionAsync(
         DataConnectionId connectionId,
         string sqlQuery,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Validates the target database connection string against SSRF security invariants and encrypts it for storage.
+    /// </summary>
+    Task<EncryptedConnectionString> ValidateAndEncryptAsync(
+        string provider,
+        string connectionString,
         CancellationToken ct = default);
 
     /// <summary>

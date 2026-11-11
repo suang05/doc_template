@@ -57,16 +57,20 @@ public sealed class DataBindingEngine(
 
         EvaluateMathExpressions(mappings, boundDict);
 
-        string dataJson = boundDict.Count > 0
+        string dataJson = SerializePayload(boundDict, rawPayload);
+        var validation = ValidateSchema(version.DataSchema, dataJson, skipValidation);
+        return new BoundDocumentData(dataJson, validation);
+    }
+
+    private static string SerializePayload(Dictionary<string, object?> boundDict, JsonElement rawPayload) =>
+        boundDict.Count > 0
             ? JsonSerializer.Serialize(boundDict, JsonOptions)
             : (rawPayload.ValueKind != JsonValueKind.Undefined ? rawPayload.GetRawText() : "{}");
 
-        SchemaValidationResult? validation = !skipValidation && !string.IsNullOrWhiteSpace(version.DataSchema)
-            ? schemaValidation.Validate(version.DataSchema, dataJson)
+    private SchemaValidationResult? ValidateSchema(string? schema, string dataJson, bool skipValidation) =>
+        !skipValidation && !string.IsNullOrWhiteSpace(schema)
+            ? schemaValidation.Validate(schema, dataJson)
             : null;
-
-        return new BoundDocumentData(dataJson, validation);
-    }
 
     private List<FieldMapping> ResolveMappings(Template template, TemplateVersion version)
     {
@@ -103,25 +107,33 @@ public sealed class DataBindingEngine(
     {
         foreach (var m in mappings.Where(m => m.DataSourceType == DataSourceType.Sql && m.DatasetAlias != null).OrderBy(m => m.SortOrder))
         {
-            if (aliasResults.TryGetValue(m.DatasetAlias!.Value, out var el))
-            {
-                if (string.IsNullOrWhiteSpace(m.ResultPath) && (el.ValueKind == JsonValueKind.Array || el.ValueKind == JsonValueKind.Object))
-                {
-                    dict[m.Placeholder] = el.Clone();
-                    continue;
-                }
-                var val = string.IsNullOrWhiteSpace(m.ResultPath) ? JsonPathEvaluator.ExtractFirstScalar(el) : JsonPathEvaluator.ResolvePath(el, m.ResultPath);
-                dict[m.Placeholder] = FinalizeValue(val, m);
-            }
-            else
-            {
-                dict[m.Placeholder] = FinalizeValue(null, m);
-            }
+            ApplySqlMapping(m, aliasResults, dict);
         }
 
         foreach (var (alias, el) in aliasResults)
         {
             if (!dict.ContainsKey(alias)) dict[alias] = el.Clone();
+        }
+    }
+
+    private static void ApplySqlMapping(
+        FieldMapping m,
+        IReadOnlyDictionary<string, JsonElement> aliasResults,
+        Dictionary<string, object?> dict)
+    {
+        if (aliasResults.TryGetValue(m.DatasetAlias!.Value, out var el))
+        {
+            if (string.IsNullOrWhiteSpace(m.ResultPath) && (el.ValueKind == JsonValueKind.Array || el.ValueKind == JsonValueKind.Object))
+            {
+                dict[m.Placeholder] = el.Clone();
+                return;
+            }
+            var val = string.IsNullOrWhiteSpace(m.ResultPath) ? JsonPathEvaluator.ExtractFirstScalar(el) : JsonPathEvaluator.ResolvePath(el, m.ResultPath);
+            dict[m.Placeholder] = FinalizeValue(val, m);
+        }
+        else
+        {
+            dict[m.Placeholder] = FinalizeValue(null, m);
         }
     }
 

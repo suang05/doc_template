@@ -264,5 +264,22 @@ public sealed class DatasetResolverTests
         ex.Which.ConnectionId.Should().Be(connectionId);
         ex.Which.ErrorCode.Should().Be("DATA_CONNECTION_DECRYPTION_FAILED");
     }
+
+    [Fact]
+    public async Task ValidateAndEncryptAsync_ShouldValidateTargetAndEncryptConnectionString()
+    {
+        // Arrange
+        const string provider = "PostgreSQL";
+        const string rawCs = "Host=127.0.0.1;Database=test;Password=secret";
+        _dataProtection.Encrypt(rawCs).Returns("enc:Host=127.0.0.1;Database=test;Password=secret");
+
+        // Act
+        var result = await CreateSut().ValidateAndEncryptAsync(provider, rawCs, CancellationToken.None);
+
+        // Assert
+        result.Value.Should().Be("enc:Host=127.0.0.1;Database=test;Password=secret");
+        await _sqlValidator.Received(1).ValidateConnectionTargetAsync(provider, rawCs, Arg.Any<CancellationToken>());
+        _dataProtection.Received(1).Encrypt(rawCs);
+    }
 }
 

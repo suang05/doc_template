@@ -25,90 +25,91 @@ public sealed class DatasetBatchExecutor(
         Guid? projectId,
         CancellationToken ct = default)
     {
-        if (datasetAliases.Count == 0)
-        {
-            return new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
-        }
+        if (datasetAliases.Count == 0) return new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
 
         var aliasCache = new ConcurrentDictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
-
         using var semaphore = new SemaphoreSlim(MaxConcurrentDatasetQueries, MaxConcurrentDatasetQueries);
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        var linkedToken = linkedCts.Token;
 
-        var tasks = datasetAliases.Select(async kvp =>
-        {
-            var (alias, ds) = (kvp.Key, kvp.Value);
-            bool acquired = false;
-            try
-            {
-                await semaphore.WaitAsync(linkedToken);
-                acquired = true;
-
-                var parameters = ExtractParameters(ds.SqlQuery, callerContext);
-                string? json = null;
-                string? cacheKey = null;
-
-                if (ds.CacheSeconds > 0 && datasetCache is not null)
-                {
-                    cacheKey = DatasetCacheKeyBuilder.BuildKey(projectId, alias, ds, parameters);
-                    json = await datasetCache.GetAsync(cacheKey, linkedToken);
-                }
-
-                if (json is null)
-                {
-                    json = await sqlExecutor.ExecuteQueryAsJsonAsync(
-                        provider: ds.Provider,
-                        connectionString: ds.ConnectionString,
-                        sqlQuery: ds.SqlQuery,
-                        parameters: parameters,
-                        ct: linkedToken);
-
-                    if (cacheKey is not null && datasetCache is not null && !string.IsNullOrWhiteSpace(json))
-                    {
-                        await datasetCache.SetAsync(
-                            cacheKey,
-                            json,
-                            TimeSpan.FromSeconds(ds.CacheSeconds),
-                            linkedToken);
-                    }
-                }
-
-                if (!string.IsNullOrWhiteSpace(json))
-                {
-                    using var parsedDoc = JsonDocument.Parse(json);
-                    aliasCache[alias] = parsedDoc.RootElement.Clone();
-                }
-            }
-            catch (OperationCanceledException) when (ct.IsCancellationRequested)
-            {
-                throw;
-            }
-            catch (OperationCanceledException) when (linkedToken.IsCancellationRequested)
-            {
-                // Aborted due to fail-fast cancellation from a faulted sibling dataset query.
-            }
-            catch (Exception ex) when (ex is DatasetExecutionException or ForbiddenException)
-            {
-                await linkedCts.CancelAsync();
-                throw;
-            }
-            catch (Exception ex)
-            {
-                await linkedCts.CancelAsync();
-                throw new DatasetExecutionException(alias, ds.Provider, ex.Message, ex);
-            }
-            finally
-            {
-                if (acquired)
-                {
-                    semaphore.Release();
-                }
-            }
-        });
+        var tasks = datasetAliases.Select(kvp =>
+            ExecuteSingleQueryWithGuardAsync(kvp.Key, kvp.Value, callerContext, projectId, semaphore, linkedCts, aliasCache, ct));
 
         await Task.WhenAll(tasks);
         return aliasCache;
+    }
+
+    private async Task ExecuteSingleQueryWithGuardAsync(
+        string alias,
+        ResolvedDatasetContext ds,
+        IReadOnlyDictionary<string, object?> callerContext,
+        Guid? projectId,
+        SemaphoreSlim semaphore,
+        CancellationTokenSource linkedCts,
+        ConcurrentDictionary<string, JsonElement> aliasCache,
+        CancellationToken ct)
+    {
+        var linkedToken = linkedCts.Token;
+        bool acquired = false;
+        try
+        {
+            await semaphore.WaitAsync(linkedToken);
+            acquired = true;
+
+            var parameters = ExtractParameters(ds.SqlQuery, callerContext);
+            var json = await FetchOrExecuteQueryAsync(projectId, alias, ds, parameters, linkedToken);
+
+            if (!string.IsNullOrWhiteSpace(json))
+            {
+                using var parsedDoc = JsonDocument.Parse(json);
+                aliasCache[alias] = parsedDoc.RootElement.Clone();
+            }
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+        catch (OperationCanceledException) when (linkedToken.IsCancellationRequested) { }
+        catch (Exception ex) when (ex is DatasetExecutionException or ForbiddenException)
+        {
+            await linkedCts.CancelAsync();
+            throw;
+        }
+        catch (Exception ex)
+        {
+            await linkedCts.CancelAsync();
+            throw new DatasetExecutionException(alias, ds.Provider, ex.Message, ex);
+        }
+        finally
+        {
+            if (acquired) semaphore.Release();
+        }
+    }
+
+    private async Task<string?> FetchOrExecuteQueryAsync(
+        Guid? projectId,
+        string alias,
+        ResolvedDatasetContext ds,
+        Dictionary<string, object> parameters,
+        CancellationToken linkedToken)
+    {
+        string? json = null;
+        string? cacheKey = null;
+
+        if (ds.CacheSeconds > 0 && datasetCache is not null)
+        {
+            cacheKey = DatasetCacheKeyBuilder.BuildKey(projectId, alias, ds, parameters);
+            json = await datasetCache.GetAsync(cacheKey, linkedToken);
+        }
+
+        if (json is null)
+        {
+            json = await sqlExecutor.ExecuteQueryAsJsonAsync(
+                ds.Provider, ds.ConnectionString, ds.SqlQuery, parameters, linkedToken);
+
+            if (cacheKey is not null && datasetCache is not null && !string.IsNullOrWhiteSpace(json))
+            {
+                await datasetCache.SetAsync(cacheKey, json, TimeSpan.FromSeconds(ds.CacheSeconds), linkedToken);
+            }
+        }
+
+        return json;
     }
 
     public static Dictionary<string, object> ExtractParameters(

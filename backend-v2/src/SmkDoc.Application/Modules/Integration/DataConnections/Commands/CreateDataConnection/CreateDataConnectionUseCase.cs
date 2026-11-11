@@ -1,6 +1,7 @@
 using SmkDoc.Application.Common.Extensions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Integration.DataConnections.DTOs;
+using SmkDoc.Application.Modules.Integration.Datasets.Services;
 using SmkDoc.Domain.Common;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
@@ -12,8 +13,7 @@ namespace SmkDoc.Application.Modules.Integration.DataConnections.Commands.Create
 public sealed class CreateDataConnectionUseCase(
     IDataConnectionRepository repository,
     IUnitOfWork unitOfWork,
-    IDataProtectionService dataProtection,
-    ISqlConnectionValidator sqlValidator,
+    IDatasetResolver datasetResolver,
     ICurrentProjectContext projectContext,
     TimeProvider timeProvider) : IUseCase<CreateDataConnectionCommand, DataConnectionResultDto>
 {
@@ -21,13 +21,13 @@ public sealed class CreateDataConnectionUseCase(
     {
         var projectId = projectContext.EnsureResolved();
 
-        await sqlValidator.ValidateConnectionTargetAsync(command.Provider, command.ConnectionString, ct);
+        var encryptedCs = await datasetResolver.ValidateAndEncryptAsync(command.Provider, command.ConnectionString, ct);
 
         var now = timeProvider.GetUtcNow();
         var entity = DataConnection.Create(
             ConnectionName.Create(command.Name),
             Enumeration.FromDisplayName<DatabaseProvider>(command.Provider),
-            EncryptedConnectionString.Create(dataProtection.Encrypt(command.ConnectionString)),
+            encryptedCs,
             now,
             projectId);
 

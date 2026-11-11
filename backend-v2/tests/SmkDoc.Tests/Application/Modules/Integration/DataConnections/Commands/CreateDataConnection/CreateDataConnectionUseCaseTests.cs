@@ -3,9 +3,11 @@ using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Integration.DataConnections.Commands.CreateDataConnection;
 using SmkDoc.Application.Modules.Integration.DataConnections.DTOs;
+using SmkDoc.Application.Modules.Integration.Datasets.Services;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Tests.Application.Modules.Integration.DataConnections.Commands.CreateDataConnection;
@@ -14,8 +16,7 @@ public sealed class CreateDataConnectionUseCaseTests
 {
     private readonly IDataConnectionRepository _connectionRepo = Substitute.For<IDataConnectionRepository>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
-    private readonly IDataProtectionService _dataProtection = Substitute.For<IDataProtectionService>();
-    private readonly ISqlConnectionValidator _sqlValidator = Substitute.For<ISqlConnectionValidator>();
+    private readonly IDatasetResolver _datasetResolver = Substitute.For<IDatasetResolver>();
     private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
     private readonly FakeTimeProvider _timeProvider = TestConstants.CreateFakeClock();
     private readonly ProjectId _projectId = ProjectId.New();
@@ -23,7 +24,8 @@ public sealed class CreateDataConnectionUseCaseTests
     public CreateDataConnectionUseCaseTests()
     {
         _unitOfWork.CommitAsync(Arg.Any<CancellationToken>()).Returns(1);
-        _dataProtection.Encrypt(Arg.Any<string>()).Returns(x => $"enc:{x.Arg<string>()}");
+        _datasetResolver.ValidateAndEncryptAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(x => Task.FromResult(EncryptedConnectionString.Create($"enc:{x.ArgAt<string>(1)}")));
         _projectContext.IsResolved.Returns(true);
         _projectContext.ProjectId.Returns(_projectId);
     }
@@ -31,8 +33,7 @@ public sealed class CreateDataConnectionUseCaseTests
     private CreateDataConnectionUseCase CreateSut() => new(
         _connectionRepo,
         _unitOfWork,
-        _dataProtection,
-        _sqlValidator,
+        _datasetResolver,
         _projectContext,
         _timeProvider);
 
@@ -66,7 +67,7 @@ public sealed class CreateDataConnectionUseCaseTests
 
         // Assert
         await act.Should().ThrowAsync<ForbiddenException>();
-        await _sqlValidator.DidNotReceive().ValidateConnectionTargetAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await _datasetResolver.DidNotReceive().ValidateAndEncryptAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -82,7 +83,7 @@ public sealed class CreateDataConnectionUseCaseTests
         result.Name.Should().Be("Warehouse");
         result.Provider.Should().Be("PostgreSQL");
 
-        await _sqlValidator.Received(1).ValidateConnectionTargetAsync("PostgreSQL", "Host=wh.local;Pass=secret", Arg.Any<CancellationToken>());
+        await _datasetResolver.Received(1).ValidateAndEncryptAsync("PostgreSQL", "Host=wh.local;Pass=secret", Arg.Any<CancellationToken>());
         await _connectionRepo.Received(1).AddAsync(
             Arg.Is<DataConnection>(c =>
                 c.Name.Value == "Warehouse" &&
