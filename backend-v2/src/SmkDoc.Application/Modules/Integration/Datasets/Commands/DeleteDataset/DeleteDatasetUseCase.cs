@@ -8,13 +8,10 @@ namespace SmkDoc.Application.Modules.Integration.Datasets.Commands.DeleteDataset
 
 public sealed class DeleteDatasetUseCase(
     IDatasetRepository datasetRepo,
-    IUnitOfWork unitOfWork,
-    ICurrentProjectContext projectContext) : IUseCase<DeleteDatasetCommand>
+    IUnitOfWork unitOfWork) : IUseCase<DeleteDatasetCommand>
 {
     public async Task ExecuteAsync(DeleteDatasetCommand command, CancellationToken ct = default)
     {
-        projectContext.EnsureResolved();
-
         var entity = await datasetRepo.GetByIdAsync(new DatasetId(command.Id), ct)
             ?? throw new NotFoundException("Dataset", command.Id);
 

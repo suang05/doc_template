@@ -96,19 +96,19 @@ public async Task<IActionResult> {Verb}([FromBody] {Verb}{Aggregate}Request requ
 }
 ```
 
-### 3.2 Cadence 2: UseCase 4-Step PEMR Pipeline
+### 3.2 Cadence 2: UseCase 4-Step PEMR Pipeline (Archetype A: Entity-Creating / Key-Consuming)
+*(Note: UseCases operating strictly on existing aggregates by ID or querying collections filtered by EF Core Global Query Filter belong to Archetype B: they must NOT inject `ICurrentProjectContext` or call `EnsureResolved()`).*
 ```csharp
-public sealed class {Verb}{Aggregate}UseCase(
+public sealed class Create{Aggregate}UseCase(
     I{Aggregate}Repository {aggregate}Repository,
     ICurrentProjectContext projectContext,
     IUnitOfWork unitOfWork,
-    TimeProvider timeProvider) : IUseCase<{Verb}{Aggregate}Command, {Aggregate}ResultDto>
+    TimeProvider timeProvider) : IUseCase<Create{Aggregate}Command, {Aggregate}ResultDto>
 {
-    public async Task<{Aggregate}ResultDto> ExecuteAsync({Verb}{Aggregate}Command command, CancellationToken ct = default)
+    public async Task<{Aggregate}ResultDto> ExecuteAsync(Create{Aggregate}Command command, CancellationToken ct = default)
     {
-        // Step 1: Parse & Guard (Fail-fast ambient tenant & parameter invariants)
-        if (!projectContext.IsResolved)
-            throw new ForbiddenException("Active project context is required.");
+        // Step 1: Parse & Guard (Tier 2 Application Guard: 1-liner typed tenant resolution for creation)
+        var projectId = projectContext.EnsureResolved();
 
         // Step 2: Ensure Preconditions (Business rules, slug collision queries, or concurrencyContext.EnsureMatches)
         if (await {aggregate}Repository.SlugExistsAsync(command.Slug, ct))
@@ -116,7 +116,7 @@ public sealed class {Verb}{Aggregate}UseCase(
 
         // Step 3: Mutate State (Domain state transition via expressive verb with injected time)
         var now = timeProvider.GetUtcNow(); // Injected clock: deterministic testability
-        var entity = {Aggregate}.Create(projectContext.ProjectId, {Aggregate}Name.Create(command.Name), new {Aggregate}Slug(command.Slug), command.Category, now);
+        var entity = {Aggregate}.Create(projectId, {Aggregate}Name.Create(command.Name), new {Aggregate}Slug(command.Slug), command.Category, now);
         await {aggregate}Repository.AddAsync(entity, ct);
 
         // Step 4: Return ResultDto (Atomic transaction commit & immutable output record)
@@ -240,7 +240,7 @@ public sealed class {Verb}{Aggregate}UseCaseTests
         var repository = Substitute.For<I{Aggregate}Repository>();
         var projectContext = Substitute.For<ICurrentProjectContext>();
         projectContext.IsResolved.Returns(true);
-        projectContext.ProjectId.Returns(Guid.NewGuid());
+        projectContext.ProjectId.Returns(new ProjectId(Guid.NewGuid()));
         var unitOfWork = Substitute.For<IUnitOfWork>();
         var fakeClock = TestConstants.CreateFakeClock();
 

@@ -12,31 +12,8 @@ namespace SmkDoc.Tests.Application.Modules.Authoring.Templates.Queries.ListTempl
 public sealed class ListTemplatesUseCaseTests
 {
     private readonly ITemplateQueryService _templateQueryService = Substitute.For<ITemplateQueryService>();
-    private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
-
     private ListTemplatesUseCase CreateSut() =>
-        new(_templateQueryService, _projectContext);
-
-    [Fact]
-    public async Task ExecuteAsync_WhenProjectContextUnresolved_ShouldThrowForbiddenException()
-    {
-        // Arrange
-        _projectContext.IsResolved.Returns(false);
-
-        // Act
-        var act = () => CreateSut().ExecuteAsync(new ListTemplatesQuery());
-
-        // Assert
-        await act.Should().ThrowAsync<ForbiddenException>()
-            .WithMessage("*Active project context is required*");
-        await _templateQueryService.DidNotReceive().ListPagedAsync(
-            Arg.Any<string?>(),
-            Arg.Any<string?>(),
-            Arg.Any<bool?>(),
-            Arg.Any<int>(),
-            Arg.Any<int>(),
-            Arg.Any<CancellationToken>());
-    }
+        new(_templateQueryService);
 
     [Fact]
     public async Task ExecuteAsync_WhenAmbientContextResolved_ShouldReturnProjectScopedTemplates()
@@ -45,9 +22,6 @@ public sealed class ListTemplatesUseCaseTests
         var projectId = Guid.NewGuid();
         var template1 = new TemplateResultDto(Guid.NewGuid(), projectId, "Invoice", "invoice", "Billing", true, null, null, DateTimeOffset.UtcNow, null);
         var template2 = new TemplateResultDto(Guid.NewGuid(), projectId, "Receipt", "receipt", "Billing", true, null, null, DateTimeOffset.UtcNow, null);
-
-        _projectContext.IsResolved.Returns(true);
-        _projectContext.ProjectId.Returns(new ProjectId(projectId));
 
         _templateQueryService.ListPagedAsync(
             Arg.Any<string?>(),
@@ -79,9 +53,6 @@ public sealed class ListTemplatesUseCaseTests
         int expectedPageSize)
     {
         // Arrange
-        var projectId = Guid.NewGuid();
-        _projectContext.IsResolved.Returns(true);
-        _projectContext.ProjectId.Returns(new ProjectId(projectId));
         _templateQueryService.ListPagedAsync(
             Arg.Any<string?>(),
             Arg.Any<string?>(),

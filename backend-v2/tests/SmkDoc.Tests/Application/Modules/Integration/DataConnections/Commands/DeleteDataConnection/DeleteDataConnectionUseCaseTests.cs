@@ -12,34 +12,14 @@ public sealed class DeleteDataConnectionUseCaseTests
 {
     private readonly IDataConnectionRepository _connectionRepo = Substitute.For<IDataConnectionRepository>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
-    private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
-
     public DeleteDataConnectionUseCaseTests()
     {
         _unitOfWork.CommitAsync(Arg.Any<CancellationToken>()).Returns(1);
-        _projectContext.IsResolved.Returns(true);
-        _projectContext.ProjectId.Returns(ProjectId.New());
     }
 
     private DeleteDataConnectionUseCase CreateSut() => new(
         _connectionRepo,
-        _unitOfWork,
-        _projectContext);
-
-    [Fact]
-    public async Task ExecuteAsync_WhenProjectContextNotResolved_ThrowsForbiddenException()
-    {
-        // Arrange
-        _projectContext.IsResolved.Returns(false);
-        var command = new DeleteDataConnectionCommand(Guid.NewGuid());
-
-        // Act
-        var act = () => CreateSut().ExecuteAsync(command);
-
-        // Assert
-        await act.Should().ThrowAsync<ForbiddenException>();
-        _connectionRepo.DidNotReceive().Remove(Arg.Any<DataConnection>());
-    }
+        _unitOfWork);
 
     [Fact]
     public async Task ExecuteAsync_WhenFound_RemovesAndCommits()

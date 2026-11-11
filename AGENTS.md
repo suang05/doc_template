@@ -21,6 +21,9 @@ OperationalMindset:
 CoreMission:
   TargetSystem: Centralized, high-throughput document gateway transforming structured JSON into deterministic PDF, DOCX, and XLSX.
   SystemPerimeter:
+    PlanesPartitioning:
+      ControlPlane: `/api/v1/management/**` strictly for SuperAdmin (platform governance, project CRUD, tenant provisioning, global API key oversight). Un-tenanted requests allowed exclusively for SuperAdmin.
+      DataPlane: `/api/v1/**` (excluding `/management/` and `/auth/`) for Tenant workloads (Templates, Documents, Datasets, Mappings, Fonts, Tenant Sub-Keys). Mandatory resolved tenant. Tier 1 Perimeter Guard blocks un-tenanted calls with HTTP 400 Bad Request (`PROJECT_CONTEXT_REQUIRED`). SuperAdmin has Zero Standing Access (rejected with 403 Forbidden unless explicitly invited).
     PortalPersona: Internal Backoffice & Authoring Console designed strictly for SuperAdmin (governance/keys) and Template Designers (Monaco studio/preview). Explicitly NOT a third-party login hub or IdP.
     ExternalIntegration: External systems (ERP, CRM, Billing) integrate exclusively via Channel A (M2M API Keys) carrying scoped access (ReadOnly/ReadWrite).
   CompetitiveBenchmarks: Maintain parity and architectural superiority over enterprise engines (SSRS, JasperReports, Carbone.io, qorstack-report).
@@ -109,6 +112,12 @@ HighFrequencyRegressionTraps:
     => Action: Enforce strict YAGNI. Implement strictly the minimal sufficient code required by active requirements. Prohibit speculative extensibility hooks and premature generic abstractions.
   Trigger: Leaving unreferenced methods, unused constructor parameters/fields, or commented-out code after refactoring (Residue/Debris)
     => Action: Execute immediate Post-Mutation Hygiene. Atomically delete all dead methods, unreferenced variables, unused dependencies, and commented-out code in the exact same pass.
+  Trigger: Writing manual 4-line tenant check boilerplate (`if (!projectContext.IsResolved) throw ...`) in UseCases
+    => Action: Strictly prohibit manual `if (!projectContext.IsResolved)` boilerplate in UseCases. Invoke Tier 2 Application Guard 1-liner: `var projectId = projectContext.EnsureResolved();`.
+  Trigger: Throwing 401 Unauthorized in Data Plane UseCases
+    => Action: Strictly prohibit throwing `UnauthorizedException` in Data Plane UseCases. Perimeter authentication belongs to Tier 1; Data Plane UseCases operate in a Trusted Ingress Zone and throw `ForbiddenException` (403), `NotFoundException` (404), `ConflictException` (409), `DraftExpiredException` (410), `PreconditionFailedException` (412), or `SchemaValidationException` (422).
+  Trigger: Injecting ICurrentProjectContext into UseCases that do not consume ProjectId or CallerIdentity in domain logic
+    => Action: Strictly prohibit phantom context injection. Tier 1 Perimeter Guard already guarantees tenant resolution at HTTP ingress; EF Core Global Query Filter already isolates data by tenant. Inject ICurrentProjectContext ONLY in UseCases that actively pass ProjectId to aggregate factories, storage paths, cache partitions, or composite tenant queries. Prohibit injecting context solely to call EnsureResolved() (See [TRAP-TENANT-024]).
 
 StrategicAdvisoryGates:
   [PROACTIVE_PROPOSAL_REQUIRED: Proactively analyze high-ROI alternatives, present trade-offs, and consult User before proceeding]
@@ -141,9 +150,9 @@ Axiom2_UniversalLinearCadences:
       Step2: UseCase Invocation (`var result = await useCase.ExecuteAsync(command, ct);`)
       Step3: Envelope Return (`return CreatedAtAction(nameof(GetById), new { id = result.Id }, new ApiResponse<TDto>(result));`)
     2_UseCaseCadence: Strictly 4-step PEMR execution pipeline:
-      Step1_ParseAndGuard: Fail-fast ambient tenant validation & parameter checks (`if (!projectContext.IsResolved) throw ...`)
-      Step2_Ensure: Precondition business queries & slug collision checks (`if (await repo.SlugExistsAsync(...)) throw ...`)
-      Step3_Mutate: Domain state transitions via expressive verbs with injected time (`var entity = Entity.Create(..., now);`)
+      Step1_ParseAndGuard: When ProjectId is consumed, resolve ambient tenancy via `var projectId = projectContext.EnsureResolved();` (Tier 2 Application Guard). If ProjectId is not consumed, strictly prohibit injecting ICurrentProjectContext; validate request input invariants only.
+      Step2_Ensure: Precondition business queries & slug collision checks (`if (await repo.SlugExistsAsync(...)) throw ConflictException.DuplicateSlug(...);`)
+      Step3_Mutate: Domain state transitions via expressive verbs with injected time (`var entity = Entity.Create(projectId, ..., now);`)
       Step4_Return: Atomic persistence commit & immutable ResultDto return (`await unitOfWork.CommitAsync(ct); return new EntityResultDto(...);`)
     3_DomainEntityCadence: Strictly 4-step state mutation verb:
       Step1_InvariantGuard: Fail-fast parameter invariants (`Guard.AgainstNullOrWhiteSpace(name, nameof(name));`)

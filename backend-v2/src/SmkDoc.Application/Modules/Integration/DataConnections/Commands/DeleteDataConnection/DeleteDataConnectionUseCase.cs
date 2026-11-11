@@ -8,13 +8,10 @@ namespace SmkDoc.Application.Modules.Integration.DataConnections.Commands.Delete
 
 public sealed class DeleteDataConnectionUseCase(
     IDataConnectionRepository repository,
-    IUnitOfWork unitOfWork,
-    ICurrentProjectContext projectContext) : IUseCase<DeleteDataConnectionCommand>
+    IUnitOfWork unitOfWork) : IUseCase<DeleteDataConnectionCommand>
 {
     public async Task ExecuteAsync(DeleteDataConnectionCommand command, CancellationToken ct = default)
     {
-        projectContext.EnsureResolved();
-
         var entity = await repository.GetByIdAsync(new DataConnectionId(command.Id), ct)
             ?? throw new NotFoundException("DataConnection", command.Id);
 

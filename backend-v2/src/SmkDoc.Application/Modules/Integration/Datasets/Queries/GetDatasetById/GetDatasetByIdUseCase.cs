@@ -9,13 +9,10 @@ namespace SmkDoc.Application.Modules.Integration.Datasets.Queries.GetDatasetById
 
 public sealed class GetDatasetByIdUseCase(
     IDatasetRepository datasetRepo,
-    IDataConnectionRepository connectionRepo,
-    ICurrentProjectContext projectContext) : IUseCase<GetDatasetByIdQuery, DatasetResultDto>
+    IDataConnectionRepository connectionRepo) : IUseCase<GetDatasetByIdQuery, DatasetResultDto>
 {
     public async Task<DatasetResultDto> ExecuteAsync(GetDatasetByIdQuery query, CancellationToken ct = default)
     {
-        projectContext.EnsureResolved();
-
         var dataset = await datasetRepo.GetByIdAsync(new DatasetId(query.Id), ct)
             ?? throw new NotFoundException("Dataset", query.Id);
 

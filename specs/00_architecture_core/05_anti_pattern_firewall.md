@@ -4,7 +4,7 @@
 Category: 00_architecture_core
 Domain: System-Wide Anti-Pattern Traps & Architectural Interceptors
 SoleResponsibilities:
-  - Registry of 23 compiler-grade fatal architectural traps (`[TRAP-LOH-001]` to `[TRAP-TENANT-023]`)
+  - Registry of 24 compiler-grade fatal architectural traps (`[TRAP-LOH-001]` to `[TRAP-TENANT-024]`)
   - Unified micro-diffs (`-` bad / `+` good) illustrating forbidden implementations and remediations
   - Pre-commit architectural violation checks across all layers
 Target: Full Stack (`backend-v2/` and `frontend-v2/`)
@@ -40,6 +40,7 @@ Signal: [ARCH_EVOLUTION_FIREWALL]
 | **[TRAP-PIPELINE-021]**| Simplicity | Artificial intermediate render pipeline classes between UseCases and domain engines fragment error handling and violate Linear PEMR. | Fold generation orchestration directly into `Generate{Resource}UseCase` following 4-step PEMR. | HIGH |
 | **[TRAP-TENANT-022]**| Multi-Tenancy / Architecture | Declaring caller ProjectId in tenant Command/Query records, route query string ([FromQuery]), or request JSON body, or injecting ICurrentProjectContext into controllers. | Prohibit caller-supplied ProjectId across bodies and query strings. Controllers must never inject ICurrentProjectContext; resolve ambient tenancy strictly in UseCase PEMR Step 1. | CRITICAL |
 | **[TRAP-TENANT-023]**| Multi-Tenancy / Security | Auto-hydrating Admin onto SuperAdmin and bypassing tenant membership check on Data Plane routes. | Enforce Zero Standing Access: SuperAdmin receives strictly SuperAdmin claim. On Data Plane routes, reject callers without active UserProjectRole membership with 403 Forbidden. | CRITICAL |
+| **[TRAP-TENANT-024]**| Multi-Tenancy / Application | Injecting ICurrentProjectContext or calling EnsureResolved() inside Archetype B UseCases (GetById, Update, Delete, List) operating by ID or relying on EF Core Global Query Filter. | Enforce Zero Phantom Context: Inject ICurrentProjectContext strictly in Archetype A (entity-creating/key-consuming) UseCases. Archetype B must NOT inject context. | HIGH |
 
 ---
 
@@ -76,6 +77,10 @@ ClockIntegrityFirewall:
 EventConsistencyFirewall:
   Trigger: Pre-commit domain event dispatching
   Action: Commit transaction first via IUnitOfWork, then dispatch harvested events
+
+ZeroPhantomContextFirewall:
+  Trigger: Injecting ICurrentProjectContext into Archetype B UseCases (GetById, Update, Delete, List)
+  Action: Remove context injection; rely on Tier 1 Perimeter Guard and EF Core Global Query Filter >> Ref: [RULE-APP-CMD-002]
 ```
 
 ---
@@ -92,7 +97,7 @@ EventConsistencyFirewall:
 
 ---
 
-## 4. Level 4: Anti-Patterns & Unified Micro-Diffs (The 21 Fatal Traps)
+## 4. Level 4: Anti-Patterns & Unified Micro-Diffs (The 24 Fatal Traps)
 
 ### [TRAP-LOH-001]: Buffer Exceeding Large Object Heap Threshold
 ```diff
@@ -308,7 +313,7 @@ EventConsistencyFirewall:
 + }
 ```
 >> SSoT DELEGATION: Controller tenancy purity governed strictly by [04_api_presentation_layer.md](../01_clean_arch_patterns/04_api_presentation_layer.md#trap-api-014); multi-tenant perimeter resolution governed strictly by [multi_tenant_security_pipeline.md](../03_specialized_mechanics/multi_tenant_security_pipeline.md#trap-sec-004).
-*Rationale: Declaring `[FromQuery] Guid? projectId` leaks internal tenancy parameters into public query strings, while injecting `ICurrentProjectContext` into controllers bloats constructor dependencies (> 5) and duplicates ambient tenancy checks. Controllers must remain pure 3-step dispatchers (<= 5 LOC); ambient tenant validation belongs 100% inside UseCases (Step 1 PEMR).*
+*Rationale: Declaring `[FromQuery] Guid? projectId` leaks internal tenancy parameters into public query strings, while injecting `ICurrentProjectContext` into controllers bloats constructor dependencies (> 5) and duplicates ambient tenancy checks. Controllers must remain pure 3-step dispatchers (<= 5 LOC); ambient tenant resolution for domain mutation belongs strictly inside UseCases that actively consume ProjectId via Tier 2 Guard (`var projectId = projectContext.EnsureResolved();`). UseCases operating strictly by ID or querying collections filtered by EF Core Global Query Filter must NOT inject context.*
 
 ### [TRAP-TENANT-023]: SuperAdmin Standing Access Breach on Tenant Data Plane
 ```diff
@@ -328,3 +333,27 @@ EventConsistencyFirewall:
 ```
 >> SSoT DELEGATION: Zero Standing Access and Control Plane vs Data Plane partitioning governed strictly by [multi_tenant_security_pipeline.md](../03_specialized_mechanics/multi_tenant_security_pipeline.md#trap-sec-008) and [01_system_architecture.md](01_system_architecture.md#111-architectural-planes-control-plane-vs-data-plane-partitioning).
 *Rationale: Providing platform SuperAdmin accounts with permanent standing read/write access to customer templates, datasets, and documents creates a critical Insider Threat and violates SOC 2 Type II, ISO 27001, and Separation of Duties (SoD). SuperAdmin is restricted to the Control Plane (`/api/v1/management/**`). On Data Plane routes (`/api/v1/**`), all interactive callers without an active `UserProjectRole` row are rejected with `403 Forbidden`.*
+
+### [TRAP-TENANT-024]: Phantom Context Injection & Redundant EnsureResolved() in Archetype B UseCases
+```diff
+- // Archetype B UseCase (GetById, Update, Delete, List) injecting ICurrentProjectContext:
+- public sealed class ListTemplatesUseCase(
+-     ITemplateQueryService queryService,
+-     ICurrentProjectContext projectContext) : IUseCase<ListTemplatesQuery, TemplatePagedResultDto> {
+-     public async Task<TemplatePagedResultDto> ExecuteAsync(...) {
+-         projectContext.EnsureResolved(); // Redundant: Tier 1 already validated tenant; EF filter already scopes DB
+-         return await queryService.ListPagedAsync(projectContext.ProjectId, ...);
+-     }
+- }
++ // Clean Archetype B UseCase relying strictly on Tier 1 Perimeter Guard & EF Core Global Query Filter:
++ public sealed class ListTemplatesUseCase(
++     ITemplateQueryService queryService) : IUseCase<ListTemplatesQuery, TemplatePagedResultDto> {
++     public async Task<TemplatePagedResultDto> ExecuteAsync(...) {
++         // Step 1: Parse & Guard (Parameter clamping only; zero phantom context injection)
++         return await queryService.ListPagedAsync(...);
++     }
++ }
+```
+>> SSoT DELEGATION: The 3-Tier Guard Model and Archetype A vs B rules governed strictly by [01_system_architecture.md](01_system_architecture.md#112-the-3-tier-guard-model--defense-in-depth-hierarchy) and [02_application_layer.md](../01_clean_arch_patterns/02_application_layer.md#zero-phantom-context-injection).
+*Rationale: Injecting `ICurrentProjectContext` into UseCases that do not pass `ProjectId` to new aggregate roots, storage paths, or cache partitions creates "Phantom Dependency Bloat", complicates unit tests with unnecessary mocks, and dilutes the 3-Tier Guard Model. Tier 1 Perimeter Guard already rejects un-tenanted Data Plane traffic fail-fast (`400 Bad Request`), and EF Core Global Query Filter already isolates data queries (`WHERE project_id = @tenant_id`). `ICurrentProjectContext` belongs strictly in Archetype A UseCases.*
+

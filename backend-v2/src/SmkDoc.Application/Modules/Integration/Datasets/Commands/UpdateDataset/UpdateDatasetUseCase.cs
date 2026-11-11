@@ -13,13 +13,10 @@ public sealed class UpdateDatasetUseCase(
     IDataConnectionRepository connectionRepo,
     IUnitOfWork unitOfWork,
     ISqlConnectionValidator sqlValidator,
-    ICurrentProjectContext projectContext,
     TimeProvider timeProvider) : IUseCase<UpdateDatasetCommand, DatasetResultDto>
 {
     public async Task<DatasetResultDto> ExecuteAsync(UpdateDatasetCommand command, CancellationToken ct = default)
     {
-        projectContext.EnsureResolved();
-
         sqlValidator.ValidateReadOnlySql(command.SqlQuery);
 
         var entity = await datasetRepo.GetByIdAsync(new DatasetId(command.Id), ct)

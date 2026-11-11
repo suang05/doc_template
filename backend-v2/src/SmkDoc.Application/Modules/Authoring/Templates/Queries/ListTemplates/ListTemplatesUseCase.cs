@@ -9,13 +9,10 @@ namespace SmkDoc.Application.Modules.Authoring.Templates.Queries.ListTemplates;
 /// Executes via ITemplateQueryService with AsNoTracking and server-side paging.
 /// </summary>
 public sealed class ListTemplatesUseCase(
-    ITemplateQueryService templateQueryService,
-    ICurrentProjectContext projectContext) : IUseCase<ListTemplatesQuery, TemplatePagedResultDto>
+    ITemplateQueryService templateQueryService) : IUseCase<ListTemplatesQuery, TemplatePagedResultDto>
 {
     public async Task<TemplatePagedResultDto> ExecuteAsync(ListTemplatesQuery query, CancellationToken ct = default)
     {
-        projectContext.EnsureResolved("Active project context is required to list templates.");
-
         int page = Math.Max(1, query.Page);
         int pageSize = Math.Clamp(query.PageSize, 1, 100);
 

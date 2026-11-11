@@ -28,10 +28,59 @@ The system enforces strict architectural separation between two decoupled operat
 1. **Control Plane (`/api/v1/management/**`)**:
    - Governance & tenant lifecycle: Project provisioning, quota allocations, global font management, bootstrap admin keys.
    - Authorized strictly via `RequireSuperAdmin`. SuperAdmin operates on project containers without requiring tenant membership.
+   - Ingress Tenancy: Permitted without resolved tenant context when caller identity is `SystemRole.SuperAdmin`.
 2. **Data Plane (`/api/v1/**` excluding `/management/` and `/auth/`)**:
    - Tenant workload resources: Templates, Documents, Datasets, Mappings, Tenant Sub-Keys, Project Users.
    - Requires valid ambient tenant context (`ICurrentProjectContext`).
+   - Ingress Tenancy: **100% Mandatory Ambient Tenant**. Un-tenanted calls are rejected fail-fast at Tier 1 Perimeter with `400 Bad Request` (`ErrorCode: PROJECT_CONTEXT_REQUIRED`).
    - **Zero Standing Access for SuperAdmin**: SuperAdmin receives strictly `RoleConstants.SuperAdmin` (never `Admin`). On Data Plane routes, SuperAdmin has zero standing access and is rejected with `403 Forbidden` unless explicitly invited and mapped in `UserProjectRole` by the tenant.
+
+### 1.1.2 The 3-Tier Guard Model & Defense-in-Depth Hierarchy
+To eliminate "Defensive Overkill", redundant checking, and cross-layer paranoia, boundary defense is strictly partitioned into 3 independent tiers:
+```mermaid
+flowchart TD
+    subgraph Tier1 ["Tier 1: Perimeter Guard (ProjectContextMiddleware / HTTP Gateway)"]
+        A[Incoming HTTP Request] --> B{Valid Identity?}
+        B -- No --> B_Err[401 Unauthorized]
+        B -- Yes --> C{Route Plane?}
+        C -- Control Plane / Whitelist --> C_Ctrl[Allow Unresolved Tenant for SuperAdmin / Auth]
+        C -- Data Plane --> D{Has Resolved Tenant?}
+        D -- No --> D_Err["400 Bad Request (PROJECT_CONTEXT_REQUIRED)"]
+        D -- Yes --> E{Active & Permitted?}
+        E -- Deactivated --> E_Deact["403 Forbidden (PROJECT_DEACTIVATED)"]
+        E -- Not Member --> E_Forbid["403 Forbidden (FORBIDDEN)"]
+        E -- Not Found --> E_404["404 NotFoundException"]
+    end
+
+    subgraph Tier2 ["Tier 2: Application Guard (UseCase / Trusted Zone)"]
+        C_Ctrl --> F
+        E -- Permitted --> F["var projectId = projectContext.EnsureResolved();\n(Archetype A: Strictly when ProjectId is consumed)"]
+        F --> G{Business Preconditions & Entity Existence?}
+        G -- Missing --> G_404["404 NotFoundException"]
+        G -- Collision --> G_409["409 ConflictException (DuplicateSlug, etc.)"]
+        G -- Concurrency Mismatch --> G_412["412 PreconditionFailedException (If-Match)"]
+        G -- Payload Schema Error --> G_422["422 SchemaValidationException"]
+    end
+
+    subgraph Tier3 ["Tier 3: Domain Invariants (Entities & Value Objects)"]
+        G -- Valid --> H[Domain State Mutation Verbs / Factory Methods]
+        H --> I{Valid Business Invariant?}
+        I -- Invalid Format / Empty --> I_400["400 DomainValidationException"]
+        I -- Illegal State Transition --> I_BRV["400 BusinessRuleViolationException"]
+        I -- Valid State --> J[UnitOfWork.CommitAsync & ResultDto Return]
+    end
+```
+1. **Tier 1 (Perimeter Guard — `ProjectContextMiddleware`)**:
+   - Gatekeeper of identity, route plane, and tenant isolation (Who, Where, Which Tenant).
+   - Blocks un-tenanted Data Plane traffic immediately (`400 Bad Request`). Controllers and UseCases are guaranteed to never receive raw un-tenanted requests.
+2. **Tier 2 (Application Guard — UseCase Step 1 PEMR)**:
+   - Operates in a **Trusted Zone**. Does not re-police HTTP headers or throw 401 Unauthorized.
+   - SSoT 1-Liner: `var projectId = projectContext.EnsureResolved();` applied strictly when `ProjectId` or caller identity is consumed in domain logic (Entity creation, MinIO storage path, DraftCache, composite key queries).
+   - **Zero Phantom Context Injection**: UseCases operating on existing aggregates by ID or relying on EF Core global query filters must NOT inject `ICurrentProjectContext` or call `EnsureResolved()`.
+   - Evaluates Business Preconditions: `NotFoundException` (404), `ConflictException` (409), `DraftExpiredException` (410), `PreconditionFailedException` (412 via `IConcurrencyContext.EnsureMatches`), and `SchemaValidationException` (422).
+3. **Tier 3 (Domain Invariant Guard — Entities & Value Objects)**:
+   - Self-validating aggregate roots and value objects.
+   - Enforces data integrity and state invariants via Factory Methods (`Create`) and expressive domain verbs, throwing `DomainValidationException` (400) or `BusinessRuleViolationException` (400).
 
 ### 1.2 Clean Architecture Layer Invariants Matrix
 ```mermaid
@@ -218,27 +267,30 @@ public sealed record {Aggregate}ResultDto(
     DateTimeOffset? UpdatedAt,
     string ConcurrencyToken) : IHasConcurrencyToken;
 
-// 3. {Verb}{Aggregate}UseCase.cs (Surgical AST: 4-Step PEMR Cadence)
-public sealed class {Verb}{Aggregate}UseCase(
+// 3. Archetype A: Entity-Creating UseCase (Create{Aggregate}UseCase.cs - Surgical AST: 4-Step PEMR Cadence)
+// (Note: Archetype B UseCases operating by ID or using EF Core Global Query Filter do NOT inject ICurrentProjectContext)
+public sealed class Create{Aggregate}UseCase(
     I{Aggregate}Repository {aggregate}Repository,
     ICurrentProjectContext projectContext,
     IUnitOfWork unitOfWork,
-    TimeProvider timeProvider) : IUseCase<{Verb}{Aggregate}Command, {Aggregate}ResultDto>
+    TimeProvider timeProvider) : IUseCase<Create{Aggregate}Command, {Aggregate}ResultDto>
 {
-    public async Task<{Aggregate}ResultDto> ExecuteAsync({Verb}{Aggregate}Command command, CancellationToken ct = default)
+    public async Task<{Aggregate}ResultDto> ExecuteAsync(Create{Aggregate}Command command, CancellationToken ct = default)
     {
-        // Step 1: Parse & Guard (Fail-fast ambient tenant validation)
-        if (!projectContext.IsResolved)
-        {
-            throw new ForbiddenException("Project context is required.");
-        }
+        // Step 1: Parse & Guard (Tier 2 Application Guard: 1-liner typed tenant resolution for creation)
+        var projectId = projectContext.EnsureResolved();
 
         // Step 2: Ensure Preconditions (Business rules & slug uniqueness)
+        if (await {aggregate}Repository.SlugExistsAsync(command.Slug, ct))
+        {
+            throw ConflictException.DuplicateSlug(command.Slug);
+        }
+
         var now = timeProvider.GetUtcNow(); // Injected clock: deterministic testability
 
         // Step 3: Mutate State (Expressive domain entity factory verb)
         var entity = {Aggregate}.Create(
-            projectContext.ProjectId,
+            projectId,
             {Aggregate}Name.Create(command.Name),
             {Aggregate}Slug.Create(command.Slug),
             command.Category,

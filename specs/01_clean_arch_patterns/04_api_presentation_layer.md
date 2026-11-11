@@ -45,7 +45,7 @@ Signal: [ARCH_EVOLUTION_API]
 | **Declarative Policy Security**| Actions are authorized via declarative `[Authorize(Policy = "...")]` attributes matching the Declarative Authorization Policies Matrix. | Endpoint Authorization |
 | **Separated API Key Routes** | Tenant sub-key operations reside on `/api/v1/api-keys` (Project Admin, quota max 2), while platform-wide governance resides on `/api/v1/management/api-keys` (SuperAdmin). | Key Governance |
 | **OpenAPI Schema Contracts** | Every controller action declares explicit `[ProducesResponseType(typeof(ApiResponse<T>), 2xx)]` for success envelopes and type-less `[ProducesResponseType(StatusCodes.Status4xx)]` for error statuses (automatically bound to `ProblemDetails` by `OpenApiOperationTransformer`). | Contract Metadata |
-| **Ambient Tenant Ingress Purity** | Multi-tenant context resolves exclusively via middleware into ambient `ICurrentProjectContext`. Controllers must never declare `[FromQuery] Guid? projectId`, accept `projectId` in JSON bodies, or inject `ICurrentProjectContext`. Ambient tenant validation (`!projectContext.IsResolved`) belongs 100% inside UseCases (Step 1 PEMR). | Controller Tenancy |
+| **Ambient Tenant Ingress Purity** | Multi-tenant context resolves exclusively via Tier 1 Perimeter Middleware (`ProjectContextMiddleware`) into ambient `ICurrentProjectContext`. Controllers must never declare `[FromQuery] Guid? projectId`, accept `projectId` in JSON bodies, or inject `ICurrentProjectContext`. Un-tenanted Data Plane traffic is rejected fail-fast at Tier 1 with 400 Bad Request (`PROJECT_CONTEXT_REQUIRED`), while UseCases consuming tenant context extract strongly-typed `ProjectId` via Tier 2 Guard (`var projectId = projectContext.EnsureResolved();`). UseCases operating by ID or querying collections filtered by EF Core omit context injection entirely. | Controller Tenancy |
 
 ---
 
@@ -594,4 +594,4 @@ public sealed class {Resource}DiagnosticsController(
 +     }
 + }
 ```
-*Rationale: Declaring `[FromQuery] Guid? projectId` leaks tenancy parameters into the public API query string, while injecting `ICurrentProjectContext` into controllers bloats constructor dependencies (> 5) and duplicates ambient tenancy checks. Controllers must remain pure 3-step dispatchers (<= 5 LOC); ambient tenant validation belongs 100% inside UseCases (Step 1 PEMR).*
+*Rationale: Declaring `[FromQuery] Guid? projectId` leaks tenancy parameters into the public API query string, while injecting `ICurrentProjectContext` into controllers bloats constructor dependencies (> 5) and duplicates ambient tenancy checks. Controllers must remain pure 3-step dispatchers (<= 5 LOC); ambient tenant resolution for domain mutation belongs strictly inside UseCases that actively consume ProjectId via Tier 2 Guard (`var projectId = projectContext.EnsureResolved();`). UseCases operating strictly by ID or using EF Core Global Query Filters must NOT inject context.*

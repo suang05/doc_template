@@ -12,29 +12,7 @@ namespace SmkDoc.Tests.Application.Modules.Integration.DataConnections.Queries.G
 public sealed class GetDataConnectionByIdUseCaseTests
 {
     private readonly IDataConnectionRepository _connectionRepo = Substitute.For<IDataConnectionRepository>();
-    private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
-
-    public GetDataConnectionByIdUseCaseTests()
-    {
-        _projectContext.IsResolved.Returns(true);
-        _projectContext.ProjectId.Returns(ProjectId.New());
-    }
-
-    private GetDataConnectionByIdUseCase CreateSut() => new(_connectionRepo, _projectContext);
-
-    [Fact]
-    public async Task ExecuteAsync_WhenProjectUnresolved_ThrowsForbiddenException()
-    {
-        // Arrange
-        _projectContext.IsResolved.Returns(false);
-
-        // Act
-        var act = () => CreateSut().ExecuteAsync(new GetDataConnectionByIdQuery(Guid.NewGuid()));
-
-        // Assert
-        await act.Should().ThrowAsync<ForbiddenException>();
-        await _connectionRepo.DidNotReceive().GetByIdAsync(Arg.Any<DataConnectionId>(), Arg.Any<CancellationToken>());
-    }
+    private GetDataConnectionByIdUseCase CreateSut() => new(_connectionRepo);
 
     [Fact]
     public async Task ExecuteAsync_WhenConnectionFound_ReturnsDto()

@@ -12,29 +12,7 @@ namespace SmkDoc.Tests.Application.Modules.Integration.DataConnections.Queries.L
 public sealed class ListDataConnectionsUseCaseTests
 {
     private readonly IDataConnectionRepository _connectionRepo = Substitute.For<IDataConnectionRepository>();
-    private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
-
-    public ListDataConnectionsUseCaseTests()
-    {
-        _projectContext.IsResolved.Returns(true);
-        _projectContext.ProjectId.Returns(ProjectId.New());
-    }
-
-    private ListDataConnectionsUseCase CreateSut() => new(_connectionRepo, _projectContext);
-
-    [Fact]
-    public async Task ExecuteAsync_WhenProjectUnresolved_ThrowsForbiddenException()
-    {
-        // Arrange
-        _projectContext.IsResolved.Returns(false);
-
-        // Act
-        var act = () => CreateSut().ExecuteAsync(new ListDataConnectionsQuery());
-
-        // Assert
-        await act.Should().ThrowAsync<ForbiddenException>();
-        await _connectionRepo.DidNotReceive().ListAsync(Arg.Any<CancellationToken>());
-    }
+    private ListDataConnectionsUseCase CreateSut() => new(_connectionRepo);
 
     [Fact]
     public async Task ExecuteAsync_WhenConnectionsExist_ReturnsProjectedDtosWithoutSecrets()

@@ -281,12 +281,11 @@ public sealed class Preview{Resource}UseCase(
         // Path 2: RAM-cached template draft preview (authoring studio)
         else if (!string.IsNullOrWhiteSpace(query.DraftId))
         {
-            if (projectContext is null || !projectContext.IsResolved)
-                throw new ForbiddenException("Previewing a draft requires an active project context.");
+            var projectId = projectContext.EnsureResolved("Previewing a draft requires an active project context.");
             if (draftCache is null)
                 throw new BusinessRuleViolationException("Draft cache is not available for preview.", "DRAFT_CACHE_UNAVAILABLE");
 
-            var draft = await draftCache.GetAsync(projectContext.ProjectId, query.DraftId, ct)
+            var draft = await draftCache.GetAsync(projectId, query.DraftId, ct)
                 ?? throw new DraftExpiredException(query.DraftId);
             if (!TemplateFormat.TryFromExtension(draft.FileExtension, out var format))
                 throw new DomainValidationException($"Unsupported template file format: '{draft.FileExtension}'.");
@@ -410,9 +409,8 @@ public sealed class Generate{Resource}UseCase(
     public async Task<Generate{Resource}ResultDto> ExecuteAsync(
         Generate{Resource}Command command, CancellationToken ct = default)
     {
-        // Step 1: Parse & Guard <Why: fail-fast ambient tenant validation>
-        if (!projectContext.IsResolved)
-            throw new ForbiddenException("Document generation requires an active project context.");
+        // Step 1: Parse & Guard (Tier 2 Application Guard: 1-liner typed tenant resolution)
+        var projectId = projectContext.EnsureResolved("Document generation requires an active project context.");
 
         var outputFormat = ParseOutputFormat(command.OutputFormat);
 

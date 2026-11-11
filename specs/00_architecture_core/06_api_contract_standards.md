@@ -363,6 +363,22 @@ export interface ProblemDetails {
 }
 ```
 
+**Universal Domain Exception to RFC 9457 HTTP Status Mapping Matrix:**
+
+| Domain / Application Exception | Originating Tier | HTTP Status | ErrorCode Default | Business Context & Guidance |
+|---|---|---|---|---|
+| `UnauthorizedException` | Tier 1 (Perimeter) / Auth UseCases | `401 Unauthorized` | `UNAUTHORIZED` | Authentication failure (missing token, invalid API key, expired session). Prohibited in Data Plane UseCases. |
+| `ForbiddenException` | Tier 1 (Perimeter) / Tier 2 (Safety Net) | `403 Forbidden` | `FORBIDDEN` | Authorization failure (caller lacks project membership, or tenant context unresolved in Tier 2 guard). |
+| `ProjectDeactivatedException` | Tier 1 (Perimeter) | `403 Forbidden` | `PROJECT_DEACTIVATED` | Target tenant project is soft-deleted or marked inactive. |
+| `NotFoundException` | Tier 2 (Application) | `404 Not Found` | `NOT_FOUND` / `RESOURCE_NOT_FOUND` | Queried resource (Template, Document, ApiKey, User) does not exist in active tenant scope. |
+| `ConflictException` | Tier 2 (Application) | `409 Conflict` | `RESOURCE_CONFLICT`, `DUPLICATE_SLUG`, `DUPLICATE_VERSION`, `DUPLICATE_PLACEHOLDER`, `DUPLICATE_DATASET_ALIAS` | Resource collision (unique slug exists, active version collision, quota breach). |
+| `DraftExpiredException` | Tier 2 (Application) | `410 Gone` | `DRAFT_EXPIRED` | RAM/Redis-cached draft template exceeded TTL (2 hours) and was evicted. |
+| `PreconditionFailedException` | Tier 2 (Application) | `412 Precondition Failed` | `PRECONDITION_FAILED` | Concurrency check failure: request `If-Match: "<token>"` does not match entity concurrency token. |
+| `SchemaValidationException` | Tier 2 (Application) | `422 Unprocessable Entity`| `SCHEMA_VALIDATION_FAILED` | Ingestion payload failed template JSON schema validation. |
+| `DomainValidationException` / `ValidationException` | Tier 3 (Domain Core) | `400 Bad Request` | `VALIDATION_ERROR`, `DOMAIN_VALIDATION_ERROR` | Format violation, empty required field, length violation, or invalid character set. |
+| `BusinessRuleViolationException` | Tier 3 (Domain Core) | `400 Bad Request` | `BUSINESS_RULE_VIOLATION` | Illegal state transition (attempting to edit an archived version, or removing the last admin). |
+| `DistributedStateUnavailableException` | Infrastructure | `503 Service Unavailable` | `DISTRIBUTED_STATE_UNAVAILABLE` | Redis lock or cache cluster unavailable (fail-closed idempotency). |
+
 ---
 
 ### 3.4 Diagnostic Probe Result Blueprint (`ApiResponse<TestResultDto>`)

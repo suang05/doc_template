@@ -14,13 +14,10 @@ public sealed class SaveTemplateDatasetsUseCase(
     ITemplateRepository templateRepo,
     IDatasetRepository datasetRepo,
     IUnitOfWork unitOfWork,
-    ICurrentProjectContext projectContext,
     TimeProvider timeProvider) : IUseCase<SaveTemplateDatasetsCommand, List<TemplateDatasetDto>>
 {
     public async Task<List<TemplateDatasetDto>> ExecuteAsync(SaveTemplateDatasetsCommand command, CancellationToken ct = default)
     {
-        projectContext.EnsureResolved();
-
         var templateId = new TemplateId(command.TemplateId);
         var template = await templateRepo.GetByIdWithDetailsAsync(templateId, ct)
             ?? await templateRepo.GetByIdAsync(templateId, ct)
