@@ -5,7 +5,7 @@ Category: 01_clean_arch_patterns
 Domain: Testing Archetypes, DAMP AAA Cadence & Test Modernization SSoT
 SoleResponsibilities:
   - Unit test archetypes using DAMP AAA cadence, SUT factory (`CreateSut()`), and NSubstitute mocking
-  - Testing the 3-Tier Guard Model (Archetype A fail-fast `TenantContextRequiredException` & Archetype B zero-mock isolation)
+  - Testing the 3-Tier Guard Model (Archetype A fail-fast `TenantContextNotResolvedException` & Archetype B zero-mock isolation)
   - Integration test harness with Testcontainers (PostgreSQL, MinIO, Redis)
   - Injected `TimeProvider` temporal testing and FluentValidation isolation
   - Test modernization parity (purging obsolete fixtures, prohibiting commented-out `[Fact]` tests)

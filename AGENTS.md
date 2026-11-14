@@ -19,33 +19,37 @@ OperationalMindset:
 
 <core_mission_and_benchmarks>
 CoreMission:
-  TargetSystem: Centralized, high-throughput document gateway transforming structured JSON into deterministic PDF, DOCX, and XLSX.
+  TargetSystem: Centralized, high-throughput document gateway transforming structured JSON into deterministic PDF, DOCX, and XLSX across 3 pipelines:
+    - Pipeline A (Sync Generation): `POST /api/v1/documents` (`Idempotency-Key` required, Spool-Before-Commit via `HybridSpoolStream`, MinIO upload, single `< 5 ms` DB commit, streamed via `FileStreamResult`).
+    - Pipeline B (Stateless Live Preview): `POST /api/v1/documents/preview` (100% ephemeral stream, zero DB/MinIO persistence).
+    - Pipeline C (Async Batch Queue): `POST /api/v1/document-jobs` (`202 Accepted` + `Location: /api/v1/document-jobs/{id}` + `Retry-After`, persisted in PostgreSQL `document_jobs` and claimed via `FOR UPDATE SKIP LOCKED` by `DocumentJobWorker`).
   SystemPerimeter:
     PlanesPartitioning:
-      ControlPlane: `/api/v1/management/**` strictly for SuperAdmin (platform governance, project CRUD, tenant provisioning, global API key oversight). Un-tenanted requests allowed exclusively for SuperAdmin.
-      DataPlane: `/api/v1/**` (excluding `/management/` and `/auth/`) for Tenant workloads (Templates, Documents, Datasets, Mappings, Fonts, Tenant Sub-Keys). Mandatory resolved tenant. Tier 1 Perimeter Guard blocks un-tenanted calls with HTTP 400 Bad Request (`PROJECT_CONTEXT_REQUIRED`). SuperAdmin has Zero Standing Access (rejected with 403 Forbidden unless explicitly invited).
+      ControlPlane: `/api/v1/management/**` strictly for `SuperAdmin` (`TenantManagement` bounded context: Company, Project, ProjectQuota, Global Font, bootstrap keys, and audited `BreakGlassGrant`). Un-tenanted requests allowed exclusively for `SuperAdmin`.
+      DataPlane: `/api/v1/**` (excluding `/management/`, `/auth/`, `/health/`) for Tenant workloads (Templates, Documents, DocumentJobs, Datasets, Mappings, Fonts, Tenant Sub-Keys). Mandatory `Project-Id` header (never `x-project-id`) verified against credential binding. Tier 1 Perimeter Guard rejects missing `Project-Id` with HTTP 400 (`PROJECT_CONTEXT_REQUIRED`) and credential/header mismatches with HTTP 400 (`PROJECT_CONTEXT_MISMATCH`). `SuperAdmin` has Zero Standing Access (rejected with 403 `CROSS_TENANT_ACCESS_DENIED` unless mapped in `UserProjectRole` or holding an active time-boxed audited `BreakGlassGrant`). Cross-tenant resource lookups always return 404 `NotFoundException` (anti-enumeration defense).
+      PublicAndAuthPlane: `/api/v1/auth/**` and `/api/v1/health/**` for authentication flows and liveness/readiness probes.
     PortalPersona: Internal Backoffice & Authoring Console designed strictly for SuperAdmin (governance/keys) and Template Designers (Monaco studio/preview). Explicitly NOT a third-party login hub or IdP.
-    ExternalIntegration: External systems (ERP, CRM, Billing) integrate exclusively via Channel A (M2M API Keys) carrying scoped access (ReadOnly/ReadWrite).
+    ExternalIntegration: External systems (ERP, CRM, Billing) integrate exclusively via Channel A (M2M API Keys in `smk_live_{keyId}_{secret}` format, verified via `HMACSHA256` with KMS pepper + `CryptographicOperations.FixedTimeEquals`) carrying scoped access (`ReadOnly`/`ReadWrite`).
   CompetitiveBenchmarks: Maintain parity and architectural superiority over enterprise engines (SSRS, JasperReports, Carbone.io, qorstack-report).
 
 # Dimension 1: Proactive North Star (Driving craftsmanship, caller empathy, and modern architecture)
 ArchitecturalQualityTargets:
   DeveloperExperience:
     ErgonomicContracts: Zero-friction JSON ingestion with self-describing schemas and instant live preview. Proactively eliminate caller friction.
-    ActionableDiagnostics: RFC 9457 ProblemDetails with exact field-level errors and remediable guidance (Zero opaque 500s).
+    ActionableDiagnostics: RFC 9457 ProblemDetails with exact field-level errors (JSON Pointer `errors` array on 422) and remediable guidance (Zero opaque 500s).
   EvergreenModernity:
-    ModernIdioms: Ruthlessly modernize legacy idioms using cutting-edge .NET 10 / C# 13 (Primary Constructors, Collection Expressions, TimeProvider) and Next.js 15. Proactively eliminate technical debt during touch.
+    ModernIdioms: Ruthlessly modernize legacy idioms using cutting-edge .NET 10 / C# 14 (Primary Constructors, Collection Expressions, TimeProvider, `[GeneratedRegex]`, `[LoggerMessage]`) and Next.js 15. Proactively eliminate technical debt during touch.
   BusinessExtensibility:
     PluggableArchitecture: Modular Open-Closed design where engines, formatters, and data sources integrate via clean polymorphic boundaries. Boldly refactor and purify core pipelines whenever structural flaws, debt, or friction are uncovered.
   OperationalExcellence:
-    StatelessScalability: 100% stateless UseCases, services, and API controllers enabling horizontal scaling with minimal memory footprint and zero shared in-memory state.
+    StatelessScalability: 100% stateless UseCases, services, and API controllers enabling horizontal scaling with bounded pooled memory footprint and zero shared in-memory state.
 
 # Dimension 2: Electric Fence (Non-negotiable technical boundaries and invariants)
 NonNegotiableQualityBenchmarks:
-  RenderingFidelity: Sub-millimeter layout precision via Headless Chromium Gotenberg 8 microservice only (Prohibit LibreOffice shifts).
-  ThaiLinguisticDeterminism: Buddhist Era (+543), Baht text, and Sarabun tone-mark positioning.
-  MemoryAndGcBoundaries: Strictly bounded streaming (<= 81,920 bytes) guaranteeing Zero-LOH and zero Gen 2 GC spikes.
-  SecurityPerimeter: Zero-trust template sandboxing, fail-fast schema validation, and total SSRF/path-traversal elimination.
+  RenderingFidelity: Sub-millimeter layout precision via Headless Chromium Gotenberg 8 microservice only (Prohibit LibreOffice shifts; Chromium outbound network egress disabled).
+  ThaiLinguisticDeterminism: Buddhist Era (+543 in rendered output only; wire JSON dates strictly ISO 8601 Gregorian CE `YYYY-MM-DD`), Baht text, and embedded Sarabun tone-mark positioning.
+  MemoryAndGcBoundaries: Bounded, pooled memory streaming (`65_536`-byte `ArrayPool<byte>` buffers, `RecyclableMemoryStream`, and `HybridSpoolStream` spilling to temp disk above `2 MB`; zero unbounded `MemoryStream` or `byte[]`).
+  SecurityPerimeter: 5-Layer fail-closed multi-tenant isolation (Perimeter + EF Global Query Filter + `TenantWriteEnforcementInterceptor` + PostgreSQL RLS + `BannedApiAnalyzers`), zero-trust template sandboxing, fail-fast Draft-07 schema validation, and SSRF/path-traversal defense (`ConnectionHostValidator` with IPv4-mapped IPv6 normalization, platform deny-list + per-tenant allow-list CIDRs, and IP pinning).
 </core_mission_and_benchmarks>
 
 <operational_boundaries>
@@ -85,41 +89,41 @@ PreFlightExecutionGates:
 HighFrequencyRegressionTraps:
   [PRE-TRAINING BIAS INTERCEPTORS: Guardrails preventing statistical drift to legacy patterns]
   Trigger: Next.js 15 route parameters accessed synchronously (`{ params: { id } }` or `params.id`)
-    => Action: Route parameters are asynchronous in Next.js 15. Type as `Promise<{ id: string }>` and `await params`.
+    => Action: Route parameters are asynchronous in Next.js 15. Type as `Promise<{ id: string }>` and await independent inputs together (`const [{ id }, session] = await Promise.all([params, auth()]);`).
   Trigger: Empty catch block or swallowed exceptions (`catch (Exception) { }`)
-    => Action: Prohibit empty catch blocks. Throw strongly-typed `DomainException` or log semantically.
+    => Action: Prohibit empty catch blocks. Let exceptions bubble to `GlobalExceptionHandler` or throw strongly-typed domain/application exceptions (`DomainValidationException` (422), `BusinessRuleViolationException` (409)), always re-throwing `OperationCanceledException`.
   Trigger: Binary generation or disk write inside unit test project (`SmkDoc.Tests`)
-    => Action: Keep unit tests 100% in-memory with mocks/fakes. Route all disk, binary, or external wire I/O exclusively to `SmkDoc.IntegrationTests`.
+    => Action: Keep unit tests 100% in-memory with NSubstitute and `FakeTimeProvider`. Route all relational constraints, Global Query Filters, RLS, concurrency tokens, Outbox, disk, or external wire I/O exclusively to `SmkDoc.IntegrationTests` backed by `Testcontainers.PostgreSql`.
   Trigger: Persistent database or MinIO mutations during preview operations
-    => Action: Preview workflows must remain 100% in-memory; zero database or MinIO persistence.
+    => Action: Preview workflows (`POST /api/v1/documents/preview`) must remain 100% ephemeral; zero database or MinIO persistence.
   Trigger: Returning raw unwrapped JSON array or flat pagination fields at response root
-    => Action: Envelop all single resources strictly in `ApiResponse<T>` (`{ data: T }`) and collections in `PagedApiResponse<T>` (`{ data: T[], pagination: { page, limit, totalCount, totalPages } }`).
+    => Action: Envelop all single resources strictly in `ApiResponse<T>` (`{ data: T }`), bounded offset collections in `PagedApiResponse<T>` (`{ data: T[], pagination: { page, limit, totalCount, totalPages } }`), and high-volume append-only collections (logs/jobs/items) in `CursorPagedApiResponse<T>` (`{ data: T[], pagination: { limit, nextCursor, hasMore } }`).
   Trigger: Applying Idempotency-Key on PUT/DELETE, or mutating resource without If-Match header
-    => Action: Reserve `Idempotency-Key` exclusively for state-creating POST. Enforce `If-Match: "<unix_ms_token>"` concurrency token on PUT/DELETE mutations.
-  Trigger: Declaring caller ProjectId in tenant Command/Query records, route query string ([FromQuery]), or accepting projectId in request JSON body
-    => Action: Prohibit caller-supplied ProjectId across bodies and query strings. Controllers must never inject ICurrentProjectContext; resolve ambient tenancy strictly in UseCase PEMR Step 1.
+    => Action: Require `Idempotency-Key` on state-creating document/job POSTs (`/api/v1/documents`, `/api/v1/document-jobs`) backed by PostgreSQL `idempotency_records` scoped by `(project_id, credential_id, idempotency_key)` with SHA-256 payload fingerprint (`422 IDEMPOTENCY_KEY_REUSED` on payload mismatch, `409 IDEMPOTENCY_IN_PROGRESS` on concurrent in-flight). Enforce Two-Phase Explicit Concurrency via strong `ETag` / `If-Match: "v{version}"` on PUT/PATCH/DELETE mutations (`428 PRECONDITION_REQUIRED` if missing; `412 PRECONDITION_FAILED` on version mismatch; `IConcurrencyContext` and timestamp tokens are retired).
+  Trigger: Declaring caller ProjectId in tenant Command/Query records, route query string ([FromQuery]), using legacy x-project-id, or accepting projectId in request JSON body
+    => Action: Prohibit caller-supplied ProjectId across bodies and query strings, and prohibit `x-project-id`. Data Plane tenancy is carried exclusively via the `Project-Id` header verified against the credential at Tier 1. Controllers must never inject `ICurrentProjectContext`; resolve ambient tenancy strictly in UseCase PEMR Step 1 via `projectContext.GetRequiredProjectId()`.
   Trigger: Introducing a new abstraction alongside an obsolete one, leaving it partially wired, or creating parallel duplicate logic
     => Action: Enforce Codebase SSoT and Atomic One-Way Migration. You must 1) wire the new abstraction to 100% of applicable consumers, and 2) delete the superseded legacy code in the exact same task. Zero dual-state bloat, zero duplicate helper methods, and zero orphan abstractions.
   Trigger: Preserving obsolete production code, shims, wrappers, or legacy test files out of fear of breaking existing tests
     => Action: Update or purge the tests! Tests are living contracts of current architecture. When an abstraction is superseded, refactor existing test call-sites to assert the new canonical pattern and atomically delete superseded test files (*Tests.cs). Prohibit commented-out tests (`// [Fact]`) or warping production code to appease brittle legacy mocks.
   Trigger: Appending service registrations to a monolithic DependencyInjection.cs class
-    => Action: Strictly prohibit monolithic DI composition roots. Partition registrations into single-responsibility Feature Installers under Extensions/ (e.g., PersistenceServiceExtensions, StorageServiceExtensions, {Module}ModuleExtensions) and keep the composition root <= 25 LOC.
-  Trigger: Creating single-method pass-through services, god classes, or redundant intermediate DTOs between pipeline callers and engines
-    => Action: Demolish anemic pass-through wrappers. Pipelines must consume domain engines (IDataBindingEngine) directly. Enforce complexity firewalls: class <= 200 LOC, method <= 20 LOC, constructor injections <= 5.
-  Trigger: Querying mutable relational field_mappings table during runtime document generation, or creating duplicate preview use cases
-    => Action: Runtime document generation must strictly deserialize frozen TemplateVersion.MappingsSnapshot manifest as SSoT. All preview endpoints (Monaco HTML, Slug, TemplateId, DraftId, Mappings preview) must route exclusively through PreviewDocumentUseCase.
+    => Action: Strictly prohibit monolithic DI composition roots. Partition registrations into single-responsibility Feature Installers under Extensions/ (e.g., `PersistenceServiceExtensions`, `StorageServiceExtensions`, `AuthoringModuleExtensions`, `TenantManagementModuleExtensions`) and keep the composition root <= 25 LOC.
+  Trigger: Creating pure pass-through wrapper services or redundant intermediate DTOs that add zero domain value
+    => Action: Demolish pure pass-through wrappers (`TRAP-WRAPPER-018`). UseCases orchestrate cohesive domain collaborators (`IDataBindingEngine`, `IRenderEngineFactory`) directly. Enforce complexity firewalls: class <= 200 LOC, method <= 20 LOC, constructor injections <= 5.
+  Trigger: Querying mutable relational field_mappings table during runtime document generation, falling back to live mappings, or creating duplicate preview use cases
+    => Action: Runtime document generation must strictly deserialize the frozen `TemplateVersion.MappingsSnapshot` manifest as SSoT and throw `BusinessRuleViolationException` (`TEMPLATE_SNAPSHOT_MISSING`) if missing — never falling back to mutable `field_mappings` tables (`TRAP-SSOT-017`). All preview endpoints must route exclusively through `PreviewDocumentUseCase`.
   Trigger: Introducing speculative parameters, unrequested interfaces, or redundant DTO properties "just in case" (YAGNI breach)
     => Action: Enforce strict YAGNI. Implement strictly the minimal sufficient code required by active requirements. Prohibit speculative extensibility hooks and premature generic abstractions.
   Trigger: Leaving unreferenced methods, unused constructor parameters/fields, or commented-out code after refactoring (Residue/Debris)
     => Action: Execute immediate Post-Mutation Hygiene. Atomically delete all dead methods, unreferenced variables, unused dependencies, and commented-out code in the exact same pass.
-  Trigger: Writing manual 4-line tenant check boilerplate (`if (!projectContext.IsResolved) throw ...`) or custom magic strings in UseCases
-    => Action: Strictly prohibit manual `if (!projectContext.IsResolved)` boilerplate and custom magic strings. Extract ambient tenancy via Self-Guarding Smart Context fail-fast property: `var projectId = projectContext.ProjectId;` (throws `TenantContextRequiredException` automatically if unresolved).
-  Trigger: Throwing 401 Unauthorized in Data Plane UseCases
-    => Action: Strictly prohibit throwing `UnauthorizedException` in Data Plane UseCases. Perimeter authentication belongs to Tier 1; Data Plane UseCases operate in a Trusted Ingress Zone and throw `TenantContextRequiredException` (403), `CrossTenantAccessDeniedException` (403), `ForbiddenException` (403), `NotFoundException` (404), `ConflictException` (409), `DraftExpiredException` (410), `PreconditionFailedException` (412), or `SchemaValidationException` (422).
+  Trigger: Writing manual 4-line tenant check boilerplate (`if (!projectContext.IsResolved) throw ...`) or using throwing property `projectContext.ProjectId` in UseCases
+    => Action: Strictly prohibit manual `if (!projectContext.IsResolved)` boilerplate and throwing properties. Extract ambient tenancy via the fail-fast method: `var projectId = projectContext.GetRequiredProjectId();` (throws `TenantContextNotResolvedException` (500) automatically if unresolved due to middleware bypass).
+  Trigger: Throwing 401 Unauthorized in Data Plane UseCases or returning 403 on cross-tenant resource lookups
+    => Action: Strictly prohibit throwing `UnauthorizedException` in Data Plane UseCases. Perimeter authentication belongs to Tier 1; Data Plane UseCases operate in a Trusted Ingress Zone and throw `TenantContextNotResolvedException` (500), `ForbiddenException` / `SecurityViolationException` (403), `NotFoundException` (404, including cross-tenant resource access for anti-enumeration defense), `ConflictException` / `BusinessRuleViolationException` (409), `DraftExpiredException` (410), `PreconditionFailedException` (412), `DomainValidationException` / `SchemaValidationException` (422), or `PreconditionRequiredException` (428). `CrossTenantAccessDeniedException` (403) applies strictly to plane-level denial.
   Trigger: Injecting ICurrentProjectContext into UseCases that do not consume ProjectId or CallerIdentity in domain logic
-    => Action: Strictly prohibit phantom context injection. Tier 1 Perimeter Guard already guarantees tenant resolution at HTTP ingress; EF Core Global Query Filter already isolates data by tenant. Inject ICurrentProjectContext ONLY in UseCases that actively pass ProjectId to aggregate factories, storage paths, cache partitions, or composite tenant queries (Archetype A). Prohibit phantom context injection in Archetype B (See [TRAP-TENANT-024]).
-  Trigger: Deferring projectContext.ProjectId evaluation after database queries or external I/O in Archetype A UseCases
-    => Action: Strictly enforce immediate Fail-Fast at PEMR Step 1 line 1 (`var projectId = projectContext.ProjectId;`). Prohibit running repository queries, cache lookups, or external network I/O before tenant context is verified (See [TRAP-TENANT-025]).
+    => Action: Strictly prohibit phantom context injection. Tier 1 Perimeter Guard already guarantees tenant resolution at HTTP ingress; EF Core Global Query Filter + PostgreSQL RLS already isolate data by tenant. Inject `ICurrentProjectContext` ONLY in UseCases that actively pass `ProjectId` to aggregate factories, storage paths, cache partitions, or composite tenant queries (Archetype A). Prohibit phantom context injection in Archetype B (See `[TRAP-TENANT-023]`).
+  Trigger: Deferring projectContext.GetRequiredProjectId() evaluation or checking uniqueness with un-normalized raw strings in Archetype A UseCases
+    => Action: Strictly enforce immediate Fail-Fast at PEMR Step 1 line 1 (`var projectId = projectContext.GetRequiredProjectId();`) followed by Value Object construction/normalization (`var slug = {Aggregate}Slug.Create(command.Slug);`) BEFORE running any repository uniqueness check or external I/O (See `[TRAP-TENANT-024]`).
 
 StrategicAdvisoryGates:
   [PROACTIVE_PROPOSAL_REQUIRED: Proactively analyze high-ROI alternatives, present trade-offs, and consult User before proceeding]
@@ -138,71 +142,71 @@ StrategicAdvisoryGates:
 Axiom1_CleanTopologyAndBoundedSlices:
   ArchitecturalPhilosophy: Clean Architecture + Feature Slices under Bounded Contexts (High Cohesion, Loose Coupling).
   PhysicalStructure:
-    Domain (SmkDoc.Domain): Pure C# POCOs isolated from frameworks. Encapsulated state via private set, factory methods, expressive domain verbs. Zero external dependencies.
-    Application (SmkDoc.Application): Feature slices under `Modules/{BoundedContext}/{Aggregate}/{Commands|Queries|DTOs}`. Orchestrates workflows via `IUseCase<TReq, TRes>`. Strictly returns ResultDto or Stream. Never leaks Domain Entities.
-    Infrastructure (SmkDoc.Infrastructure): Implements persistence & wire I/O (EF Core, MinIO, Gotenberg, SQL Drivers). Completely hides low-level transport details.
-    Presentation (SmkDoc.Api): Thin HTTP orchestrators (<= 5 LOC per action) dispatching to UseCases via C# 13 Primary Constructors. Centralized RFC 9457 `ProblemDetails`. Routes `api/v1/{resource}`.
-    Frontend (frontend-v2): Next.js 15 App Router (`src/app/`, `src/features/`, `src/components/`, `src/lib/api/`). Strictly partitions Server Components (data fetching & SEO) from Client Components (interactive forms & state).
+    Domain (SmkDoc.Domain): Pure C# 14 POCOs isolated from frameworks and ORMs. Shared Kernel IDs (`ProjectId`, `CompanyId`, `UserId`) in `Common/ValueObjects/`. `BaseEntity<TId>` carries `long Version = 1` incremented via `SetUpdated(now)`. Zero `IUnitOfWork` or `ICurrentProjectContext` in Domain.
+    Application (SmkDoc.Application): Feature slices under `Modules/{BoundedContext}/{Aggregate}/{Commands|Queries|DTOs}` across 4 Bounded Contexts (`Authoring`, `Rendering`, `IdentityAccess`, `TenantManagement`). Orchestrates workflows via `IUseCase<TRequest, TResponse>` (`CancellationToken ct` required, never `= default`). Queries use read-model ports (`*ReadModel`); commands use aggregate repositories. Strictly returns `*ResultDto` or `Stream`. Never leaks Domain Entities.
+    Infrastructure (SmkDoc.Infrastructure): Implements persistence & wire I/O (EF Core 10, Npgsql, MinIO, Gotenberg, Dapper, `OutboxSaveChangesInterceptor`, `TenantWriteEnforcementInterceptor`, PostgreSQL RLS, `DocumentJobWorker`). Completely hides low-level transport details.
+    Presentation (SmkDoc.Api): Thin HTTP orchestrators (<= 5 LOC per action) dispatching to UseCases via C# 14 Primary Constructors, `IfMatchVersionBinder` (`[FromIfMatch] long expectedVersion`), `ETagResponseFilter` (`ETag: "v{version}"`), `FileStreamResult`, and centralized RFC 9457 `GlobalExceptionHandler`. Routes `/api/v1/{resource}`.
+    Frontend (frontend-v2): Next.js 15 App Router (`src/app/`, `src/features/`, `src/components/`, `src/lib/api/`). Strictly partitions Server Components (data fetching & session guard) from Client Components (interactive forms & state), routing client API calls through `/api/proxy/[...path]` with `Project-Id` and `If-Match: "v${version}"`.
 
 Axiom2_UniversalLinearCadences:
   ArchitecturalPhilosophy: KISS & Absolute Visual Uniformity (Linear code read top-to-bottom in a single pass without cognitive friction).
   CadenceCatalog:
     1_ControllerCadence: Strictly 3-step dispatcher (<= 5 LOC per action):
-      Step1: Explicit Input Translation (`var command = new SomeCommand(request.Name, ...);`)
+      Step1: Explicit Input Translation (`var command = new SomeCommand(id, request.Name, expectedVersion);`)
       Step2: UseCase Invocation (`var result = await useCase.ExecuteAsync(command, ct);`)
-      Step3: Envelope Return (`return CreatedAtAction(nameof(GetById), new { id = result.Id }, new ApiResponse<TDto>(result));`)
+      Step3: Envelope Return (`return Ok(new ApiResponse<TDto>(result));` or `CreatedAtAction(...)`)
     2_UseCaseCadence: Strictly 4-step PEMR execution pipeline:
-      Step1_ParseAndGuard: When ProjectId is consumed (Archetype A), extract ambient tenancy at line 1 via `var projectId = projectContext.ProjectId;` (Self-Guarding Smart Context fail-fast property, throwing `TenantContextRequiredException` automatically if unresolved). If ProjectId is not consumed (Archetype B), strictly prohibit injecting ICurrentProjectContext; validate request input invariants only.
-      Step2_Ensure: Precondition business queries & slug collision checks (`if (await repo.SlugExistsAsync(...)) throw ConflictException.DuplicateSlug(...);`)
-      Step3_Mutate: Domain state transitions via expressive verbs with injected time (`var entity = Entity.Create(projectId, ..., now);`)
-      Step4_Return: Atomic persistence commit & immutable ResultDto return (`await unitOfWork.CommitAsync(ct); return new EntityResultDto(...);`)
+      Step1_ParseAndGuard: In Archetype A, extract ambient tenancy at line 1 via `var projectId = projectContext.GetRequiredProjectId();` (throws `TenantContextNotResolvedException` (500) if unresolved) and normalize Value Objects (`var slug = {Aggregate}Slug.Create(command.Slug);`) BEFORE any repository call. In Archetype B, strictly prohibit injecting `ICurrentProjectContext`; construct/validate Value Objects only.
+      Step2_Ensure: In Archetype A, check uniqueness using normalized Value Objects (`if (await repository.SlugExistsAsync(projectId, slug, ct)) throw ConflictException.DuplicateSlug(slug.Value);`). In Archetype B, load aggregate (`?? throw new NotFoundException(...)`) and verify Two-Phase Explicit Concurrency (`if (entity.Version != command.ExpectedVersion) throw new PreconditionFailedException(...);`).
+      Step3_Mutate: Domain state transitions via expressive verbs with injected time (`var entity = Entity.Create(projectId, name, slug, now); repository.Add(entity);` or `entity.UpdateDetails(name, now);` which increments `Version` via `SetUpdated(now)`).
+      Step4_Return: Atomic persistence commit (harvesting Domain Events into `outbox_messages` and mapping `DbUpdateConcurrencyException` -> `412` and `23505` -> `409`) & immutable ResultDto return (`await unitOfWork.CommitAsync(ct); return entity.ToResultDto();`).
     3_DomainEntityCadence: Strictly 4-step state mutation verb:
-      Step1_InvariantGuard: Fail-fast parameter invariants (`Guard.AgainstNullOrWhiteSpace(name, nameof(name));`)
-      Step2_PreconditionGuard: Aggregate state preconditions (`if (Status == Inactive) throw new DomainException(...);`)
-      Step3_StateMutation: Encapsulated scalar transitions (`Name = name; SetUpdated(now);`)
-      Step4_EventHarvesting: Domain event dispatch registration (`AddDomainEvent(new EntityRenamedDomainEvent(...));`)
+      Step1_InvariantGuard: Fail-fast parameter invariants (`Guard.AgainstNull(name);` -> `DomainValidationException` (422))
+      Step2_PreconditionGuard: Aggregate state preconditions (`if (!IsActive) throw new BusinessRuleViolationException(..., "CODE");` -> 409)
+      Step3_StateMutation: Encapsulated scalar transitions & version increment (`Name = name; SetUpdated(now);`)
+      Step4_EventHarvesting: Domain event registration (`AddDomainEvent(new {Aggregate}{PastTenseVerb}DomainEvent(...));`)
     4_ValueObjectCadence: Strictly 3-step self-validating type:
       Step1_PrivateConstructor: Encapsulated internal scalar assignment (`private TemplateSlug(string value) => Value = value;`)
-      Step2_FactoryCreation: Pure static `Create(string raw)` with fail-fast regex/format invariants throwing `DomainValidationException`.
-      Step3_EqualityAndOperators: Immutable readonly record struct with explicit conversions and `ToString() => Value;`.
+      Step2_FactoryCreation: Pure static `Create(string? raw)` with fail-fast `[GeneratedRegex]` (with timeout) and length invariants throwing `DomainValidationException`.
+      Step3_EqualityAndOperators: `sealed record` for multi-rule VOs (preventing invalid `default`) or `readonly record struct` for single-Guid IDs, with `explicit operator string` and `ToString() => Value;`.
     5_InfrastructureAdapterCadence: Strictly 4-step safe bounded I/O:
-      Step1_PerimeterGuard: Validate endpoint safety & tenant boundaries (`ConnectionHostValidator.Validate(targetUri);`)
-      Step2_BoundedConcurrency: Acquire semaphore / allocate strictly bounded buffer (81,920 bytes for streams).
-      Step3_SafeExecution: Execute wire I/O within try/catch; map transport exceptions to strongly-typed `DomainException`.
-      Step4_DeterministicCleanup: Release locks in `finally` and return bounded stream wrapper (`ResponseDisposingStream`).
+      Step1_OutboundGuard: Validate endpoint safety & SSRF boundaries (`await hostValidator.ValidateAndResolveAsync(host, tenantAllowList, ct);`)
+      Step2_BoundedMemory: Dispatch with `HttpCompletionOption.ResponseHeadersRead`, resilience pipeline, and bounded `65_536`-byte (`64 KB`) pooled buffers / `HybridSpoolStream`.
+      Step3_SafeExecution: Execute wire I/O with required `CancellationToken ct`; map non-success responses to strongly-typed exceptions without leaking internal host/driver details.
+      Step4_DeterministicCleanup: Wrap response stream in `ResponseDisposingStream` so `HttpResponseMessage` disposes deterministically when the caller closes the stream.
     6_UnitTestCadence: Strictly 3-step DAMP AAA:
-      Step1_Arrange: Stub dependencies via NSubstitute + construct SUT via `CreateSut()` + build explicit input `command`.
-      Step2_Act: Execute target method into `result` (`var result = await sut.ExecuteAsync(command, ct);`).
-      Step3_Assert: Verify invariants via FluentAssertions (`result.Should().NotBeNull();`) + verify side-effects (`await uow.Received(1).CommitAsync(ct);`).
+      Step1_Arrange: Stub dependencies via NSubstitute + `FakeTimeProvider` + construct SUT via `CreateSut()` + build explicit input `command`.
+      Step2_Act: Execute target method into `result` (`var result = await sut.ExecuteAsync(command, CancellationToken.None);`).
+      Step3_Assert: Verify invariants via FluentAssertions (`result.Version.Should().Be(2);`) + verify side-effects (`await _unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());`).
       SubordinationRule: Tests serve current architecture; architecture never compromises to appease obsolete tests. When production code evolves, update test assertions in the same pass.
     7_NextJsPageCadence: Strictly 3-step async server orchestrator:
-      Step1_AwaitParams: Explicitly resolve route parameters (`const { id } = await params;`).
-      Step2_ServerFetch: Retrieve initial data payload via server-side API client with ambient tenant headers.
-      Step3_RenderClientBoundary: Pass immutable DTOs across boundary to interactive Client Feature Component.
+      Step1_AwaitInputsInParallel: Resolve route parameters and session concurrently (`const [{ id }, session] = await Promise.all([params, auth()]);` + `if (!session?.user?.projectId) redirect('/login');`).
+      Step2_ServerFetch: Retrieve initial data payload via server-side API client passing `headers: { 'Project-Id': session.user.projectId }`.
+      Step3_RenderClientBoundary: Pass serializable DTO across RSC boundary to interactive Client Feature Component.
 
 Axiom3_ComplexityFirewallAndAntiOverEngineering:
   ArchitecturalPhilosophy: SOLID & YAGNI over speculative abstractions.
   QuantitativeBounds:
     ControllerActionLoc: <= 5 lines per action (strictly 3-step dispatcher)
     MethodLoc: <= 20 lines per method (decompose via private helper if exceeded)
-    ConstructorInjections: <= 5 dependencies per class via C# 13 Primary Constructors
+    ConstructorInjections: <= 5 dependencies per class via C# 14 Primary Constructors
     InheritanceDepth: <= 1 level (all classes marked `sealed` by default)
     NestingDepth: <= 2 levels (mandatory guard clauses and early exits; prohibit deeply nested if-else)
   AntiOverEngineeringRules:
     ZeroGodServices: Multi-action service classes (e.g. giant *Service classes with 10+ methods) are 100% prohibited across the entire platform. Every business capability must be an isolated Action-Centric Vertical Slice (1 UseCase = 1 Command/Query = 1 Responsibility).
-    ModularDependencyInjection: Monolithic DI composition roots and god-registrations in Program.cs or root DependencyInjection.cs are strictly prohibited. Every layer (Presentation, Application, Infrastructure) decomposes registrations into cohesive Bounded Context / Subsystem installers (e.g. AddRenderingModule(), AddAuthoringModule(), AddPersistenceInfrastructure()).
+    ModularDependencyInjection: Monolithic DI composition roots and god-registrations in Program.cs or root DependencyInjection.cs are strictly prohibited. Every layer (Presentation, Application, Infrastructure) decomposes registrations into cohesive Bounded Context / Subsystem installers (e.g. `AddRenderingModule()`, `AddAuthoringModule()`, `AddTenantManagementModule()`, `AddPersistenceInfrastructure()`).
     RuleOfThree: Strictly prohibit generic base services, generic repositories, or speculative interfaces until >= 2 distinct, existing production implementations require them.
-    CompositionOverInheritance: Prefer flat composition and single-responsibility UseCases (IUseCase<TReq, TRes>) over abstract base hierarchies.
-    ZeroRuntimeMagic: Prohibit reflection-based assembly scanning, dynamic method invocation, or opaque runtime dispatch.
+    CompositionOverInheritance: Prefer flat composition and single-responsibility UseCases (`IUseCase<TRequest, TResponse>`) over abstract base hierarchies.
+    ZeroRuntimeMagic: Prohibit reflection-based assembly scanning on hot paths, dynamic method invocation, or opaque runtime dispatch.
 
 Axiom4_CloudNativeScalabilityAndImmutability:
   ArchitecturalPhilosophy: Stateless Horizontal Scalability & Zero-Leak Resilience.
   ScalingRules:
-    StatelessTopology: All UseCases and domain services must be 100% stateless. Prohibit shared in-memory dictionaries, stateful singletons, or static caches.
-    ZeroLohStreaming: Stream binary outputs directly with bounded 81,920-byte buffers; strictly prohibit unbounded `byte[]` arrays or in-memory `MemoryStream.ToArray()`.
+    StatelessTopology: All UseCases and domain services must be 100% stateless. Prohibit shared in-memory dictionaries, stateful singletons, or local in-memory idempotency/rate-limiting state across multi-pod deployments.
+    BoundedPooledStreaming: Stream binary outputs with bounded `65_536`-byte (`64 KB`) pooled buffers (`ArrayPool<byte>`), `RecyclableMemoryStream`, and `HybridSpoolStream`, returning streams via `FileStreamResult` (never `await using` a stream returned in `File(...)`); strictly prohibit unbounded `byte[]` arrays or `MemoryStream.ToArray()`.
     ContractImmutability: All cross-boundary payloads must be immutable records (`sealed record`, `readonly record struct`).
-    UniversalWireEnvelope: All non-streaming HTTP responses must encapsulate payloads in ApiResponse<T> or PagedApiResponse<T> with RFC 9457 ProblemDetails for errors.
-    DeterministicTime: All temporal queries must consume injected `TimeProvider` (prohibit `DateTime.UtcNow`).
+    UniversalWireEnvelope: All non-streaming HTTP responses must encapsulate payloads in `ApiResponse<T>`, `PagedApiResponse<T>`, or `CursorPagedApiResponse<T>` with RFC 9457 `ProblemDetails` for errors.
+    DeterministicTime: All temporal queries must consume injected `TimeProvider` (prohibit `DateTime.UtcNow` / `DateTimeOffset.UtcNow`, enforced by `BannedSymbols.txt`).
   AtomicEvolutionAndCodebaseSSoT:
     CodebaseSSoTAndDeduplication: Every business calculation, domain rule, linguistic formatter, and data access must reside in exactly ONE authoritative implementation (Codebase SSoT). Strictly prohibit duplicate services, parallel shims, or pass-through indirection wrappers that add zero domain value.
     ZeroOrphanAbstractions: Every newly created interface, class, method, or DTO contract must be wired and actively consumed by 100% of its target call-sites. Strictly prohibit speculative or half-migrated abstractions.
@@ -210,15 +214,17 @@ Axiom4_CloudNativeScalabilityAndImmutability:
     AtomicDeadCodePurge: When an abstraction or method is superseded, delete the obsolete production code and its dedicated test fixtures (*Tests.cs) across all call-sites in the exact same task. Zero zombie files, zero commented-out tests (`// [Fact]`), zero dead methods, and zero dual-state maintenance.
 
 MachineSyntaxAndNamingStandards:
-  ZeroProjectTypePrefix: Strictly prohibit prefixing type names with project/brand names (SmkDoc*, Sammakorn*); namespaces already provide scope isolation.
-  RoleBasedSuffixTaxonomy: Non-entity types must terminate with deterministic role suffixes (*UseCase, *Builder, *Factory, *Resolver, *Policies); prohibit vague suffixes (*Helper, *Util, *Manager).
-  PrimaryConstructorParams: pure camelCase (Regex: ^[a-z][a-zA-Z0-9]+$) # Zero symbol prefix
-  PayloadVariables: "command" for commands, "query" for queries, "result" for outputs, "now" for injected time, "ct" for CancellationToken
-  VariableNaming: Full semantic names strictly; prohibit cryptic abbreviations (repo, uow, ctx, svc, t, v, d)
-  UseCaseResultDtos: Suffix with "ResultDto" strictly (e.g. *ResultDto); prohibit *Response records in contracts
-  FrontendNamingStandards: kebab-case for directories/utilities; PascalCase for React components (*.tsx); camelCase for hooks (use*); *.schema.ts for Zod contracts.
-  ObjectInstantiation: Explicit local variable assignment before method consumption (prohibit inlining `new` inside calls).
-  StructuredLogging: logger.LogInformation("Processing {TemplateId}", templateId); # No string interpolation
+  ZeroProjectTypePrefix: Strictly prohibit prefixing type names with project/brand names (`SmkDoc*`, `Sammakorn*`); namespaces already provide scope isolation.
+  RoleBasedSuffixTaxonomy: Non-entity types must terminate with closed role suffixes (`*UseCase`, `*ReadModel`, `*Repository`, `*Port`, `*Adapter`, `*Engine`, `*Executor`, `*Dispatcher`, `*Verifier`, `*Validator`, `*Worker`, `*Options`, `*Exception`, `*DomainEvent`, `*Extensions`, `*Dto`, `*ResultDto`); prohibit vague suffixes (`*Helper`, `*Util`, `*Manager`, `*Service`).
+  PrimaryConstructorParams: pure camelCase (Regex: `^[a-z][a-zA-Z0-9]+$`) # Zero symbol prefix (`_field` is forbidden)
+  GenericTypeTokens: `TRequest`, `TResponse`, `TId`, `TEntity` (prohibit abbreviated `TReq`, `TRes`)
+  PayloadVariables: `command` for commands, `query` for queries, `result` for outputs, `now` for injected time, `ct` for required `CancellationToken`
+  VariableNaming: Full semantic names strictly; prohibit cryptic abbreviations (`repo`, `uow`, `ctx`, `svc`, `t`, `v`, `d`)
+  UseCaseResultDtos: Suffix root UseCase outputs with `ResultDto` (`*ResultDto`) and nested/list items with `Dto` (`*Dto`); prohibit `*Response` records in Application contracts
+  DatabaseConstraintPrefixes: `pk_{table}`, `fk_{table}_{target}_{col}`, `uq_{table}_{cols}`, `ix_{table}_{cols}` in `snake_case`
+  FrontendNamingStandards: `kebab-case` for directories/utilities; `PascalCase` for React components (`*.tsx`); `camelCase` for hooks (`use*`); `*.schema.ts` for Zod contracts; OpenAPI-generated TypeScript types.
+  ObjectInstantiation: Prohibit nested multi-line `new` expressions inside method arguments; simple value wrappers (`new TemplateId(id)`) are idiomatic.
+  StructuredLogging: Use `[LoggerMessage]` source-generated logging on hot paths (`logger.LogInformation("Processing {TemplateId}", templateId);`); never use string interpolation or log secrets/tokens/connection strings.
 </core_engineering_axioms>
 
 <unified_architectural_router>
@@ -231,7 +237,7 @@ MachineSyntaxAndNamingStandards:
 |---|---|---|---|
 | **System Blueprint & Clean Architecture Topology** | `[ARCH_EVOLUTION_CORE]` | `specs/00_architecture_core/01_system_architecture.md` | `specs/00_architecture_core/02_coding_conventions.md` |
 | **Universal Conventions & Coding Standards** | `[ARCH_EVOLUTION_CONVENTIONS]` | `specs/00_architecture_core/02_coding_conventions.md` | `specs/00_architecture_core/04_naming_standards.md` |
-| **Security Architecture, Zero-LOH & Performance** | `[ARCH_EVOLUTION_SECURITY]` | `specs/00_architecture_core/03_security_and_performance.md` | `specs/03_specialized_mechanics/multi_tenant_security_pipeline.md` |
+| **Security Architecture, Bounded Memory & Performance** | `[ARCH_EVOLUTION_SECURITY]` | `specs/00_architecture_core/03_security_and_performance.md` | `specs/03_specialized_mechanics/multi_tenant_security_pipeline.md` |
 | **Naming Conventions & ResultDto Lexicon** | `[ARCH_EVOLUTION_NAMING]` | `specs/00_architecture_core/04_naming_standards.md` | `specs/01_clean_arch_patterns/02_application_layer.md` |
 | **Anti-Patterns & Architectural Firewalls** | `[ARCH_EVOLUTION_FIREWALL]` | `specs/00_architecture_core/05_anti_pattern_firewall.md` | `specs/01_clean_arch_patterns/03_infrastructure_layer.md` |
 | **API Contracts, Wire Protocols & Concurrency** | `[ARCH_EVOLUTION_CONTRACT]` | `specs/00_architecture_core/06_api_contract_standards.md` | `specs/01_clean_arch_patterns/04_api_presentation_layer.md` |
@@ -294,7 +300,7 @@ ArchitecturalMetasyntax:
     Purpose: "Eliminates separate explanatory paragraphs by embedding the architectural intent and failure-mode prevented directly into the immediate receptive field of the code token."
     UsageFormula: "`// <Why: {risk-or-failure-mode-prevented}>` — high-density, causal statement strictly between 4–10 words."
     ApplicationScope:
-      - WhereToApply: Strictly at 1) Cadence Step Anchors (`// Step N: ... <Why: ...>`), 2) Fail-fast defensive guards, and 3) Non-obvious architectural invariants (e.g. Zero-LOH buffer limits, concurrency tokens).
+      - WhereToApply: Strictly at 1) Cadence Step Anchors (`// Step N: ... <Why: ...>`), 2) Fail-fast defensive guards, and 3) Non-obvious architectural invariants (e.g. 64 KB pooled buffer limits, Two-Phase Explicit Concurrency tokens).
       - WhereToProhibit: Strictly prohibit tagging obvious self-describing syntax, standard DTO properties, or routine variable declarations to prevent comment pollution.
   MetasyntaxBalance:
     - Generic CRUD Boilerplate: Use Metasyntax placeholders (`{Aggregate}`, `{Verb}`, `{Modifier}`) for repetitive CQRS slices to eliminate catalog bloat.
@@ -303,7 +309,7 @@ ArchitecturalMetasyntax:
 ArchetypePurityAndSurgicalASTFirewall:
   [SURGICAL COMPACTNESS & CAUSAL RATIONALE MANDATE]
   SnippetStructuralFormula:
-    Part1_Declaration: Class declaration strictly using C# 13 Primary Constructor & explicit interface inheritance.
+    Part1_Declaration: Class declaration strictly using C# 14 Primary Constructor & explicit interface inheritance.
     Part2_ExecutionCadence: Execution pipeline body demonstrating strictly the linear cadence steps (<= 20 LOC).
   Rules:
     - No Copy-Paste Dumps: Never dump line-by-line production plumbing into specs/. Focus strictly on architectural rhythm, type signatures, and boundary transitions.
@@ -359,7 +365,7 @@ AuthoringAndRepresentationStandards:
     InvariantRule: "SoleResponsibilities across all 16 specs must be mutually exclusive (zero topical overlap)."
   LanguageDiscipline:
     ChatTrack: Casual, direct, professional Thai in conversation. Zero robotic AI jargon.
-    DocsTrack: 100% English ASTs in `specs/` and `AGENTS.md`. Zero Thai characters.
+    DocsTrack: 100% English ASTs and architectural rules in `specs/` and `AGENTS.md` (Thai strings permitted strictly inside Thai localization/formatter examples and the Ubiquitous Language Glossary in `04_naming_standards.md`).
   RepresentationHierarchy:
     StructuralHierarchy: Indented text (2-space nesting). Strictly prohibit all ASCII art, ASCII boxes, and Unicode trees (├──).
     TabularContracts: Dense Markdown Tables (| Col1 | Col2 |) for contracts and state machines.
@@ -386,7 +392,7 @@ AdaptiveDefinitionOfDone:
     2_CodeAndAbstractionInspection:
        - FullConsumerWiringCheck: Verify that all new interfaces, types, methods, and parameters are actively consumed across 100% of intended call-sites (zero orphan abstractions).
        - DeadCodeAndDuplicatePurge: Verify that superseded classes, deprecated methods, shadow interfaces, and obsolete test fixtures (*Tests.cs) were deleted rather than abandoned alongside new code.
-       - PostMutationHygieneAndDebrisPurge: Verify that all unreferenced private methods, local variables, unused constructor parameters/fields, unused usings, and commented-out code (`// old implementation`, `// [Fact]`) resulting from the mutation were deleted in the exact same pass. Eliminate remaining boilerplate using modern C# 13 idioms (Primary Constructors, pattern matching, collection expressions `[]`).
+       - PostMutationHygieneAndDebrisPurge: Verify that all unreferenced private methods, local variables, unused constructor parameters/fields, unused usings, and commented-out code (`// old implementation`, `// [Fact]`) resulting from the mutation were deleted in the exact same pass. Eliminate remaining boilerplate using modern C# 14 idioms (Primary Constructors, pattern matching, collection expressions `[]`).
        - TestModernizationParity: Verify that existing unit/integration tests were updated to test the new canonical pattern rather than relying on obsolete methods, commented-out facts, or backward-compatibility shims.
        - QualityInvariants: Ensure classes are `sealed` by default, constructor injections <= 5, and zero ambient clocks (`DateTime.UtcNow`) are used.
     3_WorkspaceHygiene: Ensure zero temporary files or planning markdown files were written to the project workspace (artifacts stay in session directory).

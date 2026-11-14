@@ -1,4 +1,20 @@
-# 05. Anti-Pattern Firewall & Static Enforcement Matrix
+# [CORE-005]: 05_anti_pattern_firewall.md — Anti-Pattern Firewall & Static Enforcement Matrix
+
+<context>
+Category: 00_architecture_core
+Domain: Anti-Pattern Firewall, Static Analysis Rules & Quality Gates
+SoleResponsibilities:
+  - Canonical catalog of forbidden anti-patterns (TRAP registry) across architecture, domain, persistence, security, and frontend
+  - Severity classification (FATAL, CRITICAL, HIGH) and CI/CD gate policies
+  - Static enforcement matrix mapping traps to Roslyn analyzers, NetArchTest, and BannedSymbols.txt
+  - Paired anti-pattern (-) and safe architectural pattern (+) implementation blueprints
+Out of scope (owned elsewhere): code cadences and idioms (02), security controls and performance budgets (03), API contract standards (06).
+Target: Full Stack (`backend-v2/` and `frontend-v2/`)
+Platform baseline: declared in `Directory.Build.props` (ADR-01).
+Signal: [ARCH_EVOLUTION_FIREWALL]
+</context>
+
+---
 
 > **Purpose:** Define the non-negotiable architectural firewall for `smk-doc-server`. Every pattern cataloged in this document has caused production outages, security breaches, cross-tenant data leaks, or memory exhaustion in enterprise document engines. All code—whether written by humans or AI agents—is gated against these rules by automated static analyzers, architecture tests, and CI pipelines.
 > **Authoritative Cross-References:** [01_system_architecture.md](./01_system_architecture.md), [02_coding_conventions.md](./02_coding_conventions.md), [03_security_and_performance.md](./03_security_and_performance.md), [04_naming_standards.md](./04_naming_standards.md), [06_api_contract_standards.md](./06_api_contract_standards.md).
