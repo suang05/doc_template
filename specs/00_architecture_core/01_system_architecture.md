@@ -85,6 +85,13 @@ flowchart TD
    - Self-validating aggregate roots and value objects.
    - Enforces data integrity and state invariants via Factory Methods (`Create`) and expressive domain verbs, throwing `DomainValidationException` (400) or `BusinessRuleViolationException` (400).
 
+### 1.1.3 Tactical Implementation: Smart Context & Strongly-Typed Domain Exceptions
+To eliminate defensive paranoia, boilerplate null-checks, and naming drift, tactical implementation is standardized on Self-Guarding Smart Context and strongly-typed domain exceptions:
+* **Smart Context (`projectContext.ProjectId`)**: Self-guarding property throwing `TenantContextRequiredException` (`TENANT_CONTEXT_REQUIRED`, 403 Forbidden) fail-fast upon un-resolved access in Archetype A UseCases.
+* **Zero Phantom Context**: Archetype B UseCases operating by ID or querying collections filtered by EF Core Global Query Filter strictly omit context injection.
+* **Cross-Tenant Protection**: Throws `CrossTenantAccessDeniedException` (`CROSS_TENANT_ACCESS_DENIED`, 403 Forbidden) on cross-tenant resource breaches.
+>> SSoT DELEGATION: [Multi-Tenant Security Pipeline & 3-Tier Guard Model] governed strictly by [multi_tenant_security_pipeline.md](../03_specialized_mechanics/multi_tenant_security_pipeline.md).
+
 ### 1.2 Clean Architecture Layer Invariants Matrix
 ```mermaid
 graph TD

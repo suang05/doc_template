@@ -336,7 +336,7 @@ SmartContextFirewall:
 +     projectContextSetter.SetProject(targetProjectId, actorIdentity);
 + }
 ```
->> SSoT DELEGATION: Zero Standing Access and Control Plane vs Data Plane partitioning governed strictly by [multi_tenant_security_pipeline.md](../03_specialized_mechanics/multi_tenant_security_pipeline.md#trap-sec-008) and [01_system_architecture.md](01_system_architecture.md#111-architectural-planes-control-plane-vs-data-plane-partitioning).
+>> SSoT DELEGATION: Zero Standing Access and Control Plane vs Data Plane partitioning governed strictly by [multi_tenant_security_pipeline.md](../03_specialized_mechanics/multi_tenant_security_pipeline.md#trap-sec-007) and [01_system_architecture.md](01_system_architecture.md#111-architectural-planes-control-plane-vs-data-plane-partitioning).
 *Rationale: Providing platform SuperAdmin accounts with permanent standing read/write access to customer templates, datasets, and documents creates a critical Insider Threat and violates SOC 2 Type II, ISO 27001, and Separation of Duties (SoD). SuperAdmin is restricted to the Control Plane (`/api/v1/management/**`). On Data Plane routes (`/api/v1/**`), all interactive callers without an active `UserProjectRole` row are rejected with `403 Forbidden`.*
 
 ### [TRAP-TENANT-024]: Phantom Context Injection in Archetype B UseCases

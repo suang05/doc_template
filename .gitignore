@@ -70,6 +70,7 @@ COOLIFY.md
 **/Doc/
 **/Docs/
 **/docs/
+**/_review/
 !specs/openapi.json
 scratch/
 tools/
