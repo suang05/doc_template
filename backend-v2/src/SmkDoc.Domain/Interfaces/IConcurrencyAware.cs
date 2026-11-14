@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace SmkDoc.Domain.Interfaces;
 
 /// <summary>
@@ -11,7 +13,7 @@ public interface IConcurrencyAware
     DateTimeOffset? UpdatedAt { get; }
 
     string GetConcurrencyToken() =>
-        (UpdatedAt ?? CreatedAt).ToUnixTimeMilliseconds().ToString();
+        (UpdatedAt ?? CreatedAt).ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture);
 
     string? GetAlternateConcurrencyToken() => null;
 }

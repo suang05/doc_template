@@ -17,7 +17,7 @@ public sealed class UserAccountProcessorTests
     {
         // Arrange
         var now = TestConstants.BaselineTime;
-        User existingUser = aUser.Active().WithEmail("existing@example.com").WithTime(now);
+        User existingUser = UserBuilder.AUser().WithEmail("existing@example.com").WithTime(now);
 
         _userRepo.GetByEmailAsync(Arg.Is<EmailAddress>(e => e.Value == "existing@example.com"), Arg.Any<CancellationToken>())
             .Returns(existingUser);

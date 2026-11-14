@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace SmkDoc.Application.Modules.Rendering.Documents.DTOs;
 
 /// <summary>
@@ -9,9 +11,14 @@ public sealed record GenerateDocumentResultDto(
     string OutputFormat,
     long FileSizeBytes,
     string Sha256,
+    [param: SuppressMessage("Design", "CA1054:URI-like parameters should not be strings", Justification = "JSON/OpenAPI wire DTO contract (supports relative API paths and pre-signed URLs).")]
     string Url,
     DateTimeOffset ExpiresAt
-);
+)
+{
+    [SuppressMessage("Design", "CA1056:URI-like properties should not be strings", Justification = "JSON/OpenAPI wire DTO contract (supports relative API paths and pre-signed URLs).")]
+    public string Url { get; init; } = Url;
+}
 
 /// <summary>
 /// DTO representing an immutable document version in the legal audit trail.

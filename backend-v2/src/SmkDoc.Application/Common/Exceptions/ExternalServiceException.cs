@@ -11,5 +11,5 @@ public sealed class ExternalServiceException(
 {
     public string ServiceName { get; } = serviceName;
 
-    public string ErrorCode => ErrorCodes.ExternalServiceUnavailable;
+    public string ErrorCode { get; } = ErrorCodes.ExternalServiceUnavailable;
 }

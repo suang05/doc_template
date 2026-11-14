@@ -10,10 +10,9 @@ namespace SmkDoc.Infrastructure.Engines.Excel;
 /// Convention: a row with {{items.name}}, {{items.qty}} is a template row for the "items" array.
 /// Rows are duplicated per item, bottom-to-top to preserve row numbers.
 /// </summary>
-public class ExcelTableExpander
+public static class ExcelTableExpander
 {
-
-    public void ExpandTables(
+    public static void ExpandTables(
         IXLWorksheet worksheet,
         Dictionary<string, List<Dictionary<string, string>>> arrays)
     {
@@ -61,7 +60,7 @@ public class ExcelTableExpander
     {
         foreach (var (col, templateVal) in templateData)
         {
-            if (!templateVal.Contains("{{")) continue;
+            if (!templateVal.Contains("{{", StringComparison.Ordinal)) continue;
 
             var updated = Pattern.Replace(templateVal, m =>
             {
@@ -85,10 +84,10 @@ public class ExcelTableExpander
                 }
 
                 // Only handle dot-notation: {{arrayKey.field}} or {{arrayKey.field:transform}}
-                var dotIdx = fullKey.IndexOf('.');
+                var dotIdx = fullKey.IndexOf('.', StringComparison.Ordinal);
                 if (dotIdx <= 0) return m.Value; // Plain {{key}} — leave for text replacement
 
-                var ak    = fullKey[..dotIdx];
+                var ak = fullKey[..dotIdx];
                 var field = fullKey[(dotIdx + 1)..];
 
                 if (!string.Equals(ak, arrayKey, StringComparison.OrdinalIgnoreCase))
@@ -114,34 +113,59 @@ public class ExcelTableExpander
 
         foreach (var row in worksheet.RowsUsed())
         {
-            foreach (var cell in row.CellsUsed())
+            var arrayKey = TryDetectRowArrayKey(row, arrays);
+            if (arrayKey != null)
             {
-                if (cell.HasFormula) continue;
-                var cellText = cell.GetString();
-                if (!cellText.Contains("{{")) continue;
-
-                var found = false;
-                foreach (System.Text.RegularExpressions.Match ph in Pattern.Matches(cellText))
-                {
-                    var inner = ph.Groups[1].Value.Trim();
-                    // Strip any transform suffix before dot check
-                    var keyPart = inner.Contains(':') ? inner[..inner.IndexOf(':')] : inner;
-                    var dm = DotNotationPattern.Match(keyPart);
-                    if (!dm.Success) continue;
-
-                    var ak = dm.Groups[1].Value;
-                    if (!arrays.ContainsKey(ak)) continue;
-
-                    result.Add((row.RowNumber(), ak));
-                    found = true;
-                    break;
-                }
-                if (found) break;
+                result.Add((row.RowNumber(), arrayKey));
             }
         }
 
         // Process bottom-to-top so row insertions don't shift higher template rows
         result.Sort((a, b) => b.rowNum.CompareTo(a.rowNum));
         return result;
+    }
+
+    private static string? TryDetectRowArrayKey(
+        IXLRow row,
+        Dictionary<string, List<Dictionary<string, string>>> arrays)
+    {
+        foreach (var cell in row.CellsUsed())
+        {
+            if (cell.HasFormula) continue;
+            var cellText = cell.GetString();
+            if (!cellText.Contains("{{", StringComparison.Ordinal)) continue;
+
+            var matchedKey = TryMatchArrayKey(cellText, arrays);
+            if (matchedKey != null)
+            {
+                return matchedKey;
+            }
+        }
+
+        return null;
+    }
+
+    private static string? TryMatchArrayKey(
+        string cellText,
+        Dictionary<string, List<Dictionary<string, string>>> arrays)
+    {
+        foreach (System.Text.RegularExpressions.Match ph in Pattern.Matches(cellText))
+        {
+            var inner = ph.Groups[1].Value.Trim();
+            // Strip any transform suffix before dot check
+            var keyPart = inner.Contains(':', StringComparison.Ordinal)
+                ? inner[..inner.IndexOf(':', StringComparison.Ordinal)]
+                : inner;
+            var dm = DotNotationPattern.Match(keyPart);
+            if (!dm.Success) continue;
+
+            var ak = dm.Groups[1].Value;
+            if (arrays.ContainsKey(ak))
+            {
+                return ak;
+            }
+        }
+
+        return null;
     }
 }

@@ -4,7 +4,6 @@ namespace SmkDoc.Tests.Infrastructure.Engines.Html.Pipeline;
 
 public sealed class HtmlLayoutProcessorTests
 {
-    private readonly HtmlLayoutProcessor _sut = new();
 
     [Fact]
     public void Process_WithEmptyOrWhitespaceHtml_ShouldReturnEmptyWithSettingsHeaders()
@@ -13,7 +12,7 @@ public sealed class HtmlLayoutProcessorTests
             HeaderHtml: "<div>Default Header</div>",
             FooterHtml: "<div>Default Footer</div>");
 
-        var result = _sut.Process("   ", settings);
+        var result = HtmlLayoutProcessor.Process("   ", settings);
 
         result.BodyHtml.Should().BeEmpty();
         result.HeaderHtml.Should().Be("<div>Default Header</div>");
@@ -33,7 +32,7 @@ public sealed class HtmlLayoutProcessorTests
 
         string html = "<html><head><title>Test</title></head><body><h1>Content</h1></body></html>";
 
-        var result = _sut.Process(html, settings);
+        var result = HtmlLayoutProcessor.Process(html, settings);
 
         result.BodyHtml.Should().Contain("@page { size: A3 landscape; margin: 20mm 14mm 25mm 12mm; }");
         result.BodyHtml.Should().Contain("<style>@page { size: A3 landscape; margin: 20mm 14mm 25mm 12mm; }</style>");
@@ -44,7 +43,7 @@ public sealed class HtmlLayoutProcessorTests
     {
         string html = "<html><head><style>@page { size: Letter; }</style></head><body>Hello</body></html>";
 
-        var result = _sut.Process(html, TemplatePageSettings.Default);
+        var result = HtmlLayoutProcessor.Process(html, TemplatePageSettings.Default);
 
         result.BodyHtml.Should().Contain("@page { size: Letter; }");
         result.BodyHtml.Should().NotContain("@page { size: A4");
@@ -55,7 +54,7 @@ public sealed class HtmlLayoutProcessorTests
     {
         string html = "<div>Fragment Content</div>";
 
-        var result = _sut.Process(html, TemplatePageSettings.Default);
+        var result = HtmlLayoutProcessor.Process(html, TemplatePageSettings.Default);
 
         result.BodyHtml.Should().StartWith("<link rel=\"stylesheet\" href=\"https://fonts.googleapis.com/css2?family=Sarabun");
         result.BodyHtml.Should().Contain("@page { size: A4 portrait; margin: 15mm 10mm 15mm 10mm; }");
@@ -76,7 +75,7 @@ public sealed class HtmlLayoutProcessorTests
             </html>
             """;
 
-        var result = _sut.Process(html);
+        var result = HtmlLayoutProcessor.Process(html);
 
         result.HeaderHtml.Should().Be("<div class=\"head\">My Header</div>");
         result.FooterHtml.Should().Be("<div class=\"foot\">Page 1</div>");
@@ -94,7 +93,7 @@ public sealed class HtmlLayoutProcessorTests
 
         string html = "<html><head></head><body><h1>Report</h1></body></html>";
 
-        var result = _sut.Process(html, settings);
+        var result = HtmlLayoutProcessor.Process(html, settings);
 
         result.HeaderHtml.Should().Be("<p>Settings Header</p>");
         result.FooterHtml.Should().Be("<p>Settings Footer</p>");
@@ -112,7 +111,7 @@ public sealed class HtmlLayoutProcessorTests
 
         string body = "<h2>Invoice Item</h2>";
 
-        var fullHtml = _sut.AssembleFullHtmlDocument(body, settings);
+        var fullHtml = HtmlLayoutProcessor.AssembleFullHtmlDocument(body, settings);
 
         fullHtml.Should().Contain("<!DOCTYPE html>");
         fullHtml.Should().Contain("<html lang=\"th\">");
@@ -128,7 +127,7 @@ public sealed class HtmlLayoutProcessorTests
     {
         string fullDocument = "<!DOCTYPE html><html><head><title>Full</title></head><body>Custom</body></html>";
 
-        var result = _sut.AssembleFullHtmlDocument(fullDocument);
+        var result = HtmlLayoutProcessor.AssembleFullHtmlDocument(fullDocument);
 
         result.Should().Be(fullDocument);
     }
@@ -139,7 +138,7 @@ public sealed class HtmlLayoutProcessorTests
         string html = "<html><head><title>Test</title></head><body><h1>Content</h1></body></html>";
         string base64Data = "AAEAAAASAQA...";
 
-        var result = _sut.InjectCustomFontFace(html, "MyCustomFont", base64Data, "truetype");
+        var result = HtmlLayoutProcessor.InjectCustomFontFace(html, "MyCustomFont", base64Data, "truetype");
 
         result.Should().Contain("@font-face");
         result.Should().Contain("font-family: 'MyCustomFont';");

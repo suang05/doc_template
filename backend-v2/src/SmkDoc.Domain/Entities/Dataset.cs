@@ -19,7 +19,7 @@ public sealed class Dataset : AggregateRoot<DatasetId>, IMustHaveProject
     public int CacheSeconds { get; private set; }
 
     // Navigation property for EF Core materialization
-    public DataConnection? DataConnection { get; private set; }
+    public DataConnection? DataConnection { get; internal set; }
 
     // For EF Core materialization only
     private Dataset() { }

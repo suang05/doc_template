@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace SmkDoc.Application.Modules.Rendering.Logs.DTOs;
 
 /// <summary>
@@ -59,4 +61,11 @@ public sealed record GenerationLogPagedResult(
 /// <summary>
 /// Pre-signed document download URL and validity window.
 /// </summary>
-public sealed record DownloadUrlResultDto(string Url, int ExpiresInSeconds = 3600);
+public sealed record DownloadUrlResultDto(
+    [param: SuppressMessage("Design", "CA1054:URI-like parameters should not be strings", Justification = "JSON/OpenAPI wire DTO contract (supports relative API paths and pre-signed URLs).")]
+    string Url,
+    int ExpiresInSeconds = 3600)
+{
+    [SuppressMessage("Design", "CA1056:URI-like properties should not be strings", Justification = "JSON/OpenAPI wire DTO contract (supports relative API paths and pre-signed URLs).")]
+    public string Url { get; init; } = Url;
+}

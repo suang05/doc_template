@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using SmkDoc.Domain.Exceptions;
 
 namespace SmkDoc.Domain.ValueObjects;
@@ -11,6 +12,7 @@ public sealed record class Sha256Hash
 
     public string Value { get; }
 
+    [SuppressMessage("Globalization", "CA1308:Normalize strings to uppercase", Justification = "Canonical lowercase SHA-256 hex digest normalization.")]
     public Sha256Hash(string value)
     {
         if (string.IsNullOrWhiteSpace(value))
@@ -28,18 +30,7 @@ public sealed record class Sha256Hash
 
     public static Sha256Hash Create(string value) => new(value);
 
-    private static bool IsValidHex(string s)
-    {
-        foreach (var c in s)
-        {
-            if (!char.IsAsciiHexDigit(c))
-            {
-                return false;
-            }
-        }
-
-        return true;
-    }
+    private static bool IsValidHex(string s) => s.All(char.IsAsciiHexDigit);
 
     public override string ToString() => Value;
 

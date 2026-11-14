@@ -24,7 +24,7 @@ public static partial class TemplatePlaceholderParser
     public static ParsedPlaceholder Parse(string content)
     {
         var trimmed = content.Trim();
-        var colonIdx = trimmed.IndexOf(':');
+        var colonIdx = trimmed.IndexOf(':', StringComparison.Ordinal);
         if (colonIdx <= 0)
         {
             return new(PlaceholderKind.Text, trimmed);

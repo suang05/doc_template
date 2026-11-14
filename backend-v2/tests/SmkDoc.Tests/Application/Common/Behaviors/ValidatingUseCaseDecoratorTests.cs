@@ -7,13 +7,13 @@ namespace SmkDoc.Tests.Application.Common.Behaviors;
 
 public sealed class ValidatingUseCaseDecoratorTests
 {
-    public sealed record SampleCommand(
+    private sealed record SampleCommand(
         string Slug,
         SampleCustomerPayload Customer,
         IReadOnlyList<SampleItemPayload> Mappings);
 
-    public sealed record SampleCustomerPayload(string TaxId);
-    public sealed record SampleItemPayload(Guid DatasetId);
+    private sealed record SampleCustomerPayload(string TaxId);
+    private sealed record SampleItemPayload(Guid DatasetId);
 
     private sealed class PrimarySampleValidator : AbstractValidator<SampleCommand>
     {
@@ -39,10 +39,12 @@ public sealed class ValidatingUseCaseDecoratorTests
     private sealed class SampleUseCase : IUseCase<SampleCommand, string>
     {
         public int ExecutionCount { get; private set; }
+        public SampleCommand? LastCommand { get; private set; }
 
         public Task<string> ExecuteAsync(SampleCommand command, CancellationToken ct = default)
         {
             ExecutionCount++;
+            LastCommand = command;
             return Task.FromResult($"processed:{command.Slug}");
         }
     }
@@ -50,10 +52,12 @@ public sealed class ValidatingUseCaseDecoratorTests
     private sealed class VoidSampleUseCase : IUseCase<SampleCommand>
     {
         public int ExecutionCount { get; private set; }
+        public SampleCommand? LastCommand { get; private set; }
 
         public Task ExecuteAsync(SampleCommand command, CancellationToken ct = default)
         {
             ExecutionCount++;
+            LastCommand = command;
             return Task.CompletedTask;
         }
     }
@@ -62,9 +66,8 @@ public sealed class ValidatingUseCaseDecoratorTests
     public async Task ExecuteAsync_WithResponse_WhenNoValidatorsRegistered_InvokesInnerUseCaseDirectly()
     {
         // Arrange
-        var inner = Substitute.For<IUseCase<SampleCommand, string>>();
+        var inner = new SampleUseCase();
         var command = new SampleCommand("invoice", new SampleCustomerPayload("1234567890123"), [new SampleItemPayload(Guid.NewGuid())]);
-        inner.ExecuteAsync(command, Arg.Any<CancellationToken>()).Returns("ok");
 
         var decorator = new ValidatingUseCaseDecorator<SampleCommand, string>(inner, []);
 
@@ -72,15 +75,16 @@ public sealed class ValidatingUseCaseDecoratorTests
         var result = await decorator.ExecuteAsync(command, CancellationToken.None);
 
         // Assert
-        result.Should().Be("ok");
-        await inner.Received(1).ExecuteAsync(command, Arg.Any<CancellationToken>());
+        result.Should().Be("processed:invoice");
+        inner.ExecutionCount.Should().Be(1);
+        inner.LastCommand.Should().Be(command);
     }
 
     [Fact]
     public async Task ExecuteAsync_WithResponse_WhenRequestIsNull_ThrowsValidationExceptionWithoutInvokingInner()
     {
         // Arrange
-        var inner = Substitute.For<IUseCase<SampleCommand, string>>();
+        var inner = new SampleUseCase();
         var decorator = new ValidatingUseCaseDecorator<SampleCommand, string>(inner, [new PrimarySampleValidator()]);
 
         // Act
@@ -89,14 +93,14 @@ public sealed class ValidatingUseCaseDecoratorTests
         // Assert
         var ex = await act.Should().ThrowAsync<ValidationException>();
         ex.Which.Errors.Should().ContainKey("request");
-        await inner.DidNotReceive().ExecuteAsync(Arg.Any<SampleCommand>(), Arg.Any<CancellationToken>());
+        inner.ExecutionCount.Should().Be(0);
     }
 
     [Fact]
     public async Task ExecuteAsync_WithResponse_WhenValidatorsFail_AggregatesAndNormalizesCamelCaseKeysWithoutInvokingInner()
     {
         // Arrange
-        var inner = Substitute.For<IUseCase<SampleCommand, string>>();
+        var inner = new SampleUseCase();
         var invalidCommand = new SampleCommand("", new SampleCustomerPayload(""), [new SampleItemPayload(Guid.Empty)]);
         var decorator = new ValidatingUseCaseDecorator<SampleCommand, string>(
             inner,
@@ -116,14 +120,14 @@ public sealed class ValidatingUseCaseDecoratorTests
         ex.Which.ErrorEntries.Should().Contain(e => e.Pointer == "/slug" && e.Code == "MIN_LENGTH" && e.Message == "Slug must be at least 3 characters.");
         ex.Which.ErrorEntries.Should().Contain(e => e.Pointer == "/customer/taxId" && e.Code == "NOT_EMPTY");
         ex.Which.ErrorEntries.Should().Contain(e => e.Pointer == "/mappings/0/datasetId" && e.Code == "NOT_EMPTY");
-        await inner.DidNotReceive().ExecuteAsync(Arg.Any<SampleCommand>(), Arg.Any<CancellationToken>());
+        inner.ExecutionCount.Should().Be(0);
     }
 
     [Fact]
     public async Task ExecuteAsync_VoidRequest_WhenValidatorsFail_ThrowsValidationExceptionAndSkipsInner()
     {
         // Arrange
-        var inner = Substitute.For<IUseCase<SampleCommand>>();
+        var inner = new VoidSampleUseCase();
         var invalidCommand = new SampleCommand("", new SampleCustomerPayload("123"), []);
         var decorator = new ValidatingUseCaseDecorator<SampleCommand>(inner, [new PrimarySampleValidator()]);
 
@@ -132,14 +136,14 @@ public sealed class ValidatingUseCaseDecoratorTests
 
         // Assert
         await act.Should().ThrowAsync<ValidationException>();
-        await inner.DidNotReceive().ExecuteAsync(Arg.Any<SampleCommand>(), Arg.Any<CancellationToken>());
+        inner.ExecutionCount.Should().Be(0);
     }
 
     [Fact]
     public async Task ExecuteAsync_VoidRequest_WhenValidatorsPass_InvokesInnerUseCase()
     {
         // Arrange
-        var inner = Substitute.For<IUseCase<SampleCommand>>();
+        var inner = new VoidSampleUseCase();
         var validCommand = new SampleCommand("invoice", new SampleCustomerPayload("1234567890123"), [new SampleItemPayload(Guid.NewGuid())]);
         var decorator = new ValidatingUseCaseDecorator<SampleCommand>(inner, [new PrimarySampleValidator()]);
 
@@ -147,7 +151,8 @@ public sealed class ValidatingUseCaseDecoratorTests
         await decorator.ExecuteAsync(validCommand, CancellationToken.None);
 
         // Assert
-        await inner.Received(1).ExecuteAsync(validCommand, Arg.Any<CancellationToken>());
+        inner.ExecutionCount.Should().Be(1);
+        inner.LastCommand.Should().Be(validCommand);
     }
 
     [Fact]

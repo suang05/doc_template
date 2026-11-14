@@ -122,8 +122,3 @@ public class TemplateBuilder
     public static implicit operator Template(TemplateBuilder builder) => builder.Build();
 }
 
-public static class aTemplate
-{
-    public static TemplateBuilder AsActive() => TemplateBuilder.ATemplate();
-    public static TemplateBuilder AsInactive() => TemplateBuilder.ATemplate().AsInactive();
-}

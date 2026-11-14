@@ -1,6 +1,6 @@
-using SmkDoc.Application.Common.Storage;
 using System.Text;
 using SmkDoc.Application.Common;
+using SmkDoc.Application.Common.Storage;
 using SmkDoc.Application.Common.Streams;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.Helpers;
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
@@ -85,60 +85,82 @@ public sealed class CreateTemplateUseCase(
         Template template,
         CancellationToken ct)
     {
-        if (command.FileStream != null && !string.IsNullOrWhiteSpace(command.FileName))
+        if (command.FileStream == null || string.IsNullOrWhiteSpace(command.FileName))
         {
-            string ext = Path.GetExtension(command.FileName).ToLowerInvariant();
-            if (string.IsNullOrWhiteSpace(ext)) ext = ".html";
-
-            if (!TemplateFormat.TryFromExtension(ext, out var format) || format == null)
-            {
-                throw new DomainValidationException(
-                    $"Unsupported template file extension: '{ext}'. Allowed formats: .html, .docx, .xlsx");
-            }
-
-            var storageKey = StorageBuckets.TemplateVersionKey(template.ProjectId, template.Id, 1, ext);
-
-            if (command.FileStream.CanSeek && command.FileStream.Length > MaxTemplateFileSizeBytes)
-            {
-                throw new DomainValidationException(
-                    $"Template file size ({command.FileStream.Length / (1024 * 1024)} MB) exceeds the 20 MB limit.");
-            }
-
-            await using var spooled = await HybridSpoolStream.SpoolFromAsync(command.FileStream, ct: ct);
-            if (spooled.Length > MaxTemplateFileSizeBytes)
-            {
-                throw new DomainValidationException(
-                    $"Template file size ({spooled.Length / (1024 * 1024)} MB) exceeds the 20 MB limit.");
-            }
-
-            if (ext == ".docx")
-            {
-                var scanResult = securityScanner.Scan(spooled);
-                if (scanResult is { IsSafe: false })
-                {
-                    throw new DomainValidationException(
-                        $"DOCX file failed security scan: {string.Join("; ", scanResult.Threats)}");
-                }
-            }
-
-            string? htmlContent = null;
-            if (format == TemplateFormat.Html)
-            {
-                spooled.Position = 0;
-                using var reader = new StreamReader(spooled, Encoding.UTF8, leaveOpen: true);
-                htmlContent = await reader.ReadToEndAsync(ct);
-            }
-
-            spooled.Position = 0;
-            await storageService.UploadAsync(StorageBuckets.Templates, storageKey, spooled, format.MimeType, ct);
-            return (storageKey, format, htmlContent);
+            return await UploadDefaultHtmlTemplateAsync(template, ct);
         }
 
+        string rawExt = Path.GetExtension(command.FileName);
+        if (string.IsNullOrWhiteSpace(rawExt)) rawExt = ".html";
+
+        if (!TemplateFormat.TryFromExtension(rawExt, out var format) || format == null)
+        {
+            throw new DomainValidationException(
+                $"Unsupported template file extension: '{rawExt}'. Allowed formats: .html, .docx, .xlsx");
+        }
+
+        if (command.FileStream.CanSeek)
+        {
+            EnsureFileSizeWithinLimit(command.FileStream.Length);
+        }
+
+        await using var spooled = await HybridSpoolStream.SpoolFromAsync(command.FileStream, ct: ct);
+        EnsureFileSizeWithinLimit(spooled.Length);
+        ValidateTemplateSecurity(format, spooled);
+
+        string? htmlContent = await ReadHtmlContentAsync(spooled, format, ct);
+        var storageKey = StorageBuckets.TemplateVersionKey(template.ProjectId, template.Id, 1, format.Extension);
+
+        spooled.Position = 0;
+        await storageService.UploadAsync(StorageBuckets.Templates, storageKey, spooled, format.MimeType, ct);
+        return (storageKey, format, htmlContent);
+    }
+
+    private async Task<(string StorageKey, TemplateFormat Format, string? HtmlContent)> UploadDefaultHtmlTemplateAsync(
+        Template template,
+        CancellationToken ct)
+    {
         var defaultStorageKey = StorageBuckets.TemplateVersionKey(template.ProjectId, template.Id, 1, ".html");
         const string defaultHtml = "<!DOCTYPE html>\n<html lang=\"th\">\n<head>\n  <meta charset=\"UTF-8\" />\n</head>\n<body>\n  <h2>Template</h2>\n</body>\n</html>";
         await using var htmlStream = await HybridSpoolStream.CreateFromUtf8StringAsync(defaultHtml, ct: ct);
         await storageService.UploadAsync(StorageBuckets.Templates, defaultStorageKey, htmlStream, "text/html; charset=utf-8", ct);
         return (defaultStorageKey, TemplateFormat.Html, defaultHtml);
+    }
+
+    private static void EnsureFileSizeWithinLimit(long sizeBytes)
+    {
+        if (sizeBytes > MaxTemplateFileSizeBytes)
+        {
+            throw new DomainValidationException(
+                $"Template file size ({sizeBytes / (1024 * 1024)} MB) exceeds the 20 MB limit.");
+        }
+    }
+
+    private void ValidateTemplateSecurity(TemplateFormat format, Stream spooled)
+    {
+        if (format != TemplateFormat.Docx)
+        {
+            return;
+        }
+
+        var scanResult = securityScanner.Scan(spooled);
+        if (scanResult is { IsSafe: false })
+        {
+            throw new DomainValidationException(
+                $"DOCX file failed security scan: {string.Join("; ", scanResult.Threats)}");
+        }
+    }
+
+    private static async Task<string?> ReadHtmlContentAsync(Stream spooled, TemplateFormat format, CancellationToken ct)
+    {
+        if (format != TemplateFormat.Html)
+        {
+            return null;
+        }
+
+        spooled.Position = 0;
+        using var reader = new StreamReader(spooled, Encoding.UTF8, leaveOpen: true);
+        return await reader.ReadToEndAsync(ct);
     }
 
     private void PopulateInitialVersionManifest(

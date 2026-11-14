@@ -91,7 +91,7 @@ public sealed class SetUserStatusUseCaseTests
         _projectContext.GetRequiredProjectId().Returns(new ProjectId(projectId));
 
         var userId = new UserId(Guid.NewGuid());
-        User user = aUser.Inactive().WithId(userId.Value);
+        User user = UserBuilder.AUser().AsInactive().WithId(userId.Value);
         _userRepo.GetByIdAsync(userId, Arg.Any<CancellationToken>())
             .Returns(user);
 
@@ -121,7 +121,7 @@ public sealed class SetUserStatusUseCaseTests
     public async Task ExecuteAsync_WhenSuperAdminDeactivatesThemselves_ThrowsBusinessRuleViolationException()
     {
         // Arrange
-        User selfUser = aUser.Active().WithId(_actorSuperAdminId.Value).WithSystemRole(SystemRole.SuperAdmin);
+        User selfUser = UserBuilder.AUser().WithId(_actorSuperAdminId.Value).WithSystemRole(SystemRole.SuperAdmin);
         _userRepo.GetByIdAsync(_actorSuperAdminId, Arg.Any<CancellationToken>())
             .Returns(selfUser);
 
@@ -141,7 +141,7 @@ public sealed class SetUserStatusUseCaseTests
     {
         // Arrange
         var targetSuperAdminId = UserId.New();
-        User targetSuperAdmin = aUser.Active().WithId(targetSuperAdminId.Value).WithSystemRole(SystemRole.SuperAdmin);
+        User targetSuperAdmin = UserBuilder.AUser().WithId(targetSuperAdminId.Value).WithSystemRole(SystemRole.SuperAdmin);
         _userRepo.GetByIdAsync(targetSuperAdminId, Arg.Any<CancellationToken>())
             .Returns(targetSuperAdmin);
         _userRepo.CountActiveSuperAdminsAsync(Arg.Any<CancellationToken>())
@@ -163,7 +163,7 @@ public sealed class SetUserStatusUseCaseTests
     {
         // Arrange
         var targetUserId = UserId.New();
-        User targetUser = aUser.Active().WithId(targetUserId.Value).WithSystemRole(SystemRole.Member);
+        User targetUser = UserBuilder.AUser().WithId(targetUserId.Value).WithSystemRole(SystemRole.Member);
         _userRepo.GetByIdAsync(targetUserId, Arg.Any<CancellationToken>())
             .Returns(targetUser);
 

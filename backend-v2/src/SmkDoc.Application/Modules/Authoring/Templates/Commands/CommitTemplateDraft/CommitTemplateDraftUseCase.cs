@@ -1,5 +1,5 @@
-using SmkDoc.Application.Common.Storage;
 using SmkDoc.Application.Common;
+using SmkDoc.Application.Common.Storage;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.Helpers;
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Domain.Entities;
@@ -55,9 +55,7 @@ public sealed class CommitTemplateDraftUseCase(
 
         try
         {
-            var placeholderList = command.Mappings is { Count: > 0 }
-                ? command.Mappings.Select(m => m.Placeholder).Where(p => !string.IsNullOrWhiteSpace(p)).Distinct(StringComparer.OrdinalIgnoreCase).ToList()
-                : (draft.Placeholders ?? []).Where(p => !string.IsNullOrWhiteSpace(p)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            var placeholderList = ResolvePlaceholderList(command, draft.Placeholders);
 
             string? inferredSchema = schemaInferenceService?.InferSchemaFromPlaceholders(placeholderList, templateSlug: command.Slug);
             string? samplePayload = schemaInferenceService?.GenerateDefaultSamplePayload(placeholderList);
@@ -71,37 +69,7 @@ public sealed class CommitTemplateDraftUseCase(
                 "Initial upload via draft pipeline");
             version.UpdateDataSchema(inferredSchema, samplePayload, now);
 
-            if (command.Mappings is { Count: > 0 })
-            {
-                var mappings = new List<FieldMapping>(command.Mappings.Count);
-                foreach (var m in command.Mappings)
-                {
-                    var dsType = m.DataSourceType != null ? DataSourceType.FromString(m.DataSourceType) : DataSourceType.Json;
-                    var fm = FieldMapping.Create(
-                        template.Id,
-                        m.Placeholder,
-                        m.SourcePath,
-                        m.Label ?? string.Empty,
-                        m.Required,
-                        m.SortOrder,
-                        now,
-                        dsType,
-                        m.DefaultValue,
-                        m.Transform);
-
-                    if (!string.IsNullOrWhiteSpace(m.DatasetAlias) ||
-                        !string.IsNullOrWhiteSpace(m.ResultPath) ||
-                        !string.IsNullOrWhiteSpace(m.MathExpression))
-                    {
-                        var aliasVo = !string.IsNullOrWhiteSpace(m.DatasetAlias) ? DatasetAlias.Create(m.DatasetAlias) : null;
-                        fm.ConfigureDataSource(dsType, aliasVo, m.ResultPath, m.MathExpression, now);
-                    }
-
-                    mappings.Add(fm);
-                }
-
-                template.ReplaceFieldMappings(mappings, now);
-            }
+            PopulateTemplateMappings(template, command, now);
 
             version.UpdateMappingsSnapshot(FieldMappingSnapshotSerializer.Serialize(template.FieldMappings), now);
 
@@ -124,5 +92,59 @@ public sealed class CommitTemplateDraftUseCase(
 
         await draftCache.RemoveAsync(projectContext.GetRequiredProjectId(), command.DraftId, ct);
         return new CommitDraftResultDto(template.Id.Value);
+    }
+
+    private static List<string> ResolvePlaceholderList(
+        CommitTemplateDraftCommand command,
+        IReadOnlyCollection<string>? draftPlaceholders)
+    {
+        IEnumerable<string> source = command.Mappings is { Count: > 0 }
+            ? command.Mappings.Select(m => m.Placeholder)
+            : draftPlaceholders ?? [];
+
+        return source
+            .Where(p => !string.IsNullOrWhiteSpace(p))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static void PopulateTemplateMappings(
+        Template template,
+        CommitTemplateDraftCommand command,
+        DateTimeOffset now)
+    {
+        if (command.Mappings is not { Count: > 0 })
+        {
+            return;
+        }
+
+        var mappings = new List<FieldMapping>(command.Mappings.Count);
+        foreach (var m in command.Mappings)
+        {
+            var dsType = m.DataSourceType != null ? DataSourceType.FromString(m.DataSourceType) : DataSourceType.Json;
+            var fm = FieldMapping.Create(
+                template.Id,
+                m.Placeholder,
+                m.SourcePath,
+                m.Label ?? string.Empty,
+                m.Required,
+                m.SortOrder,
+                now,
+                dsType,
+                m.DefaultValue,
+                m.Transform);
+
+            if (!string.IsNullOrWhiteSpace(m.DatasetAlias) ||
+                !string.IsNullOrWhiteSpace(m.ResultPath) ||
+                !string.IsNullOrWhiteSpace(m.MathExpression))
+            {
+                var aliasVo = !string.IsNullOrWhiteSpace(m.DatasetAlias) ? DatasetAlias.Create(m.DatasetAlias) : null;
+                fm.ConfigureDataSource(dsType, aliasVo, m.ResultPath, m.MathExpression, now);
+            }
+
+            mappings.Add(fm);
+        }
+
+        template.ReplaceFieldMappings(mappings, now);
     }
 }

@@ -126,7 +126,7 @@ public class TemplateVersionBuilder
     {
         var version = new TemplateVersion(
             _id,
-            new SmkDoc.Domain.ValueObjects.Ids.TemplateId(_templateId),
+            new TemplateId(_templateId),
             _version,
             _storageKey,
             _format,

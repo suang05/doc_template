@@ -45,7 +45,7 @@ public sealed class UpdateUserRoleUseCaseTests
         var projectId = Guid.NewGuid();
         var userId = Guid.NewGuid();
 
-        User user = aUser.Active().WithId(userId);
+        User user = UserBuilder.AUser().WithId(userId);
         var roleEntry = new UserProjectRoleBuilder()
             .InProject(projectId)
             .ForUser(userId)

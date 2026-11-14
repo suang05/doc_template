@@ -38,7 +38,7 @@ public sealed class UpdateDatasetUseCaseTests
         Func<Task> act = () => pipeline.ExecuteAsync(command, CancellationToken.None);
 
         // Assert
-        await act.Should().ThrowAsync<SmkDoc.Application.Common.Exceptions.ValidationException>();
+        await act.Should().ThrowAsync<ValidationException>();
         await _datasetResolver.DidNotReceive().ValidateAndResolveConnectionAsync(Arg.Any<DataConnectionId>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
         await _datasetRepo.DidNotReceive().GetByIdAsync(Arg.Any<DatasetId>(), Arg.Any<CancellationToken>());
         await _unitOfWork.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());

@@ -2,13 +2,13 @@ using SmkDoc.Application.Modules.Authoring.Templates.Parsing;
 
 namespace SmkDoc.Infrastructure.Engines.Html.Pipeline;
 
-public class HtmlPlaceholderTransformer
+public static class HtmlPlaceholderTransformer
 {
     /// <summary>
     /// Normalizes template syntax: converts legacy {{key:transform}}, {{qr:key}}, {{barcode:key}}
     /// into standard Handlebars helper syntax.
     /// </summary>
-    public string Transform(string html)
+    public static string Transform(string html)
     {
         if (string.IsNullOrWhiteSpace(html) || !html.Contains("{{", StringComparison.Ordinal))
             return html;
@@ -30,9 +30,9 @@ public class HtmlPlaceholderTransformer
             return parsed.Kind switch
             {
                 PlaceholderKind.Transform => $"{{{{thaitransform {parsed.Key} \"{parsed.Extra}\"}}}}",
-                PlaceholderKind.Qr        => $"{{{{qr {parsed.Key}}}}}",
-                PlaceholderKind.Barcode   => $"{{{{barcode {parsed.Key}}}}}",
-                _                         => match.Value
+                PlaceholderKind.Qr => $"{{{{qr {parsed.Key}}}}}",
+                PlaceholderKind.Barcode => $"{{{{barcode {parsed.Key}}}}}",
+                _ => match.Value
             };
         });
     }

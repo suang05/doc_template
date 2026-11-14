@@ -42,7 +42,7 @@ public sealed class TemplateQueryService(AppDbContext context) : ITemplateQueryS
         var totalCount = await query.CountAsync(ct);
 
         var safePage = page < 1 ? 1 : page;
-        var safePageSize = pageSize < 1 ? 20 : (pageSize > 100 ? 100 : pageSize);
+        var safePageSize = pageSize < 1 ? 20 : Math.Min(pageSize, 100);
 
         var rows = await query
             .OrderByDescending(t => t.UpdatedAt ?? t.CreatedAt)

@@ -1,6 +1,7 @@
 using System.Globalization;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Scalar.AspNetCore;
 using SmkDoc.Api.Contracts.Common;
 using SmkDoc.Api.Middleware;
@@ -66,12 +67,12 @@ public static class WebApplicationExtensions
                 context.Response.ContentType = "application/json";
                 var checks = report.Entries.Select(e => new HealthCheckItem(
                     e.Key,
-                    e.Value.Status.ToString().ToLowerInvariant(),
+                    FormatHealthStatus(e.Value.Status),
                     e.Value.Description,
                     (int)e.Value.Duration.TotalMilliseconds));
 
                 var payload = new HealthCheckResponse(
-                    report.Status.ToString().ToLowerInvariant(),
+                    FormatHealthStatus(report.Status),
                     checks,
                     (int)report.TotalDuration.TotalMilliseconds);
 
@@ -95,4 +96,11 @@ public static class WebApplicationExtensions
 
         return app;
     }
+
+    private static string FormatHealthStatus(HealthStatus status) => status switch
+    {
+        HealthStatus.Healthy => "healthy",
+        HealthStatus.Degraded => "degraded",
+        _ => "unhealthy"
+    };
 }

@@ -11,8 +11,9 @@ public sealed class ProjectSlugTests
     {
         var slug = new ProjectSlug(input);
 
-        slug.Value.Should().Be(input.ToLowerInvariant());
-        ((string)slug).Should().Be(input.ToLowerInvariant());
+        slug.Value.Should().MatchRegex("^[a-z0-9-]+$");
+        slug.Value.Should().Be(input);
+        ((string)slug).Should().Be(input);
     }
 
     [Theory]

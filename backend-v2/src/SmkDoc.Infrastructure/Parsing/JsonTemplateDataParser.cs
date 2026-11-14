@@ -32,7 +32,7 @@ public sealed class JsonTemplateDataParser : ITemplateDataParser
     public (Dictionary<string, string> Replacements, Dictionary<string, List<Dictionary<string, string>>> Arrays) FlattenNamed(string json)
     {
         var replacements = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        var arrays       = new Dictionary<string, List<Dictionary<string, string>>>(StringComparer.OrdinalIgnoreCase);
+        var arrays = new Dictionary<string, List<Dictionary<string, string>>>(StringComparer.OrdinalIgnoreCase);
 
         if (string.IsNullOrWhiteSpace(json))
             return (replacements, arrays);
@@ -40,36 +40,9 @@ public sealed class JsonTemplateDataParser : ITemplateDataParser
         try
         {
             using var document = JsonDocument.Parse(json);
-            var root = document.RootElement;
-            if (root.ValueKind != JsonValueKind.Object)
-                return (replacements, arrays);
-
-            foreach (var prop in root.EnumerateObject())
+            if (document.RootElement.ValueKind == JsonValueKind.Object)
             {
-                switch (prop.Value.ValueKind)
-                {
-                    case JsonValueKind.Array:
-                        var rows = new List<Dictionary<string, string>>();
-                        foreach (var item in prop.Value.EnumerateArray())
-                        {
-                            if (item.ValueKind != JsonValueKind.Object) continue;
-                            var row = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-                            foreach (var cell in item.EnumerateObject())
-                                row[cell.Name] = cell.Value.ToString();
-                            rows.Add(row);
-                        }
-                        arrays[prop.Name] = rows;
-                        break;
-
-                    case JsonValueKind.Object:
-                        foreach (var sub in prop.Value.EnumerateObject())
-                            replacements[$"{prop.Name}.{sub.Name}"] = sub.Value.ToString();
-                        break;
-
-                    default:
-                        replacements[prop.Name] = prop.Value.ToString();
-                        break;
-                }
+                PopulateFromRootObject(document.RootElement, replacements, arrays);
             }
         }
         catch (JsonException)
@@ -78,6 +51,57 @@ public sealed class JsonTemplateDataParser : ITemplateDataParser
         }
 
         return (replacements, arrays);
+    }
+
+    private static void PopulateFromRootObject(
+        JsonElement root,
+        Dictionary<string, string> replacements,
+        Dictionary<string, List<Dictionary<string, string>>> arrays)
+    {
+        foreach (var prop in root.EnumerateObject())
+        {
+            switch (prop.Value.ValueKind)
+            {
+                case JsonValueKind.Array:
+                    arrays[prop.Name] = ExtractArrayRows(prop.Value);
+                    break;
+                case JsonValueKind.Object:
+                    FlattenObjectProperty(prop.Name, prop.Value, replacements);
+                    break;
+                default:
+                    replacements[prop.Name] = prop.Value.ToString();
+                    break;
+            }
+        }
+    }
+
+    private static List<Dictionary<string, string>> ExtractArrayRows(JsonElement arrayElement)
+    {
+        var rows = new List<Dictionary<string, string>>();
+        foreach (var item in arrayElement.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.Object) continue;
+
+            var row = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var cell in item.EnumerateObject())
+            {
+                row[cell.Name] = cell.Value.ToString();
+            }
+            rows.Add(row);
+        }
+
+        return rows;
+    }
+
+    private static void FlattenObjectProperty(
+        string prefix,
+        JsonElement objectElement,
+        Dictionary<string, string> replacements)
+    {
+        foreach (var sub in objectElement.EnumerateObject())
+        {
+            replacements[$"{prefix}.{sub.Name}"] = sub.Value.ToString();
+        }
     }
 
     private static object? ParseElement(JsonElement element)

@@ -34,7 +34,7 @@ public sealed class SchemaValidationException : DomainException
                innerException)
     {
         TemplateSlug = templateSlug;
-        Version      = version;
-        Errors       = errors;
+        Version = version;
+        Errors = errors;
     }
 }

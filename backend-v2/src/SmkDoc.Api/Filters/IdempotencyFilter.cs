@@ -56,20 +56,17 @@ public sealed partial class IdempotencyFilter(
 
     public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
     {
-        // 1. Inspect Idempotency-Key header
         if (!context.HttpContext.Request.Headers.TryGetValue(HeaderName, out var rawKey) || string.IsNullOrWhiteSpace(rawKey))
         {
             if (mandatory)
             {
-                var problemDetails = ProblemDetailsBuilder.Create(
+                context.Result = new BadRequestObjectResult(ProblemDetailsBuilder.Create(
                     status: StatusCodes.Status400BadRequest,
                     title: "Missing Idempotency-Key",
                     detail: "The 'Idempotency-Key' request header is required for this operation.",
                     errorCode: "MISSING_IDEMPOTENCY_KEY",
                     instance: context.HttpContext.Request.Path,
-                    traceId: ProblemDetailsBuilder.ResolveTraceId(context.HttpContext));
-
-                context.Result = new BadRequestObjectResult(problemDetails);
+                    traceId: ProblemDetailsBuilder.ResolveTraceId(context.HttpContext)));
                 return;
             }
 
@@ -78,97 +75,111 @@ public sealed partial class IdempotencyFilter(
         }
 
         var idempotencyKey = rawKey.ToString().Trim();
-        var callerId = projectContext.IsResolved
-            ? projectContext.GetRequiredProjectId().Value.ToString("N")
-            : (projectContext.UserId?.Value.ToString("N") ?? projectContext.CallerIdentity ?? "anonymous");
+        var callerId = ResolveCallerId();
         var cacheKey = $"idempotency:{callerId}:{idempotencyKey}";
         var fingerprint = RequestFingerprintCalculator.ComputeFingerprint(context, jsonSerializerOptions);
 
-        // 2. Atomic Acquisition & State Inspection
         var acquisitionResult = await idempotencyStore.TryAcquireOrGetAsync(
             cacheKey,
             fingerprint,
             InFlightTtl,
             context.HttpContext.RequestAborted);
 
-        if (!acquisitionResult.IsAcquired && acquisitionResult.ExistingRecord is not null)
+        if (!acquisitionResult.IsAcquired &&
+            acquisitionResult.ExistingRecord is not null &&
+            TryHandleExistingRecord(context, acquisitionResult.ExistingRecord, idempotencyKey, callerId, fingerprint))
         {
-            var existing = acquisitionResult.ExistingRecord;
+            return;
+        }
 
-            // Scenario A: Concurrent execution in-flight
-            if (existing.Status == IdempotencyStatus.InFlight)
+        var executedContext = await ExecuteWithRollbackAsync(context, next, cacheKey, idempotencyKey);
+        if (executedContext is not null)
+        {
+            await PersistOrEvictResponseAsync(context, executedContext, cacheKey, fingerprint);
+        }
+    }
+
+    private string ResolveCallerId() =>
+        projectContext.IsResolved
+            ? projectContext.GetRequiredProjectId().Value.ToString("N")
+            : (projectContext.UserId?.Value.ToString("N") ?? projectContext.CallerIdentity ?? "anonymous");
+
+    private bool TryHandleExistingRecord(
+        ActionExecutingContext context,
+        IdempotencyRecord existing,
+        string idempotencyKey,
+        string callerId,
+        string fingerprint)
+    {
+        if (existing.Status == IdempotencyStatus.InFlight)
+        {
+            LogKeyInFlight(logger, idempotencyKey, callerId);
+            context.Result = new ConflictObjectResult(ProblemDetailsBuilder.Create(
+                status: StatusCodes.Status409Conflict,
+                title: "Request In-Flight",
+                detail: "A mutation request with this Idempotency-Key is currently being processed.",
+                errorCode: "IDEMPOTENCY_IN_FLIGHT",
+                instance: context.HttpContext.Request.Path,
+                traceId: ProblemDetailsBuilder.ResolveTraceId(context.HttpContext)));
+            return true;
+        }
+
+        if (existing.Status != IdempotencyStatus.Completed)
+        {
+            return false;
+        }
+
+        if (!string.Equals(existing.RequestFingerprint, fingerprint, StringComparison.Ordinal))
+        {
+            LogKeyPayloadMismatch(logger, idempotencyKey, callerId);
+            var mismatchDetails = ProblemDetailsBuilder.Create(
+                status: StatusCodes.Status422UnprocessableEntity,
+                title: "Idempotency-Key Payload Mismatch",
+                detail: "This Idempotency-Key was previously used with a different request payload.",
+                errorCode: "IDEMPOTENCY_PAYLOAD_MISMATCH",
+                instance: context.HttpContext.Request.Path,
+                traceId: ProblemDetailsBuilder.ResolveTraceId(context.HttpContext));
+
+            context.Result = new ObjectResult(mismatchDetails)
             {
-                LogKeyInFlight(logger, idempotencyKey, callerId);
+                StatusCode = StatusCodes.Status422UnprocessableEntity
+            };
+            return true;
+        }
 
-                var conflictDetails = ProblemDetailsBuilder.Create(
-                    status: StatusCodes.Status409Conflict,
-                    title: "Request In-Flight",
-                    detail: "A mutation request with this Idempotency-Key is currently being processed.",
-                    errorCode: "IDEMPOTENCY_IN_FLIGHT",
-                    instance: context.HttpContext.Request.Path,
-                    traceId: ProblemDetailsBuilder.ResolveTraceId(context.HttpContext));
+        ReplayCachedResponse(context, existing);
+        return true;
+    }
 
-                context.Result = new ConflictObjectResult(conflictDetails);
-                return;
-            }
+    private static void ReplayCachedResponse(ActionExecutingContext context, IdempotencyRecord existing)
+    {
+        context.HttpContext.Response.Headers[HeaderReplayed] = "true";
 
-            // Scenario B: Completed cached execution
-            if (existing.Status == IdempotencyStatus.Completed)
+        if (existing.Headers is not null)
+        {
+            foreach (var (headerName, headerValue) in existing.Headers)
             {
-                // Verify request payload fingerprint
-                if (!string.Equals(existing.RequestFingerprint, fingerprint, StringComparison.Ordinal))
-                {
-                    LogKeyPayloadMismatch(logger, idempotencyKey, callerId);
-
-                    var mismatchDetails = ProblemDetailsBuilder.Create(
-                        status: StatusCodes.Status422UnprocessableEntity,
-                        title: "Idempotency-Key Payload Mismatch",
-                        detail: "This Idempotency-Key was previously used with a different request payload.",
-                        errorCode: "IDEMPOTENCY_PAYLOAD_MISMATCH",
-                        instance: context.HttpContext.Request.Path,
-                        traceId: ProblemDetailsBuilder.ResolveTraceId(context.HttpContext));
-
-                    var mismatchResult = new ObjectResult(mismatchDetails)
-                    {
-                        StatusCode = StatusCodes.Status422UnprocessableEntity
-                    };
-                    context.Result = mismatchResult;
-                    return;
-                }
-
-                // Replay cached response with IETF header
-                context.HttpContext.Response.Headers[HeaderReplayed] = "true";
-
-                if (existing.Headers is not null)
-                {
-                    foreach (var (headerName, headerValue) in existing.Headers)
-                    {
-                        context.HttpContext.Response.Headers[headerName] = headerValue;
-                    }
-                }
-
-                var cachedStatus = existing.StatusCode ?? StatusCodes.Status200OK;
-                if (!string.IsNullOrWhiteSpace(existing.ResponseJson))
-                {
-                    var contentResult = new ContentResult
-                    {
-                        Content = existing.ResponseJson,
-                        ContentType = "application/json; charset=utf-8",
-                        StatusCode = cachedStatus
-                    };
-                    context.Result = contentResult;
-                }
-                else
-                {
-                    var statusResult = new StatusCodeResult(cachedStatus);
-                    context.Result = statusResult;
-                }
-
-                return;
+                context.HttpContext.Response.Headers[headerName] = headerValue;
             }
         }
 
-        // 3. Execution Pipeline with Failure Rollback
+        var cachedStatus = existing.StatusCode ?? StatusCodes.Status200OK;
+        context.Result = !string.IsNullOrWhiteSpace(existing.ResponseJson)
+            ? new ContentResult
+            {
+                Content = existing.ResponseJson,
+                ContentType = "application/json; charset=utf-8",
+                StatusCode = cachedStatus
+            }
+            : new StatusCodeResult(cachedStatus);
+    }
+
+    private async Task<ActionExecutedContext?> ExecuteWithRollbackAsync(
+        ActionExecutingContext context,
+        ActionExecutionDelegate next,
+        string cacheKey,
+        string idempotencyKey)
+    {
         ActionExecutedContext executedContext;
         try
         {
@@ -184,63 +195,72 @@ public sealed partial class IdempotencyFilter(
         {
             LogUnhandledRollback(logger, idempotencyKey);
             await idempotencyStore.RemoveAsync(cacheKey, context.HttpContext.RequestAborted);
-            return;
+            return null;
         }
 
-        // 4. Save Completed Successful Response
+        return executedContext;
+    }
+
+    private async Task PersistOrEvictResponseAsync(
+        ActionExecutingContext context,
+        ActionExecutedContext executedContext,
+        string cacheKey,
+        string fingerprint)
+    {
         if (executedContext.Result is ObjectResult objectResult)
         {
             var statusCode = objectResult.StatusCode ?? StatusCodes.Status200OK;
-            if (statusCode is >= 200 and < 300)
-            {
-                Dictionary<string, string>? headersToCache = null;
-                if (context.HttpContext.Response.Headers.TryGetValue("Location", out var locationValue))
-                {
-                    headersToCache = new Dictionary<string, string>
-                    {
-                        ["Location"] = locationValue.ToString()
-                    };
-                }
+            await SaveOrEvictSuccessStatusAsync(
+                context.HttpContext,
+                cacheKey,
+                fingerprint,
+                statusCode,
+                () => (
+                    JsonSerializer.Serialize(objectResult.Value, jsonSerializerOptions),
+                    ExtractLocationHeaders(context.HttpContext.Response.Headers)));
+            return;
+        }
 
-                var serializedBody = JsonSerializer.Serialize(objectResult.Value, jsonSerializerOptions);
+        if (executedContext.Result is StatusCodeResult statusCodeResult)
+        {
+            await SaveOrEvictSuccessStatusAsync(
+                context.HttpContext,
+                cacheKey,
+                fingerprint,
+                statusCodeResult.StatusCode,
+                static () => (string.Empty, null));
+            return;
+        }
 
-                await idempotencyStore.SaveCompletedAsync(
-                    cacheKey,
-                    fingerprint,
-                    statusCode,
-                    serializedBody,
-                    headersToCache,
-                    completedTtl,
-                    context.HttpContext.RequestAborted);
-            }
-            else
-            {
-                // Non-2xx response: evict in-flight lock so client can retry
-                await idempotencyStore.RemoveAsync(cacheKey, context.HttpContext.RequestAborted);
-            }
-        }
-        else if (executedContext.Result is StatusCodeResult statusCodeResult)
-        {
-            var statusCode = statusCodeResult.StatusCode;
-            if (statusCode is >= 200 and < 300)
-            {
-                await idempotencyStore.SaveCompletedAsync(
-                    cacheKey,
-                    fingerprint,
-                    statusCode,
-                    string.Empty,
-                    null,
-                    completedTtl,
-                    context.HttpContext.RequestAborted);
-            }
-            else
-            {
-                await idempotencyStore.RemoveAsync(cacheKey, context.HttpContext.RequestAborted);
-            }
-        }
-        else
-        {
-            await idempotencyStore.RemoveAsync(cacheKey, context.HttpContext.RequestAborted);
-        }
+        await idempotencyStore.RemoveAsync(cacheKey, context.HttpContext.RequestAborted);
     }
+
+    private async Task SaveOrEvictSuccessStatusAsync(
+        HttpContext httpContext,
+        string cacheKey,
+        string fingerprint,
+        int statusCode,
+        Func<(string Body, Dictionary<string, string>? Headers)> payloadFactory)
+    {
+        if (statusCode is >= 200 and < 300)
+        {
+            var (body, headers) = payloadFactory();
+            await idempotencyStore.SaveCompletedAsync(
+                cacheKey,
+                fingerprint,
+                statusCode,
+                body,
+                headers,
+                completedTtl,
+                httpContext.RequestAborted);
+            return;
+        }
+
+        await idempotencyStore.RemoveAsync(cacheKey, httpContext.RequestAborted);
+    }
+
+    private static Dictionary<string, string>? ExtractLocationHeaders(IHeaderDictionary responseHeaders) =>
+        responseHeaders.TryGetValue("Location", out var locationValue)
+            ? new Dictionary<string, string> { ["Location"] = locationValue.ToString() }
+            : null;
 }

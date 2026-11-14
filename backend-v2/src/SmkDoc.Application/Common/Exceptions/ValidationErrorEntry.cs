@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Text;
 
 namespace SmkDoc.Application.Common.Exceptions;
@@ -5,8 +6,15 @@ namespace SmkDoc.Application.Common.Exceptions;
 /// <summary>
 /// Normalized RFC 9457 field-level validation error entry with RFC 6901 JSON Pointer.
 /// </summary>
-public sealed record ValidationErrorEntry(string Pointer, string Code, string Message)
+public sealed record ValidationErrorEntry(
+    [param: SuppressMessage("Naming", "CA1720:Identifier contains type name", Justification = "RFC 9457 / RFC 6901 JSON Pointer field name.")]
+    string Pointer,
+    string Code,
+    string Message)
 {
+    [SuppressMessage("Naming", "CA1720:Identifier contains type name", Justification = "RFC 9457 / RFC 6901 JSON Pointer field name.")]
+    public string Pointer { get; init; } = Pointer;
+
     private const string DefaultValidationCode = "VALIDATION_ERROR";
 
     /// <summary>
@@ -110,7 +118,7 @@ public sealed record ValidationErrorEntry(string Pointer, string Code, string Me
     }
 
     private static string EscapeJsonPointerToken(string token) =>
-        token.Contains('~') || token.Contains('/')
+        token.Contains('~', StringComparison.Ordinal) || token.Contains('/', StringComparison.Ordinal)
             ? token.Replace("~", "~0", StringComparison.Ordinal).Replace("/", "~1", StringComparison.Ordinal)
             : token;
 

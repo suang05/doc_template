@@ -40,7 +40,7 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
-    private static IServiceCollection AddApiProblemDetails(
+    private static void AddApiProblemDetails(
         this IServiceCollection services,
         IConfiguration configuration)
     {
@@ -54,18 +54,18 @@ public static class ServiceCollectionExtensions
                     ? existingCodeStr
                     : ProblemDetailsBuilder.ResolveDefaultErrorCode(context.ProblemDetails.Status);
 
-                context.ProblemDetails.Type ??= ProblemDetailsBuilder.ResolveTypeUri(errorCode, configuration["Problems:BaseUri"]);
+                context.ProblemDetails.Type ??= ProblemDetailsBuilder.ResolveTypeUri(
+                    errorCode,
+                    ProblemDetailsBuilder.TryParseBaseUri(configuration["Problems:BaseUri"])).OriginalString;
                 context.ProblemDetails.Instance ??= context.HttpContext.Request.Path;
                 context.ProblemDetails.Extensions.TryAdd("errorCode", errorCode);
                 context.ProblemDetails.Extensions.TryAdd("traceId", ProblemDetailsBuilder.ResolveTraceId(context.HttpContext));
             };
         });
         services.AddExceptionHandler<GlobalExceptionHandler>();
-
-        return services;
     }
 
-    private static IServiceCollection AddApiControllers(this IServiceCollection services)
+    private static void AddApiControllers(this IServiceCollection services)
     {
         var jsonEnumConverter = new JsonStringEnumConverter(JsonNamingPolicy.CamelCase);
 
@@ -89,11 +89,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IdempotencyFilter>();
         services.AddScoped<ETagFilter>();
         services.AddEndpointsApiExplorer();
-
-        return services;
     }
 
-    private static IServiceCollection AddApiCors(
+    private static void AddApiCors(
         this IServiceCollection services,
         IConfiguration configuration)
     {
@@ -105,11 +103,13 @@ public static class ServiceCollectionExtensions
         var environment = configuration["ASPNETCORE_ENVIRONMENT"] ?? configuration["DOTNET_ENVIRONMENT"] ?? "Production";
         bool isDevelopment = string.Equals(environment, "Development", StringComparison.OrdinalIgnoreCase);
 
-        var allowedOrigins = configuredOrigins.Length > 0
-            ? configuredOrigins
-            : isDevelopment
+        string[] allowedOrigins = configuredOrigins;
+        if (allowedOrigins.Length == 0)
+        {
+            allowedOrigins = isDevelopment
                 ? ["http://localhost:3000", "http://localhost:5173", "http://127.0.0.1:3000", "http://127.0.0.1:5173"]
-                : Array.Empty<string>();
+                : [];
+        }
 
         services.AddCors(options =>
         {
@@ -128,11 +128,9 @@ public static class ServiceCollectionExtensions
                 }
             });
         });
-
-        return services;
     }
 
-    private static IServiceCollection AddApiAuthentication(
+    private static void AddApiAuthentication(
         this IServiceCollection services,
         IConfiguration configuration)
     {
@@ -179,65 +177,66 @@ public static class ServiceCollectionExtensions
             .AddScheme<AuthenticationSchemeOptions, ApiKeyAuthenticationHandler>(
                 ApiKeyAuthenticationDefaults.AuthenticationScheme, _ => { });
 
-        services.AddAuthorization(options =>
-        {
-            options.AddPolicy(AuthorizationPolicies.RequireSuperAdmin, policy =>
-            {
-                policy.RequireAssertion(ctx =>
-                    ctx.User.HasClaim("SystemRole", RoleConstants.SuperAdmin) ||
-                    ctx.User.IsInRole(RoleConstants.SuperAdmin));
-            });
-
-            options.AddPolicy(AuthorizationPolicies.RequireProjectAdmin, policy =>
-            {
-                policy.RequireAssertion(ctx =>
-                    ctx.User.IsInRole(RoleConstants.Admin) ||
-                    (ctx.User.IsInRole("M2MClient") && ctx.User.HasClaim(c => c.Type is "Scope" or "ApiKeyScope" && c.Value == "ReadWrite")));
-            });
-
-            options.AddPolicy(AuthorizationPolicies.CanManageTemplates, policy =>
-            {
-                policy.RequireAssertion(ctx =>
-                    ctx.User.IsInRole(RoleConstants.Developer) ||
-                    ctx.User.IsInRole(RoleConstants.Admin) ||
-                    (ctx.User.IsInRole("M2MClient") && ctx.User.HasClaim(c => c.Type is "Scope" or "ApiKeyScope" && c.Value == "ReadWrite")));
-            });
-
-            options.AddPolicy(AuthorizationPolicies.CanGenerateDocuments, policy =>
-            {
-                policy.RequireAssertion(ctx => ctx.User.Identity?.IsAuthenticated == true);
-            });
-
-            options.AddPolicy(AuthorizationPolicies.CanManageDataConnections, policy =>
-            {
-                policy.RequireAssertion(ctx =>
-                    ctx.User.IsInRole(RoleConstants.Admin));
-            });
-
-            options.AddPolicy(AuthorizationPolicies.CanManageDatasets, policy =>
-            {
-                policy.RequireAssertion(ctx =>
-                    ctx.User.IsInRole(RoleConstants.Developer) ||
-                    ctx.User.IsInRole(RoleConstants.Admin) ||
-                    (ctx.User.IsInRole("M2MClient") && ctx.User.HasClaim(c => c.Type is "Scope" or "ApiKeyScope" && c.Value == "ReadWrite")));
-            });
-        });
-
-        return services;
+        services.AddAuthorization(ConfigureAuthorizationPolicies);
     }
 
-    private static IServiceCollection AddApiOpenApi(this IServiceCollection services)
+    private static void ConfigureAuthorizationPolicies(Microsoft.AspNetCore.Authorization.AuthorizationOptions options)
+    {
+        options.AddPolicy(AuthorizationPolicies.RequireSuperAdmin, policy =>
+        {
+            policy.RequireAssertion(ctx =>
+                ctx.User.HasClaim("SystemRole", RoleConstants.SuperAdmin) ||
+                ctx.User.IsInRole(RoleConstants.SuperAdmin));
+        });
+
+        options.AddPolicy(AuthorizationPolicies.RequireProjectAdmin, policy =>
+        {
+            policy.RequireAssertion(ctx =>
+                ctx.User.IsInRole(RoleConstants.Admin) ||
+                HasReadWriteM2MScope(ctx));
+        });
+
+        options.AddPolicy(AuthorizationPolicies.CanManageTemplates, policy =>
+        {
+            policy.RequireAssertion(ctx =>
+                ctx.User.IsInRole(RoleConstants.Developer) ||
+                ctx.User.IsInRole(RoleConstants.Admin) ||
+                HasReadWriteM2MScope(ctx));
+        });
+
+        options.AddPolicy(AuthorizationPolicies.CanGenerateDocuments, policy =>
+        {
+            policy.RequireAssertion(ctx => ctx.User.Identity?.IsAuthenticated == true);
+        });
+
+        options.AddPolicy(AuthorizationPolicies.CanManageDataConnections, policy =>
+        {
+            policy.RequireAssertion(ctx => ctx.User.IsInRole(RoleConstants.Admin));
+        });
+
+        options.AddPolicy(AuthorizationPolicies.CanManageDatasets, policy =>
+        {
+            policy.RequireAssertion(ctx =>
+                ctx.User.IsInRole(RoleConstants.Developer) ||
+                ctx.User.IsInRole(RoleConstants.Admin) ||
+                HasReadWriteM2MScope(ctx));
+        });
+    }
+
+    private static bool HasReadWriteM2MScope(Microsoft.AspNetCore.Authorization.AuthorizationHandlerContext ctx) =>
+        ctx.User.IsInRole("M2MClient") &&
+        ctx.User.HasClaim(c => c.Type is "Scope" or "ApiKeyScope" && c.Value == "ReadWrite");
+
+    private static void AddApiOpenApi(this IServiceCollection services)
     {
         services.AddOpenApi("v1", options =>
         {
             options.AddDocumentTransformer<OpenApiDocumentTransformer>();
             options.AddOperationTransformer<OpenApiOperationTransformer>();
         });
-
-        return services;
     }
 
-    private static IServiceCollection AddApiRateLimiting(
+    private static void AddApiRateLimiting(
         this IServiceCollection services,
         IConfiguration configuration)
     {
@@ -249,134 +248,78 @@ public static class ServiceCollectionExtensions
             options.AddPolicy("auth-strict", context =>
             {
                 var ip = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
-                var windowOptions = new FixedWindowRateLimiterOptions
-                {
-                    PermitLimit = 5,
-                    Window = TimeSpan.FromMinutes(1),
-                    QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                    QueueLimit = 0,
-                    AutoReplenishment = true
-                };
-
-                return RateLimitPartition.GetFixedWindowLimiter(ip, _ => windowOptions);
+                return RateLimitPartition.GetFixedWindowLimiter(ip, _ => CreateFixedWindowOptions(5));
             });
 
-            options.AddPolicy("api", context =>
-            {
-                var partitionKey = RateLimitPartitionKeyResolver.Resolve(context);
-                var windowOptions = new FixedWindowRateLimiterOptions
-                {
-                    PermitLimit = 60,
-                    Window = TimeSpan.FromMinutes(1),
-                    QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                    QueueLimit = 0,
-                    AutoReplenishment = true
-                };
-
-                if (useRedis)
-                {
-                    var multiplexer = context.RequestServices.GetService<IConnectionMultiplexer>();
-                    if (multiplexer is not null)
-                    {
-                        var logger = context.RequestServices
-                            .GetRequiredService<ILoggerFactory>()
-                            .CreateLogger<RedisFixedWindowRateLimiter>();
-
-                        return RateLimitPartition.Get(
-                            partitionKey,
-                            key => new RedisFixedWindowRateLimiter(multiplexer, key, windowOptions, logger, instancePrefix));
-                    }
-                }
-
-                return RateLimitPartition.GetFixedWindowLimiter(partitionKey, _ => windowOptions);
-            });
-
-            options.AddPolicy("rendering", context =>
-            {
-                var partitionKey = RateLimitPartitionKeyResolver.Resolve(context);
-                var windowOptions = new FixedWindowRateLimiterOptions
-                {
-                    PermitLimit = 30,
-                    Window = TimeSpan.FromMinutes(1),
-                    QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                    QueueLimit = 0,
-                    AutoReplenishment = true
-                };
-
-                if (useRedis)
-                {
-                    var multiplexer = context.RequestServices.GetService<IConnectionMultiplexer>();
-                    if (multiplexer is not null)
-                    {
-                        var logger = context.RequestServices
-                            .GetRequiredService<ILoggerFactory>()
-                            .CreateLogger<RedisFixedWindowRateLimiter>();
-
-                        return RateLimitPartition.Get(
-                            partitionKey,
-                            key => new RedisFixedWindowRateLimiter(multiplexer, key, windowOptions, logger, instancePrefix));
-                    }
-                }
-
-                return RateLimitPartition.GetFixedWindowLimiter(partitionKey, _ => windowOptions);
-            });
-
-            options.AddPolicy("test-conn", context =>
-            {
-                var partitionKey = RateLimitPartitionKeyResolver.Resolve(context);
-                var windowOptions = new FixedWindowRateLimiterOptions
-                {
-                    PermitLimit = 10,
-                    Window = TimeSpan.FromMinutes(1),
-                    QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                    QueueLimit = 0,
-                    AutoReplenishment = true
-                };
-
-                if (useRedis)
-                {
-                    var multiplexer = context.RequestServices.GetService<IConnectionMultiplexer>();
-                    if (multiplexer is not null)
-                    {
-                        var logger = context.RequestServices
-                            .GetRequiredService<ILoggerFactory>()
-                            .CreateLogger<RedisFixedWindowRateLimiter>();
-
-                        return RateLimitPartition.Get(
-                            partitionKey,
-                            key => new RedisFixedWindowRateLimiter(multiplexer, key, windowOptions, logger, instancePrefix));
-                    }
-                }
-
-                return RateLimitPartition.GetFixedWindowLimiter(partitionKey, _ => windowOptions);
-            });
+            options.AddPolicy("api", context => CreateFixedWindowPartition(context, 60, useRedis, instancePrefix));
+            options.AddPolicy("rendering", context => CreateFixedWindowPartition(context, 30, useRedis, instancePrefix));
+            options.AddPolicy("test-conn", context => CreateFixedWindowPartition(context, 10, useRedis, instancePrefix));
 
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-            options.OnRejected = async (context, ct) =>
-            {
-                if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
-                {
-                    var seconds = Math.Max(1, (int)Math.Ceiling(retryAfter.TotalSeconds));
-                    context.HttpContext.Response.Headers.RetryAfter = seconds.ToString(CultureInfo.InvariantCulture);
-                }
-
-                context.HttpContext.Response.ContentType = "application/problem+json";
-                var problemDetails = ProblemDetailsBuilder.Create(
-                    status: StatusCodes.Status429TooManyRequests,
-                    title: "Too Many Requests",
-                    detail: "Rate limit exceeded. Maximum 60 requests per minute per caller partition.",
-                    errorCode: SmkDoc.Domain.Exceptions.ErrorCodes.RateLimited,
-                    instance: context.HttpContext.Request.Path,
-                    traceId: ProblemDetailsBuilder.ResolveTraceId(context.HttpContext),
-                    typeBaseUri: configuration["Problems:BaseUri"]);
-                await context.HttpContext.Response.WriteAsJsonAsync(problemDetails, ct);
-            };
+            options.OnRejected = (context, ct) => HandleRateLimitRejectedAsync(context, configuration, ct);
         });
-
-        return services;
     }
 
-    private static IServiceCollection AddApiHealthChecks(
+    private static FixedWindowRateLimiterOptions CreateFixedWindowOptions(int permitLimit) => new()
+    {
+        PermitLimit = permitLimit,
+        Window = TimeSpan.FromMinutes(1),
+        QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+        QueueLimit = 0,
+        AutoReplenishment = true
+    };
+
+    private static RateLimitPartition<string> CreateFixedWindowPartition(
+        HttpContext context,
+        int permitLimit,
+        bool useRedis,
+        string instancePrefix)
+    {
+        var partitionKey = RateLimitPartitionKeyResolver.Resolve(context);
+        var windowOptions = CreateFixedWindowOptions(permitLimit);
+
+        if (useRedis)
+        {
+            var multiplexer = context.RequestServices.GetService<IConnectionMultiplexer>();
+            if (multiplexer is not null)
+            {
+                var logger = context.RequestServices
+                    .GetRequiredService<ILoggerFactory>()
+                    .CreateLogger<RedisFixedWindowRateLimiter>();
+
+                return RateLimitPartition.Get(
+                    partitionKey,
+                    key => new RedisFixedWindowRateLimiter(multiplexer, key, windowOptions, logger, instancePrefix));
+            }
+        }
+
+        return RateLimitPartition.GetFixedWindowLimiter(partitionKey, _ => windowOptions);
+    }
+
+    private static async ValueTask HandleRateLimitRejectedAsync(
+        Microsoft.AspNetCore.RateLimiting.OnRejectedContext context,
+        IConfiguration configuration,
+        CancellationToken ct)
+    {
+        if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
+        {
+            var seconds = Math.Max(1, (int)Math.Ceiling(retryAfter.TotalSeconds));
+            context.HttpContext.Response.Headers.RetryAfter = seconds.ToString(CultureInfo.InvariantCulture);
+        }
+
+        context.HttpContext.Response.ContentType = "application/problem+json";
+        var problemDetails = ProblemDetailsBuilder.Create(
+            status: StatusCodes.Status429TooManyRequests,
+            title: "Too Many Requests",
+            detail: "Rate limit exceeded. Maximum 60 requests per minute per caller partition.",
+            errorCode: SmkDoc.Domain.Exceptions.ErrorCodes.RateLimited,
+            instance: context.HttpContext.Request.Path,
+            traceId: ProblemDetailsBuilder.ResolveTraceId(context.HttpContext),
+            typeBaseUri: ProblemDetailsBuilder.TryParseBaseUri(configuration["Problems:BaseUri"]));
+        await context.HttpContext.Response.WriteAsJsonAsync(problemDetails, ct);
+    }
+
+    private static void AddApiHealthChecks(
         this IServiceCollection services,
         IConfiguration configuration)
     {
@@ -389,7 +332,5 @@ public static class ServiceCollectionExtensions
         {
             healthChecks.AddCheck<RedisHealthCheck>("redis", tags: ["deps"]);
         }
-
-        return services;
     }
 }

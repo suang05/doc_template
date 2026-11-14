@@ -69,7 +69,7 @@ public sealed partial class UploadFontUseCase(
             throw new DomainValidationException("Font file name cannot be empty.");
         }
 
-        if (rawFileName.Contains("..") || rawFileName.Contains('/') || rawFileName.Contains('\\'))
+        if (rawFileName.Contains("..", StringComparison.Ordinal) || rawFileName.Contains('/', StringComparison.Ordinal) || rawFileName.Contains('\\', StringComparison.Ordinal))
         {
             throw new DomainValidationException("Font file name must not contain path traversal segments or directory separators.");
         }

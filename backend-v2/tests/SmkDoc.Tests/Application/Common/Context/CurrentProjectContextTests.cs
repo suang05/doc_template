@@ -81,16 +81,15 @@ public sealed class CurrentProjectContextTests
     public void InterfaceSegregation_ReadInterface_ShouldExposeOnlyReadMembers()
     {
         // Arrange
-        ICurrentProjectContext reader = _sut;
         var projectId = ProjectId.New();
 
         // Act
         ((ICurrentProjectContextSetter)_sut).SetProject(projectId, "audit-user");
 
         // Assert
-        reader.IsResolved.Should().BeTrue();
-        reader.GetRequiredProjectId().Should().Be(projectId);
-        reader.CallerIdentity.Should().Be("audit-user");
+        ((ICurrentProjectContext)_sut).IsResolved.Should().BeTrue();
+        ((ICurrentProjectContext)_sut).GetRequiredProjectId().Should().Be(projectId);
+        ((ICurrentProjectContext)_sut).CallerIdentity.Should().Be("audit-user");
     }
 
     [Fact]

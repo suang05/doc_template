@@ -23,7 +23,7 @@ public sealed class BarcodeService : IBarcodeService
         {
             return RenderCode128Png(sanitized, widthPx, heightPx);
         }
-        catch (ZXing.WriterException)
+        catch (WriterException)
         {
             return RenderCode128Png("SAMPLE", widthPx, heightPx);
         }
@@ -41,19 +41,19 @@ public sealed class BarcodeService : IBarcodeService
     {
         var writer = new BarcodeWriter
         {
-            Format  = BarcodeFormat.CODE_128,
+            Format = BarcodeFormat.CODE_128,
             Options = new EncodingOptions
             {
-                Width       = widthPx > 0 ? widthPx : 300,
-                Height      = heightPx > 0 ? heightPx : 100,
-                Margin      = 10,
+                Width = widthPx > 0 ? widthPx : 300,
+                Height = heightPx > 0 ? heightPx : 100,
+                Margin = 10,
                 PureBarcode = false
             },
             Renderer = new SKBitmapRenderer()
         };
 
-        using var bitmap  = writer.Write(content);
-        using var image   = SKImage.FromBitmap(bitmap);
+        using var bitmap = writer.Write(content);
+        using var image = SKImage.FromBitmap(bitmap);
         using var encoded = image.Encode(SKEncodedImageFormat.Png, 100);
         return encoded.ToArray();
     }

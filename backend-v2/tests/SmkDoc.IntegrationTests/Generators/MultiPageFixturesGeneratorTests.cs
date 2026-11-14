@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using ClosedXML.Excel;
 using DocumentFormat.OpenXml;
@@ -14,6 +15,7 @@ namespace SmkDoc.IntegrationTests.Generators;
 [Trait("Category", "Generator")]
 public sealed class MultiPageFixturesGeneratorTests
 {
+    private static readonly JsonSerializerOptions IndentedJsonOptions = new() { WriteIndented = true };
     private readonly string _outDir = Environment.GetEnvironmentVariable("SMK_FIXTURES_OUT_DIR")
         ?? Path.Combine(Path.GetTempPath(), "smkdoc-tests", "multi-page-samples");
 
@@ -35,10 +37,10 @@ public sealed class MultiPageFixturesGeneratorTests
             body.AppendChild(new Paragraph(new ParagraphProperties(new Justification { Val = JustificationValues.Center }),
                 new Run(new RunProperties(new Bold(), new FontSize { Val = "32" }), new Text("บริษัท สัมมากร จำกัด (มหาชน)"))));
             body.AppendChild(new Paragraph(new ParagraphProperties(new Justification { Val = JustificationValues.Center }),
-                new Run(new RunProperties(new Bold(), new FontSize { Val = "24" }, new Color { Val = "0284C7" }), 
+                new Run(new RunProperties(new Bold(), new FontSize { Val = "24" }, new Color { Val = "0284C7" }),
                     new Text("รายงานการตรวจสอบข้อบกพร่องสิ่งปลูกสร้างก่อนส่งมอบ (Defect Audit Report)"))));
             body.AppendChild(new Paragraph(new ParagraphProperties(new Justification { Val = JustificationValues.Center }),
-                new Run(new RunProperties(new FontSize { Val = "18" }, new Color { Val = "64748B" }), 
+                new Run(new RunProperties(new FontSize { Val = "18" }, new Color { Val = "64748B" }),
                     new Text("เอกสารควบคุมการก่อสร้างและควบคุมคุณภาพ — สายงานวิศวกรรม"))));
 
             body.AppendChild(new Paragraph(new Run(new Text("------------------------------------------------------------------------------------------------------------------------"))));
@@ -134,7 +136,7 @@ public sealed class MultiPageFixturesGeneratorTests
             var unitNum = (i % 25) + 1;
             defectList.Add(new
             {
-                no = i.ToString(),
+                no = i.ToString(CultureInfo.InvariantCulture),
                 unitNo = $"{unitChar}-{unitNum:D2}",
                 trade = trades[i % trades.Length],
                 location = locations[i % locations.Length],
@@ -159,7 +161,7 @@ public sealed class MultiPageFixturesGeneratorTests
             defects = defectList
         };
 
-        var jsonString = JsonSerializer.Serialize(payloadObj, new JsonSerializerOptions { WriteIndented = true });
+        var jsonString = JsonSerializer.Serialize(payloadObj, IndentedJsonOptions);
         await File.WriteAllTextAsync(jsonPath, jsonString);
 
         // 3. Render and verify using DocxTemplateEngine
@@ -168,8 +170,6 @@ public sealed class MultiPageFixturesGeneratorTests
         var engine = new DocxTemplateEngine(
             Substitute.For<IPdfRenderer>(),
             mediaInjector,
-            new WordTextReplacer(),
-            new WordTableExpander(),
             new JsonTemplateDataParser());
 
         using var templateStream = File.OpenRead(docxPath);
@@ -280,14 +280,14 @@ public sealed class MultiPageFixturesGeneratorTests
 
             installments.Add(new
             {
-                no = i.ToString(),
+                no = i.ToString(CultureInfo.InvariantCulture),
                 dueDate = $"{day:D2}/{month:D2}/{year}",
                 unitNo = $"{unitChar}-{unitNum:D2}",
                 customer = customerNames[i % customerNames.Length],
                 title = $"เงินดาวน์งวดที่ {i}",
-                principal = principal.ToString("F2"),
-                interest = interest.ToString("F2"),
-                totalAmount = total.ToString("F2"),
+                principal = principal.ToString("F2", CultureInfo.InvariantCulture),
+                interest = interest.ToString("F2", CultureInfo.InvariantCulture),
+                totalAmount = total.ToString("F2", CultureInfo.InvariantCulture),
                 status = (i % 10 == 0 ? "รอชำระ" : "ชำระแล้ว")
             });
         }
@@ -300,7 +300,7 @@ public sealed class MultiPageFixturesGeneratorTests
             items = installments
         };
 
-        var jsonString = JsonSerializer.Serialize(payloadObj, new JsonSerializerOptions { WriteIndented = true });
+        var jsonString = JsonSerializer.Serialize(payloadObj, IndentedJsonOptions);
         await File.WriteAllTextAsync(jsonPath, jsonString);
 
         // 3. Render and verify using ExcelTemplateEngine
@@ -309,7 +309,6 @@ public sealed class MultiPageFixturesGeneratorTests
         var engine = new ExcelTemplateEngine(
             Substitute.For<IPdfRenderer>(),
             mediaInjector,
-            new ExcelTableExpander(),
             new JsonTemplateDataParser());
 
         using var templateStream = File.OpenRead(xlsxPath);

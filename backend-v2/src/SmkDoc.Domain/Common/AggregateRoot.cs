@@ -1,3 +1,4 @@
+using System.Globalization;
 using SmkDoc.Domain.Interfaces;
 
 namespace SmkDoc.Domain.Common;
@@ -27,7 +28,7 @@ public abstract class AggregateRoot<TId> : BaseEntity<TId>, IHaveDomainEvents, I
     }
 
     public virtual string GetConcurrencyToken() =>
-        (UpdatedAt ?? CreatedAt).ToUnixTimeMilliseconds().ToString();
+        (UpdatedAt ?? CreatedAt).ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture);
 
     public virtual string? GetAlternateConcurrencyToken() => null;
 }

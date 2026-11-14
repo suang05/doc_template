@@ -17,7 +17,7 @@ public sealed class ParseTemplateDraftUseCase(
         // Step 1: Parse & Guard (Fail-fast at line 1 via Smart Context Property)
         var projectId = projectContext.GetRequiredProjectId();
 
-        var ext = Path.GetExtension(command.FileName).ToLowerInvariant();
+        var ext = Path.GetExtension(command.FileName);
         if (!TemplateFormat.TryFromExtension(ext, out _))
         {
             throw new DomainValidationException(

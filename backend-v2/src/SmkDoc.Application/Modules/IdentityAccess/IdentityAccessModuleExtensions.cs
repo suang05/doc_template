@@ -73,7 +73,7 @@ public static class IdentityAccessModuleExtensions
         return services;
     }
 
-    private static IServiceCollection AddSecuritySlices(this IServiceCollection services)
+    private static void AddSecuritySlices(this IServiceCollection services)
     {
         services.AddUseCase<LoginCommand, LoginResultDto, LoginUseCase>();
         services.AddUseCase<RefreshTokenCommand, TokenResultDto, RefreshTokenUseCase>();
@@ -82,6 +82,5 @@ public static class IdentityAccessModuleExtensions
         services.AddUseCase<RevokeApiKeyCommand, RevokeApiKeyUseCase>();
         services.AddUseCase<ListApiKeysQuery, List<ApiKeyResultDto>, ListApiKeysUseCase>();
         services.AddUseCase<ValidateApiKeyQuery, ValidatedApiKeyResultDto?, ValidateApiKeyUseCase>();
-        return services;
     }
 }

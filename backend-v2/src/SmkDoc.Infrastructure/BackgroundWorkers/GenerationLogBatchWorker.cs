@@ -51,54 +51,75 @@ public sealed partial class GenerationLogBatchWorker(
         {
             try
             {
-                using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
-                timeoutCts.CancelAfter(_flushInterval);
-
-                try
-                {
-                    if (await queue.Reader.WaitToReadAsync(timeoutCts.Token))
-                    {
-                        while (batch.Count < _batchSize && queue.Reader.TryRead(out var log))
-                        {
-                            batch.Add(log);
-                        }
-                    }
-                }
-                catch (OperationCanceledException) when (!stoppingToken.IsCancellationRequested)
-                {
-                    // Flush interval elapsed; fall through to batch check
-                }
-
-                if (batch.Count > 0 && (batch.Count >= _batchSize || _timeProvider.GetUtcNow() - lastFlushTime >= _flushInterval))
-                {
-                    await FlushBatchAsync(batch, stoppingToken);
-                    lastFlushTime = _timeProvider.GetUtcNow();
-                }
+                lastFlushTime = await CollectAndFlushIfReadyAsync(batch, lastFlushTime, stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
                 break;
             }
-            catch (ChannelClosedException ex)
+            catch (Exception ex) when (ex is
+                ChannelClosedException or
+                DbException or
+                TimeoutException or
+                InvalidOperationException)
             {
-                LogChannelClosed(logger, ex);
-            }
-            catch (DbException ex)
-            {
-                LogDatabaseLoopError(logger, ex);
-            }
-            catch (TimeoutException ex)
-            {
-                LogTimeoutLoopError(logger, ex);
-            }
-            catch (InvalidOperationException ex)
-            {
-                LogInvalidStateLoopError(logger, ex);
+                LogWorkerLoopException(ex);
             }
         }
 
         // Graceful Drain: drain all remaining logs before host terminates
         await DrainRemainingLogsAsync(batch);
+    }
+
+    private async Task<DateTimeOffset> CollectAndFlushIfReadyAsync(
+        List<GenerationLog> batch,
+        DateTimeOffset lastFlushTime,
+        CancellationToken stoppingToken)
+    {
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+        timeoutCts.CancelAfter(_flushInterval);
+
+        try
+        {
+            if (await queue.Reader.WaitToReadAsync(timeoutCts.Token))
+            {
+                while (batch.Count < _batchSize && queue.Reader.TryRead(out var log))
+                {
+                    batch.Add(log);
+                }
+            }
+        }
+        catch (OperationCanceledException) when (!stoppingToken.IsCancellationRequested)
+        {
+            // Flush interval elapsed; fall through to batch check
+        }
+
+        if (batch.Count > 0 && (batch.Count >= _batchSize || _timeProvider.GetUtcNow() - lastFlushTime >= _flushInterval))
+        {
+            await FlushBatchAsync(batch, stoppingToken);
+            return _timeProvider.GetUtcNow();
+        }
+
+        return lastFlushTime;
+    }
+
+    private void LogWorkerLoopException(Exception ex)
+    {
+        switch (ex)
+        {
+            case ChannelClosedException cce:
+                LogChannelClosed(logger, cce);
+                break;
+            case DbException dbEx:
+                LogDatabaseLoopError(logger, dbEx);
+                break;
+            case TimeoutException tex:
+                LogTimeoutLoopError(logger, tex);
+                break;
+            case InvalidOperationException ioe:
+                LogInvalidStateLoopError(logger, ioe);
+                break;
+        }
     }
 
     private async Task DrainRemainingLogsAsync(List<GenerationLog> batch)

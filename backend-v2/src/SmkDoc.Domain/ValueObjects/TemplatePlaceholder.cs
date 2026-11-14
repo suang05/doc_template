@@ -1,9 +1,13 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace SmkDoc.Domain.ValueObjects;
 
+[SuppressMessage("Design", "CA1008:Enums should have zero value", Justification = "Wire/API category enum deliberately excludes a zero default value.")]
 public enum PlaceholderCategory
 {
     Scalar = 1,   // Flat primitive: customerName, invoiceDate, totalAmount
     Tabular = 2,  // Repeating collection item: items.name, products[].price
+    [SuppressMessage("Naming", "CA1720:Identifier contains type name", Justification = "Matches OpenAPI schema enum value 'object' for nested object placeholders.")]
     Object = 3,   // Nested object: customer.address.city
     System = 4    // Built-in / Helper: @index, @first, pageNumber
 }
@@ -22,6 +26,7 @@ public sealed record TemplatePlaceholder(
     public static TemplatePlaceholder Tabular(string name, string parentCollection, string? dataType = "string", string? sampleValue = null) =>
         new(name, PlaceholderCategory.Tabular, parentCollection, dataType, sampleValue);
 
+    [SuppressMessage("Naming", "CA1720:Identifier contains type name", Justification = "Matches PlaceholderCategory.Object factory convention.")]
     public static TemplatePlaceholder Object(string name, string? dataType = "object", string? sampleValue = null) =>
         new(name, PlaceholderCategory.Object, null, dataType, sampleValue);
 

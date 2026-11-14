@@ -8,7 +8,7 @@ public class GenerationLogBuilder
     private Guid _id = Guid.NewGuid();
     private Guid? _templateId = Guid.NewGuid();
     private Guid? _templateVersionId = Guid.NewGuid();
-    private Guid? _apiKeyId = null;
+    private Guid? _apiKeyId;
     private string? _callerApp = "BillingService";
     private string? _triggerSource = "api";
     private string? _inputData = "{}";
@@ -16,10 +16,10 @@ public class GenerationLogBuilder
     private OutputFormat _outputFormat = OutputFormat.Pdf;
     private long? _fileSizeBytes = 1024;
     private int? _pageCount = 1;
-    private Sha256Hash? _payloadHashSha256 = null;
+    private Sha256Hash? _payloadHashSha256;
     private int _durationMs = 150;
     private GenerationStatus _status = GenerationStatus.Success;
-    private string? _errorMsg = null;
+    private string? _errorMsg;
     private DateTimeOffset _now = TestConstants.BaselineTime;
     private ProjectId _projectId = ProjectId.New();
 

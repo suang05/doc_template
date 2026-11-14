@@ -49,15 +49,15 @@ public static class PlaceholderCategorizer
     }
 
     public static TemplatePlaceholder Categorize(
-        string rawExpression, 
-        string? currentCollection = null, 
+        string rawExpression,
+        string? currentCollection = null,
         string? forcedType = null)
     {
         string expr = rawExpression.Trim();
 
         // 1. Helper invocation check (e.g., "formatDate orderDate 'dd/MM/yyyy'", "addOne @index")
         string inferredType = forcedType ?? "string";
-        if (expr.Contains(' '))
+        if (expr.Contains(' ', StringComparison.Ordinal))
         {
             var (variableName, helperType) = ParseHelperInvocation(expr);
             expr = variableName;
@@ -74,10 +74,10 @@ public static class PlaceholderCategorizer
         }
 
         // Clean parent traversal if any (e.g. "../orderId")
-        if (expr.StartsWith("../"))
+        if (expr.StartsWith("../", StringComparison.Ordinal))
         {
-            string clean = expr.Replace("../", string.Empty);
-            return clean.Contains('.')
+            string clean = expr.Replace("../", string.Empty, StringComparison.Ordinal);
+            return clean.Contains('.', StringComparison.Ordinal)
                 ? TemplatePlaceholder.Object(clean, "object")
                 : TemplatePlaceholder.Scalar(clean, inferredType);
         }
@@ -95,7 +95,7 @@ public static class PlaceholderCategorizer
         }
 
         // 4. Nested Object
-        if (expr.Contains('.'))
+        if (expr.Contains('.', StringComparison.Ordinal))
         {
             return TemplatePlaceholder.Object(expr, "object");
         }

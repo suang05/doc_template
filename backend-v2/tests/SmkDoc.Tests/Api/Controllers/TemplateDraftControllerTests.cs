@@ -16,6 +16,8 @@ namespace SmkDoc.Tests.Api.Controllers;
 
 public sealed class TemplateDraftControllerTests
 {
+    private static readonly string[] ExpectedPlaceholders = ["customer.name", "total"];
+
     private readonly IUseCase<ParseTemplateDraftCommand, ParseDraftResultDto> _parseUseCase =
         Substitute.For<IUseCase<ParseTemplateDraftCommand, ParseDraftResultDto>>();
     private readonly IUseCase<PreviewDocumentQuery, Stream> _previewUseCase =
@@ -73,7 +75,7 @@ public sealed class TemplateDraftControllerTests
         var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
         var apiResponse = okResult.Value.Should().BeOfType<ApiResponse<ParseDraftResultDto>>().Subject;
         apiResponse.Data.DraftId.Should().Be("draft-123");
-        apiResponse.Data.Placeholders.Should().BeEquivalentTo(new[] { "customer.name", "total" });
+        apiResponse.Data.Placeholders.Should().BeEquivalentTo(ExpectedPlaceholders);
     }
 
     [Fact]

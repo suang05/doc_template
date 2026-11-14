@@ -9448,10 +9448,10 @@
           "createdAt",
           "startedAt",
           "completedAt",
-          "checkStatusUrl",
-          "downloadUrl",
           "error",
-          "result"
+          "result",
+          "checkStatusUrl",
+          "downloadUrl"
         ],
         "type": "object",
         "properties": {
@@ -9483,18 +9483,6 @@
             ],
             "format": "date-time"
           },
-          "checkStatusUrl": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "downloadUrl": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
           "error": {
             "type": [
               "null",
@@ -9509,6 +9497,18 @@
               {
                 "$ref": "#/components/schemas/GenerateDocumentResultDto"
               }
+            ]
+          },
+          "checkStatusUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "downloadUrl": {
+            "type": [
+              "null",
+              "string"
             ]
           }
         },
@@ -9582,13 +9582,13 @@
         ],
         "type": "object",
         "properties": {
-          "url": {
-            "type": "string"
-          },
           "expiresInSeconds": {
             "type": "integer",
             "format": "int32",
             "default": 3600
+          },
+          "url": {
+            "type": "string"
           }
         },
         "description": "Pre-signed document download URL and validity window."
@@ -9809,12 +9809,6 @@
               "string"
             ]
           },
-          "googleFontUrl": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
           "availableWeights": {
             "type": [
               "null",
@@ -9823,6 +9817,12 @@
             "items": {
               "type": "string"
             }
+          },
+          "googleFontUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -9874,8 +9874,8 @@
           "outputFormat",
           "fileSizeBytes",
           "sha256",
-          "url",
-          "expiresAt"
+          "expiresAt",
+          "url"
         ],
         "type": "object",
         "properties": {
@@ -9899,12 +9899,12 @@
           "sha256": {
             "type": "string"
           },
-          "url": {
-            "type": "string"
-          },
           "expiresAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "url": {
+            "type": "string"
           }
         },
         "description": "Result returned after document generation and MinIO persistence."

@@ -50,72 +50,69 @@ public sealed partial class DocumentRenderQueueWorker(
         {
             try
             {
-                await _throttler.WaitAsync(stoppingToken);
-
-                DocumentJob? job = null;
-                try
-                {
-                    job = await queue.DequeueAsync(stoppingToken);
-                }
-                catch (Exception ex) when (ex is not OperationCanceledException)
-                {
-                    LogDequeueError(logger, ex);
-                    _throttler.Release();
-                    await Task.Delay(_pollDelay, stoppingToken);
-                    continue;
-                }
-
-                if (job == null)
-                {
-                    _throttler.Release();
-                    await Task.Delay(_pollDelay, stoppingToken);
-                    continue;
-                }
-
-                // Process job asynchronously with bounded concurrency
-                var jobTask = ProcessJobSafeAsync(job, stoppingToken);
-                activeTasks.Add(jobTask);
-
-                // Clean up completed tasks
-                activeTasks.RemoveAll(t => t.IsCompleted);
+                await TryProcessNextQueuedJobAsync(activeTasks, stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
                 break;
             }
-            catch (ExternalServiceException ex)
-            {
-                await HandleLoopErrorAsync(ex, stoppingToken);
-            }
-            catch (RedisException ex)
-            {
-                await HandleLoopErrorAsync(ex, stoppingToken);
-            }
-            catch (TimeoutException ex)
-            {
-                await HandleLoopErrorAsync(ex, stoppingToken);
-            }
-            catch (InvalidOperationException ex)
-            {
-                await HandleLoopErrorAsync(ex, stoppingToken);
-            }
-            catch (JsonException ex)
+            catch (Exception ex) when (ex is
+                ExternalServiceException or
+                RedisException or
+                TimeoutException or
+                InvalidOperationException or
+                JsonException)
             {
                 await HandleLoopErrorAsync(ex, stoppingToken);
             }
         }
 
-        // Wait for in-flight jobs on graceful shutdown
-        if (activeTasks.Count > 0)
-        {
-            if (logger.IsEnabled(LogLevel.Information))
-            {
-                LogWaitingInFlightJobs(logger, activeTasks.Count);
-            }
-            await Task.WhenAll(activeTasks);
-        }
-
+        await DrainInFlightJobsAsync(activeTasks);
         LogWorkerStopped(logger);
+    }
+
+    private async Task TryProcessNextQueuedJobAsync(List<Task> activeTasks, CancellationToken stoppingToken)
+    {
+        await _throttler.WaitAsync(stoppingToken);
+
+        var job = await TryDequeueJobAsync(stoppingToken);
+        if (job == null)
+        {
+            _throttler.Release();
+            await Task.Delay(_pollDelay, stoppingToken);
+            return;
+        }
+
+        activeTasks.Add(ProcessJobSafeAsync(job, stoppingToken));
+        activeTasks.RemoveAll(t => t.IsCompleted);
+    }
+
+    private async Task<DocumentJob?> TryDequeueJobAsync(CancellationToken stoppingToken)
+    {
+        try
+        {
+            return await queue.DequeueAsync(stoppingToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            LogDequeueError(logger, ex);
+            return null;
+        }
+    }
+
+    private async Task DrainInFlightJobsAsync(List<Task> activeTasks)
+    {
+        if (activeTasks.Count == 0)
+        {
+            return;
+        }
+
+        if (logger.IsEnabled(LogLevel.Information))
+        {
+            LogWaitingInFlightJobs(logger, activeTasks.Count);
+        }
+
+        await Task.WhenAll(activeTasks);
     }
 
     private async Task HandleLoopErrorAsync(Exception ex, CancellationToken stoppingToken)

@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using SmkDoc.Infrastructure.Persistence;
@@ -9,6 +10,7 @@ namespace SmkDoc.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
     [Migration("20260917100000_WaveTwo_FullSchemaRebuild")]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "EF Core migration class name matches migration ID and generated Designer partial class.")]
     public partial class WaveTwo_FullSchemaRebuild : Migration
     {
         /// <inheritdoc />

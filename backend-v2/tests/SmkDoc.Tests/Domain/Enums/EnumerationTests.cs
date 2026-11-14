@@ -1,4 +1,4 @@
-﻿namespace SmkDoc.Tests.Domain.Enums;
+namespace SmkDoc.Tests.Domain.Enums;
 
 public sealed class EnumerationTests
 {
@@ -25,7 +25,7 @@ public sealed class EnumerationTests
     public void Enumeration_FromValue_InvalidValue_ThrowsDomainValidationException()
     {
         var act = () => TemplateFormat.FromValue<TemplateFormat>(9999);
-        act.Should().Throw<SmkDoc.Domain.Exceptions.DomainValidationException>()
+        act.Should().Throw<DomainValidationException>()
             .WithMessage("*'9999' is not a valid value*");
     }
 
@@ -33,7 +33,7 @@ public sealed class EnumerationTests
     public void Enumeration_FromDisplayName_InvalidName_ThrowsDomainValidationException()
     {
         var act = () => TemplateFormat.FromDisplayName<TemplateFormat>("invalid_name");
-        act.Should().Throw<SmkDoc.Domain.Exceptions.DomainValidationException>()
+        act.Should().Throw<DomainValidationException>()
             .WithMessage("*'invalid_name' is not a valid display name*");
     }
 

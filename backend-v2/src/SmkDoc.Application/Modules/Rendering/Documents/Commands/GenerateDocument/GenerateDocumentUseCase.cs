@@ -60,7 +60,7 @@ public sealed class GenerateDocumentUseCase(
         CancellationToken ct)
     {
         var sw = Stopwatch.StartNew();
-        var engineType = currentVersion.GetRenderEngineType();
+        var engineType = currentVersion.RenderEngineType;
         var engine = engineFactory.GetEngine(engineType);
         string? preparedDataJson = null;
 
@@ -107,46 +107,51 @@ public sealed class GenerateDocumentUseCase(
         catch (Exception ex) when (ex is not SchemaValidationException and not OperationCanceledException)
         {
             sw.Stop();
-            try
-            {
-                var fallbackPayload = preparedDataJson ?? (payload.ValueKind != JsonValueKind.Undefined ? payload.GetRawText() : "{}");
-                await auditProcessor.LogFailureAsync(
-                    template.Id.Value,
-                    currentVersion.Id,
-                    fallbackPayload,
-                    outputFormat,
-                    (int)sw.ElapsedMilliseconds,
-                    ex.Message,
-                    CancellationToken.None);
-
-                await unitOfWork.CommitAsync(CancellationToken.None);
-            }
-            catch (System.Data.Common.DbException auditEx)
-            {
-                RecordAuditFailure(template.Slug.Value, ex, auditEx);
-            }
-            catch (ExternalServiceException auditEx)
-            {
-                RecordAuditFailure(template.Slug.Value, ex, auditEx);
-            }
-            catch (HttpRequestException auditEx)
-            {
-                RecordAuditFailure(template.Slug.Value, ex, auditEx);
-            }
-            catch (IOException auditEx)
-            {
-                RecordAuditFailure(template.Slug.Value, ex, auditEx);
-            }
-            catch (TimeoutException auditEx)
-            {
-                RecordAuditFailure(template.Slug.Value, ex, auditEx);
-            }
-            catch (InvalidOperationException auditEx)
-            {
-                RecordAuditFailure(template.Slug.Value, ex, auditEx);
-            }
+            await TryAuditRenderFailureAsync(
+                template,
+                currentVersion,
+                payload,
+                preparedDataJson,
+                outputFormat,
+                (int)sw.ElapsedMilliseconds,
+                ex);
 
             throw;
+        }
+    }
+
+    private async Task TryAuditRenderFailureAsync(
+        Template template,
+        TemplateVersion currentVersion,
+        JsonElement payload,
+        string? preparedDataJson,
+        OutputFormat outputFormat,
+        int elapsedMs,
+        Exception ex)
+    {
+        try
+        {
+            var fallbackPayload = preparedDataJson ?? (payload.ValueKind != JsonValueKind.Undefined ? payload.GetRawText() : "{}");
+            await auditProcessor.LogFailureAsync(
+                template.Id.Value,
+                currentVersion.Id,
+                fallbackPayload,
+                outputFormat,
+                elapsedMs,
+                ex.Message,
+                CancellationToken.None);
+
+            await unitOfWork.CommitAsync(CancellationToken.None);
+        }
+        catch (Exception auditEx) when (auditEx is
+            System.Data.Common.DbException or
+            ExternalServiceException or
+            HttpRequestException or
+            IOException or
+            TimeoutException or
+            InvalidOperationException)
+        {
+            RecordAuditFailure(template.Slug.Value, ex, auditEx);
         }
     }
 
@@ -222,10 +227,10 @@ public sealed class GenerateDocumentUseCase(
     }
 
     private static OutputFormat ParseOutputFormat(string format) =>
-        format.Trim().ToLowerInvariant() switch
+        format.Trim().ToUpperInvariant() switch
         {
-            "docx" => OutputFormat.Docx,
-            "xlsx" => OutputFormat.Xlsx,
+            "DOCX" => OutputFormat.Docx,
+            "XLSX" => OutputFormat.Xlsx,
             _ => OutputFormat.Pdf
         };
 

@@ -15,7 +15,7 @@ public sealed class TemplateDataset : BaseEntity
     public int SortOrder { get; private set; }
 
     // Navigation property for EF Core materialization
-    public Template? Template { get; private set; }
+    public Template? Template { get; internal set; }
 
     // For EF Core materialization only
     private TemplateDataset() { }

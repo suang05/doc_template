@@ -66,6 +66,7 @@ public sealed class ProjectApiKeysController(
         [FromRoute] Guid keyId,
         CancellationToken ct)
     {
+        _ = projectId;
         var command = new RevokeApiKeyCommand(keyId);
         await revokeApiKeyUseCase.ExecuteAsync(command, ct);
         return NoContent();

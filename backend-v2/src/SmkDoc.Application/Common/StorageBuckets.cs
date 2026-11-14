@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Common;
@@ -19,6 +20,7 @@ public static class StorageBuckets
     public static string TenantFontKey(ProjectId projectId, string safeFileName) =>
         $"fonts/{projectId.Value:N}/{safeFileName}";
 
+    [SuppressMessage("Globalization", "CA1308:Normalize strings to uppercase", Justification = "Canonical lowercase object storage key extension.")]
     private static string NormalizeExtension(string extensionWithDot) =>
         extensionWithDot.StartsWith('.')
             ? extensionWithDot.ToLowerInvariant()

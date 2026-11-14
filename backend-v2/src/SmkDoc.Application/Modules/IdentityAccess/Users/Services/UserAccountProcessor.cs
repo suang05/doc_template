@@ -18,8 +18,8 @@ public sealed class UserAccountProcessor(
         DateTimeOffset now,
         CancellationToken ct = default)
     {
-        var normalizedEmail = email.Trim().ToLowerInvariant();
-        var existingUser = await userRepo.GetByEmailAsync(EmailAddress.Create(normalizedEmail), ct);
+        var emailAddress = EmailAddress.Create(email);
+        var existingUser = await userRepo.GetByEmailAsync(emailAddress, ct);
         if (existingUser != null)
         {
             return existingUser;
@@ -31,7 +31,7 @@ public sealed class UserAccountProcessor(
         }
 
         var hash = passwordHasher.HashPassword(password);
-        var newUser = User.Register(EmailAddress.Create(normalizedEmail), hash, firstName, lastName, now);
+        var newUser = User.Register(emailAddress, hash, firstName, lastName, now);
         await userRepo.AddAsync(newUser, ct);
         return newUser;
     }

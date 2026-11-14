@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -35,24 +36,25 @@ public static partial class ThaiDataTransformer
     [GeneratedRegex(@"^(?<d>\d{1,2})[-/](?<m>\d{1,2})[-/](?<y>\d{4})(?:[T\s](?<rest>.+))?$")]
     private static partial Regex DayFirstDateRegex();
 
+    [SuppressMessage("Globalization", "CA1308:Normalize strings to uppercase", Justification = "Explicit lowercase template transform requested by caller.")]
     public static string Transform(string? value, string transformType)
     {
         if (string.IsNullOrWhiteSpace(value)) return string.Empty;
 
-        string normalizedType = transformType.Trim().ToLowerInvariant();
+        string normalizedType = transformType.Trim().ToUpperInvariant();
 
         return normalizedType switch
         {
-            "baht" or "thaibaht" or "currency_thai" or "thai_baht" or "thai_baht_text" or "baht_text" or "bahttext" => ToThaiBahtText(value),
-            "currency" or "money" or "number" => FormatCurrency(value, 2),
-            "currency0" => FormatCurrency(value, 0),
-            "date" or "thaidate" or "thai_date" or "thaidate_full" => FormatThaiDate(value, abbreviated: false),
-            "thaidate_short" or "thai_date_abbr" or "thaidateshort" => FormatThaiDate(value, abbreviated: true),
-            "thaidatetime" or "thai_datetime" => FormatThaiDateTime(value, abbreviated: false),
-            "upper" => value.ToUpperInvariant(),
-            "lower" => value.ToLowerInvariant(),
-            "phone" or "thaiphone" or "tel" => FormatPhone(value),
-            "idcard" or "thaiid" or "citizen_id" => FormatThaiIdCard(value),
+            "BAHT" or "THAIBAHT" or "CURRENCY_THAI" or "THAI_BAHT" or "THAI_BAHT_TEXT" or "BAHT_TEXT" or "BAHTTEXT" => ToThaiBahtText(value),
+            "CURRENCY" or "MONEY" or "NUMBER" => FormatCurrency(value, 2),
+            "CURRENCY0" => FormatCurrency(value, 0),
+            "DATE" or "THAIDATE" or "THAI_DATE" or "THAIDATE_FULL" => FormatThaiDate(value, abbreviated: false),
+            "THAIDATE_SHORT" or "THAI_DATE_ABBR" or "THAIDATESHORT" => FormatThaiDate(value, abbreviated: true),
+            "THAIDATETIME" or "THAI_DATETIME" => FormatThaiDateTime(value, abbreviated: false),
+            "UPPER" => value.ToUpperInvariant(),
+            "LOWER" => value.ToLowerInvariant(),
+            "PHONE" or "THAIPHONE" or "TEL" => FormatPhone(value),
+            "IDCARD" or "THAIID" or "CITIZEN_ID" => FormatThaiIdCard(value),
             _ => value
         };
     }
@@ -61,7 +63,7 @@ public static partial class ThaiDataTransformer
     {
         if (string.IsNullOrWhiteSpace(input)) return string.Empty;
 
-        string cleaned = input.Replace(",", "").Replace("฿", "").Trim();
+        string cleaned = input.Replace(",", "", StringComparison.Ordinal).Replace("฿", "", StringComparison.Ordinal).Trim();
         if (!decimal.TryParse(cleaned, NumberStyles.Any, CultureInfo.InvariantCulture, out decimal amount))
         {
             return input;
@@ -109,7 +111,7 @@ public static partial class ThaiDataTransformer
         if (number == 0) return "ศูนย์";
 
         var result = new StringBuilder();
-        string numStr = number.ToString();
+        string numStr = number.ToString(CultureInfo.InvariantCulture);
         int len = numStr.Length;
 
         if (len > 6)
@@ -122,7 +124,7 @@ public static partial class ThaiDataTransformer
 
             if (remainder > 0)
             {
-                result.Append(ConvertGroupToThaiText(remainder.ToString().PadLeft(6, '0'), hasHigherDigits: true));
+                result.Append(ConvertGroupToThaiText(remainder.ToString(CultureInfo.InvariantCulture).PadLeft(6, '0'), hasHigherDigits: true));
             }
             return result.ToString();
         }
@@ -139,45 +141,51 @@ public static partial class ThaiDataTransformer
         for (int i = 0; i < len; i++)
         {
             int digit = numStr[i] - '0';
-            int position = len - i - 1;
-
             if (digit == 0) continue;
 
-            if (position == 1)
-            {
-                hadPrecedingNonZero = true;
-                if (digit == 1)
-                {
-                    result.Append("สิบ");
-                }
-                else if (digit == 2)
-                {
-                    result.Append("ยี่สิบ");
-                }
-                else
-                {
-                    result.Append(Units[digit]).Append("สิบ");
-                }
-            }
-            else if (position == 0)
-            {
-                if (digit == 1 && hadPrecedingNonZero)
-                {
-                    result.Append("เอ็ด");
-                }
-                else
-                {
-                    result.Append(Units[digit]);
-                }
-            }
-            else
-            {
-                hadPrecedingNonZero = true;
-                result.Append(Units[digit]).Append(Digits[position]);
-            }
+            int position = len - i - 1;
+            hadPrecedingNonZero = AppendThaiDigit(result, digit, position, hadPrecedingNonZero);
         }
 
         return result.ToString();
+    }
+
+    private static bool AppendThaiDigit(StringBuilder result, int digit, int position, bool hadPrecedingNonZero)
+    {
+        switch (position)
+        {
+            case 1:
+                AppendTensDigit(result, digit);
+                return true;
+            case 0:
+                AppendOnesDigit(result, digit, hadPrecedingNonZero);
+                return hadPrecedingNonZero;
+            default:
+                result.Append(Units[digit]).Append(Digits[position]);
+                return true;
+        }
+    }
+
+    private static void AppendTensDigit(StringBuilder result, int digit)
+    {
+        if (digit == 1)
+        {
+            result.Append("สิบ");
+            return;
+        }
+
+        if (digit == 2)
+        {
+            result.Append("ยี่สิบ");
+            return;
+        }
+
+        result.Append(Units[digit]).Append("สิบ");
+    }
+
+    private static void AppendOnesDigit(StringBuilder result, int digit, bool hadPrecedingNonZero)
+    {
+        result.Append(digit == 1 && hadPrecedingNonZero ? "เอ็ด" : Units[digit]);
     }
 
     public static string FormatThaiDate(string input, bool abbreviated = false)
@@ -212,58 +220,72 @@ public static partial class ThaiDataTransformer
     {
         // 1. Pre-normalize Buddhist Era years (> 2400 => - 543) BEFORE Gregorian calendar validation
         //    so Buddhist Era leap-year dates (e.g., 2567-02-29 or 29/02/2567) resolve to 2024-02-29.
-        var yearFirstMatch = YearFirstDateRegex().Match(trimmed);
-        if (yearFirstMatch.Success &&
-            int.TryParse(yearFirstMatch.Groups["y"].Value, out int yfYear) &&
-            int.TryParse(yearFirstMatch.Groups["m"].Value, out int yfMonth) &&
-            int.TryParse(yearFirstMatch.Groups["d"].Value, out int yfDay))
+        if (TryParseMatchedDate(YearFirstDateRegex().Match(trimmed), requireYearOrDayThreshold: false, out gregorianDate))
         {
-            int normalizedYear = yfYear > 2400 ? yfYear - 543 : yfYear;
-            return TryBuildDateWithOptionalTime(
-                normalizedYear,
-                yfMonth,
-                yfDay,
-                yearFirstMatch.Groups["rest"].Value,
-                out gregorianDate);
-        }
-
-        var dayFirstMatch = DayFirstDateRegex().Match(trimmed);
-        if (dayFirstMatch.Success &&
-            int.TryParse(dayFirstMatch.Groups["y"].Value, out int dfYear) &&
-            int.TryParse(dayFirstMatch.Groups["m"].Value, out int dfMonth) &&
-            int.TryParse(dayFirstMatch.Groups["d"].Value, out int dfDay))
-        {
-            // When Buddhist Era year (> 2400) or unambiguous day > 12 is used, interpret strictly as dd/MM/yyyy.
-            if (dfYear > 2400 || dfDay > 12)
-            {
-                int normalizedYear = dfYear > 2400 ? dfYear - 543 : dfYear;
-                return TryBuildDateWithOptionalTime(
-                    normalizedYear,
-                    dfMonth,
-                    dfDay,
-                    dayFirstMatch.Groups["rest"].Value,
-                    out gregorianDate);
-            }
-        }
-
-        // 2. Fallback to standard Gregorian parsing for ISO/Invariant formats
-        if (DateTime.TryParse(trimmed, CultureInfo.InvariantCulture, DateTimeStyles.None, out gregorianDate) ||
-            DateTime.TryParse(trimmed, out gregorianDate))
-        {
-            if (gregorianDate.Year > 2400)
-            {
-                return TryBuildDateWithOptionalTime(
-                    gregorianDate.Year - 543,
-                    gregorianDate.Month,
-                    gregorianDate.Day,
-                    gregorianDate.TimeOfDay == TimeSpan.Zero ? string.Empty : gregorianDate.ToString("HH:mm:ss", CultureInfo.InvariantCulture),
-                    out gregorianDate);
-            }
-
             return true;
         }
 
-        return false;
+        // When Buddhist Era year (> 2400) or unambiguous day > 12 is used, interpret strictly as dd/MM/yyyy.
+        if (TryParseMatchedDate(DayFirstDateRegex().Match(trimmed), requireYearOrDayThreshold: true, out gregorianDate))
+        {
+            return true;
+        }
+
+        // 2. Fallback to standard Gregorian parsing for ISO/Invariant formats
+        return TryParseFallbackDate(trimmed, out gregorianDate);
+    }
+
+    private static bool TryParseMatchedDate(
+        Match match,
+        bool requireYearOrDayThreshold,
+        out DateTime gregorianDate)
+    {
+        gregorianDate = default;
+        if (!match.Success ||
+            !int.TryParse(match.Groups["y"].Value, out int rawYear) ||
+            !int.TryParse(match.Groups["m"].Value, out int month) ||
+            !int.TryParse(match.Groups["d"].Value, out int day))
+        {
+            return false;
+        }
+
+        if (requireYearOrDayThreshold && rawYear <= 2400 && day <= 12)
+        {
+            return false;
+        }
+
+        int normalizedYear = rawYear > 2400 ? rawYear - 543 : rawYear;
+        return TryBuildDateWithOptionalTime(
+            normalizedYear,
+            month,
+            day,
+            match.Groups["rest"].Value,
+            out gregorianDate);
+    }
+
+    private static bool TryParseFallbackDate(string trimmed, out DateTime gregorianDate)
+    {
+        if (!DateTime.TryParse(trimmed, CultureInfo.InvariantCulture, DateTimeStyles.None, out gregorianDate) &&
+            !DateTime.TryParse(trimmed, CultureInfo.CurrentCulture, DateTimeStyles.None, out gregorianDate))
+        {
+            return false;
+        }
+
+        if (gregorianDate.Year <= 2400)
+        {
+            return true;
+        }
+
+        string? timeRest = gregorianDate.TimeOfDay == TimeSpan.Zero
+            ? string.Empty
+            : gregorianDate.ToString("HH:mm:ss", CultureInfo.InvariantCulture);
+
+        return TryBuildDateWithOptionalTime(
+            gregorianDate.Year - 543,
+            gregorianDate.Month,
+            gregorianDate.Day,
+            timeRest,
+            out gregorianDate);
     }
 
     private static bool TryBuildDateWithOptionalTime(
@@ -310,7 +332,7 @@ public static partial class ThaiDataTransformer
     {
         if (string.IsNullOrWhiteSpace(input)) return string.Empty;
 
-        string cleaned = input.Replace(",", "").Replace("฿", "").Trim();
+        string cleaned = input.Replace(",", "", StringComparison.Ordinal).Replace("฿", "", StringComparison.Ordinal).Trim();
         if (!decimal.TryParse(cleaned, NumberStyles.Any, CultureInfo.InvariantCulture, out decimal amount))
         {
             return input;

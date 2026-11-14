@@ -57,7 +57,7 @@ public sealed class LayoutStructTests
     [InlineData(float.NaN, 297)]
     public void PageDimension_InvalidDimensions_ThrowsDomainValidationException(float width, float height)
     {
-        Action act = () => new PageDimension(width, height);
+        Action act = () => _ = new PageDimension(width, height);
         act.Should().Throw<DomainValidationException>();
     }
 
@@ -84,7 +84,7 @@ public sealed class LayoutStructTests
     [InlineData(10, 10, 10, -0.5f)]
     public void PageMargin_NegativeMargin_ThrowsDomainValidationException(float top, float bottom, float left, float right)
     {
-        Action act = () => new PageMargin(top, bottom, left, right);
+        Action act = () => _ = new PageMargin(top, bottom, left, right);
         act.Should().Throw<DomainValidationException>();
     }
 
@@ -111,7 +111,7 @@ public sealed class LayoutStructTests
         var start = new DateOnly(2026, 1, 15);
         var end = new DateOnly(2026, 1, 10);
 
-        Action act = () => new DateRange(start, end);
+        Action act = () => _ = new DateRange(start, end);
         act.Should().Throw<DomainValidationException>()
             .WithMessage("*cannot be after end*");
     }

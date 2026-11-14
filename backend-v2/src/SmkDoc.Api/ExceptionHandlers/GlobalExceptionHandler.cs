@@ -52,7 +52,14 @@ public sealed partial class GlobalExceptionHandler(
         LogException(exception, status, errorCode, traceId);
 
         // Step 3: Build standardized RFC 9457 ProblemDetails with traceId and validation errors
-        var problemDetails = BuildProblemDetails(httpContext, exception, status, title, errorCode, traceId, configuration?["Problems:BaseUri"]);
+        var problemDetails = BuildProblemDetails(
+            httpContext,
+            exception,
+            status,
+            title,
+            errorCode,
+            traceId,
+            ProblemDetailsBuilder.TryParseBaseUri(configuration?["Problems:BaseUri"]));
 
         // Step 4: Write response to HTTP pipeline
         await WriteResponseAsync(httpContext, problemDetails, exception, cancellationToken);
@@ -92,7 +99,7 @@ public sealed partial class GlobalExceptionHandler(
         string title,
         string errorCode,
         string traceId,
-        string? typeBaseUri) =>
+        Uri? typeBaseUri) =>
         ProblemDetailsBuilder.Create(
             status: status,
             title: title,

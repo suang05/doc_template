@@ -29,18 +29,18 @@ public sealed class DataBindingEngine(
     };
 
     public async Task<BoundDocumentData> BindAndValidateAsync(
-        Template template,
+        Template templateEntity,
         TemplateVersion version,
         JsonElement rawPayload,
         bool skipValidation,
         CancellationToken ct = default)
     {
-        ArgumentNullException.ThrowIfNull(template);
+        ArgumentNullException.ThrowIfNull(templateEntity);
         ArgumentNullException.ThrowIfNull(version);
 
-        var mappings = ResolveMappings(template, version);
-        var aliasMap = template.TemplateDatasets.Count > 0
-            ? await datasetResolver.ResolveAssignmentsAsync(template.TemplateDatasets, ct)
+        var mappings = ResolveMappings(templateEntity, version);
+        var aliasMap = templateEntity.TemplateDatasets.Count > 0
+            ? await datasetResolver.ResolveAssignmentsAsync(templateEntity.TemplateDatasets, ct)
             : new Dictionary<string, ResolvedDatasetContext>(StringComparer.OrdinalIgnoreCase);
 
         var boundDict = InitializePayloadDict(rawPayload);
@@ -48,7 +48,7 @@ public sealed class DataBindingEngine(
 
         if (aliasMap.Count > 0)
         {
-            var aliasResults = await datasetExecutor.ExecuteBatchAsync(aliasMap, boundDict, template.ProjectId.Value, ct);
+            var aliasResults = await datasetExecutor.ExecuteBatchAsync(aliasMap, boundDict, templateEntity.ProjectId.Value, ct);
             BindSqlMappings(aliasResults, mappings, boundDict);
         }
 
@@ -59,23 +59,28 @@ public sealed class DataBindingEngine(
         return new BoundDocumentData(dataJson, validation);
     }
 
-    private static string SerializePayload(Dictionary<string, object?> boundDict, JsonElement rawPayload) =>
-        boundDict.Count > 0
-            ? JsonSerializer.Serialize(boundDict, JsonOptions)
-            : (rawPayload.ValueKind != JsonValueKind.Undefined ? rawPayload.GetRawText() : "{}");
+    private static string SerializePayload(Dictionary<string, object?> boundDict, JsonElement rawPayload)
+    {
+        if (boundDict.Count > 0)
+        {
+            return JsonSerializer.Serialize(boundDict, JsonOptions);
+        }
+
+        return rawPayload.ValueKind != JsonValueKind.Undefined ? rawPayload.GetRawText() : "{}";
+    }
 
     private SchemaValidationResult? ValidateSchema(string? schema, string dataJson, bool skipValidation) =>
         !skipValidation && !string.IsNullOrWhiteSpace(schema)
             ? schemaValidation.Validate(schema, dataJson)
             : null;
 
-    private List<FieldMapping> ResolveMappings(Template template, TemplateVersion version)
+    private IReadOnlyList<FieldMapping> ResolveMappings(Template templateEntity, TemplateVersion version)
     {
         if (!string.IsNullOrWhiteSpace(version.MappingsSnapshot))
         {
-            return FieldMappingSnapshotSerializer.Deserialize(template.Id, version.MappingsSnapshot, timeProvider.GetUtcNow());
+            return FieldMappingSnapshotSerializer.Deserialize(templateEntity.Id, version.MappingsSnapshot, timeProvider.GetUtcNow());
         }
-        return template.FieldMappings.ToList();
+        return [.. templateEntity.FieldMappings];
     }
 
     private static Dictionary<string, object?> InitializePayloadDict(JsonElement rawPayload)
@@ -89,7 +94,7 @@ public sealed class DataBindingEngine(
         return dict;
     }
 
-    private static void BindJsonMappings(JsonElement root, List<FieldMapping> mappings, Dictionary<string, object?> dict)
+    private static void BindJsonMappings(JsonElement root, IReadOnlyList<FieldMapping> mappings, Dictionary<string, object?> dict)
     {
         foreach (var m in mappings.Where(m => m.DataSourceType == DataSourceType.Json && string.IsNullOrWhiteSpace(m.MathExpression)).OrderBy(m => m.SortOrder))
         {
@@ -99,7 +104,7 @@ public sealed class DataBindingEngine(
 
     private static void BindSqlMappings(
         IReadOnlyDictionary<string, JsonElement> aliasResults,
-        List<FieldMapping> mappings,
+        IReadOnlyList<FieldMapping> mappings,
         Dictionary<string, object?> dict)
     {
         foreach (var m in mappings.Where(m => m.DataSourceType == DataSourceType.Sql && m.DatasetAlias != null).OrderBy(m => m.SortOrder))
@@ -134,7 +139,7 @@ public sealed class DataBindingEngine(
         }
     }
 
-    private void EvaluateMathExpressions(List<FieldMapping> mappings, Dictionary<string, object?> dict)
+    private void EvaluateMathExpressions(IReadOnlyList<FieldMapping> mappings, Dictionary<string, object?> dict)
     {
         var stringVars = BuildStringVars(dict);
         foreach (var m in mappings.Where(m => !string.IsNullOrWhiteSpace(m.MathExpression)).OrderBy(m => m.SortOrder))

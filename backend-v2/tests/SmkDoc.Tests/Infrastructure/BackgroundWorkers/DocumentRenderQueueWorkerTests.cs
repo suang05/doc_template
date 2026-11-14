@@ -38,7 +38,7 @@ public sealed class DocumentRenderQueueWorkerTests
 
         // Queue returns the job once, then cancels
         _queue.DequeueAsync(Arg.Any<CancellationToken>())
-            .Returns<Task<DocumentJob?>>(
+            .Returns(
                 _ => Task.FromResult<DocumentJob?>(job),
                 async _ =>
                 {

@@ -47,7 +47,7 @@ public sealed partial class RedisDocumentRenderQueue(
         }
         catch (RedisException ex)
         {
-            throw new SmkDoc.Application.Common.Exceptions.ExternalServiceException(
+            throw new Application.Common.Exceptions.ExternalServiceException(
                 "Redis",
                 $"Failed to enqueue document job {job.JobId} in Redis Streams.",
                 ex);
@@ -117,7 +117,7 @@ public sealed partial class RedisDocumentRenderQueue(
         }
         catch (RedisException ex)
         {
-            throw new SmkDoc.Application.Common.Exceptions.ExternalServiceException(
+            throw new Application.Common.Exceptions.ExternalServiceException(
                 "Redis",
                 "Failed to dequeue next document job from Redis Streams.",
                 ex);
@@ -143,7 +143,7 @@ public sealed partial class RedisDocumentRenderQueue(
         }
         catch (RedisException ex)
         {
-            throw new SmkDoc.Application.Common.Exceptions.ExternalServiceException(
+            throw new Application.Common.Exceptions.ExternalServiceException(
                 "Redis",
                 $"Failed to retrieve document job {jobId} from Redis.",
                 ex);
@@ -185,7 +185,7 @@ public sealed partial class RedisDocumentRenderQueue(
         }
         catch (RedisException ex)
         {
-            throw new SmkDoc.Application.Common.Exceptions.ExternalServiceException(
+            throw new Application.Common.Exceptions.ExternalServiceException(
                 "Redis",
                 $"Failed to update document job {job.JobId} in Redis.",
                 ex);

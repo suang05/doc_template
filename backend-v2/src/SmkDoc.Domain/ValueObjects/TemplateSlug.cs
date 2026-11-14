@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Text.RegularExpressions;
 using SmkDoc.Domain.Exceptions;
 
@@ -13,6 +14,7 @@ public sealed partial record TemplateSlug
 
     public string Value { get; }
 
+    [SuppressMessage("Globalization", "CA1308:Normalize strings to uppercase", Justification = "Canonical lowercase URL slug normalization.")]
     public TemplateSlug(string value)
     {
         if (string.IsNullOrWhiteSpace(value))

@@ -1,4 +1,4 @@
-﻿using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.RefreshToken;
+using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.RefreshToken;
 
 namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Security.Commands.RefreshToken;
 

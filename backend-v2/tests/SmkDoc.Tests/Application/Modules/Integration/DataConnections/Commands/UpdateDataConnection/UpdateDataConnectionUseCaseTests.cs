@@ -39,7 +39,7 @@ public sealed class UpdateDataConnectionUseCaseTests
         Func<Task> act = () => pipeline.ExecuteAsync(command, CancellationToken.None);
 
         // Assert
-        await act.Should().ThrowAsync<SmkDoc.Application.Common.Exceptions.ValidationException>();
+        await act.Should().ThrowAsync<ValidationException>();
         await _connectionRepo.DidNotReceive().GetByIdAsync(Arg.Any<DataConnectionId>(), Arg.Any<CancellationToken>());
     }
 

@@ -1,3 +1,4 @@
+using System.Globalization;
 using HandlebarsDotNet;
 using SmkDoc.Application.Common.Helpers;
 using SmkDoc.Application.Common.Interfaces;
@@ -8,81 +9,68 @@ public class HtmlHelperRegistry(IMediaGenerationService mediaService) : IHtmlHel
 {
     public void RegisterHelpers(IHandlebars handlebars)
     {
-        // 1. Thai Transforms & Formatters
-        handlebars.RegisterHelper("thaitransform", (output, context, arguments) =>
+        RegisterThaiTransformHelpers(handlebars);
+        RegisterArithmeticHelpers(handlebars);
+        RegisterLogicHelpers(handlebars);
+        RegisterMediaHelpers(handlebars, mediaService);
+    }
+
+    private static void RegisterThaiTransformHelpers(IHandlebars handlebars)
+    {
+        handlebars.RegisterHelper("thaitransform", (output, _, arguments) =>
         {
-            if (arguments.Length >= 2)
+            if (arguments.Length < 2 || arguments[0] == null)
             {
-                var value = arguments[0]?.ToString();
-                var transformType = arguments[1]?.ToString();
-                
-                if (value != null && !string.IsNullOrWhiteSpace(transformType))
-                {
-                    output.WriteSafeString(ThaiDataTransformer.Transform(value, transformType));
-                    return;
-                }
-                
-                if (value != null)
-                {
-                    output.WriteSafeString(value);
-                    return;
-                }
+                output.WriteSafeString(string.Empty);
+                return;
             }
-            output.WriteSafeString(string.Empty);
+
+            var value = arguments[0]!.ToString()!;
+            var transformType = arguments[1]?.ToString();
+            output.WriteSafeString(!string.IsNullOrWhiteSpace(transformType)
+                ? ThaiDataTransformer.Transform(value, transformType)
+                : value);
         });
 
-        handlebars.RegisterHelper("thai_baht_text", (output, context, arguments) =>
+        RegisterSingleArgTransformHelper(handlebars, "thai_baht_text", "thai_baht_text");
+        RegisterSingleArgTransformHelper(handlebars, "thai_date", "thai_date");
+        RegisterSingleArgTransformHelper(handlebars, "format_number", "number");
+    }
+
+    private static void RegisterSingleArgTransformHelper(IHandlebars handlebars, string helperName, string transformName)
+    {
+        handlebars.RegisterHelper(helperName, (output, _, arguments) =>
         {
             if (arguments.Length >= 1 && arguments[0] != null)
             {
-                output.WriteSafeString(ThaiDataTransformer.Transform(arguments[0]?.ToString() ?? string.Empty, "thai_baht_text"));
+                output.WriteSafeString(ThaiDataTransformer.Transform(arguments[0]?.ToString() ?? string.Empty, transformName));
                 return;
             }
             output.WriteSafeString(string.Empty);
         });
+    }
 
-        handlebars.RegisterHelper("thai_date", (output, context, arguments) =>
-        {
-            if (arguments.Length >= 1 && arguments[0] != null)
-            {
-                output.WriteSafeString(ThaiDataTransformer.Transform(arguments[0]?.ToString() ?? string.Empty, "thai_date"));
-                return;
-            }
-            output.WriteSafeString(string.Empty);
-        });
+    private static void RegisterArithmeticHelpers(IHandlebars handlebars)
+    {
+        RegisterIncrementHelper(handlebars, "addOne");
+        RegisterIncrementHelper(handlebars, "inc");
+    }
 
-        handlebars.RegisterHelper("format_number", (output, context, arguments) =>
-        {
-            if (arguments.Length >= 1 && arguments[0] != null)
-            {
-                output.WriteSafeString(ThaiDataTransformer.Transform(arguments[0]?.ToString() ?? string.Empty, "number"));
-                return;
-            }
-            output.WriteSafeString(string.Empty);
-        });
-
-        // 2. Loop Indexing & Arithmetic
-        handlebars.RegisterHelper("addOne", (output, context, arguments) =>
+    private static void RegisterIncrementHelper(IHandlebars handlebars, string helperName)
+    {
+        handlebars.RegisterHelper(helperName, (output, _, arguments) =>
         {
             if (arguments.Length >= 1 && int.TryParse(arguments[0]?.ToString(), out int val))
             {
-                output.WriteSafeString((val + 1).ToString());
+                output.WriteSafeString((val + 1).ToString(CultureInfo.InvariantCulture));
                 return;
             }
             output.WriteSafeString("1");
         });
+    }
 
-        handlebars.RegisterHelper("inc", (output, context, arguments) =>
-        {
-            if (arguments.Length >= 1 && int.TryParse(arguments[0]?.ToString(), out int val))
-            {
-                output.WriteSafeString((val + 1).ToString());
-                return;
-            }
-            output.WriteSafeString("1");
-        });
-
-        // 3. Logic & Comparison Block Helpers
+    private static void RegisterLogicHelpers(IHandlebars handlebars)
+    {
         handlebars.RegisterHelper("ifEquals", (output, options, context, arguments) =>
         {
             if (arguments.Length >= 2 && string.Equals(arguments[0]?.ToString(), arguments[1]?.ToString(), StringComparison.OrdinalIgnoreCase))
@@ -94,39 +82,29 @@ public class HtmlHelperRegistry(IMediaGenerationService mediaService) : IHtmlHel
                 options.Inverse(output, context);
             }
         });
+    }
 
-        // 4. Dynamic Media Helpers (QR Code & Barcode natively supported in loops!)
-        handlebars.RegisterHelper("qr", (output, context, arguments) =>
+    private static void RegisterMediaHelpers(IHandlebars handlebars, IMediaGenerationService mediaService)
+    {
+        RegisterMediaImageHelper(handlebars, "qr", text => mediaService.GenerateQrCodeDataUri(text, 150, 150), 150, 150);
+        RegisterMediaImageHelper(handlebars, "qrcode", text => mediaService.GenerateQrCodeDataUri(text, 150, 150), 150, 150);
+        RegisterMediaImageHelper(handlebars, "barcode", text => mediaService.GenerateBarcodeDataUri(text, 300, 100), 300, 100);
+    }
+
+    private static void RegisterMediaImageHelper(
+        IHandlebars handlebars,
+        string helperName,
+        Func<string, Uri> generateDataUri,
+        int widthPx,
+        int heightPx)
+    {
+        handlebars.RegisterHelper(helperName, (output, _, arguments) =>
         {
             if (arguments.Length >= 1 && arguments[0] != null)
             {
                 string text = arguments[0]?.ToString() ?? string.Empty;
-                string dataUri = mediaService.GenerateQrCodeDataUri(text, 150, 150);
-                output.WriteSafeString($"<img src=\"{dataUri}\" style=\"width:150px;height:150px;display:block;\" />");
-                return;
-            }
-            output.WriteSafeString(string.Empty);
-        });
-
-        handlebars.RegisterHelper("qrcode", (output, context, arguments) =>
-        {
-            if (arguments.Length >= 1 && arguments[0] != null)
-            {
-                string text = arguments[0]?.ToString() ?? string.Empty;
-                string dataUri = mediaService.GenerateQrCodeDataUri(text, 150, 150);
-                output.WriteSafeString($"<img src=\"{dataUri}\" style=\"width:150px;height:150px;display:block;\" />");
-                return;
-            }
-            output.WriteSafeString(string.Empty);
-        });
-
-        handlebars.RegisterHelper("barcode", (output, context, arguments) =>
-        {
-            if (arguments.Length >= 1 && arguments[0] != null)
-            {
-                string text = arguments[0]?.ToString() ?? string.Empty;
-                string dataUri = mediaService.GenerateBarcodeDataUri(text, 300, 100);
-                output.WriteSafeString($"<img src=\"{dataUri}\" style=\"width:300px;height:100px;display:block;\" />");
+                Uri dataUri = generateDataUri(text);
+                output.WriteSafeString($"<img src=\"{dataUri.OriginalString}\" style=\"width:{widthPx}px;height:{heightPx}px;display:block;\" />");
                 return;
             }
             output.WriteSafeString(string.Empty);

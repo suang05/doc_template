@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using ClosedXML.Excel;
@@ -9,7 +10,6 @@ using SmkDoc.Domain.Enums;
 using SmkDoc.Infrastructure.Engines.Excel;
 using SmkDoc.Infrastructure.Engines.Html;
 using SmkDoc.Infrastructure.Engines.Html.Helpers;
-using SmkDoc.Infrastructure.Engines.Html.Pipeline;
 using SmkDoc.Infrastructure.Engines.Word;
 using SmkDoc.Infrastructure.Imaging;
 using SmkDoc.Infrastructure.Parsing;
@@ -35,14 +35,14 @@ public sealed class PerformanceBenchmarkTests
         {
             list.Add(new
             {
-                no = i.ToString(),
-                date = baseDate.AddDays(i % 365).ToString("dd/MM/yyyy"),
+                no = i.ToString(CultureInfo.InvariantCulture),
+                date = baseDate.AddDays(i % 365).ToString("dd/MM/yyyy", CultureInfo.InvariantCulture),
                 refNo = $"TXN-2026-{i:D6}",
                 description = $"ชำระค่างวดที่อยู่อาศัย แปลง {i % 100 + 1:D3} โครงการสัมมากร",
                 account = "110-2-34567-8",
-                debit = (i % 2 == 0 ? (i * 150.50m).ToString("N2") : "0.00"),
-                credit = (i % 2 != 0 ? (i * 200.75m).ToString("N2") : "0.00"),
-                amount = (i * 1250.00m).ToString("N2")
+                debit = (i % 2 == 0 ? (i * 150.50m).ToString("N2", CultureInfo.InvariantCulture) : "0.00"),
+                credit = (i % 2 != 0 ? (i * 200.75m).ToString("N2", CultureInfo.InvariantCulture) : "0.00"),
+                amount = (i * 1250.00m).ToString("N2", CultureInfo.InvariantCulture)
             });
         }
         return list;
@@ -140,7 +140,6 @@ public sealed class PerformanceBenchmarkTests
         var engine = new ExcelTemplateEngine(
             Substitute.For<IPdfRenderer>(),
             mediaInjector,
-            new ExcelTableExpander(),
             new JsonTemplateDataParser());
 
         // Warm up
@@ -225,8 +224,6 @@ public sealed class PerformanceBenchmarkTests
         var engine = new DocxTemplateEngine(
             Substitute.For<IPdfRenderer>(),
             mediaInjector,
-            new WordTextReplacer(),
-            new WordTableExpander(),
             new JsonTemplateDataParser());
 
         // Warm up
@@ -324,7 +321,7 @@ public sealed class PerformanceBenchmarkTests
         var htmlMediaService = new MediaGenerationService(Substitute.For<IQrCodeService>(), Substitute.For<IBarcodeService>());
         var handlebars1 = HandlebarsDotNet.Handlebars.Create();
         new HtmlHelperRegistry(htmlMediaService).RegisterHelpers(handlebars1);
-        var engine = new HtmlTemplateEngine(mockPdf, handlebars1, new JsonTemplateDataParser(), new HtmlPlaceholderTransformer(), new HtmlLayoutProcessor());
+        var engine = new HtmlTemplateEngine(mockPdf, handlebars1, new JsonTemplateDataParser());
 
         // Warm up
         using (var warmStream = new MemoryStream(templateBytes))
@@ -370,7 +367,7 @@ public sealed class PerformanceBenchmarkTests
         var htmlMediaService = new MediaGenerationService(Substitute.For<IQrCodeService>(), Substitute.For<IBarcodeService>());
         var handlebars1 = HandlebarsDotNet.Handlebars.Create();
         new HtmlHelperRegistry(htmlMediaService).RegisterHelpers(handlebars1);
-        var engine = new HtmlTemplateEngine(mockPdf, handlebars1, new JsonTemplateDataParser(), new HtmlPlaceholderTransformer(), new HtmlLayoutProcessor());
+        var engine = new HtmlTemplateEngine(mockPdf, handlebars1, new JsonTemplateDataParser());
         var payload = "{}";
 
         var sw = Stopwatch.StartNew();

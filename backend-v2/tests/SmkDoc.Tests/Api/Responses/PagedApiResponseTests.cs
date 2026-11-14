@@ -1,11 +1,17 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using SmkDoc.Api.Common.Responses;
 
 namespace SmkDoc.Tests.Api.Responses;
 
 public sealed class PagedApiResponseTests
 {
-    private record SampleItem(string Id, string Name, string Slug);
+    private static readonly JsonSerializerOptions CamelCaseIndentedJsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        WriteIndented = true
+    };
+
+    private sealed record SampleItem(string Id, string Name, string Slug);
 
     [Theory]
     [InlineData(42, 1, 20, 3)]
@@ -52,14 +58,8 @@ public sealed class PagedApiResponseTests
         };
         var pagedResponse = new PagedApiResponse<SampleItem>(items, totalCount: 42, page: 1, limit: 20);
 
-        var jsonOptions = new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-            WriteIndented = true
-        };
-
         // Act
-        var json = JsonSerializer.Serialize(pagedResponse, jsonOptions);
+        var json = JsonSerializer.Serialize(pagedResponse, CamelCaseIndentedJsonOptions);
         using var document = JsonDocument.Parse(json);
         var root = document.RootElement;
 

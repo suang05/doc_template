@@ -4,6 +4,7 @@ using SmkDoc.Domain.Exceptions;
 
 namespace SmkDoc.Domain.Common;
 
+[SuppressMessage("Naming", "CA1724:Type names should not match namespaces", Justification = "Domain SmartEnum base class name intentionally preserved across domain/application contracts.")]
 public abstract class Enumeration(int id, string name) : IComparable
 {
     public string Name { get; } = name;

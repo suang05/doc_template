@@ -22,4 +22,8 @@ public readonly record struct DataConnectionId(Guid Value) : IComparable<DataCon
     public static bool operator !=(DataConnectionId left, Guid right) => left.Value != right;
     public static bool operator ==(Guid left, DataConnectionId right) => left == right.Value;
     public static bool operator !=(Guid left, DataConnectionId right) => left != right.Value;
+    public static bool operator <(DataConnectionId left, DataConnectionId right) => left.CompareTo(right) < 0;
+    public static bool operator <=(DataConnectionId left, DataConnectionId right) => left.CompareTo(right) <= 0;
+    public static bool operator >(DataConnectionId left, DataConnectionId right) => left.CompareTo(right) > 0;
+    public static bool operator >=(DataConnectionId left, DataConnectionId right) => left.CompareTo(right) >= 0;
 }

@@ -7,7 +7,7 @@ public sealed class TemplateFormat : Enumeration
     public static readonly TemplateFormat Html = new(1, "html", "text/html", RenderEngineType.Html);
     public static readonly TemplateFormat Docx = new(2, "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", RenderEngineType.Docx);
     public static readonly TemplateFormat Xlsx = new(3, "xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", RenderEngineType.Excel);
-    public static readonly TemplateFormat Pdf  = new(4, "pdf", "application/pdf", RenderEngineType.Html);
+    public static readonly TemplateFormat Pdf = new(4, "pdf", "application/pdf", RenderEngineType.Html);
 
     public string Extension { get; }
     public string MimeType { get; }
@@ -28,8 +28,33 @@ public sealed class TemplateFormat : Enumeration
             return false;
         }
 
-        string normalized = extension.Trim().TrimStart('.').ToLowerInvariant();
-        return TryFromDisplayName(normalized, out format);
+        var normalized = extension.AsSpan().Trim().TrimStart('.');
+        if (normalized.Equals("html", StringComparison.OrdinalIgnoreCase))
+        {
+            format = Html;
+            return true;
+        }
+
+        if (normalized.Equals("docx", StringComparison.OrdinalIgnoreCase))
+        {
+            format = Docx;
+            return true;
+        }
+
+        if (normalized.Equals("xlsx", StringComparison.OrdinalIgnoreCase))
+        {
+            format = Xlsx;
+            return true;
+        }
+
+        if (normalized.Equals("pdf", StringComparison.OrdinalIgnoreCase))
+        {
+            format = Pdf;
+            return true;
+        }
+
+        format = null;
+        return false;
     }
 }
 

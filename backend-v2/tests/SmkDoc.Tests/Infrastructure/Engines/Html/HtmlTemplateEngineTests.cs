@@ -2,7 +2,6 @@ using System.Text;
 using HandlebarsDotNet;
 using SmkDoc.Infrastructure.Engines.Html;
 using SmkDoc.Infrastructure.Engines.Html.Helpers;
-using SmkDoc.Infrastructure.Engines.Html.Pipeline;
 using SmkDoc.Infrastructure.Imaging;
 using SmkDoc.Infrastructure.Parsing;
 
@@ -23,14 +22,12 @@ public sealed class HtmlTemplateEngineTests
             pdfRenderer,
             handlebars,
             new JsonTemplateDataParser(),
-            new HtmlPlaceholderTransformer(),
-            new HtmlLayoutProcessor(),
             cache);
     }
 
     private static async Task<string> RenderAndCaptureHtmlAsync(
-        string templateHtml, 
-        string json, 
+        string templateHtml,
+        string json,
         ICompiledTemplateCache? cache = null)
     {
         var pdfRenderer = Substitute.For<IPdfRenderer>();
@@ -158,9 +155,7 @@ public sealed class HtmlTemplateEngineTests
         var engine = new HtmlTemplateEngine(
             pdfRenderer,
             singletonHandlebars,
-            new JsonTemplateDataParser(),
-            new HtmlPlaceholderTransformer(),
-            new HtmlLayoutProcessor());
+            new JsonTemplateDataParser());
 
         string template = "<html><body><h1>Welcome {{name}}!</h1></body></html>";
         using var stream = new MemoryStream(Encoding.UTF8.GetBytes(template));

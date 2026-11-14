@@ -242,12 +242,12 @@ public sealed class CleanArchitectureTests
     public void Tenant_Entities_Must_Implement_IMustHaveProject(Type entityType)
     {
         // Assert
-        typeof(SmkDoc.Domain.Interfaces.IMustHaveProject).IsAssignableFrom(entityType)
+        typeof(IMustHaveProject).IsAssignableFrom(entityType)
             .Should().BeTrue($"Entity '{entityType.Name}' must implement IMustHaveProject for tenant isolation.");
 
         var projectIdProp = entityType.GetProperty("ProjectId", BindingFlags.Public | BindingFlags.Instance);
         projectIdProp.Should().NotBeNull($"Entity '{entityType.Name}' must expose public ProjectId property.");
-        projectIdProp!.PropertyType.Should().Be(typeof(SmkDoc.Domain.ValueObjects.Ids.ProjectId));
+        projectIdProp!.PropertyType.Should().Be<SmkDoc.Domain.ValueObjects.Ids.ProjectId>();
         projectIdProp.GetSetMethod(nonPublic: true).Should().NotBeNull();
         projectIdProp.GetSetMethod(nonPublic: false).Should().BeNull($"Entity '{entityType.Name}' ProjectId setter must be private.");
     }
@@ -707,7 +707,7 @@ public sealed class CleanArchitectureTests
     [Fact]
     public void GenerationLogRepository_Must_Not_Expose_Paged_List_Projections()
     {
-        var methods = typeof(SmkDoc.Domain.Interfaces.IGenerationLogRepository)
+        var methods = typeof(IGenerationLogRepository)
             .GetMethods(BindingFlags.Public | BindingFlags.Instance)
             .Select(m => m.Name)
             .ToList();

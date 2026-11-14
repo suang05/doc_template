@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Common.Responses;
@@ -72,7 +73,7 @@ public sealed class TemplateLifecycleControllerTests
         var sut = CreateSut();
         var templateId = Guid.NewGuid();
         var now = DateTimeOffset.UtcNow;
-        var token = now.ToUnixTimeMilliseconds().ToString();
+        var token = now.ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture);
         var resultDto = new TemplateResultDto(
             templateId,
             Guid.NewGuid(),
@@ -138,7 +139,7 @@ public sealed class TemplateLifecycleControllerTests
         var sut = CreateSut();
         var templateId = Guid.NewGuid();
         var now = DateTimeOffset.UtcNow;
-        var token = now.ToUnixTimeMilliseconds().ToString();
+        var token = now.ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture);
         var resultDto = new TemplateResultDto(
             templateId,
             Guid.NewGuid(),

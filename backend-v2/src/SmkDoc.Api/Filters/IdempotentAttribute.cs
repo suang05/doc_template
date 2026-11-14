@@ -22,7 +22,7 @@ public sealed class IdempotentAttribute : Attribute, IFilterFactory
     /// Indicates whether the Idempotency-Key header is strictly required (Mandatory) or optional (Opt-in).
     /// Defaults to false (Opt-in) for backward compatibility.
     /// </summary>
-    public bool Mandatory { get; set; } = false;
+    public bool Mandatory { get; set; }
 
     public bool IsReusable => false;
 

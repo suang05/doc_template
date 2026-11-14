@@ -1,4 +1,4 @@
-﻿namespace SmkDoc.Tests.Domain.ValueObjects;
+namespace SmkDoc.Tests.Domain.ValueObjects;
 
 public sealed class TemplateSlugTests
 {
@@ -11,8 +11,9 @@ public sealed class TemplateSlugTests
     {
         var slug = new TemplateSlug(input);
 
-        slug.Value.Should().Be(input.ToLowerInvariant());
-        ((string)slug).Should().Be(input.ToLowerInvariant());
+        slug.Value.Should().MatchRegex("^[a-z0-9-]+$");
+        slug.Value.Should().Be(input);
+        ((string)slug).Should().Be(input);
     }
 
     [Theory]

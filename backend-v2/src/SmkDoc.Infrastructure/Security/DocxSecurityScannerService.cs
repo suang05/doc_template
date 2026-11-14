@@ -10,54 +10,26 @@ public sealed partial class DocxSecurityScannerService(ILogger<DocxSecurityScann
     public DocxScanResult Scan(Stream docxStream)
     {
         var startPos = docxStream.CanSeek ? docxStream.Position : -1L;
-        var threats  = new List<string>();
+        var threats = new List<string>();
 
         try
         {
-            using var doc      = WordprocessingDocument.Open(docxStream, isEditable: false);
-            var       mainPart = doc.MainDocumentPart;
-
+            using var doc = WordprocessingDocument.Open(docxStream, isEditable: false);
+            var mainPart = doc.MainDocumentPart;
             if (mainPart == null)
             {
                 threats.Add("Document has no main document part.");
                 return new DocxScanResult(false, threats);
             }
 
-            if (mainPart.VbaProjectPart != null)
-                threats.Add("VBA macro project detected.");
-
-            foreach (var part in mainPart.Parts)
-            {
-                if (part.OpenXmlPart is EmbeddedObjectPart)
-                    threats.Add($"Embedded OLE object ({part.RelationshipId}).");
-                else if (part.OpenXmlPart is EmbeddedPackagePart)
-                    threats.Add($"Embedded package ({part.RelationshipId}).");
-            }
-
-            foreach (var rel in mainPart.ExternalRelationships)
-            {
-                var type = rel.RelationshipType?.ToLowerInvariant() ?? string.Empty;
-                if (type.Contains("attachedtemplate") || type.Contains("frame") || type.Contains("oleobject"))
-                    threats.Add($"Suspicious external relationship: {rel.Uri}");
-            }
+            InspectMainDocumentPart(mainPart, threats);
         }
-        catch (DocumentFormat.OpenXml.Packaging.OpenXmlPackageException ex)
-        {
-            RecordScanFailure(ex, threats);
-        }
-        catch (InvalidDataException ex)
-        {
-            RecordScanFailure(ex, threats);
-        }
-        catch (FormatException ex)
-        {
-            RecordScanFailure(ex, threats);
-        }
-        catch (IOException ex)
-        {
-            RecordScanFailure(ex, threats);
-        }
-        catch (InvalidOperationException ex)
+        catch (Exception ex) when (ex is
+            DocumentFormat.OpenXml.Packaging.OpenXmlPackageException or
+            InvalidDataException or
+            FormatException or
+            IOException or
+            InvalidOperationException)
         {
             RecordScanFailure(ex, threats);
         }
@@ -73,6 +45,31 @@ public sealed partial class DocxSecurityScannerService(ILogger<DocxSecurityScann
         }
 
         return new DocxScanResult(threats.Count == 0, threats);
+    }
+
+    private static void InspectMainDocumentPart(MainDocumentPart mainPart, List<string> threats)
+    {
+        if (mainPart.VbaProjectPart != null)
+            threats.Add("VBA macro project detected.");
+
+        foreach (var part in mainPart.Parts)
+        {
+            if (part.OpenXmlPart is EmbeddedObjectPart)
+                threats.Add($"Embedded OLE object ({part.RelationshipId}).");
+            else if (part.OpenXmlPart is EmbeddedPackagePart)
+                threats.Add($"Embedded package ({part.RelationshipId}).");
+        }
+
+        foreach (var rel in mainPart.ExternalRelationships)
+        {
+            var type = rel.RelationshipType ?? string.Empty;
+            if (type.Contains("attachedtemplate", StringComparison.OrdinalIgnoreCase) ||
+                type.Contains("frame", StringComparison.OrdinalIgnoreCase) ||
+                type.Contains("oleobject", StringComparison.OrdinalIgnoreCase))
+            {
+                threats.Add($"Suspicious external relationship: {rel.Uri}");
+            }
+        }
     }
 
     private void RecordScanFailure(Exception ex, List<string> threats)

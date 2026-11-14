@@ -22,4 +22,8 @@ public readonly record struct DatasetId(Guid Value) : IComparable<DatasetId>
     public static bool operator !=(DatasetId left, Guid right) => left.Value != right;
     public static bool operator ==(Guid left, DatasetId right) => left == right.Value;
     public static bool operator !=(Guid left, DatasetId right) => left != right.Value;
+    public static bool operator <(DatasetId left, DatasetId right) => left.CompareTo(right) < 0;
+    public static bool operator <=(DatasetId left, DatasetId right) => left.CompareTo(right) <= 0;
+    public static bool operator >(DatasetId left, DatasetId right) => left.CompareTo(right) > 0;
+    public static bool operator >=(DatasetId left, DatasetId right) => left.CompareTo(right) >= 0;
 }

@@ -31,7 +31,7 @@ public sealed class LoginUseCaseTests
         var projectId = Guid.NewGuid();
         var command = new LoginCommand("test@example.com", "password123");
 
-        User user = aUser.Active()
+        User user = UserBuilder.AUser()
             .WithEmail("test@example.com")
             .WithPasswordHash("hashed_pw")
             .WithName("Test", "User")
@@ -98,7 +98,7 @@ public sealed class LoginUseCaseTests
     {
         // Arrange
         var command = new LoginCommand("inactive@example.com", "password123");
-        User inactiveUser = aUser.Inactive().WithEmail("inactive@example.com");
+        User inactiveUser = UserBuilder.AUser().AsInactive().WithEmail("inactive@example.com");
 
         _userRepo.GetByEmailAsync(Arg.Any<EmailAddress>(), Arg.Any<CancellationToken>())
             .Returns(inactiveUser);
@@ -119,7 +119,7 @@ public sealed class LoginUseCaseTests
     {
         // Arrange
         var command = new LoginCommand("test@example.com", "wrongpassword");
-        User user = aUser.Active()
+        User user = UserBuilder.AUser()
             .WithEmail("test@example.com")
             .WithPasswordHash("hashed_pw");
 

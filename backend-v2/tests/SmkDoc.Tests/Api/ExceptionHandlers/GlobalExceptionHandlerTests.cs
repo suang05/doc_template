@@ -11,6 +11,23 @@ namespace SmkDoc.Tests.Api.ExceptionHandlers;
 
 public sealed class GlobalExceptionHandlerTests
 {
+    private sealed class CapturingProblemDetailsService : IProblemDetailsService
+    {
+        public ProblemDetails? Captured { get; private set; }
+
+        public ValueTask WriteAsync(ProblemDetailsContext context)
+        {
+            Captured = context.ProblemDetails;
+            return ValueTask.CompletedTask;
+        }
+
+        public ValueTask<bool> TryWriteAsync(ProblemDetailsContext context)
+        {
+            Captured = context.ProblemDetails;
+            return ValueTask.FromResult(true);
+        }
+    }
+
     private static async Task<(bool Handled, DefaultHttpContext HttpContext, ProblemDetails? ProblemDetails)> ExecuteHandlerAsync(
         Exception exception,
         string path = "/api/v1/templates/test",
@@ -18,11 +35,7 @@ public sealed class GlobalExceptionHandlerTests
         IConfiguration? configuration = null,
         CancellationToken requestAborted = default)
     {
-        ProblemDetails? capturedProblemDetails = null;
-        var problemDetailsService = Substitute.For<IProblemDetailsService>();
-        problemDetailsService
-            .TryWriteAsync(Arg.Do<ProblemDetailsContext>(ctx => capturedProblemDetails = ctx.ProblemDetails))
-            .Returns(ValueTask.FromResult(true));
+        var problemDetailsService = new CapturingProblemDetailsService();
 
         var handler = new GlobalExceptionHandler(
             NullLogger<GlobalExceptionHandler>.Instance,
@@ -37,7 +50,7 @@ public sealed class GlobalExceptionHandlerTests
         httpContext.Request.Path = path;
 
         var handled = await handler.TryHandleAsync(httpContext, exception, CancellationToken.None);
-        return (handled, httpContext, capturedProblemDetails);
+        return (handled, httpContext, problemDetailsService.Captured);
     }
 
     [Theory]
@@ -75,7 +88,7 @@ public sealed class GlobalExceptionHandlerTests
         problemDetails!.Status.Should().Be(expectedStatus);
         problemDetails.Extensions.Should().ContainKey("errorCode").WhoseValue.Should().Be(expectedErrorCode);
         problemDetails.Extensions.Should().ContainKey("traceId").WhoseValue.Should().Be("trace-001");
-        problemDetails.Type.Should().Be(ProblemDetailsBuilder.ResolveTypeUri(expectedErrorCode));
+        problemDetails.Type.Should().Be(ProblemDetailsBuilder.ResolveTypeUri(expectedErrorCode).OriginalString);
         problemDetails.Instance.Should().Be("/api/v1/templates/test");
 
         if (expectedStatus >= StatusCodes.Status500InternalServerError)

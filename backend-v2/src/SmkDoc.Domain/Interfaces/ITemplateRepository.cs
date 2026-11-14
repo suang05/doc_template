@@ -16,7 +16,7 @@ public interface ITemplateRepository
     Task<IReadOnlyList<Template>> ListAsync(CancellationToken ct);
     Task<TemplateVersion?> GetVersionByIdAsync(Guid versionId, CancellationToken ct);
     Task<IReadOnlyList<TemplateVersion>> ListVersionsAsync(TemplateId templateId, CancellationToken ct);
-    Task AddAsync(Template template, CancellationToken ct);
-    void Update(Template template);
-    void Remove(Template template);
+    Task AddAsync(Template entity, CancellationToken ct);
+    void Update(Template entity);
+    void Remove(Template entity);
 }

@@ -22,4 +22,8 @@ public readonly record struct DocumentId(Guid Value) : IComparable<DocumentId>
     public static bool operator !=(DocumentId left, Guid right) => left.Value != right;
     public static bool operator ==(Guid left, DocumentId right) => left == right.Value;
     public static bool operator !=(Guid left, DocumentId right) => left != right.Value;
+    public static bool operator <(DocumentId left, DocumentId right) => left.CompareTo(right) < 0;
+    public static bool operator <=(DocumentId left, DocumentId right) => left.CompareTo(right) <= 0;
+    public static bool operator >(DocumentId left, DocumentId right) => left.CompareTo(right) > 0;
+    public static bool operator >=(DocumentId left, DocumentId right) => left.CompareTo(right) >= 0;
 }

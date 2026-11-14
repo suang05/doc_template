@@ -40,7 +40,7 @@ public sealed class MemoryCompiledTemplateCache : ICompiledTemplateCache, IDispo
             return cached;
         }
 
-        var stripe = _stripes[(uint)cacheKey.GetHashCode() % StripeCount];
+        var stripe = _stripes[(uint)cacheKey.GetHashCode(StringComparison.Ordinal) % StripeCount];
         lock (stripe)
         {
             if (_cache.TryGetValue(cacheKey, out cached) && cached is not null)

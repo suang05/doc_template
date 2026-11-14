@@ -6,7 +6,7 @@ namespace SmkDoc.Api.Authentication;
 
 /// <summary>
 /// Authentication handler for M2M API Key authentication scheme.
-/// Validates identity populated by perimeter <see cref="SmkDoc.Api.Middleware.ProjectContextMiddleware"/>.
+/// Validates identity populated by perimeter <see cref="Middleware.ProjectContextMiddleware"/>.
 /// </summary>
 public sealed class ApiKeyAuthenticationHandler(
     IOptionsMonitor<AuthenticationSchemeOptions> options,

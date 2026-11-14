@@ -254,6 +254,7 @@ public sealed partial class HybridTemplateDraftCache(
     private RedisKey PrefixedRedisKey(ProjectId projectId, string draftId) =>
         $"{instancePrefix}drafts:{projectId.Value:N}:{draftId.Trim()}";
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Globalization", "CA1308:Normalize strings to uppercase", Justification = "Canonical lowercase template draft file extension.")]
     public static string NormalizeExtension(string extension)
     {
         if (string.IsNullOrWhiteSpace(extension))

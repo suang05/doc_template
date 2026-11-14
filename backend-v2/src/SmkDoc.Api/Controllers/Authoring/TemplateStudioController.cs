@@ -78,6 +78,7 @@ public sealed class TemplateStudioController(
         [FromBody] ValidateHtmlRequest request,
         CancellationToken ct)
     {
+        _ = id;
         var query = new ValidateTemplateHtmlQuery(request.Html);
         var result = await validateUseCase.ExecuteAsync(query, ct);
         return Ok(new ApiResponse<TemplateValidationResultDto>(result));

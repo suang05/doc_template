@@ -4,10 +4,16 @@ public sealed record CreateApiKeyRequest(
     string Name,
     string CallerApp,
     string Scope = "ReadWrite",
-    string[]? Scopes = null,
+    IReadOnlyList<string>? Scopes = null,
     DateTimeOffset? ExpiresAt = null)
 {
-    public string EffectiveScope => !string.IsNullOrWhiteSpace(Scope)
-        ? Scope
-        : (Scopes?.FirstOrDefault() ?? "ReadWrite");
+    public string EffectiveScope => ResolveEffectiveScope();
+
+    private string ResolveEffectiveScope()
+    {
+        if (!string.IsNullOrWhiteSpace(Scope))
+            return Scope;
+
+        return Scopes is { Count: > 0 } ? Scopes[0] : "ReadWrite";
+    }
 }

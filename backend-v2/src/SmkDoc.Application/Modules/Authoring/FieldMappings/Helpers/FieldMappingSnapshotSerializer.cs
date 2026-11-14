@@ -42,7 +42,7 @@ public static class FieldMappingSnapshotSerializer
         return JsonSerializer.Serialize(items);
     }
 
-    public static List<FieldMapping> Deserialize(TemplateId templateId, string? snapshotJson, DateTimeOffset now)
+    public static IReadOnlyList<FieldMapping> Deserialize(TemplateId templateId, string? snapshotJson, DateTimeOffset now)
     {
         if (string.IsNullOrWhiteSpace(snapshotJson))
             return [];

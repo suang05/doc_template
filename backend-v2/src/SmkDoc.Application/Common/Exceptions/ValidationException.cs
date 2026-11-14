@@ -1,3 +1,5 @@
+using System.Collections.ObjectModel;
+
 namespace SmkDoc.Application.Common.Exceptions;
 
 /// <summary>
@@ -63,7 +65,7 @@ public sealed class ValidationException : DomainException
         ArgumentException.ThrowIfNullOrWhiteSpace(errorMessage);
     }
 
-    private static IDictionary<string, string[]> CopyErrors(IDictionary<string, string[]> errors) =>
+    private static ReadOnlyDictionary<string, string[]> CopyErrors(IDictionary<string, string[]> errors) =>
         errors.ToDictionary(
             kvp => kvp.Key,
             kvp => kvp.Value?.ToArray() ?? []

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Domain.Exceptions;
 
@@ -20,7 +21,7 @@ public static class ProblemDetailsBuilder
         string? instance = null,
         string? traceId = null,
         object? errors = null,
-        string? typeBaseUri = null)
+        Uri? typeBaseUri = null)
     {
         var problemDetails = new ProblemDetails
         {
@@ -28,7 +29,7 @@ public static class ProblemDetailsBuilder
             Title = title,
             Detail = detail,
             Instance = instance,
-            Type = ResolveTypeUri(errorCode, typeBaseUri)
+            Type = ResolveTypeUri(errorCode, typeBaseUri).OriginalString
         };
 
         problemDetails.Extensions["errorCode"] = errorCode;
@@ -58,15 +59,21 @@ public static class ProblemDetailsBuilder
         return context.TraceIdentifier;
     }
 
-    public static string ResolveTypeUri(string? errorCode, string? baseUri = null)
+    public static Uri? TryParseBaseUri(string? raw) =>
+        !string.IsNullOrWhiteSpace(raw) && Uri.TryCreate(raw.Trim(), UriKind.RelativeOrAbsolute, out var uri)
+            ? uri
+            : null;
+
+    [SuppressMessage("Globalization", "CA1308:Normalize strings to uppercase", Justification = "RFC 9457 problem type URI slugs are canonical lowercase kebab-case.")]
+    public static Uri ResolveTypeUri(string? errorCode, Uri? baseUri = null)
     {
-        var prefix = string.IsNullOrWhiteSpace(baseUri)
+        var prefix = baseUri is null
             ? DefaultProblemsBaseUri
-            : baseUri.TrimEnd('/');
+            : baseUri.OriginalString.TrimEnd('/');
 
         if (string.IsNullOrWhiteSpace(errorCode))
         {
-            return $"{prefix}/internal-error";
+            return new Uri($"{prefix}/internal-error", UriKind.RelativeOrAbsolute);
         }
 
         var slug = errorCode.Trim()
@@ -74,10 +81,10 @@ public static class ProblemDetailsBuilder
             .Replace(' ', '-')
             .ToLowerInvariant();
 
-        return $"{prefix}/{slug}";
+        return new Uri($"{prefix}/{slug}", UriKind.RelativeOrAbsolute);
     }
 
-    public static string ResolveTypeUri(int? statusCode, string? baseUri = null) =>
+    public static Uri ResolveTypeUri(int? statusCode, Uri? baseUri = null) =>
         ResolveTypeUri(ResolveDefaultErrorCode(statusCode), baseUri);
 
     public static string ResolveDefaultErrorCode(int? statusCode) =>

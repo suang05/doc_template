@@ -12,12 +12,10 @@ public sealed class GetDocumentJobUseCase(
         var job = await renderQueue.GetJobAsync(query.JobId, ct)
             ?? throw new NotFoundException($"Document job '{query.JobId}' not found.");
 
-        if (projectContext.SystemRole != SystemRole.SuperAdmin)
+        if (projectContext.SystemRole != SystemRole.SuperAdmin &&
+            job.ProjectId != projectContext.GetRequiredProjectId().Value)
         {
-            if (job.ProjectId != projectContext.GetRequiredProjectId().Value)
-            {
-                throw new CrossTenantAccessDeniedException(job.ProjectId);
-            }
+            throw new CrossTenantAccessDeniedException(job.ProjectId);
         }
 
         return DocumentJobDto.FromJob(job);

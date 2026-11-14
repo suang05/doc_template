@@ -72,8 +72,8 @@ public class UserProjectRoleBuilder
     public UserProjectRole Build()
     {
         return UserProjectRole.Create(
-            new SmkDoc.Domain.ValueObjects.Ids.UserId(_userId),
-            new SmkDoc.Domain.ValueObjects.Ids.ProjectId(_projectId),
+            new UserId(_userId),
+            new ProjectId(_projectId),
             _role,
             _now);
     }

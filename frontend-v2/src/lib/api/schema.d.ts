@@ -619,7 +619,7 @@ export interface paths {
         /** List all available fonts for the active project (legacy flat list). */
         get: operations["FontManagement_ListFonts"];
         put?: never;
-        /** Upload a new font file (.ttf, .otf, .woff, .woff2). Max 10 MB. Author or Admin role required. */
+        /** Upload a new font file (.ttf, .otf, .woff, .woff2). Max 8 MB. Author or Admin role required. */
         post: operations["FontManagement_UploadFont"];
         delete?: never;
         options?: never;
@@ -637,7 +637,7 @@ export interface paths {
         /** List all available fonts for the active project (legacy flat list). */
         get: operations["FontManagement_ListFonts_ManagementSettingsFonts"];
         put?: never;
-        /** Upload a new font file (.ttf, .otf, .woff, .woff2). Max 10 MB. Author or Admin role required. */
+        /** Upload a new font file (.ttf, .otf, .woff, .woff2). Max 8 MB. Author or Admin role required. */
         post: operations["FontManagement_UploadFont_ManagementSettingsFonts"];
         delete?: never;
         options?: never;
@@ -1366,11 +1366,8 @@ export interface components {
             /** Format: uuid */
             dataConnectionId: string;
             sqlQuery: string;
-            /**
-             * Format: int32
-             * @default 0
-             */
-            cacheSeconds: number;
+            /** Format: int32 */
+            cacheSeconds?: null | number;
         };
         CreateProjectRequest: {
             name: string;
@@ -1439,10 +1436,10 @@ export interface components {
             startedAt: null | string;
             /** Format: date-time */
             completedAt: null | string;
-            checkStatusUrl: null | string;
-            downloadUrl: null | string;
             error: null | string;
             result: null | components["schemas"]["GenerateDocumentResultDto"];
+            checkStatusUrl: null | string;
+            downloadUrl: null | string;
         };
         /** @description DTO representing an immutable document version in the legal audit trail. */
         DocumentVersionDto: {
@@ -1464,12 +1461,12 @@ export interface components {
         };
         /** @description Pre-signed document download URL and validity window. */
         DownloadUrlResultDto: {
-            url: string;
             /**
              * Format: int32
              * @default 3600
              */
             expiresInSeconds: number;
+            url: string;
         };
         /** @description Request payload to test-run a SQL dataset query and discover column schemas. */
         DryRunDatasetRequest: {
@@ -1525,8 +1522,8 @@ export interface components {
             displayName: string;
             source: components["schemas"]["FontSource"];
             fileName?: null | string;
-            googleFontUrl?: null | string;
             availableWeights?: null | string[];
+            googleFontUrl?: null | string;
         };
         /** @enum {unknown} */
         FontSource: "googleFonts" | "minIO" | "system";
@@ -1537,8 +1534,7 @@ export interface components {
             outputFormat: string;
             documentRef?: null | string;
             changeNote?: null | string;
-            /** @default false */
-            skipValidation: boolean;
+            skipValidation?: null | boolean;
         };
         /** @description Result returned after document generation and MinIO persistence. */
         GenerateDocumentResultDto: {
@@ -1549,9 +1545,9 @@ export interface components {
             /** Format: int64 */
             fileSizeBytes: number;
             sha256: string;
-            url: string;
             /** Format: date-time */
             expiresAt: string;
+            url: string;
         };
         /** @description DTO representing an execution log entry for document generation. */
         GenerationLogDto: {
@@ -1984,11 +1980,8 @@ export interface components {
             /** Format: uuid */
             dataConnectionId: string;
             sqlQuery: string;
-            /**
-             * Format: int32
-             * @default 0
-             */
-            cacheSeconds: number;
+            /** Format: int32 */
+            cacheSeconds?: null | number;
         };
         /** @description HTTP request contract for updating template metadata. */
         UpdateTemplateMetadataRequest: {

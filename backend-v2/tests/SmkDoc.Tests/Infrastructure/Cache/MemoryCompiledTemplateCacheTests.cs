@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Caching.Memory;
 using SmkDoc.Infrastructure.Cache;
 
 namespace SmkDoc.Tests.Infrastructure.Cache;

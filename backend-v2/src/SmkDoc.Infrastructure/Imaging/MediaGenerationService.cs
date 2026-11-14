@@ -23,15 +23,15 @@ public class MediaGenerationService(
         return optimize ? _imageOptimizer.Optimize(raw, widthPx, heightPx) : raw;
     }
 
-    public string GenerateQrCodeDataUri(string text, int widthPx = 150, int heightPx = 150)
+    public Uri GenerateQrCodeDataUri(string text, int widthPx = 150, int heightPx = 150)
     {
         byte[] bytes = GenerateQrCode(text, widthPx, heightPx, optimize: true);
-        return $"data:image/png;base64,{Convert.ToBase64String(bytes)}";
+        return new Uri($"data:image/png;base64,{Convert.ToBase64String(bytes)}");
     }
 
-    public string GenerateBarcodeDataUri(string text, int widthPx = 300, int heightPx = 100)
+    public Uri GenerateBarcodeDataUri(string text, int widthPx = 300, int heightPx = 100)
     {
         byte[] bytes = GenerateBarcode(text, widthPx, heightPx, optimize: true);
-        return $"data:image/png;base64,{Convert.ToBase64String(bytes)}";
+        return new Uri($"data:image/png;base64,{Convert.ToBase64String(bytes)}");
     }
 }

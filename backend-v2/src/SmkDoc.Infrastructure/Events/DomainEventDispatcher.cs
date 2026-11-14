@@ -16,7 +16,7 @@ public sealed partial class DomainEventDispatcher(
     IServiceProvider serviceProvider,
     ILogger<DomainEventDispatcher> logger) : IDomainEventDispatcher
 {
-    private static readonly ConcurrentDictionary<Type, DomainEventHandlerWrapper> HandlerWrappers = new();
+    private static readonly ConcurrentDictionary<Type, IDomainEventHandlerWrapper> HandlerWrappers = new();
 
     public async Task DispatchEventsAsync(IEnumerable<IDomainEvent> domainEvents, CancellationToken ct)
     {
@@ -33,7 +33,7 @@ public sealed partial class DomainEventDispatcher(
             var wrapper = HandlerWrappers.GetOrAdd(eventType, static type =>
             {
                 var wrapperType = typeof(DomainEventHandlerWrapperImpl<>).MakeGenericType(type);
-                return (DomainEventHandlerWrapper)Activator.CreateInstance(wrapperType)!;
+                return (IDomainEventHandlerWrapper)Activator.CreateInstance(wrapperType)!;
             });
 
             await wrapper.HandleAsync(domainEvent, serviceProvider, logger, ct);
@@ -50,19 +50,19 @@ public sealed partial class DomainEventDispatcher(
         Message = "Post-commit domain event handler {HandlerType} failed while handling {EventType}; isolating fault.")]
     private static partial void LogHandlerFailed(ILogger logger, Exception exception, string handlerType, string eventType);
 
-    private abstract class DomainEventHandlerWrapper
+    private interface IDomainEventHandlerWrapper
     {
-        public abstract Task HandleAsync(
+        Task HandleAsync(
             IDomainEvent domainEvent,
             IServiceProvider serviceProvider,
             ILogger logger,
             CancellationToken ct);
     }
 
-    private sealed class DomainEventHandlerWrapperImpl<TEvent> : DomainEventHandlerWrapper
+    private sealed class DomainEventHandlerWrapperImpl<TEvent> : IDomainEventHandlerWrapper
         where TEvent : IDomainEvent
     {
-        public override async Task HandleAsync(
+        public async Task HandleAsync(
             IDomainEvent domainEvent,
             IServiceProvider serviceProvider,
             ILogger logger,

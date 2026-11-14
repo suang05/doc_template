@@ -25,7 +25,7 @@ public sealed class TemplateVersion : BaseEntity
     public string? CreatedBy { get; private set; }
 
     // Navigation property for EF Core materialization
-    public Template? Template { get; private set; }
+    public Template? Template { get; internal set; }
 
     // For EF Core materialization only
     private TemplateVersion() { }
@@ -60,7 +60,7 @@ public sealed class TemplateVersion : BaseEntity
         string? commitMessage = null) =>
         new(null, templateId, version, storageKey, fileFormat, createdBy, now, commitMessage);
 
-    public RenderEngineType GetRenderEngineType() =>
+    public RenderEngineType RenderEngineType =>
         FileFormat?.DefaultEngineType ?? RenderEngineType.Html;
 
     public void Publish(DateTimeOffset now)

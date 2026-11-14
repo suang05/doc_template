@@ -14,6 +14,7 @@ namespace SmkDoc.IntegrationTests.Generators;
 [Trait("Category", "Generator")]
 public sealed class RealEstateDocumentsGeneratorTests
 {
+    private static readonly JsonSerializerOptions IndentedJsonOptions = new() { WriteIndented = true };
     private readonly string _outputDir = Environment.GetEnvironmentVariable("SMK_REALESTATE_OUT_DIR")
         ?? Path.Combine(Path.GetTempPath(), "smkdoc-tests", "real-estate");
 
@@ -143,7 +144,7 @@ public sealed class RealEstateDocumentsGeneratorTests
             }
         };
 
-        var jsonString = JsonSerializer.Serialize(payloadObj, new JsonSerializerOptions { WriteIndented = true });
+        var jsonString = JsonSerializer.Serialize(payloadObj, IndentedJsonOptions);
         await File.WriteAllTextAsync(jsonPath, jsonString);
 
         // 3. Test render via DocxTemplateEngine
@@ -152,8 +153,6 @@ public sealed class RealEstateDocumentsGeneratorTests
         var docxEngine = new DocxTemplateEngine(
             Substitute.For<IPdfRenderer>(),
             mediaInjector,
-            new WordTextReplacer(),
-            new WordTableExpander(),
             new JsonTemplateDataParser());
 
         using var templateStream = File.OpenRead(docxPath);
@@ -279,7 +278,7 @@ public sealed class RealEstateDocumentsGeneratorTests
             }
         };
 
-        var jsonString = JsonSerializer.Serialize(payloadObj, new JsonSerializerOptions { WriteIndented = true });
+        var jsonString = JsonSerializer.Serialize(payloadObj, IndentedJsonOptions);
         await File.WriteAllTextAsync(jsonPath, jsonString);
 
         // 3. Test render via ExcelTemplateEngine
@@ -288,7 +287,6 @@ public sealed class RealEstateDocumentsGeneratorTests
         var excelEngine = new ExcelTemplateEngine(
             Substitute.For<IPdfRenderer>(),
             mediaInjector,
-            new ExcelTableExpander(),
             new JsonTemplateDataParser());
 
         using var templateStream = File.OpenRead(xlsxPath);

@@ -11,7 +11,7 @@ public sealed class DownloadDocumentVersionUseCase(
     public async Task<DownloadDocumentVersionResult> ExecuteAsync(DownloadDocumentVersionQuery query, CancellationToken ct)
     {
         var docRef = DocumentReference.Create(query.DocumentRef);
-        var document = await documentRepo.GetByDocumentRefAsync(docRef, ct)
+        _ = await documentRepo.GetByDocumentRefAsync(docRef, ct)
             ?? throw new NotFoundException($"Document '{query.DocumentRef}' not found.");
 
         var docVersion = await documentRepo.GetVersionAsync(docRef, query.Version, ct)

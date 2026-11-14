@@ -9,16 +9,16 @@ public class SchemaValidationResult
     public bool IsValid { get; }
     public IReadOnlyList<ValidationErrorItem> Errors { get; }
 
-    private SchemaValidationResult(bool isValid, List<ValidationErrorItem> errors)
+    private SchemaValidationResult(bool isValid, IReadOnlyList<ValidationErrorItem> errors)
     {
         IsValid = isValid;
-        Errors = errors.AsReadOnly();
+        Errors = errors.ToList().AsReadOnly();
     }
 
     public static SchemaValidationResult Success() =>
         new(true, []);
 
-    public static SchemaValidationResult Failure(List<ValidationErrorItem> errors) =>
+    public static SchemaValidationResult Failure(IReadOnlyList<ValidationErrorItem> errors) =>
         new(false, errors);
 
     public static SchemaValidationResult Failure(params ValidationErrorItem[] errors) =>

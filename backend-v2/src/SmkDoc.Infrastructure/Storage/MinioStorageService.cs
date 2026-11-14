@@ -28,7 +28,9 @@ public sealed partial class MinioStorageService : IStorageService, IDisposable
         try
         {
             // Public client for signing pre-signed URLs
-            string publicEp = s.PublicEndpoint.Replace("http://", "").Replace("https://", "");
+            string publicEp = s.PublicEndpoint
+                .Replace("http://", "", StringComparison.OrdinalIgnoreCase)
+                .Replace("https://", "", StringComparison.OrdinalIgnoreCase);
             bool publicSecure = s.PublicEndpoint.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
             _publicClient = CreateClient(publicEp, s.AccessKey, s.SecretKey, publicSecure);
         }

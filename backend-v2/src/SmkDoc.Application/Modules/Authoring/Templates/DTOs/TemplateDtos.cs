@@ -1,3 +1,4 @@
+using System.Globalization;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.ValueObjects;
 
@@ -50,8 +51,8 @@ public sealed record TemplateSchemaDto(
 /// </summary>
 public sealed record TemplateValidationResultDto(
     bool Valid,
-    List<string> Fields,
-    List<string> Errors
+    IReadOnlyList<string> Fields,
+    IReadOnlyList<string> Errors
 );
 
 /// <summary>
@@ -98,7 +99,7 @@ public sealed record SaveHtmlResultDto(
     int Version
 ) : IHasConcurrencyToken
 {
-    string? IHasConcurrencyToken.ConcurrencyToken => Version.ToString();
+    string? IHasConcurrencyToken.ConcurrencyToken => Version.ToString(CultureInfo.InvariantCulture);
 }
 
 /// <summary>

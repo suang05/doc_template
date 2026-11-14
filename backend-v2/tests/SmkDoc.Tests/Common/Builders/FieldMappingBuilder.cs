@@ -9,7 +9,7 @@ public class FieldMappingBuilder
     private string _placeholder = "placeholder";
     private string _sourcePath = "source.path";
     private string _label = "Label";
-    private bool _required = false;
+    private bool _required;
     private int _sortOrder = 1;
     private DataSourceType _dataSourceType = DataSourceType.Json;
     private DatasetAlias? _datasetAlias;

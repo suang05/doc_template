@@ -22,4 +22,8 @@ public readonly record struct ApiKeyId(Guid Value) : IComparable<ApiKeyId>
     public static bool operator !=(ApiKeyId left, Guid right) => left.Value != right;
     public static bool operator ==(Guid left, ApiKeyId right) => left == right.Value;
     public static bool operator !=(Guid left, ApiKeyId right) => left != right.Value;
+    public static bool operator <(ApiKeyId left, ApiKeyId right) => left.CompareTo(right) < 0;
+    public static bool operator <=(ApiKeyId left, ApiKeyId right) => left.CompareTo(right) <= 0;
+    public static bool operator >(ApiKeyId left, ApiKeyId right) => left.CompareTo(right) > 0;
+    public static bool operator >=(ApiKeyId left, ApiKeyId right) => left.CompareTo(right) >= 0;
 }

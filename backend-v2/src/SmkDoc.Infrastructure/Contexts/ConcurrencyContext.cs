@@ -15,9 +15,17 @@ public sealed class ConcurrencyContext : IConcurrencyContext
     public string? IfMatch
     {
         get => _ifMatch;
-        set => _ifMatch = string.IsNullOrWhiteSpace(value)
-            ? null
-            : value.Trim() is "*" ? "*" : value.Trim('\"', 'W', '/', ' ');
+        set
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                _ifMatch = null;
+                return;
+            }
+
+            var trimmed = value.Trim();
+            _ifMatch = trimmed is "*" ? "*" : value.Trim('\"', 'W', '/', ' ');
+        }
     }
 
     public bool IsVerified { get; private set; }

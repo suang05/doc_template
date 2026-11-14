@@ -20,13 +20,17 @@ public sealed class DataSourceType : Enumeration
             throw new DomainValidationException("DataSourceType cannot be null or empty.");
         }
 
-        var normalized = type.ToLowerInvariant();
-        return normalized switch
+        if (string.Equals(type, "json", StringComparison.OrdinalIgnoreCase))
         {
-            "json" => Json,
-            "sql" => Sql,
-            _ => throw new DomainValidationException($"Invalid DataSourceType: {type}. Allowed values are 'json' and 'sql'.")
-        };
+            return Json;
+        }
+
+        if (string.Equals(type, "sql", StringComparison.OrdinalIgnoreCase))
+        {
+            return Sql;
+        }
+
+        throw new DomainValidationException($"Invalid DataSourceType: {type}. Allowed values are 'json' and 'sql'.");
     }
 
     public static implicit operator string(DataSourceType type) => type.Name;

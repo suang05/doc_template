@@ -15,7 +15,7 @@ public class MinioContainerFixture : IAsyncLifetime
     public string SecretKey { get; private set; } =
         Environment.GetEnvironmentVariable("SMK_TEST_MINIO_SECRET_KEY") ?? "minioadmin";
 
-    public bool UseSsl => false;
+    public bool UseSsl { get; private set; } = bool.TryParse(Environment.GetEnvironmentVariable("SMK_TEST_MINIO_USE_SSL"), out bool useSsl) && useSsl;
 
     public Task InitializeAsync()
     {

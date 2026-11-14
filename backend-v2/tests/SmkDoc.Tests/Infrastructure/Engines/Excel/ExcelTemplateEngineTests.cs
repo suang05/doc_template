@@ -27,7 +27,6 @@ public sealed class ExcelTemplateEngineTests
         return new ExcelTemplateEngine(
             pdf,
             mediaInjector,
-            new ExcelTableExpander(),
             new JsonTemplateDataParser());
     }
 
@@ -43,8 +42,8 @@ public sealed class ExcelTemplateEngineTests
     }
 
     private static async Task<XLWorkbook> RenderWorkbookAsync(
-        Action<IXLWorksheet> setup, 
-        string json, 
+        Action<IXLWorksheet> setup,
+        string json,
         ExcelTemplateEngine? customEngine = null)
     {
         var engine = customEngine ?? CreateEngine();

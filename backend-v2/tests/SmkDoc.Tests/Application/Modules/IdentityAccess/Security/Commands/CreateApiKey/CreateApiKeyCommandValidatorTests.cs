@@ -1,4 +1,4 @@
-﻿using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.CreateApiKey;
+using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.CreateApiKey;
 
 namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Security.Commands.CreateApiKey;
 

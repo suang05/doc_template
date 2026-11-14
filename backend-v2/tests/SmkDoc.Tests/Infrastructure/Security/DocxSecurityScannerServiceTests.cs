@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging.Abstractions;
 using SmkDoc.Infrastructure.Security;
 
 namespace SmkDoc.Tests.Infrastructure.Security;

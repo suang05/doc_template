@@ -23,7 +23,6 @@ public sealed class ExcelFixtureTemplateTests
         return new ExcelTemplateEngine(
             pdf,
             mediaInjector,
-            new ExcelTableExpander(),
             new JsonTemplateDataParser());
     }
 

@@ -6,11 +6,11 @@ namespace SmkDoc.Tests.Infrastructure.Cache;
 public sealed class MemoryIdempotencyStoreTests : IDisposable
 {
     private readonly MemoryCache _memoryCache = new(new MemoryCacheOptions());
-    private readonly MemoryIdempotencyStore sut;
+    private readonly MemoryIdempotencyStore _sut;
 
     public MemoryIdempotencyStoreTests()
     {
-        sut = new MemoryIdempotencyStore(_memoryCache, TestConstants.CreateFakeClock());
+        _sut = new MemoryIdempotencyStore(_memoryCache, TestConstants.CreateFakeClock());
     }
 
     public void Dispose() => _memoryCache.Dispose();
@@ -22,7 +22,7 @@ public sealed class MemoryIdempotencyStoreTests : IDisposable
         var fingerprint = "fingerprint-abc";
         var ttl = TimeSpan.FromMinutes(2);
 
-        var result = await sut.TryAcquireOrGetAsync(cacheKey, fingerprint, ttl, CancellationToken.None);
+        var result = await _sut.TryAcquireOrGetAsync(cacheKey, fingerprint, ttl, CancellationToken.None);
 
         result.IsAcquired.Should().BeTrue();
         result.ExistingRecord.Should().BeNull();
@@ -35,8 +35,8 @@ public sealed class MemoryIdempotencyStoreTests : IDisposable
         var fingerprint = "fingerprint-abc";
         var ttl = TimeSpan.FromMinutes(2);
 
-        var firstResult = await sut.TryAcquireOrGetAsync(cacheKey, fingerprint, ttl, CancellationToken.None);
-        var secondResult = await sut.TryAcquireOrGetAsync(cacheKey, fingerprint, ttl, CancellationToken.None);
+        var firstResult = await _sut.TryAcquireOrGetAsync(cacheKey, fingerprint, ttl, CancellationToken.None);
+        var secondResult = await _sut.TryAcquireOrGetAsync(cacheKey, fingerprint, ttl, CancellationToken.None);
 
         firstResult.IsAcquired.Should().BeTrue();
         secondResult.IsAcquired.Should().BeFalse();
@@ -55,10 +55,10 @@ public sealed class MemoryIdempotencyStoreTests : IDisposable
         var responseJson = "{\"id\":\"123\",\"success\":true}";
         var headers = new Dictionary<string, string> { ["Location"] = "/api/v1/items/123" };
 
-        await sut.TryAcquireOrGetAsync(cacheKey, fingerprint, inFlightTtl, CancellationToken.None);
-        await sut.SaveCompletedAsync(cacheKey, fingerprint, 201, responseJson, headers, completedTtl, CancellationToken.None);
+        await _sut.TryAcquireOrGetAsync(cacheKey, fingerprint, inFlightTtl, CancellationToken.None);
+        await _sut.SaveCompletedAsync(cacheKey, fingerprint, 201, responseJson, headers, completedTtl, CancellationToken.None);
 
-        var checkResult = await sut.TryAcquireOrGetAsync(cacheKey, fingerprint, inFlightTtl, CancellationToken.None);
+        var checkResult = await _sut.TryAcquireOrGetAsync(cacheKey, fingerprint, inFlightTtl, CancellationToken.None);
 
         checkResult.IsAcquired.Should().BeFalse();
         checkResult.ExistingRecord.Should().NotBeNull();
@@ -75,12 +75,12 @@ public sealed class MemoryIdempotencyStoreTests : IDisposable
         var fingerprint = "fingerprint-test";
         var ttl = TimeSpan.FromMinutes(2);
 
-        var firstAcquire = await sut.TryAcquireOrGetAsync(cacheKey, fingerprint, ttl, CancellationToken.None);
+        var firstAcquire = await _sut.TryAcquireOrGetAsync(cacheKey, fingerprint, ttl, CancellationToken.None);
         firstAcquire.IsAcquired.Should().BeTrue();
 
-        await sut.RemoveAsync(cacheKey, CancellationToken.None);
+        await _sut.RemoveAsync(cacheKey, CancellationToken.None);
 
-        var reacquire = await sut.TryAcquireOrGetAsync(cacheKey, fingerprint, ttl, CancellationToken.None);
+        var reacquire = await _sut.TryAcquireOrGetAsync(cacheKey, fingerprint, ttl, CancellationToken.None);
         reacquire.IsAcquired.Should().BeTrue();
     }
 
@@ -92,7 +92,7 @@ public sealed class MemoryIdempotencyStoreTests : IDisposable
         var ttl = TimeSpan.FromMinutes(2);
 
         var tasks = Enumerable.Range(0, 20)
-            .Select(_ => Task.Run(() => sut.TryAcquireOrGetAsync(cacheKey, fingerprint, ttl, CancellationToken.None)))
+            .Select(_ => Task.Run(() => _sut.TryAcquireOrGetAsync(cacheKey, fingerprint, ttl, CancellationToken.None)))
             .ToArray();
 
         var results = await Task.WhenAll(tasks);

@@ -15,7 +15,7 @@ public sealed class IdempotencyFilterTests
     private readonly IIdempotencyStore _idempotencyStore = Substitute.For<IIdempotencyStore>();
     private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
     private readonly ILogger<IdempotencyFilter> _logger = Substitute.For<ILogger<IdempotencyFilter>>();
-    private readonly JsonSerializerOptions jsonOptions = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+    private readonly JsonSerializerOptions _jsonOptions = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
     private IdempotencyFilter CreateSut(TimeSpan? completedTtl = null, bool mandatory = false)
     {
@@ -23,7 +23,7 @@ public sealed class IdempotencyFilterTests
             _idempotencyStore,
             _projectContext,
             _logger,
-            jsonOptions,
+            _jsonOptions,
             completedTtl ?? TimeSpan.FromHours(24),
             mandatory);
     }
@@ -110,7 +110,7 @@ public sealed class IdempotencyFilterTests
         var tenantKey = ConfigureResolvedTenant();
         var expectedCacheKey = $"idempotency:{tenantKey}:test-key-2";
 
-        var fingerprint = RequestFingerprintCalculator.ComputeFingerprint(context, jsonOptions);
+        var fingerprint = RequestFingerprintCalculator.ComputeFingerprint(context, _jsonOptions);
         var cachedJson = "{\"templateId\":\"456\",\"status\":\"active\"}";
         var cachedHeaders = new Dictionary<string, string> { ["Location"] = "/api/v1/templates/456" };
 

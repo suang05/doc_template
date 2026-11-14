@@ -90,7 +90,7 @@ public sealed class JsonSchemaValidationService : IJsonSchemaValidationService
         return Validate(schemaJson, dataElement);
     }
 
-    private SchemaValidationResult EvaluateInternal(JsonSchema schema, JsonNode node)
+    private static SchemaValidationResult EvaluateInternal(JsonSchema schema, JsonNode node)
     {
         var evaluation = schema.Evaluate(node, Draft7Options);
         if (evaluation.IsValid)
@@ -130,7 +130,7 @@ public sealed class JsonSchemaValidationService : IJsonSchemaValidationService
                 _cache.Set(cacheKey, schema, CacheOptions);
                 return (schema, null);
             }
-            catch (System.Text.Json.JsonException ex)
+            catch (JsonException ex)
             {
                 return (null, CreateSchemaParseError(ex.Message));
             }
@@ -167,7 +167,7 @@ public sealed class JsonSchemaValidationService : IJsonSchemaValidationService
             var node = JsonNode.Parse(dataJson);
             return (node, null);
         }
-        catch (System.Text.Json.JsonException ex)
+        catch (JsonException ex)
         {
             var error = new ValidationErrorItem(
                 "/",
@@ -184,7 +184,7 @@ public sealed class JsonSchemaValidationService : IJsonSchemaValidationService
             var node = JsonNode.Parse(dataElement.GetRawText());
             return (node, null);
         }
-        catch (System.Text.Json.JsonException ex)
+        catch (JsonException ex)
         {
             var error = new ValidationErrorItem(
                 "/",

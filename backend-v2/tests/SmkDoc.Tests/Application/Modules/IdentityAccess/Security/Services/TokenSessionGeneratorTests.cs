@@ -25,7 +25,7 @@ public sealed class TokenSessionGeneratorTests
         // Arrange
         var now = TestConstants.BaselineTime;
         var projectId = Guid.NewGuid();
-        User user = aUser.Active().WithTime(now);
+        User user = UserBuilder.AUser().WithTime(now);
 
         var accessibleProjects = new List<AccessibleProjectResultDto>
         {
@@ -66,7 +66,7 @@ public sealed class TokenSessionGeneratorTests
         var now = TestConstants.BaselineTime;
         var rawToken = "valid-refresh-token";
         var tokenHash = RefreshTokenGenerator.HashToken(rawToken);
-        User user = aUser.Active().WithTime(now);
+        User user = UserBuilder.AUser().WithTime(now);
         var existingToken = RefreshTokenEntity.Create(user.Id, tokenHash, now.AddDays(7), now);
 
         _tokenRepo.GetByHashAsync(tokenHash, Arg.Any<CancellationToken>())
@@ -177,7 +177,7 @@ public sealed class TokenSessionGeneratorTests
         var now = TestConstants.BaselineTime;
         var rawToken = "valid-token-inactive-user";
         var tokenHash = RefreshTokenGenerator.HashToken(rawToken);
-        User user = aUser.Inactive().WithTime(now);
+        User user = UserBuilder.AUser().AsInactive().WithTime(now);
         var token = RefreshTokenEntity.Create(user.Id, tokenHash, now.AddDays(7), now);
 
         _tokenRepo.GetByHashAsync(tokenHash, Arg.Any<CancellationToken>())

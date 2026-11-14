@@ -18,77 +18,68 @@ public sealed partial class ImageOptimizerService(ILogger<ImageOptimizerService>
 
         try
         {
-            using var original = SKBitmap.Decode(imageBytes);
-            if (original == null) return imageBytes;
-
-            var (maxW, maxH) = ComputeMaxDimensions(targetWidthPx, targetHeightPx);
-
-            bool needsResize = original.Width > maxW || original.Height > maxH;
-            bool hasAlpha    = HasTransparency(original);
-
-            if (!needsResize && IsJpeg(imageBytes))
-                return imageBytes;
-
-            var (newW, newH) = needsResize
-                ? ScaleProportionally(original.Width, original.Height, maxW, maxH)
-                : (original.Width, original.Height);
-
-            SKBitmap? resized = needsResize
-                ? original.Resize(new SKImageInfo(newW, newH, original.ColorType, original.AlphaType),
-                                   new SKSamplingOptions(SKCubicResampler.Mitchell))
-                : null;
-
-            if (needsResize && resized == null) return imageBytes;
-
-            SKBitmap target = resized ?? original;
-
-            try
-            {
-                var optimized = Encode(target, hasAlpha);
-                if (optimized.Length >= imageBytes.Length) return imageBytes;
-
-                if (logger is not null && logger.IsEnabled(LogLevel.Information))
-                {
-                    var pctSaved = ((1.0 - (double)optimized.Length / imageBytes.Length) * 100.0)
-                        .ToString("F1", System.Globalization.CultureInfo.InvariantCulture);
-                    LogImageOptimized(
-                        logger,
-                        original.Width,
-                        original.Height,
-                        newW,
-                        newH,
-                        imageBytes.Length / 1024,
-                        optimized.Length / 1024,
-                        pctSaved,
-                        hasAlpha);
-                }
-
-                return optimized;
-            }
-            finally
-            {
-                resized?.Dispose();
-            }
+            return OptimizeCore(imageBytes, targetWidthPx, targetHeightPx);
         }
-        catch (ArgumentException ex)
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or NotSupportedException or IOException)
         {
             LogOptimizeFailure(ex, imageBytes.Length);
             return imageBytes;
         }
-        catch (InvalidOperationException ex)
-        {
-            LogOptimizeFailure(ex, imageBytes.Length);
+    }
+
+    private byte[] OptimizeCore(byte[] imageBytes, int targetWidthPx, int targetHeightPx)
+    {
+        using var original = SKBitmap.Decode(imageBytes);
+        if (original == null) return imageBytes;
+
+        var (maxW, maxH) = ComputeMaxDimensions(targetWidthPx, targetHeightPx);
+        bool needsResize = original.Width > maxW || original.Height > maxH;
+        bool hasAlpha = HasTransparency(original);
+
+        if (!needsResize && IsJpeg(imageBytes))
             return imageBytes;
-        }
-        catch (NotSupportedException ex)
+
+        var (newW, newH) = needsResize
+            ? ScaleProportionally(original.Width, original.Height, maxW, maxH)
+            : (original.Width, original.Height);
+
+        using var resized = needsResize
+            ? original.Resize(
+                new SKImageInfo(newW, newH, original.ColorType, original.AlphaType),
+                new SKSamplingOptions(SKCubicResampler.Mitchell))
+            : null;
+
+        if (needsResize && resized == null) return imageBytes;
+
+        var optimized = Encode(resized ?? original, hasAlpha);
+        if (optimized.Length >= imageBytes.Length) return imageBytes;
+
+        LogOptimizationSavings(original, newW, newH, imageBytes.Length, optimized.Length, hasAlpha);
+        return optimized;
+    }
+
+    private void LogOptimizationSavings(
+        SKBitmap original,
+        int newW,
+        int newH,
+        int originalLength,
+        int optimizedLength,
+        bool hasAlpha)
+    {
+        if (logger is not null && logger.IsEnabled(LogLevel.Information))
         {
-            LogOptimizeFailure(ex, imageBytes.Length);
-            return imageBytes;
-        }
-        catch (IOException ex)
-        {
-            LogOptimizeFailure(ex, imageBytes.Length);
-            return imageBytes;
+            var pctSaved = ((1.0 - (double)optimizedLength / originalLength) * 100.0)
+                .ToString("F1", System.Globalization.CultureInfo.InvariantCulture);
+            LogImageOptimized(
+                logger,
+                original.Width,
+                original.Height,
+                newW,
+                newH,
+                originalLength / 1024,
+                optimizedLength / 1024,
+                pctSaved,
+                hasAlpha);
         }
     }
 

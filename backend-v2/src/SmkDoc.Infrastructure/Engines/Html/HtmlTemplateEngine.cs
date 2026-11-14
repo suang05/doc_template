@@ -12,8 +12,6 @@ public sealed class HtmlTemplateEngine(
     IPdfRenderer pdfRenderer,
     IHandlebars handlebars,
     ITemplateDataParser dataParser,
-    HtmlPlaceholderTransformer placeholderTransformer,
-    HtmlLayoutProcessor layoutProcessor,
     ICompiledTemplateCache? templateCache = null) : IRenderEngine
 {
     private static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
@@ -33,7 +31,7 @@ public sealed class HtmlTemplateEngine(
         var dataHierarchy = dataParser.ToHierarchy(inputDataJson);
 
         // 2. Normalize template placeholders and media markers into Handlebars expressions
-        string normalizedHtml = placeholderTransformer.Transform(rawHtml);
+        string normalizedHtml = HtmlPlaceholderTransformer.Transform(rawHtml);
 
         // 3. Compile and evaluate Handlebars template (using cache if available)
         Func<object, string> evaluate;
@@ -55,7 +53,7 @@ public sealed class HtmlTemplateEngine(
         string renderedHtml = evaluate(dataHierarchy);
 
         // 4. Process layout: font injection and Gotenberg header/footer extraction
-        var layoutResult = layoutProcessor.Process(renderedHtml);
+        var layoutResult = HtmlLayoutProcessor.Process(renderedHtml);
 
         // 5. Render output format
         if (outputFormat == OutputFormat.Pdf)

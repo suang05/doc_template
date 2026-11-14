@@ -25,7 +25,7 @@ public sealed class FieldMapping : BaseEntity
     public string? MathExpression { get; private set; }
 
     // Navigation property for EF Core materialization
-    public Template? Template { get; private set; }
+    public Template? Template { get; internal set; }
 
     // For EF Core materialization only
     private FieldMapping() { }

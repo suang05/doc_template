@@ -44,7 +44,7 @@ public sealed class CreateDataConnectionUseCaseTests
         Func<Task> act = () => pipeline.ExecuteAsync(command, CancellationToken.None);
 
         // Assert
-        await act.Should().ThrowAsync<SmkDoc.Application.Common.Exceptions.ValidationException>();
+        await act.Should().ThrowAsync<ValidationException>();
         await _connectionRepo.DidNotReceive().AddAsync(Arg.Any<DataConnection>(), Arg.Any<CancellationToken>());
         await _unitOfWork.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
     }

@@ -22,4 +22,8 @@ public readonly record struct TemplateId(Guid Value) : IComparable<TemplateId>
     public static bool operator !=(TemplateId left, Guid right) => left.Value != right;
     public static bool operator ==(Guid left, TemplateId right) => left == right.Value;
     public static bool operator !=(Guid left, TemplateId right) => left != right.Value;
+    public static bool operator <(TemplateId left, TemplateId right) => left.CompareTo(right) < 0;
+    public static bool operator <=(TemplateId left, TemplateId right) => left.CompareTo(right) <= 0;
+    public static bool operator >(TemplateId left, TemplateId right) => left.CompareTo(right) > 0;
+    public static bool operator >=(TemplateId left, TemplateId right) => left.CompareTo(right) >= 0;
 }

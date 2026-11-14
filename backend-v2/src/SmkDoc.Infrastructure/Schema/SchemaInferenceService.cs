@@ -57,22 +57,29 @@ public sealed partial class SchemaInferenceService(TimeProvider timeProvider) : 
 
     // ─── Token Extraction & Classification ──────────────────────────────────────
 
-    private record GroupedTokens(
+    private sealed record GroupedTokens(
         List<string> Scalars,
         Dictionary<string, List<string>> Objects,
         Dictionary<string, List<string>> Arrays);
 
     private static (List<string> Tokens, HashSet<string> ArrayKeys) ExtractTokensFromHtml(string htmlContent)
     {
-        var scalarPlaceholders = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var arrayGroups = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+        var arrayGroups = ExtractArrayGroupTokens(htmlContent);
+        var scalarPlaceholders = ExtractScalarTokens(htmlContent, arrayGroups);
+        var allTokens = CombineExtractedTokens(scalarPlaceholders, arrayGroups);
 
-        // 1. Extract {{#each items}} loop blocks
+        return (allTokens, new HashSet<string>(arrayGroups.Keys, StringComparer.OrdinalIgnoreCase));
+    }
+
+    private static Dictionary<string, HashSet<string>> ExtractArrayGroupTokens(string htmlContent)
+    {
+        var arrayGroups = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
         var eachMatches = EachBlockRegex().Matches(htmlContent);
-        foreach (Match m in eachMatches)
+
+        foreach (GroupCollection groups in eachMatches.Select(m => m.Groups))
         {
-            string arrayKey = m.Groups[1].Value.Trim();
-            string innerHtml = m.Groups[2].Value;
+            string arrayKey = groups[1].Value.Trim();
+            string innerHtml = groups[2].Value;
 
             if (!arrayGroups.TryGetValue(arrayKey, out var group))
             {
@@ -80,15 +87,29 @@ public sealed partial class SchemaInferenceService(TimeProvider timeProvider) : 
                 arrayGroups[arrayKey] = group;
             }
 
-            foreach (Match im in TemplatePlaceholderParser.Pattern.Matches(innerHtml))
-            {
-                string tag = im.Groups[1].Value.Trim();
-                if (IsControlTag(tag) || SkipHtmlTags.Contains(tag)) continue;
-                group.Add(tag);
-            }
+            AddMatchingPlaceholders(innerHtml, group);
         }
 
-        // 2. Extract standard placeholders outside loop blocks
+        return arrayGroups;
+    }
+
+    private static void AddMatchingPlaceholders(string htmlFragment, HashSet<string> destination)
+    {
+        foreach (Match im in TemplatePlaceholderParser.Pattern.Matches(htmlFragment))
+        {
+            string tag = im.Groups[1].Value.Trim();
+            if (!IsControlTag(tag) && !SkipHtmlTags.Contains(tag))
+            {
+                destination.Add(tag);
+            }
+        }
+    }
+
+    private static HashSet<string> ExtractScalarTokens(
+        string htmlContent,
+        Dictionary<string, HashSet<string>> arrayGroups)
+    {
+        var scalarPlaceholders = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (Match pm in TemplatePlaceholderParser.Pattern.Matches(htmlContent))
         {
             string tag = pm.Groups[1].Value.Trim();
@@ -101,28 +122,35 @@ public sealed partial class SchemaInferenceService(TimeProvider timeProvider) : 
             }
         }
 
-        // 3. Combine into unified tokens list
+        return scalarPlaceholders;
+    }
+
+    private static List<string> CombineExtractedTokens(
+        HashSet<string> scalarPlaceholders,
+        Dictionary<string, HashSet<string>> arrayGroups)
+    {
         var allTokens = new List<string>(scalarPlaceholders);
         foreach (var (arrKey, subFields) in arrayGroups)
         {
             if (subFields.Count == 0)
             {
                 allTokens.Add($"{arrKey}.name");
+                continue;
             }
-            else
+
+            foreach (var sf in subFields)
             {
-                foreach (var sf in subFields)
-                    allTokens.Add($"{arrKey}.{sf}");
+                allTokens.Add($"{arrKey}.{sf}");
             }
         }
 
-        return (allTokens, new HashSet<string>(arrayGroups.Keys, StringComparer.OrdinalIgnoreCase));
+        return allTokens;
     }
 
     private static bool IsControlTag(string tag) =>
         tag.StartsWith('#') || tag.StartsWith('/') || tag.StartsWith('@') || tag.StartsWith('^');
 
-    private static GroupedTokens GroupPlaceholders(IEnumerable<string> placeholders, ISet<string>? explicitArrayKeys)
+    private static GroupedTokens GroupPlaceholders(IEnumerable<string> placeholders, HashSet<string>? explicitArrayKeys)
     {
         var scalars = new List<string>();
         var objects = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
@@ -133,7 +161,7 @@ public sealed partial class SchemaInferenceService(TimeProvider timeProvider) : 
             if (string.IsNullOrWhiteSpace(ph)) continue;
             var parsed = TemplatePlaceholderParser.Parse(ph);
 
-            if (!parsed.Key.Contains('.'))
+            if (!parsed.Key.Contains('.', StringComparison.Ordinal))
             {
                 scalars.Add(ph);
                 continue;
@@ -162,6 +190,7 @@ public sealed partial class SchemaInferenceService(TimeProvider timeProvider) : 
 
     // ─── Draft-07 Schema Assembly ───────────────────────────────────────────────
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Globalization", "CA1308:Normalize strings to uppercase", Justification = "JSON Schema $id URI path uses canonical lowercase template slug.")]
     private static string BuildDraft07Schema(GroupedTokens grouped, string? templateSlug)
     {
         var rootProperties = new JsonObject();
@@ -298,10 +327,10 @@ public sealed partial class SchemaInferenceService(TimeProvider timeProvider) : 
         return root.ToJsonString(JsonOptions);
     }
 
-    private static JsonNode GenerateItemMockValue(string key, string? extra, int index)
+    private static JsonValue GenerateItemMockValue(string key, string? extra, int index)
     {
         if (key.Equals("no", StringComparison.OrdinalIgnoreCase) || key.Equals("seq", StringComparison.OrdinalIgnoreCase))
-            return JsonValue.Create(index.ToString());
+            return JsonValue.Create(index.ToString(System.Globalization.CultureInfo.InvariantCulture));
 
         if (IsIntegerKey(key, extra))
             return JsonValue.Create(index);
@@ -347,8 +376,6 @@ public sealed partial class SchemaInferenceService(TimeProvider timeProvider) : 
     private static JsonObject InferPropertySchema(string key, string? extra, PlaceholderKind kind)
     {
         var obj = new JsonObject();
-        string lk = key.ToLowerInvariant();
-
         switch (kind)
         {
             case PlaceholderKind.Qr:
@@ -369,7 +396,7 @@ public sealed partial class SchemaInferenceService(TimeProvider timeProvider) : 
                 return obj;
         }
 
-        if (IsThaiIdentityKey(lk))
+        if (IsThaiIdentityKey(key))
         {
             obj["type"] = "string";
             obj["pattern"] = "^[0-9]{13}$";
@@ -377,7 +404,7 @@ public sealed partial class SchemaInferenceService(TimeProvider timeProvider) : 
             return obj;
         }
 
-        if (lk.Contains("email"))
+        if (key.Contains("email", StringComparison.OrdinalIgnoreCase))
         {
             obj["type"] = "string";
             obj["format"] = "email";
@@ -385,7 +412,7 @@ public sealed partial class SchemaInferenceService(TimeProvider timeProvider) : 
             return obj;
         }
 
-        if (lk.Contains("tel") || lk.Contains("phone") || lk.Contains("mobile") || lk.Contains("fax"))
+        if (key.Contains("tel", StringComparison.OrdinalIgnoreCase) || key.Contains("phone", StringComparison.OrdinalIgnoreCase) || key.Contains("mobile", StringComparison.OrdinalIgnoreCase) || key.Contains("fax", StringComparison.OrdinalIgnoreCase))
         {
             obj["type"] = "string";
             obj["pattern"] = @"^[0-9+()\-\s]{9,20}$";
@@ -401,7 +428,7 @@ public sealed partial class SchemaInferenceService(TimeProvider timeProvider) : 
             return obj;
         }
 
-        if (lk.Contains("time") && !lk.Contains("date"))
+        if (key.Contains("time", StringComparison.OrdinalIgnoreCase) && !key.Contains("date", StringComparison.OrdinalIgnoreCase))
         {
             obj["type"] = "string";
             obj["format"] = "time";
@@ -412,7 +439,7 @@ public sealed partial class SchemaInferenceService(TimeProvider timeProvider) : 
         if (IsIntegerKey(key, extra))
         {
             obj["type"] = "integer";
-            obj["minimum"] = (lk is "qty" or "quantity" or "no" or "seq" or "item_no") ? 1 : 0;
+            obj["minimum"] = (key.ToUpperInvariant() is "QTY" or "QUANTITY" or "NO" or "SEQ" or "ITEM_NO") ? 1 : 0;
             obj["description"] = $"Integer quantity or sequence for {key}";
             return obj;
         }
@@ -432,7 +459,7 @@ public sealed partial class SchemaInferenceService(TimeProvider timeProvider) : 
         return obj;
     }
 
-    private static JsonNode GenerateMockValue(string key, string? extra, PlaceholderKind kind, DateTimeOffset now)
+    private static JsonValue GenerateMockValue(string key, string? extra, PlaceholderKind kind, DateTimeOffset now)
     {
         switch (kind)
         {
@@ -444,19 +471,17 @@ public sealed partial class SchemaInferenceService(TimeProvider timeProvider) : 
                 return JsonValue.Create("https://placehold.co/300x200/png");
         }
 
-        string lk = key.ToLowerInvariant();
-
-        if (IsThaiIdentityKey(lk)) return JsonValue.Create("0107536000123");
+        if (IsThaiIdentityKey(key)) return JsonValue.Create("0107536000123");
         if (IsIntegerKey(key, extra)) return JsonValue.Create(1);
         if (IsNumericKey(key, extra)) return JsonValue.Create(250000.00m);
-        if (IsDateKey(key, extra)) return JsonValue.Create(now.UtcDateTime.ToString("yyyy-MM-dd"));
-        if (lk.Contains("email")) return JsonValue.Create("contact@sammakorn.co.th");
-        if (lk.Contains("phone") || lk.Contains("tel")) return JsonValue.Create("02-123-4567");
-        if (lk.Contains("doc_no") || lk.Contains("inv_no") || lk.Contains("contract_no") || lk.Contains("receipt_no"))
+        if (IsDateKey(key, extra)) return JsonValue.Create(now.UtcDateTime.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture));
+        if (key.Contains("email", StringComparison.OrdinalIgnoreCase)) return JsonValue.Create("contact@sammakorn.co.th");
+        if (key.Contains("phone", StringComparison.OrdinalIgnoreCase) || key.Contains("tel", StringComparison.OrdinalIgnoreCase)) return JsonValue.Create("02-123-4567");
+        if (key.Contains("doc_no", StringComparison.OrdinalIgnoreCase) || key.Contains("inv_no", StringComparison.OrdinalIgnoreCase) || key.Contains("contract_no", StringComparison.OrdinalIgnoreCase) || key.Contains("receipt_no", StringComparison.OrdinalIgnoreCase))
             return JsonValue.Create($"INV-{now.UtcDateTime:yyyy}-0001");
-        if (lk.Contains("address"))
+        if (key.Contains("address", StringComparison.OrdinalIgnoreCase))
             return JsonValue.Create("123/45 ถนนพัฒนาการ แขวงสวนหลวง กรุงเทพมหานคร 10250");
-        if (lk.Contains("name"))
+        if (key.Contains("name", StringComparison.OrdinalIgnoreCase))
             return JsonValue.Create("บริษัท สัมมากร จำกัด (มหาชน)");
 
         return JsonValue.Create($"ตัวอย่าง {key}");
@@ -464,17 +489,16 @@ public sealed partial class SchemaInferenceService(TimeProvider timeProvider) : 
 
     // ─── Classification Predicates ──────────────────────────────────────────────
 
-    private static bool IsThaiIdentityKey(string lk) =>
-        lk is "tax_id" or "taxid" or "citizen_id" or "citizenid" or "idcard" or "id_card"
-           or "identification_no" or "personal_id";
+    private static bool IsThaiIdentityKey(string key) =>
+        key.ToUpperInvariant() is "TAX_ID" or "TAXID" or "CITIZEN_ID" or "CITIZENID" or "IDCARD" or "ID_CARD"
+           or "IDENTIFICATION_NO" or "PERSONAL_ID";
 
     private static bool IsIntegerKey(string key, string? extra)
     {
-        if (!string.IsNullOrEmpty(extra) && extra.ToLowerInvariant() is "int" or "integer" or "count")
+        if (!string.IsNullOrEmpty(extra) && extra.ToUpperInvariant() is "INT" or "INTEGER" or "COUNT")
             return true;
 
-        string lk = key.ToLowerInvariant();
-        return lk is "qty" or "quantity" or "count" or "seq" or "no" or "item_no" or "unit" or "age";
+        return key.ToUpperInvariant() is "QTY" or "QUANTITY" or "COUNT" or "SEQ" or "NO" or "ITEM_NO" or "UNIT" or "AGE";
     }
 
     private static bool IsNumericKey(string key, string? extra)
@@ -482,44 +506,42 @@ public sealed partial class SchemaInferenceService(TimeProvider timeProvider) : 
         if (IsIntegerKey(key, extra)) return false;
 
         if (!string.IsNullOrEmpty(extra) &&
-            extra.ToLowerInvariant() is "number" or "currency" or "currency0" or "baht" or "thaibaht" or "thai_baht_text" or "baht_text" or "bahttext" or "decimal")
+            extra.ToUpperInvariant() is "NUMBER" or "CURRENCY" or "CURRENCY0" or "BAHT" or "THAIBAHT" or "THAI_BAHT_TEXT" or "BAHT_TEXT" or "BAHTTEXT" or "DECIMAL")
             return true;
 
-        string lk = key.ToLowerInvariant();
-        return lk.Contains("amount") || lk.Contains("price") || lk.Contains("total") ||
-               lk.Contains("cost") || lk.Contains("rate") || lk.Contains("vat") || lk.Contains("tax") ||
-               lk.Contains("fee") || lk.Contains("discount") || lk.Contains("sum") || lk.Contains("subtotal") ||
-               lk.Contains("balance");
+        return key.Contains("amount", StringComparison.OrdinalIgnoreCase) || key.Contains("price", StringComparison.OrdinalIgnoreCase) || key.Contains("total", StringComparison.OrdinalIgnoreCase) ||
+               key.Contains("cost", StringComparison.OrdinalIgnoreCase) || key.Contains("rate", StringComparison.OrdinalIgnoreCase) || key.Contains("vat", StringComparison.OrdinalIgnoreCase) || key.Contains("tax", StringComparison.OrdinalIgnoreCase) ||
+               key.Contains("fee", StringComparison.OrdinalIgnoreCase) || key.Contains("discount", StringComparison.OrdinalIgnoreCase) || key.Contains("sum", StringComparison.OrdinalIgnoreCase) || key.Contains("subtotal", StringComparison.OrdinalIgnoreCase) ||
+               key.Contains("balance", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsDateKey(string key, string? extra)
     {
-        if (!string.IsNullOrEmpty(extra))
+        if (!string.IsNullOrEmpty(extra) &&
+            (extra.Contains("date", StringComparison.OrdinalIgnoreCase) || extra.Contains("time", StringComparison.OrdinalIgnoreCase)))
         {
-            string ext = extra.ToLowerInvariant();
-            if (ext.Contains("date") || ext.Contains("time")) return true;
+            return true;
         }
 
-        string lk = key.ToLowerInvariant();
-        return lk.Contains("date") || lk.Contains("time") || lk.Contains("day") || lk.Contains("month") || lk.Contains("year");
+        return key.Contains("date", StringComparison.OrdinalIgnoreCase) || key.Contains("time", StringComparison.OrdinalIgnoreCase) || key.Contains("day", StringComparison.OrdinalIgnoreCase) || key.Contains("month", StringComparison.OrdinalIgnoreCase) || key.Contains("year", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsCollectionName(string key)
     {
-        string lk = key.ToLowerInvariant();
-        if (lk is "items" or "lines" or "details" or "products" or "services" or "rows" or "entries" or "records" or "transactions" or "list")
+        var uk = key.ToUpperInvariant();
+        if (uk is "ITEMS" or "LINES" or "DETAILS" or "PRODUCTS" or "SERVICES" or "ROWS" or "ENTRIES" or "RECORDS" or "TRANSACTIONS" or "LIST")
             return true;
 
-        if (lk.EndsWith("_list") || lk.EndsWith("_items") || lk.EndsWith("_details") || lk.EndsWith("_rows") || lk.EndsWith("_lines") || lk.EndsWith("_records"))
+        if (uk.EndsWith("_LIST", StringComparison.Ordinal) || uk.EndsWith("_ITEMS", StringComparison.Ordinal) || uk.EndsWith("_DETAILS", StringComparison.Ordinal) || uk.EndsWith("_ROWS", StringComparison.Ordinal) || uk.EndsWith("_LINES", StringComparison.Ordinal) || uk.EndsWith("_RECORDS", StringComparison.Ordinal))
             return true;
 
-        if (lk is "customer" or "buyer" or "seller" or "vendor" or "company" or "recipient" or "issuer"
-               or "payer" or "payee" or "approver" or "applicant" or "tenant" or "landlord" or "owner"
-               or "client" or "header" or "footer" or "meta" or "config" or "contact" or "sender" or "receiver"
-               or "user" or "profile")
+        if (uk is "CUSTOMER" or "BUYER" or "SELLER" or "VENDOR" or "COMPANY" or "RECIPIENT" or "ISSUER"
+               or "PAYER" or "PAYEE" or "APPROVER" or "APPLICANT" or "TENANT" or "LANDLORD" or "OWNER"
+               or "CLIENT" or "HEADER" or "FOOTER" or "META" or "CONFIG" or "CONTACT" or "SENDER" or "RECEIVER"
+               or "USER" or "PROFILE")
             return false;
 
-        return lk.EndsWith('s');
+        return uk.EndsWith('S');
     }
 
     private static string ToPascalCase(string text)
@@ -531,7 +553,7 @@ public sealed partial class SchemaInferenceService(TimeProvider timeProvider) : 
         {
             if (string.IsNullOrEmpty(w)) continue;
             sb.Append(char.ToUpperInvariant(w[0]));
-            if (w.Length > 1) sb.Append(w[1..].ToLowerInvariant());
+            for (int i = 1; i < w.Length; i++) sb.Append(char.ToLowerInvariant(w[i]));
         }
         return sb.Length > 0 ? sb.ToString() : "Document";
     }

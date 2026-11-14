@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
 using SmkDoc.Application.Common.Helpers;
@@ -10,6 +11,7 @@ using SmkDoc.Application.Modules.Rendering.Documents.Commands.GenerateDocument;
 
 namespace SmkDoc.Application;
 
+[SuppressMessage("Naming", "CA1724:Type names should not match namespaces", Justification = "Standard Clean Architecture DI composition root naming convention.")]
 public static class DependencyInjection
 {
     public static IServiceCollection AddApplicationServices(this IServiceCollection services)

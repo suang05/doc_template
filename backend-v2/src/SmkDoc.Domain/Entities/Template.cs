@@ -1,3 +1,4 @@
+using System.Globalization;
 using SmkDoc.Domain.Common;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Events;
@@ -22,7 +23,7 @@ public sealed class Template : AggregateRoot<TemplateId>, IMustHaveProject
     public Guid? CurrentVersionId { get; private set; }
 
     public override string? GetAlternateConcurrencyToken() =>
-        CurrentVersion?.Version.ToString() ?? CurrentVersionId?.ToString();
+        CurrentVersion?.Version.ToString(CultureInfo.InvariantCulture) ?? CurrentVersionId?.ToString();
 
     private readonly List<FieldMapping> _fieldMappings = new();
     private readonly List<TemplateVersion> _versions = new();
@@ -304,7 +305,7 @@ public sealed class Template : AggregateRoot<TemplateId>, IMustHaveProject
             throw ConflictException.DuplicateDatasetAlias(Id.Value, alias.Value);
         }
 
-        _templateDatasets.Add(TemplateDataset.Create((TemplateId)Id, datasetId, alias, sortOrder, now));
+        _templateDatasets.Add(TemplateDataset.Create(Id, datasetId, alias, sortOrder, now));
         SetUpdated(now);
     }
 

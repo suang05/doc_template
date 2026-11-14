@@ -20,7 +20,7 @@ public sealed class ListDataConnectionsUseCaseTests
             .Returns(new List<DataConnection> { conn1, conn2 });
 
         // Act
-        IReadOnlyList<DataConnectionResultDto> results = await CreateSut().ExecuteAsync(new ListDataConnectionsQuery(), CancellationToken.None);
+        var results = await CreateSut().ExecuteAsync(new ListDataConnectionsQuery(), CancellationToken.None);
 
         // Assert
         results.Should().HaveCount(2);

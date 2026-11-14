@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Text.RegularExpressions;
 using SmkDoc.Domain.Exceptions;
 
@@ -15,6 +16,7 @@ public sealed partial record class EmailAddress
 
     private EmailAddress(string value) => Value = value;
 
+    [SuppressMessage("Globalization", "CA1308:Normalize strings to uppercase", Justification = "Canonical lowercase email address normalization.")]
     public static EmailAddress Create(string? value)
     {
         if (string.IsNullOrWhiteSpace(value))

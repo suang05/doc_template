@@ -8,13 +8,13 @@ public static class RefreshTokenGenerator
 {
     public static string GenerateTokenString()
     {
-        return Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
+        return Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(32));
     }
 
     public static Sha256Hash HashToken(string token)
     {
         byte[] bytes = SHA256.HashData(Encoding.UTF8.GetBytes(token));
-        return new Sha256Hash(Convert.ToHexString(bytes).ToLowerInvariant());
+        return new Sha256Hash(Convert.ToHexStringLower(bytes));
     }
 }
 

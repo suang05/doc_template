@@ -24,7 +24,7 @@ public static class ApiKeyGenerator
     public static string ComputeHash(string input)
     {
         byte[] bytes = SHA256.HashData(Encoding.UTF8.GetBytes(input));
-        return Convert.ToHexString(bytes).ToLowerInvariant();
+        return Convert.ToHexStringLower(bytes);
     }
 }
 

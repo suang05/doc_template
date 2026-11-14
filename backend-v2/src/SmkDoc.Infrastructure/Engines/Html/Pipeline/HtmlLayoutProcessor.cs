@@ -5,7 +5,7 @@ namespace SmkDoc.Infrastructure.Engines.Html.Pipeline;
 
 public record HtmlLayoutResult(string BodyHtml, string? HeaderHtml, string? FooterHtml);
 
-public partial class HtmlLayoutProcessor
+public static partial class HtmlLayoutProcessor
 {
     private const string FontHead = "<link rel=\"stylesheet\" href=\"https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap\"><style>body { font-family: 'Sarabun', sans-serif; }</style>";
 
@@ -15,70 +15,69 @@ public partial class HtmlLayoutProcessor
     [GeneratedRegex(@"<template\s+id=[""']footer[""'][^>]*>(.*?)</template>", RegexOptions.Singleline | RegexOptions.IgnoreCase)]
     private static partial Regex FooterTemplateRegex();
 
-    public HtmlLayoutResult Process(string html, TemplatePageSettings? settings = null)
+    public static HtmlLayoutResult Process(string html, TemplatePageSettings? settings = null)
     {
         if (string.IsNullOrWhiteSpace(html))
             return new HtmlLayoutResult(string.Empty, settings?.HeaderHtml, settings?.FooterHtml);
 
-        string processedHtml = html;
         var effectiveSettings = settings ?? TemplatePageSettings.Default;
+        string processedHtml = InjectAtPageRuleIfMissing(html, effectiveSettings);
+        processedHtml = InjectThaiFontIfMissing(processedHtml);
+        var (finalHtml, headerHtml, footerHtml) = ExtractHeaderAndFooter(processedHtml, effectiveSettings);
 
-        // 1. Ensure CSS @page geometry is present
-        if (!processedHtml.Contains("@page", StringComparison.OrdinalIgnoreCase))
-        {
-            string pageCss = $"<style>{effectiveSettings.ToCssAtPageRule()}</style>";
-            processedHtml = processedHtml.Contains("<head>", StringComparison.OrdinalIgnoreCase)
-                ? processedHtml.Replace("<head>", $"<head>\n{pageCss}", StringComparison.OrdinalIgnoreCase)
-                : $"{pageCss}\n{processedHtml}";
-        }
-
-        // 2. Ensure Thai Sarabun font link is present in <head>
-        if (!processedHtml.Contains("fonts.googleapis.com", StringComparison.OrdinalIgnoreCase) &&
-            !processedHtml.Contains("font-family", StringComparison.OrdinalIgnoreCase))
-        {
-            processedHtml = processedHtml.Contains("<head>", StringComparison.OrdinalIgnoreCase)
-                ? processedHtml.Replace("<head>", $"<head>\n{FontHead}", StringComparison.OrdinalIgnoreCase)
-                : $"{FontHead}\n{processedHtml}";
-        }
-
-        // 3 & 4. Extract header/footer template if present in HTML, or fallback to settings
-        string? headerHtml = null;
-        string? footerHtml = null;
-
-        if (processedHtml.Contains("<template", StringComparison.OrdinalIgnoreCase))
-        {
-            var headerMatch = HeaderTemplateRegex().Match(processedHtml);
-            if (headerMatch.Success)
-            {
-                headerHtml = headerMatch.Groups[1].Value;
-                processedHtml = processedHtml.Remove(headerMatch.Index, headerMatch.Length);
-            }
-            else if (!string.IsNullOrWhiteSpace(effectiveSettings.HeaderHtml))
-            {
-                headerHtml = effectiveSettings.HeaderHtml;
-            }
-
-            var footerMatch = FooterTemplateRegex().Match(processedHtml);
-            if (footerMatch.Success)
-            {
-                footerHtml = footerMatch.Groups[1].Value;
-                processedHtml = processedHtml.Remove(footerMatch.Index, footerMatch.Length);
-            }
-            else if (!string.IsNullOrWhiteSpace(effectiveSettings.FooterHtml))
-            {
-                footerHtml = effectiveSettings.FooterHtml;
-            }
-        }
-        else
-        {
-            headerHtml = effectiveSettings.HeaderHtml;
-            footerHtml = effectiveSettings.FooterHtml;
-        }
-
-        return new HtmlLayoutResult(processedHtml, headerHtml, footerHtml);
+        return new HtmlLayoutResult(finalHtml, headerHtml, footerHtml);
     }
 
-    public string AssembleFullHtmlDocument(string bodyHtml, TemplatePageSettings? settings = null)
+    private static string InjectAtPageRuleIfMissing(string html, TemplatePageSettings settings)
+    {
+        if (html.Contains("@page", StringComparison.OrdinalIgnoreCase))
+            return html;
+
+        string pageCss = $"<style>{settings.ToCssAtPageRule()}</style>";
+        return InsertIntoHeadOrPrepend(html, pageCss);
+    }
+
+    private static string InjectThaiFontIfMissing(string html)
+    {
+        if (html.Contains("fonts.googleapis.com", StringComparison.OrdinalIgnoreCase) ||
+            html.Contains("font-family", StringComparison.OrdinalIgnoreCase))
+        {
+            return html;
+        }
+
+        return InsertIntoHeadOrPrepend(html, FontHead);
+    }
+
+    private static string InsertIntoHeadOrPrepend(string html, string snippet) =>
+        html.Contains("<head>", StringComparison.OrdinalIgnoreCase)
+            ? html.Replace("<head>", $"<head>\n{snippet}", StringComparison.OrdinalIgnoreCase)
+            : $"{snippet}\n{html}";
+
+    private static (string Html, string? HeaderHtml, string? FooterHtml) ExtractHeaderAndFooter(
+        string html,
+        TemplatePageSettings settings)
+    {
+        if (!html.Contains("<template", StringComparison.OrdinalIgnoreCase))
+            return (html, settings.HeaderHtml, settings.FooterHtml);
+
+        var (afterHeaderHtml, headerHtml) = ExtractTemplateSection(html, HeaderTemplateRegex(), settings.HeaderHtml);
+        var (afterFooterHtml, footerHtml) = ExtractTemplateSection(afterHeaderHtml, FooterTemplateRegex(), settings.FooterHtml);
+        return (afterFooterHtml, headerHtml, footerHtml);
+    }
+
+    private static (string Html, string? SectionHtml) ExtractTemplateSection(
+        string html,
+        Regex regex,
+        string? fallback)
+    {
+        var match = regex.Match(html);
+        if (match.Success)
+            return (html.Remove(match.Index, match.Length), match.Groups[1].Value);
+
+        return (html, string.IsNullOrWhiteSpace(fallback) ? null : fallback);
+    }
+
+    public static string AssembleFullHtmlDocument(string bodyHtml, TemplatePageSettings? settings = null)
     {
         var effectiveSettings = settings ?? TemplatePageSettings.Default;
         var headerTag = !string.IsNullOrWhiteSpace(effectiveSettings.HeaderHtml)
@@ -109,7 +108,7 @@ public partial class HtmlLayoutProcessor
 """;
     }
 
-    public string InjectCustomFontFace(string html, string fontFamily, string base64FontData, string format = "truetype")
+    public static string InjectCustomFontFace(string html, string fontFamily, string base64FontData, string format = "truetype")
     {
         if (string.IsNullOrWhiteSpace(html) || string.IsNullOrWhiteSpace(base64FontData))
             return html;

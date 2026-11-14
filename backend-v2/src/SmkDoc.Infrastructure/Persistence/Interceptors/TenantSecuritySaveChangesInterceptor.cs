@@ -44,41 +44,69 @@ public sealed class TenantSecuritySaveChangesInterceptor(ICurrentProjectContext 
 
         foreach (var entry in context.ChangeTracker.Entries<IMustHaveProject>())
         {
-            if (entry.State == EntityState.Added)
-            {
-                if (entry.Entity.ProjectId.IsEmpty)
-                {
-                    entry.Property(nameof(IMustHaveProject.ProjectId)).CurrentValue = currentTenantId;
-                }
-                else if (entry.Entity.ProjectId != currentTenantId)
-                {
-                    throw new CrossTenantAccessDeniedException(entry.Entity.ProjectId);
-                }
-            }
-            else if (entry.State == EntityState.Modified)
-            {
-                var originalProjectId = GetOriginalProjectId(entry);
+            ApplyTenantRuleToEntry(entry, currentTenantId);
+        }
+    }
 
-                if (originalProjectId != currentTenantId)
-                {
-                    throw new CrossTenantAccessDeniedException(originalProjectId);
-                }
+    private static void ApplyTenantRuleToEntry(
+        Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry<IMustHaveProject> entry,
+        ProjectId currentTenantId)
+    {
+        switch (entry.State)
+        {
+            case EntityState.Added:
+                ValidateAddedEntry(entry, currentTenantId);
+                break;
+            case EntityState.Modified:
+                ValidateModifiedEntry(entry, currentTenantId);
+                break;
+            case EntityState.Deleted:
+                ValidateDeletedEntry(entry, currentTenantId);
+                break;
+        }
+    }
 
-                if (entry.Property(nameof(IMustHaveProject.ProjectId)).IsModified && entry.Entity.ProjectId != originalProjectId)
-                {
-                    throw new InvalidOperationException(
-                        $"Tenant reassignment is strictly prohibited: ProjectId property cannot be modified on entity '{entry.Entity.GetType().Name}'.");
-                }
-            }
-            else if (entry.State == EntityState.Deleted)
-            {
-                var originalProjectId = GetOriginalProjectId(entry);
+    private static void ValidateAddedEntry(
+        Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry<IMustHaveProject> entry,
+        ProjectId currentTenantId)
+    {
+        if (entry.Entity.ProjectId.IsEmpty)
+        {
+            entry.Property(nameof(IMustHaveProject.ProjectId)).CurrentValue = currentTenantId;
+            return;
+        }
 
-                if (originalProjectId != currentTenantId)
-                {
-                    throw new CrossTenantAccessDeniedException(originalProjectId);
-                }
-            }
+        if (entry.Entity.ProjectId != currentTenantId)
+        {
+            throw new CrossTenantAccessDeniedException(entry.Entity.ProjectId);
+        }
+    }
+
+    private static void ValidateModifiedEntry(
+        Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry<IMustHaveProject> entry,
+        ProjectId currentTenantId)
+    {
+        var originalProjectId = GetOriginalProjectId(entry);
+        if (originalProjectId != currentTenantId)
+        {
+            throw new CrossTenantAccessDeniedException(originalProjectId);
+        }
+
+        if (entry.Property(nameof(IMustHaveProject.ProjectId)).IsModified && entry.Entity.ProjectId != originalProjectId)
+        {
+            throw new InvalidOperationException(
+                $"Tenant reassignment is strictly prohibited: ProjectId property cannot be modified on entity '{entry.Entity.GetType().Name}'.");
+        }
+    }
+
+    private static void ValidateDeletedEntry(
+        Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry<IMustHaveProject> entry,
+        ProjectId currentTenantId)
+    {
+        var originalProjectId = GetOriginalProjectId(entry);
+        if (originalProjectId != currentTenantId)
+        {
+            throw new CrossTenantAccessDeniedException(originalProjectId);
         }
     }
 

@@ -8,9 +8,9 @@ namespace SmkDoc.Infrastructure.Engines.Excel;
 public class ExcelMediaInjector
 {
     private readonly IMediaGenerationService _mediaService;
-    private const int QrSizePx   = 150;
-    private const int BarcodeW   = 300;
-    private const int BarcodeH   = 100;
+    private const int QrSizePx = 150;
+    private const int BarcodeW = 300;
+    private const int BarcodeH = 100;
     private const double PxToRowH = 0.75;  // Excel row height (pt) ≈ 0.75 × px
     private const double PxToColW = 1.0 / 7.0; // Excel column width unit ≈ px / 7
 
@@ -48,8 +48,8 @@ public class ExcelMediaInjector
             cell.SetValue(string.Empty);
 
             // Expand row/column to fit the image
-            worksheet.Row(row).Height    = Math.Max(worksheet.Row(row).Height,    h * PxToRowH);
-            worksheet.Column(col).Width  = Math.Max(worksheet.Column(col).Width,  w * PxToColW);
+            worksheet.Row(row).Height = Math.Max(worksheet.Row(row).Height, h * PxToRowH);
+            worksheet.Column(col).Width = Math.Max(worksheet.Column(col).Width, w * PxToColW);
 
             try
             {
@@ -73,7 +73,7 @@ public class ExcelMediaInjector
         {
             if (cell.HasFormula) continue;
             var val = cell.GetString();
-            if (!val.Contains("{{")) continue;
+            if (!val.Contains("{{", StringComparison.Ordinal)) continue;
 
             foreach (System.Text.RegularExpressions.Match m in Pattern.Matches(val))
             {

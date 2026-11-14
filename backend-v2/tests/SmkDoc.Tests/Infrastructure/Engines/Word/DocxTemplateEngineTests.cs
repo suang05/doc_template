@@ -20,8 +20,6 @@ public sealed class DocxTemplateEngineTests
         return new DocxTemplateEngine(
             pdfRenderer,
             media,
-            new WordTextReplacer(),
-            new WordTableExpander(),
             new JsonTemplateDataParser());
     }
 

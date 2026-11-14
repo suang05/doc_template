@@ -1,4 +1,4 @@
-﻿using SmkDoc.Application.Common.Helpers;
+using SmkDoc.Application.Common.Helpers;
 
 namespace SmkDoc.Tests.Application.Common.Helpers;
 

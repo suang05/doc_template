@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Helpers;
 using SmkDoc.Domain.Entities;
@@ -57,6 +58,7 @@ public sealed class CreateApiKeyUseCase(
         }
     }
 
+    [SuppressMessage("Globalization", "CA1308:Normalize strings to uppercase", Justification = "API key prefix uses canonical lowercase caller app identifier.")]
     private static (ApiKey Key, string RawSecret) IssueKey(
         ProjectId pId,
         CreateApiKeyCommand command,

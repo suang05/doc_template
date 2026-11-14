@@ -24,85 +24,11 @@ public sealed class PreviewDocumentUseCase(
 {
     public async Task<Stream> ExecuteAsync(PreviewDocumentQuery query, CancellationToken ct)
     {
-        Stream templateStream;
-        RenderEngineType engineType;
-        string dataJson;
-
-        // 1. Monaco editor raw HTML preview
-        if (!string.IsNullOrWhiteSpace(query.Html))
-        {
-            templateStream = await HybridSpoolStream.CreateFromUtf8StringAsync(query.Html, ct: ct);
-            engineType = RenderEngineType.Html;
-            dataJson = query.Payload.ValueKind != JsonValueKind.Undefined ? query.Payload.GetRawText() : "{}";
-        }
-        // 2. RAM-cached draft template preview
-        else if (!string.IsNullOrWhiteSpace(query.DraftId))
-        {
-            if (draftCache is null)
-            {
-                throw new BusinessRuleViolationException("Draft cache is not available for preview.", "DRAFT_CACHE_UNAVAILABLE");
-            }
-
-            var draft = await draftCache.GetCurrentProjectDraftAsync(query.DraftId, ct)
-                ?? throw new DraftExpiredException(query.DraftId);
-
-            if (!TemplateFormat.TryFromExtension(draft.FileExtension, out var format))
-            {
-                throw new DomainValidationException($"Unsupported template file format: '{draft.FileExtension}'.");
-            }
-
-            engineType = format.DefaultEngineType;
-            templateStream = await draftCache.OpenStreamAsync(draft, ct);
-            dataJson = query.Payload.ValueKind != JsonValueKind.Undefined ? query.Payload.GetRawText() : "{}";
-        }
-        // 3. Published template by ID or Slug
-        else
-        {
-            Template? template = null;
-            if (query.TemplateId.HasValue && query.TemplateId.Value != Guid.Empty)
-            {
-                var tId = new TemplateId(query.TemplateId.Value);
-                template = await templateRepo.GetByIdWithDetailsAsync(tId, ct)
-                    ?? await templateRepo.GetByIdAsync(tId, ct);
-            }
-            else if (!string.IsNullOrWhiteSpace(query.Slug))
-            {
-                template = await templateRepo.GetBySlugWithDetailsAsync(query.Slug, ct)
-                    ?? await templateRepo.GetBySlugAsync(query.Slug, ct);
-            }
-            else
-            {
-                throw new DomainValidationException("Template slug, template ID, draft ID, or HTML content is required for preview.");
-            }
-
-            if (template == null)
-            {
-                var identifier = query.TemplateId?.ToString() ?? query.Slug;
-                throw new NotFoundException($"Template '{identifier}' not found.");
-            }
-
-            var version = template.GetPublishedVersion();
-            engineType = version.GetRenderEngineType();
-
-            if (dataBindingEngine != null)
-            {
-                var bound = await dataBindingEngine.BindAndValidateAsync(
-                    template, version, query.Payload, skipValidation: false, ct);
-                dataJson = bound.DataJson;
-            }
-            else
-            {
-                dataJson = query.Payload.ValueKind != JsonValueKind.Undefined ? query.Payload.GetRawText() : "{}";
-            }
-
-            templateStream = await storageService.DownloadAsync(StorageBuckets.Templates, version.StorageKey, ct);
-        }
+        var (templateStream, engineType, dataJson) = await PreparePreviewInputAsync(query, ct);
 
         try
         {
             var engine = engineFactory.GetEngine(engineType);
-
-            // Always render to PDF for preview
             return await engine.RenderStreamAsync(templateStream, dataJson, OutputFormat.Pdf, ct);
         }
         finally
@@ -110,4 +36,88 @@ public sealed class PreviewDocumentUseCase(
             await templateStream.DisposeAsync();
         }
     }
+
+    private async Task<(Stream TemplateStream, RenderEngineType EngineType, string DataJson)> PreparePreviewInputAsync(
+        PreviewDocumentQuery query,
+        CancellationToken ct)
+    {
+        if (!string.IsNullOrWhiteSpace(query.Html))
+        {
+            var htmlStream = await HybridSpoolStream.CreateFromUtf8StringAsync(query.Html, ct: ct);
+            return (htmlStream, RenderEngineType.Html, SerializeRawPayload(query.Payload));
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.DraftId))
+        {
+            return await PrepareDraftPreviewAsync(query, ct);
+        }
+
+        return await PreparePublishedTemplatePreviewAsync(query, ct);
+    }
+
+    private async Task<(Stream TemplateStream, RenderEngineType EngineType, string DataJson)> PrepareDraftPreviewAsync(
+        PreviewDocumentQuery query,
+        CancellationToken ct)
+    {
+        if (draftCache is null)
+        {
+            throw new BusinessRuleViolationException("Draft cache is not available for preview.", "DRAFT_CACHE_UNAVAILABLE");
+        }
+
+        var draft = await draftCache.GetCurrentProjectDraftAsync(query.DraftId!, ct)
+            ?? throw new DraftExpiredException(query.DraftId!);
+
+        if (!TemplateFormat.TryFromExtension(draft.FileExtension, out var format))
+        {
+            throw new DomainValidationException($"Unsupported template file format: '{draft.FileExtension}'.");
+        }
+
+        var draftStream = await draftCache.OpenStreamAsync(draft, ct);
+        return (draftStream, format.DefaultEngineType, SerializeRawPayload(query.Payload));
+    }
+
+    private async Task<(Stream TemplateStream, RenderEngineType EngineType, string DataJson)> PreparePublishedTemplatePreviewAsync(
+        PreviewDocumentQuery query,
+        CancellationToken ct)
+    {
+        var template = await FindTemplateAsync(query, ct);
+        var version = template.GetPublishedVersion();
+        var dataJson = dataBindingEngine != null
+            ? (await dataBindingEngine.BindAndValidateAsync(template, version, query.Payload, skipValidation: false, ct)).DataJson
+            : SerializeRawPayload(query.Payload);
+
+        var templateStream = await storageService.DownloadAsync(StorageBuckets.Templates, version.StorageKey, ct);
+        return (templateStream, version.RenderEngineType, dataJson);
+    }
+
+    private async Task<Template> FindTemplateAsync(PreviewDocumentQuery query, CancellationToken ct)
+    {
+        Template? template;
+        if (query.TemplateId.HasValue && query.TemplateId.Value != Guid.Empty)
+        {
+            var tId = new TemplateId(query.TemplateId.Value);
+            template = await templateRepo.GetByIdWithDetailsAsync(tId, ct)
+                ?? await templateRepo.GetByIdAsync(tId, ct);
+        }
+        else if (!string.IsNullOrWhiteSpace(query.Slug))
+        {
+            template = await templateRepo.GetBySlugWithDetailsAsync(query.Slug, ct)
+                ?? await templateRepo.GetBySlugAsync(query.Slug, ct);
+        }
+        else
+        {
+            throw new DomainValidationException("Template slug, template ID, draft ID, or HTML content is required for preview.");
+        }
+
+        if (template == null)
+        {
+            var identifier = query.TemplateId?.ToString() ?? query.Slug;
+            throw new NotFoundException($"Template '{identifier}' not found.");
+        }
+
+        return template;
+    }
+
+    private static string SerializeRawPayload(JsonElement payload) =>
+        payload.ValueKind != JsonValueKind.Undefined ? payload.GetRawText() : "{}";
 }

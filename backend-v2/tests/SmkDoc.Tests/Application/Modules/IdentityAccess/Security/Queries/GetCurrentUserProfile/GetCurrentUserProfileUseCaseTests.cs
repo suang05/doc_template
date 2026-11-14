@@ -20,7 +20,7 @@ public sealed class GetCurrentUserProfileUseCaseTests
     {
         // Arrange
         var now = TestConstants.BaselineTime;
-        User user = aUser.Active()
+        User user = UserBuilder.AUser()
             .WithEmail("user@example.com")
             .WithName("John", "Doe")
             .WithTime(now);
@@ -59,7 +59,7 @@ public sealed class GetCurrentUserProfileUseCaseTests
     {
         // Arrange
         var now = TestConstants.BaselineTime;
-        User user = aUser.Active()
+        User user = UserBuilder.AUser()
             .WithEmail("user@example.com")
             .WithName("John", "Doe")
             .WithTime(now);
@@ -93,7 +93,7 @@ public sealed class GetCurrentUserProfileUseCaseTests
     {
         // Arrange
         var now = TestConstants.BaselineTime;
-        User user = aUser.Active()
+        User user = UserBuilder.AUser()
             .WithEmail("user@example.com")
             .WithName("John", "Doe")
             .WithTime(now);
@@ -128,7 +128,7 @@ public sealed class GetCurrentUserProfileUseCaseTests
     {
         // Arrange
         var now = TestConstants.BaselineTime;
-        User user = aUser.Active()
+        User user = UserBuilder.AUser()
             .WithEmail("admin@example.com")
             .WithSystemRole(SystemRole.SuperAdmin)
             .WithTime(now);
@@ -163,7 +163,7 @@ public sealed class GetCurrentUserProfileUseCaseTests
     {
         // Arrange
         var now = TestConstants.BaselineTime;
-        User user = aUser.Active()
+        User user = UserBuilder.AUser()
             .WithEmail("admin@example.com")
             .WithSystemRole(SystemRole.SuperAdmin)
             .WithTime(now);

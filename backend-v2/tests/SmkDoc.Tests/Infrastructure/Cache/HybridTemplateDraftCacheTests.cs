@@ -15,6 +15,7 @@ public sealed class HybridTemplateDraftCacheTests : IDisposable
     private readonly IStorageService _storageService = Substitute.For<IStorageService>();
     private readonly ILogger<HybridTemplateDraftCache> _logger = Substitute.For<ILogger<HybridTemplateDraftCache>>();
     private readonly MemoryCache _memoryCache = new(new MemoryCacheOptions());
+    private static readonly JsonSerializerOptions WebJsonOptions = new(JsonSerializerDefaults.Web);
     private readonly ProjectId _projectId = ProjectId.New();
 
     public HybridTemplateDraftCacheTests()
@@ -75,7 +76,7 @@ public sealed class HybridTemplateDraftCacheTests : IDisposable
             ".docx",
             ["InvoiceId"]);
 
-        var json = JsonSerializer.Serialize(entry, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        var json = JsonSerializer.Serialize(entry, WebJsonOptions);
         var redisKey = $"smkdoc:drafts:{_projectId.Value:N}:{draftId}";
 
         _database.StringGetAsync(redisKey, CommandFlags.None)
@@ -133,7 +134,7 @@ public sealed class HybridTemplateDraftCacheTests : IDisposable
         var l1Key = $"tmpl_draft:l1:{_projectId.Value:N}:{draftId}";
         _memoryCache.Set(l1Key, entry);
 
-        var json = JsonSerializer.Serialize(entry, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        var json = JsonSerializer.Serialize(entry, WebJsonOptions);
         var redisKey = $"smkdoc:drafts:{_projectId.Value:N}:{draftId}";
         _database.StringGetDeleteAsync(redisKey, CommandFlags.None).Returns(new RedisValue(json));
 

@@ -59,7 +59,7 @@ public sealed class InviteUserUseCaseTests
         var roleStr = "Developer";
         var command = new InviteUserCommand(email, password, "New", "User", roleStr);
 
-        User newUser = aUser.Active().WithEmail(email);
+        User newUser = UserBuilder.AUser().WithEmail(email);
         _userAccountProcessor.GetOrRegisterUserAsync(email, password, "New", "User", Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
             .Returns(newUser);
 
@@ -81,7 +81,7 @@ public sealed class InviteUserUseCaseTests
         _projectContext.IsResolved.Returns(true);
         _projectContext.GetRequiredProjectId().Returns(new ProjectId(projectId));
 
-        User existingUser = aUser.Active().WithEmail("exist@test.com");
+        User existingUser = UserBuilder.AUser().WithEmail("exist@test.com");
         var existingRole = new UserProjectRoleBuilder()
             .ForUser(existingUser.Id)
             .InProject(projectId)

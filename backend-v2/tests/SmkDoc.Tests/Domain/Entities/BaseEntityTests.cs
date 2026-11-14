@@ -1,4 +1,4 @@
-﻿using SmkDoc.Tests.Common.Builders;
+using SmkDoc.Tests.Common.Builders;
 
 namespace SmkDoc.Tests.Domain.Entities;
 

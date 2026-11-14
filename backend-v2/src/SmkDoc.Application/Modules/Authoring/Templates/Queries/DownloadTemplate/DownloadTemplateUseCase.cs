@@ -18,14 +18,15 @@ public sealed class DownloadTemplateUseCase(
         var version = template.GetPublishedVersion();
 
         var stream = await storageService.DownloadAsync(StorageBuckets.Templates, version.StorageKey, ct);
-        string ext = Path.GetExtension(version.StorageKey).ToLowerInvariant();
-        string contentType = ext switch
+        string ext = Path.GetExtension(version.StorageKey);
+        (string contentType, string normalizedExt) = ext.ToUpperInvariant() switch
         {
-            ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            ".xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            _ => "text/html; charset=utf-8"
+            ".DOCX" => ("application/vnd.openxmlformats-officedocument.wordprocessingml.document", ".docx"),
+            ".XLSX" => ("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", ".xlsx"),
+            ".HTML" => ("text/html; charset=utf-8", ".html"),
+            _ => ("text/html; charset=utf-8", ext)
         };
 
-        return new DownloadTemplateResult(stream, contentType, $"{template.Slug}{ext}");
+        return new DownloadTemplateResult(stream, contentType, $"{template.Slug}{normalizedExt}");
     }
 }

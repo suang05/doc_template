@@ -11,7 +11,7 @@ namespace SmkDoc.Application.Common.Interfaces;
 public interface ICurrentProjectContext
 {
     /// <summary>
-    /// Returns the resolved ambient ProjectId or throws <see cref="SmkDoc.Application.Common.Exceptions.TenantContextNotResolvedException"/>
+    /// Returns the resolved ambient ProjectId or throws <see cref="TenantContextNotResolvedException"/>
     /// if accessed when <see cref="IsResolved"/> is false.
     /// </summary>
     ProjectId GetRequiredProjectId();

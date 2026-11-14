@@ -13,7 +13,7 @@ namespace SmkDoc.Application.Modules.DataBinding.Services;
 public interface IDataBindingEngine
 {
     Task<BoundDocumentData> BindAndValidateAsync(
-        Template template,
+        Template templateEntity,
         TemplateVersion version,
         JsonElement rawPayload,
         bool skipValidation,

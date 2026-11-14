@@ -1,3 +1,4 @@
+using System.Globalization;
 using SmkDoc.Domain.Common;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Interfaces;
@@ -19,7 +20,7 @@ public sealed class UserProjectRole : IConcurrencyAware, IEquatable<UserProjectR
     DateTimeOffset? IConcurrencyAware.UpdatedAt => null;
 
     public string GetConcurrencyToken() =>
-        CreatedAt.ToUnixTimeMilliseconds().ToString();
+        CreatedAt.ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture);
 
     // For EF Core materialization only
     private UserProjectRole() { }

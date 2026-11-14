@@ -32,40 +32,35 @@ public sealed class DocumentRetentionProcessor(
                 break;
             }
 
-            if (!string.IsNullOrWhiteSpace(log.OutputKey))
-            {
-                try
-                {
-                    await storageService.DeleteAsync(StorageBuckets.Outputs, log.OutputKey, ct);
-                }
-                catch (ExternalServiceException ex)
-                {
-                    LogRetentionCleanupFailure(log.OutputKey, ex);
-                }
-                catch (HttpRequestException ex)
-                {
-                    LogRetentionCleanupFailure(log.OutputKey, ex);
-                }
-                catch (IOException ex)
-                {
-                    LogRetentionCleanupFailure(log.OutputKey, ex);
-                }
-                catch (TimeoutException ex)
-                {
-                    LogRetentionCleanupFailure(log.OutputKey, ex);
-                }
-                catch (InvalidOperationException ex)
-                {
-                    LogRetentionCleanupFailure(log.OutputKey, ex);
-                }
-            }
-
+            await TryDeleteExpiredOutputAsync(log.OutputKey, ct);
             log.MarkOutputPurged(now);
             purgedCount++;
         }
 
         await unitOfWork.CommitAsync(ct);
         return purgedCount;
+    }
+
+    private async Task TryDeleteExpiredOutputAsync(string? outputKey, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(outputKey))
+        {
+            return;
+        }
+
+        try
+        {
+            await storageService.DeleteAsync(StorageBuckets.Outputs, outputKey, ct);
+        }
+        catch (Exception ex) when (ex is
+            ExternalServiceException or
+            HttpRequestException or
+            IOException or
+            TimeoutException or
+            InvalidOperationException)
+        {
+            LogRetentionCleanupFailure(outputKey, ex);
+        }
     }
 
     private static void LogRetentionCleanupFailure(string outputKey, Exception ex) =>

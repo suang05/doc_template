@@ -1,4 +1,4 @@
-﻿namespace SmkDoc.Tests.Domain.Exceptions;
+namespace SmkDoc.Tests.Domain.Exceptions;
 
 public sealed class DomainExceptionTests
 {

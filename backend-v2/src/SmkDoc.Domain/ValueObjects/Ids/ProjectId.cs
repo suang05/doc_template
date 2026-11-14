@@ -22,4 +22,8 @@ public readonly record struct ProjectId(Guid Value) : IComparable<ProjectId>
     public static bool operator !=(ProjectId left, Guid right) => left.Value != right;
     public static bool operator ==(Guid left, ProjectId right) => left == right.Value;
     public static bool operator !=(Guid left, ProjectId right) => left != right.Value;
+    public static bool operator <(ProjectId left, ProjectId right) => left.CompareTo(right) < 0;
+    public static bool operator <=(ProjectId left, ProjectId right) => left.CompareTo(right) <= 0;
+    public static bool operator >(ProjectId left, ProjectId right) => left.CompareTo(right) > 0;
+    public static bool operator >=(ProjectId left, ProjectId right) => left.CompareTo(right) >= 0;
 }

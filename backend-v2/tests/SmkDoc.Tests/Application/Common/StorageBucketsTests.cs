@@ -32,13 +32,13 @@ public sealed class StorageBucketsTests
     [Fact]
     public void AllBucketNames_ShouldBeLowercase()
     {
-        StorageBuckets.Templates.Should().Be(StorageBuckets.Templates.ToLowerInvariant(),
+        StorageBuckets.Templates.Should().MatchRegex("^[a-z0-9-]+$",
             "MinIO bucket names must be lowercase");
-        StorageBuckets.Outputs.Should().Be(StorageBuckets.Outputs.ToLowerInvariant(),
+        StorageBuckets.Outputs.Should().MatchRegex("^[a-z0-9-]+$",
             "MinIO bucket names must be lowercase");
-        StorageBuckets.AuditPayloads.Should().Be(StorageBuckets.AuditPayloads.ToLowerInvariant(),
+        StorageBuckets.AuditPayloads.Should().MatchRegex("^[a-z0-9-]+$",
             "MinIO bucket names must be lowercase");
-        StorageBuckets.Fonts.Should().Be(StorageBuckets.Fonts.ToLowerInvariant(),
+        StorageBuckets.Fonts.Should().MatchRegex("^[a-z0-9-]+$",
             "MinIO bucket names must be lowercase");
     }
 

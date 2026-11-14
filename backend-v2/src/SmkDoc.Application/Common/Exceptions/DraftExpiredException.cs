@@ -9,8 +9,8 @@ public sealed class DraftExpiredException : DomainException
     public string DraftId { get; }
 
     public DraftExpiredException(string draftId, Exception? innerException = null)
-        : base($"Draft '{draftId}' has expired or does not exist. Please re-upload the file.", ErrorCodes.DraftExpired, innerException) 
-    { 
+        : base($"Draft '{draftId}' has expired or does not exist. Please re-upload the file.", ErrorCodes.DraftExpired, innerException)
+    {
         DraftId = draftId;
     }
 }

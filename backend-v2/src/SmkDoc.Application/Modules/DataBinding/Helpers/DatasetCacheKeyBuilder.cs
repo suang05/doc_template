@@ -22,7 +22,7 @@ public static class DatasetCacheKeyBuilder
 
         var datasetSegment = ds.DatasetId != Guid.Empty
             ? ds.DatasetId.ToString("N")
-            : alias.ToLowerInvariant();
+            : alias.ToUpperInvariant();
 
         var connectionSegment = ds.DataConnectionId != Guid.Empty
             ? ds.DataConnectionId.ToString("N")
@@ -33,7 +33,7 @@ public static class DatasetCacheKeyBuilder
         foreach (var kvp in parameters.OrderBy(p => p.Key, StringComparer.OrdinalIgnoreCase))
         {
             sb.Append('\n')
-              .Append(kvp.Key.ToLowerInvariant())
+              .Append(kvp.Key.ToUpperInvariant())
               .Append('=')
               .Append(kvp.Value is DBNull ? "<null>" : Convert.ToString(kvp.Value, CultureInfo.InvariantCulture));
         }

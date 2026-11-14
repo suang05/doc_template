@@ -26,7 +26,7 @@ public sealed class GenerationLogQueryService(AppDbContext context) : IGeneratio
         var totalCount = await query.CountAsync(ct);
 
         var safePage = page < 1 ? 1 : page;
-        var safeLimit = limit < 1 ? 20 : (limit > 200 ? 200 : limit);
+        var safeLimit = limit < 1 ? 20 : Math.Min(limit, 200);
 
         var rows = await query
             .OrderByDescending(l => l.CreatedAt)

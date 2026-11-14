@@ -18,7 +18,7 @@ public sealed class ValueObjectTests
     [InlineData("")]
     public void Sha256Hash_InvalidHex_ThrowsDomainValidationException(string invalidInput)
     {
-        Action act = () => new Sha256Hash(invalidInput);
+        Action act = () => _ = new Sha256Hash(invalidInput);
         act.Should().Throw<DomainValidationException>();
     }
 

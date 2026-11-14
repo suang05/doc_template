@@ -1,4 +1,4 @@
-﻿using System.Diagnostics.Metrics;
+using System.Diagnostics.Metrics;
 using SmkDoc.Infrastructure.Observability;
 
 namespace SmkDoc.Tests.Infrastructure.Observability;

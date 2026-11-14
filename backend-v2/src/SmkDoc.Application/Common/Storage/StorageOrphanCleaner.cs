@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using SmkDoc.Application.Common.Interfaces;
 
 namespace SmkDoc.Application.Common.Storage;
 

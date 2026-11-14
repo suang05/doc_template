@@ -1,6 +1,7 @@
 using System.Data;
 using System.Data.Common;
 using System.Diagnostics;
+using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using Dapper;
@@ -141,10 +142,10 @@ public sealed class PostgreSqlDriverStrategy : ISqlDriverStrategy
                 writer.WriteStringValue(dto.ToString("O"));
                 break;
             case DateOnly date:
-                writer.WriteStringValue(date.ToString("yyyy-MM-dd"));
+                writer.WriteStringValue(date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
                 break;
             case TimeOnly time:
-                writer.WriteStringValue(time.ToString("HH:mm:ss.fff"));
+                writer.WriteStringValue(time.ToString("HH:mm:ss.fff", CultureInfo.InvariantCulture));
                 break;
             case TimeSpan ts:
                 writer.WriteStringValue(ts.ToString());

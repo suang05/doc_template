@@ -72,15 +72,15 @@ public sealed class DistributedInfrastructureExtensionsTests
         // Assert
         var renderQueueDesc = services.FirstOrDefault(d => d.ServiceType == typeof(IDocumentRenderQueue));
         renderQueueDesc.Should().NotBeNull();
-        renderQueueDesc!.ImplementationType.Should().Be(typeof(MemoryDocumentRenderQueue));
+        renderQueueDesc!.ImplementationType.Should().Be<MemoryDocumentRenderQueue>();
 
         var idempotencyDesc = services.FirstOrDefault(d => d.ServiceType == typeof(IIdempotencyStore));
         idempotencyDesc.Should().NotBeNull();
-        idempotencyDesc!.ImplementationType.Should().Be(typeof(MemoryIdempotencyStore));
+        idempotencyDesc!.ImplementationType.Should().Be<MemoryIdempotencyStore>();
 
         var datasetCacheDesc = services.FirstOrDefault(d => d.ServiceType == typeof(IDatasetResultCache));
         datasetCacheDesc.Should().NotBeNull();
-        datasetCacheDesc!.ImplementationType.Should().Be(typeof(MemoryDatasetResultCache));
+        datasetCacheDesc!.ImplementationType.Should().Be<MemoryDatasetResultCache>();
     }
 }
 

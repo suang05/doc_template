@@ -96,7 +96,7 @@ internal static class ValidationPipelineExecutor
             return string.Empty;
         }
 
-        if (!propertyPath.Contains('.'))
+        if (!propertyPath.Contains('.', StringComparison.Ordinal))
         {
             return ToCamelCaseSegment(propertyPath);
         }

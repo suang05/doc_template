@@ -43,6 +43,6 @@ public static class RequestFingerprintCalculator
         var canonicalString = $"{httpMethod}|{path}|{serializedPayload}";
         var hashBytes = SHA256.HashData(Encoding.UTF8.GetBytes(canonicalString));
 
-        return Convert.ToHexString(hashBytes).ToLowerInvariant();
+        return Convert.ToHexStringLower(hashBytes);
     }
 }

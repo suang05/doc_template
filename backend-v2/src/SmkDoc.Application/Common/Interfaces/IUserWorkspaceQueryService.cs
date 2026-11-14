@@ -29,7 +29,7 @@ public interface IUserWorkspaceQueryService
     /// Enforces project access rules and optional fallback behavior.
     /// </summary>
     Task<UserWorkspaceContextResultDto> ResolveWorkspaceContextAsync(
-        SmkDoc.Domain.Entities.User user,
+        Domain.Entities.User user,
         Guid? requestedProjectId,
         bool throwOnUnauthorized,
         CancellationToken ct);

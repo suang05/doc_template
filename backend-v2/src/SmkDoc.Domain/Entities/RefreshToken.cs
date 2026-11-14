@@ -36,7 +36,7 @@ public sealed class RefreshToken : BaseEntity
     {
         UserId = Guard.NotEmpty(userId, nameof(UserId));
         TokenHash = Guard.NotNull(tokenHash, nameof(TokenHash));
-        
+
         if (expiresAt <= now)
         {
             throw new DomainValidationException("RefreshToken expiration must be strictly in the future.");

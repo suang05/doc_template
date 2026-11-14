@@ -5,9 +5,9 @@ using SmkDoc.Application.Modules.Authoring.Templates.Parsing;
 
 namespace SmkDoc.Infrastructure.Engines.Word;
 
-public class WordTextReplacer
+public static class WordTextReplacer
 {
-    public void ReplaceTexts(MainDocumentPart mainPart, Dictionary<string, string> replacements)
+    public static void ReplaceTexts(MainDocumentPart mainPart, Dictionary<string, string> replacements)
     {
         if (replacements.Count == 0) return;
 
@@ -36,10 +36,10 @@ public class WordTextReplacer
         }
     }
 
-    private void ReplaceInParagraph(Paragraph p, Dictionary<string, string> replacements)
+    private static void ReplaceInParagraph(Paragraph p, Dictionary<string, string> replacements)
     {
         string text = p.InnerText;
-        if (!text.Contains("{{")) return;
+        if (!text.Contains("{{", StringComparison.Ordinal)) return;
 
         var runs = p.Elements<Run>().ToList();
         if (runs.Count == 0) return;

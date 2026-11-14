@@ -9,6 +9,8 @@ namespace SmkDoc.Tests.Infrastructure.Queue;
 
 public sealed class RedisDocumentRenderQueueTests
 {
+    private static readonly JsonSerializerOptions WebJsonOptions = new(JsonSerializerDefaults.Web);
+
     private readonly IConnectionMultiplexer _multiplexer = Substitute.For<IConnectionMultiplexer>();
     private readonly IDatabase _database = Substitute.For<IDatabase>();
     private readonly ILogger<RedisDocumentRenderQueue> _logger = Substitute.For<ILogger<RedisDocumentRenderQueue>>();
@@ -75,7 +77,7 @@ public sealed class RedisDocumentRenderQueueTests
             false,
             DateTimeOffset.UtcNow);
 
-        var json = JsonSerializer.Serialize(job, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        var json = JsonSerializer.Serialize(job, WebJsonOptions);
         _database.StringGetAsync(Arg.Is<RedisKey>(k => k.ToString().Contains(jobId.ToString())), CommandFlags.None)
             .Returns(new RedisValue(json));
 
@@ -119,7 +121,7 @@ public sealed class RedisDocumentRenderQueueTests
             false,
             DateTimeOffset.UtcNow);
 
-        var json = JsonSerializer.Serialize(job, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        var json = JsonSerializer.Serialize(job, WebJsonOptions);
         _database.StringGetAsync(Arg.Is<RedisKey>(k => k.ToString().Contains(jobId.ToString())), CommandFlags.None)
             .Returns(new RedisValue(json));
 

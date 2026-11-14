@@ -106,50 +106,62 @@ public sealed partial class MathExpressionResolverService : IMathExpressionResol
             if (!TryParseFactor(out result))
                 return false;
 
-            while (true)
+            while (TryReadMultiplicativeOperator(out char op))
             {
-                SkipWhitespace();
-                if (_pos >= _text.Length)
-                    break;
-
-                char op = _text[_pos];
-                if (op != '*' && op != '/' && op != '%')
-                    break;
-
-                _pos++;
-                if (!TryParseFactor(out decimal right))
-                    return false;
-
-                try
-                {
-                    if (op == '/')
-                    {
-                        if (right == 0m)
-                            return false;
-                        result = result / right;
-                    }
-                    else if (op == '%')
-                    {
-                        if (right == 0m)
-                            return false;
-                        result = result % right;
-                    }
-                    else
-                    {
-                        result = checked(result * right);
-                    }
-                }
-                catch (OverflowException)
-                {
-                    return false;
-                }
-                catch (DivideByZeroException)
+                if (!TryParseFactor(out decimal right) ||
+                    !TryApplyMultiplicativeOperator(op, result, right, out result))
                 {
                     return false;
                 }
             }
 
             return true;
+        }
+
+        private bool TryReadMultiplicativeOperator(out char op)
+        {
+            SkipWhitespace();
+            if (_pos >= _text.Length)
+            {
+                op = default;
+                return false;
+            }
+
+            char candidate = _text[_pos];
+            if (candidate is not ('*' or '/' or '%'))
+            {
+                op = default;
+                return false;
+            }
+
+            op = candidate;
+            _pos++;
+            return true;
+        }
+
+        private static bool TryApplyMultiplicativeOperator(char op, decimal left, decimal right, out decimal value)
+        {
+            if (op is '/' or '%' && right == 0m)
+            {
+                value = 0m;
+                return false;
+            }
+
+            try
+            {
+                value = op switch
+                {
+                    '/' => left / right,
+                    '%' => left % right,
+                    _ => checked(left * right)
+                };
+                return true;
+            }
+            catch (Exception ex) when (ex is OverflowException or DivideByZeroException)
+            {
+                value = 0m;
+                return false;
+            }
         }
 
         private bool TryParseFactor(out decimal result)

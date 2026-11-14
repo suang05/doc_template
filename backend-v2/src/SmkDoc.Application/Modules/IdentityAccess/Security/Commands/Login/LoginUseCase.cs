@@ -41,7 +41,15 @@ public sealed class LoginUseCase(
                 passwordHasher.VerifyPassword(password, AuthConstants.DummyPasswordHash);
             }
 
-            var reason = user == null ? "UserNotFound" : !user.IsActive ? "UserInactive" : "InvalidPassword";
+            var reason = "InvalidPassword";
+            if (user == null)
+            {
+                reason = "UserNotFound";
+            }
+            else if (!user.IsActive)
+            {
+                reason = "UserInactive";
+            }
             auditService.LogLoginFailure(email.Value, reason);
             throw new UnauthorizedException("Invalid email or password.");
         }

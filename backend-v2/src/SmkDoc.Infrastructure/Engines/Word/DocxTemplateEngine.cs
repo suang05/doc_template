@@ -9,8 +9,6 @@ namespace SmkDoc.Infrastructure.Engines.Word;
 public sealed class DocxTemplateEngine(
     IPdfRenderer pdfRenderer,
     WordMediaInjector mediaInjector,
-    WordTextReplacer textReplacer,
-    WordTableExpander tableExpander,
     ITemplateDataParser dataParser) : IRenderEngine
 {
     public RenderEngineType EngineType => RenderEngineType.Docx;
@@ -35,10 +33,10 @@ public sealed class DocxTemplateEngine(
                 mediaInjector.InjectMedia(mainPart, replacements);
 
                 // 2. Expand dynamic table rows
-                tableExpander.ExpandTables(mainPart, tables);
+                WordTableExpander.ExpandTables(mainPart, tables);
 
                 // 3. Replace text placeholders and Thai transforms
-                textReplacer.ReplaceTexts(mainPart, replacements);
+                WordTextReplacer.ReplaceTexts(mainPart, replacements);
 
                 mainPart.Document.Save();
             }

@@ -96,7 +96,7 @@ public sealed class GenerateDocumentUseCaseTests
         Func<Task> act = () => pipeline.ExecuteAsync(invalidCommand, CancellationToken.None);
 
         // Assert
-        await act.Should().ThrowAsync<SmkDoc.Application.Common.Exceptions.ValidationException>();
+        await act.Should().ThrowAsync<ValidationException>();
         await _templateRepo.DidNotReceive().GetBySlugWithDetailsAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
@@ -224,7 +224,7 @@ public sealed class GenerateDocumentUseCaseTests
         // Arrange
         SetupActiveHtmlTemplate(slug: "non-seekable-doc");
         var payloadBytes = Encoding.UTF8.GetBytes("%PDF-1.4 Non-seekable HTTP stream payload");
-        var expectedSha256 = Convert.ToHexString(SHA256.HashData(payloadBytes)).ToLowerInvariant();
+        var expectedSha256 = Convert.ToHexStringLower(SHA256.HashData(payloadBytes));
 
         _engine.EngineType.Returns(RenderEngineType.Html);
         using var renderStream = new NonSeekableReadOnlyStream(payloadBytes);

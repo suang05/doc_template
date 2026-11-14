@@ -1,4 +1,4 @@
-﻿using FluentValidation;
+using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
 using SmkDoc.Application;
 
@@ -14,7 +14,7 @@ public sealed class DependencyInjectionSmokeTests
 
         var useCaseTypes = typeof(DependencyInjection).Assembly
             .GetTypes()
-            .Where(t => t.IsClass && !t.IsAbstract && t.Name.EndsWith("UseCase"))
+            .Where(t => t.IsClass && !t.IsAbstract && t.Name.EndsWith("UseCase", StringComparison.Ordinal))
             .ToList();
 
         useCaseTypes.Should().NotBeEmpty("there should be UseCase classes in SmkDoc.Application");

@@ -7,6 +7,8 @@ namespace SmkDoc.Tests.Application.Modules.Authoring.Templates.Commands.ParseTem
 
 public sealed class ParseTemplateDraftUseCaseTests
 {
+    private static readonly string[] ExpectedPlaceholders = ["customer.name", "invoice.total"];
+
     private readonly ITemplateScannerService _scannerService = Substitute.For<ITemplateScannerService>();
     private readonly IDocxSecurityScanner _docxSecurityScanner = Substitute.For<IDocxSecurityScanner>();
     private readonly ITemplateDraftCache _cache = Substitute.For<ITemplateDraftCache>();
@@ -44,7 +46,7 @@ public sealed class ParseTemplateDraftUseCaseTests
 
         // Assert
         result.DraftId.Should().Be("draft-abc");
-        result.Placeholders.Should().BeEquivalentTo(new[] { "customer.name", "invoice.total" });
+        result.Placeholders.Should().BeEquivalentTo(ExpectedPlaceholders);
         result.DetailedPlaceholders.Should().BeEquivalentTo(detailedPlaceholders);
         _docxSecurityScanner.Received(1).Scan(Arg.Any<Stream>());
         await _cache.Received(1).StoreAsync(

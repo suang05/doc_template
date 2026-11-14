@@ -1,4 +1,4 @@
-﻿using SmkDoc.Domain.Common;
+using SmkDoc.Domain.Common;
 
 namespace SmkDoc.Tests.Domain.Enums;
 

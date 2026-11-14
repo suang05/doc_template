@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
@@ -69,7 +70,7 @@ public sealed class UserWorkspaceQueryService(AppDbContext context) : IUserWorks
                 k.LastUsedAt,
                 k.CreatedAt,
                 k.Scope.Name,
-                ConcurrencyToken: (k.UpdatedAt ?? k.CreatedAt).ToUnixTimeMilliseconds().ToString()))
+                ConcurrencyToken: (k.UpdatedAt ?? k.CreatedAt).ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture)))
             .ToList();
     }
 
@@ -82,48 +83,38 @@ public sealed class UserWorkspaceQueryService(AppDbContext context) : IUserWorks
         var isSuperAdmin = user.SystemRole == SystemRole.SuperAdmin;
         var accessibleProjects = await GetAccessibleProjectsAsync(user.Id.Value, isSuperAdmin, ct);
 
-        var defaultProject = accessibleProjects.FirstOrDefault();
+        var defaultProject = accessibleProjects.Count > 0 ? accessibleProjects[0] : null;
         var defaultProjectId = defaultProject?.Id;
-        string activeRole = isSuperAdmin ? "Admin" : "Viewer";
-        Guid? activeProjectId = null;
+        string fallbackRole = isSuperAdmin ? "Admin" : "Viewer";
+        string defaultRole = defaultProject?.Role ?? fallbackRole;
 
-        if (requestedProjectId.HasValue && requestedProjectId.Value != Guid.Empty)
+        if (!requestedProjectId.HasValue || requestedProjectId.Value == Guid.Empty)
         {
-            var target = accessibleProjects.FirstOrDefault(p => p.Id == requestedProjectId.Value);
-            if (target == null && !isSuperAdmin)
-            {
-                if (throwOnUnauthorized)
-                {
-                    throw new UnauthorizedException("User does not have access to the specified project.");
-                }
-
-                activeProjectId = defaultProjectId;
-                if (defaultProject != null)
-                {
-                    activeRole = defaultProject.Role;
-                }
-            }
-            else
-            {
-                activeProjectId = requestedProjectId.Value;
-                if (target != null)
-                {
-                    activeRole = target.Role;
-                }
-            }
+            return new UserWorkspaceContextResultDto(
+                defaultProjectId,
+                defaultRole,
+                defaultProjectId,
+                accessibleProjects);
         }
-        else
+
+        var target = accessibleProjects.FirstOrDefault(p => p.Id == requestedProjectId.Value);
+        if (target == null && !isSuperAdmin)
         {
-            activeProjectId = defaultProjectId;
-            if (defaultProject != null)
+            if (throwOnUnauthorized)
             {
-                activeRole = defaultProject.Role;
+                throw new UnauthorizedException("User does not have access to the specified project.");
             }
+
+            return new UserWorkspaceContextResultDto(
+                defaultProjectId,
+                defaultRole,
+                defaultProjectId,
+                accessibleProjects);
         }
 
         return new UserWorkspaceContextResultDto(
-            activeProjectId,
-            activeRole,
+            requestedProjectId.Value,
+            target?.Role ?? fallbackRole,
             defaultProjectId,
             accessibleProjects);
     }

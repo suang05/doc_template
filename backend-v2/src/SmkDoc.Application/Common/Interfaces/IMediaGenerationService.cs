@@ -16,12 +16,12 @@ public interface IMediaGenerationService
     byte[] GenerateBarcode(string text, int widthPx = 300, int heightPx = 100, bool optimize = true);
 
     /// <summary>
-    /// Generates an HTML data URI image string (data:image/png;base64,...) for a QR Code.
+    /// Generates an HTML data URI (data:image/png;base64,...) for a QR Code.
     /// </summary>
-    string GenerateQrCodeDataUri(string text, int widthPx = 150, int heightPx = 150);
+    Uri GenerateQrCodeDataUri(string text, int widthPx = 150, int heightPx = 150);
 
     /// <summary>
-    /// Generates an HTML data URI image string (data:image/png;base64,...) for a Code-128 Barcode.
+    /// Generates an HTML data URI (data:image/png;base64,...) for a Code-128 Barcode.
     /// </summary>
-    string GenerateBarcodeDataUri(string text, int widthPx = 300, int heightPx = 100);
+    Uri GenerateBarcodeDataUri(string text, int widthPx = 300, int heightPx = 100);
 }

@@ -1,5 +1,5 @@
-using SmkDoc.Application.Common.Storage;
 using SmkDoc.Application.Common;
+using SmkDoc.Application.Common.Storage;
 using SmkDoc.Application.Common.Streams;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.Helpers;
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
@@ -26,8 +26,8 @@ public sealed class SaveTemplateHtmlUseCase(
             ?? await templateRepo.GetByIdAsync(templateId, ct)
             ?? throw new NotFoundException($"Template '{command.TemplateId}' not found.");
 
-        var currentVersion = template.CurrentVersion?.Version.ToString()
-            ?? template.FindPublishedVersion()?.Version.ToString()
+        var currentVersion = template.CurrentVersion?.Version.ToString(System.Globalization.CultureInfo.InvariantCulture)
+            ?? template.FindPublishedVersion()?.Version.ToString(System.Globalization.CultureInfo.InvariantCulture)
             ?? "0";
         concurrencyContext?.EnsureMatches(template, currentVersion);
 
@@ -69,11 +69,15 @@ public sealed class SaveTemplateHtmlUseCase(
                 ?? TemplatePageSettings.Default;
             newVersion.UpdatePageSettings(effectivePageSettings, now);
 
-            string mappingsSnapshot = template.FieldMappings.Count > 0
-                ? FieldMappingSnapshotSerializer.Serialize(template.FieldMappings)
-                : (!string.IsNullOrWhiteSpace(priorPublishedVersion?.MappingsSnapshot)
-                    ? priorPublishedVersion.MappingsSnapshot
-                    : "[]");
+            string mappingsSnapshot = "[]";
+            if (template.FieldMappings.Count > 0)
+            {
+                mappingsSnapshot = FieldMappingSnapshotSerializer.Serialize(template.FieldMappings);
+            }
+            else if (!string.IsNullOrWhiteSpace(priorPublishedVersion?.MappingsSnapshot))
+            {
+                mappingsSnapshot = priorPublishedVersion.MappingsSnapshot;
+            }
 
             newVersion.UpdateMappingsSnapshot(mappingsSnapshot, now);
 

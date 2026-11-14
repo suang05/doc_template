@@ -76,21 +76,21 @@ public sealed class TemplateRepository(AppDbContext context) : ITemplateReposito
             .ToListAsync(ct);
     }
 
-    public async Task AddAsync(Template template, CancellationToken ct)
+    public async Task AddAsync(Template entity, CancellationToken ct)
     {
-        await _context.Templates.AddAsync(template, ct);
+        await _context.Templates.AddAsync(entity, ct);
     }
 
-    public void Update(Template template)
+    public void Update(Template entity)
     {
-        if (_context.Entry(template).State == EntityState.Detached)
+        if (_context.Entry(entity).State == EntityState.Detached)
         {
-            _context.Templates.Update(template);
+            _context.Templates.Update(entity);
         }
     }
 
-    public void Remove(Template template)
+    public void Remove(Template entity)
     {
-        _context.Templates.Remove(template);
+        _context.Templates.Remove(entity);
     }
 }

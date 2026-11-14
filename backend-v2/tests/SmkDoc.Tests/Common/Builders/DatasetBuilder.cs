@@ -10,7 +10,7 @@ public class DatasetBuilder
     private string? _description;
     private Guid _dataConnectionId = Guid.NewGuid();
     private string _sqlQuery = "SELECT 1";
-    private int _cacheSeconds = 0;
+    private int _cacheSeconds;
     private DateTimeOffset _now = TestConstants.BaselineTime;
     private ProjectId _projectId = ProjectId.New();
 

@@ -25,13 +25,11 @@ public sealed class TemplateScannerService : ITemplateScannerService
 
     public async Task<List<TemplatePlaceholder>> ScanDetailedPlaceholdersAsync(Stream stream, string fileExtension, CancellationToken ct)
     {
-        string ext = fileExtension.ToLowerInvariant();
-
-        return ext switch
+        return fileExtension.Trim().TrimStart('.').ToUpperInvariant() switch
         {
-            ".docx" => await ScanDocxDetailedPlaceholdersAsync(stream, ct),
-            ".xlsx" => await ScanXlsxDetailedPlaceholdersAsync(stream, ct),
-            _       => await ScanHtmlDetailedPlaceholdersAsync(stream, ct)
+            "DOCX" => await ScanDocxDetailedPlaceholdersAsync(stream, ct),
+            "XLSX" => await ScanXlsxDetailedPlaceholdersAsync(stream, ct),
+            _ => await ScanHtmlDetailedPlaceholdersAsync(stream, ct)
         };
     }
 
@@ -39,7 +37,7 @@ public sealed class TemplateScannerService : ITemplateScannerService
     {
         using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true, bufferSize: 8192, leaveOpen: true);
         string html = await reader.ReadToEndAsync(ct);
-        return HandlebarsPlaceholderScanner.Scan(html);
+        return [.. HandlebarsPlaceholderScanner.Scan(html)];
     }
 
     private static async Task<List<TemplatePlaceholder>> ScanDocxDetailedPlaceholdersAsync(Stream stream, CancellationToken ct)
@@ -51,46 +49,60 @@ public sealed class TemplateScannerService : ITemplateScannerService
         var body = doc.MainDocumentPart?.Document.Body;
         if (body != null)
         {
-            // 1. Table rows => Tabular placeholders
-            foreach (var table in body.Descendants<Table>())
-            {
-                foreach (var row in table.Descendants<TableRow>())
-                {
-                    foreach (var cell in row.Descendants<TableCell>())
-                    {
-                        foreach (var p in cell.Descendants<Paragraph>())
-                        {
-                            ExtractAndCategorizeFromText(p.InnerText, "items", results);
-                        }
-                    }
-                }
-            }
-
-            // 2. Standalone paragraphs outside tables => Scalar or Object
-            foreach (var p in body.Elements<Paragraph>())
-            {
-                ExtractAndCategorizeFromText(p.InnerText, null, results);
-            }
+            ScanDocxBodyPlaceholders(body, results);
         }
 
-        // 3. Headers and Footers => Scalar or System
-        foreach (var hdr in doc.MainDocumentPart?.HeaderParts ?? [])
-        {
-            foreach (var p in hdr.Header.Descendants<Paragraph>())
-            {
-                ExtractAndCategorizeFromText(p.InnerText, null, results);
-            }
-        }
-
-        foreach (var ftr in doc.MainDocumentPart?.FooterParts ?? [])
-        {
-            foreach (var p in ftr.Footer.Descendants<Paragraph>())
-            {
-                ExtractAndCategorizeFromText(p.InnerText, null, results);
-            }
-        }
-
+        ScanDocxHeaderAndFooterPlaceholders(doc.MainDocumentPart, results);
         return DeduplicatePlaceholders(results);
+    }
+
+    private static void ScanDocxBodyPlaceholders(
+        Body body,
+        List<TemplatePlaceholder> results)
+    {
+        foreach (var table in body.Descendants<Table>())
+        {
+            ScanDocxTablePlaceholders(table, results);
+        }
+
+        ScanParagraphPlaceholders(body.Elements<Paragraph>(), null, results);
+    }
+
+    private static void ScanDocxTablePlaceholders(Table table, List<TemplatePlaceholder> results)
+    {
+        foreach (var row in table.Descendants<TableRow>())
+        {
+            foreach (var cell in row.Descendants<TableCell>())
+            {
+                ScanParagraphPlaceholders(cell.Descendants<Paragraph>(), "items", results);
+            }
+        }
+    }
+
+    private static void ScanDocxHeaderAndFooterPlaceholders(
+        MainDocumentPart? mainPart,
+        List<TemplatePlaceholder> results)
+    {
+        foreach (var hdr in mainPart?.HeaderParts ?? [])
+        {
+            ScanParagraphPlaceholders(hdr.Header.Descendants<Paragraph>(), null, results);
+        }
+
+        foreach (var ftr in mainPart?.FooterParts ?? [])
+        {
+            ScanParagraphPlaceholders(ftr.Footer.Descendants<Paragraph>(), null, results);
+        }
+    }
+
+    private static void ScanParagraphPlaceholders(
+        IEnumerable<Paragraph> paragraphs,
+        string? collection,
+        List<TemplatePlaceholder> results)
+    {
+        foreach (var paragraph in paragraphs)
+        {
+            ExtractAndCategorizeFromText(paragraph.InnerText, collection, results);
+        }
     }
 
     private static async Task<List<TemplatePlaceholder>> ScanXlsxDetailedPlaceholdersAsync(Stream stream, CancellationToken ct)
@@ -109,7 +121,7 @@ public sealed class TemplateScannerService : ITemplateScannerService
                 foreach (var cell in row.CellsUsed())
                 {
                     string val = cell.GetString();
-                    if (val.Contains("{{"))
+                    if (val.Contains("{{", StringComparison.Ordinal))
                     {
                         ExtractAndCategorizeFromText(val, collection, results);
                     }

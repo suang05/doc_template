@@ -25,10 +25,10 @@ public sealed class TemplateVersionTests
 
     [Theory]
     [MemberData(nameof(FormatEngineMappings))]
-    public void GetRenderEngineType_MapsFormatToEngine(TemplateFormat? format, RenderEngineType expectedEngine)
+    public void RenderEngineType_MapsFormatToEngine(TemplateFormat? format, RenderEngineType expectedEngine)
     {
         var version = TemplateVersion.Draft(TemplateId.New(), 1, "", format, null, Now);
-        version.GetRenderEngineType().Should().Be(expectedEngine);
+        version.RenderEngineType.Should().Be(expectedEngine);
     }
 
     // ── Default property values ────────────────────────────────────────────

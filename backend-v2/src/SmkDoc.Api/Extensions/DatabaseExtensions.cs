@@ -5,6 +5,7 @@ using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Infrastructure.Persistence;
 
 namespace SmkDoc.Api.Extensions;
@@ -53,46 +54,12 @@ public static partial class DatabaseExtensions
         var userRepository = services.GetRequiredService<IUserRepository>();
         var userProjectRoleRepository = services.GetRequiredService<IUserProjectRoleRepository>();
         var apiKeyRepo = services.GetRequiredService<IApiKeyRepository>();
-        var passwordHasher = services.GetRequiredService<IPasswordHasher>();
         var uow = services.GetRequiredService<IUnitOfWork>();
-        var timeProvider = services.GetRequiredService<TimeProvider>();
-        var now = timeProvider.GetUtcNow();
+        var now = services.GetRequiredService<TimeProvider>().GetUtcNow();
 
-        // 1. Ensure Default Company
-        var company = await companyRepo.GetByNameAsync(CompanyName.Create("SAMMAKORN"), CancellationToken.None);
-        if (company == null)
-        {
-            company = Company.Create(CompanyName.Create("SAMMAKORN"), now);
-            await companyRepo.AddAsync(company, CancellationToken.None);
-            await uow.CommitAsync(CancellationToken.None);
-            LogCreatedDefaultCompany(logger);
-        }
-        else if (!company.IsActive)
-        {
-            company.Activate(now);
-            await uow.CommitAsync(CancellationToken.None);
-        }
+        var company = await EnsureDefaultCompanyAsync(companyRepo, uow, now, logger);
+        var project = await EnsureDefaultProjectAsync(projectRepo, uow, company.Id, now, logger);
 
-        // 2. Ensure Default Project
-        var project = await projectRepo.GetFirstForCompanyAsync(company.Id, CancellationToken.None);
-        if (project == null)
-        {
-            project = Project.Create(
-                company.Id,
-                ProjectName.Create("Default Project"),
-                ProjectSlug.Create("default"),
-                now);
-            await projectRepo.AddAsync(project, CancellationToken.None);
-            await uow.CommitAsync(CancellationToken.None);
-            LogCreatedDefaultProject(logger);
-        }
-        else if (!project.IsActive)
-        {
-            project.Activate(now);
-            await uow.CommitAsync(CancellationToken.None);
-        }
-
-        // 3. Ensure Super Admin User (Guaranteed Portal Access)
         string adminEmailValue = configuration["Admin:Email"]
                                  ?? configuration["ADMIN_EMAIL"]
                                  ?? "admin@sammakorn.co.th";
@@ -100,6 +67,82 @@ public static partial class DatabaseExtensions
                                     ?? configuration["ADMIN_PASSWORD"]
                                     ?? "Admin@2026!";
 
+        var passwordHasher = services.GetRequiredService<IPasswordHasher>();
+        var adminUser = await EnsureSuperAdminUserAsync(
+            userRepository, passwordHasher, uow, adminEmailValue, adminPasswordValue, now, logger);
+
+        await EnsureSuperAdminProjectRoleAsync(
+            userProjectRoleRepository, uow, project, adminUser, adminEmailValue, now, logger);
+
+        await EnsureMasterApiKeyAsync(apiKeyRepo, uow, configuration, environment, project.Id, now, logger);
+
+        LogSeedSummary(logger, company, project, adminUser);
+    }
+
+    private static async Task<Company> EnsureDefaultCompanyAsync(
+        ICompanyRepository companyRepo,
+        IUnitOfWork uow,
+        DateTimeOffset now,
+        ILogger logger)
+    {
+        var company = await companyRepo.GetByNameAsync(CompanyName.Create("SAMMAKORN"), CancellationToken.None);
+        if (company == null)
+        {
+            company = Company.Create(CompanyName.Create("SAMMAKORN"), now);
+            await companyRepo.AddAsync(company, CancellationToken.None);
+            await uow.CommitAsync(CancellationToken.None);
+            LogCreatedDefaultCompany(logger);
+            return company;
+        }
+
+        if (!company.IsActive)
+        {
+            company.Activate(now);
+            await uow.CommitAsync(CancellationToken.None);
+        }
+
+        return company;
+    }
+
+    private static async Task<Project> EnsureDefaultProjectAsync(
+        IProjectRepository projectRepo,
+        IUnitOfWork uow,
+        CompanyId companyId,
+        DateTimeOffset now,
+        ILogger logger)
+    {
+        var project = await projectRepo.GetFirstForCompanyAsync(companyId, CancellationToken.None);
+        if (project == null)
+        {
+            project = Project.Create(
+                companyId,
+                ProjectName.Create("Default Project"),
+                ProjectSlug.Create("default"),
+                now);
+            await projectRepo.AddAsync(project, CancellationToken.None);
+            await uow.CommitAsync(CancellationToken.None);
+            LogCreatedDefaultProject(logger);
+            return project;
+        }
+
+        if (!project.IsActive)
+        {
+            project.Activate(now);
+            await uow.CommitAsync(CancellationToken.None);
+        }
+
+        return project;
+    }
+
+    private static async Task<User> EnsureSuperAdminUserAsync(
+        IUserRepository userRepository,
+        IPasswordHasher passwordHasher,
+        IUnitOfWork uow,
+        string adminEmailValue,
+        string adminPasswordValue,
+        DateTimeOffset now,
+        ILogger logger)
+    {
         var adminEmail = EmailAddress.Create(adminEmailValue);
         var adminUser = await userRepository.GetByEmailAsync(adminEmail, CancellationToken.None);
         if (adminUser == null)
@@ -116,37 +159,59 @@ public static partial class DatabaseExtensions
             await userRepository.AddAsync(adminUser, CancellationToken.None);
             await uow.CommitAsync(CancellationToken.None);
             LogSeededSuperAdmin(logger, adminEmailValue);
+            return adminUser;
         }
-        else
+
+        bool needsUpdate = SyncSuperAdminProperties(adminUser, passwordHasher, adminEmailValue, adminPasswordValue, now, logger);
+        if (needsUpdate)
         {
-            bool needsUpdate = false;
-            if (!adminUser.IsActive)
-            {
-                adminUser.Activate(now);
-                needsUpdate = true;
-            }
-
-            if (adminUser.SystemRole != SystemRole.SuperAdmin)
-            {
-                adminUser.AssignSystemRole(SystemRole.SuperAdmin, now);
-                needsUpdate = true;
-            }
-
-            if (!passwordHasher.VerifyPassword(adminPasswordValue, adminUser.PasswordHash))
-            {
-                var newPasswordHash = passwordHasher.HashPassword(adminPasswordValue);
-                adminUser.UpdatePassword(newPasswordHash, now);
-                needsUpdate = true;
-                LogSynchronizedAdminPassword(logger, adminEmailValue);
-            }
-
-            if (needsUpdate)
-            {
-                await uow.CommitAsync(CancellationToken.None);
-            }
+            await uow.CommitAsync(CancellationToken.None);
         }
 
-        // 4. Ensure Super Admin Project Role
+        return adminUser;
+    }
+
+    private static bool SyncSuperAdminProperties(
+        User adminUser,
+        IPasswordHasher passwordHasher,
+        string adminEmailValue,
+        string adminPasswordValue,
+        DateTimeOffset now,
+        ILogger logger)
+    {
+        bool needsUpdate = false;
+        if (!adminUser.IsActive)
+        {
+            adminUser.Activate(now);
+            needsUpdate = true;
+        }
+
+        if (adminUser.SystemRole != SystemRole.SuperAdmin)
+        {
+            adminUser.AssignSystemRole(SystemRole.SuperAdmin, now);
+            needsUpdate = true;
+        }
+
+        if (!passwordHasher.VerifyPassword(adminPasswordValue, adminUser.PasswordHash))
+        {
+            var newPasswordHash = passwordHasher.HashPassword(adminPasswordValue);
+            adminUser.UpdatePassword(newPasswordHash, now);
+            needsUpdate = true;
+            LogSynchronizedAdminPassword(logger, adminEmailValue);
+        }
+
+        return needsUpdate;
+    }
+
+    private static async Task EnsureSuperAdminProjectRoleAsync(
+        IUserProjectRoleRepository userProjectRoleRepository,
+        IUnitOfWork uow,
+        Project project,
+        User adminUser,
+        string adminEmailValue,
+        DateTimeOffset now,
+        ILogger logger)
+    {
         var existingRole = await userProjectRoleRepository.GetAsync(project.Id, adminUser.Id, CancellationToken.None);
         if (existingRole == null)
         {
@@ -157,14 +222,25 @@ public static partial class DatabaseExtensions
             {
                 LogAssignedAdminRole(logger, adminEmailValue, project.Name.Value);
             }
+            return;
         }
-        else if (existingRole.Role != RoleType.Admin)
+
+        if (existingRole.Role != RoleType.Admin)
         {
             existingRole.UpdateRole(RoleType.Admin);
             await uow.CommitAsync(CancellationToken.None);
         }
+    }
 
-        // 5. Ensure Master API Key (Fault-Tolerant)
+    private static async Task EnsureMasterApiKeyAsync(
+        IApiKeyRepository apiKeyRepo,
+        IUnitOfWork uow,
+        IConfiguration configuration,
+        IHostEnvironment environment,
+        ProjectId projectId,
+        DateTimeOffset now,
+        ILogger logger)
+    {
         string? masterApiKey = configuration["MASTER_API_KEY"] ?? configuration["Security:ApiKey"];
         if (string.IsNullOrWhiteSpace(masterApiKey))
         {
@@ -185,7 +261,7 @@ public static partial class DatabaseExtensions
             if (existingKey == null)
             {
                 var keyEntity = ApiKey.Issue(
-                    project.Id,
+                    projectId,
                     ApiKeyName.Create("Master Environment Key"),
                     "master",
                     defaultKeyHash,
@@ -205,12 +281,14 @@ public static partial class DatabaseExtensions
         {
             LogMasterApiKeyTimeoutWarning(logger, ex);
         }
-        catch (SmkDoc.Domain.Exceptions.DomainException ex)
+        catch (Domain.Exceptions.DomainException ex)
         {
             LogMasterApiKeyDomainWarning(logger, ex);
         }
+    }
 
-        // 6. Startup Diagnostic Verification Output
+    private static void LogSeedSummary(ILogger logger, Company company, Project project, User adminUser)
+    {
         if (logger.IsEnabled(LogLevel.Information))
         {
             LogStartupInitializationSummary(

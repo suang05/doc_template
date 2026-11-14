@@ -1,9 +1,12 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace SmkDoc.Domain.Common;
 
 /// <summary>
 /// Generic abstract base class for Domain Entities with strongly-typed identity.
 /// Provides primary identity, audit timestamps, and entity equality based on identity.
 /// </summary>
+[SuppressMessage("Major Code Smell", "S4035:Seal class or implement 'IEqualityComparer<T>' instead", Justification = "Abstract DDD entity base class enforces exact runtime-type equality via other.GetType() != GetType().")]
 public abstract class BaseEntity<TId> : IEquatable<BaseEntity<TId>>
     where TId : struct, IComparable<TId>, IEquatable<TId>
 {

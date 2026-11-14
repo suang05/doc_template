@@ -40,57 +40,48 @@ public sealed partial class DocumentRetentionWorker(
         {
             try
             {
-                await Task.Delay(_checkInterval, timeProvider, stoppingToken);
-
-                using var scope = scopeFactory.CreateScope();
-                var retentionProcessor = scope.ServiceProvider.GetRequiredService<IDocumentRetentionProcessor>();
-
-                int totalPurged = 0;
-                int purgedInBatch;
-                do
-                {
-                    purgedInBatch = await retentionProcessor.PurgeExpiredOutputsAsync(
-                        _retentionPeriod, _batchSize, stoppingToken);
-                    totalPurged += purgedInBatch;
-                }
-                while (purgedInBatch >= _batchSize && !stoppingToken.IsCancellationRequested);
-
-                if (totalPurged > 0)
-                {
-                    LogCycleCompleted(logger, totalPurged);
-                }
+                await RunPurgeIterationAsync(stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
                 break;
             }
-            catch (DbException ex)
-            {
-                LogCycleFailure(ex);
-            }
-            catch (ExternalServiceException ex)
-            {
-                LogCycleFailure(ex);
-            }
-            catch (HttpRequestException ex)
-            {
-                LogCycleFailure(ex);
-            }
-            catch (IOException ex)
-            {
-                LogCycleFailure(ex);
-            }
-            catch (TimeoutException ex)
-            {
-                LogCycleFailure(ex);
-            }
-            catch (InvalidOperationException ex)
+            catch (Exception ex) when (ex is
+                DbException or
+                ExternalServiceException or
+                HttpRequestException or
+                IOException or
+                TimeoutException or
+                InvalidOperationException)
             {
                 LogCycleFailure(ex);
             }
         }
 
         LogWorkerStopped(logger);
+    }
+
+    private async Task RunPurgeIterationAsync(CancellationToken stoppingToken)
+    {
+        await Task.Delay(_checkInterval, timeProvider, stoppingToken);
+
+        using var scope = scopeFactory.CreateScope();
+        var retentionProcessor = scope.ServiceProvider.GetRequiredService<IDocumentRetentionProcessor>();
+
+        int totalPurged = 0;
+        int purgedInBatch;
+        do
+        {
+            purgedInBatch = await retentionProcessor.PurgeExpiredOutputsAsync(
+                _retentionPeriod, _batchSize, stoppingToken);
+            totalPurged += purgedInBatch;
+        }
+        while (purgedInBatch >= _batchSize && !stoppingToken.IsCancellationRequested);
+
+        if (totalPurged > 0)
+        {
+            LogCycleCompleted(logger, totalPurged);
+        }
     }
 
     private void LogCycleFailure(Exception ex) =>

@@ -1,3 +1,4 @@
+using System.Globalization;
 using SmkDoc.Application.Modules.IdentityAccess.Users.DTOs;
 using SmkDoc.Application.Modules.IdentityAccess.Users.Services;
 using SmkDoc.Domain.Common;
@@ -59,5 +60,5 @@ public sealed class InviteUserUseCase(
             roleType.Name,
             user.IsActive,
             user.CreatedAt,
-            now.ToUnixTimeMilliseconds().ToString());
+            now.ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture));
 }

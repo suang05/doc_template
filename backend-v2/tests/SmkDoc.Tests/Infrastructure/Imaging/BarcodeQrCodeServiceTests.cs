@@ -1,4 +1,4 @@
-﻿using SmkDoc.Infrastructure.Imaging;
+using SmkDoc.Infrastructure.Imaging;
 
 namespace SmkDoc.Tests.Infrastructure.Imaging;
 

@@ -1,34 +1,38 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using SmkDoc.Infrastructure.Security;
 
 namespace SmkDoc.Tests.Infrastructure.Security;
 
 public sealed class SecurityAuditServiceTests
 {
-    private readonly ILogger<SecurityAuditService> _logger;
-
-    public SecurityAuditServiceTests()
-    {
-        _logger = Substitute.For<ILogger<SecurityAuditService>>();
-        _logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
-    }
+    private readonly CapturingLogger _logger = new();
 
     private SecurityAuditService CreateSut() => new(_logger);
 
     private void AssertLogged(LogLevel level, params string[] messageParts)
     {
-        var match = _logger.ReceivedCalls().Any(call =>
-        {
-            if (call.GetMethodInfo().Name != "Log") return false;
-            var args = call.GetArguments();
-            if (args.Length < 5 || args[0] is not LogLevel l || l != level) return false;
-            var stateStr = args[4] is Delegate formatter
-                ? formatter.DynamicInvoke(args[2], args[3])?.ToString() ?? string.Empty
-                : args[2]?.ToString() ?? string.Empty;
-            return messageParts.All(part => stateStr.Contains(part, StringComparison.Ordinal));
-        });
+        var match = _logger.Entries.Any(entry =>
+            entry.Level == level &&
+            messageParts.All(part => entry.Message.Contains(part, StringComparison.Ordinal)));
 
-        match.Should().BeTrue($"Expected log level '{level}' containing [{string.Join(", ", messageParts)}]");
+        var diag = string.Join(" | ", _logger.Entries.Select(e => $"{e.Level}({e.EventId.Name}): {e.Message}"));
+        match.Should().BeTrue($"Expected log level '{level}' containing [{string.Join(", ", messageParts)}], got entries: [{diag}]");
+    }
+
+    private sealed class CapturingLogger : ILogger<SecurityAuditService>
+    {
+        public List<(LogLevel Level, EventId EventId, string Message)> Entries { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter) =>
+            Entries.Add((logLevel, eventId, formatter(state, exception)));
     }
 
     [Fact]

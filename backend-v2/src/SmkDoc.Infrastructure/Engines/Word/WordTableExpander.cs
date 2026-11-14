@@ -4,10 +4,9 @@ using SmkDoc.Application.Modules.Authoring.Templates.Parsing;
 
 namespace SmkDoc.Infrastructure.Engines.Word;
 
-public class WordTableExpander
+public static class WordTableExpander
 {
-
-    public void ExpandTables(MainDocumentPart mainPart, List<List<Dictionary<string, string>>> tableDataList)
+    public static void ExpandTables(MainDocumentPart mainPart, IReadOnlyList<IReadOnlyList<Dictionary<string, string>>> tableDataList)
     {
         if (tableDataList.Count == 0) return;
 
@@ -20,52 +19,58 @@ public class WordTableExpander
         }
     }
 
-    private void ExpandSingleTable(Table table, List<Dictionary<string, string>> rowsData)
+    private static void ExpandSingleTable(Table table, IReadOnlyList<Dictionary<string, string>> rowsData)
     {
         var rows = table.Elements<TableRow>().ToList();
         if (rows.Count < 2 || rowsData.Count == 0) return;
 
         // Use last row or row containing {{...}} as template row
-        var templateRow = rows.LastOrDefault(r => r.InnerText.Contains("{{"));
+        var templateRow = rows.LastOrDefault(r => r.InnerText.Contains("{{", StringComparison.Ordinal));
         if (templateRow == null) return;
 
         foreach (var rowData in rowsData)
         {
-            var clonedRow = templateRow.CloneNode(true) as TableRow;
-            if (clonedRow == null) continue;
+            if (templateRow.CloneNode(true) is not TableRow clonedRow) continue;
 
-            foreach (var cell in clonedRow.Elements<TableCell>())
-            {
-                foreach (var p in cell.Elements<Paragraph>())
-                {
-                    string text = p.InnerText;
-                    if (!text.Contains("{{")) continue;
-
-                    var runs = p.Elements<Run>().ToList();
-                    string combined = string.Concat(runs.Select(r => r.InnerText));
-                    string updated = TemplatePlaceholderParser.Pattern.Replace(combined, m =>
-                    {
-                        string key = m.Groups[1].Value.Trim();
-                        return rowData.TryGetValue(key, out var val) ? val : m.Value;
-                    });
-
-                    if (updated != combined)
-                    {
-                        var firstProps = runs.FirstOrDefault()?.RunProperties?.CloneNode(true) as RunProperties;
-                        p.RemoveAllChildren<Run>();
-
-                        var newRun = new Run();
-                        if (firstProps != null) newRun.AppendChild(firstProps);
-                        newRun.AppendChild(new Text(updated));
-                        p.AppendChild(newRun);
-                    }
-                }
-            }
-
+            PopulateClonedRow(clonedRow, rowData);
             table.InsertBefore(clonedRow, templateRow);
         }
 
         // Remove the original template row
         templateRow.Remove();
+    }
+
+    private static void PopulateClonedRow(TableRow clonedRow, Dictionary<string, string> rowData)
+    {
+        foreach (var cell in clonedRow.Elements<TableCell>())
+        {
+            foreach (var paragraph in cell.Elements<Paragraph>())
+            {
+                ReplaceParagraphPlaceholders(paragraph, rowData);
+            }
+        }
+    }
+
+    private static void ReplaceParagraphPlaceholders(Paragraph paragraph, Dictionary<string, string> rowData)
+    {
+        if (!paragraph.InnerText.Contains("{{", StringComparison.Ordinal)) return;
+
+        var runs = paragraph.Elements<Run>().ToList();
+        string combined = string.Concat(runs.Select(r => r.InnerText));
+        string updated = TemplatePlaceholderParser.Pattern.Replace(combined, m =>
+        {
+            string key = m.Groups[1].Value.Trim();
+            return rowData.TryGetValue(key, out var val) ? val : m.Value;
+        });
+
+        if (updated == combined) return;
+
+        var firstProps = runs.FirstOrDefault()?.RunProperties?.CloneNode(true) as RunProperties;
+        paragraph.RemoveAllChildren<Run>();
+
+        var newRun = new Run();
+        if (firstProps != null) newRun.AppendChild(firstProps);
+        newRun.AppendChild(new Text(updated));
+        paragraph.AppendChild(newRun);
     }
 }

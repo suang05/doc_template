@@ -20,9 +20,7 @@ fi
 CS_STAGED=$(printf '%s\n' "$STAGED" | grep -E '^backend-v2/.*\.cs$' || true)
 if [ -n "$CS_STAGED" ]; then
   # shellcheck disable=SC2086
-  dotnet format style backend-v2/SmkDocServerV2.slnx --severity error --verify-no-changes --no-restore --include $CS_STAGED
-  # shellcheck disable=SC2086
-  dotnet format analyzers backend-v2/SmkDocServerV2.slnx --severity error --verify-no-changes --no-restore --include $CS_STAGED
+  dotnet format backend-v2/SmkDocServerV2.slnx --verify-no-changes --no-restore --include $CS_STAGED
 fi
 
 if printf '%s\n' "$STAGED" | grep -Eq '^frontend-v2/.*\.(ts|tsx|mts|mjs|js|jsx)$'; then

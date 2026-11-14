@@ -10,7 +10,6 @@ using SmkDoc.Infrastructure.Engines.Excel;
 using SmkDoc.Infrastructure.Engines.Fonts;
 using SmkDoc.Infrastructure.Engines.Html;
 using SmkDoc.Infrastructure.Engines.Html.Helpers;
-using SmkDoc.Infrastructure.Engines.Html.Pipeline;
 using SmkDoc.Infrastructure.Engines.Word;
 using SmkDoc.Infrastructure.Imaging;
 using SmkDoc.Infrastructure.Observability;
@@ -106,21 +105,16 @@ public static class RenderingEngineServiceExtensions
         services.AddSingleton<IDocumentMetrics, DocumentMetrics>();
 
         // 3. Render Engines (HTML, DOCX, XLSX)
-        services.AddSingleton<WordTextReplacer>();
-        services.AddSingleton<WordTableExpander>();
-        services.AddSingleton<ExcelTableExpander>();
         services.AddScoped<WordMediaInjector>();
         services.AddScoped<ExcelMediaInjector>();
         services.AddSingleton<IHtmlHelperRegistry, HtmlHelperRegistry>();
-        services.AddSingleton<IHandlebars>(sp =>
+        services.AddSingleton(sp =>
         {
             var handlebars = Handlebars.Create();
             var helperRegistry = sp.GetRequiredService<IHtmlHelperRegistry>();
             helperRegistry.RegisterHelpers(handlebars);
             return handlebars;
         });
-        services.AddSingleton<HtmlPlaceholderTransformer>();
-        services.AddSingleton<HtmlLayoutProcessor>();
         services.AddScoped<IRenderEngine, HtmlTemplateEngine>();
         services.AddScoped<IRenderEngine, DocxTemplateEngine>();
         services.AddScoped<IRenderEngine, ExcelTemplateEngine>();

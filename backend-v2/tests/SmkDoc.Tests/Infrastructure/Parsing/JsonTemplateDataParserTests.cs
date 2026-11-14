@@ -25,7 +25,7 @@ public sealed class JsonTemplateDataParserTests
 
         dict.Should().ContainKey("title");
         dict["title"].Should().Be("สัญญาจะซื้อจะขาย");
-        
+
         dict.Should().ContainKey("buyer");
         var buyer = dict["buyer"] as Dictionary<string, object>;
         buyer.Should().NotBeNull();

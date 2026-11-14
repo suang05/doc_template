@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Projects.DTOs;
@@ -40,7 +41,7 @@ public sealed class ProjectQueryService(AppDbContext context) : IProjectQuerySer
         var totalCount = await query.CountAsync(ct);
 
         var safePage = page < 1 ? 1 : page;
-        var safePageSize = pageSize < 1 ? 20 : (pageSize > 100 ? 100 : pageSize);
+        var safePageSize = pageSize < 1 ? 20 : Math.Min(pageSize, 100);
 
         var projects = await query
             .OrderBy(p => p.Name)
@@ -55,7 +56,7 @@ public sealed class ProjectQueryService(AppDbContext context) : IProjectQuerySer
                 p.Slug.Value,
                 p.IsActive,
                 p.CreatedAt,
-                ConcurrencyToken: (p.UpdatedAt ?? p.CreatedAt).ToUnixTimeMilliseconds().ToString()))
+                ConcurrencyToken: (p.UpdatedAt ?? p.CreatedAt).ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture)))
             .ToList();
 
         return (items, totalCount);

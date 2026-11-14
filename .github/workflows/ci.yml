@@ -36,16 +36,8 @@ jobs:
           dotnet-version: '10.0.x'
       - name: Restore backend packages
         run: dotnet restore backend-v2/SmkDocServerV2.slnx
-      - name: Verify C# error-level analyzer rules
-        run: dotnet format analyzers backend-v2/SmkDocServerV2.slnx --severity error --verify-no-changes --no-restore
-      - name: Verify C# formatting & style on PR-changed files (.editorconfig)
-        if: github.event_name == 'pull_request'
-        shell: bash
-        run: |
-          mapfile -t changed_cs < <(git diff --name-only "origin/${{ github.base_ref }}...HEAD" -- 'backend-v2/**/*.cs')
-          if [ "${#changed_cs[@]}" -gt 0 ]; then
-            dotnet format backend-v2/SmkDocServerV2.slnx --verify-no-changes --no-restore --include "${changed_cs[@]}"
-          fi
+      - name: Verify full-solution C# formatting, style & analyzers (.editorconfig)
+        run: dotnet format backend-v2/SmkDocServerV2.slnx --verify-no-changes --no-restore
       - name: Build solution with Roslyn, BannedApi, VSTHRD & Sonar analyzers
         run: dotnet build backend-v2/SmkDocServerV2.slnx -c Release --no-restore -p:GenerateOpenApiDocuments=false
       - name: Run unit, NetArchTest & OpenAPI parity tests

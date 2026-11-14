@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using SmkDoc.Application.Common.Interfaces;
@@ -49,10 +50,10 @@ public sealed class ConcurrencySaveChangesInterceptor(IConcurrencyContext concur
             ? entry.Property<DateTimeOffset?>(nameof(IConcurrencyAware.UpdatedAt)).OriginalValue
             : null;
         var originalCreated = entry.Property<DateTimeOffset>(nameof(IConcurrencyAware.CreatedAt)).OriginalValue;
-        var originalToken = (originalUpdated ?? originalCreated).ToUnixTimeMilliseconds().ToString();
+        var originalToken = (originalUpdated ?? originalCreated).ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture);
 
         var alternateToken = entry.Entity is Template template
-            ? entry.Property<Guid?>(nameof(Template.CurrentVersionId)).OriginalValue?.ToString() ?? template.CurrentVersion?.Version.ToString()
+            ? entry.Property<Guid?>(nameof(Template.CurrentVersionId)).OriginalValue?.ToString() ?? template.CurrentVersion?.Version.ToString(CultureInfo.InvariantCulture)
             : entry.Entity.GetAlternateConcurrencyToken();
 
         concurrencyContext.EnsureTokenMatches(originalToken, entry.Entity.GetType().Name, entry.Entity.EntityId, alternateToken);
