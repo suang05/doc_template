@@ -34,7 +34,7 @@ Signal: [ARCH_EVOLUTION_INFRASTRUCTURE]
 | **Internal Query Evaluation** | Repositories materialize queries internally and return `Task<T?>` or `Task<IReadOnlyList<T>>`. Prohibit leaking `IQueryable<T>` across interface boundaries. | Interface Segregation |
 | **Tracking Partitioning** | Read-only queries apply `.AsNoTracking()` (and `.AsSplitQuery()` on multi-collection loads) via `I{Aggregate}ReadModel`; mutating commands fetch tracked entities via `I{Aggregate}Repository`. | Memory & Throughput |
 | **5-Layer Fail-Closed Tenancy**| Enforce tenant isolation via (1) Fail-Closed EF Global Query Filter, (2) `TenantWriteEnforcementInterceptor`, (3) PostgreSQL RLS (`SET LOCAL app.current_project_id`), and (4) banned `.IgnoreQueryFilters()`. | Tenancy Isolation |
-| **Transactional Outbox Persistence** | `OutboxSaveChangesInterceptor` harvests `entity.DomainEvents` into `outbox_messages` inside the **same** PostgreSQL transaction during `IUnitOfWork.CommitAsync(ct)`, and `OutboxRelayProcessor` dispatches at-least-once asynchronously (`TRAP-EVENT-010`). | Atomic Persistence |
+| **Transactional Outbox Persistence** | `OutboxSaveChangesInterceptor` harvests `entity.DomainEvents` into `outbox_messages` inside the **same** PostgreSQL transaction during `IUnitOfWork.CommitAsync(ct)`, and `OutboxRelayWorker` dispatches at-least-once asynchronously (`TRAP-EVENT-010`). | Atomic Persistence |
 | **Response-Owning Gotenberg Streams**| Wrap Gotenberg HTTP responses in `ResponseDisposingStream` using `ResponseHeadersRead` to deterministically release sockets upon stream closure. | Network Socket Lifecycle |
 | **Bounded Pooled Stream Sizing** | Object storage uploads require seekable streams with known `Stream.Length` spooled via `HybridSpoolStream` (`65_536`-byte pooled chunks); initialized buckets are cached in `ConcurrentDictionary`. | Storage Gateway |
 | **Durable Idempotency & Cache Topology** | Idempotency keys (`idempotency_keys`) and async batch jobs (`document_jobs` with `FOR UPDATE SKIP LOCKED`) are persisted durably in PostgreSQL; Redis is used for L2 caching and distributed rate-limit partitioning (`TRAP-SCALE-014`). | Multi-Pod Scalability |
@@ -119,12 +119,8 @@ public sealed class {Aggregate}Repository(AppDbContext dbContext) : I{Aggregate}
         return await dbContext.{Aggregate}s.AnyAsync(t => t.ProjectId == projectId && t.Slug == slug, ct);
     }
 
-    // Step 3: Attach New Aggregate <Why: queues insert into ChangeTracker>
-    public Task AddAsync({Aggregate} aggregate, CancellationToken ct)
-    {
-        dbContext.{Aggregate}s.Add(aggregate);
-        return Task.CompletedTask;
-    }
+    // Step 3: Attach New Aggregate <Why: queues insert into ChangeTracker; synchronous void per EF Core GUID/UUIDv7 guidance>
+    public void Add({Aggregate} aggregate) => dbContext.{Aggregate}s.Add(aggregate);
 
     public void Remove({Aggregate} aggregate)
     {
@@ -222,7 +218,7 @@ public sealed class GotenbergClient(HttpClient httpClient)
         catch (HttpRequestException ex)
         {
             httpResponse.Dispose();
-            throw new DocumentRenderException($"Gotenberg cluster unreachable or returned error: {ex.Message}", ex);
+            throw ExternalServiceException.RenderEngineFailure("GOTENBERG", ex);
         }
         catch
         {
@@ -233,19 +229,19 @@ public sealed class GotenbergClient(HttpClient httpClient)
 }
 ```
 
-### 3.4 S3 Object Storage Service Archetype (MinIO)
+### 3.4 S3 Object Storage Adapter Archetype (`MinioStorageAdapter`)
 >> MANDATORY CANONICAL BLUEPRINT [RULE-INFRA-004]:
 * Injects `IMinioClient` with cached bucket verification via `ConcurrentDictionary`.
-* Requires seekable known-size `Stream` on `UploadAsync` to prevent 5MB+ multipart LOH allocations.
+* Requires seekable known-size `Stream` on `UploadAsync` to prevent 5MB+ multipart buffer allocations.
 
 ```csharp
-public sealed class MinioStorageService(
+public sealed class MinioStorageAdapter(
     IMinioClient client,
-    ILogger<MinioStorageService> logger) : IStorageService
+    ILogger<MinioStorageAdapter> logger) : IStoragePort
 {
     private readonly ConcurrentDictionary<string, bool> _initializedBuckets = new(StringComparer.Ordinal);
 
-    public async Task<string> UploadAsync(string bucket, string objectName, Stream data, string contentType, CancellationToken ct = default)
+    public async Task<string> UploadAsync(string bucket, string objectName, Stream data, string contentType, CancellationToken ct)
     {
         await EnsureBucketInitializedOnceAsync(bucket, ct);
 
@@ -422,7 +418,7 @@ public sealed class HybridTemplateDraftCache(
 ### [TRAP-INFRA-003]: Untracked Aggregate Mutation (Silent Save Loss)
 ```diff
 - var aggregate = await dbContext.{Aggregate}s.AsNoTracking().FirstOrDefaultAsync(t => t.Id == id, ct); aggregate.Update(name, now); await unitOfWork.CommitAsync(ct);
-+ var aggregate = await repository.GetByIdAsync(id, ct); aggregate.Update(name, now); await unitOfWork.CommitAsync(ct);
++ var aggregate = await repository.FindByIdAsync(id, ct) ?? throw NotFoundException.For<{Aggregate}>(id); aggregate.Update(name, now); await unitOfWork.CommitAsync(ct);
 ```
 *Rationale: Entities fetched with `AsNoTracking()` are ignored by EF Core ChangeTracker, silently emitting zero SQL updates on commit.*
 

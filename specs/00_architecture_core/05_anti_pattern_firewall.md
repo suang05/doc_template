@@ -35,32 +35,32 @@ Every anti-pattern is assigned a strict severity tier that governs CI/CD behavio
 
 ## 2. Level 1 Anti-Pattern Firewall Matrix (Quick Reference)
 
-All Trap IDs in this document are globally unique across `00_architecture_core` (note that `TRAP-SEC-001` through `TRAP-SEC-005` are defined in [03_security_and_performance.md](./03_security_and_performance.md#7-security--performance-anti-pattern-traps)).
+All Trap IDs in this document are globally unique across `00_architecture_core` (note that `TRAP-SEC-001` through `TRAP-SEC-005` are defined in [03_security_and_performance.md](./03_security_and_performance.md#4-level-4-anti-patterns--unified-micro-diffs)).
 
 | Trap ID | Category | Severity | Forbidden Anti-Pattern (`-`) | Safe Architectural Pattern (`+`) | Detection Mechanism | CI Gate | Authoritative Reference |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **`TRAP-ASYNC-001`** | Async / Threading | `FATAL` | Sync-over-async (`.Result`, `.Wait()`, `.GetAwaiter().GetResult()`), `async void`, fire-and-forget `_ = Task.Run(...)`, or omitting `CancellationToken ct`. | `async`/`await` end-to-end; propagate `CancellationToken ct` as the last parameter of every I/O signature; use durable queues for background work. | `Microsoft.VisualStudio.Threading.Analyzers` (`VSTHRD002`, `VSTHRD100`, `VSTHRD110`) + `CA2016` | `dotnet build --warnaserror` | [02_coding_conventions.md](./02_coding_conventions.md#32-cadence-2-application-usecase) |
-| **`TRAP-EF-002`** | Persistence / EF Core | `FATAL` | Concurrent `Task.WhenAll` on the same `DbContext`, multi-collection `.Include()` without `.AsSplitQuery()`, tracking read queries, or holding DB transactions across external HTTP/MinIO I/O. | Sequential operations per `DbContext` + `AddRange` in one `IUnitOfWork.CommitAsync(ct)`; `.AsNoTracking()` + `.AsSplitQuery()` on reads; commit DB (< 5 ms) after external I/O finishes. | Custom Roslyn / Semgrep rule (`ef-no-parallel-dbcontext`) + Connection Hold Telemetry | Semgrep CI + Integration Tests | [01_system_architecture.md](./01_system_architecture.md#141-pipeline-a-synchronous-on-demand-preview--small-renders) |
-| **`TRAP-MEM-003`** | Memory / Streams | `FATAL` | Buffering files via `File.ReadAllBytesAsync`, `.ToArray()`, `new MemoryStream()`, or wrapping a stream returned to `FileStreamResult` in `await using`. | Stream with `65_536`-byte pooled buffers via `HybridSpoolStream` or `RecyclableMemoryStream`; transfer stream disposal ownership directly to `FileStreamResult`. | `BannedApiAnalyzers` (`MemoryStream.ToArray`, `File.ReadAllBytes*`) | `dotnet build --warnaserror` | [03_security_and_performance.md](./03_security_and_performance.md#1-memory-management--zero-loh-streaming-mandates) |
-| **`TRAP-DATA-004`** | Rendering / XSS & Egress | `FATAL` | Stripping HTML/CSS tags from templates with regex/sanitizers (breaking layouts) OR interpolating unencoded tenant data into HTML templates without Gotenberg egress isolation. | Keep rich HTML/CSS template structure intact; HTML-encode all bound data values in `DataBindingEngine` (`HtmlEncoder.Default.Encode`) and isolate Gotenberg (`--chromium-disable-javascript`, `--chromium-deny-list`). | Semgrep (`raw-html-interpolation`) + Container Security Policy | Semgrep CI + Container Smoke Test | [03_security_and_performance.md](./03_security_and_performance.md#5-untrusted-input-attack-surface-matrix) |
-| **`TRAP-LEAK-005`** | Clean Architecture | `CRITICAL` | Referencing `Microsoft.EntityFrameworkCore`, `[Table]`, `HttpContext`, `IFormFile`, or `repository.SetExpectedVersion` inside `SmkDoc.Domain` or `SmkDoc.Application`. | Keep Domain 100% dependency-free; enforce concurrency via `IConcurrencyAware.Version` in Domain/Application and configure EF Core inside `IEntityTypeConfiguration<T>`. | `NetArchTest.Rules` (`Domain_Should_Not_Have_Dependency_On_Infrastructure`) | `dotnet test` Architecture Suite | [01_system_architecture.md](./01_system_architecture.md#12-dependency-direction--layer-contracts) |
-| **`TRAP-TIME-006`** | Determinism & DI Lifetimes | `CRITICAL` | Calling `DateTime.Now`, `DateTime.UtcNow`, `Guid.NewGuid()`, `new HttpClient()`, or injecting `Scoped` services (`DbContext`, `IProjectContext`) into `Singleton` services. | Inject `TimeProvider`, use `Guid.CreateVersion7()`, use `IHttpClientFactory`, and enable `ValidateScopes = true` + `ValidateOnBuild = true` in all environments. | `BannedApiAnalyzers` (`DateTime.Now`, `DateTime.UtcNow`, `Guid.NewGuid`, `HttpClient..ctor`) | `dotnet build --warnaserror` | [02_coding_conventions.md](./02_coding_conventions.md#1-core-language--compiler-mandates) |
-| **`TRAP-NULL-007`** | Domain Modeling | `HIGH` | Null-forgiving operator (`!`) abuse outside EF `null!` navigation properties, primitive obsession (`string status`, raw `Guid`), or public property setters on Entities. | Enable `<Nullable>enable</Nullable>`, use Strongly-Typed IDs (`readonly record struct`), Value Objects with factory validation, and private setters with rich domain methods. | Compiler `CS8600`–`CS8625` + `NetArchTest` (`Entities_Should_Not_Have_Public_Setters`) | `dotnet build --warnaserror` | [02_coding_conventions.md](./02_coding_conventions.md#33-cadence-3-domain-aggregate-root) |
-| **`TRAP-VOID-008`** | Exception Handling | `CRITICAL` | Empty `catch (Exception) {}`, catching `OperationCanceledException` as a server fault, or "log-and-rethrow" inside UseCases/Repositories causing duplicate error logs. | Let Domain/Application exceptions bubble untouched to `GlobalExceptionHandler` (log once at the boundary); filter `catch (Exception ex) when (ex is not OperationCanceledException)`. | Semgrep (`no-empty-catch`, `no-log-and-rethrow`) + `CA1031` | Semgrep CI + `dotnet build` | [06_api_contract_standards.md](./06_api_contract_standards.md#31-canonical-exception-to-http-mapping-matrix) |
-| **`TRAP-AUDIT-009`** | Audit & PDPA Privacy | `CRITICAL` | Storing unbounded > 16 KB JSON payloads in OLTP `generation_logs` rows, checking `string.Length` instead of UTF-8 byte count, or logging raw PII/secrets. | Check `Encoding.UTF8.GetByteCount(rawJson) > 16_384`, compute SHA-256 over UTF-8 bytes, offload oversized payloads to MinIO via Outbox, and redact PII fields. | Unit & Integration Tests (`GenerationLogPayloadTests`) | `dotnet test` | [03_security_and_performance.md](./03_security_and_performance.md#6-enterprise-security-domains-owasp-asvs-v40--thai-pdpa) |
-| **`TRAP-EVENT-010`** | Domain Events & Outbox | `CRITICAL` | Dispatching domain events in-process after `unitOfWork.CommitAsync(ct)` (`foreach (var ev in events) await publisher.Publish(ev)`), losing events if the pod crashes. | Persist `entity.DomainEvents` into `outbox_messages` inside the **same** PostgreSQL transaction via `OutboxInterceptor` during `unitOfWork.CommitAsync(ct)`. | `NetArchTest` + Integration Fault-Injection Test | `dotnet test` | [01_system_architecture.md](./01_system_architecture.md#143-pipeline-c-asynchronous-batch--webhook-dispatch-queue--outbox-mechanics) |
-| **`TRAP-SQL-011`** | External Tenant DB / SSRF | `FATAL` | Building tenant connection strings via string interpolation, resolving DNS without IP pinning/CIDR validation, or executing tenant queries on read-write connections. | Validate host via `ConnectionHostValidator.ResolveAndValidateAsync`, build connection string via `DbConnectionStringBuilder`, enforce `BEGIN TRANSACTION READ ONLY`, `statement_timeout = '5000ms'`, and `10_000`-row cap. | `BannedApiAnalyzers` (`FromSqlRaw`) + Security Integration Suite | `dotnet build` + `dotnet test` | [03_security_and_performance.md](./03_security_and_performance.md#3-ssrf--external-data-source-firewall-connectionhostvalidator) |
-| **`TRAP-BATCH-012`** | Batch Processing | `FATAL` | Looping over batch items to render PDFs synchronously inside an HTTP controller/UseCase, or queuing jobs into `Channel.CreateUnbounded<T>()`. | Use Pipeline C (`202 Accepted`): persist batch items into PostgreSQL `document_jobs`, return `Location: /api/v1/document-jobs/{id}`, and process asynchronously via `FOR UPDATE SKIP LOCKED` workers. | `BannedApiAnalyzers` (`Channel.CreateUnbounded`) + API Timeout Gate | `dotnet build --warnaserror` | [01_system_architecture.md](./01_system_architecture.md#143-pipeline-c-asynchronous-batch--webhook-dispatch-queue--outbox-mechanics) |
-| **`TRAP-SQL-013`** | Concurrency & Bulkheads | `CRITICAL` | Unbounded `Task.WhenAll(items.Select(...))` exhausting connection pools, or writing `await using var s = new SemaphoreSlim(4)` (fails with compiler error `CS8410`). | Bound concurrency using `Parallel.ForEachAsync` with `MaxDegreeOfParallelism = 4` and shared `PartitionedRateLimiter` bulkheads. | Compiler `CS8410` + Semgrep (`unbounded-task-whenall`) | `dotnet build` + Semgrep CI | [03_security_and_performance.md](./03_security_and_performance.md#4-partitioned--distributed-rate-limiting) |
-| **`TRAP-SCALE-014`** | Multi-Pod State & Idempotency | `CRITICAL` | Storing `Idempotency-Key` records or rate-limit counters only in local `IMemoryCache` / `ConcurrentDictionary` without distributed backing or payload hash verification. | Persist idempotency state in PostgreSQL `idempotency_keys` (with `request_hash` SHA-256 verification → `422 IDEMPOTENCY_KEY_REUSED`) and coordinate multi-pod rate limits via Redis/gateway + `PartitionedRateLimiter`. | Architecture Review + Multi-Instance Integration Test | `dotnet test` | [06_api_contract_standards.md](./06_api_contract_standards.md#25-idempotency-protocol) |
-| **`TRAP-SYNC-015`** | Optimistic Concurrency | `CRITICAL` | Blind `PUT`/`PATCH` overwrites (`Last-Write-Wins`) or leaking EF Core `SetExpectedVersion` into Domain repository interfaces. | Require `If-Match: "v{version}"` (`428` if missing), check `entity.Version != command.ExpectedVersion` in UseCase (`412`), and back with EF Core `.IsConcurrencyToken()` on `version bigint`. | OpenAPI Contract Linter + Concurrency Integration Tests | `Redocly` + `dotnet test` | [01_system_architecture.md](./01_system_architecture.md#144-optimistic-concurrency-end-to-end-flow) |
-| **`TRAP-SSOT-017`** | Template Versioning | `CRITICAL` | Resolving live mutable `Template.FieldMappings` during historical regeneration or falling back via `version.MappingsSnapshot ?? template.FieldMappings`. | Bind every generated document and batch job to an immutable `TemplateVersion` snapshot (freezing template asset, schema, mappings, fonts, and engine version); fail fast if snapshot is missing. | Domain Unit Tests (`TemplateVersionSnapshotTests`) | `dotnet test` | [01_system_architecture.md](./01_system_architecture.md#142-pipeline-b-template-publish--immutable-snapshot) |
+| **`TRAP-ASYNC-001`** | Async / Threading | `FATAL` | Sync-over-async (`.Result`, `.Wait()`, `.GetAwaiter().GetResult()`), `async void`, fire-and-forget `_ = Task.Run(...)`, or omitting `CancellationToken ct`. | `async`/`await` end-to-end; propagate `CancellationToken ct` as the last parameter of every I/O signature; use durable queues for background work. | `Microsoft.VisualStudio.Threading.Analyzers` (`VSTHRD002`, `VSTHRD100`, `VSTHRD110`) + `CA2016` | `dotnet build --warnaserror` | [02_coding_conventions.md](./02_coding_conventions.md#32-cadence-2-usecase-4-step-pemr-single-canonical-listing) |
+| **`TRAP-EF-002`** | Persistence / EF Core | `FATAL` | Concurrent `Task.WhenAll` on the same `DbContext`, multi-collection `.Include()` without `.AsSplitQuery()`, tracking read queries, or holding DB transactions across external HTTP/MinIO I/O. | Sequential operations per `DbContext` + `AddRange` in one `IUnitOfWork.CommitAsync(ct)`; `.AsNoTracking()` + `.AsSplitQuery()` on reads; commit DB (< 5 ms) after external I/O finishes. | Custom Roslyn / Semgrep rule (`ef-no-parallel-dbcontext`) + Connection Hold Telemetry | Semgrep CI + Integration Tests | [01_system_architecture.md](./01_system_architecture.md#14-the-3-core-execution-pipelines) |
+| **`TRAP-MEM-003`** | Memory / Streams | `FATAL` | Buffering files via `File.ReadAllBytesAsync`, `.ToArray()`, `new MemoryStream()`, or wrapping a stream returned to `FileStreamResult` in `await using`. | Stream with `65_536`-byte pooled buffers via `HybridSpoolStream` or `RecyclableMemoryStream`; transfer stream disposal ownership directly to `FileStreamResult`. | `BannedApiAnalyzers` (`MemoryStream.ToArray`, `File.ReadAllBytes*`) | `dotnet build --warnaserror` | [03_security_and_performance.md](./03_security_and_performance.md#11-core-security--performance-invariants) |
+| **`TRAP-DATA-004`** | Rendering / XSS & Egress | `FATAL` | Stripping HTML/CSS tags from templates with regex/sanitizers (breaking layouts) OR interpolating unencoded tenant data into HTML templates without Gotenberg egress isolation. | Keep rich HTML/CSS template structure intact; HTML-encode all bound data values in `DataBindingEngine` (`HtmlEncoder.Default.Encode`) and isolate Gotenberg (`--chromium-disable-javascript`, `--chromium-deny-list`). | Semgrep (`raw-html-interpolation`) + Container Security Policy | Semgrep CI + Container Smoke Test | [03_security_and_performance.md](./03_security_and_performance.md#12-untrusted-input-attack-surface--mandatory-controls) |
+| **`TRAP-LEAK-005`** | Clean Architecture | `CRITICAL` | Referencing `Microsoft.EntityFrameworkCore`, `[Table]`, `HttpContext`, `IFormFile`, or `repository.SetExpectedVersion` inside `SmkDoc.Domain` or `SmkDoc.Application`. | Keep Domain 100% dependency-free; enforce concurrency via `IConcurrencyAware.Version` in Domain/Application and configure EF Core inside `IEntityTypeConfiguration<T>`. | `NetArchTest.Rules` (`Domain_Should_Not_Have_Dependency_On_Infrastructure`) | `dotnet test` Architecture Suite | [01_system_architecture.md](./01_system_architecture.md#12-clean-architecture-layer-invariants-matrix) |
+| **`TRAP-TIME-006`** | Determinism & DI Lifetimes | `CRITICAL` | Calling `DateTime.Now`, `DateTime.UtcNow`, `Guid.NewGuid()`, `new HttpClient()`, or injecting `Scoped` services (`DbContext`, `ICurrentProjectContext`) into `Singleton` services. | Inject `TimeProvider`, use `Guid.CreateVersion7()`, use `IHttpClientFactory`, and enable `ValidateScopes = true` + `ValidateOnBuild = true` in all environments. | `BannedApiAnalyzers` (`DateTime.Now`, `DateTime.UtcNow`, `Guid.NewGuid`, `HttpClient..ctor`) | `dotnet build --warnaserror` | [02_coding_conventions.md](./02_coding_conventions.md#1-level-1-language--syntax-invariants-matrix) |
+| **`TRAP-NULL-007`** | Domain Modeling | `HIGH` | Null-forgiving operator (`!`) abuse outside EF `null!` navigation properties, primitive obsession (`string status`, raw `Guid`), or public property setters on Entities. | Enable `<Nullable>enable</Nullable>`, use Strongly-Typed IDs (`readonly record struct`), Value Objects with factory validation, and private setters with rich domain methods. | Compiler `CS8600`–`CS8625` + `NetArchTest` (`Entities_Should_Not_Have_Public_Setters`) | `dotnet build --warnaserror` | [02_coding_conventions.md](./02_coding_conventions.md#33-cadence-3-domain-entity-state-mutation-verb) |
+| **`TRAP-VOID-008`** | Exception Handling | `CRITICAL` | Empty `catch (Exception) {}`, catching `OperationCanceledException` as a server fault, or "log-and-rethrow" inside UseCases/Repositories causing duplicate error logs. | Let Domain/Application exceptions bubble untouched to `GlobalExceptionHandler` (log once at the boundary); filter `catch (Exception ex) when (ex is not OperationCanceledException)`. | Semgrep (`no-empty-catch`, `no-log-and-rethrow`) + `CA1031` | Semgrep CI + `dotnet build` | [06_api_contract_standards.md](./06_api_contract_standards.md#33-rfc-9457-problemdetails--the-exception-catalogue-ssot) |
+| **`TRAP-AUDIT-009`** | Audit & PDPA Privacy | `CRITICAL` | Storing unbounded > 16 KB JSON payloads in OLTP `generation_logs` rows, checking `string.Length` instead of UTF-8 byte count, or logging raw PII/secrets. | Check `Encoding.UTF8.GetByteCount(rawJson) > 16_384`, compute SHA-256 over UTF-8 bytes, offload oversized payloads to MinIO via Outbox, and redact PII fields. | Unit & Integration Tests (`GenerationLogPayloadTests`) | `dotnet test` | [03_security_and_performance.md](./03_security_and_performance.md#13-enterprise-security-domains-matrix-owasp-asvs-40--iso-27001--thai-pdpa) |
+| **`TRAP-EVENT-010`** | Domain Events & Outbox | `CRITICAL` | Dispatching domain events in-process after `unitOfWork.CommitAsync(ct)` (`foreach (var ev in events) await publisher.Publish(ev)`), losing events if the pod crashes. | Persist `entity.DomainEvents` into `outbox_messages` inside the **same** PostgreSQL transaction via `OutboxSaveChangesInterceptor` during `unitOfWork.CommitAsync(ct)`. | `NetArchTest` + Integration Fault-Injection Test | `dotnet test` | [01_system_architecture.md](./01_system_architecture.md#142-transactional-outbox) |
+| **`TRAP-SQL-011`** | External Tenant DB / SSRF | `FATAL` | Building tenant connection strings via string interpolation, resolving DNS without IP pinning/CIDR validation, or executing tenant queries on read-write connections. | Validate host via `IConnectionHostValidator.ResolveAndValidateAsync`, build connection string via `DbConnectionStringBuilder`, enforce `BEGIN TRANSACTION READ ONLY`, `statement_timeout = '5000ms'`, TLS SAN verification, and `10_000`-row cap. | `BannedApiAnalyzers` (`FromSqlRaw`) + Security Integration Suite | `dotnet build` + `dotnet test` | [03_security_and_performance.md](./03_security_and_performance.md#33-outbound-ssrf-guard-with-ipv4-mapped-ipv6-normalization--ip-pinning) |
+| **`TRAP-BATCH-012`** | Batch Processing | `FATAL` | Looping over batch items to render PDFs synchronously inside an HTTP controller/UseCase, or queuing jobs into `Channel.CreateUnbounded<T>()`. | Use Pipeline C (`202 Accepted`): persist batch items into PostgreSQL `document_jobs`, return `Location: /api/v1/document-jobs/{id}`, and process asynchronously via `FOR UPDATE SKIP LOCKED` workers. | `BannedApiAnalyzers` (`Channel.CreateUnbounded`) + API Timeout Gate | `dotnet build --warnaserror` | [01_system_architecture.md](./01_system_architecture.md#141-documentjob-state-machine-pipeline-c) |
+| **`TRAP-SQL-013`** | Concurrency & Bulkheads | `CRITICAL` | Unbounded `Task.WhenAll(items.Select(...))` exhausting connection pools, or writing `await using var s = new SemaphoreSlim(4)` (fails with compiler error `CS8410`). | Bound concurrency using `Parallel.ForEachAsync` with `MaxDegreeOfParallelism = 4` and shared `PartitionedRateLimiter` bulkheads. | Compiler `CS8410` + Semgrep (`unbounded-task-whenall`) | `dotnet build` + Semgrep CI | [03_security_and_performance.md](./03_security_and_performance.md#34-partitioned-rate-limiting--concurrency-backpressure-recipe) |
+| **`TRAP-SCALE-014`** | Multi-Pod State & Idempotency | `CRITICAL` | Storing `Idempotency-Key` records or rate-limit counters only in local `IMemoryCache` / `ConcurrentDictionary` without distributed backing or payload hash verification. | Persist idempotency state atomically (`INSERT ... ON CONFLICT DO NOTHING`) in PostgreSQL `idempotency_keys` (with `request_hash` SHA-256 verification → `422 IDEMPOTENCY_KEY_REUSED`) and coordinate multi-pod rate limits via Redis/gateway + `PartitionedRateLimiter`. | Architecture Review + Multi-Instance Integration Test | `dotnet test` | [06_api_contract_standards.md](./06_api_contract_standards.md#25-idempotency-protocol) |
+| **`TRAP-SYNC-015`** | Optimistic Concurrency | `CRITICAL` | Blind `PUT`/`PATCH` overwrites (`Last-Write-Wins`) or leaking EF Core `SetExpectedVersion` into Domain repository interfaces. | Require `If-Match: "v{version}"` (`428` if missing), check `entity.Version != command.ExpectedVersion` in UseCase (`412`), and back with EF Core `.IsConcurrencyToken()` on `version bigint`. | OpenAPI Contract Linter + Concurrency Integration Tests | `Redocly` + `dotnet test` | [01_system_architecture.md](./01_system_architecture.md#144-optimistic-concurrency-version-token) |
+| **`TRAP-SSOT-017`** | Template Versioning | `CRITICAL` | Resolving live mutable `Template.FieldMappings` during historical regeneration or falling back via `version.MappingsSnapshot ?? template.FieldMappings`. | Bind every generated document and batch job to an immutable `TemplateVersion` snapshot (freezing template asset, schema, mappings, fonts, and engine version); fail fast if snapshot is missing. | Domain Unit Tests (`TemplateVersionSnapshotTests`) | `dotnet test` | [01_system_architecture.md](./01_system_architecture.md#14-the-3-core-execution-pipelines) |
 | **`TRAP-WRAPPER-018`** | Application Design & Envelopes | `HIGH` | Creating pure pass-through `*Wrapper` / `*SubPipeline` classes with zero independent logic, OR returning `200 OK` with `{ "isError": true }` instead of `ApiResponse<T>` + RFC 9457 `ProblemDetails`. | Ban pure pass-through wrappers while allowing cohesive domain/rendering collaborators (`IDocumentRenderer`, `DataBindingEngine`); cap UseCase cognitive complexity via analyzer; wrap `2xx` JSON in `ApiResponse<T>` / `PagedApiResponse<T>`. | Roslyn Cognitive Complexity Analyzer + `NetArchTest` | `dotnet build` + `dotnet test` | [06_api_contract_standards.md](./06_api_contract_standards.md#31-apiresponset-blueprint) |
-| **`TRAP-TENANT-022`** | Tenant Resolution & Oracle | `FATAL` | Reading `projectId` from route/query/body instead of `Project-Id` header + credential claim, using legacy `X-Project-Id`, or returning `403 Forbidden` when looking up another tenant's resource ID. | Resolve tenant strictly in `TenantResolutionMiddleware` (`Project-Id` header matched against credential → `400 PROJECT_CONTEXT_MISMATCH` on mismatch); return `404 NotFoundException` when a resource ID is not in the active tenant scope. | Multi-Tenant Security Integration Suite | `dotnet test` | [01_system_architecture.md](./01_system_architecture.md#15-multi-tenant-isolation-architecture) |
-| **`TRAP-TENANT-023`** | Archetype B Tenant Isolation | `FATAL` | Injecting `IProjectContext` into Archetype B UseCases for manual `if (entity.ProjectId != ...)` checks, OR calling `.IgnoreQueryFilters()` / interpolated `FromSqlRaw($"...")`. | Keep Archetype B UseCases free of `IProjectContext`; rely on the 5-Layer Defense-in-Depth Isolation Architecture (fail-closed EF global filter + write interceptor + PostgreSQL RLS + banned APIs). | `BannedApiAnalyzers` (`IgnoreQueryFilters`, `FromSqlRaw`) + RLS Leakage Tests | `dotnet build --warnaserror` + `dotnet test` | [01_system_architecture.md](./01_system_architecture.md#15-multi-tenant-isolation-architecture) |
-| **`TRAP-TENANT-024`** | Archetype A Creation & Slug | `CRITICAL` | Creating a tenant-owned aggregate without `IProjectContext`, or checking `SlugExistsAsync` with a raw un-normalized string before constructing the Value Object. | Inject `IProjectContext`, call `projectContext.GetRequiredProjectId()`, construct/normalize the Value Object (`TemplateSlug.Create`) **first**, then check `SlugExistsAsync(projectId, slug, ct)` backed by `uq_{table}_project_id_slug`. | Code Review + Unique Constraint Integration Tests | `dotnet test` | [02_coding_conventions.md](./02_coding_conventions.md#32-cadence-2-application-usecase) |
-| **`TRAP-TENANT-025`** | SuperAdmin Standing Access | `FATAL` | Bypassing EF Core Global Query Filters via `|| currentUser.IsSuperAdmin` on `ProjectDbContext`, granting standing cross-tenant read/write access on tenant endpoints. | Enforce **Zero Standing Access**: `ProjectDbContext` never checks `IsSuperAdmin`; platform operations run on `/api/v1/management/**` (`RequireSuperAdmin`) with explicit `ProjectId`, time-boxed `BreakGlassGrant`, and immutable `AuditLog`. | `NetArchTest` + Multi-Tenant Isolation Tests | `dotnet test` | [01_system_architecture.md](./01_system_architecture.md#15-multi-tenant-isolation-architecture) |
-| **`TRAP-FE-026`** | Frontend Security & Memory | `HIGH` | Rendering untrusted HTML via `dangerouslySetInnerHTML`, storing tokens in `localStorage`/`NEXT_PUBLIC_*`, putting `'use client'` on root layouts, or leaking `URL.createObjectURL(blob)` without revoking. | Use BFF `HttpOnly` cookies, keep Next.js App Router pages as Server Components by default, and always call `URL.revokeObjectURL(objectUrl)` inside a `finally` or `useEffect` cleanup block. | ESLint (`react/no-danger`, custom rules) + TypeScript Strict | `pnpm lint && pnpm typecheck` | [03_security_and_performance.md](./03_security_and_performance.md#6-enterprise-security-domains-owasp-asvs-v40--thai-pdpa) |
+| **`TRAP-TENANT-022`** | Tenant Resolution & Oracle | `FATAL` | Reading `projectId` from route/query/body instead of `Project-Id` header + credential claim, using legacy `X-Project-Id`, or returning `403 Forbidden` when looking up another tenant's resource ID. | Resolve tenant strictly in `TenantResolutionMiddleware` via `ITenantResolutionResolver` (`400 PROJECT_CONTEXT_MISMATCH` on API key mismatch, `404 NOT_FOUND` on unknown/non-member Data Plane lookup); return `404 NotFoundException` when a resource ID is not in the active tenant scope. | Multi-Tenant Security Integration Suite | `dotnet test` | [01_system_architecture.md](./01_system_architecture.md#113-tenant-isolation-layered-fail-closed) |
+| **`TRAP-TENANT-023`** | Archetype B Tenant Isolation | `FATAL` | Injecting `ICurrentProjectContext` into Archetype B UseCases for manual `if (entity.ProjectId != ...)` checks, OR calling `.IgnoreQueryFilters()` / interpolated `FromSqlRaw($"...")`. | Keep Archetype B UseCases free of `ICurrentProjectContext`; rely on the 5-Layer Defense-in-Depth Isolation Architecture (fail-closed EF global filter + write interceptor + PostgreSQL RLS + banned APIs). | `BannedApiAnalyzers` (`IgnoreQueryFilters`, `FromSqlRaw`) + RLS Leakage Tests | `dotnet build --warnaserror` + `dotnet test` | [01_system_architecture.md](./01_system_architecture.md#113-tenant-isolation-layered-fail-closed) |
+| **`TRAP-TENANT-024`** | Archetype A Creation & Slug | `CRITICAL` | Creating a tenant-owned aggregate without `ICurrentProjectContext`, or checking `SlugExistsAsync` with a raw un-normalized string before constructing the Value Object. | Inject `ICurrentProjectContext`, call `projectContext.GetRequiredProjectId()`, construct/normalize the Value Object (`TemplateSlug.Create`) **first**, then check `SlugExistsAsync(projectId, slug, ct)` backed by `uq_{table}_project_id_slug`. | Code Review + Unique Constraint Integration Tests | `dotnet test` | [02_coding_conventions.md](./02_coding_conventions.md#32-cadence-2-usecase-4-step-pemr-single-canonical-listing) |
+| **`TRAP-TENANT-025`** | SuperAdmin Standing Access | `FATAL` | Bypassing EF Core Global Query Filters via `|| currentUser.IsSuperAdmin` on `AppDbContext`, granting standing cross-tenant read/write access on tenant endpoints. | Enforce **Zero Standing Access**: `AppDbContext` never checks `IsSuperAdmin`; platform operations run on `/api/v1/management/**` (`RequireSuperAdmin`) with explicit `ProjectId`, time-boxed `BreakGlassGrant`, and immutable `AuditLog`. | `NetArchTest` + Multi-Tenant Isolation Tests | `dotnet test` | [01_system_architecture.md](./01_system_architecture.md#113-tenant-isolation-layered-fail-closed) |
+| **`TRAP-FE-026`** | Frontend Security & Memory | `HIGH` | Rendering untrusted HTML via `dangerouslySetInnerHTML`, storing tokens in `localStorage`/`NEXT_PUBLIC_*`, putting `'use client'` on root layouts, or leaking `URL.createObjectURL(blob)` without revoking. | Use BFF `HttpOnly` cookies, keep Next.js App Router pages as Server Components by default, and always call `URL.revokeObjectURL(objectUrl)` inside a `finally` or `useEffect` cleanup block. | ESLint (`react/no-danger`, custom rules) + TypeScript Strict | `pnpm lint && pnpm typecheck` | [03_security_and_performance.md](./03_security_and_performance.md#13-enterprise-security-domains-matrix-owasp-asvs-40--iso-27001--thai-pdpa) |
 
 ---
 
@@ -93,20 +93,22 @@ public sealed class BadRenderDocumentUseCase(
 }
 
 // + MANDATORY: End-to-end async/await with mandatory CancellationToken propagation
-public sealed class RenderDocumentUseCase(
+public sealed class GenerateDocumentUseCase(
     ITemplateRepository templateRepository,
-    IDocumentRenderer documentRenderer)
-    : IUseCase<RenderDocumentCommand, RenderDocumentResult>
+    IStoragePort storagePort,
+    IRenderEngine renderEngine)
+    : IUseCase<GenerateDocumentCommand, GenerateDocumentResultDto>
 {
-    public async Task<RenderDocumentResult> ExecuteAsync(
-        RenderDocumentCommand command,
+    public async Task<GenerateDocumentResultDto> ExecuteAsync(
+        GenerateDocumentCommand command,
         CancellationToken ct)
     {
         var template = await templateRepository.FindByIdAsync(command.TemplateId, ct)
             ?? throw NotFoundException.For<Template>(command.TemplateId.Value);
 
-        var stream = await documentRenderer.RenderAsync(template, command.Payload, ct);
-        return new RenderDocumentResult(stream);
+        await using var templateStream = await storagePort.OpenReadStreamAsync(StorageBuckets.Templates, template.StorageKey, ct);
+        await using var renderedStream = await renderEngine.RenderStreamAsync(templateStream, command.PayloadJson, OutputFormat.Pdf, ct);
+        return await FinalizeDocumentAsync(template, renderedStream, ct);
     }
 }
 ```
@@ -120,7 +122,7 @@ public sealed class RenderDocumentUseCase(
 ```csharp
 // - FORBIDDEN: Concurrent DbContext calls and holding a DB transaction across external I/O
 public sealed class BadPublishTemplateUseCase(
-    ProjectDbContext dbContext,
+    AppDbContext dbContext,
     IObjectStorageClient objectStorageClient)
 {
     public async Task ExecuteAsync(PublishTemplateCommand command, CancellationToken ct)
@@ -145,9 +147,9 @@ public sealed class PublishTemplateUseCase(
     IObjectStorageClient objectStorageClient,
     IUnitOfWork unitOfWork,
     TimeProvider timeProvider)
-    : IUseCase<PublishTemplateCommand, TemplateVersionDto>
+    : IUseCase<PublishTemplateCommand, TemplateVersionResultDto>
 {
-    public async Task<TemplateVersionDto> ExecuteAsync(
+    public async Task<TemplateVersionResultDto> ExecuteAsync(
         PublishTemplateCommand command,
         CancellationToken ct)
     {
@@ -167,7 +169,7 @@ public sealed class PublishTemplateUseCase(
         var publishedVersion = template.PublishNewVersion(storageKey, command.EngineVersion, timeProvider.GetUtcNow());
         await unitOfWork.CommitAsync(ct);
 
-        return TemplateVersionDto.FromDomain(publishedVersion);
+        return publishedVersion.ToResultDto();
     }
 }
 ```
@@ -194,15 +196,12 @@ public async Task<IActionResult> BadRenderAsync(
 }
 
 // + MANDATORY: Stream via HybridSpoolStream / RecyclableMemoryStream and transfer ownership to FileStreamResult
-[HttpPost("render")]
-public async Task<IActionResult> RenderAsync(
-    [FromBody] RenderDocumentRequest request,
+[HttpGet("{id:guid}/content")]
+public async Task<IActionResult> Download(
+    [FromRoute] Guid id,
     CancellationToken ct)
 {
-    var result = await renderDocumentUseCase.ExecuteAsync(request.ToCommand(), ct);
-
-    Response.Headers.ContentLength = result.ContentLength;
-    Response.Headers["Document-Id"] = result.DocumentId.Value.ToString();
+    var result = await downloadDocumentUseCase.ExecuteAsync(new DownloadDocumentQuery(new DocumentId(id)), ct);
 
     // Do NOT wrap result.ContentStream in 'await using'; ASP.NET Core FileStreamResult owns and disposes it
     return File(result.ContentStream, result.ContentType, result.FileName, enableRangeProcessing: false);
@@ -274,14 +273,16 @@ public interface IBadTemplateRepository
     void SetExpectedVersion(BadTemplate template, uint xmin); // PostgreSQL / EF Core leak!
 }
 
-// + MANDATORY: Pure Domain Aggregate implementing IConcurrencyAware; EF mapping isolated in Infrastructure
-public sealed class Template : AggregateRoot<TemplateId>, IConcurrencyAware
+// + MANDATORY: Pure Domain Aggregate inheriting AggregateRoot<TId> (already includes IConcurrencyAware & IHaveDomainEvents); EF mapping isolated in Infrastructure
+public sealed class Template : AggregateRoot<TemplateId>
 {
     public ProjectId ProjectId { get; private set; }
+    public TemplateName Name { get; private set; } = null!;
     public TemplateSlug Slug { get; private set; } = null!;
 
-    public void Rename(TemplateSlug newSlug, DateTimeOffset now)
+    public void Rename(TemplateName newName, TemplateSlug newSlug, DateTimeOffset now)
     {
+        Name = newName;
         Slug = newSlug;
         SetUpdated(now); // Advances UpdatedAt and increments Version (long)
     }
@@ -292,16 +293,16 @@ public sealed class Template : AggregateRoot<TemplateId>, IConcurrencyAware
 
 ### `TRAP-TIME-006` — Non-Deterministic Time/UUIDs, `new HttpClient()` & Captive Dependencies (`CRITICAL`)
 
-Hardcoding `DateTime.UtcNow` or `Guid.NewGuid()` makes unit tests non-deterministic and fragments PostgreSQL B-tree indexes. Instantiating `new HttpClient()` exhausts ephemeral OS sockets (`TIME_WAIT`), and injecting a `Scoped` service (`IProjectContext`) into a `Singleton` service captures the first request's tenant forever (**cross-tenant data bleed**).
+Hardcoding `DateTime.UtcNow` or `Guid.NewGuid()` makes unit tests non-deterministic and fragments PostgreSQL B-tree indexes. Instantiating `new HttpClient()` exhausts ephemeral OS sockets (`TIME_WAIT`), and injecting a `Scoped` service (`ICurrentProjectContext`) into a `Singleton` service captures the first request's tenant forever (**cross-tenant data bleed**).
 
 ```csharp
 // - FORBIDDEN: Captive Scoped dependency inside Singleton, new HttpClient(), and static DateTime/Guid
-public sealed class BadWebhookDispatcher(IProjectContext captiveProjectContext) // FATAL if registered as Singleton!
+public sealed class BadWebhookDispatcher(ICurrentProjectContext captiveProjectContext) // FATAL if registered as Singleton!
 {
     public async Task SendAsync(Uri callbackUri, CancellationToken ct)
     {
         using var httpClient = new HttpClient(); // Socket exhaustion!
-        var payload = new { EventId = Guid.NewGuid(), SentAt = DateTime.UtcNow, ProjectId = captiveProjectContext.ProjectId };
+        var payload = new { EventId = Guid.NewGuid(), SentAt = DateTime.UtcNow, ProjectId = captiveProjectContext.GetRequiredProjectId() };
         await httpClient.PostAsJsonAsync(callbackUri, payload, ct);
     }
 }
@@ -354,9 +355,9 @@ public sealed class ApproveDocumentUseCase(
     IDocumentRepository documentRepository,
     IUnitOfWork unitOfWork,
     TimeProvider timeProvider)
-    : IUseCase<ApproveDocumentCommand, DocumentDto>
+    : IUseCase<ApproveDocumentCommand, DocumentResultDto>
 {
-    public async Task<DocumentDto> ExecuteAsync(
+    public async Task<DocumentResultDto> ExecuteAsync(
         ApproveDocumentCommand command,
         CancellationToken ct)
     {
@@ -366,7 +367,7 @@ public sealed class ApproveDocumentUseCase(
         document.Approve(timeProvider.GetUtcNow());
         await unitOfWork.CommitAsync(ct);
 
-        return DocumentDto.FromDomain(document);
+        return document.ToResultDto();
     }
 }
 ```
@@ -379,7 +380,7 @@ Logging an exception in a Repository, logging it again in a UseCase, and logging
 
 ```csharp
 // - FORBIDDEN: Log-and-rethrow inside inner layers or swallowing OperationCanceledException as a 500 error
-public async Task<TemplateDto> BadExecuteAsync(GetTemplateQuery query, CancellationToken ct)
+public async Task<TemplateResultDto> BadExecuteAsync(GetTemplateQuery query, CancellationToken ct)
 {
     try
     {
@@ -494,7 +495,7 @@ public sealed class OutboxSaveChangesInterceptor(TimeProvider timeProvider) : Sa
         }
 
         var aggregates = dbContext.ChangeTracker
-            .Entries<IAggregateRoot>()
+            .Entries<IHaveDomainEvents>()
             .Where(entry => entry.Entity.DomainEvents.Count > 0)
             .Select(entry => entry.Entity)
             .ToList();
@@ -536,8 +537,8 @@ public async Task<IEnumerable<dynamic>> BadQueryTenantDatabaseAsync(
     return await connection.QueryAsync(rawSql);
 }
 
-// + MANDATORY: Validate & pin IP via ConnectionHostValidator, use DbConnectionStringBuilder, enforce read-only & statement timeout
-public sealed class ExternalPostgresQueryExecutor(ConnectionHostValidator hostValidator)
+// + MANDATORY: Validate & pin IP via IConnectionHostValidator, use DbConnectionStringBuilder, verify SAN against config.Hostname, enforce read-only & timeout
+public sealed class ExternalPostgresQueryExecutor(IConnectionHostValidator hostValidator)
 {
     private const int MaxRowLimit = 10_000;
 
@@ -548,12 +549,12 @@ public sealed class ExternalPostgresQueryExecutor(ConnectionHostValidator hostVa
         CancellationToken ct)
     {
         // 1. Resolve DNS once, normalize IPv4-mapped IPv6, verify against platform deny-list + tenant allow-list CIDRs
-        var pinnedIp = await hostValidator.ResolveAndValidateAsync(config.Hostname, config.AllowedEgressCidrs, ct);
+        var validatedIps = await hostValidator.ResolveAndValidateAsync(config.Hostname, config.Port, config.ProjectId, ct);
 
-        // 2. Construct connection string safely via DbConnectionStringBuilder pinning the validated IP address
+        // 2. Pin validated IP via DbConnectionStringBuilder while keeping TLS server certificate SAN validation bound to config.Hostname
         var connectionBuilder = new NpgsqlConnectionStringBuilder
         {
-            Host = pinnedIp.ToString(),
+            Host = validatedIps[0].ToString(),
             Port = config.Port,
             Database = config.DatabaseName,
             Username = config.ReadOnlyUsername,
@@ -563,8 +564,8 @@ public sealed class ExternalPostgresQueryExecutor(ConnectionHostValidator hostVa
             Pooling = false
         };
 
-        await using var connection = new NpgsqlConnection(connectionBuilder.ConnectionString);
-        await connection.OpenAsync(ct);
+        await using var dataSource = CreateHostnamePinnedDataSource(connectionBuilder, config.Hostname);
+        await using var connection = await dataSource.OpenConnectionAsync(ct);
 
         await using var transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, ct);
         await connection.ExecuteAsync("SET LOCAL transaction_read_only = on; SET LOCAL statement_timeout = '5000ms';", transaction: transaction);
@@ -578,7 +579,7 @@ public sealed class ExternalPostgresQueryExecutor(ConnectionHostValidator hostVa
         {
             if (rows.Count >= MaxRowLimit)
             {
-                throw UnprocessableEntityException.RowLimitExceeded(MaxRowLimit);
+                throw BusinessRuleViolationException.RowLimitExceeded(MaxRowLimit);
             }
 
             var row = new Dictionary<string, object?>(reader.FieldCount, StringComparer.Ordinal);
@@ -610,7 +611,7 @@ public async Task<IActionResult> BadBatchRenderAsync(
     var results = new List<string>();
     foreach (var item in request.Items) // Times out after 30s and blocks Kestrel workers!
     {
-        var doc = await renderDocumentUseCase.ExecuteAsync(item, ct);
+        var doc = await generateDocumentUseCase.ExecuteAsync(item, ct);
         results.Add(doc.DocumentId.Value.ToString());
     }
     return Ok(results);
@@ -618,15 +619,16 @@ public async Task<IActionResult> BadBatchRenderAsync(
 
 // + MANDATORY: Pipeline C — Persist batch job to PostgreSQL document_jobs and return 202 Accepted immediately
 [HttpPost("/api/v1/document-jobs")]
-public async Task<ActionResult<ApiResponse<DocumentJobDto>>> EnqueueDocumentGenerationAsync(
+[ProducesResponseType(typeof(ApiResponse<DocumentJobDto>), StatusCodes.Status202Accepted)]
+public async Task<IActionResult> EnqueueDocumentGeneration(
     [FromBody] EnqueueDocumentGenerationRequest request,
     CancellationToken ct)
 {
-    var jobDto = await enqueueDocumentGenerationUseCase.ExecuteAsync(request.ToCommand(), ct);
+    var command = new EnqueueDocumentGenerationCommand(request.TemplateSlug, request.OutputFormat, request.Items);
+    var resultDto = await enqueueDocumentGenerationUseCase.ExecuteAsync(command, ct);
 
-    Response.Headers.Location = $"/api/v1/document-jobs/{jobDto.Id}";
     Response.Headers.RetryAfter = "5";
-    return Accepted(new ApiResponse<DocumentJobDto>(jobDto));
+    return Accepted(new Uri($"/api/v1/document-jobs/{resultDto.Id}", UriKind.Relative), new ApiResponse<DocumentJobDto>(resultDto));
 }
 ```
 
@@ -682,10 +684,9 @@ public sealed class BadInMemoryIdempotencyFilter
         Cache.TryGetValue(idempotencyKey, out cachedResponse);
 }
 
-// + MANDATORY: Durable PostgreSQL idempotency_keys scoped by (project_id, scope, key) with SHA-256 payload fingerprint
+// + MANDATORY: Atomic PostgreSQL idempotency_keys (INSERT ... ON CONFLICT DO NOTHING) scoped by (project_id, credential_id, key)
 public sealed class DurableIdempotencyGuard(
     IIdempotencyRepository idempotencyRepository,
-    IUnitOfWork unitOfWork,
     TimeProvider timeProvider)
 {
     public async Task<IdempotencyDecision> AcquireOrReplayAsync(
@@ -695,29 +696,25 @@ public sealed class DurableIdempotencyGuard(
         string requestPayloadSha256,
         CancellationToken ct)
     {
-        var existing = await idempotencyRepository.FindAsync(projectId, credentialScope, idempotencyKey, ct);
-        if (existing is not null)
-        {
-            if (!string.Equals(existing.RequestHash, requestPayloadSha256, StringComparison.Ordinal))
-            {
-                throw new IdempotencyKeyReusedException(idempotencyKey);
-            }
-
-            return existing.IsCompleted
-                ? IdempotencyDecision.Replay(existing.ResponseStatusCode, existing.ResultReferenceId!)
-                : throw ConflictException.IdempotencyInProgress(idempotencyKey);
-        }
-
-        var record = IdempotencyRecord.StartInFlight(
+        var outcome = await idempotencyRepository.TryAcquireAsync(
             projectId,
             credentialScope,
             idempotencyKey,
             requestPayloadSha256,
-            timeProvider.GetUtcNow());
-        idempotencyRepository.Add(record);
-        await unitOfWork.CommitAsync(ct);
+            timeProvider.GetUtcNow(),
+            ct);
 
-        return IdempotencyDecision.Proceed(record.Id);
+        if (outcome.AcquiredNewRecord is { } created)
+            return IdempotencyDecision.Proceed(created.Id);
+
+        var existing = outcome.ExistingRecord;
+        if (!string.Equals(existing.RequestHash, requestPayloadSha256, StringComparison.Ordinal))
+            throw new IdempotencyKeyReusedException(idempotencyKey);
+
+        if (existing.IsCompleted && existing.ResultReferenceId is { } resultRef)
+            return IdempotencyDecision.Replay(existing.ResponseStatusCode, resultRef);
+
+        throw ConflictException.IdempotencyInProgress(idempotencyKey);
     }
 }
 ```
@@ -735,7 +732,7 @@ public async Task<TemplateResultDto> BadUpdateTemplateAsync(RenameTemplateComman
     var template = await templateRepository.FindByIdAsync(command.TemplateId, ct)
         ?? throw NotFoundException.For<Template>(command.TemplateId.Value);
 
-    template.Rename(TemplateSlug.Create(command.Slug), timeProvider.GetUtcNow());
+    template.Rename(TemplateName.Create(command.Name), TemplateSlug.Create(command.Slug), timeProvider.GetUtcNow());
     await unitOfWork.CommitAsync(ct); // Silently clobbers any concurrent update!
     return template.ToResultDto();
 }
@@ -752,7 +749,7 @@ public async Task<TemplateResultDto> ExecuteAsync(RenameTemplateCommand command,
         throw PreconditionFailedException.VersionMismatch();
     }
 
-    template.Rename(TemplateSlug.Create(command.Slug), timeProvider.GetUtcNow());
+    template.Rename(TemplateName.Create(command.Name), TemplateSlug.Create(command.Slug), timeProvider.GetUtcNow());
 
     // Phase 2 (Persistence): EF Core emits 'WHERE id = @p0 AND version = @p1'; throws DbUpdateConcurrencyException -> 412 on race
     await unitOfWork.CommitAsync(ct);
@@ -818,9 +815,9 @@ public async Task<IActionResult> BadGetAsync(Guid templateId, CancellationToken 
 
 // + MANDATORY: Direct UseCase execution, standard ApiResponse<T> on 2xx, and RFC 9457 ProblemDetails on 4xx/5xx
 [HttpGet("{templateId:guid}")]
-[ProducesResponseType<ApiResponse<TemplateResultDto>>(StatusCodes.Status200OK)]
-[ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
-public async Task<ActionResult<ApiResponse<TemplateResultDto>>> GetByIdAsync(
+[ProducesResponseType(typeof(ApiResponse<TemplateResultDto>), StatusCodes.Status200OK)]
+[ProducesResponseType(StatusCodes.Status404NotFound)]
+public async Task<IActionResult> GetById(
     Guid templateId,
     CancellationToken ct)
 {
@@ -854,9 +851,9 @@ public async Task<IActionResult> BadGetTemplateAsync(
 
 // + MANDATORY: Tenant resolved exclusively from 'Project-Id' header + credential; cross-tenant lookup returns 404 Not Found
 public sealed class GetTemplateByIdUseCase(ITemplateReadModel templateReadModel)
-    : IUseCase<GetTemplateByIdQuery, TemplateDto>
+    : IUseCase<GetTemplateByIdQuery, TemplateResultDto>
 {
-    public async Task<TemplateDto> ExecuteAsync(GetTemplateByIdQuery query, CancellationToken ct)
+    public async Task<TemplateResultDto> ExecuteAsync(GetTemplateByIdQuery query, CancellationToken ct)
     {
         // Global Query Filter + PostgreSQL RLS automatically scopes query to the active ProjectId.
         // If templateId belongs to Tenant B, FindByIdAsync returns null -> indistinguishable 404 NotFoundException!
@@ -870,10 +867,10 @@ public sealed class GetTemplateByIdUseCase(ITemplateReadModel templateReadModel)
 
 ### `TRAP-TENANT-023` — Archetype B Redundant Context Checks & Query Filter Bypass (`FATAL`)
 
-In **Archetype B** (operating on an existing aggregate by ID), injecting `IProjectContext` to write manual `if (entity.ProjectId != projectContext.ProjectId)` checks duplicates infrastructure logic across 50+ UseCases. Worse, using `.IgnoreQueryFilters()` or interpolated `FromSqlRaw($"...")` completely disables tenant isolation.
+In **Archetype B** (operating on an existing aggregate by ID), injecting `ICurrentProjectContext` to write manual `if (entity.ProjectId != projectContext.GetRequiredProjectId())` checks duplicates infrastructure logic across 50+ UseCases. Worse, using `.IgnoreQueryFilters()` or interpolated `FromSqlRaw($"...")` completely disables tenant isolation.
 
 ```csharp
-// - FORBIDDEN: Bypassing Global Query Filters or cluttering Archetype B UseCases with manual IProjectContext checks
+// - FORBIDDEN: Bypassing Global Query Filters or cluttering Archetype B UseCases with manual ICurrentProjectContext checks
 public async Task BadDeleteTemplateAsync(DeleteTemplateCommand command, CancellationToken ct)
 {
     // FATAL: IgnoreQueryFilters disables Layer 2 tenant isolation!
@@ -881,21 +878,21 @@ public async Task BadDeleteTemplateAsync(DeleteTemplateCommand command, Cancella
         .IgnoreQueryFilters()
         .FirstOrDefaultAsync(x => x.Id == command.TemplateId, ct);
 
-    if (template is not null && template.ProjectId == projectContext.ProjectId)
+    if (template is not null && template.ProjectId == projectContext.GetRequiredProjectId())
     {
         dbContext.Templates.Remove(template);
         await dbContext.SaveChangesAsync(ct);
     }
 }
 
-// + MANDATORY: Archetype B has ZERO IProjectContext injection; 5-Layer Defense-in-Depth enforces isolation automatically
+// + MANDATORY: Archetype B has ZERO ICurrentProjectContext injection; 5-Layer Defense-in-Depth enforces isolation automatically
 public sealed class ArchiveTemplateUseCase(
     ITemplateRepository templateRepository,
     IUnitOfWork unitOfWork,
     TimeProvider timeProvider)
-    : IUseCase<ArchiveTemplateCommand, Unit>
+    : IUseCase<ArchiveTemplateCommand>
 {
-    public async Task<Unit> ExecuteAsync(ArchiveTemplateCommand command, CancellationToken ct)
+    public async Task ExecuteAsync(ArchiveTemplateCommand command, CancellationToken ct)
     {
         var template = await templateRepository.FindByIdAsync(command.TemplateId, ct)
             ?? throw NotFoundException.For<Template>(command.TemplateId.Value);
@@ -907,37 +904,38 @@ public sealed class ArchiveTemplateUseCase(
 
         template.Archive(timeProvider.GetUtcNow());
         await unitOfWork.CommitAsync(ct);
-        return Unit.Value;
     }
 }
 ```
 
 ---
 
-### `TRAP-TENANT-024` — Archetype A Missing `IProjectContext` & Un-Normalized Uniqueness Checks (`CRITICAL`)
+### `TRAP-TENANT-024` — Archetype A Missing `ICurrentProjectContext` & Un-Normalized Uniqueness Checks (`CRITICAL`)
 
-In **Archetype A** (creating a new aggregate or checking tenant-scoped uniqueness), omitting `IProjectContext` leaves `ProjectId` unset (`Guid.Empty`, which is caught by `TenantWriteEnforcementInterceptor`), while checking `SlugExistsAsync` with a raw string before Value Object normalization (`" Invoice-01 "` vs. `"invoice-01"`) allows duplicate slugs past the pre-check.
+In **Archetype A** (creating a new aggregate or checking tenant-scoped uniqueness), omitting `ICurrentProjectContext` leaves `ProjectId` unset (`Guid.Empty`, which is caught by `TenantWriteEnforcementInterceptor`), while checking `SlugExistsAsync` with a raw string before Value Object normalization (`" Invoice-01 "` vs. `"invoice-01"`) allows duplicate slugs past the pre-check.
 
 ```csharp
 // - FORBIDDEN: Checking uniqueness with raw un-normalized string before Value Object creation
-public async Task<TemplateDto> BadCreateTemplateAsync(CreateTemplateCommand command, CancellationToken ct)
+public async Task<TemplateResultDto> BadCreateTemplateAsync(CreateTemplateCommand command, CancellationToken ct)
 {
+    var projectId = projectContext.GetRequiredProjectId();
+
     // Bug: command.Slug is " Invoice-01 " (not yet trimmed/lowercased), so SlugExistsAsync misses existing "invoice-01"!
-    if (await templateRepository.SlugExistsAsync(projectContext.ProjectId!.Value, command.Slug, ct))
+    if (await templateRepository.SlugExistsAsync(projectId, command.Slug, ct))
     {
         throw ConflictException.DuplicateSlug(command.Slug);
     }
 
     var slug = TemplateSlug.Create(command.Slug); // Normalizes to "invoice-01" too late!
-    var template = Template.Create(projectContext.ProjectId.Value, slug, timeProvider.GetUtcNow());
+    var template = Template.Create(projectId, slug, timeProvider.GetUtcNow());
     templateRepository.Add(template);
     await unitOfWork.CommitAsync(ct);
-    return TemplateDto.FromDomain(template);
+    return template.ToResultDto();
 }
 
 // + MANDATORY: Resolve required ProjectId, normalize Value Object FIRST, then check uniqueness + rely on DB uq_ constraint
 public sealed class CreateTemplateUseCase(
-    IProjectContext projectContext,
+    ICurrentProjectContext projectContext,
     ITemplateRepository templateRepository,
     IUnitOfWork unitOfWork,
     TimeProvider timeProvider)
@@ -974,20 +972,20 @@ public sealed class CreateTemplateUseCase(
 Adding `|| currentUser.IsSuperAdmin` to EF Core Global Query Filters grants standing cross-tenant read/write power on every ordinary `/api/v1/**` endpoint. A single compromised admin session or UI bug can then dump or mutate every customer's documents.
 
 ```csharp
-// - FORBIDDEN: Standing SuperAdmin bypass inside ProjectDbContext Global Query Filter
+// - FORBIDDEN: Standing SuperAdmin bypass inside AppDbContext Global Query Filter
 protected override void OnModelCreating(ModelBuilder modelBuilder)
 {
     // FATAL VIOLATION: Disables tenant isolation across the entire application whenever an admin is logged in!
     modelBuilder.Entity<Template>()
-        .HasQueryFilter(e => e.ProjectId == projectContext.ProjectId || currentUser.IsSuperAdmin);
+        .HasQueryFilter(e => e.ProjectId == CurrentTenantId || currentUser.IsSuperAdmin);
 }
 
-// + MANDATORY: Fail-closed Global Query Filter on ProjectDbContext; explicit BreakGlassGrant on /api/v1/management/**
+// + MANDATORY: Fail-closed Global Query Filter on AppDbContext; explicit BreakGlassGrant on /api/v1/management/**
 protected override void OnModelCreating(ModelBuilder modelBuilder)
 {
-    // Fail-closed: if HasProject is false, evaluates to false and returns ZERO rows. Never checks IsSuperAdmin.
+    // Fail-closed: if IsTenantResolved is false, evaluates to false and returns ZERO rows. Never checks IsSuperAdmin.
     modelBuilder.Entity<Template>()
-        .HasQueryFilter(e => projectContext.HasProject && e.ProjectId == projectContext.ProjectId);
+        .HasQueryFilter(e => IsTenantResolved && e.ProjectId == CurrentTenantId);
 }
 ```
 
@@ -1065,16 +1063,16 @@ P:System.DateTimeOffset.UtcNow;Use injected TimeProvider.GetUtcNow() instead (TR
 M:System.Guid.NewGuid;Use Guid.CreateVersion7() for time-ordered UUIDs (TRAP-TIME-006).
 M:System.Net.Http.HttpClient.#ctor;Use IHttpClientFactory instead of instantiating HttpClient directly (TRAP-TIME-006).
 
-# TRAP-MEM-003: Zero-LOH Streaming
+# TRAP-MEM-003: Bounded, Pooled Memory Streaming
 M:System.IO.MemoryStream.ToArray;Forbidden LOH allocation; stream via HybridSpoolStream or RecyclableMemoryStream (TRAP-MEM-003).
-M:System.IO.File.ReadAllBytes(System.String);Forbidden LOH allocation; use FileStream with pooled 64 KB buffers (TRAP-MEM-003).
-M:System.IO.File.ReadAllBytesAsync(System.String,System.Threading.CancellationToken);Forbidden LOH allocation; use FileStream with pooled 64 KB buffers (TRAP-MEM-003).
+M:System.IO.File.ReadAllBytes(System.String);Forbidden large-buffer allocation; use FileStream with pooled 65_536-byte buffers (TRAP-MEM-003).
+M:System.IO.File.ReadAllBytesAsync(System.String,System.Threading.CancellationToken);Forbidden large-buffer allocation; use FileStream with pooled 65_536-byte buffers (TRAP-MEM-003).
 
 # TRAP-BATCH-012: Unbounded Queues
 M:System.Threading.Channels.Channel.CreateUnbounded``1;Unbounded in-memory channels are forbidden; use PostgreSQL document_jobs or Channel.CreateBounded (TRAP-BATCH-012).
 M:System.Threading.Channels.Channel.CreateUnbounded``1(System.Threading.Channels.UnboundedChannelOptions);Unbounded in-memory channels are forbidden; use PostgreSQL document_jobs or Channel.CreateBounded (TRAP-BATCH-012).
 
 # TRAP-TENANT-023 & TRAP-SQL-011: Multi-Tenant & SQL Injection Bypass
-M:Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.IgnoreQueryFilters``1(System.Linq.IQueryable{``0});Forbidden in Domain/Application/ProjectDbContext; tenant isolation must never be bypassed (TRAP-TENANT-023).
+M:Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.IgnoreQueryFilters``1(System.Linq.IQueryable{``0});Forbidden in Domain/Application/AppDbContext; tenant isolation must never be bypassed (TRAP-TENANT-023).
 M:Microsoft.EntityFrameworkCore.RelationalQueryableExtensions.FromSqlRaw``1(Microsoft.EntityFrameworkCore.DbSet{``0},System.String,System.Object[]);Forbidden SQL injection risk; use LINQ or FromSqlInterpolated (TRAP-SQL-011).
 ```

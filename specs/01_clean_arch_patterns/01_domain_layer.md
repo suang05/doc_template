@@ -31,7 +31,7 @@ Signal: [ARCH_EVOLUTION_DOMAIN]
 | **Purity & Isolation** | Pure .NET 10 / C# 14 POCOs only (`Directory.Build.props`). Zero external NuGet packages, EF Core, or ASP.NET Core references. | Project Boundary |
 | **Persistence Ignorance** | Clean domain properties without ORM Data Annotations. All database mapping is strictly isolated in Infrastructure `IEntityTypeConfiguration<T>`. | Data Access |
 | **State Encapsulation** | Strict `private set;` on all properties. Entity instantiation strictly through exactly 1 canonical static `Create(...)` factory method. | Entity Definition |
-| **Temporal Determinism** | All time queries passed as explicit parameters (`DateTimeOffset now` or parameterized `TimeProvider`). Zero ambient clock queries. | Business Methods |
+| **Temporal Determinism** | All time queries passed as explicit `DateTimeOffset now` parameters (`TimeProvider` lives in Application/Infrastructure). Zero ambient clock queries (`DateTime.UtcNow`). | Business Methods |
 | **Aggregate Boundaries** | Reference other Aggregate Roots strictly by strongly-typed ID (`{Aggregate}Id`). Unidirectional foreign key references only. | Aggregate Boundary |
 | **Identity Types** | Strongly-typed stack-allocated `readonly record struct {Aggregate}Id(Guid Value)` with explicit Guid cast operators. Cross-context IDs (`ProjectId`, `CompanyId`, `UserId`) reside in `SmkDoc.Domain/Common/ValueObjects/`. | Value Objects |
 | **Global vs Tenant Identity** | `User` is a Global Identity (Zero `ProjectId` column, zero `IMustHaveProject`). Multi-project tenancy is mapped exclusively through `UserProjectRole`. | Identity Context |
@@ -93,7 +93,7 @@ backend-v2/src/SmkDoc.Domain/
 * **Why Explicit ID Operators**: Prohibits accidental cross-domain ID assignment (e.g. assigning a `ProjectId` to an `{Aggregate}Id` slot) at compile-time.
 * **Why Global `User` vs `UserProjectRole`**: Modeling `User` with a `ProjectId` column forces duplicate user accounts across projects, breaks single-sign-on (SSO), and makes enterprise user management impossible. `User` is a Global Identity; multi-tenancy is scoped strictly via the `UserProjectRole` join entity.
 * **Why Injected `DateTimeOffset now`**: Eliminates ambient system clock queries, guaranteeing 100% deterministic unit testing via `FakeTimeProvider`.
-* **Why In-Memory Domain Events**: Decouples domain aggregates from messaging infrastructure; side-effects are dispatched strictly post-transaction.
+* **Why In-Memory Domain Events**: Decouples domain aggregates from messaging infrastructure; harvested events are persisted atomically via the Transactional Outbox in the same DB commit.
 * **Why Single-Purpose Domain Services over Fat Services (GodServiceEliminationFirewall):** Placing multi-aggregate business rules inside fat, multi-method domain services recreates the God Service anti-pattern inside the Domain Core. Domain logic must reside inside Aggregate Roots first, and any cross-aggregate service must be lean, stateless, and single-purpose.
 
 ### 2.2 Proactive Domain Firewalls
@@ -234,7 +234,7 @@ public abstract class AggregateRoot<TId> : BaseEntity<TId>, IHaveDomainEvents, I
     public IReadOnlyCollection<IDomainEvent> DomainEvents => _domainEvents.AsReadOnly();
 
     protected void AddDomainEvent(IDomainEvent domainEvent) =>
-        _domainEvents.Add(Guard.AgainstNull(domainEvent, nameof(domainEvent)));
+        _domainEvents.Add(Guard.NotNull(domainEvent, nameof(domainEvent)));
 
     public void ClearDomainEvents() => _domainEvents.Clear();
 
@@ -300,7 +300,7 @@ public sealed class {Aggregate} : AggregateRoot<{Aggregate}Id>, IMustHaveProject
 
         // Step 2: Precondition Guard (Aggregate state invariants)
         if (!IsActive)
-            throw new BusinessRuleViolationException("Cannot mutate an inactive aggregate.");
+            throw BusinessRuleViolationException.InactiveAggregate(Id.Value);
 
         // Step 3: State Mutation (Encapsulated scalar transitions; SetUpdated increments Version)
         Name = newName;

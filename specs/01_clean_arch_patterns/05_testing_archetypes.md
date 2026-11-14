@@ -71,7 +71,7 @@ flowchart TD
 | **Pure Domain Realism** | Domain entity tests instantiate 100% real POCOs via static `Create(...)` factories or Hybrid `*Builder`. Mocking domain entities is strictly prohibited. | Domain Layer Test |
 | **Isolated Validator Tests** | FluentValidation rules are verified in dedicated `*ValidatorTests` using `TestValidate()`. UseCase test suites verify strictly the fail-fast orchestration link (1 test). | Validation Testing |
 | **Explicit AAA Arrangement** | Preconditions and stub returns are declared explicitly inside the Arrange phase of each test method. Hidden setups in fixture constructors are prohibited. | Test Readability (DAMP) |
-| **Deterministic Time** | Time assertions and clock queries utilize `FakeTimeProvider` initialized via `TestConstants.CreateFakeClock()`. Prohibit ambient `DateTime.UtcNow`. | Temporal Determinism |
+| **Deterministic Time** | Time assertions and clock queries utilize `FakeTimeProvider` initialized directly (`new FakeTimeProvider(FixedUtcNow)`). Prohibit ambient `DateTime.UtcNow`. | Temporal Determinism |
 | **Memory Isolation in Unit Tests**| Unit tests (`SmkDoc.Tests`) execute 100% in-memory with zero disk or real network dependencies. Real database and container tests reside in `SmkDoc.IntegrationTests`. | Test Velocity & State |
 | **Expressive Assertion Syntax** | Assertions are written exclusively using FluentAssertions (`result.Should().Be(...)`). Primitive assertions (`Assert.True`) are prohibited. | Assertion Semantics |
 | **Granular Single-Behavior Specs**| Every test method verifies exactly 1 behavior named via strict 3-phase convention: `Method_WhenCondition_ShouldExpectedResult`. | Specification Design |
@@ -104,7 +104,7 @@ ValidatorDuplicationGuard:
 
 AmbientClockGuard:
   Invariant: "Tests must not query DateTime.UtcNow or DateTime.Now."
-  ActionOnViolation: "Inject FakeTimeProvider initialized via TestConstants.CreateFakeClock()."
+  ActionOnViolation: "Inject FakeTimeProvider initialized directly with a fixed UTC instant."
 
 InMemoryBoundaryGuard:
   Invariant: "SmkDoc.Tests must never execute disk I/O or connect to external databases."
@@ -164,10 +164,11 @@ SmkDoc.IntegrationTests/
 ```csharp
 public sealed class Create{Aggregate}UseCaseTests
 {
+    private static readonly DateTimeOffset FixedUtcNow = new(2026, 11, 6, 12, 0, 0, TimeSpan.Zero);
     private readonly I{Aggregate}Repository _{aggregate}Repository = Substitute.For<I{Aggregate}Repository>();
     private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
-    private readonly FakeTimeProvider _timeProvider = TestConstants.CreateFakeClock();
+    private readonly FakeTimeProvider _timeProvider = new(FixedUtcNow);
 
     private Create{Aggregate}UseCase CreateSut() =>
         new(_{aggregate}Repository, _projectContext, _unitOfWork, _timeProvider);
@@ -185,7 +186,7 @@ public sealed class Create{Aggregate}UseCaseTests
 
         // Step 3: Assert <Why: verify fail-fast guard and zero side-effects>
         await act.Should().ThrowAsync<TenantContextNotResolvedException>();
-        await _{aggregate}Repository.DidNotReceive().AddAsync(Arg.Any<{Aggregate}>(), Arg.Any<CancellationToken>());
+        _{aggregate}Repository.DidNotReceive().Add(Arg.Any<{Aggregate}>());
         await _unitOfWork.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
     }
 
@@ -206,7 +207,7 @@ public sealed class Create{Aggregate}UseCaseTests
 
         // Step 3: Assert <Why: verify business conflict guard>
         await act.Should().ThrowAsync<ConflictException>();
-        await _{aggregate}Repository.DidNotReceive().AddAsync(Arg.Any<{Aggregate}>(), Arg.Any<CancellationToken>());
+        _{aggregate}Repository.DidNotReceive().Add(Arg.Any<{Aggregate}>());
         await _unitOfWork.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
     }
 
@@ -233,7 +234,7 @@ public sealed class Create{Aggregate}UseCaseTests
         result.Category.Should().Be("General");
         result.Version.Should().Be(1);
 
-        await _{aggregate}Repository.Received(1).AddAsync(Arg.Any<{Aggregate}>(), Arg.Any<CancellationToken>());
+        _{aggregate}Repository.Received(1).Add(Arg.Any<{Aggregate}>());
         await _unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
     }
 }
@@ -243,9 +244,10 @@ public sealed class Create{Aggregate}UseCaseTests
 ```csharp
 public sealed class Update{Aggregate}UseCaseTests
 {
+    private static readonly DateTimeOffset FixedUtcNow = new(2026, 11, 6, 12, 0, 0, TimeSpan.Zero);
     private readonly I{Aggregate}Repository _{aggregate}Repository = Substitute.For<I{Aggregate}Repository>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
-    private readonly FakeTimeProvider _timeProvider = TestConstants.CreateFakeClock();
+    private readonly FakeTimeProvider _timeProvider = new(FixedUtcNow);
 
     // Zero Phantom Context & Zero Ambient Concurrency Mock: pure explicit dependencies
     private Update{Aggregate}UseCase CreateSut() =>
@@ -323,9 +325,9 @@ public sealed class {Aggregate}AggregateTests
     public void Create_WhenArgumentsAreValid_ShouldInstantiateActiveAggregateWithEmptyCollections()
     {
         // Step 1: Arrange & Act <Why: verify canonical factory instantiation>
-        var projectId = new ProjectId(Guid.NewGuid());
+        var projectId = new ProjectId(Guid.CreateVersion7());
         var name = {Aggregate}Name.Create("Sample Name");
-        var slug = new {Aggregate}Slug("sample-slug");
+        var slug = {Aggregate}Slug.Create("sample-slug");
 
         var aggregate = {Aggregate}.Create(projectId, name, slug, "General", _fixedNow);
 
@@ -342,7 +344,7 @@ public sealed class {Aggregate}AggregateTests
     public void Deactivate_WhenAggregateIsActive_ShouldSetIsActiveToFalseAndTrackUpdate()
     {
         // Step 1: Arrange <Why: create active baseline aggregate>
-        var aggregate = {Aggregate}.Create(new ProjectId(Guid.NewGuid()), {Aggregate}Name.Create("Test"), new {Aggregate}Slug("test"), null, _fixedNow);
+        var aggregate = {Aggregate}.Create(new ProjectId(Guid.CreateVersion7()), {Aggregate}Name.Create("Test"), {Aggregate}Slug.Create("test"), null, _fixedNow);
         var laterNow = _fixedNow.AddHours(2);
 
         // Step 2: Act <Why: execute expressive mutation verb>
@@ -415,9 +417,9 @@ public sealed class {Verb}{Aggregate}CommandValidatorTests
 ```csharp
 public sealed class {Aggregate}Builder
 {
-    private ProjectId _projectId = new(Guid.NewGuid());
+    private ProjectId _projectId = new(Guid.CreateVersion7());
     private {Aggregate}Name _name = {Aggregate}Name.Create("Default Name");
-    private {Aggregate}Slug _slug = new("default-slug");
+    private {Aggregate}Slug _slug = {Aggregate}Slug.Create("default-slug");
     private string? _category = "General";
     private bool _isActive = true;
     private DateTimeOffset _now = new(2026, 10, 27, 12, 0, 0, TimeSpan.Zero);
@@ -438,7 +440,7 @@ public sealed class {Aggregate}Builder
 
     public {Aggregate}Builder WithSlug(string slug)
     {
-        _slug = new {Aggregate}Slug(slug);
+        _slug = {Aggregate}Slug.Create(slug);
         return this;
     }
 

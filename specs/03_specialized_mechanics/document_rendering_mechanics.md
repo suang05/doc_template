@@ -20,7 +20,7 @@ Signal: [ARCH_EVOLUTION_RENDERING]
 ### 1.1 Architectural Wiring & Rendering Contracts
 | Direction | Upstream Origin | Current Role (Document Synthesis Core) | Downstream Destination |
 |---|---|---|---|
-| **Render Request** | Application UseCase (`RenderDocumentUseCase`)| Resolves polymorphic engine via factory | `IRenderEngine` Implementation |
+| **Render Request** | Application UseCase (`GenerateDocumentUseCase`)| Resolves polymorphic engine via factory | `IRenderEngine` Implementation |
 | **Data Binding** | Raw JSON Payload + Version Manifest | Binds external datasets & transforms data | `IDataBindingEngine` |
 | **Data Enrichment**| Bound Data JSON | Applies localized formatting (BE +543, currency words) | Strategy `ILocalizedDataFormatter` |
 | **HTML / Chromium**| HTML Template + CSS + Google Fonts | Synthesizes PDF via Gotenberg 8 | Gotenberg HTTP Microservice |
@@ -162,15 +162,8 @@ public sealed class GotenbergHtmlRenderer(HttpClient httpClient)
         var httpResponse = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
         if (!httpResponse.IsSuccessStatusCode)
         {
-            try
-            {
-                var errorDetail = await httpResponse.Content.ReadAsStringAsync(ct);
-                throw new DocumentRenderException($"Gotenberg rendering failed ({httpResponse.StatusCode}): {errorDetail}");
-            }
-            finally
-            {
-                httpResponse.Dispose();
-            }
+            httpResponse.Dispose();
+            throw ExternalServiceException.RenderEngineFailure("GOTENBERG");
         }
 
         // Step 3: Wrap in ResponseDisposingStream <Why: releases HTTP socket when consumer closes stream>
@@ -288,7 +281,7 @@ public sealed class Preview{Resource}UseCase(
             var draft = await draftCache.GetAsync(projectId, query.DraftId, ct)
                 ?? throw new DraftExpiredException(query.DraftId);
             if (!TemplateFormat.TryFromExtension(draft.FileExtension, out var format))
-                throw new DomainValidationException($"Unsupported template file format: '{draft.FileExtension}'.");
+                throw DomainValidationException.UnsupportedFormat(nameof(draft.FileExtension));
 
             engineType = format.DefaultEngineType;
             templateStream = await draftCache.OpenStreamAsync(draft, ct);
@@ -440,8 +433,8 @@ public sealed class Generate{Resource}UseCase(
 
         // Step 2: Ensure <Why: precondition aggregate check & version resolution>
         var aggregate = await repository.FindBySlugWithPublishedVersionAsync(slug, ct);
-        if (aggregate == null || !aggregate.IsActive)
-            throw new NotFoundException($"Template '{slug.Value}' not found or inactive.");
+        if (aggregate is null || !aggregate.IsActive)
+            throw NotFoundException.For<{Aggregate}>(slug.Value);
 
         var currentVersion = aggregate.GetPublishedVersion();
         var generationId = Guid.CreateVersion7();
@@ -594,10 +587,7 @@ public sealed class RenderEngineFactory(IEnumerable<IRenderEngine> engines) : IR
             return engine;
         }
 
-        throw new RenderException(
-            templateSlug: "system",
-            engineType: engineType.ToString(),
-            reason: $"No render engine registered for engine type '{engineType}'.");
+        throw ExternalServiceException.EngineUnavailable(engineType.ToString());
     }
 }
 ```

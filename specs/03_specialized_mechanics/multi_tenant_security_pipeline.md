@@ -31,7 +31,7 @@ flowchart TD
 
     subgraph Defense ["2. Defense Strategy: Defense-in-Depth (3-Tier Guard & 5-Layer Isolation)"]
         direction TB
-        DataPlane --> T1["Tier 1: Perimeter Guard (TenantResolutionMiddleware)\n• Channel A (X-Api-Key) / Channel B (Bearer JWT)\n• Missing Project-Id Header? -> 400 Bad Request (PROJECT_CONTEXT_REQUIRED)\n• Header vs Credential Mismatch? -> 400 Bad Request (PROJECT_CONTEXT_MISMATCH)\n• SuperAdmin without Membership or BreakGlassGrant? -> 403 Forbidden (CROSS_TENANT_ACCESS_DENIED)\n• Project Inactive? -> 403 Forbidden (PROJECT_DEACTIVATED)"]
+        DataPlane --> T1["Tier 1: Perimeter Guard (TenantResolutionMiddleware + ITenantResolutionResolver)\n• Channel A (Authorization: ApiKey) / Channel B (Bearer JWT)\n• Missing Project-Id Header? -> 400 Bad Request (PROJECT_CONTEXT_REQUIRED)\n• API Key vs Project-Id Mismatch? -> 400 Bad Request (PROJECT_CONTEXT_MISMATCH)\n• Member Unknown/Non-Member Project-Id? -> 404 Not Found (NOT_FOUND, Anti-Enumeration)\n• SuperAdmin without Membership or BreakGlassGrant? -> 403 Forbidden (CROSS_TENANT_ACCESS_DENIED)\n• Member's Project Inactive? -> 403 Forbidden (PROJECT_DEACTIVATED)"]
         T1 -- Tenant Resolved & Permitted --> T2["Tier 2: Application Guard (UseCase PEMR in Trusted Zone)\n• Never checks HTTP headers, never throws 401 Unauthorized\n• Evaluates business preconditions & domain context"]
         T2 --> T3["Tier 3: Domain Invariants, EF Filter, Write Interceptor & PostgreSQL RLS\n• Entity Factory Methods (Create) enforce business invariants\n• EF Core Global Query Filter (WHERE IsResolved AND project_id = @Id)\n• TenantWriteEnforcementInterceptor + PostgreSQL RLS (SET LOCAL app.current_project_id)"]
     end
@@ -49,12 +49,12 @@ flowchart TD
 | Architectural Plane | Route Scope | Authorized Principals | Tenancy Resolution Rule | Standing Access Policy |
 |---|---|---|---|---|
 | **Control Plane** | `/api/v1/management/**` | Platform `SuperAdmin` exclusively | Un-tenanted access permitted; operates across tenant containers via explicit route targets. | Full platform administrative oversight (ZSA exemption on management routes). |
-| **Data Plane** | `/api/v1/**` (excluding `/management/`, `/auth/`, `/health/`) | Tenant Users (`Admin`, `Developer`, `Viewer`) & M2M Keys (`ReadOnly`, `ReadWrite`) | **100% Mandatory `Project-Id` Header**. Tier 1 rejects missing `Project-Id` with `400 PROJECT_CONTEXT_REQUIRED` and credential/header mismatches with `400 PROJECT_CONTEXT_MISMATCH`. | **Zero Standing Access (ZSA)**: SuperAdmin rejected with HTTP 403 (`CROSS_TENANT_ACCESS_DENIED`) unless mapped in `UserProjectRole` or holding an active time-boxed audited `BreakGlassGrant`. |
+| **Data Plane** | `/api/v1/**` (excluding `/management/`, `/auth/`, `/health/`) | Tenant Users (`Admin`, `Developer`, `Viewer`) & M2M Keys (`ReadOnly`, `ReadWrite`) | **100% Mandatory `Project-Id` Header**. Tier 1 rejects missing `Project-Id` with `400 PROJECT_CONTEXT_REQUIRED`, API key binding mismatches with `400 PROJECT_CONTEXT_MISMATCH`, and unknown/non-member `Project-Id` lookups for regular JWT users with `404 NOT_FOUND` (anti-enumeration). | **Zero Standing Access (ZSA)**: SuperAdmin rejected with HTTP 403 (`CROSS_TENANT_ACCESS_DENIED`) unless mapped in `UserProjectRole` or holding an active time-boxed audited `BreakGlassGrant`. |
 
 ### 1.3 Dimension 2: Defense-in-Depth Strategy (The 3-Tier Guard Model)
 | Defense Tier | Gatekeeper Component | Operating Environment | Primary Verification Concerns | Rejection Exception & HTTP Status |
 |---|---|---|---|---|
-| **Tier 1: Perimeter Guard** | `TenantResolutionMiddleware` | HTTP Wire Boundary | Identity, route plane, `Project-Id` header extraction, credential-to-header binding, project active status, ZSA / Break-Glass boundary. | `400 Bad Request` (`PROJECT_CONTEXT_REQUIRED`, `PROJECT_CONTEXT_MISMATCH`), `401 Unauthorized`, `403 Forbidden` (`PROJECT_DEACTIVATED`, `CROSS_TENANT_ACCESS_DENIED`, `INSUFFICIENT_KEY_SCOPE`). |
+| **Tier 1: Perimeter Guard** | `TenantResolutionMiddleware` | HTTP Wire Boundary | Identity, route plane, `Project-Id` header extraction, cached `ITenantResolutionResolver` binding & membership check, project active status, ZSA / Break-Glass boundary. | `400 Bad Request` (`PROJECT_CONTEXT_REQUIRED`, `PROJECT_CONTEXT_MISMATCH`), `401 Unauthorized`, `403 Forbidden` (`PROJECT_DEACTIVATED`, `CROSS_TENANT_ACCESS_DENIED`, `INSUFFICIENT_KEY_SCOPE`), `404 Not Found` (`NOT_FOUND`). |
 | **Tier 2: Application Guard** | UseCase PEMR (Step 1 & 2) | Trusted Application Zone | Ambient context binding (`GetRequiredProjectId()`), business uniqueness, aggregate existence (cross-tenant returns `404`), Two-Phase Explicit Concurrency (`ExpectedVersion`), payload schema. | `TenantContextNotResolvedException` (`500`), `NotFoundException` (`404`), `ConflictException` (`409`), `PreconditionFailedException` (`412`), `SchemaValidationException` (`422`). |
 | **Tier 3: Domain, Interceptor & RLS Guard** | Entities, EF Core Interceptors & PostgreSQL RLS | Core Domain & Relational Engine | Aggregate root business invariants, state transition validity, relational row-level tenant filtering (`WHERE project_id = @Id`), `TenantWriteEnforcementInterceptor`, PostgreSQL RLS (`app.current_project_id`), and `version bigint` concurrency token. | `DomainValidationException` (`422`), `BusinessRuleViolationException` (`409`), `DbUpdateConcurrencyException` → `PreconditionFailedException` (`412`). |
 
@@ -77,10 +77,10 @@ flowchart TD
 | **Global Identity Scoping** | `User` is a Global Identity (zero `ProjectId` column, zero `IMustHaveProject`). Multi-project tenancy is mapped exclusively through `UserProjectRole`. | Identity Model |
 | **Delegated Sub-Key Quota** | Project Admins manage operational sub-keys on `/api/v1/api-keys` under a strict budget of maximum 2 active keys per tenant (1 `ReadOnly` + 1 `ReadWrite`), returning `409 Conflict` on duplicate scope. | Key Governance |
 | **Key Masking Wire Egress** | Key list/get endpoints return masked keys derived from authentic components (`$"{KeyPrefix}_{KeyId}_****{KeySuffix}"`). Synthesizing pseudo-suffixes from the hash is prohibited. | Contract Privacy |
-| **Deterministic `Project-Id` Binding**| Data Plane requests require the `Project-Id` header (no `X-` prefix). If `Project-Id` is missing, return `400 PROJECT_CONTEXT_REQUIRED`; if `Project-Id` disagrees with the API key's bound project or JWT's active membership/grant, return `400 PROJECT_CONTEXT_MISMATCH`. | Tenant Extraction |
+| **Deterministic `Project-Id` Binding**| Data Plane requests require the `Project-Id` header (no `X-` prefix). Missing `Project-Id` returns `400 PROJECT_CONTEXT_REQUIRED`; API key binding mismatch returns `400 PROJECT_CONTEXT_MISMATCH`; unknown or non-member `Project-Id` lookup by a regular JWT user returns `404 NOT_FOUND` (anti-enumeration). | Tenant Extraction |
 | **Perimeter Scope Enforcement** | Channel A keys with `ApiKeyScope.ReadOnly` are blocked at `TenantResolutionMiddleware` from executing mutating HTTP verbs (`POST`/`PUT`/`PATCH`/`DELETE`) returning `403 Forbidden` (`INSUFFICIENT_KEY_SCOPE`), permitting only stateless `/preview` and `/validate`. | Perimeter Firewall |
 | **Authenticated Preview Protection**| Preview endpoints require authenticated tenant context to resolve templates and protect Gotenberg Chromium pods. Anonymous public access to `/preview` is prohibited. | Render Perimeter |
-| **Tenant Idempotency Partition**| Distributed idempotency keys are persisted in PostgreSQL `idempotency_records` partitioned strictly by `(project_id, credential_id, idempotency_key)` with SHA-256 request fingerprint. Shared caller keying is prohibited. | Idempotency Partitioning |
+| **Tenant Idempotency Partition**| Distributed idempotency keys are persisted in PostgreSQL `idempotency_keys` partitioned strictly by `(project_id, credential_id, idempotency_key)` with SHA-256 request fingerprint. Shared caller keying is prohibited. | Idempotency Partitioning |
 
 ---
 
@@ -92,7 +92,7 @@ The gateway strictly segregates external automated traffic (Channel A) from inte
 ```mermaid
 graph TD
     Request["Incoming HTTP Request"] --> AuthCheck{"Which Auth Header Is Present?"}
-    AuthCheck -->|"X-Api-Key (Channel A: M2M)"| ChannelA["ApiKeyVerifier: KeyId Lookup + HMAC-SHA256 + FixedTimeEquals"]
+    AuthCheck -->|"Authorization: ApiKey (Channel A: M2M)"| ChannelA["ApiKeyVerifier: KeyId Lookup + HMAC-SHA256 + FixedTimeEquals"]
     AuthCheck -->|"Authorization: Bearer (Channel B: JWT)"| ChannelB["JWT Handler: Signature + Claims Validation"]
     ChannelA -->|"Valid Key + Matching Project-Id"| M2MHydrate["Hydrate ClaimsPrincipal (Role: M2MClient) & ReadOnly Verb Guard"]
     ChannelB -->|"Valid Token + Verified Membership/BreakGlass"| JWTHydrate["Hydrate ClaimsPrincipal (SuperAdmin / RoleType Claims)"]
@@ -154,21 +154,22 @@ Identity is partitioned into Platform-level `SystemRole`, Tenant-level `RoleType
 | **Channel A (M2M)** | **Tier 3: External Integration** (`ApiKeyScope`)| `ReadWrite` (`M2MClient`) | External ERP/CRM: document generation, async queueing, asset download, and template CRUD. |
 
 ### 2.4 RFC 9457 Uniform ProblemDetails & Status Code Translation Matrix
-> **SSoT Delegation:** The authoritative exception-to-HTTP status mapping table is governed in [06_api_contract_standards.md §3.3](../00_architecture_core/06_api_contract_standards.md#33-uniform-exception-status-code--problem-type-catalogue-ssot). The tenancy and security perimeter subset is summarized below:
+> **SSoT Delegation:** The authoritative exception-to-HTTP status mapping table is governed in [06_api_contract_standards.md §3.3](../00_architecture_core/06_api_contract_standards.md#33-rfc-9457-problemdetails--the-exception-catalogue-ssot). The tenancy and security perimeter subset is summarized below:
 
 | Exception / Condition | Origin Tier | HTTP Status | RFC 9457 ErrorCode | ProblemDetails Title |
 |---|---|---|---|---|
 | Client Missing `Project-Id` Header | Tier 1: Perimeter | `400 Bad Request` | `PROJECT_CONTEXT_REQUIRED` | Project Context Required |
-| `Project-Id` vs Credential Mismatch | Tier 1: Perimeter | `400 Bad Request` | `PROJECT_CONTEXT_MISMATCH` | Project Context Mismatch |
+| `Project-Id` vs API Key Binding Mismatch | Tier 1: Perimeter | `400 Bad Request` | `PROJECT_CONTEXT_MISMATCH` | Project Context Mismatch |
 | Invalid API Key / Expired JWT | Tier 1: Perimeter | `401 Unauthorized` | `UNAUTHORIZED` | Unauthorized |
-| Project Deactivated | Tier 1: Perimeter | `403 Forbidden` | `PROJECT_DEACTIVATED` | Project Deactivated |
+| Project Deactivated (Member Caller) | Tier 1: Perimeter | `403 Forbidden` | `PROJECT_DEACTIVATED` | Project Deactivated |
 | SuperAdmin Data Plane Access Breach (Plane-Level) | Tier 1: Perimeter | `403 Forbidden` | `CROSS_TENANT_ACCESS_DENIED` | Cross-Tenant Access Denied |
 | ReadOnly Key Mutation Attempt | Tier 1: Perimeter | `403 Forbidden` | `INSUFFICIENT_KEY_SCOPE` | Insufficient Key Scope |
-| `NotFoundException` (including Cross-Tenant Resource Lookup) | Tier 2: Application | `404 Not Found` | `{ENTITY}_NOT_FOUND` | Resource Not Found |
-| `ConflictException` (Duplicate Business Key) | Tier 2: Application | `409 Conflict` | `{ENTITY}_CONFLICT` | Conflict |
-| `BusinessRuleViolationException` | Tier 3: Domain | `409 Conflict` | `{DomainErrorCode}` | Business Rule Violation |
+| `NotFoundException` (Missing Resource, Cross-Tenant Resource, or Unknown/Non-Member Project) | Tier 1 / Tier 2 | `404 Not Found` | `NOT_FOUND` (or `{RESOURCE}_NOT_FOUND`) | Resource Not Found |
+| `ConflictException` (Duplicate Business Key) | Tier 2: Application | `409 Conflict` | `RESOURCE_CONFLICT` (or `DUPLICATE_*`) | Conflict |
+| `BusinessRuleViolationException` | Tier 3: Domain | `409 Conflict` | `BUSINESS_RULE_VIOLATION` | Business Rule Violation |
 | `PreconditionFailedException` / `DbUpdateConcurrencyException` | Tier 2 / Tier 3 | `412 Precondition Failed`| `PRECONDITION_FAILED` | Precondition Failed |
-| `DomainValidationException` | Tier 3: Domain | `422 Unprocessable Entity` | `DOMAIN_VALIDATION_ERROR` | Domain Validation Error |
+| `DomainValidationException` / `ValidationException` | Tier 2 / Tier 3 | `422 Unprocessable Entity` | `VALIDATION_FAILED` | Validation Failed |
+| `SchemaValidationException` | Tier 2: Application | `422 Unprocessable Entity` | `SCHEMA_VALIDATION_FAILED` | Schema Validation Failed |
 | `TenantContextNotResolvedException` | Tier 2 / Tier 3 | `500 Internal Server Error` | `TENANT_CONTEXT_NOT_RESOLVED` | Internal Server Error |
 
 ### 2.5 Proactive Tenancy Firewalls
@@ -224,14 +225,28 @@ public sealed class ApiKeyVerifier(
         if (record.ExpiresAt is { } expiry && expiry <= timeProvider.GetUtcNow())
             return ApiKeyAuthResult.Fail();
 
-        // Step 3: Compute Keyed HMAC-SHA256 with KMS Pepper & Constant-Time Compare on Byte Spans
-        var pepperBytes = Convert.FromBase64String(securityOptions.Value.HmacPepperBase64);
-        var computedHash = HMACSHA256.HashData(pepperBytes, Encoding.UTF8.GetBytes(secret));
-
-        if (!CryptographicOperations.FixedTimeEquals(computedHash, record.SecretHashBytes.Span))
+        // Step 3: Compute Keyed HMAC-SHA256 with KMS Pepper & Constant-Time Compare on stackalloc spans (zero heap churn)
+        if (!VerifySecret(secret, record.SecretHashBytes.Span, securityOptions.Value.HmacPepperBase64))
             return ApiKeyAuthResult.Fail();
 
         return ApiKeyAuthResult.Success(record.Id, record.ProjectId, record.Scopes);
+    }
+
+    public bool VerifySecret(ReadOnlySpan<char> providedSecret, ReadOnlySpan<byte> storedKeyHash, string pepperBase64)
+    {
+        if (providedSecret.Length is < 32 or > 256 || storedKeyHash.Length != HMACSHA256.HashSizeInBytes)
+            return false;
+
+        Span<byte> pepper = stackalloc byte[32];
+        if (!Convert.TryFromBase64String(pepperBase64, pepper, out var pepperLen))
+            return false;
+
+        Span<byte> secretUtf8 = stackalloc byte[Encoding.UTF8.GetMaxByteCount(providedSecret.Length)];
+        int byteCount = Encoding.UTF8.GetBytes(providedSecret, secretUtf8);
+
+        Span<byte> computed = stackalloc byte[HMACSHA256.HashSizeInBytes];
+        HMACSHA256.HashData(pepper[..pepperLen], secretUtf8[..byteCount], computed);
+        return CryptographicOperations.FixedTimeEquals(computed, storedKeyHash);
     }
 
     private static bool TryParseKey(string raw, out string keyId, out string secret)
@@ -243,7 +258,7 @@ public sealed class ApiKeyVerifier(
             return false;
         keyId = parts[2];
         secret = parts[3];
-        return keyId.Length == 12 && secret.Length >= 32;
+        return keyId.Length == 12 && secret.Length is >= 32 and <= 256;
     }
 }
 
@@ -253,7 +268,7 @@ public sealed class TenantResolutionMiddleware(RequestDelegate next)
         HttpContext context,
         ICurrentProjectContextSetter projectContextSetter,
         IApiKeyVerifier apiKeyVerifier,
-        AppDbContext dbContext,
+        ITenantResolutionResolver tenantResolver,
         TimeProvider timeProvider)
     {
         var path = context.Request.Path.Value ?? string.Empty;
@@ -269,10 +284,12 @@ public sealed class TenantResolutionMiddleware(RequestDelegate next)
             headerProjectId = new ProjectId(parsedProjectGuid);
         }
 
-        // Step 2: Channel A (M2M X-Api-Key) Authentication
-        if (context.Request.Headers.TryGetValue("X-Api-Key", out var apiKeyValues) && !string.IsNullOrWhiteSpace(apiKeyValues))
+        // Step 2: Channel A (M2M Authorization: ApiKey smk_live_{keyId}_{secret}) Authentication
+        var authHeader = context.Request.Headers.Authorization.ToString();
+        if (authHeader.StartsWith("ApiKey ", StringComparison.OrdinalIgnoreCase))
         {
-            var authResult = await apiKeyVerifier.VerifyAsync(apiKeyValues.ToString().Trim(), context.RequestAborted);
+            var rawApiKey = authHeader["ApiKey ".Length..].Trim();
+            var authResult = await apiKeyVerifier.VerifyAsync(rawApiKey, context.RequestAborted);
             if (!authResult.IsSuccess)
             {
                 await WriteProblemAsync(context, StatusCodes.Status401Unauthorized, "UNAUTHORIZED", "Invalid API Key", "The API key is invalid or expired.");
@@ -344,17 +361,24 @@ public sealed class TenantResolutionMiddleware(RequestDelegate next)
 
             var targetProjectId = headerProjectId.Value;
             var now = timeProvider.GetUtcNow();
-            var hasMembership = await dbContext.UserProjectRoles.AsNoTracking()
-                .AnyAsync(u => u.ProjectId == targetProjectId && u.UserId == userId!.Value, context.RequestAborted);
+            var resolution = await tenantResolver.ResolveAccessAsync(targetProjectId, userId!.Value, isSuperAdmin, now, context.RequestAborted);
 
-            var hasBreakGlass = !hasMembership && isSuperAdmin && await dbContext.BreakGlassGrants.AsNoTracking()
-                .AnyAsync(g => g.ProjectId == targetProjectId && g.SuperAdminUserId == userId!.Value && g.ExpiresAt > now, context.RequestAborted);
-
-            if (!hasMembership && !hasBreakGlass)
+            if (!resolution.IsAllowed)
             {
-                var errorCode = isSuperAdmin ? "CROSS_TENANT_ACCESS_DENIED" : "PROJECT_CONTEXT_MISMATCH";
-                var status = isSuperAdmin ? StatusCodes.Status403Forbidden : StatusCodes.Status400BadRequest;
-                await WriteProblemAsync(context, status, errorCode, "Tenant Access Denied", "Caller lacks membership or active break-glass grant for target tenant.");
+                if (isSuperAdmin && !resolution.IsMember && !resolution.HasActiveBreakGlass)
+                {
+                    await WriteProblemAsync(context, StatusCodes.Status403Forbidden, "CROSS_TENANT_ACCESS_DENIED", "Cross-Tenant Access Denied", "SuperAdmin requires membership or an active Break-Glass grant on the Data Plane.");
+                    return;
+                }
+
+                if (resolution.IsProjectDeactivated && (resolution.IsMember || resolution.HasActiveBreakGlass))
+                {
+                    await WriteProblemAsync(context, StatusCodes.Status403Forbidden, "PROJECT_DEACTIVATED", "Project Deactivated", "The target project is deactivated.");
+                    return;
+                }
+
+                // Anti-enumeration: unknown or non-member Project-Id returns 404 NOT_FOUND
+                await WriteProblemAsync(context, StatusCodes.Status404NotFound, "NOT_FOUND", "Resource Not Found", "The requested project was not found.");
                 return;
             }
 
@@ -408,16 +432,15 @@ public sealed class Update{Aggregate}UseCase(
 {
     public async Task<{Aggregate}ResultDto> ExecuteAsync(Update{Aggregate}Command command, CancellationToken ct)
     {
-        // Step 1: Parse & Guard <Why: input validation only; ambient tenancy secured by Tier 1 & EF filter + RLS>
-        var id = new {Aggregate}Id(command.Id);
+        // Step 1: Parse & Guard <Why: input validation only; command.Id already wrapped by Controller, tenancy secured by Tier 1 & EF filter + RLS>
         var name = {Aggregate}Name.Create(command.Name);
 
         // Step 2: Ensure Preconditions <Why: 404 on missing/other-tenant row; 412 on stale ExpectedVersion>
-        var entity = await repository.FindByIdAsync(id, ct)
-            ?? throw new NotFoundException(nameof({Aggregate}), command.Id);
+        var entity = await repository.FindByIdAsync(command.Id, ct)
+            ?? throw NotFoundException.For<{Aggregate}>(command.Id.Value);
 
         if (entity.Version != command.ExpectedVersion)
-            throw new PreconditionFailedException(nameof({Aggregate}), command.Id, command.ExpectedVersion, entity.Version);
+            throw PreconditionFailedException.VersionMismatch();
 
         // Step 3: Mutate Domain State <Why: advance state, UpdatedAt, and Version via SetUpdated(now)>
         var now = timeProvider.GetUtcNow();
@@ -443,7 +466,7 @@ public sealed class {Aggregate} : AggregateRoot<{Aggregate}Id>, IMustHaveProject
     {
         // Step 1: Invariant Guard <Why: enforce valid tenant assignment and non-empty identity>
         if (projectId == ProjectId.Empty)
-            throw new DomainValidationException("Aggregate must be assigned to an authentic tenant.");
+            throw DomainValidationException.Required(nameof(projectId));
 
         return new {Aggregate}
         {
@@ -545,9 +568,11 @@ protected override void OnModelCreating(ModelBuilder modelBuilder)
 + if (isManagementRoute && isSuperAdmin) {
 +     projectContextSetter.SetProject(targetProjectId);
 + } else {
-+     var hasAccess = hasMembership || hasActiveBreakGlassGrant;
-+     if (!hasAccess) return 403 Forbidden (CROSS_TENANT_ACCESS_DENIED);
++     var resolution = await tenantResolver.ResolveAccessAsync(targetProjectId, userId, isSuperAdmin, now, ct);
++     if (!resolution.IsAllowed) return isSuperAdmin
++         ? Problem(403, "CROSS_TENANT_ACCESS_DENIED")
++         : Problem(404, "NOT_FOUND"); // Anti-enumeration for regular Member callers
 +     projectContextSetter.SetProject(targetProjectId);
 + }
 ```
-*Rationale: Giving platform SuperAdmin permanent standing read/write access to customer templates, datasets, and rendered documents violates SOC 2 Type II, ISO 27001, and Separation of Duties (SoD). SuperAdmin operates strictly within the Control Plane (`/api/v1/management/**`). On Data Plane routes, every interactive caller without an explicit `UserProjectRole` row or an active time-boxed audited `BreakGlassGrant` is rejected with `403 Forbidden` (`CROSS_TENANT_ACCESS_DENIED`).*
+*Rationale: Giving platform SuperAdmin permanent standing read/write access to customer templates, datasets, and rendered documents violates SOC 2 Type II, ISO 27001, and Separation of Duties (SoD). SuperAdmin operates strictly within the Control Plane (`/api/v1/management/**`). On Data Plane routes, every SuperAdmin without an explicit `UserProjectRole` row or an active time-boxed audited `BreakGlassGrant` is rejected with `403 Forbidden` (`CROSS_TENANT_ACCESS_DENIED`), while regular `Member` lookups against an unknown or un-membered `Project-Id` return `404 Not Found` (`NOT_FOUND`) for anti-enumeration.*

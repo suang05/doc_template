@@ -37,7 +37,7 @@ Signal: [ARCH_EVOLUTION_DATABASE]
 | **Child Filter Alignment** | All child entities in an aggregate declare matching Global Query Filters through navigation properties (`v.Template != null && IsTenantResolved && v.Template.ProjectId == CurrentTenantId`) to eliminate EF Core warning 10622. | Query Filter Integrity |
 | **Composite Unique Indexes** | Unique constraints on tenant-scoped entities combine `(project_id, slug)` or `(project_id, identifier)`. Global unique indexes on tenant entities are prohibited. | Index Strategy |
 | **Cascade Boundary Rules** | `DeleteBehavior.Cascade` is strictly restricted to owned child entities within the same aggregate root (`Template` -> `TemplateVersion`). Cross-aggregate foreign keys enforce `DeleteBehavior.Restrict`. | Referential Integrity |
-| **Runtime Query Footprint Isolation** | Production document generation queries (`TemplateRepository.GetBySlugWithDetailsAsync`) fetch strictly the template and its published version, excluding historical version collections (`.Include(t => t.Versions)`). Eager loading historical versions in hot paths is prohibited. | Query Footprint & Throughput |
+| **Runtime Query Footprint Isolation** | Production document generation queries (`TemplateRepository.FindBySlugWithPublishedVersionAsync`) fetch strictly the template and its published version, excluding historical version collections (`.Include(t => t.Versions)`). Eager loading historical versions in hot paths is prohibited. | Query Footprint & Throughput |
 | **Optimistic Concurrency Engine**| Mutable entities implement `IConcurrencyAware` (`long Version`, incremented by `SetUpdated(now)`). Concurrency is mapped in EF Core via `builder.Property(e => e.Version).HasColumnName("version").IsConcurrencyToken()`, serialized on the wire as strong `ETag: "v{version}"`, and translated on `DbUpdateConcurrencyException` to `412 PreconditionFailedException`. Timestamp-based concurrency tokens and ambient `IConcurrencyContext` are prohibited. | Concurrency Control |
 | **Unstructured Document Storage**| Dynamic schemas, layout trees, and JSON bindings utilize PostgreSQL `jsonb` with optional GIN indexes for queried keys. Relational decomposition of volatile schema trees is prohibited. | Document Storage |
 | **Zero-Downtime Migration Policy**| Database migrations follow the Expand and Contract pattern: adding nullable columns first, backfilling, and dropping columns in a subsequent deployment. Breaking single-phase column drops are prohibited. | Migration Lifecycle |
@@ -95,8 +95,8 @@ Every entity in the database belongs to one of three multi-tenant tiers:
 
 | Tenancy Tier | Identifying Contract | EF Core Global Query Filter | Referential Rule |
 |---|---|---|---|
-| **Tier 1: Tenant-Root Aggregate** | Implements `IMustHaveProject` | `e.ProjectId == CurrentTenantId` | Foreign key to `projects` table (`DeleteBehavior.Cascade` allowed only from Project) |
-| **Tier 2: Child Member of Tenant Aggregate** | Navigates to Parent Aggregate | `v.Parent != null && v.Parent.ProjectId == CurrentTenantId` | Foreign key to Parent (`DeleteBehavior.Cascade`); matches Parent tenant filter |
+| **Tier 1: Tenant-Root Aggregate** | Implements `IMustHaveProject` | `IsTenantResolved && e.ProjectId == CurrentTenantId` | Foreign key to `projects` table (`DeleteBehavior.Cascade` allowed only from Project) |
+| **Tier 2: Child Member of Tenant Aggregate** | Navigates to Parent Aggregate | `v.Parent != null && IsTenantResolved && v.Parent.ProjectId == CurrentTenantId` | Foreign key to Parent (`DeleteBehavior.Cascade`); matches Parent tenant filter |
 | **Tier 3: Platform Governance Entity** | Does NOT implement `IMustHaveProject` | Unfiltered (Access governed strictly by `RequireSuperAdmin`) | Global entities (`projects`, `users`, `companies`, `platform_api_keys`) |
 
 ### 2.4 Zero-Downtime Migration & Evolution Protocol

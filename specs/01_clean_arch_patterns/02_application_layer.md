@@ -51,7 +51,7 @@ flowchart TD
 * **Zero Perimeter Duplication**: Application UseCases must NEVER re-parse HTTP headers, validate API keys, inspect JWT tokens, or throw `401 Unauthorized`. Tier 1 Perimeter Guard guarantees identity and route plane clearance before any UseCase is invoked.
 * **Archetype Tactical Selection Matrix**:
   * **Archetype A (`Create{Aggregate}`, MinIO Storage, DraftCache, Tenant ApiKey)**: Injects `ICurrentProjectContext` and calls `var projectId = projectContext.GetRequiredProjectId();` in Step 1. Throws `TenantContextNotResolvedException` (`TENANT_CONTEXT_NOT_RESOLVED`, `500 Internal Server Error`) if invoked without a resolved tenant (which can only occur via a programming defect bypassing Tier 1).
-  * **Archetype B (`GetById`, `Update`, `Delete`, `List`, `Preview`)**: Strictly **prohibited** from injecting `ICurrentProjectContext`. Operates on aggregate IDs or collection queries where tenant isolation is guaranteed by the 5-Layer Defense-in-Depth Isolation Architecture ([01_system_architecture.md](../00_architecture_core/01_system_architecture.md#15-multi-tenant-isolation-architecture)). Because Global Query Filters and PostgreSQL RLS filter by active `ProjectId`, any attempt to access another tenant's resource ID returns `null` from `FindByIdAsync` and throws `NotFoundException` (`404 Not Found`), eliminating cross-tenant existence enumeration oracles. (`403 CROSS_TENANT_ACCESS_DENIED` is reserved strictly for plane-level denial at Tier 1.)
+  * **Archetype B (`GetById`, `Update`, `Delete`, `List`, `Preview`)**: Strictly **prohibited** from injecting `ICurrentProjectContext`. Operates on aggregate IDs or collection queries where tenant isolation is guaranteed by the 5-Layer Defense-in-Depth Isolation Architecture ([01_system_architecture.md](../00_architecture_core/01_system_architecture.md#113-tenant-isolation-layered-fail-closed)). Because Global Query Filters and PostgreSQL RLS filter by active `ProjectId`, any attempt to access another tenant's resource ID returns `null` from `FindByIdAsync` and throws `NotFoundException` (`404 Not Found`), eliminating cross-tenant existence enumeration oracles. (`403 CROSS_TENANT_ACCESS_DENIED` is reserved strictly for plane-level denial at Tier 1.)
 
 ### 1.2 Architectural Wiring & Layer Contracts
 | Direction | Upstream Origin | Current Layer Role (Application Orchestrator) | Downstream Destination |
@@ -61,7 +61,7 @@ flowchart TD
 | **Domain Mutation** | Validated Command | Checks `entity.Version != command.ExpectedVersion` (`412`) & invokes Verb | Domain Aggregate (`{Aggregate}.Create(...)` or `{Aggregate}.{Verb}(...)`) |
 | **Persistence** | Mutated Aggregate | Commits transaction & writes `OutboxMessage` rows atomically | Unit of Work (`IUnitOfWork.CommitAsync(ct)`) |
 | **Outbound Egress** | Mutated State | Maps directly to immutable Application DTO or Stream | Presentation Layer (`{Aggregate}ResultDto` / `Stream`) |
-| **Side-Effects** | `outbox_messages` Table | Relayed asynchronously at-least-once by background worker | `OutboxRelayProcessor` (Audit, Webhooks, Cache) |
+| **Side-Effects** | `outbox_messages` Table | Relayed asynchronously at-least-once by background worker | `OutboxRelayWorker` (Audit, Webhooks, Cache) |
 
 ### 1.3 Affirmative Application Orchestration Invariants
 | Application Architectural Concern | Affirmative Application Invariant (Positive SSoT Law) | Boundary Vector |
@@ -115,8 +115,7 @@ public interface IUnitOfWork
 
 public interface ICurrentProjectContext
 {
-    bool HasProject { get; }
-    ProjectId? ProjectId { get; }
+    bool IsResolved { get; }
     ProjectId GetRequiredProjectId();
     bool TryGetProjectId(out ProjectId projectId);
 }
@@ -180,7 +179,7 @@ ZeroPhantomContextFirewall:
 >> MANDATORY CANONICAL BLUEPRINT [RULE-APP-CMD-001]:
 * Co-located inside `Modules/{BoundedContext}/{Aggregate}/Commands/Create{Aggregate}/` with strictly 1 primary public type per `.cs` file.
 * **When to Use Archetype A**: Used when creating brand-new domain entities, provisioning tenant storage assets (MinIO), storing drafts in DraftCache, or managing tenant API keys/users.
-* **Tenancy & Value Object Normalization**: Injects `ICurrentProjectContext`, resolves `var projectId = projectContext.GetRequiredProjectId();`, and constructs/normalizes all Domain Value Objects (`{Aggregate}Name.Create`, `{Aggregate}Slug.Create`) in Step 1 **before** querying `SlugExistsAsync(projectId, slug, ct)` in Step 2 ([TRAP-TENANT-024](../00_architecture_core/05_anti_pattern_firewall.md#trap-tenant-024--archetype-a-missing-iprojectcontext--un-normalized-uniqueness-checks-critical)).
+* **Tenancy & Value Object Normalization**: Injects `ICurrentProjectContext`, resolves `var projectId = projectContext.GetRequiredProjectId();`, and constructs/normalizes all Domain Value Objects (`{Aggregate}Name.Create`, `{Aggregate}Slug.Create`) in Step 1 **before** querying `SlugExistsAsync(projectId, slug, ct)` in Step 2 ([TRAP-TENANT-024](../00_architecture_core/05_anti_pattern_firewall.md#trap-tenant-024--archetype-a-missing-icurrentprojectcontext--un-normalized-uniqueness-checks-critical)).
 * Executes strictly via the 4-step PEMR (Parse & Guard, Preconditions, Mutate, Return) pipeline.
 
 ```csharp
@@ -210,7 +209,7 @@ public sealed record {Aggregate}ResultDto(
     bool IsActive,
     DateTimeOffset CreatedAt,
     DateTimeOffset? UpdatedAt,
-    long Version = 1) : IHasVersion;
+    [property: JsonIgnore] long Version = 1) : IHasVersion;
 
 public sealed record {Aggregate}PagedResultDto(
     IReadOnlyList<{Aggregate}ResultDto> Items,
@@ -241,7 +240,7 @@ public sealed class Create{Aggregate}UseCase(
         // Step 3: Mutate Domain State <Why: enforce aggregate business invariants>
         var now = timeProvider.GetUtcNow();
         var aggregate = {Aggregate}.Create(projectId, name, slug, command.Category, now);
-        await {aggregate}Repository.AddAsync(aggregate, ct);
+        {aggregate}Repository.Add(aggregate);
 
         // Step 4: Commit & Egress <Why: atomic persistence + Outbox in a single fast DB transaction>
         await unitOfWork.CommitAsync(ct);
@@ -361,7 +360,8 @@ public sealed class CachedTemplateRenderer(
         var mergedHtml = compiledTemplate.Render(payloadJson);
 
         // Step 3: Stream to Render Engine <Why: bounded pooled stream egress>
-        return await renderEngine.RenderStreamAsync(mergedHtml, ct);
+        await using var htmlStream = await HybridSpoolStream.CreateFromUtf8StringAsync(mergedHtml, ct: ct);
+        return await renderEngine.RenderStreamAsync(htmlStream, "{}", OutputFormat.Pdf, ct);
     }
 }
 ```
@@ -489,7 +489,7 @@ public static class {BoundedContext}ModuleExtensions
 ### [TRAP-APP-003]: Transaction Boundary: Uncommitted Mutations
 ```diff
 - await {aggregate}Repository.AddAsync(aggregate, ct); return aggregate.ToResultDto();
-+ await {aggregate}Repository.AddAsync(aggregate, ct); await unitOfWork.CommitAsync(ct); return aggregate.ToResultDto();
++ {aggregate}Repository.Add(aggregate); await unitOfWork.CommitAsync(ct); return aggregate.ToResultDto();
 ```
 *Rationale: Adding an entity to repository without calling `unitOfWork.CommitAsync(ct)` results in silent loss of state changes.*
 
@@ -560,4 +560,4 @@ public static class {BoundedContext}ModuleExtensions
 ```
 *Rationale: Deferring ETag validation to CommitAsync wastes CPU cycles on domain mutations and risks executing irreversible external I/O (S3 uploads, Gotenberg rendering) for requests doomed to fail HTTP 412.*
 
->> SSoT DELEGATION: Document rendering pipeline composition, data binding integration, and anemic pass-through wrapper prohibitions are governed strictly by [document_rendering_mechanics.md](../03_specialized_mechanics/document_rendering_mechanics.md#trap-mech-008).
+>> SSoT DELEGATION: Document rendering pipeline composition, data binding integration, and anemic pass-through wrapper prohibitions are governed strictly by [document_rendering_mechanics.md](../03_specialized_mechanics/document_rendering_mechanics.md#trap-mech-008-pass-through-indirection-wrapper-or-intermediate-pipeline-in-rendering).

@@ -164,41 +164,50 @@ async function proxy(request: NextRequest, { params }: { params: Promise<{ path:
   }
 
   const hasBody = request.method !== 'GET' && request.method !== 'HEAD';
+  const contentType = request.headers.get('content-type') ?? '';
+  const isMultipart = contentType.startsWith('multipart/form-data');
+  // Buffer bounded non-multipart bodies once so 401 silent refresh retries stay replayable (ReadableStream is single-use)
+  const replayableBody = hasBody && !isMultipart ? await request.arrayBuffer() : undefined;
 
-  // Step 4: Dispatch Request via Duplex Stream <Why: direct response pass-through without memory buffering>
+  // Step 4: Dispatch Request <Why: direct pass-through for streams; replayable buffer for retryable API mutations>
   let backendResponse = await fetch(targetUrl, {
     method: request.method,
     headers,
-    body: hasBody ? request.body : undefined,
-    duplex: hasBody ? 'half' : undefined,
+    body: replayableBody ?? (hasBody ? request.body : undefined),
+    duplex: hasBody && !replayableBody ? 'half' : undefined,
   } as RequestInit);
 
+  let rotatedSetCookie: string | null = null;
+
   // Step 5: Transparent Silent Refresh on 401 Unauthorized <Why: prevent abrupt user session drops on access token expiry>
-  if (backendResponse.status === 401 && session?.refreshToken) {
-    const refreshResponse = await fetch(`${BACKEND_INTERNAL_URL}/api/v1/auth/refresh`, {
+  if (backendResponse.status === 401 && (!hasBody || replayableBody !== undefined)) {
+    // Delegate refresh inside the trusted BFF so rotated httpOnly cookies persist back to the browser
+    const refreshResponse = await fetch(`${request.nextUrl.origin}/api/auth/refresh`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refreshToken: session.refreshToken }),
+      headers: { cookie: request.headers.get('cookie') ?? '' },
     });
 
     if (refreshResponse.ok) {
       const refreshPayload = await refreshResponse.json();
       const newAccessToken = refreshPayload.data.accessToken;
+      rotatedSetCookie = refreshResponse.headers.get('set-cookie');
 
-      // Retry original request once with fresh access token
+      // Retry original request once with fresh access token and replayable body
       headers.set('Authorization', `Bearer ${newAccessToken}`);
       backendResponse = await fetch(targetUrl, {
         method: request.method,
         headers,
-        body: hasBody ? request.body : undefined,
-        duplex: hasBody ? 'half' : undefined,
-      } as RequestInit);
+        body: replayableBody,
+      });
     }
   }
 
   const responseHeaders = new Headers(backendResponse.headers);
   responseHeaders.delete('content-encoding');
   responseHeaders.delete('content-length');
+  if (rotatedSetCookie) {
+    responseHeaders.append('set-cookie', rotatedSetCookie);
+  }
 
   return new Response(backendResponse.body, {
     status: backendResponse.status,
@@ -247,7 +256,7 @@ export default async function TemplateDetailsPage({ params }: PageProps) {
 }
 ```
 
-### 3.3 Real-Time Live Preview Pipeline Hook Archetype (`useLivePreview.ts`)
+### 3.3 Real-Time Live Preview Pipeline Hook Archetype (`use-live-preview.ts`)
 >> MANDATORY CANONICAL BLUEPRINT [RULE-FRONT-003]:
 * Debounces live preview calls by at least 800ms to avoid Gotenberg engine thrashing.
 * Cancels inflight HTTP requests via `AbortController` before issuing new preview calls.
@@ -657,17 +666,19 @@ export function useUpdateTemplate() {
 
 ### [TRAP-FRONT-007]: Unhandled 401 Session Drop in API Proxy
 ```diff
-  let backendResponse = await fetch(targetUrl, { method: request.method, headers, body });
-- // Returning 401 directly drops active user session when 15-minute access token expires!
+  const replayableBody = hasBody && !isMultipart ? await request.arrayBuffer() : undefined;
+  let backendResponse = await fetch(targetUrl, { method: request.method, headers, body: replayableBody ?? request.body });
+- // Returning 401 directly (or retrying a consumed ReadableStream without updating httpOnly cookies) drops or corrupts sessions!
 - return new Response(backendResponse.body, { status: backendResponse.status });
-+ if (backendResponse.status === 401 && session?.refreshToken) {
-+   // Transparent silent refresh on server side before failing to client
-+   const refreshRes = await fetch(`${BACKEND_INTERNAL_URL}/api/v1/auth/refresh`, { ... });
++ if (backendResponse.status === 401 && (!hasBody || replayableBody !== undefined)) {
++   // Transparent silent refresh via BFF /api/auth/refresh + forward Set-Cookie to browser
++   const refreshRes = await fetch(`${request.nextUrl.origin}/api/auth/refresh`, { method: 'POST', headers: { cookie } });
 +   if (refreshRes.ok) {
 +     headers.set('Authorization', `Bearer ${newAccessToken}`);
-+     backendResponse = await fetch(targetUrl, { method: request.method, headers, body });
++     responseHeaders.append('set-cookie', refreshRes.headers.get('set-cookie') ?? '');
++     backendResponse = await fetch(targetUrl, { method: request.method, headers, body: replayableBody });
 +   }
 + }
-+ return new Response(backendResponse.body, { status: backendResponse.status });
++ return new Response(backendResponse.body, { status: backendResponse.status, headers: responseHeaders });
 ```
-*Rationale: Failing to intercept 401 in the Next.js reverse proxy abruptly disconnects active template designers upon short-lived JWT expiration. Transparent server-side silent refresh using the httpOnly refresh token preserves active Monaco Studio sessions without interrupting user input.*
+*Rationale: Failing to intercept 401 in the Next.js reverse proxy abruptly disconnects active template designers upon short-lived JWT expiration, while retrying a consumed `ReadableStream` throws `Body is unusable` and skipping `Set-Cookie` forwarding leaves expired cookies in the browser. Transparent server-side silent refresh via `/api/auth/refresh` with replayable bounded bodies and `httpOnly` cookie rotation preserves active Monaco Studio sessions without interrupting user input.*

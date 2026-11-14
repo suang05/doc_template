@@ -9,7 +9,7 @@ SoleResponsibilities:
   - Step comment anchors in cadence examples and `// <Why: ...>` notes for non-obvious invariants
   - One-primary-type-per-file and file-scoped namespace invariants
   - Baseline tooling rules (nullable, analyzers, logging, exceptions, async, EF Core read rules)
-Target: `backend-v2/` (frontend conventions: see `02_frontend_patterns/`; Cadence 7 is kept here only until it is moved)
+Target: `backend-v2/` (frontend conventions: see `02_frontend_patterns/`; Cadence 7 delegates to `02_frontend_patterns/`)
 Platform baseline: declared in `Directory.Build.props` (TargetFramework `net10.0`, LangVersion default for the SDK). Prose does not hard-code a language version.
 Signal: [ARCH_EVOLUTION_CONVENTIONS]
 </context>
@@ -82,8 +82,8 @@ HygieneFirewall:
 [HttpPost]
 [Idempotent]                                                       // required for creating operations that are not naturally idempotent (see 06)
 [ProducesResponseType<ApiResponse<{Aggregate}ResultDto>>(StatusCodes.Status201Created)]
-[ProducesResponseType<ProblemDetails>(StatusCodes.Status422UnprocessableEntity)]
-[ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
+[ProducesResponseType(StatusCodes.Status422UnprocessableEntity)]
+[ProducesResponseType(StatusCodes.Status409Conflict)]
 public async Task<IActionResult> {Verb}([FromBody] {Verb}{Aggregate}Request request, CancellationToken ct)
 {
     // Step 1: Request -> positional command
@@ -121,7 +121,7 @@ public sealed class Create{Aggregate}UseCase(
 
         // Step 3: Mutate (domain factory with injected time)
         var entity = {Aggregate}.Create(projectId, name, slug, command.Category, timeProvider.GetUtcNow());
-        await {aggregate}Repository.AddAsync(entity, ct);
+        {aggregate}Repository.Add(entity);
 
         // Step 4: Return (commit entity + outbox atomically, then map)
         await unitOfWork.CommitAsync(ct);                        // translates a unique-index violation (PostgreSQL 23505) into ConflictException
@@ -131,7 +131,7 @@ public sealed class Create{Aggregate}UseCase(
 ```
 Rules behind the sample:
 * The uniqueness check is a fast path for a good error message; **the database unique index `(project_id, slug)` is the actual guarantee**, and `IUnitOfWork` maps its violation to `ConflictException`.
-* Mapping lives in one `ToResultDto()` extension per aggregate (Application), reused by Create/Update/Get.
+* Mapping lives in one `ToResultDto()` extension per aggregate (Application), reused by Create/Update/Get. `{Aggregate}ResultDto` marks `Version` with `[property: JsonIgnore]` so `ETagResponseFilter` emits `ETag: "v{version}"` without leaking `version` into the JSON body (06 §2.4).
 * The validator (`{Verb}{Aggregate}CommandValidator`) runs in `ValidationDecorator` before `ExecuteAsync`; UseCases do not call validators.
 
 **Archetype B: by-ID or collection UseCase** (no `ICurrentProjectContext`; tenant scoping comes from the layered isolation in 01 §1.1.3):
@@ -143,13 +143,12 @@ public sealed class Rename{Aggregate}UseCase(
 {
     public async Task<{Aggregate}ResultDto> ExecuteAsync(Rename{Aggregate}Command command, CancellationToken ct)
     {
-        // Step 1: Parse
-        var id = new {Aggregate}Id(command.Id);
+        // Step 1: Parse (ID already typed by controller; parse and normalize Value Objects)
         var name = {Aggregate}Name.Create(command.NewName);
 
         // Step 2: Ensure (not found, then explicit optimistic-concurrency check before any mutation or I/O)
-        var entity = await {aggregate}Repository.FindByIdAsync(id, ct)
-            ?? throw NotFoundException.For<{Aggregate}>(id);          // other tenants' rows are indistinguishable from missing rows
+        var entity = await {aggregate}Repository.FindByIdAsync(command.Id, ct)
+            ?? throw NotFoundException.For<{Aggregate}>(command.Id);  // other tenants' rows are indistinguishable from missing rows
         if (entity.Version != command.ExpectedVersion)
             throw PreconditionFailedException.VersionMismatch();      // pure Domain property check; EF .IsConcurrencyToken() also guards commit
 
@@ -195,7 +194,7 @@ public sealed class {Aggregate} : AggregateRoot<{Aggregate}Id>, IMustHaveProject
     }
 }
 ```
-Value-object parameters are non-nullable (nullable reference types are enabled), so no `Guard.AgainstNull` is needed for them. Event names use `{Aggregate}{PastTenseVerb}DomainEvent`.
+Value-object parameters are non-nullable (nullable reference types are enabled), so no `Guard.NotNull` is needed for them. Event names use `{Aggregate}{PastTenseVerb}DomainEvent`.
 
 ### 3.4 Cadence 4: Value Object (immutable, self-validating)
 ```csharp
@@ -291,7 +290,7 @@ public sealed class Create{Aggregate}UseCaseTests
         var unitOfWork = Substitute.For<IUnitOfWork>();
         var timeProvider = new FakeTimeProvider(new DateTimeOffset(2026, 11, 6, 12, 0, 0, TimeSpan.Zero));
         {Aggregate}? saved = null;
-        _ = repository.AddAsync(Arg.Do<{Aggregate}>(entity => saved = entity), Arg.Any<CancellationToken>());   // capture argument (NSubstitute)
+        repository.When(r => r.Add(Arg.Any<{Aggregate}>())).Do(call => saved = call.Arg<{Aggregate}>());   // capture argument (NSubstitute)
 
         var sut = new Create{Aggregate}UseCase(repository, projectContext, unitOfWork, timeProvider);
         var command = new Create{Aggregate}Command("Standard Name", "Standard-Slug", "Default");

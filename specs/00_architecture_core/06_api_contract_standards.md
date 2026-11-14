@@ -42,16 +42,6 @@ Signal: [ARCH_EVOLUTION_CONTRACT]
 | **Routes** | Resource-oriented: plural kebab-case nouns under `/api/v1/`. State transitions and non-CRUD operations use sub-resources (e.g. `document-jobs`, `connectivity-checks`) or the custom-method form `/{resource}/{id}:{verb}` (e.g. `:publish`). Verb path segments such as `/createTemplate`, `/generate-async`, `/test` are prohibited. `Location` is an absolute-path reference starting with `/`. | URL addressing |
 | **OpenAPI** | `specs/openapi.json` is the only machine-readable schema authority, generated from code. Client TypeScript types are generated from it; hand-written copies are prohibited. | Schema governance |
 
-### 1.4 Scalar Wire Types for Banking & Thai Documents
-| Data Type | Wire Representation | Example | Forbidden Representation & Rationale |
-|---|---|---|---|
-| **Monetary Amount** | Fixed-point decimal string (`"^\d+(\.\d{1,4})?$"`) paired with an ISO 4217 3-letter `currency` code (`"THB"`, `"USD"`), or integer minor units (`amountSatang`). | `{ "amount": "12500.50", "currency": "THB" }` | IEEE 754 `float`/`double` (`12500.5`) is **prohibited** due to binary rounding errors in financial invoices and tax calculations. |
-| **64-bit Integers (`long` / `int64`)** | JSON number when bounded within $\le 2^{53}-1$ (`9007199254740991`, e.g. `version`, `sizeBytes`); serialized as a JSON string (`JsonNumberHandling.WriteAsString`) for unbounded 64-bit identifiers or external ledger IDs. | `"externalLedgerId": "9223372036854775807"` | Raw JSON numbers $> 2^{53}-1$ silently lose precision in JavaScript `Number` (`JSON.parse`). |
-| **Calendar Date (`DateOnly`)** | ISO-8601 `YYYY-MM-DD` in **Gregorian Common Era (CE / ค.ศ.)**. | `"issueDate": "2026-11-14"` | **Buddhist Era (BE / พ.ศ., +543 years, e.g. `"2569-11-14"`) is strictly prohibited on the JSON wire.** Conversion to Thai Buddhist calendar (`14 พฤศจิกายน 2569`) or Thai Baht text (`หนึ่งหมื่นสองพันห้าร้อยบาทห้าสิบสตางค์`) is performed exclusively by the rendering/presentation formatting engine. |
-| **Timestamp (`DateTimeOffset`)** | ISO-8601 / RFC 3339 UTC string ending in literal `Z` via `UtcDateTimeOffsetJsonConverter`. | `"createdAt": "2026-11-14T05:11:49Z"` | Local offsets (`+07:00`), timezone-less strings (`"2026-11-14 12:11:49"`), and Unix epoch numbers on domain DTOs. |
-| **Enumerations** | Lowercase/camelCase or UPPER_SNAKE_CASE string token per schema (`JsonStringEnumConverter`). | `"status": "succeeded"`, `"outcome": "UNREACHABLE"` | Numeric enum ordinals (`0`, `1`, `2`), which break backward compatibility when enum members are reordered. |
-| **UUID / Strongly-Typed ID** | Lowercase hyphenated 36-character UUIDv7 string (`Guid`). | `"id": "0192e2c8-72b1-7000-8000-111111111111"` | Nested `{ "value": "..." }` wrapper objects on the JSON wire, or uppercase/brace-wrapped GUIDs. |
-
 ### 1.3 HTTP Verb & Route Matrix
 Request headers are marked (req), response headers (res). `Project-Id` (req) is required on every Data Plane route and omitted from the table.
 | Verb | Route | Success | Body | Headers |
@@ -71,6 +61,16 @@ Request headers are marked (req), response headers (res). `Project-Id` (req) is 
 | `POST` | `/api/v1/document-jobs/{id}:cancel` , `:retry` | `200` | `ApiResponse<DocumentJobDto>` | |
 | `POST` | `/api/v1/data-connections/{id}/connectivity-checks` | `200` | `ApiResponse<ConnectivityCheckResultDto>` | |
 | `POST` | `/api/v1/management/projects` (Control Plane) | `201` | `ApiResponse<ProjectResultDto>` | no `Project-Id`; SuperAdmin only |
+
+### 1.4 Scalar Wire Types for Banking & Thai Documents
+| Data Type | Wire Representation | Example | Forbidden Representation & Rationale |
+|---|---|---|---|
+| **Monetary Amount** | Fixed-point decimal string (`"^\d+(\.\d{1,4})?$"`) paired with an ISO 4217 3-letter `currency` code (`"THB"`, `"USD"`), or integer minor units (`amountSatang`). | `{ "amount": "12500.50", "currency": "THB" }` | IEEE 754 `float`/`double` (`12500.5`) is **prohibited** due to binary rounding errors in financial invoices and tax calculations. |
+| **64-bit Integers (`long` / `int64`)** | JSON number when bounded within $\le 2^{53}-1$ (`9007199254740991`, e.g. `version`, `sizeBytes`); serialized as a JSON string (`JsonNumberHandling.WriteAsString`) for unbounded 64-bit identifiers or external ledger IDs. | `"externalLedgerId": "9223372036854775807"` | Raw JSON numbers $> 2^{53}-1$ silently lose precision in JavaScript `Number` (`JSON.parse`). |
+| **Calendar Date (`DateOnly`)** | ISO-8601 `YYYY-MM-DD` in **Gregorian Common Era (CE / ค.ศ.)**. | `"issueDate": "2026-11-14"` | **Buddhist Era (BE / พ.ศ., +543 years, e.g. `"2569-11-14"`) is strictly prohibited on the JSON wire.** Conversion to Thai Buddhist calendar (`14 พฤศจิกายน 2569`) or Thai Baht text (`หนึ่งหมื่นสองพันห้าร้อยบาทห้าสิบสตางค์`) is performed exclusively by the rendering/presentation formatting engine. |
+| **Timestamp (`DateTimeOffset`)** | ISO-8601 / RFC 3339 UTC string ending in literal `Z` via `UtcDateTimeOffsetJsonConverter`. | `"createdAt": "2026-11-14T05:11:49Z"` | Local offsets (`+07:00`), timezone-less strings (`"2026-11-14 12:11:49"`), and Unix epoch numbers on domain DTOs. |
+| **Enumerations** | Lowercase/camelCase or UPPER_SNAKE_CASE string token per schema (`JsonStringEnumConverter`). | `"status": "succeeded"`, `"outcome": "UNREACHABLE"` | Numeric enum ordinals (`0`, `1`, `2`), which break backward compatibility when enum members are reordered. |
+| **UUID / Strongly-Typed ID** | Lowercase hyphenated 36-character UUIDv7 string (`Guid`). | `"id": "0192e2c8-72b1-7000-8000-111111111111"` | Nested `{ "value": "..." }` wrapper objects on the JSON wire, or uppercase/brace-wrapped GUIDs. |
 
 ---
 
@@ -398,7 +398,7 @@ The number of `items` is capped by configuration (`422 VALIDATION_FAILED` above 
 ### [TRAP-CONTRACT-006]: Idempotency-Key on PUT/DELETE, or Cached Binary Replay
 ```diff
 - PUT /api/v1/templates/123 [Idempotency-Key: ...]
-+ PUT /api/v1/templates/123 [If-Match: "<token>"]
++ PUT /api/v1/templates/123 [If-Match: "v{version}"]
 - Replay stores the generated PDF bytes in Redis for the idempotency key
 + Replay stores the document reference and re-streams the stored document
 ```

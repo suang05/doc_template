@@ -71,7 +71,7 @@ flowchart TD
 | **POST Mutation Idempotency** | `POST /api/v1/documents` and `POST /api/v1/document-jobs` require the `Idempotency-Key` header, persisted durably in PostgreSQL `idempotency_keys` with request payload SHA-256 verification (`422 IDEMPOTENCY_KEY_REUSED` on payload mismatch; `409 IDEMPOTENCY_IN_PROGRESS` while in flight). | Mutation Safety |
 | **PUT/DELETE Two-Phase Concurrency** | Versioned `PUT`, `DELETE`, and `:verb` endpoints require `If-Match: "v{version}"` (`428 PRECONDITION_REQUIRED` if missing; `412 PRECONDITION_FAILED` if weak `W/`, `*`, or version mismatch). `ETagResponseFilter` emits `ETag: "v{version}"` from `IHasVersion` on `2xx` egress. | Concurrency Control |
 | **Diagnostic Probe Semantics** | Connectivity probes (`POST /api/v1/data-connections/{id}/connectivity-checks`) return HTTP `200 OK` with coarse `ApiResponse<ConnectivityCheckResultDto>` (`{ success, outcome, latencyMs, checkedAt }`) where `outcome` ∈ `OK \| DNS_FAILURE \| TIMEOUT \| TLS_FAILURE \| AUTH_FAILED \| UNREACHABLE`. Never leak hosts, IPs, ports, or driver messages. | Integration Diagnostics |
-| **SSRF Perimeter Defense** | External data connections execute pre-flight `await hostValidator.ResolveAndValidateAsync(hostname, allowedCidrs, ct)` via `ConnectionHostValidator` (normalizing IPv4-mapped IPv6, checking platform deny-list + per-tenant allow-list CIDRs, and pinning the validated IP). Any blocked target throws `SecurityViolationException` (`403 EGRESS_DENIED`). | Network Boundary |
+| **SSRF Perimeter Defense** | External data connections execute pre-flight `await hostValidator.ResolveAndValidateAsync(hostname, port, projectId, ct)` via `ConnectionHostValidator` (normalizing IPv4-mapped IPv6, checking platform deny-list + per-tenant allow-list CIDRs, and pinning the validated IP addresses while preserving TLS SNI/SAN hostname verification). Any blocked target throws `SecurityViolationException` (`403 EGRESS_DENIED`). | Network Boundary |
 | **Bounded Pooled Streaming Egress** | Binary render/download endpoints return `File(result.ContentStream, result.ContentType, result.FileName, enableRangeProcessing: false)` **without** wrapping the stream in `await using` (`TRAP-SEC-002` / `TRAP-MEM-003`). | Memory & GC |
 | **Plural RESTful Taxonomy** | Routes adhere to plural kebab-case `api/v1/{resources}` on `{Aggregate}sController`, with state transitions using `/{resource}/{id}:{verb}` (`:publish`, `:cancel`, `:retry`). Legacy `/api/*` and verb path segments (`/generate-async`, `/test`) are prohibited. | Route Routing |
 | **Dual-Track Rendering** | Document generation is partitioned into Pipeline A (`POST /api/v1/documents`, sync with `rendering` rate limit) and Pipeline C (`POST /api/v1/document-jobs`, returning `202 Accepted` + `Location: /api/v1/document-jobs/{id}` + `Retry-After`). | Rendering Gateway |
@@ -197,11 +197,11 @@ public sealed class {Aggregate}sController(
     IUseCase<Get{Aggregate}ByIdQuery, {Aggregate}ResultDto> getByIdUseCase,
     IUseCase<Create{Aggregate}Command, {Aggregate}ResultDto> createUseCase,
     IUseCase<Update{Aggregate}Command, {Aggregate}ResultDto> updateUseCase,
-    IUseCase<Deactivate{Aggregate}Command> deactivateUseCase) : ControllerBase
+    IUseCase<Delete{Aggregate}Command> deleteUseCase) : ControllerBase
 {
     [HttpGet]
     [ProducesResponseType(typeof(PagedApiResponse<{Aggregate}ResultDto>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> List([FromQuery] int page = 1, [FromQuery] int limit = 20, [FromQuery] bool includeTotal = false, CancellationToken ct = default)
+    public async Task<IActionResult> List([FromQuery] int page = 1, [FromQuery] int limit = 20, [FromQuery] bool includeTotal = false, CancellationToken ct)
     {
         var query = new List{Aggregate}sQuery(null, null, null, page, limit, includeTotal);
         var result = await listUseCase.ExecuteAsync(query, ct);
@@ -251,23 +251,27 @@ public sealed class {Aggregate}sController(
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status412PreconditionFailed)]
     [ProducesResponseType(StatusCodes.Status428PreconditionRequired)]
-    public async Task<IActionResult> Deactivate(
+    public async Task<IActionResult> Delete(
         [FromRoute] Guid id,
         [FromIfMatch] long expectedVersion,
         CancellationToken ct)
     {
-        var command = new Deactivate{Aggregate}Command(new {Aggregate}Id(id), expectedVersion);
-        await deactivateUseCase.ExecuteAsync(command, ct);
+        var command = new Delete{Aggregate}Command(new {Aggregate}Id(id), expectedVersion);
+        await deleteUseCase.ExecuteAsync(command, ct);
         return NoContent();
     }
+
+    // For reversible state disable transitions (instead of DELETE), expose a dedicated custom-verb action
+    // (kept in a focused *LifecycleController when constructor dependencies would exceed 5 UseCases):
+    // [HttpPost("{id:guid}:deactivate")] -> Ok(new ApiResponse<{Aggregate}ResultDto>(result)) + updated ETag.
 }
 ```
 
 ### 3.2 Centralized RFC 9457 Global Exception Handler & ProblemDetails SSoT Archetype
 >> MANDATORY CANONICAL BLUEPRINT [RULE-API-002]:
-* Implements `IExceptionHandler` delegating RFC 9457 construction to `ProblemDetailsBuilder` and serialization to `IProblemDetailsService`.
+* Implements `IExceptionHandler` delegating RFC 9457 construction to `ProblemDetailsBuilder` (which sets `type` to `https://{api-host}/problems/{kebab-error-code}`) and serialization to `IProblemDetailsService`.
 * Attaches W3C trace ID (`Activity.Current?.TraceId.ToString() ?? httpContext.TraceIdentifier`) as `problemDetails.Extensions["traceId"]`.
-* Maps both `PreconditionFailedException` (Step 2 pre-check) and `DbUpdateConcurrencyException` (Step 4 atomic commit race) to `412 Precondition Failed` (`PRECONDITION_FAILED`), `PreconditionRequiredException` to `428 Precondition Required` (`PRECONDITION_REQUIRED`), and `ValidationException` / `DomainValidationException` to `422 Unprocessable Entity` (`VALIDATION_FAILED`).
+* Maps both `PreconditionFailedException` (Step 2 pre-check) and `DbUpdateConcurrencyException` (Step 4 atomic commit race) to `412 Precondition Failed` (`PRECONDITION_FAILED`), `PreconditionRequiredException` to `428 Precondition Required` (`PRECONDITION_REQUIRED`), and projects `FluentValidation.ValidationException`, `DomainValidationException`, and `SchemaValidationException` uniformly into `errors: [{ pointer, code, message }]` without leaking raw `exception.Message`.
 
 ```csharp
 public sealed class GlobalExceptionHandler(
@@ -325,14 +329,34 @@ public sealed class GlobalExceptionHandler(
     private static string ResolveDetailMessage(Exception exception, int status) =>
         exception switch
         {
-            PreconditionFailedException or DbUpdateConcurrencyException => PreconditionFailedDetail,
+            ProjectContextRequiredException => "The Project-Id header is required for Data Plane requests.",
+            ProjectContextMismatchException => "The Project-Id header does not match the active credential.",
+            UnauthorizedException => "Authentication credentials are missing or invalid.",
+            ForbiddenException or CrossTenantAccessDeniedException => "You do not have permission to perform this action.",
+            ProjectDeactivatedException => "The target project is deactivated.",
             SecurityViolationException => "Outbound connection to the specified target is not permitted by network policy.",
+            NotFoundException => "The requested resource was not found.",
+            ConflictException or BusinessRuleViolationException => "The operation conflicts with the current resource state.",
+            DraftExpiredException => "The referenced template draft has expired.",
+            PreconditionFailedException or DbUpdateConcurrencyException => PreconditionFailedDetail,
+            PreconditionRequiredException => "An If-Match header with the current resource version is required.",
+            FluentValidation.ValidationException or DomainValidationException => "One or more validation errors occurred.",
+            SchemaValidationException => "The submitted payload failed template JSON schema validation.",
+            ExternalServiceException => "An upstream dependency failed to complete the request.",
             _ when status >= StatusCodes.Status500InternalServerError => UnexpectedErrorDetail,
-            _ => exception.Message
+            _ => "The request could not be processed."
         };
 
-    private static object? ExtractValidationErrors(Exception exception) =>
-        exception is IValidationException validationEx ? validationEx.Errors : null;
+    private static IReadOnlyList<ValidationErrorItem>? ExtractValidationErrors(Exception exception) =>
+        exception switch
+        {
+            FluentValidation.ValidationException fv => fv.Errors
+                .Select(e => new ValidationErrorItem($"/{ToCamelCasePointer(e.PropertyName)}", e.ErrorCode, e.ErrorMessage))
+                .ToArray(),
+            DomainValidationException dv => dv.Errors,
+            SchemaValidationException sv => sv.Errors,
+            _ => null
+        };
 
     private static (int Status, string Title, string ErrorCode) ResolveExceptionDetails(Exception exception) =>
         exception switch
@@ -483,8 +507,9 @@ public sealed class DataConnectionDiagnosticsController(
 ```diff
 - var connection = new NpgsqlConnection(command.ConnectionString);
 - await connection.OpenAsync(ct);
-+ var pinnedIp = await hostValidator.ResolveAndValidateAsync(config.Hostname, config.AllowedEgressCidrs, ct);
-+ var builder = new NpgsqlConnectionStringBuilder { Host = pinnedIp.ToString(), ... };
++ var validatedIps = await hostValidator.ResolveAndValidateAsync(config.Hostname, config.Port, projectId, ct);
++ var builder = new NpgsqlConnectionStringBuilder { Host = validatedIps[0].ToString(), /* ... */ };
++ // Validate server certificate SAN against config.Hostname (never Disable/TrustServerCertificate)
 + await using var connection = new NpgsqlConnection(builder.ConnectionString);
 + await connection.OpenAsync(ct);
 ```

@@ -115,11 +115,11 @@ ShortTransactionFirewall:
 ```csharp
 [HttpGet("{id:guid}/content")]
 [ProducesResponseType(StatusCodes.Status200OK)]
-[ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+[ProducesResponseType(StatusCodes.Status404NotFound)]
 public async Task<IActionResult> Download([FromRoute] Guid id, CancellationToken ct)
 {
     // Step 1: Query -> use case returns an open stream, content type and sanitized file name
-    var query = new DownloadDocumentQuery(id);
+    var query = new DownloadDocumentQuery(new DocumentId(id));
     var result = await downloadDocumentUseCase.ExecuteAsync(query, ct);
 
     // Step 2: Security headers for tenant artifacts <Why: prevent shared caching and MIME sniffing>
@@ -142,7 +142,9 @@ public sealed class ApiKeyVerifier(IOptions<SecurityOptions> options) : IApiKeyV
 
     public bool VerifySecret(ReadOnlySpan<char> providedSecret, ReadOnlySpan<byte> storedKeyHash)
     {
-        if (storedKeyHash.Length != HMACSHA256.HashSizeInBytes) return false;
+        // <Why: bound stackalloc size against untrusted header length to prevent stack overflow DoS>
+        if (providedSecret.Length is 0 or > 256 || storedKeyHash.Length != HMACSHA256.HashSizeInBytes)
+            return false;
 
         Span<byte> secretUtf8 = stackalloc byte[Encoding.UTF8.GetMaxByteCount(providedSecret.Length)];
         int bytesWritten = Encoding.UTF8.GetBytes(providedSecret, secretUtf8);
@@ -183,7 +185,7 @@ public sealed class ConnectionHostValidator(
         ProjectId projectId,
         CancellationToken ct)
     {
-        Guard.AgainstNullOrWhiteSpace(host, nameof(host));
+        Guard.NotNullOrWhiteSpace(host, nameof(host));
         var policy = options.Value;
 
         // Step 1: Port allow-list guard <Why: prevent internal port scanning via tenant connection configs>
@@ -205,7 +207,7 @@ public sealed class ConnectionHostValidator(
             throw SecurityViolationException.EgressDenied(); // Single generic error; never echo host or IP to caller
         }
 
-        // Step 4: Return validated IPs so caller pins the connection (anti-DNS-rebinding)
+        // Step 4: Return validated IPs so caller pins the connection (anti-DNS-rebinding) while validating TLS SAN against original hostname
         return addresses;
     }
 

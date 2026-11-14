@@ -53,7 +53,7 @@ One verb per intent, partitioned into three scopes. The same intent never has tw
 | Single entity / projection (nullable) | `FindBy{Key}Async` returning `T?` | Repositories (`I{Aggregate}Repository`) and read models (`I{Aggregate}ReadModel`) never throw `NotFoundException` (which is an Application exception); they return `T?` and the UseCase throws `NotFoundException.For<{Aggregate}>(id)`. |
 | Collection | `ListBy{Criteria}Async` | Returns `IReadOnlyList<T>` or a paged result. |
 | Existence / count | `{Criteria}ExistsAsync`, `CountBy{Criteria}Async` | Example: `SlugExistsAsync(ProjectId projectId, TemplateSlug slug, CancellationToken ct)`. |
-| Add / remove (Repository only) | `AddAsync`, `Remove` | `Add` and `Remove` are used here because a repository models an in-memory collection. A repository method named `Create{Aggregate}Async` that only calls `AddAsync` is a forbidden pass-through. |
+| Add / remove (Repository only) | `Add`, `Remove` | `Add` and `Remove` are synchronous (`void`) because entities use client-generated `Guid.CreateVersion7()` IDs and EF Core only tracks them in memory (`CommitAsync` owns async I/O). A repository method named `Create{Aggregate}Async` that only calls `Add` is a forbidden pass-through. |
 
 **Scope 3: Domain methods & events**
 * Aggregate mutation methods use intention-revealing verbs of the ubiquitous language (`Rename`, `Publish`, `Archive`, `Restore`, `Deactivate`, `Activate`, `Claim`, `Complete`, `Fail`). `Update` is allowed only for trivial attribute bundles.
@@ -150,7 +150,8 @@ Every non-entity class uses the suffix of its architectural role from the closed
 | **Aggregate persistence port / impl**| Domain / Infra | `*Repository` | `ITemplateRepository`, `TemplateRepository` |
 | **Query projection port / impl** | Application / Infra| `*ReadModel` | `ITemplateReadModel`, `TemplateReadModel` |
 | **External service port / impl** | Application / Infra| `*Port` / `*Adapter` | `IGotenbergPort`, `GotenbergAdapter` |
-| **Domain / synthesis engine** | App / Infra | `*Engine`, `*Executor`, `*Evaluator`, `*Formatter` | `DataBindingEngine`, `DatasetBatchExecutor`, `JsonPathEvaluator`, `ThaiDataFormatter` |
+| **Domain / synthesis engine** | App / Infra | `*Engine`, `*Renderer`, `*Processor`, `*Executor`, `*Evaluator`, `*Formatter`, `*Generator` | `DataBindingEngine`, `GotenbergHtmlRenderer`, `HtmlLayoutProcessor`, `DatasetBatchExecutor`, `ThaiDataFormatter`, `DocumentDrawingMlIdGenerator` |
+| **Caching & bounded stream** | Infra | `*Cache`, `*Stream` | `HybridTemplateDraftCache`, `HybridSpoolStream`, `ResponseDisposingStream` |
 | **Object / contract construction** | All | `*Factory`, `*Builder` (stateful/fluent only) | `RenderEngineFactory`, `ProblemDetailsFactory`, `DatasetCacheKeyBuilder` |
 | **Calculation / resolution / parsing**| All | `*Calculator`, `*Resolver`, `*Parser`, `*Verifier`, `*Validator` | `RequestFingerprintCalculator`, `RateLimitPartitionKeyResolver`, `ConnectionHostValidator`, `ApiKeyVerifier` |
 | **HTTP pipeline components** | Api | `*Middleware`, `*Filter`, `*Binder`, `*ExceptionHandler`, `*AuthenticationHandler` | `TenantResolutionMiddleware`, `IfMatchVersionBinder`, `GlobalExceptionHandler` |
@@ -235,12 +236,12 @@ The canonical C# listings for Controller (`request` → `command` → `result`),
 ```diff
 - public sealed record FetchTemplateQuery(Guid Id);                         // synonym of Get
 - Task<Template?> GetByIdAsync(TemplateId id, CancellationToken ct);        // repository returning null must be FindBy...
-- Task CreateTemplateAsync(Template entity, CancellationToken ct);          // pass-through synonym of AddAsync
-+ public sealed record GetTemplateByIdQuery(Guid Id);
+- Task CreateTemplateAsync(Template entity, CancellationToken ct);          // pass-through synonym of Add
++ public sealed record GetTemplateByIdQuery(TemplateId Id);
 + Task<Template?> FindByIdAsync(TemplateId id, CancellationToken ct);
-+ Task AddAsync(Template entity, CancellationToken ct);
++ void Add(Template entity);
 ```
-*Rationale: UseCase queries use `Get` (throws when missing); Repository and ReadModel single-item lookups that return `T?` use `FindBy…Async`; Repository collection additions use `AddAsync`.*
+*Rationale: UseCase queries use `Get` (throws when missing); Repository and ReadModel single-item lookups that return `T?` use `FindBy…Async`; Repository collection additions use synchronous `Add` (avoiding async-theater `Task.CompletedTask`).*
 
 ### [TRAP-NAME-002]: Clipped Abbreviations Across Parameters and Dependencies
 ```diff
