@@ -1,5 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using SmkDoc.Domain.Entities;
 using SmkDoc.Infrastructure.Persistence;
 using SmkDoc.Infrastructure.Persistence.Repositories;
 using SmkDoc.IntegrationTests.Fixtures;

@@ -271,7 +271,7 @@ var result = await response.Content.ReadFromJsonAsync<DocumentResult>();`}
                     GET
                   </span>
                   <span className="font-mono text-xs font-semibold text-textPrimary">
-                    /api/v1/documents/:documentRef/versions
+                    /api/v1/document-versions/:documentRef/versions
                   </span>
                 </div>
                 <p className="text-xs text-textSecondary">

@@ -1,9 +1,7 @@
 using System.Data;
 using System.Text;
 using System.Text.Json;
-using FluentAssertions;
 using SmkDoc.Infrastructure.Data.Drivers;
-using Xunit;
 
 namespace SmkDoc.Tests.Infrastructure.Data;
 

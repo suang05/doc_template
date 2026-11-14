@@ -1,11 +1,6 @@
-using SmkDoc.Application.Common.Exceptions;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Queries.ListApiKeys;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Enums;
-using SmkDoc.Domain.Interfaces;
-using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common.Builders;
 
@@ -14,38 +9,28 @@ namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Security.Queries.ListA
 public sealed class ListApiKeysUseCaseTests
 {
     private readonly IApiKeyRepository _apiKeyRepo = Substitute.For<IApiKeyRepository>();
-    private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
 
-    public ListApiKeysUseCaseTests()
-    {
-        _projectContext.IsResolved.Returns(true);
-        _projectContext.ProjectId.Returns(new ProjectId(TestConstants.DefaultProjectId));
-    }
-
-    private ListApiKeysUseCase CreateSut() => new(_apiKeyRepo, _projectContext);
+    private ListApiKeysUseCase CreateSut() => new(_apiKeyRepo);
 
     [Fact]
-    public async Task ExecuteAsync_WhenProjectContextUnresolvedAndNotSuperAdmin_ThrowsTenantContextRequiredException()
+    public async Task ExecuteAsync_WhenTenantContextUnresolved_PropagatesTenantContextNotResolvedException()
     {
         // Arrange
-        _projectContext.IsResolved.Returns(false);
-        _projectContext.SystemRole.Returns(SystemRole.Member);
-        _projectContext.ProjectId.Returns(_ => throw new TenantContextRequiredException());
+        _apiKeyRepo.ListCurrentProjectAsync(Arg.Any<CancellationToken>())
+            .Returns<IReadOnlyList<ApiKey>>(_ => throw new TenantContextNotResolvedException());
 
         // Act
-        var act = () => CreateSut().ExecuteAsync(new ListApiKeysQuery());
+        var act = () => CreateSut().ExecuteAsync(new ListApiKeysQuery(), CancellationToken.None);
 
         // Assert
-        await act.Should().ThrowAsync<TenantContextRequiredException>();
+        await act.Should().ThrowAsync<TenantContextNotResolvedException>();
     }
 
     [Fact]
-    public async Task ExecuteAsync_WhenAmbientProjectResolved_ReturnsProjectScopedApiKeysWithMaskedFormat()
+    public async Task ExecuteAsync_WhenQueryProjectIdIsNull_UsesListCurrentProjectAsyncWithMaskedFormat()
     {
         // Arrange
         var projectId = Guid.NewGuid();
-        _projectContext.ProjectId.Returns(new ProjectId(projectId));
-
         var now = TestConstants.BaselineTime;
         ApiKey key1 = new ApiKeyBuilder()
             .WithProjectId(projectId)
@@ -62,11 +47,11 @@ public sealed class ListApiKeysUseCaseTests
             .WithExpiration(ExpirationPolicy.Never)
             .WithTime(now);
 
-        _apiKeyRepo.ListByProjectAsync(new ProjectId(projectId), Arg.Any<CancellationToken>())
+        _apiKeyRepo.ListCurrentProjectAsync(Arg.Any<CancellationToken>())
             .Returns(new List<ApiKey> { key1, key2 });
 
         // Act
-        List<ApiKeyResultDto> result = await CreateSut().ExecuteAsync(new ListApiKeysQuery());
+        List<ApiKeyResultDto> result = await CreateSut().ExecuteAsync(new ListApiKeysQuery(), CancellationToken.None);
 
         // Assert
         result.Should().HaveCount(2);
@@ -74,44 +59,41 @@ public sealed class ListApiKeysUseCaseTests
         result[0].MaskedKey.Should().Be("smk_erp_****abcd");
         result[1].Name.Should().Be("CRM Key");
         result[1].MaskedKey.Should().Be("smk_crm_****cdef");
-        await _apiKeyRepo.Received(1).ListByProjectAsync(new ProjectId(projectId), Arg.Any<CancellationToken>());
+        await _apiKeyRepo.Received(1).ListCurrentProjectAsync(Arg.Any<CancellationToken>());
+        await _apiKeyRepo.DidNotReceive().ListAllAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task ExecuteAsync_WhenSuperAdminAndNoProjectSpecified_ReturnsAllKeys()
+    public async Task ExecuteAsync_WhenQueryProjectIdSpecified_QueriesSpecificProjectWithoutListAllBypass()
     {
         // Arrange
-        _projectContext.IsResolved.Returns(false);
-        _projectContext.SystemRole.Returns(SystemRole.SuperAdmin);
-
-        var key = new ApiKeyBuilder().WithName("Global Key").WithCallerApp("global").Build();
-        _apiKeyRepo.ListAllAsync(Arg.Any<CancellationToken>())
+        var projectId = Guid.NewGuid();
+        var key = new ApiKeyBuilder().WithProjectId(projectId).WithName("Scoped Key").WithCallerApp("erp").Build();
+        _apiKeyRepo.ListByProjectAsync(new ProjectId(projectId), Arg.Any<CancellationToken>())
             .Returns(new List<ApiKey> { key });
 
         // Act
-        List<ApiKeyResultDto> result = await CreateSut().ExecuteAsync(new ListApiKeysQuery());
+        List<ApiKeyResultDto> result = await CreateSut().ExecuteAsync(new ListApiKeysQuery(projectId), CancellationToken.None);
 
         // Assert
         result.Should().ContainSingle();
-        result[0].Name.Should().Be("Global Key");
-        await _apiKeyRepo.Received(1).ListAllAsync(Arg.Any<CancellationToken>());
+        result[0].Name.Should().Be("Scoped Key");
+        await _apiKeyRepo.Received(1).ListByProjectAsync(new ProjectId(projectId), Arg.Any<CancellationToken>());
+        await _apiKeyRepo.DidNotReceive().ListAllAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task ExecuteAsync_WhenProjectHasNoApiKeys_ReturnsEmptyList()
     {
         // Arrange
-        var projectId = Guid.NewGuid();
-        _projectContext.ProjectId.Returns(new ProjectId(projectId));
-
-        _apiKeyRepo.ListByProjectAsync(new ProjectId(projectId), Arg.Any<CancellationToken>())
+        _apiKeyRepo.ListCurrentProjectAsync(Arg.Any<CancellationToken>())
             .Returns(new List<ApiKey>());
 
         // Act
-        List<ApiKeyResultDto> result = await CreateSut().ExecuteAsync(new ListApiKeysQuery());
+        List<ApiKeyResultDto> result = await CreateSut().ExecuteAsync(new ListApiKeysQuery(), CancellationToken.None);
 
         // Assert
         result.Should().BeEmpty();
-        await _apiKeyRepo.Received(1).ListByProjectAsync(new ProjectId(projectId), Arg.Any<CancellationToken>());
+        await _apiKeyRepo.Received(1).ListCurrentProjectAsync(Arg.Any<CancellationToken>());
     }
 }

@@ -1,6 +1,4 @@
-using System;
 using Microsoft.EntityFrameworkCore;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
@@ -84,13 +82,13 @@ public sealed class TenantIsolationIntegrationTests
         context.IsResolved.Returns(isResolved);
         if (isResolved)
         {
-            context.ProjectId.Returns(projectId);
+            context.GetRequiredProjectId().Returns(projectId);
         }
         else
         {
-            context.ProjectId.Returns(_ => throw new TenantContextRequiredException());
+            context.GetRequiredProjectId().Returns(_ => throw new TenantContextNotResolvedException());
         }
-        context.OptionalProjectId.Returns(isResolved ? projectId : null);
+        context.TryGetProjectId().Returns(isResolved ? projectId : null);
         return context;
     }
 

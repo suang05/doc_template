@@ -25,6 +25,6 @@ if (!string.Equals(Assembly.GetEntryAssembly()?.GetName().Name, "GetDocument.Ins
 // 4. HTTP Request Middleware Pipeline & Endpoint Topology
 app.UsePresentationPipeline();
 
-app.Run();
+await app.RunAsync();
 
 public partial class Program { }

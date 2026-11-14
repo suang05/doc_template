@@ -1,16 +1,9 @@
-using FluentAssertions;
-using NSubstitute;
 using SmkDoc.Application.Common.Behaviors;
 using SmkDoc.Application.Modules.IdentityAccess.Projects.Commands.CreateProject;
 using SmkDoc.Application.Modules.IdentityAccess.Projects.DTOs;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Enums;
-using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.Interfaces;
-using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common.Builders;
-using Xunit;
 using ValidationException = SmkDoc.Application.Common.Exceptions.ValidationException;
 
 namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Projects.Commands.CreateProject;
@@ -51,7 +44,7 @@ public sealed class CreateProjectUseCaseTests
             .Returns(existingProject);
 
         // Act
-        var act = () => CreateSut().ExecuteAsync(command);
+        var act = () => CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<ConflictException>();
@@ -82,7 +75,7 @@ public sealed class CreateProjectUseCaseTests
             .Returns(Task.CompletedTask);
 
         // Act
-        ProjectResultDto result = await CreateSut().ExecuteAsync(command);
+        ProjectResultDto result = await CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         result.Should().NotBeNull();
@@ -110,7 +103,7 @@ public sealed class CreateProjectUseCaseTests
             [new CreateProjectCommandValidator()]);
 
         // Act
-        var act = () => pipeline.ExecuteAsync(command);
+        var act = () => pipeline.ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<ValidationException>();

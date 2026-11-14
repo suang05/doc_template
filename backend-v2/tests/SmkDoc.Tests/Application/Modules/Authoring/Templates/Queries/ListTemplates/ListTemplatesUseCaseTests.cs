@@ -1,11 +1,5 @@
-using FluentAssertions;
-using NSubstitute;
-using SmkDoc.Application.Common.Exceptions;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.ListTemplates;
-using SmkDoc.Domain.ValueObjects.Ids;
-using Xunit;
 
 namespace SmkDoc.Tests.Application.Modules.Authoring.Templates.Queries.ListTemplates;
 
@@ -33,7 +27,7 @@ public sealed class ListTemplatesUseCaseTests
             .Returns(([template1, template2], 2));
 
         // Act
-        var result = await CreateSut().ExecuteAsync(new ListTemplatesQuery(SearchTerm: "inv", Category: "Billing", IsActive: true, Page: 1, PageSize: 20));
+        var result = await CreateSut().ExecuteAsync(new ListTemplatesQuery(SearchTerm: "inv", Category: "Billing", IsActive: true, Page: 1, PageSize: 20), CancellationToken.None);
 
         // Assert
         result.Items.Should().HaveCount(2);
@@ -64,7 +58,7 @@ public sealed class ListTemplatesUseCaseTests
 
         // Act
         var result = await CreateSut().ExecuteAsync(
-            new ListTemplatesQuery(Page: requestedPage, PageSize: requestedPageSize));
+            new ListTemplatesQuery(Page: requestedPage, PageSize: requestedPageSize), CancellationToken.None);
 
         // Assert
         result.Page.Should().Be(expectedPage);

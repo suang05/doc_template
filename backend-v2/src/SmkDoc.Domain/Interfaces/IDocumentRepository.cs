@@ -9,12 +9,12 @@ namespace SmkDoc.Domain.Interfaces;
 /// </summary>
 public interface IDocumentRepository
 {
-    Task<Document?> GetByIdAsync(DocumentId id, CancellationToken ct = default);
-    Task<Document?> GetByDocumentRefAsync(DocumentReference documentRef, CancellationToken ct = default);
-    Task<Document?> GetByDocumentRefWithVersionsAsync(DocumentReference documentRef, CancellationToken ct = default);
-    Task<DocumentVersion?> GetVersionAsync(DocumentReference documentRef, int version, CancellationToken ct = default);
-    Task<IReadOnlyList<DocumentVersion>> GetVersionHistoryAsync(DocumentReference documentRef, CancellationToken ct = default);
-    Task<int> GetNextVersionNumberAsync(DocumentId documentId, CancellationToken ct = default);
-    Task AddAsync(Document document, CancellationToken ct = default);
+    Task<Document?> GetByIdAsync(DocumentId id, CancellationToken ct);
+    Task<Document?> GetByDocumentRefAsync(DocumentReference documentRef, CancellationToken ct);
+    Task<Document?> GetByDocumentRefWithVersionsAsync(DocumentReference documentRef, CancellationToken ct);
+    Task<DocumentVersion?> GetVersionAsync(DocumentReference documentRef, int version, CancellationToken ct);
+    Task<IReadOnlyList<DocumentVersion>> GetVersionHistoryAsync(DocumentReference documentRef, CancellationToken ct);
+    Task<int> GetNextVersionNumberAsync(DocumentId documentId, CancellationToken ct);
+    Task AddAsync(Document document, CancellationToken ct);
     void Update(Document document);
 }

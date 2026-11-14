@@ -1,7 +1,6 @@
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
 using SmkDoc.Application.Common.Behaviors;
-using SmkDoc.Application.Common.Interfaces;
 using ValidationException = SmkDoc.Application.Common.Exceptions.ValidationException;
 
 namespace SmkDoc.Tests.Application.Common.Behaviors;
@@ -70,7 +69,7 @@ public sealed class ValidatingUseCaseDecoratorTests
         var decorator = new ValidatingUseCaseDecorator<SampleCommand, string>(inner, []);
 
         // Act
-        var result = await decorator.ExecuteAsync(command);
+        var result = await decorator.ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         result.Should().Be("ok");
@@ -85,7 +84,7 @@ public sealed class ValidatingUseCaseDecoratorTests
         var decorator = new ValidatingUseCaseDecorator<SampleCommand, string>(inner, [new PrimarySampleValidator()]);
 
         // Act
-        var act = () => decorator.ExecuteAsync(null!);
+        var act = () => decorator.ExecuteAsync(null!, CancellationToken.None);
 
         // Assert
         var ex = await act.Should().ThrowAsync<ValidationException>();
@@ -104,7 +103,7 @@ public sealed class ValidatingUseCaseDecoratorTests
             [new PrimarySampleValidator(), new SecondarySampleValidator()]);
 
         // Act
-        var act = () => decorator.ExecuteAsync(invalidCommand);
+        var act = () => decorator.ExecuteAsync(invalidCommand, CancellationToken.None);
 
         // Assert
         var ex = await act.Should().ThrowAsync<ValidationException>();
@@ -113,6 +112,10 @@ public sealed class ValidatingUseCaseDecoratorTests
         ex.Which.Errors["slug"].Should().Contain("Slug must be at least 3 characters.");
         ex.Which.Errors.Should().ContainKey("customer.taxId");
         ex.Which.Errors.Should().ContainKey("mappings[0].datasetId");
+        ex.Which.ErrorEntries.Should().Contain(e => e.Pointer == "/slug" && e.Code == "NOT_EMPTY" && e.Message == "Slug is required.");
+        ex.Which.ErrorEntries.Should().Contain(e => e.Pointer == "/slug" && e.Code == "MIN_LENGTH" && e.Message == "Slug must be at least 3 characters.");
+        ex.Which.ErrorEntries.Should().Contain(e => e.Pointer == "/customer/taxId" && e.Code == "NOT_EMPTY");
+        ex.Which.ErrorEntries.Should().Contain(e => e.Pointer == "/mappings/0/datasetId" && e.Code == "NOT_EMPTY");
         await inner.DidNotReceive().ExecuteAsync(Arg.Any<SampleCommand>(), Arg.Any<CancellationToken>());
     }
 
@@ -125,7 +128,7 @@ public sealed class ValidatingUseCaseDecoratorTests
         var decorator = new ValidatingUseCaseDecorator<SampleCommand>(inner, [new PrimarySampleValidator()]);
 
         // Act
-        var act = () => decorator.ExecuteAsync(invalidCommand);
+        var act = () => decorator.ExecuteAsync(invalidCommand, CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<ValidationException>();
@@ -141,7 +144,7 @@ public sealed class ValidatingUseCaseDecoratorTests
         var decorator = new ValidatingUseCaseDecorator<SampleCommand>(inner, [new PrimarySampleValidator()]);
 
         // Act
-        await decorator.ExecuteAsync(validCommand);
+        await decorator.ExecuteAsync(validCommand, CancellationToken.None);
 
         // Assert
         await inner.Received(1).ExecuteAsync(validCommand, Arg.Any<CancellationToken>());
@@ -170,8 +173,8 @@ public sealed class ValidatingUseCaseDecoratorTests
 
         // Act: valid command flows through decorator to concrete instance
         var valid = new SampleCommand("invoice", new SampleCustomerPayload("1234567890123"), [new SampleItemPayload(Guid.NewGuid())]);
-        var output = await responseUseCase.ExecuteAsync(valid);
-        await voidUseCase.ExecuteAsync(valid);
+        var output = await responseUseCase.ExecuteAsync(valid, CancellationToken.None);
+        await voidUseCase.ExecuteAsync(valid, CancellationToken.None);
 
         output.Should().Be("processed:invoice");
         concreteSample.ExecutionCount.Should().Be(1);

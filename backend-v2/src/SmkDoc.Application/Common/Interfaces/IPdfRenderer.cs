@@ -6,6 +6,6 @@ namespace SmkDoc.Application.Common.Interfaces;
 /// </summary>
 public interface IPdfRenderer
 {
-    Task<Stream> RenderHtmlToPdfStreamAsync(string html, string? headerHtml = null, string? footerHtml = null, CancellationToken ct = default);
-    Task<Stream> RenderOfficeToPdfStreamAsync(Stream officeStream, string fileName, CancellationToken ct = default);
+    Task<Stream> RenderHtmlToPdfStreamAsync(string html, string? headerHtml, string? footerHtml, CancellationToken ct);
+    Task<Stream> RenderOfficeToPdfStreamAsync(Stream officeStream, string fileName, CancellationToken ct);
 }

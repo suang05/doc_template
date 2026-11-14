@@ -44,11 +44,11 @@ public sealed class FontManagementController(
         return Ok(new ApiResponse<FontCatalogDto>(result));
     }
 
-    /// <summary>Upload a new font file (.ttf, .otf, .woff, .woff2). Max 10 MB. Author or Admin role required.</summary>
+    /// <summary>Upload a new font file (.ttf, .otf, .woff, .woff2). Max 8 MB. Author or Admin role required.</summary>
     [HttpPost]
     [Authorize(Policy = AuthorizationPolicies.CanManageTemplates)]
     [Idempotent]
-    [RequestSizeLimit(10 * 1024 * 1024)]
+    [RequestSizeLimit(8 * 1024 * 1024)]
     [ProducesResponseType(typeof(ApiResponse<UploadFontResultDto>), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]

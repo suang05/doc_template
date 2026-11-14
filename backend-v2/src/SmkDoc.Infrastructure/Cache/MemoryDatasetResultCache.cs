@@ -5,7 +5,7 @@ namespace SmkDoc.Infrastructure.Cache;
 
 public sealed class MemoryDatasetResultCache(IMemoryCache cache) : IDatasetResultCache
 {
-    public ValueTask<string?> GetAsync(string cacheKey, CancellationToken ct = default)
+    public ValueTask<string?> GetAsync(string cacheKey, CancellationToken ct)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(cacheKey);
         ct.ThrowIfCancellationRequested();
@@ -14,7 +14,7 @@ public sealed class MemoryDatasetResultCache(IMemoryCache cache) : IDatasetResul
         return ValueTask.FromResult(cachedJson);
     }
 
-    public ValueTask SetAsync(string cacheKey, string jsonResult, TimeSpan ttl, CancellationToken ct = default)
+    public ValueTask SetAsync(string cacheKey, string jsonResult, TimeSpan ttl, CancellationToken ct)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(cacheKey);
         ct.ThrowIfCancellationRequested();

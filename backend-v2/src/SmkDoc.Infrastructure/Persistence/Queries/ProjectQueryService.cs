@@ -16,7 +16,7 @@ public sealed class ProjectQueryService(AppDbContext context) : IProjectQuerySer
         string? searchTerm,
         int page,
         int pageSize,
-        CancellationToken ct = default)
+        CancellationToken ct)
     {
         IQueryable<Project> query = _context.Projects.AsNoTracking().Where(p => p.IsActive);
 

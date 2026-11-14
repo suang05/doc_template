@@ -4,7 +4,6 @@ using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.Contracts.IdentityAccess.Auth;
 using SmkDoc.Api.Controllers.IdentityAccess;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.Login;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.RefreshToken;
 using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
@@ -123,7 +122,7 @@ public sealed class AuthControllerTests
         var controller = CreateSut();
 
         // Act
-        var result = await controller.GetMe(CancellationToken.None);
+        var result = await controller.GetMe(ct: CancellationToken.None);
 
         // Assert
         var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
@@ -132,7 +131,40 @@ public sealed class AuthControllerTests
         response.Data.Email.Should().Be("user@sammakorn.co.th");
 
         await _getCurrentUserProfileUseCase.Received(1).ExecuteAsync(
-            Arg.Is<GetCurrentUserProfileQuery>(q => q.UserId == _currentUserId),
+            Arg.Is<GetCurrentUserProfileQuery>(q => q.UserId == _currentUserId && q.ActiveProjectId == null),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task GetMe_WithProjectIdHeader_PassesActiveProjectIdInQuery()
+    {
+        // Arrange
+        var activeProjectId = Guid.NewGuid();
+        var controller = CreateSut();
+
+        var profileDto = new CurrentUserProfileResultDto(
+            Id: _currentUserId,
+            Email: "user@sammakorn.co.th",
+            FirstName: "Test",
+            LastName: "User",
+            SystemRole: "Member",
+            AccessibleProjects: [],
+            DefaultProjectId: activeProjectId,
+            ActiveProjectId: activeProjectId);
+
+        _getCurrentUserProfileUseCase.ExecuteAsync(Arg.Any<GetCurrentUserProfileQuery>(), Arg.Any<CancellationToken>())
+            .Returns(profileDto);
+
+        // Act
+        var result = await controller.GetMe(activeProjectId.ToString(), CancellationToken.None);
+
+        // Assert
+        var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
+        var response = okResult.Value.Should().BeOfType<ApiResponse<CurrentUserProfileResultDto>>().Subject;
+        response.Data.ActiveProjectId.Should().Be(activeProjectId);
+
+        await _getCurrentUserProfileUseCase.Received(1).ExecuteAsync(
+            Arg.Is<GetCurrentUserProfileQuery>(q => q.UserId == _currentUserId && q.ActiveProjectId == activeProjectId),
             Arg.Any<CancellationToken>());
     }
 }

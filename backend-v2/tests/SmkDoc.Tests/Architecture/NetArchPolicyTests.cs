@@ -1,7 +1,6 @@
 using System.Reflection;
 using Microsoft.AspNetCore.Mvc;
 using NetArchTest.Rules;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Common;
 using SmkDoc.Infrastructure.Persistence;
 
@@ -28,37 +27,13 @@ public sealed class NetArchPolicyTests
 
     // Pre-Phase-3 debt allow-lists: adding any NEW violating type fails CI immediately.
     // Phase 3 remediation must shrink every list below to zero.
-    private static readonly HashSet<string> Phase3VagueTypeAllowList = new(StringComparer.Ordinal)
-    {
-        "SmkDoc.Application.Common.Helpers.PlaceholderHelper"
-    };
+    private static readonly HashSet<string> Phase3VagueTypeAllowList = new(StringComparer.Ordinal);
 
-    private static readonly HashSet<string> Phase3ApplicationModuleServiceAllowList = new(StringComparer.Ordinal)
-    {
-        "SmkDoc.Application.Modules.Authoring.Fonts.Services.IFontCatalogService",
-        "SmkDoc.Application.Modules.IdentityAccess.Security.Services.ITokenIssuerService",
-        "SmkDoc.Application.Modules.IdentityAccess.Security.Services.TokenIssuerService",
-        "SmkDoc.Application.Modules.IdentityAccess.Users.Services.IUserProvisioningService",
-        "SmkDoc.Application.Modules.IdentityAccess.Users.Services.UserProvisioningService",
-        "SmkDoc.Application.Modules.Rendering.Documents.Services.IDocumentAuditService",
-        "SmkDoc.Application.Modules.Rendering.Documents.Services.DocumentAuditService",
-        "SmkDoc.Application.Modules.Rendering.Documents.Services.IDocumentRetentionService",
-        "SmkDoc.Application.Modules.Rendering.Documents.Services.DocumentRetentionService",
-        "SmkDoc.Application.Modules.Rendering.Documents.Services.IDocumentVersioningService",
-        "SmkDoc.Application.Modules.Rendering.Documents.Services.DocumentVersioningService"
-    };
+    private static readonly HashSet<string> Phase3ApplicationModuleServiceAllowList = new(StringComparer.Ordinal);
 
-    private static readonly HashSet<string> Phase3ApiInfrastructureLeakAllowList = new(StringComparer.Ordinal)
-    {
-        "SmkDoc.Api.HealthChecks.MinioHealthCheck",
-        "SmkDoc.Api.Middleware.ProjectContextMiddleware",
-        "SmkDoc.Api.RateLimiting.RedisFixedWindowRateLimiter"
-    };
+    private static readonly HashSet<string> Phase3ApiInfrastructureLeakAllowList = new(StringComparer.Ordinal);
 
-    private static readonly HashSet<string> Phase3MissingCancellationTokenAllowList = new(StringComparer.Ordinal)
-    {
-        "ISqlExecutorService.ExecuteQueryAsJsonAsync"
-    };
+    private static readonly HashSet<string> Phase3MissingCancellationTokenAllowList = new(StringComparer.Ordinal);
 
     private static readonly HashSet<string> Phase3OutboxDispatcherCallerAllowList = new(StringComparer.Ordinal)
     {
@@ -68,14 +43,8 @@ public sealed class NetArchPolicyTests
 
     private static readonly HashSet<string> Phase3ArchetypeBContextAllowList = new(StringComparer.Ordinal)
     {
-        // Pre-Phase-3 storage/cache key or workspace context consumers tracked for Phase 3 Archetype B audit
-        "SmkDoc.Application.Modules.Authoring.Fonts.Queries.GetFontBase64.GetFontBase64UseCase",
-        "SmkDoc.Application.Modules.IdentityAccess.Security.Queries.GetCurrentUserProfile.GetCurrentUserProfileUseCase",
-        "SmkDoc.Application.Modules.IdentityAccess.Security.Queries.ListApiKeys.ListApiKeysUseCase",
-        "SmkDoc.Application.Modules.IdentityAccess.Users.Commands.UpdateUserRole.UpdateUserRoleUseCase",
-        "SmkDoc.Application.Modules.IdentityAccess.Users.Queries.ListProjectUsers.ListProjectUsersUseCase",
-        "SmkDoc.Application.Modules.Rendering.Documents.Queries.GetDocumentJob.GetDocumentJobUseCase",
-        "SmkDoc.Application.Modules.Rendering.Documents.PreviewDocumentUseCase"
+        // GetDocumentJobUseCase retains ICurrentProjectContext until Phase 4 PostgreSQL document_jobs migration
+        "SmkDoc.Application.Modules.Rendering.Documents.Queries.GetDocumentJob.GetDocumentJobUseCase"
     };
 
     [Fact]
@@ -285,13 +254,26 @@ public sealed class NetArchPolicyTests
 
                 if (parameters[^1].HasDefaultValue)
                 {
-                    // Existing Phase 2 debt note: report only if completely missing or track gradual removal
+                    violations.Add($"{methodKey}: trailing CancellationToken must not have a default value");
                 }
             }
         }
 
         violations.Should().BeEmpty(
             "specs/02_coding_conventions.md §1 requires trailing CancellationToken on every async port method");
+    }
+
+    [Fact]
+    public void DomainLayer_MustNotContainApplicationExceptionsOrAmbientPorts()
+    {
+        DomainAssembly.GetType("SmkDoc.Domain.Interfaces.IUnitOfWork")
+            .Should().BeNull("IUnitOfWork belongs in SmkDoc.Application.Common.Interfaces");
+        DomainAssembly.GetType("SmkDoc.Domain.Interfaces.ICurrentProjectContext")
+            .Should().BeNull("ICurrentProjectContext belongs in SmkDoc.Application.Common.Interfaces");
+        DomainAssembly.GetType("SmkDoc.Domain.Exceptions.NotFoundException")
+            .Should().BeNull("NotFoundException belongs in SmkDoc.Application.Common.Exceptions");
+        DomainAssembly.GetType("SmkDoc.Domain.Exceptions.TenantContextRequiredException")
+            .Should().BeNull("TenantContextRequiredException was replaced by Application layer ProjectContext exceptions");
     }
 
     private static string FormatFailingTypes(TestResult result)

@@ -1,8 +1,3 @@
-using FluentAssertions;
-using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.ValueObjects;
-using Xunit;
-
 namespace SmkDoc.Tests.Domain.ValueObjects;
 
 public sealed class ProjectSlugTests

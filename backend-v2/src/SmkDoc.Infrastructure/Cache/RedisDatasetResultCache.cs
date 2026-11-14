@@ -8,12 +8,12 @@ namespace SmkDoc.Infrastructure.Cache;
 /// Multi-pod distributed implementation of <see cref="IDatasetResultCache"/> backed by Redis.
 /// Enforces fail-open semantics: transient Redis errors log a warning and fall back to live SQL execution.
 /// </summary>
-public sealed class RedisDatasetResultCache(
+public sealed partial class RedisDatasetResultCache(
     IConnectionMultiplexer multiplexer,
     ILogger<RedisDatasetResultCache> logger,
     string instancePrefix = RedisConfigurationResolver.DefaultInstancePrefix) : IDatasetResultCache
 {
-    public async ValueTask<string?> GetAsync(string cacheKey, CancellationToken ct = default)
+    public async ValueTask<string?> GetAsync(string cacheKey, CancellationToken ct)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(cacheKey);
         ct.ThrowIfCancellationRequested();
@@ -25,15 +25,12 @@ public sealed class RedisDatasetResultCache(
         }
         catch (RedisException ex)
         {
-            logger.LogWarning(
-                ex,
-                "Redis dataset cache read failed for {CacheKey}; failing open to live dataset query.",
-                cacheKey);
+            LogCacheReadFailed(logger, ex, cacheKey);
             return null;
         }
     }
 
-    public async ValueTask SetAsync(string cacheKey, string jsonResult, TimeSpan ttl, CancellationToken ct = default)
+    public async ValueTask SetAsync(string cacheKey, string jsonResult, TimeSpan ttl, CancellationToken ct)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(cacheKey);
         ct.ThrowIfCancellationRequested();
@@ -49,12 +46,19 @@ public sealed class RedisDatasetResultCache(
         }
         catch (RedisException ex)
         {
-            logger.LogWarning(
-                ex,
-                "Redis dataset cache write failed for {CacheKey}; continuing without caching.",
-                cacheKey);
+            LogCacheWriteFailed(logger, ex, cacheKey);
         }
     }
 
     private RedisKey PrefixedKey(string cacheKey) => $"{instancePrefix}{cacheKey}";
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Redis dataset cache read failed for {CacheKey}; failing open to live dataset query.")]
+    private static partial void LogCacheReadFailed(ILogger logger, RedisException ex, string cacheKey);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Redis dataset cache write failed for {CacheKey}; continuing without caching.")]
+    private static partial void LogCacheWriteFailed(ILogger logger, RedisException ex, string cacheKey);
 }

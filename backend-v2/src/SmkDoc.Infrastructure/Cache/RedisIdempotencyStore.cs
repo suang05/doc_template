@@ -12,7 +12,7 @@ namespace SmkDoc.Infrastructure.Cache;
 /// Enforces fail-closed semantics (<see cref="DistributedStateUnavailableException"/> => HTTP 503) during lock acquisition
 /// to guarantee zero duplicate official/financial document generation across pods.
 /// </summary>
-public sealed class RedisIdempotencyStore(
+public sealed partial class RedisIdempotencyStore(
     IConnectionMultiplexer multiplexer,
     TimeProvider timeProvider,
     ILogger<RedisIdempotencyStore> logger,
@@ -45,7 +45,7 @@ public sealed class RedisIdempotencyStore(
         string cacheKey,
         string requestFingerprint,
         TimeSpan inFlightTtl,
-        CancellationToken ct = default)
+        CancellationToken ct)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(cacheKey);
         ArgumentException.ThrowIfNullOrWhiteSpace(requestFingerprint);
@@ -89,7 +89,7 @@ public sealed class RedisIdempotencyStore(
         }
         catch (RedisException ex)
         {
-            logger.LogError(ex, "Redis unavailable while acquiring idempotency lock for {CacheKey}", cacheKey);
+            LogAcquireLockUnavailable(logger, ex, cacheKey);
             throw new DistributedStateUnavailableException(
                 "Distributed idempotency store is temporarily unavailable. Retry shortly.",
                 ex);
@@ -103,7 +103,7 @@ public sealed class RedisIdempotencyStore(
         string responseJson,
         IReadOnlyDictionary<string, string>? headers,
         TimeSpan completedTtl,
-        CancellationToken ct = default)
+        CancellationToken ct)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(cacheKey);
         ArgumentException.ThrowIfNullOrWhiteSpace(requestFingerprint);
@@ -128,14 +128,11 @@ public sealed class RedisIdempotencyStore(
         }
         catch (RedisException ex)
         {
-            logger.LogError(
-                ex,
-                "Failed to persist completed idempotency response in Redis for {CacheKey}; returning committed response to caller.",
-                cacheKey);
+            LogPersistCompletedFailed(logger, ex, cacheKey);
         }
     }
 
-    public async Task RemoveAsync(string cacheKey, CancellationToken ct = default)
+    public async Task RemoveAsync(string cacheKey, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(cacheKey))
         {
@@ -150,14 +147,26 @@ public sealed class RedisIdempotencyStore(
         }
         catch (RedisException ex)
         {
-            logger.LogWarning(
-                ex,
-                "Failed to roll back in-flight idempotency key {CacheKey} in Redis; lock will expire via TTL.",
-                cacheKey);
+            LogRollbackInFlightFailed(logger, ex, cacheKey);
         }
     }
 
     private RedisKey PrefixedKey(string cacheKey) => $"{instancePrefix}{cacheKey}";
+
+    [LoggerMessage(
+        Level = LogLevel.Error,
+        Message = "Redis unavailable while acquiring idempotency lock for {CacheKey}")]
+    private static partial void LogAcquireLockUnavailable(ILogger logger, RedisException ex, string cacheKey);
+
+    [LoggerMessage(
+        Level = LogLevel.Error,
+        Message = "Failed to persist completed idempotency response in Redis for {CacheKey}; returning committed response to caller.")]
+    private static partial void LogPersistCompletedFailed(ILogger logger, RedisException ex, string cacheKey);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Failed to roll back in-flight idempotency key {CacheKey} in Redis; lock will expire via TTL.")]
+    private static partial void LogRollbackInFlightFailed(ILogger logger, RedisException ex, string cacheKey);
 
     private static JsonSerializerOptions CreateSerializerOptions()
     {

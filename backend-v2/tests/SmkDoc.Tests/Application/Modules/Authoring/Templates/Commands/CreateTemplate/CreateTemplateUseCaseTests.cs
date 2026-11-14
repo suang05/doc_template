@@ -1,14 +1,10 @@
 using System.Text;
 using SmkDoc.Application.Common;
 using SmkDoc.Application.Common.Behaviors;
-using SmkDoc.Application.Common.Exceptions;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.CreateTemplate;
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Application.Modules.Rendering.Documents.DTOs;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
 using ValidationException = SmkDoc.Application.Common.Exceptions.ValidationException;
 
@@ -27,7 +23,7 @@ public sealed class CreateTemplateUseCaseTests
     public CreateTemplateUseCaseTests()
     {
         _projectContext.IsResolved.Returns(true);
-        _projectContext.ProjectId.Returns(new ProjectId(TestConstants.DefaultProjectId));
+        _projectContext.GetRequiredProjectId().Returns(new ProjectId(TestConstants.DefaultProjectId));
         _projectContext.CallerIdentity.Returns("erp-system");
         _securityScanner.Scan(Arg.Any<Stream>()).Returns(new DocxScanResult(true, []));
         _unitOfWork.CommitAsync(Arg.Any<CancellationToken>()).Returns(1);
@@ -59,7 +55,7 @@ public sealed class CreateTemplateUseCaseTests
             [new CreateTemplateCommandValidator()]);
 
         // Act
-        var act = () => pipeline.ExecuteAsync(invalidCommand);
+        var act = () => pipeline.ExecuteAsync(invalidCommand, CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<ValidationException>();
@@ -68,18 +64,18 @@ public sealed class CreateTemplateUseCaseTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_WhenProjectContextUnresolved_ShouldThrowTenantContextRequiredException()
+    public async Task ExecuteAsync_WhenProjectContextUnresolved_ShouldThrowTenantContextNotResolvedException()
     {
         // Arrange
         _projectContext.IsResolved.Returns(false);
-        _projectContext.ProjectId.Returns(_ => throw new TenantContextRequiredException());
+        _projectContext.GetRequiredProjectId().Returns(_ => throw new TenantContextNotResolvedException());
         var command = new CreateTemplateCommand("Tax Invoice", "tax-invoice", "Finance");
 
         // Act
-        var act = () => CreateSut().ExecuteAsync(command);
+        var act = () => CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
-        await act.Should().ThrowAsync<TenantContextRequiredException>();
+        await act.Should().ThrowAsync<TenantContextNotResolvedException>();
         await _templateRepo.DidNotReceive().AddAsync(Arg.Any<Template>(), Arg.Any<CancellationToken>());
     }
 
@@ -93,7 +89,7 @@ public sealed class CreateTemplateUseCaseTests
         var command = new CreateTemplateCommand("Tax Invoice", "tax-invoice", "Finance");
 
         // Act
-        var act = () => CreateSut().ExecuteAsync(command);
+        var act = () => CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<ConflictException>();
@@ -111,7 +107,7 @@ public sealed class CreateTemplateUseCaseTests
         var command = new CreateTemplateCommand("Tax Invoice", "tax-invoice", "Finance");
 
         // Act
-        TemplateResultDto result = await CreateSut().ExecuteAsync(command);
+        TemplateResultDto result = await CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         result.Should().NotBeNull();
@@ -153,7 +149,7 @@ public sealed class CreateTemplateUseCaseTests
         var command = new CreateTemplateCommand("Unsafe Doc", "unsafe-doc", "Security", fileStream, "unsafe.docx");
 
         // Act
-        var act = () => CreateSut().ExecuteAsync(command);
+        var act = () => CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<DomainValidationException>()
@@ -173,7 +169,7 @@ public sealed class CreateTemplateUseCaseTests
         var command = new CreateTemplateCommand("Tax Invoice", "tax-invoice", "Finance");
 
         // Act
-        var act = () => CreateSut().ExecuteAsync(command);
+        var act = () => CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("DB connection dropped");
@@ -196,7 +192,7 @@ public sealed class CreateTemplateUseCaseTests
         var command = new CreateTemplateCommand("Giant Doc", "giant-doc", "General", mockStream, "giant.html");
 
         // Act
-        var act = () => CreateSut().ExecuteAsync(command);
+        var act = () => CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<DomainValidationException>()
@@ -214,7 +210,7 @@ public sealed class CreateTemplateUseCaseTests
         var command = new CreateTemplateCommand("Invalid Ext", "invalid-ext", "General", stream, "script.exe");
 
         // Act
-        var act = () => CreateSut().ExecuteAsync(command);
+        var act = () => CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<DomainValidationException>()

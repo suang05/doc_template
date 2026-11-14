@@ -1,7 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Rendering.Documents.Commands.GenerateDocument;
 using SmkDoc.Application.Modules.Rendering.Documents.DTOs;
 using SmkDoc.Application.Modules.Rendering.Documents.Models;
@@ -39,12 +38,12 @@ public sealed class DocumentRenderQueueWorkerTests
 
         // Queue returns the job once, then cancels
         _queue.DequeueAsync(Arg.Any<CancellationToken>())
-            .Returns(
-                callInfo => Task.FromResult<DocumentJob?>(job),
-                callInfo =>
+            .Returns<Task<DocumentJob?>>(
+                _ => Task.FromResult<DocumentJob?>(job),
+                async _ =>
                 {
-                    cts.Cancel();
-                    return Task.FromResult<DocumentJob?>(null);
+                    await cts.CancelAsync();
+                    return null;
                 });
 
         var scope = Substitute.For<IServiceScope>();
@@ -77,7 +76,7 @@ public sealed class DocumentRenderQueueWorkerTests
             PollDelay = TimeSpan.FromMilliseconds(50)
         });
 
-        var worker = new DocumentRenderQueueWorker(
+        using var worker = new DocumentRenderQueueWorker(
             _queue,
             _scopeFactory,
             _logger,

@@ -1,10 +1,5 @@
-using SmkDoc.Application.Common.Exceptions;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Integration.Datasets.Commands.DryRunDataset;
-using SmkDoc.Application.Modules.Integration.Datasets.DTOs;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common.Builders;
 
@@ -72,7 +67,7 @@ public sealed class DryRunDatasetUseCaseTests
             5);
 
         // Act
-        var result = await CreateSut().ExecuteAsync(command);
+        var result = await CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         result.Should().NotBeNull();
@@ -111,7 +106,7 @@ public sealed class DryRunDatasetUseCaseTests
             "SELECT 1 AS val");
 
         // Act
-        var result = await CreateSut().ExecuteAsync(command);
+        var result = await CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         result.Should().NotBeNull();
@@ -131,7 +126,7 @@ public sealed class DryRunDatasetUseCaseTests
         var command = new DryRunDatasetCommand(connId, null, null, "SELECT 1");
 
         // Act
-        var act = () => CreateSut().ExecuteAsync(command);
+        var act = () => CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<NotFoundException>();
@@ -144,7 +139,7 @@ public sealed class DryRunDatasetUseCaseTests
         var command = new DryRunDatasetCommand(null, "", "", "SELECT 1");
 
         // Act
-        var act = () => CreateSut().ExecuteAsync(command);
+        var act = () => CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<DomainValidationException>();
@@ -160,7 +155,7 @@ public sealed class DryRunDatasetUseCaseTests
         var command = new DryRunDatasetCommand(null, "PostgreSQL", "Host=localhost;Database=db", "SELECT 1");
 
         // Act
-        var act = () => CreateSut().ExecuteAsync(command);
+        var act = () => CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<ForbiddenException>();
@@ -176,7 +171,7 @@ public sealed class DryRunDatasetUseCaseTests
         var command = new DryRunDatasetCommand(null, "PostgreSQL", "Host=remote;Database=db", "DROP TABLE users");
 
         // Act
-        var act = () => CreateSut().ExecuteAsync(command);
+        var act = () => CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<DomainValidationException>();
@@ -193,7 +188,7 @@ public sealed class DryRunDatasetUseCaseTests
         var command = new DryRunDatasetCommand(null, "PostgreSQL", "Host=remote;Database=db", "SELECT * FROM nonexistent_table");
 
         // Act
-        var result = await CreateSut().ExecuteAsync(command);
+        var result = await CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         result.Should().NotBeNull();

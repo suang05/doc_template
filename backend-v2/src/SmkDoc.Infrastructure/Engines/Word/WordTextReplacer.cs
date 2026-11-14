@@ -1,6 +1,7 @@
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
 using SmkDoc.Application.Common.Helpers;
+using SmkDoc.Application.Modules.Authoring.Templates.Parsing;
 
 namespace SmkDoc.Infrastructure.Engines.Word;
 
@@ -44,14 +45,14 @@ public class WordTextReplacer
         if (runs.Count == 0) return;
 
         string combined = string.Concat(runs.Select(r => r.InnerText));
-        string updated = PlaceholderHelper.Pattern.Replace(combined, m =>
+        string updated = TemplatePlaceholderParser.Pattern.Replace(combined, m =>
         {
             string key = m.Groups[1].Value.Trim();
             if (replacements.TryGetValue(key, out var val))
                 return val;
 
-            var parsed = PlaceholderHelper.Parse(key);
-            if (parsed.Kind == PlaceholderHelper.PlaceholderKind.Transform &&
+            var parsed = TemplatePlaceholderParser.Parse(key);
+            if (parsed.Kind == PlaceholderKind.Transform &&
                 replacements.TryGetValue(parsed.Key, out var rawVal))
             {
                 return ThaiDataTransformer.Transform(rawVal, parsed.Extra ?? "");

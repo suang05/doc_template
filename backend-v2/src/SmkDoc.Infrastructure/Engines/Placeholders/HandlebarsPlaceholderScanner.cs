@@ -3,11 +3,10 @@ using SmkDoc.Domain.ValueObjects;
 
 namespace SmkDoc.Infrastructure.Engines.Placeholders;
 
-public static class HandlebarsPlaceholderScanner
+public static partial class HandlebarsPlaceholderScanner
 {
-    private static readonly Regex TokenRegex = new(
-        @"\{\{\{?([^{}]+)\}?\}\}",
-        RegexOptions.Compiled | RegexOptions.Singleline);
+    [GeneratedRegex(@"\{\{\{?([^{}]+)\}?\}\}", RegexOptions.Singleline, 1000)]
+    private static partial Regex TokenRegex();
 
     public static List<TemplatePlaceholder> Scan(string templateText)
     {
@@ -16,7 +15,7 @@ public static class HandlebarsPlaceholderScanner
 
         var results = new List<TemplatePlaceholder>();
         var collectionStack = new Stack<string>();
-        var matches = TokenRegex.Matches(templateText);
+        var matches = TokenRegex().Matches(templateText);
 
         foreach (Match match in matches)
         {

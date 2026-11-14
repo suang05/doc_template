@@ -1,6 +1,5 @@
 using System.Text;
 using System.Text.RegularExpressions;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 
 namespace SmkDoc.Application.Modules.Authoring.Templates.Queries.ValidateTemplateHtml;
@@ -18,7 +17,7 @@ public sealed partial class ValidateTemplateHtmlUseCase(
     [GeneratedRegex(@"name=[""']([^""']+)[""']", RegexOptions.IgnoreCase)]
     private static partial Regex NameAttributeRegex();
 
-    public async Task<TemplateValidationResultDto> ExecuteAsync(ValidateTemplateHtmlQuery query, CancellationToken ct = default)
+    public async Task<TemplateValidationResultDto> ExecuteAsync(ValidateTemplateHtmlQuery query, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(query.Html))
         {
@@ -71,7 +70,7 @@ public sealed partial class ValidateTemplateHtmlUseCase(
     {
         try
         {
-            await using var pdfStream = await pdfRenderer.RenderHtmlToPdfStreamAsync(html, ct: ct);
+            await using var pdfStream = await pdfRenderer.RenderHtmlToPdfStreamAsync(html, null, null, ct);
             if (pdfStream is not null)
             {
                 await pdfStream.CopyToAsync(Stream.Null, 81_920, ct);

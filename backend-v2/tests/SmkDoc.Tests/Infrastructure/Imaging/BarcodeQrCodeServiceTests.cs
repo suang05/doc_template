@@ -1,6 +1,4 @@
-﻿using FluentAssertions;
-using SmkDoc.Infrastructure.Imaging;
-using Xunit;
+﻿using SmkDoc.Infrastructure.Imaging;
 
 namespace SmkDoc.Tests.Infrastructure.Imaging;
 

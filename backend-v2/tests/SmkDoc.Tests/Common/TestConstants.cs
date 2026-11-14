@@ -1,5 +1,3 @@
-using Microsoft.Extensions.Time.Testing;
-
 namespace SmkDoc.Tests.Common;
 
 /// <summary>

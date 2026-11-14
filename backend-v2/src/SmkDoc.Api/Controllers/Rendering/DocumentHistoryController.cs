@@ -14,7 +14,7 @@ namespace SmkDoc.Api.Controllers.Rendering;
 /// Scoped by Document Reference (e.g., invoice number, contract code) under tenant isolation.
 /// </summary>
 [ApiController]
-[Route("api/v1/documents")]
+[Route("api/v1/document-versions")]
 [Authorize(Policy = AuthorizationPolicies.CanGenerateDocuments)]
 public sealed class DocumentHistoryController(
     IUseCase<GetDocumentVersionsQuery, List<DocumentVersionDto>> getVersionsUseCase,

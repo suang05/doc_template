@@ -1,10 +1,6 @@
 using SmkDoc.Application.Common.Behaviors;
-using SmkDoc.Application.Common.Exceptions;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Integration.DataConnections.Commands.UpdateDataConnection;
-using SmkDoc.Application.Modules.Integration.DataConnections.DTOs;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common.Builders;
 
@@ -40,7 +36,7 @@ public sealed class UpdateDataConnectionUseCaseTests
             [new UpdateDataConnectionCommandValidator()]);
 
         // Act
-        Func<Task> act = () => pipeline.ExecuteAsync(command);
+        Func<Task> act = () => pipeline.ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<SmkDoc.Application.Common.Exceptions.ValidationException>();
@@ -63,7 +59,7 @@ public sealed class UpdateDataConnectionUseCaseTests
         var command = new UpdateDataConnectionCommand(id, "New Name", "SqlServer", "new_plain_conn");
 
         // Act
-        DataConnectionResultDto? result = await CreateSut().ExecuteAsync(command);
+        DataConnectionResultDto? result = await CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         result.Should().NotBeNull();
@@ -91,7 +87,7 @@ public sealed class UpdateDataConnectionUseCaseTests
         var command = new UpdateDataConnectionCommand(id, "DB Renamed", "PostgreSQL", "");
 
         // Act
-        DataConnectionResultDto? result = await CreateSut().ExecuteAsync(command);
+        DataConnectionResultDto? result = await CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         result.Should().NotBeNull();
@@ -112,7 +108,7 @@ public sealed class UpdateDataConnectionUseCaseTests
         var command = new UpdateDataConnectionCommand(id, "X", "PostgreSQL", "conn");
 
         // Act
-        var act = () => CreateSut().ExecuteAsync(command);
+        var act = () => CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<NotFoundException>();

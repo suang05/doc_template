@@ -1,20 +1,15 @@
 using System.Reflection;
 using System.Text;
-using FluentAssertions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using NSubstitute;
 using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.Constants;
 using SmkDoc.Api.Controllers.Authoring;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Fonts.Commands.UploadFont;
 using SmkDoc.Application.Modules.Authoring.Fonts.DTOs;
 using SmkDoc.Application.Modules.Authoring.Fonts.Queries.GetFontCatalog;
 using SmkDoc.Application.Modules.Authoring.Fonts.Queries.ListFonts;
-using SmkDoc.Domain.Exceptions;
-using Xunit;
 
 namespace SmkDoc.Tests.Api.Controllers;
 

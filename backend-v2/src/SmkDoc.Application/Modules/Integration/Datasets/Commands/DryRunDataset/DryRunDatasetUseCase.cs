@@ -1,8 +1,4 @@
-using SmkDoc.Application.Common.Exceptions;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Integration.Datasets.DTOs;
-using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Modules.Integration.Datasets.Commands.DryRunDataset;
@@ -19,7 +15,7 @@ public sealed class DryRunDatasetUseCase(
 {
     private const int CommandTimeoutSeconds = 15;
 
-    public async Task<DryRunDatasetResultDto> ExecuteAsync(DryRunDatasetCommand command, CancellationToken ct = default)
+    public async Task<DryRunDatasetResultDto> ExecuteAsync(DryRunDatasetCommand command, CancellationToken ct)
     {
         string provider;
         string connectionString;

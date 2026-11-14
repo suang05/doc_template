@@ -1,9 +1,6 @@
 using System.Text;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.ParseTemplateDraft;
 using SmkDoc.Application.Modules.Rendering.Documents.DTOs;
-using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Tests.Application.Modules.Authoring.Templates.Commands.ParseTemplateDraft;
@@ -19,7 +16,7 @@ public sealed class ParseTemplateDraftUseCaseTests
     public ParseTemplateDraftUseCaseTests()
     {
         _projectContext.IsResolved.Returns(true);
-        _projectContext.ProjectId.Returns(_projectId);
+        _projectContext.GetRequiredProjectId().Returns(_projectId);
         _docxSecurityScanner.Scan(Arg.Any<Stream>()).Returns(new DocxScanResult(true, []));
     }
 

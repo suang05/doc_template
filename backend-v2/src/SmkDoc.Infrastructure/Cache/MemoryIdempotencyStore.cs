@@ -17,7 +17,7 @@ public sealed class MemoryIdempotencyStore(
         string cacheKey,
         string requestFingerprint,
         TimeSpan inFlightTtl,
-        CancellationToken ct = default)
+        CancellationToken ct)
     {
         lock (_syncLock)
         {
@@ -55,7 +55,7 @@ public sealed class MemoryIdempotencyStore(
         string responseJson,
         IReadOnlyDictionary<string, string>? headers,
         TimeSpan completedTtl,
-        CancellationToken ct = default)
+        CancellationToken ct)
     {
         lock (_syncLock)
         {
@@ -79,7 +79,7 @@ public sealed class MemoryIdempotencyStore(
         }
     }
 
-    public Task RemoveAsync(string cacheKey, CancellationToken ct = default)
+    public Task RemoveAsync(string cacheKey, CancellationToken ct)
     {
         lock (_syncLock)
         {

@@ -37,7 +37,7 @@ public sealed class RedisDocumentRenderQueueTests
             DateTimeOffset.UtcNow);
 
         // Act
-        var resultId = await _sut.EnqueueAsync(job);
+        var resultId = await _sut.EnqueueAsync(job, CancellationToken.None);
 
         // Assert
         resultId.Should().Be(job.JobId);
@@ -95,7 +95,7 @@ public sealed class RedisDocumentRenderQueueTests
             .Returns(streamEntries);
 
         // Act
-        var result = await _sut.DequeueAsync();
+        var result = await _sut.DequeueAsync(CancellationToken.None);
 
         // Assert
         result.Should().NotBeNull();
@@ -139,7 +139,7 @@ public sealed class RedisDocumentRenderQueueTests
             .Returns(streamEntries);
 
         // Dequeue first to track active stream id
-        var dequeued = await _sut.DequeueAsync();
+        var dequeued = await _sut.DequeueAsync(CancellationToken.None);
         dequeued.Should().NotBeNull();
 
         // Mark completed
@@ -147,7 +147,7 @@ public sealed class RedisDocumentRenderQueueTests
             Guid.NewGuid(), "INV", "pdf", 100, "hash", "url", DateTimeOffset.UtcNow), DateTimeOffset.UtcNow);
 
         // Act
-        await _sut.UpdateJobAsync(dequeued);
+        await _sut.UpdateJobAsync(dequeued, CancellationToken.None);
 
         // Assert
         await _database.Received(1).StreamAcknowledgeAsync(

@@ -1,6 +1,4 @@
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Rendering.Documents.DTOs;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
 
 namespace SmkDoc.Application.Modules.Rendering.Documents.Queries.GetDocumentVersions;
@@ -8,7 +6,7 @@ namespace SmkDoc.Application.Modules.Rendering.Documents.Queries.GetDocumentVers
 public sealed class GetDocumentVersionsUseCase(
     IDocumentRepository documentRepo) : IUseCase<GetDocumentVersionsQuery, List<DocumentVersionDto>>
 {
-    public async Task<List<DocumentVersionDto>> ExecuteAsync(GetDocumentVersionsQuery query, CancellationToken ct = default)
+    public async Task<List<DocumentVersionDto>> ExecuteAsync(GetDocumentVersionsQuery query, CancellationToken ct)
     {
         var docRef = DocumentReference.Create(query.DocumentRef);
         var document = await documentRepo.GetByDocumentRefAsync(docRef, ct);

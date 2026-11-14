@@ -1,14 +1,8 @@
 using System.Text;
-using FluentAssertions;
-using NSubstitute;
 using SmkDoc.Application.Common;
-using SmkDoc.Application.Common.Exceptions;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Rendering.Logs.Queries.GetLogPayload;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Tests.Common.Builders;
-using Xunit;
 
 namespace SmkDoc.Tests.Application.Modules.Rendering.Logs.Queries.GetLogPayload;
 
@@ -27,7 +21,7 @@ public sealed class GetLogPayloadUseCaseTests
         _logRepo.GetByIdAsync(logId, Arg.Any<CancellationToken>()).Returns((GenerationLog?)null);
 
         // Act
-        var act = () => CreateSut().ExecuteAsync(new GetLogPayloadQuery(logId));
+        var act = () => CreateSut().ExecuteAsync(new GetLogPayloadQuery(logId), CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<NotFoundException>()
@@ -48,7 +42,7 @@ public sealed class GetLogPayloadUseCaseTests
         _logRepo.GetByIdAsync(logId, Arg.Any<CancellationToken>()).Returns(log);
 
         // Act
-        var result = await CreateSut().ExecuteAsync(new GetLogPayloadQuery(logId));
+        var result = await CreateSut().ExecuteAsync(new GetLogPayloadQuery(logId), CancellationToken.None);
 
         // Assert
         result.LogId.Should().Be(logId);
@@ -79,7 +73,7 @@ public sealed class GetLogPayloadUseCaseTests
             .Returns(memoryStream);
 
         // Act
-        var result = await CreateSut().ExecuteAsync(new GetLogPayloadQuery(logId));
+        var result = await CreateSut().ExecuteAsync(new GetLogPayloadQuery(logId), CancellationToken.None);
 
         // Assert
         result.LogId.Should().Be(logId);
@@ -102,7 +96,7 @@ public sealed class GetLogPayloadUseCaseTests
         _logRepo.GetByIdAsync(logId, Arg.Any<CancellationToken>()).Returns(log);
 
         // Act
-        var result = await CreateSut().ExecuteAsync(new GetLogPayloadQuery(logId));
+        var result = await CreateSut().ExecuteAsync(new GetLogPayloadQuery(logId), CancellationToken.None);
 
         // Assert
         result.LogId.Should().Be(logId);

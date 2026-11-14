@@ -8,7 +8,7 @@ public sealed class PreconditionFailedException : Exception
 {
     public string ErrorCode { get; }
 
-    public PreconditionFailedException(string message, string errorCode = "PRECONDITION_FAILED")
+    public PreconditionFailedException(string message, string errorCode = ErrorCodes.PreconditionFailed)
         : base(message)
     {
         ErrorCode = errorCode;

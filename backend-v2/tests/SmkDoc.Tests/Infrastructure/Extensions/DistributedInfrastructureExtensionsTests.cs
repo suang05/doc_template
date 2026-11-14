@@ -1,12 +1,8 @@
-using FluentAssertions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Infrastructure.Cache;
 using SmkDoc.Infrastructure.Extensions;
 using SmkDoc.Infrastructure.Queue;
-using Xunit;
 
 namespace SmkDoc.Tests.Infrastructure.Extensions;
 

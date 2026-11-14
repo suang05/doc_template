@@ -1,9 +1,5 @@
-using FluentAssertions;
-using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Infrastructure.Contexts;
-using Xunit;
 
 namespace SmkDoc.Tests.Application.Common.Context;
 
@@ -12,14 +8,14 @@ public sealed class CurrentProjectContextTests
     private readonly CurrentProjectContext _sut = new();
 
     [Fact]
-    public void UninitializedContext_ShouldHaveUnresolvedState_AndThrowOnProjectIdAccess()
+    public void UninitializedContext_ShouldHaveUnresolvedState_AndThrowOnGetRequiredProjectIdAccess()
     {
         // Assert
         _sut.IsResolved.Should().BeFalse();
-        _sut.OptionalProjectId.Should().BeNull();
+        _sut.TryGetProjectId().Should().BeNull();
         _sut.CallerIdentity.Should().BeNull();
-        var act = () => _sut.ProjectId;
-        act.Should().Throw<TenantContextRequiredException>();
+        var act = () => _sut.GetRequiredProjectId();
+        act.Should().Throw<TenantContextNotResolvedException>();
     }
 
     [Fact]
@@ -34,7 +30,8 @@ public sealed class CurrentProjectContextTests
 
         // Assert
         _sut.IsResolved.Should().BeTrue();
-        _sut.ProjectId.Should().Be(projectId);
+        _sut.GetRequiredProjectId().Should().Be(projectId);
+        _sut.TryGetProjectId().Should().Be(projectId);
         _sut.CallerIdentity.Should().Be(callerIdentity);
     }
 
@@ -49,7 +46,7 @@ public sealed class CurrentProjectContextTests
 
         // Assert
         _sut.IsResolved.Should().BeTrue();
-        _sut.ProjectId.Should().Be(projectId);
+        _sut.GetRequiredProjectId().Should().Be(projectId);
         _sut.CallerIdentity.Should().BeNull();
     }
 
@@ -92,7 +89,7 @@ public sealed class CurrentProjectContextTests
 
         // Assert
         reader.IsResolved.Should().BeTrue();
-        reader.ProjectId.Should().Be(projectId);
+        reader.GetRequiredProjectId().Should().Be(projectId);
         reader.CallerIdentity.Should().Be("audit-user");
     }
 

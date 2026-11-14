@@ -1,9 +1,5 @@
-using SmkDoc.Application.Common.Exceptions;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.ValueObjects.Ids;
 
@@ -15,7 +11,7 @@ public sealed class SaveTemplateDatasetsUseCase(
     IUnitOfWork unitOfWork,
     TimeProvider timeProvider) : IUseCase<SaveTemplateDatasetsCommand, List<TemplateDatasetResultDto>>
 {
-    public async Task<List<TemplateDatasetResultDto>> ExecuteAsync(SaveTemplateDatasetsCommand command, CancellationToken ct = default)
+    public async Task<List<TemplateDatasetResultDto>> ExecuteAsync(SaveTemplateDatasetsCommand command, CancellationToken ct)
     {
         var templateId = new TemplateId(command.TemplateId);
         var template = await templateRepo.GetByIdWithDetailsAsync(templateId, ct)

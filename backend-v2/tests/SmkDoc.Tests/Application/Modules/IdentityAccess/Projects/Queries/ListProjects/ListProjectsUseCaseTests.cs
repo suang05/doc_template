@@ -1,9 +1,6 @@
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Projects.DTOs;
 using SmkDoc.Application.Modules.IdentityAccess.Projects.Queries.ListProjects;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Enums;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common.Builders;
 
@@ -39,7 +36,7 @@ public sealed class ListProjectsUseCaseTests
             .Returns(([projectDto], 1));
 
         // Act
-        ProjectPagedResultDto result = await CreateSut().ExecuteAsync(new ListProjectsQuery(userId));
+        ProjectPagedResultDto result = await CreateSut().ExecuteAsync(new ListProjectsQuery(userId), CancellationToken.None);
 
         // Assert
         result.Should().NotBeNull();
@@ -72,7 +69,7 @@ public sealed class ListProjectsUseCaseTests
             .Returns(([projectDto], 1));
 
         // Act
-        ProjectPagedResultDto result = await CreateSut().ExecuteAsync(new ListProjectsQuery(userId));
+        ProjectPagedResultDto result = await CreateSut().ExecuteAsync(new ListProjectsQuery(userId), CancellationToken.None);
 
         // Assert
         result.Should().NotBeNull();
@@ -108,7 +105,7 @@ public sealed class ListProjectsUseCaseTests
 
         // Act
         var query = new ListProjectsQuery(userId, "invoice", 2, 10);
-        ProjectPagedResultDto result = await CreateSut().ExecuteAsync(query);
+        ProjectPagedResultDto result = await CreateSut().ExecuteAsync(query, CancellationToken.None);
 
         // Assert
         result.Page.Should().Be(2);
@@ -145,7 +142,7 @@ public sealed class ListProjectsUseCaseTests
 
         // Act
         ProjectPagedResultDto result = await CreateSut().ExecuteAsync(
-            new ListProjectsQuery(userId, null, requestedPage, requestedPageSize));
+            new ListProjectsQuery(userId, null, requestedPage, requestedPageSize), CancellationToken.None);
 
         // Assert
         result.Page.Should().Be(expectedPage);

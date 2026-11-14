@@ -463,7 +463,7 @@ describe('DocumentJobDtoSchema', () => {
     startedAt: '2026-11-04T12:00:01Z',
     completedAt: '2026-11-04T12:00:03Z',
     statusUrl: '/api/v1/documents/jobs/123e4567-e89b-12d3-a456-426614174000',
-    downloadUrl: '/api/v1/documents/download/123e4567-e89b-12d3-a456-426614174000',
+    downloadUrl: '/api/v1/generation-logs/123e4567-e89b-12d3-a456-426614174000/artifact',
     errorMessage: null,
     errorCode: null,
   };

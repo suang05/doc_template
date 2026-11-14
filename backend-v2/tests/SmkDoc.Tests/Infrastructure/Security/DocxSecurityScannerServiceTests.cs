@@ -1,7 +1,5 @@
-﻿using FluentAssertions;
-using Microsoft.Extensions.Logging.Abstractions;
+﻿using Microsoft.Extensions.Logging.Abstractions;
 using SmkDoc.Infrastructure.Security;
-using Xunit;
 
 namespace SmkDoc.Tests.Infrastructure.Security;
 

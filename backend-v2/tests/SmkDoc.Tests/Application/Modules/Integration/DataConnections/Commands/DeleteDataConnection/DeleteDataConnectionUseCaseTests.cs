@@ -1,8 +1,5 @@
-using SmkDoc.Application.Common.Exceptions;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Integration.DataConnections.Commands.DeleteDataConnection;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common.Builders;
 
@@ -34,7 +31,7 @@ public sealed class DeleteDataConnectionUseCaseTests
         var command = new DeleteDataConnectionCommand(id);
 
         // Act
-        await CreateSut().ExecuteAsync(command);
+        await CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         _connectionRepo.Received(1).Remove(existing);
@@ -52,7 +49,7 @@ public sealed class DeleteDataConnectionUseCaseTests
         var command = new DeleteDataConnectionCommand(id);
 
         // Act
-        var act = () => CreateSut().ExecuteAsync(command);
+        var act = () => CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<NotFoundException>();

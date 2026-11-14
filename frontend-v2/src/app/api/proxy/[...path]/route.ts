@@ -26,8 +26,8 @@ async function proxy(req: NextRequest, { params }: { params: Promise<{ path: str
     headers.delete('authorization');
   }
 
-  if (!headers.has('x-project-id') && session?.user?.projectId) {
-    headers.set('x-project-id', session.user.projectId);
+  if (!headers.has('Project-Id') && session?.user?.projectId) {
+    headers.set('Project-Id', session.user.projectId);
   }
 
   const hasBody = req.method !== 'GET' && req.method !== 'HEAD';

@@ -1,7 +1,5 @@
-﻿using FluentAssertions;
-using Microsoft.Extensions.Caching.Memory;
+﻿using Microsoft.Extensions.Caching.Memory;
 using SmkDoc.Infrastructure.Cache;
-using Xunit;
 
 namespace SmkDoc.Tests.Infrastructure.Cache;
 
@@ -10,8 +8,8 @@ public sealed class MemoryCompiledTemplateCacheTests
     [Fact]
     public void GetOrAdd_WhenCacheMiss_InvokesFactoryAndStoresResult()
     {
-        var memoryCache = new MemoryCache(new MemoryCacheOptions());
-        var cache = new MemoryCompiledTemplateCache(memoryCache);
+        using var memoryCache = new MemoryCache(new MemoryCacheOptions());
+        using var cache = new MemoryCompiledTemplateCache(memoryCache);
 
         int factoryCallCount = 0;
         Func<Func<object, string>> factory = () =>
@@ -29,8 +27,8 @@ public sealed class MemoryCompiledTemplateCacheTests
     [Fact]
     public void GetOrAdd_WhenCacheHit_ReturnsCachedFunctionWithoutReinvokingFactory()
     {
-        var memoryCache = new MemoryCache(new MemoryCacheOptions());
-        var cache = new MemoryCompiledTemplateCache(memoryCache);
+        using var memoryCache = new MemoryCache(new MemoryCacheOptions());
+        using var cache = new MemoryCompiledTemplateCache(memoryCache);
 
         int factoryCallCount = 0;
         Func<Func<object, string>> factory = () =>
@@ -50,8 +48,8 @@ public sealed class MemoryCompiledTemplateCacheTests
     [Fact]
     public void GetOrAdd_WithDifferentKeys_InvokesFactoryPerKey()
     {
-        var memoryCache = new MemoryCache(new MemoryCacheOptions());
-        var cache = new MemoryCompiledTemplateCache(memoryCache);
+        using var memoryCache = new MemoryCache(new MemoryCacheOptions());
+        using var cache = new MemoryCompiledTemplateCache(memoryCache);
 
         int factoryCallCount = 0;
 
@@ -64,8 +62,8 @@ public sealed class MemoryCompiledTemplateCacheTests
     [Fact]
     public async Task GetOrAdd_UnderConcurrentRequests_IsThreadSafe()
     {
-        var memoryCache = new MemoryCache(new MemoryCacheOptions());
-        var cache = new MemoryCompiledTemplateCache(memoryCache);
+        using var memoryCache = new MemoryCache(new MemoryCacheOptions());
+        using var cache = new MemoryCompiledTemplateCache(memoryCache);
 
         int factoryCallCount = 0;
         Func<Func<object, string>> factory = () =>

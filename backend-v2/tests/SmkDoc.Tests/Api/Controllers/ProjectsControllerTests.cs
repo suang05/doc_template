@@ -4,7 +4,6 @@ using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.Contracts.IdentityAccess.Projects;
 using SmkDoc.Api.Controllers.IdentityAccess;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Projects.Commands.CreateProject;
 using SmkDoc.Application.Modules.IdentityAccess.Projects.Commands.TransferProjectOwner;
 using SmkDoc.Application.Modules.IdentityAccess.Projects.DTOs;

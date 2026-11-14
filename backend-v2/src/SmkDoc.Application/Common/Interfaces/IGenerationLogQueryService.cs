@@ -11,5 +11,5 @@ public interface IGenerationLogQueryService
         string? callerApp,
         int page,
         int limit,
-        CancellationToken ct = default);
+        CancellationToken ct);
 }

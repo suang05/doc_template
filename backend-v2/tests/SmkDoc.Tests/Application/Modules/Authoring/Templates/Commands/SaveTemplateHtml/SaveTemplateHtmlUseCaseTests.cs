@@ -1,11 +1,6 @@
 using SmkDoc.Application.Common;
-using SmkDoc.Application.Common.Exceptions;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.SaveTemplateHtml;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Enums;
-using SmkDoc.Domain.Interfaces;
-using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Infrastructure.Contexts;
 using SmkDoc.Tests.Common.Builders;
@@ -25,7 +20,7 @@ public sealed class SaveTemplateHtmlUseCaseTests
     public SaveTemplateHtmlUseCaseTests()
     {
         _projectContext.IsResolved.Returns(true);
-        _projectContext.ProjectId.Returns(new ProjectId(TestConstants.DefaultProjectId));
+        _projectContext.GetRequiredProjectId().Returns(new ProjectId(TestConstants.DefaultProjectId));
         _projectContext.CallerIdentity.Returns("studio-user");
         _unitOfWork.CommitAsync(Arg.Any<CancellationToken>()).Returns(1);
     }
@@ -83,7 +78,7 @@ public sealed class SaveTemplateHtmlUseCaseTests
         );
 
         // Act
-        var result = await CreateSut().ExecuteAsync(request);
+        var result = await CreateSut().ExecuteAsync(request, CancellationToken.None);
 
         // Assert
         result.Version.Should().Be(4);
@@ -147,7 +142,7 @@ public sealed class SaveTemplateHtmlUseCaseTests
         );
 
         // Act
-        var result = await CreateSut().ExecuteAsync(request);
+        var result = await CreateSut().ExecuteAsync(request, CancellationToken.None);
 
         // Assert
         result.Version.Should().Be(1);
@@ -179,7 +174,7 @@ public sealed class SaveTemplateHtmlUseCaseTests
         var request = new SaveTemplateHtmlCommand(templateId, "<html></html>", "{}", "Note");
 
         // Act
-        var act = () => CreateSut().ExecuteAsync(request);
+        var act = () => CreateSut().ExecuteAsync(request, CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("DB commit failed");
@@ -223,7 +218,7 @@ public sealed class SaveTemplateHtmlUseCaseTests
         );
 
         // Act
-        var act = () => CreateSut().ExecuteAsync(request);
+        var act = () => CreateSut().ExecuteAsync(request, CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<PreconditionFailedException>();
@@ -268,7 +263,7 @@ public sealed class SaveTemplateHtmlUseCaseTests
         );
 
         // Act
-        var result = await CreateSut().ExecuteAsync(request);
+        var result = await CreateSut().ExecuteAsync(request, CancellationToken.None);
 
         // Assert
         result.Version.Should().Be(4);
@@ -320,7 +315,7 @@ public sealed class SaveTemplateHtmlUseCaseTests
         );
 
         // Act
-        var result = await CreateSut().ExecuteAsync(request);
+        var result = await CreateSut().ExecuteAsync(request, CancellationToken.None);
 
         // Assert
         result.Version.Should().Be(2);
@@ -376,7 +371,7 @@ public sealed class SaveTemplateHtmlUseCaseTests
         );
 
         // Act
-        var result = await CreateSut().ExecuteAsync(request);
+        var result = await CreateSut().ExecuteAsync(request, CancellationToken.None);
 
         // Assert
         result.Version.Should().Be(2);

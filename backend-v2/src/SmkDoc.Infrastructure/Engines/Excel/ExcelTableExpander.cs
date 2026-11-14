@@ -1,6 +1,7 @@
 using ClosedXML.Excel;
 using SmkDoc.Application.Common.Helpers;
-using static SmkDoc.Application.Common.Helpers.PlaceholderHelper;
+using SmkDoc.Application.Modules.Authoring.Templates.Parsing;
+using static SmkDoc.Application.Modules.Authoring.Templates.Parsing.TemplatePlaceholderParser;
 
 namespace SmkDoc.Infrastructure.Engines.Excel;
 

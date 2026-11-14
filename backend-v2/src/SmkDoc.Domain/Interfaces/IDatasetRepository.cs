@@ -8,10 +8,10 @@ namespace SmkDoc.Domain.Interfaces;
 /// </summary>
 public interface IDatasetRepository
 {
-    Task<Dataset?> GetByIdAsync(DatasetId id, CancellationToken ct = default);
-    Task<IReadOnlyList<Dataset>> GetByIdsAsync(IEnumerable<DatasetId> ids, CancellationToken ct = default);
-    Task<IReadOnlyList<Dataset>> ListAsync(CancellationToken ct = default);
-    Task AddAsync(Dataset dataset, CancellationToken ct = default);
+    Task<Dataset?> GetByIdAsync(DatasetId id, CancellationToken ct);
+    Task<IReadOnlyList<Dataset>> GetByIdsAsync(IEnumerable<DatasetId> ids, CancellationToken ct);
+    Task<IReadOnlyList<Dataset>> ListAsync(CancellationToken ct);
+    Task AddAsync(Dataset dataset, CancellationToken ct);
     void Update(Dataset dataset);
     void Remove(Dataset dataset);
 }

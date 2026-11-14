@@ -1,7 +1,4 @@
 using SmkDoc.Application.Common;
-using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Modules.Authoring.Templates.Queries.DownloadTemplate;
@@ -13,7 +10,7 @@ public sealed class DownloadTemplateUseCase(
     ITemplateRepository templateRepo,
     IStorageService storageService) : IUseCase<DownloadTemplateQuery, DownloadTemplateResult>
 {
-    public async Task<DownloadTemplateResult> ExecuteAsync(DownloadTemplateQuery query, CancellationToken ct = default)
+    public async Task<DownloadTemplateResult> ExecuteAsync(DownloadTemplateQuery query, CancellationToken ct)
     {
         var template = await templateRepo.GetByIdAsync(new TemplateId(query.Id), ct)
             ?? throw new NotFoundException($"Template '{query.Id}' was not found.");

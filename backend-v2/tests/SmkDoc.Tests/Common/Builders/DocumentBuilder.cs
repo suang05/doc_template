@@ -1,5 +1,4 @@
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Tests.Common.Builders;

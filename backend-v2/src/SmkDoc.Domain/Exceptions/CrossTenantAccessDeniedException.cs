@@ -8,7 +8,7 @@ namespace SmkDoc.Domain.Exceptions;
 /// </summary>
 public sealed class CrossTenantAccessDeniedException : DomainException
 {
-    public const string DefaultErrorCode = "CROSS_TENANT_ACCESS_DENIED";
+    public const string DefaultErrorCode = ErrorCodes.CrossTenantAccessDenied;
 
     public CrossTenantAccessDeniedException(ProjectId resourceProjectId)
         : base($"Access denied: caller does not have permission to access resources in project '{resourceProjectId.Value}'.",

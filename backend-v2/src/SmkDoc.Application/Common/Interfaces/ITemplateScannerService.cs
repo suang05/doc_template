@@ -8,10 +8,10 @@ public interface ITemplateScannerService
     /// Scans a template file stream for {{placeholder}} keys.
     /// Extension determines parsing strategy: .docx / .xlsx / anything else (HTML).
     /// </summary>
-    Task<List<string>> ScanPlaceholdersAsync(Stream stream, string fileExtension, CancellationToken ct = default);
+    Task<List<string>> ScanPlaceholdersAsync(Stream stream, string fileExtension, CancellationToken ct);
 
     /// <summary>
     /// Scans a template file stream and returns rich categorized placeholders (Scalar, Tabular, Object, System).
     /// </summary>
-    Task<List<TemplatePlaceholder>> ScanDetailedPlaceholdersAsync(Stream stream, string fileExtension, CancellationToken ct = default);
+    Task<List<TemplatePlaceholder>> ScanDetailedPlaceholdersAsync(Stream stream, string fileExtension, CancellationToken ct);
 }

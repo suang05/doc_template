@@ -1,10 +1,5 @@
 using SmkDoc.Application.Common;
-using SmkDoc.Application.Common.Exceptions;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Enums;
-using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.Interfaces;
-using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Modules.Rendering.Logs.Queries.DownloadGenerationLogDocument;
 
@@ -14,14 +9,14 @@ public sealed class DownloadGenerationLogDocumentUseCase(
     ICurrentProjectContext projectContext) : IUseCase<DownloadGenerationLogDocumentQuery, DownloadGenerationLogDocumentResult>
 {
     public async Task<DownloadGenerationLogDocumentResult> ExecuteAsync(
-        DownloadGenerationLogDocumentQuery query, CancellationToken ct = default)
+        DownloadGenerationLogDocumentQuery query, CancellationToken ct)
     {
         var log = await logRepo.GetByIdAsync(query.LogId, ct)
             ?? throw new NotFoundException($"Generation log '{query.LogId}' not found.");
 
         if (projectContext.SystemRole != SystemRole.SuperAdmin)
         {
-            if (log.ProjectId.Value != projectContext.ProjectId.Value)
+            if (log.ProjectId.Value != projectContext.GetRequiredProjectId().Value)
             {
                 throw new CrossTenantAccessDeniedException(log.ProjectId);
             }

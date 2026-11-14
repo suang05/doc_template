@@ -1,7 +1,6 @@
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
 using SmkDoc.Application.Common.Helpers;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring;
 using SmkDoc.Application.Modules.DataBinding.Services;
 using SmkDoc.Application.Modules.IdentityAccess;

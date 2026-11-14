@@ -1,5 +1,4 @@
 ﻿using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.Login;
-using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
 
 namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Security.Commands.Login;
 

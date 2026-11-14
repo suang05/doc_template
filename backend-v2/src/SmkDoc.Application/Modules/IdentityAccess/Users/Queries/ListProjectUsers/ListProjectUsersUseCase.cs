@@ -1,20 +1,14 @@
-using SmkDoc.Application.Common.Exceptions;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Users.DTOs;
-using SmkDoc.Domain.Interfaces;
 
 namespace SmkDoc.Application.Modules.IdentityAccess.Users.Queries.ListProjectUsers;
 
 public sealed class ListProjectUsersUseCase(
     IUserProjectRoleRepository roleRepo,
-    IUserRepository userRepo,
-    ICurrentProjectContext projectContext) : IUseCase<ListProjectUsersQuery, List<UserResultDto>>
+    IUserRepository userRepo) : IUseCase<ListProjectUsersQuery, List<UserResultDto>>
 {
-    public async Task<List<UserResultDto>> ExecuteAsync(ListProjectUsersQuery query, CancellationToken ct = default)
+    public async Task<List<UserResultDto>> ExecuteAsync(ListProjectUsersQuery query, CancellationToken ct)
     {
-        var projectId = projectContext.ProjectId;
-
-        var roles = await roleRepo.ListByProjectAsync(projectId, ct);
+        var roles = await roleRepo.ListForCurrentProjectAsync(ct);
         var userIds = roles.Select(r => r.UserId).ToHashSet();
         var users = await userRepo.GetByIdsAsync(userIds, ct);
 

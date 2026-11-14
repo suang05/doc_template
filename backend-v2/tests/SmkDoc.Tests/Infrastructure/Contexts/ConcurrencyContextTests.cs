@@ -1,4 +1,3 @@
-using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Infrastructure.Contexts;
 using SmkDoc.Tests.Common.Builders;

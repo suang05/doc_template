@@ -5,7 +5,6 @@ using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.Constants;
 using SmkDoc.Api.Controllers.Rendering;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Rendering.Logs.DTOs;
 using SmkDoc.Application.Modules.Rendering.Logs.Queries.GetLogMetrics;
 using SmkDoc.Application.Modules.Rendering.Logs.Queries.GetLogPayload;

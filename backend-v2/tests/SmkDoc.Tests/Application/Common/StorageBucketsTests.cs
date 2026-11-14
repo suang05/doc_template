@@ -1,7 +1,5 @@
-using FluentAssertions;
 using SmkDoc.Application.Common;
 using SmkDoc.Domain.ValueObjects.Ids;
-using Xunit;
 
 namespace SmkDoc.Tests.Application.Common;
 

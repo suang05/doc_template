@@ -61,11 +61,11 @@ export const documentsApi = {
   },
 
   /**
-   * Get legal audit versions of a document (SSoT: GET /api/v1/documents/{documentRef}/versions)
+   * Get legal audit versions of a document (SSoT: GET /api/v1/document-versions/{documentRef}/versions)
    */
   async getDocumentVersions(documentRef: string): Promise<DocumentVersionDto[]> {
     const res = await apiClient<ApiResponse<DocumentVersionDto[]>>(
-      `/api/v1/documents/${documentRef}/versions`,
+      `/api/v1/document-versions/${documentRef}/versions`,
       {
         method: 'GET',
       }
@@ -74,16 +74,16 @@ export const documentsApi = {
   },
 
   /**
-   * Download historical document artifact (SSoT: GET /api/v1/documents/{documentRef}/versions/{version}/download)
+   * Download historical document artifact (SSoT: GET /api/v1/document-versions/{documentRef}/versions/{version}/download)
    */
   async downloadDocumentVersion(documentRef: string, version: number): Promise<{ blob: Blob; fileName?: string }> {
-    return apiClientBlob(`/api/v1/documents/${documentRef}/versions/${version}/download`, {
+    return apiClientBlob(`/api/v1/document-versions/${documentRef}/versions/${version}/download`, {
       method: 'GET',
     });
   },
 
   async getDownloadUrlByLogId(logId: string): Promise<{ url: string; expiresInSeconds: number }> {
-    const res = await apiClient<ApiResponse<{ url: string; expiresInSeconds: number }>>(`/api/v1/documents/download/${logId}`, {
+    const res = await apiClient<ApiResponse<{ url: string; expiresInSeconds: number }>>(`/api/v1/generation-logs/${logId}/artifact`, {
       method: 'GET',
     });
     return res.data;

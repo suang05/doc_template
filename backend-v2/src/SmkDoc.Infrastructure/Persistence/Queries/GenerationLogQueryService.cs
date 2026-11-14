@@ -13,7 +13,7 @@ public sealed class GenerationLogQueryService(AppDbContext context) : IGeneratio
         string? callerApp,
         int page,
         int limit,
-        CancellationToken ct = default)
+        CancellationToken ct)
     {
         IQueryable<GenerationLog> query = _context.GenerationLogs.AsNoTracking();
 

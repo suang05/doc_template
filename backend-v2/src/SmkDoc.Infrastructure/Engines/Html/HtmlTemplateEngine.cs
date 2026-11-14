@@ -24,7 +24,7 @@ public sealed class HtmlTemplateEngine(
         Stream templateStream,
         string inputDataJson,
         OutputFormat outputFormat,
-        CancellationToken ct = default)
+        CancellationToken ct)
     {
         using var reader = new StreamReader(templateStream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true, bufferSize: 8192, leaveOpen: true);
         string rawHtml = await reader.ReadToEndAsync(ct);

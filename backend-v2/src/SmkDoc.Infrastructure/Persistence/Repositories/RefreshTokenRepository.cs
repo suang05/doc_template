@@ -8,18 +8,18 @@ namespace SmkDoc.Infrastructure.Persistence.Repositories;
 
 public sealed class RefreshTokenRepository(AppDbContext context) : IRefreshTokenRepository
 {
-    public async Task<RefreshToken?> GetByHashAsync(Sha256Hash tokenHash, CancellationToken ct = default)
+    public async Task<RefreshToken?> GetByHashAsync(Sha256Hash tokenHash, CancellationToken ct)
     {
         return await context.RefreshTokens
             .FirstOrDefaultAsync(t => t.TokenHash == tokenHash, ct);
     }
 
-    public async Task AddAsync(RefreshToken token, CancellationToken ct = default)
+    public async Task AddAsync(RefreshToken token, CancellationToken ct)
     {
         await context.RefreshTokens.AddAsync(token, ct);
     }
 
-    public async Task RevokeAllByUserIdAsync(UserId userId, DateTimeOffset now, CancellationToken ct = default)
+    public async Task RevokeAllByUserIdAsync(UserId userId, DateTimeOffset now, CancellationToken ct)
     {
         var activeTokens = await context.RefreshTokens
             .Where(t => t.UserId == userId && t.RevokedAt == null && t.ExpiresAt > now)
@@ -31,7 +31,7 @@ public sealed class RefreshTokenRepository(AppDbContext context) : IRefreshToken
         }
     }
 
-    public async Task<int> PurgeExpiredTokensAsync(DateTimeOffset cutoff, CancellationToken ct = default)
+    public async Task<int> PurgeExpiredTokensAsync(DateTimeOffset cutoff, CancellationToken ct)
     {
         return await context.RefreshTokens
             .Where(t => t.ExpiresAt < cutoff || (t.RevokedAt != null && t.RevokedAt < cutoff))

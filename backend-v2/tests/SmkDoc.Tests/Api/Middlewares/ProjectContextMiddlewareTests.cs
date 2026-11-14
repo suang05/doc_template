@@ -7,12 +7,8 @@ using SmkDoc.Api.Middleware;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Helpers;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Queries.ValidateApiKey;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Enums;
-using SmkDoc.Domain.Interfaces;
-using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Infrastructure.Contexts;
-using SmkDoc.Tests.Common;
 
 namespace SmkDoc.Tests.Api.Middlewares;
 
@@ -21,7 +17,7 @@ public sealed class ProjectContextMiddlewareTests
     private readonly IApiKeyRepository _apiKeyRepo = Substitute.For<IApiKeyRepository>();
     private readonly IProjectRepository _projectRepo = Substitute.For<IProjectRepository>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
-    private readonly IUserProjectRoleRepository _userProjectRoleRepo = Substitute.For<IUserProjectRoleRepository>();
+    private readonly ITenantResolutionPort _tenantResolutionPort = Substitute.For<ITenantResolutionPort>();
     private readonly RequestDelegate _next = Substitute.For<RequestDelegate>();
     private readonly ILogger<ProjectContextMiddleware> _logger = Substitute.For<ILogger<ProjectContextMiddleware>>();
     private readonly IConfiguration _configuration;
@@ -43,6 +39,8 @@ public sealed class ProjectContextMiddlewareTests
             DateTimeOffset.UtcNow);
         _projectRepo.GetByIdAsync(Arg.Any<ProjectId>(), Arg.Any<CancellationToken>())
             .Returns(defaultProject);
+        _tenantResolutionPort.FindProjectAsync(Arg.Any<ProjectId>(), Arg.Any<CancellationToken>())
+            .Returns(callInfo => new ResolvedProjectState(callInfo.Arg<ProjectId>().Value, true));
 
         _validateApiKeyUseCase = new ValidateApiKeyUseCase(
             _apiKeyRepo,
@@ -113,8 +111,7 @@ public sealed class ProjectContextMiddlewareTests
             httpContext,
             projectContext,
             _validateApiKeyUseCase,
-            _userProjectRoleRepo,
-            _projectRepo);
+            _tenantResolutionPort);
 
         // Assert
         await _next.Received(1).Invoke(httpContext);
@@ -134,8 +131,7 @@ public sealed class ProjectContextMiddlewareTests
             httpContext,
             projectContext,
             _validateApiKeyUseCase,
-            _userProjectRoleRepo,
-            _projectRepo);
+            _tenantResolutionPort);
 
         // Assert
         await _next.DidNotReceive().Invoke(httpContext);
@@ -167,13 +163,12 @@ public sealed class ProjectContextMiddlewareTests
             httpContext,
             projectContext,
             _validateApiKeyUseCase,
-            _userProjectRoleRepo,
-            _projectRepo);
+            _tenantResolutionPort);
 
         // Assert
         await _next.Received(1).Invoke(httpContext);
         projectContext.IsResolved.Should().BeTrue();
-        projectContext.ProjectId.Should().Be(targetProjectId);
+        projectContext.GetRequiredProjectId().Should().Be(targetProjectId);
         projectContext.ApiKeyId.Should().Be(apiKeyId);
         projectContext.CallerIdentity.Should().Be("crm-system");
         projectContext.UserId.Should().BeNull();
@@ -207,8 +202,7 @@ public sealed class ProjectContextMiddlewareTests
             httpContext,
             projectContext,
             _validateApiKeyUseCase,
-            _userProjectRoleRepo,
-            _projectRepo);
+            _tenantResolutionPort);
 
         // Assert
         await _next.DidNotReceive().Invoke(httpContext);
@@ -242,13 +236,12 @@ public sealed class ProjectContextMiddlewareTests
             httpContext,
             projectContext,
             _validateApiKeyUseCase,
-            _userProjectRoleRepo,
-            _projectRepo);
+            _tenantResolutionPort);
 
         // Assert
         await _next.Received(1).Invoke(httpContext);
         projectContext.IsResolved.Should().BeTrue();
-        projectContext.ProjectId.Should().Be(targetProjectId);
+        projectContext.GetRequiredProjectId().Should().Be(targetProjectId);
         projectContext.CallerIdentity.Should().Be("reporting-bot");
     }
 
@@ -269,8 +262,7 @@ public sealed class ProjectContextMiddlewareTests
             httpContext,
             projectContext,
             _validateApiKeyUseCase,
-            _userProjectRoleRepo,
-            _projectRepo);
+            _tenantResolutionPort);
 
         // Assert
         await _next.DidNotReceive().Invoke(httpContext);
@@ -288,20 +280,19 @@ public sealed class ProjectContextMiddlewareTests
 
         var targetProjectId = ProjectId.New();
         httpContext.Request.Headers["X-API-Key"] = "master-secret-key";
-        httpContext.Request.Headers["X-Project-Id"] = targetProjectId.ToString();
+        httpContext.Request.Headers["Project-Id"] = targetProjectId.ToString();
 
         // Act
         await sut.InvokeAsync(
             httpContext,
             projectContext,
             _validateApiKeyUseCase,
-            _userProjectRoleRepo,
-            _projectRepo);
+            _tenantResolutionPort);
 
         // Assert
         await _next.Received(1).Invoke(httpContext);
         projectContext.IsResolved.Should().BeTrue();
-        projectContext.ProjectId.Should().Be(targetProjectId);
+        projectContext.GetRequiredProjectId().Should().Be(targetProjectId);
         projectContext.CallerIdentity.Should().Be("master");
         httpContext.User.Identity.Should().NotBeNull();
         httpContext.User.Identity!.IsAuthenticated.Should().BeTrue();
@@ -324,24 +315,22 @@ public sealed class ProjectContextMiddlewareTests
             new Claim("SystemRole", "Member")
         };
         httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(claims, "Bearer"));
-        httpContext.Request.Headers["X-Project-Id"] = targetProjectId.ToString();
+        httpContext.Request.Headers["Project-Id"] = targetProjectId.ToString();
 
-        var roleAssignment = UserProjectRole.Create(new UserId(userId), targetProjectId, RoleType.Developer, TestConstants.BaselineTime);
-        _userProjectRoleRepo.GetAsync(targetProjectId, new UserId(userId), Arg.Any<CancellationToken>())
-            .Returns(roleAssignment);
+        _tenantResolutionPort.FindMembershipAsync(targetProjectId, new UserId(userId), Arg.Any<CancellationToken>())
+            .Returns(new ResolvedProjectMembership(targetProjectId.Value, userId, RoleType.Developer.Name));
 
         // Act
         await sut.InvokeAsync(
             httpContext,
             projectContext,
             _validateApiKeyUseCase,
-            _userProjectRoleRepo,
-            _projectRepo);
+            _tenantResolutionPort);
 
         // Assert
         await _next.Received(1).Invoke(httpContext);
         projectContext.IsResolved.Should().BeTrue();
-        projectContext.ProjectId.Should().Be(targetProjectId);
+        projectContext.GetRequiredProjectId().Should().Be(targetProjectId);
         projectContext.UserId.Should().Be(new UserId(userId));
         projectContext.SystemRole.Should().Be(SystemRole.Member);
         projectContext.CallerIdentity.Should().Be($"User:{userId:N}");
@@ -363,18 +352,17 @@ public sealed class ProjectContextMiddlewareTests
             new Claim("SystemRole", "Member")
         };
         httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(claims, "Bearer"));
-        httpContext.Request.Headers["X-Project-Id"] = unauthorizedProjectId.ToString();
+        httpContext.Request.Headers["Project-Id"] = unauthorizedProjectId.ToString();
 
-        _userProjectRoleRepo.GetAsync(unauthorizedProjectId, new UserId(userId), Arg.Any<CancellationToken>())
-            .Returns((UserProjectRole?)null);
+        _tenantResolutionPort.FindMembershipAsync(unauthorizedProjectId, new UserId(userId), Arg.Any<CancellationToken>())
+            .Returns((ResolvedProjectMembership?)null);
 
         // Act
         await sut.InvokeAsync(
             httpContext,
             projectContext,
             _validateApiKeyUseCase,
-            _userProjectRoleRepo,
-            _projectRepo);
+            _tenantResolutionPort);
 
         // Assert
         await _next.DidNotReceive().Invoke(httpContext);
@@ -399,34 +387,27 @@ public sealed class ProjectContextMiddlewareTests
             new Claim("SystemRole", "SuperAdmin")
         };
         httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(claims, "Bearer"));
-        httpContext.Request.Headers["X-Project-Id"] = targetProjectId.ToString();
+        httpContext.Request.Headers["Project-Id"] = targetProjectId.ToString();
 
-        var activeProject = Project.Create(
-            CompanyId.New(),
-            ProjectName.Create("Test Project"),
-            ProjectSlug.Create("test-project"),
-            DateTimeOffset.UtcNow);
+        _tenantResolutionPort.FindProjectAsync(targetProjectId, Arg.Any<CancellationToken>())
+            .Returns(new ResolvedProjectState(targetProjectId.Value, true));
 
-        _projectRepo.GetByIdAsync(targetProjectId, Arg.Any<CancellationToken>())
-            .Returns(activeProject);
-
-        _userProjectRoleRepo.GetAsync(targetProjectId, new UserId(userId), Arg.Any<CancellationToken>())
-            .Returns((UserProjectRole?)null);
+        _tenantResolutionPort.FindMembershipAsync(targetProjectId, new UserId(userId), Arg.Any<CancellationToken>())
+            .Returns((ResolvedProjectMembership?)null);
 
         // Act
         await sut.InvokeAsync(
             httpContext,
             projectContext,
             _validateApiKeyUseCase,
-            _userProjectRoleRepo,
-            _projectRepo);
+            _tenantResolutionPort);
 
         // Assert: Zero Standing Access blocks SuperAdmin without tenant membership
         await _next.DidNotReceive().Invoke(httpContext);
         projectContext.IsResolved.Should().BeFalse();
         httpContext.Response.StatusCode.Should().Be(StatusCodes.Status403Forbidden);
         httpContext.Response.ContentType.Should().StartWith("application/problem+json");
-        await _userProjectRoleRepo.Received(1).GetAsync(targetProjectId, new UserId(userId), Arg.Any<CancellationToken>());
+        await _tenantResolutionPort.Received(1).FindMembershipAsync(targetProjectId, new UserId(userId), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -445,33 +426,25 @@ public sealed class ProjectContextMiddlewareTests
             new Claim("SystemRole", "SuperAdmin")
         };
         httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(claims, "Bearer"));
-        httpContext.Request.Headers["X-Project-Id"] = targetProjectId.ToString();
+        httpContext.Request.Headers["Project-Id"] = targetProjectId.ToString();
 
-        var activeProject = Project.Create(
-            CompanyId.New(),
-            ProjectName.Create("Test Project"),
-            ProjectSlug.Create("test-project"),
-            DateTimeOffset.UtcNow);
+        _tenantResolutionPort.FindProjectAsync(targetProjectId, Arg.Any<CancellationToken>())
+            .Returns(new ResolvedProjectState(targetProjectId.Value, true));
 
-        _projectRepo.GetByIdAsync(targetProjectId, Arg.Any<CancellationToken>())
-            .Returns(activeProject);
-
-        var membership = UserProjectRole.Create(new UserId(userId), targetProjectId, RoleType.Developer, DateTimeOffset.UtcNow);
-        _userProjectRoleRepo.GetAsync(targetProjectId, new UserId(userId), Arg.Any<CancellationToken>())
-            .Returns(membership);
+        _tenantResolutionPort.FindMembershipAsync(targetProjectId, new UserId(userId), Arg.Any<CancellationToken>())
+            .Returns(new ResolvedProjectMembership(targetProjectId.Value, userId, RoleType.Developer.Name));
 
         // Act
         await sut.InvokeAsync(
             httpContext,
             projectContext,
             _validateApiKeyUseCase,
-            _userProjectRoleRepo,
-            _projectRepo);
+            _tenantResolutionPort);
 
         // Assert: Request succeeds with tenant-scoped role
         await _next.Received(1).Invoke(httpContext);
         projectContext.IsResolved.Should().BeTrue();
-        projectContext.ProjectId.Should().Be(targetProjectId);
+        projectContext.GetRequiredProjectId().Should().Be(targetProjectId);
         httpContext.User.IsInRole(RoleConstants.SuperAdmin).Should().BeTrue();
         httpContext.User.IsInRole("Developer").Should().BeTrue();
         httpContext.User.IsInRole("Admin").Should().BeFalse();
@@ -480,7 +453,7 @@ public sealed class ProjectContextMiddlewareTests
     [Fact]
     public async Task InvokeAsync_SuperAdminWithoutTargetProjectId_HydratesGlobalRoleClaimsOnGlobalRoute()
     {
-        // Arrange: SuperAdmin calling POST /api/v1/management/projects without X-Project-Id
+        // Arrange: SuperAdmin calling POST /api/v1/management/projects without Project-Id
         var sut = CreateSut();
         var (httpContext, projectContext) = CreateContexts("/api/v1/management/projects", "POST");
 
@@ -497,8 +470,7 @@ public sealed class ProjectContextMiddlewareTests
             httpContext,
             projectContext,
             _validateApiKeyUseCase,
-            _userProjectRoleRepo,
-            _projectRepo);
+            _tenantResolutionPort);
 
         // Assert: SuperAdmin has SuperAdmin role, but NOT tenant Admin role
         await _next.Received(1).Invoke(httpContext);
@@ -529,8 +501,7 @@ public sealed class ProjectContextMiddlewareTests
             httpContext,
             projectContext,
             _validateApiKeyUseCase,
-            _userProjectRoleRepo,
-            _projectRepo);
+            _tenantResolutionPort);
 
         // Assert
         await _next.Received(1).Invoke(httpContext);
@@ -558,8 +529,7 @@ public sealed class ProjectContextMiddlewareTests
             httpContext,
             projectContext,
             _validateApiKeyUseCase,
-            _userProjectRoleRepo,
-            _projectRepo);
+            _tenantResolutionPort);
 
         // Assert
         await _next.DidNotReceive().Invoke(httpContext);
@@ -580,8 +550,7 @@ public sealed class ProjectContextMiddlewareTests
             httpContext,
             projectContext,
             _validateApiKeyUseCase,
-            _userProjectRoleRepo,
-            _projectRepo);
+            _tenantResolutionPort);
 
         // Assert
         await _next.DidNotReceive().Invoke(httpContext);
@@ -606,34 +575,26 @@ public sealed class ProjectContextMiddlewareTests
             new Claim("SystemRole", "SuperAdmin")
         };
         httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(claims, "Bearer"));
-        httpContext.Request.Headers["X-Project-Id"] = targetProjectId.ToString();
+        httpContext.Request.Headers["Project-Id"] = targetProjectId.ToString();
         httpContext.Request.Headers["X-API-Key"] = "some-m2m-api-key";
 
-        var activeProject = Project.Create(
-            CompanyId.New(),
-            ProjectName.Create("Test Project"),
-            ProjectSlug.Create("test-project"),
-            DateTimeOffset.UtcNow);
+        _tenantResolutionPort.FindProjectAsync(targetProjectId, Arg.Any<CancellationToken>())
+            .Returns(new ResolvedProjectState(targetProjectId.Value, true));
 
-        _projectRepo.GetByIdAsync(targetProjectId, Arg.Any<CancellationToken>())
-            .Returns(activeProject);
-
-        var membership = UserProjectRole.Create(new UserId(userId), targetProjectId, RoleType.Developer, DateTimeOffset.UtcNow);
-        _userProjectRoleRepo.GetAsync(targetProjectId, new UserId(userId), Arg.Any<CancellationToken>())
-            .Returns(membership);
+        _tenantResolutionPort.FindMembershipAsync(targetProjectId, new UserId(userId), Arg.Any<CancellationToken>())
+            .Returns(new ResolvedProjectMembership(targetProjectId.Value, userId, RoleType.Developer.Name));
 
         // Act
         await sut.InvokeAsync(
             httpContext,
             projectContext,
             _validateApiKeyUseCase,
-            _userProjectRoleRepo,
-            _projectRepo);
+            _tenantResolutionPort);
 
         // Assert
         await _next.Received(1).Invoke(httpContext);
         projectContext.IsResolved.Should().BeTrue();
-        projectContext.ProjectId.Should().Be(targetProjectId);
+        projectContext.GetRequiredProjectId().Should().Be(targetProjectId);
         projectContext.CallerIdentity.Should().Be($"User:{userId:N}");
         projectContext.UserId.Should().Be(new UserId(userId));
         projectContext.ApiKeyId.Should().BeNull();
@@ -641,7 +602,7 @@ public sealed class ProjectContextMiddlewareTests
     }
 
     [Fact]
-    public async Task InvokeAsync_ApiKeyWithMismatchedProjectIdHeader_Returns403Forbidden()
+    public async Task InvokeAsync_ApiKeyWithMismatchedProjectIdHeader_Returns400BadRequest()
     {
         // Arrange
         var sut = CreateSut();
@@ -652,7 +613,7 @@ public sealed class ProjectContextMiddlewareTests
 
         var keyProjectId = ProjectId.New();
         var spoofedProjectId = ProjectId.New();
-        httpContext.Request.Headers["X-Project-Id"] = spoofedProjectId.ToString();
+        httpContext.Request.Headers["Project-Id"] = spoofedProjectId.ToString();
 
         var hash = new Sha256Hash(ApiKeyGenerator.ComputeHash(rawKey));
         var apiKey = CreateHydratedApiKey(keyProjectId, hash, ApiKeyScope.ReadWrite, "crm-system");
@@ -665,13 +626,12 @@ public sealed class ProjectContextMiddlewareTests
             httpContext,
             projectContext,
             _validateApiKeyUseCase,
-            _userProjectRoleRepo,
-            _projectRepo);
+            _tenantResolutionPort);
 
         // Assert
         await _next.DidNotReceive().Invoke(httpContext);
         projectContext.IsResolved.Should().BeFalse();
-        httpContext.Response.StatusCode.Should().Be(StatusCodes.Status403Forbidden);
+        httpContext.Response.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
         httpContext.Response.ContentType.Should().StartWith("application/problem+json");
     }
 
@@ -691,25 +651,17 @@ public sealed class ProjectContextMiddlewareTests
             new Claim("SystemRole", "Member")
         };
         httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(claims, "Bearer"));
-        httpContext.Request.Headers["X-Project-Id"] = deactivatedProjectId.ToString();
+        httpContext.Request.Headers["Project-Id"] = deactivatedProjectId.ToString();
 
-        var deactivatedProject = Project.Create(
-            CompanyId.New(),
-            ProjectName.Create("Deactivated Project"),
-            ProjectSlug.Create("deactivated-project"),
-            DateTimeOffset.UtcNow);
-        deactivatedProject.Deactivate(DateTimeOffset.UtcNow);
-
-        _projectRepo.GetByIdAsync(deactivatedProjectId, Arg.Any<CancellationToken>())
-            .Returns(deactivatedProject);
+        _tenantResolutionPort.FindProjectAsync(deactivatedProjectId, Arg.Any<CancellationToken>())
+            .Returns(new ResolvedProjectState(deactivatedProjectId.Value, false));
 
         // Act
         await sut.InvokeAsync(
             httpContext,
             projectContext,
             _validateApiKeyUseCase,
-            _userProjectRoleRepo,
-            _projectRepo);
+            _tenantResolutionPort);
 
         // Assert
         await _next.DidNotReceive().Invoke(httpContext);
@@ -750,8 +702,7 @@ public sealed class ProjectContextMiddlewareTests
             httpContext,
             projectContext,
             _validateApiKeyUseCase,
-            _userProjectRoleRepo,
-            _projectRepo);
+            _tenantResolutionPort);
 
         // Assert
         await _next.DidNotReceive().Invoke(httpContext);
@@ -778,31 +729,23 @@ public sealed class ProjectContextMiddlewareTests
         httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(claims, "Bearer"));
         httpContext.Request.RouteValues["projectId"] = targetProjectId.Value.ToString();
 
-        var activeProject = Project.Create(
-            CompanyId.New(),
-            ProjectName.Create("Test Project"),
-            ProjectSlug.Create("test-project"),
-            DateTimeOffset.UtcNow);
+        _tenantResolutionPort.FindProjectAsync(targetProjectId, Arg.Any<CancellationToken>())
+            .Returns(new ResolvedProjectState(targetProjectId.Value, true));
 
-        _projectRepo.GetByIdAsync(targetProjectId, Arg.Any<CancellationToken>())
-            .Returns(activeProject);
-
-        var roleMapping = UserProjectRole.Create(new UserId(userId), targetProjectId, RoleType.Admin, DateTimeOffset.UtcNow);
-        _userProjectRoleRepo.GetAsync(targetProjectId, new UserId(userId), Arg.Any<CancellationToken>())
-            .Returns(roleMapping);
+        _tenantResolutionPort.FindMembershipAsync(targetProjectId, new UserId(userId), Arg.Any<CancellationToken>())
+            .Returns(new ResolvedProjectMembership(targetProjectId.Value, userId, RoleType.Admin.Name));
 
         // Act
         await sut.InvokeAsync(
             httpContext,
             projectContext,
             _validateApiKeyUseCase,
-            _userProjectRoleRepo,
-            _projectRepo);
+            _tenantResolutionPort);
 
         // Assert
         await _next.Received(1).Invoke(httpContext);
         projectContext.IsResolved.Should().BeTrue();
-        projectContext.ProjectId.Should().Be(targetProjectId);
+        projectContext.GetRequiredProjectId().Should().Be(targetProjectId);
         projectContext.UserId.Should().Be(new UserId(userId));
         httpContext.User.IsInRole("Admin").Should().BeTrue();
     }
@@ -832,8 +775,7 @@ public sealed class ProjectContextMiddlewareTests
             httpContext,
             projectContext,
             _validateApiKeyUseCase,
-            _userProjectRoleRepo,
-            _projectRepo);
+            _tenantResolutionPort);
 
         // Assert
         await _next.DidNotReceive().Invoke(httpContext);
@@ -861,30 +803,23 @@ public sealed class ProjectContextMiddlewareTests
         httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(claims, "Bearer"));
         httpContext.Request.RouteValues["projectId"] = targetProjectId.Value.ToString();
 
-        var activeProject = Project.Create(
-            CompanyId.New(),
-            ProjectName.Create("Test Project"),
-            ProjectSlug.Create("test-project"),
-            DateTimeOffset.UtcNow);
-
-        _projectRepo.GetByIdAsync(targetProjectId, Arg.Any<CancellationToken>())
-            .Returns(activeProject);
+        _tenantResolutionPort.FindProjectAsync(targetProjectId, Arg.Any<CancellationToken>())
+            .Returns(new ResolvedProjectState(targetProjectId.Value, true));
 
         // Act
         await sut.InvokeAsync(
             httpContext,
             projectContext,
             _validateApiKeyUseCase,
-            _userProjectRoleRepo,
-            _projectRepo);
+            _tenantResolutionPort);
 
         // Assert: Resolves project for management, retains SuperAdmin role, does NOT grant Admin, does NOT query membership
         await _next.Received(1).Invoke(httpContext);
         projectContext.IsResolved.Should().BeTrue();
-        projectContext.ProjectId.Should().Be(targetProjectId);
+        projectContext.GetRequiredProjectId().Should().Be(targetProjectId);
         httpContext.User.IsInRole("SuperAdmin").Should().BeTrue();
         httpContext.User.IsInRole("Admin").Should().BeFalse();
-        await _userProjectRoleRepo.DidNotReceive().GetAsync(Arg.Any<ProjectId>(), Arg.Any<UserId>(), Arg.Any<CancellationToken>());
+        await _tenantResolutionPort.DidNotReceive().FindMembershipAsync(Arg.Any<ProjectId>(), Arg.Any<UserId>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -903,31 +838,23 @@ public sealed class ProjectContextMiddlewareTests
         };
         httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(claims, "Bearer"));
 
-        var activeProject = Project.Create(
-            CompanyId.New(),
-            ProjectName.Create("Test Project"),
-            ProjectSlug.Create("test-project"),
-            DateTimeOffset.UtcNow);
+        _tenantResolutionPort.FindProjectAsync(targetProjectId, Arg.Any<CancellationToken>())
+            .Returns(new ResolvedProjectState(targetProjectId.Value, true));
 
-        _projectRepo.GetByIdAsync(targetProjectId, Arg.Any<CancellationToken>())
-            .Returns(activeProject);
-
-        var roleMapping = UserProjectRole.Create(new UserId(userId), targetProjectId, RoleType.Developer, DateTimeOffset.UtcNow);
-        _userProjectRoleRepo.GetAsync(targetProjectId, new UserId(userId), Arg.Any<CancellationToken>())
-            .Returns(roleMapping);
+        _tenantResolutionPort.FindMembershipAsync(targetProjectId, new UserId(userId), Arg.Any<CancellationToken>())
+            .Returns(new ResolvedProjectMembership(targetProjectId.Value, userId, RoleType.Developer.Name));
 
         // Act
         await sut.InvokeAsync(
             httpContext,
             projectContext,
             _validateApiKeyUseCase,
-            _userProjectRoleRepo,
-            _projectRepo);
+            _tenantResolutionPort);
 
         // Assert
         await _next.Received(1).Invoke(httpContext);
         projectContext.IsResolved.Should().BeTrue();
-        projectContext.ProjectId.Should().Be(targetProjectId);
+        projectContext.GetRequiredProjectId().Should().Be(targetProjectId);
         httpContext.User.IsInRole("Developer").Should().BeTrue();
     }
 }

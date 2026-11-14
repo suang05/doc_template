@@ -1,7 +1,5 @@
 using System.Text.Json;
-using FluentAssertions;
 using SmkDoc.Application.Modules.Rendering.Documents.Commands.GenerateDocument;
-using Xunit;
 
 namespace SmkDoc.Tests.Application.Modules.Rendering.Documents.Commands.GenerateDocument;
 

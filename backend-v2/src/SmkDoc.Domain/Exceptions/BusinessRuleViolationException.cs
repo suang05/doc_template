@@ -5,7 +5,7 @@ namespace SmkDoc.Domain.Exceptions;
 /// </summary>
 public class BusinessRuleViolationException : DomainException
 {
-    public BusinessRuleViolationException(string message, string errorCode = "BUSINESS_RULE_VIOLATION", Exception? innerException = null)
+    public BusinessRuleViolationException(string message, string errorCode = ErrorCodes.BusinessRuleViolation, Exception? innerException = null)
         : base(message, errorCode, innerException)
     {
     }

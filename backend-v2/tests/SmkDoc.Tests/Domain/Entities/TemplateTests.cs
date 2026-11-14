@@ -1,12 +1,6 @@
-using FluentAssertions;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Events;
-using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.ValueObjects.Ids;
-using SmkDoc.Tests.Common;
-using Xunit;
 
 namespace SmkDoc.Tests.Domain.Entities;
 
@@ -228,7 +222,7 @@ public sealed class TemplateTests
     }
 
     [Fact]
-    public void SetCurrentVersion_VersionNotInTemplate_ThrowsNotFoundException()
+    public void SetCurrentVersion_VersionNotInTemplate_ThrowsBusinessRuleViolationException()
     {
         var template = CreateTemplate("Invoice", "invoice", now: _initialTime);
         var version = TemplateVersion.Draft(template.Id, 1, "key", TemplateFormat.Html, "author", _initialTime);
@@ -237,9 +231,9 @@ public sealed class TemplateTests
         var foreignVersionId = Guid.NewGuid();
         Action act = () => template.SetCurrentVersion(foreignVersionId, _initialTime);
 
-        var ex = act.Should().Throw<NotFoundException>()
-            .WithMessage($"*TemplateVersion*was not found*");
-        ex.Which.ErrorCode.Should().Be("RESOURCE_NOT_FOUND");
+        var ex = act.Should().Throw<BusinessRuleViolationException>()
+            .WithMessage("*does not belong to template*");
+        ex.Which.ErrorCode.Should().Be(ErrorCodes.TemplateVersionNotFound);
     }
 
     [Fact]

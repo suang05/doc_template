@@ -1,23 +1,22 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using SmkDoc.Application.Common.Exceptions;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 using SmkDoc.Application.Modules.DataBinding.Helpers;
-using SmkDoc.Domain.Exceptions;
 
 namespace SmkDoc.Application.Modules.DataBinding.Services;
 
 /// <summary>
 /// Bounded concurrent executor for SQL datasets with caching and fail-fast cancellation.
 /// </summary>
-public sealed class DatasetBatchExecutor(
+public sealed partial class DatasetBatchExecutor(
     ISqlExecutorService sqlExecutor,
     IDatasetResultCache? datasetCache = null) : IDatasetBatchExecutor
 {
     public const int MaxConcurrentDatasetQueries = 4;
-    private static readonly Regex SqlVariablePattern = new(@"@(\w+)", RegexOptions.Compiled);
+
+    [GeneratedRegex(@"@(\w+)", RegexOptions.None, 1000)]
+    private static partial Regex SqlVariablePattern();
 
     public async Task<IReadOnlyDictionary<string, JsonElement>> ExecuteBatchAsync(
         IReadOnlyDictionary<string, ResolvedDatasetContext> datasetAliases,
@@ -28,14 +27,22 @@ public sealed class DatasetBatchExecutor(
         if (datasetAliases.Count == 0) return new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
 
         var aliasCache = new ConcurrentDictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
-        using var semaphore = new SemaphoreSlim(MaxConcurrentDatasetQueries, MaxConcurrentDatasetQueries);
-        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        var semaphore = new SemaphoreSlim(MaxConcurrentDatasetQueries, MaxConcurrentDatasetQueries);
+        var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        try
+        {
+            var tasks = datasetAliases.Select(kvp =>
+                ExecuteSingleQueryWithGuardAsync(kvp.Key, kvp.Value, callerContext, projectId, semaphore, linkedCts, aliasCache, ct))
+                .ToArray();
 
-        var tasks = datasetAliases.Select(kvp =>
-            ExecuteSingleQueryWithGuardAsync(kvp.Key, kvp.Value, callerContext, projectId, semaphore, linkedCts, aliasCache, ct));
-
-        await Task.WhenAll(tasks);
-        return aliasCache;
+            await Task.WhenAll(tasks);
+            return aliasCache;
+        }
+        finally
+        {
+            linkedCts.Dispose();
+            semaphore.Dispose();
+        }
     }
 
     private async Task ExecuteSingleQueryWithGuardAsync(
@@ -65,7 +72,10 @@ public sealed class DatasetBatchExecutor(
             }
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
-        catch (OperationCanceledException) when (linkedToken.IsCancellationRequested) { }
+        catch (OperationCanceledException) when (linkedToken.IsCancellationRequested)
+        {
+            // Sibling query failed and canceled the linked token for fail-fast batch abort.
+        }
         catch (Exception ex) when (ex is DatasetExecutionException or ForbiddenException)
         {
             await linkedCts.CancelAsync();
@@ -117,32 +127,31 @@ public sealed class DatasetBatchExecutor(
         IReadOnlyDictionary<string, object?> dict)
     {
         var parameters = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
-        var matches = SqlVariablePattern.Matches(query);
-
-        foreach (Match match in matches)
+        foreach (Match match in SqlVariablePattern().Matches(query))
         {
             var key = match.Groups[1].Value;
-            if (dict.TryGetValue(key, out var val) && val != null)
+            if (dict.TryGetValue(key, out var val) && val is not null)
             {
-                object resolvedVal = val switch
-                {
-                    JsonElement je => je.ValueKind switch
-                    {
-                        JsonValueKind.String => je.GetString() ?? string.Empty,
-                        JsonValueKind.Number => je.TryGetInt64(out var l) ? l : je.GetDouble(),
-                        JsonValueKind.True => true,
-                        JsonValueKind.False => false,
-                        JsonValueKind.Null => DBNull.Value,
-                        _ => je.GetRawText()
-                    },
-                    _ => val
-                };
-
-                parameters[key] = resolvedVal;
+                parameters[key] = ResolveParameterValue(val);
             }
         }
 
         return parameters;
     }
+
+    private static object ResolveParameterValue(object value) =>
+        value switch
+        {
+            JsonElement je => je.ValueKind switch
+            {
+                JsonValueKind.String => je.GetString() ?? string.Empty,
+                JsonValueKind.Number => je.TryGetInt64(out var l) ? l : je.GetDouble(),
+                JsonValueKind.True => true,
+                JsonValueKind.False => false,
+                JsonValueKind.Null => DBNull.Value,
+                _ => je.GetRawText()
+            },
+            _ => value
+        };
 }
 

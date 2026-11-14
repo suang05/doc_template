@@ -6,25 +6,29 @@ using SmkDoc.Application.Common.Interfaces;
 
 namespace SmkDoc.Infrastructure.Pdf;
 
-public sealed class GotenbergPdfRenderer(HttpClient httpClient, ILogger<GotenbergPdfRenderer> logger) : IPdfRenderer
+public sealed partial class GotenbergPdfRenderer(HttpClient httpClient, ILogger<GotenbergPdfRenderer> logger) : IPdfRenderer
 {
-    public async Task<Stream> RenderHtmlToPdfStreamAsync(string html, string? headerHtml = null, string? footerHtml = null, CancellationToken ct = default)
+    public async Task<Stream> RenderHtmlToPdfStreamAsync(string html, string? headerHtml, string? footerHtml, CancellationToken ct)
     {
         using var content = new MultipartFormDataContent();
-        var htmlContent = new ByteArrayContent(Encoding.UTF8.GetBytes(html));
+        using var htmlContent = new ByteArrayContent(Encoding.UTF8.GetBytes(html));
         htmlContent.Headers.ContentType = new MediaTypeHeaderValue("text/html");
         content.Add(htmlContent, "files", "index.html");
 
-        if (!string.IsNullOrWhiteSpace(headerHtml))
+        using var hContent = !string.IsNullOrWhiteSpace(headerHtml)
+            ? new ByteArrayContent(Encoding.UTF8.GetBytes(headerHtml))
+            : null;
+        if (hContent is not null)
         {
-            var hContent = new ByteArrayContent(Encoding.UTF8.GetBytes(headerHtml));
             hContent.Headers.ContentType = new MediaTypeHeaderValue("text/html");
             content.Add(hContent, "files", "header.html");
         }
 
-        if (!string.IsNullOrWhiteSpace(footerHtml))
+        using var fContent = !string.IsNullOrWhiteSpace(footerHtml)
+            ? new ByteArrayContent(Encoding.UTF8.GetBytes(footerHtml))
+            : null;
+        if (fContent is not null)
         {
-            var fContent = new ByteArrayContent(Encoding.UTF8.GetBytes(footerHtml));
             fContent.Headers.ContentType = new MediaTypeHeaderValue("text/html");
             content.Add(fContent, "files", "footer.html");
         }
@@ -37,7 +41,7 @@ public sealed class GotenbergPdfRenderer(HttpClient httpClient, ILogger<Gotenber
             try
             {
                 string err = await response.Content.ReadAsStringAsync(ct);
-                logger.LogError("Gotenberg Chromium HTML render failed ({StatusCode}): {Error}", response.StatusCode, err);
+                LogChromiumRenderFailed(logger, response.StatusCode, err);
                 throw new RenderException("html", "GotenbergChromium", err);
             }
             finally
@@ -58,10 +62,10 @@ public sealed class GotenbergPdfRenderer(HttpClient httpClient, ILogger<Gotenber
         }
     }
 
-    public async Task<Stream> RenderOfficeToPdfStreamAsync(Stream officeStream, string fileName, CancellationToken ct = default)
+    public async Task<Stream> RenderOfficeToPdfStreamAsync(Stream officeStream, string fileName, CancellationToken ct)
     {
         using var content = new MultipartFormDataContent();
-        var streamContent = new StreamContent(officeStream);
+        using var streamContent = new StreamContent(officeStream);
         streamContent.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
         content.Add(streamContent, "files", fileName);
 
@@ -73,7 +77,7 @@ public sealed class GotenbergPdfRenderer(HttpClient httpClient, ILogger<Gotenber
             try
             {
                 string err = await response.Content.ReadAsStringAsync(ct);
-                logger.LogError("Gotenberg LibreOffice render failed ({StatusCode}): {Error}", response.StatusCode, err);
+                LogLibreOfficeRenderFailed(logger, response.StatusCode, err);
                 throw new RenderException(fileName, "GotenbergLibreOffice", err);
             }
             finally
@@ -93,4 +97,14 @@ public sealed class GotenbergPdfRenderer(HttpClient httpClient, ILogger<Gotenber
             throw;
         }
     }
+
+    [LoggerMessage(
+        Level = LogLevel.Error,
+        Message = "Gotenberg Chromium HTML render failed ({StatusCode}): {Error}")]
+    private static partial void LogChromiumRenderFailed(ILogger logger, System.Net.HttpStatusCode statusCode, string error);
+
+    [LoggerMessage(
+        Level = LogLevel.Error,
+        Message = "Gotenberg LibreOffice render failed ({StatusCode}): {Error}")]
+    private static partial void LogLibreOfficeRenderFailed(ILogger logger, System.Net.HttpStatusCode statusCode, string error);
 }

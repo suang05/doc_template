@@ -19,7 +19,7 @@ public sealed class DocxTemplateEngine(
         Stream templateStream,
         string inputDataJson,
         OutputFormat outputFormat,
-        CancellationToken ct = default)
+        CancellationToken ct)
     {
         var (replacements, tables) = dataParser.Flatten(inputDataJson);
 

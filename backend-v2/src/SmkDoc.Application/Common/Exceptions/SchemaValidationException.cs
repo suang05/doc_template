@@ -1,4 +1,3 @@
-using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects.Validation;
 
 namespace SmkDoc.Application.Common.Exceptions;
@@ -31,7 +30,7 @@ public sealed class SchemaValidationException : DomainException
         Exception? innerException = null)
         : base($"Payload validation failed for template '{templateSlug}' v{version} " +
                $"({errors.Count} error(s)).",
-               "SCHEMA_VALIDATION_FAILED",
+               ErrorCodes.SchemaValidationFailed,
                innerException)
     {
         TemplateSlug = templateSlug;

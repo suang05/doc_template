@@ -1,6 +1,5 @@
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
-using SmkDoc.Application.Common.Interfaces;
 
 namespace SmkDoc.Application.Common.Behaviors;
 

@@ -5,7 +5,13 @@ namespace SmkDoc.Tests.Infrastructure.Security;
 
 public sealed class SecurityAuditServiceTests
 {
-    private readonly ILogger<SecurityAuditService> _logger = Substitute.For<ILogger<SecurityAuditService>>();
+    private readonly ILogger<SecurityAuditService> _logger;
+
+    public SecurityAuditServiceTests()
+    {
+        _logger = Substitute.For<ILogger<SecurityAuditService>>();
+        _logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
+    }
 
     private SecurityAuditService CreateSut() => new(_logger);
 
@@ -15,9 +21,11 @@ public sealed class SecurityAuditServiceTests
         {
             if (call.GetMethodInfo().Name != "Log") return false;
             var args = call.GetArguments();
-            if (args.Length < 3 || args[0] is not LogLevel l || l != level) return false;
-            var stateStr = args[2]?.ToString() ?? string.Empty;
-            return messageParts.All(part => stateStr.Contains(part));
+            if (args.Length < 5 || args[0] is not LogLevel l || l != level) return false;
+            var stateStr = args[4] is Delegate formatter
+                ? formatter.DynamicInvoke(args[2], args[3])?.ToString() ?? string.Empty
+                : args[2]?.ToString() ?? string.Empty;
+            return messageParts.All(part => stateStr.Contains(part, StringComparison.Ordinal));
         });
 
         match.Should().BeTrue($"Expected log level '{level}' containing [{string.Join(", ", messageParts)}]");

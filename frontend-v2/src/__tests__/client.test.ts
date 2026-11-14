@@ -171,14 +171,14 @@ describe('apiClient and RFC 7807 Response Handling', () => {
     await apiClient('/api/m2m-test', {
       headers: {
         'X-API-Key': 'explicit-key-456',
-        'X-Project-Id': 'proj-789',
+        'Project-Id': 'proj-789',
       },
     });
 
     expect(mockFetch).toHaveBeenCalledTimes(1);
     const headers = mockFetch.mock.calls[0][1].headers;
     expect(headers['X-API-Key']).toBe('explicit-key-456');
-    expect(headers['X-Project-Id']).toBe('proj-789');
+    expect(headers['Project-Id']).toBe('proj-789');
   });
 
   it('correctly maps canonical /api/v1 routes through /api/proxy/v1/*', async () => {

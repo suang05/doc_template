@@ -1,7 +1,4 @@
 using SmkDoc.Application.Common;
-using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
 
 namespace SmkDoc.Application.Modules.Rendering.Documents.Queries.DownloadDocumentVersion;
@@ -11,7 +8,7 @@ public sealed class DownloadDocumentVersionUseCase(
     IGenerationLogRepository logRepo,
     IStorageService storageService) : IUseCase<DownloadDocumentVersionQuery, DownloadDocumentVersionResult>
 {
-    public async Task<DownloadDocumentVersionResult> ExecuteAsync(DownloadDocumentVersionQuery query, CancellationToken ct = default)
+    public async Task<DownloadDocumentVersionResult> ExecuteAsync(DownloadDocumentVersionQuery query, CancellationToken ct)
     {
         var docRef = DocumentReference.Create(query.DocumentRef);
         var document = await documentRepo.GetByDocumentRefAsync(docRef, ct)

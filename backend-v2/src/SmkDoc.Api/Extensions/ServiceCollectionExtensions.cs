@@ -16,6 +16,7 @@ using SmkDoc.Api.OpenApi.Transformers;
 using SmkDoc.Api.RateLimiting;
 using SmkDoc.Infrastructure.Cache;
 using SmkDoc.Infrastructure.Persistence;
+using SmkDoc.Infrastructure.RateLimiting;
 using StackExchange.Redis;
 
 namespace SmkDoc.Api.Extensions;
@@ -27,7 +28,7 @@ public static class ServiceCollectionExtensions
         IConfiguration configuration)
     {
         services.AddMemoryCache();
-        services.AddApiProblemDetails();
+        services.AddApiProblemDetails(configuration);
 
         services.AddApiControllers();
         services.AddApiCors(configuration);
@@ -39,17 +40,24 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
-    private static IServiceCollection AddApiProblemDetails(this IServiceCollection services)
+    private static IServiceCollection AddApiProblemDetails(
+        this IServiceCollection services,
+        IConfiguration configuration)
     {
         services.AddProblemDetails(options =>
         {
             options.CustomizeProblemDetails = context =>
             {
-                context.ProblemDetails.Type ??= ProblemDetailsBuilder.ResolveTypeUri(context.ProblemDetails.Status);
+                var errorCode = context.ProblemDetails.Extensions.TryGetValue("errorCode", out var existingCode) &&
+                                existingCode is string existingCodeStr &&
+                                !string.IsNullOrWhiteSpace(existingCodeStr)
+                    ? existingCodeStr
+                    : ProblemDetailsBuilder.ResolveDefaultErrorCode(context.ProblemDetails.Status);
+
+                context.ProblemDetails.Type ??= ProblemDetailsBuilder.ResolveTypeUri(errorCode, configuration["Problems:BaseUri"]);
                 context.ProblemDetails.Instance ??= context.HttpContext.Request.Path;
-                var errorCode = ProblemDetailsBuilder.ResolveDefaultErrorCode(context.ProblemDetails.Status);
                 context.ProblemDetails.Extensions.TryAdd("errorCode", errorCode);
-                context.ProblemDetails.Extensions.TryAdd("traceId", context.HttpContext.TraceIdentifier);
+                context.ProblemDetails.Extensions.TryAdd("traceId", ProblemDetailsBuilder.ResolveTraceId(context.HttpContext));
             };
         });
         services.AddExceptionHandler<GlobalExceptionHandler>();
@@ -357,9 +365,10 @@ public static class ServiceCollectionExtensions
                     status: StatusCodes.Status429TooManyRequests,
                     title: "Too Many Requests",
                     detail: "Rate limit exceeded. Maximum 60 requests per minute per caller partition.",
-                    errorCode: "RATE_LIMIT_EXCEEDED",
+                    errorCode: SmkDoc.Domain.Exceptions.ErrorCodes.RateLimited,
                     instance: context.HttpContext.Request.Path,
-                    traceId: context.HttpContext.TraceIdentifier);
+                    traceId: ProblemDetailsBuilder.ResolveTraceId(context.HttpContext),
+                    typeBaseUri: configuration["Problems:BaseUri"]);
                 await context.HttpContext.Response.WriteAsJsonAsync(problemDetails, ct);
             };
         });

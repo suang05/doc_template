@@ -1,6 +1,6 @@
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
-using SmkDoc.Application.Common.Helpers;
+using SmkDoc.Application.Modules.Authoring.Templates.Parsing;
 
 namespace SmkDoc.Infrastructure.Engines.Word;
 
@@ -43,7 +43,7 @@ public class WordTableExpander
 
                     var runs = p.Elements<Run>().ToList();
                     string combined = string.Concat(runs.Select(r => r.InnerText));
-                    string updated = PlaceholderHelper.Pattern.Replace(combined, m =>
+                    string updated = TemplatePlaceholderParser.Pattern.Replace(combined, m =>
                     {
                         string key = m.Groups[1].Value.Trim();
                         return rowData.TryGetValue(key, out var val) ? val : m.Value;

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace SmkDoc.Api.Contracts.Rendering.Documents;
 
@@ -6,6 +7,6 @@ namespace SmkDoc.Api.Contracts.Rendering.Documents;
 /// HTTP request contract for ephemeral document preview.
 /// </summary>
 public record PreviewDocumentRequest(
-    JsonElement Payload,
+    [property: JsonRequired] JsonElement Payload,
     string? Html = null
 );

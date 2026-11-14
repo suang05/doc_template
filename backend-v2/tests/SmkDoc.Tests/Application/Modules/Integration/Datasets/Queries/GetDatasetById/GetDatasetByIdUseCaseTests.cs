@@ -1,9 +1,5 @@
-using SmkDoc.Application.Common.Exceptions;
-using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.Modules.Integration.Datasets.DTOs;
 using SmkDoc.Application.Modules.Integration.Datasets.Queries.GetDatasetById;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common.Builders;
 
@@ -40,7 +36,7 @@ public sealed class GetDatasetByIdUseCaseTests
             .Returns(conn);
 
         // Act
-        DatasetResultDto result = await CreateSut().ExecuteAsync(new GetDatasetByIdQuery(id));
+        DatasetResultDto result = await CreateSut().ExecuteAsync(new GetDatasetByIdQuery(id), CancellationToken.None);
 
         // Assert
         result.Should().NotBeNull();
@@ -58,7 +54,7 @@ public sealed class GetDatasetByIdUseCaseTests
             .Returns((Dataset?)null);
 
         // Act
-        var act = () => CreateSut().ExecuteAsync(new GetDatasetByIdQuery(id));
+        var act = () => CreateSut().ExecuteAsync(new GetDatasetByIdQuery(id), CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<NotFoundException>();

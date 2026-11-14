@@ -1,11 +1,8 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
-using NSubstitute;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Events;
 using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Infrastructure.Events;
-using Xunit;
 
 namespace SmkDoc.Tests.Infrastructure.Events;
 

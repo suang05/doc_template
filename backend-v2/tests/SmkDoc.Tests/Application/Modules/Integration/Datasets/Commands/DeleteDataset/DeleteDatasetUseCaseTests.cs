@@ -1,8 +1,5 @@
-using SmkDoc.Application.Common.Exceptions;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Integration.Datasets.Commands.DeleteDataset;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common.Builders;
 
@@ -37,7 +34,7 @@ public sealed class DeleteDatasetUseCaseTests
         var command = new DeleteDatasetCommand(entity.Id.Value);
 
         // Act
-        await CreateSut().ExecuteAsync(command);
+        await CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         _datasetRepo.Received(1).Remove(entity);
@@ -55,7 +52,7 @@ public sealed class DeleteDatasetUseCaseTests
         var command = new DeleteDatasetCommand(id);
 
         // Act
-        var act = () => CreateSut().ExecuteAsync(command);
+        var act = () => CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<NotFoundException>();

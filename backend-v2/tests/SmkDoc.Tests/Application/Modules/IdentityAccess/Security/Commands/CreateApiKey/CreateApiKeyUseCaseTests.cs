@@ -1,12 +1,8 @@
 using SmkDoc.Application.Common.Behaviors;
-using SmkDoc.Application.Common.Exceptions;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.CreateApiKey;
 using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Helpers;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Enums;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common.Builders;
 
@@ -24,7 +20,7 @@ public sealed class CreateApiKeyUseCaseTests
     {
         _unitOfWork.CommitAsync(Arg.Any<CancellationToken>()).Returns(1);
         _projectContext.IsResolved.Returns(true);
-        _projectContext.ProjectId.Returns(new ProjectId(TestConstants.DefaultProjectId));
+        _projectContext.GetRequiredProjectId().Returns(new ProjectId(TestConstants.DefaultProjectId));
     }
 
     private CreateApiKeyUseCase CreateSut() =>
@@ -39,7 +35,7 @@ public sealed class CreateApiKeyUseCaseTests
             .Returns(Task.CompletedTask);
 
         var projectId = Guid.NewGuid();
-        _projectContext.ProjectId.Returns(new ProjectId(projectId));
+        _projectContext.GetRequiredProjectId().Returns(new ProjectId(projectId));
 
         Project project = ProjectBuilder.AProject()
             .WithId(projectId)
@@ -54,11 +50,12 @@ public sealed class CreateApiKeyUseCaseTests
         var command = new CreateApiKeyCommand("Sales App", "sales");
 
         // Act
-        CreateApiKeyResultDto result = await CreateSut().ExecuteAsync(command);
+        CreateApiKeyResultDto result = await CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         result.Should().NotBeNull();
         result.PlainTextKey.Should().StartWith("smk_sales_");
+        result.PlainTextKey["smk_sales_".Length..].Length.Should().BeGreaterThanOrEqualTo(43);
 
         capturedKey.Should().NotBeNull();
         capturedKey!.ProjectId.Should().Be(new ProjectId(projectId));
@@ -72,7 +69,7 @@ public sealed class CreateApiKeyUseCaseTests
     {
         // Arrange
         var projectId = Guid.NewGuid();
-        _projectContext.ProjectId.Returns(new ProjectId(projectId));
+        _projectContext.GetRequiredProjectId().Returns(new ProjectId(projectId));
 
         Project project = ProjectBuilder.AProject().WithId(projectId);
         _projectRepo.GetByIdAsync(new ProjectId(projectId), Arg.Any<CancellationToken>())
@@ -86,7 +83,7 @@ public sealed class CreateApiKeyUseCaseTests
         var command = new CreateApiKeyCommand("Third Key", "sales", "ReadOnly");
 
         // Act
-        var act = () => CreateSut().ExecuteAsync(command);
+        var act = () => CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<ConflictException>()
@@ -98,7 +95,7 @@ public sealed class CreateApiKeyUseCaseTests
     {
         // Arrange
         var projectId = Guid.NewGuid();
-        _projectContext.ProjectId.Returns(new ProjectId(projectId));
+        _projectContext.GetRequiredProjectId().Returns(new ProjectId(projectId));
 
         Project project = ProjectBuilder.AProject().WithId(projectId);
         _projectRepo.GetByIdAsync(new ProjectId(projectId), Arg.Any<CancellationToken>())
@@ -111,7 +108,7 @@ public sealed class CreateApiKeyUseCaseTests
         var command = new CreateApiKeyCommand("Another Write Key", "sales", "ReadWrite");
 
         // Act
-        var act = () => CreateSut().ExecuteAsync(command);
+        var act = () => CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<ConflictException>()
@@ -128,7 +125,7 @@ public sealed class CreateApiKeyUseCaseTests
             [new CreateApiKeyCommandValidator()]);
 
         // Act
-        var act = () => pipeline.ExecuteAsync(command);
+        var act = () => pipeline.ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<ValidationException>();
@@ -137,18 +134,18 @@ public sealed class CreateApiKeyUseCaseTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_WhenProjectContextUnresolved_ThrowsTenantContextRequiredException()
+    public async Task ExecuteAsync_WhenProjectContextUnresolved_ThrowsTenantContextNotResolvedException()
     {
         // Arrange
         _projectContext.IsResolved.Returns(false);
-        _projectContext.ProjectId.Returns(_ => throw new TenantContextRequiredException());
+        _projectContext.GetRequiredProjectId().Returns(_ => throw new TenantContextNotResolvedException());
         var command = new CreateApiKeyCommand("Sales App", "sales");
 
         // Act
-        var act = () => CreateSut().ExecuteAsync(command);
+        var act = () => CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
-        await act.Should().ThrowAsync<TenantContextRequiredException>();
+        await act.Should().ThrowAsync<TenantContextNotResolvedException>();
         await _apiKeyRepo.DidNotReceive().AddAsync(Arg.Any<ApiKey>(), Arg.Any<CancellationToken>());
     }
 }

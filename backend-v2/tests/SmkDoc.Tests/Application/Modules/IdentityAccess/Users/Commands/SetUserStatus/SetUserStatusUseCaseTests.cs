@@ -1,17 +1,9 @@
-using FluentAssertions;
-using NSubstitute;
 using SmkDoc.Application.Common.Behaviors;
-using SmkDoc.Application.Common.Exceptions;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Users.Commands.SetUserStatus;
 using SmkDoc.Application.Modules.IdentityAccess.Users.DTOs;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Enums;
-using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common.Builders;
-using Xunit;
 using ValidationException = SmkDoc.Application.Common.Exceptions.ValidationException;
 
 namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Users.Commands.SetUserStatus;
@@ -49,7 +41,7 @@ public sealed class SetUserStatusUseCaseTests
             [new SetUserStatusCommandValidator()]);
 
         // Act
-        var act = () => pipeline.ExecuteAsync(command);
+        var act = () => pipeline.ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<ValidationException>();
@@ -65,7 +57,7 @@ public sealed class SetUserStatusUseCaseTests
         var command = new SetUserStatusCommand(Guid.NewGuid(), true);
 
         // Act
-        var act = () => CreateSut().ExecuteAsync(command);
+        var act = () => CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<ForbiddenException>();
@@ -83,7 +75,7 @@ public sealed class SetUserStatusUseCaseTests
             .Returns((User?)null);
 
         // Act
-        var act = () => CreateSut().ExecuteAsync(command);
+        var act = () => CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<NotFoundException>();
@@ -96,7 +88,7 @@ public sealed class SetUserStatusUseCaseTests
         // Arrange
         var projectId = Guid.NewGuid();
         _projectContext.IsResolved.Returns(true);
-        _projectContext.ProjectId.Returns(new ProjectId(projectId));
+        _projectContext.GetRequiredProjectId().Returns(new ProjectId(projectId));
 
         var userId = new UserId(Guid.NewGuid());
         User user = aUser.Inactive().WithId(userId.Value);
@@ -115,7 +107,7 @@ public sealed class SetUserStatusUseCaseTests
         var command = new SetUserStatusCommand(userId.Value, true);
 
         // Act
-        var result = await CreateSut().ExecuteAsync(command);
+        var result = await CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         user.IsActive.Should().BeTrue();
@@ -136,7 +128,7 @@ public sealed class SetUserStatusUseCaseTests
         var command = new SetUserStatusCommand(_actorSuperAdminId.Value, false);
 
         // Act
-        var act = () => CreateSut().ExecuteAsync(command);
+        var act = () => CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         var ex = await act.Should().ThrowAsync<BusinessRuleViolationException>();
@@ -158,7 +150,7 @@ public sealed class SetUserStatusUseCaseTests
         var command = new SetUserStatusCommand(targetSuperAdminId.Value, false);
 
         // Act
-        var act = () => CreateSut().ExecuteAsync(command);
+        var act = () => CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         var ex = await act.Should().ThrowAsync<BusinessRuleViolationException>();
@@ -178,7 +170,7 @@ public sealed class SetUserStatusUseCaseTests
         var command = new SetUserStatusCommand(targetUserId.Value, false);
 
         // Act
-        var result = await CreateSut().ExecuteAsync(command);
+        var result = await CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         targetUser.IsActive.Should().BeFalse();

@@ -4,7 +4,7 @@ namespace SmkDoc.IntegrationTests.Fixtures;
 /// Architectural factory and HTTP client provider for integration testing against SmkDoc.Api.
 /// Discovers base URL from environment (e.g. SMK_TEST_API_URL) or defaults to local service.
 /// </summary>
-public class SmkDocApiFactory : IDisposable
+public sealed class SmkDocApiFactory : IDisposable
 {
     private readonly HttpClient _client;
 
@@ -19,6 +19,5 @@ public class SmkDocApiFactory : IDisposable
     public void Dispose()
     {
         _client.Dispose();
-        GC.SuppressFinalize(this);
     }
 }

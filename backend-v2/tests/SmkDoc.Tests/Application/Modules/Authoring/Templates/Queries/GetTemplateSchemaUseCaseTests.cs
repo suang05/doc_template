@@ -1,8 +1,5 @@
-using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.GetTemplateSchema;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Enums;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common.Builders;
 

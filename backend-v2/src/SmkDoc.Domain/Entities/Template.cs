@@ -200,7 +200,9 @@ public sealed class Template : AggregateRoot<TemplateId>, IMustHaveProject
 
         if (_versions.Count > 0 && !_versions.Any(v => v.Id == versionId))
         {
-            throw new NotFoundException("TemplateVersion", versionId);
+            throw new BusinessRuleViolationException(
+                $"Version '{versionId}' does not belong to template '{Id.Value}'.",
+                ErrorCodes.TemplateVersionNotFound);
         }
 
         CurrentVersionId = versionId;

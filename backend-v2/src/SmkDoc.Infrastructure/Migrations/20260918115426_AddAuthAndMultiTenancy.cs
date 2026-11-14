@@ -16,7 +16,7 @@ namespace SmkDoc.Infrastructure.Migrations
                 table: "templates",
                 type: "uuid",
                 nullable: false,
-                defaultValue: new Guid("00000000-0000-0000-0000-000000000000"));
+                defaultValue: Guid.Empty);
 
             migrationBuilder.AlterColumn<string>(
                 name: "MappingsSnapshot",
@@ -32,7 +32,7 @@ namespace SmkDoc.Infrastructure.Migrations
                 table: "api_keys",
                 type: "uuid",
                 nullable: false,
-                defaultValue: new Guid("00000000-0000-0000-0000-000000000000"));
+                defaultValue: Guid.Empty);
 
             migrationBuilder.CreateTable(
                 name: "companies",

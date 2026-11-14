@@ -8,5 +8,5 @@ public sealed class DistributedStateUnavailableException(
     string message,
     Exception? innerException = null) : Exception(message, innerException)
 {
-    public string ErrorCode => "DISTRIBUTED_STATE_UNAVAILABLE";
+    public string ErrorCode => ErrorCodes.ExternalServiceUnavailable;
 }

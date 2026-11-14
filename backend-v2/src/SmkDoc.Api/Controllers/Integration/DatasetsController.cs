@@ -57,7 +57,7 @@ public sealed class DatasetsController(
     [ProducesResponseType(typeof(ApiResponse<DatasetResultDto>), StatusCodes.Status201Created)]
     public async Task<IActionResult> Create([FromBody] CreateDatasetRequest request, CancellationToken ct)
     {
-        var command = new CreateDatasetCommand(request.Name, request.Description, request.DataConnectionId, request.SqlQuery, request.CacheSeconds);
+        var command = new CreateDatasetCommand(request.Name, request.Description, request.DataConnectionId, request.SqlQuery, request.CacheSeconds ?? 0);
         var result = await createUseCase.ExecuteAsync(command, ct);
         return CreatedAtAction(nameof(GetById), new { id = result.Id }, new ApiResponse<DatasetResultDto>(result));
     }
@@ -72,7 +72,7 @@ public sealed class DatasetsController(
         [FromBody] UpdateDatasetRequest request,
         CancellationToken ct)
     {
-        var command = new UpdateDatasetCommand(id, request.Name, request.Description, request.DataConnectionId, request.SqlQuery, request.CacheSeconds);
+        var command = new UpdateDatasetCommand(id, request.Name, request.Description, request.DataConnectionId, request.SqlQuery, request.CacheSeconds ?? 0);
         var result = await updateUseCase.ExecuteAsync(command, ct);
         return Ok(new ApiResponse<DatasetResultDto>(result));
     }

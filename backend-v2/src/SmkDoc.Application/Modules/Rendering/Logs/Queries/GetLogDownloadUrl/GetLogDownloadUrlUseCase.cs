@@ -1,8 +1,5 @@
 using SmkDoc.Application.Common;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Rendering.Logs.DTOs;
-using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.Interfaces;
 
 namespace SmkDoc.Application.Modules.Rendering.Logs.Queries.GetLogDownloadUrl;
 
@@ -10,7 +7,7 @@ public sealed class GetLogDownloadUrlUseCase(
     IGenerationLogRepository logRepo,
     IStorageService storageService) : IUseCase<GetLogDownloadUrlQuery, DownloadUrlResultDto>
 {
-    public async Task<DownloadUrlResultDto> ExecuteAsync(GetLogDownloadUrlQuery query, CancellationToken ct = default)
+    public async Task<DownloadUrlResultDto> ExecuteAsync(GetLogDownloadUrlQuery query, CancellationToken ct)
     {
         var log = await logRepo.GetByIdAsync(query.LogId, ct)
             ?? throw new NotFoundException($"Generation log '{query.LogId}' not found.");

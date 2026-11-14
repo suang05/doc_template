@@ -3,19 +3,13 @@ using System.Text;
 using System.Text.Json;
 using SmkDoc.Application.Common;
 using SmkDoc.Application.Common.Behaviors;
-using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
+using SmkDoc.Application.Modules.DataBinding.DTOs;
+using SmkDoc.Application.Modules.DataBinding.Services;
 using SmkDoc.Application.Modules.Rendering.Documents;
 using SmkDoc.Application.Modules.Rendering.Documents.Commands.GenerateDocument;
 using SmkDoc.Application.Modules.Rendering.Documents.DTOs;
 using SmkDoc.Application.Modules.Rendering.Documents.Services;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Enums;
-using SmkDoc.Domain.Exceptions;
-using SmkDoc.Application.Modules.DataBinding.DTOs;
-using SmkDoc.Application.Modules.DataBinding.Services;
-using SmkDoc.Domain.Interfaces;
-using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Domain.ValueObjects.Validation;
 using SmkDoc.Tests.Common.Builders;
@@ -42,7 +36,7 @@ public sealed class GenerateDocumentUseCaseTests
         _unitOfWork.CommitAsync(Arg.Any<CancellationToken>()).Returns(1);
         var projectId = Guid.NewGuid();
         _projectContext.IsResolved.Returns(true);
-        _projectContext.ProjectId.Returns(new ProjectId(projectId));
+        _projectContext.GetRequiredProjectId().Returns(new ProjectId(projectId));
         _projectContext.CallerIdentity.Returns("sales-app");
 
         _dataBindingEngine.BindAndValidateAsync(
@@ -66,12 +60,12 @@ public sealed class GenerateDocumentUseCaseTests
 
     private GenerateDocumentUseCase CreateSut()
     {
-        var audit = new DocumentAuditService(
+        var audit = new DocumentAuditProcessor(
             _logQueue,
             _projectContext,
             _timeProvider);
 
-        var versioning = new DocumentVersioningService(
+        var versioning = new DocumentVersionProcessor(
             _documentRepo,
             _projectContext,
             _timeProvider);
@@ -99,7 +93,7 @@ public sealed class GenerateDocumentUseCaseTests
             [new GenerateDocumentCommandValidator()]);
 
         // Act
-        Func<Task> act = () => pipeline.ExecuteAsync(invalidCommand);
+        Func<Task> act = () => pipeline.ExecuteAsync(invalidCommand, CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<SmkDoc.Application.Common.Exceptions.ValidationException>();
@@ -201,7 +195,7 @@ public sealed class GenerateDocumentUseCaseTests
         var request = new GenerateDocumentCommand("sale-contract", jsonDoc.RootElement, OutputFormat: "pdf", DocumentRef: "SC-2026-0001");
 
         // Act
-        GenerateDocumentResultDto result = await CreateSut().ExecuteAsync(request);
+        GenerateDocumentResultDto result = await CreateSut().ExecuteAsync(request, CancellationToken.None);
 
         // Assert
         result.Should().NotBeNull();
@@ -233,15 +227,16 @@ public sealed class GenerateDocumentUseCaseTests
         var expectedSha256 = Convert.ToHexString(SHA256.HashData(payloadBytes)).ToLowerInvariant();
 
         _engine.EngineType.Returns(RenderEngineType.Html);
+        using var renderStream = new NonSeekableReadOnlyStream(payloadBytes);
         _engine.RenderStreamAsync(Arg.Any<Stream>(), Arg.Any<string>(), Arg.Any<OutputFormat>(), Arg.Any<CancellationToken>())
-            .Returns(new NonSeekableReadOnlyStream(payloadBytes));
+            .Returns(renderStream);
         SetupPresignedUrl("https://minio.sammakorn.co.th/outputs/non-seekable.pdf");
 
         using var jsonDoc = JsonDocument.Parse("{}");
         var request = new GenerateDocumentCommand("non-seekable-doc", jsonDoc.RootElement, OutputFormat: "pdf");
 
         // Act
-        GenerateDocumentResultDto result = await CreateSut().ExecuteAsync(request);
+        GenerateDocumentResultDto result = await CreateSut().ExecuteAsync(request, CancellationToken.None);
 
         // Assert
         result.FileSizeBytes.Should().Be(payloadBytes.Length);
@@ -261,7 +256,7 @@ public sealed class GenerateDocumentUseCaseTests
         var request = new GenerateDocumentCommand("broken-render", jsonDoc.RootElement, OutputFormat: "pdf");
 
         // Act
-        Func<Task> act = () => CreateSut().ExecuteAsync(request);
+        Func<Task> act = () => CreateSut().ExecuteAsync(request, CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("Gotenberg container crashed");
@@ -289,7 +284,7 @@ public sealed class GenerateDocumentUseCaseTests
         var request = new GenerateDocumentCommand("commit-fail-doc", jsonDoc.RootElement, OutputFormat: "pdf");
 
         // Act
-        Func<Task> act = () => CreateSut().ExecuteAsync(request);
+        Func<Task> act = () => CreateSut().ExecuteAsync(request, CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("PostgreSQL deadlock");
@@ -309,7 +304,7 @@ public sealed class GenerateDocumentUseCaseTests
         var request = new GenerateDocumentCommand("inactive-tpl", jsonDoc.RootElement);
 
         // Act & Assert
-        Func<Task> act = () => CreateSut().ExecuteAsync(request);
+        Func<Task> act = () => CreateSut().ExecuteAsync(request, CancellationToken.None);
         await act.Should().ThrowAsync<NotFoundException>();
     }
 
@@ -323,7 +318,7 @@ public sealed class GenerateDocumentUseCaseTests
         var request = new GenerateDocumentCommand("no-ver-tpl", jsonDoc.RootElement);
 
         // Act & Assert
-        Func<Task> act = () => CreateSut().ExecuteAsync(request);
+        Func<Task> act = () => CreateSut().ExecuteAsync(request, CancellationToken.None);
         await act.Should().ThrowAsync<BusinessRuleViolationException>();
     }
 
@@ -353,7 +348,7 @@ public sealed class GenerateDocumentUseCaseTests
         var request = new GenerateDocumentCommand("contract-direct", jsonDoc.RootElement);
 
         // Act
-        GenerateDocumentResultDto result = await CreateSut().ExecuteAsync(request);
+        GenerateDocumentResultDto result = await CreateSut().ExecuteAsync(request, CancellationToken.None);
 
         // Assert
         result.Should().NotBeNull();
@@ -393,7 +388,7 @@ public sealed class GenerateDocumentUseCaseTests
         var request = new GenerateDocumentCommand("sale-contract", jsonDoc.RootElement, OutputFormat: "pdf", DocumentRef: "SC-2026-0001");
 
         // Act
-        GenerateDocumentResultDto result = await CreateSut().ExecuteAsync(request);
+        GenerateDocumentResultDto result = await CreateSut().ExecuteAsync(request, CancellationToken.None);
 
         // Assert
         result.DocumentRef.Should().Be("SC-2026-0001");
@@ -435,7 +430,7 @@ public sealed class GenerateDocumentUseCaseTests
         var request = new GenerateDocumentCommand("invoice", jsonDoc.RootElement, OutputFormat: "pdf");
 
         // Act
-        var act = () => CreateSut().ExecuteAsync(request);
+        var act = () => CreateSut().ExecuteAsync(request, CancellationToken.None);
 
         // Assert
         var ex = await act.Should().ThrowAsync<SchemaValidationException>();
@@ -475,7 +470,7 @@ public sealed class GenerateDocumentUseCaseTests
         var request = new GenerateDocumentCommand("invoice", jsonDoc.RootElement, OutputFormat: "pdf", SkipValidation: true);
 
         // Act
-        GenerateDocumentResultDto result = await CreateSut().ExecuteAsync(request);
+        GenerateDocumentResultDto result = await CreateSut().ExecuteAsync(request, CancellationToken.None);
 
         // Assert
         _schemaValidation.DidNotReceive().Validate(Arg.Any<string>(), Arg.Any<string>());
@@ -498,7 +493,7 @@ public sealed class GenerateDocumentUseCaseTests
         var request = new GenerateDocumentCommand("fallback-contract", jsonDoc.RootElement, OutputFormat: "unknown_format", SkipValidation: true);
 
         // Act
-        GenerateDocumentResultDto result = await CreateSut().ExecuteAsync(request);
+        GenerateDocumentResultDto result = await CreateSut().ExecuteAsync(request, CancellationToken.None);
 
         // Assert
         await _engine.Received(1).RenderStreamAsync(

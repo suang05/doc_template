@@ -5,7 +5,6 @@ using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.Constants;
 using SmkDoc.Api.Controllers.Rendering;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Rendering.Documents.DTOs;
 using SmkDoc.Application.Modules.Rendering.Documents.Queries.DownloadDocumentVersion;
 using SmkDoc.Application.Modules.Rendering.Documents.Queries.GetDocumentVersions;
@@ -40,7 +39,7 @@ public sealed class DocumentHistoryControllerTests
         authAttr!.Policy.Should().Be(AuthorizationPolicies.CanGenerateDocuments);
 
         var routes = type.GetCustomAttributes<RouteAttribute>().Select(r => r.Template).ToList();
-        routes.Should().ContainSingle().Which.Should().Be("api/v1/documents");
+        routes.Should().ContainSingle().Which.Should().Be("api/v1/document-versions");
     }
 
     [Fact]

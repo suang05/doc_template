@@ -1,9 +1,5 @@
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Rendering.Documents.Queries.DownloadDocumentVersion;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.Interfaces;
-using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Tests.Common.Builders;
 
 namespace SmkDoc.Tests.Application.Modules.Rendering.Documents.Queries.DownloadDocumentVersion;
@@ -38,7 +34,7 @@ public sealed class DownloadDocumentVersionUseCaseTests
             .Returns(new MemoryStream(pdfBytes));
 
         // Act
-        var result = await CreateSut().ExecuteAsync(new DownloadDocumentVersionQuery("SC-001", 1));
+        var result = await CreateSut().ExecuteAsync(new DownloadDocumentVersionQuery("SC-001", 1), CancellationToken.None);
 
         // Assert
         result.ContentType.Should().Be("application/pdf");
@@ -54,7 +50,7 @@ public sealed class DownloadDocumentVersionUseCaseTests
             .Returns((Document?)null);
 
         // Act
-        var act = () => CreateSut().ExecuteAsync(new DownloadDocumentVersionQuery("MISSING", 1));
+        var act = () => CreateSut().ExecuteAsync(new DownloadDocumentVersionQuery("MISSING", 1), CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<NotFoundException>();

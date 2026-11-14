@@ -1,12 +1,7 @@
 using System.Text.Json;
-using SmkDoc.Application.Common.Exceptions;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Rendering.Documents.Commands.EnqueueDocumentGeneration;
 using SmkDoc.Application.Modules.Rendering.Documents.Models;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Enums;
-using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common.Builders;
 
@@ -23,7 +18,7 @@ public sealed class EnqueueDocumentGenerationUseCaseTests
     {
         var projectId = Guid.NewGuid();
         _projectContext.IsResolved.Returns(true);
-        _projectContext.ProjectId.Returns(new ProjectId(projectId));
+        _projectContext.GetRequiredProjectId().Returns(new ProjectId(projectId));
         _projectContext.CallerIdentity.Returns("erp-integration");
     }
 
@@ -37,19 +32,19 @@ public sealed class EnqueueDocumentGenerationUseCaseTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_WhenProjectContextNotResolved_ShouldThrowTenantContextRequiredException()
+    public async Task ExecuteAsync_WhenProjectContextNotResolved_ShouldThrowTenantContextNotResolvedException()
     {
         // Arrange
         _projectContext.IsResolved.Returns(false);
-        _projectContext.ProjectId.Returns(_ => throw new TenantContextRequiredException());
+        _projectContext.GetRequiredProjectId().Returns(_ => throw new TenantContextNotResolvedException());
         var sut = CreateSut();
         var command = new EnqueueDocumentGenerationCommand("invoice", JsonDocument.Parse("{}").RootElement);
 
         // Act
-        var act = () => sut.ExecuteAsync(command);
+        var act = () => sut.ExecuteAsync(command, CancellationToken.None);
 
         // Assert
-        await act.Should().ThrowAsync<TenantContextRequiredException>();
+        await act.Should().ThrowAsync<TenantContextNotResolvedException>();
     }
 
     [Fact]
@@ -62,7 +57,7 @@ public sealed class EnqueueDocumentGenerationUseCaseTests
         var command = new EnqueueDocumentGenerationCommand("unknown-slug", JsonDocument.Parse("{}").RootElement);
 
         // Act
-        var act = () => sut.ExecuteAsync(command);
+        var act = () => sut.ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<NotFoundException>()
@@ -99,7 +94,7 @@ public sealed class EnqueueDocumentGenerationUseCaseTests
             DocumentRef: "REC-2026-001");
 
         // Act
-        var result = await sut.ExecuteAsync(command);
+        var result = await sut.ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         result.Should().NotBeNull();

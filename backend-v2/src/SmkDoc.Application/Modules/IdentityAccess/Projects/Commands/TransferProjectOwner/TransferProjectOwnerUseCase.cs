@@ -1,9 +1,5 @@
-using SmkDoc.Application.Common.Exceptions;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
-using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Modules.IdentityAccess.Projects.Commands.TransferProjectOwner;
@@ -19,7 +15,7 @@ public sealed class TransferProjectOwnerUseCase(
     IUnitOfWork unitOfWork,
     TimeProvider timeProvider) : IUseCase<TransferProjectOwnerCommand>
 {
-    public async Task ExecuteAsync(TransferProjectOwnerCommand command, CancellationToken ct = default)
+    public async Task ExecuteAsync(TransferProjectOwnerCommand command, CancellationToken ct)
     {
         var projectId = new ProjectId(command.ProjectId);
         var newOwnerId = new UserId(command.NewOwnerUserId);

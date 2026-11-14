@@ -1,12 +1,6 @@
 using System.Text.Json;
-using FluentAssertions;
-using NSubstitute;
-using NSubstitute.ExceptionExtensions;
-using SmkDoc.Application.Common.Exceptions;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 using SmkDoc.Application.Modules.DataBinding.Services;
-using Xunit;
 
 namespace SmkDoc.Tests.Application.Modules.DataBinding.Services;
 

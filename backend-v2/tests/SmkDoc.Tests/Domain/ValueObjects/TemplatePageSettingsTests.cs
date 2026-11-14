@@ -1,5 +1,3 @@
-using SmkDoc.Domain.ValueObjects;
-
 namespace SmkDoc.Tests.Domain.ValueObjects;
 
 public sealed class TemplatePageSettingsTests

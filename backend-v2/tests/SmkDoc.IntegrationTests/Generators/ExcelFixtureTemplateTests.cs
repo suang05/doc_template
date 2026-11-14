@@ -1,5 +1,4 @@
 using ClosedXML.Excel;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Infrastructure.Engines.Excel;
 using SmkDoc.Infrastructure.Imaging;
@@ -49,7 +48,7 @@ public sealed class ExcelFixtureTemplateTests
         using var templateStream = File.OpenRead(fixturePath);
 
         var engine = CreateEngine();
-        await using var resultStream = await engine.RenderStreamAsync(templateStream, json, OutputFormat.Xlsx);
+        await using var resultStream = await engine.RenderStreamAsync(templateStream, json, OutputFormat.Xlsx, CancellationToken.None);
 
         resultStream.Should().NotBeNull();
         resultStream.Length.Should().BeGreaterThan(0);

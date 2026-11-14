@@ -1,10 +1,5 @@
-using SmkDoc.Application.Common.Exceptions;
-using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.Modules.Rendering.Documents.DTOs;
 using SmkDoc.Application.Modules.Rendering.Documents.Models;
 using SmkDoc.Application.Modules.Rendering.Documents.Queries.GetDocumentJob;
-using SmkDoc.Domain.Enums;
-using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Tests.Application.Modules.Rendering.Documents.Queries;
@@ -18,14 +13,14 @@ public sealed class GetDocumentJobUseCaseTests
     public GetDocumentJobUseCaseTests()
     {
         _projectContext.IsResolved.Returns(true);
-        _projectContext.ProjectId.Returns(new ProjectId(_projectId));
+        _projectContext.GetRequiredProjectId().Returns(new ProjectId(_projectId));
         _projectContext.SystemRole.Returns((SystemRole?)null);
     }
 
     private GetDocumentJobUseCase CreateSut() => new(_renderQueue, _projectContext);
 
     [Fact]
-    public async Task ExecuteAsync_WhenProjectContextNotResolvedAndNotSuperAdmin_ShouldThrowTenantContextRequiredException()
+    public async Task ExecuteAsync_WhenProjectContextNotResolvedAndNotSuperAdmin_ShouldThrowTenantContextNotResolvedException()
     {
         // Arrange
         var jobId = Guid.NewGuid();
@@ -45,14 +40,14 @@ public sealed class GetDocumentJobUseCaseTests
             .Returns(job);
         _projectContext.IsResolved.Returns(false);
         _projectContext.SystemRole.Returns((SystemRole?)null);
-        _projectContext.ProjectId.Returns(_ => throw new TenantContextRequiredException());
+        _projectContext.GetRequiredProjectId().Returns(_ => throw new TenantContextNotResolvedException());
         var sut = CreateSut();
 
         // Act
-        var act = () => sut.ExecuteAsync(new GetDocumentJobQuery(jobId));
+        var act = () => sut.ExecuteAsync(new GetDocumentJobQuery(jobId), CancellationToken.None);
 
         // Assert
-        await act.Should().ThrowAsync<TenantContextRequiredException>();
+        await act.Should().ThrowAsync<TenantContextNotResolvedException>();
     }
 
     [Fact]
@@ -65,7 +60,7 @@ public sealed class GetDocumentJobUseCaseTests
         var sut = CreateSut();
 
         // Act
-        var act = () => sut.ExecuteAsync(new GetDocumentJobQuery(jobId));
+        var act = () => sut.ExecuteAsync(new GetDocumentJobQuery(jobId), CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<NotFoundException>()
@@ -95,7 +90,7 @@ public sealed class GetDocumentJobUseCaseTests
         var sut = CreateSut();
 
         // Act
-        var act = () => sut.ExecuteAsync(new GetDocumentJobQuery(jobId));
+        var act = () => sut.ExecuteAsync(new GetDocumentJobQuery(jobId), CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<CrossTenantAccessDeniedException>()
@@ -124,7 +119,7 @@ public sealed class GetDocumentJobUseCaseTests
         var sut = CreateSut();
 
         // Act
-        var result = await sut.ExecuteAsync(new GetDocumentJobQuery(jobId));
+        var result = await sut.ExecuteAsync(new GetDocumentJobQuery(jobId), CancellationToken.None);
 
         // Assert
         result.Should().NotBeNull();
@@ -157,7 +152,7 @@ public sealed class GetDocumentJobUseCaseTests
         var sut = CreateSut();
 
         // Act
-        var result = await sut.ExecuteAsync(new GetDocumentJobQuery(jobId));
+        var result = await sut.ExecuteAsync(new GetDocumentJobQuery(jobId), CancellationToken.None);
 
         // Assert
         result.Should().NotBeNull();

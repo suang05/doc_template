@@ -9,13 +9,13 @@ public sealed class DataConnectionRepository(AppDbContext context) : IDataConnec
 {
     private readonly AppDbContext _context = context;
 
-    public async Task<DataConnection?> GetByIdAsync(DataConnectionId id, CancellationToken ct = default)
+    public async Task<DataConnection?> GetByIdAsync(DataConnectionId id, CancellationToken ct)
     {
         return await _context.DataConnections
             .FirstOrDefaultAsync(c => c.Id == id, ct);
     }
 
-    public async Task<IReadOnlyList<DataConnection>> GetByIdsAsync(IEnumerable<DataConnectionId> ids, CancellationToken ct = default)
+    public async Task<IReadOnlyList<DataConnection>> GetByIdsAsync(IEnumerable<DataConnectionId> ids, CancellationToken ct)
     {
         var idSet = ids.ToHashSet();
         if (idSet.Count == 0)
@@ -29,7 +29,7 @@ public sealed class DataConnectionRepository(AppDbContext context) : IDataConnec
             .ToListAsync(ct);
     }
 
-    public async Task<IReadOnlyList<DataConnection>> ListAsync(CancellationToken ct = default)
+    public async Task<IReadOnlyList<DataConnection>> ListAsync(CancellationToken ct)
     {
         return await _context.DataConnections
             .AsNoTracking()
@@ -37,7 +37,7 @@ public sealed class DataConnectionRepository(AppDbContext context) : IDataConnec
             .ToListAsync(ct);
     }
 
-    public async Task AddAsync(DataConnection connection, CancellationToken ct = default)
+    public async Task AddAsync(DataConnection connection, CancellationToken ct)
     {
         await _context.DataConnections.AddAsync(connection, ct);
     }

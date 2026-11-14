@@ -7,10 +7,7 @@ using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.Constants;
 using SmkDoc.Api.Contracts.Integration.DataConnections;
 using SmkDoc.Api.Controllers.Integration;
-using SmkDoc.Application.Common.Exceptions;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Integration.DataConnections.Commands.TestDataConnection;
-using SmkDoc.Application.Modules.Integration.DataConnections.DTOs;
 
 namespace SmkDoc.Tests.Api.Controllers;
 

@@ -7,12 +7,10 @@ using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.Constants;
 using SmkDoc.Api.Contracts.Authoring.Templates;
 using SmkDoc.Api.Controllers.Authoring;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.CommitTemplateDraft;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.ParseTemplateDraft;
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Application.Modules.Rendering.Documents.Queries.PreviewDocument;
-using SmkDoc.Domain.Exceptions;
 
 namespace SmkDoc.Tests.Api.Controllers;
 
@@ -49,7 +47,7 @@ public sealed class TemplateDraftControllerTests
         authAttr!.Policy.Should().Be(AuthorizationPolicies.CanManageTemplates);
 
         var routes = type.GetCustomAttributes<RouteAttribute>().Select(r => r.Template).ToList();
-        routes.Should().ContainSingle().Which.Should().Be("api/v1/templates/draft");
+        routes.Should().ContainSingle().Which.Should().Be("api/v1/template-drafts");
     }
 
     [Fact]

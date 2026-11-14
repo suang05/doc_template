@@ -1,7 +1,5 @@
 ﻿using System.Diagnostics.Metrics;
-using FluentAssertions;
 using SmkDoc.Infrastructure.Observability;
-using Xunit;
 
 namespace SmkDoc.Tests.Infrastructure.Observability;
 

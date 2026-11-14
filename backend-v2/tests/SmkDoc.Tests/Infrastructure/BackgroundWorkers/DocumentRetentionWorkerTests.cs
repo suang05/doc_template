@@ -8,7 +8,7 @@ namespace SmkDoc.Tests.Infrastructure.BackgroundWorkers;
 
 public sealed class DocumentRetentionWorkerTests
 {
-    private readonly IDocumentRetentionService _retentionService = Substitute.For<IDocumentRetentionService>();
+    private readonly IDocumentRetentionProcessor _retentionProcessor = Substitute.For<IDocumentRetentionProcessor>();
     private readonly IServiceScopeFactory _scopeFactory = Substitute.For<IServiceScopeFactory>();
     private readonly IServiceScope _scope = Substitute.For<IServiceScope>();
     private readonly IServiceProvider _serviceProvider = Substitute.For<IServiceProvider>();
@@ -17,7 +17,7 @@ public sealed class DocumentRetentionWorkerTests
     {
         _scopeFactory.CreateScope().Returns(_scope);
         _scope.ServiceProvider.Returns(_serviceProvider);
-        _serviceProvider.GetService(typeof(IDocumentRetentionService)).Returns(_retentionService);
+        _serviceProvider.GetService(typeof(IDocumentRetentionProcessor)).Returns(_retentionProcessor);
     }
 
     [Fact]
@@ -34,14 +34,14 @@ public sealed class DocumentRetentionWorkerTests
             BatchSize = 50
         });
 
-        _retentionService.PurgeExpiredOutputsAsync(Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+        _retentionProcessor.PurgeExpiredOutputsAsync(Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns(callInfo =>
             {
                 tcs.TrySetResult(true);
                 return Task.FromResult(0);
             });
 
-        var sut = new DocumentRetentionWorker(
+        using var sut = new DocumentRetentionWorker(
             _scopeFactory,
             TimeProvider.System,
             NullLogger<DocumentRetentionWorker>.Instance,
@@ -53,7 +53,7 @@ public sealed class DocumentRetentionWorkerTests
         await sut.StopAsync(CancellationToken.None);
 
         // Assert
-        await _retentionService.Received().PurgeExpiredOutputsAsync(
+        await _retentionProcessor.Received().PurgeExpiredOutputsAsync(
             TimeSpan.FromHours(24),
             50,
             Arg.Any<CancellationToken>());

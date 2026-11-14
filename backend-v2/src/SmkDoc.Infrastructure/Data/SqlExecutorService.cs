@@ -13,13 +13,6 @@ public sealed class SqlExecutorService(
 {
     private const int DefaultCommandTimeoutSeconds = 15;
 
-    public Task<string> ExecuteQueryAsJsonAsync(
-        string provider,
-        string connectionString,
-        string sqlQuery,
-        IDictionary<string, object>? parameters = null) =>
-        ExecuteQueryAsJsonAsync(provider, connectionString, sqlQuery, parameters, default);
-
     public async Task<string> ExecuteQueryAsJsonAsync(
         string provider,
         string connectionString,

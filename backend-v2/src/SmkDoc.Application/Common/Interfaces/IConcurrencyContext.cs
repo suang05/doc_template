@@ -1,5 +1,3 @@
-using SmkDoc.Domain.Interfaces;
-
 namespace SmkDoc.Application.Common.Interfaces;
 
 /// <summary>

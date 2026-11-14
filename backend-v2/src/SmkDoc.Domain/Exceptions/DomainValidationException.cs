@@ -5,7 +5,7 @@ namespace SmkDoc.Domain.Exceptions;
 /// </summary>
 public class DomainValidationException : DomainException
 {
-    public DomainValidationException(string message, string errorCode = "DOMAIN_VALIDATION_ERROR", Exception? innerException = null)
+    public DomainValidationException(string message, string errorCode = ErrorCodes.ValidationFailed, Exception? innerException = null)
         : base(message, errorCode, innerException)
     {
     }

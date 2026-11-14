@@ -1,10 +1,7 @@
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.Helpers;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
-using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.ValueObjects.Ids;
 
@@ -15,7 +12,7 @@ public sealed class SaveTemplateMappingsUseCase(
     IUnitOfWork unitOfWork,
     TimeProvider timeProvider) : IUseCase<SaveTemplateMappingsCommand, List<FieldMappingResultDto>>
 {
-    public async Task<List<FieldMappingResultDto>> ExecuteAsync(SaveTemplateMappingsCommand command, CancellationToken ct = default)
+    public async Task<List<FieldMappingResultDto>> ExecuteAsync(SaveTemplateMappingsCommand command, CancellationToken ct)
     {
         var templateId = new TemplateId(command.TemplateId);
         var template = await templateRepo.GetByIdWithDetailsAsync(templateId, ct)

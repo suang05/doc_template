@@ -1,21 +1,15 @@
-using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Helpers;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
-using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Infrastructure.Persistence;
 
 namespace SmkDoc.Api.Extensions;
 
-public static class DatabaseExtensions
+public static partial class DatabaseExtensions
 {
     public static async Task ApplyMigrationsAndSeedAsync(this WebApplication app)
     {
@@ -30,9 +24,21 @@ public static class DatabaseExtensions
 
             await SeedEssentialDataAsync(services, app.Configuration, app.Environment, logger);
         }
-        catch (Exception ex)
+        catch (System.Data.Common.DbException ex)
         {
-            logger.LogError(ex, "Database initialization failed on startup. All database operations will fail.");
+            LogDbInitFailed(logger, ex);
+        }
+        catch (System.Net.Sockets.SocketException ex)
+        {
+            LogDbInitNetworkError(logger, ex);
+        }
+        catch (TimeoutException ex)
+        {
+            LogDbInitTimedOut(logger, ex);
+        }
+        catch (InvalidOperationException ex)
+        {
+            LogDbInitConfigError(logger, ex);
         }
     }
 
@@ -53,22 +59,22 @@ public static class DatabaseExtensions
         var now = timeProvider.GetUtcNow();
 
         // 1. Ensure Default Company
-        var company = await companyRepo.GetByNameAsync(CompanyName.Create("SAMMAKORN"));
+        var company = await companyRepo.GetByNameAsync(CompanyName.Create("SAMMAKORN"), CancellationToken.None);
         if (company == null)
         {
             company = Company.Create(CompanyName.Create("SAMMAKORN"), now);
-            await companyRepo.AddAsync(company);
-            await uow.CommitAsync();
-            logger.LogInformation("Created default company: SAMMAKORN");
+            await companyRepo.AddAsync(company, CancellationToken.None);
+            await uow.CommitAsync(CancellationToken.None);
+            LogCreatedDefaultCompany(logger);
         }
         else if (!company.IsActive)
         {
             company.Activate(now);
-            await uow.CommitAsync();
+            await uow.CommitAsync(CancellationToken.None);
         }
 
         // 2. Ensure Default Project
-        var project = await projectRepo.GetFirstForCompanyAsync(company.Id);
+        var project = await projectRepo.GetFirstForCompanyAsync(company.Id, CancellationToken.None);
         if (project == null)
         {
             project = Project.Create(
@@ -76,14 +82,14 @@ public static class DatabaseExtensions
                 ProjectName.Create("Default Project"),
                 ProjectSlug.Create("default"),
                 now);
-            await projectRepo.AddAsync(project);
-            await uow.CommitAsync();
-            logger.LogInformation("Created default project: Default Project (default)");
+            await projectRepo.AddAsync(project, CancellationToken.None);
+            await uow.CommitAsync(CancellationToken.None);
+            LogCreatedDefaultProject(logger);
         }
         else if (!project.IsActive)
         {
             project.Activate(now);
-            await uow.CommitAsync();
+            await uow.CommitAsync(CancellationToken.None);
         }
 
         // 3. Ensure Super Admin User (Guaranteed Portal Access)
@@ -95,7 +101,7 @@ public static class DatabaseExtensions
                                     ?? "Admin@2026!";
 
         var adminEmail = EmailAddress.Create(adminEmailValue);
-        var adminUser = await userRepository.GetByEmailAsync(adminEmail);
+        var adminUser = await userRepository.GetByEmailAsync(adminEmail, CancellationToken.None);
         if (adminUser == null)
         {
             var passwordHash = passwordHasher.HashPassword(adminPasswordValue);
@@ -107,9 +113,9 @@ public static class DatabaseExtensions
                 now,
                 SystemRole.SuperAdmin);
 
-            await userRepository.AddAsync(adminUser);
-            await uow.CommitAsync();
-            logger.LogInformation("Seeded default Super Admin user: {Email}", adminEmailValue);
+            await userRepository.AddAsync(adminUser, CancellationToken.None);
+            await uow.CommitAsync(CancellationToken.None);
+            LogSeededSuperAdmin(logger, adminEmailValue);
         }
         else
         {
@@ -131,50 +137,51 @@ public static class DatabaseExtensions
                 var newPasswordHash = passwordHasher.HashPassword(adminPasswordValue);
                 adminUser.UpdatePassword(newPasswordHash, now);
                 needsUpdate = true;
-                logger.LogInformation("Synchronized Super Admin password with configured credentials: {Email}",
-                    adminEmailValue);
+                LogSynchronizedAdminPassword(logger, adminEmailValue);
             }
 
             if (needsUpdate)
             {
-                await uow.CommitAsync();
+                await uow.CommitAsync(CancellationToken.None);
             }
         }
 
         // 4. Ensure Super Admin Project Role
-        var existingRole = await userProjectRoleRepository.GetAsync(project.Id, adminUser.Id);
+        var existingRole = await userProjectRoleRepository.GetAsync(project.Id, adminUser.Id, CancellationToken.None);
         if (existingRole == null)
         {
             var projectRole = UserProjectRole.Create(adminUser.Id, project.Id, RoleType.Admin, now);
-            await userProjectRoleRepository.AddAsync(projectRole);
-            await uow.CommitAsync();
-            logger.LogInformation("Assigned Admin role to {Email} in project {ProjectName}", adminEmailValue,
-                project.Name.Value);
+            await userProjectRoleRepository.AddAsync(projectRole, CancellationToken.None);
+            await uow.CommitAsync(CancellationToken.None);
+            if (logger.IsEnabled(LogLevel.Information))
+            {
+                LogAssignedAdminRole(logger, adminEmailValue, project.Name.Value);
+            }
         }
         else if (existingRole.Role != RoleType.Admin)
         {
             existingRole.UpdateRole(RoleType.Admin);
-            await uow.CommitAsync();
+            await uow.CommitAsync(CancellationToken.None);
         }
 
         // 5. Ensure Master API Key (Fault-Tolerant)
-        try
+        string? masterApiKey = configuration["MASTER_API_KEY"] ?? configuration["Security:ApiKey"];
+        if (string.IsNullOrWhiteSpace(masterApiKey))
         {
-            string? masterApiKey = configuration["MASTER_API_KEY"] ?? configuration["Security:ApiKey"];
-            if (string.IsNullOrWhiteSpace(masterApiKey))
+            if (environment.IsProduction())
             {
-                if (environment.IsProduction())
-                {
-                    throw new InvalidOperationException(
-                        "CRITICAL SECURITY ERROR: MASTER_API_KEY or Security:ApiKey must be set in Production.");
-                }
-
-                masterApiKey = "dev-smk-key-2026";
-                logger.LogWarning("Using temporary Development API Key. NEVER use this in production.");
+                throw new InvalidOperationException(
+                    "CRITICAL SECURITY ERROR: MASTER_API_KEY or Security:ApiKey must be set in Production.");
             }
 
+            masterApiKey = ApiKeyGenerator.GenerateSecret("smk_dev_");
+            LogGeneratedTempDevApiKey(logger);
+        }
+
+        try
+        {
             var defaultKeyHash = new Sha256Hash(ApiKeyGenerator.ComputeHash(masterApiKey));
-            var existingKey = await apiKeyRepo.GetByKeyHashAsync(defaultKeyHash);
+            var existingKey = await apiKeyRepo.GetByKeyHashAsync(defaultKeyHash, CancellationToken.None);
             if (existingKey == null)
             {
                 var keyEntity = ApiKey.Issue(
@@ -185,34 +192,123 @@ public static class DatabaseExtensions
                     ExpirationPolicy.Never,
                     now);
 
-                await apiKeyRepo.AddAsync(keyEntity);
-                await uow.CommitAsync();
-                logger.LogInformation("Seeded default Master API key.");
+                await apiKeyRepo.AddAsync(keyEntity, CancellationToken.None);
+                await uow.CommitAsync(CancellationToken.None);
+                LogSeededMasterApiKey(logger);
             }
         }
-        catch (Exception ex)
+        catch (System.Data.Common.DbException ex)
         {
-            logger.LogWarning(ex, "Non-fatal error while seeding Master API Key. Super Admin access remains active.");
+            LogMasterApiKeyDbWarning(logger, ex);
+        }
+        catch (TimeoutException ex)
+        {
+            LogMasterApiKeyTimeoutWarning(logger, ex);
+        }
+        catch (SmkDoc.Domain.Exceptions.DomainException ex)
+        {
+            LogMasterApiKeyDomainWarning(logger, ex);
         }
 
         // 6. Startup Diagnostic Verification Output
-        logger.LogInformation(
-            "\n======================================================================\n" +
-            " SMK Document Server - Essential Database Initialization Summary\n" +
-            "======================================================================\n" +
-            "  => Company:       {Company} (Active: {CompanyActive})\n" +
-            "  => Project:       {Project} [slug: {Slug}] (Active: {ProjectActive})\n" +
-            "  => Super Admin:   {AdminEmail} (Active: {AdminActive}, Role: {Role})\n" +
-            "  => Project Role:  Admin (Project: {AssignedProject})\n" +
-            "======================================================================",
-            company.Name.Value,
-            company.IsActive,
-            project.Name.Value,
-            project.Slug.Value,
-            project.IsActive,
-            adminUser.Email.Value,
-            adminUser.IsActive,
-            adminUser.SystemRole.Name,
-            project.Name.Value);
+        if (logger.IsEnabled(LogLevel.Information))
+        {
+            LogStartupInitializationSummary(
+                logger,
+                company.Name.Value,
+                company.IsActive,
+                project.Name.Value,
+                project.Slug.Value,
+                project.IsActive,
+                adminUser.Email.Value,
+                adminUser.IsActive,
+                adminUser.SystemRole.Name,
+                project.Name.Value);
+        }
     }
+
+    [LoggerMessage(
+        Level = LogLevel.Error,
+        Message = "Database initialization failed on startup. All database operations will fail.")]
+    private static partial void LogDbInitFailed(ILogger logger, Exception ex);
+
+    [LoggerMessage(
+        Level = LogLevel.Error,
+        Message = "Database initialization failed on startup due to network error.")]
+    private static partial void LogDbInitNetworkError(ILogger logger, Exception ex);
+
+    [LoggerMessage(
+        Level = LogLevel.Error,
+        Message = "Database initialization timed out on startup.")]
+    private static partial void LogDbInitTimedOut(ILogger logger, Exception ex);
+
+    [LoggerMessage(
+        Level = LogLevel.Error,
+        Message = "Database initialization configuration error on startup.")]
+    private static partial void LogDbInitConfigError(ILogger logger, Exception ex);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "Created default company: SAMMAKORN")]
+    private static partial void LogCreatedDefaultCompany(ILogger logger);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "Created default project: Default Project (default)")]
+    private static partial void LogCreatedDefaultProject(ILogger logger);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "Seeded default Super Admin user: {Email}")]
+    private static partial void LogSeededSuperAdmin(ILogger logger, string email);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "Synchronized Super Admin password with configured credentials: {Email}")]
+    private static partial void LogSynchronizedAdminPassword(ILogger logger, string email);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "Assigned Admin role to {Email} in project {ProjectName}")]
+    private static partial void LogAssignedAdminRole(ILogger logger, string email, string projectName);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Generated temporary Development API Key for local initialization. Set MASTER_API_KEY or Security:ApiKey explicitly if a deterministic key is required.")]
+    private static partial void LogGeneratedTempDevApiKey(ILogger logger);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "Seeded default Master API key.")]
+    private static partial void LogSeededMasterApiKey(ILogger logger);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Non-fatal database error while seeding Master API Key. Super Admin access remains active.")]
+    private static partial void LogMasterApiKeyDbWarning(ILogger logger, Exception ex);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Non-fatal timeout while seeding Master API Key. Super Admin access remains active.")]
+    private static partial void LogMasterApiKeyTimeoutWarning(ILogger logger, Exception ex);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Non-fatal domain error while seeding Master API Key. Super Admin access remains active.")]
+    private static partial void LogMasterApiKeyDomainWarning(ILogger logger, Exception ex);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "\n======================================================================\n SMK Document Server - Essential Database Initialization Summary\n======================================================================\n  => Company:       {Company} (Active: {CompanyActive})\n  => Project:       {Project} [slug: {Slug}] (Active: {ProjectActive})\n  => Super Admin:   {AdminEmail} (Active: {AdminActive}, Role: {Role})\n  => Project Role:  Admin (Project: {AssignedProject})\n======================================================================")]
+    private static partial void LogStartupInitializationSummary(
+        ILogger logger,
+        string company,
+        bool companyActive,
+        string project,
+        string slug,
+        bool projectActive,
+        string adminEmail,
+        bool adminActive,
+        string role,
+        string assignedProject);
 }

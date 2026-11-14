@@ -1,10 +1,5 @@
-using SmkDoc.Application.Common.Exceptions;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.RevokeApiKey;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.Interfaces;
-using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common.Builders;
 
@@ -21,23 +16,23 @@ public sealed class RevokeApiKeyUseCaseTests
     {
         _unitOfWork.CommitAsync(Arg.Any<CancellationToken>()).Returns(1);
         _projectContext.IsResolved.Returns(true);
-        _projectContext.ProjectId.Returns(new ProjectId(TestConstants.DefaultProjectId));
+        _projectContext.GetRequiredProjectId().Returns(new ProjectId(TestConstants.DefaultProjectId));
     }
 
     private RevokeApiKeyUseCase CreateSut() => new(_apiKeyRepo, _unitOfWork, _projectContext, _timeProvider);
 
     [Fact]
-    public async Task ExecuteAsync_WhenProjectContextUnresolved_ThrowsTenantContextRequiredException()
+    public async Task ExecuteAsync_WhenProjectContextUnresolved_ThrowsTenantContextNotResolvedException()
     {
         // Arrange
         _projectContext.IsResolved.Returns(false);
-        _projectContext.ProjectId.Returns(_ => throw new TenantContextRequiredException());
+        _projectContext.GetRequiredProjectId().Returns(_ => throw new TenantContextNotResolvedException());
 
         // Act
-        var act = () => CreateSut().ExecuteAsync(new RevokeApiKeyCommand(Guid.NewGuid()));
+        var act = () => CreateSut().ExecuteAsync(new RevokeApiKeyCommand(Guid.NewGuid()), CancellationToken.None);
 
         // Assert
-        await act.Should().ThrowAsync<TenantContextRequiredException>();
+        await act.Should().ThrowAsync<TenantContextNotResolvedException>();
         await _unitOfWork.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
     }
 
@@ -47,13 +42,13 @@ public sealed class RevokeApiKeyUseCaseTests
         // Arrange
         var projectA = Guid.NewGuid();
         var keyId = Guid.NewGuid();
-        _projectContext.ProjectId.Returns(new ProjectId(projectA));
+        _projectContext.GetRequiredProjectId().Returns(new ProjectId(projectA));
 
         _apiKeyRepo.GetByIdAsync(new ApiKeyId(keyId), new ProjectId(projectA), Arg.Any<CancellationToken>())
             .Returns((ApiKey?)null);
 
         // Act
-        var act = () => CreateSut().ExecuteAsync(new RevokeApiKeyCommand(keyId));
+        var act = () => CreateSut().ExecuteAsync(new RevokeApiKeyCommand(keyId), CancellationToken.None);
 
         // Assert - IDOR Attempt blocked — 404 returned without leaking existence
         await act.Should().ThrowAsync<NotFoundException>();
@@ -66,7 +61,7 @@ public sealed class RevokeApiKeyUseCaseTests
     {
         // Arrange
         var projectId = Guid.NewGuid();
-        _projectContext.ProjectId.Returns(new ProjectId(projectId));
+        _projectContext.GetRequiredProjectId().Returns(new ProjectId(projectId));
 
         ApiKey key = new ApiKeyBuilder()
             .WithProjectId(projectId)
@@ -80,7 +75,7 @@ public sealed class RevokeApiKeyUseCaseTests
             .Returns(key);
 
         // Act
-        await CreateSut().ExecuteAsync(new RevokeApiKeyCommand(key.Id.Value));
+        await CreateSut().ExecuteAsync(new RevokeApiKeyCommand(key.Id.Value), CancellationToken.None);
 
         // Assert
         key.IsActive.Should().BeFalse();

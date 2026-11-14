@@ -1,10 +1,7 @@
 using System.Text.Json;
-using FluentAssertions;
 using Microsoft.Extensions.Caching.Memory;
 using SmkDoc.Application.Modules.Authoring.Schemas.Commands.ValidateStandaloneSchema;
-using SmkDoc.Application.Modules.Authoring.Schemas.DTOs;
 using SmkDoc.Infrastructure.Schema;
-using Xunit;
 
 namespace SmkDoc.Tests.Application.Modules.Authoring.Schemas;
 
@@ -40,7 +37,7 @@ public sealed class ValidateStandaloneSchemaUseCaseTests
         using var payloadDoc = JsonDocument.Parse(payloadJson);
 
         var command = new ValidateStandaloneSchemaCommand(schemaDoc.RootElement, payloadDoc.RootElement);
-        var result = await CreateSut().ExecuteAsync(command);
+        var result = await CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         result.Valid.Should().BeTrue();
         result.Message.Should().Contain("successfully");
@@ -73,7 +70,7 @@ public sealed class ValidateStandaloneSchemaUseCaseTests
         using var payloadDoc = JsonDocument.Parse(payloadJson);
 
         var command = new ValidateStandaloneSchemaCommand(schemaDoc.RootElement, payloadDoc.RootElement);
-        var result = await CreateSut().ExecuteAsync(command);
+        var result = await CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         result.Valid.Should().BeFalse();
         result.Errors.Should().NotBeNullOrEmpty();
@@ -87,7 +84,7 @@ public sealed class ValidateStandaloneSchemaUseCaseTests
         using var payloadDoc = JsonDocument.Parse("{\"any\": \"data\"}");
 
         var command = new ValidateStandaloneSchemaCommand(schemaDoc.RootElement, payloadDoc.RootElement);
-        var result = await CreateSut().ExecuteAsync(command);
+        var result = await CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         result.Valid.Should().BeTrue();
     }

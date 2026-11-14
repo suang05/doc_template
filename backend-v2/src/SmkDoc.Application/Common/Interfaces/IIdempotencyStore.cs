@@ -47,7 +47,7 @@ public interface IIdempotencyStore
         string cacheKey,
         string requestFingerprint,
         TimeSpan inFlightTtl,
-        CancellationToken ct = default);
+        CancellationToken ct);
 
     /// <summary>
     /// Saves the final successful HTTP response against the idempotency key for future replays.
@@ -59,10 +59,10 @@ public interface IIdempotencyStore
         string responseJson,
         IReadOnlyDictionary<string, string>? headers,
         TimeSpan completedTtl,
-        CancellationToken ct = default);
+        CancellationToken ct);
 
     /// <summary>
     /// Removes the idempotency key (used on failure rollback to permit client retries).
     /// </summary>
-    Task RemoveAsync(string cacheKey, CancellationToken ct = default);
+    Task RemoveAsync(string cacheKey, CancellationToken ct);
 }

@@ -1,11 +1,6 @@
-using SmkDoc.Application.Common.Exceptions;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.Queries.GetTemplateDatasets;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Interfaces;
-using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.ValueObjects.Ids;
-using SmkDoc.Tests.Common;
 using SmkDoc.Tests.Common.Builders;
 
 namespace SmkDoc.Tests.Application.Modules.Authoring.FieldMappings.Queries.GetTemplateDatasets;
@@ -76,7 +71,7 @@ public sealed class GetTemplateDatasetsUseCaseTests
             .Returns(datasets);
 
         // Act
-        var result = await CreateSut().ExecuteAsync(new GetTemplateDatasetsQuery(templateId));
+        var result = await CreateSut().ExecuteAsync(new GetTemplateDatasetsQuery(templateId), CancellationToken.None);
 
         // Assert
         result.Should().HaveCount(2);
@@ -98,7 +93,7 @@ public sealed class GetTemplateDatasetsUseCaseTests
             .Returns((Template?)null);
 
         // Act
-        var result = await CreateSut().ExecuteAsync(new GetTemplateDatasetsQuery(templateId));
+        var result = await CreateSut().ExecuteAsync(new GetTemplateDatasetsQuery(templateId), CancellationToken.None);
 
         // Assert
         result.Should().BeEmpty();

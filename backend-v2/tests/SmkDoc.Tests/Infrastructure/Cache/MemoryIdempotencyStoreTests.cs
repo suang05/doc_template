@@ -1,20 +1,19 @@
-using FluentAssertions;
 using Microsoft.Extensions.Caching.Memory;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Infrastructure.Cache;
-using Xunit;
 
 namespace SmkDoc.Tests.Infrastructure.Cache;
 
-public sealed class MemoryIdempotencyStoreTests
+public sealed class MemoryIdempotencyStoreTests : IDisposable
 {
+    private readonly MemoryCache _memoryCache = new(new MemoryCacheOptions());
     private readonly MemoryIdempotencyStore sut;
 
     public MemoryIdempotencyStoreTests()
     {
-        var memoryCache = new MemoryCache(new MemoryCacheOptions());
-        sut = new MemoryIdempotencyStore(memoryCache, TestConstants.CreateFakeClock());
+        sut = new MemoryIdempotencyStore(_memoryCache, TestConstants.CreateFakeClock());
     }
+
+    public void Dispose() => _memoryCache.Dispose();
 
     [Fact]
     public async Task TryAcquireOrGetAsync_WhenKeyIsNew_AcquiresLockSuccessfully()
@@ -23,7 +22,7 @@ public sealed class MemoryIdempotencyStoreTests
         var fingerprint = "fingerprint-abc";
         var ttl = TimeSpan.FromMinutes(2);
 
-        var result = await sut.TryAcquireOrGetAsync(cacheKey, fingerprint, ttl);
+        var result = await sut.TryAcquireOrGetAsync(cacheKey, fingerprint, ttl, CancellationToken.None);
 
         result.IsAcquired.Should().BeTrue();
         result.ExistingRecord.Should().BeNull();
@@ -36,8 +35,8 @@ public sealed class MemoryIdempotencyStoreTests
         var fingerprint = "fingerprint-abc";
         var ttl = TimeSpan.FromMinutes(2);
 
-        var firstResult = await sut.TryAcquireOrGetAsync(cacheKey, fingerprint, ttl);
-        var secondResult = await sut.TryAcquireOrGetAsync(cacheKey, fingerprint, ttl);
+        var firstResult = await sut.TryAcquireOrGetAsync(cacheKey, fingerprint, ttl, CancellationToken.None);
+        var secondResult = await sut.TryAcquireOrGetAsync(cacheKey, fingerprint, ttl, CancellationToken.None);
 
         firstResult.IsAcquired.Should().BeTrue();
         secondResult.IsAcquired.Should().BeFalse();
@@ -56,10 +55,10 @@ public sealed class MemoryIdempotencyStoreTests
         var responseJson = "{\"id\":\"123\",\"success\":true}";
         var headers = new Dictionary<string, string> { ["Location"] = "/api/v1/items/123" };
 
-        await sut.TryAcquireOrGetAsync(cacheKey, fingerprint, inFlightTtl);
-        await sut.SaveCompletedAsync(cacheKey, fingerprint, 201, responseJson, headers, completedTtl);
+        await sut.TryAcquireOrGetAsync(cacheKey, fingerprint, inFlightTtl, CancellationToken.None);
+        await sut.SaveCompletedAsync(cacheKey, fingerprint, 201, responseJson, headers, completedTtl, CancellationToken.None);
 
-        var checkResult = await sut.TryAcquireOrGetAsync(cacheKey, fingerprint, inFlightTtl);
+        var checkResult = await sut.TryAcquireOrGetAsync(cacheKey, fingerprint, inFlightTtl, CancellationToken.None);
 
         checkResult.IsAcquired.Should().BeFalse();
         checkResult.ExistingRecord.Should().NotBeNull();
@@ -76,12 +75,12 @@ public sealed class MemoryIdempotencyStoreTests
         var fingerprint = "fingerprint-test";
         var ttl = TimeSpan.FromMinutes(2);
 
-        var firstAcquire = await sut.TryAcquireOrGetAsync(cacheKey, fingerprint, ttl);
+        var firstAcquire = await sut.TryAcquireOrGetAsync(cacheKey, fingerprint, ttl, CancellationToken.None);
         firstAcquire.IsAcquired.Should().BeTrue();
 
-        await sut.RemoveAsync(cacheKey);
+        await sut.RemoveAsync(cacheKey, CancellationToken.None);
 
-        var reacquire = await sut.TryAcquireOrGetAsync(cacheKey, fingerprint, ttl);
+        var reacquire = await sut.TryAcquireOrGetAsync(cacheKey, fingerprint, ttl, CancellationToken.None);
         reacquire.IsAcquired.Should().BeTrue();
     }
 
@@ -93,7 +92,7 @@ public sealed class MemoryIdempotencyStoreTests
         var ttl = TimeSpan.FromMinutes(2);
 
         var tasks = Enumerable.Range(0, 20)
-            .Select(_ => Task.Run(() => sut.TryAcquireOrGetAsync(cacheKey, fingerprint, ttl)))
+            .Select(_ => Task.Run(() => sut.TryAcquireOrGetAsync(cacheKey, fingerprint, ttl, CancellationToken.None)))
             .ToArray();
 
         var results = await Task.WhenAll(tasks);

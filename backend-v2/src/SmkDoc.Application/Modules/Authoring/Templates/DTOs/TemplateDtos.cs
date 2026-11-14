@@ -1,6 +1,5 @@
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.ValueObjects;
-using SmkDoc.Application.Common.Interfaces;
 
 namespace SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 

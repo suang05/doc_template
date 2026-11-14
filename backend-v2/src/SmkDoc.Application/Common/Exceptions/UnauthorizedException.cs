@@ -1,5 +1,3 @@
-using SmkDoc.Domain.Exceptions;
-
 namespace SmkDoc.Application.Common.Exceptions;
 
 /// <summary>
@@ -8,7 +6,7 @@ namespace SmkDoc.Application.Common.Exceptions;
 /// </summary>
 public class UnauthorizedException : DomainException
 {
-    public UnauthorizedException(string message, string errorCode = "UNAUTHORIZED", Exception? innerException = null)
+    public UnauthorizedException(string message, string errorCode = ErrorCodes.Unauthorized, Exception? innerException = null)
         : base(message, errorCode, innerException)
     {
     }

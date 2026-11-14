@@ -16,7 +16,7 @@ public sealed class JsonTemplateDataParser : ITemplateDataParser
             return ParseElement(document.RootElement) as Dictionary<string, object>
                 ?? new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
         }
-        catch
+        catch (JsonException)
         {
             return new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
         }
@@ -72,7 +72,7 @@ public sealed class JsonTemplateDataParser : ITemplateDataParser
                 }
             }
         }
-        catch
+        catch (JsonException)
         {
             // Return empty structures on malformed JSON
         }

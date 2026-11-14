@@ -2,23 +2,21 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 
 namespace SmkDoc.Api.HealthChecks;
 
-public class GotenbergHealthCheck : IHealthCheck
+public sealed class GotenbergHealthCheck(IHttpClientFactory factory) : IHealthCheck
 {
-    private readonly IHttpClientFactory _factory;
+    private static readonly Uri HealthEndpoint = new("/health", UriKind.Relative);
 
-    public GotenbergHealthCheck(IHttpClientFactory factory) => _factory = factory;
-
-    public async Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken ct = default)
+    public async Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
     {
         try
         {
-            using var client = _factory.CreateClient("gotenberg-health");
-            var response = await client.GetAsync("/health", ct);
+            using var client = factory.CreateClient("gotenberg-health");
+            using var response = await client.GetAsync(HealthEndpoint, cancellationToken);
             return response.IsSuccessStatusCode
                 ? HealthCheckResult.Healthy()
                 : HealthCheckResult.Degraded($"HTTP {(int)response.StatusCode}");
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or InvalidOperationException)
         {
             return HealthCheckResult.Unhealthy(ex.Message);
         }

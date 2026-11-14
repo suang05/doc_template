@@ -1,6 +1,4 @@
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Modules.Authoring.FieldMappings.Queries.GetTemplateMappings;
@@ -8,7 +6,7 @@ namespace SmkDoc.Application.Modules.Authoring.FieldMappings.Queries.GetTemplate
 public sealed class GetTemplateMappingsUseCase(
     ITemplateRepository templateRepo) : IUseCase<GetTemplateMappingsQuery, List<FieldMappingResultDto>>
 {
-    public async Task<List<FieldMappingResultDto>> ExecuteAsync(GetTemplateMappingsQuery query, CancellationToken ct = default)
+    public async Task<List<FieldMappingResultDto>> ExecuteAsync(GetTemplateMappingsQuery query, CancellationToken ct)
     {
         var template = await templateRepo.GetByIdWithDetailsAsync(new TemplateId(query.TemplateId), ct);
         if (template == null) return [];

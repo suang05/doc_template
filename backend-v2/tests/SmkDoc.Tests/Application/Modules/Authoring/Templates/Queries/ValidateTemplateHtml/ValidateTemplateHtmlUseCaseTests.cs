@@ -1,4 +1,3 @@
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.ValidateTemplateHtml;
 
@@ -22,7 +21,7 @@ public sealed class ValidateTemplateHtmlUseCaseTests
             .Returns(_ => new MemoryStream([0x25, 0x50, 0x44, 0x46]));
 
         // Act
-        TemplateValidationResultDto result = await CreateSut().ExecuteAsync(new ValidateTemplateHtmlQuery(html));
+        TemplateValidationResultDto result = await CreateSut().ExecuteAsync(new ValidateTemplateHtmlQuery(html), CancellationToken.None);
 
         // Assert
         result.Valid.Should().BeTrue();
@@ -41,7 +40,7 @@ public sealed class ValidateTemplateHtmlUseCaseTests
             .Returns(_ => new MemoryStream([0x25, 0x50, 0x44, 0x46]));
 
         // Act
-        TemplateValidationResultDto result = await CreateSut().ExecuteAsync(new ValidateTemplateHtmlQuery(html));
+        TemplateValidationResultDto result = await CreateSut().ExecuteAsync(new ValidateTemplateHtmlQuery(html), CancellationToken.None);
 
         // Assert
         result.Valid.Should().BeTrue();
@@ -58,7 +57,7 @@ public sealed class ValidateTemplateHtmlUseCaseTests
             .Returns([]);
 
         // Act
-        TemplateValidationResultDto result = await CreateSut().ExecuteAsync(new ValidateTemplateHtmlQuery(html));
+        TemplateValidationResultDto result = await CreateSut().ExecuteAsync(new ValidateTemplateHtmlQuery(html), CancellationToken.None);
 
         // Assert
         result.Valid.Should().BeFalse();
@@ -76,7 +75,7 @@ public sealed class ValidateTemplateHtmlUseCaseTests
             .ThrowsAsync(new InvalidOperationException("Gotenberg 503 Unavailable"));
 
         // Act
-        TemplateValidationResultDto result = await CreateSut().ExecuteAsync(new ValidateTemplateHtmlQuery(html));
+        TemplateValidationResultDto result = await CreateSut().ExecuteAsync(new ValidateTemplateHtmlQuery(html), CancellationToken.None);
 
         // Assert
         result.Valid.Should().BeFalse();
@@ -87,7 +86,7 @@ public sealed class ValidateTemplateHtmlUseCaseTests
     public async Task ExecuteAsync_WithEmptyHtml_ShouldReturnInvalid()
     {
         // Act
-        TemplateValidationResultDto result = await CreateSut().ExecuteAsync(new ValidateTemplateHtmlQuery(string.Empty));
+        TemplateValidationResultDto result = await CreateSut().ExecuteAsync(new ValidateTemplateHtmlQuery(string.Empty), CancellationToken.None);
 
         // Assert
         result.Valid.Should().BeFalse();

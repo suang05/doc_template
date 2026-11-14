@@ -1,5 +1,3 @@
-using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Domain.Exceptions;
 using SmkDoc.Infrastructure.Data;
 
 namespace SmkDoc.Tests.Infrastructure.Data;

@@ -1,8 +1,6 @@
 using System.Text.Json;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using SmkDoc.Api.Common.Responses;
 using SmkDoc.Application.Common.Interfaces;
@@ -14,7 +12,7 @@ namespace SmkDoc.Api.Filters;
 /// Supports atomic in-flight locking, replay of completed responses, payload mismatch detection,
 /// and automatic rollback on failure/exceptions.
 /// </summary>
-public sealed class IdempotencyFilter(
+public sealed partial class IdempotencyFilter(
     IIdempotencyStore idempotencyStore,
     ICurrentProjectContext projectContext,
     ILogger<IdempotencyFilter> logger,
@@ -25,6 +23,21 @@ public sealed class IdempotencyFilter(
     public const string HeaderName = "Idempotency-Key";
     public const string HeaderReplayed = "Idempotency-Replayed";
     private static readonly TimeSpan InFlightTtl = TimeSpan.FromMinutes(2);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Idempotency key {IdempotencyKey} is already in-flight for caller {CallerId}")]
+    private static partial void LogKeyInFlight(ILogger logger, string idempotencyKey, string callerId);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Idempotency key {IdempotencyKey} payload mismatch for caller {CallerId}")]
+    private static partial void LogKeyPayloadMismatch(ILogger logger, string idempotencyKey, string callerId);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Operation resulted in unhandled exception for Idempotency-Key {IdempotencyKey}. Rolling back in-flight lock.")]
+    private static partial void LogUnhandledRollback(ILogger logger, string idempotencyKey);
 
     public IdempotencyFilter(
         IIdempotencyStore idempotencyStore,
@@ -54,7 +67,7 @@ public sealed class IdempotencyFilter(
                     detail: "The 'Idempotency-Key' request header is required for this operation.",
                     errorCode: "MISSING_IDEMPOTENCY_KEY",
                     instance: context.HttpContext.Request.Path,
-                    traceId: context.HttpContext.TraceIdentifier);
+                    traceId: ProblemDetailsBuilder.ResolveTraceId(context.HttpContext));
 
                 context.Result = new BadRequestObjectResult(problemDetails);
                 return;
@@ -66,7 +79,7 @@ public sealed class IdempotencyFilter(
 
         var idempotencyKey = rawKey.ToString().Trim();
         var callerId = projectContext.IsResolved
-            ? projectContext.ProjectId.Value.ToString("N")
+            ? projectContext.GetRequiredProjectId().Value.ToString("N")
             : (projectContext.UserId?.Value.ToString("N") ?? projectContext.CallerIdentity ?? "anonymous");
         var cacheKey = $"idempotency:{callerId}:{idempotencyKey}";
         var fingerprint = RequestFingerprintCalculator.ComputeFingerprint(context, jsonSerializerOptions);
@@ -85,7 +98,7 @@ public sealed class IdempotencyFilter(
             // Scenario A: Concurrent execution in-flight
             if (existing.Status == IdempotencyStatus.InFlight)
             {
-                logger.LogWarning("Idempotency key {IdempotencyKey} is already in-flight for caller {CallerId}", idempotencyKey, callerId);
+                LogKeyInFlight(logger, idempotencyKey, callerId);
 
                 var conflictDetails = ProblemDetailsBuilder.Create(
                     status: StatusCodes.Status409Conflict,
@@ -93,7 +106,7 @@ public sealed class IdempotencyFilter(
                     detail: "A mutation request with this Idempotency-Key is currently being processed.",
                     errorCode: "IDEMPOTENCY_IN_FLIGHT",
                     instance: context.HttpContext.Request.Path,
-                    traceId: context.HttpContext.TraceIdentifier);
+                    traceId: ProblemDetailsBuilder.ResolveTraceId(context.HttpContext));
 
                 context.Result = new ConflictObjectResult(conflictDetails);
                 return;
@@ -105,7 +118,7 @@ public sealed class IdempotencyFilter(
                 // Verify request payload fingerprint
                 if (!string.Equals(existing.RequestFingerprint, fingerprint, StringComparison.Ordinal))
                 {
-                    logger.LogWarning("Idempotency key {IdempotencyKey} payload mismatch for caller {CallerId}", idempotencyKey, callerId);
+                    LogKeyPayloadMismatch(logger, idempotencyKey, callerId);
 
                     var mismatchDetails = ProblemDetailsBuilder.Create(
                         status: StatusCodes.Status422UnprocessableEntity,
@@ -113,7 +126,7 @@ public sealed class IdempotencyFilter(
                         detail: "This Idempotency-Key was previously used with a different request payload.",
                         errorCode: "IDEMPOTENCY_PAYLOAD_MISMATCH",
                         instance: context.HttpContext.Request.Path,
-                        traceId: context.HttpContext.TraceIdentifier);
+                        traceId: ProblemDetailsBuilder.ResolveTraceId(context.HttpContext));
 
                     var mismatchResult = new ObjectResult(mismatchDetails)
                     {
@@ -161,16 +174,15 @@ public sealed class IdempotencyFilter(
         {
             executedContext = await next();
         }
-        catch (Exception exception)
+        catch (Exception)
         {
-            logger.LogWarning(exception, "Operation failed for Idempotency-Key {IdempotencyKey}. Rolling back in-flight lock.", idempotencyKey);
             await idempotencyStore.RemoveAsync(cacheKey, context.HttpContext.RequestAborted);
             throw;
         }
 
         if (executedContext.Exception is not null)
         {
-            logger.LogWarning("Operation resulted in unhandled exception for Idempotency-Key {IdempotencyKey}. Rolling back in-flight lock.", idempotencyKey);
+            LogUnhandledRollback(logger, idempotencyKey);
             await idempotencyStore.RemoveAsync(cacheKey, context.HttpContext.RequestAborted);
             return;
         }

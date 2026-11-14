@@ -5,6 +5,6 @@ namespace SmkDoc.Application.Common.Interfaces;
 /// </summary>
 public interface IDatasetResultCache
 {
-    ValueTask<string?> GetAsync(string cacheKey, CancellationToken ct = default);
-    ValueTask SetAsync(string cacheKey, string jsonResult, TimeSpan ttl, CancellationToken ct = default);
+    ValueTask<string?> GetAsync(string cacheKey, CancellationToken ct);
+    ValueTask SetAsync(string cacheKey, string jsonResult, TimeSpan ttl, CancellationToken ct);
 }

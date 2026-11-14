@@ -9,7 +9,7 @@ public sealed class HybridSpoolStreamTests
     {
         // Arrange
         var payload = new byte[32 * 1024];
-        Random.Shared.NextBytes(payload);
+        System.Security.Cryptography.RandomNumberGenerator.Fill(payload);
 
         await using var sut = new HybridSpoolStream();
 
@@ -102,7 +102,7 @@ public sealed class HybridSpoolStreamTests
     {
         // Arrange
         var payload = new byte[150 * 1024];
-        Random.Shared.NextBytes(payload);
+        System.Security.Cryptography.RandomNumberGenerator.Fill(payload);
         using var source = new NonSeekableReadStream(payload);
 
         // Act

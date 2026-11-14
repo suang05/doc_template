@@ -1,10 +1,5 @@
-using SmkDoc.Application.Common.Exceptions;
-using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.Modules.Integration.DataConnections.DTOs;
 using SmkDoc.Application.Modules.Integration.DataConnections.Queries.ListDataConnections;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Interfaces;
-using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common.Builders;
 
 namespace SmkDoc.Tests.Application.Modules.Integration.DataConnections.Queries.ListDataConnections;
@@ -25,7 +20,7 @@ public sealed class ListDataConnectionsUseCaseTests
             .Returns(new List<DataConnection> { conn1, conn2 });
 
         // Act
-        IReadOnlyList<DataConnectionResultDto> results = await CreateSut().ExecuteAsync(new ListDataConnectionsQuery());
+        IReadOnlyList<DataConnectionResultDto> results = await CreateSut().ExecuteAsync(new ListDataConnectionsQuery(), CancellationToken.None);
 
         // Assert
         results.Should().HaveCount(2);

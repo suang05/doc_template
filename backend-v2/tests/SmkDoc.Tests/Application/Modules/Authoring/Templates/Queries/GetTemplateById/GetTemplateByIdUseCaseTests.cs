@@ -1,8 +1,6 @@
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.GetTemplateById;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common.Builders;
 
@@ -23,7 +21,7 @@ public sealed class GetTemplateByIdUseCaseTests
             .Returns((Template?)null);
 
         // Act
-        var act = () => CreateSut().ExecuteAsync(new GetTemplateByIdQuery(templateId));
+        var act = () => CreateSut().ExecuteAsync(new GetTemplateByIdQuery(templateId), CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<NotFoundException>();
@@ -43,7 +41,7 @@ public sealed class GetTemplateByIdUseCaseTests
             .Returns(template);
 
         // Act
-        TemplateResultDto result = await CreateSut().ExecuteAsync(new GetTemplateByIdQuery(templateId));
+        TemplateResultDto result = await CreateSut().ExecuteAsync(new GetTemplateByIdQuery(templateId), CancellationToken.None);
 
         // Assert
         result.Should().NotBeNull();

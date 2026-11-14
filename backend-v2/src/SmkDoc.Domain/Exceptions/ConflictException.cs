@@ -6,13 +6,13 @@ namespace SmkDoc.Domain.Exceptions;
 /// </summary>
 public class ConflictException : DomainException
 {
-    public ConflictException(string message, string errorCode = "RESOURCE_CONFLICT", Exception? innerException = null)
+    public ConflictException(string message, string errorCode = ErrorCodes.ResourceConflict, Exception? innerException = null)
         : base(message, errorCode, innerException)
     {
     }
 
     public static ConflictException DuplicateSlug(string slug)
-        => new($"Template slug '{slug}' is already in use.", "RESOURCE_CONFLICT");
+        => new($"Template slug '{slug}' is already in use.", ErrorCodes.DuplicateSlug);
 
     public static ConflictException DuplicateVersion(Guid aggregateId, int version)
         => new($"Resource '{aggregateId}' already contains version {version}.", "DUPLICATE_VERSION");

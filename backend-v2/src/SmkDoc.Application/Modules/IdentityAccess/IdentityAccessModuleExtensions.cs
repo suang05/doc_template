@@ -1,6 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
 using SmkDoc.Application.Common.Behaviors;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Projects.Commands.CreateProject;
 using SmkDoc.Application.Modules.IdentityAccess.Projects.Commands.TransferProjectOwner;
 using SmkDoc.Application.Modules.IdentityAccess.Projects.DTOs;
@@ -50,8 +49,8 @@ public static class IdentityAccessModuleExtensions
 
     private static IServiceCollection AddDomainServices(this IServiceCollection services)
     {
-        services.AddScoped<ITokenIssuerService, TokenIssuerService>();
-        services.AddScoped<IUserProvisioningService, UserProvisioningService>();
+        services.AddScoped<ITokenSessionGenerator, TokenSessionGenerator>();
+        services.AddScoped<IUserAccountProcessor, UserAccountProcessor>();
         return services;
     }
 

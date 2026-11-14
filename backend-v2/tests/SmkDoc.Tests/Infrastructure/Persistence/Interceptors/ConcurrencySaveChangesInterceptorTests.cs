@@ -1,7 +1,5 @@
 using Microsoft.EntityFrameworkCore;
-using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Infrastructure.Contexts;
 using SmkDoc.Infrastructure.Persistence;
 using SmkDoc.Infrastructure.Persistence.Interceptors;

@@ -1,7 +1,6 @@
-using System.Reflection;
+using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Domain.Common;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
@@ -20,7 +19,7 @@ public class AppDbContext : DbContext
         _projectContext = projectContext;
     }
 
-    public ProjectId CurrentTenantId => _projectContext?.OptionalProjectId ?? ProjectId.Empty;
+    public ProjectId CurrentTenantId => _projectContext?.TryGetProjectId() ?? ProjectId.Empty;
     public bool IsTenantResolved => _projectContext?.IsResolved ?? false;
 
     public DbSet<Company> Companies => Set<Company>();
@@ -51,9 +50,7 @@ public class AppDbContext : DbContext
         {
             if (entityType.ClrType != null && typeof(IMustHaveProject).IsAssignableFrom(entityType.ClrType))
             {
-                ConfigureProjectFilterMethod
-                    .MakeGenericMethod(entityType.ClrType)
-                    .Invoke(this, [modelBuilder]);
+                ApplyProjectQueryFilter(modelBuilder, entityType.ClrType);
             }
 
             if (entityType.ClrType != null &&
@@ -80,11 +77,16 @@ public class AppDbContext : DbContext
             .HasQueryFilter(dv => dv.Document != null && IsTenantResolved && dv.Document.ProjectId == CurrentTenantId);
     }
 
-    private static readonly MethodInfo ConfigureProjectFilterMethod = typeof(AppDbContext)
-        .GetMethod(nameof(ConfigureProjectFilter), BindingFlags.NonPublic | BindingFlags.Instance)!;
-
-    private void ConfigureProjectFilter<TEntity>(ModelBuilder modelBuilder) where TEntity : class, IMustHaveProject
+    private void ApplyProjectQueryFilter(ModelBuilder modelBuilder, Type clrType)
     {
-        modelBuilder.Entity<TEntity>().HasQueryFilter(e => IsTenantResolved && e.ProjectId == CurrentTenantId);
+        var entityParam = Expression.Parameter(clrType, "e");
+        var contextExpr = Expression.Constant(this);
+        var isResolvedExpr = Expression.Property(contextExpr, nameof(IsTenantResolved));
+        var currentTenantExpr = Expression.Property(contextExpr, nameof(CurrentTenantId));
+        var projectIdExpr = Expression.Property(entityParam, nameof(IMustHaveProject.ProjectId));
+        var filterBody = Expression.AndAlso(isResolvedExpr, Expression.Equal(projectIdExpr, currentTenantExpr));
+        var delegateType = typeof(Func<,>).MakeGenericType(clrType, typeof(bool));
+        var filterLambda = Expression.Lambda(delegateType, filterBody, entityParam);
+        modelBuilder.Entity(clrType).HasQueryFilter(filterLambda);
     }
 }

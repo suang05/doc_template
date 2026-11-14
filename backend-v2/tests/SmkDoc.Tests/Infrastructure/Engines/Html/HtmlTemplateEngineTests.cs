@@ -1,7 +1,5 @@
 using System.Text;
 using HandlebarsDotNet;
-using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Domain.Enums;
 using SmkDoc.Infrastructure.Engines.Html;
 using SmkDoc.Infrastructure.Engines.Html.Helpers;
 using SmkDoc.Infrastructure.Engines.Html.Pipeline;
@@ -47,7 +45,7 @@ public sealed class HtmlTemplateEngineTests
 
         var engine = CreateEngine(pdfRenderer, cache);
         using var stream = new MemoryStream(Encoding.UTF8.GetBytes(templateHtml));
-        await using var result = await engine.RenderStreamAsync(stream, json, OutputFormat.Pdf);
+        await using var result = await engine.RenderStreamAsync(stream, json, OutputFormat.Pdf, CancellationToken.None);
 
         result.Should().NotBeNull();
         return capturedHtml;
@@ -132,7 +130,7 @@ public sealed class HtmlTemplateEngineTests
 
         string template = "<html><body><h1>Direct Stream</h1></body></html>";
         using var stream = new MemoryStream(Encoding.UTF8.GetBytes(template));
-        var resultStream = await engine.RenderStreamAsync(stream, "{}", OutputFormat.Pdf);
+        var resultStream = await engine.RenderStreamAsync(stream, "{}", OutputFormat.Pdf, CancellationToken.None);
 
         resultStream.Should().BeSameAs(expectedStream);
     }
@@ -166,7 +164,7 @@ public sealed class HtmlTemplateEngineTests
 
         string template = "<html><body><h1>Welcome {{name}}!</h1></body></html>";
         using var stream = new MemoryStream(Encoding.UTF8.GetBytes(template));
-        await using var result = await engine.RenderStreamAsync(stream, "{\"name\":\"Antigravity\"}", OutputFormat.Pdf);
+        await using var result = await engine.RenderStreamAsync(stream, "{\"name\":\"Antigravity\"}", OutputFormat.Pdf, CancellationToken.None);
 
         result.Should().NotBeNull();
         capturedHtml.Should().Contain("Welcome Antigravity!");
@@ -190,7 +188,7 @@ public sealed class HtmlTemplateEngineTests
             string template = $"<html><body><h1>Doc {{{{id}}}} - {{{{title}}}}</h1></body></html>";
             using var stream = new MemoryStream(Encoding.UTF8.GetBytes(template));
             string json = $"{{\"id\": {i}, \"title\": \"Document {i}\"}}";
-            await using var result = await engine.RenderStreamAsync(stream, json, OutputFormat.Pdf);
+            await using var result = await engine.RenderStreamAsync(stream, json, OutputFormat.Pdf, CancellationToken.None);
             result.Should().NotBeNull();
         });
 

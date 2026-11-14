@@ -1,7 +1,5 @@
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Integration.Datasets.DTOs;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Modules.Integration.Datasets.Queries.ListDatasets;
@@ -10,7 +8,7 @@ public sealed class ListDatasetsUseCase(
     IDatasetRepository datasetRepo,
     IDataConnectionRepository connectionRepo) : IUseCase<ListDatasetsQuery, List<DatasetResultDto>>
 {
-    public async Task<List<DatasetResultDto>> ExecuteAsync(ListDatasetsQuery query, CancellationToken ct = default)
+    public async Task<List<DatasetResultDto>> ExecuteAsync(ListDatasetsQuery query, CancellationToken ct)
     {
         var datasets = await datasetRepo.ListAsync(ct);
         var missingConnectionIds = datasets

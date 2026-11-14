@@ -1,13 +1,7 @@
-using SmkDoc.Application.Common.Exceptions;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.Commands.SaveTemplateMappings;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Enums;
-using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
-using SmkDoc.Tests.Common;
 using SmkDoc.Tests.Common.Builders;
 
 namespace SmkDoc.Tests.Application.Modules.Authoring.FieldMappings.Commands.SaveTemplateMappings;
@@ -52,7 +46,7 @@ public sealed class SaveTemplateMappingsUseCaseTests
         var command = new SaveTemplateMappingsCommand(templateId, items);
 
         // Act
-        await CreateSut().ExecuteAsync(command);
+        await CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         template.FieldMappings.Should().HaveCount(1);
@@ -79,7 +73,7 @@ public sealed class SaveTemplateMappingsUseCaseTests
         var command = new SaveTemplateMappingsCommand(templateId, []);
 
         // Act
-        var act = () => CreateSut().ExecuteAsync(command);
+        var act = () => CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<NotFoundException>();

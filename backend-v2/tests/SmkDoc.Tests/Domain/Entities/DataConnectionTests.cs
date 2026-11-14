@@ -1,10 +1,5 @@
-using FluentAssertions;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Enums;
-using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.ValueObjects.Ids;
-using Xunit;
 
 namespace SmkDoc.Tests.Domain.Entities;
 

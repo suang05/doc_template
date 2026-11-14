@@ -1,8 +1,5 @@
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Helpers;
-using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
 
 namespace SmkDoc.Application.Modules.IdentityAccess.Security.Queries.ValidateApiKey;
@@ -13,7 +10,7 @@ public sealed class ValidateApiKeyUseCase(
     IUnitOfWork unitOfWork,
     TimeProvider timeProvider) : IUseCase<ValidateApiKeyQuery, ValidatedApiKeyResultDto?>
 {
-    public async Task<ValidatedApiKeyResultDto?> ExecuteAsync(ValidateApiKeyQuery query, CancellationToken ct = default)
+    public async Task<ValidatedApiKeyResultDto?> ExecuteAsync(ValidateApiKeyQuery query, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(query.PlainTextKey)) return null;
 

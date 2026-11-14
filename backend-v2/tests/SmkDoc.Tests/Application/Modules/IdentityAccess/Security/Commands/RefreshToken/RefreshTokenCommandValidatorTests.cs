@@ -1,6 +1,4 @@
-﻿using FluentAssertions;
-using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.RefreshToken;
-using Xunit;
+﻿using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.RefreshToken;
 
 namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Security.Commands.RefreshToken;
 

@@ -4,14 +4,14 @@ using SmkDoc.Application.Common.Interfaces;
 
 namespace SmkDoc.Infrastructure.Imaging;
 
-public sealed class ImageOptimizerService(ILogger<ImageOptimizerService>? logger = null) : IImageOptimizer
+public sealed partial class ImageOptimizerService(ILogger<ImageOptimizerService>? logger = null) : IImageOptimizer
 {
     private const int DefaultMaxPixelDimension = 1920;
     private const int JpegQuality = 92;
     private const int MinSizeForOptimization = 50 * 1024; // 50 KB
     private const double PrintDpiMultiplier = 2.0;        // 2× display → print quality
 
-    public byte[] Optimize(byte[] imageBytes, int targetWidthPx = 0, int targetHeightPx = 0)
+    public byte[] Optimize(byte[] imageBytes, int targetWidthPx, int targetHeightPx)
     {
         if (imageBytes == null || imageBytes.Length < MinSizeForOptimization)
             return imageBytes ?? [];
@@ -47,11 +47,21 @@ public sealed class ImageOptimizerService(ILogger<ImageOptimizerService>? logger
                 var optimized = Encode(target, hasAlpha);
                 if (optimized.Length >= imageBytes.Length) return imageBytes;
 
-                logger?.LogInformation(
-                    "[ImageOptimizer] {OrigW}x{OrigH} → {NewW}x{NewH} | {OrigKB}KB → {NewKB}KB ({Pct:F1}% saved, alpha={Alpha})",
-                    original.Width, original.Height, newW, newH,
-                    imageBytes.Length / 1024, optimized.Length / 1024,
-                    (1.0 - (double)optimized.Length / imageBytes.Length) * 100, hasAlpha);
+                if (logger is not null && logger.IsEnabled(LogLevel.Information))
+                {
+                    var pctSaved = ((1.0 - (double)optimized.Length / imageBytes.Length) * 100.0)
+                        .ToString("F1", System.Globalization.CultureInfo.InvariantCulture);
+                    LogImageOptimized(
+                        logger,
+                        original.Width,
+                        original.Height,
+                        newW,
+                        newH,
+                        imageBytes.Length / 1024,
+                        optimized.Length / 1024,
+                        pctSaved,
+                        hasAlpha);
+                }
 
                 return optimized;
             }
@@ -60,12 +70,54 @@ public sealed class ImageOptimizerService(ILogger<ImageOptimizerService>? logger
                 resized?.Dispose();
             }
         }
-        catch (Exception ex)
+        catch (ArgumentException ex)
         {
-            logger?.LogWarning(ex, "[ImageOptimizer] Failed to optimize ({KB}KB) — using original", imageBytes.Length / 1024);
+            LogOptimizeFailure(ex, imageBytes.Length);
+            return imageBytes;
+        }
+        catch (InvalidOperationException ex)
+        {
+            LogOptimizeFailure(ex, imageBytes.Length);
+            return imageBytes;
+        }
+        catch (NotSupportedException ex)
+        {
+            LogOptimizeFailure(ex, imageBytes.Length);
+            return imageBytes;
+        }
+        catch (IOException ex)
+        {
+            LogOptimizeFailure(ex, imageBytes.Length);
             return imageBytes;
         }
     }
+
+    private void LogOptimizeFailure(Exception ex, int byteLength)
+    {
+        if (logger is not null && logger.IsEnabled(LogLevel.Warning))
+        {
+            WriteOptimizeFailure(logger, ex, byteLength / 1024);
+        }
+    }
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "[ImageOptimizer] {OrigW}x{OrigH} → {NewW}x{NewH} | {OrigKB}KB → {NewKB}KB ({Pct}% saved, alpha={Alpha})")]
+    private static partial void LogImageOptimized(
+        ILogger logger,
+        int origW,
+        int origH,
+        int newW,
+        int newH,
+        int origKB,
+        int newKB,
+        string pct,
+        bool alpha);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "[ImageOptimizer] Failed to optimize ({KB}KB) — using original")]
+    private static partial void WriteOptimizeFailure(ILogger logger, Exception ex, int kb);
 
     private static (int maxW, int maxH) ComputeMaxDimensions(int wPx, int hPx)
     {

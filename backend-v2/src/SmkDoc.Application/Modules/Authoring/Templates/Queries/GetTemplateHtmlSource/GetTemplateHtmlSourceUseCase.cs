@@ -1,11 +1,6 @@
 using System.Text;
 using SmkDoc.Application.Common;
-using SmkDoc.Application.Common.Exceptions;
-using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
-using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Modules.Authoring.Templates.Queries.GetTemplateHtmlSource;
@@ -14,7 +9,7 @@ public sealed class GetTemplateHtmlSourceUseCase(
     ITemplateRepository templateRepo,
     IStorageService storageService) : IUseCase<GetTemplateHtmlSourceQuery, string>
 {
-    public async Task<string> ExecuteAsync(GetTemplateHtmlSourceQuery query, CancellationToken ct = default)
+    public async Task<string> ExecuteAsync(GetTemplateHtmlSourceQuery query, CancellationToken ct)
     {
         var template = await templateRepo.GetByIdAsync(new TemplateId(query.TemplateId), ct)
             ?? throw new NotFoundException($"Template '{query.TemplateId}' not found.");

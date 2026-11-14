@@ -1,10 +1,7 @@
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Projects.DTOs;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Helpers;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
-using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.ValueObjects.Ids;
 
@@ -21,7 +18,7 @@ public sealed class CreateProjectUseCase(
     IUnitOfWork unitOfWork,
     TimeProvider timeProvider) : IUseCase<CreateProjectCommand, ProjectResultDto>
 {
-    public async Task<ProjectResultDto> ExecuteAsync(CreateProjectCommand command, CancellationToken ct = default)
+    public async Task<ProjectResultDto> ExecuteAsync(CreateProjectCommand command, CancellationToken ct)
     {
         await EnsureUniqueSlugAsync(command.Slug, ct);
 
@@ -84,9 +81,7 @@ public sealed class CreateProjectUseCase(
         DateTimeOffset now,
         CancellationToken ct)
     {
-#pragma warning disable RS0030 // [PHASE-3-TECH-DEBT] Migrate default API key secret generation to RandomNumberGenerator
-        var plain = $"{prefix}_{Guid.NewGuid():N}";
-#pragma warning restore RS0030
+        var plain = ApiKeyGenerator.GenerateSecret(prefix);
         var hash = new Sha256Hash(ApiKeyGenerator.ComputeHash(plain));
         var key = ApiKey.Issue(projectId, ApiKeyName.Create(name), callerApp, hash, ExpirationPolicy.Never, now, scope);
         await apiKeyRepo.AddAsync(key, ct);

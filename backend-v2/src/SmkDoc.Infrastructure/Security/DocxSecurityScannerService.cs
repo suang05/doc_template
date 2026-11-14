@@ -5,7 +5,7 @@ using SmkDoc.Application.Modules.Rendering.Documents.DTOs;
 
 namespace SmkDoc.Infrastructure.Security;
 
-public sealed class DocxSecurityScannerService(ILogger<DocxSecurityScannerService> logger) : IDocxSecurityScanner
+public sealed partial class DocxSecurityScannerService(ILogger<DocxSecurityScannerService> logger) : IDocxSecurityScanner
 {
     public DocxScanResult Scan(Stream docxStream)
     {
@@ -41,10 +41,25 @@ public sealed class DocxSecurityScannerService(ILogger<DocxSecurityScannerServic
                     threats.Add($"Suspicious external relationship: {rel.Uri}");
             }
         }
-        catch (Exception ex)
+        catch (DocumentFormat.OpenXml.Packaging.OpenXmlPackageException ex)
         {
-            logger.LogWarning(ex, "[DocxSecurityScanner] Scan failed.");
-            threats.Add($"Scan failed: {ex.Message}");
+            RecordScanFailure(ex, threats);
+        }
+        catch (InvalidDataException ex)
+        {
+            RecordScanFailure(ex, threats);
+        }
+        catch (FormatException ex)
+        {
+            RecordScanFailure(ex, threats);
+        }
+        catch (IOException ex)
+        {
+            RecordScanFailure(ex, threats);
+        }
+        catch (InvalidOperationException ex)
+        {
+            RecordScanFailure(ex, threats);
         }
         finally
         {
@@ -52,9 +67,27 @@ public sealed class DocxSecurityScannerService(ILogger<DocxSecurityScannerServic
                 docxStream.Position = startPos;
         }
 
-        if (threats.Count > 0)
-            logger.LogWarning("[DocxSecurityScanner] {Count} threat(s) found: {Threats}", threats.Count, string.Join("; ", threats));
+        if (threats.Count > 0 && logger.IsEnabled(LogLevel.Warning))
+        {
+            LogThreatsFound(logger, threats.Count, string.Join("; ", threats));
+        }
 
         return new DocxScanResult(threats.Count == 0, threats);
     }
+
+    private void RecordScanFailure(Exception ex, List<string> threats)
+    {
+        LogScanFailed(logger, ex);
+        threats.Add($"Scan failed: {ex.Message}");
+    }
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "[DocxSecurityScanner] {Count} threat(s) found: {Threats}")]
+    private static partial void LogThreatsFound(ILogger logger, int count, string threats);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "[DocxSecurityScanner] Scan failed.")]
+    private static partial void LogScanFailed(ILogger logger, Exception ex);
 }

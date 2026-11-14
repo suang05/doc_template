@@ -1,10 +1,8 @@
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Templates.EventHandlers;
 using SmkDoc.Application.Modules.IdentityAccess.Security.EventHandlers;
 using SmkDoc.Application.Modules.IdentityAccess.Users.EventHandlers;
 using SmkDoc.Application.Modules.Rendering.Documents.EventHandlers;
 using SmkDoc.Domain.Events;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Tests.Application.Common.Events;
@@ -25,7 +23,7 @@ public sealed class DomainEventHandlersTests
         var sut = new TemplatePublishedEventHandler(_auditService);
 
         // Act
-        await sut.HandleAsync(evt);
+        await sut.HandleAsync(evt, CancellationToken.None);
 
         // Assert
         _auditService.Received(1).LogTemplatePublished(projectId.Value, templateId.Value, versionId, 3);
@@ -42,7 +40,7 @@ public sealed class DomainEventHandlersTests
         var sut = new DocumentVersionCreatedEventHandler(_auditService);
 
         // Act
-        await sut.HandleAsync(evt);
+        await sut.HandleAsync(evt, CancellationToken.None);
 
         // Assert
         _auditService.Received(1).LogDocumentVersionCreated(projectId.Value, documentId.Value, 2, genLogId);
@@ -58,7 +56,7 @@ public sealed class DomainEventHandlersTests
         var sut = new ApiKeyRevokedEventHandler(_auditService);
 
         // Act
-        await sut.HandleAsync(evt);
+        await sut.HandleAsync(evt, CancellationToken.None);
 
         // Assert
         _auditService.Received(1).LogApiKeyRevoked(projectId.Value, apiKeyId.Value);
@@ -73,7 +71,7 @@ public sealed class DomainEventHandlersTests
         var sut = new UserDeactivatedEventHandler(_refreshTokenRepo, _auditService);
 
         // Act
-        await sut.HandleAsync(evt);
+        await sut.HandleAsync(evt, CancellationToken.None);
 
         // Assert
         _auditService.Received(1).LogUserDeactivated(userId.Value);

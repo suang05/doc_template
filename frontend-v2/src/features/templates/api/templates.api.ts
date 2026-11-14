@@ -174,7 +174,7 @@ export const templatesApi = {
   async parseDraft(file: File): Promise<{ draftId: string; placeholders: string[] }> {
     const form = new FormData();
     form.append('file', file);
-    const res = await apiClient<ApiResponse<{ draftId: string; placeholders: string[] }>>('/api/v1/templates/draft/parse', {
+    const res = await apiClient<ApiResponse<{ draftId: string; placeholders: string[] }>>('/api/v1/template-drafts/parse', {
       method: 'POST',
       body: form,
     });
@@ -183,7 +183,7 @@ export const templatesApi = {
 
   async previewDraft(draftId: string, dataJson: string): Promise<Blob> {
     try {
-      const { blob } = await apiClientBlob(`/api/v1/templates/draft/${draftId}/preview`, {
+      const { blob } = await apiClientBlob(`/api/v1/template-drafts/${draftId}/preview`, {
         method: 'POST',
         body: JSON.stringify({ dataJson }),
       });
@@ -199,7 +199,7 @@ export const templatesApi = {
     draftId: string,
     request: { name: string; slug: string; category?: string; mappings: SaveFieldMappingItem[] }
   ): Promise<{ templateId: string }> {
-    const res = await apiClient<ApiResponse<{ templateId: string }>>(`/api/v1/templates/draft/${draftId}/commit`, {
+    const res = await apiClient<ApiResponse<{ templateId: string }>>(`/api/v1/template-drafts/${draftId}/commit`, {
       method: 'POST',
       body: JSON.stringify(request),
     });

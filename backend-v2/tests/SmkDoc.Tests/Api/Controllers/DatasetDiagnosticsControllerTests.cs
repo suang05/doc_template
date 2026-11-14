@@ -7,9 +7,7 @@ using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.Constants;
 using SmkDoc.Api.Contracts.Integration.Datasets;
 using SmkDoc.Api.Controllers.Integration;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Integration.Datasets.Commands.DryRunDataset;
-using SmkDoc.Application.Modules.Integration.Datasets.DTOs;
 
 namespace SmkDoc.Tests.Api.Controllers;
 

@@ -1,13 +1,7 @@
-using NSubstitute.ExceptionExtensions;
 using SmkDoc.Application.Common.Behaviors;
-using SmkDoc.Application.Common.Exceptions;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Integration.Datasets.Commands.CreateDataset;
-using SmkDoc.Application.Modules.Integration.Datasets.DTOs;
 using SmkDoc.Application.Modules.Integration.Datasets.Services;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common.Builders;
 
@@ -26,7 +20,7 @@ public sealed class CreateDatasetUseCaseTests
     {
         _unitOfWork.CommitAsync(Arg.Any<CancellationToken>()).Returns(1);
         _projectContext.IsResolved.Returns(true);
-        _projectContext.ProjectId.Returns(_projectId);
+        _projectContext.GetRequiredProjectId().Returns(_projectId);
     }
 
     private CreateDatasetUseCase CreateSut() => new(
@@ -46,7 +40,7 @@ public sealed class CreateDatasetUseCaseTests
             [new CreateDatasetCommandValidator()]);
 
         // Act
-        Func<Task> act = () => pipeline.ExecuteAsync(command);
+        Func<Task> act = () => pipeline.ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<SmkDoc.Application.Common.Exceptions.ValidationException>();
@@ -56,18 +50,18 @@ public sealed class CreateDatasetUseCaseTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_WhenProjectUnresolved_ShouldThrowTenantContextRequiredException()
+    public async Task ExecuteAsync_WhenProjectUnresolved_ShouldThrowTenantContextNotResolvedException()
     {
         // Arrange
         _projectContext.IsResolved.Returns(false);
-        _projectContext.ProjectId.Returns(_ => throw new TenantContextRequiredException());
+        _projectContext.GetRequiredProjectId().Returns(_ => throw new TenantContextNotResolvedException());
         var command = new CreateDatasetCommand("OrdersSet", null, Guid.NewGuid(), "SELECT 1");
 
         // Act
-        Func<Task> act = () => CreateSut().ExecuteAsync(command);
+        Func<Task> act = () => CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
-        await act.Should().ThrowAsync<TenantContextRequiredException>();
+        await act.Should().ThrowAsync<TenantContextNotResolvedException>();
         await _datasetResolver.DidNotReceive().ValidateAndResolveConnectionAsync(Arg.Any<DataConnectionId>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
@@ -83,7 +77,7 @@ public sealed class CreateDatasetUseCaseTests
             .Returns(conn);
 
         // Act
-        DatasetResultDto result = await CreateSut().ExecuteAsync(command);
+        DatasetResultDto result = await CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         result.Name.Should().Be("OrdersSet");
@@ -110,7 +104,7 @@ public sealed class CreateDatasetUseCaseTests
         var command = new CreateDatasetCommand("OrdersSet", null, Guid.NewGuid(), "SELECT 1");
 
         // Act
-        Func<Task> act = () => CreateSut().ExecuteAsync(command);
+        Func<Task> act = () => CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<NotFoundException>();

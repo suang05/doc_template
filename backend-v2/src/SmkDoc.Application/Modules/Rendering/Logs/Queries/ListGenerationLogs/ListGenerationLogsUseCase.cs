@@ -1,4 +1,3 @@
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Rendering.Logs.DTOs;
 
 namespace SmkDoc.Application.Modules.Rendering.Logs.Queries.ListGenerationLogs;
@@ -8,7 +7,7 @@ public sealed class ListGenerationLogsUseCase(IGenerationLogQueryService logQuer
 {
     public async Task<GenerationLogPagedResult> ExecuteAsync(
         ListGenerationLogsQuery query,
-        CancellationToken ct = default)
+        CancellationToken ct)
     {
         int page = Math.Max(1, query.Page);
         int limit = Math.Clamp(query.Limit, 1, 200);

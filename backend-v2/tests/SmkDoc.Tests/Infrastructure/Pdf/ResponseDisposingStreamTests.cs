@@ -11,7 +11,7 @@ public sealed class ResponseDisposingStreamTests
         // Arrange
         var innerStream = new TrackingMemoryStream([0x25, 0x50, 0x44, 0x46]);
         var trackingContent = new TrackingHttpContent();
-        var response = new HttpResponseMessage(HttpStatusCode.OK) { Content = trackingContent };
+        using var response = new HttpResponseMessage(HttpStatusCode.OK) { Content = trackingContent };
 
         var sut = new ResponseDisposingStream(innerStream, response);
 
@@ -32,7 +32,7 @@ public sealed class ResponseDisposingStreamTests
         // Arrange
         var innerStream = new TrackingMemoryStream([1, 2, 3]);
         var trackingContent = new TrackingHttpContent();
-        var response = new HttpResponseMessage(HttpStatusCode.OK) { Content = trackingContent };
+        using var response = new HttpResponseMessage(HttpStatusCode.OK) { Content = trackingContent };
 
         var sut = new ResponseDisposingStream(innerStream, response);
 

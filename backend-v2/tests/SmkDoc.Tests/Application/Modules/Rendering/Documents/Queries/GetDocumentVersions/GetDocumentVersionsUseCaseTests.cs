@@ -1,7 +1,5 @@
 using SmkDoc.Application.Modules.Rendering.Documents.Queries.GetDocumentVersions;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Interfaces;
-using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Tests.Common.Builders;
 
 namespace SmkDoc.Tests.Application.Modules.Rendering.Documents.Queries.GetDocumentVersions;
@@ -30,7 +28,7 @@ public sealed class GetDocumentVersionsUseCaseTests
             ]);
 
         // Act
-        var result = await CreateSut().ExecuteAsync(new GetDocumentVersionsQuery("SC-001"));
+        var result = await CreateSut().ExecuteAsync(new GetDocumentVersionsQuery("SC-001"), CancellationToken.None);
 
         // Assert
         result.Should().HaveCount(2);
@@ -47,7 +45,7 @@ public sealed class GetDocumentVersionsUseCaseTests
             .Returns((Document?)null);
 
         // Act
-        var result = await CreateSut().ExecuteAsync(new GetDocumentVersionsQuery("DOES-NOT-EXIST"));
+        var result = await CreateSut().ExecuteAsync(new GetDocumentVersionsQuery("DOES-NOT-EXIST"), CancellationToken.None);
 
         // Assert
         result.Should().BeEmpty();

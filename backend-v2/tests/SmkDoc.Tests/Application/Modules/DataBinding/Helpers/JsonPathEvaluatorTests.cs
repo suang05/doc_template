@@ -1,7 +1,5 @@
 using System.Text.Json;
-using FluentAssertions;
 using SmkDoc.Application.Modules.DataBinding.Helpers;
-using Xunit;
 
 namespace SmkDoc.Tests.Application.Modules.DataBinding.Helpers;
 

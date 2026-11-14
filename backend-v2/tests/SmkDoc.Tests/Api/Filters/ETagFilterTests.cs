@@ -6,7 +6,6 @@ using Microsoft.AspNetCore.Routing;
 using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.Filters;
 using SmkDoc.Api.OpenApi;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 
 namespace SmkDoc.Tests.Api.Filters;

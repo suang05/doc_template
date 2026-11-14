@@ -1,7 +1,3 @@
-using System;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Rendering.Logs.DTOs;
@@ -14,7 +10,7 @@ public sealed class GenerationLogMetricsRepository(AppDbContext context) : IGene
     public async Task<LogMetricsDto> GetMetricsAsync(
         DateTimeOffset? startDate,
         DateTimeOffset? endDate,
-        CancellationToken ct = default)
+        CancellationToken ct)
     {
         var query = context.GenerationLogs.AsNoTracking();
 

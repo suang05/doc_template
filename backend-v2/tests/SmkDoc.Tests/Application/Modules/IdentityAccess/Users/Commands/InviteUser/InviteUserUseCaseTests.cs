@@ -1,30 +1,24 @@
-using FluentAssertions;
-using NSubstitute;
 using SmkDoc.Application.Common.Behaviors;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Users.Commands.InviteUser;
 using SmkDoc.Application.Modules.IdentityAccess.Users.DTOs;
 using SmkDoc.Application.Modules.IdentityAccess.Users.Services;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common.Builders;
-using Xunit;
 using ValidationException = SmkDoc.Application.Common.Exceptions.ValidationException;
 
 namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Users.Commands.InviteUser;
 
 public sealed class InviteUserUseCaseTests
 {
-    private readonly IUserProvisioningService _userProvisioningService = Substitute.For<IUserProvisioningService>();
+    private readonly IUserAccountProcessor _userAccountProcessor = Substitute.For<IUserAccountProcessor>();
     private readonly IUserProjectRoleRepository _roleRepo = Substitute.For<IUserProjectRoleRepository>();
     private readonly IUnitOfWork _uow = Substitute.For<IUnitOfWork>();
     private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
     private readonly FakeTimeProvider _timeProvider = TestConstants.CreateFakeClock();
 
     private InviteUserUseCase CreateSut() => new(
-        _userProvisioningService,
+        _userAccountProcessor,
         _roleRepo,
         _uow,
         _projectContext,
@@ -35,7 +29,7 @@ public sealed class InviteUserUseCaseTests
     {
         // Arrange
         _projectContext.IsResolved.Returns(true);
-        _projectContext.ProjectId.Returns(new ProjectId(Guid.NewGuid()));
+        _projectContext.GetRequiredProjectId().Returns(new ProjectId(Guid.NewGuid()));
 
         var command = new InviteUserCommand("invalid-email", "", "", "", "Viewer");
         var pipeline = new ValidatingUseCaseDecorator<InviteUserCommand, UserResultDto>(
@@ -43,11 +37,11 @@ public sealed class InviteUserUseCaseTests
             [new InviteUserCommandValidator()]);
 
         // Act
-        var act = () => pipeline.ExecuteAsync(command);
+        var act = () => pipeline.ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<ValidationException>();
-        await _userProvisioningService.DidNotReceive().GetOrRegisterUserAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>());
+        await _userAccountProcessor.DidNotReceive().GetOrRegisterUserAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>());
         await _roleRepo.DidNotReceive().AddAsync(Arg.Any<UserProjectRole>(), Arg.Any<CancellationToken>());
         await _uow.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
     }
@@ -58,7 +52,7 @@ public sealed class InviteUserUseCaseTests
         // Arrange
         var projectId = Guid.NewGuid();
         _projectContext.IsResolved.Returns(true);
-        _projectContext.ProjectId.Returns(new ProjectId(projectId));
+        _projectContext.GetRequiredProjectId().Returns(new ProjectId(projectId));
 
         var email = "new@test.com";
         var password = "Pass@1234";
@@ -66,11 +60,11 @@ public sealed class InviteUserUseCaseTests
         var command = new InviteUserCommand(email, password, "New", "User", roleStr);
 
         User newUser = aUser.Active().WithEmail(email);
-        _userProvisioningService.GetOrRegisterUserAsync(email, password, "New", "User", Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
+        _userAccountProcessor.GetOrRegisterUserAsync(email, password, "New", "User", Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
             .Returns(newUser);
 
         // Act
-        var result = await CreateSut().ExecuteAsync(command);
+        var result = await CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         await _roleRepo.Received(1).AddAsync(Arg.Any<UserProjectRole>(), Arg.Any<CancellationToken>());
@@ -85,7 +79,7 @@ public sealed class InviteUserUseCaseTests
         // Arrange
         var projectId = Guid.NewGuid();
         _projectContext.IsResolved.Returns(true);
-        _projectContext.ProjectId.Returns(new ProjectId(projectId));
+        _projectContext.GetRequiredProjectId().Returns(new ProjectId(projectId));
 
         User existingUser = aUser.Active().WithEmail("exist@test.com");
         var existingRole = new UserProjectRoleBuilder()
@@ -96,13 +90,13 @@ public sealed class InviteUserUseCaseTests
 
         var command = new InviteUserCommand("exist@test.com", "Pass@1234", "", "", "Viewer");
 
-        _userProvisioningService.GetOrRegisterUserAsync("exist@test.com", "Pass@1234", "", "", Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
+        _userAccountProcessor.GetOrRegisterUserAsync("exist@test.com", "Pass@1234", "", "", Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
             .Returns(existingUser);
         _roleRepo.GetAsync(new ProjectId(projectId), existingUser.Id, Arg.Any<CancellationToken>())
             .Returns(existingRole);
 
         // Act
-        var act = () => CreateSut().ExecuteAsync(command);
+        var act = () => CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<ConflictException>();

@@ -1,9 +1,5 @@
-using SmkDoc.Application.Common.Exceptions;
-using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.Modules.Integration.DataConnections.DTOs;
 using SmkDoc.Application.Modules.Integration.DataConnections.Queries.GetDataConnectionById;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common.Builders;
 
@@ -25,7 +21,7 @@ public sealed class GetDataConnectionByIdUseCaseTests
             .Returns(conn);
 
         // Act
-        DataConnectionResultDto result = await CreateSut().ExecuteAsync(new GetDataConnectionByIdQuery(id));
+        DataConnectionResultDto result = await CreateSut().ExecuteAsync(new GetDataConnectionByIdQuery(id), CancellationToken.None);
 
         // Assert
         result.Should().NotBeNull();
@@ -42,7 +38,7 @@ public sealed class GetDataConnectionByIdUseCaseTests
             .Returns((DataConnection?)null);
 
         // Act
-        var act = () => CreateSut().ExecuteAsync(new GetDataConnectionByIdQuery(id));
+        var act = () => CreateSut().ExecuteAsync(new GetDataConnectionByIdQuery(id), CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<NotFoundException>();

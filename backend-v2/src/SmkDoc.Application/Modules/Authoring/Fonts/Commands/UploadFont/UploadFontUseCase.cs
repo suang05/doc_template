@@ -1,8 +1,6 @@
 using System.Text.RegularExpressions;
 using SmkDoc.Application.Common;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Fonts.DTOs;
-using SmkDoc.Domain.Exceptions;
 
 namespace SmkDoc.Application.Modules.Authoring.Fonts.Commands.UploadFont;
 
@@ -27,13 +25,13 @@ public sealed partial class UploadFontUseCase(
         ".ttf", ".otf", ".woff", ".woff2"
     };
 
-    [GeneratedRegex(@"^[a-zA-Z0-9._-]+$")]
+    [GeneratedRegex(@"^[a-zA-Z0-9._-]+$", RegexOptions.None, 250)]
     private static partial Regex SafeFileNameRegex();
 
-    public async Task<UploadFontResultDto> ExecuteAsync(UploadFontCommand command, CancellationToken ct = default)
+    public async Task<UploadFontResultDto> ExecuteAsync(UploadFontCommand command, CancellationToken ct)
     {
         // Step 1: Parse & Guard (Fail-fast at line 1 via Smart Context Property)
-        var projectId = projectContext.ProjectId;
+        var projectId = projectContext.GetRequiredProjectId();
 
         if (string.IsNullOrWhiteSpace(command.ContentType) || !AllowedContentTypes.Contains(command.ContentType.Trim()))
         {
@@ -64,7 +62,7 @@ public sealed partial class UploadFontUseCase(
         return new UploadFontResultDto("Font uploaded successfully.", safeFileName);
     }
 
-    internal static string SanitizeAndValidateFileName(string? rawFileName)
+    public static string SanitizeAndValidateFileName(string? rawFileName)
     {
         if (string.IsNullOrWhiteSpace(rawFileName))
         {

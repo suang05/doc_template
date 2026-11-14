@@ -10,33 +10,33 @@ public sealed class DocumentRepository(AppDbContext context) : IDocumentReposito
 {
     private readonly AppDbContext _context = context;
 
-    public async Task<Document?> GetByIdAsync(DocumentId id, CancellationToken ct = default)
+    public async Task<Document?> GetByIdAsync(DocumentId id, CancellationToken ct)
     {
         return await _context.Documents
             .FirstOrDefaultAsync(d => d.Id == id, ct);
     }
 
-    public async Task<Document?> GetByDocumentRefAsync(DocumentReference documentRef, CancellationToken ct = default)
+    public async Task<Document?> GetByDocumentRefAsync(DocumentReference documentRef, CancellationToken ct)
     {
         return await _context.Documents
             .FirstOrDefaultAsync(d => d.DocumentRef == documentRef, ct);
     }
 
-    public async Task<Document?> GetByDocumentRefWithVersionsAsync(DocumentReference documentRef, CancellationToken ct = default)
+    public async Task<Document?> GetByDocumentRefWithVersionsAsync(DocumentReference documentRef, CancellationToken ct)
     {
         return await _context.Documents
             .Include(d => d.Versions)
             .FirstOrDefaultAsync(d => d.DocumentRef == documentRef, ct);
     }
 
-    public async Task<DocumentVersion?> GetVersionAsync(DocumentReference documentRef, int version, CancellationToken ct = default)
+    public async Task<DocumentVersion?> GetVersionAsync(DocumentReference documentRef, int version, CancellationToken ct)
     {
         return await _context.DocumentVersions
             .Where(v => v.Version == version && _context.Documents.Any(d => d.Id == v.DocumentId && d.DocumentRef == documentRef))
             .FirstOrDefaultAsync(ct);
     }
 
-    public async Task<IReadOnlyList<DocumentVersion>> GetVersionHistoryAsync(DocumentReference documentRef, CancellationToken ct = default)
+    public async Task<IReadOnlyList<DocumentVersion>> GetVersionHistoryAsync(DocumentReference documentRef, CancellationToken ct)
     {
         return await _context.DocumentVersions
             .Where(v => _context.Documents.Any(d => d.Id == v.DocumentId && d.DocumentRef == documentRef))
@@ -44,7 +44,7 @@ public sealed class DocumentRepository(AppDbContext context) : IDocumentReposito
             .ToListAsync(ct);
     }
 
-    public async Task<int> GetNextVersionNumberAsync(DocumentId documentId, CancellationToken ct = default)
+    public async Task<int> GetNextVersionNumberAsync(DocumentId documentId, CancellationToken ct)
     {
         var currentMax = await _context.DocumentVersions
             .Where(v => v.DocumentId == documentId)
@@ -53,7 +53,7 @@ public sealed class DocumentRepository(AppDbContext context) : IDocumentReposito
         return (currentMax ?? 0) + 1;
     }
 
-    public async Task AddAsync(Document document, CancellationToken ct = default)
+    public async Task AddAsync(Document document, CancellationToken ct)
     {
         await _context.Documents.AddAsync(document, ct);
     }

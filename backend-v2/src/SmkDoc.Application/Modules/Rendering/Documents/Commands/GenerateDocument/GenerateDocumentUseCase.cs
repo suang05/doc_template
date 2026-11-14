@@ -1,17 +1,13 @@
 using System.Diagnostics;
 using System.Text.Json;
 using SmkDoc.Application.Common;
-using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Helpers;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.DataBinding.Services;
 using SmkDoc.Application.Modules.Rendering.Documents.Commands.GenerateDocument;
 using SmkDoc.Application.Modules.Rendering.Documents.DTOs;
 using SmkDoc.Application.Modules.Rendering.Documents.Services;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
-using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.Interfaces;
 
 namespace SmkDoc.Application.Modules.Rendering.Documents;
 
@@ -20,17 +16,17 @@ public sealed class GenerateDocumentUseCase(
     IStorageService storageService,
     IRenderEngineFactory engineFactory,
     IDataBindingEngine dataBindingEngine,
-    IDocumentAuditService auditService,
-    IDocumentVersioningService versioningService,
+    IDocumentAuditProcessor auditProcessor,
+    IDocumentVersionProcessor versionProcessor,
     IUnitOfWork unitOfWork,
     ICurrentProjectContext projectContext,
     TimeProvider timeProvider) : IUseCase<GenerateDocumentCommand, GenerateDocumentResultDto>
 {
     public async Task<GenerateDocumentResultDto> ExecuteAsync(
-        GenerateDocumentCommand command, CancellationToken ct = default)
+        GenerateDocumentCommand command, CancellationToken ct)
     {
         // Step 1: Parse & Guard (Fail-fast at line 1 via Smart Context Property)
-        var projectId = projectContext.ProjectId;
+        var projectId = projectContext.GetRequiredProjectId();
 
         var outputFormat = ParseOutputFormat(command.OutputFormat);
 
@@ -78,7 +74,7 @@ public sealed class GenerateDocumentUseCase(
             {
                 sw.Stop();
                 var errorMessage = $"{boundData.ValidationResult.Errors.Count} schema violation(s) detected.";
-                await auditService.LogValidationFailureAsync(
+                await auditProcessor.LogValidationFailureAsync(
                     template.Id.Value,
                     currentVersion.Id,
                     boundData.DataJson,
@@ -96,7 +92,7 @@ public sealed class GenerateDocumentUseCase(
             using var templateStream = await storageService.DownloadAsync(StorageBuckets.Templates, currentVersion.StorageKey, ct);
             var rawOutputStream = await engine.RenderStreamAsync(templateStream, boundData.DataJson, outputFormat, ct);
 
-            await using var spooled = await SpooledOutputStream.CreateAndDisposeSourceAsync(rawOutputStream, ct);
+            await using var spooled = await SpooledRenderOutput.CreateAndDisposeSourceAsync(rawOutputStream, ct);
             sw.Stop();
 
             await storageService.UploadAsync(
@@ -114,7 +110,7 @@ public sealed class GenerateDocumentUseCase(
             try
             {
                 var fallbackPayload = preparedDataJson ?? (payload.ValueKind != JsonValueKind.Undefined ? payload.GetRawText() : "{}");
-                await auditService.LogFailureAsync(
+                await auditProcessor.LogFailureAsync(
                     template.Id.Value,
                     currentVersion.Id,
                     fallbackPayload,
@@ -125,17 +121,42 @@ public sealed class GenerateDocumentUseCase(
 
                 await unitOfWork.CommitAsync(CancellationToken.None);
             }
-            catch (Exception auditEx)
+            catch (System.Data.Common.DbException auditEx)
             {
-                ex.Data["AuditFailurePersistenceError"] = auditEx.Message;
-                Trace.TraceWarning(
-                    "Failed to persist FAILED generation audit log for template '{0}': {1}",
-                    template.Slug.Value,
-                    auditEx.Message);
+                RecordAuditFailure(template.Slug.Value, ex, auditEx);
+            }
+            catch (ExternalServiceException auditEx)
+            {
+                RecordAuditFailure(template.Slug.Value, ex, auditEx);
+            }
+            catch (HttpRequestException auditEx)
+            {
+                RecordAuditFailure(template.Slug.Value, ex, auditEx);
+            }
+            catch (IOException auditEx)
+            {
+                RecordAuditFailure(template.Slug.Value, ex, auditEx);
+            }
+            catch (TimeoutException auditEx)
+            {
+                RecordAuditFailure(template.Slug.Value, ex, auditEx);
+            }
+            catch (InvalidOperationException auditEx)
+            {
+                RecordAuditFailure(template.Slug.Value, ex, auditEx);
             }
 
             throw;
         }
+    }
+
+    private static void RecordAuditFailure(string templateSlug, Exception primaryEx, Exception auditEx)
+    {
+        primaryEx.Data["AuditFailurePersistenceError"] = auditEx.Message;
+        Trace.TraceWarning(
+            "Failed to persist FAILED generation audit log for template '{0}': {1}",
+            templateSlug,
+            auditEx.Message);
     }
 
     private async Task<GenerateDocumentResultDto> FinalizeDocumentAsync(
@@ -153,7 +174,7 @@ public sealed class GenerateDocumentUseCase(
             var expiry = TimeSpan.FromHours(24);
             string downloadUrl = await storageService.GetPresignedUrlAsync(StorageBuckets.Outputs, outputKey, expiry, ct);
 
-            await auditService.LogSuccessAsync(
+            await auditProcessor.LogSuccessAsync(
                 generationId,
                 template.Id.Value,
                 currentVersion.Id,
@@ -166,7 +187,7 @@ public sealed class GenerateDocumentUseCase(
 
             if (!string.IsNullOrWhiteSpace(command.DocumentRef))
             {
-                await versioningService.RecordVersionAsync(
+                await versionProcessor.RecordVersionAsync(
                     command.DocumentRef,
                     template.Id.Value,
                     currentVersion.Id,
@@ -189,19 +210,12 @@ public sealed class GenerateDocumentUseCase(
         }
         catch (Exception primaryEx)
         {
-            try
-            {
-                await storageService.DeleteAsync(StorageBuckets.Outputs, outputKey, CancellationToken.None);
-            }
-            catch (Exception cleanupEx)
-            {
-                primaryEx.Data["OrphanedOutputKey"] = outputKey;
-                primaryEx.Data["CompensatingDeleteError"] = cleanupEx.Message;
-                Trace.TraceWarning(
-                    "Failed to delete orphaned output object '{0}' after database commit failure: {1}",
-                    outputKey,
-                    cleanupEx.Message);
-            }
+            await SmkDoc.Application.Common.Storage.StorageOrphanCleaner.TryDeleteOrphanAsync(
+                storageService,
+                StorageBuckets.Outputs,
+                outputKey,
+                primaryEx,
+                CancellationToken.None);
 
             throw;
         }

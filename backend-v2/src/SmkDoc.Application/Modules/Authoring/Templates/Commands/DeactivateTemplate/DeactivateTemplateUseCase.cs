@@ -1,6 +1,3 @@
-using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Modules.Authoring.Templates.Commands.DeactivateTemplate;
@@ -13,7 +10,7 @@ public sealed class DeactivateTemplateUseCase(
     IUnitOfWork unitOfWork,
     TimeProvider timeProvider) : IUseCase<DeactivateTemplateCommand>
 {
-    public async Task ExecuteAsync(DeactivateTemplateCommand command, CancellationToken ct = default)
+    public async Task ExecuteAsync(DeactivateTemplateCommand command, CancellationToken ct)
     {
         var template = await templateRepo.GetByIdAsync(new TemplateId(command.TemplateId), ct)
             ?? throw new NotFoundException($"Template '{command.TemplateId}' was not found.");

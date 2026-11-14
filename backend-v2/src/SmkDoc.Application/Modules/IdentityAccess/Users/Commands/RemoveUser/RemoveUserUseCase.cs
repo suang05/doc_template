@@ -1,8 +1,4 @@
-using SmkDoc.Application.Common.Exceptions;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Enums;
-using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Modules.IdentityAccess.Users.Commands.RemoveUser;
@@ -12,9 +8,9 @@ public sealed class RemoveUserUseCase(
     IUnitOfWork uow,
     ICurrentProjectContext projectContext) : IUseCase<RemoveUserCommand>
 {
-    public async Task ExecuteAsync(RemoveUserCommand command, CancellationToken ct = default)
+    public async Task ExecuteAsync(RemoveUserCommand command, CancellationToken ct)
     {
-        var pId = projectContext.ProjectId;
+        var pId = projectContext.GetRequiredProjectId();
 
         var uId = new UserId(command.UserId);
         var roleEntry = await roleRepo.GetAsync(pId, uId, ct)

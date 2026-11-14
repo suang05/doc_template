@@ -7,11 +7,9 @@ using SmkDoc.Api.Constants;
 using SmkDoc.Api.Contracts.Integration.Datasets;
 using SmkDoc.Api.Controllers.Integration;
 using SmkDoc.Api.Filters;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Integration.Datasets.Commands.CreateDataset;
 using SmkDoc.Application.Modules.Integration.Datasets.Commands.DeleteDataset;
 using SmkDoc.Application.Modules.Integration.Datasets.Commands.UpdateDataset;
-using SmkDoc.Application.Modules.Integration.Datasets.DTOs;
 using SmkDoc.Application.Modules.Integration.Datasets.Queries.GetDatasetById;
 using SmkDoc.Application.Modules.Integration.Datasets.Queries.ListDatasets;
 

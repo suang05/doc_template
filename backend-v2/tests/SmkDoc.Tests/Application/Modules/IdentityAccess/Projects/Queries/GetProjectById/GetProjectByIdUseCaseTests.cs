@@ -1,8 +1,6 @@
 using SmkDoc.Application.Modules.IdentityAccess.Projects.DTOs;
 using SmkDoc.Application.Modules.IdentityAccess.Projects.Queries.GetProjectById;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common.Builders;
 
@@ -23,7 +21,7 @@ public sealed class GetProjectByIdUseCaseTests
             .Returns((Project?)null);
 
         // Act
-        var act = () => CreateSut().ExecuteAsync(new GetProjectByIdQuery(projectId));
+        var act = () => CreateSut().ExecuteAsync(new GetProjectByIdQuery(projectId), CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<NotFoundException>();
@@ -43,7 +41,7 @@ public sealed class GetProjectByIdUseCaseTests
             .Returns(project);
 
         // Act
-        ProjectResultDto result = await CreateSut().ExecuteAsync(new GetProjectByIdQuery(projectId));
+        ProjectResultDto result = await CreateSut().ExecuteAsync(new GetProjectByIdQuery(projectId), CancellationToken.None);
 
         // Assert
         result.Should().NotBeNull();

@@ -1,5 +1,4 @@
 using System.Text.RegularExpressions;
-using SmkDoc.Domain.Common;
 using SmkDoc.Domain.Exceptions;
 
 namespace SmkDoc.Domain.ValueObjects;

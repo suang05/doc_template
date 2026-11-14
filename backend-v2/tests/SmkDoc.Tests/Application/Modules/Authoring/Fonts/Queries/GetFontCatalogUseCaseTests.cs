@@ -1,18 +1,14 @@
-using FluentAssertions;
-using NSubstitute;
 using SmkDoc.Application.Modules.Authoring.Fonts.DTOs;
 using SmkDoc.Application.Modules.Authoring.Fonts.Queries.GetFontCatalog;
-using SmkDoc.Application.Modules.Authoring.Fonts.Services;
-using Xunit;
 
 namespace SmkDoc.Tests.Application.Modules.Authoring.Fonts.Queries;
 
 public sealed class GetFontCatalogUseCaseTests
 {
-    private readonly IFontCatalogService _fontCatalogService = Substitute.For<IFontCatalogService>();
+    private readonly IFontCatalogPort _fontCatalogPort = Substitute.For<IFontCatalogPort>();
 
     [Fact]
-    public async Task ExecuteAsync_ShouldDelegateToFontCatalogService()
+    public async Task ExecuteAsync_ShouldDelegateToFontCatalogPort()
     {
         // Arrange
         var expectedCatalog = new FontCatalogDto(
@@ -21,17 +17,17 @@ public sealed class GetFontCatalogUseCaseTests
             AllFontNames: ["CompanyFont.ttf", "Sarabun"]
         );
 
-        _fontCatalogService.GetCatalogAsync(Arg.Any<CancellationToken>())
+        _fontCatalogPort.GetCatalogAsync(Arg.Any<CancellationToken>())
             .Returns(expectedCatalog);
 
-        var sut = new GetFontCatalogUseCase(_fontCatalogService);
+        var sut = new GetFontCatalogUseCase(_fontCatalogPort);
 
         // Act
-        var result = await sut.ExecuteAsync(new GetFontCatalogQuery());
+        var result = await sut.ExecuteAsync(new GetFontCatalogQuery(), CancellationToken.None);
 
         // Assert
         result.Should().Be(expectedCatalog);
-        await _fontCatalogService.Received(1).GetCatalogAsync(Arg.Any<CancellationToken>());
+        await _fontCatalogPort.Received(1).GetCatalogAsync(Arg.Any<CancellationToken>());
     }
 }
 

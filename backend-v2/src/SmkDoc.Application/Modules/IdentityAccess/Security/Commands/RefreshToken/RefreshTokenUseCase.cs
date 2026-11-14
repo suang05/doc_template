@@ -1,27 +1,24 @@
 using SmkDoc.Application.Common.Constants;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Services;
-using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Modules.IdentityAccess.Security.Commands.RefreshToken;
 
 /// <summary>
-/// Executes refresh token rotation (RTR) via <see cref="ITokenIssuerService"/>.
+/// Executes refresh token rotation (RTR) via <see cref="ITokenSessionGenerator"/>.
 /// Guarantees atomic session renewal and immediate defense against token reuse hijacking.
 /// </summary>
 public sealed class RefreshTokenUseCase(
-    ITokenIssuerService tokenIssuerService,
+    ITokenSessionGenerator tokenSessionGenerator,
     IUnitOfWork unitOfWork,
     ISecurityAuditService auditService) : IUseCase<RefreshTokenCommand, TokenResultDto>
 {
-    public async Task<TokenResultDto> ExecuteAsync(RefreshTokenCommand command, CancellationToken ct = default)
+    public async Task<TokenResultDto> ExecuteAsync(RefreshTokenCommand command, CancellationToken ct)
     {
         try
         {
-            var rotated = await tokenIssuerService.RotateTokensAsync(command.RefreshToken, ct: ct);
+            var rotated = await tokenSessionGenerator.RotateTokensAsync(command.RefreshToken, ct: ct);
             await unitOfWork.CommitAsync(ct);
             auditService.LogTokenRotated(rotated.UserId.Value);
 

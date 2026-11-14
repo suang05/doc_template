@@ -1,8 +1,5 @@
-using SmkDoc.Application.Common.Exceptions;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Integration.Datasets.DTOs;
 using SmkDoc.Application.Modules.Integration.Datasets.Services;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.ValueObjects.Ids;
 
@@ -14,7 +11,7 @@ public sealed class UpdateDatasetUseCase(
     IDatasetResolver datasetResolver,
     TimeProvider timeProvider) : IUseCase<UpdateDatasetCommand, DatasetResultDto>
 {
-    public async Task<DatasetResultDto> ExecuteAsync(UpdateDatasetCommand command, CancellationToken ct = default)
+    public async Task<DatasetResultDto> ExecuteAsync(UpdateDatasetCommand command, CancellationToken ct)
     {
         var connection = await datasetResolver.ValidateAndResolveConnectionAsync(
             new DataConnectionId(command.DataConnectionId),

@@ -1,6 +1,4 @@
 using System.Text.Json;
-using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Domain.Exceptions;
 
 namespace SmkDoc.Application.Modules.Authoring.Templates.Queries.ValidateTemplatePayload;
 
@@ -14,7 +12,7 @@ public sealed class ValidateTemplatePayloadUseCase(
     IJsonSchemaValidationService schemaValidation) : IUseCase<ValidateTemplatePayloadQuery, ValidateTemplatePayloadResult>
 {
     public async Task<ValidateTemplatePayloadResult> ExecuteAsync(
-        ValidateTemplatePayloadQuery query, CancellationToken ct = default)
+        ValidateTemplatePayloadQuery query, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(query);
 

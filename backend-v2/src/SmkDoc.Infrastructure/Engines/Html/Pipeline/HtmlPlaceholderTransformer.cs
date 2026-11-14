@@ -1,6 +1,4 @@
-using System.Text.RegularExpressions;
-using SmkDoc.Application.Common.Helpers;
-using static SmkDoc.Application.Common.Helpers.PlaceholderHelper;
+using SmkDoc.Application.Modules.Authoring.Templates.Parsing;
 
 namespace SmkDoc.Infrastructure.Engines.Html.Pipeline;
 
@@ -12,22 +10,22 @@ public class HtmlPlaceholderTransformer
     /// </summary>
     public string Transform(string html)
     {
-        if (string.IsNullOrWhiteSpace(html) || !html.Contains("{{"))
+        if (string.IsNullOrWhiteSpace(html) || !html.Contains("{{", StringComparison.Ordinal))
             return html;
 
-        return PlaceholderHelper.Pattern.Replace(html, match =>
+        return TemplatePlaceholderParser.Pattern.Replace(html, match =>
         {
             string fullPath = match.Groups[1].Value.Trim();
 
             // Skip Handlebars block helpers and expressions with arguments
-            if (fullPath.StartsWith("#") || fullPath.StartsWith("/") || 
-                fullPath.StartsWith("else") || fullPath.StartsWith("^") || 
-                fullPath.Contains(' '))
+            if (fullPath.StartsWith('#') || fullPath.StartsWith('/') ||
+                fullPath.StartsWith("else", StringComparison.Ordinal) || fullPath.StartsWith('^') ||
+                fullPath.Contains(' ', StringComparison.Ordinal))
             {
                 return match.Value;
             }
 
-            var parsed = PlaceholderHelper.Parse(fullPath);
+            var parsed = TemplatePlaceholderParser.Parse(fullPath);
 
             return parsed.Kind switch
             {

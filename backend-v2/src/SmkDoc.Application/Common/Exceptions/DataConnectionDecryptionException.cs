@@ -1,5 +1,3 @@
-using SmkDoc.Domain.Exceptions;
-
 namespace SmkDoc.Application.Common.Exceptions;
 
 /// <summary>
@@ -12,7 +10,7 @@ public sealed class DataConnectionDecryptionException : DomainException
     public string ConnectionName { get; }
 
     public DataConnectionDecryptionException(Guid connectionId, string connectionName, Exception? innerException = null)
-        : base($"Failed to decrypt connection string for data connection '{connectionName}' ({connectionId}).", "DATA_CONNECTION_DECRYPTION_FAILED", innerException)
+        : base($"Failed to decrypt connection string for data connection '{connectionName}' ({connectionId}).", ErrorCodes.DataConnectionDecryptionFailed, innerException)
     {
         ConnectionId = connectionId;
         ConnectionName = connectionName;

@@ -1,10 +1,6 @@
-using SmkDoc.Application.Common.Exceptions;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Users.DTOs;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
-using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Modules.IdentityAccess.Users.Commands.UpdateUserRole;
@@ -12,18 +8,16 @@ namespace SmkDoc.Application.Modules.IdentityAccess.Users.Commands.UpdateUserRol
 public sealed class UpdateUserRoleUseCase(
     IUserProjectRoleRepository roleRepo,
     IUserRepository userRepo,
-    IUnitOfWork uow,
-    ICurrentProjectContext projectContext) : IUseCase<UpdateUserRoleCommand, UserResultDto>
+    IUnitOfWork uow) : IUseCase<UpdateUserRoleCommand, UserResultDto>
 {
-    public async Task<UserResultDto> ExecuteAsync(UpdateUserRoleCommand command, CancellationToken ct = default)
+    public async Task<UserResultDto> ExecuteAsync(UpdateUserRoleCommand command, CancellationToken ct)
     {
-        var pId = projectContext.ProjectId;
         var uId = new UserId(command.UserId);
-        var roleEntry = await roleRepo.GetAsync(pId, uId, ct)
+        var roleEntry = await roleRepo.GetForCurrentProjectAsync(uId, ct)
             ?? throw new NotFoundException("User is not a member of this project.");
 
         var targetRole = RoleType.FromDisplayName<RoleType>(command.Role);
-        await EnsureNotDemotingLastAdminAsync(pId, roleEntry, targetRole, ct);
+        await EnsureNotDemotingLastAdminAsync(roleEntry, targetRole, ct);
 
         roleEntry.UpdateRole(targetRole);
         roleRepo.Update(roleEntry);
@@ -36,14 +30,13 @@ public sealed class UpdateUserRoleUseCase(
     }
 
     private async Task EnsureNotDemotingLastAdminAsync(
-        ProjectId pId,
         UserProjectRole roleEntry,
         RoleType targetRole,
         CancellationToken ct)
     {
         if (roleEntry.Role == RoleType.Admin && targetRole != RoleType.Admin)
         {
-            var adminCount = await roleRepo.CountAdminsAsync(pId, ct);
+            var adminCount = await roleRepo.CountAdminsForCurrentProjectAsync(ct);
             if (adminCount <= 1)
             {
                 throw new ConflictException("Cannot remove the last Admin from the project.");

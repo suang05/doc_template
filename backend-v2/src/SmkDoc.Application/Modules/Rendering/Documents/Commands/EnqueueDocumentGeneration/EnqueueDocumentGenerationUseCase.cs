@@ -1,9 +1,5 @@
-using SmkDoc.Application.Common.Exceptions;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Rendering.Documents.DTOs;
 using SmkDoc.Application.Modules.Rendering.Documents.Models;
-using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.Interfaces;
 
 namespace SmkDoc.Application.Modules.Rendering.Documents.Commands.EnqueueDocumentGeneration;
 
@@ -13,10 +9,10 @@ public sealed class EnqueueDocumentGenerationUseCase(
     ICurrentProjectContext projectContext,
     TimeProvider timeProvider) : IUseCase<EnqueueDocumentGenerationCommand, DocumentJobDto>
 {
-    public async Task<DocumentJobDto> ExecuteAsync(EnqueueDocumentGenerationCommand command, CancellationToken ct = default)
+    public async Task<DocumentJobDto> ExecuteAsync(EnqueueDocumentGenerationCommand command, CancellationToken ct)
     {
         // Step 1: Parse & Guard (Fail-fast at line 1 via Smart Context Property)
-        var projectId = projectContext.ProjectId;
+        var projectId = projectContext.GetRequiredProjectId();
 
         var template = await templateRepo.GetBySlugWithDetailsAsync(command.Slug, ct);
         if (template == null || !template.IsActive)

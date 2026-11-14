@@ -1,5 +1,3 @@
-using SmkDoc.Domain.Exceptions;
-
 namespace SmkDoc.Application.Common.Exceptions;
 
 /// <summary>
@@ -12,7 +10,7 @@ public sealed class DatasetExecutionException : DomainException
     public string Provider { get; }
 
     public DatasetExecutionException(string alias, string provider, string message, Exception? innerException = null)
-        : base($"Failed to execute dataset query for alias '{alias}' ({provider}): {message}", "DATASET_QUERY_FAILED", innerException)
+        : base($"Failed to execute dataset query for alias '{alias}' ({provider}): {message}", ErrorCodes.DatasetExecutionFailed, innerException)
     {
         Alias = alias;
         Provider = provider;

@@ -2,8 +2,6 @@ using SmkDoc.Application.Common.Behaviors;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.UpdateTemplateDetails;
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common.Builders;
 using ValidationException = SmkDoc.Application.Common.Exceptions.ValidationException;
@@ -36,7 +34,7 @@ public sealed class UpdateTemplateDetailsUseCaseTests
             [new UpdateTemplateDetailsCommandValidator()]);
 
         // Act
-        var act = () => pipeline.ExecuteAsync(invalidCommand);
+        var act = () => pipeline.ExecuteAsync(invalidCommand, CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<ValidationException>();
@@ -55,7 +53,7 @@ public sealed class UpdateTemplateDetailsUseCaseTests
         var command = new UpdateTemplateDetailsCommand(templateId, "New Name", "New Category");
 
         // Act
-        var act = () => CreateSut().ExecuteAsync(command);
+        var act = () => CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<NotFoundException>();
@@ -79,7 +77,7 @@ public sealed class UpdateTemplateDetailsUseCaseTests
         var command = new UpdateTemplateDetailsCommand(templateId, "Updated Name", "Updated Category");
 
         // Act
-        TemplateResultDto result = await CreateSut().ExecuteAsync(command);
+        TemplateResultDto result = await CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         template.Name.Value.Should().Be("Updated Name");

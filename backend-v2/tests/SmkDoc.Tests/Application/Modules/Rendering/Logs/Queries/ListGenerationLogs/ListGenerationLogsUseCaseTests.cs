@@ -1,7 +1,5 @@
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Rendering.Logs.DTOs;
 using SmkDoc.Application.Modules.Rendering.Logs.Queries.ListGenerationLogs;
-using SmkDoc.Domain.Enums;
 
 namespace SmkDoc.Tests.Application.Modules.Rendering.Logs.Queries.ListGenerationLogs;
 
@@ -39,7 +37,7 @@ public sealed class ListGenerationLogsUseCaseTests
             .Returns(([dto], 1));
 
         // Act
-        var result = await CreateSut().ExecuteAsync(new ListGenerationLogsQuery(1, 50, "crm"));
+        var result = await CreateSut().ExecuteAsync(new ListGenerationLogsQuery(1, 50, "crm"), CancellationToken.None);
 
         // Assert
         result.Should().NotBeNull();

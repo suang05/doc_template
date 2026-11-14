@@ -19,7 +19,7 @@ namespace SmkDoc.Api.Controllers.Authoring;
 /// Steps 1 and 2 are pure/side-effect-free. Step 3 commits atomically to MinIO + DB.
 /// </summary>
 [ApiController]
-[Route("api/v1/templates/draft")]
+[Route("api/v1/template-drafts")]
 [Authorize(Policy = AuthorizationPolicies.CanManageTemplates)]
 public sealed class TemplateDraftController(
     IUseCase<ParseTemplateDraftCommand, ParseDraftResultDto> parseUseCase,

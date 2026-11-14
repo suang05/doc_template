@@ -7,12 +7,9 @@ using SmkDoc.Api.Constants;
 using SmkDoc.Api.Contracts.Integration.DataConnections;
 using SmkDoc.Api.Controllers.Integration;
 using SmkDoc.Api.Filters;
-using SmkDoc.Application.Common.Exceptions;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Integration.DataConnections.Commands.CreateDataConnection;
 using SmkDoc.Application.Modules.Integration.DataConnections.Commands.DeleteDataConnection;
 using SmkDoc.Application.Modules.Integration.DataConnections.Commands.UpdateDataConnection;
-using SmkDoc.Application.Modules.Integration.DataConnections.DTOs;
 using SmkDoc.Application.Modules.Integration.DataConnections.Queries.GetDataConnectionById;
 using SmkDoc.Application.Modules.Integration.DataConnections.Queries.ListDataConnections;
 

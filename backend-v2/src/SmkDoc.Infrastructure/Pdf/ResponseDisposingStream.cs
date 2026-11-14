@@ -20,13 +20,13 @@ public sealed class ResponseDisposingStream(Stream innerStream, HttpResponseMess
     }
 
     public override void Flush() => innerStream.Flush();
-    public override Task FlushAsync(CancellationToken ct) => innerStream.FlushAsync(ct);
+    public override Task FlushAsync(CancellationToken cancellationToken) => innerStream.FlushAsync(cancellationToken);
     public override int Read(byte[] buffer, int offset, int count) => innerStream.Read(buffer, offset, count);
     public override int Read(Span<byte> buffer) => innerStream.Read(buffer);
-    public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken ct) =>
-        innerStream.ReadAsync(buffer, offset, count, ct);
-    public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken ct = default) =>
-        innerStream.ReadAsync(buffer, ct);
+    public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
+        innerStream.ReadAsync(buffer, offset, count, cancellationToken);
+    public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default) =>
+        innerStream.ReadAsync(buffer, cancellationToken);
     public override long Seek(long offset, SeekOrigin origin) => innerStream.Seek(offset, origin);
     public override void SetLength(long value) => throw new NotSupportedException();
     public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();

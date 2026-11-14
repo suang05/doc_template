@@ -1,8 +1,4 @@
-﻿using FluentAssertions;
-using SmkDoc.Domain.Exceptions;
-using Xunit;
-
-namespace SmkDoc.Tests.Domain.Exceptions;
+﻿namespace SmkDoc.Tests.Domain.Exceptions;
 
 public sealed class DomainExceptionTests
 {
@@ -10,7 +6,7 @@ public sealed class DomainExceptionTests
     public void NotFoundException_ShouldHaveCorrectDefaults()
     {
         var ex = new NotFoundException("Template", "tpl-123");
-        ex.ErrorCode.Should().Be("RESOURCE_NOT_FOUND");
+        ex.ErrorCode.Should().Be(ErrorCodes.NotFound);
         ex.Message.Should().Contain("tpl-123");
     }
 
@@ -26,7 +22,7 @@ public sealed class DomainExceptionTests
     public void ConflictException_ShouldHaveCorrectDefaults()
     {
         var ex = ConflictException.DuplicateSlug("invoice-slug");
-        ex.ErrorCode.Should().Be("RESOURCE_CONFLICT");
+        ex.ErrorCode.Should().Be(ErrorCodes.DuplicateSlug);
         ex.Message.Should().Contain("invoice-slug");
     }
 
@@ -34,7 +30,7 @@ public sealed class DomainExceptionTests
     public void RenderException_ShouldHaveCorrectDefaults()
     {
         var ex = new RenderException("sales-report", "Chromium", "Process killed");
-        ex.ErrorCode.Should().Be("DOCUMENT_RENDER_FAILED");
+        ex.ErrorCode.Should().Be(ErrorCodes.RenderFailed);
         ex.TemplateSlug.Should().Be("sales-report");
         ex.EngineType.Should().Be("Chromium");
     }

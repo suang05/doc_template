@@ -1,13 +1,6 @@
-using System;
-using System.Linq;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Routing;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Logging;
 using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.Constants;
 using SmkDoc.Api.OpenApi;
@@ -16,7 +9,6 @@ using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Queries.ValidateApiKey;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Api.Middleware;
@@ -26,19 +18,64 @@ namespace SmkDoc.Api.Middleware;
 /// tenant isolation resolution, M2M scope enforcement, and IDOR defense across all incoming HTTP traffic.
 /// Converges both X-API-Key (M2M) and Authorization Bearer (Web Studio) into <see cref="ICurrentProjectContextSetter"/>.
 /// </summary>
-public sealed class ProjectContextMiddleware(
+public sealed partial class ProjectContextMiddleware(
     RequestDelegate next,
     ILogger<ProjectContextMiddleware> logger,
     IConfiguration configuration)
 {
     private readonly string? _masterApiKey = configuration["MASTER_API_KEY"] ?? configuration["Security:ApiKey"];
+    private readonly string? _problemTypeBaseUri = configuration["Problems:BaseUri"];
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Tenant conflict detected: Route specifies project {RouteProjectId}, but Project-Id header specifies {HeaderProjectId}")]
+    private static partial void LogTenantConflict(ILogger logger, Guid routeProjectId, Guid headerProjectId);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Perimeter defense: Project context required for data plane route {Path}")]
+    private static partial void LogPerimeterProjectRequired(ILogger logger, string path);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Tenant resolution failed: Project {ProjectId} not found")]
+    private static partial void LogTenantNotFound(ILogger logger, ProjectId projectId);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Tenant inactive defense: User {UserId} denied access to deactivated project {ProjectId}")]
+    private static partial void LogTenantInactiveForUser(ILogger logger, Guid userId, ProjectId projectId);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Zero Standing Access defense: User {UserId} (SystemRole: {SystemRole}) denied access to project {ProjectId} - no project membership")]
+    private static partial void LogZeroStandingAccessDenied(ILogger logger, Guid userId, SystemRole systemRole, ProjectId projectId);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Tenant inactive defense: API Key denied access because project {ProjectId} is deactivated")]
+    private static partial void LogTenantInactiveForApiKey(ILogger logger, Guid projectId);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Invalid or inactive API Key attempt from {IpAddress} to {Path}")]
+    private static partial void LogInvalidApiKeyAttempt(ILogger logger, string? ipAddress, string path);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Tenant context mismatch detected: API Key belongs to project {KeyProjectId}, but caller supplied {RequestedProjectId}")]
+    private static partial void LogApiKeyTenantMismatch(ILogger logger, Guid keyProjectId, Guid requestedProjectId);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "ReadOnly API Key {ApiKeyId} ({CallerApp}) blocked from mutating request {Method} {Path}")]
+    private static partial void LogReadOnlyApiKeyBlocked(ILogger logger, Guid apiKeyId, string callerApp, string method, string path);
 
     public async Task InvokeAsync(
         HttpContext context,
         ICurrentProjectContextSetter projectContextSetter,
         IUseCase<ValidateApiKeyQuery, ValidatedApiKeyResultDto?> validateApiKeyUseCase,
-        IUserProjectRoleRepository userProjectRoleRepo,
-        IProjectRepository projectRepo)
+        ITenantResolutionPort tenantResolutionPort)
     {
         string path = context.Request.Path.Value?.ToLowerInvariant() ?? string.Empty;
         string? clientIp = context.Connection.RemoteIpAddress?.ToString();
@@ -85,17 +122,14 @@ public sealed class ProjectContextMiddleware(
             // Strict Conflict Detection: Fail-fast if Route and Header contradict ([TRAP-SEC-004])
             if (routeProjectIdGuid.HasValue && headerProjectIdGuid.HasValue && routeProjectIdGuid.Value != headerProjectIdGuid.Value)
             {
-                logger.LogWarning(
-                    "Tenant conflict detected: Route specifies project {RouteProjectId}, but X-Project-Id header specifies {HeaderProjectId}",
-                    routeProjectIdGuid.Value,
-                    headerProjectIdGuid.Value);
+                LogTenantConflict(logger, routeProjectIdGuid.Value, headerProjectIdGuid.Value);
 
                 await WriteProblemDetailsAsync(
                     context,
                     StatusCodes.Status400BadRequest,
                     "Bad Request",
-                    $"Tenant conflict detected: Route specifies project '{routeProjectIdGuid.Value}', but X-Project-Id header specifies '{headerProjectIdGuid.Value}'.",
-                    "https://tools.ietf.org/html/rfc9457");
+                    $"Tenant conflict detected: Route specifies project '{routeProjectIdGuid.Value}', but Project-Id header specifies '{headerProjectIdGuid.Value}'.",
+                    ErrorCodes.ProjectContextMismatch);
                 return;
             }
 
@@ -114,14 +148,13 @@ public sealed class ProjectContextMiddleware(
             // Fail-fast perimeter guard: Data plane operations strictly require a resolved tenant context
             if (!isManagementRoute && !targetProjectIdGuid.HasValue)
             {
-                logger.LogWarning("Perimeter defense: Project context required for data plane route {Path}", path);
+                LogPerimeterProjectRequired(logger, path);
                 await WriteProblemDetailsAsync(
                     context,
                     StatusCodes.Status400BadRequest,
                     "Bad Request",
-                    "Project context is required. Provide an X-Project-Id header or valid project claim.",
-                    "https://tools.ietf.org/html/rfc9457",
-                    "PROJECT_CONTEXT_REQUIRED");
+                    "Project context is required. Provide a Project-Id header or valid project claim.",
+                    ErrorCodes.ProjectContextRequired);
                 return;
             }
 
@@ -130,32 +163,29 @@ public sealed class ProjectContextMiddleware(
             {
                 var targetProjectId = new ProjectId(targetProjectIdGuid.Value);
 
-                var project = await projectRepo.GetByIdAsync(targetProjectId, context.RequestAborted);
+                var project = await tenantResolutionPort.FindProjectAsync(targetProjectId, context.RequestAborted);
                 if (project == null)
                 {
-                    logger.LogWarning("Tenant resolution failed: Project {ProjectId} not found", targetProjectId);
+                    LogTenantNotFound(logger, targetProjectId);
                     await WriteProblemDetailsAsync(
                         context,
                         StatusCodes.Status404NotFound,
                         "Not Found",
                         $"Project '{targetProjectId}' not found.",
-                        "https://tools.ietf.org/html/rfc9457");
+                        ErrorCodes.NotFound);
                     return;
                 }
 
                 if (!project.IsActive)
                 {
-                    logger.LogWarning(
-                        "Tenant inactive defense: User {UserId} denied access to deactivated project {ProjectId}",
-                        userIdGuid,
-                        targetProjectId);
+                    LogTenantInactiveForUser(logger, userIdGuid, targetProjectId);
 
                     await WriteProblemDetailsAsync(
                         context,
                         StatusCodes.Status403Forbidden,
                         "Forbidden",
                         $"Project '{targetProjectId}' is deactivated.",
-                        "https://tools.ietf.org/html/rfc9457");
+                        ErrorCodes.ProjectDeactivated);
                     return;
                 }
 
@@ -167,29 +197,25 @@ public sealed class ProjectContextMiddleware(
                 else
                 {
                     // Data Plane (or non-SuperAdmin): Strict tenant membership verification required (Zero Standing Access)
-                    var roleMapping = await userProjectRoleRepo.GetAsync(
+                    var roleMapping = await tenantResolutionPort.FindMembershipAsync(
                         targetProjectId,
                         new UserId(userIdGuid),
                         context.RequestAborted);
 
                     if (roleMapping == null)
                     {
-                        logger.LogWarning(
-                            "Zero Standing Access defense: User {UserId} (SystemRole: {SystemRole}) denied access to project {ProjectId} - no project membership",
-                            userIdGuid,
-                            parsedSystemRole,
-                            targetProjectId);
+                        LogZeroStandingAccessDenied(logger, userIdGuid, parsedSystemRole, targetProjectId);
 
                         await WriteProblemDetailsAsync(
                             context,
                             StatusCodes.Status403Forbidden,
                             "Forbidden",
                             $"User does not have permission to access project '{targetProjectId}'.",
-                            "https://tools.ietf.org/html/rfc9457");
+                            ErrorCodes.CrossTenantAccessDenied);
                         return;
                     }
 
-                    var roleName = roleMapping.Role.Name;
+                    var roleName = roleMapping.RoleName;
 
                     if (context.User.Identity is ClaimsIdentity projectIdentity)
                     {
@@ -247,68 +273,61 @@ public sealed class ProjectContextMiddleware(
             }
             catch (ProjectDeactivatedException ex)
             {
-                logger.LogWarning(
-                    "Tenant inactive defense: API Key denied access because project {ProjectId} is deactivated",
-                    ex.ProjectId);
+                LogTenantInactiveForApiKey(logger, ex.ProjectId);
 
                 await WriteProblemDetailsAsync(
                     context,
                     StatusCodes.Status403Forbidden,
                     "Forbidden",
                     ex.Message,
-                    "https://tools.ietf.org/html/rfc9457");
+                    ErrorCodes.ProjectDeactivated);
                 return;
             }
 
             if (key == null)
             {
-                logger.LogWarning("Invalid or inactive API Key attempt from {IpAddress} to {Path}", clientIp, path);
+                LogInvalidApiKeyAttempt(logger, clientIp, path);
                 await WriteProblemDetailsAsync(
                     context,
                     StatusCodes.Status401Unauthorized,
                     "Unauthorized",
                     "Invalid or inactive API Key.",
-                    "https://tools.ietf.org/html/rfc9457");
+                    ErrorCodes.Unauthorized);
                 return;
             }
 
-            // Reject cross-tenant project ID spoofing via X-Project-Id header or {projectId} route value
+            // Reject cross-tenant project ID spoofing via Project-Id header or {projectId} route value
             Guid? spoofedProjectId = (headerProjectIdGuid.HasValue && headerProjectIdGuid.Value != key.ProjectId)
                 ? headerProjectIdGuid
                 : (routeProjectIdGuid.HasValue && routeProjectIdGuid.Value != key.ProjectId ? routeProjectIdGuid : null);
 
             if (spoofedProjectId.HasValue)
             {
-                logger.LogWarning(
-                    "Tenant spoofing attempt detected: API Key belongs to project {KeyProjectId}, but caller supplied {RequestedProjectId}",
-                    key.ProjectId,
-                    spoofedProjectId.Value);
+                LogApiKeyTenantMismatch(logger, key.ProjectId, spoofedProjectId.Value);
 
                 await WriteProblemDetailsAsync(
                     context,
-                    StatusCodes.Status403Forbidden,
-                    "Forbidden",
-                    "Cross-tenant project ID spoofing is strictly prohibited for API key authentication.",
-                    "https://tools.ietf.org/html/rfc9457");
+                    StatusCodes.Status400BadRequest,
+                    "Bad Request",
+                    "Project-Id does not match the project scoped to the API key.",
+                    ErrorCodes.ProjectContextMismatch);
                 return;
             }
 
             var scope = ApiKeyScope.TryFromName(key.Scope, out var parsedScope) ? parsedScope : ApiKeyScope.ReadWrite;
             if (scope == ApiKeyScope.ReadOnly && IsMutatingNonStatelessRequest(context.Request, path))
             {
-                logger.LogWarning(
-                    "ReadOnly API Key {ApiKeyId} ({CallerApp}) blocked from mutating request {Method} {Path}",
-                    key.Id,
-                    key.CallerApp,
-                    context.Request.Method,
-                    path);
+                if (logger.IsEnabled(LogLevel.Warning))
+                {
+                    LogReadOnlyApiKeyBlocked(logger, key.Id, key.CallerApp, context.Request.Method, path);
+                }
 
                 await WriteProblemDetailsAsync(
                     context,
                     StatusCodes.Status403Forbidden,
                     "Forbidden",
                     "Read-only API keys cannot invoke state-mutating endpoints.",
-                    "https://tools.ietf.org/html/rfc9457");
+                    ErrorCodes.InsufficientKeyScope);
                 return;
             }
 
@@ -346,7 +365,7 @@ public sealed class ProjectContextMiddleware(
             StatusCodes.Status401Unauthorized,
             "Unauthorized",
             "Authentication credentials missing or invalid. Provide an X-API-Key header or Bearer token.",
-            "https://tools.ietf.org/html/rfc9457");
+            ErrorCodes.Unauthorized);
     }
 
     private static Guid? ExtractRouteProjectId(HttpContext context)
@@ -443,16 +462,21 @@ public sealed class ProjectContextMiddleware(
             || OpenApiNames.PublicRoutes.Any(route => path.StartsWith(route, StringComparison.OrdinalIgnoreCase));
     }
 
-    private static async Task WriteProblemDetailsAsync(
+    private async Task WriteProblemDetailsAsync(
         HttpContext context,
         int statusCode,
         string title,
         string detail,
-        string type,
         string? customErrorCode = null)
     {
         context.Response.StatusCode = statusCode;
         context.Response.ContentType = "application/problem+json";
+
+        if (statusCode == StatusCodes.Status401Unauthorized &&
+            !context.Response.Headers.ContainsKey("WWW-Authenticate"))
+        {
+            context.Response.Headers.WWWAuthenticate = "Bearer";
+        }
 
         var errorCode = customErrorCode ?? ProblemDetailsBuilder.ResolveDefaultErrorCode(statusCode);
         var problemDetails = ProblemDetailsBuilder.Create(
@@ -461,8 +485,8 @@ public sealed class ProjectContextMiddleware(
             detail: detail,
             errorCode: errorCode,
             instance: context.Request.Path.Value,
-            traceId: context.TraceIdentifier);
-        problemDetails.Type = type;
+            traceId: ProblemDetailsBuilder.ResolveTraceId(context),
+            typeBaseUri: _problemTypeBaseUri);
 
         await context.Response.WriteAsJsonAsync(
             problemDetails,

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace SmkDoc.Api.Contracts.Rendering.Documents;
 
@@ -6,9 +7,9 @@ namespace SmkDoc.Api.Contracts.Rendering.Documents;
 /// HTTP request contract for document generation.
 /// </summary>
 public record GenerateDocumentRequest(
-    JsonElement Payload,
+    [property: JsonRequired] JsonElement Payload,
     string OutputFormat = "pdf",
     string? DocumentRef = null,
     string? ChangeNote = null,
-    bool SkipValidation = false
+    bool? SkipValidation = null
 );

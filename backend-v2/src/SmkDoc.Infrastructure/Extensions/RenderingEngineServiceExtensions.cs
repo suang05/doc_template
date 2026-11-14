@@ -1,15 +1,9 @@
-using System;
-using System.Net.Http;
-using System.Threading.Tasks;
 using HandlebarsDotNet;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Http.Resilience;
 using Polly;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.Modules.Authoring.Fonts.Services;
-using SmkDoc.Application.Modules.Rendering.Documents.Services;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Infrastructure.Cache;
 using SmkDoc.Infrastructure.Engines;
 using SmkDoc.Infrastructure.Engines.Excel;
@@ -33,18 +27,19 @@ public static class RenderingEngineServiceExtensions
         IConfiguration configuration)
     {
         // 1. PDF Converter & Resilience (Gotenberg 8)
+        var gotenbergUrl = configuration["GotenbergUrl"] ?? configuration["GOTENBERG_URL"];
         var gotenbergSettings = new GotenbergSettings
         {
-            Url = configuration["GotenbergUrl"]
-                ?? configuration["GOTENBERG_URL"]
-                ?? string.Empty
+            Url = Uri.TryCreate(gotenbergUrl, UriKind.Absolute, out var parsedGotenbergUri)
+                ? parsedGotenbergUri
+                : null
         };
         services.Configure<GotenbergSettings>(opts => opts.Url = gotenbergSettings.Url);
 
         services.AddHttpClient<IPdfRenderer, GotenbergPdfRenderer>(client =>
         {
-            if (!string.IsNullOrEmpty(gotenbergSettings.Url))
-                client.BaseAddress = new Uri(gotenbergSettings.Url);
+            if (gotenbergSettings.Url is not null)
+                client.BaseAddress = gotenbergSettings.Url;
         })
         .AddResilienceHandler("gotenberg-resilience", builder =>
         {
@@ -91,8 +86,8 @@ public static class RenderingEngineServiceExtensions
 
         services.AddHttpClient("gotenberg-health", client =>
         {
-            if (!string.IsNullOrEmpty(gotenbergSettings.Url))
-                client.BaseAddress = new Uri(gotenbergSettings.Url);
+            if (gotenbergSettings.Url is not null)
+                client.BaseAddress = gotenbergSettings.Url;
             client.Timeout = TimeSpan.FromSeconds(5);
         });
 
@@ -103,7 +98,7 @@ public static class RenderingEngineServiceExtensions
         services.AddSingleton<IMediaGenerationService, MediaGenerationService>();
         services.AddSingleton<ITemplateDataParser, JsonTemplateDataParser>();
         services.AddSingleton<ITemplateScannerService, TemplateScannerService>();
-        services.AddScoped<IFontCatalogService, FontCatalogService>();
+        services.AddScoped<IFontCatalogPort, FontCatalogAdapter>();
         services.AddSingleton<ISchemaInferenceService, SchemaInferenceService>();
         services.AddSingleton<IJsonSchemaValidationService, JsonSchemaValidationService>();
         services.AddMemoryCache();

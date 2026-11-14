@@ -9,14 +9,14 @@ public sealed class DatasetRepository(AppDbContext context) : IDatasetRepository
 {
     private readonly AppDbContext _context = context;
 
-    public async Task<Dataset?> GetByIdAsync(DatasetId id, CancellationToken ct = default)
+    public async Task<Dataset?> GetByIdAsync(DatasetId id, CancellationToken ct)
     {
         return await _context.Datasets
             .Include(d => d.DataConnection)
             .FirstOrDefaultAsync(d => d.Id == id, ct);
     }
 
-    public async Task<IReadOnlyList<Dataset>> GetByIdsAsync(IEnumerable<DatasetId> ids, CancellationToken ct = default)
+    public async Task<IReadOnlyList<Dataset>> GetByIdsAsync(IEnumerable<DatasetId> ids, CancellationToken ct)
     {
         var idSet = ids.ToHashSet();
         if (idSet.Count == 0)
@@ -31,7 +31,7 @@ public sealed class DatasetRepository(AppDbContext context) : IDatasetRepository
             .ToListAsync(ct);
     }
 
-    public async Task<IReadOnlyList<Dataset>> ListAsync(CancellationToken ct = default)
+    public async Task<IReadOnlyList<Dataset>> ListAsync(CancellationToken ct)
     {
         return await _context.Datasets
             .AsNoTracking()
@@ -40,7 +40,7 @@ public sealed class DatasetRepository(AppDbContext context) : IDatasetRepository
             .ToListAsync(ct);
     }
 
-    public async Task AddAsync(Dataset dataset, CancellationToken ct = default)
+    public async Task AddAsync(Dataset dataset, CancellationToken ct)
     {
         await _context.Datasets.AddAsync(dataset, ct);
     }

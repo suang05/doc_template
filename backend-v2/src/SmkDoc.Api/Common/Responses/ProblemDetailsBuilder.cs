@@ -1,14 +1,17 @@
-using Microsoft.AspNetCore.Http;
+using System.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
+using SmkDoc.Domain.Exceptions;
 
 namespace SmkDoc.Api.Common.Responses;
 
 /// <summary>
 /// Single source of truth for constructing RFC 9457 <see cref="ProblemDetails"/> responses
-/// with standard IETF RFC 9110 type URIs, <c>errorCode</c>, and <c>traceId</c> extensions.
+/// with machine-readable type URIs, <c>errorCode</c>, and W3C <c>traceId</c> extensions.
 /// </summary>
 public static class ProblemDetailsBuilder
 {
+    private const string DefaultProblemsBaseUri = "/problems";
+
     public static ProblemDetails Create(
         int status,
         string title,
@@ -16,7 +19,8 @@ public static class ProblemDetailsBuilder
         string errorCode,
         string? instance = null,
         string? traceId = null,
-        object? errors = null)
+        object? errors = null,
+        string? typeBaseUri = null)
     {
         var problemDetails = new ProblemDetails
         {
@@ -24,7 +28,7 @@ public static class ProblemDetailsBuilder
             Title = title,
             Detail = detail,
             Instance = instance,
-            Type = ResolveTypeUri(status)
+            Type = ResolveTypeUri(errorCode, typeBaseUri)
         };
 
         problemDetails.Extensions["errorCode"] = errorCode;
@@ -42,36 +46,56 @@ public static class ProblemDetailsBuilder
         return problemDetails;
     }
 
-    public static string ResolveTypeUri(int? statusCode) =>
-        statusCode switch
+    public static string ResolveTraceId(HttpContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        var activityTraceId = Activity.Current?.TraceId;
+        if (activityTraceId.HasValue && activityTraceId.Value != default)
         {
-            StatusCodes.Status400BadRequest => "https://tools.ietf.org/html/rfc9110#section-15.5.1",
-            StatusCodes.Status401Unauthorized => "https://tools.ietf.org/html/rfc9110#section-15.5.2",
-            StatusCodes.Status403Forbidden => "https://tools.ietf.org/html/rfc9110#section-15.5.4",
-            StatusCodes.Status404NotFound => "https://tools.ietf.org/html/rfc9110#section-15.5.5",
-            StatusCodes.Status409Conflict => "https://tools.ietf.org/html/rfc9110#section-15.5.10",
-            StatusCodes.Status410Gone => "https://tools.ietf.org/html/rfc9110#section-15.5.11",
-            StatusCodes.Status412PreconditionFailed => "https://tools.ietf.org/html/rfc9110#section-15.5.13",
-            StatusCodes.Status422UnprocessableEntity => "https://tools.ietf.org/html/rfc9110#section-15.5.21",
-            StatusCodes.Status429TooManyRequests => "https://tools.ietf.org/html/rfc6585#section-4",
-            StatusCodes.Status503ServiceUnavailable => "https://tools.ietf.org/html/rfc9110#section-15.6.4",
-            _ => "https://tools.ietf.org/html/rfc9110#section-15.6.1"
-        };
+            return activityTraceId.Value.ToHexString();
+        }
+
+        return context.TraceIdentifier;
+    }
+
+    public static string ResolveTypeUri(string? errorCode, string? baseUri = null)
+    {
+        var prefix = string.IsNullOrWhiteSpace(baseUri)
+            ? DefaultProblemsBaseUri
+            : baseUri.TrimEnd('/');
+
+        if (string.IsNullOrWhiteSpace(errorCode))
+        {
+            return $"{prefix}/internal-error";
+        }
+
+        var slug = errorCode.Trim()
+            .Replace('_', '-')
+            .Replace(' ', '-')
+            .ToLowerInvariant();
+
+        return $"{prefix}/{slug}";
+    }
+
+    public static string ResolveTypeUri(int? statusCode, string? baseUri = null) =>
+        ResolveTypeUri(ResolveDefaultErrorCode(statusCode), baseUri);
 
     public static string ResolveDefaultErrorCode(int? statusCode) =>
         statusCode switch
         {
-            StatusCodes.Status400BadRequest => "BAD_REQUEST",
-            StatusCodes.Status401Unauthorized => "UNAUTHORIZED",
-            StatusCodes.Status403Forbidden => "FORBIDDEN",
-            StatusCodes.Status404NotFound => "RESOURCE_NOT_FOUND",
-            StatusCodes.Status409Conflict => "RESOURCE_CONFLICT",
-            StatusCodes.Status410Gone => "RESOURCE_GONE",
-            StatusCodes.Status412PreconditionFailed => "PRECONDITION_FAILED",
-            StatusCodes.Status422UnprocessableEntity => "UNPROCESSABLE_ENTITY",
-            StatusCodes.Status429TooManyRequests => "RATE_LIMIT_EXCEEDED",
-            StatusCodes.Status503ServiceUnavailable => "SERVICE_UNAVAILABLE",
-            _ => "INTERNAL_SERVER_ERROR"
+            StatusCodes.Status400BadRequest => ErrorCodes.MalformedRequest,
+            StatusCodes.Status401Unauthorized => ErrorCodes.Unauthorized,
+            StatusCodes.Status403Forbidden => ErrorCodes.Forbidden,
+            StatusCodes.Status404NotFound => ErrorCodes.NotFound,
+            StatusCodes.Status409Conflict => ErrorCodes.ResourceConflict,
+            StatusCodes.Status410Gone => ErrorCodes.DraftExpired,
+            StatusCodes.Status412PreconditionFailed => ErrorCodes.PreconditionFailed,
+            StatusCodes.Status422UnprocessableEntity => ErrorCodes.ValidationFailed,
+            StatusCodes.Status428PreconditionRequired => ErrorCodes.PreconditionRequired,
+            StatusCodes.Status429TooManyRequests => ErrorCodes.RateLimited,
+            StatusCodes.Status503ServiceUnavailable => ErrorCodes.ExternalServiceUnavailable,
+            StatusCodes.Status504GatewayTimeout => ErrorCodes.GatewayTimeout,
+            _ => ErrorCodes.InternalError
         };
 }
 

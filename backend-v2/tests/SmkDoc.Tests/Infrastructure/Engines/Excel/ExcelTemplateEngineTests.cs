@@ -1,6 +1,4 @@
 using ClosedXML.Excel;
-using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Domain.Enums;
 using SmkDoc.Infrastructure.Engines.Excel;
 using SmkDoc.Infrastructure.Imaging;
 using SmkDoc.Infrastructure.Parsing;
@@ -51,7 +49,7 @@ public sealed class ExcelTemplateEngineTests
     {
         var engine = customEngine ?? CreateEngine();
         using var template = BuildWorkbook(setup);
-        await using var resultStream = await engine.RenderStreamAsync(template, json, OutputFormat.Xlsx);
+        await using var resultStream = await engine.RenderStreamAsync(template, json, OutputFormat.Xlsx, CancellationToken.None);
         resultStream.Should().NotBeNull();
         resultStream.Length.Should().BeGreaterThan(0);
         return new XLWorkbook(resultStream);
@@ -198,7 +196,7 @@ public sealed class ExcelTemplateEngineTests
         });
 
         // JSON has no "serialNo" key
-        await using var renderedStream = await engine.RenderStreamAsync(template, "{\"other\": \"value\"}", OutputFormat.Xlsx);
+        await using var renderedStream = await engine.RenderStreamAsync(template, "{\"other\": \"value\"}", OutputFormat.Xlsx, CancellationToken.None);
 
         bc.DidNotReceive().Generate(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<int>());
     }
@@ -238,7 +236,7 @@ public sealed class ExcelTemplateEngineTests
 
         string json = """{"title": "Direct Stream Report"}""";
 
-        var resultStream = await engine.RenderStreamAsync(template, json, OutputFormat.Pdf);
+        var resultStream = await engine.RenderStreamAsync(template, json, OutputFormat.Pdf, CancellationToken.None);
 
         await pdf.Received(1).RenderOfficeToPdfStreamAsync(Arg.Any<Stream>(), "spreadsheet.xlsx", Arg.Any<CancellationToken>());
         resultStream.Should().BeSameAs(expectedStream);

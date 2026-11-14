@@ -1,8 +1,5 @@
-using SmkDoc.Application.Common.Exceptions;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Modules.Authoring.Templates.Queries.GetTemplateSchema;
@@ -10,7 +7,7 @@ namespace SmkDoc.Application.Modules.Authoring.Templates.Queries.GetTemplateSche
 public sealed class GetTemplateSchemaUseCase(
     ITemplateRepository templateRepo) : IUseCase<GetTemplateSchemaQuery, TemplateSchemaDto>
 {
-    public async Task<TemplateSchemaDto> ExecuteAsync(GetTemplateSchemaQuery query, CancellationToken ct = default)
+    public async Task<TemplateSchemaDto> ExecuteAsync(GetTemplateSchemaQuery query, CancellationToken ct)
     {
         var template = await templateRepo.GetByIdAsync(new TemplateId(query.TemplateId), ct)
             ?? throw new NotFoundException($"Template '{query.TemplateId}' not found.");

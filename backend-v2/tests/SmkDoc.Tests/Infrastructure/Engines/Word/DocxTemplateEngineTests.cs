@@ -1,8 +1,6 @@
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
-using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Domain.Enums;
 using SmkDoc.Infrastructure.Engines.Word;
 using SmkDoc.Infrastructure.Imaging;
 using SmkDoc.Infrastructure.Parsing;
@@ -78,7 +76,7 @@ public sealed class DocxTemplateEngineTests
     {
         var engine = CreateEngine();
         using var stream = BuildDocx(paragraphText);
-        await using var result = await engine.RenderStreamAsync(stream, json, OutputFormat.Docx);
+        await using var result = await engine.RenderStreamAsync(stream, json, OutputFormat.Docx, CancellationToken.None);
         return ExtractText(result);
     }
 
@@ -112,7 +110,7 @@ public sealed class DocxTemplateEngineTests
         }
         """;
 
-        await using var result = await engine.RenderStreamAsync(stream, data, OutputFormat.Docx);
+        await using var result = await engine.RenderStreamAsync(stream, data, OutputFormat.Docx, CancellationToken.None);
 
         var text = ExtractText(result);
         text.Should().Contain("สมชาย");
@@ -129,7 +127,7 @@ public sealed class DocxTemplateEngineTests
         var engine = CreateEngine();
         using var stream = BuildDocx("เอกสาร: {{documentNo}}");
 
-        await using var result = await engine.RenderStreamAsync(stream, "", OutputFormat.Docx);
+        await using var result = await engine.RenderStreamAsync(stream, "", OutputFormat.Docx, CancellationToken.None);
 
         result.Length.Should().BeGreaterThan(0);
         var text = ExtractText(result);
@@ -148,7 +146,7 @@ public sealed class DocxTemplateEngineTests
         using var stream = BuildDocx("{{title}}");
         string data = "{\"title\": \"Test\"}";
 
-        var resultStream = await engine.RenderStreamAsync(stream, data, OutputFormat.Pdf);
+        var resultStream = await engine.RenderStreamAsync(stream, data, OutputFormat.Pdf, CancellationToken.None);
 
         await pdfRenderer.Received(1).RenderOfficeToPdfStreamAsync(Arg.Any<Stream>(), "document.docx", Arg.Any<CancellationToken>());
         resultStream.Should().BeSameAs(expectedStream);

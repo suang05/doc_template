@@ -2,9 +2,6 @@ using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Helpers;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Queries.ValidateApiKey;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.Interfaces;
-using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common.Builders;
 
@@ -32,7 +29,7 @@ public sealed class ValidateApiKeyUseCaseTests
     public async Task ExecuteAsync_WhenPlainTextKeyIsNullOrWhitespace_ReturnsNullWithoutQueryingRepo(string? invalidKey)
     {
         // Act
-        var result = await CreateSut().ExecuteAsync(new ValidateApiKeyQuery(invalidKey!));
+        var result = await CreateSut().ExecuteAsync(new ValidateApiKeyQuery(invalidKey!), CancellationToken.None);
 
         // Assert
         result.Should().BeNull();
@@ -48,7 +45,7 @@ public sealed class ValidateApiKeyUseCaseTests
             .Returns((ApiKey?)null);
 
         // Act
-        var result = await CreateSut().ExecuteAsync(new ValidateApiKeyQuery("smk_test_key_not_found"));
+        var result = await CreateSut().ExecuteAsync(new ValidateApiKeyQuery("smk_test_key_not_found"), CancellationToken.None);
 
         // Assert
         result.Should().BeNull();
@@ -67,7 +64,7 @@ public sealed class ValidateApiKeyUseCaseTests
             .Returns(key);
 
         // Act
-        var result = await CreateSut().ExecuteAsync(new ValidateApiKeyQuery("smk_test_inactive_key"));
+        var result = await CreateSut().ExecuteAsync(new ValidateApiKeyQuery("smk_test_inactive_key"), CancellationToken.None);
 
         // Assert
         result.Should().BeNull();
@@ -100,7 +97,7 @@ public sealed class ValidateApiKeyUseCaseTests
             .Returns(project);
 
         // Act
-        ValidatedApiKeyResultDto? result = await CreateSut().ExecuteAsync(new ValidateApiKeyQuery(plainText));
+        ValidatedApiKeyResultDto? result = await CreateSut().ExecuteAsync(new ValidateApiKeyQuery(plainText), CancellationToken.None);
 
         // Assert
         result.Should().NotBeNull();
@@ -140,7 +137,7 @@ public sealed class ValidateApiKeyUseCaseTests
             .Returns(project);
 
         // Act
-        Func<Task> act = async () => await CreateSut().ExecuteAsync(new ValidateApiKeyQuery(plainText));
+        Func<Task> act = async () => await CreateSut().ExecuteAsync(new ValidateApiKeyQuery(plainText), CancellationToken.None);
 
         // Assert
         var ex = await act.Should().ThrowAsync<ProjectDeactivatedException>();

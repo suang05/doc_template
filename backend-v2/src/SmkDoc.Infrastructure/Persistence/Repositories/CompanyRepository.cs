@@ -10,27 +10,27 @@ public sealed class CompanyRepository(AppDbContext context) : ICompanyRepository
 {
     private readonly AppDbContext _context = context;
 
-    public async Task<Company?> GetFirstAsync(CancellationToken ct = default)
+    public async Task<Company?> GetFirstAsync(CancellationToken ct)
     {
         return await _context.Companies.FirstOrDefaultAsync(ct);
     }
 
-    public async Task<Company?> GetByIdAsync(CompanyId id, CancellationToken ct = default)
+    public async Task<Company?> GetByIdAsync(CompanyId id, CancellationToken ct)
     {
         return await _context.Companies.FirstOrDefaultAsync(c => c.Id == id, ct);
     }
 
-    public async Task<Company?> GetByNameAsync(CompanyName name, CancellationToken ct = default)
+    public async Task<Company?> GetByNameAsync(CompanyName name, CancellationToken ct)
     {
         return await _context.Companies.FirstOrDefaultAsync(c => c.Name == name, ct);
     }
 
-    public async Task<IReadOnlyList<Company>> ListAsync(CancellationToken ct = default)
+    public async Task<IReadOnlyList<Company>> ListAsync(CancellationToken ct)
     {
         return await _context.Companies.ToListAsync(ct);
     }
 
-    public async Task AddAsync(Company company, CancellationToken ct = default)
+    public async Task AddAsync(Company company, CancellationToken ct)
     {
         await _context.Companies.AddAsync(company, ct);
     }

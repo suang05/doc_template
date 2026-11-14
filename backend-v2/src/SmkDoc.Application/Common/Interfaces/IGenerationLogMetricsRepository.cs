@@ -6,5 +6,5 @@ namespace SmkDoc.Application.Common.Interfaces;
 public interface IGenerationLogMetricsRepository
 {
     Task<LogMetricsDto> GetMetricsAsync(DateTimeOffset? startDate, DateTimeOffset? endDate,
-        CancellationToken ct = default);
+        CancellationToken ct);
 }

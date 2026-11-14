@@ -28,5 +28,7 @@ public static class AuthConstants
     /// <summary>
     /// Pre-computed standard bcrypt hash used for constant-time password verification on user-not-found to mitigate timing enumeration attacks (OWASP).
     /// </summary>
+#pragma warning disable S2068 // Intentional pre-computed OWASP timing-mitigation dummy bcrypt hash, not a credential.
     public const string DummyPasswordHash = "$2a$11$Vf5cHJJt/FIM7svpRfhP1en9WVEbvEIwB27OOnI.5EAWMEjQE/z6S";
+#pragma warning restore S2068
 }

@@ -1,8 +1,4 @@
-﻿using FluentAssertions;
-using SmkDoc.Domain.Enums;
-using Xunit;
-
-namespace SmkDoc.Tests.Domain.Enums;
+﻿namespace SmkDoc.Tests.Domain.Enums;
 
 public sealed class EnumerationTests
 {

@@ -1,7 +1,5 @@
 using System.Net;
 using Microsoft.Extensions.Configuration;
-using SmkDoc.Application.Common.Exceptions;
-using SmkDoc.Domain.Exceptions;
 using SmkDoc.Infrastructure.Data;
 
 namespace SmkDoc.Tests.Infrastructure.Data;
@@ -47,7 +45,7 @@ public sealed class SqlSecurityGuardTests
         var sut = CreateSut();
 
         // Act
-        Func<Task> act = () => sut.ValidateConnectionTargetAsync(provider, connectionString);
+        Func<Task> act = () => sut.ValidateConnectionTargetAsync(provider, connectionString, CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<ForbiddenException>();
@@ -62,7 +60,7 @@ public sealed class SqlSecurityGuardTests
         // Act
         Func<Task> act = () => sut.ValidateConnectionTargetAsync(
             "PostgreSQL",
-            "Host=evil-rebind.example.com;Database=erp;Username=u;Password=p");
+            "Host=evil-rebind.example.com;Database=erp;Username=u;Password=p", CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<ForbiddenException>()
@@ -81,7 +79,7 @@ public sealed class SqlSecurityGuardTests
         var sut = CreateSut();
 
         // Act
-        Func<Task> act = () => sut.ValidateConnectionTargetAsync(provider, connectionString);
+        Func<Task> act = () => sut.ValidateConnectionTargetAsync(provider, connectionString, CancellationToken.None);
 
         // Assert
         await act.Should().NotThrowAsync();

@@ -7,5 +7,5 @@ namespace SmkDoc.Domain.Interfaces;
 /// </summary>
 public interface IDomainEventDispatcher
 {
-    Task DispatchEventsAsync(IEnumerable<IDomainEvent> domainEvents, CancellationToken ct = default);
+    Task DispatchEventsAsync(IEnumerable<IDomainEvent> domainEvents, CancellationToken ct);
 }

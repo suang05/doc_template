@@ -1,8 +1,5 @@
-using FluentAssertions;
-using SmkDoc.Infrastructure.Schema;
-using System.Text.Json;
 using System.Text.Json.Nodes;
-using Xunit;
+using SmkDoc.Infrastructure.Schema;
 
 namespace SmkDoc.Tests.Infrastructure.Schema;
 

@@ -6,9 +6,10 @@ namespace SmkDoc.Application.Modules.DataBinding.Helpers;
 /// <summary>
 /// Stateless utility for extracting scalar and nested JSON values using dot-notation and array indices.
 /// </summary>
-public static class JsonPathEvaluator
+public static partial class JsonPathEvaluator
 {
-    private static readonly Regex JsonPathArrayPattern = new(@"^([a-zA-Z0-9_-]+)\[(\d+)\]$", RegexOptions.Compiled);
+    [GeneratedRegex(@"^([a-zA-Z0-9_-]+)\[(\d+)\]$", RegexOptions.None, 500)]
+    private static partial Regex JsonPathArrayPattern();
 
     public static string? ResolvePath(JsonElement root, string path)
     {
@@ -16,14 +17,14 @@ public static class JsonPathEvaluator
         var parts = path.Split('.');
         var current = root;
 
-        if (current.ValueKind == JsonValueKind.Array && current.GetArrayLength() > 0 && !int.TryParse(parts[0], out _) && !JsonPathArrayPattern.IsMatch(parts[0]))
+        if (current.ValueKind == JsonValueKind.Array && current.GetArrayLength() > 0 && !int.TryParse(parts[0], out _) && !JsonPathArrayPattern().IsMatch(parts[0]))
         {
             current = current[0];
         }
 
         foreach (var part in parts)
         {
-            var match = JsonPathArrayPattern.Match(part);
+            var match = JsonPathArrayPattern().Match(part);
             if (match.Success)
             {
                 var propName = match.Groups[1].Value;

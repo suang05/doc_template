@@ -16,5 +16,5 @@ public interface IRenderEngine
     /// <summary>
     /// Renders the template with provided data directly into an output stream (Zero-LOH Buffering).
     /// </summary>
-    Task<Stream> RenderStreamAsync(Stream templateStream, string inputDataJson, OutputFormat outputFormat, CancellationToken ct = default);
+    Task<Stream> RenderStreamAsync(Stream templateStream, string inputDataJson, OutputFormat outputFormat, CancellationToken ct);
 }

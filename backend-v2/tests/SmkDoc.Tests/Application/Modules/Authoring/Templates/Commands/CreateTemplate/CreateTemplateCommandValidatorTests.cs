@@ -1,6 +1,4 @@
-using FluentAssertions;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.CreateTemplate;
-using Xunit;
 
 namespace SmkDoc.Tests.Application.Modules.Authoring.Templates.Commands.CreateTemplate;
 

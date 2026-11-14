@@ -1,13 +1,7 @@
-using NSubstitute.ExceptionExtensions;
 using SmkDoc.Application.Common.Behaviors;
-using SmkDoc.Application.Common.Exceptions;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Integration.Datasets.Commands.UpdateDataset;
-using SmkDoc.Application.Modules.Integration.Datasets.DTOs;
 using SmkDoc.Application.Modules.Integration.Datasets.Services;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common.Builders;
 
@@ -41,7 +35,7 @@ public sealed class UpdateDatasetUseCaseTests
             [new UpdateDatasetCommandValidator()]);
 
         // Act
-        Func<Task> act = () => pipeline.ExecuteAsync(command);
+        Func<Task> act = () => pipeline.ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<SmkDoc.Application.Common.Exceptions.ValidationException>();
@@ -74,7 +68,7 @@ public sealed class UpdateDatasetUseCaseTests
         var command = new UpdateDatasetCommand(id, "NewName", "new desc", connId, "SELECT 2", 60);
 
         // Act
-        DatasetResultDto? result = await CreateSut().ExecuteAsync(command);
+        DatasetResultDto? result = await CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         result.Should().NotBeNull();
@@ -101,7 +95,7 @@ public sealed class UpdateDatasetUseCaseTests
         var command = new UpdateDatasetCommand(id, "Name", null, connId, "SELECT 1");
 
         // Act
-        var act = () => CreateSut().ExecuteAsync(command);
+        var act = () => CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<NotFoundException>();
@@ -120,7 +114,7 @@ public sealed class UpdateDatasetUseCaseTests
         var command = new UpdateDatasetCommand(id, "Name", null, Guid.NewGuid(), "SELECT 1");
 
         // Act
-        var act = () => CreateSut().ExecuteAsync(command);
+        var act = () => CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<NotFoundException>();

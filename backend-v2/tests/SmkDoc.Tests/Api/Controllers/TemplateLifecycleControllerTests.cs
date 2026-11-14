@@ -3,16 +3,12 @@ using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.Contracts.Authoring.Templates;
 using SmkDoc.Api.Controllers.Authoring;
-using SmkDoc.Application.Common.Exceptions;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.CreateTemplate;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.DeactivateTemplate;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.UpdateTemplateDetails;
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.GetTemplateById;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.ListTemplates;
-using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Tests.Api.Controllers;
 

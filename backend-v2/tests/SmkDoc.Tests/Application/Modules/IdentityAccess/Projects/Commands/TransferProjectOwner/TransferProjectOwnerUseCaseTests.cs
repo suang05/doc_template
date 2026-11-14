@@ -1,9 +1,5 @@
-using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Modules.IdentityAccess.Projects.Commands.TransferProjectOwner;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Enums;
-using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common.Builders;
 
@@ -37,7 +33,7 @@ public sealed class TransferProjectOwnerUseCaseTests
         var command = new TransferProjectOwnerCommand(projectId, newOwnerId);
 
         // Act
-        var act = () => CreateSut().ExecuteAsync(command);
+        var act = () => CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<NotFoundException>()
@@ -60,7 +56,7 @@ public sealed class TransferProjectOwnerUseCaseTests
         var command = new TransferProjectOwnerCommand(projectId, newOwnerId);
 
         // Act
-        var act = () => CreateSut().ExecuteAsync(command);
+        var act = () => CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<NotFoundException>()
@@ -85,7 +81,7 @@ public sealed class TransferProjectOwnerUseCaseTests
         var command = new TransferProjectOwnerCommand(projectId, newOwnerId);
 
         // Act
-        var act = () => CreateSut().ExecuteAsync(command);
+        var act = () => CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<DomainValidationException>()
@@ -116,7 +112,7 @@ public sealed class TransferProjectOwnerUseCaseTests
         var command = new TransferProjectOwnerCommand(projectId, newOwnerId);
 
         // Act
-        await CreateSut().ExecuteAsync(command);
+        await CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         priorRole.Role.Should().Be(RoleType.Developer);
@@ -152,7 +148,7 @@ public sealed class TransferProjectOwnerUseCaseTests
         var command = new TransferProjectOwnerCommand(projectId, newOwnerId);
 
         // Act
-        await CreateSut().ExecuteAsync(command);
+        await CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         priorRole.Role.Should().Be(RoleType.Developer);

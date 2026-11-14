@@ -1,7 +1,4 @@
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Rendering.Logs.Queries.GetLogDownloadUrl;
-using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Tests.Common.Builders;
 
 namespace SmkDoc.Tests.Application.Modules.Rendering.Logs.Queries.GetLogDownloadUrl;
@@ -28,7 +25,7 @@ public sealed class GetLogDownloadUrlUseCaseTests
             .Returns("https://minio.sammakorn.co.th/outputs/doc.pdf?token=abc");
 
         // Act
-        var result = await CreateSut().ExecuteAsync(new GetLogDownloadUrlQuery(logId));
+        var result = await CreateSut().ExecuteAsync(new GetLogDownloadUrlQuery(logId), CancellationToken.None);
 
         // Assert
         result.Url.Should().Contain("minio.sammakorn.co.th");

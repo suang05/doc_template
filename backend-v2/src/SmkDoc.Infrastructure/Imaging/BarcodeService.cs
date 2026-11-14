@@ -9,7 +9,7 @@ namespace SmkDoc.Infrastructure.Imaging;
 
 public sealed class BarcodeService : IBarcodeService
 {
-    public byte[] Generate(string text, int widthPx = 300, int heightPx = 100)
+    public byte[] Generate(string text, int widthPx, int heightPx)
     {
         string content = string.IsNullOrWhiteSpace(text) ? "SAMPLE" : text.Trim();
         // CODE_128 only supports ASCII printable characters (32-126)
@@ -21,42 +21,40 @@ public sealed class BarcodeService : IBarcodeService
 
         try
         {
-            var writer = new BarcodeWriter
-            {
-                Format  = BarcodeFormat.CODE_128,
-                Options = new EncodingOptions
-                {
-                    Width       = widthPx > 0 ? widthPx : 300,
-                    Height      = heightPx > 0 ? heightPx : 100,
-                    Margin      = 10,
-                    PureBarcode = false
-                },
-                Renderer = new SKBitmapRenderer()
-            };
-
-            using var bitmap  = writer.Write(sanitized);
-            using var image   = SKImage.FromBitmap(bitmap);
-            using var encoded = image.Encode(SKEncodedImageFormat.Png, 100);
-            return encoded.ToArray();
+            return RenderCode128Png(sanitized, widthPx, heightPx);
         }
-        catch
+        catch (ZXing.WriterException)
         {
-            var fallbackWriter = new BarcodeWriter
-            {
-                Format  = BarcodeFormat.CODE_128,
-                Options = new EncodingOptions
-                {
-                    Width       = widthPx > 0 ? widthPx : 300,
-                    Height      = heightPx > 0 ? heightPx : 100,
-                    Margin      = 10,
-                    PureBarcode = false
-                },
-                Renderer = new SKBitmapRenderer()
-            };
-            using var fbBitmap  = fallbackWriter.Write("SAMPLE");
-            using var fbImage   = SKImage.FromBitmap(fbBitmap);
-            using var fbEncoded = fbImage.Encode(SKEncodedImageFormat.Png, 100);
-            return fbEncoded.ToArray();
+            return RenderCode128Png("SAMPLE", widthPx, heightPx);
         }
+        catch (ArgumentException)
+        {
+            return RenderCode128Png("SAMPLE", widthPx, heightPx);
+        }
+        catch (InvalidOperationException)
+        {
+            return RenderCode128Png("SAMPLE", widthPx, heightPx);
+        }
+    }
+
+    private static byte[] RenderCode128Png(string content, int widthPx, int heightPx)
+    {
+        var writer = new BarcodeWriter
+        {
+            Format  = BarcodeFormat.CODE_128,
+            Options = new EncodingOptions
+            {
+                Width       = widthPx > 0 ? widthPx : 300,
+                Height      = heightPx > 0 ? heightPx : 100,
+                Margin      = 10,
+                PureBarcode = false
+            },
+            Renderer = new SKBitmapRenderer()
+        };
+
+        using var bitmap  = writer.Write(content);
+        using var image   = SKImage.FromBitmap(bitmap);
+        using var encoded = image.Encode(SKEncodedImageFormat.Png, 100);
+        return encoded.ToArray();
     }
 }

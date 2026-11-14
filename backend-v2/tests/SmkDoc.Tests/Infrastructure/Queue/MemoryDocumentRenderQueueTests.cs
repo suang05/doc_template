@@ -1,4 +1,3 @@
-using SmkDoc.Application.Modules.Rendering.Documents.DTOs;
 using SmkDoc.Application.Modules.Rendering.Documents.Models;
 using SmkDoc.Infrastructure.Queue;
 
@@ -37,8 +36,8 @@ public sealed class MemoryDocumentRenderQueueTests
             DateTimeOffset.UtcNow);
 
         // Act
-        var id1 = await _queue.EnqueueAsync(job1);
-        var id2 = await _queue.EnqueueAsync(job2);
+        var id1 = await _queue.EnqueueAsync(job1, CancellationToken.None);
+        var id2 = await _queue.EnqueueAsync(job2, CancellationToken.None);
 
         id1.Should().Be(job1.JobId);
         id2.Should().Be(job2.JobId);
@@ -72,10 +71,10 @@ public sealed class MemoryDocumentRenderQueueTests
             false,
             DateTimeOffset.UtcNow);
 
-        await _queue.EnqueueAsync(job);
+        await _queue.EnqueueAsync(job, CancellationToken.None);
 
         // Act
-        var retrieved = await _queue.GetJobAsync(jobId);
+        var retrieved = await _queue.GetJobAsync(jobId, CancellationToken.None);
 
         // Assert
         retrieved.Should().NotBeNull();
@@ -86,7 +85,7 @@ public sealed class MemoryDocumentRenderQueueTests
     public async Task GetJobAsync_WhenJobDoesNotExist_ShouldReturnNull()
     {
         // Act
-        var retrieved = await _queue.GetJobAsync(Guid.NewGuid());
+        var retrieved = await _queue.GetJobAsync(Guid.NewGuid(), CancellationToken.None);
 
         // Assert
         retrieved.Should().BeNull();
@@ -109,13 +108,13 @@ public sealed class MemoryDocumentRenderQueueTests
             false,
             DateTimeOffset.UtcNow);
 
-        await _queue.EnqueueAsync(job);
+        await _queue.EnqueueAsync(job, CancellationToken.None);
 
         // Act
         job.MarkProcessing(DateTimeOffset.UtcNow);
-        await _queue.UpdateJobAsync(job);
+        await _queue.UpdateJobAsync(job, CancellationToken.None);
 
-        var updated = await _queue.GetJobAsync(jobId);
+        var updated = await _queue.GetJobAsync(jobId, CancellationToken.None);
 
         // Assert
         updated.Should().NotBeNull();

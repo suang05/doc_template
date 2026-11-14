@@ -1,13 +1,7 @@
 using SmkDoc.Application.Common.Behaviors;
-using SmkDoc.Application.Common.Exceptions;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Integration.DataConnections.Commands.CreateDataConnection;
-using SmkDoc.Application.Modules.Integration.DataConnections.DTOs;
 using SmkDoc.Application.Modules.Integration.Datasets.Services;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Enums;
-using SmkDoc.Domain.Interfaces;
-using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Tests.Application.Modules.Integration.DataConnections.Commands.CreateDataConnection;
@@ -27,7 +21,7 @@ public sealed class CreateDataConnectionUseCaseTests
         _datasetResolver.ValidateAndEncryptAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(x => Task.FromResult(EncryptedConnectionString.Create($"enc:{x.ArgAt<string>(1)}")));
         _projectContext.IsResolved.Returns(true);
-        _projectContext.ProjectId.Returns(_projectId);
+        _projectContext.GetRequiredProjectId().Returns(_projectId);
     }
 
     private CreateDataConnectionUseCase CreateSut() => new(
@@ -47,7 +41,7 @@ public sealed class CreateDataConnectionUseCaseTests
             [new CreateDataConnectionCommandValidator()]);
 
         // Act
-        Func<Task> act = () => pipeline.ExecuteAsync(command);
+        Func<Task> act = () => pipeline.ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<SmkDoc.Application.Common.Exceptions.ValidationException>();
@@ -56,18 +50,18 @@ public sealed class CreateDataConnectionUseCaseTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_WhenProjectUnresolved_ShouldThrowTenantContextRequiredException()
+    public async Task ExecuteAsync_WhenProjectUnresolved_ShouldThrowTenantContextNotResolvedException()
     {
         // Arrange
         _projectContext.IsResolved.Returns(false);
-        _projectContext.ProjectId.Returns(_ => throw new TenantContextRequiredException());
+        _projectContext.GetRequiredProjectId().Returns(_ => throw new TenantContextNotResolvedException());
         var command = new CreateDataConnectionCommand("Warehouse", "PostgreSQL", "Host=10.0.0.5;Database=erp");
 
         // Act
-        Func<Task> act = () => CreateSut().ExecuteAsync(command);
+        Func<Task> act = () => CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
-        await act.Should().ThrowAsync<TenantContextRequiredException>();
+        await act.Should().ThrowAsync<TenantContextNotResolvedException>();
         await _datasetResolver.DidNotReceive().ValidateAndEncryptAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
@@ -78,7 +72,7 @@ public sealed class CreateDataConnectionUseCaseTests
         var command = new CreateDataConnectionCommand("Warehouse", "PostgreSQL", "Host=wh.local;Pass=secret");
 
         // Act
-        DataConnectionResultDto result = await CreateSut().ExecuteAsync(command);
+        DataConnectionResultDto result = await CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         result.Name.Should().Be("Warehouse");

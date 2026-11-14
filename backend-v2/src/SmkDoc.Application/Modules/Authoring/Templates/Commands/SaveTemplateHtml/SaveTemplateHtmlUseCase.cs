@@ -1,14 +1,10 @@
-using System.Diagnostics;
-using System.Text;
+using SmkDoc.Application.Common.Storage;
 using SmkDoc.Application.Common;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Common.Streams;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.Helpers;
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
-using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.ValueObjects.Ids;
 
@@ -23,7 +19,7 @@ public sealed class SaveTemplateHtmlUseCase(
     TimeProvider timeProvider,
     IConcurrencyContext? concurrencyContext = null) : IUseCase<SaveTemplateHtmlCommand, SaveHtmlResultDto>
 {
-    public async Task<SaveHtmlResultDto> ExecuteAsync(SaveTemplateHtmlCommand command, CancellationToken ct = default)
+    public async Task<SaveHtmlResultDto> ExecuteAsync(SaveTemplateHtmlCommand command, CancellationToken ct)
     {
         var templateId = new TemplateId(command.TemplateId);
         var template = await templateRepo.GetByIdWithDetailsAsync(templateId, ct)
@@ -89,19 +85,12 @@ public sealed class SaveTemplateHtmlUseCase(
         }
         catch (Exception primaryEx)
         {
-            try
-            {
-                await storageService.DeleteAsync(StorageBuckets.Templates, versionedKey, CancellationToken.None);
-            }
-            catch (Exception cleanupEx)
-            {
-                primaryEx.Data["OrphanedStorageKey"] = versionedKey;
-                primaryEx.Data["CompensatingDeleteError"] = cleanupEx.Message;
-                Trace.TraceWarning(
-                    "Failed to delete orphaned HTML template object '{0}' after database commit failure: {1}",
-                    versionedKey,
-                    cleanupEx.Message);
-            }
+            await StorageOrphanCleaner.TryDeleteOrphanAsync(
+                storageService,
+                StorageBuckets.Templates,
+                versionedKey,
+                primaryEx,
+                CancellationToken.None);
 
             throw;
         }

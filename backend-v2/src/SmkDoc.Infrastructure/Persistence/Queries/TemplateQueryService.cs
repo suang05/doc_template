@@ -2,7 +2,6 @@ using Microsoft.EntityFrameworkCore;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Infrastructure.Persistence.Queries;
 
@@ -16,7 +15,7 @@ public sealed class TemplateQueryService(AppDbContext context) : ITemplateQueryS
         bool? isActive,
         int page,
         int pageSize,
-        CancellationToken ct = default)
+        CancellationToken ct)
     {
         IQueryable<Template> query = _context.Templates
             .AsNoTracking();

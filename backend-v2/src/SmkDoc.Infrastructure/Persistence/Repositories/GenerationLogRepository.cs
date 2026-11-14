@@ -8,23 +8,23 @@ public sealed class GenerationLogRepository(AppDbContext context) : IGenerationL
 {
     private readonly AppDbContext _context = context;
 
-    public async Task<GenerationLog?> GetByIdAsync(Guid id, CancellationToken ct = default)
+    public async Task<GenerationLog?> GetByIdAsync(Guid id, CancellationToken ct)
     {
         return await _context.GenerationLogs
             .FirstOrDefaultAsync(l => l.Id == id, ct);
     }
 
-    public async Task AddAsync(GenerationLog log, CancellationToken ct = default)
+    public async Task AddAsync(GenerationLog log, CancellationToken ct)
     {
         await _context.GenerationLogs.AddAsync(log, ct);
     }
 
-    public async Task AddRangeAsync(IEnumerable<GenerationLog> logs, CancellationToken ct = default)
+    public async Task AddRangeAsync(IEnumerable<GenerationLog> logs, CancellationToken ct)
     {
         await _context.GenerationLogs.AddRangeAsync(logs, ct);
     }
 
-    public async Task<IReadOnlyList<GenerationLog>> GetExpiredLogsWithOutputsAsync(DateTimeOffset cutoffTime, int maxBatchSize, CancellationToken ct = default)
+    public async Task<IReadOnlyList<GenerationLog>> GetExpiredLogsWithOutputsAsync(DateTimeOffset cutoffTime, int maxBatchSize, CancellationToken ct)
     {
 #pragma warning disable RS0030 // [PHASE-3-TECH-DEBT] Migrate retention cleanup batch query to explicit retention RLS role
         return await _context.GenerationLogs

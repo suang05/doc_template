@@ -1,4 +1,3 @@
-﻿using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Rendering.Logs.DTOs;
 using SmkDoc.Application.Modules.Rendering.Logs.Queries.GetLogMetrics;
 
@@ -20,7 +19,7 @@ public sealed class GetLogMetricsUseCaseTests
             .Returns(expected);
 
         // Act
-        var result = await CreateSut().ExecuteAsync(new GetLogMetricsQuery());
+        var result = await CreateSut().ExecuteAsync(new GetLogMetricsQuery(), CancellationToken.None);
 
         // Assert
         result.Should().NotBeNull();

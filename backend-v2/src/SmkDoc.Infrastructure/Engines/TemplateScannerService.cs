@@ -3,9 +3,9 @@ using System.Text.RegularExpressions;
 using ClosedXML.Excel;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
-using SmkDoc.Application.Common.Helpers;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Common.Streams;
+using SmkDoc.Application.Modules.Authoring.Templates.Parsing;
 using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Infrastructure.Engines.Placeholders;
 
@@ -13,7 +13,7 @@ namespace SmkDoc.Infrastructure.Engines;
 
 public sealed class TemplateScannerService : ITemplateScannerService
 {
-    public async Task<List<string>> ScanPlaceholdersAsync(Stream stream, string fileExtension, CancellationToken ct = default)
+    public async Task<List<string>> ScanPlaceholdersAsync(Stream stream, string fileExtension, CancellationToken ct)
     {
         var detailed = await ScanDetailedPlaceholdersAsync(stream, fileExtension, ct);
         return detailed
@@ -23,7 +23,7 @@ public sealed class TemplateScannerService : ITemplateScannerService
             .ToList();
     }
 
-    public async Task<List<TemplatePlaceholder>> ScanDetailedPlaceholdersAsync(Stream stream, string fileExtension, CancellationToken ct = default)
+    public async Task<List<TemplatePlaceholder>> ScanDetailedPlaceholdersAsync(Stream stream, string fileExtension, CancellationToken ct)
     {
         string ext = fileExtension.ToLowerInvariant();
 
@@ -127,7 +127,7 @@ public sealed class TemplateScannerService : ITemplateScannerService
     {
         if (string.IsNullOrWhiteSpace(text)) return;
 
-        var matches = PlaceholderHelper.Pattern.Matches(text);
+        var matches = TemplatePlaceholderParser.Pattern.Matches(text);
         foreach (Match match in matches)
         {
             string raw = match.Groups[1].Value.Trim();

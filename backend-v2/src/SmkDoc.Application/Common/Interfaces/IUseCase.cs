@@ -7,7 +7,7 @@ namespace SmkDoc.Application.Common.Interfaces;
 /// <typeparam name="TResponse">The output DTO or result.</typeparam>
 public interface IUseCase<in TRequest, TResponse>
 {
-    Task<TResponse> ExecuteAsync(TRequest request, CancellationToken ct = default);
+    Task<TResponse> ExecuteAsync(TRequest request, CancellationToken ct);
 }
 
 /// <summary>
@@ -16,5 +16,5 @@ public interface IUseCase<in TRequest, TResponse>
 /// <typeparam name="TRequest">The input command or request.</typeparam>
 public interface IUseCase<in TRequest>
 {
-    Task ExecuteAsync(TRequest request, CancellationToken ct = default);
+    Task ExecuteAsync(TRequest request, CancellationToken ct);
 }

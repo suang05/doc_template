@@ -1,5 +1,3 @@
-using SmkDoc.Application.Common.Interfaces;
-
 namespace SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 
 /// <summary>

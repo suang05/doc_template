@@ -14,19 +14,23 @@ public interface ITemplateDraftCache
         string fileName,
         string fileExtension,
         IReadOnlyList<string> placeholders,
-        CancellationToken ct = default);
+        CancellationToken ct);
 
     Task<TemplateDraftEntry?> GetAsync(
         ProjectId projectId,
         string draftId,
-        CancellationToken ct = default);
+        CancellationToken ct);
+
+    Task<TemplateDraftEntry?> GetCurrentProjectDraftAsync(
+        string draftId,
+        CancellationToken ct);
 
     Task<Stream> OpenStreamAsync(
         TemplateDraftEntry draft,
-        CancellationToken ct = default);
+        CancellationToken ct);
 
     Task RemoveAsync(
         ProjectId projectId,
         string draftId,
-        CancellationToken ct = default);
+        CancellationToken ct);
 }

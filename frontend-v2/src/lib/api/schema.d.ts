@@ -55,7 +55,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/documents/download/{logId}/url": {
+    "/api/v1/generation-logs/{logId}/artifact/url": {
         parameters: {
             query?: never;
             header?: never;
@@ -72,7 +72,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/documents/download/{logId}/file": {
+    "/api/v1/generation-logs/{logId}/artifact/file": {
         parameters: {
             query?: never;
             header?: never;
@@ -89,7 +89,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/documents/download/{logId}": {
+    "/api/v1/generation-logs/{logId}/artifact": {
         parameters: {
             query?: never;
             header?: never;
@@ -191,7 +191,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/documents/{documentRef}/versions": {
+    "/api/v1/document-versions/{documentRef}/versions": {
         parameters: {
             query?: never;
             header?: never;
@@ -199,7 +199,7 @@ export interface paths {
             cookie?: never;
         };
         /** Get legal document version history by document reference. */
-        get: operations["DocumentHistory_GetVersions_DocumentsDocumentRefVersions"];
+        get: operations["DocumentHistory_GetVersions_DocumentVersionsDocumentRefVersions"];
         put?: never;
         post?: never;
         delete?: never;
@@ -208,7 +208,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/documents/{documentRef}/history": {
+    "/api/v1/document-versions/{documentRef}/history": {
         parameters: {
             query?: never;
             header?: never;
@@ -225,7 +225,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/documents/{documentRef}/versions/{version}/download": {
+    "/api/v1/document-versions/{documentRef}/versions/{version}/download": {
         parameters: {
             query?: never;
             header?: never;
@@ -771,7 +771,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/templates/draft/parse": {
+    "/api/v1/template-drafts/parse": {
         parameters: {
             query?: never;
             header?: never;
@@ -791,7 +791,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/templates/draft/{draftId}/preview": {
+    "/api/v1/template-drafts/{draftId}/preview": {
         parameters: {
             query?: never;
             header?: never;
@@ -811,7 +811,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/templates/draft/{draftId}/commit": {
+    "/api/v1/template-drafts/{draftId}/commit": {
         parameters: {
             query?: never;
             header?: never;
@@ -1704,13 +1704,14 @@ export interface components {
             errorCode?: string;
             /** @description Correlation trace identifier for observability and log lookup. */
             traceId?: string;
-            /** @description Field-level validation errors: property-to-messages map on 400, or rule-violation list on 422. */
+            /** @description RFC 9457 field-level validation and JSON schema errors with RFC 6901 JSON Pointers. */
             errors?: {
-                [key: string]: string[];
-            } | {
-                path?: string;
-                message?: string;
-                rule?: string;
+                /** @description RFC 6901 JSON Pointer targeting the offending property or document location. */
+                pointer: string;
+                /** @description Machine-readable validation rule code in UPPER_SNAKE_CASE. */
+                code: string;
+                /** @description Human-readable validation failure description. */
+                message: string;
             }[];
         };
         /** @description DTO representing project details. */
@@ -2075,7 +2076,10 @@ export interface operations {
                 limit?: number;
                 app?: string;
             };
-            header?: never;
+            header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
+            };
             path?: never;
             cookie?: never;
         };
@@ -2101,6 +2105,15 @@ export interface operations {
             };
             /** @description Forbidden - authenticated but not permitted. */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2134,7 +2147,10 @@ export interface operations {
                 startDate?: string;
                 endDate?: string;
             };
-            header?: never;
+            header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
+            };
             path?: never;
             cookie?: never;
         };
@@ -2167,6 +2183,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
             429: {
                 headers: {
@@ -2190,7 +2215,10 @@ export interface operations {
     AuditLog_GetPayload: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
+            };
             path: {
                 id: string;
             };
@@ -2234,6 +2262,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
             429: {
                 headers: {
@@ -2257,7 +2294,10 @@ export interface operations {
     DocumentArtifact_GetDownloadUrl: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
+            };
             path: {
                 logId: string;
             };
@@ -2301,6 +2341,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
             429: {
                 headers: {
@@ -2324,7 +2373,10 @@ export interface operations {
     DocumentArtifact_DownloadFile: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
+            };
             path: {
                 logId: string;
             };
@@ -2359,6 +2411,15 @@ export interface operations {
             };
             /** @description Not Found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2389,7 +2450,10 @@ export interface operations {
     DocumentArtifact_DownloadByLogId: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
+            };
             path: {
                 logId: string;
             };
@@ -2424,6 +2488,15 @@ export interface operations {
             };
             /** @description Not Found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2455,6 +2528,8 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
                 /** @description Client-generated unique key making retries safe. Completed responses are replayed for 24 hours. */
                 "Idempotency-Key"?: string;
             };
@@ -2507,6 +2582,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
             429: {
                 headers: {
@@ -2531,6 +2615,8 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
                 /** @description Client-generated unique key making retries safe. Completed responses are replayed for 24 hours. */
                 "Idempotency-Key"?: string;
             };
@@ -2583,6 +2669,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
             429: {
                 headers: {
@@ -2606,7 +2701,10 @@ export interface operations {
     DocumentGeneration_GetJobStatus: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
+            };
             path: {
                 jobId: string;
             };
@@ -2650,6 +2748,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
             429: {
                 headers: {
@@ -2673,7 +2780,10 @@ export interface operations {
     DocumentGeneration_PreviewRaw: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
+            };
             path?: never;
             cookie?: never;
         };
@@ -2712,6 +2822,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
             429: {
                 headers: {
@@ -2735,7 +2854,10 @@ export interface operations {
     DocumentGeneration_PreviewBySlug: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
+            };
             path: {
                 slug: string;
             };
@@ -2776,6 +2898,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
             429: {
                 headers: {
@@ -2796,10 +2927,13 @@ export interface operations {
             };
         };
     };
-    DocumentHistory_GetVersions_DocumentsDocumentRefVersions: {
+    DocumentHistory_GetVersions_DocumentVersionsDocumentRefVersions: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
+            };
             path: {
                 documentRef: string;
             };
@@ -2827,6 +2961,15 @@ export interface operations {
             };
             /** @description Forbidden - authenticated but not permitted. */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2857,7 +3000,10 @@ export interface operations {
     DocumentHistory_GetVersions: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
+            };
             path: {
                 documentRef: string;
             };
@@ -2892,6 +3038,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
             429: {
                 headers: {
@@ -2915,7 +3070,10 @@ export interface operations {
     DocumentHistory_DownloadVersion: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
+            };
             path: {
                 documentRef: string;
                 version: number;
@@ -2958,6 +3116,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
             429: {
                 headers: {
@@ -2981,7 +3148,10 @@ export interface operations {
     DataConnectionDiagnostics_TestConnection: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
+            };
             path?: never;
             cookie?: never;
         };
@@ -3029,6 +3199,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
             429: {
                 headers: {
@@ -3052,7 +3231,10 @@ export interface operations {
     DataConnections_GetAll: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
+            };
             path?: never;
             cookie?: never;
         };
@@ -3085,6 +3267,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
             429: {
                 headers: {
@@ -3109,6 +3300,8 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
                 /** @description Client-generated unique key making retries safe. Completed responses are replayed for 24 hours. */
                 "Idempotency-Key"?: string;
             };
@@ -3159,6 +3352,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
             429: {
                 headers: {
@@ -3182,7 +3384,10 @@ export interface operations {
     DataConnections_GetById: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
+            };
             path: {
                 id: string;
             };
@@ -3228,6 +3433,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
             429: {
                 headers: {
@@ -3252,6 +3466,8 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
                 /** @description Optimistic concurrency token (ETag value from prior read) or '*' to bypass precondition check. */
                 "If-Match"?: string;
             };
@@ -3324,6 +3540,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
             429: {
                 headers: {
@@ -3348,6 +3573,8 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
                 /** @description Optimistic concurrency token (ETag value from prior read) or '*' to bypass precondition check. */
                 "If-Match"?: string;
             };
@@ -3401,6 +3628,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
             429: {
                 headers: {
@@ -3424,7 +3660,10 @@ export interface operations {
     DatasetDiagnostics_DryRun: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
+            };
             path?: never;
             cookie?: never;
         };
@@ -3472,6 +3711,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
             429: {
                 headers: {
@@ -3495,7 +3743,10 @@ export interface operations {
     Datasets_GetAll: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
+            };
             path?: never;
             cookie?: never;
         };
@@ -3528,6 +3779,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
             429: {
                 headers: {
@@ -3552,6 +3812,8 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
                 /** @description Client-generated unique key making retries safe. Completed responses are replayed for 24 hours. */
                 "Idempotency-Key"?: string;
             };
@@ -3593,6 +3855,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
             429: {
                 headers: {
@@ -3616,7 +3887,10 @@ export interface operations {
     Datasets_GetById: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
+            };
             path: {
                 id: string;
             };
@@ -3662,6 +3936,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
             429: {
                 headers: {
@@ -3686,6 +3969,8 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
                 /** @description Optimistic concurrency token (ETag value from prior read) or '*' to bypass precondition check. */
                 "If-Match"?: string;
             };
@@ -3749,6 +4034,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
             429: {
                 headers: {
@@ -3773,6 +4067,8 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
                 /** @description Optimistic concurrency token (ETag value from prior read) or '*' to bypass precondition check. */
                 "If-Match"?: string;
             };
@@ -3826,6 +4122,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
             429: {
                 headers: {
@@ -3849,7 +4154,10 @@ export interface operations {
     ApiKeys_ListKeys: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
+            };
             path?: never;
             cookie?: never;
         };
@@ -3882,6 +4190,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
             429: {
                 headers: {
@@ -3906,6 +4223,8 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
                 /** @description Client-generated unique key making retries safe. Completed responses are replayed for 24 hours. */
                 "Idempotency-Key"?: string;
             };
@@ -3965,6 +4284,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
             429: {
                 headers: {
@@ -3989,6 +4317,8 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
                 /** @description Optimistic concurrency token (ETag value from prior read) or '*' to bypass precondition check. */
                 "If-Match"?: string;
             };
@@ -4035,6 +4365,15 @@ export interface operations {
             };
             /** @description Precondition Failed */
             412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -4104,6 +4443,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
             429: {
                 headers: {
@@ -4166,6 +4514,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
             429: {
                 headers: {
@@ -4189,7 +4546,9 @@ export interface operations {
     Auth_GetMe: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "Project-Id"?: string;
+            };
             path?: never;
             cookie?: never;
         };
@@ -4215,6 +4574,15 @@ export interface operations {
             };
             /** @description Forbidden - authenticated but not permitted. */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -4273,6 +4641,15 @@ export interface operations {
             };
             /** @description Forbidden */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -4365,6 +4742,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
             429: {
                 headers: {
@@ -4443,6 +4829,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
             429: {
                 headers: {
@@ -4496,6 +4891,15 @@ export interface operations {
             };
             /** @description Forbidden - authenticated but not permitted. */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -4586,6 +4990,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
             429: {
                 headers: {
@@ -4648,6 +5061,15 @@ export interface operations {
             };
             /** @description Not Found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -4747,6 +5169,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
             429: {
                 headers: {
@@ -4770,7 +5201,10 @@ export interface operations {
     ProjectUsers_List: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
+            };
             path?: never;
             cookie?: never;
         };
@@ -4803,6 +5237,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
             429: {
                 headers: {
@@ -4827,6 +5270,8 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
                 /** @description Client-generated unique key making retries safe. Completed responses are replayed for 24 hours. */
                 "Idempotency-Key"?: string;
             };
@@ -4886,6 +5331,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
             429: {
                 headers: {
@@ -4910,6 +5364,8 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
                 /** @description Optimistic concurrency token (ETag value from prior read) or '*' to bypass precondition check. */
                 "If-Match"?: string;
             };
@@ -4991,6 +5447,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
             429: {
                 headers: {
@@ -5015,6 +5480,8 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
                 /** @description Optimistic concurrency token (ETag value from prior read) or '*' to bypass precondition check. */
                 "If-Match"?: string;
             };
@@ -5079,6 +5546,15 @@ export interface operations {
             };
             /** @description Precondition Failed */
             412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5170,6 +5646,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
             429: {
                 headers: {
@@ -5193,7 +5678,10 @@ export interface operations {
     UserManagement_SetStatus: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
+            };
             path: {
                 userId: string;
             };
@@ -5254,6 +5742,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
             429: {
                 headers: {
@@ -5277,7 +5774,10 @@ export interface operations {
     FontManagement_ListFonts: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
+            };
             path?: never;
             cookie?: never;
         };
@@ -5310,6 +5810,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
             429: {
                 headers: {
@@ -5334,6 +5843,8 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
                 /** @description Client-generated unique key making retries safe. Completed responses are replayed for 24 hours. */
                 "Idempotency-Key"?: string;
             };
@@ -5377,6 +5888,15 @@ export interface operations {
             };
             /** @description Forbidden */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5433,6 +5953,15 @@ export interface operations {
             };
             /** @description Forbidden - authenticated but not permitted. */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5514,6 +6043,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
             429: {
                 headers: {
@@ -5537,7 +6075,10 @@ export interface operations {
     FontManagement_GetCatalog: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
+            };
             path?: never;
             cookie?: never;
         };
@@ -5563,6 +6104,15 @@ export interface operations {
             };
             /** @description Forbidden - authenticated but not permitted. */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5626,6 +6176,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
             429: {
                 headers: {
@@ -5680,6 +6239,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
             429: {
                 headers: {
@@ -5703,7 +6271,10 @@ export interface operations {
     TemplateAsset_Download: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
+            };
             path: {
                 id: string;
             };
@@ -5745,6 +6316,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
             429: {
                 headers: {
@@ -5768,7 +6348,10 @@ export interface operations {
     TemplateAsset_ScanFieldsById: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
+            };
             path: {
                 id: string;
             };
@@ -5812,6 +6395,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
             429: {
                 headers: {
@@ -5835,7 +6427,10 @@ export interface operations {
     TemplateAsset_ValidatePayload: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
+            };
             path: {
                 slug: string;
             };
@@ -5894,6 +6489,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
             429: {
                 headers: {
@@ -5917,7 +6521,10 @@ export interface operations {
     TemplateDataset_GetDatasets: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
+            };
             path: {
                 id: string;
             };
@@ -5952,6 +6559,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
             429: {
                 headers: {
@@ -5976,6 +6592,8 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
                 /** @description Optimistic concurrency token (ETag value from prior read) or '*' to bypass precondition check. */
                 "If-Match"?: string;
             };
@@ -6048,6 +6666,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
             429: {
                 headers: {
@@ -6071,7 +6698,10 @@ export interface operations {
     TemplateDraft_ParseDraft: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
+            };
             path?: never;
             cookie?: never;
         };
@@ -6119,6 +6749,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
             429: {
                 headers: {
@@ -6142,7 +6781,10 @@ export interface operations {
     TemplateDraft_PreviewDraft: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
+            };
             path: {
                 draftId: string;
             };
@@ -6192,6 +6834,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
             429: {
                 headers: {
@@ -6216,6 +6867,8 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
                 /** @description Client-generated unique key making retries safe. Completed responses are replayed for 24 hours. */
                 "Idempotency-Key"?: string;
             };
@@ -6286,6 +6939,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
             429: {
                 headers: {
@@ -6315,7 +6977,10 @@ export interface operations {
                 page?: number;
                 pageSize?: number;
             };
-            header?: never;
+            header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
+            };
             path?: never;
             cookie?: never;
         };
@@ -6348,6 +7013,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
             429: {
                 headers: {
@@ -6372,6 +7046,8 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
                 /** @description Client-generated unique key making retries safe. Completed responses are replayed for 24 hours. */
                 "Idempotency-Key"?: string;
             };
@@ -6437,6 +7113,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
             429: {
                 headers: {
@@ -6460,7 +7145,10 @@ export interface operations {
     TemplateLifecycle_GetById: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
+            };
             path: {
                 id: string;
             };
@@ -6506,6 +7194,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
             429: {
                 headers: {
@@ -6530,6 +7227,8 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
                 /** @description Optimistic concurrency token (ETag value from prior read) or '*' to bypass precondition check. */
                 "If-Match"?: string;
             };
@@ -6602,6 +7301,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
             429: {
                 headers: {
@@ -6626,6 +7334,8 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
                 /** @description Optimistic concurrency token (ETag value from prior read) or '*' to bypass precondition check. */
                 "If-Match"?: string;
             };
@@ -6679,6 +7389,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
             429: {
                 headers: {
@@ -6702,7 +7421,10 @@ export interface operations {
     TemplateMapping_GetMappings: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
+            };
             path: {
                 id: string;
             };
@@ -6737,6 +7459,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
             429: {
                 headers: {
@@ -6761,6 +7492,8 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
                 /** @description Optimistic concurrency token (ETag value from prior read) or '*' to bypass precondition check. */
                 "If-Match"?: string;
             };
@@ -6833,6 +7566,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
             429: {
                 headers: {
@@ -6856,7 +7598,10 @@ export interface operations {
     TemplateMapping_PreviewMappings: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
+            };
             path: {
                 id: string;
             };
@@ -6897,6 +7642,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
             429: {
                 headers: {
@@ -6920,7 +7674,10 @@ export interface operations {
     TemplateStudio_GetHtml: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
+            };
             path: {
                 id: string;
             };
@@ -6955,6 +7712,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
             429: {
                 headers: {
@@ -6979,6 +7745,8 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
                 /** @description Optimistic concurrency token (ETag value from prior read) or '*' to bypass precondition check. */
                 "If-Match"?: string;
             };
@@ -7033,6 +7801,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
             429: {
                 headers: {
@@ -7056,7 +7833,10 @@ export interface operations {
     TemplateStudio_GetStudioBundle: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
+            };
             path: {
                 id: string;
             };
@@ -7084,6 +7864,15 @@ export interface operations {
             };
             /** @description Forbidden - authenticated but not permitted. */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -7114,7 +7903,10 @@ export interface operations {
     TemplateStudio_GetStudioBundle_TemplatesIdStudioBundle: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
+            };
             path: {
                 id: string;
             };
@@ -7149,6 +7941,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
             429: {
                 headers: {
@@ -7172,7 +7973,10 @@ export interface operations {
     TemplateStudio_GetSchema: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
+            };
             path: {
                 id: string;
             };
@@ -7207,6 +8011,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
             429: {
                 headers: {
@@ -7230,7 +8043,10 @@ export interface operations {
     TemplateStudio_Validate: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
+            };
             path: {
                 id: string;
             };
@@ -7271,6 +8087,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
             429: {
                 headers: {
@@ -7294,7 +8119,10 @@ export interface operations {
     TemplateVersion_GetVersions: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
+            };
             path: {
                 id: string;
             };
@@ -7329,6 +8157,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
             429: {
                 headers: {
@@ -7352,7 +8189,10 @@ export interface operations {
     TemplateVersion_RollbackVersion: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
+            };
             path: {
                 id: string;
                 version: number;
@@ -7381,6 +8221,15 @@ export interface operations {
             };
             /** @description Forbidden - authenticated but not permitted. */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

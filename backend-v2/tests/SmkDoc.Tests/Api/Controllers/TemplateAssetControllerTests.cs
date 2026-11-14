@@ -3,12 +3,10 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.Controllers.Authoring;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.DownloadTemplate;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.ScanTemplatePlaceholders;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.ValidateTemplatePayload;
-using SmkDoc.Domain.Exceptions;
 
 namespace SmkDoc.Tests.Api.Controllers;
 

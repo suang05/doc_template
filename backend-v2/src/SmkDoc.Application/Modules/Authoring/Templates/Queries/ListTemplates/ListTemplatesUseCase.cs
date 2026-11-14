@@ -1,5 +1,3 @@
-using SmkDoc.Application.Common.Exceptions;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 
 namespace SmkDoc.Application.Modules.Authoring.Templates.Queries.ListTemplates;
@@ -11,7 +9,7 @@ namespace SmkDoc.Application.Modules.Authoring.Templates.Queries.ListTemplates;
 public sealed class ListTemplatesUseCase(
     ITemplateQueryService templateQueryService) : IUseCase<ListTemplatesQuery, TemplatePagedResultDto>
 {
-    public async Task<TemplatePagedResultDto> ExecuteAsync(ListTemplatesQuery query, CancellationToken ct = default)
+    public async Task<TemplatePagedResultDto> ExecuteAsync(ListTemplatesQuery query, CancellationToken ct)
     {
         int page = Math.Max(1, query.Page);
         int pageSize = Math.Clamp(query.PageSize, 1, 100);

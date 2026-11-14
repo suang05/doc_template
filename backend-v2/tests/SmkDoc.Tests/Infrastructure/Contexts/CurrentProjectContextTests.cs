@@ -1,9 +1,5 @@
-using FluentAssertions;
-using SmkDoc.Domain.Enums;
-using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Infrastructure.Contexts;
-using Xunit;
 
 namespace SmkDoc.Tests.Infrastructure.Contexts;
 
@@ -12,30 +8,30 @@ public sealed class CurrentProjectContextTests
     private static CurrentProjectContext CreateSut() => new();
 
     [Fact]
-    public void ProjectId_WhenUnresolved_ShouldThrowTenantContextRequiredException()
+    public void GetRequiredProjectId_WhenUnresolved_ShouldThrowTenantContextNotResolvedException()
     {
         // Step 1: Arrange
         var sut = CreateSut();
 
         // Step 2: Act & Assert
         sut.IsResolved.Should().BeFalse();
-        var act = () => _ = sut.ProjectId;
-        act.Should().Throw<TenantContextRequiredException>()
-            .WithMessage("*active tenant project context is required*");
+        var act = () => _ = sut.GetRequiredProjectId();
+        act.Should().Throw<TenantContextNotResolvedException>()
+            .WithMessage("*Ambient tenant project context was not resolved*");
     }
 
     [Fact]
-    public void OptionalProjectId_WhenUnresolved_ShouldReturnNull()
+    public void TryGetProjectId_WhenUnresolved_ShouldReturnNull()
     {
         // Step 1: Arrange
         var sut = CreateSut();
 
         // Step 2: Act & Assert
-        sut.OptionalProjectId.Should().BeNull();
+        sut.TryGetProjectId().Should().BeNull();
     }
 
     [Fact]
-    public void SetProject_WhenValidProjectIdProvided_ShouldResolveBothProperties()
+    public void SetProject_WhenValidProjectIdProvided_ShouldResolveBothMethods()
     {
         // Step 1: Arrange
         var sut = CreateSut();
@@ -46,8 +42,8 @@ public sealed class CurrentProjectContextTests
 
         // Step 3: Assert
         sut.IsResolved.Should().BeTrue();
-        sut.ProjectId.Should().Be(expectedId);
-        sut.OptionalProjectId.Should().Be(expectedId);
+        sut.GetRequiredProjectId().Should().Be(expectedId);
+        sut.TryGetProjectId().Should().Be(expectedId);
         sut.CallerIdentity.Should().Be("test-caller");
     }
 

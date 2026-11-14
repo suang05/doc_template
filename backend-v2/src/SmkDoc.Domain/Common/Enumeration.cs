@@ -13,22 +13,17 @@ public abstract class Enumeration(int id, string name) : IComparable
 
     private static class Cache<T> where T : Enumeration
     {
-        internal static readonly IReadOnlyList<T> All;
-        internal static readonly Dictionary<int, T> ById;
-        internal static readonly Dictionary<string, T> ByName;
+        internal static readonly IReadOnlyList<T> All = BuildAll();
+        internal static readonly Dictionary<int, T> ById = All.ToDictionary(x => x.Id);
+        internal static readonly Dictionary<string, T> ByName = All.ToDictionary(x => x.Name, StringComparer.OrdinalIgnoreCase);
 
-        static Cache()
-        {
-            All = typeof(T).GetFields(BindingFlags.Public |
-                                      BindingFlags.Static |
-                                      BindingFlags.DeclaredOnly)
+        private static T[] BuildAll() =>
+            typeof(T).GetFields(BindingFlags.Public |
+                                BindingFlags.Static |
+                                BindingFlags.DeclaredOnly)
                 .Select(f => f.GetValue(null))
                 .Cast<T>()
                 .ToArray();
-
-            ById = All.ToDictionary(x => x.Id);
-            ByName = All.ToDictionary(x => x.Name, StringComparer.OrdinalIgnoreCase);
-        }
     }
 
     public static IEnumerable<T> GetAll<T>() where T : Enumeration => Cache<T>.All;
@@ -48,7 +43,38 @@ public abstract class Enumeration(int id, string name) : IComparable
 
     public override int GetHashCode() => Id.GetHashCode();
 
-    public int CompareTo(object? other) => Id.CompareTo(((Enumeration)other!).Id);
+    public int CompareTo(object? obj)
+    {
+        if (obj is null)
+        {
+            return 1;
+        }
+
+        if (obj is not Enumeration other)
+        {
+            throw new ArgumentException($"Object must be of type {nameof(Enumeration)}.", nameof(obj));
+        }
+
+        return Id.CompareTo(other.Id);
+    }
+
+    public static bool operator ==(Enumeration? left, Enumeration? right) =>
+        Equals(left, right);
+
+    public static bool operator !=(Enumeration? left, Enumeration? right) =>
+        !Equals(left, right);
+
+    public static bool operator <(Enumeration? left, Enumeration? right) =>
+        left is null ? right is not null : left.CompareTo(right) < 0;
+
+    public static bool operator <=(Enumeration? left, Enumeration? right) =>
+        left is null || left.CompareTo(right) <= 0;
+
+    public static bool operator >(Enumeration? left, Enumeration? right) =>
+        left is not null && left.CompareTo(right) > 0;
+
+    public static bool operator >=(Enumeration? left, Enumeration? right) =>
+        left is null ? right is null : left.CompareTo(right) >= 0;
 
     public static T FromValue<T>(int value) where T : Enumeration
     {

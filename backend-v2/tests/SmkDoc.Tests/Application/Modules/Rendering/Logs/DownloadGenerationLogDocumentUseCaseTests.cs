@@ -1,11 +1,6 @@
 using SmkDoc.Application.Common;
-using SmkDoc.Application.Common.Exceptions;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Rendering.Logs.Queries.DownloadGenerationLogDocument;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Enums;
-using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common.Builders;
 
@@ -21,7 +16,7 @@ public sealed class DownloadGenerationLogDocumentUseCaseTests
     public DownloadGenerationLogDocumentUseCaseTests()
     {
         _projectContext.IsResolved.Returns(true);
-        _projectContext.ProjectId.Returns(new ProjectId(_projectId));
+        _projectContext.GetRequiredProjectId().Returns(new ProjectId(_projectId));
         _projectContext.SystemRole.Returns((SystemRole?)null);
     }
 
@@ -29,7 +24,7 @@ public sealed class DownloadGenerationLogDocumentUseCaseTests
         new(_logRepo, _storageService, _projectContext);
 
     [Fact]
-    public async Task ExecuteAsync_WhenProjectContextNotResolvedAndNotSuperAdmin_ShouldThrowTenantContextRequiredException()
+    public async Task ExecuteAsync_WhenProjectContextNotResolvedAndNotSuperAdmin_ShouldThrowTenantContextNotResolvedException()
     {
         // Arrange
         var logId = Guid.NewGuid();
@@ -42,15 +37,15 @@ public sealed class DownloadGenerationLogDocumentUseCaseTests
         _logRepo.GetByIdAsync(logId, Arg.Any<CancellationToken>())
             .Returns(log);
         _projectContext.IsResolved.Returns(false);
-        _projectContext.ProjectId.Returns(_ => throw new TenantContextRequiredException());
+        _projectContext.GetRequiredProjectId().Returns(_ => throw new TenantContextNotResolvedException());
         var sut = CreateSut();
         var query = new DownloadGenerationLogDocumentQuery(logId);
 
         // Act
-        var act = () => sut.ExecuteAsync(query);
+        var act = () => sut.ExecuteAsync(query, CancellationToken.None);
 
         // Assert
-        await act.Should().ThrowAsync<TenantContextRequiredException>();
+        await act.Should().ThrowAsync<TenantContextNotResolvedException>();
     }
 
     [Fact]
@@ -63,7 +58,7 @@ public sealed class DownloadGenerationLogDocumentUseCaseTests
         var sut = CreateSut();
 
         // Act
-        var act = () => sut.ExecuteAsync(new DownloadGenerationLogDocumentQuery(logId));
+        var act = () => sut.ExecuteAsync(new DownloadGenerationLogDocumentQuery(logId), CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<NotFoundException>()
@@ -87,7 +82,7 @@ public sealed class DownloadGenerationLogDocumentUseCaseTests
         var sut = CreateSut();
 
         // Act
-        var act = () => sut.ExecuteAsync(new DownloadGenerationLogDocumentQuery(logId));
+        var act = () => sut.ExecuteAsync(new DownloadGenerationLogDocumentQuery(logId), CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<CrossTenantAccessDeniedException>()
@@ -110,7 +105,7 @@ public sealed class DownloadGenerationLogDocumentUseCaseTests
         var sut = CreateSut();
 
         // Act
-        var act = () => sut.ExecuteAsync(new DownloadGenerationLogDocumentQuery(logId));
+        var act = () => sut.ExecuteAsync(new DownloadGenerationLogDocumentQuery(logId), CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<NotFoundException>()
@@ -138,7 +133,7 @@ public sealed class DownloadGenerationLogDocumentUseCaseTests
         var sut = CreateSut();
 
         // Act
-        var result = await sut.ExecuteAsync(new DownloadGenerationLogDocumentQuery(logId));
+        var result = await sut.ExecuteAsync(new DownloadGenerationLogDocumentQuery(logId), CancellationToken.None);
 
         // Assert
         result.Should().NotBeNull();
@@ -170,7 +165,7 @@ public sealed class DownloadGenerationLogDocumentUseCaseTests
         var sut = CreateSut();
 
         // Act
-        var result = await sut.ExecuteAsync(new DownloadGenerationLogDocumentQuery(logId));
+        var result = await sut.ExecuteAsync(new DownloadGenerationLogDocumentQuery(logId), CancellationToken.None);
 
         // Assert
         result.Should().NotBeNull();

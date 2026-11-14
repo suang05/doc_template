@@ -4,7 +4,7 @@ namespace SmkDoc.Domain.Exceptions;
 /// Thrown when an operation is attempted within a deactivated project.
 /// </summary>
 public sealed class ProjectDeactivatedException(Guid projectId)
-    : BusinessRuleViolationException($"Project '{projectId}' is deactivated.", "PROJECT_DEACTIVATED")
+    : BusinessRuleViolationException($"Project '{projectId}' is deactivated.", ErrorCodes.ProjectDeactivated)
 {
     public Guid ProjectId { get; } = projectId;
 }

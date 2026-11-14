@@ -1,5 +1,4 @@
 using FluentValidation;
-using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
 
 namespace SmkDoc.Application.Modules.IdentityAccess.Security.Commands.Login;
 

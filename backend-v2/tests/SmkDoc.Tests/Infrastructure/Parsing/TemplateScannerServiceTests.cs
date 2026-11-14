@@ -1,8 +1,5 @@
 using System.Text;
-using FluentAssertions;
-using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Infrastructure.Engines;
-using Xunit;
 
 namespace SmkDoc.Tests.Infrastructure.Parsing;
 
@@ -39,7 +36,7 @@ public sealed class TemplateScannerServiceTests
             </html>";
 
         using var stream = new MemoryStream(Encoding.UTF8.GetBytes(html));
-        var placeholders = await scanner.ScanPlaceholdersAsync(stream, ".html");
+        var placeholders = await scanner.ScanPlaceholdersAsync(stream, ".html", CancellationToken.None);
 
         placeholders.Should().Contain("companyName");
         placeholders.Should().Contain("customer.fullName");
@@ -81,7 +78,7 @@ public sealed class TemplateScannerServiceTests
             </html>";
 
         using var stream = new MemoryStream(Encoding.UTF8.GetBytes(html));
-        var detailed = await scanner.ScanDetailedPlaceholdersAsync(stream, ".html");
+        var detailed = await scanner.ScanDetailedPlaceholdersAsync(stream, ".html", CancellationToken.None);
 
         detailed.Should().Contain(p => p.Name == "companyName" && p.Category == PlaceholderCategory.Scalar);
         detailed.Should().Contain(p => p.Name == "customer.fullName" && p.Category == PlaceholderCategory.Object);

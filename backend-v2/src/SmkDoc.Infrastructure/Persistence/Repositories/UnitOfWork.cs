@@ -1,3 +1,4 @@
+using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Common;
 using SmkDoc.Domain.Interfaces;
 
@@ -11,7 +12,7 @@ public sealed class UnitOfWork(
     AppDbContext dbContext,
     IDomainEventDispatcher? domainEventDispatcher = null) : IUnitOfWork
 {
-    public async Task<int> CommitAsync(CancellationToken ct = default)
+    public async Task<int> CommitAsync(CancellationToken ct)
     {
         var entitiesWithEvents = dbContext.ChangeTracker
             .Entries<IHaveDomainEvents>()

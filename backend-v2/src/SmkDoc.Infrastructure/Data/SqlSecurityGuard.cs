@@ -37,7 +37,7 @@ public sealed partial class SqlSecurityGuard(
     [GeneratedRegex(@"[a-zA-Z_][a-zA-Z0-9_$]*", RegexOptions.Compiled)]
     private static partial Regex SqlIdentifierRegex();
 
-    public async Task ValidateConnectionTargetAsync(string provider, string connectionString, CancellationToken ct = default)
+    public async Task ValidateConnectionTargetAsync(string provider, string connectionString, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(provider))
         {
@@ -294,7 +294,11 @@ public sealed partial class SqlSecurityGuard(
         {
             internalBuilder = new NpgsqlConnectionStringBuilder(internalConnStr);
         }
-        catch
+        catch (ArgumentException)
+        {
+            return;
+        }
+        catch (FormatException)
         {
             return;
         }

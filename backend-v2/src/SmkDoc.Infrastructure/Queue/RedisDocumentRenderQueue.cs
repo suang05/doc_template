@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using SmkDoc.Application.Common.Interfaces;
@@ -13,7 +14,8 @@ namespace SmkDoc.Infrastructure.Queue;
 /// backed by Redis Streams with Consumer Groups (XADD, XREADGROUP, XACK)
 /// providing guaranteed at-least-once document delivery.
 /// </summary>
-public sealed class RedisDocumentRenderQueue(
+[SuppressMessage("Naming", "CA1711:Identifiers should not have incorrect suffix", Justification = "Distributed message queue implementation, not System.Collections.Queue.")]
+public sealed partial class RedisDocumentRenderQueue(
     IConnectionMultiplexer multiplexer,
     ILogger<RedisDocumentRenderQueue> logger,
     string instancePrefix = RedisConfigurationResolver.DefaultInstancePrefix) : IDocumentRenderQueue
@@ -28,7 +30,7 @@ public sealed class RedisDocumentRenderQueue(
     private readonly ConcurrentDictionary<Guid, string> _activeStreamIds = new();
     private volatile bool _groupInitialized;
 
-    public async Task<Guid> EnqueueAsync(DocumentJob job, CancellationToken ct = default)
+    public async Task<Guid> EnqueueAsync(DocumentJob job, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(job);
         ct.ThrowIfCancellationRequested();
@@ -45,12 +47,14 @@ public sealed class RedisDocumentRenderQueue(
         }
         catch (RedisException ex)
         {
-            logger.LogError(ex, "Failed to enqueue document job {JobId} in Redis Streams", job.JobId);
-            throw;
+            throw new SmkDoc.Application.Common.Exceptions.ExternalServiceException(
+                "Redis",
+                $"Failed to enqueue document job {job.JobId} in Redis Streams.",
+                ex);
         }
     }
 
-    public async Task<DocumentJob?> DequeueAsync(CancellationToken ct = default)
+    public async Task<DocumentJob?> DequeueAsync(CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
 
@@ -113,12 +117,14 @@ public sealed class RedisDocumentRenderQueue(
         }
         catch (RedisException ex)
         {
-            logger.LogError(ex, "Failed to dequeue next document job from Redis Streams");
-            throw;
+            throw new SmkDoc.Application.Common.Exceptions.ExternalServiceException(
+                "Redis",
+                "Failed to dequeue next document job from Redis Streams.",
+                ex);
         }
     }
 
-    public async Task<DocumentJob?> GetJobAsync(Guid jobId, CancellationToken ct = default)
+    public async Task<DocumentJob?> GetJobAsync(Guid jobId, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
 
@@ -137,12 +143,14 @@ public sealed class RedisDocumentRenderQueue(
         }
         catch (RedisException ex)
         {
-            logger.LogError(ex, "Failed to retrieve document job {JobId} from Redis", jobId);
-            throw;
+            throw new SmkDoc.Application.Common.Exceptions.ExternalServiceException(
+                "Redis",
+                $"Failed to retrieve document job {jobId} from Redis.",
+                ex);
         }
     }
 
-    public async Task UpdateJobAsync(DocumentJob job, CancellationToken ct = default)
+    public async Task UpdateJobAsync(DocumentJob job, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(job);
         ct.ThrowIfCancellationRequested();
@@ -177,8 +185,10 @@ public sealed class RedisDocumentRenderQueue(
         }
         catch (RedisException ex)
         {
-            logger.LogError(ex, "Failed to update document job {JobId} in Redis", job.JobId);
-            throw;
+            throw new SmkDoc.Application.Common.Exceptions.ExternalServiceException(
+                "Redis",
+                $"Failed to update document job {job.JobId} in Redis.",
+                ex);
         }
     }
 
@@ -191,16 +201,30 @@ public sealed class RedisDocumentRenderQueue(
             await db.StreamCreateConsumerGroupAsync(_streamKey, _groupName, "0-0", createStream: true);
             _groupInitialized = true;
         }
-        catch (RedisServerException ex) when (ex.Message.Contains("BUSYGROUP"))
+        catch (RedisServerException ex) when (ex.Message.Contains("BUSYGROUP", StringComparison.Ordinal))
         {
             _groupInitialized = true;
         }
-        catch (Exception ex)
+        catch (RedisException ex)
         {
-            logger.LogWarning(ex, "Could not create consumer group {GroupName} on stream {StreamKey}", _groupName, _streamKey);
+            LogCreateConsumerGroupFailed(logger, ex, _groupName, _streamKey);
+        }
+        catch (TimeoutException ex)
+        {
+            LogCreateConsumerGroupTimedOut(logger, ex, _groupName, _streamKey);
         }
     }
 
     private RedisKey PrefixedJobKey(Guid jobId) => $"{instancePrefix}render:jobs:{jobId}";
     private RedisKey PrefixedStreamIdKey(Guid jobId) => $"{instancePrefix}render:jobs:{jobId}:stream_id";
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Could not create consumer group {GroupName} on stream {StreamKey}")]
+    private static partial void LogCreateConsumerGroupFailed(ILogger logger, RedisException ex, string? groupName, string? streamKey);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Timed out creating consumer group {GroupName} on stream {StreamKey}")]
+    private static partial void LogCreateConsumerGroupTimedOut(ILogger logger, TimeoutException ex, string? groupName, string? streamKey);
 }

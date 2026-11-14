@@ -368,7 +368,8 @@ public sealed class HybridSpoolStream : Stream
         if (disposing)
         {
             ReturnPooledBuffer();
-            Interlocked.Exchange(ref _fileStream, null)?.Dispose();
+            _fileStream?.Dispose();
+            _fileStream = null;
         }
 
         base.Dispose(disposing);
@@ -379,10 +380,10 @@ public sealed class HybridSpoolStream : Stream
         _disposed = true;
         ReturnPooledBuffer();
 
-        var fileStream = Interlocked.Exchange(ref _fileStream, null);
-        if (fileStream is not null)
+        if (_fileStream is not null)
         {
-            await fileStream.DisposeAsync();
+            await _fileStream.DisposeAsync();
+            _fileStream = null;
         }
 
         await base.DisposeAsync();

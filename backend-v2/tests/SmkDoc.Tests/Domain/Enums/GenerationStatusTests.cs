@@ -1,8 +1,4 @@
-﻿using FluentAssertions;
-using SmkDoc.Domain.Common;
-using SmkDoc.Domain.Enums;
-using SmkDoc.Domain.Exceptions;
-using Xunit;
+﻿using SmkDoc.Domain.Common;
 
 namespace SmkDoc.Tests.Domain.Enums;
 

@@ -12,20 +12,23 @@ namespace SmkDoc.Infrastructure.Events;
 /// Individual handler failures are logged and isolated so post-commit side-effects never invalidate
 /// already-committed database transactions or trigger compensating object storage rollbacks.
 /// </summary>
-public sealed class DomainEventDispatcher(
+public sealed partial class DomainEventDispatcher(
     IServiceProvider serviceProvider,
     ILogger<DomainEventDispatcher> logger) : IDomainEventDispatcher
 {
     private static readonly ConcurrentDictionary<Type, DomainEventHandlerWrapper> HandlerWrappers = new();
 
-    public async Task DispatchEventsAsync(IEnumerable<IDomainEvent> domainEvents, CancellationToken ct = default)
+    public async Task DispatchEventsAsync(IEnumerable<IDomainEvent> domainEvents, CancellationToken ct)
     {
         foreach (var domainEvent in domainEvents)
         {
             ct.ThrowIfCancellationRequested();
 
             var eventType = domainEvent.GetType();
-            logger.LogInformation("Dispatching post-commit domain event {EventType}", eventType.Name);
+            if (logger.IsEnabled(LogLevel.Information))
+            {
+                LogDispatchingEvent(logger, eventType.Name);
+            }
 
             var wrapper = HandlerWrappers.GetOrAdd(eventType, static type =>
             {
@@ -36,6 +39,16 @@ public sealed class DomainEventDispatcher(
             await wrapper.HandleAsync(domainEvent, serviceProvider, logger, ct);
         }
     }
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "Dispatching post-commit domain event {EventType}")]
+    private static partial void LogDispatchingEvent(ILogger logger, string eventType);
+
+    [LoggerMessage(
+        Level = LogLevel.Error,
+        Message = "Post-commit domain event handler {HandlerType} failed while handling {EventType}; isolating fault.")]
+    private static partial void LogHandlerFailed(ILogger logger, Exception exception, string handlerType, string eventType);
 
     private abstract class DomainEventHandlerWrapper
     {
@@ -66,11 +79,7 @@ public sealed class DomainEventDispatcher(
                 }
                 catch (Exception exception) when (exception is not OperationCanceledException)
                 {
-                    logger.LogError(
-                        exception,
-                        "Post-commit domain event handler {HandlerType} failed while handling {EventType}; isolating fault.",
-                        handler.GetType().Name,
-                        typeof(TEvent).Name);
+                    LogHandlerFailed(logger, exception, handler.GetType().Name, typeof(TEvent).Name);
                 }
             }
         }

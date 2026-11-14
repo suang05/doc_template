@@ -1,13 +1,17 @@
+using System.Data.Common;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Rendering.Documents.Commands.GenerateDocument;
 using SmkDoc.Application.Modules.Rendering.Documents.DTOs;
 using SmkDoc.Application.Modules.Rendering.Documents.Models;
+using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects.Ids;
+using StackExchange.Redis;
 
 namespace SmkDoc.Infrastructure.BackgroundWorkers;
 
@@ -22,7 +26,7 @@ public sealed class DocumentRenderWorkerOptions
 /// Throttles Gotenberg Chromium conversions via <see cref="SemaphoreSlim"/> to bound CPU, RAM,
 /// and socket allocation, preventing thread starvation and pod crashes during enterprise batch generation.
 /// </summary>
-public sealed class DocumentRenderQueueWorker(
+public sealed partial class DocumentRenderQueueWorker(
     IDocumentRenderQueue queue,
     IServiceScopeFactory scopeFactory,
     ILogger<DocumentRenderQueueWorker> logger,
@@ -35,10 +39,10 @@ public sealed class DocumentRenderQueueWorker(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        logger.LogInformation(
-            "DocumentRenderQueueWorker started with MaxConcurrentRenders={MaxConcurrentRenders}, PollDelay={PollDelayMs}ms",
-            _maxConcurrentRenders,
-            _pollDelay.TotalMilliseconds);
+        if (logger.IsEnabled(LogLevel.Information))
+        {
+            LogWorkerStarted(logger, _maxConcurrentRenders, _pollDelay.TotalMilliseconds);
+        }
 
         var activeTasks = new List<Task>();
 
@@ -55,7 +59,7 @@ public sealed class DocumentRenderQueueWorker(
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
-                    logger.LogError(ex, "Error while dequeueing document render job from queue");
+                    LogDequeueError(logger, ex);
                     _throttler.Release();
                     await Task.Delay(_pollDelay, stoppingToken);
                     continue;
@@ -79,21 +83,45 @@ public sealed class DocumentRenderQueueWorker(
             {
                 break;
             }
-            catch (Exception ex)
+            catch (ExternalServiceException ex)
             {
-                logger.LogError(ex, "Unexpected error in DocumentRenderQueueWorker loop");
-                await Task.Delay(_pollDelay, stoppingToken);
+                await HandleLoopErrorAsync(ex, stoppingToken);
+            }
+            catch (RedisException ex)
+            {
+                await HandleLoopErrorAsync(ex, stoppingToken);
+            }
+            catch (TimeoutException ex)
+            {
+                await HandleLoopErrorAsync(ex, stoppingToken);
+            }
+            catch (InvalidOperationException ex)
+            {
+                await HandleLoopErrorAsync(ex, stoppingToken);
+            }
+            catch (JsonException ex)
+            {
+                await HandleLoopErrorAsync(ex, stoppingToken);
             }
         }
 
         // Wait for in-flight jobs on graceful shutdown
         if (activeTasks.Count > 0)
         {
-            logger.LogInformation("DocumentRenderQueueWorker waiting for {Count} in-flight jobs to complete...", activeTasks.Count);
+            if (logger.IsEnabled(LogLevel.Information))
+            {
+                LogWaitingInFlightJobs(logger, activeTasks.Count);
+            }
             await Task.WhenAll(activeTasks);
         }
 
-        logger.LogInformation("DocumentRenderQueueWorker stopped.");
+        LogWorkerStopped(logger);
+    }
+
+    private async Task HandleLoopErrorAsync(Exception ex, CancellationToken stoppingToken)
+    {
+        LogUnexpectedLoopError(logger, ex);
+        await Task.Delay(_pollDelay, stoppingToken);
     }
 
     private async Task ProcessJobSafeAsync(DocumentJob job, CancellationToken stoppingToken)
@@ -125,33 +153,93 @@ public sealed class DocumentRenderQueueWorker(
             job.MarkCompleted(result, timeProvider.GetUtcNow());
             await queue.UpdateJobAsync(job, stoppingToken);
 
-            logger.LogInformation(
-                "Document render job {JobId} completed successfully for project {ProjectId} (Slug: {Slug})",
-                job.JobId,
-                job.ProjectId,
-                job.Slug);
+            if (logger.IsEnabled(LogLevel.Information))
+            {
+                LogJobCompleted(logger, job.JobId, job.ProjectId, job.Slug);
+            }
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
-            logger.LogWarning("Document render job {JobId} canceled during shutdown", job.JobId);
+            LogJobCanceled(logger, job.JobId);
         }
-        catch (Exception ex)
+        catch (DomainException ex)
         {
-            logger.LogError(ex, "Document render job {JobId} failed", job.JobId);
-            job.MarkFailed(ex.Message, timeProvider.GetUtcNow());
-
-            try
-            {
-                await queue.UpdateJobAsync(job, CancellationToken.None);
-            }
-            catch (Exception updateEx)
-            {
-                logger.LogError(updateEx, "Failed to update job status for failed job {JobId}", job.JobId);
-            }
+            await MarkJobFailedAsync(job, ex);
+        }
+        catch (ExternalServiceException ex)
+        {
+            await MarkJobFailedAsync(job, ex);
+        }
+        catch (RedisException ex)
+        {
+            await MarkJobFailedAsync(job, ex);
+        }
+        catch (DbException ex)
+        {
+            await MarkJobFailedAsync(job, ex);
+        }
+        catch (HttpRequestException ex)
+        {
+            await MarkJobFailedAsync(job, ex);
+        }
+        catch (IOException ex)
+        {
+            await MarkJobFailedAsync(job, ex);
+        }
+        catch (JsonException ex)
+        {
+            await MarkJobFailedAsync(job, ex);
+        }
+        catch (TimeoutException ex)
+        {
+            await MarkJobFailedAsync(job, ex);
+        }
+        catch (InvalidOperationException ex)
+        {
+            await MarkJobFailedAsync(job, ex);
+        }
+        catch (ArgumentException ex)
+        {
+            await MarkJobFailedAsync(job, ex);
+        }
+        catch (FormatException ex)
+        {
+            await MarkJobFailedAsync(job, ex);
+        }
+        catch (NotSupportedException ex)
+        {
+            await MarkJobFailedAsync(job, ex);
         }
         finally
         {
             _throttler.Release();
+        }
+    }
+
+    private async Task MarkJobFailedAsync(DocumentJob job, Exception ex)
+    {
+        WriteJobFailed(logger, ex, job.JobId);
+        job.MarkFailed(ex.Message, timeProvider.GetUtcNow());
+
+        try
+        {
+            await queue.UpdateJobAsync(job, CancellationToken.None);
+        }
+        catch (ExternalServiceException updateEx)
+        {
+            WriteJobStatusUpdateFailed(logger, updateEx, job.JobId);
+        }
+        catch (RedisException updateEx)
+        {
+            WriteJobStatusUpdateFailed(logger, updateEx, job.JobId);
+        }
+        catch (TimeoutException updateEx)
+        {
+            WriteJobStatusUpdateFailed(logger, updateEx, job.JobId);
+        }
+        catch (InvalidOperationException updateEx)
+        {
+            WriteJobStatusUpdateFailed(logger, updateEx, job.JobId);
         }
     }
 
@@ -160,5 +248,50 @@ public sealed class DocumentRenderQueueWorker(
         _throttler.Dispose();
         base.Dispose();
     }
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "DocumentRenderQueueWorker started with MaxConcurrentRenders={MaxConcurrentRenders}, PollDelay={PollDelayMs}ms")]
+    private static partial void LogWorkerStarted(ILogger logger, int maxConcurrentRenders, double pollDelayMs);
+
+    [LoggerMessage(
+        Level = LogLevel.Error,
+        Message = "Error while dequeueing document render job from queue")]
+    private static partial void LogDequeueError(ILogger logger, Exception ex);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "DocumentRenderQueueWorker waiting for {Count} in-flight jobs to complete...")]
+    private static partial void LogWaitingInFlightJobs(ILogger logger, int count);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "DocumentRenderQueueWorker stopped.")]
+    private static partial void LogWorkerStopped(ILogger logger);
+
+    [LoggerMessage(
+        Level = LogLevel.Error,
+        Message = "Unexpected error in DocumentRenderQueueWorker loop")]
+    private static partial void LogUnexpectedLoopError(ILogger logger, Exception ex);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "Document render job {JobId} completed successfully for project {ProjectId} (Slug: {Slug})")]
+    private static partial void LogJobCompleted(ILogger logger, Guid jobId, Guid projectId, string slug);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Document render job {JobId} canceled during shutdown")]
+    private static partial void LogJobCanceled(ILogger logger, Guid jobId);
+
+    [LoggerMessage(
+        Level = LogLevel.Error,
+        Message = "Document render job {JobId} failed")]
+    private static partial void WriteJobFailed(ILogger logger, Exception ex, Guid jobId);
+
+    [LoggerMessage(
+        Level = LogLevel.Error,
+        Message = "Failed to update job status for failed job {JobId}")]
+    private static partial void WriteJobStatusUpdateFailed(ILogger logger, Exception ex, Guid jobId);
 }
 

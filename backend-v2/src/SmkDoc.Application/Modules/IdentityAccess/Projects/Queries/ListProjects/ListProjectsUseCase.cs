@@ -1,7 +1,5 @@
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Projects.DTOs;
 using SmkDoc.Domain.Enums;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Modules.IdentityAccess.Projects.Queries.ListProjects;
@@ -10,7 +8,7 @@ public sealed class ListProjectsUseCase(
     IProjectQueryService projectQueryService,
     IUserRepository userRepo) : IUseCase<ListProjectsQuery, ProjectPagedResultDto>
 {
-    public async Task<ProjectPagedResultDto> ExecuteAsync(ListProjectsQuery query, CancellationToken ct = default)
+    public async Task<ProjectPagedResultDto> ExecuteAsync(ListProjectsQuery query, CancellationToken ct)
     {
         int page = Math.Max(1, query.Page);
         int pageSize = Math.Clamp(query.PageSize, 1, 100);

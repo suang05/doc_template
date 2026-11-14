@@ -1,6 +1,4 @@
-﻿using FluentAssertions;
-using SmkDoc.Application.Common.Helpers;
-using Xunit;
+﻿using SmkDoc.Application.Common.Helpers;
 
 namespace SmkDoc.Tests.Application.Common.Helpers;
 

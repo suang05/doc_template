@@ -1,17 +1,9 @@
-using FluentAssertions;
-using NSubstitute;
 using SmkDoc.Application.Common.Constants;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.Login;
 using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Services;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Enums;
-using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.Interfaces;
-using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Tests.Common.Builders;
-using Xunit;
 
 namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Security.Commands.Login;
 
@@ -19,7 +11,7 @@ public sealed class LoginUseCaseTests
 {
     private readonly IUserRepository _userRepo = Substitute.For<IUserRepository>();
     private readonly IPasswordHasher _passwordHasher = Substitute.For<IPasswordHasher>();
-    private readonly ITokenIssuerService _tokenIssuerService = Substitute.For<ITokenIssuerService>();
+    private readonly ITokenSessionGenerator _tokenSessionGenerator = Substitute.For<ITokenSessionGenerator>();
     private readonly IUnitOfWork _uow = Substitute.For<IUnitOfWork>();
     private readonly ISecurityAuditService _auditService = Substitute.For<ISecurityAuditService>();
 
@@ -29,7 +21,7 @@ public sealed class LoginUseCaseTests
     }
 
     private LoginUseCase CreateSut() =>
-        new(_userRepo, _passwordHasher, _tokenIssuerService, _uow, _auditService);
+        new(_userRepo, _passwordHasher, _tokenSessionGenerator, _uow, _auditService);
 
     [Fact]
     public async Task ExecuteAsync_WhenValidCredentials_IssuesTokensAndCommitsSession()
@@ -63,11 +55,11 @@ public sealed class LoginUseCaseTests
         _passwordHasher.VerifyPassword("password123", "hashed_pw")
             .Returns(true);
 
-        _tokenIssuerService.IssueTokensAsync(user, Arg.Any<Guid?>(), Arg.Any<CancellationToken>())
+        _tokenSessionGenerator.IssueTokensAsync(user, Arg.Any<Guid?>(), Arg.Any<CancellationToken>())
             .Returns(issuedTokens);
 
         // Act
-        var result = await CreateSut().ExecuteAsync(command);
+        var result = await CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         result.Should().NotBeNull();
@@ -91,7 +83,7 @@ public sealed class LoginUseCaseTests
             .Returns((User?)null);
 
         // Act
-        var act = () => CreateSut().ExecuteAsync(command);
+        var act = () => CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<UnauthorizedException>()
@@ -112,7 +104,7 @@ public sealed class LoginUseCaseTests
             .Returns(inactiveUser);
 
         // Act
-        var act = () => CreateSut().ExecuteAsync(command);
+        var act = () => CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<UnauthorizedException>()
@@ -138,7 +130,7 @@ public sealed class LoginUseCaseTests
             .Returns(false);
 
         // Act
-        var act = () => CreateSut().ExecuteAsync(command);
+        var act = () => CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<UnauthorizedException>()

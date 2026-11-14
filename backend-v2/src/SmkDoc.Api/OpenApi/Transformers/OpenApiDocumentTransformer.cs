@@ -11,7 +11,7 @@ public sealed class OpenApiDocumentTransformer(IConfiguration configuration) : I
     public Task TransformAsync(
         OpenApiDocument document,
         OpenApiDocumentTransformerContext context,
-        CancellationToken ct)
+        CancellationToken cancellationToken)
     {
         // Step 1: Info & servers
         document.Info = BuildInfo();
@@ -90,34 +90,19 @@ public sealed class OpenApiDocumentTransformer(IConfiguration configuration) : I
 
     private static OpenApiSchema BuildFieldErrorsSchema() => new()
     {
-        Description = "Field-level validation errors: property-to-messages map on 400, or rule-violation list on 422.",
-        OneOf =
-        [
-            new OpenApiSchema
+        Description = "RFC 9457 field-level validation and JSON schema errors with RFC 6901 JSON Pointers.",
+        Type = JsonSchemaType.Array,
+        Items = new OpenApiSchema
+        {
+            Type = JsonSchemaType.Object,
+            Required = new HashSet<string> { "pointer", "code", "message" },
+            Properties = new Dictionary<string, IOpenApiSchema>
             {
-                Type = JsonSchemaType.Object,
-                AdditionalPropertiesAllowed = true,
-                AdditionalProperties = new OpenApiSchema
-                {
-                    Type = JsonSchemaType.Array,
-                    Items = new OpenApiSchema { Type = JsonSchemaType.String }
-                }
-            },
-            new OpenApiSchema
-            {
-                Type = JsonSchemaType.Array,
-                Items = new OpenApiSchema
-                {
-                    Type = JsonSchemaType.Object,
-                    Properties = new Dictionary<string, IOpenApiSchema>
-                    {
-                        ["path"] = new OpenApiSchema { Type = JsonSchemaType.String },
-                        ["message"] = new OpenApiSchema { Type = JsonSchemaType.String },
-                        ["rule"] = new OpenApiSchema { Type = JsonSchemaType.String }
-                    }
-                }
+                ["pointer"] = new OpenApiSchema { Type = JsonSchemaType.String, Description = "RFC 6901 JSON Pointer targeting the offending property or document location." },
+                ["code"] = new OpenApiSchema { Type = JsonSchemaType.String, Description = "Machine-readable validation rule code in UPPER_SNAKE_CASE." },
+                ["message"] = new OpenApiSchema { Type = JsonSchemaType.String, Description = "Human-readable validation failure description." }
             }
-        ]
+        }
     };
 }
 

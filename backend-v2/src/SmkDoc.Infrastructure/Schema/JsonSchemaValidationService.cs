@@ -130,13 +130,25 @@ public sealed class JsonSchemaValidationService : IJsonSchemaValidationService
                 _cache.Set(cacheKey, schema, CacheOptions);
                 return (schema, null);
             }
-            catch (Exception ex)
+            catch (System.Text.Json.JsonException ex)
             {
-                var error = new ValidationErrorItem(
-                    "/",
-                    "schema-parse",
-                    $"Stored schema is not valid JSON Schema: {ex.Message}");
-                return (null, error);
+                return (null, CreateSchemaParseError(ex.Message));
+            }
+            catch (ArgumentException ex)
+            {
+                return (null, CreateSchemaParseError(ex.Message));
+            }
+            catch (FormatException ex)
+            {
+                return (null, CreateSchemaParseError(ex.Message));
+            }
+            catch (InvalidOperationException ex)
+            {
+                return (null, CreateSchemaParseError(ex.Message));
+            }
+            catch (NotSupportedException ex)
+            {
+                return (null, CreateSchemaParseError(ex.Message));
             }
             finally
             {
@@ -145,6 +157,9 @@ public sealed class JsonSchemaValidationService : IJsonSchemaValidationService
         }
     }
 
+    private static ValidationErrorItem CreateSchemaParseError(string message) =>
+        new("/", "schema-parse", $"Stored schema is not valid JSON Schema: {message}");
+
     private static (JsonNode? Node, ValidationErrorItem? Error) ParsePayload(string dataJson)
     {
         try
@@ -152,7 +167,7 @@ public sealed class JsonSchemaValidationService : IJsonSchemaValidationService
             var node = JsonNode.Parse(dataJson);
             return (node, null);
         }
-        catch (Exception ex)
+        catch (System.Text.Json.JsonException ex)
         {
             var error = new ValidationErrorItem(
                 "/",
@@ -169,7 +184,7 @@ public sealed class JsonSchemaValidationService : IJsonSchemaValidationService
             var node = JsonNode.Parse(dataElement.GetRawText());
             return (node, null);
         }
-        catch (Exception ex)
+        catch (System.Text.Json.JsonException ex)
         {
             var error = new ValidationErrorItem(
                 "/",

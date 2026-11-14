@@ -101,7 +101,7 @@ public sealed class OpenApiDocumentTransformerTests
     }
 
     [Fact]
-    public async Task TransformAsync_WhenExecuted_ShouldRegisterProblemDetailsSchemaWithOneOfFieldErrors()
+    public async Task TransformAsync_WhenExecuted_ShouldRegisterProblemDetailsSchemaWithValidationErrorEntries()
     {
         // Step 1: Arrange
         var sut = CreateSut();
@@ -112,7 +112,10 @@ public sealed class OpenApiDocumentTransformerTests
         // Step 3: Assert
         var schema = document.Components!.Schemas![OpenApiNames.ProblemDetailsSchema];
         schema.Properties.Should().ContainKeys("type", "title", "status", "detail", "instance", "errorCode", "traceId", "errors");
-        schema.Properties!["errors"].OneOf.Should().HaveCount(2);
+        var errorsSchema = schema.Properties!["errors"];
+        errorsSchema.Type.Should().Be(JsonSchemaType.Array);
+        errorsSchema.Items!.Properties.Should().ContainKeys("pointer", "code", "message");
+        errorsSchema.Items.Required.Should().Contain(["pointer", "code", "message"]);
     }
 }
 

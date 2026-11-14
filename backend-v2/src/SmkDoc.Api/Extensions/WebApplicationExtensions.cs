@@ -1,7 +1,5 @@
-using Microsoft.AspNetCore.Builder;
+using System.Globalization;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.HttpOverrides;
 using Scalar.AspNetCore;
 using SmkDoc.Api.Contracts.Common;
@@ -14,9 +12,11 @@ public static class WebApplicationExtensions
     public static void ConfigureHostPort(this WebApplicationBuilder builder)
     {
         var customPort = builder.Configuration["PORT"] ?? builder.Configuration["DOC_SERVER_PORT"];
-        if (!string.IsNullOrEmpty(customPort) && string.IsNullOrEmpty(Environment.GetEnvironmentVariable("ASPNETCORE_URLS")))
+        if (!string.IsNullOrEmpty(customPort) &&
+            string.IsNullOrEmpty(Environment.GetEnvironmentVariable("ASPNETCORE_URLS")) &&
+            int.TryParse(customPort, NumberStyles.Integer, CultureInfo.InvariantCulture, out int port))
         {
-            builder.WebHost.UseUrls($"http://0.0.0.0:{customPort}");
+            builder.WebHost.UseKestrel(options => options.ListenAnyIP(port));
         }
     }
 

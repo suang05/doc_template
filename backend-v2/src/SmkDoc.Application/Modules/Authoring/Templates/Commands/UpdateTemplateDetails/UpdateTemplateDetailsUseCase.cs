@@ -1,7 +1,4 @@
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
-using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.ValueObjects.Ids;
 
@@ -16,7 +13,7 @@ public sealed class UpdateTemplateDetailsUseCase(
     IUnitOfWork unitOfWork,
     TimeProvider timeProvider) : IUseCase<UpdateTemplateDetailsCommand, TemplateResultDto>
 {
-    public async Task<TemplateResultDto> ExecuteAsync(UpdateTemplateDetailsCommand command, CancellationToken ct = default)
+    public async Task<TemplateResultDto> ExecuteAsync(UpdateTemplateDetailsCommand command, CancellationToken ct)
     {
         // 1. Fetch Aggregate Root
         var template = await templateRepo.GetByIdAsync(new TemplateId(command.TemplateId), ct)

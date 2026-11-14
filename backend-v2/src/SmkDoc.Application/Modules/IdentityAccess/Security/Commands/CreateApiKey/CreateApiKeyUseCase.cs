@@ -1,11 +1,7 @@
-using SmkDoc.Application.Common.Exceptions;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Helpers;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
-using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.ValueObjects.Ids;
 
@@ -18,9 +14,9 @@ public sealed class CreateApiKeyUseCase(
     ICurrentProjectContext projectContext,
     TimeProvider timeProvider) : IUseCase<CreateApiKeyCommand, CreateApiKeyResultDto>
 {
-    public async Task<CreateApiKeyResultDto> ExecuteAsync(CreateApiKeyCommand command, CancellationToken ct = default)
+    public async Task<CreateApiKeyResultDto> ExecuteAsync(CreateApiKeyCommand command, CancellationToken ct)
     {
-        var pId = projectContext.ProjectId;
+        var pId = projectContext.GetRequiredProjectId();
         await EnsureProjectExistsAsync(pId, ct);
 
         var now = timeProvider.GetUtcNow();
@@ -67,9 +63,7 @@ public sealed class CreateApiKeyUseCase(
         ApiKeyScope targetScope,
         DateTimeOffset now)
     {
-#pragma warning disable RS0030 // [PHASE-3-TECH-DEBT] Migrate API key suffix token generation to cryptographic RNG / Guid.CreateVersion7()
-        var rawSecret = $"smk_{command.CallerApp.ToLowerInvariant()}_{Guid.NewGuid():N}";
-#pragma warning restore RS0030
+        var rawSecret = ApiKeyGenerator.GenerateSecret($"smk_{command.CallerApp.ToLowerInvariant()}");
         var hash = new Sha256Hash(ApiKeyGenerator.ComputeHash(rawSecret));
 
         var key = ApiKey.Issue(

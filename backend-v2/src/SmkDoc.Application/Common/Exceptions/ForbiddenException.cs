@@ -1,5 +1,3 @@
-using SmkDoc.Domain.Exceptions;
-
 namespace SmkDoc.Application.Common.Exceptions;
 
 /// <summary>
@@ -8,7 +6,7 @@ namespace SmkDoc.Application.Common.Exceptions;
 /// </summary>
 public class ForbiddenException : DomainException
 {
-    public ForbiddenException(string message, string errorCode = "FORBIDDEN", Exception? innerException = null)
+    public ForbiddenException(string message, string errorCode = ErrorCodes.Forbidden, Exception? innerException = null)
         : base(message, errorCode, innerException)
     {
     }

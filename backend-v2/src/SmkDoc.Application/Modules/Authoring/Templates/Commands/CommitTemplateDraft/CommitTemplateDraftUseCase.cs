@@ -1,13 +1,9 @@
-using System.Diagnostics;
+using SmkDoc.Application.Common.Storage;
 using SmkDoc.Application.Common;
-using SmkDoc.Application.Common.Exceptions;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.Helpers;
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
-using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
 
 namespace SmkDoc.Application.Modules.Authoring.Templates.Commands.CommitTemplateDraft;
@@ -21,10 +17,10 @@ public sealed class CommitTemplateDraftUseCase(
     ICurrentProjectContext projectContext,
     TimeProvider timeProvider) : IUseCase<CommitTemplateDraftCommand, CommitDraftResultDto>
 {
-    public async Task<CommitDraftResultDto> ExecuteAsync(CommitTemplateDraftCommand command, CancellationToken ct = default)
+    public async Task<CommitDraftResultDto> ExecuteAsync(CommitTemplateDraftCommand command, CancellationToken ct)
     {
         // Step 1: Parse & Guard (Fail-fast at line 1 via Smart Context Property)
-        var projectId = projectContext.ProjectId;
+        var projectId = projectContext.GetRequiredProjectId();
 
         var draft = await draftCache.GetAsync(projectId, command.DraftId, ct)
             ?? throw new DraftExpiredException(command.DraftId);
@@ -116,24 +112,17 @@ public sealed class CommitTemplateDraftUseCase(
         }
         catch (Exception primaryEx)
         {
-            try
-            {
-                await storageService.DeleteAsync(StorageBuckets.Templates, uploadedKey, CancellationToken.None);
-            }
-            catch (Exception cleanupEx)
-            {
-                primaryEx.Data["OrphanedStorageKey"] = uploadedKey;
-                primaryEx.Data["CompensatingDeleteError"] = cleanupEx.Message;
-                Trace.TraceWarning(
-                    "Failed to delete orphaned draft template object '{0}' after database commit failure: {1}",
-                    uploadedKey,
-                    cleanupEx.Message);
-            }
+            await StorageOrphanCleaner.TryDeleteOrphanAsync(
+                storageService,
+                StorageBuckets.Templates,
+                uploadedKey,
+                primaryEx,
+                CancellationToken.None);
 
             throw;
         }
 
-        await draftCache.RemoveAsync(projectContext.ProjectId, command.DraftId, ct);
+        await draftCache.RemoveAsync(projectContext.GetRequiredProjectId(), command.DraftId, ct);
         return new CommitDraftResultDto(template.Id.Value);
     }
 }

@@ -1,6 +1,4 @@
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Modules.Authoring.Templates.Queries.ListTemplateVersions;
@@ -12,7 +10,7 @@ namespace SmkDoc.Application.Modules.Authoring.Templates.Queries.ListTemplateVer
 public sealed class ListTemplateVersionsUseCase(
     ITemplateRepository templateRepo) : IUseCase<ListTemplateVersionsQuery, List<TemplateVersionDto>>
 {
-    public async Task<List<TemplateVersionDto>> ExecuteAsync(ListTemplateVersionsQuery query, CancellationToken ct = default)
+    public async Task<List<TemplateVersionDto>> ExecuteAsync(ListTemplateVersionsQuery query, CancellationToken ct)
     {
         var versions = await templateRepo.ListVersionsAsync(new TemplateId(query.TemplateId), ct);
 

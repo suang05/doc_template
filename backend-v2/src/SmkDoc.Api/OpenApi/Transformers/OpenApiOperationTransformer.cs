@@ -20,6 +20,7 @@ public sealed class OpenApiOperationTransformer : IOpenApiOperationTransformer
         {
             ["401"] = "Unauthorized - missing or invalid credentials.",
             ["403"] = "Forbidden - authenticated but not permitted.",
+            ["422"] = "Unprocessable Entity - semantic or schema validation failed.",
             ["429"] = "Too Many Requests - rate limit exceeded (see Retry-After header).",
             ["500"] = "Internal Server Error."
         };
@@ -27,7 +28,7 @@ public sealed class OpenApiOperationTransformer : IOpenApiOperationTransformer
     public Task TransformAsync(
         OpenApiOperation operation,
         OpenApiOperationTransformerContext context,
-        CancellationToken ct)
+        CancellationToken cancellationToken)
     {
         // Step 1: Identity
         ApplyOperationId(operation, context.Description);
@@ -40,6 +41,7 @@ public sealed class OpenApiOperationTransformer : IOpenApiOperationTransformer
         }
 
         // Step 3: Headers
+        ApplyProjectIdHeader(operation, context.Description, isPublic);
         ApplyIdempotencyHeader(operation, context.Description);
         ApplyIfMatchRequestHeader(operation);
         ApplyETagResponseHeader(operation, context.Description);
@@ -78,10 +80,55 @@ public sealed class OpenApiOperationTransformer : IOpenApiOperationTransformer
         return routeValues.TryGetValue("action", out var action) ? action : null;
     }
 
+    private static string NormalizeRoutePath(string? relativePath)
+    {
+        var trimmed = (relativePath ?? string.Empty).Trim('/');
+        return string.Create(trimmed.Length + 1, trimmed, static (span, source) =>
+        {
+            span[0] = '/';
+            source.AsSpan().CopyTo(span[1..]);
+        });
+    }
+
     private static bool IsPublicRoute(ApiDescription description)
     {
-        var path = "/" + (description.RelativePath ?? string.Empty).Trim('/');
-        return OpenApiNames.PublicRoutes.Contains(path, StringComparer.OrdinalIgnoreCase);
+        var path = NormalizeRoutePath(description.RelativePath);
+        return OpenApiNames.PublicRoutes.Contains(path, StringComparer.OrdinalIgnoreCase) ||
+               path.StartsWith("/health", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static void ApplyProjectIdHeader(OpenApiOperation operation, ApiDescription description, bool isPublic)
+    {
+        if (isPublic)
+        {
+            return;
+        }
+
+        var path = NormalizeRoutePath(description.RelativePath);
+        if (path.StartsWith("/api/v1/management", StringComparison.OrdinalIgnoreCase) ||
+            path.StartsWith("/api/v1/auth", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        operation.Parameters ??= [];
+        if (operation.Parameters.Any(p => string.Equals(p.Name, OpenApiNames.ProjectIdHeader, StringComparison.OrdinalIgnoreCase)))
+        {
+            return;
+        }
+
+        operation.Parameters.Add(new OpenApiParameter
+        {
+            Name = OpenApiNames.ProjectIdHeader,
+            In = ParameterLocation.Header,
+            Required = false,
+            Description = "Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied).",
+            Schema = new OpenApiSchema
+            {
+                Type = JsonSchemaType.String,
+                Format = "uuid"
+            }
+        });
     }
 
     private static void ApplyIdempotencyHeader(OpenApiOperation operation, ApiDescription description)

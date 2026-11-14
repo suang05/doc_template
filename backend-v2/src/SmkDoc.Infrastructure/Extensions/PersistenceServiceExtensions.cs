@@ -1,4 +1,3 @@
-using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -7,7 +6,6 @@ using SmkDoc.Domain.Interfaces;
 using SmkDoc.Infrastructure.BackgroundWorkers;
 using SmkDoc.Infrastructure.Contexts;
 using SmkDoc.Infrastructure.Events;
-using SmkDoc.Infrastructure.Observability;
 using SmkDoc.Infrastructure.Persistence;
 using SmkDoc.Infrastructure.Persistence.Interceptors;
 using SmkDoc.Infrastructure.Persistence.Queries;
@@ -69,6 +67,7 @@ public static class PersistenceServiceExtensions
         services.AddScoped<IUserWorkspaceQueryService, UserWorkspaceQueryService>();
         services.AddScoped<IProjectQueryService, ProjectQueryService>();
         services.AddScoped<ITemplateQueryService, TemplateQueryService>();
+        services.AddScoped<ITenantResolutionPort, TenantResolutionAdapter>();
         services.AddScoped<IDomainEventDispatcher, DomainEventDispatcher>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
 

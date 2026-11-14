@@ -5,7 +5,6 @@ using ClosedXML.Excel;
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Infrastructure.Engines.Excel;
 using SmkDoc.Infrastructure.Engines.Html;
@@ -14,7 +13,6 @@ using SmkDoc.Infrastructure.Engines.Html.Pipeline;
 using SmkDoc.Infrastructure.Engines.Word;
 using SmkDoc.Infrastructure.Imaging;
 using SmkDoc.Infrastructure.Parsing;
-using Xunit;
 using Xunit.Abstractions;
 
 namespace SmkDoc.IntegrationTests.Benchmarks;
@@ -148,7 +146,7 @@ public sealed class PerformanceBenchmarkTests
         // Warm up
         using (var warmStream = new MemoryStream(templateBytes))
         {
-            await using var warmResult = await engine.RenderStreamAsync(warmStream, payload, OutputFormat.Xlsx);
+            await using var warmResult = await engine.RenderStreamAsync(warmStream, payload, OutputFormat.Xlsx, CancellationToken.None);
         }
 
         // Benchmark
@@ -156,7 +154,7 @@ public sealed class PerformanceBenchmarkTests
         long outputLength;
         using (var testStream = new MemoryStream(templateBytes))
         {
-            var renderedStream = await engine.RenderStreamAsync(testStream, payload, OutputFormat.Xlsx);
+            var renderedStream = await engine.RenderStreamAsync(testStream, payload, OutputFormat.Xlsx, CancellationToken.None);
             outputLength = await DrainAndMeasureLengthAsync(renderedStream);
         }
         sw.Stop();
@@ -234,7 +232,7 @@ public sealed class PerformanceBenchmarkTests
         // Warm up
         using (var warmStream = new MemoryStream(templateBytes))
         {
-            await using var warmResult = await engine.RenderStreamAsync(warmStream, payload, OutputFormat.Docx);
+            await using var warmResult = await engine.RenderStreamAsync(warmStream, payload, OutputFormat.Docx, CancellationToken.None);
         }
 
         // Benchmark
@@ -242,7 +240,7 @@ public sealed class PerformanceBenchmarkTests
         long outputLength;
         using (var testStream = new MemoryStream(templateBytes))
         {
-            var renderedStream = await engine.RenderStreamAsync(testStream, payload, OutputFormat.Docx);
+            var renderedStream = await engine.RenderStreamAsync(testStream, payload, OutputFormat.Docx, CancellationToken.None);
             outputLength = await DrainAndMeasureLengthAsync(renderedStream);
         }
         sw.Stop();
@@ -331,7 +329,7 @@ public sealed class PerformanceBenchmarkTests
         // Warm up
         using (var warmStream = new MemoryStream(templateBytes))
         {
-            await using var warmResult = await engine.RenderStreamAsync(warmStream, payload, OutputFormat.Pdf);
+            await using var warmResult = await engine.RenderStreamAsync(warmStream, payload, OutputFormat.Pdf, CancellationToken.None);
         }
 
         // Benchmark
@@ -339,7 +337,7 @@ public sealed class PerformanceBenchmarkTests
         long outputLength;
         using (var testStream = new MemoryStream(templateBytes))
         {
-            var renderedStream = await engine.RenderStreamAsync(testStream, payload, OutputFormat.Pdf);
+            var renderedStream = await engine.RenderStreamAsync(testStream, payload, OutputFormat.Pdf, CancellationToken.None);
             outputLength = await DrainAndMeasureLengthAsync(renderedStream);
         }
         sw.Stop();
@@ -383,7 +381,7 @@ public sealed class PerformanceBenchmarkTests
             tasks.Add(Task.Run(async () =>
             {
                 using var stream = new MemoryStream(templateBytes);
-                var renderedStream = await engine.RenderStreamAsync(stream, payload, OutputFormat.Pdf);
+                var renderedStream = await engine.RenderStreamAsync(stream, payload, OutputFormat.Pdf, CancellationToken.None);
                 return await DrainAndMeasureLengthAsync(renderedStream);
             }));
         }

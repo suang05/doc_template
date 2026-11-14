@@ -1,9 +1,5 @@
-using SmkDoc.Application.Common.Exceptions;
-using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.Modules.Integration.Datasets.DTOs;
 using SmkDoc.Application.Modules.Integration.Datasets.Queries.ListDatasets;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common.Builders;
 
@@ -37,7 +33,7 @@ public sealed class ListDatasetsUseCaseTests
             .Returns(new List<DataConnection> { conn });
 
         // Act
-        IReadOnlyList<DatasetResultDto> results = await CreateSut().ExecuteAsync(new ListDatasetsQuery());
+        IReadOnlyList<DatasetResultDto> results = await CreateSut().ExecuteAsync(new ListDatasetsQuery(), CancellationToken.None);
 
         // Assert
         results.Should().HaveCount(1);

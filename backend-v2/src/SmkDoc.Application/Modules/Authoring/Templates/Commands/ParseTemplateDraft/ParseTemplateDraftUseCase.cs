@@ -1,9 +1,6 @@
-using SmkDoc.Application.Common.Exceptions;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Common.Streams;
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Domain.Enums;
-using SmkDoc.Domain.Exceptions;
 
 namespace SmkDoc.Application.Modules.Authoring.Templates.Commands.ParseTemplateDraft;
 
@@ -15,10 +12,10 @@ public sealed class ParseTemplateDraftUseCase(
 {
     private const long MaxDraftFileSizeBytes = 20L * 1024 * 1024;
 
-    public async Task<ParseDraftResultDto> ExecuteAsync(ParseTemplateDraftCommand command, CancellationToken ct = default)
+    public async Task<ParseDraftResultDto> ExecuteAsync(ParseTemplateDraftCommand command, CancellationToken ct)
     {
         // Step 1: Parse & Guard (Fail-fast at line 1 via Smart Context Property)
-        var projectId = projectContext.ProjectId;
+        var projectId = projectContext.GetRequiredProjectId();
 
         var ext = Path.GetExtension(command.FileName).ToLowerInvariant();
         if (!TemplateFormat.TryFromExtension(ext, out _))

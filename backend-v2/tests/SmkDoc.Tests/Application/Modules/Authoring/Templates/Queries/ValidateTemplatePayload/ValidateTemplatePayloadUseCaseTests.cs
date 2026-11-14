@@ -1,11 +1,6 @@
 using System.Text.Json;
-using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.ValidateTemplatePayload;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Enums;
-using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Validation;
 using SmkDoc.Tests.Common.Builders;
 
@@ -75,7 +70,7 @@ public sealed class ValidateTemplatePayloadUseCaseTests
         var command = new ValidateTemplatePayloadQuery(slug, doc.RootElement);
 
         // Act
-        ValidateTemplatePayloadResult result = await CreateSut().ExecuteAsync(command);
+        ValidateTemplatePayloadResult result = await CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         result.Valid.Should().BeTrue();
@@ -103,7 +98,7 @@ public sealed class ValidateTemplatePayloadUseCaseTests
         var command = new ValidateTemplatePayloadQuery(slug, doc.RootElement);
 
         // Act
-        ValidateTemplatePayloadResult result = await CreateSut().ExecuteAsync(command);
+        ValidateTemplatePayloadResult result = await CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         result.Valid.Should().BeFalse();
@@ -124,7 +119,7 @@ public sealed class ValidateTemplatePayloadUseCaseTests
         var command = new ValidateTemplatePayloadQuery(slug, doc.RootElement);
 
         // Act
-        ValidateTemplatePayloadResult result = await CreateSut().ExecuteAsync(command);
+        ValidateTemplatePayloadResult result = await CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         result.Valid.Should().BeTrue();
@@ -140,7 +135,7 @@ public sealed class ValidateTemplatePayloadUseCaseTests
         using var doc = JsonDocument.Parse("{}");
         var command = new ValidateTemplatePayloadQuery("missing-template", doc.RootElement);
 
-        var act = async () => await CreateSut().ExecuteAsync(command);
+        var act = async () => await CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
     }
@@ -150,7 +145,7 @@ public sealed class ValidateTemplatePayloadUseCaseTests
     {
         var command = new ValidateTemplatePayloadQuery("invoice-th", default);
 
-        var act = async () => await CreateSut().ExecuteAsync(command);
+        var act = async () => await CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         await act.Should().ThrowAsync<DomainValidationException>()
             .WithMessage("*Request payload body cannot be null or empty*");

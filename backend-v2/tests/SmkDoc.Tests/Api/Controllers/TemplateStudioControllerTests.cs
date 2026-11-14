@@ -3,14 +3,12 @@ using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.Contracts.Authoring.Templates;
 using SmkDoc.Api.Controllers.Authoring;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.SaveTemplateHtml;
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.GetTemplateHtmlSource;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.GetTemplateSchema;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.GetTemplateStudioBundle;
 using SmkDoc.Application.Modules.Authoring.Templates.Queries.ValidateTemplateHtml;
-using SmkDoc.Domain.Enums;
 
 namespace SmkDoc.Tests.Api.Controllers;
 

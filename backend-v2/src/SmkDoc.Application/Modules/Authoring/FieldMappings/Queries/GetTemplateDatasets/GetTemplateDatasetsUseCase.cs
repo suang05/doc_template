@@ -1,6 +1,4 @@
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Modules.Authoring.FieldMappings.Queries.GetTemplateDatasets;
@@ -9,7 +7,7 @@ public sealed class GetTemplateDatasetsUseCase(
     ITemplateRepository templateRepo,
     IDatasetRepository datasetRepo) : IUseCase<GetTemplateDatasetsQuery, List<TemplateDatasetResultDto>>
 {
-    public async Task<List<TemplateDatasetResultDto>> ExecuteAsync(GetTemplateDatasetsQuery query, CancellationToken ct = default)
+    public async Task<List<TemplateDatasetResultDto>> ExecuteAsync(GetTemplateDatasetsQuery query, CancellationToken ct)
     {
         var template = await templateRepo.GetByIdWithDetailsAsync(new TemplateId(query.TemplateId), ct);
         if (template == null) return [];

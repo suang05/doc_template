@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-
 namespace SmkDoc.Application.Modules.Rendering.Logs.DTOs;
 
 /// <summary>

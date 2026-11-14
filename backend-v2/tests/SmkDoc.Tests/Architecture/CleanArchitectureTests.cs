@@ -5,7 +5,6 @@ using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Middleware;
 using SmkDoc.Application.Common.Behaviors;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Common;
 using SmkDoc.Infrastructure.Persistence;
 
@@ -604,8 +603,12 @@ public sealed class CleanArchitectureTests
             .Should().BeNull("VersionNotInTemplateException was consolidated into NotFoundException.");
         appAssembly.GetType("SmkDoc.Application.Common.Exceptions.ConflictException")
             .Should().BeNull("Application layer ConflictException was consolidated into SmkDoc.Domain.Exceptions.ConflictException.");
+        domainAssembly.GetType("SmkDoc.Domain.Exceptions.NotFoundException")
+            .Should().BeNull("NotFoundException was moved from Domain to SmkDoc.Application.Common.Exceptions.");
+        domainAssembly.GetType("SmkDoc.Domain.Exceptions.TenantContextRequiredException")
+            .Should().BeNull("TenantContextRequiredException was replaced by Application layer ProjectContextRequiredException, ProjectContextMismatchException, and TenantContextNotResolvedException.");
         appAssembly.GetType("SmkDoc.Application.Common.Exceptions.NotFoundException")
-            .Should().BeNull("Application layer NotFoundException was consolidated into SmkDoc.Domain.Exceptions.NotFoundException.");
+            .Should().NotBeNull("NotFoundException belongs in SmkDoc.Application.Common.Exceptions.");
     }
 
     [Fact]
@@ -662,7 +665,7 @@ public sealed class CleanArchitectureTests
         {
             var paramTypes = ctor.GetParameters().Select(p => p.ParameterType.Name).ToList();
             paramTypes.Should().NotContain("IProjectRepository",
-                "CommitTemplateDraftUseCase must not inject IProjectRepository; ambient tenant validation is performed via ICurrentProjectContext.ProjectId.");
+                "CommitTemplateDraftUseCase must not inject IProjectRepository; ambient tenant validation is performed via ICurrentProjectContext.GetRequiredProjectId().");
         }
     }
 
@@ -794,7 +797,27 @@ public sealed class CleanArchitectureTests
                         {
                             resolved = module.ResolveMethod(metadataToken, typeArgs, methodArgs);
                         }
-                        catch
+                        catch (ArgumentException)
+                        {
+                            // Ignore dynamic/unresolved tokens
+                        }
+                        catch (BadImageFormatException)
+                        {
+                            // Ignore dynamic/unresolved tokens
+                        }
+                        catch (FileNotFoundException)
+                        {
+                            // Ignore dynamic/unresolved tokens
+                        }
+                        catch (IOException)
+                        {
+                            // Ignore dynamic/unresolved tokens
+                        }
+                        catch (TypeLoadException)
+                        {
+                            // Ignore dynamic/unresolved tokens
+                        }
+                        catch (MissingMemberException)
                         {
                             // Ignore dynamic/unresolved tokens
                         }

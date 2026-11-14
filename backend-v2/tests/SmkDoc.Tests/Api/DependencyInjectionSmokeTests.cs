@@ -1,8 +1,6 @@
-﻿using FluentAssertions;
-using FluentValidation;
+﻿using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
 using SmkDoc.Application;
-using Xunit;
 
 namespace SmkDoc.Tests.Api;
 

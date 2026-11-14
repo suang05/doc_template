@@ -15,14 +15,14 @@ public interface IUserWorkspaceQueryService
     Task<IReadOnlyList<AccessibleProjectResultDto>> GetAccessibleProjectsAsync(
         Guid userId,
         bool isSuperAdmin,
-        CancellationToken ct = default);
+        CancellationToken ct);
 
     /// <summary>
     /// Gets active API keys for the specified workspace project.
     /// </summary>
     Task<IReadOnlyList<ApiKeyResultDto>> GetActiveApiKeysAsync(
         Guid projectId,
-        CancellationToken ct = default);
+        CancellationToken ct);
 
     /// <summary>
     /// Resolves the active workspace project, role, and default project for an authenticated user.
@@ -31,6 +31,6 @@ public interface IUserWorkspaceQueryService
     Task<UserWorkspaceContextResultDto> ResolveWorkspaceContextAsync(
         SmkDoc.Domain.Entities.User user,
         Guid? requestedProjectId,
-        bool throwOnUnauthorized = true,
-        CancellationToken ct = default);
+        bool throwOnUnauthorized,
+        CancellationToken ct);
 }

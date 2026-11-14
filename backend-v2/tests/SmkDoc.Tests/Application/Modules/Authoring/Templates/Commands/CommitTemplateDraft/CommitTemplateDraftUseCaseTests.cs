@@ -1,16 +1,10 @@
 using System.Text;
 using SmkDoc.Application.Common;
-using SmkDoc.Application.Common.Exceptions;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.CommitTemplateDraft;
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.Interfaces;
-using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.ValueObjects.Ids;
-using SmkDoc.Tests.Common.Builders;
 
 namespace SmkDoc.Tests.Application.Modules.Authoring.Templates.Commands.CommitTemplateDraft;
 
@@ -29,7 +23,7 @@ public sealed class CommitTemplateDraftUseCaseTests
     {
         _unitOfWork.CommitAsync(Arg.Any<CancellationToken>()).Returns(1);
         _projectContext.IsResolved.Returns(true);
-        _projectContext.ProjectId.Returns(_defaultProjectId);
+        _projectContext.GetRequiredProjectId().Returns(_defaultProjectId);
         _projectContext.CallerIdentity.Returns("studio-user");
     }
 
@@ -175,11 +169,11 @@ public sealed class CommitTemplateDraftUseCaseTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_WhenProjectContextUnresolved_ShouldThrowTenantContextRequiredExceptionWithoutUploading()
+    public async Task ExecuteAsync_WhenProjectContextUnresolved_ShouldThrowTenantContextNotResolvedExceptionWithoutUploading()
     {
         // Arrange
         _projectContext.IsResolved.Returns(false);
-        _projectContext.ProjectId.Returns(_ => throw new TenantContextRequiredException());
+        _projectContext.GetRequiredProjectId().Returns(_ => throw new TenantContextNotResolvedException());
         var entry = new TemplateDraftEntry("draft-no-proj", _defaultProjectId.Value, "drafts/report.docx", "report.docx", ".docx", []);
         var command = new CommitTemplateDraftCommand("draft-no-proj", "Report", "report", null, []);
 
@@ -187,7 +181,7 @@ public sealed class CommitTemplateDraftUseCaseTests
 
         // Act & Assert
         var act = () => CreateSut().ExecuteAsync(command, CancellationToken.None);
-        await act.Should().ThrowAsync<TenantContextRequiredException>();
+        await act.Should().ThrowAsync<TenantContextNotResolvedException>();
 
         await _storageService.DidNotReceive().UploadAsync(
             Arg.Any<string>(), Arg.Any<string>(), Arg.Any<Stream>(), Arg.Any<string>(), Arg.Any<CancellationToken>());

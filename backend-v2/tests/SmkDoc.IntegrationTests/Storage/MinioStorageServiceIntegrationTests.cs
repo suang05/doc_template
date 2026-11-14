@@ -29,7 +29,7 @@ public sealed class MinioStorageServiceIntegrationTests : IClassFixture<MinioCon
         });
 
         // Act
-        var service = new MinioStorageService(settings, NullLogger<MinioStorageService>.Instance);
+        using var service = new MinioStorageService(settings, NullLogger<MinioStorageService>.Instance);
 
         // Assert
         service.Should().NotBeNull();

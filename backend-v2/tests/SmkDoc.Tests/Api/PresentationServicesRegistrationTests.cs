@@ -1,10 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using FluentAssertions;
-using Microsoft.Extensions.Configuration;
+﻿using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using SmkDoc.Api.Extensions;
-using Xunit;
 
 namespace SmkDoc.Tests.Api;
 

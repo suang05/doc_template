@@ -4,7 +4,6 @@ using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
-using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Infrastructure.Persistence.Queries;
@@ -14,7 +13,7 @@ public sealed class UserWorkspaceQueryService(AppDbContext context) : IUserWorks
     public async Task<IReadOnlyList<AccessibleProjectResultDto>> GetAccessibleProjectsAsync(
         Guid userId,
         bool isSuperAdmin,
-        CancellationToken ct = default)
+        CancellationToken ct)
     {
         if (isSuperAdmin)
         {
@@ -52,7 +51,7 @@ public sealed class UserWorkspaceQueryService(AppDbContext context) : IUserWorks
 
     public async Task<IReadOnlyList<ApiKeyResultDto>> GetActiveApiKeysAsync(
         Guid projectId,
-        CancellationToken ct = default)
+        CancellationToken ct)
     {
         var typedProjectId = new ProjectId(projectId);
         var keys = await context.ApiKeys
@@ -77,8 +76,8 @@ public sealed class UserWorkspaceQueryService(AppDbContext context) : IUserWorks
     public async Task<UserWorkspaceContextResultDto> ResolveWorkspaceContextAsync(
         User user,
         Guid? requestedProjectId,
-        bool throwOnUnauthorized = true,
-        CancellationToken ct = default)
+        bool throwOnUnauthorized,
+        CancellationToken ct)
     {
         var isSuperAdmin = user.SystemRole == SystemRole.SuperAdmin;
         var accessibleProjects = await GetAccessibleProjectsAsync(user.Id.Value, isSuperAdmin, ct);

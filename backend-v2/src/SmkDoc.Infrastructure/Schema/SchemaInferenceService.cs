@@ -3,8 +3,8 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
-using SmkDoc.Application.Common.Helpers;
 using SmkDoc.Application.Common.Interfaces;
+using SmkDoc.Application.Modules.Authoring.Templates.Parsing;
 
 namespace SmkDoc.Infrastructure.Schema;
 
@@ -80,7 +80,7 @@ public sealed partial class SchemaInferenceService(TimeProvider timeProvider) : 
                 arrayGroups[arrayKey] = group;
             }
 
-            foreach (Match im in PlaceholderHelper.Pattern.Matches(innerHtml))
+            foreach (Match im in TemplatePlaceholderParser.Pattern.Matches(innerHtml))
             {
                 string tag = im.Groups[1].Value.Trim();
                 if (IsControlTag(tag) || SkipHtmlTags.Contains(tag)) continue;
@@ -89,12 +89,12 @@ public sealed partial class SchemaInferenceService(TimeProvider timeProvider) : 
         }
 
         // 2. Extract standard placeholders outside loop blocks
-        foreach (Match pm in PlaceholderHelper.Pattern.Matches(htmlContent))
+        foreach (Match pm in TemplatePlaceholderParser.Pattern.Matches(htmlContent))
         {
             string tag = pm.Groups[1].Value.Trim();
             if (IsControlTag(tag) || SkipHtmlTags.Contains(tag)) continue;
 
-            var parsed = PlaceholderHelper.Parse(tag);
+            var parsed = TemplatePlaceholderParser.Parse(tag);
             if (!arrayGroups.ContainsKey(parsed.Key))
             {
                 scalarPlaceholders.Add(tag);
@@ -131,7 +131,7 @@ public sealed partial class SchemaInferenceService(TimeProvider timeProvider) : 
         foreach (var ph in placeholders)
         {
             if (string.IsNullOrWhiteSpace(ph)) continue;
-            var parsed = PlaceholderHelper.Parse(ph);
+            var parsed = TemplatePlaceholderParser.Parse(ph);
 
             if (!parsed.Key.Contains('.'))
             {
@@ -170,7 +170,7 @@ public sealed partial class SchemaInferenceService(TimeProvider timeProvider) : 
         // 1. Scalar properties
         foreach (var ph in grouped.Scalars)
         {
-            var parsed = PlaceholderHelper.Parse(ph);
+            var parsed = TemplatePlaceholderParser.Parse(ph);
             if (rootProperties.ContainsKey(parsed.Key)) continue;
 
             rootProperties[parsed.Key] = InferPropertySchema(parsed.Key, parsed.Extra, parsed.Kind);
@@ -237,7 +237,7 @@ public sealed partial class SchemaInferenceService(TimeProvider timeProvider) : 
 
         foreach (var ph in subPlaceholders)
         {
-            var parsed = PlaceholderHelper.Parse(ph);
+            var parsed = TemplatePlaceholderParser.Parse(ph);
             if (properties.ContainsKey(parsed.Key)) continue;
 
             properties[parsed.Key] = InferPropertySchema(parsed.Key, parsed.Extra, parsed.Kind);
@@ -256,7 +256,7 @@ public sealed partial class SchemaInferenceService(TimeProvider timeProvider) : 
         // 1. Scalars
         foreach (var ph in grouped.Scalars)
         {
-            var parsed = PlaceholderHelper.Parse(ph);
+            var parsed = TemplatePlaceholderParser.Parse(ph);
             if (!root.ContainsKey(parsed.Key))
             {
                 root[parsed.Key] = GenerateMockValue(parsed.Key, parsed.Extra, parsed.Kind, now);
@@ -269,7 +269,7 @@ public sealed partial class SchemaInferenceService(TimeProvider timeProvider) : 
             var nested = new JsonObject();
             foreach (var subPh in subFields)
             {
-                var parsed = PlaceholderHelper.Parse(subPh);
+                var parsed = TemplatePlaceholderParser.Parse(subPh);
                 if (!nested.ContainsKey(parsed.Key))
                 {
                     nested[parsed.Key] = GenerateMockValue(parsed.Key, parsed.Extra, parsed.Kind, now);
@@ -287,7 +287,7 @@ public sealed partial class SchemaInferenceService(TimeProvider timeProvider) : 
                 var itemObj = new JsonObject();
                 foreach (var itemPh in itemPlaceholders)
                 {
-                    var parsed = PlaceholderHelper.Parse(itemPh);
+                    var parsed = TemplatePlaceholderParser.Parse(itemPh);
                     itemObj[parsed.Key] = GenerateItemMockValue(parsed.Key, parsed.Extra, i);
                 }
                 arr.Add(itemObj);
@@ -334,7 +334,7 @@ public sealed partial class SchemaInferenceService(TimeProvider timeProvider) : 
                 return customNode.ToJsonString(JsonOptions);
             }
         }
-        catch
+        catch (JsonException)
         {
             // Fallback on invalid JSON
         }
@@ -344,26 +344,26 @@ public sealed partial class SchemaInferenceService(TimeProvider timeProvider) : 
 
     // ─── Semantic Type Inference & Mock Generators ──────────────────────────────
 
-    private static JsonObject InferPropertySchema(string key, string? extra, PlaceholderHelper.PlaceholderKind kind)
+    private static JsonObject InferPropertySchema(string key, string? extra, PlaceholderKind kind)
     {
         var obj = new JsonObject();
         string lk = key.ToLowerInvariant();
 
         switch (kind)
         {
-            case PlaceholderHelper.PlaceholderKind.Qr:
+            case PlaceholderKind.Qr:
                 obj["type"] = "string";
                 obj["format"] = "uri";
                 obj["description"] = "QR Code target URL or URI";
                 return obj;
 
-            case PlaceholderHelper.PlaceholderKind.Barcode:
+            case PlaceholderKind.Barcode:
                 obj["type"] = "string";
                 obj["pattern"] = "^[A-Za-z0-9-_]+$";
                 obj["description"] = "Barcode alphanumeric code string";
                 return obj;
 
-            case PlaceholderHelper.PlaceholderKind.Image:
+            case PlaceholderKind.Image:
                 obj["type"] = "string";
                 obj["description"] = "Image URL or Base64 data URI";
                 return obj;
@@ -432,15 +432,15 @@ public sealed partial class SchemaInferenceService(TimeProvider timeProvider) : 
         return obj;
     }
 
-    private static JsonNode GenerateMockValue(string key, string? extra, PlaceholderHelper.PlaceholderKind kind, DateTimeOffset now)
+    private static JsonNode GenerateMockValue(string key, string? extra, PlaceholderKind kind, DateTimeOffset now)
     {
         switch (kind)
         {
-            case PlaceholderHelper.PlaceholderKind.Qr:
+            case PlaceholderKind.Qr:
                 return JsonValue.Create("https://sammakorn.co.th");
-            case PlaceholderHelper.PlaceholderKind.Barcode:
+            case PlaceholderKind.Barcode:
                 return JsonValue.Create("SMK-998822");
-            case PlaceholderHelper.PlaceholderKind.Image:
+            case PlaceholderKind.Image:
                 return JsonValue.Create("https://placehold.co/300x200/png");
         }
 
@@ -519,13 +519,13 @@ public sealed partial class SchemaInferenceService(TimeProvider timeProvider) : 
                or "user" or "profile")
             return false;
 
-        return lk.EndsWith("s");
+        return lk.EndsWith('s');
     }
 
     private static string ToPascalCase(string text)
     {
         if (string.IsNullOrWhiteSpace(text)) return "Document";
-        var words = Regex.Split(text, @"[^a-zA-Z0-9]+");
+        var words = NonAlphanumericRegex().Split(text);
         var sb = new StringBuilder();
         foreach (var w in words)
         {
@@ -536,6 +536,9 @@ public sealed partial class SchemaInferenceService(TimeProvider timeProvider) : 
         return sb.Length > 0 ? sb.ToString() : "Document";
     }
 
-    [GeneratedRegex(@"\{\{#each\s+([a-zA-Z0-9_.]+)\s*\}\}([\s\S]*?)\{\{/each\}\}")]
+    [GeneratedRegex(@"\{\{#each\s+([a-zA-Z0-9_.]+)\s*\}\}([\s\S]*?)\{\{/each\}\}", RegexOptions.None, 500)]
     private static partial Regex EachBlockRegex();
+
+    [GeneratedRegex(@"[^a-zA-Z0-9]+", RegexOptions.None, 500)]
+    private static partial Regex NonAlphanumericRegex();
 }

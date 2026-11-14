@@ -11,7 +11,7 @@ public sealed class MemoryDatasetResultCacheTests
         using var memoryCache = new MemoryCache(new MemoryCacheOptions());
         var sut = new MemoryDatasetResultCache(memoryCache);
 
-        var json = await sut.GetAsync("missing-key");
+        var json = await sut.GetAsync("missing-key", CancellationToken.None);
 
         json.Should().BeNull();
     }
@@ -22,8 +22,8 @@ public sealed class MemoryDatasetResultCacheTests
         using var memoryCache = new MemoryCache(new MemoryCacheOptions());
         var sut = new MemoryDatasetResultCache(memoryCache);
 
-        await sut.SetAsync("tenant:ds:hash", "[{\"id\":1}]", TimeSpan.FromSeconds(30));
-        var json = await sut.GetAsync("tenant:ds:hash");
+        await sut.SetAsync("tenant:ds:hash", "[{\"id\":1}]", TimeSpan.FromSeconds(30), CancellationToken.None);
+        var json = await sut.GetAsync("tenant:ds:hash", CancellationToken.None);
 
         json.Should().Be("[{\"id\":1}]");
     }
@@ -34,10 +34,10 @@ public sealed class MemoryDatasetResultCacheTests
         using var memoryCache = new MemoryCache(new MemoryCacheOptions());
         var sut = new MemoryDatasetResultCache(memoryCache);
 
-        await sut.SetAsync("ephemeral-key", "[{\"id\":2}]", TimeSpan.FromMilliseconds(40));
+        await sut.SetAsync("ephemeral-key", "[{\"id\":2}]", TimeSpan.FromMilliseconds(40), CancellationToken.None);
         await Task.Delay(90);
 
-        var json = await sut.GetAsync("ephemeral-key");
+        var json = await sut.GetAsync("ephemeral-key", CancellationToken.None);
 
         json.Should().BeNull();
     }
@@ -51,8 +51,8 @@ public sealed class MemoryDatasetResultCacheTests
         using var memoryCache = new MemoryCache(new MemoryCacheOptions());
         var sut = new MemoryDatasetResultCache(memoryCache);
 
-        await sut.SetAsync("bypass-key", payload, TimeSpan.FromSeconds(ttlSeconds));
+        await sut.SetAsync("bypass-key", payload, TimeSpan.FromSeconds(ttlSeconds), CancellationToken.None);
 
-        (await sut.GetAsync("bypass-key")).Should().BeNull();
+        (await sut.GetAsync("bypass-key", CancellationToken.None)).Should().BeNull();
     }
 }

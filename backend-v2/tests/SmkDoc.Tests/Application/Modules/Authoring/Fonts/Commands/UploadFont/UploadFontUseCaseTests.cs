@@ -1,8 +1,5 @@
 using SmkDoc.Application.Common;
-using SmkDoc.Application.Common.Exceptions;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Fonts.Commands.UploadFont;
-using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Tests.Application.Modules.Authoring.Fonts.Commands.UploadFont;
@@ -16,7 +13,7 @@ public sealed class UploadFontUseCaseTests
     public UploadFontUseCaseTests()
     {
         _projectContext.IsResolved.Returns(true);
-        _projectContext.ProjectId.Returns(_projectId);
+        _projectContext.GetRequiredProjectId().Returns(_projectId);
     }
 
     private UploadFontUseCase CreateSut() => new(_storageService, _projectContext);
@@ -29,7 +26,7 @@ public sealed class UploadFontUseCaseTests
         var command = new UploadFontCommand(stream, "Custom Font.ttf", "font/ttf");
 
         // Act
-        var result = await CreateSut().ExecuteAsync(command);
+        var result = await CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         result.FontName.Should().Be("Custom_Font.ttf");
@@ -43,19 +40,19 @@ public sealed class UploadFontUseCaseTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_WhenProjectContextUnresolved_ShouldThrowTenantContextRequiredException()
+    public async Task ExecuteAsync_WhenProjectContextUnresolved_ShouldThrowTenantContextNotResolvedException()
     {
         // Arrange
         _projectContext.IsResolved.Returns(false);
-        _projectContext.ProjectId.Returns(_ => throw new TenantContextRequiredException());
+        _projectContext.GetRequiredProjectId().Returns(_ => throw new TenantContextNotResolvedException());
         using var stream = new MemoryStream([0x00, 0x01, 0x00, 0x00]);
         var command = new UploadFontCommand(stream, "Font.ttf", "font/ttf");
 
         // Act
-        Func<Task> act = () => CreateSut().ExecuteAsync(command);
+        Func<Task> act = () => CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
-        await act.Should().ThrowAsync<TenantContextRequiredException>();
+        await act.Should().ThrowAsync<TenantContextNotResolvedException>();
         await _storageService.DidNotReceive().UploadAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<Stream>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
@@ -67,7 +64,7 @@ public sealed class UploadFontUseCaseTests
         var command = new UploadFontCommand(stream, "test.exe", "application/octet-stream");
 
         // Act
-        Func<Task> act = () => CreateSut().ExecuteAsync(command);
+        Func<Task> act = () => CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<DomainValidationException>()
@@ -83,7 +80,7 @@ public sealed class UploadFontUseCaseTests
         var command = new UploadFontCommand(stream, "disguised.ttf", "font/ttf");
 
         // Act
-        Func<Task> act = () => CreateSut().ExecuteAsync(command);
+        Func<Task> act = () => CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<DomainValidationException>()
@@ -102,7 +99,7 @@ public sealed class UploadFontUseCaseTests
         var command = new UploadFontCommand(stream, maliciousFileName, "font/ttf");
 
         // Act
-        Func<Task> act = () => CreateSut().ExecuteAsync(command);
+        Func<Task> act = () => CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<DomainValidationException>()

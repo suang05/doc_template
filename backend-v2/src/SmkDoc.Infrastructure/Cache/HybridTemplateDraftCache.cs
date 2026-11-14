@@ -16,12 +16,13 @@ namespace SmkDoc.Infrastructure.Cache;
 /// Combines in-process L1 memory caching (sub-millisecond instant preview) with L2 Redis synchronization
 /// when Redis is configured. Gracefully falls back to pure L1 memory caching in standalone local environments.
 /// </summary>
-public sealed class HybridTemplateDraftCache(
+public sealed partial class HybridTemplateDraftCache(
     IConnectionMultiplexer? multiplexer,
     IStorageService storageService,
     ILogger<HybridTemplateDraftCache> logger,
     IMemoryCache memoryCache,
-    string instancePrefix = RedisConfigurationResolver.DefaultInstancePrefix) : ITemplateDraftCache
+    string instancePrefix = RedisConfigurationResolver.DefaultInstancePrefix,
+    ICurrentProjectContext? projectContext = null) : ITemplateDraftCache
 {
     public const long MaxFileSizeBytes = 20L * 1024 * 1024;
     private static readonly TimeSpan Ttl = TimeSpan.FromMinutes(30);
@@ -33,7 +34,7 @@ public sealed class HybridTemplateDraftCache(
         string fileName,
         string fileExtension,
         IReadOnlyList<string> placeholders,
-        CancellationToken ct = default)
+        CancellationToken ct)
     {
         if (projectId == ProjectId.Empty)
         {
@@ -57,9 +58,7 @@ public sealed class HybridTemplateDraftCache(
         }
 
         var normalizedExt = NormalizeExtension(fileExtension);
-#pragma warning disable RS0030 // [PHASE-3-TECH-DEBT] Replace Guid.NewGuid() with Guid.CreateVersion7()
-        var draftId = Guid.NewGuid().ToString("N");
-#pragma warning restore RS0030
+        var draftId = Guid.CreateVersion7().ToString("N");
         var storageKey = StorageBuckets.DraftTemplateKey(projectId, draftId, normalizedExt);
         var uploadedKey = await storageService.UploadAsync(
             StorageBuckets.Drafts,
@@ -96,7 +95,7 @@ public sealed class HybridTemplateDraftCache(
             }
             catch (RedisException ex)
             {
-                logger.LogWarning(ex, "Failed to synchronize draft {DraftId} to L2 Redis for project {ProjectId}", draftId, projectId.Value);
+                LogSyncToRedisFailed(logger, ex, draftId, projectId.Value);
             }
         }
 
@@ -106,7 +105,7 @@ public sealed class HybridTemplateDraftCache(
     public async Task<TemplateDraftEntry?> GetAsync(
         ProjectId projectId,
         string draftId,
-        CancellationToken ct = default)
+        CancellationToken ct)
     {
         if (projectId == ProjectId.Empty || string.IsNullOrWhiteSpace(draftId))
         {
@@ -157,14 +156,24 @@ public sealed class HybridTemplateDraftCache(
         }
         catch (RedisException ex)
         {
-            logger.LogWarning(ex, "Failed to retrieve draft {DraftId} from L2 Redis for project {ProjectId}", draftId, projectId.Value);
+            LogRetrieveFromRedisFailed(logger, ex, draftId, projectId.Value);
             return null;
         }
     }
 
+    public Task<TemplateDraftEntry?> GetCurrentProjectDraftAsync(
+        string draftId,
+        CancellationToken ct)
+    {
+        var projectId = projectContext?.TryGetProjectId()
+            ?? throw new ProjectContextRequiredException("Project context is required for draft preview.");
+
+        return GetAsync(projectId, draftId, ct);
+    }
+
     public Task<Stream> OpenStreamAsync(
         TemplateDraftEntry draft,
-        CancellationToken ct = default)
+        CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(draft);
         return storageService.DownloadAsync(StorageBuckets.Drafts, draft.StorageKey, ct);
@@ -173,7 +182,7 @@ public sealed class HybridTemplateDraftCache(
     public async Task RemoveAsync(
         ProjectId projectId,
         string draftId,
-        CancellationToken ct = default)
+        CancellationToken ct)
     {
         if (projectId == ProjectId.Empty || string.IsNullOrWhiteSpace(draftId))
         {
@@ -201,7 +210,7 @@ public sealed class HybridTemplateDraftCache(
             }
             catch (RedisException ex)
             {
-                logger.LogWarning(ex, "Failed to delete draft {DraftId} from L2 Redis for project {ProjectId}", draftId, projectId.Value);
+                LogDeleteFromRedisFailed(logger, ex, draftId, projectId.Value);
             }
         }
 
@@ -214,14 +223,30 @@ public sealed class HybridTemplateDraftCache(
             }
             catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
             {
-                logger.LogWarning(
-                    ex,
-                    "Failed to delete temporary draft object {StorageKey} for DraftId {DraftId}",
-                    entry.StorageKey,
-                    draftId);
+                LogDeleteDraftObjectFailed(logger, ex, entry.StorageKey, draftId);
             }
         }
     }
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Failed to synchronize draft {DraftId} to L2 Redis for project {ProjectId}")]
+    private static partial void LogSyncToRedisFailed(ILogger logger, RedisException ex, string draftId, Guid projectId);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Failed to retrieve draft {DraftId} from L2 Redis for project {ProjectId}")]
+    private static partial void LogRetrieveFromRedisFailed(ILogger logger, RedisException ex, string draftId, Guid projectId);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Failed to delete draft {DraftId} from L2 Redis for project {ProjectId}")]
+    private static partial void LogDeleteFromRedisFailed(ILogger logger, RedisException ex, string draftId, Guid projectId);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Failed to delete temporary draft object {StorageKey} for DraftId {DraftId}")]
+    private static partial void LogDeleteDraftObjectFailed(ILogger logger, Exception ex, string storageKey, string draftId);
 
     private static string L1Key(ProjectId projectId, string draftId) =>
         $"tmpl_draft:l1:{projectId.Value:N}:{draftId.Trim()}";

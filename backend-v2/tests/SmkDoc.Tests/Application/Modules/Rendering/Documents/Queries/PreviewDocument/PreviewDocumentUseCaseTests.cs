@@ -1,20 +1,12 @@
 using System.Text;
 using System.Text.Json;
-using FluentAssertions;
-using NSubstitute;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Application.Modules.DataBinding.DTOs;
 using SmkDoc.Application.Modules.DataBinding.Services;
 using SmkDoc.Application.Modules.Rendering.Documents;
 using SmkDoc.Application.Modules.Rendering.Documents.Queries.PreviewDocument;
-using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Enums;
-using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects.Ids;
-using SmkDoc.Tests.Common;
 using SmkDoc.Tests.Common.Builders;
-using Xunit;
 
 namespace SmkDoc.Tests.Application.Modules.Rendering.Documents.Queries.PreviewDocument;
 
@@ -26,13 +18,10 @@ public sealed class PreviewDocumentUseCaseTests
     private readonly IRenderEngineFactory _engineFactory = Substitute.For<IRenderEngineFactory>();
     private readonly IDataBindingEngine _dataBindingEngine = Substitute.For<IDataBindingEngine>();
     private readonly ITemplateDraftCache _draftCache = Substitute.For<ITemplateDraftCache>();
-    private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
     private readonly ProjectId _projectId = ProjectId.New();
 
     public PreviewDocumentUseCaseTests()
     {
-        _projectContext.IsResolved.Returns(true);
-        _projectContext.ProjectId.Returns(_projectId);
         _engine.EngineType.Returns(RenderEngineType.Html);
         _engineFactory.GetEngine(Arg.Any<RenderEngineType>()).Returns(_engine);
     }
@@ -42,8 +31,7 @@ public sealed class PreviewDocumentUseCaseTests
         _storage,
         _engineFactory,
         _dataBindingEngine,
-        _draftCache,
-        _projectContext
+        _draftCache
     );
 
     [Fact]
@@ -61,7 +49,7 @@ public sealed class PreviewDocumentUseCaseTests
         );
 
         // Act
-        await using var previewStream = await CreateSut().ExecuteAsync(request);
+        await using var previewStream = await CreateSut().ExecuteAsync(request, CancellationToken.None);
 
         // Assert
         previewStream.Should().NotBeNull();
@@ -85,7 +73,7 @@ public sealed class PreviewDocumentUseCaseTests
         );
 
         // Act
-        await using var previewStream = await CreateSut().ExecuteAsync(request);
+        await using var previewStream = await CreateSut().ExecuteAsync(request, CancellationToken.None);
 
         // Assert
         previewStream.Should().NotBeNull();
@@ -130,7 +118,7 @@ public sealed class PreviewDocumentUseCaseTests
             TemplateId: templateId);
 
         // Act
-        await using var streamResult = await CreateSut().ExecuteAsync(query);
+        await using var streamResult = await CreateSut().ExecuteAsync(query, CancellationToken.None);
 
         // Assert
         streamResult.Should().NotBeNull();
@@ -152,7 +140,7 @@ public sealed class PreviewDocumentUseCaseTests
         );
 
         // Act
-        await using var streamResult = await CreateSut().ExecuteAsync(request);
+        await using var streamResult = await CreateSut().ExecuteAsync(request, CancellationToken.None);
 
         // Assert
         streamResult.Should().NotBeNull();
@@ -170,7 +158,7 @@ public sealed class PreviewDocumentUseCaseTests
         var request = new PreviewDocumentQuery(Payload: jsonDoc.RootElement, Html: null, Slug: null, TemplateId: null);
 
         // Act
-        var act = () => CreateSut().ExecuteAsync(request);
+        var act = () => CreateSut().ExecuteAsync(request, CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<DomainValidationException>();
@@ -188,7 +176,7 @@ public sealed class PreviewDocumentUseCaseTests
         var request = new PreviewDocumentQuery(Payload: jsonDoc.RootElement, Html: null, Slug: "tpl-no-version");
 
         // Act
-        var act = () => CreateSut().ExecuteAsync(request);
+        var act = () => CreateSut().ExecuteAsync(request, CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<BusinessRuleViolationException>();
@@ -201,7 +189,7 @@ public sealed class PreviewDocumentUseCaseTests
         var pdfBytes = Encoding.UTF8.GetBytes("%PDF-preview");
         var entry = new TemplateDraftEntry("draft-1", _projectId.Value, "drafts/t.docx", "t.docx", ".docx", ["field"]);
 
-        _draftCache.GetAsync(_projectId, "draft-1", Arg.Any<CancellationToken>()).Returns(entry);
+        _draftCache.GetCurrentProjectDraftAsync("draft-1", Arg.Any<CancellationToken>()).Returns(entry);
         _draftCache.OpenStreamAsync(entry, Arg.Any<CancellationToken>()).Returns(new MemoryStream(Encoding.UTF8.GetBytes("docx-stream")));
         _engine.RenderStreamAsync(Arg.Any<Stream>(), Arg.Any<string>(), OutputFormat.Pdf, Arg.Any<CancellationToken>())
             .Returns(_ => new MemoryStream(pdfBytes));
@@ -227,7 +215,7 @@ public sealed class PreviewDocumentUseCaseTests
     public async Task ExecuteAsync_WhenDraftNotFound_ShouldThrowDraftExpiredException()
     {
         // Arrange
-        _draftCache.GetAsync(_projectId, "gone", Arg.Any<CancellationToken>()).Returns((TemplateDraftEntry?)null);
+        _draftCache.GetCurrentProjectDraftAsync("gone", Arg.Any<CancellationToken>()).Returns((TemplateDraftEntry?)null);
 
         using var jsonDoc = JsonDocument.Parse("{}");
         var request = new PreviewDocumentQuery(Payload: jsonDoc.RootElement, DraftId: "gone");
@@ -240,11 +228,11 @@ public sealed class PreviewDocumentUseCaseTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_WhenDraftWithoutProjectContext_ShouldThrowTenantContextRequiredException()
+    public async Task ExecuteAsync_WhenDraftWithoutProjectContext_ShouldThrowProjectContextRequiredException()
     {
         // Arrange
-        _projectContext.IsResolved.Returns(false);
-        _projectContext.ProjectId.Returns(_ => throw new TenantContextRequiredException());
+        _draftCache.GetCurrentProjectDraftAsync("draft-no-ctx", Arg.Any<CancellationToken>())
+            .Returns<TemplateDraftEntry?>(_ => throw new ProjectContextRequiredException("Project context is required for draft preview."));
 
         using var jsonDoc = JsonDocument.Parse("{}");
         var request = new PreviewDocumentQuery(Payload: jsonDoc.RootElement, DraftId: "draft-no-ctx");
@@ -253,6 +241,6 @@ public sealed class PreviewDocumentUseCaseTests
         var act = () => CreateSut().ExecuteAsync(request, CancellationToken.None);
 
         // Assert
-        await act.Should().ThrowAsync<TenantContextRequiredException>();
+        await act.Should().ThrowAsync<ProjectContextRequiredException>();
     }
 }

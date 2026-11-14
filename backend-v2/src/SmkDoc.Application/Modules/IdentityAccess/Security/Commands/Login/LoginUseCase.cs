@@ -1,31 +1,28 @@
 using SmkDoc.Application.Common.Constants;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Services;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
 
 namespace SmkDoc.Application.Modules.IdentityAccess.Security.Commands.Login;
 
 /// <summary>
-/// Authenticates user credentials and delegates token pair issuance to <see cref="ITokenIssuerService"/>.
+/// Authenticates user credentials and delegates token pair issuance to <see cref="ITokenSessionGenerator"/>.
 /// Adheres strictly to linear 4-step PEMR cadence and OWASP timing-attack protections.
 /// </summary>
 public sealed class LoginUseCase(
     IUserRepository userRepo,
     IPasswordHasher passwordHasher,
-    ITokenIssuerService tokenIssuerService,
+    ITokenSessionGenerator tokenSessionGenerator,
     IUnitOfWork unitOfWork,
     ISecurityAuditService auditService) : IUseCase<LoginCommand, LoginResultDto>
 {
-    public async Task<LoginResultDto> ExecuteAsync(LoginCommand command, CancellationToken ct = default)
+    public async Task<LoginResultDto> ExecuteAsync(LoginCommand command, CancellationToken ct)
     {
         var email = EmailAddress.Create(command.Email);
         var user = await ValidateCredentialsAsync(email, command.Password, ct);
 
-        var issued = await tokenIssuerService.IssueTokensAsync(user, ct: ct);
+        var issued = await tokenSessionGenerator.IssueTokensAsync(user, ct: ct);
         await unitOfWork.CommitAsync(ct);
 
         auditService.LogLoginSuccess(user.Id.Value, user.Email.Value, issued.Workspace.ActiveProjectId);

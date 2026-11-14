@@ -1,3 +1,4 @@
+using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Exceptions;
@@ -13,11 +14,11 @@ public sealed class CurrentProjectContext : ICurrentProjectContext, ICurrentProj
 {
     private ProjectId _projectId = ProjectId.Empty;
 
-    public ProjectId ProjectId => IsResolved
+    public ProjectId GetRequiredProjectId() => IsResolved
         ? _projectId
-        : throw new TenantContextRequiredException();
+        : throw new TenantContextNotResolvedException();
 
-    public ProjectId? OptionalProjectId => IsResolved ? _projectId : null;
+    public ProjectId? TryGetProjectId() => IsResolved ? _projectId : null;
 
     public bool IsResolved => !_projectId.IsEmpty;
     public string? CallerIdentity { get; private set; }

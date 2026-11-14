@@ -6,9 +6,7 @@ using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Logging;
 using SmkDoc.Api.Filters;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
-using SmkDoc.Tests.Common;
 
 namespace SmkDoc.Tests.Api.Filters;
 
@@ -34,7 +32,7 @@ public sealed class IdempotencyFilterTests
     {
         var pid = projectId ?? ProjectId.New();
         _projectContext.IsResolved.Returns(true);
-        _projectContext.ProjectId.Returns(pid);
+        _projectContext.GetRequiredProjectId().Returns(pid);
         return pid.Value.ToString("N");
     }
 

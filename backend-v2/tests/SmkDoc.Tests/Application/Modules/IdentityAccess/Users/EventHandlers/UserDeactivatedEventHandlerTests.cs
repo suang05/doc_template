@@ -1,11 +1,6 @@
-using FluentAssertions;
-using NSubstitute;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Users.EventHandlers;
 using SmkDoc.Domain.Events;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
-using Xunit;
 
 namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Users.EventHandlers;
 
@@ -27,7 +22,7 @@ public sealed class UserDeactivatedEventHandlerTests
 
         // Act
         var sut = CreateSut();
-        await sut.HandleAsync(domainEvent);
+        await sut.HandleAsync(domainEvent, CancellationToken.None);
 
         // Assert
         _auditService.Received(1).LogUserDeactivated(userId.Value);

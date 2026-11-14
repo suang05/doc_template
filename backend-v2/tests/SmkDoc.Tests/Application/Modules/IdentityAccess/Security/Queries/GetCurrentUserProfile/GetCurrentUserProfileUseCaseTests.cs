@@ -1,15 +1,8 @@
-using FluentAssertions;
-using NSubstitute;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Queries.GetCurrentUserProfile;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Enums;
-using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common.Builders;
-using Xunit;
 
 namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Security.Queries.GetCurrentUserProfile;
 
@@ -17,12 +10,10 @@ public sealed class GetCurrentUserProfileUseCaseTests
 {
     private readonly IUserRepository _userRepo = Substitute.For<IUserRepository>();
     private readonly IUserWorkspaceQueryService _workspaceQueryService = Substitute.For<IUserWorkspaceQueryService>();
-    private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
 
     private GetCurrentUserProfileUseCase CreateSut() => new(
         _userRepo,
-        _workspaceQueryService,
-        _projectContext);
+        _workspaceQueryService);
 
     [Fact]
     public async Task ExecuteAsync_WhenStandardUserWithProjects_ReturnsProfileAndAccessibleProjects()
@@ -48,7 +39,7 @@ public sealed class GetCurrentUserProfileUseCaseTests
             .Returns(workspaceContext);
 
         // Act
-        var result = await CreateSut().ExecuteAsync(new GetCurrentUserProfileQuery(user.Id.Value));
+        var result = await CreateSut().ExecuteAsync(new GetCurrentUserProfileQuery(user.Id.Value), CancellationToken.None);
 
         // Assert
         result.Should().NotBeNull();
@@ -85,13 +76,11 @@ public sealed class GetCurrentUserProfileUseCaseTests
 
         _userRepo.GetByIdAsync(user.Id, Arg.Any<CancellationToken>())
             .Returns(user);
-        _projectContext.IsResolved.Returns(true);
-        _projectContext.ProjectId.Returns(new ProjectId(proj2));
         _workspaceQueryService.ResolveWorkspaceContextAsync(user, proj2, false, Arg.Any<CancellationToken>())
             .Returns(workspaceContext);
 
         // Act
-        var result = await CreateSut().ExecuteAsync(new GetCurrentUserProfileQuery(user.Id.Value));
+        var result = await CreateSut().ExecuteAsync(new GetCurrentUserProfileQuery(user.Id.Value, proj2), CancellationToken.None);
 
         // Assert
         result.Should().NotBeNull();
@@ -122,13 +111,11 @@ public sealed class GetCurrentUserProfileUseCaseTests
 
         _userRepo.GetByIdAsync(user.Id, Arg.Any<CancellationToken>())
             .Returns(user);
-        _projectContext.IsResolved.Returns(true);
-        _projectContext.ProjectId.Returns(new ProjectId(unauthorizedProjectId));
         _workspaceQueryService.ResolveWorkspaceContextAsync(user, unauthorizedProjectId, false, Arg.Any<CancellationToken>())
             .Returns(workspaceContext);
 
         // Act
-        var result = await CreateSut().ExecuteAsync(new GetCurrentUserProfileQuery(user.Id.Value));
+        var result = await CreateSut().ExecuteAsync(new GetCurrentUserProfileQuery(user.Id.Value, unauthorizedProjectId), CancellationToken.None);
 
         // Assert
         result.Should().NotBeNull();
@@ -160,7 +147,7 @@ public sealed class GetCurrentUserProfileUseCaseTests
             .Returns(workspaceContext);
 
         // Act
-        var result = await CreateSut().ExecuteAsync(new GetCurrentUserProfileQuery(user.Id.Value));
+        var result = await CreateSut().ExecuteAsync(new GetCurrentUserProfileQuery(user.Id.Value), CancellationToken.None);
 
         // Assert
         result.Should().NotBeNull();
@@ -191,13 +178,11 @@ public sealed class GetCurrentUserProfileUseCaseTests
 
         _userRepo.GetByIdAsync(user.Id, Arg.Any<CancellationToken>())
             .Returns(user);
-        _projectContext.IsResolved.Returns(true);
-        _projectContext.ProjectId.Returns(new ProjectId(anyProject));
         _workspaceQueryService.ResolveWorkspaceContextAsync(user, anyProject, false, Arg.Any<CancellationToken>())
             .Returns(workspaceContext);
 
         // Act
-        var result = await CreateSut().ExecuteAsync(new GetCurrentUserProfileQuery(user.Id.Value));
+        var result = await CreateSut().ExecuteAsync(new GetCurrentUserProfileQuery(user.Id.Value, anyProject), CancellationToken.None);
 
         // Assert
         result.Should().NotBeNull();
@@ -212,7 +197,7 @@ public sealed class GetCurrentUserProfileUseCaseTests
             .Returns((User?)null);
 
         // Act
-        var act = () => CreateSut().ExecuteAsync(new GetCurrentUserProfileQuery(Guid.NewGuid()));
+        var act = () => CreateSut().ExecuteAsync(new GetCurrentUserProfileQuery(Guid.NewGuid()), CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<UnauthorizedException>();

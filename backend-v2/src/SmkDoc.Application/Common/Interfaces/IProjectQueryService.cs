@@ -15,5 +15,5 @@ public interface IProjectQueryService
         string? searchTerm,
         int page,
         int pageSize,
-        CancellationToken ct = default);
+        CancellationToken ct);
 }

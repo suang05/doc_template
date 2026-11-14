@@ -1,15 +1,8 @@
 using SmkDoc.Application.Common;
-using SmkDoc.Application.Common.Exceptions;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.Helpers;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.RollbackTemplateVersion;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Enums;
-using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.Interfaces;
-using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.ValueObjects.Ids;
-using SmkDoc.Tests.Common;
 
 namespace SmkDoc.Tests.Application.Modules.Authoring.Templates.Commands.RollbackTemplateVersion;
 
@@ -25,7 +18,7 @@ public sealed class RollbackTemplateVersionUseCaseTests
     public RollbackTemplateVersionUseCaseTests()
     {
         _projectContext.IsResolved.Returns(true);
-        _projectContext.ProjectId.Returns(_projectId);
+        _projectContext.GetRequiredProjectId().Returns(_projectId);
         _projectContext.CallerIdentity.Returns("studio-admin");
         _unitOfWork.CommitAsync(Arg.Any<CancellationToken>()).Returns(1);
     }
@@ -90,7 +83,7 @@ public sealed class RollbackTemplateVersionUseCaseTests
             .Returns(true);
 
         // Act
-        var result = await CreateSut().ExecuteAsync(new RollbackTemplateVersionCommand(template.Id.Value, 1));
+        var result = await CreateSut().ExecuteAsync(new RollbackTemplateVersionCommand(template.Id.Value, 1), CancellationToken.None);
 
         // Assert
         result.Version.Should().Be(3);
@@ -139,7 +132,7 @@ public sealed class RollbackTemplateVersionUseCaseTests
             .Returns(false);
 
         // Act
-        Func<Task> act = () => CreateSut().ExecuteAsync(new RollbackTemplateVersionCommand(template.Id.Value, 1));
+        Func<Task> act = () => CreateSut().ExecuteAsync(new RollbackTemplateVersionCommand(template.Id.Value, 1), CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<NotFoundException>()

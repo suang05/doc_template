@@ -1,4 +1,3 @@
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Infrastructure.Data.Drivers;
 
 namespace SmkDoc.Tests.Infrastructure.Data;

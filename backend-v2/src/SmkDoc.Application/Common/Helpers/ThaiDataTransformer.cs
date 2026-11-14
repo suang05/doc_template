@@ -321,11 +321,14 @@ public static partial class ThaiDataTransformer
             : amount.ToString("N0", CultureInfo.InvariantCulture);
     }
 
+    [GeneratedRegex(@"\D", RegexOptions.None, 500)]
+    private static partial Regex NonDigitRegex();
+
     public static string FormatPhone(string input)
     {
         if (string.IsNullOrWhiteSpace(input)) return string.Empty;
 
-        string digits = Regex.Replace(input, @"\D", "");
+        string digits = NonDigitRegex().Replace(input, "");
         if (digits.Length == 10)
         {
             return $"{digits[..3]}-{digits[3..6]}-{digits[6..]}";
@@ -341,7 +344,7 @@ public static partial class ThaiDataTransformer
     {
         if (string.IsNullOrWhiteSpace(input)) return string.Empty;
 
-        string digits = Regex.Replace(input, @"\D", "");
+        string digits = NonDigitRegex().Replace(input, "");
         if (digits.Length == 13)
         {
             return $"{digits[0]}-{digits[1..5]}-{digits[5..10]}-{digits[10..12]}-{digits[12]}";

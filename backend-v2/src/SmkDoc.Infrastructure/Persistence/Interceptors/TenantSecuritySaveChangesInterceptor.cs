@@ -40,7 +40,7 @@ public sealed class TenantSecuritySaveChangesInterceptor(ICurrentProjectContext 
             return;
         }
 
-        var currentTenantId = _projectContext.ProjectId;
+        var currentTenantId = _projectContext.GetRequiredProjectId();
 
         foreach (var entry in context.ChangeTracker.Entries<IMustHaveProject>())
         {

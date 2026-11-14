@@ -1,5 +1,3 @@
-using SmkDoc.Application.Common.Exceptions;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Integration.DataConnections.Commands.TestDataConnection;
 
 namespace SmkDoc.Tests.Application.Modules.Integration.DataConnections.Commands.TestDataConnection;
@@ -19,7 +17,7 @@ public sealed class TestDataConnectionUseCaseTests
             .Returns("[{\"1\": 1}]");
 
         // Act
-        var result = await CreateSut().ExecuteAsync(command);
+        var result = await CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         result.Success.Should().BeTrue();
@@ -35,7 +33,7 @@ public sealed class TestDataConnectionUseCaseTests
             .ThrowsAsync(new InvalidOperationException("Network timeout"));
 
         // Act
-        var result = await CreateSut().ExecuteAsync(command);
+        var result = await CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         result.Success.Should().BeFalse();
@@ -51,7 +49,7 @@ public sealed class TestDataConnectionUseCaseTests
             .ThrowsAsync(new ForbiddenException("SSRF target blocked"));
 
         // Act
-        Func<Task> act = () => CreateSut().ExecuteAsync(command);
+        Func<Task> act = () => CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<ForbiddenException>().WithMessage("SSRF target blocked");

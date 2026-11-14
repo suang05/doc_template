@@ -8,7 +8,6 @@ using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.Constants;
 using SmkDoc.Api.Contracts.Rendering.Documents;
 using SmkDoc.Api.Controllers.Rendering;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Rendering.Documents.Commands.EnqueueDocumentGeneration;
 using SmkDoc.Application.Modules.Rendering.Documents.Commands.GenerateDocument;
 using SmkDoc.Application.Modules.Rendering.Documents.DTOs;
@@ -141,7 +140,7 @@ public sealed class DocumentGenerationControllerTests
             DateTimeOffset.UtcNow.AddSeconds(-30),
             DateTimeOffset.UtcNow,
             $"/api/v1/documents/jobs/{jobId}",
-            $"/api/v1/documents/download/{Guid.NewGuid()}",
+            $"/api/v1/generation-logs/{Guid.NewGuid()}/artifact",
             null,
             null);
 

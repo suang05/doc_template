@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Common.Responses;
-using SmkDoc.Api.Contracts.Authoring.Templates;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.RollbackTemplateVersion;
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;

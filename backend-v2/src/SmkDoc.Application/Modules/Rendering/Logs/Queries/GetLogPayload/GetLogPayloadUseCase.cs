@@ -1,9 +1,5 @@
-using System.Text;
 using SmkDoc.Application.Common;
-using SmkDoc.Application.Common.Exceptions;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Rendering.Logs.DTOs;
-using SmkDoc.Domain.Interfaces;
 
 namespace SmkDoc.Application.Modules.Rendering.Logs.Queries.GetLogPayload;
 
@@ -13,7 +9,7 @@ public sealed class GetLogPayloadUseCase(
 {
     private const string OffloadedPrefix = "[OFFLOADED:";
 
-    public async Task<LogPayloadResultDto> ExecuteAsync(GetLogPayloadQuery query, CancellationToken ct = default)
+    public async Task<LogPayloadResultDto> ExecuteAsync(GetLogPayloadQuery query, CancellationToken ct)
     {
         var log = await logRepo.GetByIdAsync(query.LogId, ct)
             ?? throw new NotFoundException($"Generation log '{query.LogId}' not found.");

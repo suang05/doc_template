@@ -1,12 +1,8 @@
-using SmkDoc.Application.Common.Exceptions;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Users.DTOs;
 using SmkDoc.Application.Modules.IdentityAccess.Users.Services;
 using SmkDoc.Domain.Common;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
-using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.Interfaces;
 
 namespace SmkDoc.Application.Modules.IdentityAccess.Users.Commands.InviteUser;
 
@@ -14,19 +10,19 @@ namespace SmkDoc.Application.Modules.IdentityAccess.Users.Commands.InviteUser;
 /// Invites an existing or new user to the active project context and assigns their tenant role.
 /// </summary>
 public sealed class InviteUserUseCase(
-    IUserProvisioningService userProvisioningService,
+    IUserAccountProcessor userAccountProcessor,
     IUserProjectRoleRepository roleRepo,
     IUnitOfWork uow,
     ICurrentProjectContext projectContext,
     TimeProvider timeProvider) : IUseCase<InviteUserCommand, UserResultDto>
 {
-    public async Task<UserResultDto> ExecuteAsync(InviteUserCommand command, CancellationToken ct = default)
+    public async Task<UserResultDto> ExecuteAsync(InviteUserCommand command, CancellationToken ct)
     {
-        var pId = projectContext.ProjectId;
+        var pId = projectContext.GetRequiredProjectId();
         var roleType = Enumeration.FromDisplayName<RoleType>(command.Role);
         var now = timeProvider.GetUtcNow();
 
-        var user = await userProvisioningService.GetOrRegisterUserAsync(command.Email, command.Password, command.FirstName, command.LastName, now, ct);
+        var user = await userAccountProcessor.GetOrRegisterUserAsync(command.Email, command.Password, command.FirstName, command.LastName, now, ct);
         await EnsureNotMemberAsync(pId, user, ct);
 
         await AssignProjectRoleAsync(pId, user.Id, roleType, now, ct);

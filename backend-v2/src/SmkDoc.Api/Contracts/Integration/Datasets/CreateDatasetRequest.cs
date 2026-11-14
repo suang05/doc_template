@@ -1,9 +1,11 @@
+using System.Text.Json.Serialization;
+
 namespace SmkDoc.Api.Contracts.Integration.Datasets;
 
 public record CreateDatasetRequest(
     string Name,
     string? Description,
-    Guid DataConnectionId,
+    [property: JsonRequired] Guid DataConnectionId,
     string SqlQuery,
-    int CacheSeconds = 0
+    int? CacheSeconds = null
 );

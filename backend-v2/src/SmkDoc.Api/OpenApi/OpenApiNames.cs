@@ -19,6 +19,7 @@ public static class OpenApiNames
 
     public const string ApiVersion = "2.0.0";
     public const string ApiKeyHeader = HttpHeaderConstants.ApiKeyHeader;
+    public const string ProjectIdHeader = HttpHeaderConstants.ProjectIdHeader;
     public const string IdempotencyKeyHeader = IdempotencyFilter.HeaderName;
     public const string IfMatchHeader = "If-Match";
     public const string ETagHeader = "ETag";

@@ -1,13 +1,10 @@
 using System.Text.Json;
 using SmkDoc.Application.Common;
-using SmkDoc.Application.Common.Exceptions;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Common.Streams;
 using SmkDoc.Application.Modules.DataBinding.Services;
 using SmkDoc.Application.Modules.Rendering.Documents.Queries.PreviewDocument;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
-using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Modules.Rendering.Documents;
@@ -23,10 +20,9 @@ public sealed class PreviewDocumentUseCase(
     IStorageService storageService,
     IRenderEngineFactory engineFactory,
     IDataBindingEngine? dataBindingEngine = null,
-    ITemplateDraftCache? draftCache = null,
-    ICurrentProjectContext? projectContext = null) : IUseCase<PreviewDocumentQuery, Stream>
+    ITemplateDraftCache? draftCache = null) : IUseCase<PreviewDocumentQuery, Stream>
 {
-    public async Task<Stream> ExecuteAsync(PreviewDocumentQuery query, CancellationToken ct = default)
+    public async Task<Stream> ExecuteAsync(PreviewDocumentQuery query, CancellationToken ct)
     {
         Stream templateStream;
         RenderEngineType engineType;
@@ -42,15 +38,12 @@ public sealed class PreviewDocumentUseCase(
         // 2. RAM-cached draft template preview
         else if (!string.IsNullOrWhiteSpace(query.DraftId))
         {
-            var projectId = projectContext?.ProjectId
-                ?? throw new TenantContextRequiredException("Draft preview");
-
             if (draftCache is null)
             {
                 throw new BusinessRuleViolationException("Draft cache is not available for preview.", "DRAFT_CACHE_UNAVAILABLE");
             }
 
-            var draft = await draftCache.GetAsync(projectId, query.DraftId, ct)
+            var draft = await draftCache.GetCurrentProjectDraftAsync(query.DraftId, ct)
                 ?? throw new DraftExpiredException(query.DraftId);
 
             if (!TemplateFormat.TryFromExtension(draft.FileExtension, out var format))

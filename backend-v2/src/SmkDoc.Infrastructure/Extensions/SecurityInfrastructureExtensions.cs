@@ -1,7 +1,5 @@
-using System;
 using Microsoft.Extensions.DependencyInjection;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Infrastructure.Data;
 using SmkDoc.Infrastructure.Data.Drivers;
 using SmkDoc.Infrastructure.Security;

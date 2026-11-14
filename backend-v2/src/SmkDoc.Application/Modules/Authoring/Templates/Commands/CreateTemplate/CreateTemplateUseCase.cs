@@ -1,15 +1,11 @@
-using System.Diagnostics;
+using SmkDoc.Application.Common.Storage;
 using System.Text;
 using SmkDoc.Application.Common;
-using SmkDoc.Application.Common.Exceptions;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Common.Streams;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.Helpers;
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
-using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects;
 
 namespace SmkDoc.Application.Modules.Authoring.Templates.Commands.CreateTemplate;
@@ -29,10 +25,10 @@ public sealed class CreateTemplateUseCase(
 {
     private const long MaxTemplateFileSizeBytes = 20L * 1024 * 1024;
 
-    public async Task<TemplateResultDto> ExecuteAsync(CreateTemplateCommand command, CancellationToken ct = default)
+    public async Task<TemplateResultDto> ExecuteAsync(CreateTemplateCommand command, CancellationToken ct)
     {
         // Step 1: Parse & Guard (Fail-fast at line 1 via Smart Context Property)
-        var projectId = projectContext.ProjectId;
+        var projectId = projectContext.GetRequiredProjectId();
 
         if (await templateRepo.SlugExistsAsync(command.Slug, ct))
         {
@@ -167,20 +163,11 @@ public sealed class CreateTemplateUseCase(
         version.UpdateMappingsSnapshot(FieldMappingSnapshotSerializer.Serialize(template.FieldMappings), now);
     }
 
-    private async Task CompensateStorageDeleteAsync(string storageKey, Exception primaryEx)
-    {
-        try
-        {
-            await storageService.DeleteAsync(StorageBuckets.Templates, storageKey, CancellationToken.None);
-        }
-        catch (Exception cleanupEx)
-        {
-            primaryEx.Data["OrphanedStorageKey"] = storageKey;
-            primaryEx.Data["CompensatingDeleteError"] = cleanupEx.Message;
-            Trace.TraceWarning(
-                "Failed to delete orphaned template object '{0}' after database commit failure: {1}",
-                storageKey,
-                cleanupEx.Message);
-        }
-    }
+    private Task CompensateStorageDeleteAsync(string storageKey, Exception primaryEx) =>
+        StorageOrphanCleaner.TryDeleteOrphanAsync(
+            storageService,
+            StorageBuckets.Templates,
+            storageKey,
+            primaryEx,
+            CancellationToken.None);
 }

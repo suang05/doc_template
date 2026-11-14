@@ -1,10 +1,6 @@
-using SmkDoc.Application.Common.Exceptions;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Users.DTOs;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
-using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Modules.IdentityAccess.Users.Commands.SetUserStatus;
@@ -20,7 +16,7 @@ public sealed class SetUserStatusUseCase(
     ICurrentProjectContext projectContext,
     TimeProvider timeProvider) : IUseCase<SetUserStatusCommand, UserResultDto>
 {
-    public async Task<UserResultDto> ExecuteAsync(SetUserStatusCommand command, CancellationToken ct = default)
+    public async Task<UserResultDto> ExecuteAsync(SetUserStatusCommand command, CancellationToken ct)
     {
         EnsureSuperAdminAuthorization();
 
@@ -96,7 +92,7 @@ public sealed class SetUserStatusUseCase(
             return "Member";
         }
 
-        var role = await roleRepo.GetAsync(projectContext.ProjectId, userId, ct);
+        var role = await roleRepo.GetAsync(projectContext.GetRequiredProjectId(), userId, ct);
         return role != null ? role.Role.Name : "Member";
     }
 }

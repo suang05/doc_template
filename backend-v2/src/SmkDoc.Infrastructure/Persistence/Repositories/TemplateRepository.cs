@@ -9,14 +9,14 @@ public sealed class TemplateRepository(AppDbContext context) : ITemplateReposito
 {
     private readonly AppDbContext _context = context;
 
-    public async Task<Template?> GetByIdAsync(TemplateId id, CancellationToken ct = default)
+    public async Task<Template?> GetByIdAsync(TemplateId id, CancellationToken ct)
     {
         return await _context.Templates
             .Include(t => t.CurrentVersion)
             .FirstOrDefaultAsync(t => t.Id == id, ct);
     }
 
-    public async Task<Template?> GetByIdWithDetailsAsync(TemplateId id, CancellationToken ct = default)
+    public async Task<Template?> GetByIdWithDetailsAsync(TemplateId id, CancellationToken ct)
     {
         return await _context.Templates
             .AsSplitQuery()
@@ -27,14 +27,14 @@ public sealed class TemplateRepository(AppDbContext context) : ITemplateReposito
             .FirstOrDefaultAsync(t => t.Id == id, ct);
     }
 
-    public async Task<Template?> GetBySlugAsync(string slug, CancellationToken ct = default)
+    public async Task<Template?> GetBySlugAsync(string slug, CancellationToken ct)
     {
         return await _context.Templates
             .Include(t => t.CurrentVersion)
             .FirstOrDefaultAsync(t => t.Slug == slug, ct);
     }
 
-    public async Task<Template?> GetBySlugWithDetailsAsync(string slug, CancellationToken ct = default)
+    public async Task<Template?> GetBySlugWithDetailsAsync(string slug, CancellationToken ct)
     {
         return await _context.Templates
             .AsSplitQuery()
@@ -44,13 +44,13 @@ public sealed class TemplateRepository(AppDbContext context) : ITemplateReposito
             .FirstOrDefaultAsync(t => t.Slug == slug, ct);
     }
 
-    public async Task<bool> SlugExistsAsync(string slug, CancellationToken ct = default)
+    public async Task<bool> SlugExistsAsync(string slug, CancellationToken ct)
     {
         return await _context.Templates
             .AnyAsync(t => t.Slug == slug, ct);
     }
 
-    public async Task<IReadOnlyList<Template>> ListAsync(CancellationToken ct = default)
+    public async Task<IReadOnlyList<Template>> ListAsync(CancellationToken ct)
     {
         return await _context.Templates
             .AsNoTracking()
@@ -59,14 +59,14 @@ public sealed class TemplateRepository(AppDbContext context) : ITemplateReposito
             .ToListAsync(ct);
     }
 
-    public async Task<TemplateVersion?> GetVersionByIdAsync(Guid versionId, CancellationToken ct = default)
+    public async Task<TemplateVersion?> GetVersionByIdAsync(Guid versionId, CancellationToken ct)
     {
         return await _context.Templates
             .SelectMany(t => t.Versions)
             .FirstOrDefaultAsync(v => v.Id == versionId, ct);
     }
 
-    public async Task<IReadOnlyList<TemplateVersion>> ListVersionsAsync(TemplateId templateId, CancellationToken ct = default)
+    public async Task<IReadOnlyList<TemplateVersion>> ListVersionsAsync(TemplateId templateId, CancellationToken ct)
     {
         return await _context.Templates
             .AsNoTracking()
@@ -76,7 +76,7 @@ public sealed class TemplateRepository(AppDbContext context) : ITemplateReposito
             .ToListAsync(ct);
     }
 
-    public async Task AddAsync(Template template, CancellationToken ct = default)
+    public async Task AddAsync(Template template, CancellationToken ct)
     {
         await _context.Templates.AddAsync(template, ct);
     }

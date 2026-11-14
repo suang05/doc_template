@@ -1,9 +1,7 @@
-using System;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Infrastructure.BackgroundWorkers;
 using SmkDoc.Infrastructure.Cache;
 using SmkDoc.Infrastructure.Queue;
@@ -24,12 +22,13 @@ public static class DistributedInfrastructureExtensions
         var prefix = RedisConfigurationResolver.ResolveInstancePrefix(configuration);
 
         // 1. Unified Hybrid Draft Cache (L1 Memory + Optional L2 Redis)
-        services.AddSingleton<ITemplateDraftCache>(sp => new HybridTemplateDraftCache(
+        services.AddScoped<ITemplateDraftCache>(sp => new HybridTemplateDraftCache(
             sp.GetService<IConnectionMultiplexer>(),
             sp.GetRequiredService<IStorageService>(),
             sp.GetRequiredService<ILogger<HybridTemplateDraftCache>>(),
             sp.GetRequiredService<Microsoft.Extensions.Caching.Memory.IMemoryCache>(),
-            prefix));
+            prefix,
+            sp.GetService<ICurrentProjectContext>()));
 
         // 2. Distributed Store & Streams Queue
         bool enforceDistributed = string.Equals(configuration["ASPNETCORE_ENVIRONMENT"], "Production", StringComparison.OrdinalIgnoreCase)

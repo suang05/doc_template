@@ -1,47 +1,18 @@
-using SmkDoc.Application.Common.Exceptions;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
-using SmkDoc.Domain.Enums;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Modules.IdentityAccess.Security.Queries.ListApiKeys;
 
 public sealed class ListApiKeysUseCase(
-    IApiKeyRepository apiKeyRepo,
-    ICurrentProjectContext projectContext) : IUseCase<ListApiKeysQuery, List<ApiKeyResultDto>>
+    IApiKeyRepository apiKeyRepo) : IUseCase<ListApiKeysQuery, List<ApiKeyResultDto>>
 {
-    public async Task<List<ApiKeyResultDto>> ExecuteAsync(ListApiKeysQuery query, CancellationToken ct = default)
+    public async Task<List<ApiKeyResultDto>> ExecuteAsync(ListApiKeysQuery query, CancellationToken ct)
     {
-        var keys = await ResolveTargetKeysAsync(query, ct);
+        var keys = query.ProjectId.HasValue && query.ProjectId.Value != Guid.Empty
+            ? await apiKeyRepo.ListByProjectAsync(new ProjectId(query.ProjectId.Value), ct)
+            : await apiKeyRepo.ListCurrentProjectAsync(ct);
+
         return keys.Select(ToMaskedDto).ToList();
-    }
-
-    private async Task<IReadOnlyList<Domain.Entities.ApiKey>> ResolveTargetKeysAsync(ListApiKeysQuery query, CancellationToken ct)
-    {
-        if (query.ProjectId.HasValue && query.ProjectId.Value != Guid.Empty)
-        {
-            var targetProjectId = new ProjectId(query.ProjectId.Value);
-            EnsureListPermission(targetProjectId);
-            return await apiKeyRepo.ListByProjectAsync(targetProjectId, ct);
-        }
-
-        if (projectContext.SystemRole == SystemRole.SuperAdmin && !projectContext.IsResolved)
-        {
-            return await apiKeyRepo.ListAllAsync(ct);
-        }
-
-        return await apiKeyRepo.ListByProjectAsync(projectContext.ProjectId, ct);
-    }
-
-    private void EnsureListPermission(ProjectId targetProjectId)
-    {
-        if (projectContext.SystemRole == SystemRole.SuperAdmin) return;
-
-        if (projectContext.ProjectId != targetProjectId)
-        {
-            throw new CrossTenantAccessDeniedException(targetProjectId);
-        }
     }
 
     private static ApiKeyResultDto ToMaskedDto(Domain.Entities.ApiKey k)

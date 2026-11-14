@@ -1,29 +1,31 @@
 using System.Text.Json;
-using FluentAssertions;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
-using NSubstitute;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Infrastructure.Cache;
 using StackExchange.Redis;
-using Xunit;
 
 namespace SmkDoc.Tests.Infrastructure.Cache;
 
-public sealed class HybridTemplateDraftCacheTests
+public sealed class HybridTemplateDraftCacheTests : IDisposable
 {
     private readonly IConnectionMultiplexer _multiplexer = Substitute.For<IConnectionMultiplexer>();
     private readonly IDatabase _database = Substitute.For<IDatabase>();
     private readonly IStorageService _storageService = Substitute.For<IStorageService>();
     private readonly ILogger<HybridTemplateDraftCache> _logger = Substitute.For<ILogger<HybridTemplateDraftCache>>();
-    private readonly IMemoryCache _memoryCache = new MemoryCache(new MemoryCacheOptions());
+    private readonly MemoryCache _memoryCache = new(new MemoryCacheOptions());
     private readonly ProjectId _projectId = ProjectId.New();
 
     public HybridTemplateDraftCacheTests()
     {
         _multiplexer.GetDatabase(Arg.Any<int>(), Arg.Any<object>()).Returns(_database);
+    }
+
+    public void Dispose()
+    {
+        _memoryCache.Dispose();
+        _multiplexer.Dispose();
     }
 
     private HybridTemplateDraftCache CreateSut(bool withRedis = true) =>
@@ -48,7 +50,7 @@ public sealed class HybridTemplateDraftCacheTests
         _memoryCache.Set(cacheKey, entry);
 
         // Act
-        var result = await sut.GetAsync(_projectId, draftId);
+        var result = await sut.GetAsync(_projectId, draftId, CancellationToken.None);
 
         // Assert
         result.Should().NotBeNull();
@@ -80,7 +82,7 @@ public sealed class HybridTemplateDraftCacheTests
             .Returns(new RedisValue(json));
 
         // Act 1: Initial call (L1 miss -> hits Redis)
-        var result1 = await sut.GetAsync(_projectId, draftId);
+        var result1 = await sut.GetAsync(_projectId, draftId, CancellationToken.None);
 
         // Assert 1
         result1.Should().NotBeNull();
@@ -88,7 +90,7 @@ public sealed class HybridTemplateDraftCacheTests
         await _database.Received(1).StringGetAsync(redisKey, CommandFlags.None);
 
         // Act 2: Second call (now cached in L1)
-        var result2 = await sut.GetAsync(_projectId, draftId);
+        var result2 = await sut.GetAsync(_projectId, draftId, CancellationToken.None);
 
         // Assert 2: L1 hit, Redis call count remains 1
         result2.Should().NotBeNull();
@@ -105,8 +107,8 @@ public sealed class HybridTemplateDraftCacheTests
             .Returns("drafts/test.html");
 
         // Act
-        var draftId = await sut.StoreAsync(_projectId, stream, "test.html", ".html", ["Name"]);
-        var retrieved = await sut.GetAsync(_projectId, draftId);
+        var draftId = await sut.StoreAsync(_projectId, stream, "test.html", ".html", ["Name"], CancellationToken.None);
+        var retrieved = await sut.GetAsync(_projectId, draftId, CancellationToken.None);
 
         // Assert
         retrieved.Should().NotBeNull();
@@ -136,11 +138,46 @@ public sealed class HybridTemplateDraftCacheTests
         _database.StringGetDeleteAsync(redisKey, CommandFlags.None).Returns(new RedisValue(json));
 
         // Act
-        await sut.RemoveAsync(_projectId, draftId);
+        await sut.RemoveAsync(_projectId, draftId, CancellationToken.None);
 
         // Assert
         _memoryCache.TryGetValue(l1Key, out _).Should().BeFalse();
         await _database.Received(1).StringGetDeleteAsync(redisKey, CommandFlags.None);
         await _storageService.Received(1).DeleteAsync(Arg.Any<string>(), entry.StorageKey, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task GetCurrentProjectDraftAsync_WhenContextResolved_ReturnsCachedDraft()
+    {
+        // Arrange
+        var projectContext = Substitute.For<ICurrentProjectContext>();
+        projectContext.TryGetProjectId().Returns(_projectId);
+        var sut = new HybridTemplateDraftCache(null, _storageService, _logger, _memoryCache, "smkdoc:", projectContext);
+
+        var draftId = "draft-current";
+        var entry = new TemplateDraftEntry(draftId, _projectId.Value, "drafts/c.html", "c.html", ".html", ["Name"]);
+        _memoryCache.Set($"tmpl_draft:l1:{_projectId.Value:N}:{draftId}", entry);
+
+        // Act
+        var result = await sut.GetCurrentProjectDraftAsync(draftId, CancellationToken.None);
+
+        // Assert
+        result.Should().NotBeNull();
+        result!.DraftId.Should().Be(draftId);
+    }
+
+    [Fact]
+    public async Task GetCurrentProjectDraftAsync_WhenContextMissing_ThrowsProjectContextRequiredException()
+    {
+        // Arrange
+        var projectContext = Substitute.For<ICurrentProjectContext>();
+        projectContext.TryGetProjectId().Returns((ProjectId?)null);
+        var sut = new HybridTemplateDraftCache(null, _storageService, _logger, _memoryCache, "smkdoc:", projectContext);
+
+        // Act
+        var act = () => sut.GetCurrentProjectDraftAsync("draft-missing-ctx", CancellationToken.None);
+
+        // Assert
+        await act.Should().ThrowAsync<ProjectContextRequiredException>();
     }
 }

@@ -1,23 +1,21 @@
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Enums;
-using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Modules.IdentityAccess.Security.Queries.GetCurrentUserProfile;
 
 public sealed class GetCurrentUserProfileUseCase(
     IUserRepository userRepo,
-    IUserWorkspaceQueryService workspaceQueryService,
-    ICurrentProjectContext projectContext) : IUseCase<GetCurrentUserProfileQuery, CurrentUserProfileResultDto>
+    IUserWorkspaceQueryService workspaceQueryService) : IUseCase<GetCurrentUserProfileQuery, CurrentUserProfileResultDto>
 {
-    public async Task<CurrentUserProfileResultDto> ExecuteAsync(GetCurrentUserProfileQuery query, CancellationToken ct = default)
+    public async Task<CurrentUserProfileResultDto> ExecuteAsync(GetCurrentUserProfileQuery query, CancellationToken ct)
     {
         var user = await EnsureActiveUserAsync(new UserId(query.UserId), ct);
-        var activeProjectId = projectContext.IsResolved ? projectContext.ProjectId.Value : (Guid?)null;
-        var workspace = await workspaceQueryService.ResolveWorkspaceContextAsync(user, activeProjectId, throwOnUnauthorized: false, ct);
+        var workspace = await workspaceQueryService.ResolveWorkspaceContextAsync(
+            user,
+            query.ActiveProjectId,
+            throwOnUnauthorized: false,
+            ct);
 
         return ToResultDto(user, workspace);
     }

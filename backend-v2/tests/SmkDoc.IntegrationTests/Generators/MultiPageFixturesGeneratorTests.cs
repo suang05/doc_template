@@ -3,7 +3,6 @@ using ClosedXML.Excel;
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Infrastructure.Engines.Excel;
 using SmkDoc.Infrastructure.Engines.Word;
@@ -174,7 +173,7 @@ public sealed class MultiPageFixturesGeneratorTests
             new JsonTemplateDataParser());
 
         using var templateStream = File.OpenRead(docxPath);
-        await using var renderedStream = await engine.RenderStreamAsync(templateStream, jsonString, OutputFormat.Docx);
+        await using var renderedStream = await engine.RenderStreamAsync(templateStream, jsonString, OutputFormat.Docx, CancellationToken.None);
 
         var outputDocxPath = Path.Combine(_outDir, "output-02-comprehensive-defect-report.docx");
         await using (var outFs = File.Create(outputDocxPath))
@@ -314,7 +313,7 @@ public sealed class MultiPageFixturesGeneratorTests
             new JsonTemplateDataParser());
 
         using var templateStream = File.OpenRead(xlsxPath);
-        await using var renderedStream = await engine.RenderStreamAsync(templateStream, jsonString, OutputFormat.Xlsx);
+        await using var renderedStream = await engine.RenderStreamAsync(templateStream, jsonString, OutputFormat.Xlsx, CancellationToken.None);
 
         var outputXlsxPath = Path.Combine(_outDir, "output-03-project-cashflow-model.xlsx");
         await using (var outFs = File.Create(outputXlsxPath))

@@ -1,13 +1,7 @@
-using SmkDoc.Application.Common.Exceptions;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.Commands.SaveTemplateDatasets;
 using SmkDoc.Application.Modules.Authoring.FieldMappings.DTOs;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.Interfaces;
-using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.ValueObjects.Ids;
-using SmkDoc.Tests.Common;
 using SmkDoc.Tests.Common.Builders;
 
 namespace SmkDoc.Tests.Application.Modules.Authoring.FieldMappings.Commands.SaveTemplateDatasets;
@@ -50,7 +44,7 @@ public sealed class SaveTemplateDatasetsUseCaseTests
         var command = new SaveTemplateDatasetsCommand(templateId, items);
 
         // Act
-        await CreateSut().ExecuteAsync(command);
+        await CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         template.TemplateDatasets.Should().HaveCount(1);
@@ -72,7 +66,7 @@ public sealed class SaveTemplateDatasetsUseCaseTests
         var command = new SaveTemplateDatasetsCommand(templateId, []);
 
         // Act
-        var act = () => CreateSut().ExecuteAsync(command);
+        var act = () => CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<NotFoundException>()
@@ -103,7 +97,7 @@ public sealed class SaveTemplateDatasetsUseCaseTests
         var command = new SaveTemplateDatasetsCommand(templateId, items);
 
         // Act
-        var act = () => CreateSut().ExecuteAsync(command);
+        var act = () => CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         var ex = await act.Should().ThrowAsync<ConflictException>();

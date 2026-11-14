@@ -17,7 +17,7 @@ namespace SmkDoc.Infrastructure.Migrations
                 table: "data_connections",
                 type: "uuid",
                 nullable: false,
-                defaultValue: new Guid("00000000-0000-0000-0000-000000000000"));
+                defaultValue: Guid.Empty);
 
             migrationBuilder.CreateIndex(
                 name: "IX_data_connections_ProjectId",
@@ -38,7 +38,7 @@ namespace SmkDoc.Infrastructure.Migrations
                 table: "datasets",
                 type: "uuid",
                 nullable: false,
-                defaultValue: new Guid("00000000-0000-0000-0000-000000000000"));
+                defaultValue: Guid.Empty);
 
             migrationBuilder.CreateIndex(
                 name: "IX_datasets_ProjectId",
@@ -59,7 +59,7 @@ namespace SmkDoc.Infrastructure.Migrations
                 table: "documents",
                 type: "uuid",
                 nullable: false,
-                defaultValue: new Guid("00000000-0000-0000-0000-000000000000"));
+                defaultValue: Guid.Empty);
 
             migrationBuilder.DropIndex(
                 name: "IX_documents_DocumentRef",
@@ -85,7 +85,7 @@ namespace SmkDoc.Infrastructure.Migrations
                 table: "generation_logs",
                 type: "uuid",
                 nullable: false,
-                defaultValue: new Guid("00000000-0000-0000-0000-000000000000"));
+                defaultValue: Guid.Empty);
 
             migrationBuilder.CreateIndex(
                 name: "IX_generation_logs_ProjectId",

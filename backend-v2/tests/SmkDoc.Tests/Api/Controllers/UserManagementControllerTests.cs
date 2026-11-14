@@ -1,13 +1,9 @@
-using FluentAssertions;
 using Microsoft.AspNetCore.Mvc;
-using NSubstitute;
 using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.Contracts.IdentityAccess.Users;
 using SmkDoc.Api.Controllers.IdentityAccess;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Users.Commands.SetUserStatus;
 using SmkDoc.Application.Modules.IdentityAccess.Users.DTOs;
-using Xunit;
 
 namespace SmkDoc.Tests.Api.Controllers;
 

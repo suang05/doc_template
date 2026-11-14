@@ -8,7 +8,7 @@ public static class HttpHeaderConstants
     /// <summary>
     /// HTTP Header for workspace context override.
     /// </summary>
-    public const string ProjectIdHeader = "X-Project-Id";
+    public const string ProjectIdHeader = "Project-Id";
 
     /// <summary>
     /// HTTP Header for API Key authentication.

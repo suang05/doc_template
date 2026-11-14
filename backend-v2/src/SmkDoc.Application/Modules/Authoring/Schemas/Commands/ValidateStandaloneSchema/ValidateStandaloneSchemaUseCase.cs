@@ -1,5 +1,4 @@
 using System.Text.Json;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Schemas.DTOs;
 
 namespace SmkDoc.Application.Modules.Authoring.Schemas.Commands.ValidateStandaloneSchema;
@@ -12,7 +11,7 @@ namespace SmkDoc.Application.Modules.Authoring.Schemas.Commands.ValidateStandalo
 public sealed class ValidateStandaloneSchemaUseCase(IJsonSchemaValidationService schemaValidator)
     : IUseCase<ValidateStandaloneSchemaCommand, ValidateStandaloneSchemaResult>
 {
-    public Task<ValidateStandaloneSchemaResult> ExecuteAsync(ValidateStandaloneSchemaCommand command, CancellationToken ct = default)
+    public Task<ValidateStandaloneSchemaResult> ExecuteAsync(ValidateStandaloneSchemaCommand command, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(command);
 

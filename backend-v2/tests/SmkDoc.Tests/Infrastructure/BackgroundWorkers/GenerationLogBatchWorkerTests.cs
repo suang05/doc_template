@@ -1,20 +1,11 @@
-using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using Microsoft.Extensions.Time.Testing;
-using NSubstitute;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Enums;
-using SmkDoc.Domain.Interfaces;
-using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Infrastructure.BackgroundWorkers;
 using SmkDoc.Infrastructure.Services.Logging;
-using SmkDoc.Tests.Common;
-using Xunit;
 
 namespace SmkDoc.Tests.Infrastructure.BackgroundWorkers;
 
@@ -67,16 +58,16 @@ public sealed class GenerationLogBatchWorkerTests
             FlushInterval = TimeSpan.FromSeconds(5)
         });
 
-        var sut = new GenerationLogBatchWorker(
+        using var sut = new GenerationLogBatchWorker(
             queue,
             _scopeFactory,
             NullLogger<GenerationLogBatchWorker>.Instance,
             _timeProvider,
             options);
 
-        await queue.EnqueueAsync(CreateSampleLog());
-        await queue.EnqueueAsync(CreateSampleLog());
-        await queue.EnqueueAsync(CreateSampleLog());
+        await queue.EnqueueAsync(CreateSampleLog(), CancellationToken.None);
+        await queue.EnqueueAsync(CreateSampleLog(), CancellationToken.None);
+        await queue.EnqueueAsync(CreateSampleLog(), CancellationToken.None);
 
         using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(500));
 
@@ -103,7 +94,7 @@ public sealed class GenerationLogBatchWorkerTests
             FlushInterval = TimeSpan.FromMilliseconds(50)
         });
 
-        var sut = new GenerationLogBatchWorker(
+        using var sut = new GenerationLogBatchWorker(
             queue,
             _scopeFactory,
             NullLogger<GenerationLogBatchWorker>.Instance,
@@ -111,7 +102,7 @@ public sealed class GenerationLogBatchWorkerTests
             options);
 
         // Enqueue only 1 item (less than BatchSize of 10)
-        await queue.EnqueueAsync(CreateSampleLog());
+        await queue.EnqueueAsync(CreateSampleLog(), CancellationToken.None);
 
         using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(500));
 
@@ -138,15 +129,15 @@ public sealed class GenerationLogBatchWorkerTests
             FlushInterval = TimeSpan.FromMinutes(1)
         });
 
-        var sut = new GenerationLogBatchWorker(
+        using var sut = new GenerationLogBatchWorker(
             queue,
             _scopeFactory,
             NullLogger<GenerationLogBatchWorker>.Instance,
             _timeProvider,
             options);
 
-        await queue.EnqueueAsync(CreateSampleLog());
-        await queue.EnqueueAsync(CreateSampleLog());
+        await queue.EnqueueAsync(CreateSampleLog(), CancellationToken.None);
+        await queue.EnqueueAsync(CreateSampleLog(), CancellationToken.None);
 
         // Act
         await sut.StartAsync(CancellationToken.None);
@@ -175,7 +166,7 @@ public sealed class GenerationLogBatchWorkerTests
         var lifetime = Substitute.For<IHostApplicationLifetime>();
         lifetime.ApplicationStopping.Returns(stoppingCts.Token);
 
-        var sut = new GenerationLogBatchWorker(
+        using var sut = new GenerationLogBatchWorker(
             queue,
             _scopeFactory,
             NullLogger<GenerationLogBatchWorker>.Instance,
@@ -183,12 +174,12 @@ public sealed class GenerationLogBatchWorkerTests
             options,
             lifetime);
 
-        await queue.EnqueueAsync(CreateSampleLog());
+        await queue.EnqueueAsync(CreateSampleLog(), CancellationToken.None);
 
         // Act
         await sut.StartAsync(CancellationToken.None);
         await Task.Delay(50);
-        stoppingCts.Cancel();
+        await stoppingCts.CancelAsync();
         await Task.Delay(50);
         await sut.StopAsync(CancellationToken.None);
 

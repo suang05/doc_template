@@ -10,22 +10,22 @@ public sealed class ProjectRepository(AppDbContext context) : IProjectRepository
 {
     private readonly AppDbContext _context = context;
 
-    public async Task<Project?> GetByIdAsync(ProjectId id, CancellationToken ct = default)
+    public async Task<Project?> GetByIdAsync(ProjectId id, CancellationToken ct)
     {
         return await _context.Projects.FirstOrDefaultAsync(p => p.Id == id, ct);
     }
 
-    public async Task<Project?> GetBySlugAsync(string slug, CancellationToken ct = default)
+    public async Task<Project?> GetBySlugAsync(string slug, CancellationToken ct)
     {
         return await _context.Projects.FirstOrDefaultAsync(p => p.Slug == slug, ct);
     }
 
-    public async Task<Project?> GetFirstForCompanyAsync(CompanyId companyId, CancellationToken ct = default)
+    public async Task<Project?> GetFirstForCompanyAsync(CompanyId companyId, CancellationToken ct)
     {
         return await _context.Projects.FirstOrDefaultAsync(p => p.CompanyId == companyId, ct);
     }
 
-    public async Task<CompanyId> GetOrCreateDefaultCompanyIdAsync(DateTimeOffset now, CancellationToken ct = default)
+    public async Task<CompanyId> GetOrCreateDefaultCompanyIdAsync(DateTimeOffset now, CancellationToken ct)
     {
         var company = await _context.Companies.FirstOrDefaultAsync(ct);
         if (company == null)
@@ -37,7 +37,7 @@ public sealed class ProjectRepository(AppDbContext context) : IProjectRepository
         return company.Id;
     }
 
-    public async Task<IReadOnlyList<Project>> ListByIdsAsync(IEnumerable<ProjectId> ids, CancellationToken ct = default)
+    public async Task<IReadOnlyList<Project>> ListByIdsAsync(IEnumerable<ProjectId> ids, CancellationToken ct)
     {
         var idSet = ids.ToHashSet();
         return await _context.Projects
@@ -46,7 +46,7 @@ public sealed class ProjectRepository(AppDbContext context) : IProjectRepository
             .ToListAsync(ct);
     }
 
-    public async Task AddAsync(Project project, CancellationToken ct = default)
+    public async Task AddAsync(Project project, CancellationToken ct)
     {
         await _context.Projects.AddAsync(project, ct);
     }

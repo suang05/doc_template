@@ -1,13 +1,10 @@
-using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
-using SmkDoc.Application.Common.Helpers;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Infrastructure.Imaging;
-using A   = DocumentFormat.OpenXml.Drawing;
-using DW  = DocumentFormat.OpenXml.Drawing.Wordprocessing;
+using SmkDoc.Application.Modules.Authoring.Templates.Parsing;
+using A = DocumentFormat.OpenXml.Drawing;
+using DW = DocumentFormat.OpenXml.Drawing.Wordprocessing;
 using PIC = DocumentFormat.OpenXml.Drawing.Pictures;
-using static SmkDoc.Application.Common.Helpers.PlaceholderHelper;
 
 namespace SmkDoc.Infrastructure.Engines.Word;
 
@@ -32,9 +29,9 @@ public class WordMediaInjector
         {
             if (!p.InnerText.Contains("{{")) continue;
 
-            foreach (System.Text.RegularExpressions.Match m in PlaceholderHelper.Pattern.Matches(p.InnerText))
+            foreach (System.Text.RegularExpressions.Match m in TemplatePlaceholderParser.Pattern.Matches(p.InnerText))
             {
-                var parsed = PlaceholderHelper.Parse(m.Groups[1].Value);
+                var parsed = TemplatePlaceholderParser.Parse(m.Groups[1].Value);
                 byte[]? imageBytes = null;
                 int w = 0, h = 0;
 

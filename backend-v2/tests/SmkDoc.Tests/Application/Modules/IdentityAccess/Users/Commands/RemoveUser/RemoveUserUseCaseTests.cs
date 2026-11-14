@@ -1,10 +1,6 @@
-using NSubstitute;
 using SmkDoc.Application.Common.Behaviors;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Users.Commands.RemoveUser;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common.Builders;
 using ValidationException = SmkDoc.Application.Common.Exceptions.ValidationException;
@@ -27,7 +23,7 @@ public sealed class RemoveUserUseCaseTests
     {
         // Arrange
         _projectContext.IsResolved.Returns(true);
-        _projectContext.ProjectId.Returns(new ProjectId(Guid.NewGuid()));
+        _projectContext.GetRequiredProjectId().Returns(new ProjectId(Guid.NewGuid()));
 
         var command = new RemoveUserCommand(Guid.Empty, Guid.Empty);
         var pipeline = new ValidatingUseCaseDecorator<RemoveUserCommand>(
@@ -35,7 +31,7 @@ public sealed class RemoveUserUseCaseTests
             [new RemoveUserCommandValidator()]);
 
         // Act
-        var act = () => pipeline.ExecuteAsync(command);
+        var act = () => pipeline.ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<ValidationException>();
@@ -52,7 +48,7 @@ public sealed class RemoveUserUseCaseTests
         var currentUserId = Guid.NewGuid();
 
         _projectContext.IsResolved.Returns(true);
-        _projectContext.ProjectId.Returns(new ProjectId(projectId));
+        _projectContext.GetRequiredProjectId().Returns(new ProjectId(projectId));
 
         var roleEntry = new UserProjectRoleBuilder()
             .InProject(projectId)
@@ -66,7 +62,7 @@ public sealed class RemoveUserUseCaseTests
             .Returns(roleEntry);
 
         // Act
-        await CreateSut().ExecuteAsync(command);
+        await CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         _roleRepo.Received(1).Remove(roleEntry);
@@ -82,7 +78,7 @@ public sealed class RemoveUserUseCaseTests
         var currentUserId = Guid.NewGuid();
 
         _projectContext.IsResolved.Returns(true);
-        _projectContext.ProjectId.Returns(new ProjectId(projectId));
+        _projectContext.GetRequiredProjectId().Returns(new ProjectId(projectId));
 
         var roleEntry = new UserProjectRoleBuilder()
             .InProject(projectId)
@@ -98,7 +94,7 @@ public sealed class RemoveUserUseCaseTests
             .Returns(1);
 
         // Act
-        var act = () => CreateSut().ExecuteAsync(command);
+        var act = () => CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<ConflictException>();
@@ -115,7 +111,7 @@ public sealed class RemoveUserUseCaseTests
         var currentUserId = Guid.NewGuid();
 
         _projectContext.IsResolved.Returns(true);
-        _projectContext.ProjectId.Returns(new ProjectId(projectId));
+        _projectContext.GetRequiredProjectId().Returns(new ProjectId(projectId));
 
         var command = new RemoveUserCommand(userId, currentUserId);
 
@@ -123,7 +119,7 @@ public sealed class RemoveUserUseCaseTests
             .Returns((UserProjectRole?)null);
 
         // Act
-        var act = () => CreateSut().ExecuteAsync(command);
+        var act = () => CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<NotFoundException>();

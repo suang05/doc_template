@@ -1,8 +1,5 @@
 using SmkDoc.Application.Common;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
-using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Application.Modules.Authoring.Templates.Queries.ScanTemplatePlaceholders;
@@ -15,7 +12,7 @@ public sealed class ScanTemplatePlaceholdersUseCase(
     IStorageService storageService,
     ITemplateScannerService scanner) : IUseCase<ScanTemplatePlaceholdersQuery, ScanFieldsResultDto>
 {
-    public async Task<ScanFieldsResultDto> ExecuteAsync(ScanTemplatePlaceholdersQuery query, CancellationToken ct = default)
+    public async Task<ScanFieldsResultDto> ExecuteAsync(ScanTemplatePlaceholdersQuery query, CancellationToken ct)
     {
         var template = await templateRepo.GetByIdAsync(new TemplateId(query.Id), ct)
             ?? throw new NotFoundException($"Template '{query.Id}' was not found.");

@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace SmkDoc.Api.Contracts.IdentityAccess.Users;
 
 public record InviteUserRequest(
@@ -9,4 +11,4 @@ public record InviteUserRequest(
 
 public record UpdateUserRoleRequest(string Role);
 
-public record SetUserStatusRequest(bool IsActive);
+public record SetUserStatusRequest([property: JsonRequired] bool IsActive);

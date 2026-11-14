@@ -15,5 +15,5 @@ public interface ITemplateQueryService
         bool? isActive,
         int page,
         int pageSize,
-        CancellationToken ct = default);
+        CancellationToken ct);
 }

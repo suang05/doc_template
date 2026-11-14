@@ -139,7 +139,7 @@ public sealed class OpenApiOperationTransformerTests
         await sut.TransformAsync(operation, context, CancellationToken.None);
 
         // Step 3: Assert
-        foreach (var statusCode in new[] { "400", "401", "403", "429", "500" })
+        foreach (var statusCode in new[] { "400", "401", "403", "422", "429", "500" })
         {
             var content = operation.Responses![statusCode].Content;
             content.Should().NotBeNull();
@@ -176,7 +176,7 @@ public sealed class OpenApiOperationTransformerTests
         await sut.TransformAsync(operation, context, CancellationToken.None);
 
         // Step 3: Assert
-        var header = operation.Parameters.Should().ContainSingle().Subject;
+        var header = operation.Parameters.Should().ContainSingle(p => p.Name == OpenApiNames.IdempotencyKeyHeader).Subject;
         header.Name.Should().Be(OpenApiNames.IdempotencyKeyHeader);
         header.In.Should().Be(ParameterLocation.Header);
         header.Required.Should().BeFalse();
@@ -194,7 +194,8 @@ public sealed class OpenApiOperationTransformerTests
         await sut.TransformAsync(operation, context, CancellationToken.None);
 
         // Step 3: Assert
-        operation.Parameters.Should().ContainSingle().Which.Required.Should().BeTrue();
+        operation.Parameters.Should().ContainSingle(p => p.Name == OpenApiNames.IdempotencyKeyHeader)
+            .Which.Required.Should().BeTrue();
     }
 
     [Fact]
@@ -209,7 +210,44 @@ public sealed class OpenApiOperationTransformerTests
         await sut.TransformAsync(operation, context, CancellationToken.None);
 
         // Step 3: Assert
-        operation.Parameters.Should().BeNullOrEmpty();
+        operation.Parameters.Should().NotContain(p => p.Name == OpenApiNames.IdempotencyKeyHeader);
+    }
+
+    [Fact]
+    public async Task TransformAsync_WhenDataPlaneRoute_ShouldAddOptionalProjectIdHeader()
+    {
+        // Step 1: Arrange
+        var sut = CreateSut();
+        var operation = CreateOperation();
+        var context = CreateContext("api/v1/templates");
+
+        // Step 2: Act
+        await sut.TransformAsync(operation, context, CancellationToken.None);
+
+        // Step 3: Assert
+        operation.Parameters.Should().ContainSingle(p =>
+            p.Name == OpenApiNames.ProjectIdHeader &&
+            p.In == ParameterLocation.Header &&
+            !p.Required);
+    }
+
+    [Theory]
+    [InlineData("api/v1/management/projects")]
+    [InlineData("api/v1/auth/login")]
+    [InlineData("api/v1/schemas/validate")]
+    [InlineData("health")]
+    public async Task TransformAsync_WhenControlPlaneOrPublicRoute_ShouldNotInjectProjectIdHeader(string relativePath)
+    {
+        // Step 1: Arrange
+        var sut = CreateSut();
+        var operation = CreateOperation();
+        var context = CreateContext(relativePath);
+
+        // Step 2: Act
+        await sut.TransformAsync(operation, context, CancellationToken.None);
+
+        // Step 3: Assert
+        (operation.Parameters ?? []).Should().NotContain(p => p.Name == OpenApiNames.ProjectIdHeader);
     }
 
     [Fact]

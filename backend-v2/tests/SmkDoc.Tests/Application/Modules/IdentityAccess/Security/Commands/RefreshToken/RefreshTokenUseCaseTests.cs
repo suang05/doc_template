@@ -1,19 +1,13 @@
-using FluentAssertions;
-using NSubstitute;
 using SmkDoc.Application.Common.Constants;
-using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.RefreshToken;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Services;
-using SmkDoc.Domain.Exceptions;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Domain.ValueObjects.Ids;
-using Xunit;
 
 namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Security.Commands.RefreshToken;
 
 public sealed class RefreshTokenUseCaseTests
 {
-    private readonly ITokenIssuerService _tokenIssuerService = Substitute.For<ITokenIssuerService>();
+    private readonly ITokenSessionGenerator _tokenSessionGenerator = Substitute.For<ITokenSessionGenerator>();
     private readonly IUnitOfWork _uow = Substitute.For<IUnitOfWork>();
     private readonly ISecurityAuditService _auditService = Substitute.For<ISecurityAuditService>();
 
@@ -23,7 +17,7 @@ public sealed class RefreshTokenUseCaseTests
     }
 
     private RefreshTokenUseCase CreateSut() =>
-        new(_tokenIssuerService, _uow, _auditService);
+        new(_tokenSessionGenerator, _uow, _auditService);
 
     [Fact]
     public async Task ExecuteAsync_WhenValidToken_RotatesTokenCommitsAndReturnsResult()
@@ -33,12 +27,12 @@ public sealed class RefreshTokenUseCaseTests
         var rawToken = "my-secret-refresh-token";
         var rotated = new RotatedTokensResult(userId, "new_access_token", "new_refresh_token");
 
-        _tokenIssuerService.RotateTokensAsync(rawToken, ct: Arg.Any<CancellationToken>())
+        _tokenSessionGenerator.RotateTokensAsync(rawToken, ct: Arg.Any<CancellationToken>())
             .Returns(rotated);
 
         // Act
         var sut = CreateSut();
-        var result = await sut.ExecuteAsync(new RefreshTokenCommand(rawToken));
+        var result = await sut.ExecuteAsync(new RefreshTokenCommand(rawToken), CancellationToken.None);
 
         // Assert
         result.Should().NotBeNull();
@@ -58,12 +52,12 @@ public sealed class RefreshTokenUseCaseTests
         var userId = new UserId(Guid.NewGuid());
         var rawToken = "reused-stolen-token";
 
-        _tokenIssuerService.RotateTokensAsync(rawToken, ct: Arg.Any<CancellationToken>())
+        _tokenSessionGenerator.RotateTokensAsync(rawToken, ct: Arg.Any<CancellationToken>())
             .ThrowsAsync(new TokenReuseCompromiseException(userId));
 
         // Act
         var sut = CreateSut();
-        var act = () => sut.ExecuteAsync(new RefreshTokenCommand(rawToken));
+        var act = () => sut.ExecuteAsync(new RefreshTokenCommand(rawToken), CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<UnauthorizedException>()
@@ -79,12 +73,12 @@ public sealed class RefreshTokenUseCaseTests
         // Arrange
         var rawToken = "invalid-token";
 
-        _tokenIssuerService.RotateTokensAsync(rawToken, ct: Arg.Any<CancellationToken>())
+        _tokenSessionGenerator.RotateTokensAsync(rawToken, ct: Arg.Any<CancellationToken>())
             .ThrowsAsync(new UnauthorizedException("Invalid refresh token."));
 
         // Act
         var sut = CreateSut();
-        var act = () => sut.ExecuteAsync(new RefreshTokenCommand(rawToken));
+        var act = () => sut.ExecuteAsync(new RefreshTokenCommand(rawToken), CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<UnauthorizedException>()

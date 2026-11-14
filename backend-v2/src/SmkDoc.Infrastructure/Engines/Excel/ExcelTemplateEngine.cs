@@ -2,8 +2,9 @@ using ClosedXML.Excel;
 using SmkDoc.Application.Common.Helpers;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Common.Streams;
+using SmkDoc.Application.Modules.Authoring.Templates.Parsing;
 using SmkDoc.Domain.Enums;
-using static SmkDoc.Application.Common.Helpers.PlaceholderHelper;
+using static SmkDoc.Application.Modules.Authoring.Templates.Parsing.TemplatePlaceholderParser;
 
 namespace SmkDoc.Infrastructure.Engines.Excel;
 
@@ -19,7 +20,7 @@ public sealed class ExcelTemplateEngine(
         Stream templateStream,
         string inputDataJson,
         OutputFormat outputFormat,
-        CancellationToken ct = default)
+        CancellationToken ct)
     {
         var (replacements, arrays) = dataParser.FlattenNamed(inputDataJson);
 
