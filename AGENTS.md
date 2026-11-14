@@ -48,7 +48,7 @@ ArchitecturalQualityTargets:
 NonNegotiableQualityBenchmarks:
   RenderingFidelity: Sub-millimeter layout precision via Headless Chromium Gotenberg 8 microservice only (Prohibit LibreOffice shifts; Chromium outbound network egress disabled).
   ThaiLinguisticDeterminism: Buddhist Era (+543 in rendered output only; wire JSON dates strictly ISO 8601 Gregorian CE `YYYY-MM-DD`), Baht text, and embedded Sarabun tone-mark positioning.
-  MemoryAndGcBoundaries: Bounded, pooled memory streaming (`65_536`-byte `ArrayPool<byte>` buffers, `RecyclableMemoryStream`, and `HybridSpoolStream` spilling to temp disk above `2 MB`; zero unbounded `MemoryStream` or `byte[]`).
+  MemoryAndGcBoundaries: Bounded, pooled memory streaming (`65_536`-byte `ArrayPool<byte>` buffers, `RecyclableMemoryStream`, and `HybridSpoolStream` pooling `<= 64 KB` in RAM and spilling to a `DeleteOnClose` temp `FileStream` above `64 KB`; zero unbounded `MemoryStream` or `byte[]`).
   SecurityPerimeter: 5-Layer fail-closed multi-tenant isolation (Perimeter + EF Global Query Filter + `TenantWriteEnforcementInterceptor` + PostgreSQL RLS + `BannedApiAnalyzers`), zero-trust template sandboxing, fail-fast Draft-07 schema validation, and SSRF/path-traversal defense (`ConnectionHostValidator` with IPv4-mapped IPv6 normalization, platform deny-list + per-tenant allow-list CIDRs, and IP pinning).
 </core_mission_and_benchmarks>
 
@@ -215,7 +215,7 @@ Axiom4_CloudNativeScalabilityAndImmutability:
 
 MachineSyntaxAndNamingStandards:
   ZeroProjectTypePrefix: Strictly prohibit prefixing type names with project/brand names (`SmkDoc*`, `Sammakorn*`); namespaces already provide scope isolation.
-  RoleBasedSuffixTaxonomy: Non-entity types must terminate with closed role suffixes (`*UseCase`, `*ReadModel`, `*Repository`, `*Port`, `*Adapter`, `*Engine`, `*Renderer`, `*Processor`, `*Formatter`, `*Evaluator`, `*Calculator`, `*Resolver`, `*Parser`, `*Generator`, `*Builder`, `*Factory`, `*Executor`, `*Dispatcher`, `*Verifier`, `*Validator`, `*Worker`, `*Cache`, `*Stream`, `*Decorator`, `*Middleware`, `*Filter`, `*Binder`, `*ExceptionHandler`, `*SaveChangesInterceptor`, `*Options`, `*Constants`, `*Policies`, `*Exception`, `*DomainEvent`, `*Extensions`, `*Dto`, `*ResultDto`); prohibit vague suffixes (`*Helper`, `*Util`, `*Manager`, `*Service`).
+  RoleBasedSuffixTaxonomy: Non-entity types must terminate with closed role suffixes (`*UseCase`, `*ReadModel`, `*Repository`, `*Port`, `*Adapter`, `*Engine`, `*Renderer`, `*Processor`, `*Formatter`, `*Evaluator`, `*Calculator`, `*Resolver`, `*Parser`, `*Generator`, `*Builder`, `*Factory`, `*Executor`, `*Dispatcher`, `*Verifier`, `*Validator`, `*Worker`, `*Cache`, `*Stream`, `*Decorator`, `*Middleware`, `*Filter`, `*Binder`, `*ExceptionHandler`, `*AuthenticationHandler`, `*SaveChangesInterceptor`, `*Options`, `*Constants`, `*Policies`, `*Exception`, `*DomainEvent`, `*Extensions`, `*Dto`, `*ResultDto`); prohibit vague suffixes (`*Helper`, *Util, `*Manager`, `*Service`).
   PrimaryConstructorParams: pure camelCase (Regex: `^[a-z][a-zA-Z0-9]+$`) # Zero symbol prefix (`_field` is forbidden)
   GenericTypeTokens: `TRequest`, `TResponse`, `TId`, `TEntity` (prohibit abbreviated `TReq`, `TRes`)
   PayloadVariables: `command` for commands, `query` for queries, `result` for outputs, `now` for injected time, `ct` for required `CancellationToken`

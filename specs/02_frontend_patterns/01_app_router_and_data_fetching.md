@@ -551,7 +551,7 @@ export function MetricsDashboardPage({ stats, recentLogs }: DashboardProps) {
 
 ### 3.5 Optimistic Concurrency Mutation Hook Archetype (`useUpdateTemplate.ts`)
 >> MANDATORY CANONICAL BLUEPRINT [RULE-FRONT-004]:
-* Captures the integer `version` from the resource query state (`TemplateResultDto.version` / strong `ETag: "v{version}"`).
+* Captures the integer `version` hydrated by `apiClient` from the HTTP response `ETag: "v{version}"` header (since `TemplateResultDto.Version` is `[JsonIgnore]` on the JSON body per [06_api_contract_standards.md §3.1](../00_architecture_core/06_api_contract_standards.md#31-apiresponset-blueprint)).
 * Forwards `If-Match: `"v${version}"`` header during `PUT` / `PATCH` / `DELETE` mutations.
 * Intercepts HTTP `412 Precondition Failed` (`PRECONDITION_FAILED`) and HTTP `428 Precondition Required` (`PRECONDITION_REQUIRED`), prompting the user with a conflict toast or dialog to reload without discarding uncommitted input.
 * Invalidates cache and hydrates updated `version` on success.

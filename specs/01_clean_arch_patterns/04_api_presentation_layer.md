@@ -106,8 +106,8 @@ VariableNamingFirewall:
   ActionOnViolation: "Rename pagedResult, pagedLogs, pdfStream, response to var result."
 
 MutationSemanticsFirewall:
-  Invariant: "Apply [Idempotent] strictly to POST; enforce ambient If-Match on PUT/DELETE."
-  ActionOnViolation: "Remove [Idempotent] from PUT/DELETE and decorate with [ProducesResponseType(StatusCodes.Status412PreconditionFailed)]."
+  Invariant: "Require Idempotency-Key ([Idempotent]) on costly non-idempotent creating POST endpoints (/documents, /document-jobs); enforce If-Match ([FromIfMatch] long expectedVersion) on versioned PUT/DELETE/:verb."
+  ActionOnViolation: "Remove [Idempotent] from PUT/DELETE and decorate with [FromIfMatch] long expectedVersion and [ProducesResponseType(StatusCodes.Status412PreconditionFailed)] / [ProducesResponseType(StatusCodes.Status428PreconditionRequired)]."
 
 RateLimitingPolicyFirewall:
   Invariant: "Every controller must be decorated with [EnableRateLimiting] policy."
@@ -150,7 +150,7 @@ ErrorProducesResponseTypeFirewall:
 |---|---|---|---|---|
 | `auth-strict` | `POST /api/v1/auth/login`, `POST /api/v1/auth/refresh` | 5 permits / 1 min (by IP + Email) | `429 RATE_LIMITED` | Defends against password brute-force and credential stuffing |
 | `rendering` | `POST /api/v1/documents`, `POST /api/v1/document-jobs`, `preview*` | 30 permits / 1 min + Concurrency Bulkhead (by ProjectId) | `429 RATE_LIMITED` | Protects Gotenberg Chromium pods from memory saturation and OOM crashes |
-| `test-conn` | `POST /api/v1/data-connections/{id}/connectivity-checks` | 10 permits / 1 min (by ProjectId) | `429 RATE_LIMITED` | Mitigates internal network scanning, port enumeration, and SSRF probing |
+| `connectivity-check` | `POST /api/v1/data-connections/{id}/connectivity-checks` | 10 permits / 1 min (by ProjectId) | `429 RATE_LIMITED` | Mitigates internal network scanning, port enumeration, and SSRF probing |
 | `api` | All standard CRUD, query, and management endpoints | 60 permits / 1 min (by Partition) | `429 RATE_LIMITED` | Baseline API throttling for fair resource distribution |
 
 ### 2.5 Declarative Authorization Policies Matrix (`AuthorizationPolicies`)
@@ -168,14 +168,14 @@ The portal operates as an internal operator and authoring console (SuperAdmin an
 ### 2.6 Controller Partitioning & Companion Diagnostics Pattern
 When an aggregate's capabilities exceed 5 UseCases, or encompass specialized operational concerns (e.g. diagnostics, reachability tests, dry-run schema introspection), enforce single-responsibility by decomposing into cohesive companion controllers sharing the same route prefix:
 * **Primary Resource Controller**: `{Aggregate}sController` handles standard state mutations and queries (List, Get, Create, Update, Deactivate) decorated with `[EnableRateLimiting("api")]`.
-* **Companion Diagnostics Controller**: `{Resource}DiagnosticsController` isolates network reachability, test probes, or dry-run introspection calls decorated with dedicated `[EnableRateLimiting("test-conn")]`.
+* **Companion Diagnostics Controller**: `{Resource}DiagnosticsController` isolates network reachability, test probes, or dry-run introspection calls decorated with dedicated `[EnableRateLimiting("connectivity-check")]`.
 
 | Partitioning Strategy | Route Scope | Typical Invariants & Policies | Canonical Example |
 |---|---|---|---|
-| **Primary Resource Lifecycle**| `api/v1/{resources}` | Standard 3-step dispatcher, `[EnableRateLimiting("api")]`, `[Idempotent]` on POST, `If-Match` on PUT/DELETE ($\le 5$ ctor dependencies) | `TemplateLifecycleController`, `DataConnectionsController` |
+| **Primary Resource Lifecycle**| `api/v1/{resources}` | Standard 3-step dispatcher, `[EnableRateLimiting("api")]`, `If-Match` on PUT/DELETE ($\le 5$ ctor dependencies) | `TemplateLifecycleController`, `DataConnectionsController` |
 | **Companion Asset & Validation** | `api/v1/{resources}` | File download streaming, schema introspection, dry-run payload validation | `TemplateAssetController` |
 | **Interactive Studio Draft**| `api/v1/{resources}/draft` | RAM-only preview lifecycle, ephemeral streaming, Monaco syntax validation, delegates to `PreviewDocumentUseCase` | `TemplateDraftController`, `TemplateStudioController` |
-| **Companion Diagnostics** | `api/v1/{resources}` | Reachability checks, test connection probes, `[EnableRateLimiting("test-conn")]` (10 req/min) | `DataConnectionDiagnosticsController`, `DatasetDiagnosticsController` |
+| **Companion Diagnostics** | `api/v1/{resources}` | Reachability checks, test connection probes, `[EnableRateLimiting("connectivity-check")]` (10 req/min) | `DataConnectionDiagnosticsController`, `DatasetDiagnosticsController` |
 
 ---
 
@@ -424,7 +424,7 @@ public sealed class ETagResponseFilter : IAsyncActionFilter
 ### 3.4 Companion Diagnostics Controller Archetype (`DataConnectionDiagnosticsController`)
 >> MANDATORY CANONICAL BLUEPRINT [RULE-API-004]:
 * Separates diagnostic, reachability, or schema introspection endpoints into companion controllers to uphold the $\le 5$ use cases limit.
-* Applies dedicated rate limiting (`[EnableRateLimiting("test-conn")]`) on `POST /api/v1/data-connections/{id}/connectivity-checks`.
+* Applies dedicated rate limiting (`[EnableRateLimiting("connectivity-check")]`) on `POST /api/v1/data-connections/{id}/connectivity-checks`.
 * Returns HTTP `200 OK` with coarse `ApiResponse<ConnectivityCheckResultDto>` (`{ success, outcome, latencyMs, checkedAt }`) so probe responses cannot be used to map internal networks ([06_api_contract_standards.md §3.4](../00_architecture_core/06_api_contract_standards.md#34-connectivity-check-blueprint)).
 
 ```csharp
@@ -435,7 +435,7 @@ public sealed class DataConnectionDiagnosticsController(
     IUseCase<VerifyDataConnectionCommand, ConnectivityCheckResultDto> verifyUseCase) : ControllerBase
 {
     [HttpPost("{id:guid}/connectivity-checks")]
-    [EnableRateLimiting("test-conn")]
+    [EnableRateLimiting("connectivity-check")]
     [ProducesResponseType(typeof(ApiResponse<ConnectivityCheckResultDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> VerifyConnectivity([FromRoute] Guid id, CancellationToken ct)
@@ -454,7 +454,7 @@ public sealed class DataConnectionDiagnosticsController(
 ### [TRAP-API-001]: Fat Controller Action & Business Logic Leakage
 ```diff
 - [HttpPost] public async Task<IActionResult> Create(Create{Aggregate}Request req) { if (string.IsNullOrEmpty(req.Name)) return BadRequest(); var t = {Aggregate}.Create(...); await repo.AddAsync(t); await uow.CommitAsync(); return Ok(t); }
-+ [HttpPost] [Idempotent] public async Task<IActionResult> Create([FromBody] Create{Aggregate}Request request, CancellationToken ct) { var command = new Create{Aggregate}Command(request.Name, request.Slug); var result = await useCase.ExecuteAsync(command, ct); return CreatedAtAction(nameof(GetById), new { id = result.Id }, new ApiResponse<{Aggregate}ResultDto>(result)); }
++ [HttpPost] public async Task<IActionResult> Create([FromBody] Create{Aggregate}Request request, CancellationToken ct) { var command = new Create{Aggregate}Command(request.Name, request.Slug, request.Category); var result = await createUseCase.ExecuteAsync(command, ct); return CreatedAtAction(nameof(GetById), new { id = result.Id }, new ApiResponse<{Aggregate}ResultDto>(result)); }
 ```
 *Rationale: Placing business logic in controllers violates single responsibility, bypasses application pipelines, and makes endpoint testing cumbersome.*
 

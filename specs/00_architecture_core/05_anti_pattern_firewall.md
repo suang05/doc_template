@@ -144,7 +144,7 @@ public sealed class BadPublishTemplateUseCase(
 // + MANDATORY: Split queries on multi-collection reads, perform external I/O outside DB transactions, then commit once (< 5 ms)
 public sealed class PublishTemplateUseCase(
     ITemplateRepository templateRepository,
-    IObjectStorageClient objectStorageClient,
+    IStoragePort storagePort,
     IUnitOfWork unitOfWork,
     TimeProvider timeProvider)
     : IUseCase<PublishTemplateCommand, TemplateVersionResultDto>
@@ -162,8 +162,8 @@ public sealed class PublishTemplateUseCase(
         }
 
         // 1. Upload immutable snapshot asset to MinIO BEFORE opening any DB transaction
-        var storageKey = $"templates/{template.ProjectId.Value}/{template.Id.Value}/v{template.Version + 1}.docx";
-        await objectStorageClient.UploadAsync(storageKey, command.Stream, command.ContentType, ct);
+        var storageKey = $"templates/{template.ProjectId.Value:N}/{template.Id.Value:N}/v{template.Version + 1}.docx";
+        await storagePort.UploadAsync(StorageBuckets.Templates, storageKey, command.Stream, command.ContentType, ct);
 
         // 2. Mutate domain state and commit atomically in a single fast (< 5 ms) DB transaction
         var publishedVersion = template.PublishNewVersion(storageKey, command.EngineVersion, timeProvider.GetUtcNow());
@@ -935,8 +935,8 @@ public async Task<TemplateResultDto> BadCreateTemplateAsync(CreateTemplateComman
 
 // + MANDATORY: Resolve required ProjectId, normalize Value Object FIRST, then check uniqueness + rely on DB uq_ constraint
 public sealed class CreateTemplateUseCase(
-    ICurrentProjectContext projectContext,
     ITemplateRepository templateRepository,
+    ICurrentProjectContext projectContext,
     IUnitOfWork unitOfWork,
     TimeProvider timeProvider)
     : IUseCase<CreateTemplateCommand, TemplateResultDto>
@@ -946,17 +946,18 @@ public sealed class CreateTemplateUseCase(
         // Step 1: Retrieve verified ProjectId (throws TenantContextNotResolvedException if absent)
         var projectId = projectContext.GetRequiredProjectId();
 
-        // Step 2: Construct and normalize Value Object FIRST (" Invoice-01 " -> "invoice-01")
+        // Step 2: Construct and normalize Value Objects FIRST (" Invoice-01 " -> "invoice-01")
+        var name = TemplateName.Create(command.Name);
         var slug = TemplateSlug.Create(command.Slug);
 
         // Step 3: Check tenant-scoped uniqueness using the normalized Value Object
         if (await templateRepository.SlugExistsAsync(projectId, slug, ct))
         {
-            throw ConflictException.DuplicateSlug((string)slug);
+            throw ConflictException.DuplicateSlug(slug.Value);
         }
 
         // Step 4: Create aggregate and persist (backed by PostgreSQL uq_templates_project_id_slug)
-        var template = Template.Create(projectId, slug, command.DisplayName, timeProvider.GetUtcNow());
+        var template = Template.Create(projectId, name, slug, command.Category, timeProvider.GetUtcNow());
         templateRepository.Add(template);
         await unitOfWork.CommitAsync(ct);
 

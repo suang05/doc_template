@@ -106,7 +106,7 @@ flowchart TD
 Cross-tenant data exposure is the highest-impact failure of this platform, so tenant isolation is the one area where **redundant controls are mandatory** (this is not "defensive overkill"):
 1. **EF Core global query filter** on every `IMustHaveProject` entity, **fail-closed**: an unresolved tenant yields zero rows, never all rows.
 2. **Write-side interceptor** that sets and verifies `ProjectId` on `IMustHaveProject` entities at `SaveChanges`.
-3. **PostgreSQL Row-Level Security** on tenant tables (`SET LOCAL app.project_id` per transaction), so a missed filter, raw SQL or `IgnoreQueryFilters()` cannot cross tenants.
+3. **PostgreSQL Row-Level Security** on tenant tables (`SET LOCAL app.current_project_id` per transaction), so a missed filter, raw SQL or `IgnoreQueryFilters()` cannot cross tenants.
 4. **Banned APIs** outside an allow-listed module: `IgnoreQueryFilters`, `FromSqlRaw`/`ExecuteSqlRaw` with interpolation.
 5. **Automated cross-tenant leakage tests**: every endpoint is called as tenant B with tenant A identifiers and must return `NotFound`.
 6. **Background workers (Pipeline C, outbox relay)** have no HTTP context: each job and outbox message carries `ProjectId`; the worker sets the ambient tenant explicitly before invoking a UseCase and clears it afterwards.

@@ -32,7 +32,7 @@ Signal: [ARCH_EVOLUTION_RENDERING]
 ### 1.2 Affirmative Document Rendering Invariants
 | Rendering Architectural Concern | Affirmative Rendering Invariant (Positive SSoT Law) | Boundary Vector |
 |---|---|---|
-| **Bounded, Pooled Memory & Spool-Before-Commit** | Render and PDF contracts expose pure `Task<Stream>` types. Output streams are piped with bounded `65_536`-byte (`64 KB`) pooled buffers (`ArrayPool<byte>`), dry-run validations drain to `Stream.Null`, and seekable packages use `HybridSpoolStream` (pooling in RAM up to `2 MB` via `RecyclableMemoryStream` and spilling to temp disk above `2 MB`). Unbounded `new MemoryStream()` or multi-MB `byte[]` arrays are prohibited. | Memory & GC Boundary |
+| **Bounded, Pooled Memory & Spool-Before-Commit** | Render and PDF contracts expose pure `Task<Stream>` types. Output streams are piped with bounded `65_536`-byte (`64 KB`) pooled buffers (`ArrayPool<byte>`), dry-run validations drain to `Stream.Null`, and seekable packages / Pipeline A outputs use `HybridSpoolStream` (`<= 64 KB` pooled `ArrayPool<byte>` in RAM; `> 64 KB` spills to a `DeleteOnClose` temp `FileStream` capped by `MaxArtifactSizeBytes`) or `RecyclableMemoryStream`. Unbounded `new MemoryStream()` or multi-MB `byte[]` arrays are prohibited. | Memory & GC Boundary |
 | **Template Manifest SSoT** | Runtime document generation strictly deserializes the immutable version manifest (`TemplateVersion.MappingsSnapshot`), throwing `BusinessRuleViolationException` (`TEMPLATE_SNAPSHOT_MISSING`) if missing and never falling back to mutable relational `field_mappings` tables. Version creation workflows (`CreateTemplate`, `SaveTemplateHtml`, `CommitTemplateDraft`) must guarantee non-null frozen `MappingsSnapshot` persistence. | Data Binding Boundary |
 | **Unified Preview Gateway** | Live preview requests (Monaco raw HTML, RAM-cached template drafts, template slug, or template UUID) route exclusively through the unified `PreviewDocumentUseCase` with fail-fast JSON Schema Draft-07 validation. Duplicate preview use cases are prohibited. | Preview Perimeter |
 | **Polymorphic Engine Resolution**| Document synthesis resolves engines dynamically via `IRenderEngineFactory.GetEngine(engineType)` using an immutable `FrozenDictionary`. Hardcoded switch/if-else branching is prohibited. | Engine Extensibility |
@@ -54,7 +54,7 @@ Signal: [ARCH_EVOLUTION_RENDERING]
 ### 2.1 Engineering Rationale & Architectural Decisions
 * **Why 3-Pipeline Rendering Architecture (Pipeline A / B / C):** Live preview in Monaco Studio (Pipeline B) requires sub-second stateless turnaround. Synchronous single-document generation (Pipeline A) spools to `HybridSpoolStream`, uploads to MinIO, and commits metadata in a single `< 5 ms` transaction before streaming to the caller. High-volume ERP batch generation (Pipeline C, e.g. 5,000 invoices at month-end) is persisted in PostgreSQL `document_jobs` (`202 Accepted` + `Location: /api/v1/document-jobs/{id}`) and claimed via `FOR UPDATE SKIP LOCKED` by `DocumentJobWorker` pods at a bounded concurrency matched to Gotenberg capacity.
 * **Why Banning HTTP 307 Redirects to Internal MinIO:** MinIO operates inside an internal container network (`http://minio:9000`). Emitting a 307 redirect exposes private infrastructure endpoints to outside clients, breaks corporate firewalls, and leaks storage topology. Streaming through the API gateway enforces Zero-Trust isolation.
-* **Why Bounded 64 KB (`65_536`-Byte) Pooled Buffers & `HybridSpoolStream`:** The .NET runtime allocates objects $\ge 85,000$ bytes on the Large Object Heap (LOH). Continuous multi-MB PDF buffering in `new MemoryStream()` or `byte[]` produces severe LOH fragmentation and Gen 2 GC stalls. Streaming with `65_536`-byte buffers rented from `ArrayPool<byte>` and spooling seekable OpenXML/ClosedXML packages via `HybridSpoolStream` (`RecyclableMemoryStream` up to `2 MB`, temp disk spill above `2 MB`) keeps memory strictly bounded.
+* **Why Bounded 64 KB (`65_536`-Byte) Pooled Buffers & `HybridSpoolStream`:** The .NET runtime allocates objects $\ge 85,000$ bytes on the Large Object Heap (LOH). Continuous multi-MB PDF buffering in `new MemoryStream()` or `byte[]` produces severe LOH fragmentation and Gen 2 GC stalls. Streaming with `65_536`-byte buffers rented from `ArrayPool<byte>` and spooling seekable OpenXML/ClosedXML packages or Pipeline A outputs via `HybridSpoolStream` (`<= 64 KB` pooled `ArrayPool<byte>` in RAM, spilling to a `DeleteOnClose` temp `FileStream` above `64 KB`) or `RecyclableMemoryStream` keeps memory strictly bounded.
 * **Why Polymorphic Engine Factory with FrozenDictionary:** Using `IRenderEngineFactory` with `FrozenDictionary<RenderEngineType, IRenderEngine>` provides $O(1)$ zero-allocation engine lookup while honoring the Open/Closed Principle.
 * **Why OpenXML DrawingML Graphic Frame Non-Zero IDs:** Microsoft Word strictly rejects OpenXML packages where image or chart graphic frame IDs are `0` or duplicated, triggering file corruption warnings. Scoping sequential ID generation per document render session guarantees ECMA-376 compliance while preserving stateless horizontal scalability.
 * **Why Pluggable Linguistic Localization Strategy:** Thai Buddhist Era dates, Baht text, and international formatting require specialized grammatical rules; isolating formatters behind `ILocalizedDataFormatter` ensures 100% deterministic outputs across formats while honoring the Open/Closed Principle for global enterprise expansion.
@@ -313,7 +313,7 @@ public sealed class Preview{Resource}UseCase(
             : await repository.FindBySlugAsync({Aggregate}Slug.Create(query.Slug!), ct);
 
         if (aggregate == null)
-            throw new NotFoundException($"Template not found.");
+            throw NotFoundException.For<{Aggregate}>(query.{Aggregate}Id?.ToString() ?? query.Slug ?? string.Empty);
 
         var version = aggregate.GetPublishedVersion();
         string dataJson;
@@ -489,7 +489,7 @@ public sealed class Generate{Resource}UseCase(
             sw.Stop();
 
             await storagePort.UploadAsync(
-                StorageBuckets.Outputs, outputKey, spooled.ContentStream, spooled.FileSizeBytes, outputFormat.MimeType, ct);
+                StorageBuckets.Outputs, outputKey, spooled.ContentStream, outputFormat.MimeType, ct);
 
             return new RenderOutput(boundData.DataJson, spooled.FileSizeBytes, spooled.Sha256Hex, (int)sw.ElapsedMilliseconds);
         }
