@@ -1,0 +1,103 @@
+rules:
+  # TRAP-EF-002: Parallel DbContext / Repository queries inside Task.WhenAll
+  - id: smk.ef-no-parallel-dbcontext
+    languages: [csharp]
+    severity: ERROR
+    message: >
+      TRAP-EF-002: Never run concurrent queries against the same DbContext/repository via Task.WhenAll.
+      Await repository calls sequentially or project into a single query.
+    pattern-either:
+      - pattern: |
+          Task.WhenAll(..., $REPO.$METHOD(...), ...)
+      - pattern: |
+          Task.WhenAll(..., _db.$METHOD(...), ...)
+    metavariable-regex:
+      metavariable: $REPO
+      regex: (?i).*Repository.*|.*ReadModel.*|.*DbContext.*
+
+  # TRAP-SQL-013: Unbounded fan-out Task.WhenAll over collections
+  - id: smk.unbounded-task-whenall
+    languages: [csharp]
+    severity: ERROR
+    message: >
+      TRAP-SQL-013: Avoid unbounded Task.WhenAll($COLLECTION.Select(...)) fan-out.
+      Use Parallel.ForEachAsync with MaxDegreeOfParallelism = 4 and shared bulkheads.
+    pattern: |
+      Task.WhenAll($COLLECTION.Select(...))
+
+  # TRAP-VOID-008: Empty catch blocks swallow faults silently
+  - id: smk.no-empty-catch
+    languages: [csharp]
+    severity: ERROR
+    message: >
+      TRAP-VOID-008: Empty catch blocks swallow failures silently.
+      Filter non-cancellation faults cleanly and handle or propagate to GlobalExceptionHandler.
+    pattern: |
+      catch ($EX) { }
+
+  # TRAP-VOID-008: Log-and-rethrow duplicates error telemetry at GlobalExceptionHandler
+  - id: smk.no-log-and-rethrow
+    languages: [csharp]
+    severity: WARNING
+    message: >
+      TRAP-VOID-008: Avoid logging inside a catch block and immediately rethrowing.
+      Let Domain/Application exceptions bubble to GlobalExceptionHandler to log once with traceId.
+    patterns:
+      - pattern: |
+          catch (...) {
+            ...
+            $LOGGER.LogError(...);
+            ...
+            throw;
+          }
+
+  # XXE Guard (03_security_and_performance.md §1.2): OOXML / XML readers must disable DTD processing
+  - id: smk.xml-reader-dtd-prohibit
+    languages: [csharp]
+    severity: ERROR
+    message: >
+      Security Guard (§1.2): XmlReaderSettings must explicitly set DtdProcessing = DtdProcessing.Prohibit
+      and XmlResolver = null to prevent XXE attacks.
+    patterns:
+      - pattern: new XmlReaderSettings { ... }
+      - pattern-not: new XmlReaderSettings { ..., DtdProcessing = DtdProcessing.Prohibit, ... }
+
+  # TRAP-DATA-004: Raw HTML string interpolation in rendering
+  - id: smk.no-raw-html-interpolation
+    languages: [csharp]
+    severity: ERROR
+    message: >
+      TRAP-DATA-004: Never build HTML markup via unencoded string interpolation in rendering code.
+      Use HtmlEncoder.Default.Encode via DataBindingEngine.
+    paths:
+      include:
+        - backend-v2/src/**
+    pattern-regex: '\$@"[^"]*<[a-zA-Z][^"]*\{'
+
+  # Secret Hygiene: Prevent logging credential / API key fields directly
+  - id: smk.no-secret-logging
+    languages: [csharp]
+    severity: ERROR
+    message: >
+      Security Guard: Never log secret values (ApiKey, Password, Token, ConnectionString, Secret) cleanly.
+    pattern-either:
+      - pattern: $LOGGER.LogInformation(..., $ARG, ...)
+      - pattern: $LOGGER.LogWarning(..., $ARG, ...)
+      - pattern: $LOGGER.LogError(..., $ARG, ...)
+    metavariable-regex:
+      metavariable: $ARG
+      regex: (?i)^.*(password|apikey|secret|token|connectionstring).*$
+
+  # Frontend Secret Storage Guard (03 §1.1 & 02_frontend_patterns)
+  - id: smk.frontend-no-localstorage-secrets
+    languages: [typescript, tsx]
+    severity: ERROR
+    message: >
+      Security Guard: Never store API keys, bearer tokens, or credentials in browser localStorage.
+      Route authenticated browser traffic through the Next.js server-side BFF proxy (/api/proxy/**).
+    pattern-either:
+      - pattern: localStorage.setItem($KEY, ...)
+      - pattern: localStorage.getItem($KEY)
+    metavariable-regex:
+      metavariable: $KEY
+      regex: (?i).*key.*|.*token.*|.*secret.*|.*auth.*

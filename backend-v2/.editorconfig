@@ -17,24 +17,98 @@ indent_size = 4
 # Organize Usings
 dotnet_sort_system_directives_first = true
 dotnet_separate_import_directive_groups = false
-csharp_using_directive_placement = outside_namespace:warning
+csharp_using_directive_placement = outside_namespace:error
 
 # Namespace style: File-scoped
-csharp_style_namespace_declarations = file_scoped:warning
+csharp_style_namespace_declarations = file_scoped:error
 
-# Code Hygiene: Simplify Names (BAN inline fully-qualified namespaces)
+# Code Hygiene: Simplify Names, Unused Usings, Unused Private Symbols
 dotnet_diagnostic.IDE0001.severity = warning
-
-# Code Hygiene: Remove Unused Usings
 dotnet_diagnostic.IDE0005.severity = warning
+dotnet_diagnostic.IDE0051.severity = error
+dotnet_diagnostic.IDE0052.severity = error
+dotnet_diagnostic.IDE0060.severity = warning
 
-# Code Hygiene: Modifier order
+# Spec Exemptions (02_coding_conventions.md §1 & §3):
+# - CA2007: ASP.NET Core has no SynchronizationContext
+# - CA1515: Clean Architecture public Application/Domain types tested by external SmkDoc.Tests
+# - CA1032: Domain exceptions deliberately require domain factory methods / ErrorCode constructors
+# - CA1062: <Nullable>enable</Nullable> enforces non-null value objects at compile time
+# - CA2225: Value Objects provide explicit factory Create(...) methods alongside conversion operators
+dotnet_diagnostic.CA2007.severity = none
+dotnet_diagnostic.CA1515.severity = none
+dotnet_diagnostic.CA1032.severity = none
+dotnet_diagnostic.CA1062.severity = none
+dotnet_diagnostic.CA2225.severity = none
+
+# Naming Rules (04_naming_standards.md -> IDE1006)
+dotnet_naming_symbols.interfaces.applicable_kinds = interface
+dotnet_naming_symbols.interfaces.applicable_accessibilities = public, internal, private, protected, protected_internal, private_protected
+dotnet_naming_style.interface_pascal.required_prefix = I
+dotnet_naming_style.interface_pascal.capitalization = pascal_case
+dotnet_naming_rule.interfaces_must_start_with_i.symbols = interfaces
+dotnet_naming_rule.interfaces_must_start_with_i.style = interface_pascal
+dotnet_naming_rule.interfaces_must_start_with_i.severity = error
+
+dotnet_naming_symbols.types_and_members.applicable_kinds = class, struct, enum, delegate, namespace, property, method, event
+dotnet_naming_symbols.types_and_members.applicable_accessibilities = public, internal, private, protected, protected_internal, private_protected
+dotnet_naming_style.pascal_case.capitalization = pascal_case
+dotnet_naming_rule.public_and_type_members_pascal.symbols = types_and_members
+dotnet_naming_rule.public_and_type_members_pascal.style = pascal_case
+dotnet_naming_rule.public_and_type_members_pascal.severity = error
+
+dotnet_naming_symbols.private_fields.applicable_kinds = field
+dotnet_naming_symbols.private_fields.applicable_accessibilities = private, private_protected
+dotnet_naming_symbols.private_fields.required_modifiers =
+dotnet_naming_style.underscore_camel_case.required_prefix = _
+dotnet_naming_style.underscore_camel_case.capitalization = camel_case
+dotnet_naming_rule.private_fields_underscore_camel.symbols = private_fields
+dotnet_naming_rule.private_fields_underscore_camel.style = underscore_camel_case
+dotnet_naming_rule.private_fields_underscore_camel.severity = error
+
+dotnet_naming_symbols.static_fields.applicable_kinds = field
+dotnet_naming_symbols.static_fields.applicable_accessibilities = *
+dotnet_naming_symbols.static_fields.required_modifiers = static
+dotnet_naming_rule.static_fields_pascal.symbols = static_fields
+dotnet_naming_rule.static_fields_pascal.style = pascal_case
+dotnet_naming_rule.static_fields_pascal.severity = error
+
+dotnet_naming_symbols.const_fields.applicable_kinds = field
+dotnet_naming_symbols.const_fields.applicable_accessibilities = *
+dotnet_naming_symbols.const_fields.required_modifiers = const
+dotnet_naming_rule.const_fields_pascal.symbols = const_fields
+dotnet_naming_rule.const_fields_pascal.style = pascal_case
+dotnet_naming_rule.const_fields_pascal.severity = error
+
+# Safety, Async & Threading Rules (02_coding_conventions.md & 05_anti_pattern_firewall.md)
+dotnet_diagnostic.CA2016.severity = error
+dotnet_diagnostic.CA1031.severity = warning
+dotnet_diagnostic.VSTHRD002.severity = error
+dotnet_diagnostic.VSTHRD100.severity = error
+dotnet_diagnostic.VSTHRD110.severity = error
+
+# Cognitive complexity & technical debt tracking
+dotnet_diagnostic.S3776.severity = warning
+dotnet_diagnostic.S1135.severity = suggestion
+
+# Style & Modifier preferences
 csharp_preferred_modifier_order = public,private,protected,internal,file,static,extern,new,virtual,abstract,sealed,override,readonly,unsafe,required,volatile,async:suggestion
-
-# Modern C# preferences
 csharp_style_prefer_primary_constructors = true:suggestion
 csharp_style_expression_bodied_properties = true:suggestion
 
+# Test projects: permit Method_Should_Behavior underscores and test helpers
+[tests/**]
+dotnet_diagnostic.CA1707.severity = none
+dotnet_diagnostic.CA2007.severity = none
+dotnet_diagnostic.IDE0058.severity = none
+dotnet_diagnostic.IDE1006.severity = warning
+
 # Autogenerated EF Core Migrations
 [**/Migrations/**]
+generated_code = true
+dotnet_diagnostic.IDE0005.severity = none
 dotnet_diagnostic.IDE0161.severity = none
+dotnet_diagnostic.CA1062.severity = none
+dotnet_diagnostic.CA1861.severity = none
+dotnet_diagnostic.S1192.severity = none
+dotnet_diagnostic.S3254.severity = none

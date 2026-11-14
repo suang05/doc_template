@@ -37,7 +37,9 @@ public class DataProtectionService : IDataProtectionService
                         streamWriter.Write(plainText);
                     }
 
+#pragma warning disable RS0030 // [PHASE-3-TECH-DEBT] Migrate DataProtectionService from MemoryStream.ToArray() & static IV to RecyclableMemoryStream + AEAD
                     array = memoryStream.ToArray();
+#pragma warning restore RS0030
                 }
             }
         }

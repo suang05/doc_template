@@ -1,0 +1,31 @@
+#!/bin/sh
+# Fast staged-file quality gate. Enable once per clone:  git config core.hooksPath .githooks
+set -eu
+
+STAGED=$(git diff --cached --name-only --diff-filter=ACMR)
+if [ -z "$STAGED" ]; then
+  exit 0
+fi
+
+if command -v pwsh >/dev/null 2>&1; then
+  PS=pwsh
+else
+  PS=powershell
+fi
+
+if printf '%s\n' "$STAGED" | grep -Eq '^(AGENTS\.md|specs/)'; then
+  "$PS" -NoProfile -ExecutionPolicy Bypass -File tools/ci/check-specs.ps1
+fi
+
+CS_STAGED=$(printf '%s\n' "$STAGED" | grep -E '^backend-v2/.*\.cs$' || true)
+if [ -n "$CS_STAGED" ]; then
+  # shellcheck disable=SC2086
+  dotnet format style backend-v2/SmkDocServerV2.slnx --severity error --verify-no-changes --no-restore --include $CS_STAGED
+  # shellcheck disable=SC2086
+  dotnet format analyzers backend-v2/SmkDocServerV2.slnx --severity error --verify-no-changes --no-restore --include $CS_STAGED
+fi
+
+if printf '%s\n' "$STAGED" | grep -Eq '^frontend-v2/.*\.(ts|tsx|mts|mjs|js|jsx)$'; then
+  npm --prefix frontend-v2 run typecheck
+  npm --prefix frontend-v2 run lint -- --max-warnings=28
+fi

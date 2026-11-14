@@ -67,7 +67,9 @@ public sealed class CreateApiKeyUseCase(
         ApiKeyScope targetScope,
         DateTimeOffset now)
     {
+#pragma warning disable RS0030 // [PHASE-3-TECH-DEBT] Migrate API key suffix token generation to cryptographic RNG / Guid.CreateVersion7()
         var rawSecret = $"smk_{command.CallerApp.ToLowerInvariant()}_{Guid.NewGuid():N}";
+#pragma warning restore RS0030
         var hash = new Sha256Hash(ApiKeyGenerator.ComputeHash(rawSecret));
 
         var key = ApiKey.Issue(

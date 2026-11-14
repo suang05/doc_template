@@ -84,7 +84,9 @@ public sealed class CreateProjectUseCase(
         DateTimeOffset now,
         CancellationToken ct)
     {
+#pragma warning disable RS0030 // [PHASE-3-TECH-DEBT] Migrate default API key secret generation to RandomNumberGenerator
         var plain = $"{prefix}_{Guid.NewGuid():N}";
+#pragma warning restore RS0030
         var hash = new Sha256Hash(ApiKeyGenerator.ComputeHash(plain));
         var key = ApiKey.Issue(projectId, ApiKeyName.Create(name), callerApp, hash, ExpirationPolicy.Never, now, scope);
         await apiKeyRepo.AddAsync(key, ct);

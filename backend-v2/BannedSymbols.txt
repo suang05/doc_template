@@ -3,6 +3,8 @@ P:System.DateTime.Now;Use injected TimeProvider.GetUtcNow() instead (TRAP-TIME-0
 P:System.DateTime.UtcNow;Use injected TimeProvider.GetUtcNow() instead (TRAP-TIME-006).
 P:System.DateTimeOffset.Now;Use injected TimeProvider.GetUtcNow() instead (TRAP-TIME-006).
 P:System.DateTimeOffset.UtcNow;Use injected TimeProvider.GetUtcNow() instead (TRAP-TIME-006).
+P:System.Environment.TickCount;Use injected TimeProvider.GetTimestamp() instead (TRAP-TIME-006).
+P:System.Environment.TickCount64;Use injected TimeProvider.GetTimestamp() instead (TRAP-TIME-006).
 M:System.Guid.NewGuid;Use Guid.CreateVersion7() for time-ordered UUIDs (TRAP-TIME-006).
 M:System.Net.Http.HttpClient.#ctor;Use IHttpClientFactory instead of instantiating HttpClient directly (TRAP-TIME-006).
 
@@ -15,6 +17,13 @@ M:System.IO.File.ReadAllBytesAsync(System.String,System.Threading.CancellationTo
 M:System.Threading.Channels.Channel.CreateUnbounded``1;Unbounded in-memory channels are forbidden; use PostgreSQL document_jobs or Channel.CreateBounded (TRAP-BATCH-012).
 M:System.Threading.Channels.Channel.CreateUnbounded``1(System.Threading.Channels.UnboundedChannelOptions);Unbounded in-memory channels are forbidden; use PostgreSQL document_jobs or Channel.CreateBounded (TRAP-BATCH-012).
 
-# TRAP-TENANT-023 & TRAP-SQL-011: Multi-Tenant & SQL Injection Bypass
-M:Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.IgnoreQueryFilters``1(System.Linq.IQueryable{``0});Forbidden in Domain/Application/ProjectDbContext; tenant isolation must never be bypassed (TRAP-TENANT-023).
+# TRAP-TENANT-023 & TRAP-SQL-011: Multi-Tenant, SSRF & SQL Injection Bypass
+M:Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.IgnoreQueryFilters``1(System.Linq.IQueryable{``0});Forbidden in Domain/Application/AppDbContext; tenant isolation must never be bypassed (TRAP-TENANT-023).
 M:Microsoft.EntityFrameworkCore.RelationalQueryableExtensions.FromSqlRaw``1(Microsoft.EntityFrameworkCore.DbSet{``0},System.String,System.Object[]);Forbidden SQL injection risk; use LINQ or FromSqlInterpolated (TRAP-SQL-011).
+M:Microsoft.EntityFrameworkCore.RelationalDatabaseFacadeExtensions.ExecuteSqlRaw(Microsoft.EntityFrameworkCore.Infrastructure.DatabaseFacade,System.String,System.Object[]);Forbidden SQL injection risk; use ExecuteSqlInterpolated (TRAP-SQL-011).
+M:Microsoft.EntityFrameworkCore.RelationalDatabaseFacadeExtensions.ExecuteSqlRawAsync(Microsoft.EntityFrameworkCore.Infrastructure.DatabaseFacade,System.String,System.Threading.CancellationToken);Forbidden SQL injection risk; use ExecuteSqlInterpolatedAsync (TRAP-SQL-011).
+M:Microsoft.EntityFrameworkCore.RelationalDatabaseFacadeExtensions.ExecuteSqlRawAsync(Microsoft.EntityFrameworkCore.Infrastructure.DatabaseFacade,System.String,System.Collections.Generic.IEnumerable{System.Object},System.Threading.CancellationToken);Forbidden SQL injection risk; use ExecuteSqlInterpolatedAsync (TRAP-SQL-011).
+T:System.Net.Dns;Resolve remote hosts strictly through IConnectionHostValidator to prevent DNS rebinding and SSRF (TRAP-SQL-011).
+
+# Artifact Delivery ADR (03 §1.1)
+M:Microsoft.AspNetCore.Mvc.ControllerBase.Redirect(System.String);Forbidden Artifact Delivery bypass; stream artifacts via File(stream, contentType, fileDownloadName) instead (03 §1.1).

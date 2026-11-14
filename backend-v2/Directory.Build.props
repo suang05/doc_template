@@ -4,13 +4,32 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>14.0</LangVersion>
-    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <AnalysisLevel>latest-all</AnalysisLevel>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
-    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <NoWarn>$(NoWarn);1591;IDE0005</NoWarn>
+    <NoWarn>$(NoWarn);1591</NoWarn>
+    <!-- Transitional Phase 3 baseline backlog (exact pre-existing rule codes only): new rule violations fail compilation immediately -->
+    <WarningsNotAsErrors>$(WarningsNotAsErrors);CA1002;CA1008;CA1024;CA1031;CA1034;CA1036;CA1054;CA1055;CA1056;CA1065;CA1305;CA1307;CA1308;CA1310;CA1711;CA1716;CA1720;CA1724;CA1725;CA1805;CA1810;CA1819;CA1822;CA1826;CA1848;CA1849;CA1859;CA1861;CA1866;CA1873;CA2000;CA2025;CA2213;CA2234;CA5401;IDE0005;IDE0060;S1006;S101;S1066;S1075;S108;S1118;S1144;S1210;S1481;S1694;S1905;S2068;S2139;S2325;S3011;S3220;S3241;S3260;S3267;S3358;S3776;S3963;S4035;S4581;S5332;S5693;S6418;S6444;S6580;S6610;S6667;S6960;S6964;S6966;S8949;S927;VSTHRD200</WarningsNotAsErrors>
   </PropertyGroup>
-  <ItemGroup>
+
+  <PropertyGroup Condition="$(MSBuildProjectName.EndsWith('Tests'))">
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup Condition="!$(MSBuildProjectName.EndsWith('Tests'))">
     <AdditionalFiles Include="$(MSBuildThisFileDirectory)BannedSymbols.txt" Condition="Exists('$(MSBuildThisFileDirectory)BannedSymbols.txt')" />
+    <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.VisualStudio.Threading.Analyzers">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="SonarAnalyzer.CSharp">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
   </ItemGroup>
 </Project>

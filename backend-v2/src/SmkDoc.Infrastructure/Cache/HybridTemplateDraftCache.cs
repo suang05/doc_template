@@ -57,7 +57,9 @@ public sealed class HybridTemplateDraftCache(
         }
 
         var normalizedExt = NormalizeExtension(fileExtension);
+#pragma warning disable RS0030 // [PHASE-3-TECH-DEBT] Replace Guid.NewGuid() with Guid.CreateVersion7()
         var draftId = Guid.NewGuid().ToString("N");
+#pragma warning restore RS0030
         var storageKey = StorageBuckets.DraftTemplateKey(projectId, draftId, normalizedExt);
         var uploadedKey = await storageService.UploadAsync(
             StorageBuckets.Drafts,

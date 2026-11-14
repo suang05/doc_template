@@ -11,11 +11,13 @@ namespace SmkDoc.Infrastructure.Queue;
 /// </summary>
 public sealed class MemoryDocumentRenderQueue : IDocumentRenderQueue
 {
+#pragma warning disable RS0030 // [PHASE-3-TECH-DEBT] Replace MemoryDocumentRenderQueue unbounded channel with PostgreSQL document_jobs (Pipeline C)
     private readonly Channel<Guid> _channel = Channel.CreateUnbounded<Guid>(new UnboundedChannelOptions
     {
         SingleReader = false,
         SingleWriter = false
     });
+#pragma warning restore RS0030
 
     private readonly ConcurrentDictionary<Guid, DocumentJob> _jobs = new();
 

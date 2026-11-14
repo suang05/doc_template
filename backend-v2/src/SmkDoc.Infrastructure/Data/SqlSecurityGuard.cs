@@ -20,7 +20,9 @@ public sealed partial class SqlSecurityGuard(
     Func<string, CancellationToken, Task<IPAddress[]>>? dnsResolver = null) : ISqlConnectionValidator
 {
     private readonly Func<string, CancellationToken, Task<IPAddress[]>> _dnsResolver =
+#pragma warning disable RS0030 // Designated SSRF DNS validation adapter boundary (validated against private CIDR ranges before connect)
         dnsResolver ?? ((host, token) => Dns.GetHostAddressesAsync(host, token));
+#pragma warning restore RS0030
 
     private static readonly HashSet<string> ForbiddenSqlTokens = new(StringComparer.OrdinalIgnoreCase)
     {

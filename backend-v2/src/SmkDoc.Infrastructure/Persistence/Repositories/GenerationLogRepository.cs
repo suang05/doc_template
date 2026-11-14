@@ -26,11 +26,13 @@ public sealed class GenerationLogRepository(AppDbContext context) : IGenerationL
 
     public async Task<IReadOnlyList<GenerationLog>> GetExpiredLogsWithOutputsAsync(DateTimeOffset cutoffTime, int maxBatchSize, CancellationToken ct = default)
     {
+#pragma warning disable RS0030 // [PHASE-3-TECH-DEBT] Migrate retention cleanup batch query to explicit retention RLS role
         return await _context.GenerationLogs
             .IgnoreQueryFilters()
             .Where(l => l.OutputKey != null && l.OutputKey != "" && l.CreatedAt <= cutoffTime)
             .OrderBy(l => l.CreatedAt)
             .Take(maxBatchSize)
             .ToListAsync(ct);
+#pragma warning restore RS0030
     }
 }

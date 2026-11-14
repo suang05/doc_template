@@ -37,6 +37,8 @@ public sealed class GetFontBase64UseCase(
         using var stream = await storageService.DownloadAsync(StorageBuckets.Fonts, resolvedKey, ct);
         using var ms = new MemoryStream();
         await stream.CopyToAsync(ms, ct);
+#pragma warning disable RS0030 // [PHASE-3-TECH-DEBT] Replace MemoryStream.ToArray() with pooled HybridSpoolStream/RecyclableMemoryStream
         return Convert.ToBase64String(ms.ToArray());
+#pragma warning restore RS0030
     }
 }

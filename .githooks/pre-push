@@ -1,4 +1,12 @@
 #!/bin/sh
-# Opt-in OpenAPI contract gate. Enable once per clone:  git config core.hooksPath .githooks
-if command -v pwsh >/dev/null 2>&1; then PS=pwsh; else PS=powershell; fi
+# Opt-in pre-push architectural & contract gates. Enable once per clone:  git config core.hooksPath .githooks
+set -eu
+
+if command -v pwsh >/dev/null 2>&1; then
+  PS=pwsh
+else
+  PS=powershell
+fi
+
+$PS -NoProfile -ExecutionPolicy Bypass -File tools/ci/check-specs.ps1
 exec $PS -NoProfile -ExecutionPolicy Bypass -File tools/openapi/check-openapi.ps1

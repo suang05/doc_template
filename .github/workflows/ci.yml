@@ -1,0 +1,133 @@
+name: Architecture, Contract & Quality CI
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  specs-integrity:
+    name: Specs Link & Legacy Symbol Gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check active specs links and retired symbols
+        shell: pwsh
+        run: ./tools/ci/check-specs.ps1
+
+  backend-build-test:
+    name: Backend Build, Analyzers & Unit/Architecture Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Restore backend packages
+        run: dotnet restore backend-v2/SmkDocServerV2.slnx
+      - name: Verify C# error-level analyzer rules
+        run: dotnet format analyzers backend-v2/SmkDocServerV2.slnx --severity error --verify-no-changes --no-restore
+      - name: Verify C# formatting & style on PR-changed files (.editorconfig)
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          mapfile -t changed_cs < <(git diff --name-only "origin/${{ github.base_ref }}...HEAD" -- 'backend-v2/**/*.cs')
+          if [ "${#changed_cs[@]}" -gt 0 ]; then
+            dotnet format backend-v2/SmkDocServerV2.slnx --verify-no-changes --no-restore --include "${changed_cs[@]}"
+          fi
+      - name: Build solution with Roslyn, BannedApi, VSTHRD & Sonar analyzers
+        run: dotnet build backend-v2/SmkDocServerV2.slnx -c Release --no-restore -p:GenerateOpenApiDocuments=false
+      - name: Run unit, NetArchTest & OpenAPI parity tests
+        run: dotnet test backend-v2/tests/SmkDoc.Tests/SmkDoc.Tests.csproj -c Release --no-build --verbosity normal
+      - name: Audit NuGet packages for known vulnerabilities
+        run: dotnet list backend-v2/SmkDocServerV2.slnx package --vulnerable --include-transitive
+
+  openapi-and-codegen:
+    name: OpenAPI Drift, Redocly, oasdiff & Frontend Codegen Gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend-v2/package-lock.json
+      - name: Install Redocly CLI
+        run: npm install -g @redocly/cli@latest
+      - name: Install oasdiff CLI
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/oasdiff/oasdiff/main/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Restore backend API project
+        run: dotnet restore backend-v2/src/SmkDoc.Api/SmkDoc.Api.csproj
+      - name: Run OpenAPI regeneration, drift, Redocly lint & oasdiff breaking check
+        shell: pwsh
+        run: |
+          $baseRef = if ('${{ github.base_ref }}' -ne '') { "origin/${{ github.base_ref }}" } else { 'HEAD~1' }
+          ./tools/openapi/check-openapi.ps1 -BaseRef $baseRef -Configuration Release -NoRestore -RequireOasdiff
+      - name: Verify frontend OpenAPI schema.d.ts stays in sync
+        run: |
+          npm --prefix frontend-v2 ci
+          npm --prefix frontend-v2 run codegen:check
+
+  frontend-quality:
+    name: Frontend Typecheck, Strict ESLint & Vitest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend-v2/package-lock.json
+      - name: Install frontend dependencies
+        run: npm --prefix frontend-v2 ci
+      - name: TypeScript type check
+        run: npm --prefix frontend-v2 run typecheck
+      - name: ESLint strict check (non-regression cap)
+        run: npm --prefix frontend-v2 run lint -- --max-warnings=28
+      - name: Run Vitest unit suite
+        run: npm --prefix frontend-v2 test
+
+  semgrep-sast:
+    name: Semgrep Custom Security & Anti-Pattern SAST
+    runs-on: ubuntu-latest
+    container:
+      image: semgrep/semgrep
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run custom Semgrep firewall rules
+        run: semgrep scan --config .semgrep/smk-rules.yml --error backend-v2/src frontend-v2/src
+
+  integration-tests:
+    name: Testcontainers PostgreSQL Integration Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Restore integration test project
+        run: dotnet restore backend-v2/tests/SmkDoc.IntegrationTests/SmkDoc.IntegrationTests.csproj
+      - name: Run Testcontainers integration suite
+        run: dotnet test backend-v2/tests/SmkDoc.IntegrationTests/SmkDoc.IntegrationTests.csproj -c Release --verbosity normal

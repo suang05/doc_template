@@ -73,5 +73,7 @@ COOLIFY.md
 **/_review/
 !specs/openapi.json
 scratch/
-tools/
+tools/*
+!tools/openapi/
+!tools/ci/
 *.zip
