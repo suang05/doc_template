@@ -4,11 +4,11 @@
 Category: 01_clean_arch_patterns
 Domain: Presentation Layer HTTP Controllers, Routing & Endpoint Authorization
 SoleResponsibilities:
-  - Thin ASP.NET Core API controllers (<= 5 LOC per action) with C# 13 Primary Constructors
+  - Thin ASP.NET Core API controllers (<= 5 LOC per action) with .NET 10 / C# 14 Primary Constructors
   - Control Plane (`/api/v1/management/**`) vs Data Plane (`/api/v1/**`) controller partitioning & zero tenancy injection
   - Unified Preview Gateway routing (delegating preview endpoints to `PreviewDocumentUseCase`)
   - Declarative policy authorization (`[Authorize(Policy = "...")]`) and tenant sub-key routing
-  - RFC 9457 `ProblemDetails` exception filter mapping
+  - RFC 9457 `ProblemDetails` exception mapping (`GlobalExceptionHandler`) and Two-Phase Explicit Concurrency (`IfMatchVersionBinder` + `ETagResponseFilter`)
 Target: `backend-v2/` (`SmkDoc.Api/Controllers/`, `SmkDoc.Api/Filters/`, `SmkDoc.Api/Middleware/`)
 Signal: [ARCH_EVOLUTION_API]
 </context>
@@ -25,12 +25,12 @@ flowchart TD
     subgraph Macro ["1. Macro Architecture: Zoning Strategy"]
         direction TB
         CP_Ctrl["Control Plane Controllers (/api/v1/management/**)\n• Management*Controller (Projects, Global Fonts, Quotas)\n• Policy: [Authorize(Policy = 'RequireSuperAdmin')]\n• Tenancy: Permitted without resolved tenant"]
-        DP_Ctrl["Data Plane Controllers (/api/v1/**)\n• *Controller (Templates, Documents, Datasets, API Keys)\n• Policy: [Authorize(Policy = 'Can*')]\n• Tenancy: 100% Ambient Tenant Mandatory (Tier 1 rejects missing)"]
+        DP_Ctrl["Data Plane Controllers (/api/v1/**)\n• *Controller (Templates, Documents, DocumentJobs, Datasets, API Keys)\n• Policy: [Authorize(Policy = 'Can*')]\n• Tenancy: 100% Ambient Tenant Mandatory via 'Project-Id' Header"]
     end
 
     subgraph Defense ["2. Defense Strategy: Defense-in-Depth (3-Tier Guard)"]
         direction TB
-        T1["Tier 1: Perimeter Guard (ProjectContextMiddleware)\n• Executes BEFORE controller action\n• Blocks un-tenanted Data Plane (400 PROJECT_CONTEXT_REQUIRED)\n• Blocks SuperAdmin on Data Plane (403 CROSS_TENANT_ACCESS_DENIED)"]
+        T1["Tier 1: Perimeter Guard (TenantResolutionMiddleware)\n• Executes BEFORE controller action\n• Blocks missing 'Project-Id' (400 PROJECT_CONTEXT_REQUIRED) & mismatch (400 PROJECT_CONTEXT_MISMATCH)\n• Blocks SuperAdmin on Data Plane without Break-Glass (403 CROSS_TENANT_ACCESS_DENIED)"]
         T2["Tier 2: Application Guard (UseCase PEMR)\n• Controller delegates immediately: await useCase.ExecuteAsync(cmd, ct)\n• Zero controller-side tenancy checks, 0 LOC business logic"]
         T1 --> CP_Ctrl
         T1 --> DP_Ctrl
@@ -49,38 +49,38 @@ flowchart TD
 * **Zoning Boundary Enforcement**:
   * **Control Plane (`/api/v1/management/**`)**: Handled strictly by `Management*Controller` classes decorated with `[Authorize(Policy = "RequireSuperAdmin")]`. Un-tenanted access is permitted for platform lifecycle operations.
   * **Data Plane (`/api/v1/**`)**: Handled by standard `*Controller` classes decorated with project-level policies (`RequireProjectAdmin`, `CanManageTemplates`, `CanGenerateDocuments`). Un-tenanted traffic is intercepted at Tier 1 before reaching controller actions.
-* **Perimeter Handoff**: Controllers are thin dispatchers ($\le 5$ LOC) that instantiate the command/query DTO from route/body parameters and forward directly to `IUseCase<TReq, TRes>`. Controllers MUST NOT inject `ICurrentProjectContext` or manually check tenant status.
+* **Perimeter Handoff**: Controllers are thin dispatchers ($\le 5$ LOC) that instantiate the command/query DTO from route/body parameters and forward directly to `IUseCase<TRequest, TResponse>`. Controllers MUST NOT inject `ICurrentProjectContext` or manually check tenant status.
 
 ### 1.2 Architectural Wiring & Layer Contracts
 | Direction | Upstream Origin | Current Layer Role (HTTP Presentation Gateway) | Downstream Destination |
 |---|---|---|---|
-| **Wire Inbound** | HTTP Client (Next.js Proxy / ERP) | Resolves Tenant & Auth Context | Controller Action (`[ApiController]`) |
-| **Command Dispatch** | Route & Body Parameters | Instantiates Command & forwards to UseCase | Application (`{verb}{Aggregate}UseCase.ExecuteAsync`) |
-| **POST Mutation Safeguard**| State-Mutating `POST` Methods | Enforces deduplication via `Idempotency-Key` | Idempotency Middleware / In-Memory Store |
-| **PUT/DELETE Concurrency** | State-Mutating `PUT` / `DELETE` | Enforces concurrency via global `ETagFilter` & `If-Match` | Ambient `IConcurrencyContext` & `ConcurrencySaveChangesInterceptor` |
-| **Wire Egress** | Application DTO (`{Aggregate}ResultDto`) | Envelopes into `ApiResponse<T>` with HTTP Status | Client (`200 OK`, `201 Created` + Location) |
-| **Streaming Egress** | Binary Render Stream | Streams directly to `Response.Body` | HTTP Chunked Stream (`application/pdf`) |
-| **Error Egress** | Unhandled Exceptions | Dispatches to RFC 9457 `ProblemDetails` | HTTP Client (`application/problem+json`) |
+| **Wire Inbound** | HTTP Client (Next.js Proxy / ERP) | Resolves Tenant (`Project-Id`) & Auth Context | Controller Action (`[ApiController]`) |
+| **Command Dispatch** | Route, Body & `If-Match` Parameters | Instantiates Command & forwards to UseCase | Application (`{verb}{Aggregate}UseCase.ExecuteAsync`) |
+| **POST Mutation Safeguard**| Costly Creating `POST` Methods (`/documents`, `/document-jobs`) | Enforces durable deduplication via `Idempotency-Key` | PostgreSQL `idempotency_keys` (`request_hash` SHA-256) |
+| **PUT/DELETE Concurrency** | Versioned `PUT` / `DELETE` / `:verb` | Binds `If-Match: "v{version}"` (`428` if missing, `412` if stale) | `command.ExpectedVersion` & EF Core `.IsConcurrencyToken()` |
+| **Wire Egress** | Application DTO (`{Aggregate}ResultDto`) | Envelopes into `ApiResponse<T>` with `ETag: "v{version}"` | Client (`200 OK`, `201 Created` + `Location`) |
+| **Streaming Egress** | Binary Render Stream | Returns `FileStreamResult` (transferring stream disposal) | HTTP Stream (`application/pdf`, `Document-Id`) |
+| **Error Egress** | Unhandled Exceptions | Dispatches to RFC 9457 `ProblemDetails` (`GlobalExceptionHandler`) | HTTP Client (`application/problem+json`) |
 
 ### 1.3 Affirmative Presentation Invariants
 | Presentation Architectural Concern | Affirmative Presentation Invariant (Positive SSoT Law) | Boundary Vector |
 |---|---|---|
-| **Thin Controller Boundary** | Controllers remain thin orchestrators ($\le 5$ LOC per action) delegating directly to a single-responsibility `IUseCase<TReq, TRes>`. Business logic is strictly sealed in Application/Domain. | Controller Action |
+| **Thin Controller Boundary** | Controllers remain thin orchestrators ($\le 5$ LOC per action) delegating directly to a single-responsibility `IUseCase<TRequest, TResponse>`. Business logic is strictly sealed in Application/Domain. | Controller Action |
 | **Unified Response Envelopes** | All standard JSON responses are wrapped in immutable `ApiResponse<T>` or `PagedApiResponse<T>`. Anonymous object returns (`new { ... }`) are prohibited. | Wire Output |
-| **RFC 9457 ProblemDetails** | Unhandled and domain exceptions translate through `GlobalExceptionHandler` and `ProblemDetailsBuilder` into RFC 9457 `ProblemDetails` (`application/problem+json`) with `errorCode`, `traceId` (`httpContext.TraceIdentifier`), and validation details in `Extensions["errors"]`. | Error Pipeline |
-| **POST Mutation Idempotency** | State-mutating `POST` endpoints enforce deduplication via `[Idempotent]` attribute consuming the `Idempotency-Key` HTTP header. | Mutation Safety |
-| **PUT/DELETE Concurrency** | Naturally idempotent `PUT` and `DELETE` endpoints enforce optimistic concurrency via global `ETagFilter` (capturing `If-Match` into `IConcurrencyContext` on ingress and emitting `ETag` from `IHasConcurrencyToken` on 2xx egress) and `[ProducesResponseType(StatusCodes.Status412PreconditionFailed)]`. Redis lock idempotency on PUT/DELETE is prohibited. | Concurrency Control |
-| **Diagnostic Probe Semantics** | Connectivity probes (`POST /api/v1/data-connections/test`) return HTTP 200 OK with `ApiResponse<TestDataConnectionResultDto>` (`{ success: false, message }`). HTTP 4xx is reserved strictly for malformed JSON or SSRF blocks. | Integration Diagnostics |
-| **SSRF Perimeter Defense** | Network reachability endpoints execute pre-flight `await hostValidator.ValidateHostAsync(host, ct)` via `IConnectionHostValidator` blocking loopback, link-local, cloud metadata, and container aliases. | Network Boundary |
-| **Zero-LOH Streaming Egress** | Binary render/download endpoints stream live `Stream` directly to `Response.Body` or `File(stream, ...)` with bounded `81,920`-byte buffers. Whole-file `byte[]` buffering is prohibited. | Memory & GC |
-| **Plural RESTful Taxonomy** | Routes adhere to plural kebab-case `api/v1/{resources}` on `{Aggregate}sController`. Legacy `/api/*` and verb-based route segments are prohibited. | Route Routing |
-| **Dual-Track Rendering** | Document generation is partitioned into Track 1 (Sync Monaco preview / instant generate with `rendering` rate limit 30 req/min) and Track 2 (`POST generate-async`, returning `202 Accepted` + `Location`). | Rendering Gateway |
-| **Unified Preview Gateway** | Live preview requests (Monaco raw HTML, template draft ID, template slug, or template UUID) route exclusively through `PreviewDocumentUseCase`. In `TemplateMappingController` (`POST /api/v1/templates/{id}/mappings/preview`) and `TemplateDraftController` (`POST /api/v1/authoring/templates/drafts/{draftId}/preview`), preview calls delegate to `PreviewDocumentUseCase`, enforcing a single preview pipeline. | Preview SSoT |
-| **Pure Schema Ingestion** | Incoming JSON payloads are validated fail-fast during generation without mutating payload data or duplicating validation endpoints. | Ingestion Pipeline |
+| **RFC 9457 ProblemDetails** | Unhandled and domain exceptions translate through `GlobalExceptionHandler` into RFC 9457 `ProblemDetails` (`application/problem+json`) with stable `type` URI (`https://{api-host}/problems/{kebab-error-code}`), `errorCode`, W3C `traceId`, and uniform `errors` array (`{ pointer, code, message }`). | Error Pipeline |
+| **POST Mutation Idempotency** | `POST /api/v1/documents` and `POST /api/v1/document-jobs` require the `Idempotency-Key` header, persisted durably in PostgreSQL `idempotency_keys` with request payload SHA-256 verification (`422 IDEMPOTENCY_KEY_REUSED` on payload mismatch; `409 IDEMPOTENCY_IN_PROGRESS` while in flight). | Mutation Safety |
+| **PUT/DELETE Two-Phase Concurrency** | Versioned `PUT`, `DELETE`, and `:verb` endpoints require `If-Match: "v{version}"` (`428 PRECONDITION_REQUIRED` if missing; `412 PRECONDITION_FAILED` if weak `W/`, `*`, or version mismatch). `ETagResponseFilter` emits `ETag: "v{version}"` from `IHasVersion` on `2xx` egress. | Concurrency Control |
+| **Diagnostic Probe Semantics** | Connectivity probes (`POST /api/v1/data-connections/{id}/connectivity-checks`) return HTTP `200 OK` with coarse `ApiResponse<ConnectivityCheckResultDto>` (`{ success, outcome, latencyMs, checkedAt }`) where `outcome` ∈ `OK \| DNS_FAILURE \| TIMEOUT \| TLS_FAILURE \| AUTH_FAILED \| UNREACHABLE`. Never leak hosts, IPs, ports, or driver messages. | Integration Diagnostics |
+| **SSRF Perimeter Defense** | External data connections execute pre-flight `await hostValidator.ResolveAndValidateAsync(hostname, allowedCidrs, ct)` via `ConnectionHostValidator` (normalizing IPv4-mapped IPv6, checking platform deny-list + per-tenant allow-list CIDRs, and pinning the validated IP). Any blocked target throws `SecurityViolationException` (`403 EGRESS_DENIED`). | Network Boundary |
+| **Bounded Pooled Streaming Egress** | Binary render/download endpoints return `File(result.ContentStream, result.ContentType, result.FileName, enableRangeProcessing: false)` **without** wrapping the stream in `await using` (`TRAP-SEC-002` / `TRAP-MEM-003`). | Memory & GC |
+| **Plural RESTful Taxonomy** | Routes adhere to plural kebab-case `api/v1/{resources}` on `{Aggregate}sController`, with state transitions using `/{resource}/{id}:{verb}` (`:publish`, `:cancel`, `:retry`). Legacy `/api/*` and verb path segments (`/generate-async`, `/test`) are prohibited. | Route Routing |
+| **Dual-Track Rendering** | Document generation is partitioned into Pipeline A (`POST /api/v1/documents`, sync with `rendering` rate limit) and Pipeline C (`POST /api/v1/document-jobs`, returning `202 Accepted` + `Location: /api/v1/document-jobs/{id}` + `Retry-After`). | Rendering Gateway |
+| **Unified Preview Gateway** | Live preview requests (Monaco raw HTML, template draft ID, template slug, or template UUID) route exclusively through `PreviewDocumentUseCase`. Duplicate preview use cases are prohibited. | Preview SSoT |
+| **Pure Schema Ingestion** | Incoming JSON payloads are validated fail-fast during generation (`422 SCHEMA_VALIDATION_FAILED`) without mutating payload data or duplicating validation endpoints. | Ingestion Pipeline |
 | **Declarative Policy Security**| Actions are authorized via declarative `[Authorize(Policy = "...")]` attributes matching the Declarative Authorization Policies Matrix. | Endpoint Authorization |
 | **Separated API Key Routes** | Tenant sub-key operations reside on `/api/v1/api-keys` (Project Admin, quota max 2), while platform-wide governance resides on `/api/v1/management/api-keys` (SuperAdmin). | Key Governance |
-| **OpenAPI Schema Contracts** | Every controller action declares explicit `[ProducesResponseType(typeof(ApiResponse<T>), 2xx)]` for success envelopes and type-less `[ProducesResponseType(StatusCodes.Status4xx)]` for error statuses (automatically bound to `ProblemDetails` by `OpenApiOperationTransformer`). | Contract Metadata |
-| **Ambient Tenant Ingress Purity** | Multi-tenant context resolves exclusively via Tier 1 Perimeter Middleware (`ProjectContextMiddleware`) into ambient `ICurrentProjectContext`. Controllers must never declare `[FromQuery] Guid? projectId`, accept `projectId` in JSON bodies, or inject `ICurrentProjectContext`. Un-tenanted Data Plane traffic is rejected fail-fast at Tier 1 with 400 Bad Request (`PROJECT_CONTEXT_REQUIRED`), while UseCases consuming tenant context extract strongly-typed `ProjectId` via Tier 2 Smart Context (`var projectId = projectContext.ProjectId;`). UseCases operating by ID or querying collections filtered by EF Core omit context injection entirely. | Controller Tenancy |
+| **OpenAPI Schema Contracts** | Every controller action declares explicit `[ProducesResponseType(typeof(ApiResponse<T>), 2xx)]` for success envelopes and type-less `[ProducesResponseType(StatusCodes.Status4xx)]` for error statuses. | Contract Metadata |
+| **Ambient Tenant Ingress Purity** | Multi-tenant context resolves exclusively via Tier 1 Perimeter Middleware (`TenantResolutionMiddleware`) from the `Project-Id` header into `ICurrentProjectContext`. Controllers never declare `[FromQuery] Guid? projectId` or inject `ICurrentProjectContext`. Archetype A UseCases call `var projectId = projectContext.GetRequiredProjectId();`. | Controller Tenancy |
 
 ---
 
@@ -126,45 +126,44 @@ ErrorProducesResponseTypeFirewall:
   ActionOnViolation: "Use parameterless [ProducesResponseType(StatusCodes.Status4xx)] and let OpenApiOperationTransformer attach ProblemDetails."
 ```
 
-### 2.3 RFC 9457 ProblemDetails Exception Translation Matrix
-| Domain / Application / Infrastructure Exception | HTTP Status Code | RFC 9457 Title | `errorCode` | ProblemDetails Type URI |
-|---|---|---|---|---|
-| `ValidationException` | `400 Bad Request` | Validation Failed | `VALIDATION_FAILED` | `https://tools.ietf.org/html/rfc9110#section-15.5.1` |
-| `DomainValidationException` | `400 Bad Request` | Domain Validation Error | `DOMAIN_VALIDATION_ERROR` | `https://tools.ietf.org/html/rfc9110#section-15.5.1` |
-| `BusinessRuleViolationException` | `400 Bad Request` | Business Rule Violation | `{DomainErrorCode}` | `https://tools.ietf.org/html/rfc9110#section-15.5.1` |
-| `UnauthorizedException` / `UnauthorizedAccessException` | `401 Unauthorized` | Unauthorized | `UNAUTHORIZED` | `https://tools.ietf.org/html/rfc9110#section-15.5.2` |
-| `TenantContextRequiredException` | `403 Forbidden` | Tenant Context Required | `TENANT_CONTEXT_REQUIRED` | `https://tools.ietf.org/html/rfc9110#section-15.5.4` |
-| `CrossTenantAccessDeniedException` | `403 Forbidden` | Cross-Tenant Access Denied | `CROSS_TENANT_ACCESS_DENIED` | `https://tools.ietf.org/html/rfc9110#section-15.5.4` |
-| `ForbiddenException` / `ProjectDeactivatedException` | `403 Forbidden` | Forbidden / Project Deactivated | `FORBIDDEN` / `PROJECT_DEACTIVATED` | `https://tools.ietf.org/html/rfc9110#section-15.5.4` |
-| `NotFoundException` | `404 Not Found` | Not Found | `{ENTITY}_NOT_FOUND` | `https://tools.ietf.org/html/rfc9110#section-15.5.5` |
-| `ConflictException` | `409 Conflict` | Conflict | `{ENTITY}_CONFLICT` | `https://tools.ietf.org/html/rfc9110#section-15.5.10` |
-| `DbUpdateConcurrencyException` | `409 Conflict` | Concurrency Conflict | `CONCURRENCY_CONFLICT` | `https://tools.ietf.org/html/rfc9110#section-15.5.10` |
-| `DraftExpiredException` | `410 Gone` | Draft Expired | `DRAFT_EXPIRED` | `https://tools.ietf.org/html/rfc9110#section-15.5.11` |
-| `PreconditionFailedException` | `412 Precondition Failed` | Precondition Failed | `PRECONDITION_FAILED` | `https://tools.ietf.org/html/rfc9110#section-15.5.13` |
-| `SchemaValidationException` | `422 Unprocessable Entity` | Schema Validation Failed | `SCHEMA_VALIDATION_FAILED` | `https://tools.ietf.org/html/rfc9110#section-15.5.21` |
-| `RenderException` / `DatasetExecutionException` / `DataConnectionDecryptionException` | `500 Internal Server Error` | Render / Dataset / Decryption Failed | `{DomainErrorCode}` | `https://tools.ietf.org/html/rfc9110#section-15.6.1` |
-| `DistributedStateUnavailableException` | `503 Service Unavailable` | Distributed State Unavailable | `DISTRIBUTED_STATE_UNAVAILABLE` | `https://tools.ietf.org/html/rfc9110#section-15.6.4` |
-| Unhandled `Exception` | `500 Internal Server Error` | Internal Server Error | `INTERNAL_SERVER_ERROR` | `https://tools.ietf.org/html/rfc9110#section-15.6.1` |
+### 2.3 RFC 9457 ProblemDetails Exception Translation Matrix (Delegated to `06_api_contract_standards.md`)
+> **SSoT Delegation:** The single authoritative Exception-to-HTTP mapping table and error code registry is defined in [06_api_contract_standards.md §3.3](../00_architecture_core/06_api_contract_standards.md#33-rfc-9457-problemdetails--the-exception-catalogue-ssot). Key mappings enforced by `GlobalExceptionHandler`:
+* `ValidationException` / `DomainValidationException` → `422 Unprocessable Entity` (`VALIDATION_FAILED`)
+* `SchemaValidationException` → `422 Unprocessable Entity` (`SCHEMA_VALIDATION_FAILED`)
+* `IdempotencyKeyReusedException` → `422 Unprocessable Entity` (`IDEMPOTENCY_KEY_REUSED`)
+* `ProjectContextRequiredException` / `ProjectContextMismatchException` → `400 Bad Request` (`PROJECT_CONTEXT_REQUIRED` / `PROJECT_CONTEXT_MISMATCH`)
+* `UnauthorizedException` → `401 Unauthorized` + `WWW-Authenticate` (`UNAUTHORIZED`)
+* `ForbiddenException` / `ProjectDeactivatedException` / `CrossTenantAccessDeniedException` (plane-level) → `403 Forbidden`
+* `SecurityViolationException` → `403 Forbidden` (`EGRESS_DENIED` — generic message only)
+* `NotFoundException` (missing resource or cross-tenant resource ID) → `404 Not Found` (`NOT_FOUND` / `{RESOURCE}_NOT_FOUND`)
+* `ConflictException` / `BusinessRuleViolationException` → `409 Conflict` (`RESOURCE_CONFLICT`, `DUPLICATE_SLUG`, `IDEMPOTENCY_IN_PROGRESS`, `BUSINESS_RULE_VIOLATION`)
+* `DraftExpiredException` → `410 Gone` (`DRAFT_EXPIRED`)
+* `PreconditionFailedException` **and** `DbUpdateConcurrencyException` → `412 Precondition Failed` (`PRECONDITION_FAILED`)
+* `PreconditionRequiredException` → `428 Precondition Required` (`PRECONDITION_REQUIRED`)
+* `QuotaExceededException` / Rate Limiter → `429 Too Many Requests` + `Retry-After` (`QUOTA_EXCEEDED` / `RATE_LIMITED`)
+* `TenantContextNotResolvedException` → `500 Internal Server Error` (`TENANT_CONTEXT_NOT_RESOLVED`)
+* `ExternalServiceException` / `ExternalServiceUnavailableException` / `TimeoutRejectedException` → `502` / `503` / `504`
+* `OperationCanceledException` (client abort) → No response body, debug log only (never logged as 5xx).
 
 ### 2.4 Specialized Rate Limiting Policies Matrix
 | Policy Name | Target Endpoints | Limit & Window | Rejection Status | Primary Architectural Rationale |
 |---|---|---|---|---|
-| `auth-strict` | `POST /api/v1/auth/login`, `POST /api/v1/auth/refresh` | 5 permits / 1 min (by IP) | `429 Too Many Requests` | Defends against password brute-force and credential stuffing |
-| `rendering` | `POST /api/v1/documents/generate/*`, `preview*`, `render` | 30 permits / 1 min (by Tenant) | `429 Too Many Requests` | Protects Gotenberg Chromium pods from memory saturation and OOM crashes |
-| `test-conn` | `POST /api/v1/data-connections/test` | 10 permits / 1 min (by User/IP) | `429 Too Many Requests` | Mitigates internal network scanning, port enumeration, and SSRF probing |
-| `api` | All standard CRUD, query, and management endpoints | 60 permits / 1 min (by Partition) | `429 Too Many Requests` | Baseline API throttling for fair resource distribution |
+| `auth-strict` | `POST /api/v1/auth/login`, `POST /api/v1/auth/refresh` | 5 permits / 1 min (by IP + Email) | `429 RATE_LIMITED` | Defends against password brute-force and credential stuffing |
+| `rendering` | `POST /api/v1/documents`, `POST /api/v1/document-jobs`, `preview*` | 30 permits / 1 min + Concurrency Bulkhead (by ProjectId) | `429 RATE_LIMITED` | Protects Gotenberg Chromium pods from memory saturation and OOM crashes |
+| `test-conn` | `POST /api/v1/data-connections/{id}/connectivity-checks` | 10 permits / 1 min (by ProjectId) | `429 RATE_LIMITED` | Mitigates internal network scanning, port enumeration, and SSRF probing |
+| `api` | All standard CRUD, query, and management endpoints | 60 permits / 1 min (by Partition) | `429 RATE_LIMITED` | Baseline API throttling for fair resource distribution |
 
 ### 2.5 Declarative Authorization Policies Matrix (`AuthorizationPolicies`)
 The portal operates as an internal operator and authoring console (SuperAdmin and Template Designers); external enterprise callers (ERP, CRM) integrate exclusively via Channel A (M2M API Keys). All controller actions enforce authorization declaratively through policies:
 
 | Policy Name | Target Endpoints & Controller Scope | Allowed Subject Identities | Policy Enforcement Criteria |
 |---|---|---|---|
-| `RequireSuperAdmin` | `api/v1/management/api-keys`, `api/v1/management/projects/*`, `api/v1/management/users/*/status`, `api/v1/management/settings/fonts` | Platform SuperAdmin exclusively (Control Plane) | `ctx.User.IsInRole(RoleConstants.SuperAdmin)` \| `ctx.User.HasClaim("SystemRole", SuperAdmin)` |
-| `RequireProjectAdmin` | `api/v1/api-keys`, `api/v1/logs`, `api/v1/users` | Project Admin or M2M ReadWrite (Zero Standing Access for SuperAdmin) | `ctx.User.IsInRole(RoleConstants.Admin)` \| `(ctx.User.IsInRole("M2MClient") & Scope == "ReadWrite")` |
-| `CanManageTemplates` | `api/v1/templates`, `api/v1/templates/{id}/*`, `mappings`, `datasets`, `fonts` | Template Designer (`Developer`), Admin, or M2M ReadWrite | `IsInRole(RoleConstants.Developer)` \| `IsInRole(RoleConstants.Admin)` \| `(IsInRole("M2MClient") & Scope == "ReadWrite")` |
-| `CanGenerateDocuments` | `api/v1/documents/*` (`generate`, `generate-async`, `preview`, `download`, `versions`) | Any authenticated user with tenant membership or M2M key (ReadOnly/ReadWrite) | `ctx.User.Identity.IsAuthenticated == true` |
-| `CanManageDataConnections`| `api/v1/data-connections/*` (`GET`, `POST`, `PUT`, `DELETE`, `test`) | Project Admin exclusively | `ctx.User.IsInRole(RoleConstants.Admin)` |
-| `CanManageDatasets` | `api/v1/datasets/*` (`GET`, `POST`, `PUT`, `DELETE`) | Template Designer (`Developer`), Admin, or M2M ReadWrite | `IsInRole(RoleConstants.Developer)` \| `IsInRole(RoleConstants.Admin)` \| `(IsInRole("M2MClient") & Scope == "ReadWrite")` |
+| `RequireSuperAdmin` | `api/v1/management/api-keys`, `api/v1/management/projects/*`, `api/v1/management/users/*/status`, `api/v1/management/fonts` | Platform SuperAdmin exclusively (Control Plane) | `ctx.User.IsInRole(SystemRole.SuperAdmin)` |
+| `RequireProjectAdmin` | `api/v1/api-keys`, `api/v1/generation-logs`, `api/v1/users` | Project Admin or M2M ReadWrite (Zero Standing Access for SuperAdmin) | `ctx.User.IsInRole(RoleType.Admin)` \| `(ctx.User.IsInRole("M2MClient") & Scope == "ReadWrite")` |
+| `CanManageTemplates` | `api/v1/templates`, `api/v1/templates/{id}/*`, `mappings`, `datasets`, `fonts` | Template Designer (`Developer`), Admin, or M2M ReadWrite | `IsInRole(RoleType.Developer)` \| `IsInRole(RoleType.Admin)` \| `(IsInRole("M2MClient") & Scope == "ReadWrite")` |
+| `CanGenerateDocuments` | `api/v1/documents`, `api/v1/document-jobs`, `preview`, `download` | Any authenticated user with tenant membership or M2M key (ReadOnly/ReadWrite) | `ctx.User.Identity.IsAuthenticated == true` |
+| `CanManageDataConnections`| `api/v1/data-connections/*` (`GET`, `POST`, `PUT`, `DELETE`, `connectivity-checks`) | Project Admin exclusively | `ctx.User.IsInRole(RoleType.Admin)` |
+| `CanManageDatasets` | `api/v1/datasets/*` (`GET`, `POST`, `PUT`, `DELETE`) | Template Designer (`Developer`), Admin, or M2M ReadWrite | `IsInRole(RoleType.Developer)` \| `IsInRole(RoleType.Admin)` \| `(IsInRole("M2MClient") & Scope == "ReadWrite")` |
 
 ### 2.6 Controller Partitioning & Companion Diagnostics Pattern
 When an aggregate's capabilities exceed 5 UseCases, or encompass specialized operational concerns (e.g. diagnostics, reachability tests, dry-run schema introspection), enforce single-responsibility by decomposing into cohesive companion controllers sharing the same route prefix:
@@ -187,7 +186,7 @@ When an aggregate's capabilities exceed 5 UseCases, or encompass specialized ope
 * Inherits from `ControllerBase`, applies `[ApiController]`, marks class `sealed`, and defines route as `[Route("api/v1/{plural-kebab-resource}")]`.
 * Injects single-responsibility `IUseCase<TRequest, TResponse>` abstractions via primary constructor ($\le 5$ dependencies).
 * Action methods stay thin ($\le 5$ LOC): execute 3-step dispatcher (Instantiate Input, Execute UseCase to `var result`, Envelope Return).
-* Applies `[Idempotent]` strictly to `POST` mutations; declares `[ProducesResponseType(StatusCodes.Status412PreconditionFailed)]` on `PUT` and `DELETE` (with `If-Match` and `ETag` handled transparently by global `ETagFilter`).
+* Binds `If-Match: "v{version}"` on `PUT`, `DELETE`, and `:verb` via `[FromIfMatch] long expectedVersion` (`IfMatchVersionBinder` throws `428 PRECONDITION_REQUIRED` if missing and `412 PRECONDITION_FAILED` if malformed), and `ETagResponseFilter` emits `ETag: "v{version}"` from `IHasVersion` on `2xx` egress.
 
 ```csharp
 [ApiController]
@@ -202,16 +201,11 @@ public sealed class {Aggregate}sController(
 {
     [HttpGet]
     [ProducesResponseType(typeof(PagedApiResponse<{Aggregate}ResultDto>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> List([FromQuery] int page = 1, [FromQuery] int pageSize = 20, CancellationToken ct = default)
+    public async Task<IActionResult> List([FromQuery] int page = 1, [FromQuery] int limit = 20, [FromQuery] bool includeTotal = false, CancellationToken ct = default)
     {
-        // Step 1: Instantiate Query <Why: map HTTP query parameters to application contract>
-        var query = new List{Aggregate}sQuery(null, null, null, page, pageSize);
-
-        // Step 2: Execute UseCase <Why: execute decoupled orchestration logic>
+        var query = new List{Aggregate}sQuery(null, null, null, page, limit, includeTotal);
         var result = await listUseCase.ExecuteAsync(query, ct);
-
-        // Step 3: Envelope Egress <Why: standardized pagination wire schema>
-        return Ok(new PagedApiResponse<{Aggregate}ResultDto>(result.Items, result.TotalCount, result.Page, result.PageSize));
+        return Ok(new PagedApiResponse<{Aggregate}ResultDto>(result.Items, PaginationMetadata.ForOffset(result.Page, result.Limit, result.TotalCount)));
     }
 
     [HttpGet("{id:guid}")]
@@ -219,51 +213,36 @@ public sealed class {Aggregate}sController(
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetById([FromRoute] Guid id, CancellationToken ct)
     {
-        // Step 1: Instantiate Query <Why: isolate route parameters into strongly-typed query>
-        var query = new Get{Aggregate}ByIdQuery(id);
-
-        // Step 2: Execute UseCase <Why: throws strongly-typed NotFoundException if missing>
+        var query = new Get{Aggregate}ByIdQuery(new {Aggregate}Id(id));
         var result = await getByIdUseCase.ExecuteAsync(query, ct);
-
-        // Step 3: Envelope Egress <Why: ETagFilter attaches ETag header from IHasConcurrencyToken>
         return Ok(new ApiResponse<{Aggregate}ResultDto>(result));
     }
 
     [HttpPost]
-    [Idempotent]
     [ProducesResponseType(typeof(ApiResponse<{Aggregate}ResultDto>), StatusCodes.Status201Created)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status422UnprocessableEntity)]
     public async Task<IActionResult> Create([FromBody] Create{Aggregate}Request request, CancellationToken ct)
     {
-        // Step 1: Instantiate Command <Why: translate transport model to immutable command>
         var command = new Create{Aggregate}Command(request.Name, request.Slug, request.Category);
-
-        // Step 2: Execute UseCase <Why: PEMR execution and atomic commit>
         var result = await createUseCase.ExecuteAsync(command, ct);
-
-        // Step 3: Return Typed REST 201 Created <Why: RFC 7231 Location header compliance>
         return CreatedAtAction(nameof(GetById), new { id = result.Id }, new ApiResponse<{Aggregate}ResultDto>(result));
     }
 
     [HttpPut("{id:guid}")]
     [ProducesResponseType(typeof(ApiResponse<{Aggregate}ResultDto>), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType(StatusCodes.Status409Conflict)]
     [ProducesResponseType(StatusCodes.Status412PreconditionFailed)]
+    [ProducesResponseType(StatusCodes.Status422UnprocessableEntity)]
+    [ProducesResponseType(StatusCodes.Status428PreconditionRequired)]
     public async Task<IActionResult> Update(
         [FromRoute] Guid id,
+        [FromIfMatch] long expectedVersion,
         [FromBody] Update{Aggregate}Request request,
         CancellationToken ct)
     {
-        // Step 1: Instantiate Command <Why: ambient ETagFilter captures If-Match header>
-        var command = new Update{Aggregate}Command(id, request.Name, request.Category);
-
-        // Step 2: Execute UseCase <Why: ConcurrencySaveChangesInterceptor verifies precondition on commit>
+        var command = new Update{Aggregate}Command(new {Aggregate}Id(id), request.Name, request.Category, expectedVersion);
         var result = await updateUseCase.ExecuteAsync(command, ct);
-
-        // Step 3: Envelope Egress <Why: ETagFilter emits updated ETag header automatically>
         return Ok(new ApiResponse<{Aggregate}ResultDto>(result));
     }
 
@@ -271,17 +250,14 @@ public sealed class {Aggregate}sController(
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status412PreconditionFailed)]
+    [ProducesResponseType(StatusCodes.Status428PreconditionRequired)]
     public async Task<IActionResult> Deactivate(
         [FromRoute] Guid id,
+        [FromIfMatch] long expectedVersion,
         CancellationToken ct)
     {
-        // Step 1: Instantiate Command <Why: capture target id; ambient filter captures If-Match>
-        var command = new Deactivate{Aggregate}Command(id);
-
-        // Step 2: Execute UseCase <Why: soft deactivation in domain aggregate>
+        var command = new Deactivate{Aggregate}Command(new {Aggregate}Id(id), expectedVersion);
         await deactivateUseCase.ExecuteAsync(command, ct);
-
-        // Step 3: Return 204 NoContent <Why: standard REST deletion response>
         return NoContent();
     }
 }
@@ -289,10 +265,9 @@ public sealed class {Aggregate}sController(
 
 ### 3.2 Centralized RFC 9457 Global Exception Handler & ProblemDetails SSoT Archetype
 >> MANDATORY CANONICAL BLUEPRINT [RULE-API-002]:
-* Implements `IExceptionHandler` (`<= 20` LOC per method) delegating RFC 9457 construction to `ProblemDetailsBuilder` and serialization to `IProblemDetailsService`.
-* Attaches `httpContext.TraceIdentifier` as `problemDetails.Extensions["traceId"]` and logs 4xx as `LogWarning` vs 5xx as `LogError` with `{ErrorCode}` and `{TraceId}`.
-* Maps `DbUpdateConcurrencyException` to `409 Conflict` (`CONCURRENCY_CONFLICT`) and populates `Extensions["errors"]` for `ValidationException` (400 map) and `SchemaValidationException` (422 rule list).
-* Configures `AddProblemDetails` (`CustomizeProblemDetails`) so framework-level 400 errors also carry `instance`, `errorCode`, and `traceId`.
+* Implements `IExceptionHandler` delegating RFC 9457 construction to `ProblemDetailsBuilder` and serialization to `IProblemDetailsService`.
+* Attaches W3C trace ID (`Activity.Current?.TraceId.ToString() ?? httpContext.TraceIdentifier`) as `problemDetails.Extensions["traceId"]`.
+* Maps both `PreconditionFailedException` (Step 2 pre-check) and `DbUpdateConcurrencyException` (Step 4 atomic commit race) to `412 Precondition Failed` (`PRECONDITION_FAILED`), `PreconditionRequiredException` to `428 Precondition Required` (`PRECONDITION_REQUIRED`), and `ValidationException` / `DomainValidationException` to `422 Unprocessable Entity` (`VALIDATION_FAILED`).
 
 ```csharp
 public sealed class GlobalExceptionHandler(
@@ -300,22 +275,39 @@ public sealed class GlobalExceptionHandler(
     IProblemDetailsService problemDetailsService) : IExceptionHandler
 {
     private const string UnexpectedErrorDetail = "An unexpected error occurred.";
-    private const string ConcurrencyConflictDetail =
-        "The resource was modified by another transaction while your request was processing. Please reload the latest state and retry.";
+    private const string PreconditionFailedDetail =
+        "The resource was modified since you last read it. Fetch the latest version and retry.";
 
     public async ValueTask<bool> TryHandleAsync(HttpContext httpContext, Exception exception, CancellationToken ct)
     {
-        // Step 1: Map exception to HTTP status, title, and stable errorCode <Why: deterministic classification>
+        if (exception is OperationCanceledException && httpContext.RequestAborted.IsCancellationRequested)
+        {
+            logger.LogDebug("Request aborted by client ({Path}).", httpContext.Request.Path);
+            return true;
+        }
+
         var (status, title, errorCode) = ResolveExceptionDetails(exception);
+        var traceId = Activity.Current?.TraceId.ToString() ?? httpContext.TraceIdentifier;
 
-        // Step 2: Log semantically (4xx warning vs 5xx error with TraceId) <Why: prevent false 5xx alert fatigue>
-        LogException(exception, status, errorCode, httpContext.TraceIdentifier);
+        LogException(exception, status, errorCode, traceId);
 
-        // Step 3: Build standardized RFC 9457 ProblemDetails via SSoT builder <Why: guarantee traceId and errorCode>
-        var problemDetails = BuildProblemDetails(httpContext, exception, status, title, errorCode);
+        var problemDetails = ProblemDetailsBuilder.Create(
+            status: status,
+            title: title,
+            detail: ResolveDetailMessage(exception, status),
+            errorCode: errorCode,
+            instance: httpContext.Request.Path,
+            traceId: traceId,
+            errors: ExtractValidationErrors(exception));
 
-        // Step 4: Write response via IProblemDetailsService <Why: standard application/problem+json pipeline>
-        await WriteResponseAsync(httpContext, problemDetails, exception, ct);
+        httpContext.Response.StatusCode = status;
+        await problemDetailsService.WriteAsync(new ProblemDetailsContext
+        {
+            HttpContext = httpContext,
+            ProblemDetails = problemDetails,
+            Exception = exception
+        });
+
         return true;
     }
 
@@ -323,97 +315,59 @@ public sealed class GlobalExceptionHandler(
     {
         if (status >= StatusCodes.Status500InternalServerError)
         {
-            logger.LogError(exception, "Unhandled 5xx Server Error [{ErrorCode}] (TraceId: {TraceId}): {Message}", errorCode, traceId, exception.Message);
+            logger.LogError(exception, "Unhandled 5xx Server Error [{ErrorCode}] (TraceId: {TraceId})", errorCode, traceId);
             return;
         }
 
-        logger.LogWarning("Handled 4xx Client/Domain Error [{ErrorCode}] (TraceId: {TraceId}): {Message}", errorCode, traceId, exception.Message);
+        logger.LogWarning("Handled 4xx Client/Domain Error [{ErrorCode}] (TraceId: {TraceId})", errorCode, traceId);
     }
-
-    private static ProblemDetails BuildProblemDetails(
-        HttpContext httpContext,
-        Exception exception,
-        int status,
-        string title,
-        string errorCode) =>
-        ProblemDetailsBuilder.Create(
-            status: status,
-            title: title,
-            detail: ResolveDetailMessage(exception, status),
-            errorCode: errorCode,
-            instance: httpContext.Request.Path,
-            traceId: httpContext.TraceIdentifier,
-            errors: ExtractValidationErrors(exception));
 
     private static string ResolveDetailMessage(Exception exception, int status) =>
         exception switch
         {
-            DbUpdateConcurrencyException => ConcurrencyConflictDetail,
-            _ when status == StatusCodes.Status500InternalServerError && exception is not DomainException => UnexpectedErrorDetail,
+            PreconditionFailedException or DbUpdateConcurrencyException => PreconditionFailedDetail,
+            SecurityViolationException => "Outbound connection to the specified target is not permitted by network policy.",
+            _ when status >= StatusCodes.Status500InternalServerError => UnexpectedErrorDetail,
             _ => exception.Message
         };
 
     private static object? ExtractValidationErrors(Exception exception) =>
-        exception switch
-        {
-            IValidationException validationEx => validationEx.Errors,
-            _ => null
-        };
-
-    private async ValueTask WriteResponseAsync(
-        HttpContext httpContext,
-        ProblemDetails problemDetails,
-        Exception exception,
-        CancellationToken ct)
-    {
-        httpContext.Response.StatusCode = problemDetails.Status ?? StatusCodes.Status500InternalServerError;
-        var written = await problemDetailsService.TryWriteAsync(new ProblemDetailsContext
-        {
-            HttpContext = httpContext,
-            ProblemDetails = problemDetails,
-            Exception = exception
-        });
-
-        if (!written)
-        {
-            await httpContext.Response.WriteAsJsonAsync(problemDetails, cancellationToken: ct);
-        }
-    }
+        exception is IValidationException validationEx ? validationEx.Errors : null;
 
     private static (int Status, string Title, string ErrorCode) ResolveExceptionDetails(Exception exception) =>
         exception switch
         {
-            DomainException domainEx => (ResolveDomainStatus(domainEx), ResolveDomainTitle(domainEx), domainEx.ErrorCode),
-            PreconditionFailedException pfe => (StatusCodes.Status412PreconditionFailed, "Precondition Failed", pfe.ErrorCode),
-            DbUpdateConcurrencyException => (StatusCodes.Status409Conflict, "Concurrency Conflict", "CONCURRENCY_CONFLICT"),
-            DistributedStateUnavailableException dsue => (StatusCodes.Status503ServiceUnavailable, "Distributed State Unavailable", dsue.ErrorCode),
-            UnauthorizedAccessException => (StatusCodes.Status401Unauthorized, "Unauthorized", "UNAUTHORIZED"),
-            ArgumentException => (StatusCodes.Status400BadRequest, "Bad Request", "BAD_REQUEST"),
-            _ => (StatusCodes.Status500InternalServerError, "Internal Server Error", "INTERNAL_SERVER_ERROR")
+            UnauthorizedException or UnauthorizedAccessException => (StatusCodes.Status401Unauthorized, "Unauthorized", "UNAUTHORIZED"),
+            ProjectContextRequiredException => (StatusCodes.Status400BadRequest, "Project Context Required", "PROJECT_CONTEXT_REQUIRED"),
+            ProjectContextMismatchException => (StatusCodes.Status400BadRequest, "Project Context Mismatch", "PROJECT_CONTEXT_MISMATCH"),
+            CrossTenantAccessDeniedException => (StatusCodes.Status403Forbidden, "Cross-Tenant Access Denied", "CROSS_TENANT_ACCESS_DENIED"),
+            ProjectDeactivatedException => (StatusCodes.Status403Forbidden, "Project Deactivated", "PROJECT_DEACTIVATED"),
+            SecurityViolationException => (StatusCodes.Status403Forbidden, "Egress Denied", "EGRESS_DENIED"),
+            ForbiddenException => (StatusCodes.Status403Forbidden, "Forbidden", "FORBIDDEN"),
+            NotFoundException nf => (StatusCodes.Status404NotFound, "Not Found", nf.ErrorCode),
+            ConflictException cf => (StatusCodes.Status409Conflict, "Conflict", cf.ErrorCode),
+            BusinessRuleViolationException br => (StatusCodes.Status409Conflict, "Business Rule Violation", br.ErrorCode),
+            DraftExpiredException => (StatusCodes.Status410Gone, "Draft Expired", "DRAFT_EXPIRED"),
+            PreconditionFailedException or DbUpdateConcurrencyException => (StatusCodes.Status412PreconditionFailed, "Precondition Failed", "PRECONDITION_FAILED"),
+            PreconditionRequiredException => (StatusCodes.Status428PreconditionRequired, "Precondition Required", "PRECONDITION_REQUIRED"),
+            SchemaValidationException => (StatusCodes.Status422UnprocessableEntity, "Schema Validation Failed", "SCHEMA_VALIDATION_FAILED"),
+            IdempotencyKeyReusedException => (StatusCodes.Status422UnprocessableEntity, "Idempotency Key Reused", "IDEMPOTENCY_KEY_REUSED"),
+            ValidationException or DomainValidationException => (StatusCodes.Status422UnprocessableEntity, "Validation Failed", "VALIDATION_FAILED"),
+            QuotaExceededException => (StatusCodes.Status429TooManyRequests, "Quota Exceeded", "QUOTA_EXCEEDED"),
+            ExternalServiceException => (StatusCodes.Status502BadGateway, "External Service Error", "EXTERNAL_SERVICE_ERROR"),
+            ExternalServiceUnavailableException => (StatusCodes.Status503ServiceUnavailable, "External Service Unavailable", "EXTERNAL_SERVICE_UNAVAILABLE"),
+            TimeoutRejectedException => (StatusCodes.Status504GatewayTimeout, "External Service Timeout", "EXTERNAL_SERVICE_TIMEOUT"),
+            TenantContextNotResolvedException => (StatusCodes.Status500InternalServerError, "Internal Error", "TENANT_CONTEXT_NOT_RESOLVED"),
+            _ => (StatusCodes.Status500InternalServerError, "Internal Server Error", "INTERNAL_ERROR")
         };
-
-    private static int ResolveDomainStatus(DomainException exception) =>
-        exception switch
-        {
-            NotFoundException => StatusCodes.Status404NotFound,
-            ConflictException => StatusCodes.Status409Conflict,
-            ForbiddenException => StatusCodes.Status403Forbidden,
-            UnauthorizedException => StatusCodes.Status401Unauthorized,
-            ValidationException => StatusCodes.Status400BadRequest,
-            SchemaValidationException => StatusCodes.Status422UnprocessableEntity,
-            _ => StatusCodes.Status400BadRequest
-        };
-
-    private static string ResolveDomainTitle(DomainException exception) =>
-        exception.GetType().Name.Replace("Exception", string.Empty);
 }
 ```
 
-### 3.3 Unified Response Envelopes & Global ETag Filter Archetypes
+### 3.3 Unified Response Envelopes, `IfMatchVersionBinder` & `ETagResponseFilter` Archetypes
 >> MANDATORY CANONICAL BLUEPRINT [RULE-API-003]:
 * Encapsulates single-resource responses in immutable `ApiResponse<T>(T Data) : IApiResponse`.
-* Encapsulates collection responses in `PagedApiResponse<T>(IEnumerable<T> Data, PaginationMetadata Pagination)`.
-* `ETagFilter` hydrates `IConcurrencyContext.IfMatch` on ingress and attaches `Response.Headers.ETag` from `IApiResponse` + `IHasConcurrencyToken` on 2xx egress without reflection.
+* Encapsulates collection responses in `PagedApiResponse<T>(IReadOnlyList<T> Data, PaginationMetadata Pagination)`.
+* `IfMatchVersionBinder` parses strong `If-Match: "v{version}"` headers into `long expectedVersion` (`428` if missing, `412` if weak `W/`, `*`, or invalid), and `ETagResponseFilter` attaches `ETag: "v{version}"` from `IHasVersion` on `2xx` egress without reflection.
 >> SSoT DELEGATION: Universal response envelopes (`ApiResponse<T>`, `PagedApiResponse<T>`) and RFC 9457 error wire schemas are governed strictly by [06_api_contract_standards.md](../00_architecture_core/06_api_contract_standards.md).
 
 ```csharp
@@ -422,59 +376,49 @@ public interface IApiResponse
     object? Data { get; }
 }
 
-public record ApiResponse<T>(T Data) : IApiResponse
+public sealed record ApiResponse<T>(T Data) : IApiResponse
 {
     object? IApiResponse.Data => Data;
 }
 
-public sealed class ETagFilter(IConcurrencyContext concurrencyContext) : IAsyncActionFilter
+public sealed class ETagResponseFilter : IAsyncActionFilter
 {
     public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
     {
-        // Step 1: Capture If-Match Header on Ingress <Why: auto-sanitizes inside IConcurrencyContext.IfMatch setter>
-        if (context.HttpContext.Request.Headers.TryGetValue(HttpHeaderConstants.IfMatch, out var rawIfMatch))
-            concurrencyContext.IfMatch = rawIfMatch.ToString();
-
         var executed = await next();
 
-        // Step 2: Emit ETag Header on 2xx Egress <Why: zero-reflection unwrapping via IApiResponse & IHasConcurrencyToken>
+        // Emit strong ETag: "v{version}" on 2xx Egress from IHasVersion
         if (executed.Exception is null &&
-            executed.Result is ObjectResult { StatusCode: null or (>= 200 and < 300), Value: IApiResponse { Data: IHasConcurrencyToken { ConcurrencyToken: { Length: > 0 } token } } })
+            executed.Result is ObjectResult { StatusCode: null or (>= 200 and < 300), Value: IApiResponse { Data: IHasVersion { Version: > 0 } versioned } })
         {
-            context.HttpContext.Response.Headers.ETag = $"\"{token}\"";
+            context.HttpContext.Response.Headers.ETag = $"\"v{versioned.Version}\"";
         }
     }
 }
 ```
 
-### 3.4 Companion Diagnostics Controller Archetype (`{Resource}DiagnosticsController`)
+### 3.4 Companion Diagnostics Controller Archetype (`DataConnectionDiagnosticsController`)
 >> MANDATORY CANONICAL BLUEPRINT [RULE-API-004]:
 * Separates diagnostic, reachability, or schema introspection endpoints into companion controllers to uphold the $\le 5$ use cases limit.
-* Applies dedicated rate limiting (`[EnableRateLimiting("test-conn")]`) on diagnostic routes.
-* Returns HTTP `200 OK` with `ApiResponse<{Resource}DiagnosticResultDto>` containing `{ success: false, message: ... }` on reachability failure.
+* Applies dedicated rate limiting (`[EnableRateLimiting("test-conn")]`) on `POST /api/v1/data-connections/{id}/connectivity-checks`.
+* Returns HTTP `200 OK` with coarse `ApiResponse<ConnectivityCheckResultDto>` (`{ success, outcome, latencyMs, checkedAt }`) so probe responses cannot be used to map internal networks ([06_api_contract_standards.md §3.4](../00_architecture_core/06_api_contract_standards.md#34-connectivity-check-blueprint)).
 
 ```csharp
 [ApiController]
-[Route("api/v1/{resource-kebab-plural}")]
+[Route("api/v1/data-connections")]
 [Authorize(Policy = AuthorizationPolicies.CanManageDataConnections)]
-public sealed class {Resource}DiagnosticsController(
-    IUseCase<Test{Resource}Command, Test{Resource}ResultDto> testUseCase) : ControllerBase
+public sealed class DataConnectionDiagnosticsController(
+    IUseCase<VerifyDataConnectionCommand, ConnectivityCheckResultDto> verifyUseCase) : ControllerBase
 {
-    [HttpPost("test")]
+    [HttpPost("{id:guid}/connectivity-checks")]
     [EnableRateLimiting("test-conn")]
-    [ProducesResponseType(typeof(ApiResponse<Test{Resource}ResultDto>), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    public async Task<IActionResult> TestConnection([FromBody] Test{Resource}Request request, CancellationToken ct)
+    [ProducesResponseType(typeof(ApiResponse<ConnectivityCheckResultDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> VerifyConnectivity([FromRoute] Guid id, CancellationToken ct)
     {
-        // Step 1: Translate Request to Diagnostic Command <Why: encapsulate test connection parameters>
-        var command = new Test{Resource}Command(request.Provider, request.ConnectionString);
-
-        // Step 2: Execute Diagnostic Probe <Why: reachability failure returns business result, not HTTP 400>
-        var result = await testUseCase.ExecuteAsync(command, ct);
-
-        // Step 3: Return Envelope <Why: consistent client diagnostic contract>
-        return Ok(new ApiResponse<Test{Resource}ResultDto>(result));
+        var command = new VerifyDataConnectionCommand(new DataConnectionId(id));
+        var result = await verifyUseCase.ExecuteAsync(command, ct);
+        return Ok(new ApiResponse<ConnectivityCheckResultDto>(result));
     }
 }
 ```
@@ -497,51 +441,54 @@ public sealed class {Resource}DiagnosticsController(
 ```
 *Rationale: Anonymous object returns produce untyped OpenAPI schemas and break client code-generator typing.*
 
-### [TRAP-API-003]: Split-Brain Mutation Semantics or Imperative ETag/If-Match Controller Plumbing
+### [TRAP-API-003]: Split-Brain Mutation Semantics or Raw If-Match String Parsing in Controllers
 ```diff
 - [HttpPut("{id:guid}")]
 - [Idempotent]
 - public async Task<IActionResult> Update([FromRoute] Guid id, [FromBody] Update{Aggregate}Request request, [FromHeader(Name = "If-Match")] string? ifMatch)
 + [HttpPut("{id:guid}")]
 + [ProducesResponseType(StatusCodes.Status412PreconditionFailed)]
-+ public async Task<IActionResult> Update([FromRoute] Guid id, [FromBody] Update{Aggregate}Request request, CancellationToken ct)
++ [ProducesResponseType(StatusCodes.Status428PreconditionRequired)]
++ public async Task<IActionResult> Update([FromRoute] Guid id, [FromIfMatch] long expectedVersion, [FromBody] Update{Aggregate}Request request, CancellationToken ct)
 ```
-*Rationale: PUT and DELETE are naturally idempotent by HTTP specification; applying `[Idempotent]` introduces distributed lock overhead, while manually binding `[FromHeader(Name = "If-Match")]` or setting `Response.Headers.ETag` in controllers duplicates cross-cutting logic handled by `ETagFilter`.*
+*Rationale: PUT and DELETE are naturally idempotent by HTTP specification; applying `[Idempotent]` is prohibited, and `IfMatchVersionBinder` (`[FromIfMatch] long expectedVersion`) centralizes RFC 9110 strong ETag parsing (`428` if missing, `412` if weak/malformed).*
 
 ### [TRAP-API-004]: Multi-MB File Download via RAM Byte Array
 ```diff
 - var bytes = await storage.DownloadAsync(id, ct); return File(bytes, "application/pdf", "output.pdf");
-+ Response.ContentType = "application/pdf"; await storageStream.CopyToAsync(Response.Body, 81920, ct);
++ var result = await downloadDocumentUseCase.ExecuteAsync(new DownloadDocumentQuery(new DocumentId(id)), ct);
++ return File(result.ContentStream, result.ContentType, result.FileName, enableRangeProcessing: false);
 ```
-*Rationale: Buffering binary documents into `byte[]` arrays causes Large Object Heap fragmentation under concurrent downloads.*
+*Rationale: Buffering binary documents into `byte[]` arrays causes Large Object Heap fragmentation under concurrent downloads. Transfer stream disposal ownership directly to `FileStreamResult` (`TRAP-MEM-003`).*
 
 ### [TRAP-API-005]: Direct Domain Entity Egress Across Controller Boundary
 ```diff
-- [HttpGet("{id}")] public async Task<ActionResult<{Aggregate}>> Get(Guid id) => Ok(await repo.GetByIdAsync(new {Aggregate}Id(id)));
+- [HttpGet("{id}")] public async Task<ActionResult<{Aggregate}>> Get(Guid id) => Ok(await repo.FindByIdAsync(new {Aggregate}Id(id)));
 + [HttpGet("{id:guid}")] public async Task<IActionResult> GetById([FromRoute] Guid id, CancellationToken ct) {
-+     var query = new Get{Aggregate}ByIdQuery(id);
++     var query = new Get{Aggregate}ByIdQuery(new {Aggregate}Id(id));
 +     var result = await useCase.ExecuteAsync(query, ct);
 +     return Ok(new ApiResponse<{Aggregate}ResultDto>(result));
 + }
 ```
 *Rationale: Returning Domain Entities directly exposes internal data models, navigation proxies, and private domain invariants to outside callers.*
 
-### [TRAP-API-006]: HTTP 400 Returned on Negative Connection Reachability Test
+### [TRAP-API-006]: HTTP 400 or Raw Driver Details Returned on Connectivity Check
 ```diff
-- if (!result.Success) return BadRequest(new { error = result.Error });
-+ return Ok(new ApiResponse<Test{Resource}ResultDto>(result));
+- if (!result.Success) return BadRequest(new { error = result.DriverExceptionMessage });
++ return Ok(new ApiResponse<ConnectivityCheckResultDto>(result)); // Coarse outcome: UNREACHABLE | TIMEOUT | AUTH_FAILED
 ```
-*Rationale: An unreachable remote host during connection testing is a normal diagnostic result, NOT an HTTP client error. Returning HTTP 400 confuses automated monitoring tools.*
+*Rationale: An unreachable remote host during connection testing is a normal diagnostic result (`200 OK`), and raw driver messages/IPs must never be leaked on the wire (`TRAP-CONTRACT-011`).*
 
-### [TRAP-API-007]: Missing SSRF Pre-Flight Validation on Remote Network Host
+### [TRAP-API-007]: Missing SSRF Pre-Flight Validation & IP Pinning on Remote Network Host
 ```diff
 - var connection = new NpgsqlConnection(command.ConnectionString);
 - await connection.OpenAsync(ct);
-+ await hostValidator.ValidateHostAsync(command.Host, ct);
-+ var connection = new NpgsqlConnection(command.ConnectionString);
++ var pinnedIp = await hostValidator.ResolveAndValidateAsync(config.Hostname, config.AllowedEgressCidrs, ct);
++ var builder = new NpgsqlConnectionStringBuilder { Host = pinnedIp.ToString(), ... };
++ await using var connection = new NpgsqlConnection(builder.ConnectionString);
 + await connection.OpenAsync(ct);
 ```
-*Rationale: Directly opening database connections without pre-flight validation allows SSRF attacks targeting container network aliases or cloud metadata endpoints.*
+*Rationale: Directly opening database connections without `ConnectionHostValidator` IP pinning and `DbConnectionStringBuilder` allows SSRF and connection-string injection (`TRAP-SQL-011`).*
 
 ### [TRAP-API-008]: Double UseCase Calls & Manual Re-Querying in Controller Action
 ```diff
@@ -631,4 +578,4 @@ public sealed class {Resource}DiagnosticsController(
 +     }
 + }
 ```
-*Rationale: Declaring `[FromQuery] Guid? projectId` leaks tenancy parameters into the public API query string, while injecting `ICurrentProjectContext` into controllers bloats constructor dependencies (> 5) and duplicates ambient tenancy checks. Controllers must remain pure 3-step dispatchers (<= 5 LOC); ambient tenant resolution for domain mutation belongs strictly inside UseCases that actively consume ProjectId via Tier 2 Smart Context (`var projectId = projectContext.ProjectId;`). UseCases operating strictly by ID or using EF Core Global Query Filters must NOT inject context.*
+*Rationale: Declaring `[FromQuery] Guid? projectId` leaks tenancy parameters into the public API query string, while injecting `ICurrentProjectContext` into controllers bloats constructor dependencies (> 5) and duplicates ambient tenancy checks. Controllers must remain pure 3-step dispatchers (<= 5 LOC); ambient tenant resolution for domain mutation belongs strictly inside UseCases that actively consume ProjectId via Tier 2 Smart Context (`var projectId = projectContext.GetRequiredProjectId();`). UseCases operating strictly by ID or using EF Core Global Query Filters must NOT inject context.*

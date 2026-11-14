@@ -1,0 +1,20 @@
+# TRAP-TIME-006: Determinism & UUIDv7
+P:System.DateTime.Now;Use injected TimeProvider.GetUtcNow() instead (TRAP-TIME-006).
+P:System.DateTime.UtcNow;Use injected TimeProvider.GetUtcNow() instead (TRAP-TIME-006).
+P:System.DateTimeOffset.Now;Use injected TimeProvider.GetUtcNow() instead (TRAP-TIME-006).
+P:System.DateTimeOffset.UtcNow;Use injected TimeProvider.GetUtcNow() instead (TRAP-TIME-006).
+M:System.Guid.NewGuid;Use Guid.CreateVersion7() for time-ordered UUIDs (TRAP-TIME-006).
+M:System.Net.Http.HttpClient.#ctor;Use IHttpClientFactory instead of instantiating HttpClient directly (TRAP-TIME-006).
+
+# TRAP-MEM-003: Bounded, Pooled Memory Streaming
+M:System.IO.MemoryStream.ToArray;Forbidden LOH allocation; stream via HybridSpoolStream or RecyclableMemoryStream (TRAP-MEM-003).
+M:System.IO.File.ReadAllBytes(System.String);Forbidden LOH allocation; use FileStream with pooled 64 KB buffers (TRAP-MEM-003).
+M:System.IO.File.ReadAllBytesAsync(System.String,System.Threading.CancellationToken);Forbidden LOH allocation; use FileStream with pooled 64 KB buffers (TRAP-MEM-003).
+
+# TRAP-BATCH-012: Unbounded Queues
+M:System.Threading.Channels.Channel.CreateUnbounded``1;Unbounded in-memory channels are forbidden; use PostgreSQL document_jobs or Channel.CreateBounded (TRAP-BATCH-012).
+M:System.Threading.Channels.Channel.CreateUnbounded``1(System.Threading.Channels.UnboundedChannelOptions);Unbounded in-memory channels are forbidden; use PostgreSQL document_jobs or Channel.CreateBounded (TRAP-BATCH-012).
+
+# TRAP-TENANT-023 & TRAP-SQL-011: Multi-Tenant & SQL Injection Bypass
+M:Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.IgnoreQueryFilters``1(System.Linq.IQueryable{``0});Forbidden in Domain/Application/ProjectDbContext; tenant isolation must never be bypassed (TRAP-TENANT-023).
+M:Microsoft.EntityFrameworkCore.RelationalQueryableExtensions.FromSqlRaw``1(Microsoft.EntityFrameworkCore.DbSet{``0},System.String,System.Object[]);Forbidden SQL injection risk; use LINQ or FromSqlInterpolated (TRAP-SQL-011).

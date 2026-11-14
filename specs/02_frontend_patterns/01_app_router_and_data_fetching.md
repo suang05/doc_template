@@ -20,7 +20,7 @@ Signal: [ARCH_EVOLUTION_FRONTEND_DATA]
 | Direction | Upstream Origin | Current Role (Next.js Application Gateway) | Downstream Destination |
 |---|---|---|---|
 | **Client Request** | Browser Client Component | Dispatches fetch to local route handler | Secure Server Proxy (`/api/proxy/[...path]`) |
-| **Auth Injection** | NextAuth `httpOnly` Session | Extracts Bearer JWT & Project Context | Upstream Request Headers (`Authorization`, `x-project-id`) |
+| **Auth Injection** | NextAuth `httpOnly` Session | Extracts Bearer JWT & Project Context | Upstream Request Headers (`Authorization`, `Project-Id`) |
 | **Header Stripping**| Browser Request Headers | Strips hop-by-hop headers (`host`, `connection`, etc.) | Backend API Port (`http://backend:8080/api/v1/`) |
 | **Streaming Egress**| Backend Document Stream | Duplex-pipes body stream directly to caller | Browser Client (`Response(backendRes.body)`) |
 | **Live Preview** | Template Editor Changes | Debounces (800ms) with `AbortController` cancellation | Blob URL Egress (`URL.revokeObjectURL(old)`) |
@@ -29,13 +29,13 @@ Signal: [ARCH_EVOLUTION_FRONTEND_DATA]
 | App Router & Data Concern | Affirmative Frontend Invariant (Positive SSoT Law) | Boundary Vector |
 |---|---|---|
 | **Server Component Default** | React Server Components (RSC) are the default for all pages and layouts. `'use client'` is strictly confined to leaf interactive components. Root page `'use client'` is prohibited. | Component Boundary |
-| **Proxy Token Boundary & Silent Refresh** | Backend JWT tokens and tenant project IDs are injected exclusively server-side via Next.js Server Proxy (`/api/proxy/[...path]`) using `httpOnly` cookies. The proxy intercepts HTTP 401 and transparently performs silent token refresh via `POST /api/v1/auth/refresh` before retrying the upstream call. Storing tokens in `localStorage` or unhandled session drops are prohibited. | Session Security |
+| **Proxy Token Boundary & Silent Refresh** | Backend JWT tokens and tenant project IDs (`Project-Id`) are injected exclusively server-side via Next.js Server Proxy (`/api/proxy/[...path]`) using `httpOnly` cookies. The proxy intercepts HTTP 401 and transparently performs silent token refresh via `POST /api/v1/auth/refresh` before retrying the upstream call. Storing tokens in `localStorage` or unhandled session drops are prohibited. | Session Security |
 | **Perimeter Proxy Routing** | All browser client API traffic routes strictly through `/api/proxy/[...path]`. Direct browser calls to internal backend ports are prohibited. | Network Ingress |
 | **Debounced Live Preview** | Template live preview triggers are debounced by at least 800ms and linked to an `AbortController`. Firing unthrottled preview requests on keystrokes is prohibited. | Rendering Throttling |
 | **Blob URL Memory Lifecycle**| Every newly generated Blob URL must revoke the preceding URL via `URL.revokeObjectURL(oldUrl)` and clean up on component unmount. Unrevoked URL allocation is prohibited. | Browser Memory & GC |
 | **Next.js 15 Async Params** | Route parameters are typed and handled strictly as asynchronous promises: `{ params }: { params: Promise<{ id: string }> }` followed by `await params`. Synchronous param access is prohibited. | Framework Routing |
 | **Server State Governance** | Client server state and data mutations are governed via `@tanstack/react-query` (`useQuery`, `useMutation`) with automated cache invalidation. Ad-hoc `useEffect` fetching is prohibited. | State Synchronization |
-| **Optimistic Concurrency Parity** | State-mutating forms and hooks (`PUT`, `DELETE`) must forward `If-Match: "<token>"` using the resource's `concurrencyToken` (or cached `ETag`). Client error boundaries must intercept HTTP 412/409, alert the operator with conflict details, and prompt to reload rather than overwriting. Blind mutations without `If-Match` are prohibited. | Concurrency Parity |
+| **Optimistic Concurrency Parity** | State-mutating forms and hooks (`PUT`, `PATCH`, `DELETE`) must forward `If-Match: "v{version}"` using the resource's integer `version` (or strong `ETag` header). Client error boundaries must intercept HTTP `412 Precondition Failed` (`PRECONDITION_FAILED`) and `428 Precondition Required` (`PRECONDITION_REQUIRED`), alert the operator with conflict details, and prompt to reload rather than overwriting. Blind mutations without `If-Match` are prohibited. | Concurrency Parity |
 | **Feature Sliced Isolation** | Code is organized in self-contained feature slices under `src/features/{slice}/` exporting their public interface through `index.ts`. Flat global folder sprawl is prohibited. | Code Topology |
 
 ---
@@ -48,7 +48,7 @@ Signal: [ARCH_EVOLUTION_FRONTEND_DATA]
 * **Why 800ms Debounce with AbortController:** Document rendering via Gotenberg is CPU-intensive; 800ms debounce prevents cluster thrashing, while `AbortController` immediately halts stale rendering jobs on the wire.
 * **Why Strict `URL.revokeObjectURL` Cleanup:** Browser blob URLs remain retained in browser heap memory until explicitly revoked; omitting cleanup causes substantial memory leaks during prolonged template editing sessions.
 * **Why TanStack Query over Ad-hoc useEffect:** Eliminates duplicate network requests, provides stale-while-revalidate background caching, and automates cache invalidation across disparate feature widgets without props drilling.
-* **Why Client-Side If-Match Parity over Blind Last-Write-Wins:** In an authoring console where template designers edit complex schemas or HTML concurrently in multiple browser tabs, blind mutations cause silent lost updates. Forwarding `If-Match` ensures that if another tab saved in the interim, the browser receives `412 Precondition Failed` or `409 Conflict`, preserving uncommitted editor changes and alerting the designer.
+* **Why Client-Side If-Match Parity over Blind Last-Write-Wins:** In an authoring console where template designers edit complex schemas or HTML concurrently in multiple browser tabs, blind mutations cause silent lost updates. Forwarding `If-Match: "v{version}"` ensures that if another tab saved in the interim, the browser receives `412 Precondition Failed` (`PRECONDITION_FAILED`), preserving uncommitted editor changes and alerting the designer.
 * **Why Feature-Sliced Taxonomy over Flat Layered Folders:** Grouping related components, hooks, APIs, and schemas by domain capability ensures high cohesion and low coupling. Developers modify feature mechanics in a single directory without navigating across 6 disparate root folders, preventing circular dependencies and git merge conflicts.
 * **Why Server-Side Silent Token Refresh in API Proxy:** JWT access tokens have a short lifespan (15 minutes). If the proxy did not intercept 401 responses, a template designer actively typing or testing in Monaco Studio would experience abrupt network failures or session terminations upon access token expiration. The server-side proxy intercepts 401, issues a refresh request using the secure `httpOnly` refresh token, updates the session, and seamlessly replays the request without client disruption.
 
@@ -159,8 +159,8 @@ async function proxy(request: NextRequest, { params }: { params: Promise<{ path:
     headers.delete('authorization');
   }
 
-  if (!headers.has('x-project-id') && session?.user?.projectId) {
-    headers.set('x-project-id', session.user.projectId);
+  if (!headers.has('Project-Id') && session?.user?.projectId) {
+    headers.set('Project-Id', session.user.projectId);
   }
 
   const hasBody = request.method !== 'GET' && request.method !== 'HEAD';
@@ -209,35 +209,40 @@ async function proxy(request: NextRequest, { params }: { params: Promise<{ path:
 export { proxy as GET, proxy as POST, proxy as PUT, proxy as PATCH, proxy as DELETE };
 ```
 
-### 3.2 Next.js 15 Async Route Page Archetype (`src/app/(app)/studio/[templateId]/page.tsx`)
+### 3.2 Next.js 15 Async Route Page Archetype (`src/app/(app)/templates/[id]/page.tsx`)
 >> MANDATORY CANONICAL BLUEPRINT [RULE-FRONT-002]:
-* Treats `params` as `Promise<{ [key: string]: string }>` and awaits `params` before accessing properties.
-* Executes server-side session checks inside the RSC page before rendering client leaves.
+* Treats `params` as `Promise<{ id: string }>` and awaits independent inputs (`params` and `auth()`) in parallel via `Promise.all` to avoid a request waterfall.
+* Executes server-side session checks (`if (!session?.user?.projectId) redirect('/login')`) and passes the tenant context via the canonical `Project-Id` header.
+* Never caches tenant data under shared cache keys; each route segment also provides `loading.tsx` and `error.tsx`.
 
 ```tsx
+import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
-import { notFound } from 'next/navigation';
-import { TemplateEditorClientWidget } from './_components/TemplateEditorClientWidget';
+import { apiServerClient } from '@/lib/api/server-client';
+import { TemplateEditorFeature } from '@/features/templates/components/TemplateEditorFeature';
 
 interface PageProps {
   params: Promise<{ id: string }>;
 }
 
 export default async function TemplateDetailsPage({ params }: PageProps) {
-  // Step 1: Await Route Params <Why: Next.js 15 partial prerendering compliance>
-  const { id } = await params;
-  const session = await auth();
+  // Step 1: Await independent inputs together <Why: avoids a request waterfall>
+  const [{ id }, session] = await Promise.all([params, auth()]);
 
-  // Step 2: Session Guard <Why: fail-fast on unauthenticated access at RSC level>
-  if (!session?.user) {
-    notFound();
+  // Step 2: Session guard <Why: unauthenticated access is a redirect, not a 404>
+  if (!session?.user?.projectId) {
+    redirect('/login');
   }
 
-  // Step 3: Render Leaf Client Component <Why: maintain lean RSC layout tree>
+  const initialData = await apiServerClient.templates.getById(id, {
+    headers: { 'Project-Id': session.user.projectId },
+  });
+
+  // Step 3: Render the client boundary <Why: pass a serializable DTO across the RSC boundary>
   return (
-    <div className="flex h-full flex-col">
-      <TemplateEditorClientWidget templateId={id} projectId={session.user.projectId} />
-    </div>
+    <main className="flex h-full flex-col">
+      <TemplateEditorFeature templateId={id} initialData={initialData} />
+    </main>
   );
 }
 ```
@@ -537,10 +542,10 @@ export function MetricsDashboardPage({ stats, recentLogs }: DashboardProps) {
 
 ### 3.5 Optimistic Concurrency Mutation Hook Archetype (`useUpdateTemplate.ts`)
 >> MANDATORY CANONICAL BLUEPRINT [RULE-FRONT-004]:
-* Captures the `concurrencyToken` (ETag) from the resource query state.
-* Forwards `If-Match: `"${concurrencyToken}"`` header during `PUT` / `DELETE` mutations.
-* Intercepts HTTP 412 (`PRECONDITION_FAILED`) and HTTP 409 (`CONCURRENCY_CONFLICT`), prompting the user with a conflict toast or dialog to reload without discarding uncommitted input.
-* Invalids cache and sets updated token on success.
+* Captures the integer `version` from the resource query state (`TemplateResultDto.version` / strong `ETag: "v{version}"`).
+* Forwards `If-Match: `"v${version}"`` header during `PUT` / `PATCH` / `DELETE` mutations.
+* Intercepts HTTP `412 Precondition Failed` (`PRECONDITION_FAILED`) and HTTP `428 Precondition Required` (`PRECONDITION_REQUIRED`), prompting the user with a conflict toast or dialog to reload without discarding uncommitted input.
+* Invalidates cache and hydrates updated `version` on success.
 
 ```typescript
 'use client';
@@ -553,42 +558,42 @@ interface UpdateTemplatePayload {
   id: string;
   name: string;
   category?: string;
-  concurrencyToken: string; // Captured from query cache / ETag
+  version: number; // Captured from query cache / ETag ("v{version}")
 }
 
 interface TemplateResult {
   id: string;
   name: string;
   category?: string;
-  concurrencyToken: string;
+  version: number;
 }
 
 export function useUpdateTemplate() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, name, category, concurrencyToken }: UpdateTemplatePayload) => {
-      // Step 1: Forward Concurrency Precondition Header <Why: prevent lost update overwrites>
+    mutationFn: async ({ id, name, category, version }: UpdateTemplatePayload) => {
+      // Step 1: Forward Strong ETag Concurrency Precondition Header <Why: prevent lost update overwrites>
       return await apiClient<TemplateResult>(`/api/v1/templates/${id}`, {
         method: 'PUT',
         headers: {
-          'If-Match': `"${concurrencyToken}"`,
+          'If-Match': `"v${version}"`,
         },
         body: JSON.stringify({ name, category }),
       });
     },
     onSuccess: (data) => {
       toast.success('Template updated successfully');
-      // Step 2: Invalidate & Hydrate New Cache State <Why: synchronize new concurrencyToken>
+      // Step 2: Invalidate & Hydrate New Cache State <Why: synchronize incremented version>
       queryClient.setQueryData(['templates', data.id], data);
       queryClient.invalidateQueries({ queryKey: ['templates'] });
     },
     onError: (error: unknown) => {
       if (error instanceof ApiError) {
-        // Step 3: Handle Concurrency Race Conditions <Why: clear user feedback on 412/409>
-        if (error.status === 412 || error.status === 409) {
+        // Step 3: Handle Concurrency Precondition Failures <Why: clear user feedback on 412/428>
+        if (error.status === 412) {
           toast.error(
-            'Concurrency Conflict: This template was updated by another session. Please refresh the page to view the latest changes.',
+            'Concurrency Conflict: This template was updated by another session. Please refresh to view the latest changes.',
             { duration: 8000 }
           );
           return;
@@ -644,11 +649,11 @@ export function useUpdateTemplate() {
 - await apiClient(`/api/v1/templates/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
 + await apiClient(`/api/v1/templates/${id}`, {
 +   method: 'PUT',
-+   headers: { 'If-Match': `"${template.concurrencyToken}"` },
++   headers: { 'If-Match': `"v${template.version}"` },
 +   body: JSON.stringify(payload),
 + });
 ```
-*Rationale: Executing PUT/DELETE without If-Match allows multiple browser tabs or operators to silently overwrite each other's changes without detection.*
+*Rationale: Executing PUT/PATCH/DELETE without `If-Match: "v{version}"` is rejected with `428 Precondition Required`, and prevents multiple browser tabs or operators from silently overwriting each other's changes.*
 
 ### [TRAP-FRONT-007]: Unhandled 401 Session Drop in API Proxy
 ```diff

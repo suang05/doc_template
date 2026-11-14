@@ -4,10 +4,10 @@
 Category: 01_clean_arch_patterns
 Domain: Infrastructure Layer Architecture, Port Adapters & Modular DI
 SoleResponsibilities:
-  - External port implementations (`IStorageService` MinIO, `ISqlDriverFactory`, Redis distributed state)
+  - External port implementations (`IStoragePort` MinIO, `ISqlDriverFactory`, PostgreSQL durable state & Redis cache)
   - Modular Infrastructure DI composition root (`Extensions/` feature installers <= 25 LOC)
   - `HybridTemplateDraftCache` (L1 MemoryCache + L2 Redis multiplexer)
-  - Transactional unit of work implementation (`TransactionalUnitOfWork.cs`)
+  - Transactional unit of work (`TransactionalUnitOfWork.cs`) and `OutboxSaveChangesInterceptor` (`outbox_messages`)
 Target: `SmkDoc.Infrastructure/` (`Storage/`, `Data/Drivers/`, `Cache/`, `Extensions/`, `Persistence/`)
 Signal: [ARCH_EVOLUTION_INFRASTRUCTURE]
 </context>
@@ -19,28 +19,29 @@ Signal: [ARCH_EVOLUTION_INFRASTRUCTURE]
 ### 1.1 Architectural Wiring & Layer Contracts
 | Direction | Upstream Origin | Current Layer Role (Infrastructure Port Adapter) | Downstream Destination |
 |---|---|---|---|
-| **Repository Inbound** | Application Port (`I{Aggregate}Repository`) | Materializes tracked/untracked queries via `AppDbContext` | Database / Network Socket |
-| **Unit of Work Inbound**| Application Port (`IUnitOfWork`) | Commits transactions and dispatches domain events post-commit | PostgreSQL Transaction Engine |
-| **Storage Inbound** | Application Storage Port (`IStorageService`) | Pipes seekable known-size streams to S3 object storage | MinIO Cluster / AWS S3 Bucket |
+| **Repository Inbound** | Domain/Application Port (`I{Aggregate}Repository`) | Materializes tracked queries via `AppDbContext` | PostgreSQL Database Engine |
+| **ReadModel Inbound** | Application Read Port (`I{Aggregate}ReadModel`) | Materializes `.AsNoTracking()` scalar projections | PostgreSQL Database Engine |
+| **Unit of Work Inbound**| Application Port (`IUnitOfWork`) | Harvests domain events into `outbox_messages` & commits atomically | PostgreSQL Transaction Engine |
+| **Storage Inbound** | Application Storage Port (`IStoragePort`) | Pipes seekable known-size streams to S3 object storage | MinIO Cluster / AWS S3 Bucket |
 | **Rendering Inbound**| Application Render Port (`IRenderEngine`) | Converts HTML/CSS via HTTP Chromium service | Gotenberg 8 Cluster (`/forms/chromium`) |
-| **Driver Inbound** | Application Port (`ISqlDriverFactory`) | Dispatches polymorphic SQL query strategies | External Database Connections |
-| **Port Outbound** | Database / Gotenberg / S3 Results | Returns domain entities or response-owning streams | Application UseCases (Zero LOH buffer) |
+| **Driver Inbound** | Application Port (`ISqlDriverFactory`) | Dispatches polymorphic read-only SQL query strategies | External Tenant Database Connections |
+| **Port Outbound** | Database / Gotenberg / S3 Results | Returns domain entities or response-owning streams | Application UseCases (Bounded Pooled Memory) |
 
 ### 1.2 Affirmative Port Adapter Invariants
 | Infrastructure Concern | Affirmative Infrastructure Invariant (Positive SSoT Law) | Boundary Vector |
 |---|---|---|
-| **Persistence Encapsulation** | Hide `DbSet<T>` and `DbContext` strictly behind domain repository interfaces (`I{Aggregate}Repository`). Prohibit leaking ORM contexts outside Infrastructure. | Data Layer Boundary |
+| **Persistence Encapsulation** | Hide `DbSet<T>` and `DbContext` strictly behind domain repository interfaces (`I{Aggregate}Repository`) and read models (`I{Aggregate}ReadModel`). Prohibit leaking ORM contexts outside Infrastructure. | Data Layer Boundary |
 | **Internal Query Evaluation** | Repositories materialize queries internally and return `Task<T?>` or `Task<IReadOnlyList<T>>`. Prohibit leaking `IQueryable<T>` across interface boundaries. | Interface Segregation |
-| **Tracking Partitioning** | Read-only queries apply `.AsNoTracking()` and project scalar SQL columns (`I{Aggregate}QueryService`); mutating commands fetch tracked entities for ChangeTracker updates. | Memory & Throughput |
-| **Fail-Closed Repository Tenancy**| Repositories enforce active project context constraints on all data queries (`Where(t => t.ProjectId == projectId)`). Prohibit bypassing tenant isolation in custom queries. | Tenancy Isolation |
-| **Post-Commit Event Dispatch** | `TransactionalUnitOfWork` commits database changes via `SaveChangesAsync` *before* harvesting and dispatching domain events. Prohibit pre-commit event dispatch. | Atomic Persistence |
+| **Tracking Partitioning** | Read-only queries apply `.AsNoTracking()` (and `.AsSplitQuery()` on multi-collection loads) via `I{Aggregate}ReadModel`; mutating commands fetch tracked entities via `I{Aggregate}Repository`. | Memory & Throughput |
+| **5-Layer Fail-Closed Tenancy**| Enforce tenant isolation via (1) Fail-Closed EF Global Query Filter, (2) `TenantWriteEnforcementInterceptor`, (3) PostgreSQL RLS (`SET LOCAL app.current_project_id`), and (4) banned `.IgnoreQueryFilters()`. | Tenancy Isolation |
+| **Transactional Outbox Persistence** | `OutboxSaveChangesInterceptor` harvests `entity.DomainEvents` into `outbox_messages` inside the **same** PostgreSQL transaction during `IUnitOfWork.CommitAsync(ct)`, and `OutboxRelayProcessor` dispatches at-least-once asynchronously (`TRAP-EVENT-010`). | Atomic Persistence |
 | **Response-Owning Gotenberg Streams**| Wrap Gotenberg HTTP responses in `ResponseDisposingStream` using `ResponseHeadersRead` to deterministically release sockets upon stream closure. | Network Socket Lifecycle |
-| **Zero-LOH Stream Sizing** | Object storage uploads require seekable streams with known `Stream.Length` spooled via `HybridSpoolStream`; initialized buckets are cached in `ConcurrentDictionary`. | Storage Gateway |
-| **Distributed State Topology** | Redis stores utilize atomic Lua scripts with fail-closed semantics for idempotency (`503`), fail-open for result caches, and `pg_advisory_lock` for multi-pod migrations. | Multi-Pod Scalability |
+| **Bounded Pooled Stream Sizing** | Object storage uploads require seekable streams with known `Stream.Length` spooled via `HybridSpoolStream` (`65_536`-byte pooled chunks); initialized buckets are cached in `ConcurrentDictionary`. | Storage Gateway |
+| **Durable Idempotency & Cache Topology** | Idempotency keys (`idempotency_keys`) and async batch jobs (`document_jobs` with `FOR UPDATE SKIP LOCKED`) are persisted durably in PostgreSQL; Redis is used for L2 caching and distributed rate-limit partitioning (`TRAP-SCALE-014`). | Multi-Pod Scalability |
 | **Modular Feature Installers (CompositionRootFirewall)** | Infrastructure DI enforces the system-wide `CompositionRootFirewall` by registering dependencies through 5 single-responsibility extension installers (`Persistence`, `Storage`, `RenderingEngines`, `DistributedInfrastructure`, `SecurityInfrastructure`). The composition root `SmkDoc.Infrastructure/DependencyInjection.cs` remains a lean $\le 25$ LOC coordinator. | Composition Root |
 | **Hybrid Draft Cache SSoT (CodebaseSSoTFirewall)** | Enforces system-wide `CodebaseSSoTAndDeduplicationFirewall`. Ephemeral template drafts are cached via `HybridTemplateDraftCache` (L1 in-memory LRU with transparent L2 Redis synchronization), guaranteeing zero conditional DI branching or duplicate cache classes across environments. | Ephemeral Cache |
 | **Singleton Handlebars Registry** | Pre-registers custom helpers once at application startup and injects `IHandlebars` as a thread-safe singleton. Per-request or scoped re-instantiation of Handlebars is prohibited. | Engine Initialization |
-| **Polymorphic SQL Execution** | Execute external SQL datasets via `ISqlDriverFactory` resolving provider-specific strategies (`PostgresDriverStrategy`, `SqlServerDriverStrategy`) with AST and transaction read-only isolation. | Data Federation |
+| **Polymorphic SQL Execution** | Execute external SQL datasets via `ISqlDriverFactory` resolving provider-specific strategies (`PostgresDriverStrategy`, `SqlServerDriverStrategy`) with `ConnectionHostValidator` IP pinning, `DbConnectionStringBuilder`, `BEGIN TRANSACTION READ ONLY`, 5s statement timeout, and `10_000`-row cap (`TRAP-SQL-011`). | Data Federation |
 
 >> SSoT DELEGATION: PostgreSQL physical table configurations (`IEntityTypeConfiguration<T>`), primary key UUIDv7, composite indexing, foreign key cascade boundaries, JSONB mapping, and optimistic concurrency mechanics are governed strictly by [database_persistence_and_schema_mechanics.md](../03_specialized_mechanics/database_persistence_and_schema_mechanics.md).
 
@@ -51,7 +52,7 @@ Signal: [ARCH_EVOLUTION_INFRASTRUCTURE]
 ### 2.1 Engineering Rationale & Architectural Decisions
 * **Why Repositories Hide `IQueryable<T>`:** Leaking `IQueryable` out of Infrastructure blurs architectural boundaries, permits deferred database execution inside presentation layers without transaction wrappers, and makes unit testing Application UseCases fragile.
 * **Why `.AsNoTracking()` Separation:** Query reads bypass EF ChangeTracker overhead entirely for maximum throughput; mutating commands fetch tracked entities so `SaveChangesAsync` produces minimal SQL diffs.
-* **Why Post-Commit Domain Event Dispatching:** If events are dispatched before `SaveChangesAsync` succeeds, side-effects (such as webhook notifications or audit queue pushes) execute even when database transaction commits fail, causing catastrophic state corruption.
+* **Why Transactional Outbox (`outbox_messages`) over In-Process Post-Commit Dispatch:** If events are dispatched before `SaveChangesAsync`, failed transactions emit phantom events; if dispatched in-memory *after* `SaveChangesAsync`, a pod crash between commit and publish permanently loses the event (`TRAP-EVENT-010`). Persisting `OutboxMessage` records inside the same PostgreSQL transaction via `OutboxSaveChangesInterceptor` and relaying them asynchronously guarantees atomic persistence and at-least-once delivery.
 * **Why Response-Owning Gotenberg Streams & Known-Size S3 Uploads:** Returning raw `response.Content.ReadAsStreamAsync()` without disposing `HttpResponseMessage` leaks sockets, while passing `ObjectSize(-1)` to MinIO SDK forces a 5 MB+ multipart LOH buffer allocation. Wrapping HTTP streams in a response-disposing decorator and spooling production outputs via `ArrayPool<byte>` yields deterministic socket release, exact `FileSizeBytes`, and zero-LOH S3 uploads.
 * **Why Polymorphic SQL Driver Strategies:** Eliminates monolithic switch statements and provider-specific branching by abstracting external SQL execution behind isolated driver strategies with strict read-only token analysis.
 * **Why Modular Feature Installers over Monolithic Composition Root (CompositionRootFirewall):** Concrete Infrastructure projection of the system-wide `CompositionRootFirewall`. Scattering hundreds of service registrations into a single monolithic `DependencyInjection.cs` creates an unmaintainable dumping ground where lifecycle mismatches, captive dependencies, and duplicate registrations thrive. Decomposing by subsystem guarantees single responsibility and strict visibility.
@@ -64,12 +65,12 @@ RepositoryBoundaryFirewall:
   ActionOnViolation: "Materialize query inside repository and return IReadOnlyList<T> or T?."
 
 FailClosedTenancyFirewall:
-  Invariant: "Repository queries must enforce ProjectId parameter constraints."
-  ActionOnViolation: "Attach explicit Where(t => t.ProjectId == projectId) to all repository queries."
+  Invariant: "Repository queries must enforce fail-closed Global Query Filters and PostgreSQL RLS."
+  ActionOnViolation: "Never call IgnoreQueryFilters(); rely on 5-Layer Tenant Isolation."
 
-PostCommitEventFirewall:
-  Invariant: "Unit of Work must call SaveChangesAsync before dispatching harvested domain events."
-  ActionOnViolation: "Reorder UnitOfWork execution: 1. SaveChangesAsync, 2. ClearEvents, 3. DispatchEvents."
+TransactionalOutboxFirewall:
+  Invariant: "Domain events must be persisted to outbox_messages inside the same DB transaction before SaveChangesAsync completes."
+  ActionOnViolation: "Register OutboxSaveChangesInterceptor on AppDbContext and clear entity.DomainEvents."
 
 GotenbergSocketLeakFirewall:
   Invariant: "Gotenberg HTTP stream responses must be wrapped in ResponseDisposingStream."
@@ -85,7 +86,7 @@ S3StreamSizeFirewall:
 |---|---|---|---|
 | `StorageBuckets.Templates` | `templates` | Immutable HTML/DOCX/XLSX template versions | `templates/{projectId:N}/{templateId:N}/v{version}{ext}` |
 | `StorageBuckets.Drafts` | `drafts` | Temporary tenant-isolated draft binaries prior to commit | `drafts/{projectId:N}/{draftId}{ext}` |
-| `StorageBuckets.Outputs` | `outputs` | Generated production documents | `outputs/{projectId:N}/{yyyy/MM/dd}/{slug}_{generationId:N}.{ext}` |
+| `StorageBuckets.Outputs` | `outputs` | Generated production documents | `outputs/{projectId:N}/{yyyy/MM/dd}/{documentId:N}.{ext}` |
 | `StorageBuckets.AuditPayloads` | `audit-payloads` | Large generation request payloads (>16KB) | `audit/{projectId:N}/{yyyy/MM/dd}/{payloadSha256}.json` |
 | `StorageBuckets.Fonts` | `fonts` | Tenant-isolated custom typography assets | `fonts/{projectId:N}/{safeFileName}` |
 
@@ -97,82 +98,94 @@ S3StreamSizeFirewall:
 >> MANDATORY CANONICAL BLUEPRINT [RULE-INFRA-001]:
 * Primary constructor injecting `AppDbContext`.
 * Queries materialized internally; returns `Task<T?>` or `Task<IReadOnlyList<T>>` (never leaks `IQueryable<T>`).
-* Read queries utilize `.AsNoTracking()`. Mutating queries load tracked aggregates.
+* Multi-collection includes use `.AsSplitQuery()` to prevent Cartesian explosion (`TRAP-EF-002`).
 
 ```csharp
 public sealed class {Aggregate}Repository(AppDbContext dbContext) : I{Aggregate}Repository
 {
-    // Step 1: Tracked Read for Mutation <Why: ChangeTracker tracks state updates for SaveChanges>
-    public async Task<{Aggregate}?> GetByIdAsync({Aggregate}Id id, CancellationToken ct = default)
+    // Step 1: Tracked Read for Mutation <Why: ChangeTracker tracks state updates & Version for SaveChanges>
+    public async Task<{Aggregate}?> FindByIdAsync({Aggregate}Id id, CancellationToken ct)
     {
         return await dbContext.{Aggregate}s
+            .AsSplitQuery()
             .Include(t => t.CurrentVersion)
             .Include(t => t.Children)
             .FirstOrDefaultAsync(t => t.Id == id, ct);
     }
 
-    // Step 2: Untracked Read for Queries <Why: zero ChangeTracker overhead on read paths>
-    public async Task<IReadOnlyList<{Aggregate}>> ListByProjectIdAsync(ProjectId projectId, CancellationToken ct = default)
-    {
-        return await dbContext.{Aggregate}s
-            .AsNoTracking()
-            .Where(t => t.ProjectId == projectId && t.IsActive)
-            .OrderByDescending(t => t.CreatedAt)
-            .ToListAsync(ct);
-    }
-
-    // Step 3: Fast Precondition Existence Check <Why: indexed boolean check without entity hydration>
-    public async Task<bool> ExistsBySlugAsync(ProjectId projectId, string slug, CancellationToken ct = default)
+    // Step 2: Fast Precondition Existence Check <Why: indexed boolean check on normalized Value Object>
+    public async Task<bool> SlugExistsAsync(ProjectId projectId, {Aggregate}Slug slug, CancellationToken ct)
     {
         return await dbContext.{Aggregate}s.AnyAsync(t => t.ProjectId == projectId && t.Slug == slug, ct);
     }
 
-    // Step 4: Attach New Aggregate <Why: queues insert into ChangeTracker>
-    public async Task AddAsync({Aggregate} aggregate, CancellationToken ct = default)
+    // Step 3: Attach New Aggregate <Why: queues insert into ChangeTracker>
+    public Task AddAsync({Aggregate} aggregate, CancellationToken ct)
     {
-        await dbContext.{Aggregate}s.AddAsync(aggregate, ct);
+        dbContext.{Aggregate}s.Add(aggregate);
+        return Task.CompletedTask;
     }
 
-    public void Update({Aggregate} aggregate)
+    public void Remove({Aggregate} aggregate)
     {
-        dbContext.{Aggregate}s.Update(aggregate);
+        dbContext.{Aggregate}s.Remove(aggregate);
     }
 }
 ```
 
-### 3.2 Transactional Unit of Work Archetype (`TransactionalUnitOfWork`)
+### 3.2 Transactional Unit of Work & Outbox Interceptor Archetype (`TransactionalUnitOfWork` & `OutboxSaveChangesInterceptor`)
 >> MANDATORY CANONICAL BLUEPRINT [RULE-INFRA-002]:
-* Commits database changes via `SaveChangesAsync` BEFORE dispatching events.
-* Clears domain events from entities to prevent duplicate dispatching.
+* `OutboxSaveChangesInterceptor` harvests `DomainEvents` from tracked `IHaveDomainEvents` aggregates and inserts `OutboxMessage` records into `outbox_messages` inside the **same** database transaction before `SaveChangesAsync` executes (`TRAP-EVENT-010`).
+* Maps PostgreSQL unique constraint violation (`SqlState == "23505"`) to `ConflictException` and `DbUpdateConcurrencyException` to `PreconditionFailedException` (`412`).
 
 ```csharp
-public sealed class TransactionalUnitOfWork(
-    AppDbContext dbContext,
-    IDomainEventDispatcher eventDispatcher) : IUnitOfWork
+public sealed class OutboxSaveChangesInterceptor(TimeProvider timeProvider) : SaveChangesInterceptor
 {
-    public async Task<int> CommitAsync(CancellationToken ct = default)
+    public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
+        DbContextEventData eventData,
+        InterceptionResult<int> result,
+        CancellationToken ct = default)
     {
-        // Step 1: Harvest Events <Why: snapshot all domain events before commit>
-        var entitiesWithEvents = dbContext.ChangeTracker.Entries<IHaveDomainEvents>()
+        if (eventData.Context is not { } dbContext)
+        {
+            return base.SavingChangesAsync(eventData, result, ct);
+        }
+
+        var aggregates = dbContext.ChangeTracker.Entries<IHaveDomainEvents>()
             .Where(e => e.Entity.DomainEvents.Count > 0)
             .Select(e => e.Entity)
             .ToList();
 
-        var events = entitiesWithEvents.SelectMany(a => a.DomainEvents).ToList();
-
-        // Step 2: Commit Transaction <Why: atomic relational persistence>
-        var rowsAffected = await dbContext.SaveChangesAsync(ct);
-
-        // Step 3: Clear Harvested Events <Why: prevent ghost duplicate event dispatches>
-        entitiesWithEvents.ForEach(a => a.ClearDomainEvents());
-
-        // Step 4: Dispatch Events Post-Commit <Why: side-effects execute only upon successful commit>
-        if (events.Count > 0)
+        var now = timeProvider.GetUtcNow();
+        foreach (var aggregate in aggregates)
         {
-            await eventDispatcher.DispatchEventsAsync(events, ct);
+            foreach (var domainEvent in aggregate.DomainEvents)
+            {
+                dbContext.Set<OutboxMessage>().Add(OutboxMessage.CreateFrom(domainEvent, now));
+            }
+            aggregate.ClearDomainEvents();
         }
 
-        return rowsAffected;
+        return base.SavingChangesAsync(eventData, result, ct);
+    }
+}
+
+public sealed class TransactionalUnitOfWork(AppDbContext dbContext) : IUnitOfWork
+{
+    public async Task<int> CommitAsync(CancellationToken ct)
+    {
+        try
+        {
+            return await dbContext.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            throw PreconditionFailedException.VersionMismatch(ex);
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
+        {
+            throw ConflictException.FromUniqueConstraint(ex);
+        }
     }
 }
 ```
@@ -295,32 +308,34 @@ public sealed class SqlDriverFactory(IEnumerable<ISqlDriverStrategy> strategies)
 ### 3.6 Modular Feature Installer Archetype (`PersistenceServiceExtensions`)
 >> MANDATORY CANONICAL BLUEPRINT [RULE-INFRA-006]:
 * Subsystem registrations are partitioned into single-responsibility extension classes under `SmkDoc.Infrastructure/Extensions/`.
-* Encapsulates connection string fallbacks, interceptor registration, repository bindings, and query services.
+* Encapsulates connection string validation, interceptor registration (`TenantWriteEnforcementInterceptor`, `OutboxSaveChangesInterceptor`), repository bindings, and read models.
 
 ```csharp
 public static class PersistenceServiceExtensions
 {
     public static IServiceCollection AddPersistenceInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
-        // Step 1: Register Contexts <Why: ambient tenant isolation & optimistic concurrency token resolution>
+        // Step 1: Register Contexts & Interceptors <Why: ambient tenant isolation & Transactional Outbox>
         services.AddScoped<CurrentProjectContext>();
         services.AddScoped<ICurrentProjectContext>(sp => sp.GetRequiredService<CurrentProjectContext>());
-        services.AddScoped<IConcurrencyContext, ConcurrencyContext>();
+        services.AddScoped<TenantWriteEnforcementInterceptor>();
+        services.AddSingleton<OutboxSaveChangesInterceptor>();
 
-        // Step 2: Configure EF Core with Interceptors <Why: transparent multi-tenant guards & optimistic concurrency verification>
-        var connectionString = configuration.GetConnectionString("DefaultConnection") 
+        // Step 2: Configure EF Core with Interceptors <Why: fail-closed tenant write guard & atomic outbox harvesting>
+        var connectionString = configuration.GetConnectionString("DefaultConnection")
             ?? throw new InvalidOperationException("Connection string required.");
         services.AddDbContext<AppDbContext>((sp, options) =>
         {
             options.UseNpgsql(connectionString, sql => sql.EnableRetryOnFailure(5, TimeSpan.FromSeconds(10), null));
             options.AddInterceptors(
-                sp.GetRequiredService<TenantSecuritySaveChangesInterceptor>(),
-                sp.GetRequiredService<ConcurrencySaveChangesInterceptor>());
+                sp.GetRequiredService<TenantWriteEnforcementInterceptor>(),
+                sp.GetRequiredService<OutboxSaveChangesInterceptor>());
         });
 
-        // Step 3: Register Repositories & UoW <Why: atomic persistence with post-commit domain event dispatch>
+        // Step 3: Register Repositories, ReadModels & UoW <Why: atomic persistence with outbox durability>
         services.AddScoped<IUnitOfWork, TransactionalUnitOfWork>();
         services.AddScoped<ITemplateRepository, TemplateRepository>();
+        services.AddScoped<ITemplateReadModel, TemplateReadModel>();
         return services;
     }
 }
@@ -359,19 +374,19 @@ public static class DependencyInjection
 ```csharp
 public sealed class HybridTemplateDraftCache(
     IConnectionMultiplexer? multiplexer,
-    IStorageService storageService,
+    IStoragePort storagePort,
     IMemoryCache memoryCache,
     string prefix = RedisConfigurationResolver.DefaultInstancePrefix) : ITemplateDraftCache
 {
-    public async Task<string> StoreAsync(ProjectId projectId, Stream stream, string name, string ext, IReadOnlyList<string> placeholders, CancellationToken ct = default)
+    public async Task<string> StoreAsync(ProjectId projectId, Stream stream, string name, string ext, IReadOnlyList<string> placeholders, CancellationToken ct)
     {
         // Step 1: Invariant & Size Guard <Why: reject unseekable streams and drafts > 20MB>
         if (!stream.CanSeek) throw new InvalidOperationException("Draft stream must be seekable.");
-        var draftId = Guid.NewGuid().ToString("N");
+        var draftId = Guid.CreateVersion7().ToString("N");
 
         // Step 2: Object Storage Spooling <Why: draft binary files persist in MinIO bucket without memory leaks>
         var storageKey = StorageBuckets.DraftTemplateKey(projectId, draftId, ext);
-        await storageService.UploadAsync(StorageBuckets.Drafts, storageKey, stream, "application/octet-stream", ct);
+        await storagePort.UploadAsync(StorageBuckets.Drafts, storageKey, stream, "application/octet-stream", ct);
 
         // Step 3: L1 In-Memory Cache Insertion <Why: sub-millisecond instant retrieval for Monaco preview>
         var entry = new TemplateDraftEntry(draftId, projectId.Value, storageKey, name, ext, placeholders);

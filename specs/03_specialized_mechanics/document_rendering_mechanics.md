@@ -32,44 +32,44 @@ Signal: [ARCH_EVOLUTION_RENDERING]
 ### 1.2 Affirmative Document Rendering Invariants
 | Rendering Architectural Concern | Affirmative Rendering Invariant (Positive SSoT Law) | Boundary Vector |
 |---|---|---|
-| **Zero-LOH Stream Purity** | Render and PDF contracts expose pure `Task<Stream>` types. Output streams are piped with bounded `81,920`-byte buffers, dry-run validations drain to `Stream.Null`, and seekable packages use `HybridSpoolStream`. Multi-MB `byte[]` arrays are prohibited. | Memory & GC Boundary |
-| **Template Manifest SSoT** | Runtime document generation strictly deserializes the immutable version manifest (`TemplateVersion.MappingsSnapshot`), bypassing relational `field_mappings` queries to guarantee version immutability and zero-drift execution. Version creation workflows (`CreateTemplate`, `SaveTemplateHtml`, `CommitTemplateDraft`) must guarantee non-null frozen `MappingsSnapshot` persistence. | Data Binding Boundary |
+| **Bounded, Pooled Memory & Spool-Before-Commit** | Render and PDF contracts expose pure `Task<Stream>` types. Output streams are piped with bounded `65_536`-byte (`64 KB`) pooled buffers (`ArrayPool<byte>`), dry-run validations drain to `Stream.Null`, and seekable packages use `HybridSpoolStream` (pooling in RAM up to `2 MB` via `RecyclableMemoryStream` and spilling to temp disk above `2 MB`). Unbounded `new MemoryStream()` or multi-MB `byte[]` arrays are prohibited. | Memory & GC Boundary |
+| **Template Manifest SSoT** | Runtime document generation strictly deserializes the immutable version manifest (`TemplateVersion.MappingsSnapshot`), throwing `BusinessRuleViolationException` (`TEMPLATE_SNAPSHOT_MISSING`) if missing and never falling back to mutable relational `field_mappings` tables. Version creation workflows (`CreateTemplate`, `SaveTemplateHtml`, `CommitTemplateDraft`) must guarantee non-null frozen `MappingsSnapshot` persistence. | Data Binding Boundary |
 | **Unified Preview Gateway** | Live preview requests (Monaco raw HTML, RAM-cached template drafts, template slug, or template UUID) route exclusively through the unified `PreviewDocumentUseCase` with fail-fast JSON Schema Draft-07 validation. Duplicate preview use cases are prohibited. | Preview Perimeter |
 | **Polymorphic Engine Resolution**| Document synthesis resolves engines dynamically via `IRenderEngineFactory.GetEngine(engineType)` using an immutable `FrozenDictionary`. Hardcoded switch/if-else branching is prohibited. | Engine Extensibility |
-| **Storage Perimeter Isolation** | Generated documents and templates stream server-side through API Gateway (`File(stream, ...)`). Emitting HTTP 307 redirects or raw internal MinIO URLs to clients is prohibited. | Network Perimeter |
-| **2-Track Rendering Pipeline** | Rendering architecture is partitioned into Track 1 (Synchronous Monaco Live Preview with `rendering` rate limit 30 req/min) and Track 2 (Asynchronous Batch Queue via `POST generate-async`, `202 Accepted` + `Location` header, backed by Redis Streams with Consumer Groups `XADD`/`XREADGROUP` and drained by `DocumentRenderQueueWorker` with `SemaphoreSlim(4)` backpressure). | Workload Partitioning |
-| **Chromium Pod Protection** | Document rendering endpoints enforce the dedicated `rendering` rate-limiting policy (30 req/min per tenant) returning RFC 9457 ProblemDetails (`429 Too Many Requests`). | Service Resilience |
+| **Storage Perimeter Isolation** | Generated documents and templates stream server-side through the API Gateway (`FileStreamResult` via `File(stream, contentType, fileDownloadName)`). Emitting HTTP 307 redirects or raw internal MinIO URLs to clients is prohibited. | Network Perimeter |
+| **3-Pipeline Rendering Architecture** | Rendering is partitioned into **Pipeline A** (Synchronous single-document generation via `POST /api/v1/documents` with `Idempotency-Key` and Spool-Before-Commit), **Pipeline B** (Stateless live preview via `POST /api/v1/documents/preview`), and **Pipeline C** (Asynchronous batch queue via `POST /api/v1/document-jobs`, `202 Accepted` + `Location: /api/v1/document-jobs/{id}` + `Retry-After`, persisted in PostgreSQL `document_jobs` with `FOR UPDATE SKIP LOCKED` and drained by `DocumentJobWorker` with `MaxDegreeOfParallelism = 4`). | Workload Partitioning |
+| **Chromium Pod Protection** | Document rendering endpoints enforce the dedicated `rendering` rate-limiting policy (30 req/min per tenant + concurrency bulkhead) returning RFC 9457 ProblemDetails (`429 Too Many Requests` + `Retry-After`). | Service Resilience |
 | **OpenXML Graphic Frame IDs** | All OpenXML drawing elements are intercepted via document-scoped `IDrawingMlIdGenerator` to enforce explicit positive non-zero integers ($\ge 1$) for `nvPr.Id`. Prohibit global static mutable counters or zero/duplicate graphic IDs. | Document Integrity |
 | **Excel Print-Width Clamping** | All ClosedXML spreadsheet worksheets apply A4 portrait fit: `worksheet.PageSetup.FitToPages(1, 0)` and `AdjustToContents()`. Horizontal content clipping is prohibited. | Spreadsheet Geometry |
 | **Linguistic Localization Determinism** | Thai Buddhist Era calendar conversion (+543 years), Baht text currency, and international formatting execute exclusively through injectable `ILocalizedDataFormatter` strategies (default: `ThaiDataFormatter` for `th-TH`). Inline date math in templates is prohibited. | Linguistic Determinism |
-| **Thai Font Injection** | HTML render templates inject Google Fonts Sarabun font declarations via `HtmlLayoutProcessor` to guarantee accurate tone mark positioning in headless Chromium. | Font Rendering |
+| **Thai Font Injection** | HTML render templates inject local/embedded Sarabun font declarations via `HtmlLayoutProcessor` (with Chromium outbound network egress disabled) to guarantee accurate tone mark positioning in headless Chromium. | Font Rendering |
 | **Ephemeral Storage Purging** | Expired MinIO document outputs in `StorageBuckets.Outputs` are purged on a background schedule via `DocumentRetentionWorker` using `TimeProvider.GetUtcNow()`. | Storage Lifecycle |
 | **Pure Payload Ingestion** | JSON payloads are validated against JSON Schema Draft-07 fail-fast during generation without mutating payload data or duplicating validation endpoints. | Ingestion Pipeline |
-| **Asynchronous Streaming IO** | All rendering, network piping, and storage interactions execute 100% asynchronously with forwarded `CancellationToken`. Synchronous blocking (`.Result`, `.Wait()`) is prohibited. | Concurrency Safety |
+| **Asynchronous Streaming IO** | All rendering, network piping, and storage interactions execute 100% asynchronously with required forwarded `CancellationToken ct`. Synchronous blocking (`.Result`, `.Wait()`) is prohibited. | Concurrency Safety |
 
 ---
 
 ## 2. Level 2: Core Rendering SSoT ASTs & Cognitive Rendering Engine
 
 ### 2.1 Engineering Rationale & Architectural Decisions
-* **Why 2-Track Rendering Architecture:** Live preview in Monaco Studio requires sub-second synchronous turnaround to provide instant visual feedback. High-volume ERP batch generation (e.g. 5,000 invoices at month-end) would exhaust Chromium memory pods if submitted synchronously. Decoupling batch into an asynchronous job queue (`202 Accepted`) allows background workers to drain tasks at a concurrency rate matched to Gotenberg pod capacity.
+* **Why 3-Pipeline Rendering Architecture (Pipeline A / B / C):** Live preview in Monaco Studio (Pipeline B) requires sub-second stateless turnaround. Synchronous single-document generation (Pipeline A) spools to `HybridSpoolStream`, uploads to MinIO, and commits metadata in a single `< 5 ms` transaction before streaming to the caller. High-volume ERP batch generation (Pipeline C, e.g. 5,000 invoices at month-end) is persisted in PostgreSQL `document_jobs` (`202 Accepted` + `Location: /api/v1/document-jobs/{id}`) and claimed via `FOR UPDATE SKIP LOCKED` by `DocumentJobWorker` pods at a bounded concurrency matched to Gotenberg capacity.
 * **Why Banning HTTP 307 Redirects to Internal MinIO:** MinIO operates inside an internal container network (`http://minio:9000`). Emitting a 307 redirect exposes private infrastructure endpoints to outside clients, breaks corporate firewalls, and leaks storage topology. Streaming through the API gateway enforces Zero-Trust isolation.
-* **Why 81,920-Byte Buffer Threshold:** The .NET runtime allocates objects $\ge 85,000$ bytes on the Large Object Heap (LOH). The LOH is never compacted during Gen 0/1 sweeps; continuous multi-MB PDF buffering produces severe LOH fragmentation and costly Gen 2 stop-the-world GC pauses. Direct streaming bounded at 81,920 bytes completely avoids LOH allocation.
+* **Why Bounded 64 KB (`65_536`-Byte) Pooled Buffers & `HybridSpoolStream`:** The .NET runtime allocates objects $\ge 85,000$ bytes on the Large Object Heap (LOH). Continuous multi-MB PDF buffering in `new MemoryStream()` or `byte[]` produces severe LOH fragmentation and Gen 2 GC stalls. Streaming with `65_536`-byte buffers rented from `ArrayPool<byte>` and spooling seekable OpenXML/ClosedXML packages via `HybridSpoolStream` (`RecyclableMemoryStream` up to `2 MB`, temp disk spill above `2 MB`) keeps memory strictly bounded.
 * **Why Polymorphic Engine Factory with FrozenDictionary:** Using `IRenderEngineFactory` with `FrozenDictionary<RenderEngineType, IRenderEngine>` provides $O(1)$ zero-allocation engine lookup while honoring the Open/Closed Principle.
 * **Why OpenXML DrawingML Graphic Frame Non-Zero IDs:** Microsoft Word strictly rejects OpenXML packages where image or chart graphic frame IDs are `0` or duplicated, triggering file corruption warnings. Scoping sequential ID generation per document render session guarantees ECMA-376 compliance while preserving stateless horizontal scalability.
 * **Why Pluggable Linguistic Localization Strategy:** Thai Buddhist Era dates, Baht text, and international formatting require specialized grammatical rules; isolating formatters behind `ILocalizedDataFormatter` ensures 100% deterministic outputs across formats while honoring the Open/Closed Principle for global enterprise expansion.
-* **Why Template Version Manifest over Relational Field Mappings in Runtime:** If the runtime engine queries the mutable `field_mappings` table, edits made in authoring or draft rollback sessions immediately alter the output of previously published versions. Freezing mappings into `TemplateVersion.MappingsSnapshot` at commit/publish time guarantees 100% deterministic reproducibility and enables zero-DB high-throughput caching.
-* **Why Redis Streams over Simple List Queues (RPOP):** Lossy RPOP drops jobs if a worker crashes before completion. Redis Streams (`XADD`, `XREADGROUP`, `XACK`, `XDEL`) with Consumer Groups provide at-least-once delivery, consumer failure detection, and automatic pending job reclamation (`XCLAIM`).
+* **Why Template Version Manifest over Relational Field Mappings in Runtime:** If the runtime engine queries the mutable `field_mappings` table, edits made in authoring or draft rollback sessions immediately alter the output of previously published versions. Freezing mappings into `TemplateVersion.MappingsSnapshot` at commit/publish time (and failing fast if missing) guarantees 100% deterministic reproducibility.
+* **Why PostgreSQL `FOR UPDATE SKIP LOCKED` over External Queue Brokers for Pipeline C:** Storing `document_jobs` and `document_job_items` in PostgreSQL allows job creation, idempotency recording, and Transactional Outbox events to commit atomically in the same ACID transaction without introducing cross-broker dual-write failure modes. Worker pods claim batches via `FOR UPDATE SKIP LOCKED` with lease heartbeats (`locked_until`), reclaiming stalled jobs automatically on worker crash.
 
 ### 2.2 Proactive Rendering Guards
 ```yaml
 MemoryStreamProhibitionGuard:
-  Invariant: "Render engines and controllers must never buffer document outputs in byte[]."
-  ActionOnViolation: "Enforce live Stream pass-through with bounded 81,920 buffer."
+  Invariant: "Render engines and controllers must never buffer document outputs in unbounded MemoryStream or byte[]."
+  ActionOnViolation: "Enforce live Stream pass-through with bounded 65_536-byte buffers or HybridSpoolStream."
 
 MinioRedirectProhibitionGuard:
   Invariant: "Controllers must never return HTTP 307 redirects to internal MinIO instances."
-  ActionOnViolation: "Stream binary content directly through gateway using File(stream, ...)."
+  ActionOnViolation: "Stream binary content directly through gateway using File(stream, contentType, fileDownloadName)."
 
 OpenXmlZeroIdGuard:
   Invariant: "OpenXML NonVisualDrawingProperties.Id must not be 0, null, or shared globally across requests."
@@ -93,7 +93,7 @@ public interface IRenderEngine
         Stream templateStream,
         string inputDataJson,
         OutputFormat outputFormat,
-        CancellationToken ct = default);
+        CancellationToken ct);
 }
 
 public interface IRenderEngineFactory
@@ -122,16 +122,16 @@ public interface IRenderEngineFactory
 >> MANDATORY CANONICAL BLUEPRINT [RULE-MECH-001]:
 * Uses `HttpCompletionOption.ResponseHeadersRead` when invoking external Gotenberg rendering endpoints.
 * Wraps `response.Content.ReadAsStreamAsync(ct)` in a `ResponseDisposingStream` so `HttpResponseMessage` is deterministically disposed on stream close.
-* Spools unseekable engine streams via `HybridSpoolStream` (81,920 bytes) before storage upload (Zero Large Object Heap allocation).
+* Spools unseekable engine streams via `HybridSpoolStream` (`65_536`-byte pooled chunks) before storage upload (bounded, pooled memory).
 
 ```csharp
 public sealed class GotenbergHtmlRenderer(HttpClient httpClient)
 {
     public async Task<Stream> RenderHtmlToPdfStreamAsync(
         string html,
-        string? headerHtml = null,
-        string? footerHtml = null,
-        CancellationToken ct = default)
+        string? headerHtml,
+        string? footerHtml,
+        CancellationToken ct)
     {
         // Step 1: Prepare Form Content <Why: pass HTML/CSS parts to Chromium headless>
         using var content = new MultipartFormDataContent();
@@ -259,13 +259,13 @@ public sealed record Preview{Resource}Query(
 
 public sealed class Preview{Resource}UseCase(
     I{Aggregate}Repository repository,
-    IStorageService storageService,
+    IStoragePort storagePort,
     IRenderEngineFactory engineFactory,
     IDataBindingEngine? dataBindingEngine = null,
     ITemplateDraftCache? draftCache = null,
     ICurrentProjectContext? projectContext = null) : IUseCase<Preview{Resource}Query, Stream>
 {
-    public async Task<Stream> ExecuteAsync(Preview{Resource}Query query, CancellationToken ct = default)
+    public async Task<Stream> ExecuteAsync(Preview{Resource}Query query, CancellationToken ct)
     {
         Stream templateStream;
         RenderEngineType engineType;
@@ -281,7 +281,7 @@ public sealed class Preview{Resource}UseCase(
         // Path 2: RAM-cached template draft preview (authoring studio)
         else if (!string.IsNullOrWhiteSpace(query.DraftId))
         {
-            var projectId = projectContext.ProjectId;
+            var projectId = (projectContext ?? throw new TenantContextNotResolvedException("Ambient tenant context was not resolved for draft preview.")).GetRequiredProjectId();
             if (draftCache is null)
                 throw new BusinessRuleViolationException("Draft cache is not available for preview.", "DRAFT_CACHE_UNAVAILABLE");
 
@@ -316,8 +316,8 @@ public sealed class Preview{Resource}UseCase(
         Preview{Resource}Query query, CancellationToken ct)
     {
         var aggregate = query.{Aggregate}Id.HasValue
-            ? await repository.GetByIdAsync(query.{Aggregate}Id.Value, ct)
-            : await repository.GetBySlugAsync(query.Slug!, ct);
+            ? await repository.FindByIdAsync(new {Aggregate}Id(query.{Aggregate}Id.Value), ct)
+            : await repository.FindBySlugAsync({Aggregate}Slug.Create(query.Slug!), ct);
 
         if (aggregate == null)
             throw new NotFoundException($"Template not found.");
@@ -339,7 +339,7 @@ public sealed class Preview{Resource}UseCase(
             dataJson = query.Payload.ValueKind != JsonValueKind.Undefined ? query.Payload.GetRawText() : "{}";
         }
 
-        var stream = await storageService.DownloadAsync(StorageBuckets.Templates, version.StorageKey, ct);
+        var stream = await storagePort.OpenReadStreamAsync(StorageBuckets.Templates, version.StorageKey, ct);
         return (stream, version.GetRenderEngineType(), dataJson);
     }
 }
@@ -347,9 +347,9 @@ public sealed class Preview{Resource}UseCase(
 
 ### 3.3 Template Version Manifest SSoT & Data Binding Engine Archetype (`DataBindingEngine`)
 >> MANDATORY CANONICAL BLUEPRINT [RULE-MECH-003]:
-* Prioritizes the immutable `{Aggregate}Version.MappingsSnapshot` manifest over relational `field_mappings` tables.
-* Resolves external SQL dataset configurations via `IDatasetResolver` (4 dependencies: repo, data protection, validator).
-* Executes dataset queries in parallel with bounded semaphore concurrency (Max 4) and SHA-256 fingerprint caching via `IDatasetBatchExecutor`.
+* Strictly deserializes the immutable `{Aggregate}Version.MappingsSnapshot` manifest and fails fast with `BusinessRuleViolationException` (`TEMPLATE_SNAPSHOT_MISSING`) if missing (never falls back to mutable `field_mappings` tables).
+* Resolves external SQL dataset configurations via `IDatasetResolver` (3 dependencies: repo, data protection, validator).
+* Executes dataset queries in parallel via `Parallel.ForEachAsync` (`MaxDegreeOfParallelism = 4`) and SHA-256 fingerprint caching via `IDatasetBatchExecutor`.
 * Applies field mappings, JSON path resolution, and math expressions directly without intermediate wrapper indirection.
 * Enforces fail-fast Draft-07 JSON Schema validation.
 
@@ -366,12 +366,18 @@ public sealed class DataBindingEngine(
         {Aggregate}Version version,
         JsonElement rawPayload,
         bool skipValidation,
-        CancellationToken ct = default)
+        CancellationToken ct)
     {
-        // Step 1: Resolve Field Mappings from Manifest SSoT <Why: version snapshot prevents relational drift>
-        var mappings = !string.IsNullOrWhiteSpace(version.MappingsSnapshot)
-            ? FieldMappingSnapshotSerializer.Deserialize(aggregate.Id, version.MappingsSnapshot, timeProvider.GetUtcNow())
-            : aggregate.FieldMappings.ToList();
+        // Step 1: Resolve Field Mappings Strictly from Immutable Manifest SSoT <Why: prevents relational drift>
+        if (string.IsNullOrWhiteSpace(version.MappingsSnapshot))
+        {
+            throw new BusinessRuleViolationException(
+                $"Published template version '{version.Version}' is missing an immutable MappingsSnapshot.",
+                "TEMPLATE_SNAPSHOT_MISSING");
+        }
+
+        var mappings = FieldMappingSnapshotSerializer.Deserialize(
+            aggregate.Id, version.MappingsSnapshot, timeProvider.GetUtcNow());
 
         // Step 2: Resolve External SQL Dataset Configurations <Why: decrypt connections and validate queries>
         var aliasMap = aggregate.TemplateDatasets.Count > 0
@@ -408,14 +414,14 @@ public sealed class DataBindingEngine(
 >> MANDATORY CANONICAL BLUEPRINT [RULE-MECH-004]:
 * Direct linear 4-step PEMR execution pipeline inside `Generate{Resource}UseCase` (Zero intermediate pipeline wrappers).
 * Connects Application directly to `IDataBindingEngine` and `IRenderEngineFactory`.
-* Enforces fail-fast JSON Schema Draft-07 validation with immediate validation failure auditing and rollback.
-* Spools unseekable engine outputs to `HybridSpoolStream` (bounded at 81,920 bytes) before MinIO S3 upload.
-* Provides full transactional resilience: presigned download URL generation, document versioning, success audit, atomic commit, and compensating storage deletion if post-upload commit fails.
+* Enforces fail-fast JSON Schema Draft-07 validation with immediate validation failure auditing.
+* Spools unseekable engine outputs to `HybridSpoolStream` (`65_536`-byte pooled chunks) and uploads to MinIO before opening the DB write transaction (Pipeline A Spool-Before-Commit: single `< 5 ms` transaction).
+* Preserves Storage Perimeter Isolation by returning the gateway download path `/api/v1/documents/{generationId}/content` (never internal MinIO presigned URLs) with compensating storage deletion if post-upload commit fails.
 
 ```csharp
 public sealed class Generate{Resource}UseCase(
     I{Aggregate}Repository repository,
-    IStorageService storageService,
+    IStoragePort storagePort,
     IRenderEngineFactory engineFactory,
     IDataBindingEngine dataBindingEngine,
     IDocumentAuditService auditService,
@@ -425,29 +431,29 @@ public sealed class Generate{Resource}UseCase(
     TimeProvider timeProvider) : IUseCase<Generate{Resource}Command, Generate{Resource}ResultDto>
 {
     public async Task<Generate{Resource}ResultDto> ExecuteAsync(
-        Generate{Resource}Command command, CancellationToken ct = default)
+        Generate{Resource}Command command, CancellationToken ct)
     {
-        // Step 1: Parse & Guard (Fail-fast Smart Context property: throws TenantContextRequiredException if unresolved)
-        var projectId = projectContext.ProjectId;
-
+        // Step 1: Parse & Guard (Fail-fast Tier 2 guard: throws TenantContextNotResolvedException (500) if unresolved)
+        var projectId = projectContext.GetRequiredProjectId();
+        var slug = {Aggregate}Slug.Create(command.Slug);
         var outputFormat = ParseOutputFormat(command.OutputFormat);
 
         // Step 2: Ensure <Why: precondition aggregate check & version resolution>
-        var aggregate = await repository.GetBySlugWithDetailsAsync(command.Slug, ct);
+        var aggregate = await repository.FindBySlugWithPublishedVersionAsync(slug, ct);
         if (aggregate == null || !aggregate.IsActive)
-            throw new NotFoundException($"Template '{command.Slug}' not found or inactive.");
+            throw new NotFoundException($"Template '{slug.Value}' not found or inactive.");
 
         var currentVersion = aggregate.GetPublishedVersion();
         var generationId = Guid.CreateVersion7();
-        var tenantId = projectContext.ProjectId.Value;
+        var tenantId = projectId.Value;
         string ext = outputFormat.Extension;
-        string outputKey = $"outputs/{tenantId:N}/{timeProvider.GetUtcNow():yyyy/MM/dd}/{command.Slug}_{generationId:N}.{ext}";
+        string outputKey = $"outputs/{tenantId:N}/{timeProvider.GetUtcNow():yyyy/MM/dd}/{slug.Value}_{generationId:N}.{ext}";
 
-        // Step 3: Mutate & Render/Upload <Why: streaming synthesis and bounded spooling>
+        // Step 3: Mutate & Render/Upload <Why: streaming synthesis and bounded spooling before DB commit>
         var render = await RenderAndUploadAsync(
             aggregate, currentVersion, command.Payload, command.SkipValidation, outputFormat, outputKey, ct);
 
-        // Step 4: Finalize & Return <Why: atomic commit, audit, and compensating storage deletion>
+        // Step 4: Finalize & Return <Why: single fast < 5 ms atomic commit, outbox audit, and compensating storage deletion>
         return await FinalizeDocumentAsync(
             command, aggregate, currentVersion, generationId, outputKey, outputFormat, render, ct);
     }
@@ -483,14 +489,14 @@ public sealed class Generate{Resource}UseCase(
                     aggregate.Slug.Value, currentVersion.Version, boundData.ValidationResult.Errors);
             }
 
-            using var templateStream = await storageService.DownloadAsync(StorageBuckets.Templates, currentVersion.StorageKey, ct);
+            await using var templateStream = await storagePort.OpenReadStreamAsync(StorageBuckets.Templates, currentVersion.StorageKey, ct);
             var rawOutputStream = await engine.RenderStreamAsync(templateStream, boundData.DataJson, outputFormat, ct);
 
             await using var spooled = await HybridSpoolStream.CreateAndDisposeSourceAsync(rawOutputStream, ct);
             sw.Stop();
 
-            await storageService.UploadAsync(
-                StorageBuckets.Outputs, outputKey, spooled.ContentStream, outputFormat.MimeType, ct);
+            await storagePort.UploadAsync(
+                StorageBuckets.Outputs, outputKey, spooled.ContentStream, spooled.FileSizeBytes, outputFormat.MimeType, ct);
 
             return new RenderOutput(boundData.DataJson, spooled.FileSizeBytes, spooled.Sha256Hex, (int)sw.ElapsedMilliseconds);
         }
@@ -526,7 +532,7 @@ public sealed class Generate{Resource}UseCase(
         try
         {
             var expiry = TimeSpan.FromHours(24);
-            string downloadUrl = await storageService.GetPresignedUrlAsync(StorageBuckets.Outputs, outputKey, expiry, ct);
+            string downloadPath = $"/api/v1/documents/{generationId:D}/content";
 
             await auditService.LogSuccessAsync(
                 generationId, aggregate.Id.Value, currentVersion.Id, render.PreparedDataJson, outputKey, outputFormat, render.FileSizeBytes, render.ElapsedMilliseconds, ct);
@@ -540,13 +546,13 @@ public sealed class Generate{Resource}UseCase(
             await unitOfWork.CommitAsync(ct);
 
             return new Generate{Resource}ResultDto(
-                generationId, command.DocumentRef, outputFormat.Extension, render.FileSizeBytes, render.Sha256Hex, downloadUrl, timeProvider.GetUtcNow().Add(expiry));
+                generationId, command.DocumentRef, outputFormat.Extension, render.FileSizeBytes, render.Sha256Hex, downloadPath, timeProvider.GetUtcNow().Add(expiry));
         }
-        catch (Exception primaryEx)
+        catch (Exception)
         {
             try
             {
-                await storageService.DeleteAsync(StorageBuckets.Outputs, outputKey, CancellationToken.None);
+                await storagePort.DeleteAsync(StorageBuckets.Outputs, outputKey, CancellationToken.None);
             }
             catch (Exception cleanupEx)
             {
@@ -756,7 +762,7 @@ public sealed class DocumentRetentionWorker(
 ### [TRAP-MECH-001]: Large Object Heap (LOH) Buffering
 ```diff
 - var ms = new MemoryStream(); await stream.CopyToAsync(ms, ct); return File(ms.ToArray(), "application/pdf");
-+ response.ContentType = "application/pdf"; await stream.CopyToAsync(response.Body, 81920, ct);
++ return File(stream, "application/pdf", "document.pdf"); // Or pipe via 65_536-byte ArrayPool chunks in HybridSpoolStream
 ```
 *Rationale: Buffering Gotenberg binary outputs into multi-MB byte arrays forces allocations into LOH Gen 2, inducing GC stalls.*
 
@@ -792,7 +798,7 @@ public sealed class DocumentRetentionWorker(
 ### [TRAP-MECH-006]: HTTP 307 Redirect Leaking Internal MinIO Network URL
 ```diff
 - return RedirectPreserveMethod("http://minio:9000/documents/doc-123.pdf");
-+ var stream = await storageService.OpenReadStreamAsync(objectKey, ct);
++ var stream = await storagePort.OpenReadStreamAsync(StorageBuckets.Outputs, objectKey, ct);
 + return File(stream, "application/pdf", "doc-123.pdf");
 ```
 *Rationale: Returning HTTP 307 redirects to internal Docker hostnames fails for external clients, violates Zero-Trust boundaries, and exposes private network infrastructure.*
@@ -800,9 +806,9 @@ public sealed class DocumentRetentionWorker(
 ### [TRAP-MECH-007]: Relational Table Querying During Versioned Runtime Execution
 ```diff
 - var mappings = template.FieldMappings.ToList();
-+ List<FieldMapping> mappings = !string.IsNullOrWhiteSpace(version.MappingsSnapshot)
-+     ? FieldMappingSnapshotSerializer.Deserialize(template.Id, version.MappingsSnapshot, now)
-+     : template.FieldMappings.ToList();
++ if (string.IsNullOrWhiteSpace(version.MappingsSnapshot))
++     throw new BusinessRuleViolationException("Published template version is missing an immutable MappingsSnapshot.", "TEMPLATE_SNAPSHOT_MISSING");
++ var mappings = FieldMappingSnapshotSerializer.Deserialize(template.Id, version.MappingsSnapshot, now);
 ```
 *Rationale: Querying mutable relational `field_mappings` during document generation breaks version immutability. An author editing field mappings in the studio causes historical published versions to immediately drift and produce altered outputs. The frozen `TemplateVersion.MappingsSnapshot` is the authoritative runtime manifest.*
 *Authoring Invariant: To guarantee snapshot fidelity, every version creation operation must populate non-null frozen snapshots:*

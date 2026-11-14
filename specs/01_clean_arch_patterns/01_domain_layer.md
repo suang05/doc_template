@@ -8,7 +8,7 @@ SoleResponsibilities:
   - `AggregateRoot<TId>` identity encapsulation and sole ownership of domain event harvesting
   - `BaseEntity<TId>` base entity modeling and pure identity contracts
   - Strongly-typed sequential UUIDv7 identities and immutable Value Objects
-Target: `SmkDoc.Domain/` (`Authoring/`, `Rendering/`, `Integration/`, `IdentityAccess/`, `Common/`)
+Target: `SmkDoc.Domain/` (`Authoring/`, `Rendering/`, `Integration/`, `IdentityAccess/`, `TenantManagement/`, `Common/`)
 Signal: [ARCH_EVOLUTION_DOMAIN]
 </context>
 
@@ -20,61 +20,67 @@ Signal: [ARCH_EVOLUTION_DOMAIN]
 | Direction | Upstream Origin | Current Layer Role (Domain Core) | Downstream Destination |
 |---|---|---|---|
 | **Inbound Creation** | Application (`{Verb}{Aggregate}Command`) | Instantiates via SSoT Factory `{Aggregate}.Create(...)` | Encapsulated Domain Aggregate Root |
-| **State Mutation** | Application (`{Verb}{Aggregate}Command`) | Executes expressive business verb (`entity.{Verb}`) | Mutates internal state & appends `IDomainEvent` |
+| **State Mutation** | Application (`{Verb}{Aggregate}Command`) | Executes expressive business verb (`entity.{Verb}`) | Mutates internal state, increments `Version` & appends `IDomainEvent` |
 | **Outbound Persistence**| Domain POCOs (`{Aggregate}`) | Hydrated/Persisted via `I{Aggregate}Repository` port | Infrastructure (`{Aggregate}Configuration` => PostgreSQL) |
 | **Outbound Egress** | Domain State | Mapped to immutable Application DTOs | Presentation Layer (`{Aggregate}ResultDto`) |
-| **Side-Effects** | Aggregate Lifecycle Events | Appends immutable `IDomainEvent` records | `AppDbContext` Outbox / Post-Commit Dispatchers |
+| **Side-Effects** | Aggregate Lifecycle Events | Appends immutable `IDomainEvent` records | Transactional Outbox (`outbox_messages`) inside same DB commit |
 
 ### 1.2 Affirmative Domain Isolation Invariants
 | Domain Architectural Concern | Affirmative Domain Invariant (Positive SSoT Law) | Boundary Vector |
 |---|---|---|
-| **Purity & Isolation** | Pure .NET SDK C# 13 POCOs only. Zero external NuGet packages, EF Core, or ASP.NET Core references. | Project Boundary |
+| **Purity & Isolation** | Pure .NET 10 / C# 14 POCOs only (`Directory.Build.props`). Zero external NuGet packages, EF Core, or ASP.NET Core references. | Project Boundary |
 | **Persistence Ignorance** | Clean domain properties without ORM Data Annotations. All database mapping is strictly isolated in Infrastructure `IEntityTypeConfiguration<T>`. | Data Access |
 | **State Encapsulation** | Strict `private set;` on all properties. Entity instantiation strictly through exactly 1 canonical static `Create(...)` factory method. | Entity Definition |
 | **Temporal Determinism** | All time queries passed as explicit parameters (`DateTimeOffset now` or parameterized `TimeProvider`). Zero ambient clock queries. | Business Methods |
 | **Aggregate Boundaries** | Reference other Aggregate Roots strictly by strongly-typed ID (`{Aggregate}Id`). Unidirectional foreign key references only. | Aggregate Boundary |
-| **Identity Types** | Strongly-typed stack-allocated `readonly record struct {Aggregate}Id(Guid Value)` with explicit Guid cast operators. | Value Objects |
+| **Identity Types** | Strongly-typed stack-allocated `readonly record struct {Aggregate}Id(Guid Value)` with explicit Guid cast operators. Cross-context IDs (`ProjectId`, `CompanyId`, `UserId`) reside in `SmkDoc.Domain/Common/ValueObjects/`. | Value Objects |
 | **Global vs Tenant Identity** | `User` is a Global Identity (Zero `ProjectId` column, zero `IMustHaveProject`). Multi-project tenancy is mapped exclusively through `UserProjectRole`. | Identity Context |
 | **Tenant Partitioning** | Tenant-scoped entities implement `IMustHaveProject` with mandatory fail-fast guard: `ProjectId = Guard.NotEmpty(projectId, nameof(ProjectId))`. | Multi-Tenancy |
 | **Child Entity Lifecycle** | Child entities created and mutated exclusively through their parent Aggregate Root (`aggregate.AddChild(...)`). Standard `Guid` identity inheriting `BaseEntity`. Zero domain event dispatching. | Entity Hierarchy |
-| **Aggregate Boundaries** | Aggregate roots inherit `AggregateRoot<TId>`, encapsulating state, optimistic concurrency (`IConcurrencyAware`), and domain event collection (`IHaveDomainEvents`). Referenced by other aggregates strictly via `{Aggregate}Id`. | Aggregate Root Boundary |
-| **Concurrency Token Contract**| Mutable aggregates implement `IConcurrencyAware` via `AggregateRoot<TId>`, exposing `EntityId` and deterministic `GetConcurrencyToken()` (`(UpdatedAt ?? CreatedAt).ToUnixTimeMilliseconds().ToString()`). Child entities remain pure identity. | Optimistic Concurrency |
-| **Decoupled Side-Effects** | Side-effects appended in-memory strictly on `AggregateRoot<TId>` as immutable `IDomainEvent` records and harvested post-commit by `UnitOfWork` via `IHaveDomainEvents`. | Event Outbox |
+| **Aggregate Root Contract** | Aggregate roots inherit `AggregateRoot<TId>`, encapsulating state, optimistic concurrency (`IConcurrencyAware`), and domain event collection (`IHaveDomainEvents`). Referenced by other aggregates strictly via `{Aggregate}Id`. | Aggregate Root Boundary |
+| **Concurrency Version Contract**| Mutable aggregates implement `IConcurrencyAware` via `AggregateRoot<TId>`, exposing monotonic `long Version` (starting at `1`, incremented by `SetUpdated(now)`, mapped to `version bigint` with `.IsConcurrencyToken()`, and serialized on the HTTP wire as strong ETag `"v{version}"`). | Optimistic Concurrency |
+| **Decoupled Side-Effects** | Side-effects appended in-memory strictly on `AggregateRoot<TId>` as immutable `IDomainEvent` records and persisted atomically into `outbox_messages` inside the same database transaction during `IUnitOfWork.CommitAsync(ct)`. | Transactional Outbox |
 | **Stateless Domain Logic (GodServiceEliminationFirewall)** | Domain business invariants belong primarily inside Aggregate Roots. Multi-aggregate calculations are modeled as stateless, single-purpose Domain Services ($\le 2$ methods). Multi-action God domain services or catch-all helpers (`*Helper`) are strictly prohibited. | Domain Logic Boundary |
 
 ### 1.3 Domain Bounded Context Taxonomy Tree
 ```
 backend-v2/src/SmkDoc.Domain/
-  Common/                        # Shared domain primitives & base classes
-    BaseEntity.cs                # BaseEntity<TId> (Identity & Timestamps) & BaseEntity (Guid)
-    AggregateRoot.cs             # AggregateRoot<TId> (Domain Events & Concurrency)
+  Common/                        # Shared Kernel domain primitives & base classes
+    BaseEntity.cs                # BaseEntity<TId> (Identity, Timestamps & Version) & BaseEntity (Guid)
+    AggregateRoot.cs             # AggregateRoot<TId> (Domain Events & IConcurrencyAware)
     Guard.cs                     # Defensive precondition invariants
     Enumeration.cs               # Strongly-typed smart enumeration base
     IDomainEvent.cs              # Immutable domain event marker contract
     IHaveDomainEvents.cs         # Event harvesting contract
-  Interfaces/                    # Universal domain contracts
-    IUnitOfWork.cs
-    ICurrentProjectContext.cs
-    IMustHaveProject.cs
-    IConcurrencyAware.cs
+    IMustHaveProject.cs          # Tenant-owned entity contract
+    IConcurrencyAware.cs         # Optimistic concurrency version contract (long Version)
+    Exceptions/                  # BusinessRuleViolationException, DomainValidationException
+    ValueObjects/                # Shared Kernel IDs: ProjectId, CompanyId, UserId
   Authoring/                     # Authoring Bounded Context
-    Entities/                    # Template, TemplateVersion, FieldMapping, Font
-    ValueObjects/                # TemplateSlug, TemplateName, VersionNumber
+    Entities/                    # Template, TemplateVersion, FieldMapping
+    ValueObjects/                # TemplateId, TemplateSlug, TemplateName, VersionNumber
     Events/                      # TemplateCreatedDomainEvent, TemplatePublishedDomainEvent
-    Exceptions/                  # TemplateNotFoundException, TemplateVersionNotFoundException
+    Repositories/                # ITemplateRepository
   Rendering/                     # Rendering Bounded Context
-    Entities/                    # Document, DocumentVersion, GenerationLog
-    ValueObjects/                # StorageKey, Checksum
-    Enums/                       # RenderEngineType, OutputFormat, GenerationStatus
-    Events/                      # DocumentRenderedDomainEvent
+    Entities/                    # Document, DocumentJob, DocumentJobItem, GenerationLog
+    ValueObjects/                # DocumentId, DocumentJobId, StorageKey, Checksum
+    Enums/                       # RenderEngineType, OutputFormat, GenerationStatus, DocumentJobStatus
+    Events/                      # DocumentGeneratedDomainEvent, DocumentJobCompletedDomainEvent
+    Repositories/                # IDocumentRepository, IDocumentJobRepository
   Integration/                   # Integration Bounded Context
     Entities/                    # DataConnection, Dataset, TemplateDataset
-    ValueObjects/                # ConnectionStringEncrypted, DatasetQuery
+    ValueObjects/                # DataConnectionId, DatasetId, ConnectionStringEncrypted, DatasetQuery
     Enums/                       # DataConnectionType
+    Repositories/                # IDataConnectionRepository, IDatasetRepository
   IdentityAccess/                # Identity & Access Bounded Context
-    Entities/                    # Company, Project, User, ApiKey, UserProjectRole
-    ValueObjects/                # KeyHash, EmailAddress, ProjectSlug
+    Entities/                    # User, ApiKey, UserProjectRole
+    ValueObjects/                # ApiKeyId, KeyHash, EmailAddress
     Enums/                       # SystemRole, RoleType, ApiKeyScope
+    Repositories/                # IUserRepository, IApiKeyRepository
+  TenantManagement/              # Tenant Management (Control Plane) Bounded Context
+    Entities/                    # Company, Project, ProjectQuota, Font, BreakGlassGrant
+    ValueObjects/                # ProjectSlug, QuotaLimit
+    Repositories/                # ICompanyRepository, IProjectRepository, IFontRepository
 ```
 
 ---
@@ -144,19 +150,15 @@ public readonly record struct {Aggregate}Id(Guid Value) : IComparable<{Aggregate
 
 ### 3.2 Canonical BaseEntity, AggregateRoot & Concurrency Contracts (`IConcurrencyAware`, `BaseEntity<TId>`, `BaseEntity` & `AggregateRoot<TId>`)
 >> MANDATORY CANONICAL BLUEPRINT [RULE-DOM-002]:
-* `IConcurrencyAware` defines the uniform identity and token extraction contract for optimistic concurrency verification.
-* `BaseEntity<TId>` encapsulates strongly-typed ID, audit timestamps, and entity equality based on identity. Pure identity for both aggregates and child entities; zero domain events, zero concurrency mutations.
+* `IConcurrencyAware` defines the monotonic `long Version` contract for Two-Phase Explicit Optimistic Concurrency (mapped to `version bigint` in PostgreSQL and exposed as strong ETag `"v{version}"` on HTTP responses).
+* `BaseEntity<TId>` encapsulates strongly-typed ID, audit timestamps, `Version`, and entity equality based on identity.
 * `BaseEntity` (inheriting `BaseEntity<Guid>`) provides parameterless and auto-UUIDv7 constructors for child domain entities (e.g. `TemplateVersion`, `FieldMapping`).
-* `AggregateRoot<TId>` inherits `BaseEntity<TId>`, implements `IHaveDomainEvents` and `IConcurrencyAware` (`GetConcurrencyToken()`), and is the SOLE owner of in-memory domain event harvesting (`AddDomainEvent`, `ClearDomainEvents`).
+* `AggregateRoot<TId>` inherits `BaseEntity<TId>`, implements `IHaveDomainEvents` and `IConcurrencyAware`, and is the SOLE owner of in-memory domain event harvesting (`AddDomainEvent`, `ClearDomainEvents`).
 
 ```csharp
 public interface IConcurrencyAware
 {
-    object EntityId { get; }
-    DateTimeOffset CreatedAt { get; }
-    DateTimeOffset? UpdatedAt { get; }
-    string GetConcurrencyToken();
-    string? GetAlternateConcurrencyToken() => null;
+    long Version { get; }
 }
 
 public abstract class BaseEntity<TId> : IEquatable<BaseEntity<TId>>
@@ -166,6 +168,7 @@ public abstract class BaseEntity<TId> : IEquatable<BaseEntity<TId>>
     public object EntityId => Id;
     public DateTimeOffset CreatedAt { get; protected set; }
     public DateTimeOffset? UpdatedAt { get; protected set; }
+    public long Version { get; protected set; } = 1;
 
     protected BaseEntity() { }
 
@@ -173,10 +176,14 @@ public abstract class BaseEntity<TId> : IEquatable<BaseEntity<TId>>
     {
         Id = Guard.NotEmpty(id, nameof(Id));
         CreatedAt = Guard.NotDefault(createdAt, nameof(CreatedAt));
+        Version = 1;
     }
 
-    protected void SetUpdated(DateTimeOffset now) =>
+    protected void SetUpdated(DateTimeOffset now)
+    {
         UpdatedAt = Guard.NotDefault(now, nameof(now));
+        Version++;
+    }
 
     public override bool Equals(object? obj) =>
         obj is BaseEntity<TId> other && Equals(other);
@@ -227,18 +234,13 @@ public abstract class AggregateRoot<TId> : BaseEntity<TId>, IHaveDomainEvents, I
     public IReadOnlyCollection<IDomainEvent> DomainEvents => _domainEvents.AsReadOnly();
 
     protected void AddDomainEvent(IDomainEvent domainEvent) =>
-        _domainEvents.Add(Guard.NotNull(domainEvent, nameof(domainEvent)));
+        _domainEvents.Add(Guard.AgainstNull(domainEvent, nameof(domainEvent)));
 
     public void ClearDomainEvents() => _domainEvents.Clear();
 
     protected AggregateRoot() { }
 
     protected AggregateRoot(TId id, DateTimeOffset createdAt) : base(id, createdAt) { }
-
-    public virtual string GetConcurrencyToken() =>
-        (UpdatedAt ?? CreatedAt).ToUnixTimeMilliseconds().ToString();
-
-    public virtual string? GetAlternateConcurrencyToken() => null;
 }
 ```
 
@@ -298,14 +300,14 @@ public sealed class {Aggregate} : AggregateRoot<{Aggregate}Id>, IMustHaveProject
 
         // Step 2: Precondition Guard (Aggregate state invariants)
         if (!IsActive)
-            throw new DomainRuleViolationException("Cannot mutate an inactive aggregate.");
+            throw new BusinessRuleViolationException("Cannot mutate an inactive aggregate.");
 
-        // Step 3: State Mutation (Encapsulated scalar transitions)
+        // Step 3: State Mutation (Encapsulated scalar transitions; SetUpdated increments Version)
         Name = newName;
         SetUpdated(now);
 
-        // Step 4: Event Harvesting (Record domain event for post-commit dispatch)
-        AddDomainEvent(new {Aggregate}{Verb}edDomainEvent(Id, ProjectId, Name, now));
+        // Step 4: Event Harvesting (Record domain event for Transactional Outbox persistence)
+        AddDomainEvent(new {Aggregate}{PastTenseVerb}DomainEvent(Id, ProjectId, Name, now));
     }
 
     // 7. Child Entity Lifecycle Control
@@ -395,7 +397,7 @@ public sealed record class {Aggregate}Name
     public static {Aggregate}Name Create(string? value) =>
         new(Guard.NotBlank(value, "{Aggregate} name", 100));
 
-    public static implicit operator string({Aggregate}Name name) => name.Value;
+    public static explicit operator string({Aggregate}Name name) => name.Value;
     public override string ToString() => Value;
 }
 

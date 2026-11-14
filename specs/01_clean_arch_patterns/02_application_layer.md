@@ -5,11 +5,11 @@ Category: 01_clean_arch_patterns
 Domain: Application Layer CQRS Architecture, UseCases & PEMR Pipeline
 SoleResponsibilities:
   - Vertical CQRS slice topology under `Modules/{BoundedContext}/{Aggregate}/`
-  - Action-centric `IUseCase<TReq, TRes>` execution and 4-step PEMR pipeline
-  - Request validation (`FluentValidation`), immutable `*ResultDto` returns, and ambient concurrency
-  - Tier 2 Application Guard, Smart Context (`projectContext.ProjectId`) fail-fast, and Archetype A vs B tenancy execution
+  - Action-centric `IUseCase<TRequest, TResponse>` execution and 4-step PEMR pipeline
+  - Request validation (`FluentValidation`), immutable `*ResultDto` returns, and Two-Phase Explicit Concurrency (`ExpectedVersion`)
+  - Tier 2 Application Guard, `projectContext.GetRequiredProjectId()` fail-fast, and Archetype A vs B tenancy execution
   - Modular Application DI feature installers (`{Module}ModuleExtensions.cs`)
-Target: `SmkDoc.Application/` (`Modules/`, `Common/`)
+Target: `SmkDoc.Application/` (`Modules/`, `Abstractions/`, `Common/`)
 Signal: [ARCH_EVOLUTION_APPLICATION]
 </context>
 
@@ -24,22 +24,22 @@ The Application Layer sits at the intersection of the system's 3-Tier Governance
 flowchart TD
     subgraph Macro ["1. Macro Architecture: Zoning Strategy"]
         direction TB
-        CtrlPlane["Control Plane (/api/v1/management/**)\n• SuperAdmin Governance Only\n• Tenancy: Un-tenanted / Zero Standing Access"]
-        DataPlane["Data Plane (/api/v1/**)\n• Tenant Business Operations\n• Tenancy: 100% Ambient Tenant Mandatory"]
+        CtrlPlane["Control Plane (/api/v1/management/**)\n• SuperAdmin Governance Only\n• Tenancy: Un-tenanted / Zero Standing Access (Break-Glass Required for Tenant Data)"]
+        DataPlane["Data Plane (/api/v1/**)\n• Tenant Business Operations\n• Tenancy: 100% Ambient Tenant Mandatory via 'Project-Id' Header"]
     end
 
     subgraph Defense ["2. Defense Strategy: Defense-in-Depth (3-Tier Guard)"]
         direction TB
-        Tier1["Tier 1: Perimeter Guard (ProjectContextMiddleware)\n• Gatekeeper: Who, Where, Which Tenant?\n• Rejects missing tenant with 400 Bad Request (PROJECT_CONTEXT_REQUIRED)"]
+        Tier1["Tier 1: Perimeter Guard (TenantResolutionMiddleware)\n• Gatekeeper: Who, Where, Which Tenant?\n• Rejects missing tenant with 400 (PROJECT_CONTEXT_REQUIRED) or mismatch with 400 (PROJECT_CONTEXT_MISMATCH)"]
         Tier2["Tier 2: Application Guard (UseCase PEMR Step 1 & 2)\n• Trusted Zone: Business Preconditions & Context Binding\n• Never checks HTTP headers or throws 401 Unauthorized"]
-        Tier3["Tier 3: Domain Invariants & Interceptor Guard\n• Aggregate Root Invariants (POCO Create/Verbs)\n• EF Core Global Query Filter (WHERE IsResolved AND project_id = @Id)"]
+        Tier3["Tier 3: Domain Invariants & 5-Layer Isolation\n• Aggregate Root Invariants (POCO Create/Verbs)\n• Fail-Closed EF Global Filter + Write Interceptor + PostgreSQL RLS"]
         Tier1 --> Tier2 --> Tier3
     end
 
     subgraph Tactical ["3. Implementation Pattern: Application Tactical Patterns"]
         direction TB
-        ArchA["Archetype A (Create{Aggregate} / Key-Consuming)\n• Injects: ICurrentProjectContext\n• Step 1: var projectId = projectContext.ProjectId; (Smart Fail-Fast)\n• Throws: TenantContextRequiredException (403) if unresolved"]
-        ArchB["Archetype B (ID-Based / Collection Queries / Updates)\n• Injects: ZERO Context (Zero Phantom Context Injection)\n• Relies on: Tier 1 Perimeter + Tier 3 EF Core Filter\n• Throws: CrossTenantAccessDeniedException (403) on cross-tenant breach"]
+        ArchA["Archetype A (Create{Aggregate} / Key-Consuming)\n• Injects: ICurrentProjectContext\n• Step 1: var projectId = projectContext.GetRequiredProjectId();\n• Throws: TenantContextNotResolvedException (500) if middleware was bypassed"]
+        ArchB["Archetype B (ID-Based / Collection Queries / Updates)\n• Injects: ZERO Context (Zero Phantom Context Injection)\n• Relies on: 5-Layer Defense-in-Depth Isolation\n• Cross-tenant resource lookup returns 404 NotFoundException (No Existence Oracle)"]
     end
 
     DataPlane --> Tier1
@@ -50,38 +50,38 @@ flowchart TD
 * **Application Layer Location in Defense Hierarchy**: Application UseCases execute strictly within **Tier 2 (Application Guard)** in a **Trusted Zone**.
 * **Zero Perimeter Duplication**: Application UseCases must NEVER re-parse HTTP headers, validate API keys, inspect JWT tokens, or throw `401 Unauthorized`. Tier 1 Perimeter Guard guarantees identity and route plane clearance before any UseCase is invoked.
 * **Archetype Tactical Selection Matrix**:
-  * **Archetype A (`Create{Aggregate}`, MinIO Storage, DraftCache, Tenant ApiKey)**: Injects `ICurrentProjectContext` and accesses `var projectId = projectContext.ProjectId;` at line 1 of Step 1. Throws `TenantContextRequiredException` (`TENANT_CONTEXT_REQUIRED`, 403 Forbidden) if context is missing.
-  * **Archetype B (`GetById`, `Update`, `Delete`, `List`, `Preview`)**: Strictly **prohibited** from injecting `ICurrentProjectContext`. Operates on aggregate IDs or collection queries where tenant isolation is guaranteed by Tier 1 Perimeter Guard and Tier 3 EF Core Global Query Filter. Throws `CrossTenantAccessDeniedException` (`CROSS_TENANT_ACCESS_DENIED`, 403 Forbidden) if a caller attempts to reference or mutate an entity belonging to another tenant partition.
+  * **Archetype A (`Create{Aggregate}`, MinIO Storage, DraftCache, Tenant ApiKey)**: Injects `ICurrentProjectContext` and calls `var projectId = projectContext.GetRequiredProjectId();` in Step 1. Throws `TenantContextNotResolvedException` (`TENANT_CONTEXT_NOT_RESOLVED`, `500 Internal Server Error`) if invoked without a resolved tenant (which can only occur via a programming defect bypassing Tier 1).
+  * **Archetype B (`GetById`, `Update`, `Delete`, `List`, `Preview`)**: Strictly **prohibited** from injecting `ICurrentProjectContext`. Operates on aggregate IDs or collection queries where tenant isolation is guaranteed by the 5-Layer Defense-in-Depth Isolation Architecture ([01_system_architecture.md](../00_architecture_core/01_system_architecture.md#15-multi-tenant-isolation-architecture)). Because Global Query Filters and PostgreSQL RLS filter by active `ProjectId`, any attempt to access another tenant's resource ID returns `null` from `FindByIdAsync` and throws `NotFoundException` (`404 Not Found`), eliminating cross-tenant existence enumeration oracles. (`403 CROSS_TENANT_ACCESS_DENIED` is reserved strictly for plane-level denial at Tier 1.)
 
 ### 1.2 Architectural Wiring & Layer Contracts
 | Direction | Upstream Origin | Current Layer Role (Application Orchestrator) | Downstream Destination |
 |---|---|---|---|
-| **Inbound Request** | Presentation Controller | Validates line 1 via `ValidatingUseCaseDecorator` (`IValidator<T>`) | Application UseCase (`IUseCase<TReq, TRes>`) |
-| **Precondition** | Command Parameters | Verifies existence / business uniqueness via Domain Port | Repository (`I{Aggregate}Repository.ExistsAsync`) |
-| **Domain Mutation** | Validated Command | Invokes Entity SSoT Factory or Expressive Verb | Domain Aggregate (`{Aggregate}.Create(...)` or `{Aggregate}.{Verb}(...)`) |
-| **Persistence** | Mutated Aggregate | Commits transaction & dispatches post-commit events | Unit of Work (`IUnitOfWork.CommitAsync`) |
+| **Inbound Request** | Presentation Controller | Validates line 1 via `ValidationDecorator` (`IValidator<T>`) | Application UseCase (`IUseCase<TRequest, TResponse>`) |
+| **Precondition** | Normalized Value Objects | Verifies existence / business uniqueness via Domain/Read Port | Repository (`I{Aggregate}Repository.SlugExistsAsync`) |
+| **Domain Mutation** | Validated Command | Checks `entity.Version != command.ExpectedVersion` (`412`) & invokes Verb | Domain Aggregate (`{Aggregate}.Create(...)` or `{Aggregate}.{Verb}(...)`) |
+| **Persistence** | Mutated Aggregate | Commits transaction & writes `OutboxMessage` rows atomically | Unit of Work (`IUnitOfWork.CommitAsync(ct)`) |
 | **Outbound Egress** | Mutated State | Maps directly to immutable Application DTO or Stream | Presentation Layer (`{Aggregate}ResultDto` / `Stream`) |
-| **Side-Effects** | Aggregate `DomainEvents` | Dispatches fault-isolated post-commit handlers | `IDomainEventHandler<T>` (Audit, Cache, Telemetry) |
+| **Side-Effects** | `outbox_messages` Table | Relayed asynchronously at-least-once by background worker | `OutboxRelayProcessor` (Audit, Webhooks, Cache) |
 
 ### 1.3 Affirmative Application Orchestration Invariants
 | Application Architectural Concern | Affirmative Application Invariant (Positive SSoT Law) | Boundary Vector |
 |---|---|---|
-| **Class Topology** | Exactly 1 public execution method per use case class: `Task<TResponse> ExecuteAsync(TRequest request, CancellationToken ct = default)`. | Class Contract |
-| **Interface Binding** | Every use case implements `IUseCase<TRequest, TResponse>` or `IUseCase<TRequest>`. Registered via `services.AddUseCase<TReq, TRes, TUseCase>()`. | DI Container |
+| **Class Topology** | Exactly 1 public execution method per use case class: `Task<TResponse> ExecuteAsync(TRequest request, CancellationToken ct)`. `ct` is required (never `= default`). | Class Contract |
+| **Interface Binding** | Every use case implements `IUseCase<TRequest, TResponse>` or `IUseCase<TRequest>`. Registered via `services.AddUseCase<TRequest, TResponse, TUseCase>()`. | DI Container |
 | **CQRS Input Semantics** | State mutations MUST be named `*Command` (parameter named `command`). Read/Stream operations MUST be named `*Query` (parameter named `query`). All inputs are positional `sealed record` types. | Feature Slices |
 | **Boundary DTO Firewall** | UseCases return dedicated immutable `*ResultDto` records or live `Stream`. Domain Entities, Aggregate Roots, and unhydrated primitives remain strictly sealed inside the Application boundary. | Presentation Egress |
-| **Fail-Fast Line 1 Validation**| Payload schema and format invariants are verified at Line 1 via `ValidatingUseCaseDecorator` wrapping `IValidator<T>`. | Pipeline Ingress |
+| **Fail-Fast Line 1 Validation**| Payload schema and format invariants are verified at Line 1 via `ValidationDecorator` wrapping `IValidator<T>` (mapping failures to `422 VALIDATION_FAILED`). | Pipeline Ingress |
 | **Temporal Determinism** | System time is retrieved exclusively via injected `TimeProvider.GetUtcNow()`. Zero ambient system clock queries (`DateTime.UtcNow`). | Temporal Context |
-| **Transaction Boundary** | State mutations commit exclusively via `IUnitOfWork.CommitAsync(ct)` at egress. Read queries remain read-only and never commit transactions. | Data Persistence |
-| **Zero-LOH Streaming** | Binary render/export operations consume and return live `Stream`. Spooling utilizes `HybridSpoolStream` (<= 64 KB pooled `ArrayPool<byte>`; > 64 KB `DeleteOnClose` temp `FileStream`). Zero unbounded `byte[]` in memory. | Memory & GC |
-| **Pagination Clamping** | Paginated queries clamp `Page >= 1` and `PageSize` between 1 and 100 (`Math.Clamp(query.PageSize, 1, 100)`). Hot-path list projections select scalar columns only, bypassing `jsonb` payloads. | Query Scaling |
-| **Ambient Concurrency Guard** | Commands and UseCases remain free of `string? IfMatch` parameter plumbing. Mutable `*ResultDto` records implement `IHasConcurrencyToken` (`entity.GetConcurrencyToken()`). Precondition `412` verification executes fail-fast in Step 2 (Ensure) via `concurrencyContext.EnsureMatches(entity)` on mutating update/delete operations, preventing wasted domain computation or external I/O on stale ETags; `ConcurrencySaveChangesInterceptor` serves as the fail-safe interceptor on `CommitAsync(ct)`. | Concurrency Control |
+| **Transaction Boundary** | State mutations commit exclusively via `IUnitOfWork.CommitAsync(ct)` at egress (never holding DB transactions open across external I/O). Read queries use `*ReadModel` ports with `.AsNoTracking()`. | Data Persistence |
+| **Bounded Pooled Streaming** | Binary render/export operations consume and return live `Stream`. Spooling utilizes `HybridSpoolStream` ($\le 64\text{ KB}$ pooled `ArrayPool<byte>`; $> 64\text{ KB}$ `DeleteOnClose` temp `FileStream`). Zero unbounded `byte[]` on the LOH. | Memory & GC |
+| **Pagination Validation** | Paginated queries validate `Limit` (`1..100`, rejecting out-of-range values with `422 VALIDATION_FAILED` via FluentValidation). Hot-path list projections select scalar columns only via `I{Aggregate}ReadModel`. | Query Scaling |
+| **Two-Phase Explicit Concurrency** | Versioned update/delete/transition commands carry `long ExpectedVersion` (bound from `If-Match: "v{version}"` by `IfMatchVersionBinder`). UseCases check `if (entity.Version != command.ExpectedVersion) throw PreconditionFailedException.VersionMismatch();` in Step 2 before mutation or external I/O, and EF Core `.IsConcurrencyToken()` on `version bigint` guards the atomic commit in Step 4 (`DbUpdateConcurrencyException` → `412 PRECONDITION_FAILED`). | Concurrency Control |
 | **Single-Type File Topology** | Every `*Command`, `*Query`, `*Validator`, and `*UseCase` resides in its own isolated `{TypeName}.cs` file inside its vertical slice directory (`Commands/{SliceName}/` or `Queries/{SliceName}/`). | Physical Structure |
-| **Modular Module Installers** | Each bounded context slice registers its use cases and services through dedicated `{Module}ModuleExtensions.cs` (e.g. `AuthoringModuleExtensions`, `RenderingModuleExtensions`). Monolithic Application composition roots are prohibited. | DI Container |
-| **Direct Pipeline Composition** | Workflows and rendering pipelines consume domain services (`IDataBindingEngine`) directly. Single-method pass-through wrapper classes and duplicate intermediate DTOs are prohibited. | Pipeline Structure |
-| **Ingestion Consolidation SSoT** | Template file placeholder scanning and draft parsing execute exclusively within `CreateTemplateUseCase` and `ParseTemplateDraftUseCase`. Standalone file scanning endpoints or un-cached scanner use cases (`/scan-fields`) outside the draft/creation lifecycle are strictly prohibited. | Ingestion Pipeline |
-| **PEMR Step 1 Tenancy Guard** | Multi-tenant scoping and ambient identity validation execute strictly at line 1 of Step 1 (Parse & Guard) of UseCases via Self-Guarding Smart Context fail-fast property (`var projectId = projectContext.ProjectId;`) **strictly for Archetype A UseCases that actively consume ProjectId or CallerIdentity in domain logic**. Prohibit deferring context evaluation after queries or external I/O. Controllers must never inject `ICurrentProjectContext` or validate tenancy before UseCase invocation. Data Plane UseCases operate in a Trusted Zone and never throw 401 Unauthorized. | PEMR Cadence |
-| **Zero Phantom Context Injection** | UseCases inject `ICurrentProjectContext` strictly when `ProjectId` or caller identity is consumed in domain logic (e.g. `Aggregate.Create(projectId, ...)`, MinIO storage path, DraftCache, or composite key queries). Archetype B UseCases operating strictly by aggregate ID or querying collections filtered by EF Core Global Query Filter **must NOT inject context**. | Dependency Purity |
+| **Modular Module Installers** | Each bounded context slice registers its use cases and services through dedicated `{Module}ModuleExtensions.cs` (`AuthoringModuleExtensions`, `RenderingModuleExtensions`, `IntegrationModuleExtensions`, `IdentityAccessModuleExtensions`, `TenantManagementModuleExtensions`). | DI Container |
+| **Cohesive Collaborators** | Workflows consume cohesive domain/rendering ports (`IDataBindingEngine`, `IDocumentRenderer`) directly. Pure pass-through wrapper classes with zero independent logic are prohibited (`TRAP-WRAPPER-018`). | Pipeline Structure |
+| **Ingestion Consolidation SSoT** | Template file placeholder scanning and draft parsing execute exclusively within `CreateTemplateUseCase` and `ParseTemplateDraftUseCase`. Standalone file scanning endpoints (`/scan-fields`) outside the draft/creation lifecycle are prohibited. | Ingestion Pipeline |
+| **PEMR Step 1 Tenancy & VO Normalization** | In Archetype A UseCases, Step 1 resolves `var projectId = projectContext.GetRequiredProjectId();` and constructs/normalizes all Domain Value Objects (`{Aggregate}Slug.Create(command.Slug)`) **before** Step 2 queries `SlugExistsAsync(projectId, slug, ct)` (`TRAP-TENANT-024`). | PEMR Cadence |
+| **Zero Phantom Context Injection** | UseCases inject `ICurrentProjectContext` strictly when `ProjectId` or caller identity is consumed in domain logic (Archetype A). Archetype B UseCases operating by aggregate ID or querying collections filtered by the 5-Layer Tenant Isolation pipeline **must NOT inject context** (`TRAP-TENANT-023`). | Dependency Purity |
 
 ---
 
@@ -90,61 +90,44 @@ flowchart TD
 ### 2.1 Engineering Rationale & Architectural Decisions
 * **Why Action-Centric `IUseCase` over MediatR:** Eliminates runtime reflection allocations, avoids opaque pipeline behaviors, produces transparent call stacks, and guarantees compile-time verified DI.
 * **Why Positional `sealed record` for Commands/DTOs:** Guarantees absolute immutability across layer boundaries, eliminates mutation side-effects, and provides zero-boilerplate structural equality.
-* **Why Automatic Line-1 Validation via Decorator:** Prevents invalid or malformed payloads from touching repositories or executing expensive database queries, throwing strongly-typed `ValidationException` immediately.
+* **Why Automatic Line-1 Validation via Decorator:** Prevents invalid or malformed payloads from touching repositories or executing expensive database queries, throwing strongly-typed `ValidationException` (`422 VALIDATION_FAILED`) immediately.
 * **Why Application DTOs as Boundary Firewalls:** Domain entities must never cross the layer boundary into Presentation; prevents leaking internal domain state or triggering EF Core lazy-loading traps.
-* **Why Direct Stream Return for Render/Preview:** Guarantees zero Large Object Heap (LOH) RAM allocation (<85 KB Gen 2 threshold) during high-throughput document streaming.
-* **Why Post-Commit Domain Event Dispatch:** Dispatches domain side-effects (e.g. audit logging, cache invalidation) strictly after `unitOfWork.CommitAsync(ct)` succeeds, preventing ghost side-effects on transaction rollback.
-* **Why Ambient Concurrency Pipeline over Imperative Command/UseCase Plumbing:** Passing `string? IfMatch` through every Controller, Command, and UseCase pollutes business logic with HTTP string-trimming ceremony. Instead, `ETagFilter` populates scoped `IConcurrencyContext.IfMatch` on ingress, UseCases invoke `concurrencyContext.EnsureMatches(entity)` in Step 2 (Ensure Preconditions) to fail-fast (`PreconditionFailedException` -> `412`), and EF Core `.IsConcurrencyToken()` on `UpdatedAt` catches microsecond mid-flight database race conditions (throwing `DbUpdateConcurrencyException` -> `409` via `GlobalExceptionHandler`).
-* **Why Fail-Fast `concurrencyContext.EnsureMatches` in PEMR Step 2:** Calling `concurrencyContext.EnsureMatches(entity)` immediately after retrieving the tracked entity in Step 2 enforces HTTP 412 Precondition Failed *before* executing domain state mutations, allocating domain events, or making external I/O (MinIO, Gotenberg). This eliminates the "Delayed 412" defect, and sets `concurrencyContext.IsVerified = true` so `ConcurrencySaveChangesInterceptor` skips redundant re-evaluation on `CommitAsync(ct)`.
+* **Why Direct Stream Return for Render/Preview:** Avoids Large Object Heap (LOH $\ge 85\text{ KB}$) RAM allocations during high-throughput document streaming.
+* **Why Transactional Outbox over Post-Commit In-Memory Dispatch:** Writing `OutboxMessage` records in the same PostgreSQL transaction as `unitOfWork.CommitAsync(ct)` guarantees zero lost domain events if a pod crashes immediately after commit (`TRAP-EVENT-010`).
+* **Why Two-Phase Explicit Concurrency (`ExpectedVersion`) over Ambient `IConcurrencyContext`:** Passing `long ExpectedVersion` on the Command (bound from `If-Match: "v{version}"` at the HTTP boundary) makes concurrency explicit, deterministic, and 100% unit-testable without ambient state or leaking EF Core `SetExpectedVersion` into Domain repository interfaces. Both Step 2 mismatches and Step 4 mid-flight `DbUpdateConcurrencyException` races map to the single HTTP `412 PRECONDITION_FAILED` contract.
 
-### 2.2 Primary SSoT Interfaces & ProblemDetails RFC 9457 Mapping
+### 2.2 Primary SSoT Interfaces & Exception Catalogue Delegation
 ```csharp
 public interface IUseCase<in TRequest, TResponse>
 {
-    Task<TResponse> ExecuteAsync(TRequest request, CancellationToken ct = default);
+    Task<TResponse> ExecuteAsync(TRequest request, CancellationToken ct);
 }
 
 public interface IUseCase<in TRequest>
 {
-    Task ExecuteAsync(TRequest request, CancellationToken ct = default);
+    Task ExecuteAsync(TRequest request, CancellationToken ct);
 }
 
 public interface IUnitOfWork
 {
-    Task<int> CommitAsync(CancellationToken ct = default);
+    Task<int> CommitAsync(CancellationToken ct);
 }
 
-public interface IDomainEventDispatcher
+public interface ICurrentProjectContext
 {
-    Task DispatchEventsAsync(IEnumerable<IDomainEvent> domainEvents, CancellationToken ct = default);
+    bool HasProject { get; }
+    ProjectId? ProjectId { get; }
+    ProjectId GetRequiredProjectId();
+    bool TryGetProjectId(out ProjectId projectId);
 }
 
-public interface IHasConcurrencyToken
+public interface IHasVersion
 {
-    string? ConcurrencyToken { get; }
-}
-
-public interface IConcurrencyContext
-{
-    string? IfMatch { get; set; }
-    bool IsVerified { get; }
-    void EnsureMatches(IConcurrencyAware entity, string? alternateToken = null);
-    void EnsureTokenMatches(string resourceName, object resourceId, string currentToken, string? alternateToken = null);
+    long Version { get; }
 }
 ```
 
-| Exception Class | HTTP Status | Causal Rationale |
-|---|---|---|
-| `ValidationException` | `400 Bad Request` | Fail-fast payload schema or format failure |
-| `TenantContextRequiredException` | `403 Forbidden` | Active tenant project context missing on tenant workload |
-| `CrossTenantAccessDeniedException` | `403 Forbidden` | Caller attempted cross-tenant resource access or mutation |
-| `ForbiddenException` | `403 Forbidden` | Caller lacks required project membership, role, or permission |
-| `NotFoundException` | `404 Not Found` | Target aggregate ID does not exist in tenant partition |
-| `ConflictException` | `409 Conflict` | Unique business key collision or mid-flight concurrency collision (`DbUpdateConcurrencyException`) |
-| `PreconditionFailedException` | `412 Precondition Failed` | Optimistic concurrency check failed (`If-Match` token mismatch) |
-| `DomainValidationException` | `422 Unprocessable`| Aggregate business invariant violated |
-| `DocumentRenderException` | `502 Bad Gateway` | Gotenberg rendering microservice pipeline failure |
-| `DistributedStateUnavailableException` | `503 Service Unavailable` | Distributed idempotency store unreachable (Fail-Closed mutation safety) |
+> **SSoT Delegation — Exception Catalogue & HTTP Mapping:** Application and Domain exceptions carry a stable `ErrorCode` and category, never raw HTTP status codes. The single authoritative Exception-to-HTTP mapping table lives in [06_api_contract_standards.md §3.3](../00_architecture_core/06_api_contract_standards.md#33-rfc-9457-problemdetails--the-exception-catalogue-ssot) (e.g., `ValidationException` / `DomainValidationException` → `422 VALIDATION_FAILED`, `NotFoundException` → `404`, `ConflictException` / `BusinessRuleViolationException` → `409`, `PreconditionFailedException` / `DbUpdateConcurrencyException` → `412 PRECONDITION_FAILED`, `PreconditionRequiredException` → `428 PRECONDITION_REQUIRED`, `TenantContextNotResolvedException` → `500 TENANT_CONTEXT_NOT_RESOLVED`).
 
 ### 2.3 Proactive Application Firewalls
 ```yaml
@@ -181,8 +164,8 @@ IngestionConsolidationFirewall:
   ActionOnViolation: "Purge standalone scanner use cases and endpoints (/scan-fields); route all ingestion through draft/creation pipelines."
 
 UseCaseTenancyPerimeterFirewall:
-  Invariant: "Tenant boundary resolution for domain mutation belongs strictly in Step 1 (Parse & Guard) of UseCase execution via Smart Context fail-fast property strictly when ProjectId or CallerIdentity is consumed."
-  ActionOnViolation: "Remove ICurrentProjectContext from controllers; invoke var projectId = projectContext.ProjectId; at line 1 of Step 1 only in Archetype A UseCases."
+  Invariant: "Tenant boundary resolution for domain mutation belongs strictly in Step 1 (Parse & Guard) of UseCase execution via projectContext.GetRequiredProjectId() strictly when ProjectId or CallerIdentity is consumed."
+  ActionOnViolation: "Remove ICurrentProjectContext from controllers; invoke var projectId = projectContext.GetRequiredProjectId(); in Step 1 only in Archetype A UseCases."
 
 ZeroPhantomContextFirewall:
   Invariant: "Inject ICurrentProjectContext only in UseCases that actively consume ProjectId or CallerIdentity in domain logic (Archetype A). UseCases operating strictly by ID or using EF Core Global Query Filters (Archetype B) must NOT inject context."
@@ -197,7 +180,7 @@ ZeroPhantomContextFirewall:
 >> MANDATORY CANONICAL BLUEPRINT [RULE-APP-CMD-001]:
 * Co-located inside `Modules/{BoundedContext}/{Aggregate}/Commands/Create{Aggregate}/` with strictly 1 primary public type per `.cs` file.
 * **When to Use Archetype A**: Used when creating brand-new domain entities, provisioning tenant storage assets (MinIO), storing drafts in DraftCache, or managing tenant API keys/users.
-* **Tenancy Handling**: Injects `ICurrentProjectContext` and extracts strongly-typed `ProjectId` via Smart Context fail-fast property `var projectId = projectContext.ProjectId;` at line 1 of Step 1 (Parse & Guard). Passes `projectId` directly to the aggregate factory method: `{Aggregate}.Create(projectId, ...)`. Prohibits deferred guards after queries ([TRAP-TENANT-025]).
+* **Tenancy & Value Object Normalization**: Injects `ICurrentProjectContext`, resolves `var projectId = projectContext.GetRequiredProjectId();`, and constructs/normalizes all Domain Value Objects (`{Aggregate}Name.Create`, `{Aggregate}Slug.Create`) in Step 1 **before** querying `SlugExistsAsync(projectId, slug, ct)` in Step 2 ([TRAP-TENANT-024](../00_architecture_core/05_anti_pattern_firewall.md#trap-tenant-024--archetype-a-missing-iprojectcontext--un-normalized-uniqueness-checks-critical)).
 * Executes strictly via the 4-step PEMR (Parse & Guard, Preconditions, Mutate, Return) pipeline.
 
 ```csharp
@@ -227,69 +210,57 @@ public sealed record {Aggregate}ResultDto(
     bool IsActive,
     DateTimeOffset CreatedAt,
     DateTimeOffset? UpdatedAt,
-    string? ConcurrencyToken = null) : IHasConcurrencyToken;
+    long Version = 1) : IHasVersion;
 
 public sealed record {Aggregate}PagedResultDto(
     IReadOnlyList<{Aggregate}ResultDto> Items,
-    int TotalCount,
+    long? TotalCount,
     int Page,
-    int PageSize);
+    int Limit);
 
 // --- File: Commands/Create{Aggregate}/Create{Aggregate}UseCase.cs ---
 public sealed class Create{Aggregate}UseCase(
-    I{Aggregate}Repository repository,
-    IUnitOfWork unitOfWork,
+    I{Aggregate}Repository {aggregate}Repository,
     ICurrentProjectContext projectContext,
+    IUnitOfWork unitOfWork,
     TimeProvider timeProvider) : IUseCase<Create{Aggregate}Command, {Aggregate}ResultDto>
 {
-    public async Task<{Aggregate}ResultDto> ExecuteAsync(Create{Aggregate}Command command, CancellationToken ct = default)
+    public async Task<{Aggregate}ResultDto> ExecuteAsync(Create{Aggregate}Command command, CancellationToken ct)
     {
-        // Step 1: Parse & Guard (Fail-fast Smart Context property: throws TenantContextRequiredException if unresolved)
-        var projectId = projectContext.ProjectId;
+        // Step 1: Parse & Guard (Resolve required ProjectId and normalize Value Objects FIRST)
+        var projectId = projectContext.GetRequiredProjectId();
+        var name = {Aggregate}Name.Create(command.Name);
+        var slug = {Aggregate}Slug.Create(command.Slug);
 
-        // Step 2: Ensure Preconditions <Why: fail-fast on duplicate business key before mutation>
-        var exists = await repository.ExistsBySlugAsync(projectId, command.Slug, ct);
-        if (exists)
-            throw ConflictException.DuplicateSlug(command.Slug);
+        // Step 2: Ensure Preconditions <Why: check uniqueness using normalized Value Object>
+        if (await {aggregate}Repository.SlugExistsAsync(projectId, slug, ct))
+        {
+            throw ConflictException.DuplicateSlug((string)slug);
+        }
 
         // Step 3: Mutate Domain State <Why: enforce aggregate business invariants>
         var now = timeProvider.GetUtcNow();
-        var aggregate = {Aggregate}.Create(
-            projectId,
-            new {Aggregate}Name(command.Name),
-            new {Aggregate}Slug(command.Slug),
-            command.Category,
-            now);
+        var aggregate = {Aggregate}.Create(projectId, name, slug, command.Category, now);
+        await {aggregate}Repository.AddAsync(aggregate, ct);
 
-        await repository.AddAsync(aggregate, ct);
-
-        // Step 4: Commit & Egress <Why: atomic persistence and post-commit event dispatch>
+        // Step 4: Commit & Egress <Why: atomic persistence + Outbox in a single fast DB transaction>
         await unitOfWork.CommitAsync(ct);
 
-        return new {Aggregate}ResultDto(
-            aggregate.Id.Value,
-            aggregate.ProjectId.Value,
-            aggregate.Name.Value,
-            aggregate.Slug.Value,
-            aggregate.Category,
-            aggregate.IsActive,
-            aggregate.CreatedAt,
-            aggregate.UpdatedAt,
-            aggregate.GetConcurrencyToken());
+        return aggregate.ToResultDto();
     }
 }
 ```
 
-### 3.2 Archetype B: Zero-LOH Streaming Query Slice Archetype (`Preview{Aggregate}`)
+### 3.2 Archetype B: Bounded Pooled Streaming Query Slice Archetype (`Preview{Aggregate}`)
 >> MANDATORY CANONICAL BLUEPRINT [RULE-APP-STRM-002]:
 * Returns live `Stream` directly to caller without intermediary `byte[]` or `MemoryStream.ToArray()` buffering.
 * Uses `HybridSpoolStream` for operations requiring seekable buffers.
-* **Zero Phantom Context Injection**: Operates on an existing aggregate by ID. Relies on Tier 1 Perimeter Guard for tenant authentication and EF Core Global Query Filter for tenant data isolation. **Must NOT inject `ICurrentProjectContext`.**
+* **Zero Phantom Context Injection**: Operates on an existing aggregate by ID. Relies on Tier 1 Perimeter Guard for tenant authentication and the 5-Layer Isolation Architecture for tenant data isolation. **Must NOT inject `ICurrentProjectContext`.**
 
 ```csharp
 // --- File: Queries/{Verb}{Aggregate}/{Verb}{Aggregate}Query.cs ---
 public sealed record {Verb}{Aggregate}Query(
-    Guid {Aggregate}Id,
+    {Aggregate}Id {Aggregate}Id,
     string PayloadJson);
 
 // --- File: Queries/{Verb}{Aggregate}/{Verb}{Aggregate}QueryValidator.cs ---
@@ -297,34 +268,33 @@ public sealed class {Verb}{Aggregate}QueryValidator : AbstractValidator<{Verb}{A
 {
     public {Verb}{Aggregate}QueryValidator()
     {
-        RuleFor(x => x.{Aggregate}Id).NotEmpty();
+        RuleFor(x => x.{Aggregate}Id.Value).NotEmpty();
         RuleFor(x => x.PayloadJson).NotEmpty();
     }
 }
 
 // --- File: Queries/{Verb}{Aggregate}/{Verb}{Aggregate}UseCase.cs ---
 public sealed class {Verb}{Aggregate}UseCase(
-    I{Aggregate}Repository repository,
-    IStorageService storageService,
-    IRenderEngineResolver engineResolver) : IUseCase<{Verb}{Aggregate}Query, Stream>
+    I{Aggregate}Repository {aggregate}Repository,
+    IStoragePort storagePort,
+    IRenderEngineFactory engineFactory) : IUseCase<{Verb}{Aggregate}Query, Stream>
 {
-    public async Task<Stream> ExecuteAsync({Verb}{Aggregate}Query query, CancellationToken ct = default)
+    public async Task<Stream> ExecuteAsync({Verb}{Aggregate}Query query, CancellationToken ct)
     {
         // Step 1: Parse & Guard <Why: fail-fast input validation; ambient tenant secured by Tier 1>
 
-        // Step 2: Ensure Preconditions <Why: fail-fast on non-existent resource; EF filter guarantees tenant scope>
-        var aggregate = await repository.GetByIdAsync(new {Aggregate}Id(query.{Aggregate}Id), ct);
-        if (aggregate is null)
-            throw new NotFoundException($"Target aggregate '{query.{Aggregate}Id}' not found.");
+        // Step 2: Ensure Preconditions <Why: fail-fast 404 on non-existent or other-tenant resource>
+        var aggregate = await {aggregate}Repository.FindByIdAsync(query.{Aggregate}Id, ct)
+            ?? throw NotFoundException.For<{Aggregate}>(query.{Aggregate}Id.Value);
 
-        // Step 3: Stream Ingress <Why: Zero-LOH memory stream passthrough>
-        await using var artifactStream = await storageService.DownloadAsync(
+        // Step 3: Stream Ingress <Why: bounded pooled memory stream passthrough>
+        await using var artifactStream = await storagePort.OpenReadAsync(
             StorageBuckets.{Aggregate}s,
             aggregate.StorageKey,
             ct);
 
         // Step 4: Polymorphic Engine Stream Execution <Why: bypass Gen 2 GC LOH allocations>
-        var engine = engineResolver.Resolve(aggregate.RenderEngineType);
+        var engine = engineFactory.GetEngine(aggregate.RenderEngineType);
         return await engine.RenderStreamAsync(artifactStream, query.PayloadJson, OutputFormat.Pdf, ct);
     }
 }
@@ -332,9 +302,9 @@ public sealed class {Verb}{Aggregate}UseCase(
 
 ### 3.3 Archetype B: Materialized Paged Query Slice Archetype (`List{Aggregate}s`)
 >> MANDATORY CANONICAL BLUEPRINT [RULE-APP-QRY-003]:
-* Clamps `Page` and `PageSize` parameters at Line 1.
-* Projects directly to lightweight scalar DTOs, bypassing heavy `jsonb` payloads.
-* **Zero Phantom Context Injection**: Relies on Tier 1 Perimeter Guard (`ProjectContextMiddleware`) to reject un-tenanted calls with 400 Bad Request (`PROJECT_CONTEXT_REQUIRED`), while `I{Aggregate}QueryService` / EF Core automatically applies the tenant filter (`WHERE project_id = @tenant_id`). **Must NOT inject `ICurrentProjectContext` or pass `projectId` manually.**
+* Validates `Page >= 1` and `Limit` (`1..100`) via FluentValidation (`422 VALIDATION_FAILED` if out of range).
+* Projects directly to lightweight scalar DTOs via `I{Aggregate}ReadModel` (`.AsNoTracking()`), bypassing heavy `jsonb` payloads.
+* **Zero Phantom Context Injection**: Relies on Tier 1 Perimeter Guard (`TenantResolutionMiddleware`) to reject un-tenanted calls with `400 PROJECT_CONTEXT_REQUIRED`, while `I{Aggregate}ReadModel` / EF Core + RLS automatically applies the tenant filter. **Must NOT inject `ICurrentProjectContext` or pass `projectId` manually.**
 
 ```csharp
 // --- File: Queries/List{Aggregate}s/List{Aggregate}sQuery.cs ---
@@ -343,29 +313,27 @@ public sealed record List{Aggregate}sQuery(
     string? Category,
     bool? IsActive,
     int Page = 1,
-    int PageSize = 20);
+    int Limit = 20,
+    bool IncludeTotal = false);
 
 // --- File: Queries/List{Aggregate}s/List{Aggregate}sUseCase.cs ---
 public sealed class List{Aggregate}sUseCase(
-    I{Aggregate}QueryService queryService) : IUseCase<List{Aggregate}sQuery, {Aggregate}PagedResultDto>
+    I{Aggregate}ReadModel {aggregate}ReadModel) : IUseCase<List{Aggregate}sQuery, {Aggregate}PagedResultDto>
 {
-    public async Task<{Aggregate}PagedResultDto> ExecuteAsync(List{Aggregate}sQuery query, CancellationToken ct = default)
+    public async Task<{Aggregate}PagedResultDto> ExecuteAsync(List{Aggregate}sQuery query, CancellationToken ct)
     {
-        // Step 1: Parse & Guard (Parameter Clamping <Why: prevent DoS via unbounded page size allocations>)
-        var page = Math.Max(1, query.Page);
-        var pageSize = Math.Clamp(query.PageSize, 1, 100);
-
-        // Step 2: Materialized SQL Projection <Why: bypass multi-KB jsonb payload columns; EF filter isolates tenant>
-        var (items, totalCount) = await queryService.ListPagedAsync(
+        // Step 1: Materialized SQL Projection <Why: bypass multi-KB jsonb payload columns; EF filter + RLS isolates tenant>
+        var (items, totalCount) = await {aggregate}ReadModel.ListPagedAsync(
             query.SearchTerm,
             query.Category,
             query.IsActive,
-            page,
-            pageSize,
+            query.Page,
+            query.Limit,
+            query.IncludeTotal,
             ct);
 
-        // Step 3: Wrap Paged Result <Why: immutable pagination envelope>
-        return new {Aggregate}PagedResultDto(items, totalCount, page, pageSize);
+        // Step 2: Wrap Paged Result <Why: immutable pagination result>
+        return new {Aggregate}PagedResultDto(items, totalCount, query.Page, query.Limit);
     }
 }
 ```
@@ -392,72 +360,67 @@ public sealed class CachedTemplateRenderer(
         // Step 2: Merge JSON payload <Why: thread-safe stateless merge>
         var mergedHtml = compiledTemplate.Render(payloadJson);
 
-        // Step 3: Stream to Render Engine <Why: Zero-LOH stream egress>
+        // Step 3: Stream to Render Engine <Why: bounded pooled stream egress>
         return await renderEngine.RenderStreamAsync(mergedHtml, ct);
     }
 }
 ```
 
-### 3.5 Archetype B: Optimistic Concurrency Mutating Slice Archetype (`Update{Aggregate}` via Ambient Concurrency Pipeline)
+### 3.5 Archetype B: Two-Phase Explicit Concurrency Mutating Slice Archetype (`Update{Aggregate}`)
 >> MANDATORY CANONICAL BLUEPRINT [RULE-APP-CMD-005]:
 * Co-located inside `Modules/{BoundedContext}/{Aggregate}/Commands/Update{Aggregate}/`.
-* **Zero Phantom Context Injection**: Operates on an existing aggregate by ID (`repository.GetByIdAsync`). Ambient tenancy is already guaranteed by Tier 1 Perimeter Guard and EF Core Global Query Filter (`WHERE project_id = @tenant_id`). **Must NOT inject `ICurrentProjectContext`.**
-* Command remains 100% free of manual `IfMatch` string parameters (captured by `ETagFilter` into ambient `IConcurrencyContext`).
-* UseCase enforces fail-fast precondition verification in Step 2: Ensure Preconditions via `concurrencyContext.EnsureMatches(entity)`, terminating immediately with `PreconditionFailedException` (412) on stale ETag before domain state mutation or external I/O.
-* Sets `concurrencyContext.IsVerified = true`, allowing `ConcurrencySaveChangesInterceptor` on `unitOfWork.CommitAsync(ct)` to skip redundant evaluation while EF Core `.IsConcurrencyToken()` on `UpdatedAt` catches mid-flight race conditions (`DbUpdateConcurrencyException` -> `409 Conflict`).
+* **Zero Phantom Context Injection**: Operates on an existing aggregate by ID (`{aggregate}Repository.FindByIdAsync`). Ambient tenancy is guaranteed by Tier 1 Perimeter Guard and 5-Layer Isolation. **Must NOT inject `ICurrentProjectContext`.**
+* Command carries explicit `long ExpectedVersion` (bound from `If-Match: "v{version}"` by `IfMatchVersionBinder` at the HTTP layer; `428` if missing, `412` if malformed).
+* **Phase 1 (UseCase Step 2 Pre-Check):** Evaluates `if (entity.Version != command.ExpectedVersion) throw PreconditionFailedException.VersionMismatch();` immediately after loading the entity, failing fast with `412 PRECONDITION_FAILED` before domain mutation or external I/O.
+* **Phase 2 (Atomic Persistence Guard):** `entity.UpdateDetails(..., now)` calls `SetUpdated(now)`, incrementing `entity.Version`. On `unitOfWork.CommitAsync(ct)`, EF Core `.IsConcurrencyToken()` on `version bigint` emits `WHERE id = @id AND version = @expected_version` (`DbUpdateConcurrencyException` → `412 PRECONDITION_FAILED`).
 
 ```csharp
 // --- File: Commands/Update{Aggregate}/Update{Aggregate}Command.cs ---
 public sealed record Update{Aggregate}Command(
-    Guid Id,
+    {Aggregate}Id Id,
     string Name,
-    string? Category);
+    string? Category,
+    long ExpectedVersion);
 
 // --- File: Commands/Update{Aggregate}/Update{Aggregate}CommandValidator.cs ---
 public sealed class Update{Aggregate}CommandValidator : AbstractValidator<Update{Aggregate}Command>
 {
     public Update{Aggregate}CommandValidator()
     {
-        RuleFor(x => x.Id).NotEmpty();
+        RuleFor(x => x.Id.Value).NotEmpty();
         RuleFor(x => x.Name).NotEmpty().MaximumLength(100);
+        RuleFor(x => x.ExpectedVersion).GreaterThan(0);
     }
 }
 
 // --- File: Commands/Update{Aggregate}/Update{Aggregate}UseCase.cs ---
 public sealed class Update{Aggregate}UseCase(
-    I{Aggregate}Repository repository,
+    I{Aggregate}Repository {aggregate}Repository,
     IUnitOfWork unitOfWork,
-    IConcurrencyContext concurrencyContext,
     TimeProvider timeProvider) : IUseCase<Update{Aggregate}Command, {Aggregate}ResultDto>
 {
-    public async Task<{Aggregate}ResultDto> ExecuteAsync(Update{Aggregate}Command command, CancellationToken ct = default)
+    public async Task<{Aggregate}ResultDto> ExecuteAsync(Update{Aggregate}Command command, CancellationToken ct)
     {
-        // Step 1: Parse & Guard <Why: fail-fast input validation; ambient tenant guaranteed by Tier 1 & EF filter>
+        // Step 1: Parse & Guard <Why: normalize Value Objects before querying>
+        var name = {Aggregate}Name.Create(command.Name);
 
-        // Step 2: Ensure Preconditions <Why: fail-fast on stale If-Match before domain mutation or external I/O>
-        var entity = await repository.GetByIdAsync(new {Aggregate}Id(command.Id), ct)
-            ?? throw new NotFoundException($"Target {nameof({Aggregate})} '{command.Id}' not found.");
+        // Step 2: Ensure Preconditions <Why: Phase 1 fail-fast on stale If-Match version before mutation or external I/O>
+        var entity = await {aggregate}Repository.FindByIdAsync(command.Id, ct)
+            ?? throw NotFoundException.For<{Aggregate}>(command.Id.Value);
 
-        concurrencyContext.EnsureMatches(entity); // <Why: throws PreconditionFailedException (412) if ETag mismatch; sets IsVerified = true>
+        if (entity.Version != command.ExpectedVersion)
+        {
+            throw PreconditionFailedException.VersionMismatch();
+        }
 
-        // Step 3: Mutate Domain State <Why: enforce domain invariants and advance UpdatedAt>
+        // Step 3: Mutate Domain State <Why: enforce domain invariants; SetUpdated advances UpdatedAt and increments Version>
         var now = timeProvider.GetUtcNow();
-        entity.UpdateDetails({Aggregate}Name.Create(command.Name), command.Category, now);
-        repository.Update(entity);
+        entity.UpdateDetails(name, command.Category, now);
 
-        // Step 4: Commit & Egress <Why: atomic persistence; interceptor skips redundant check because IsVerified is true>
+        // Step 4: Commit & Egress <Why: Phase 2 atomic persistence guarded by EF Core IsConcurrencyToken on version bigint>
         await unitOfWork.CommitAsync(ct);
 
-        return new {Aggregate}ResultDto(
-            entity.Id.Value,
-            entity.ProjectId.Value,
-            entity.Name.Value,
-            entity.Slug.Value,
-            entity.Category,
-            entity.IsActive,
-            entity.CreatedAt,
-            entity.UpdatedAt,
-            entity.GetConcurrencyToken());
+        return entity.ToResultDto();
     }
 }
 ```
@@ -465,7 +428,7 @@ public sealed class Update{Aggregate}UseCase(
 ### 3.6 Modular Application DI Composition Archetype (`AddApplicationServices` & Bounded Context Modules)
 >> MANDATORY CANONICAL BLUEPRINT [RULE-APP-DI-006]:
 * Root `AddApplicationServices()` acts strictly as a lightweight orchestrator (< 25 LOC), delegating to modular Bounded Context extensions.
-* Each Bounded Context manages its own registrations via `{BoundedContext}ModuleExtensions.cs` using `services.AddUseCase<TReq, TRes, TImpl>()`.
+* Each Bounded Context manages its own registrations via `{BoundedContext}ModuleExtensions.cs` using `services.AddUseCase<TRequest, TResponse, TImplementation>()`.
 * Prohibits monolithic dumping of all use cases or services directly into root `DependencyInjection.cs`.
 
 ```csharp
@@ -482,6 +445,7 @@ public static class DependencyInjection
         services.AddAuthoringModule();
         services.AddIntegrationModule();
         services.AddIdentityAccessModule();
+        services.AddTenantManagementModule();
 
         // 3. Automated FluentValidation Assembly Scanning <Why: fail-fast request validation>
         services.AddValidatorsFromAssemblyContaining<{AnyCommandValidator}>();
@@ -524,8 +488,8 @@ public static class {BoundedContext}ModuleExtensions
 
 ### [TRAP-APP-003]: Transaction Boundary: Uncommitted Mutations
 ```diff
-- await repository.AddAsync(aggregate, ct); return aggregate.ToDto();
-+ await repository.AddAsync(aggregate, ct); await unitOfWork.CommitAsync(ct); return aggregate.ToDto();
+- await {aggregate}Repository.AddAsync(aggregate, ct); return aggregate.ToResultDto();
++ await {aggregate}Repository.AddAsync(aggregate, ct); await unitOfWork.CommitAsync(ct); return aggregate.ToResultDto();
 ```
 *Rationale: Adding an entity to repository without calling `unitOfWork.CommitAsync(ct)` results in silent loss of state changes.*
 
@@ -545,10 +509,10 @@ public static class {BoundedContext}ModuleExtensions
 
 ### [TRAP-APP-006]: Unbounded Query Size (Denial of Service)
 ```diff
-- var pageSize = query.PageSize; // Attacker requests pageSize = 1_000_000
-+ var pageSize = Math.Clamp(query.PageSize, 1, 100);
+- // Accepting unbounded Limit without validation (Attacker requests limit = 1_000_000)
++ RuleFor(x => x.Limit).InclusiveBetween(1, 100); // Rejects out-of-range Limit with 422 VALIDATION_FAILED
 ```
-*Rationale: Unclamped page sizes allow malicious or misconfigured callers to exhaust database memory and connection pools.*
+*Rationale: Unbounded page sizes allow malicious or misconfigured callers to exhaust database memory and connection pools.*
 
 ### [TRAP-APP-007]: Bundled Command/Validator in `*UseCase.cs` or Detached `Validators/` Bucket
 ```diff
@@ -560,16 +524,14 @@ public static class {BoundedContext}ModuleExtensions
 ```
 *Rationale: Every `*Command`, `*Query`, `*Validator`, and `*UseCase` MUST live in its own `{TypeName}.cs` file co-located inside its vertical slice namespace.*
 
-### [TRAP-APP-008]: Polluting Commands and UseCases with Imperative If-Match String Parsing
+### [TRAP-APP-008]: Raw HTTP `If-Match` String Parsing or Ambient `IConcurrencyContext` vs. `long ExpectedVersion`
 ```diff
 - public sealed record Update{Aggregate}Command(Guid Id, string Name, string? IfMatch = null);
-- // Inside UseCase: manual string trimming & token comparison before CommitAsync
-- var sanitized = command.IfMatch.Trim('\"', 'W', '/', ' ');
-- if (sanitized != (entity.UpdatedAt ?? entity.CreatedAt).ToUnixTimeMilliseconds().ToString()) throw new PreconditionFailedException(...);
-+ public sealed record Update{Aggregate}Command(Guid Id, string Name);
-+ // Ambient IConcurrencyContext captured by ETagFilter; UseCase verifies concurrencyContext.EnsureMatches(entity) fail-fast in Step 2
+- // OR injecting ambient IConcurrencyContext / calling repository.SetExpectedVersion(entity, version)
++ public sealed record Update{Aggregate}Command({Aggregate}Id Id, string Name, long ExpectedVersion);
++ // Bound by IfMatchVersionBinder at HTTP boundary; verified via 'if (entity.Version != command.ExpectedVersion) throw PreconditionFailedException.VersionMismatch();'
 ```
-*Rationale: Threading HTTP `If-Match` strings through Commands and UseCases violates Clean Architecture separation and duplicates token formatting logic across slices.*
+*Rationale: Threading raw HTTP `If-Match` strings or ambient `IConcurrencyContext` obscures concurrency preconditions, while `repository.SetExpectedVersion` leaks EF Core mechanics into Domain ports.*
 
 ### [TRAP-APP-009]: Application Monolithic Composition Root & God Registration Sprawl
 ```diff
@@ -583,18 +545,19 @@ public static class {BoundedContext}ModuleExtensions
 + services.AddAuthoringModule();
 + services.AddIntegrationModule();
 + services.AddIdentityAccessModule();
++ services.AddTenantManagementModule();
 ```
 *Rationale: Violates system-wide CompositionRootFirewall. Dumping UseCases across multiple Bounded Contexts into a single root file breaks domain isolation, masks dependencies, and generates severe merge conflicts.*
 
-### [TRAP-APP-010]: Delayed Concurrency Validation (Missing Step 2 EnsureMatches)
+### [TRAP-APP-010]: Delayed Concurrency Validation (Missing Step 2 `entity.Version != command.ExpectedVersion`)
 ```diff
   // Step 2: Ensure Preconditions
-  var entity = await repository.GetByIdAsync(id, ct) ?? throw new NotFoundException(...);
-+ concurrencyContext.EnsureMatches(entity); // Fail-fast 412 before mutation or external I/O
+  var entity = await {aggregate}Repository.FindByIdAsync(command.Id, ct) ?? throw NotFoundException.For<{Aggregate}>(command.Id.Value);
++ if (entity.Version != command.ExpectedVersion) throw PreconditionFailedException.VersionMismatch(); // Fail-fast 412 before mutation or external I/O
   // Step 3: Mutate Domain State
   entity.UpdateDetails(name, category, now);
 - // Concurrency check only happens later in Step 4 CommitAsync after wasting mutation and I/O cycles!
 ```
-*Rationale: Deferring ETag validation to CommitAsync wastes CPU cycles on domain mutations and risks executing irreversible external I/O (S3 uploads, Gotenberg rendering) for requests doomed to fail HTTP 412. Calling `concurrencyContext.EnsureMatches(entity)` in Step 2 guarantees fail-fast rejection.*
+*Rationale: Deferring ETag validation to CommitAsync wastes CPU cycles on domain mutations and risks executing irreversible external I/O (S3 uploads, Gotenberg rendering) for requests doomed to fail HTTP 412.*
 
 >> SSoT DELEGATION: Document rendering pipeline composition, data binding integration, and anemic pass-through wrapper prohibitions are governed strictly by [document_rendering_mechanics.md](../03_specialized_mechanics/document_rendering_mechanics.md#trap-mech-008).

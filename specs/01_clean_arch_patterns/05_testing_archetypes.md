@@ -29,27 +29,27 @@ flowchart TD
 
     subgraph Defense ["2. Defense Strategy: Defense-in-Depth (3-Tier Guard)"]
         direction TB
-        TestT1["Tier 1 (Perimeter Test): Middleware / Integration\n• Test ProjectContextMiddleware with missing header -> 400 (PROJECT_CONTEXT_REQUIRED)\n• Test Zero Standing Access -> 403 (CROSS_TENANT_ACCESS_DENIED)"]
-        TestT2["Tier 2 (Application Guard Test): Unit Tests (SmkDoc.Tests)\n• Archetype A: Test var projectId = projectContext.ProjectId fail-fast\n• Archetype B: Test with ZERO context mock (Compile-time purity)"]
-        TestT3["Tier 3 (Domain Invariant Test): Pure POCO Tests (SmkDoc.Tests)\n• 100% Real POCOs (Zero Mock): Factory Create & Invariants"]
+        TestT1["Tier 1 (Perimeter Test): Middleware / Integration\n• Test TenantResolutionMiddleware with missing 'Project-Id' -> 400 (PROJECT_CONTEXT_REQUIRED)\n• Test credential mismatch -> 400 (PROJECT_CONTEXT_MISMATCH)\n• Test Zero Standing Access -> 403 (CROSS_TENANT_ACCESS_DENIED)"]
+        TestT2["Tier 2 (Application Guard Test): Unit Tests (SmkDoc.Tests)\n• Archetype A: Test var projectId = projectContext.GetRequiredProjectId() fail-fast\n• Archetype B: Test with ZERO context mock (Compile-time purity)"]
+        TestT3["Tier 3 (Domain Invariant Test): Pure POCO Tests (SmkDoc.Tests)\n• 100% Real POCOs (Zero Mock): Factory Create, Version increment & Invariants"]
         TestT1 --> TestT2 --> TestT3
     end
 
     subgraph Tactical ["3. Implementation Pattern: Testing Tactical Patterns"]
         direction TB
-        MockA["Archetype A Test Pattern\n• Arrange: _projectContext.ProjectId.Returns(_ => throw new TenantContextRequiredException())\n• Assert: ThrowAsync<TenantContextRequiredException>() & zero DB writes"]
-        MockB["Archetype B Test Pattern\n• Arrange: CreateSut() with ZERO ICurrentProjectContext parameter\n• Assert: Relies exclusively on entity ID and UnitOfWork.CommitAsync"]
+        MockA["Archetype A Test Pattern\n• Arrange: _projectContext.GetRequiredProjectId().Returns(_ => throw new TenantContextNotResolvedException())\n• Assert: ThrowAsync<TenantContextNotResolvedException>() & zero DB writes"]
+        MockB["Archetype B Test Pattern\n• Arrange: CreateSut() with ZERO ICurrentProjectContext parameter\n• Assert: Verifies ExpectedVersion mismatch -> 412 PreconditionFailedException"]
     end
 
     IntMacro --> TestT1
     TestT2 --> Tactical
 ```
 
-* **Tier 1 (Perimeter Guard) Test Strategy**: Verified via `SmkDoc.IntegrationTests` (`SmkDocApiFactory`). Verifies that Data Plane HTTP requests without tenant context terminate at the gateway with `400 Bad Request` (`PROJECT_CONTEXT_REQUIRED`), deactivated projects return `403 Forbidden` (`PROJECT_DEACTIVATED`), and SuperAdmin receives `403 Forbidden` (`CROSS_TENANT_ACCESS_DENIED`).
+* **Tier 1 (Perimeter Guard) Test Strategy**: Verified via `SmkDoc.IntegrationTests` (`SmkDocApiFactory`). Verifies that Data Plane HTTP requests without `Project-Id` header terminate at the gateway with `400 Bad Request` (`PROJECT_CONTEXT_REQUIRED`), header/credential mismatches return `400 Bad Request` (`PROJECT_CONTEXT_MISMATCH`), deactivated projects return `403 Forbidden` (`PROJECT_DEACTIVATED`), and SuperAdmin without Break-Glass grant receives `403 Forbidden` (`CROSS_TENANT_ACCESS_DENIED`).
 * **Tier 2 (Application Guard) Test Strategy**: Verified via `SmkDoc.Tests` in isolation.
-  * **Archetype A**: Tests verify that unresolved context throws `TenantContextRequiredException` (`TENANT_CONTEXT_REQUIRED`, 403 Forbidden) fail-fast before any repository or external service calls.
+  * **Archetype A**: Tests verify that an unresolved context throws `TenantContextNotResolvedException` (`TENANT_CONTEXT_NOT_RESOLVED`, `500 Internal Server Error`) fail-fast before any repository or external service calls.
   * **Archetype B**: SUT factory constructor declares ZERO `ICurrentProjectContext` mock. Proves at compile time that the UseCase does not inject or depend on ambient context.
-  * **Cross-Tenant Guard**: Tests verify that cross-tenant access attempts throw `CrossTenantAccessDeniedException` (`CROSS_TENANT_ACCESS_DENIED`, 403 Forbidden).
+  * **Cross-Tenant Resource Isolation**: Verified via `SmkDoc.IntegrationTests` calling every endpoint as Tenant B against Tenant A resource IDs and asserting `404 Not Found` (`NotFoundException`), proving zero cross-tenant leakage and zero existence enumeration oracle.
 * **Tier 3 (Domain Invariant Guard) Test Strategy**: 100% Real POCO tests without mocking (`Substitute.For<Entity>` is strictly prohibited).
 
 ### 1.2 Architectural Wiring & Testing Boundaries
@@ -157,48 +157,46 @@ SmkDoc.IntegrationTests/
 * Strictly 1 behavior per test method with 3-phase AAA naming (`Method_WhenCondition_ShouldExpectedResult`).
 * Domain interactions asserted using `.Received(1)` and `.DidNotReceive()`.
 * **The 3-Tier Guard Model & Zero Phantom Mocking Protocol**:
-  - **Archetype A (`Create{Aggregate}UseCaseTests`)**: Mocks `ICurrentProjectContext` strictly because SUT consumes `ProjectId` via Smart Context fail-fast property (`projectContext.ProjectId`). Asserts fail-fast `TenantContextRequiredException`.
-  - **Archetype B (`Update{Aggregate}UseCaseTests`, `List{Aggregate}sUseCaseTests`, `GetById`, `Delete`)**: Strictly PROHIBITS mocking `ICurrentProjectContext` or testing unresolved tenancy. SUT constructor omits context; ambient tenancy is already guaranteed by Tier 1 Perimeter Guard and EF Core Global Query Filter.
+  - **Archetype A (`Create{Aggregate}UseCaseTests`)**: Mocks `ICurrentProjectContext` strictly because SUT consumes `ProjectId` via `projectContext.GetRequiredProjectId()`. Asserts fail-fast `TenantContextNotResolvedException`.
+  - **Archetype B (`Update{Aggregate}UseCaseTests`, `List{Aggregate}sUseCaseTests`, `GetById`, `Delete`)**: Strictly PROHIBITS mocking `ICurrentProjectContext` or testing unresolved tenancy. SUT constructor omits context; ambient tenancy is guaranteed by Tier 1 Perimeter Guard and the 5-Layer Isolation Architecture. Verifies Two-Phase Explicit Concurrency via `ExpectedVersion`.
 
 #### 3.1.1 Archetype A: Entity-Creating / Key-Consuming UseCase Test (`Create{Aggregate}UseCaseTests`)
 ```csharp
 public sealed class Create{Aggregate}UseCaseTests
 {
-    private readonly I{Aggregate}Repository _{aggregate}Repo = Substitute.For<I{Aggregate}Repository>();
+    private readonly I{Aggregate}Repository _{aggregate}Repository = Substitute.For<I{Aggregate}Repository>();
     private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
     private readonly FakeTimeProvider _timeProvider = TestConstants.CreateFakeClock();
 
     private Create{Aggregate}UseCase CreateSut() =>
-        new(_{aggregate}Repo, _projectContext, _unitOfWork, _timeProvider);
+        new(_{aggregate}Repository, _projectContext, _unitOfWork, _timeProvider);
 
     [Fact]
-    public async Task ExecuteAsync_WhenProjectContextIsUnresolved_ShouldThrowTenantContextRequiredExceptionWithoutTouchingPersistence()
+    public async Task ExecuteAsync_WhenProjectContextIsUnresolved_ShouldThrowTenantContextNotResolvedExceptionWithoutTouchingPersistence()
     {
-        // Step 1: Arrange <Why: explicit DAMP precondition setup for Smart Context fail-fast property>
-        _projectContext.IsResolved.Returns(false);
-        _projectContext.ProjectId.Returns(_ => throw new TenantContextRequiredException());
+        // Step 1: Arrange <Why: explicit DAMP precondition setup for GetRequiredProjectId()>
+        _projectContext.GetRequiredProjectId().Returns(_ => throw new TenantContextNotResolvedException());
         var command = new Create{Aggregate}Command("Sample Name", "sample-slug", "General");
         var sut = CreateSut();
 
         // Step 2: Act <Why: capture execution delegate for exception assertion>
         var act = () => sut.ExecuteAsync(command, CancellationToken.None);
 
-        // Step 3: Assert <Why: verify fail-fast security guard and zero side-effects>
-        await act.Should().ThrowAsync<TenantContextRequiredException>();
-        await _{aggregate}Repo.DidNotReceive().AddAsync(Arg.Any<{Aggregate}>(), Arg.Any<CancellationToken>());
+        // Step 3: Assert <Why: verify fail-fast guard and zero side-effects>
+        await act.Should().ThrowAsync<TenantContextNotResolvedException>();
+        await _{aggregate}Repository.DidNotReceive().AddAsync(Arg.Any<{Aggregate}>(), Arg.Any<CancellationToken>());
         await _unitOfWork.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task ExecuteAsync_WhenSlugAlreadyExists_ShouldThrowConflictException()
     {
-        // Step 1: Arrange <Why: configure unique constraint collision>
-        var projectId = new ProjectId(Guid.NewGuid());
-        _projectContext.IsResolved.Returns(true);
-        _projectContext.ProjectId.Returns(projectId);
-        var command = new Create{Aggregate}Command("Sample Name", "sample-slug", "General");
-        _{aggregate}Repo.SlugExistsAsync(command.Slug, Arg.Any<CancellationToken>())
+        // Step 1: Arrange <Why: configure unique constraint collision on normalized slug>
+        var projectId = new ProjectId(Guid.CreateVersion7());
+        _projectContext.GetRequiredProjectId().Returns(projectId);
+        var command = new Create{Aggregate}Command("Sample Name", "Sample-Slug", "General");
+        _{aggregate}Repository.SlugExistsAsync(projectId, Arg.Is<{Aggregate}Slug>(s => s.Value == "sample-slug"), Arg.Any<CancellationToken>())
             .Returns(true);
 
         var sut = CreateSut();
@@ -208,7 +206,7 @@ public sealed class Create{Aggregate}UseCaseTests
 
         // Step 3: Assert <Why: verify business conflict guard>
         await act.Should().ThrowAsync<ConflictException>();
-        await _{aggregate}Repo.DidNotReceive().AddAsync(Arg.Any<{Aggregate}>(), Arg.Any<CancellationToken>());
+        await _{aggregate}Repository.DidNotReceive().AddAsync(Arg.Any<{Aggregate}>(), Arg.Any<CancellationToken>());
         await _unitOfWork.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
     }
 
@@ -216,11 +214,10 @@ public sealed class Create{Aggregate}UseCaseTests
     public async Task ExecuteAsync_WhenCommandIsValid_ShouldPersistAggregateAndReturnDto()
     {
         // Step 1: Arrange <Why: configure valid execution path>
-        var projectId = new ProjectId(Guid.NewGuid());
-        _projectContext.IsResolved.Returns(true);
-        _projectContext.ProjectId.Returns(projectId);
-        var command = new Create{Aggregate}Command("Sample Name", "sample-slug", "General");
-        _{aggregate}Repo.SlugExistsAsync(command.Slug, Arg.Any<CancellationToken>())
+        var projectId = new ProjectId(Guid.CreateVersion7());
+        _projectContext.GetRequiredProjectId().Returns(projectId);
+        var command = new Create{Aggregate}Command("Sample Name", "Sample-Slug", "General");
+        _{aggregate}Repository.SlugExistsAsync(projectId, Arg.Any<{Aggregate}Slug>(), Arg.Any<CancellationToken>())
             .Returns(false);
 
         var sut = CreateSut();
@@ -234,35 +231,35 @@ public sealed class Create{Aggregate}UseCaseTests
         result.Name.Should().Be("Sample Name");
         result.Slug.Should().Be("sample-slug");
         result.Category.Should().Be("General");
+        result.Version.Should().Be(1);
 
-        await _{aggregate}Repo.Received(1).AddAsync(Arg.Any<{Aggregate}>(), Arg.Any<CancellationToken>());
+        await _{aggregate}Repository.Received(1).AddAsync(Arg.Any<{Aggregate}>(), Arg.Any<CancellationToken>());
         await _unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
     }
 }
 ```
 
-#### 3.1.2 Archetype B: ID-Based / EF-Filtered Query or Mutation UseCase Test (`Update{Aggregate}UseCaseTests` / `List{Aggregate}sUseCaseTests`)
+#### 3.1.2 Archetype B: ID-Based / EF-Filtered Query or Mutation UseCase Test (`Update{Aggregate}UseCaseTests`)
 ```csharp
 public sealed class Update{Aggregate}UseCaseTests
 {
-    private readonly I{Aggregate}Repository _{aggregate}Repo = Substitute.For<I{Aggregate}Repository>();
+    private readonly I{Aggregate}Repository _{aggregate}Repository = Substitute.For<I{Aggregate}Repository>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
-    private readonly IConcurrencyContext _concurrencyContext = Substitute.For<IConcurrencyContext>();
     private readonly FakeTimeProvider _timeProvider = TestConstants.CreateFakeClock();
 
-    // Zero Phantom Context: No ICurrentProjectContext mock (Tier 1 & EF Core filter guarantee tenancy)
+    // Zero Phantom Context & Zero Ambient Concurrency Mock: pure explicit dependencies
     private Update{Aggregate}UseCase CreateSut() =>
-        new(_{aggregate}Repo, _unitOfWork, _concurrencyContext, _timeProvider);
+        new(_{aggregate}Repository, _unitOfWork, _timeProvider);
 
     [Fact]
     public async Task ExecuteAsync_WhenEntityDoesNotExist_ShouldThrowNotFound()
     {
         // Step 1: Arrange <Why: entity not found in tenant partition via EF Core filter>
-        var aggregateId = new {Aggregate}Id(Guid.NewGuid());
-        _{aggregate}Repo.GetByIdAsync(aggregateId, Arg.Any<CancellationToken>())
+        var aggregateId = {Aggregate}Id.New();
+        _{aggregate}Repository.FindByIdAsync(aggregateId, Arg.Any<CancellationToken>())
             .Returns(({Aggregate}?)null);
 
-        var command = new Update{Aggregate}Command(aggregateId.Value, "Updated Name");
+        var command = new Update{Aggregate}Command(aggregateId, "Updated Name", "General", ExpectedVersion: 1);
         var sut = CreateSut();
 
         // Step 2: Act & Assert
@@ -272,15 +269,33 @@ public sealed class Update{Aggregate}UseCaseTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_WhenValidCommand_ShouldMutateStateAndCommit()
+    public async Task ExecuteAsync_WhenExpectedVersionDoesNotMatch_ShouldThrowPreconditionFailedWithoutCommitting()
     {
-        // Step 1: Arrange <Why: existing entity loaded>
-        var aggregateId = new {Aggregate}Id(Guid.NewGuid());
-        var entity = {Aggregate}Builder.CreateDefault(aggregateId);
-        _{aggregate}Repo.GetByIdAsync(aggregateId, Arg.Any<CancellationToken>())
+        // Step 1: Arrange <Why: entity is at Version 1, caller sent stale ExpectedVersion 2>
+        var aggregateId = {Aggregate}Id.New();
+        var entity = {Aggregate}Builder.Default.Build();
+        _{aggregate}Repository.FindByIdAsync(aggregateId, Arg.Any<CancellationToken>())
             .Returns(entity);
 
-        var command = new Update{Aggregate}Command(aggregateId.Value, "Updated Name");
+        var command = new Update{Aggregate}Command(aggregateId, "Updated Name", "General", ExpectedVersion: 2);
+        var sut = CreateSut();
+
+        // Step 2: Act & Assert
+        var act = () => sut.ExecuteAsync(command, CancellationToken.None);
+        await act.Should().ThrowAsync<PreconditionFailedException>();
+        await _unitOfWork.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenValidCommandAndMatchingVersion_ShouldIncrementVersionAndCommit()
+    {
+        // Step 1: Arrange <Why: existing entity loaded at Version 1>
+        var aggregateId = {Aggregate}Id.New();
+        var entity = {Aggregate}Builder.Default.Build();
+        _{aggregate}Repository.FindByIdAsync(aggregateId, Arg.Any<CancellationToken>())
+            .Returns(entity);
+
+        var command = new Update{Aggregate}Command(aggregateId, "Updated Name", "General", ExpectedVersion: 1);
         var sut = CreateSut();
 
         // Step 2: Act
@@ -288,7 +303,7 @@ public sealed class Update{Aggregate}UseCaseTests
 
         // Step 3: Assert
         result.Should().NotBeNull();
-        _concurrencyContext.Received(1).EnsureMatches(entity);
+        result.Version.Should().Be(2);
         await _unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
     }
 }

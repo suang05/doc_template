@@ -4,100 +4,103 @@
 Category: 00_architecture_core
 Domain: Language Idioms, Syntax Grammar & Clean Code Standards
 SoleResponsibilities:
-  - Modern .NET 10 / C# 13 language idioms (Primary Constructors, Collection Expressions, TimeProvider)
-  - 7 Universal Linear Cadences (Controller, UseCase, Entity, ValueObject, Adapter, UnitTest, Page)
-  - Step comment anchors (`// Step N: ...`) and dense inline rationale (`// <Why: ...>`)
-  - Single-type-per-file and file-scoped namespace invariants
-Target: Full Stack (`backend-v2/` and `frontend-v2/`)
+  - Modern .NET 10 / C# 14 idioms (primary constructors, collection expressions, `TimeProvider`, `field` keyword where useful)
+  - Universal Linear Cadences (Controller, UseCase, Entity, ValueObject, Adapter, UnitTest) with the SINGLE canonical code listing of each
+  - Step comment anchors in cadence examples and `// <Why: ...>` notes for non-obvious invariants
+  - One-primary-type-per-file and file-scoped namespace invariants
+  - Baseline tooling rules (nullable, analyzers, logging, exceptions, async, EF Core read rules)
+Target: `backend-v2/` (frontend conventions: see `02_frontend_patterns/`; Cadence 7 is kept here only until it is moved)
+Platform baseline: declared in `Directory.Build.props` (TargetFramework `net10.0`, LangVersion default for the SDK). Prose does not hard-code a language version.
 Signal: [ARCH_EVOLUTION_CONVENTIONS]
 </context>
 
 ---
 
-## 1. Level 1: Affirmative Language & Syntax Invariants Matrix
+## 1. Level 1: Language & Syntax Invariants Matrix
 
-| Architectural & Syntax Concern | Affirmative Idiomatic Invariant (Positive SSoT Law) | Boundary Vector |
+| Concern | Invariant (positive SSoT law) | Enforcement |
 |---|---|---|
-| **Namespace Declaration** | File-scoped namespaces at file head (`namespace SmkDoc.Domain.Entities;`). | Head of file |
-| **Constructor DI** | C# 13 Primary Constructors with pure camelCase parameters (`public sealed class Foo(IBar bar)`). | Class declaration |
-| **Collection Allocation** | C# 12+ Collection Expressions (`[]`) for spans, arrays, and lists. | Universal |
-| **Modularity & Layout** | Strict 1-Primary-Type-Per-File (`{TypeName}.cs`) co-located within feature slices. | Filesystem |
-| **Execution Flow** | Flat linear execution with early return guards. Maximum nesting depth $\le 2$ levels. | Method body |
-| **Controller Rhythm** | Pure 3-Step Dispatcher ($\le 5$ LOC): (1) Map Input => (2) Execute UseCase => (3) Return Envelope. | Presentation |
-| **UseCase Rhythm** | Pure 4-Step PEMR Pipeline: (1) Parse/Guard => (2) Ensure => (3) Mutate => (4) Return ResultDto. | Application |
-| **Asynchronous I/O** | 100% pure `async`/`await` pipeline forwarding standardized `CancellationToken ct = default`. | Method body |
-| **Variable Assignment** | Explicit intermediate local variable assignment before passing into method invocations. | Universal |
-| **Temporal Queries** | Parameterized `TimeProvider` or explicit `DateTimeOffset now`. | Temporal logic |
-| **Concurrency Guard** | Ambient optimistic concurrency via global `ETagFilter`, `IConcurrencyContext`, and `ConcurrencySaveChangesInterceptor`. | Cross-Cutting Pipeline |
-| **Traffic Protection** | Declarative endpoint rate limiting via `[EnableRateLimiting("...")]` policies. | Controller Action |
-| **Test Rhythm** | 3-Phase DAMP Arrange-Act-Assert (AAA) layout with explicit test setups. | Test suites |
-| **Page Rhythm** | Pure 3-Step Async Server Orchestrator: (1) Await Params => (2) Server Fetch / Guard => (3) Render Client Boundary. | Frontend RSC |
-| **Inline Attention Anchor** | Universal `// <Why: {causal-intent}>` annotations for non-obvious guards, invariants, limits, and steps. | Universal |
-| **YAGNI & Post-Mutation Cleanliness** | Implement strictly minimal sufficient code required by active requirements. Post-mutation hygiene must atomically purge dead methods, unused constructor parameters, and unreferenced variables. | Code Hygiene |
+| **Namespace** | File-scoped namespaces (`namespace SmkDoc.Domain.Authoring;`). | `.editorconfig` `csharp_style_namespace_declarations = file_scoped:error` |
+| **Constructor DI** | Primary constructors for DI-injected classes, camelCase parameters. When a captured parameter must be immutable or is used in many members, an explicit `private readonly` field is allowed. Domain entities do not use primary constructors (EF rehydration). | IDE0290 as suggestion, review |
+| **Collections** | Collection expressions (`[]`) when the target type is known. | IDE0300-IDE0305 |
+| **Layout** | One primary type per file (`{TypeName}.cs`), co-located in feature slices. | Analyzer + NetArchTest |
+| **Control flow** | Flat code with early-return guard clauses. Nesting depth ≤ 2 and cognitive complexity ≤ 15 per method. | Sonar S3776 / CA1502 as errors |
+| **Controller** | No business logic: map request → command/query, call exactly one UseCase, return the result. Roughly 5 statements is a guideline. | NetArchTest, complexity analyzer |
+| **UseCase** | Four-step PEMR: Parse → Ensure → Mutate → Return (§3.2). | Review + tests |
+| **Async** | End-to-end `async`/`await`; **`CancellationToken ct` is a required parameter** on UseCase, repository and port methods (no `= default`); forward it to every I/O call. `= default` is allowed only on public library-style APIs. | CA2016 as error, VSTHRD002/VSTHRD100 |
+| **Time** | Never read the ambient clock. Application injects `TimeProvider`; Domain receives `DateTimeOffset now`. (Documented exception: PostgreSQL `now()` for job leases, see 01 §1.4.1.) | BannedApiAnalyzers |
+| **Nested construction** | Avoid constructing objects inside the argument list of a call when it is more than one level deep or has more than three arguments. Simple `new X(a)` arguments are fine. | Review |
+| **Optimistic concurrency** | Aggregates have an explicit `long Version` (`IConcurrencyAware`). Update/transition commands carry `long ExpectedVersion` (parsed from `If-Match: "v{version}"` by `IfMatchVersionBinder`). Step 2 (Ensure) verifies `entity.Version == command.ExpectedVersion` fail-fast (`PreconditionFailedException`), and EF Core maps `Version` as `.IsConcurrencyToken()` so a mid-flight race at commit also raises `PreconditionFailedException` (`412`). No ambient context and no ORM methods on Domain repositories (01 §1.4.4, 06 §2.4). | Unit + integration tests |
+| **Tests** | Arrange-Act-Assert with explicit setup (DAMP), `FakeTimeProvider`, negative-path tests, Testcontainers for persistence behaviour. | Review |
+| **Why notes** | `// <Why: ...>` only for non-obvious guards, invariants and limits. Step comments are used in cadence examples; production code prefers well-named methods over step comments. | Review |
+| **YAGNI hygiene** | Remove dead code, unused parameters and unused variables in the same change. | IDE0051, IDE0052, IDE0060, CS0168/CS0219 as errors |
 
 ---
 
-## 2. Level 2: Engineering Rationales & Cognitive Interceptors
+## 2. Level 2: Engineering Rationales & Syntax Firewalls
 
-### 2.1 Engineering Rationale & Causal Decisions
-* **Why C# 13 Primary Constructors**: Eliminates boilerplate field assignment ceremony (`this._repo = repo`), reduces token count by 15-20%, and aligns parameter names with DI registration.
-* **Why Collection Expressions (`[]`)**: Standardizes collection instantiation across spans, arrays, and lists in a single, high-performance idiom optimized by Roslyn.
-* **Why File-Scoped Namespaces**: Removes 4 whitespace characters of horizontal indentation across all files, maximizing line-length readability and eliminating token waste.
-* **Why DAMP Over DRY in Tests**: Over-abstracted helper chains hide test failure rationale. Explicit Arrange-Act-Assert (AAA) ensures failures are self-evident and self-documenting.
-* **Why Universal Inline Why-Anchors (`// <Why: ...>`)**: Eliminates attention leakage in downstream LLMs by colocating causal rationale directly on the target syntax token (Attention Proximity). Avoids multi-paragraph prose while clarifying non-obvious invariants and preventing accidental regression.
-* **Why Strict YAGNI & Post-Mutation Cleanliness**: Speculative generalization, phantom parameters, and leftover dead code degrade LLM context saliency and invite maintenance rot. Codebases must stay lean, idiomatic, and strictly aligned with active business needs.
+### 2.1 Rationale
+* **Primary constructors** remove field-assignment boilerplate. Trade-off: captured parameters are mutable, so use an explicit readonly field where that matters.
+* **Collection expressions** give one idiom for arrays, lists and spans; the target type must be known (`var x = []` is invalid), and `IEnumerable<T>` targets still allocate.
+* **File-scoped namespaces** remove one indentation level in every file.
+* **DAMP tests**: helper chains hide why a test fails; explicit arrange/act/assert keeps failures self-explanatory.
+* **Required `ct`**: a default value makes it easy to forget propagation, which defeats cancellation and request-abort handling.
+* **Injected time** makes behaviour deterministic and testable.
+* **Why notes** record intent where the code alone cannot; overuse becomes noise, so they are limited to non-obvious cases.
+* **YAGNI hygiene** keeps the code base small enough to review.
 
-### 2.2 Proactive Syntax Firewalls
+### 2.2 Syntax Firewalls
 ```yaml
-NamespaceStructureFirewall:
-  Invariant: "All C# files must use file-scoped namespaces exclusively."
-  ActionOnViolation: "Strip curly brace namespace wrappers and declare top-level namespace."
+NamespaceFirewall:
+  Invariant: "File-scoped namespaces only."
+  Enforcement: ".editorconfig csharp_style_namespace_declarations=file_scoped:error"
 
-PrimaryConstructorFirewall:
-  Invariant: "All dependency-injected classes must use C# 13 Primary Constructors."
-  ActionOnViolation: "Eliminate manual private readonly fields and constructor assignment blocks."
+AsyncFirewall:
+  Invariant: "No sync-over-async (.Result, .Wait(), GetAwaiter().GetResult()), no async void, ct required and forwarded."
+  Enforcement: "VSTHRD002, VSTHRD100, CA2016, CA2007 not required (ASP.NET Core has no SynchronizationContext)"
 
-AsyncPurityFirewall:
-  Invariant: "All I/O operations must be fully asynchronous."
-  ActionOnViolation: "Eliminate synchronous blocking (.Result, .Wait()) and forward CancellationToken ct."
+ClockFirewall:
+  Invariant: "No DateTime.Now/UtcNow, DateTimeOffset.Now/UtcNow, Environment.TickCount in Application/Domain."
+  Enforcement: "Microsoft.CodeAnalysis.BannedApiAnalyzers BannedSymbols.txt"
 
-InstantiationClarityFirewall:
-  Invariant: "Disallow inlined argument instantiation inside method calls."
-  ActionOnViolation: "Extract nested instantiation into explicit intermediate local variable."
-
-PostMutationCleanlinessFirewall:
-  Invariant: "Code modifications must leave zero unreferenced private methods, unused dependencies, or commented-out debris."
-  ActionOnViolation: "Atomically purge all dead code, unused constructor parameters, and boilerplate debris in the same pass."
+HygieneFirewall:
+  Invariant: "No unreferenced private members, unused parameters or commented-out code after a change."
+  Enforcement: "IDE0051, IDE0052, IDE0060 as errors in CI"
 ```
 
 ---
 
-## 3. Level 3: The 7 Universal Linear Cadences (Surgical AST Recipes)
+## 3. Level 3: Universal Linear Cadences (Canonical Recipes)
 
->> MANDATORY CANONICAL BLUEPRINT [RULE-CONV-001]:
-* All components must follow their designated linear cadence.
-* All code examples strictly use Architectural Metasyntax (`{Verb}{Aggregate}`) with zero `using` boilerplate.
-* Mark classes `sealed` by default.
+> MANDATORY CANONICAL BLUEPRINT [RULE-CONV-001]:
+* Each component follows its cadence. Examples use architectural metasyntax (`{Verb}{Aggregate}`) and omit `using` boilerplate.
+* Classes are `sealed` by default.
+* Naming of verbs, suffixes and variables follows [04_naming_standards.md](04_naming_standards.md). HTTP status mapping follows [06_api_contract_standards.md §3.3](06_api_contract_standards.md).
 
-### 3.1 Cadence 1: Controller 3-Step Dispatcher ($\le 5$ LOC)
+### 3.1 Cadence 1: Controller Dispatcher
 ```csharp
 [HttpPost]
-[ProducesResponseType(typeof(ApiResponse<{Aggregate}ResultDto>), StatusCodes.Status201Created)]
+[Idempotent]                                                       // required for creating operations that are not naturally idempotent (see 06)
+[ProducesResponseType<ApiResponse<{Aggregate}ResultDto>>(StatusCodes.Status201Created)]
+[ProducesResponseType<ProblemDetails>(StatusCodes.Status422UnprocessableEntity)]
+[ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
 public async Task<IActionResult> {Verb}([FromBody] {Verb}{Aggregate}Request request, CancellationToken ct)
 {
-    // Step 1: Explicit Input Translation (Request -> Positional Command)
+    // Step 1: Request -> positional command
     var command = new {Verb}{Aggregate}Command(request.Name, request.Slug, request.Category);
 
-    // Step 2: UseCase Invocation (Variable named 'result', strictly no 'response')
+    // Step 2: Single UseCase invocation
     var result = await {verb}{Aggregate}UseCase.ExecuteAsync(command, ct);
 
-    // Step 3: Envelope Return (Location header + RFC 7807/ApiResponse envelope)
+    // Step 3: Success envelope; 201 + Location (CreatedAtAction builds an absolute-path Location)
     return CreatedAtAction(nameof(GetById), new { id = result.Id }, new ApiResponse<{Aggregate}ResultDto>(result));
 }
 ```
+Errors are never constructed in controllers; exceptions reach `IExceptionHandler` which emits RFC 9457 `ProblemDetails` (table in 06). Rate limiting is applied by a global limiter with named policies for opt-in overrides (03), not by per-action attributes that can be forgotten. The local variable name `result` is a house convention for consistency, not a technical requirement.
 
-### 3.2 Cadence 2: UseCase 4-Step PEMR Pipeline (Archetype A: Entity-Creating / Key-Consuming)
-*(Note: UseCases operating strictly on existing aggregates by ID or querying collections filtered by EF Core Global Query Filter belong to Archetype B: they must NOT inject `ICurrentProjectContext`).*
+### 3.2 Cadence 2: UseCase 4-Step PEMR (single canonical listing)
+
+**Archetype A: entity-creating / key-consuming** (needs the project id for entity creation, storage paths or cache keys):
 ```csharp
 public sealed class Create{Aggregate}UseCase(
     I{Aggregate}Repository {aggregate}Repository,
@@ -105,201 +108,229 @@ public sealed class Create{Aggregate}UseCase(
     IUnitOfWork unitOfWork,
     TimeProvider timeProvider) : IUseCase<Create{Aggregate}Command, {Aggregate}ResultDto>
 {
-    public async Task<{Aggregate}ResultDto> ExecuteAsync(Create{Aggregate}Command command, CancellationToken ct = default)
+    public async Task<{Aggregate}ResultDto> ExecuteAsync(Create{Aggregate}Command command, CancellationToken ct)
     {
-        // Step 1: Parse & Guard (Fail-fast Smart Context property: throws TenantContextRequiredException if unresolved)
-        var projectId = projectContext.ProjectId;
+        // Step 1: Parse (resolve tenant and build value objects first; invalid input fails before any I/O)
+        var projectId = projectContext.GetRequiredProjectId();   // programming error if unresolved (01 §1.1.2)
+        var name = {Aggregate}Name.Create(command.Name);
+        var slug = {Aggregate}Slug.Create(command.Slug);
 
-        // Step 2: Ensure Preconditions (Business rules, slug collision queries, or concurrencyContext.EnsureMatches)
-        if (await {aggregate}Repository.SlugExistsAsync(command.Slug, ct))
-            throw ConflictException.DuplicateSlug(command.Slug);
+        // Step 2: Ensure (fast-path uniqueness check on the NORMALIZED value object, scoped by project)
+        if (await {aggregate}Repository.SlugExistsAsync(projectId, slug, ct))
+            throw ConflictException.DuplicateSlug(slug.Value);
 
-        // Step 3: Mutate State (Domain state transition via expressive verb with injected time)
-        var now = timeProvider.GetUtcNow(); // Injected clock: deterministic testability
-        var entity = {Aggregate}.Create(projectId, {Aggregate}Name.Create(command.Name), new {Aggregate}Slug(command.Slug), command.Category, now);
+        // Step 3: Mutate (domain factory with injected time)
+        var entity = {Aggregate}.Create(projectId, name, slug, command.Category, timeProvider.GetUtcNow());
         await {aggregate}Repository.AddAsync(entity, ct);
 
-        // Step 4: Return ResultDto (Atomic transaction commit & immutable output record)
-        await unitOfWork.CommitAsync(ct);
-        return new {Aggregate}ResultDto(
-            entity.Id.Value,
-            entity.ProjectId.Value,
-            entity.Name.Value,
-            entity.Slug.Value,
-            entity.Category,
-            entity.IsActive,
-            entity.CreatedAt,
-            entity.UpdatedAt,
-            entity.GetConcurrencyToken());
+        // Step 4: Return (commit entity + outbox atomically, then map)
+        await unitOfWork.CommitAsync(ct);                        // translates a unique-index violation (PostgreSQL 23505) into ConflictException
+        return entity.ToResultDto();
     }
 }
 ```
+Rules behind the sample:
+* The uniqueness check is a fast path for a good error message; **the database unique index `(project_id, slug)` is the actual guarantee**, and `IUnitOfWork` maps its violation to `ConflictException`.
+* Mapping lives in one `ToResultDto()` extension per aggregate (Application), reused by Create/Update/Get.
+* The validator (`{Verb}{Aggregate}CommandValidator`) runs in `ValidationDecorator` before `ExecuteAsync`; UseCases do not call validators.
 
-### 3.3 Cadence 3: Domain Entity 4-Step State Mutation Verb
+**Archetype B: by-ID or collection UseCase** (no `ICurrentProjectContext`; tenant scoping comes from the layered isolation in 01 §1.1.3):
 ```csharp
-public sealed class {Aggregate} : AggregateRoot<{Aggregate}Id>
+public sealed class Rename{Aggregate}UseCase(
+    I{Aggregate}Repository {aggregate}Repository,
+    IUnitOfWork unitOfWork,
+    TimeProvider timeProvider) : IUseCase<Rename{Aggregate}Command, {Aggregate}ResultDto>
+{
+    public async Task<{Aggregate}ResultDto> ExecuteAsync(Rename{Aggregate}Command command, CancellationToken ct)
+    {
+        // Step 1: Parse
+        var id = new {Aggregate}Id(command.Id);
+        var name = {Aggregate}Name.Create(command.NewName);
+
+        // Step 2: Ensure (not found, then explicit optimistic-concurrency check before any mutation or I/O)
+        var entity = await {aggregate}Repository.FindByIdAsync(id, ct)
+            ?? throw NotFoundException.For<{Aggregate}>(id);          // other tenants' rows are indistinguishable from missing rows
+        if (entity.Version != command.ExpectedVersion)
+            throw PreconditionFailedException.VersionMismatch();      // pure Domain property check; EF .IsConcurrencyToken() also guards commit
+
+        // Step 3: Mutate (intention-revealing domain verb, not a generic Update)
+        entity.Rename(name, timeProvider.GetUtcNow());
+
+        // Step 4: Return
+        await unitOfWork.CommitAsync(ct);                             // translates DbUpdateConcurrencyException -> PreconditionFailedException (412)
+        return entity.ToResultDto();
+    }
+}
+```
+**Query UseCases** read through a projection port and never load aggregates only to map them:
+```csharp
+public sealed class Get{Aggregate}UseCase(I{Aggregate}ReadModel readModel) : IUseCase<Get{Aggregate}Query, {Aggregate}ResultDto>
+{
+    public async Task<{Aggregate}ResultDto> ExecuteAsync(Get{Aggregate}Query query, CancellationToken ct) =>
+        await readModel.FindByIdAsync(query.Id, ct) ?? throw NotFoundException.For<{Aggregate}>(query.Id);
+}
+```
+A UseCase may throw `NotFoundException`, `ConflictException`, `PreconditionFailedException`, `SchemaValidationException`, `ForbiddenException` (resource-level permission) and Domain exceptions. It never throws `UnauthorizedException` (authentication is Tier 1).
+
+### 3.3 Cadence 3: Domain Entity State Mutation Verb
+```csharp
+public sealed class {Aggregate} : AggregateRoot<{Aggregate}Id>, IMustHaveProject
 {
     public {Aggregate}Name Name { get; private set; }
     public {Aggregate}Status Status { get; private set; }
     public DateTimeOffset UpdatedAt { get; private set; }
 
-    public void {Verb}({Aggregate}Name newName, DateTimeOffset now)
+    public void Rename({Aggregate}Name newName, DateTimeOffset now)
     {
-        // Step 1: Invariant Guard (Parameter validity)
-        Guard.AgainstNull(newName, nameof(newName));
-
-        // Step 2: Precondition Guard (Aggregate state invariants)
+        // Step 1: Precondition guard (aggregate state invariant)
         if (Status == {Aggregate}Status.Archived)
-            throw new DomainRuleViolationException("Cannot mutate an archived aggregate.");
+            throw BusinessRuleViolationException.ArchivedAggregate(Id.Value);   // carries an ErrorCode, no free text
 
-        // Step 3: State Mutation (Encapsulated scalar transitions)
+        // Step 2: State mutation (SetUpdated advances UpdatedAt and increments Version)
         Name = newName;
         SetUpdated(now);
 
-        // Step 4: Event Harvesting (Record domain event for outbox dispatch)
-        AddDomainEvent(new {Aggregate}{Verb}edDomainEvent(Id, Name, now));
+        // Step 3: Record the domain event (persisted atomically by the outbox in IUnitOfWork.CommitAsync)
+        AddDomainEvent(new {Aggregate}RenamedDomainEvent(Id, Name, now));
     }
 }
 ```
+Value-object parameters are non-nullable (nullable reference types are enabled), so no `Guard.AgainstNull` is needed for them. Event names use `{Aggregate}{PastTenseVerb}DomainEvent`.
 
-### 3.4 Cadence 4: Value Object 3-Step Self-Validating Record Struct
+### 3.4 Cadence 4: Value Object (immutable, self-validating)
 ```csharp
-public readonly record struct {Aggregate}Slug
+public sealed partial record {Aggregate}Slug
 {
-    private static readonly Regex SlugRegex = new(@"^[a-z0-9]+(?:-[a-z0-9]+)*$", RegexOptions.Compiled);
+    public const int MaxLength = 100;
 
-    // Step 1: Private Parameterized Constructor (Encapsulated internal state)
+    [GeneratedRegex("^[a-z0-9]+(?:-[a-z0-9]+)*$", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 100)]
+    private static partial Regex SlugPattern();
+
     private {Aggregate}Slug(string value) => Value = value;
 
     public string Value { get; }
 
-    // Step 2: Pure Static Factory with Fail-Fast Validation
-    public static {Aggregate}Slug Create(string raw)
+    // Step 1: Throwing factory used by UseCases (fail-fast)
+    public static {Aggregate}Slug Create(string raw) =>
+        TryCreate(raw, out var slug) ? slug : throw DomainValidationException.InvalidFormat(nameof({Aggregate}Slug));  // never echoes raw input
+
+    // Step 2: Non-throwing factory (validators, parsing)
+    public static bool TryCreate(string? raw, [NotNullWhen(true)] out {Aggregate}Slug? slug)
     {
-        Guard.AgainstNullOrWhiteSpace(raw, nameof(raw));
-        var trimmed = raw.Trim().ToLowerInvariant();
-        if (!SlugRegex.IsMatch(trimmed))
-            throw new DomainValidationException($"Invalid slug format: '{raw}'.");
-        return new {Aggregate}Slug(trimmed);
+        slug = null;
+        if (string.IsNullOrWhiteSpace(raw)) return false;
+
+        var normalized = raw.Trim().ToLowerInvariant();
+        if (normalized.Length > MaxLength || !SlugPattern().IsMatch(normalized)) return false;
+
+        slug = new {Aggregate}Slug(normalized);
+        return true;
     }
 
-    // Step 3: Value Equality & String Conversions
+    // Step 3: Value equality comes from the record; explicit conversion only (no implicit conversion to string)
     public override string ToString() => Value;
-    public static implicit operator string({Aggregate}Slug slug) => slug.Value;
+    public static explicit operator string({Aggregate}Slug slug) => slug.Value;
 }
 ```
+Why a `sealed record` class and not a `record struct`: a struct can be `default`-constructed (Value = null) without passing the factory, which breaks the "self-validating" guarantee. Use a struct only for small value objects whose `default` is itself valid (e.g. a strongly typed `Guid` id). Persistence uses an EF value converter.
 
-### 3.5 Cadence 5: Infrastructure Adapter 4-Step Safe Bounded I/O
+### 3.5 Cadence 5: Outbound Infrastructure Adapter
 ```csharp
-public sealed class {ExternalService}Adapter(
-    HttpClient httpClient,
-    IHostValidator hostValidator,
-    ILogger<{ExternalService}Adapter> logger) : I{ExternalService}Port
+public sealed class {ExternalService}Adapter(HttpClient httpClient, ILogger<{ExternalService}Adapter> logger) : I{ExternalService}Port
 {
-    private readonly SemaphoreSlim _throttler = new(10, 10); // Bounded concurrency
-
-    public async Task<Stream> ExecuteOperationAsync(string payload, CancellationToken ct = default)
+    public async Task<Stream> ExecuteOperationAsync(ReadOnlyMemory<byte> payload, CancellationToken ct)
     {
-        // Step 1: Perimeter Guard (Validate endpoint URI safety & tenant host)
-        hostValidator.ValidateHost(httpClient.BaseAddress);
+        // Step 1: Build the request (payload is actually used; relative URI against the configured base address)
+        using var request = new HttpRequestMessage(HttpMethod.Post, "operation") { Content = new ReadOnlyMemoryContent(payload) };
 
-        // Step 2: Bounded Concurrency Acquisition
-        await _throttler.WaitAsync(ct);
+        // Step 2: Send (timeout, retry, circuit breaker and bulkhead come from the resilience handler registered below)
+        HttpResponseMessage response;
         try
         {
-            // Step 3: Safe Wire I/O & Exception Mapping
-            using var request = new HttpRequestMessage(HttpMethod.Post, "/operation");
-            var httpResponse = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
-            if (!httpResponse.IsSuccessStatusCode)
-                throw new ExternalServiceException($"Service returned HTTP {httpResponse.StatusCode}");
+            response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+        }
+        catch (Exception exception) when (exception is HttpRequestException or TimeoutRejectedException)
+        {
+            logger.LogWarning(exception, "External service call failed.");
+            throw new ExternalServiceUnavailableException("External service is unavailable.", exception);
+        }
 
-            // Step 4: Bounded Stream Pass-Through & Deterministic Cleanup
-            return await httpResponse.Content.ReadAsStreamAsync(ct); // Direct bounded pass-through
-        }
-        catch (HttpRequestException ex)
+        // Step 3: Map failures (dispose the response on every failure path)
+        if (!response.IsSuccessStatusCode)
         {
-            logger.LogError(ex, "External service communication failed.");
-            throw new ExternalServiceUnavailableException("External service is unavailable.", ex);
+            var status = response.StatusCode;
+            response.Dispose();
+            throw ExternalServiceException.FromStatus(status);
         }
-        finally
-        {
-            _throttler.Release();
-        }
+
+        // Step 4: Hand over ownership: disposing the returned stream disposes the response and its connection
+        var body = await response.Content.ReadAsStreamAsync(ct);
+        return new ResponseDisposingStream(body, response);
     }
 }
 ```
+```csharp
+// Composition root (Infrastructure module): resilience and network policy live here, not in the adapter
+services.AddHttpClient<I{ExternalService}Port, {ExternalService}Adapter>(client => client.BaseAddress = options.BaseAddress)
+        .AddStandardResilienceHandler();                    // Microsoft.Extensions.Http.Resilience
+```
+Rules: no per-instance `SemaphoreSlim` (a typed client is transient; use the resilience bulkhead or a singleton limiter). The **Outbound Guard** (SSRF validation and IP pinning, see 03) applies only when the target host is tenant-supplied; fixed internal endpoints (Gotenberg, MinIO) use configured addresses.
 
-### 3.6 Cadence 6: Unit Test 3-Step DAMP AAA Cadence (Archetype A: Entity-Creating / Key-Consuming)
-*(Note: For Archetype B UseCases operating strictly by ID or using EF Core Global Query Filter, omit `projectContext` mock; rely on Tier 1 Perimeter Guard and EF Core filter >> Ref: [05_testing_archetypes.md](../01_clean_arch_patterns/05_testing_archetypes.md#312-archetype-b-id-based--ef-filtered-query-or-mutation-usecase-test-updateaggregateusecasetests--listaggregatesusecasetests)).*
+### 3.6 Cadence 6: Unit Test (DAMP Arrange-Act-Assert)
 ```csharp
 public sealed class Create{Aggregate}UseCaseTests
 {
     [Fact]
-    public async Task ExecuteAsync_WhenValidCommand_ReturnsResultDtoAndCommits()
+    public async Task ExecuteAsync_WhenValidCommand_PersistsEntityAndCommits()
     {
-        // Step 1: Arrange (Stubs + SUT Factory + Explicit Command)
+        // Step 1: Arrange (explicit stubs, fake clock, captured entity)
+        var projectId = new ProjectId(Guid.NewGuid());
         var repository = Substitute.For<I{Aggregate}Repository>();
         var projectContext = Substitute.For<ICurrentProjectContext>();
-        projectContext.IsResolved.Returns(true);
-        projectContext.ProjectId.Returns(new ProjectId(Guid.NewGuid()));
+        projectContext.GetRequiredProjectId().Returns(projectId);
         var unitOfWork = Substitute.For<IUnitOfWork>();
-        var fakeClock = TestConstants.CreateFakeClock();
+        var timeProvider = new FakeTimeProvider(new DateTimeOffset(2026, 11, 6, 12, 0, 0, TimeSpan.Zero));
+        {Aggregate}? saved = null;
+        _ = repository.AddAsync(Arg.Do<{Aggregate}>(entity => saved = entity), Arg.Any<CancellationToken>());   // capture argument (NSubstitute)
 
-        var sut = new Create{Aggregate}UseCase(repository, projectContext, unitOfWork, fakeClock);
-        var command = new Create{Aggregate}Command("Standard Name", "standard-slug", "Default");
+        var sut = new Create{Aggregate}UseCase(repository, projectContext, unitOfWork, timeProvider);
+        var command = new Create{Aggregate}Command("Standard Name", "Standard-Slug", "Default");
 
-        // Step 2: Act (Target method execution)
+        // Step 2: Act
         var result = await sut.ExecuteAsync(command, CancellationToken.None);
 
-        // Step 3: Assert (State assertions + Mock side-effect verification)
-        result.Should().NotBeNull();
-        result.Slug.Should().Be("standard-slug");
-        await repository.Received(1).AddAsync(Arg.Any<{Aggregate}>(), Arg.Any<CancellationToken>());
+        // Step 3: Assert (state, not only interactions)
+        result.Slug.Should().Be("standard-slug");                       // normalized
+        saved.Should().NotBeNull();
+        saved!.ProjectId.Should().Be(projectId);
+        saved.CreatedAt.Should().Be(timeProvider.GetUtcNow());
         await unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenSlugExists_ThrowsConflictAndDoesNotCommit()
+    {
+        // Arrange
+        var repository = Substitute.For<I{Aggregate}Repository>();
+        repository.SlugExistsAsync(Arg.Any<ProjectId>(), Arg.Any<{Aggregate}Slug>(), Arg.Any<CancellationToken>()).Returns(true);
+        var projectContext = Substitute.For<ICurrentProjectContext>();
+        projectContext.GetRequiredProjectId().Returns(new ProjectId(Guid.NewGuid()));
+        var unitOfWork = Substitute.For<IUnitOfWork>();
+        var sut = new Create{Aggregate}UseCase(repository, projectContext, unitOfWork, new FakeTimeProvider());
+
+        // Act
+        var act = () => sut.ExecuteAsync(new Create{Aggregate}Command("Name", "taken", null), CancellationToken.None);
+
+        // Assert
+        await act.Should().ThrowAsync<ConflictException>();
+        await unitOfWork.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
     }
 }
 ```
+Archetype B tests omit the `projectContext` stub. Behaviour that depends on the database (unique index, query filters, RLS, version conflicts) is covered by Testcontainers integration tests, not by mocks. Reference: [05_testing_archetypes.md](../01_clean_arch_patterns/05_testing_archetypes.md).
 
-### 3.7 Cadence 7: Next.js 15 Async Server Component & Page Cadence
->> MANDATORY CANONICAL BLUEPRINT [RULE-CONV-007]:
-* Strictly a 3-step async server orchestrator executing in React Server Component (RSC) realm.
-* Route parameters are strictly typed as asynchronous promises (`params: Promise<{ id: string }>`) and awaited.
-* Server-side data fetching passes ambient tenant headers (`x-project-id`); leaf interactive widgets are rendered across the client boundary.
-
-```tsx
-// --- File: src/app/(app)/templates/[id]/page.tsx ---
-import { auth } from '@/auth';
-import { notFound } from 'next/navigation';
-import { apiServerClient } from '@/lib/api/server-client';
-import { TemplateEditorFeature } from '@/features/templates/components/TemplateEditorFeature';
-
-interface PageProps {
-  params: Promise<{ id: string }>;
-  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
-}
-
-export default async function TemplateDetailsPage({ params, searchParams }: PageProps) {
-  // Step 1: Await Route Parameters <Why: Next.js 15 partial prerendering asynchronous contract>
-  const { id } = await params;
-  const session = await auth();
-
-  // Step 2: Server Fetch & Session Guard <Why: fail-fast on unauthenticated access at RSC level>
-  if (!session?.user?.projectId) {
-    notFound();
-  }
-
-  const initialData = await apiServerClient.templates.getById(id, {
-    headers: { 'x-project-id': session.user.projectId },
-  });
-
-  // Step 3: Render Client Boundary <Why: pass immutable DTO across RSC/Client Component boundary>
-  return (
-    <main className="flex h-full flex-col">
-      <TemplateEditorFeature templateId={id} initialData={initialData} />
-    </main>
-  );
-}
-```
+### 3.7 Cadence 7: Next.js Async Server Component
+> **SSoT Delegation:** The canonical Next.js 15 Async Server Component (`TemplateDetailsPage` using `Promise.all([params, auth()])`, `redirect('/login')`, and the `Project-Id` header) is governed in [01_app_router_and_data_fetching.md §3.2](../02_frontend_patterns/01_app_router_and_data_fetching.md#32-nextjs-15-async-route-page-archetype-srcappapptemplatesidpagetsx).
 
 ---
 
@@ -310,71 +341,84 @@ export default async function TemplateDetailsPage({ params, searchParams }: Page
 - namespace SmkDoc.Application.Modules.Authoring {
 -     public class {Verb}Service {
 -         private readonly I{Aggregate}Repository _repo;
--         public {Verb}Service(I{Aggregate}Repository repo) {
--             _repo = repo;
--         }
+-         public {Verb}Service(I{Aggregate}Repository repo) { _repo = repo; }
 -     }
 - }
 + namespace SmkDoc.Application.Modules.Authoring;
-+ 
-+ public sealed class {Verb}{Aggregate}UseCase(I{Aggregate}Repository {aggregate}Repository) {
-+     // Dependencies consumed directly via parameter
-+ }
++
++ public sealed class {Verb}{Aggregate}UseCase(I{Aggregate}Repository {aggregate}Repository) { }
 ```
-*Rationale: File-scoped namespaces and C# 13 primary constructors eliminate ceremony, redundant private fields, and unnecessary indentation levels.*
+*Rationale: file-scoped namespaces and primary constructors remove ceremony.*
 
-### [TRAP-CONV-002]: Synchronous Blocking `.Result` and Inconsistent Cancellation Token
+### [TRAP-CONV-002]: Sync-over-Async and Optional Cancellation Token
 ```diff
-- public {Aggregate}ResultDto Get(Guid id, CancellationToken token) {
--     var entity = _repository.GetByIdAsync(id).Result;
--     return Map(entity);
-- }
-+ public async Task<{Aggregate}ResultDto> GetAsync(Guid id, CancellationToken ct = default) {
-+     var entity = await _repository.GetByIdAsync(id, ct);
-+     return Map(entity);
-+ }
+- public {Aggregate}ResultDto Get(Guid id, CancellationToken token = default) {
+-     var entity = {aggregate}Repository.FindByIdAsync(id).Result;
++ public async Task<{Aggregate}ResultDto> ExecuteAsync(Get{Aggregate}Query query, CancellationToken ct) {
++     var entity = await {aggregate}Repository.FindByIdAsync(query.Id, ct) ?? throw NotFoundException.For<{Aggregate}>(query.Id);
+      return entity.ToResultDto();
+  }
 ```
-*Rationale: Synchronous `.Result` blocks thread-pool worker threads causing thread starvation; standardized `ct` naming enforces uniform async contract passing.*
+*Rationale: `.Result` blocks thread-pool threads (starvation). A defaulted `ct` lets callers silently skip propagation.*
 
-### [TRAP-CONV-003]: Legacy Collection Initializers vs Modern Collection Expressions
+### [TRAP-CONV-003]: Legacy Collection Initializers
 ```diff
 - List<string> tags = new List<string>();
 - int[] codes = new int[] { 200, 404 };
 + List<string> tags = [];
 + int[] codes = [200, 404];
 ```
-*Rationale: Collection expressions `[]` provide a unified, highly optimized C# 12+ allocation syntax recognized by Roslyn.*
 
-### [TRAP-CONV-004]: Inlined Argument Instantiation Obscuring Debugging and Execution Boundaries
+### [TRAP-CONV-004]: Deeply Nested Construction Hiding the Boundary
 ```diff
-- var result = await {verb}UseCase.ExecuteAsync(new {Verb}Query(id), ct);
-+ var query = new {Verb}Query(id);
+- var result = await {verb}UseCase.ExecuteAsync(new {Verb}Query(Parse(request.Filter, new Paging(request.Page, request.Size, new Sort(request.By)))), ct);
++ var paging = new Paging(request.Page, request.Size, new Sort(request.By));
++ var query = new {Verb}Query(Parse(request.Filter, paging));
 + var result = await {verb}UseCase.ExecuteAsync(query, ct);
 ```
-*Rationale: Inlining object instantiation inside method arguments obscures layer boundaries, hinders breakpoint inspection, and degrades stack trace debuggability.*
+*Rationale: simple `new X(a)` arguments are fine; extract when construction nests deeper than one level or has many arguments.*
 
-### [TRAP-CONV-005]: Deeply Nested Conditionals vs Linear Guard Cadence
+### [TRAP-CONV-005]: Nested Conditionals vs Linear Guard Clauses (and the right exceptions)
 ```diff
-- if (user != null) {
--     if (user.IsActive) {
--         if (user.HasPermission("edit")) {
--             return ExecuteInternal();
--         }
--     }
-- }
+- if (user != null) { if (user.IsActive) { if (user.HasPermission("edit")) { return ExecuteInternal(); } } }
 - throw new ForbiddenException();
-+ if (user == null || !user.IsActive) throw new UnauthorizedException();
++ if (!user.IsActive) throw BusinessRuleViolationException.InactiveUser(user.Id);
 + if (!user.HasPermission("edit")) throw new ForbiddenException();
 + return ExecuteInternal();
 ```
-*Rationale: Deeply nested indentation structures increase cyclomatic complexity, waste context tokens, and hinder linear readability. Early guard clauses guarantee flat, fail-fast execution.*
+*Rationale: early guards keep the flow flat. Nullability is handled by nullable reference types. UseCases never throw `UnauthorizedException` (Tier 1 owns authentication).*
 
-### [TRAP-CONV-006]: Speculative Over-Engineering (YAGNI Breach) & Post-Mutation Debris
+### [TRAP-CONV-006]: Speculative Parameters and Dead Code
 ```diff
-- // Speculative parameters not requested, plus dead unreferenced private helper left behind
-- public async Task<{Aggregate}ResultDto> ExecuteAsync({Verb}{Aggregate}Command command, bool? dryRun = false, CancellationToken ct = default) { ... }
-- private void ObsoleteHelper() { /* Leftover dead code */ }
-+ // Minimal sufficient signature strictly meeting current requirements; dead code purged
-+ public async Task<{Aggregate}ResultDto> ExecuteAsync({Verb}{Aggregate}Command command, CancellationToken ct = default) { ... }
+- public async Task<{Aggregate}ResultDto> ExecuteAsync({Verb}{Aggregate}Command command, bool? dryRun, CancellationToken ct) { ... }
+- private void ObsoleteHelper() { }
++ public async Task<{Aggregate}ResultDto> ExecuteAsync({Verb}{Aggregate}Command command, CancellationToken ct) { ... }
 ```
-*Rationale: Speculative parameters (YAGNI violations) and leftover dead code increase cognitive debt, confuse downstream LLMs, and expand test maintenance surface for zero business ROI. Purge unused code atomically and implement only minimal sufficient capabilities.*
+
+### [TRAP-CONV-007]: Value Object That Allows `default` or Implicit String Conversion
+```diff
+- public readonly record struct {Aggregate}Slug { public string Value { get; } ... public static implicit operator string({Aggregate}Slug s) => s.Value; }
++ public sealed partial record {Aggregate}Slug { private {Aggregate}Slug(string value) => Value = value; ... }   // no default instance, no implicit conversion
+```
+
+### [TRAP-CONV-008]: Per-Instance Throttle in a Transient Adapter
+```diff
+- public sealed class {ExternalService}Adapter(HttpClient httpClient) { private readonly SemaphoreSlim _throttler = new(10, 10); ... }
++ services.AddHttpClient<I{ExternalService}Port, {ExternalService}Adapter>().AddStandardResilienceHandler();   // global, per-client policy
+```
+
+---
+
+## 5. Level 5: Baseline Tooling & Language Rules
+
+| Area | Rule |
+|---|---|
+| Compiler | `<Nullable>enable</Nullable>`, `<TreatWarningsAsErrors>true</TreatWarningsAsErrors>`, `<AnalysisLevel>latest-all</AnalysisLevel>`, `<EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>`; central `Directory.Build.props` and `Directory.Packages.props` |
+| Analyzers | Roslyn analyzers, SonarAnalyzer.CSharp, VSTHRD, BannedApiAnalyzers; severities in `.editorconfig`; `dotnet format --verify-no-changes` in CI |
+| Logging | Message templates (no string interpolation), `[LoggerMessage]` source generator on hot paths, never log secrets, connection strings or PII, include correlation id, log once at the boundary (no log-and-rethrow) |
+| Exceptions | Catch specific types; `throw;` not `throw ex;`; handle `OperationCanceledException` explicitly (client abort is not an error); exceptions carry an `ErrorCode` and no free-text user input |
+| Async | `Async` suffix, no `async void`, `ValueTask` only when measured, `IAsyncEnumerable<T>` for streaming |
+| API surface | `internal` by default, `required` members, XML docs on public API, `sealed` classes, records for immutable data |
+| EF Core | `AsNoTracking` and projections for reads, explicit `Include`, no lazy loading, migrations reviewed, `Add`/`AddRange` (not `AddAsync`) unless a value generator needs it |
+| Security | No secrets in code or config files, parameterized SQL only, constant-time compare for secrets (see 03) |
+| Testing | `FakeTimeProvider`, test data builders, Testcontainers PostgreSQL, architecture tests in CI |
