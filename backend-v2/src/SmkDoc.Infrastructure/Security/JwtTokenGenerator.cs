@@ -3,6 +3,7 @@ using System.Security.Claims;
 using System.Text;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
+using SmkDoc.Application.Common.Constants;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Entities;
 
@@ -38,7 +39,15 @@ public sealed class JwtTokenGenerator(IConfiguration configuration, TimeProvider
             }
         }
 
-        var expires = timeProvider.GetUtcNow().UtcDateTime.AddHours(24);
+        int accessTokenMinutes = configuration.GetValue<int?>("Jwt:AccessTokenMinutes")
+            ?? AuthConstants.DefaultAccessTokenMinutes;
+        if (accessTokenMinutes < 1 || accessTokenMinutes > AuthConstants.MaxAccessTokenMinutes)
+        {
+            throw new InvalidOperationException(
+                $"Jwt:AccessTokenMinutes must be between 1 and {AuthConstants.MaxAccessTokenMinutes} minutes (configured: {accessTokenMinutes}).");
+        }
+
+        var expires = timeProvider.GetUtcNow().UtcDateTime.AddMinutes(accessTokenMinutes);
 
         var token = new JwtSecurityToken(
             issuer: configuration["Jwt:Issuer"],

@@ -219,7 +219,7 @@ public sealed partial class TenantResolutionResolver(
     {
         await using var conn = await source.OpenConnectionAsync(ct);
         await using var cmd = conn.CreateCommand();
-        cmd.CommandText = "SELECT \"Id\", \"IsActive\" FROM public.projects WHERE \"Id\" = @p_id LIMIT 1;";
+        cmd.CommandText = "SELECT id, is_active FROM public.projects WHERE id = @p_id LIMIT 1;";
         cmd.Parameters.Add(new NpgsqlParameter("p_id", NpgsqlDbType.Uuid) { Value = projectId.Value });
 
         await using var reader = await cmd.ExecuteReaderAsync(CommandBehavior.SingleRow, ct);
@@ -239,7 +239,7 @@ public sealed partial class TenantResolutionResolver(
     {
         await using var conn = await source.OpenConnectionAsync(ct);
         await using var cmd = conn.CreateCommand();
-        cmd.CommandText = "SELECT \"ProjectId\", \"UserId\", \"Role\" FROM public.fn_resolve_user_project_role_for_auth(@p_project_id, @p_user_id);";
+        cmd.CommandText = "SELECT project_id, user_id, role FROM public.fn_resolve_user_project_role_for_auth(@p_project_id, @p_user_id);";
         cmd.Parameters.Add(new NpgsqlParameter("p_project_id", NpgsqlDbType.Uuid) { Value = projectId.Value });
         cmd.Parameters.Add(new NpgsqlParameter("p_user_id", NpgsqlDbType.Uuid) { Value = userId.Value });
 
@@ -259,7 +259,7 @@ public sealed partial class TenantResolutionResolver(
     {
         await using var conn = await source.OpenConnectionAsync(ct);
         await using var cmd = conn.CreateCommand();
-        cmd.CommandText = "SELECT \"IsActive\" FROM public.users WHERE \"Id\" = @p_user_id LIMIT 1;";
+        cmd.CommandText = "SELECT is_active FROM public.users WHERE id = @p_user_id LIMIT 1;";
         cmd.Parameters.Add(new NpgsqlParameter("p_user_id", NpgsqlDbType.Uuid) { Value = userId.Value });
 
         var result = await cmd.ExecuteScalarAsync(ct);
@@ -276,13 +276,13 @@ public sealed partial class TenantResolutionResolver(
         await using var conn = await source.OpenConnectionAsync(ct);
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = """
-            SELECT MAX("ExpiresAt")
+            SELECT MAX(expires_at)
             FROM public.break_glass_grants
-            WHERE "SuperAdminUserId" = @p_admin_id
-              AND "TargetProjectId" = @p_project_id
-              AND "RevokedAt" IS NULL
-              AND "GrantedAt" <= @p_now
-              AND "ExpiresAt" > @p_now;
+            WHERE super_admin_user_id = @p_admin_id
+              AND target_project_id = @p_project_id
+              AND revoked_at IS NULL
+              AND granted_at <= @p_now
+              AND expires_at > @p_now;
             """;
         cmd.Parameters.Add(new NpgsqlParameter("p_admin_id", NpgsqlDbType.Uuid) { Value = superAdminUserId.Value });
         cmd.Parameters.Add(new NpgsqlParameter("p_project_id", NpgsqlDbType.Uuid) { Value = projectId.Value });

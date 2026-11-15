@@ -5,4 +5,5 @@ public sealed record ListTemplatesQuery(
     string? Category = null,
     bool? IsActive = null,
     int Page = 1,
-    int PageSize = 20);
+    int Limit = 20,
+    bool IncludeTotal = false);

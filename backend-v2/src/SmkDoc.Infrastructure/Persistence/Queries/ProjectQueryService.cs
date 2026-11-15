@@ -8,12 +8,13 @@ namespace SmkDoc.Infrastructure.Persistence.Queries;
 
 public sealed class ProjectQueryService(AppDbContext context) : IProjectQueryService
 {
-    public async Task<(IReadOnlyList<ProjectResultDto> Items, int TotalCount)> ListAccessiblePagedAsync(
+    public async Task<(IReadOnlyList<ProjectResultDto> Items, long? TotalCount)> ListAccessiblePagedAsync(
         UserId userId,
         DateTimeOffset now,
         string? searchTerm,
         int page,
-        int pageSize,
+        int limit,
+        bool includeTotal,
         CancellationToken ct)
     {
         var memberProjectIds = context.UserProjectRoles
@@ -35,24 +36,26 @@ public sealed class ProjectQueryService(AppDbContext context) : IProjectQuerySer
             .AsNoTracking()
             .Where(p => p.IsActive && accessibleIds.Contains(p.Id));
 
-        return await PaginateProjectsAsync(query, searchTerm, page, pageSize, ct);
+        return await PaginateProjectsAsync(query, searchTerm, page, limit, includeTotal, ct);
     }
 
-    public async Task<(IReadOnlyList<ProjectResultDto> Items, int TotalCount)> ListAllControlPlanePagedAsync(
+    public async Task<(IReadOnlyList<ProjectResultDto> Items, long? TotalCount)> ListAllControlPlanePagedAsync(
         string? searchTerm,
         int page,
-        int pageSize,
+        int limit,
+        bool includeTotal,
         CancellationToken ct)
     {
         var query = context.Projects.AsNoTracking();
-        return await PaginateProjectsAsync(query, searchTerm, page, pageSize, ct);
+        return await PaginateProjectsAsync(query, searchTerm, page, limit, includeTotal, ct);
     }
 
-    private static async Task<(IReadOnlyList<ProjectResultDto> Items, int TotalCount)> PaginateProjectsAsync(
+    private static async Task<(IReadOnlyList<ProjectResultDto> Items, long? TotalCount)> PaginateProjectsAsync(
         IQueryable<Project> query,
         string? searchTerm,
         int page,
-        int pageSize,
+        int limit,
+        bool includeTotal,
         CancellationToken ct)
     {
         if (!string.IsNullOrWhiteSpace(searchTerm))
@@ -63,25 +66,19 @@ public sealed class ProjectQueryService(AppDbContext context) : IProjectQuerySer
                 EF.Functions.ILike((string)(object)p.Slug, term));
         }
 
-        var totalCount = await query.CountAsync(ct);
+        long? totalCount = includeTotal ? await query.LongCountAsync(ct) : null;
 
         var safePage = page < 1 ? 1 : page;
-        var safePageSize = pageSize < 1 ? 20 : Math.Min(pageSize, 100);
+        var safeLimit = limit < 1 ? 20 : Math.Min(limit, 100);
 
         var projects = await query
             .OrderBy(p => p.Name)
-            .Skip((safePage - 1) * safePageSize)
-            .Take(safePageSize)
+            .Skip((safePage - 1) * safeLimit)
+            .Take(safeLimit)
             .ToListAsync(ct);
 
         var items = projects
-            .Select(p => new ProjectResultDto(
-                p.Id.Value,
-                p.Name.Value,
-                p.Slug.Value,
-                p.IsActive,
-                p.CreatedAt,
-                Version: p.Version))
+            .Select(p => p.ToResultDto())
             .ToList();
 
         return (items, totalCount);

@@ -32,18 +32,19 @@ public sealed class ProjectsController(
 {
     /// <summary>List all projects accessible to the authenticated user with server-side pagination and search (deprecated: use GET /api/v1/portal/projects).</summary>
     [HttpGet]
-    [DeprecatedEndpoint]
+    [DeprecatedEndpoint(successorPath: "/api/v1/portal/projects")]
     [ProducesResponseType(typeof(PagedApiResponse<ProjectResultDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> ListProjects(
         [FromQuery] string? search,
         [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 20,
+        [FromQuery] int limit = 20,
+        [FromQuery] bool includeTotal = false,
         CancellationToken ct = default)
     {
         var userId = User.GetUserId();
-        var query = new ListProjectsQuery(userId, search, page, pageSize);
+        var query = new ListProjectsQuery(userId, search, page, limit, includeTotal);
         var result = await listProjectsUseCase.ExecuteAsync(query, ct);
-        return Ok(new PagedApiResponse<ProjectResultDto>(result.Items, result.TotalCount, result.Page, result.PageSize));
+        return Ok(new PagedApiResponse<ProjectResultDto>(result.Items, result.TotalCount, result.Page, result.Limit));
     }
 
     /// <summary>Get a specific project by its ID.</summary>

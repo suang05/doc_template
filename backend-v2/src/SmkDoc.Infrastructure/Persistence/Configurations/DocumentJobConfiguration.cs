@@ -48,7 +48,7 @@ public sealed class DocumentJobConfiguration : IEntityTypeConfiguration<Document
         builder.HasIndex(e => new { e.Status, e.AvailableAt, e.CreatedAt });
         builder.HasIndex(e => new { e.ProjectId, e.CreatedAt }).IsDescending(false, true);
         builder.HasIndex(e => new { e.ProjectId, e.IdempotencyKey })
-            .HasFilter("\"IdempotencyKey\" IS NOT NULL");
+            .HasFilter("idempotency_key IS NOT NULL");
 
         builder.HasMany(e => e.Items)
             .WithOne(i => i.DocumentJob)

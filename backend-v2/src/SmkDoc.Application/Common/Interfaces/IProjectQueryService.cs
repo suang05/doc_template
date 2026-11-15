@@ -14,20 +14,22 @@ public interface IProjectQueryService
     /// Lists projects accessible to <paramref name="userId"/> via explicit <c>UserProjectRole</c>
     /// membership or an active, unrevoked <c>BreakGlassGrant</c> at <paramref name="now"/>.
     /// </summary>
-    Task<(IReadOnlyList<ProjectResultDto> Items, int TotalCount)> ListAccessiblePagedAsync(
+    Task<(IReadOnlyList<ProjectResultDto> Items, long? TotalCount)> ListAccessiblePagedAsync(
         UserId userId,
         DateTimeOffset now,
         string? searchTerm,
         int page,
-        int pageSize,
+        int limit,
+        bool includeTotal,
         CancellationToken ct);
 
     /// <summary>
     /// Lists all projects across the platform for Control Plane SuperAdmin management endpoints.
     /// </summary>
-    Task<(IReadOnlyList<ProjectResultDto> Items, int TotalCount)> ListAllControlPlanePagedAsync(
+    Task<(IReadOnlyList<ProjectResultDto> Items, long? TotalCount)> ListAllControlPlanePagedAsync(
         string? searchTerm,
         int page,
-        int pageSize,
+        int limit,
+        bool includeTotal,
         CancellationToken ct);
 }

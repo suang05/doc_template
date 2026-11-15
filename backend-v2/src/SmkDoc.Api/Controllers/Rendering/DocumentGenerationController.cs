@@ -49,7 +49,7 @@ public sealed class DocumentGenerationController(
 
     /// <summary>Track 1 (Legacy): Synchronous document generation from template slug and input JSON data. Use POST /api/v1/documents instead.</summary>
     [HttpPost("generate/{slug}")]
-    [DeprecatedEndpoint]
+    [DeprecatedEndpoint(successorPath: "/api/v1/documents")]
     [Idempotent]
     [EnableRateLimiting("rendering")]
     [ProducesResponseType(typeof(ApiResponse<GenerateDocumentResultDto>), StatusCodes.Status200OK)]
@@ -63,7 +63,7 @@ public sealed class DocumentGenerationController(
 
     /// <summary>Track 2 (Legacy): Asynchronous document generation queue (HTTP 202). Use POST /api/v1/document-jobs instead.</summary>
     [HttpPost("generate-async/{slug}")]
-    [DeprecatedEndpoint]
+    [DeprecatedEndpoint(successorPath: "/api/v1/document-jobs")]
     [Idempotent]
     [EnableRateLimiting("rendering")]
     [ProducesResponseType(typeof(ApiResponse<DocumentJobDto>), StatusCodes.Status202Accepted)]
@@ -81,7 +81,7 @@ public sealed class DocumentGenerationController(
 
     /// <summary>Track 2 (Legacy): Polling endpoint to check status of an asynchronous document job. Use GET /api/v1/document-jobs/{jobId} instead.</summary>
     [HttpGet("jobs/{jobId:guid}")]
-    [DeprecatedEndpoint]
+    [DeprecatedEndpoint(successorPath: "/api/v1/document-jobs")]
     [ProducesResponseType(typeof(ApiResponse<DocumentJobDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetJobStatus([FromRoute] Guid jobId, CancellationToken ct)

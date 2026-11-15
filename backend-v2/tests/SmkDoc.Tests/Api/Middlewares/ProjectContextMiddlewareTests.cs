@@ -156,7 +156,7 @@ public sealed class ProjectContextMiddlewareTests
         var (httpContext, projectContext) = CreateContexts("/api/v1/templates");
 
         string rawKey = "valid-raw-key";
-        httpContext.Request.Headers["X-API-Key"] = rawKey;
+        httpContext.Request.Headers[HttpHeaderConstants.AuthorizationHeader] = $"{HttpHeaderConstants.AuthorizationApiKeyPrefix}{rawKey}";
 
         var targetProjectId = ProjectId.New();
         var apiKeyId = ApiKeyId.New();
@@ -192,7 +192,7 @@ public sealed class ProjectContextMiddlewareTests
         var (httpContext, projectContext) = CreateContexts("/api/v1/documents/generate/invoice", "POST");
 
         string rawKey = "readonly-raw-key";
-        httpContext.Request.Headers["X-API-Key"] = rawKey;
+        httpContext.Request.Headers[HttpHeaderConstants.AuthorizationHeader] = $"{HttpHeaderConstants.AuthorizationApiKeyPrefix}{rawKey}";
 
         var targetProjectId = ProjectId.New();
         var hash = new Sha256Hash(ApiKeyGenerator.ComputeHash(rawKey));
@@ -222,7 +222,7 @@ public sealed class ProjectContextMiddlewareTests
         var (httpContext, projectContext) = CreateContexts(path, method);
 
         string rawKey = "readonly-raw-key";
-        httpContext.Request.Headers["X-API-Key"] = rawKey;
+        httpContext.Request.Headers[HttpHeaderConstants.AuthorizationHeader] = $"{HttpHeaderConstants.AuthorizationApiKeyPrefix}{rawKey}";
 
         var targetProjectId = ProjectId.New();
         var hash = new Sha256Hash(ApiKeyGenerator.ComputeHash(rawKey));
@@ -248,7 +248,7 @@ public sealed class ProjectContextMiddlewareTests
         var sut = CreateSut();
         var (httpContext, projectContext) = CreateContexts("/api/v1/templates");
 
-        httpContext.Request.Headers["X-API-Key"] = "invalid-key";
+        httpContext.Request.Headers[HttpHeaderConstants.AuthorizationHeader] = $"{HttpHeaderConstants.AuthorizationApiKeyPrefix}invalid-key";
 
         _apiKeyRepo.GetByKeyHashAsync(Arg.Any<Sha256Hash>(), Arg.Any<CancellationToken>())
             .Returns((ApiKey?)null);
@@ -271,7 +271,7 @@ public sealed class ProjectContextMiddlewareTests
         var (httpContext, projectContext) = CreateContexts("/api/v1/templates");
 
         var targetProjectId = ProjectId.New();
-        httpContext.Request.Headers["X-API-Key"] = "master-secret-key";
+        httpContext.Request.Headers[HttpHeaderConstants.AuthorizationHeader] = $"{HttpHeaderConstants.AuthorizationApiKeyPrefix}master-secret-key";
         httpContext.Request.Headers["Project-Id"] = targetProjectId.ToString();
 
         // Act
@@ -321,9 +321,9 @@ public sealed class ProjectContextMiddlewareTests
     }
 
     [Fact]
-    public async Task InvokeAsync_AuthenticatedPortalUser_WithoutMembership_Returns403Forbidden()
+    public async Task InvokeAsync_AuthenticatedPortalUser_WithoutMembership_Returns404NotFound()
     {
-        // Arrange: IDOR Defense Test
+        // Arrange: Anti-Enumeration / IDOR Defense Test
         var sut = CreateSut();
         var (httpContext, projectContext) = CreateContexts("/api/v1/templates");
 
@@ -347,7 +347,7 @@ public sealed class ProjectContextMiddlewareTests
         // Assert
         await _next.DidNotReceive().Invoke(httpContext);
         projectContext.IsResolved.Should().BeFalse();
-        httpContext.Response.StatusCode.Should().Be(StatusCodes.Status403Forbidden);
+        httpContext.Response.StatusCode.Should().Be(StatusCodes.Status404NotFound);
         httpContext.Response.ContentType.Should().StartWith("application/problem+json");
     }
 
@@ -532,7 +532,7 @@ public sealed class ProjectContextMiddlewareTests
         };
         httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(claims, "Bearer"));
         httpContext.Request.Headers["Project-Id"] = targetProjectId.ToString();
-        httpContext.Request.Headers["X-API-Key"] = "some-m2m-api-key";
+        httpContext.Request.Headers[HttpHeaderConstants.AuthorizationHeader] = $"{HttpHeaderConstants.AuthorizationApiKeyPrefix}some-m2m-api-key";
 
         _tenantResolutionResolver.FindProjectAsync(targetProjectId, Arg.Any<CancellationToken>())
             .Returns(new ResolvedProjectState(targetProjectId.Value, true));
@@ -561,7 +561,7 @@ public sealed class ProjectContextMiddlewareTests
         var (httpContext, projectContext) = CreateContexts("/api/v1/templates");
 
         string rawKey = "valid-raw-key";
-        httpContext.Request.Headers["X-API-Key"] = rawKey;
+        httpContext.Request.Headers[HttpHeaderConstants.AuthorizationHeader] = $"{HttpHeaderConstants.AuthorizationApiKeyPrefix}{rawKey}";
 
         var keyProjectId = ProjectId.New();
         var spoofedProjectId = ProjectId.New();
@@ -584,7 +584,7 @@ public sealed class ProjectContextMiddlewareTests
     }
 
     [Fact]
-    public async Task InvokeAsync_AuthenticatedPortalUser_DeactivatedProject_Returns403Forbidden()
+    public async Task InvokeAsync_AuthenticatedPortalUser_DeactivatedProject_WithMembership_Returns403Forbidden()
     {
         // Arrange
         var sut = CreateSut();
@@ -603,6 +603,8 @@ public sealed class ProjectContextMiddlewareTests
 
         _tenantResolutionResolver.FindProjectAsync(deactivatedProjectId, Arg.Any<CancellationToken>())
             .Returns(new ResolvedProjectState(deactivatedProjectId.Value, false));
+        _tenantResolutionResolver.FindMembershipAsync(deactivatedProjectId, new UserId(userId), Arg.Any<CancellationToken>())
+            .Returns(new ResolvedProjectMembership(deactivatedProjectId.Value, userId, RoleType.Developer.Name));
 
         // Act
         await InvokeMiddlewareAsync(sut, httpContext, projectContext);
@@ -615,6 +617,146 @@ public sealed class ProjectContextMiddlewareTests
     }
 
     [Fact]
+    public async Task InvokeAsync_AuthenticatedPortalUser_DeactivatedProject_WithoutMembership_Returns404NotFound()
+    {
+        // Arrange: Anti-Enumeration ensures non-members cannot infer whether a project is deactivated vs nonexistent
+        var sut = CreateSut();
+        var (httpContext, projectContext) = CreateContexts("/api/v1/templates");
+
+        var userId = Guid.NewGuid();
+        var deactivatedProjectId = ProjectId.New();
+
+        var claims = new[]
+        {
+            new Claim(ClaimTypes.NameIdentifier, userId.ToString()),
+            new Claim("SystemRole", "Member")
+        };
+        httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(claims, "Bearer"));
+        httpContext.Request.Headers["Project-Id"] = deactivatedProjectId.ToString();
+
+        _tenantResolutionResolver.FindProjectAsync(deactivatedProjectId, Arg.Any<CancellationToken>())
+            .Returns(new ResolvedProjectState(deactivatedProjectId.Value, false));
+        _tenantResolutionResolver.FindMembershipAsync(deactivatedProjectId, new UserId(userId), Arg.Any<CancellationToken>())
+            .Returns((ResolvedProjectMembership?)null);
+
+        // Act
+        await InvokeMiddlewareAsync(sut, httpContext, projectContext);
+
+        // Assert
+        await _next.DidNotReceive().Invoke(httpContext);
+        projectContext.IsResolved.Should().BeFalse();
+        httpContext.Response.StatusCode.Should().Be(StatusCodes.Status404NotFound);
+        httpContext.Response.ContentType.Should().StartWith("application/problem+json");
+    }
+
+    [Fact]
+    public async Task InvokeAsync_SuperAdmin_DeactivatedProject_WithoutBreakGlassGrant_Returns403CrossTenantAccessDenied()
+    {
+        // Arrange
+        var sut = CreateSut();
+        var (httpContext, projectContext) = CreateContexts("/api/v1/templates");
+
+        var userId = Guid.NewGuid();
+        var deactivatedProjectId = ProjectId.New();
+
+        var claims = new[]
+        {
+            new Claim(ClaimTypes.NameIdentifier, userId.ToString()),
+            new Claim("SystemRole", "SuperAdmin")
+        };
+        httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(claims, "Bearer"));
+        httpContext.Request.Headers["Project-Id"] = deactivatedProjectId.ToString();
+
+        _tenantResolutionResolver.FindProjectAsync(deactivatedProjectId, Arg.Any<CancellationToken>())
+            .Returns(new ResolvedProjectState(deactivatedProjectId.Value, false));
+        _tenantResolutionResolver.FindMembershipAsync(deactivatedProjectId, new UserId(userId), Arg.Any<CancellationToken>())
+            .Returns((ResolvedProjectMembership?)null);
+        _tenantResolutionResolver.HasActiveBreakGlassGrantAsync(
+                new UserId(userId),
+                deactivatedProjectId,
+                _timeProvider.GetUtcNow(),
+                Arg.Any<CancellationToken>())
+            .Returns(false);
+
+        // Act
+        await InvokeMiddlewareAsync(sut, httpContext, projectContext);
+
+        // Assert
+        await _next.DidNotReceive().Invoke(httpContext);
+        projectContext.IsResolved.Should().BeFalse();
+        httpContext.Response.StatusCode.Should().Be(StatusCodes.Status403Forbidden);
+        httpContext.Response.ContentType.Should().StartWith("application/problem+json");
+    }
+
+    [Fact]
+    public async Task InvokeAsync_SuperAdmin_DeactivatedProject_WithBreakGlassGrant_Returns403ProjectDeactivated()
+    {
+        // Arrange
+        var sut = CreateSut();
+        var (httpContext, projectContext) = CreateContexts("/api/v1/templates");
+
+        var userId = Guid.NewGuid();
+        var deactivatedProjectId = ProjectId.New();
+
+        var claims = new[]
+        {
+            new Claim(ClaimTypes.NameIdentifier, userId.ToString()),
+            new Claim("SystemRole", "SuperAdmin")
+        };
+        httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(claims, "Bearer"));
+        httpContext.Request.Headers["Project-Id"] = deactivatedProjectId.ToString();
+
+        _tenantResolutionResolver.FindProjectAsync(deactivatedProjectId, Arg.Any<CancellationToken>())
+            .Returns(new ResolvedProjectState(deactivatedProjectId.Value, false));
+        _tenantResolutionResolver.FindMembershipAsync(deactivatedProjectId, new UserId(userId), Arg.Any<CancellationToken>())
+            .Returns((ResolvedProjectMembership?)null);
+        _tenantResolutionResolver.HasActiveBreakGlassGrantAsync(
+                new UserId(userId),
+                deactivatedProjectId,
+                _timeProvider.GetUtcNow(),
+                Arg.Any<CancellationToken>())
+            .Returns(true);
+
+        // Act
+        await InvokeMiddlewareAsync(sut, httpContext, projectContext);
+
+        // Assert
+        await _next.DidNotReceive().Invoke(httpContext);
+        projectContext.IsResolved.Should().BeFalse();
+        httpContext.Response.StatusCode.Should().Be(StatusCodes.Status403Forbidden);
+        httpContext.Response.ContentType.Should().StartWith("application/problem+json");
+    }
+
+    [Fact]
+    public async Task InvokeAsync_AuthenticatedPortalUser_ManagementProjectRouteWithoutMembership_Returns404NotFound()
+    {
+        // Arrange
+        var sut = CreateSut();
+        var userId = Guid.NewGuid();
+        var otherProjectId = ProjectId.New();
+        var (httpContext, projectContext) = CreateContexts($"/api/v1/management/projects/{otherProjectId.Value}/api-keys");
+
+        var claims = new[]
+        {
+            new Claim(ClaimTypes.NameIdentifier, userId.ToString()),
+            new Claim("SystemRole", "Member")
+        };
+        httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(claims, "Bearer"));
+
+        _tenantResolutionResolver.FindProjectAsync(otherProjectId, Arg.Any<CancellationToken>())
+            .Returns(new ResolvedProjectState(otherProjectId.Value, true));
+        _tenantResolutionResolver.FindMembershipAsync(otherProjectId, new UserId(userId), Arg.Any<CancellationToken>())
+            .Returns((ResolvedProjectMembership?)null);
+
+        // Act
+        await InvokeMiddlewareAsync(sut, httpContext, projectContext);
+
+        // Assert
+        await _next.DidNotReceive().Invoke(httpContext);
+        httpContext.Response.StatusCode.Should().Be(StatusCodes.Status404NotFound);
+    }
+
+    [Fact]
     public async Task InvokeAsync_ApiKey_DeactivatedProject_Returns403Forbidden()
     {
         // Arrange
@@ -622,7 +764,7 @@ public sealed class ProjectContextMiddlewareTests
         var (httpContext, projectContext) = CreateContexts("/api/v1/templates");
 
         string rawKey = "deactivated-raw-key";
-        httpContext.Request.Headers["X-API-Key"] = rawKey;
+        httpContext.Request.Headers[HttpHeaderConstants.AuthorizationHeader] = $"{HttpHeaderConstants.AuthorizationApiKeyPrefix}{rawKey}";
 
         var targetProjectId = ProjectId.New();
         var hash = new Sha256Hash(ApiKeyGenerator.ComputeHash(rawKey));

@@ -23,52 +23,57 @@ public sealed class ListTemplatesUseCaseTests
             Arg.Any<bool?>(),
             Arg.Any<int>(),
             Arg.Any<int>(),
+            Arg.Any<bool>(),
             Arg.Any<CancellationToken>())
-            .Returns(([template1, template2], 2));
+            .Returns(([template1, template2], (long?)2L));
 
         // Act
-        var result = await CreateSut().ExecuteAsync(new ListTemplatesQuery(SearchTerm: "inv", Category: "Billing", IsActive: true, Page: 1, PageSize: 20), CancellationToken.None);
+        var result = await CreateSut().ExecuteAsync(
+            new ListTemplatesQuery(SearchTerm: "inv", Category: "Billing", IsActive: true, Page: 1, Limit: 20, IncludeTotal: true),
+            CancellationToken.None);
 
         // Assert
         result.Items.Should().HaveCount(2);
-        result.TotalCount.Should().Be(2);
+        result.TotalCount.Should().Be(2L);
         result.Items[0].Name.Should().Be("Invoice");
         result.Items[1].Name.Should().Be("Receipt");
     }
 
     [Theory]
-    [InlineData(0, 50000, 1, 100)]
-    [InlineData(-5, 0, 1, 1)]
-    [InlineData(3, 50, 3, 50)]
-    public async Task ExecuteAsync_WithOutOfBoundsPagination_ClampsPageAndPageSize(
-        int requestedPage,
-        int requestedPageSize,
-        int expectedPage,
-        int expectedPageSize)
+    [InlineData(1, 20, false)]
+    [InlineData(3, 50, true)]
+    public async Task ExecuteAsync_ForwardsPaginationAndIncludeTotalToQueryService(
+        int page,
+        int limit,
+        bool includeTotal)
     {
         // Arrange
+        long? totalCount = includeTotal ? 15L : null;
         _templateQueryService.ListPagedAsync(
             Arg.Any<string?>(),
             Arg.Any<string?>(),
             Arg.Any<bool?>(),
-            expectedPage,
-            expectedPageSize,
+            page,
+            limit,
+            includeTotal,
             Arg.Any<CancellationToken>())
-            .Returns(([], 0));
+            .Returns(([], totalCount));
 
         // Act
         var result = await CreateSut().ExecuteAsync(
-            new ListTemplatesQuery(Page: requestedPage, PageSize: requestedPageSize), CancellationToken.None);
+            new ListTemplatesQuery(Page: page, Limit: limit, IncludeTotal: includeTotal), CancellationToken.None);
 
         // Assert
-        result.Page.Should().Be(expectedPage);
-        result.PageSize.Should().Be(expectedPageSize);
+        result.Page.Should().Be(page);
+        result.Limit.Should().Be(limit);
+        result.TotalCount.Should().Be(totalCount);
         await _templateQueryService.Received(1).ListPagedAsync(
             null,
             null,
             null,
-            expectedPage,
-            expectedPageSize,
+            page,
+            limit,
+            includeTotal,
             Arg.Any<CancellationToken>());
     }
 }

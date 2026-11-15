@@ -43,13 +43,14 @@ public sealed class DocumentArtifactControllerTests
     }
 
     [Fact]
-    public async Task GetDownloadUrl_ShouldReturnPresignedUrlEnvelope()
+    public async Task GetDownloadUrl_ShouldReturnGatewayUrlEnvelope()
     {
         // Arrange
         var sut = CreateSut();
         var logId = Guid.NewGuid();
+        var expectedUrl = $"/api/v1/generation-logs/{logId:D}/artifact/file";
         _getLogDownloadUrlUseCase.ExecuteAsync(Arg.Is<GetLogDownloadUrlQuery>(q => q.LogId == logId), Arg.Any<CancellationToken>())
-            .Returns(new DownloadUrlResultDto("https://minio/outputs/doc.pdf", 3600));
+            .Returns(new DownloadUrlResultDto(expectedUrl, 3600));
 
         // Act
         var result = await sut.GetDownloadUrl(logId, CancellationToken.None);
@@ -57,7 +58,7 @@ public sealed class DocumentArtifactControllerTests
         // Assert
         var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
         var body = okResult.Value.Should().BeOfType<ApiResponse<DownloadUrlResultDto>>().Subject;
-        body.Data.Url.Should().Be("https://minio/outputs/doc.pdf");
+        body.Data.Url.Should().Be(expectedUrl);
         body.Data.ExpiresInSeconds.Should().Be(3600);
     }
 
@@ -80,18 +81,22 @@ public sealed class DocumentArtifactControllerTests
         fileResult.ContentType.Should().Be("application/pdf");
         fileResult.FileDownloadName.Should().Be("sample.pdf");
         fileResult.FileStream.Should().BeSameAs(stream);
+        fileResult.EnableRangeProcessing.Should().BeTrue();
+        sut.Response.Headers.CacheControl.ToString().Should().Be("private, no-store");
+        sut.Response.Headers.XContentTypeOptions.ToString().Should().Be("nosniff");
     }
 
     [Fact]
-    public async Task DownloadByLogId_WhenAcceptHeaderIsJson_ShouldReturnPresignedUrlEnvelope()
+    public async Task DownloadByLogId_WhenAcceptHeaderIsJson_ShouldReturnGatewayUrlEnvelope()
     {
         // Arrange
         var sut = CreateSut();
         sut.Request.Headers.Accept = "application/json";
         var logId = Guid.NewGuid();
+        var expectedUrl = $"/api/v1/generation-logs/{logId:D}/artifact/file";
 
         _getLogDownloadUrlUseCase.ExecuteAsync(Arg.Is<GetLogDownloadUrlQuery>(q => q.LogId == logId), Arg.Any<CancellationToken>())
-            .Returns(new DownloadUrlResultDto("https://minio/outputs/doc.pdf", 3600));
+            .Returns(new DownloadUrlResultDto(expectedUrl, 3600));
 
         // Act
         var result = await sut.DownloadByLogId(logId, CancellationToken.None);
@@ -99,7 +104,7 @@ public sealed class DocumentArtifactControllerTests
         // Assert
         var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
         var body = okResult.Value.Should().BeOfType<ApiResponse<DownloadUrlResultDto>>().Subject;
-        body.Data.Url.Should().Be("https://minio/outputs/doc.pdf");
+        body.Data.Url.Should().Be(expectedUrl);
     }
 
     [Fact]

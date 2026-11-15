@@ -9,10 +9,11 @@ public sealed class GenerationLogQueryService(AppDbContext context) : IGeneratio
 {
     private readonly AppDbContext _context = context;
 
-    public async Task<(IReadOnlyList<GenerationLogDto> Items, int TotalCount)> ListPagedAsync(
+    public async Task<(IReadOnlyList<GenerationLogDto> Items, long? TotalCount)> ListPagedAsync(
         string? callerApp,
         int page,
         int limit,
+        bool includeTotal,
         CancellationToken ct)
     {
         IQueryable<GenerationLog> query = _context.GenerationLogs.AsNoTracking();
@@ -23,10 +24,10 @@ public sealed class GenerationLogQueryService(AppDbContext context) : IGeneratio
             query = query.Where(l => l.CallerApp == trimmedCallerApp);
         }
 
-        var totalCount = await query.CountAsync(ct);
+        long? totalCount = includeTotal ? await query.LongCountAsync(ct) : null;
 
         var safePage = page < 1 ? 1 : page;
-        var safeLimit = limit < 1 ? 20 : Math.Min(limit, 200);
+        var safeLimit = limit < 1 ? 50 : Math.Min(limit, 100);
 
         var rows = await query
             .OrderByDescending(l => l.CreatedAt)

@@ -165,8 +165,8 @@ public sealed partial class ApiKeyVerifier(
         await using var conn = await source.OpenConnectionAsync(ct);
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = """
-            SELECT "Id", "ProjectId", "CallerApp", "Scope", "IsActive",
-                   "ExpiresAt", "SecretHashBytes", "KeyHash"
+            SELECT id, project_id, caller_app, scope, is_active,
+                   expires_at, secret_hash_bytes, key_hash
             FROM public.fn_resolve_api_key_for_auth(@p_key_id, @p_legacy_hash);
             """;
         cmd.Parameters.Add(new NpgsqlParameter("p_key_id", NpgsqlDbType.Text) { Value = (object?)parsedKeyId ?? DBNull.Value });

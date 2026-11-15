@@ -6,7 +6,7 @@ namespace SmkDoc.Application.Common.Interfaces;
 /// <summary>
 /// Unified channel-agnostic ambient Single Source of Truth for the active tenant/project
 /// and caller metadata in the current execution scope.
-/// Hydrated once at the HTTP perimeter whether authenticated via X-API-Key (M2M) or Bearer JWT (Web Studio).
+/// Hydrated once at the HTTP perimeter whether authenticated via Authorization: ApiKey (M2M) or Bearer JWT (Web Studio).
 /// </summary>
 public interface ICurrentProjectContext
 {

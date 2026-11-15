@@ -48,7 +48,7 @@ public static class PersistenceServiceExtensions
         services.AddDbContext<AppDbContext>((sp, options) =>
         {
             var dataSource = sp.GetRequiredService<NpgsqlDataSource>();
-            options.UseNpgsql(dataSource, sqlOptions => sqlOptions.EnableRetryOnFailure(
+            options.UsePostgreSqlConventions(dataSource, sqlOptions => sqlOptions.EnableRetryOnFailure(
                 maxRetryCount: 5,
                 maxRetryDelay: TimeSpan.FromSeconds(10),
                 errorCodesToAdd: null));

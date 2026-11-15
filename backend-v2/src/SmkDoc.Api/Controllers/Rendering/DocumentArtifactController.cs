@@ -41,7 +41,7 @@ public sealed class DocumentArtifactController(
         var result = await downloadLogDocumentUseCase.ExecuteAsync(query, ct);
         Response.Headers.CacheControl = "private, no-store";
         Response.Headers.XContentTypeOptions = "nosniff";
-        return File(result.Stream, result.ContentType, result.FileName);
+        return File(result.Stream, result.ContentType, result.FileName, enableRangeProcessing: result.Stream.CanSeek);
     }
 
     /// <summary>Transitional dual-mode download for backward compatibility with legacy clients.</summary>

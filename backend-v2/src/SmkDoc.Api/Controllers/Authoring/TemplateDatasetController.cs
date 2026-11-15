@@ -13,7 +13,7 @@ namespace SmkDoc.Api.Controllers.Authoring;
 
 /// <summary>
 /// Template Datasets Controller: link and unlink data queries to templates.
-/// Auth: Channel A (X-API-Key via ApiKeyMiddleware) or Channel B (Bearer JWT).
+/// Auth: Channel A (Authorization: ApiKey) or Channel B (Portal Bearer JWT) via ProjectContextMiddleware.
 /// </summary>
 [ApiController]
 [Route("api/v1/templates/{id:guid}/datasets")]

@@ -52,12 +52,12 @@ Request headers are marked (req), response headers (res). `Project-Id` (req) is 
 | `PUT` | `/api/v1/{resources}/{id}` | `200` | `ApiResponse<T>` | `If-Match` (req, required), `ETag` (res) |
 | `DELETE` | `/api/v1/{resources}/{id}` | `204` | empty | `If-Match` (req, required) |
 | `POST` | `/api/v1/{resources}/{id}:{verb}` (e.g. `:publish`, `:deactivate`, `:rollback`) | `200` | `ApiResponse<T>` | `If-Match` (req, required), `ETag` (res) |
-| `GET` | `/api/v1/templates/{id}/source` or `/api/v1/documents/{id}/content` | `200` | binary | `Content-Disposition` (res), `Content-Type` (res) |
-| `POST` | `/api/v1/documents` (synchronous generation, §3.6) | `200` | binary | `Idempotency-Key` (req, required), `Document-Id` (res) |
+| `GET` | `/api/v1/templates/{id}/source` or `/api/v1/generation-logs/{generationId}/artifact/file` | `200` | binary | `Content-Disposition` (res), `Content-Type` (res), `Cache-Control: private, no-store` (res) |
+| `POST` | `/api/v1/documents` (synchronous generation, §3.6) | `201` | `ApiResponse<GenerateDocumentResultDto>` | `Idempotency-Key` (req, optional/supported), `Location` (res) |
 | `POST` | `/api/v1/document-jobs` (asynchronous generation, §3.6) | `202` | `ApiResponse<DocumentJobDto>` | `Idempotency-Key` (req, required), `Location` (res), `Retry-After` (res) |
 | `GET` | `/api/v1/document-jobs/{id}` | `200` | `ApiResponse<DocumentJobDto>` | `Retry-After` (res) while not terminal |
 | `GET` | `/api/v1/document-jobs/{id}/result` | `200` / `303` | binary / redirect to document content | |
-| `GET` | `/api/v1/document-jobs` | `200` | `PagedApiResponse<DocumentJobDto>` (cursor) | |
+| `GET` | `/api/v1/document-jobs` | `200` | `PagedApiResponse<DocumentJobSummaryDto>` (`?page=&limit=` or `?cursor=&limit=`) | |
 | `POST` | `/api/v1/document-jobs/{id}:cancel` , `:retry` | `200` | `ApiResponse<DocumentJobDto>` | |
 | `POST` | `/api/v1/data-connections/{id}/connectivity-checks` | `200` | `ApiResponse<ConnectivityCheckResultDto>` | |
 | `POST` | `/api/v1/management/projects` (Control Plane) | `201` | `ApiResponse<ProjectResultDto>` | no `Project-Id`; SuperAdmin only |
@@ -165,7 +165,7 @@ sequenceDiagram
 | Storage | PostgreSQL table with unique `(project_id, scope, key)`; Redis may cache lookups but is never the only record. |
 | Fingerprint | A hash of method, route and body is stored. Same key with a different fingerprint → `422 IDEMPOTENCY_KEY_REUSED`. |
 | In-flight duplicate | `409 IDEMPOTENCY_IN_PROGRESS` with `Retry-After`. |
-| Replay | Replays the stored **result reference and status**, not binary bytes: `POST /document-jobs` replays `202` with the same `Location`; `POST /documents` replays `200` by streaming the already stored document (found through the stored `documentId`) or `409`/`410` if it is gone. |
+| Replay | Replays the stored **result reference and status**, not raw binary re-rendering: `POST /document-jobs` replays `202` with the same `Location`; `POST /documents` replays `201 Created` `ApiResponse<GenerateDocumentResultDto>` carrying `generationId` and the Gateway stream `url` (or `409`/`410` if expired). |
 | TTL | 24 hours (configuration). |
 | Not applicable | `PUT` and `DELETE` are idempotent by method semantics plus `If-Match`; a key is neither needed nor accepted. |
 
@@ -339,7 +339,20 @@ An **error code registry** (`ErrorCodes` constants, generated into the documenta
 ```json
 { "templateSlug": "standard-invoice", "version": null, "format": "pdf", "data": { "customer": { "taxId": "0105500000000" } } }
 ```
-Success `200` streams the artifact: `Content-Type` of the format, `Content-Disposition: attachment; filename*=UTF-8''<name>`, `Document-Id: <guid>`, `Cache-Control: private, no-store`, `X-Content-Type-Options: nosniff`; `Content-Length` when known. `format` ∈ `pdf | docx | xlsx` (an `Accept` header must agree with it, otherwise `406`). `version: null` means the latest published version. Errors are ProblemDetails (`404` template, `422` payload/schema, `429` quota/rate, `413` payload too large, `502/503/504` upstream). The response is committed only after rendering has succeeded (01 §1.4); the caller never receives a truncated `200`.
+Success `201 Created` returns `ApiResponse<GenerateDocumentResultDto>` JSON metadata (`Location: /api/v1/generation-logs/{generationId}/artifact/file`):
+```json
+{
+  "data": {
+    "documentId": "0192e2c8-72b1-7000-8000-111111111111",
+    "generationId": "0192e2c8-72b1-7000-8000-333333333333",
+    "url": "/api/v1/generation-logs/0192e2c8-72b1-7000-8000-333333333333/artifact/file",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "sizeBytes": 42180,
+    "expiresAt": "2026-11-17T00:00:00Z"
+  }
+}
+```
+The returned `url` is a relative Zero-Trust API Gateway path (never a raw internal MinIO presigned URL). Callers fetch the binary payload via `GET /api/v1/generation-logs/{generationId}/artifact/file` (`Cache-Control: private, no-store`, `X-Content-Type-Options: nosniff`, `Content-Disposition: attachment; filename*=UTF-8''<name>`). Temporary rendered artifacts expire after `24 hours` (`expiresAt`) and are swept every `30 minutes` by `DocumentRetentionWorker`. `format` ∈ `pdf | docx | xlsx`; `version: null` selects the latest published version. Errors use ProblemDetails (`404` template, `422` payload/schema, `429` quota/rate, `413` payload too large, `502/503/504` upstream). Metadata is committed only after rendering and MinIO upload succeed (01 §1.4).
 
 **Asynchronous jobs (Pipeline C): `POST /api/v1/document-jobs`**
 ```json

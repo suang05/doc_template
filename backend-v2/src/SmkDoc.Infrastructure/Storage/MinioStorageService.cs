@@ -14,7 +14,6 @@ namespace SmkDoc.Infrastructure.Storage;
 public sealed partial class MinioStorageService : IStorageService, IDisposable
 {
     private readonly IMinioClient _client;
-    private readonly IMinioClient _publicClient;
     private readonly ILogger<MinioStorageService> _logger;
     private readonly ConcurrentDictionary<string, bool> _initializedBuckets = new(StringComparer.Ordinal);
 
@@ -24,21 +23,6 @@ public sealed partial class MinioStorageService : IStorageService, IDisposable
         var s = settings.Value;
 
         _client = CreateClient(s.Endpoint, s.AccessKey, s.SecretKey, s.Secure);
-
-        try
-        {
-            // Public client for signing pre-signed URLs
-            string publicEp = s.PublicEndpoint
-                .Replace("http://", "", StringComparison.OrdinalIgnoreCase)
-                .Replace("https://", "", StringComparison.OrdinalIgnoreCase);
-            bool publicSecure = s.PublicEndpoint.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
-            _publicClient = CreateClient(publicEp, s.AccessKey, s.SecretKey, publicSecure);
-        }
-        catch
-        {
-            _client.Dispose();
-            throw;
-        }
     }
 
     private static IMinioClient CreateClient(string endpoint, string accessKey, string secretKey, bool secure)
@@ -71,10 +55,6 @@ public sealed partial class MinioStorageService : IStorageService, IDisposable
     public void Dispose()
     {
         _client.Dispose();
-        if (!ReferenceEquals(_publicClient, _client))
-        {
-            _publicClient.Dispose();
-        }
     }
 
     public async Task<string> UploadAsync(string bucket, string objectName, Stream data, string contentType, CancellationToken ct)
@@ -163,28 +143,6 @@ public sealed partial class MinioStorageService : IStorageService, IDisposable
         {
             await spool.DisposeAsync();
             throw;
-        }
-    }
-
-    public async Task<string> GetPresignedUrlAsync(string bucket, string objectName, TimeSpan expiry, CancellationToken ct)
-    {
-        try
-        {
-            int expirySeconds = (int)expiry.TotalSeconds;
-            var args = new PresignedGetObjectArgs()
-                .WithBucket(bucket)
-                .WithObject(objectName)
-                .WithExpiry(expirySeconds);
-
-            return await _publicClient.PresignedGetObjectAsync(args);
-        }
-        catch (MinioException ex)
-        {
-            throw new ExternalServiceException("MinIO", $"Failed to generate pre-signed URL for '{objectName}' in bucket '{bucket}'.", ex);
-        }
-        catch (HttpRequestException ex)
-        {
-            throw new ExternalServiceException("MinIO", $"Network failure generating pre-signed URL for '{objectName}' in bucket '{bucket}'.", ex);
         }
     }
 

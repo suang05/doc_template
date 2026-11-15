@@ -14,18 +14,6 @@ public sealed class GetTemplateByIdUseCase(ITemplateRepository templateRepo) : I
         var template = await templateRepo.GetByIdAsync(new TemplateId(query.Id), ct)
             ?? throw new NotFoundException($"Template '{query.Id}' was not found.");
 
-        return new TemplateResultDto(
-            template.Id.Value,
-            template.ProjectId.Value,
-            template.Name,
-            template.Slug,
-            template.Category,
-            template.IsActive,
-            template.CurrentVersionId,
-            template.CurrentVersion?.FileFormat?.Name,
-            template.CreatedAt,
-            template.UpdatedAt,
-            template.Version
-        );
+        return template.ToResultDto();
     }
 }

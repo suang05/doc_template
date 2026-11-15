@@ -279,4 +279,22 @@ public sealed class GlobalExceptionHandlerTests
         httpContext.Response.StatusCode.Should().Be(499);
         problemDetails.Should().BeNull();
     }
+
+    [Fact]
+    public async Task TryHandleAsync_WhenUpstreamOperationCanceledException_ShouldReturn504GatewayTimeout()
+    {
+        // Arrange
+        var ex = new OperationCanceledException("Gotenberg HTTP request timed out");
+
+        // Act
+        var (handled, httpContext, problemDetails) = await ExecuteHandlerAsync(ex);
+
+        // Assert
+        handled.Should().BeTrue();
+        httpContext.Response.StatusCode.Should().Be(StatusCodes.Status504GatewayTimeout);
+        problemDetails.Should().NotBeNull();
+        problemDetails!.Status.Should().Be(StatusCodes.Status504GatewayTimeout);
+        problemDetails.Extensions["errorCode"].Should().Be(ErrorCodes.GatewayTimeout);
+        problemDetails.Detail.Should().Be("The upstream operation timed out.");
+    }
 }

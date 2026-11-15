@@ -25,7 +25,7 @@ public sealed record ProjectResultDto(
 /// </summary>
 public sealed record ProjectPagedResultDto(
     IReadOnlyList<ProjectResultDto> Items,
-    int TotalCount,
+    long? TotalCount,
     int Page,
-    int PageSize
+    int Limit
 );

@@ -102,7 +102,7 @@ public sealed partial class OutboxRelayWorker(
         await using var conn = await dataSource.OpenConnectionAsync(ct);
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = """
-            SELECT "Id", "ProjectId", "EventType", "PayloadJson", "OccurredAt", "Attempts"
+            SELECT id, project_id, event_type, payload_json, occurred_at, attempts
             FROM public.fn_claim_outbox_messages(@p_worker_id, @p_batch_size, @p_lease_seconds);
             """;
         cmd.Parameters.Add(new NpgsqlParameter("p_worker_id", NpgsqlDbType.Text) { Value = _workerId });
@@ -171,11 +171,11 @@ public sealed partial class OutboxRelayWorker(
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = """
             UPDATE public.outbox_messages
-            SET "ProcessedAt" = @p_now,
-                "LockedUntil" = NULL,
-                "LockedBy" = NULL,
-                "LastError" = NULL
-            WHERE "Id" = @p_id;
+            SET processed_at = @p_now,
+                locked_until = NULL,
+                locked_by = NULL,
+                last_error = NULL
+            WHERE id = @p_id;
             """;
         cmd.Parameters.Add(new NpgsqlParameter("p_id", NpgsqlDbType.Uuid) { Value = messageId });
         cmd.Parameters.Add(new NpgsqlParameter("p_now", NpgsqlDbType.TimestampTz) { Value = timeProvider.GetUtcNow() });
@@ -196,11 +196,11 @@ public sealed partial class OutboxRelayWorker(
             LogDeadLettered(logger, ex, msg.Id, msg.EventType, msg.Attempts);
             cmd.CommandText = """
                 UPDATE public.outbox_messages
-                SET "DeadLetteredAt" = @p_now,
-                    "LockedUntil" = NULL,
-                    "LockedBy" = NULL,
-                    "LastError" = @p_error
-                WHERE "Id" = @p_id;
+                SET dead_lettered_at = @p_now,
+                    locked_until = NULL,
+                    locked_by = NULL,
+                    last_error = @p_error
+                WHERE id = @p_id;
                 """;
             cmd.Parameters.Add(new NpgsqlParameter("p_id", NpgsqlDbType.Uuid) { Value = msg.Id });
             cmd.Parameters.Add(new NpgsqlParameter("p_now", NpgsqlDbType.TimestampTz) { Value = now });
@@ -214,11 +214,11 @@ public sealed partial class OutboxRelayWorker(
 
             cmd.CommandText = """
                 UPDATE public.outbox_messages
-                SET "AvailableAt" = @p_available_at,
-                    "LockedUntil" = NULL,
-                    "LockedBy" = NULL,
-                    "LastError" = @p_error
-                WHERE "Id" = @p_id;
+                SET available_at = @p_available_at,
+                    locked_until = NULL,
+                    locked_by = NULL,
+                    last_error = @p_error
+                WHERE id = @p_id;
                 """;
             cmd.Parameters.Add(new NpgsqlParameter("p_id", NpgsqlDbType.Uuid) { Value = msg.Id });
             cmd.Parameters.Add(new NpgsqlParameter("p_available_at", NpgsqlDbType.TimestampTz) { Value = nextAvailable });

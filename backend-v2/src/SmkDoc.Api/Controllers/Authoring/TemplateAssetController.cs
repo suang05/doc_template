@@ -11,7 +11,7 @@ namespace SmkDoc.Api.Controllers.Authoring;
 
 /// <summary>
 /// Template asset and validation operations: file download, placeholder extraction, and payload dry-run validation.
-/// Auth: Channel A (X-API-Key) or Channel B (Portal Bearer JWT) via ProjectContextMiddleware.
+/// Auth: Channel A (Authorization: ApiKey) or Channel B (Portal Bearer JWT) via ProjectContextMiddleware.
 /// </summary>
 [ApiController]
 [Route("api/v1/templates")]

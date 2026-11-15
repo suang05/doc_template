@@ -10,7 +10,7 @@ namespace SmkDoc.Api.Controllers.Authoring;
 
 /// <summary>
 /// Template Versioning — list immutable versions and rollback to previous version.
-/// Auth: Channel A (X-API-Key via ApiKeyMiddleware) or Channel B (Bearer JWT).
+/// Auth: Channel A (Authorization: ApiKey) or Channel B (Portal Bearer JWT) via ProjectContextMiddleware.
 /// </summary>
 [ApiController]
 [Route("api/v1/templates/{id:guid}")]

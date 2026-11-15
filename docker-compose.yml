@@ -54,6 +54,8 @@ services:
     command:
       - "gotenberg"
       - "--api-port=3000"
+      - "--chromium-disable-javascript=true"
+      - "--chromium-deny-list=^file:///.*"
       
   db:
     image: postgres:15-alpine

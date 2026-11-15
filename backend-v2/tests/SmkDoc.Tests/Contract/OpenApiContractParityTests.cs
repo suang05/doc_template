@@ -16,7 +16,8 @@ public sealed class OpenApiContractParityTests
 
         var schemes = root.GetProperty("components").GetProperty("securitySchemes");
         schemes.TryGetProperty("ApiKey", out var apiKeyScheme).Should().BeTrue("ApiKey security scheme must exist");
-        apiKeyScheme.GetProperty("name").GetString().Should().Be("X-API-Key");
+        apiKeyScheme.GetProperty("type").GetString().Should().Be("http");
+        apiKeyScheme.GetProperty("scheme").GetString().Should().Be("apikey");
 
         schemes.TryGetProperty("Bearer", out var bearerScheme).Should().BeTrue("Bearer JWT security scheme must exist");
         bearerScheme.GetProperty("scheme").GetString().Should().Be("bearer");

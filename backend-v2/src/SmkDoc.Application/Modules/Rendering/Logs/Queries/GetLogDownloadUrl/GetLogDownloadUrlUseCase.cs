@@ -1,11 +1,9 @@
-using SmkDoc.Application.Common;
 using SmkDoc.Application.Modules.Rendering.Logs.DTOs;
 
 namespace SmkDoc.Application.Modules.Rendering.Logs.Queries.GetLogDownloadUrl;
 
 public sealed class GetLogDownloadUrlUseCase(
-    IGenerationLogRepository logRepo,
-    IStorageService storageService) : IUseCase<GetLogDownloadUrlQuery, DownloadUrlResultDto>
+    IGenerationLogRepository logRepo) : IUseCase<GetLogDownloadUrlQuery, DownloadUrlResultDto>
 {
     public async Task<DownloadUrlResultDto> ExecuteAsync(GetLogDownloadUrlQuery query, CancellationToken ct)
     {
@@ -15,7 +13,6 @@ public sealed class GetLogDownloadUrlUseCase(
         if (string.IsNullOrWhiteSpace(log.OutputKey))
             throw new NotFoundException("No output file is associated with this log entry.");
 
-        var url = await storageService.GetPresignedUrlAsync(StorageBuckets.Outputs, log.OutputKey, TimeSpan.FromHours(1), ct);
-        return new DownloadUrlResultDto(url, 3600);
+        return new DownloadUrlResultDto($"/api/v1/generation-logs/{log.Id:D}/artifact/file", 3600);
     }
 }

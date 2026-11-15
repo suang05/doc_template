@@ -41,7 +41,7 @@ public sealed class UserManagementController(
     /// <summary>Activate or deactivate a global user account. SuperAdmin only.</summary>
     [HttpPatch("{userId:guid}/status")]
     [HttpPatch("/api/v1/users/{userId:guid}/status")]
-    [DeprecatedEndpoint("/api/v1/users/")]
+    [DeprecatedEndpoint("/api/v1/users/", "/api/v1/management/users")]
     [ProducesResponseType(typeof(ApiResponse<UserResultDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

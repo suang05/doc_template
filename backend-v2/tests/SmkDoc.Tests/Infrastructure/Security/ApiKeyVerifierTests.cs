@@ -64,6 +64,46 @@ public sealed class ApiKeyVerifierTests
     }
 
     [Theory]
+    [InlineData("smk_live")]
+    [InlineData("smk_test")]
+    public void CredentialGenerator_TryParseAndHashStructuredKey_WhenValidStructuredKey_ExtractsPartsAndHmacDigest(string prefix)
+    {
+        var sut = new ApiKeyCredentialGenerator(Options.Create(new ApiKeyOptions { ApiKeyPepper = ValidPepper }));
+        const string keyId = "AbCdEf123456";
+        const string secret = "SecretTokenValue1234567890ABCD";
+        string rawKey = $"{prefix}_{keyId}_{secret}";
+
+        bool parsed = sut.TryParseAndHashStructuredKey(rawKey, out var credential);
+
+        parsed.Should().BeTrue();
+        credential.Should().NotBeNull();
+        credential!.KeyPrefix.Should().Be(prefix);
+        credential.KeyId.Should().Be(keyId);
+        credential.KeySuffix.Should().Be(secret[^ApiKey.StructuredKeySuffixLength..]);
+        credential.PlainTextKey.Should().Be(rawKey);
+
+        byte[] expectedDigest = HMACSHA256.HashData(
+            Encoding.UTF8.GetBytes(ValidPepper),
+            Encoding.UTF8.GetBytes(secret));
+        credential.SecretHash.ToArray().Should().Equal(expectedDigest);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("dev-smk-key-2026")]
+    [InlineData("smk_dev_legacy_secret_value")]
+    public void CredentialGenerator_TryParseAndHashStructuredKey_WhenLegacyOrInvalid_ReturnsFalse(string rawKey)
+    {
+        var sut = new ApiKeyCredentialGenerator(Options.Create(new ApiKeyOptions { ApiKeyPepper = ValidPepper }));
+
+        bool parsed = sut.TryParseAndHashStructuredKey(rawKey, out var credential);
+
+        parsed.Should().BeFalse();
+        credential.Should().BeNull();
+    }
+
+    [Theory]
     [InlineData("")]
     [InlineData("   ")]
     public async Task VerifyAsync_WhenBlankKey_ReturnsNull(string rawKey)

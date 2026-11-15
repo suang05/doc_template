@@ -26,15 +26,16 @@ public sealed class ListProjectsUseCaseTests
                 Arg.Any<string?>(),
                 1,
                 20,
+                false,
                 Arg.Any<CancellationToken>())
-            .Returns(([projectDto], 1));
+            .Returns(([projectDto], (long?)null));
 
         // Act
         ProjectPagedResultDto result = await CreateSut().ExecuteAsync(new ListProjectsQuery(userId), CancellationToken.None);
 
         // Assert
         result.Should().NotBeNull();
-        result.TotalCount.Should().Be(1);
+        result.TotalCount.Should().BeNull();
         result.Items.Should().HaveCount(1);
         result.Items[0].Id.Should().Be(projectId);
         result.Items[0].Name.Should().Be("Proj 1");
@@ -45,6 +46,7 @@ public sealed class ListProjectsUseCaseTests
             null,
             1,
             20,
+            false,
             Arg.Any<CancellationToken>());
     }
 
@@ -61,56 +63,59 @@ public sealed class ListProjectsUseCaseTests
                 "invoice",
                 2,
                 10,
+                true,
                 Arg.Any<CancellationToken>())
-            .Returns(([], 0));
+            .Returns(([], (long?)0L));
 
         // Act
-        var query = new ListProjectsQuery(userId, "invoice", 2, 10);
+        var query = new ListProjectsQuery(userId, "invoice", 2, 10, IncludeTotal: true);
         ProjectPagedResultDto result = await CreateSut().ExecuteAsync(query, CancellationToken.None);
 
         // Assert
         result.Page.Should().Be(2);
-        result.PageSize.Should().Be(10);
-        result.TotalCount.Should().Be(0);
+        result.Limit.Should().Be(10);
+        result.TotalCount.Should().Be(0L);
         result.Items.Should().BeEmpty();
     }
 
     [Theory]
-    [InlineData(0, 50000, 1, 100)]
-    [InlineData(-2, -10, 1, 1)]
-    [InlineData(4, 25, 4, 25)]
-    public async Task ExecuteAsync_WithOutOfBoundsPagination_ClampsPageAndPageSize(
-        int requestedPage,
-        int requestedPageSize,
-        int expectedPage,
-        int expectedPageSize)
+    [InlineData(1, 20, false)]
+    [InlineData(4, 25, true)]
+    public async Task ExecuteAsync_ForwardsPageLimitAndIncludeTotal(
+        int page,
+        int limit,
+        bool includeTotal)
     {
         // Arrange
         var now = _timeProvider.GetUtcNow();
         var userId = Guid.NewGuid();
+        long? totalCount = includeTotal ? 12L : null;
 
         _projectQueryService.ListAccessiblePagedAsync(
                 new UserId(userId),
                 now,
                 null,
-                expectedPage,
-                expectedPageSize,
+                page,
+                limit,
+                includeTotal,
                 Arg.Any<CancellationToken>())
-            .Returns(([], 0));
+            .Returns(([], totalCount));
 
         // Act
         ProjectPagedResultDto result = await CreateSut().ExecuteAsync(
-            new ListProjectsQuery(userId, null, requestedPage, requestedPageSize), CancellationToken.None);
+            new ListProjectsQuery(userId, null, page, limit, includeTotal), CancellationToken.None);
 
         // Assert
-        result.Page.Should().Be(expectedPage);
-        result.PageSize.Should().Be(expectedPageSize);
+        result.Page.Should().Be(page);
+        result.Limit.Should().Be(limit);
+        result.TotalCount.Should().Be(totalCount);
         await _projectQueryService.Received(1).ListAccessiblePagedAsync(
             new UserId(userId),
             now,
             null,
-            expectedPage,
-            expectedPageSize,
+            page,
+            limit,
+            includeTotal,
             Arg.Any<CancellationToken>());
     }
 }

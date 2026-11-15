@@ -7,15 +7,13 @@ public sealed class ListControlPlaneProjectsUseCase(
 {
     public async Task<ProjectPagedResultDto> ExecuteAsync(ListControlPlaneProjectsQuery query, CancellationToken ct)
     {
-        int page = Math.Max(1, query.Page);
-        int pageSize = Math.Clamp(query.PageSize, 1, 100);
-
         var (items, totalCount) = await projectQueryService.ListAllControlPlanePagedAsync(
             query.SearchTerm,
-            page,
-            pageSize,
+            query.Page,
+            query.Limit,
+            query.IncludeTotal,
             ct);
 
-        return new ProjectPagedResultDto(items, totalCount, page, pageSize);
+        return new ProjectPagedResultDto(items, totalCount, query.Page, query.Limit);
     }
 }

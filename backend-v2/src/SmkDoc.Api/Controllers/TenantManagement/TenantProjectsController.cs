@@ -36,12 +36,13 @@ public sealed class TenantProjectsController(
     public async Task<IActionResult> ListAllTenants(
         [FromQuery] string? search = null,
         [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 20,
+        [FromQuery] int limit = 20,
+        [FromQuery] bool includeTotal = false,
         CancellationToken ct = default)
     {
-        var query = new ListControlPlaneProjectsQuery(search, page, pageSize);
+        var query = new ListControlPlaneProjectsQuery(search, page, limit, includeTotal);
         var result = await listControlPlaneProjectsUseCase.ExecuteAsync(query, ct);
-        return Ok(new PagedApiResponse<ProjectResultDto>(result.Items, result.TotalCount, result.Page, result.PageSize));
+        return Ok(new PagedApiResponse<ProjectResultDto>(result.Items, result.TotalCount, result.Page, result.Limit));
     }
 
     /// <summary>Activate a suspended tenant project.</summary>

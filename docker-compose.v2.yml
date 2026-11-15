@@ -48,6 +48,8 @@ services:
     command:
       - "gotenberg"
       - "--api-port=3000"
+      - "--chromium-disable-javascript=true"
+      - "--chromium-deny-list=^file:///.*"
     networks:
       - gotenberg-net
     healthcheck:

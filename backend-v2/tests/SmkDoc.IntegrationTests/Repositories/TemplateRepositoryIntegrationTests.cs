@@ -20,7 +20,7 @@ public sealed class TemplateRepositoryIntegrationTests : IClassFixture<PostgreSq
     {
         // Arrange
         var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseNpgsql(_fixture.ConnectionString)
+            .UsePostgreSqlConventions(_fixture.ConnectionString)
             .Options;
 
         using var dbContext = new AppDbContext(options);

@@ -6,13 +6,12 @@ namespace SmkDoc.Tests.Application.Modules.Rendering.Logs.Queries.GetLogDownload
 public sealed class GetLogDownloadUrlUseCaseTests
 {
     private readonly IGenerationLogRepository _logRepo = Substitute.For<IGenerationLogRepository>();
-    private readonly IStorageService _storage = Substitute.For<IStorageService>();
 
     private GetLogDownloadUrlUseCase CreateSut() =>
-        new(_logRepo, _storage);
+        new(_logRepo);
 
     [Fact]
-    public async Task ExecuteAsync_WhenLogExists_ReturnsPresignedUrl()
+    public async Task ExecuteAsync_WhenLogExists_ReturnsGatewayArtifactUrl()
     {
         // Arrange
         var logId = Guid.NewGuid();
@@ -21,14 +20,11 @@ public sealed class GetLogDownloadUrlUseCaseTests
         _logRepo.GetByIdAsync(logId, Arg.Any<CancellationToken>())
             .Returns(log);
 
-        _storage.GetPresignedUrlAsync("outputs", "outputs/doc.pdf", Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>())
-            .Returns("https://minio.sammakorn.co.th/outputs/doc.pdf?token=abc");
-
         // Act
         var result = await CreateSut().ExecuteAsync(new GetLogDownloadUrlQuery(logId), CancellationToken.None);
 
         // Assert
-        result.Url.Should().Contain("minio.sammakorn.co.th");
+        result.Url.Should().Be($"/api/v1/generation-logs/{logId:D}/artifact/file");
         result.ExpiresInSeconds.Should().Be(3600);
     }
 }

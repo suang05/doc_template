@@ -72,7 +72,7 @@ public sealed partial class ValidateTemplateHtmlUseCase(
             await using var pdfStream = await pdfRenderer.RenderHtmlToPdfStreamAsync(html, null, null, ct);
             if (pdfStream is not null)
             {
-                await pdfStream.CopyToAsync(Stream.Null, 81_920, ct);
+                await pdfStream.CopyToAsync(Stream.Null, 65_536, ct);
             }
         }
         catch (Exception ex) when (ex is not OperationCanceledException)

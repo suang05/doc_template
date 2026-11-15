@@ -75,7 +75,7 @@ public sealed class DocumentJobsController(
 
     /// <summary>List document jobs for the active project using keyset cursor pagination.</summary>
     [HttpGet]
-    [ProducesResponseType(typeof(ApiResponse<DocumentJobListResult>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(PagedApiResponse<DocumentJobResultDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> ListJobs(
         [FromQuery] string? status = null,
         [FromQuery] string? cursor = null,
@@ -84,7 +84,9 @@ public sealed class DocumentJobsController(
     {
         var query = new ListDocumentJobsQuery(status, cursor, limit);
         var result = await listJobsUseCase.ExecuteAsync(query, ct);
-        return Ok(new ApiResponse<DocumentJobListResult>(result));
+        return Ok(new PagedApiResponse<DocumentJobResultDto>(
+            result.Items,
+            PaginationMetadata.ForCursor(limit, result.NextCursor)));
     }
 
     /// <summary>Get the current status and version metadata of a document job.</summary>

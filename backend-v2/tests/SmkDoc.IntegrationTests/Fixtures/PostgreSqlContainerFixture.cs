@@ -88,7 +88,7 @@ public sealed class PostgreSqlContainerFixture : IAsyncLifetime
     private static async Task MigrateDatabaseAsync(string connectionString)
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseNpgsql(connectionString)
+            .UsePostgreSqlConventions(connectionString)
             .Options;
 
         await using var dbContext = new AppDbContext(options);

@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using NpgsqlTypes;
@@ -6,6 +7,7 @@ using SmkDoc.Application.Modules.IdentityAccess.Security.Helpers;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.TenantManagement;
 using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Infrastructure.Persistence;
@@ -16,56 +18,68 @@ public static partial class DatabaseExtensions
 {
     public static async Task ApplyMigrationsAndSeedAsync(this WebApplication app)
     {
-        using var scope = app.Services.CreateScope();
-        var services = scope.ServiceProvider;
-        var logger = services.GetRequiredService<ILogger<Program>>();
+        var logger = app.Services.GetRequiredService<ILogger<Program>>();
 
         try
         {
-            string? migratorConnectionString = app.Configuration.GetConnectionString("MigratorConnection");
-            string? defaultConnectionString = app.Configuration.GetConnectionString("DefaultConnection")
-                ?? app.Configuration["DATABASE_URL"];
-
-            if (!string.IsNullOrWhiteSpace(migratorConnectionString))
-            {
-                var migratorOptions = new DbContextOptionsBuilder<AppDbContext>()
-                    .UseNpgsql(migratorConnectionString, sql => sql.EnableRetryOnFailure(
-                        maxRetryCount: 5,
-                        maxRetryDelay: TimeSpan.FromSeconds(10),
-                        errorCodesToAdd: null))
-                    .Options;
-
-                await using (var migratorDb = new AppDbContext(migratorOptions))
-                {
-                    await migratorDb.Database.MigrateAsync();
-                }
-
-                await SynchronizeAppRolePasswordAsync(migratorConnectionString, defaultConnectionString, logger);
-            }
-            else
-            {
-                var db = services.GetRequiredService<AppDbContext>();
-                await db.Database.MigrateAsync();
-            }
-
-            await SeedEssentialDataAsync(services, app.Configuration, app.Environment, logger);
+            await InitializeDatabaseAsync(app.Services, app.Configuration, app.Environment, logger);
         }
         catch (System.Data.Common.DbException ex)
         {
             LogDbInitFailed(logger, ex);
+            throw;
         }
         catch (System.Net.Sockets.SocketException ex)
         {
             LogDbInitNetworkError(logger, ex);
+            throw;
         }
         catch (TimeoutException ex)
         {
             LogDbInitTimedOut(logger, ex);
+            throw;
         }
         catch (InvalidOperationException ex)
         {
             LogDbInitConfigError(logger, ex);
+            throw;
         }
+    }
+
+    internal static async Task InitializeDatabaseAsync(
+        IServiceProvider rootServices,
+        IConfiguration configuration,
+        IHostEnvironment environment,
+        ILogger logger)
+    {
+        string? migratorConnectionString = configuration.GetConnectionString("MigratorConnection");
+        string? defaultConnectionString = configuration.GetConnectionString("DefaultConnection")
+            ?? configuration["DATABASE_URL"];
+
+        if (!string.IsNullOrWhiteSpace(migratorConnectionString))
+        {
+            var migratorOptions = new DbContextOptionsBuilder<AppDbContext>()
+                .UsePostgreSqlConventions(migratorConnectionString, sql => sql.EnableRetryOnFailure(
+                    maxRetryCount: 5,
+                    maxRetryDelay: TimeSpan.FromSeconds(10),
+                    errorCodesToAdd: null))
+                .Options;
+
+            await using (var migratorDb = new AppDbContext(migratorOptions))
+            {
+                await migratorDb.Database.MigrateAsync();
+            }
+
+            await SynchronizeAppRolePasswordAsync(migratorConnectionString, defaultConnectionString, logger);
+        }
+        else
+        {
+            using var migrationScope = rootServices.CreateScope();
+            var db = migrationScope.ServiceProvider.GetRequiredService<AppDbContext>();
+            await db.Database.MigrateAsync();
+        }
+
+        await SeedEssentialDataAsync(rootServices, configuration, environment, logger);
     }
 
     private static async Task SynchronizeAppRolePasswordAsync(
@@ -113,27 +127,12 @@ public static partial class DatabaseExtensions
         LogSynchronizedAppRolePassword(logger, defaultBuilder.Username);
     }
 
-    private static async Task SeedEssentialDataAsync(
-        IServiceProvider services,
+    internal static async Task SeedEssentialDataAsync(
+        IServiceProvider rootServices,
         IConfiguration configuration,
         IHostEnvironment environment,
         ILogger logger)
     {
-        var contextSetter = services.GetRequiredService<ICurrentProjectContextSetter>();
-        contextSetter.SetControlPlane("bootstrap");
-
-        var companyRepo = services.GetRequiredService<ICompanyRepository>();
-        var projectRepo = services.GetRequiredService<IProjectRepository>();
-        var userRepository = services.GetRequiredService<IUserRepository>();
-        var userProjectRoleRepository = services.GetRequiredService<IUserProjectRoleRepository>();
-        var apiKeyRepo = services.GetRequiredService<IApiKeyRepository>();
-        var credentialGenerator = services.GetService<IApiKeyCredentialGenerator>();
-        var uow = services.GetRequiredService<IUnitOfWork>();
-        var now = services.GetRequiredService<TimeProvider>().GetUtcNow();
-
-        var company = await EnsureDefaultCompanyAsync(companyRepo, uow, now, logger);
-        var project = await EnsureDefaultProjectAsync(projectRepo, uow, company.Id, now, logger);
-
         string adminEmailValue = configuration["Admin:Email"]
                                  ?? configuration["ADMIN_EMAIL"]
                                  ?? "admin@sammakorn.co.th";
@@ -141,17 +140,50 @@ public static partial class DatabaseExtensions
                                     ?? configuration["ADMIN_PASSWORD"]
                                     ?? "Admin@2026!";
 
-        var passwordHasher = services.GetRequiredService<IPasswordHasher>();
-        var adminUser = await EnsureSuperAdminUserAsync(
-            userRepository, passwordHasher, uow, adminEmailValue, adminPasswordValue, now, logger);
+        var now = rootServices.GetRequiredService<TimeProvider>().GetUtcNow();
 
-        contextSetter.SetProject(project.Id, "bootstrap");
+        Company company;
+        Project project;
+        User adminUser;
 
-        await EnsureSuperAdminProjectRoleAsync(
-            userProjectRoleRepository, uow, project, adminUser, adminEmailValue, now, logger);
+        await using (var controlPlaneScope = rootServices.CreateAsyncScope())
+        {
+            var cpServices = controlPlaneScope.ServiceProvider;
+            var cpSetter = cpServices.GetRequiredService<ICurrentProjectContextSetter>();
+            cpSetter.SetControlPlane("bootstrap");
 
-        await EnsureMasterApiKeyAsync(
-            apiKeyRepo, credentialGenerator, uow, configuration, environment, project.Id, now, logger);
+            var companyRepo = cpServices.GetRequiredService<ICompanyRepository>();
+            var projectRepo = cpServices.GetRequiredService<IProjectRepository>();
+            var userRepository = cpServices.GetRequiredService<IUserRepository>();
+            var passwordHasher = cpServices.GetRequiredService<IPasswordHasher>();
+            var cpUow = cpServices.GetRequiredService<IUnitOfWork>();
+
+            company = await EnsureDefaultCompanyAsync(companyRepo, cpUow, now, logger);
+            project = await EnsureDefaultProjectAsync(projectRepo, cpUow, company.Id, now, logger);
+            adminUser = await EnsureSuperAdminUserAsync(
+                userRepository, passwordHasher, cpUow, adminEmailValue, adminPasswordValue, now, logger);
+        }
+
+        await using (var tenantScope = rootServices.CreateAsyncScope())
+        {
+            var tenantServices = tenantScope.ServiceProvider;
+            var tenantSetter = tenantServices.GetRequiredService<ICurrentProjectContextSetter>();
+            tenantSetter.SetProject(project.Id, "bootstrap");
+
+            var projectQuotaRepo = tenantServices.GetRequiredService<IProjectQuotaRepository>();
+            var userProjectRoleRepository = tenantServices.GetRequiredService<IUserProjectRoleRepository>();
+            var apiKeyRepo = tenantServices.GetRequiredService<IApiKeyRepository>();
+            var credentialGenerator = tenantServices.GetService<IApiKeyCredentialGenerator>();
+            var tenantUow = tenantServices.GetRequiredService<IUnitOfWork>();
+
+            await EnsureDefaultProjectQuotaAsync(projectQuotaRepo, tenantUow, project.Id, now, logger);
+
+            await EnsureSuperAdminProjectRoleAsync(
+                userProjectRoleRepository, tenantUow, project, adminUser, adminEmailValue, now, logger);
+
+            await EnsureMasterApiKeyAsync(
+                apiKeyRepo, credentialGenerator, tenantUow, configuration, environment, project.Id, now, logger);
+        }
 
         LogSeedSummary(logger, company, project, adminUser);
     }
@@ -280,6 +312,25 @@ public static partial class DatabaseExtensions
         return needsUpdate;
     }
 
+    private static async Task EnsureDefaultProjectQuotaAsync(
+        IProjectQuotaRepository projectQuotaRepo,
+        IUnitOfWork uow,
+        ProjectId projectId,
+        DateTimeOffset now,
+        ILogger logger)
+    {
+        var existingQuota = await projectQuotaRepo.GetByProjectIdAsync(projectId, CancellationToken.None);
+        if (existingQuota is not null)
+        {
+            return;
+        }
+
+        var defaultQuota = ProjectQuota.CreateDefault(projectId, now);
+        await projectQuotaRepo.AddAsync(defaultQuota, CancellationToken.None);
+        await uow.CommitAsync(CancellationToken.None);
+        LogCreatedDefaultProjectQuota(logger, projectId.Value);
+    }
+
     private static async Task EnsureSuperAdminProjectRoleAsync(
         IUserProjectRoleRepository userProjectRoleRepository,
         IUnitOfWork uow,
@@ -320,74 +371,133 @@ public static partial class DatabaseExtensions
         ILogger logger)
     {
         string? masterApiKey = configuration["MASTER_API_KEY"] ?? configuration["Security:ApiKey"];
-        if (string.IsNullOrWhiteSpace(masterApiKey) && environment.IsProduction())
+        if (string.IsNullOrWhiteSpace(masterApiKey))
         {
-            throw new InvalidOperationException(
-                "CRITICAL SECURITY ERROR: MASTER_API_KEY or Security:ApiKey must be set in Production.");
-        }
-
-        try
-        {
-            if (string.IsNullOrWhiteSpace(masterApiKey))
+            if (environment.IsProduction())
             {
-                if (credentialGenerator is not null)
-                {
-                    var existingProjectKeys = await apiKeyRepo.ListByProjectAsync(projectId, CancellationToken.None);
-                    if (existingProjectKeys.Any(k => k.IsActive && string.Equals(k.CallerApp, "master", StringComparison.Ordinal)))
-                    {
-                        return;
-                    }
-
-                    var minted = credentialGenerator.MintLiveKey();
-                    var structuredKey = ApiKey.IssueStructured(
-                        projectId,
-                        ApiKeyName.Create("Master Environment Key"),
-                        "master",
-                        minted.KeyPrefix,
-                        minted.KeyId,
-                        minted.KeySuffix,
-                        minted.SecretHash.ToArray(),
-                        ExpirationPolicy.Never,
-                        now);
-
-                    await apiKeyRepo.AddAsync(structuredKey, CancellationToken.None);
-                    await uow.CommitAsync(CancellationToken.None);
-                    LogGeneratedTempDevApiKey(logger);
-                    return;
-                }
-
-                masterApiKey = ApiKeyGenerator.GenerateSecret("smk_dev_");
-                LogGeneratedTempDevApiKey(logger);
+                throw new InvalidOperationException(
+                    "CRITICAL SECURITY ERROR: MASTER_API_KEY or Security:ApiKey must be set in Production.");
             }
 
-            var defaultKeyHash = new Sha256Hash(ApiKeyGenerator.ComputeHash(masterApiKey));
-            var existingKey = await apiKeyRepo.GetByKeyHashAsync(defaultKeyHash, CancellationToken.None);
-            if (existingKey == null)
-            {
-                var keyEntity = ApiKey.Issue(
-                    projectId,
-                    ApiKeyName.Create("Master Environment Key"),
-                    "master",
-                    defaultKeyHash,
-                    ExpirationPolicy.Never,
-                    now);
+            await EnsureDevEphemeralMasterApiKeyAsync(
+                apiKeyRepo, credentialGenerator, uow, projectId, now, logger);
+            return;
+        }
 
-                await apiKeyRepo.AddAsync(keyEntity, CancellationToken.None);
-                await uow.CommitAsync(CancellationToken.None);
-                LogSeededMasterApiKey(logger);
-            }
-        }
-        catch (System.Data.Common.DbException ex)
+        string trimmedMasterKey = masterApiKey.Trim();
+        if (credentialGenerator is not null &&
+            credentialGenerator.TryParseAndHashStructuredKey(trimmedMasterKey, out var parsedCredential) &&
+            parsedCredential is not null)
         {
-            LogMasterApiKeyDbWarning(logger, ex);
+            await EnsureStructuredMasterApiKeyAsync(apiKeyRepo, uow, projectId, parsedCredential, now, logger);
+            return;
         }
-        catch (TimeoutException ex)
+
+        await EnsureLegacyMasterApiKeyAsync(apiKeyRepo, uow, projectId, trimmedMasterKey, now, logger);
+    }
+
+    private static async Task EnsureDevEphemeralMasterApiKeyAsync(
+        IApiKeyRepository apiKeyRepo,
+        IApiKeyCredentialGenerator? credentialGenerator,
+        IUnitOfWork uow,
+        ProjectId projectId,
+        DateTimeOffset now,
+        ILogger logger)
+    {
+        var existingProjectKeys = await apiKeyRepo.ListByProjectAsync(projectId, CancellationToken.None);
+        if (existingProjectKeys.Any(k => k.IsActive && string.Equals(k.CallerApp, "master", StringComparison.Ordinal)))
         {
-            LogMasterApiKeyTimeoutWarning(logger, ex);
+            return;
         }
-        catch (Domain.Exceptions.DomainException ex)
+
+        if (credentialGenerator is not null)
         {
-            LogMasterApiKeyDomainWarning(logger, ex);
+            var minted = credentialGenerator.MintLiveKey();
+            await PersistStructuredMasterKeyAsync(apiKeyRepo, uow, projectId, minted, now);
+            LogGeneratedTempDevApiKey(logger);
+            return;
+        }
+
+        string devMasterKey = ApiKeyGenerator.GenerateSecret("smk_dev_");
+        LogGeneratedTempDevApiKey(logger);
+        await EnsureLegacyMasterApiKeyAsync(apiKeyRepo, uow, projectId, devMasterKey, now, logger);
+    }
+
+    private static async Task EnsureStructuredMasterApiKeyAsync(
+        IApiKeyRepository apiKeyRepo,
+        IUnitOfWork uow,
+        ProjectId projectId,
+        MintedApiKeyCredential parsedCredential,
+        DateTimeOffset now,
+        ILogger logger)
+    {
+        var projectKeys = await apiKeyRepo.ListByProjectAsync(projectId, CancellationToken.None);
+        var existingByKeyId = projectKeys.FirstOrDefault(
+            k => string.Equals(k.KeyId, parsedCredential.KeyId, StringComparison.Ordinal));
+
+        if (existingByKeyId is null)
+        {
+            await PersistStructuredMasterKeyAsync(apiKeyRepo, uow, projectId, parsedCredential, now);
+            LogSeededMasterApiKey(logger);
+            return;
+        }
+
+        if (existingByKeyId.IsActive &&
+            existingByKeyId.SecretHash is { } existingHash &&
+            CryptographicOperations.FixedTimeEquals(existingHash.Span, parsedCredential.SecretHash.Span))
+        {
+            return;
+        }
+
+        throw new InvalidOperationException(
+            $"Master API key with KeyId '{parsedCredential.KeyId}' already exists in a revoked or conflicting state.");
+    }
+
+    private static async Task PersistStructuredMasterKeyAsync(
+        IApiKeyRepository apiKeyRepo,
+        IUnitOfWork uow,
+        ProjectId projectId,
+        MintedApiKeyCredential credential,
+        DateTimeOffset now)
+    {
+        var structuredMasterKey = ApiKey.IssueStructured(
+            projectId,
+            ApiKeyName.Create("Master Environment Key"),
+            "master",
+            credential.KeyPrefix,
+            credential.KeyId,
+            credential.KeySuffix,
+            credential.SecretHash.ToArray(),
+            ExpirationPolicy.Never,
+            now);
+
+        await apiKeyRepo.AddAsync(structuredMasterKey, CancellationToken.None);
+        await uow.CommitAsync(CancellationToken.None);
+    }
+
+    private static async Task EnsureLegacyMasterApiKeyAsync(
+        IApiKeyRepository apiKeyRepo,
+        IUnitOfWork uow,
+        ProjectId projectId,
+        string rawMasterKey,
+        DateTimeOffset now,
+        ILogger logger)
+    {
+        var defaultKeyHash = new Sha256Hash(ApiKeyGenerator.ComputeHash(rawMasterKey));
+        var existingKey = await apiKeyRepo.GetByKeyHashAsync(defaultKeyHash, CancellationToken.None);
+        if (existingKey is null)
+        {
+            var keyEntity = ApiKey.Issue(
+                projectId,
+                ApiKeyName.Create("Master Environment Key"),
+                "master",
+                defaultKeyHash,
+                ExpirationPolicy.Never,
+                now);
+
+            await apiKeyRepo.AddAsync(keyEntity, CancellationToken.None);
+            await uow.CommitAsync(CancellationToken.None);
+            LogSeededMasterApiKey(logger);
         }
     }
 
@@ -466,23 +576,13 @@ public static partial class DatabaseExtensions
 
     [LoggerMessage(
         Level = LogLevel.Information,
+        Message = "Created default quota configuration for project {ProjectId}")]
+    private static partial void LogCreatedDefaultProjectQuota(ILogger logger, Guid projectId);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
         Message = "Seeded default Master API key.")]
     private static partial void LogSeededMasterApiKey(ILogger logger);
-
-    [LoggerMessage(
-        Level = LogLevel.Warning,
-        Message = "Non-fatal database error while seeding Master API Key. Super Admin access remains active.")]
-    private static partial void LogMasterApiKeyDbWarning(ILogger logger, Exception ex);
-
-    [LoggerMessage(
-        Level = LogLevel.Warning,
-        Message = "Non-fatal timeout while seeding Master API Key. Super Admin access remains active.")]
-    private static partial void LogMasterApiKeyTimeoutWarning(ILogger logger, Exception ex);
-
-    [LoggerMessage(
-        Level = LogLevel.Warning,
-        Message = "Non-fatal domain error while seeding Master API Key. Super Admin access remains active.")]
-    private static partial void LogMasterApiKeyDomainWarning(ILogger logger, Exception ex);
 
     [LoggerMessage(
         Level = LogLevel.Information,

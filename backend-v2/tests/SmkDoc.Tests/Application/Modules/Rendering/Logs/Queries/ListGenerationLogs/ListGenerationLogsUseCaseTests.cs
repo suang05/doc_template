@@ -33,8 +33,9 @@ public sealed class ListGenerationLogsUseCaseTests
                 "crm",
                 1,
                 50,
+                false,
                 Arg.Any<CancellationToken>())
-            .Returns(([dto], 1));
+            .Returns(([dto], (long?)null));
 
         // Act
         var result = await CreateSut().ExecuteAsync(new ListGenerationLogsQuery(1, 50, "crm"), CancellationToken.None);
@@ -42,8 +43,31 @@ public sealed class ListGenerationLogsUseCaseTests
         // Assert
         result.Should().NotBeNull();
         result.Logs.Should().ContainSingle().Which.CallerApp.Should().Be("crm");
-        result.Total.Should().Be(1);
+        result.Total.Should().BeNull();
         result.Page.Should().Be(1);
         result.Limit.Should().Be(50);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenIncludeTotalTrue_ReturnsTotalCount()
+    {
+        // Arrange
+        _logQueryService.ListPagedAsync(
+                "crm",
+                2,
+                25,
+                true,
+                Arg.Any<CancellationToken>())
+            .Returns(([], (long?)75L));
+
+        // Act
+        var result = await CreateSut().ExecuteAsync(
+            new ListGenerationLogsQuery(2, 25, "crm", IncludeTotal: true),
+            CancellationToken.None);
+
+        // Assert
+        result.Total.Should().Be(75L);
+        result.Page.Should().Be(2);
+        result.Limit.Should().Be(25);
     }
 }

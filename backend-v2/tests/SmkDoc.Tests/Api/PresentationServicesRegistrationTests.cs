@@ -64,4 +64,29 @@ public sealed class PresentationServicesRegistrationTests
         // Assert
         act.Should().NotThrow();
     }
+
+    [Theory]
+    [InlineData("0")]
+    [InlineData("-5")]
+    [InlineData("16")]
+    [InlineData("abc")]
+    public void AddPresentationServices_WhenJwtAccessTokenMinutesOutOfRange_ThrowsInvalidOperationException(string rawMinutes)
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Jwt:Secret"] = "valid_secret_key_that_is_at_least_32_bytes_long_12345!",
+                ["Jwt:AccessTokenMinutes"] = rawMinutes
+            })
+            .Build();
+
+        // Act
+        var act = () => services.AddPresentationServices(configuration);
+
+        // Assert
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*Jwt:AccessTokenMinutes*");
+    }
 }

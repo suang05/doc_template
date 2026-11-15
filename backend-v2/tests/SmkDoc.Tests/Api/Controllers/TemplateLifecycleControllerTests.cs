@@ -43,17 +43,19 @@ public sealed class TemplateLifecycleControllerTests
     {
         // Arrange
         var sut = CreateSut();
-        var pagedResult = new TemplatePagedResultDto([], 0, 1, 20);
+        var pagedResult = new TemplatePagedResultDto([], null, 1, 20);
         _listTemplatesUseCase.ExecuteAsync(Arg.Any<ListTemplatesQuery>(), Arg.Any<CancellationToken>())
             .Returns(pagedResult);
 
         // Act
-        var result = await sut.ListTemplates("search", "cat", true, 1, 20, CancellationToken.None);
+        var result = await sut.ListTemplates("search", "cat", true, 1, 20, false, CancellationToken.None);
 
         // Assert
         var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
         var paged = okResult.Value.Should().BeOfType<PagedApiResponse<TemplateResultDto>>().Subject;
         paged.Pagination.Page.Should().Be(1);
+        paged.Pagination.Limit.Should().Be(20);
+        paged.Pagination.TotalCount.Should().BeNull();
 
         await _listTemplatesUseCase.Received(1).ExecuteAsync(
             Arg.Is<ListTemplatesQuery>(q =>
@@ -61,7 +63,8 @@ public sealed class TemplateLifecycleControllerTests
                 q.Category == "cat" &&
                 q.IsActive == true &&
                 q.Page == 1 &&
-                q.PageSize == 20),
+                q.Limit == 20 &&
+                !q.IncludeTotal),
             Arg.Any<CancellationToken>());
     }
 

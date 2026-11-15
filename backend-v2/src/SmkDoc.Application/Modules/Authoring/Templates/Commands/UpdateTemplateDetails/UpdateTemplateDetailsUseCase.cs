@@ -33,18 +33,6 @@ public sealed class UpdateTemplateDetailsUseCase(
         await unitOfWork.CommitAsync(ct);
 
         // 4. Return Safe DTO
-        return new TemplateResultDto(
-            template.Id.Value,
-            template.ProjectId.Value,
-            template.Name.Value,
-            template.Slug.Value,
-            template.Category,
-            template.IsActive,
-            template.CurrentVersionId,
-            template.CurrentVersion?.FileFormat?.Name,
-            template.CreatedAt,
-            template.UpdatedAt,
-            template.Version
-        );
+        return template.ToResultDto();
     }
 }

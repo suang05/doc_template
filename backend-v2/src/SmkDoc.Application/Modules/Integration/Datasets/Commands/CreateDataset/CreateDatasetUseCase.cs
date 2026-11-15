@@ -36,16 +36,6 @@ public sealed class CreateDatasetUseCase(
         await datasetRepo.AddAsync(entity, ct);
         await unitOfWork.CommitAsync(ct);
 
-        return new DatasetResultDto(
-            entity.Id.Value,
-            entity.Name.Value,
-            entity.Description,
-            entity.DataConnectionId.Value,
-            connection.Name.Value,
-            entity.SqlQuery,
-            entity.CacheSeconds,
-            entity.CreatedAt,
-            entity.UpdatedAt,
-            entity.Version);
+        return entity.ToResultDto(connection.Name.Value);
     }
 }

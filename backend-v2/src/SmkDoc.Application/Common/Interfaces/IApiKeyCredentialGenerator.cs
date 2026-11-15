@@ -13,4 +13,5 @@ public sealed record MintedApiKeyCredential(
 public interface IApiKeyCredentialGenerator
 {
     MintedApiKeyCredential MintLiveKey();
+    bool TryParseAndHashStructuredKey(string rawApiKey, out MintedApiKeyCredential? credential);
 }

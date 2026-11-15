@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
+using SmkDoc.Api.Constants;
 using SmkDoc.Application.Common.Interfaces;
 
 namespace SmkDoc.Api.RateLimiting;
@@ -8,7 +9,7 @@ namespace SmkDoc.Api.RateLimiting;
 /// <summary>
 /// Resolves deterministic, privacy-preserving rate-limit partition keys across all API replicas:
 /// 1. project:{ProjectId} for global tenant fairness when project context is resolved.
-/// 2. apikey:{SHA-256(X-API-Key)} — hashes secret M2M keys before storage in Redis/memory.
+/// 2. apikey:{SHA-256(token)} — hashes secret M2M keys before storage in Redis/memory.
 /// 3. user:{UserId} — isolates authenticated Web Studio users behind shared corporate NATs.
 /// 4. ip:{RemoteIpAddress} — bounds unauthenticated traffic by client IP.
 /// </summary>
@@ -18,11 +19,9 @@ public static class RateLimitPartitionKeyResolver
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        var rawApiKey = context.Request.Headers["X-API-Key"].ToString();
-        if (!string.IsNullOrWhiteSpace(rawApiKey))
+        if (HttpHeaderConstants.TryExtractApiKey(context.Request.Headers, out var rawApiKey))
         {
-            var normalizedKey = rawApiKey.Trim();
-            var hashHex = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(normalizedKey)));
+            var hashHex = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(rawApiKey)));
             return $"apikey:{hashHex}";
         }
 

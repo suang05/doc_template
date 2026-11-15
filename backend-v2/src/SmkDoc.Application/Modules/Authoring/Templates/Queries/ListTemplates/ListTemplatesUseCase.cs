@@ -11,17 +11,15 @@ public sealed class ListTemplatesUseCase(
 {
     public async Task<TemplatePagedResultDto> ExecuteAsync(ListTemplatesQuery query, CancellationToken ct)
     {
-        int page = Math.Max(1, query.Page);
-        int pageSize = Math.Clamp(query.PageSize, 1, 100);
-
         var (items, totalCount) = await templateQueryService.ListPagedAsync(
             query.SearchTerm,
             query.Category,
             query.IsActive,
-            page,
-            pageSize,
+            query.Page,
+            query.Limit,
+            query.IncludeTotal,
             ct);
 
-        return new TemplatePagedResultDto(items, totalCount, page, pageSize);
+        return new TemplatePagedResultDto(items, totalCount, query.Page, query.Limit);
     }
 }

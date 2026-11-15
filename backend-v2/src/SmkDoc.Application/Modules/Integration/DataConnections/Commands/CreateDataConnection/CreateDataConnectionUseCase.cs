@@ -32,12 +32,6 @@ public sealed class CreateDataConnectionUseCase(
         await repository.AddAsync(entity, ct);
         await unitOfWork.CommitAsync(ct);
 
-        return new DataConnectionResultDto(
-            entity.Id.Value,
-            entity.Name.Value,
-            entity.Provider.Name,
-            entity.CreatedAt,
-            entity.UpdatedAt,
-            entity.Version);
+        return entity.ToResultDto();
     }
 }

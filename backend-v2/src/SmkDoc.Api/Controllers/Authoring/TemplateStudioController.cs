@@ -15,7 +15,7 @@ namespace SmkDoc.Api.Controllers.Authoring;
 /// <summary>
 /// Monaco Studio authoring controller: HTML source editing, studio bundle inspection,
 /// schema retrieval, and HTML syntax validation.
-/// Auth: Channel A (X-API-Key via ApiKeyMiddleware) or Channel B (Bearer JWT).
+/// Auth: Channel A (Authorization: ApiKey) or Channel B (Portal Bearer JWT) via ProjectContextMiddleware.
 /// </summary>
 [ApiController]
 [Route("api/v1/templates/{id:guid}")]

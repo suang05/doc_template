@@ -12,7 +12,7 @@ public sealed class IdempotencyKeyConfiguration : IEntityTypeConfiguration<Idemp
         builder.Property(e => e.Id).ValueGeneratedNever();
         builder.Property(e => e.ProjectId).IsRequired(false);
         builder.Property(e => e.TenantScopeId)
-            .HasComputedColumnSql("COALESCE(\"ProjectId\", '00000000-0000-0000-0000-000000000000'::uuid)", stored: true);
+            .HasComputedColumnSql("COALESCE(project_id, '00000000-0000-0000-0000-000000000000'::uuid)", stored: true);
         builder.Property(e => e.CredentialId).IsRequired().HasMaxLength(128);
         builder.Property(e => e.Scope).IsRequired().HasMaxLength(160);
         builder.Property(e => e.IdempotencyKey).IsRequired().HasMaxLength(128);
@@ -23,7 +23,7 @@ public sealed class IdempotencyKeyConfiguration : IEntityTypeConfiguration<Idemp
         builder.Property(e => e.CreatedAt).HasDefaultValueSql("NOW()");
 
         builder.HasIndex(e => new { e.TenantScopeId, e.CredentialId, e.Scope, e.IdempotencyKey })
-            .HasDatabaseName("UQ_idempotency_keys_scope")
+            .HasDatabaseName("uq_idempotency_keys_scope")
             .IsUnique();
 
         builder.HasIndex(e => e.ExpiresAt);

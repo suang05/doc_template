@@ -10,7 +10,7 @@ namespace SmkDoc.Application.Common.Helpers;
 /// </summary>
 public sealed class SpooledRenderOutput : IAsyncDisposable, IDisposable
 {
-    public const int BufferSize = 81_920; // Strictly below 85,000-byte .NET LOH threshold
+    public const int BufferSize = 65_536; // Strictly below 85,000-byte .NET LOH threshold
 
     public Stream ContentStream { get; }
     public long FileSizeBytes { get; }

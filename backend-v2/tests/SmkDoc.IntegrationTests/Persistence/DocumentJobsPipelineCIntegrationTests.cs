@@ -32,8 +32,8 @@ public sealed class DocumentJobsPipelineCIntegrationTests(PostgreSqlContainerFix
             await using var cleanCmd = cleanConn.CreateCommand();
             cleanCmd.CommandText = """
                 UPDATE public.document_jobs
-                SET "Status" = 'Canceled', "LockedUntil" = NULL, "LockedBy" = NULL
-                WHERE "Status" IN ('Queued', 'Retrying', 'Running', 'Pending');
+                SET status = 'Canceled', locked_until = NULL, locked_by = NULL
+                WHERE status IN ('Queued', 'Retrying', 'Running', 'Pending');
                 """;
             await cleanCmd.ExecuteNonQueryAsync();
         }
@@ -73,7 +73,7 @@ public sealed class DocumentJobsPipelineCIntegrationTests(PostgreSqlContainerFix
             await barrierTask;
             await using var conn = await ds.OpenConnectionAsync();
             await using var cmd = conn.CreateCommand();
-            cmd.CommandText = "SELECT \"Id\" FROM public.fn_claim_next_document_job(@p_worker, @p_lease);";
+            cmd.CommandText = "SELECT id FROM public.fn_claim_next_document_job(@p_worker, @p_lease);";
             cmd.Parameters.Add(new NpgsqlParameter("p_worker", NpgsqlDbType.Text) { Value = workerId });
             cmd.Parameters.Add(new NpgsqlParameter("p_lease", NpgsqlDbType.Integer) { Value = 60 });
             object? result = await cmd.ExecuteScalarAsync();
@@ -114,8 +114,8 @@ public sealed class DocumentJobsPipelineCIntegrationTests(PostgreSqlContainerFix
             await using var cleanCmd = cleanConn.CreateCommand();
             cleanCmd.CommandText = """
                 UPDATE public.document_jobs
-                SET "Status" = 'Canceled', "LockedUntil" = NULL, "LockedBy" = NULL
-                WHERE "Status" IN ('Queued', 'Retrying', 'Running', 'Pending');
+                SET status = 'Canceled', locked_until = NULL, locked_by = NULL
+                WHERE status IN ('Queued', 'Retrying', 'Running', 'Pending');
                 """;
             await cleanCmd.ExecuteNonQueryAsync();
         }
@@ -140,7 +140,7 @@ public sealed class DocumentJobsPipelineCIntegrationTests(PostgreSqlContainerFix
         await using (var conn = await appDs.OpenConnectionAsync())
         {
             await using var claimCmd = conn.CreateCommand();
-            claimCmd.CommandText = "SELECT \"Id\" FROM public.fn_claim_next_document_job('worker-lease', 60);";
+            claimCmd.CommandText = "SELECT id FROM public.fn_claim_next_document_job('worker-lease', 60);";
             claimedJobId = (Guid)(await claimCmd.ExecuteScalarAsync())!;
         }
 
@@ -155,7 +155,7 @@ public sealed class DocumentJobsPipelineCIntegrationTests(PostgreSqlContainerFix
         await using (var conn = await appDs.OpenConnectionAsync())
         {
             await using var renewCmd = conn.CreateCommand();
-            renewCmd.CommandText = "SELECT \"Renewed\", \"CancelRequested\" FROM public.fn_renew_document_job_lease(@jid, 'worker-lease', 90);";
+            renewCmd.CommandText = "SELECT renewed, cancel_requested FROM public.fn_renew_document_job_lease(@jid, 'worker-lease', 90);";
             renewCmd.Parameters.Add(new NpgsqlParameter("jid", NpgsqlDbType.Uuid) { Value = claimedJobId });
             await using var reader = await renewCmd.ExecuteReaderAsync(CommandBehavior.SingleRow);
             (await reader.ReadAsync()).Should().BeTrue();

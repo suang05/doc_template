@@ -9,11 +9,12 @@ namespace SmkDoc.Application.Common.Interfaces;
 /// </summary>
 public interface ITemplateQueryService
 {
-    Task<(IReadOnlyList<TemplateResultDto> Items, int TotalCount)> ListPagedAsync(
+    Task<(IReadOnlyList<TemplateResultDto> Items, long? TotalCount)> ListPagedAsync(
         string? searchTerm,
         string? category,
         bool? isActive,
         int page,
-        int pageSize,
+        int limit,
+        bool includeTotal,
         CancellationToken ct);
 }

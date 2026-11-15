@@ -19,7 +19,7 @@ public sealed class OutboxMessageConfiguration : IEntityTypeConfiguration<Outbox
         builder.Property(e => e.Attempts).HasDefaultValue(0);
 
         builder.HasIndex(e => new { e.AvailableAt, e.OccurredAt })
-            .HasDatabaseName("IX_outbox_messages_unprocessed")
-            .HasFilter("\"ProcessedAt\" IS NULL AND \"DeadLetteredAt\" IS NULL");
+            .HasDatabaseName("ix_outbox_messages_unprocessed")
+            .HasFilter("processed_at IS NULL AND dead_lettered_at IS NULL");
     }
 }

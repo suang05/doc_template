@@ -138,7 +138,7 @@ public sealed partial class DocumentJobWorker(
     {
         await using var conn = await dataSource.OpenConnectionAsync(ct);
         await using var cmd = conn.CreateCommand();
-        cmd.CommandText = "SELECT \"Id\", \"ProjectId\" FROM public.fn_claim_next_document_job(@p_worker_id, @p_lease_seconds);";
+        cmd.CommandText = "SELECT id, project_id FROM public.fn_claim_next_document_job(@p_worker_id, @p_lease_seconds);";
         cmd.Parameters.Add(new NpgsqlParameter("p_worker_id", NpgsqlDbType.Text) { Value = workerId });
         cmd.Parameters.Add(new NpgsqlParameter("p_lease_seconds", NpgsqlDbType.Integer) { Value = _leaseSeconds });
 
@@ -164,7 +164,7 @@ public sealed partial class DocumentJobWorker(
             {
                 await using var conn = await dataSource.OpenConnectionAsync(hostStoppingToken);
                 await using var cmd = conn.CreateCommand();
-                cmd.CommandText = "SELECT \"Renewed\", \"CancelRequested\" FROM public.fn_renew_document_job_lease(@p_job_id, @p_worker_id, @p_lease_seconds);";
+                cmd.CommandText = "SELECT renewed, cancel_requested FROM public.fn_renew_document_job_lease(@p_job_id, @p_worker_id, @p_lease_seconds);";
                 cmd.Parameters.Add(new NpgsqlParameter("p_job_id", NpgsqlDbType.Uuid) { Value = jobId });
                 cmd.Parameters.Add(new NpgsqlParameter("p_worker_id", NpgsqlDbType.Text) { Value = workerId });
                 cmd.Parameters.Add(new NpgsqlParameter("p_lease_seconds", NpgsqlDbType.Integer) { Value = _leaseSeconds });
@@ -501,7 +501,7 @@ public sealed partial class DocumentJobWorker(
 
         await using var queryCmd = conn.CreateCommand();
         queryCmd.Transaction = tx;
-        queryCmd.CommandText = "SELECT \"CancelRequested\" FROM public.document_jobs WHERE \"Id\" = @p_id LIMIT 1;";
+        queryCmd.CommandText = "SELECT cancel_requested FROM public.document_jobs WHERE id = @p_id LIMIT 1;";
         queryCmd.Parameters.Add(new NpgsqlParameter("p_id", NpgsqlDbType.Uuid) { Value = jobId });
         var result = await queryCmd.ExecuteScalarAsync(ct);
         await tx.CommitAsync(ct);

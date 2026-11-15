@@ -3,4 +3,5 @@ namespace SmkDoc.Application.Modules.TenantManagement.Projects.Queries.ListContr
 public sealed record ListControlPlaneProjectsQuery(
     string? SearchTerm = null,
     int Page = 1,
-    int PageSize = 20);
+    int Limit = 20,
+    bool IncludeTotal = false);

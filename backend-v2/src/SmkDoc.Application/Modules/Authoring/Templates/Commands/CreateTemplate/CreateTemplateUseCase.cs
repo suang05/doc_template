@@ -65,19 +65,7 @@ public sealed class CreateTemplateUseCase(
             throw;
         }
 
-        return new TemplateResultDto(
-            template.Id.Value,
-            template.ProjectId.Value,
-            template.Name,
-            template.Slug,
-            template.Category,
-            template.IsActive,
-            template.CurrentVersionId,
-            initialVersion.FileFormat?.Name,
-            template.CreatedAt,
-            template.UpdatedAt,
-            template.Version
-        );
+        return template.ToResultDto(initialVersion.FileFormat?.Name);
     }
 
     private async Task<(string StorageKey, TemplateFormat Format, string? HtmlContent)> PrepareTemplateAssetAsync(

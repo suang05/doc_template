@@ -4,5 +4,6 @@ public sealed record ListProjectsQuery(
     Guid UserId,
     string? SearchTerm = null,
     int Page = 1,
-    int PageSize = 20
+    int Limit = 20,
+    bool IncludeTotal = false
 );

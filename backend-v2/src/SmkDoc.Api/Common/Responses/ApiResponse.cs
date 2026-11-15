@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace SmkDoc.Api.Common.Responses;
 
 /// <summary>
@@ -20,22 +22,31 @@ public record ApiResponse<T>(T Data) : IApiResponse
 /// <summary>
 /// Standard pagination telemetry metadata envelope conforming to global REST API standards.
 /// </summary>
-public record PaginationMetadata(
-    int Page,
+public sealed record PaginationMetadata(
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? Page,
     int Limit,
-    int TotalCount,
-    int TotalPages
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] long? TotalCount,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? TotalPages,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? NextCursor = null
 )
 {
-    public static PaginationMetadata Create(int totalCount, int page, int limit)
+    public static PaginationMetadata ForOffset(int page, int limit, long? totalCount)
     {
         var safeLimit = Math.Max(1, limit);
         var safePage = Math.Max(1, page);
-        var safeTotal = Math.Max(0, totalCount);
-        var totalPages = (int)Math.Ceiling((double)safeTotal / safeLimit);
+        long? safeTotal = totalCount is null ? null : Math.Max(0L, totalCount.Value);
+        int? totalPages = safeTotal switch
+        {
+            null => null,
+            <= 0L => 0,
+            _ => (int)((safeTotal.Value + safeLimit - 1) / safeLimit)
+        };
 
-        return new PaginationMetadata(safePage, safeLimit, safeTotal, totalPages);
+        return new PaginationMetadata(safePage, safeLimit, safeTotal, totalPages, null);
     }
+
+    public static PaginationMetadata ForCursor(int limit, string? nextCursor) =>
+        new(null, Math.Max(1, limit), null, null, string.IsNullOrWhiteSpace(nextCursor) ? null : nextCursor);
 }
 
 /// <summary>
@@ -43,12 +54,12 @@ public record PaginationMetadata(
 /// Encapsulates resource items in 'data' and pagination metadata in 'pagination'.
 /// </summary>
 public record PagedApiResponse<T>(
-    IEnumerable<T> Data,
+    IReadOnlyList<T> Data,
     PaginationMetadata Pagination
-) : ApiResponse<IEnumerable<T>>(Data)
+) : ApiResponse<IReadOnlyList<T>>(Data)
 {
-    public PagedApiResponse(IEnumerable<T> data, int totalCount, int page, int limit)
-        : this(data, PaginationMetadata.Create(totalCount, page, limit))
+    public PagedApiResponse(IReadOnlyList<T> data, long? totalCount, int page, int limit)
+        : this(data, PaginationMetadata.ForOffset(page, limit, totalCount))
     {
     }
 }

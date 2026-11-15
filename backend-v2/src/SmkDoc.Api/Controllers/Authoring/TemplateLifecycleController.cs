@@ -15,7 +15,7 @@ namespace SmkDoc.Api.Controllers.Authoring;
 
 /// <summary>
 /// Template lifecycle management: listing, creation, metadata updates, and deactivation.
-/// Auth: Channel A (X-API-Key) or Channel B (Portal Bearer JWT) via ProjectContextMiddleware.
+/// Auth: Channel A (Authorization: ApiKey) or Channel B (Portal Bearer JWT) via ProjectContextMiddleware.
 /// </summary>
 [ApiController]
 [Route("api/v1/templates")]
@@ -34,12 +34,13 @@ public sealed class TemplateLifecycleController(
         [FromQuery] string? category,
         [FromQuery] bool? isActive,
         [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 20,
+        [FromQuery] int limit = 20,
+        [FromQuery] bool includeTotal = false,
         CancellationToken ct = default)
     {
-        var query = new ListTemplatesQuery(search, category, isActive, page, pageSize);
+        var query = new ListTemplatesQuery(search, category, isActive, page, limit, includeTotal);
         var result = await listTemplatesUseCase.ExecuteAsync(query, ct);
-        return Ok(new PagedApiResponse<TemplateResultDto>(result.Items, result.TotalCount, result.Page, result.PageSize));
+        return Ok(new PagedApiResponse<TemplateResultDto>(result.Items, result.TotalCount, result.Page, result.Limit));
     }
 
     /// <summary>Get template details by unique identifier.</summary>

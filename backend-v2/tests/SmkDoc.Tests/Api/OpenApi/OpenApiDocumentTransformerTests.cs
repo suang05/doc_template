@@ -84,6 +84,9 @@ public sealed class OpenApiDocumentTransformerTests
 
         // Step 3: Assert
         document.Components!.SecuritySchemes.Should().ContainKeys(OpenApiNames.ApiKeyScheme, OpenApiNames.BearerScheme);
+        var apiKeyScheme = document.Components.SecuritySchemes![OpenApiNames.ApiKeyScheme];
+        apiKeyScheme.Type.Should().Be(SecuritySchemeType.Http);
+        apiKeyScheme.Scheme.Should().Be("apikey");
     }
 
     [Fact]

@@ -70,23 +70,54 @@ public sealed class AuditLogControllerTests
                 null,
                 DateTimeOffset.UtcNow)
         };
-        var pagedResult = new GenerationLogPagedResult(logs, 1, 1, 50);
+        var pagedResult = new GenerationLogPagedResult(logs, Total: null, Page: 1, Limit: 50);
 
         _listUseCase.ExecuteAsync(
-                Arg.Is<ListGenerationLogsQuery>(q => q.Page == 1 && q.Limit == 50 && q.CallerApp == "billing-service"),
+                Arg.Is<ListGenerationLogsQuery>(q =>
+                    q.Page == 1 &&
+                    q.Limit == 50 &&
+                    q.CallerApp == "billing-service" &&
+                    !q.IncludeTotal),
                 Arg.Any<CancellationToken>())
             .Returns(pagedResult);
 
         // Act
-        var result = await sut.ListLogs(page: 1, limit: 50, app: "billing-service", CancellationToken.None);
+        var result = await sut.ListLogs(page: 1, limit: 50, app: "billing-service", includeTotal: false, CancellationToken.None);
 
         // Assert
         var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
         var pagedResponse = okResult.Value.Should().BeOfType<PagedApiResponse<GenerationLogDto>>().Subject;
         pagedResponse.Data.Should().BeEquivalentTo(logs);
-        pagedResponse.Pagination.TotalCount.Should().Be(1);
+        pagedResponse.Pagination.TotalCount.Should().BeNull();
+        pagedResponse.Pagination.TotalPages.Should().BeNull();
         pagedResponse.Pagination.Page.Should().Be(1);
         pagedResponse.Pagination.Limit.Should().Be(50);
+    }
+
+    [Fact]
+    public async Task ListLogs_WithIncludeTotalTrue_ReturnsTotalCountAndPages()
+    {
+        // Arrange
+        var sut = CreateSut();
+        var pagedResult = new GenerationLogPagedResult([], Total: 42L, Page: 1, Limit: 20);
+
+        _listUseCase.ExecuteAsync(
+                Arg.Is<ListGenerationLogsQuery>(q =>
+                    q.Page == 1 &&
+                    q.Limit == 20 &&
+                    q.CallerApp == null &&
+                    q.IncludeTotal),
+                Arg.Any<CancellationToken>())
+            .Returns(pagedResult);
+
+        // Act
+        var result = await sut.ListLogs(page: 1, limit: 20, app: null, includeTotal: true, CancellationToken.None);
+
+        // Assert
+        var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
+        var pagedResponse = okResult.Value.Should().BeOfType<PagedApiResponse<GenerationLogDto>>().Subject;
+        pagedResponse.Pagination.TotalCount.Should().Be(42L);
+        pagedResponse.Pagination.TotalPages.Should().Be(3);
     }
 
     [Fact]

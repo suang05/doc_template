@@ -55,10 +55,11 @@ public sealed class OpenApiDocumentTransformer(IConfiguration configuration) : I
 
     private static OpenApiSecurityScheme BuildApiKeyScheme() => new()
     {
-        Description = $"Machine-to-machine API key. Send it in the {OpenApiNames.ApiKeyHeader} header.",
+        Description = $"Machine-to-machine API key. Send it as: {OpenApiNames.ApiKeyHeader}: {OpenApiNames.ApiKeyAuthScheme} <rawKey>.",
         Name = OpenApiNames.ApiKeyHeader,
         In = ParameterLocation.Header,
-        Type = SecuritySchemeType.ApiKey
+        Type = SecuritySchemeType.Http,
+        Scheme = "apikey"
     };
 
     private static OpenApiSecurityScheme BuildBearerScheme() => new()

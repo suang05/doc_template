@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore.Migrations;
+﻿using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
@@ -74,7 +74,6 @@ namespace SmkDoc.Infrastructure.Migrations
                 GRANT EXECUTE ON FUNCTION public.smk_is_control_plane() TO smk_app;
                 """);
 
-            // Strict tenant-scoped root tables
             string[] strictTenantTables =
             [
                 "templates",
@@ -88,62 +87,60 @@ namespace SmkDoc.Infrastructure.Migrations
             foreach (var table in strictTenantTables)
             {
                 migrationBuilder.Sql($"""
-                    ALTER TABLE public."{table}" ENABLE ROW LEVEL SECURITY;
-                    ALTER TABLE public."{table}" FORCE ROW LEVEL SECURITY;
-                    DROP POLICY IF EXISTS "{table}_tenant_isolation" ON public."{table}";
-                    CREATE POLICY "{table}_tenant_isolation" ON public."{table}"
+                    ALTER TABLE public.{table} ENABLE ROW LEVEL SECURITY;
+                    ALTER TABLE public.{table} FORCE ROW LEVEL SECURITY;
+                    DROP POLICY IF EXISTS {table}_tenant_isolation ON public.{table};
+                    CREATE POLICY {table}_tenant_isolation ON public.{table}
                         AS PERMISSIVE
                         FOR ALL
                         TO PUBLIC
-                        USING ("ProjectId" = public.smk_current_project_id())
-                        WITH CHECK ("ProjectId" = public.smk_current_project_id());
+                        USING (project_id = public.smk_current_project_id())
+                        WITH CHECK (project_id = public.smk_current_project_id());
                     """);
             }
 
-            // Strict tenant-scoped child tables (parent join)
             migrationBuilder.Sql("""
-                ALTER TABLE public."template_versions" ENABLE ROW LEVEL SECURITY;
-                ALTER TABLE public."template_versions" FORCE ROW LEVEL SECURITY;
-                DROP POLICY IF EXISTS "template_versions_tenant_isolation" ON public."template_versions";
-                CREATE POLICY "template_versions_tenant_isolation" ON public."template_versions"
+                ALTER TABLE public.template_versions ENABLE ROW LEVEL SECURITY;
+                ALTER TABLE public.template_versions FORCE ROW LEVEL SECURITY;
+                DROP POLICY IF EXISTS template_versions_tenant_isolation ON public.template_versions;
+                CREATE POLICY template_versions_tenant_isolation ON public.template_versions
                     AS PERMISSIVE FOR ALL TO PUBLIC
-                    USING (EXISTS (SELECT 1 FROM public.templates AS t WHERE t."Id" = "TemplateId" AND t."ProjectId" = public.smk_current_project_id()))
-                    WITH CHECK (EXISTS (SELECT 1 FROM public.templates AS t WHERE t."Id" = "TemplateId" AND t."ProjectId" = public.smk_current_project_id()));
+                    USING (EXISTS (SELECT 1 FROM public.templates AS t WHERE t.id = template_id AND t.project_id = public.smk_current_project_id()))
+                    WITH CHECK (EXISTS (SELECT 1 FROM public.templates AS t WHERE t.id = template_id AND t.project_id = public.smk_current_project_id()));
 
-                ALTER TABLE public."field_mappings" ENABLE ROW LEVEL SECURITY;
-                ALTER TABLE public."field_mappings" FORCE ROW LEVEL SECURITY;
-                DROP POLICY IF EXISTS "field_mappings_tenant_isolation" ON public."field_mappings";
-                CREATE POLICY "field_mappings_tenant_isolation" ON public."field_mappings"
+                ALTER TABLE public.field_mappings ENABLE ROW LEVEL SECURITY;
+                ALTER TABLE public.field_mappings FORCE ROW LEVEL SECURITY;
+                DROP POLICY IF EXISTS field_mappings_tenant_isolation ON public.field_mappings;
+                CREATE POLICY field_mappings_tenant_isolation ON public.field_mappings
                     AS PERMISSIVE FOR ALL TO PUBLIC
-                    USING (EXISTS (SELECT 1 FROM public.templates AS t WHERE t."Id" = "TemplateId" AND t."ProjectId" = public.smk_current_project_id()))
-                    WITH CHECK (EXISTS (SELECT 1 FROM public.templates AS t WHERE t."Id" = "TemplateId" AND t."ProjectId" = public.smk_current_project_id()));
+                    USING (EXISTS (SELECT 1 FROM public.templates AS t WHERE t.id = template_id AND t.project_id = public.smk_current_project_id()))
+                    WITH CHECK (EXISTS (SELECT 1 FROM public.templates AS t WHERE t.id = template_id AND t.project_id = public.smk_current_project_id()));
 
-                ALTER TABLE public."template_datasets" ENABLE ROW LEVEL SECURITY;
-                ALTER TABLE public."template_datasets" FORCE ROW LEVEL SECURITY;
-                DROP POLICY IF EXISTS "template_datasets_tenant_isolation" ON public."template_datasets";
-                CREATE POLICY "template_datasets_tenant_isolation" ON public."template_datasets"
+                ALTER TABLE public.template_datasets ENABLE ROW LEVEL SECURITY;
+                ALTER TABLE public.template_datasets FORCE ROW LEVEL SECURITY;
+                DROP POLICY IF EXISTS template_datasets_tenant_isolation ON public.template_datasets;
+                CREATE POLICY template_datasets_tenant_isolation ON public.template_datasets
                     AS PERMISSIVE FOR ALL TO PUBLIC
-                    USING (EXISTS (SELECT 1 FROM public.templates AS t WHERE t."Id" = "TemplateId" AND t."ProjectId" = public.smk_current_project_id()))
-                    WITH CHECK (EXISTS (SELECT 1 FROM public.templates AS t WHERE t."Id" = "TemplateId" AND t."ProjectId" = public.smk_current_project_id()));
+                    USING (EXISTS (SELECT 1 FROM public.templates AS t WHERE t.id = template_id AND t.project_id = public.smk_current_project_id()))
+                    WITH CHECK (EXISTS (SELECT 1 FROM public.templates AS t WHERE t.id = template_id AND t.project_id = public.smk_current_project_id()));
 
-                ALTER TABLE public."document_versions" ENABLE ROW LEVEL SECURITY;
-                ALTER TABLE public."document_versions" FORCE ROW LEVEL SECURITY;
-                DROP POLICY IF EXISTS "document_versions_tenant_isolation" ON public."document_versions";
-                CREATE POLICY "document_versions_tenant_isolation" ON public."document_versions"
+                ALTER TABLE public.document_versions ENABLE ROW LEVEL SECURITY;
+                ALTER TABLE public.document_versions FORCE ROW LEVEL SECURITY;
+                DROP POLICY IF EXISTS document_versions_tenant_isolation ON public.document_versions;
+                CREATE POLICY document_versions_tenant_isolation ON public.document_versions
                     AS PERMISSIVE FOR ALL TO PUBLIC
-                    USING (EXISTS (SELECT 1 FROM public.documents AS d WHERE d."Id" = "DocumentId" AND d."ProjectId" = public.smk_current_project_id()))
-                    WITH CHECK (EXISTS (SELECT 1 FROM public.documents AS d WHERE d."Id" = "DocumentId" AND d."ProjectId" = public.smk_current_project_id()));
+                    USING (EXISTS (SELECT 1 FROM public.documents AS d WHERE d.id = document_id AND d.project_id = public.smk_current_project_id()))
+                    WITH CHECK (EXISTS (SELECT 1 FROM public.documents AS d WHERE d.id = document_id AND d.project_id = public.smk_current_project_id()));
 
-                ALTER TABLE public."document_job_items" ENABLE ROW LEVEL SECURITY;
-                ALTER TABLE public."document_job_items" FORCE ROW LEVEL SECURITY;
-                DROP POLICY IF EXISTS "document_job_items_tenant_isolation" ON public."document_job_items";
-                CREATE POLICY "document_job_items_tenant_isolation" ON public."document_job_items"
+                ALTER TABLE public.document_job_items ENABLE ROW LEVEL SECURITY;
+                ALTER TABLE public.document_job_items FORCE ROW LEVEL SECURITY;
+                DROP POLICY IF EXISTS document_job_items_tenant_isolation ON public.document_job_items;
+                CREATE POLICY document_job_items_tenant_isolation ON public.document_job_items
                     AS PERMISSIVE FOR ALL TO PUBLIC
-                    USING (EXISTS (SELECT 1 FROM public.document_jobs AS j WHERE j."Id" = "DocumentJobId" AND j."ProjectId" = public.smk_current_project_id()))
-                    WITH CHECK (EXISTS (SELECT 1 FROM public.document_jobs AS j WHERE j."Id" = "DocumentJobId" AND j."ProjectId" = public.smk_current_project_id()));
+                    USING (EXISTS (SELECT 1 FROM public.document_jobs AS j WHERE j.id = document_job_id AND j.project_id = public.smk_current_project_id()))
+                    WITH CHECK (EXISTS (SELECT 1 FROM public.document_jobs AS j WHERE j.id = document_job_id AND j.project_id = public.smk_current_project_id()));
                 """);
 
-            // Dual tenant / Control Plane tables
             string[] controlPlaneDualTables =
             [
                 "api_keys",
@@ -154,75 +151,74 @@ namespace SmkDoc.Infrastructure.Migrations
             foreach (var table in controlPlaneDualTables)
             {
                 migrationBuilder.Sql($"""
-                    ALTER TABLE public."{table}" ENABLE ROW LEVEL SECURITY;
-                    ALTER TABLE public."{table}" FORCE ROW LEVEL SECURITY;
-                    DROP POLICY IF EXISTS "{table}_tenant_or_control_plane" ON public."{table}";
-                    CREATE POLICY "{table}_tenant_or_control_plane" ON public."{table}"
+                    ALTER TABLE public.{table} ENABLE ROW LEVEL SECURITY;
+                    ALTER TABLE public.{table} FORCE ROW LEVEL SECURITY;
+                    DROP POLICY IF EXISTS {table}_tenant_or_control_plane ON public.{table};
+                    CREATE POLICY {table}_tenant_or_control_plane ON public.{table}
                         AS PERMISSIVE
                         FOR ALL
                         TO PUBLIC
                         USING (
-                            ("ProjectId" = public.smk_current_project_id())
+                            (project_id = public.smk_current_project_id())
                             OR (public.smk_current_project_id() IS NULL AND public.smk_is_control_plane())
                         )
                         WITH CHECK (
-                            ("ProjectId" = public.smk_current_project_id())
+                            (project_id = public.smk_current_project_id())
                             OR (public.smk_current_project_id() IS NULL AND public.smk_is_control_plane())
                         );
                     """);
             }
 
-            // Durable idempotency keys RLS (tenant-isolated OR control-plane when ProjectId IS NULL)
             migrationBuilder.Sql("""
-                ALTER TABLE public."idempotency_keys" ENABLE ROW LEVEL SECURITY;
-                ALTER TABLE public."idempotency_keys" FORCE ROW LEVEL SECURITY;
-                DROP POLICY IF EXISTS "idempotency_keys_scope_isolation" ON public."idempotency_keys";
-                CREATE POLICY "idempotency_keys_scope_isolation" ON public."idempotency_keys"
+                ALTER TABLE public.idempotency_keys ENABLE ROW LEVEL SECURITY;
+                ALTER TABLE public.idempotency_keys FORCE ROW LEVEL SECURITY;
+                DROP POLICY IF EXISTS idempotency_keys_scope_isolation ON public.idempotency_keys;
+                CREATE POLICY idempotency_keys_scope_isolation ON public.idempotency_keys
                     AS PERMISSIVE
                     FOR ALL
                     TO PUBLIC
                     USING (
-                        ("ProjectId" IS NOT NULL AND "ProjectId" = public.smk_current_project_id())
-                        OR ("ProjectId" IS NULL AND public.smk_current_project_id() IS NULL AND public.smk_is_control_plane())
+                        (project_id IS NOT NULL AND project_id = public.smk_current_project_id())
+                        OR (project_id IS NULL AND public.smk_current_project_id() IS NULL AND public.smk_is_control_plane())
                     )
                     WITH CHECK (
-                        ("ProjectId" IS NOT NULL AND "ProjectId" = public.smk_current_project_id())
-                        OR ("ProjectId" IS NULL AND public.smk_current_project_id() IS NULL AND public.smk_is_control_plane())
+                        (project_id IS NOT NULL AND project_id = public.smk_current_project_id())
+                        OR (project_id IS NULL AND public.smk_current_project_id() IS NULL AND public.smk_is_control_plane())
                     );
                 """);
 
-            // Narrow SECURITY DEFINER functions for auth lookups and atomic worker claiming
             migrationBuilder.Sql("""
                 CREATE OR REPLACE FUNCTION public.fn_resolve_api_key_for_auth(
                     p_key_id text,
                     p_legacy_hash text)
                 RETURNS TABLE (
-                    "Id" uuid,
-                    "ProjectId" uuid,
-                    "CallerApp" text,
-                    "Scope" text,
-                    "IsActive" boolean,
-                    "ExpiresAt" timestamp with time zone,
-                    "SecretHashBytes" bytea,
-                    "KeyHash" text
+                    id uuid,
+                    project_id uuid,
+                    caller_app text,
+                    scope text,
+                    is_active boolean,
+                    expires_at timestamp with time zone,
+                    secret_hash_bytes bytea,
+                    key_hash text
                 )
                 LANGUAGE plpgsql
                 SECURITY DEFINER
                 SET search_path = pg_catalog, public
                 AS $$
+                #variable_conflict use_column
                 BEGIN
                     RETURN QUERY
-                    SELECT k."Id",
-                           k."ProjectId",
-                           k."CallerApp"::text,
-                           k."Scope"::text,
-                           k."IsActive",
-                           k."ExpiresAt",
-                           k."SecretHashBytes",
-                           k."KeyHash"::text
+                    SELECT k.id,
+                           k.project_id,
+                           k.caller_app::text,
+                           k.scope::text,
+                           k.is_active,
+                           k.expires_at,
+                           k.secret_hash_bytes,
+                           k.key_hash::text
                     FROM public.api_keys AS k
-                    WHERE (p_key_id IS NOT NULL AND k."KeyId" = p_key_id)
-                       OR (p_key_id IS NULL AND p_legacy_hash IS NOT NULL AND k."SecretHashBytes" IS NULL AND k."KeyHash" = p_legacy_hash)
+                    WHERE (p_key_id IS NOT NULL AND k.key_id = p_key_id)
+                       OR (p_key_id IS NULL AND p_legacy_hash IS NOT NULL AND k.secret_hash_bytes IS NULL AND k.key_hash = p_legacy_hash)
                     LIMIT 1;
                 END;
                 $$;
@@ -235,10 +231,11 @@ namespace SmkDoc.Infrastructure.Migrations
                 SECURITY DEFINER
                 SET search_path = pg_catalog, public
                 AS $$
+                #variable_conflict use_column
                 BEGIN
                     UPDATE public.api_keys AS k
-                    SET "LastUsedAt" = p_now
-                    WHERE k."Id" = p_id;
+                    SET last_used_at = p_now
+                    WHERE k.id = p_id;
                 END;
                 $$;
 
@@ -246,38 +243,40 @@ namespace SmkDoc.Infrastructure.Migrations
                     p_project_id uuid,
                     p_user_id uuid)
                 RETURNS TABLE (
-                    "ProjectId" uuid,
-                    "UserId" uuid,
-                    "Role" text
+                    project_id uuid,
+                    user_id uuid,
+                    role text
                 )
                 LANGUAGE plpgsql
                 SECURITY DEFINER
                 SET search_path = pg_catalog, public
                 AS $$
+                #variable_conflict use_column
                 BEGIN
                     RETURN QUERY
-                    SELECT upr."ProjectId",
-                           upr."UserId",
-                           upr."Role"::text
+                    SELECT upr.project_id,
+                           upr.user_id,
+                           upr.role::text
                     FROM public.user_project_roles AS upr
-                    WHERE upr."ProjectId" = p_project_id
-                      AND upr."UserId" = p_user_id
+                    WHERE upr.project_id = p_project_id
+                      AND upr.user_id = p_user_id
                     LIMIT 1;
                 END;
                 $$;
 
                 CREATE OR REPLACE FUNCTION public.fn_list_active_project_ids()
-                RETURNS TABLE ("ProjectId" uuid)
+                RETURNS TABLE (project_id uuid)
                 LANGUAGE plpgsql
                 SECURITY DEFINER
                 SET search_path = pg_catalog, public
                 AS $$
+                #variable_conflict use_column
                 BEGIN
                     RETURN QUERY
-                    SELECT p."Id"
+                    SELECT p.id
                     FROM public.projects AS p
-                    WHERE p."IsActive" = true
-                    ORDER BY p."CreatedAt" ASC;
+                    WHERE p.is_active = true
+                    ORDER BY p.created_at ASC;
                 END;
                 $$;
 
@@ -285,40 +284,41 @@ namespace SmkDoc.Infrastructure.Migrations
                     p_worker_id text,
                     p_lease_seconds integer)
                 RETURNS TABLE (
-                    "Id" uuid,
-                    "ProjectId" uuid
+                    id uuid,
+                    project_id uuid
                 )
                 LANGUAGE plpgsql
                 SECURITY DEFINER
                 SET search_path = pg_catalog, public
                 AS $$
+                #variable_conflict use_column
                 DECLARE
                     v_now timestamp with time zone := clock_timestamp();
                 BEGIN
                     RETURN QUERY
                     WITH candidate AS (
-                        SELECT j."Id"
+                        SELECT j.id
                         FROM public.document_jobs AS j
-                        WHERE (j."Status" IN ('Queued', 'Retrying') AND j."AvailableAt" <= v_now)
-                           OR (j."Status" IN ('Running', 'Pending') AND j."LockedUntil" IS NOT NULL AND j."LockedUntil" <= v_now)
-                        ORDER BY j."AvailableAt" ASC, j."CreatedAt" ASC
+                        WHERE (j.status IN ('Queued', 'Retrying') AND j.available_at <= v_now)
+                           OR (j.status IN ('Running', 'Pending') AND j.locked_until IS NOT NULL AND j.locked_until <= v_now)
+                        ORDER BY j.available_at ASC, j.created_at ASC
                         LIMIT 1
                         FOR UPDATE SKIP LOCKED
                     ),
                     claimed AS (
                         UPDATE public.document_jobs AS j
-                        SET "Status" = 'Running',
-                            "Attempt" = j."Attempt" + 1,
-                            "LockedBy" = p_worker_id,
-                            "LockedUntil" = v_now + make_interval(secs => GREATEST(10, p_lease_seconds)),
-                            "StartedAt" = COALESCE(j."StartedAt", v_now),
-                            "UpdatedAt" = v_now,
-                            "Version" = j."Version" + 1
+                        SET status = 'Running',
+                            attempt = j.attempt + 1,
+                            locked_by = p_worker_id,
+                            locked_until = v_now + make_interval(secs => GREATEST(10, p_lease_seconds)),
+                            started_at = COALESCE(j.started_at, v_now),
+                            updated_at = v_now,
+                            version = j.version + 1
                         FROM candidate AS c
-                        WHERE j."Id" = c."Id"
-                        RETURNING j."Id", j."ProjectId"
+                        WHERE j.id = c.id
+                        RETURNING j.id, j.project_id
                     )
-                    SELECT cl."Id", cl."ProjectId"
+                    SELECT cl.id, cl.project_id
                     FROM claimed AS cl;
                 END;
                 $$;
@@ -328,24 +328,25 @@ namespace SmkDoc.Infrastructure.Migrations
                     p_worker_id text,
                     p_lease_seconds integer)
                 RETURNS TABLE (
-                    "Renewed" boolean,
-                    "CancelRequested" boolean
+                    renewed boolean,
+                    cancel_requested boolean
                 )
                 LANGUAGE plpgsql
                 SECURITY DEFINER
                 SET search_path = pg_catalog, public
                 AS $$
+                #variable_conflict use_column
                 DECLARE
                     v_now timestamp with time zone := clock_timestamp();
                 BEGIN
                     RETURN QUERY
                     UPDATE public.document_jobs AS j
-                    SET "LockedUntil" = v_now + make_interval(secs => GREATEST(10, p_lease_seconds)),
-                        "UpdatedAt" = v_now
-                    WHERE j."Id" = p_job_id
-                      AND j."LockedBy" = p_worker_id
-                      AND j."Status" = 'Running'
-                    RETURNING true AS "Renewed", j."CancelRequested";
+                    SET locked_until = v_now + make_interval(secs => GREATEST(10, p_lease_seconds)),
+                        updated_at = v_now
+                    WHERE j.id = p_job_id
+                      AND j.locked_by = p_worker_id
+                      AND j.status = 'Running'
+                    RETURNING true AS renewed, j.cancel_requested;
                 END;
                 $$;
 
@@ -354,44 +355,45 @@ namespace SmkDoc.Infrastructure.Migrations
                     p_batch_size integer,
                     p_lease_seconds integer)
                 RETURNS TABLE (
-                    "Id" uuid,
-                    "ProjectId" uuid,
-                    "EventType" text,
-                    "PayloadJson" text,
-                    "OccurredAt" timestamp with time zone,
-                    "Attempts" integer
+                    id uuid,
+                    project_id uuid,
+                    event_type text,
+                    payload_json text,
+                    occurred_at timestamp with time zone,
+                    attempts integer
                 )
                 LANGUAGE plpgsql
                 SECURITY DEFINER
                 SET search_path = pg_catalog, public
                 AS $$
+                #variable_conflict use_column
                 DECLARE
                     v_now timestamp with time zone := clock_timestamp();
                 BEGIN
                     RETURN QUERY
                     WITH candidates AS (
-                        SELECT m."Id"
+                        SELECT m.id
                         FROM public.outbox_messages AS m
-                        WHERE m."ProcessedAt" IS NULL
-                          AND m."DeadLetteredAt" IS NULL
-                          AND m."AvailableAt" <= v_now
-                          AND (m."LockedUntil" IS NULL OR m."LockedUntil" <= v_now)
-                        ORDER BY m."AvailableAt" ASC, m."OccurredAt" ASC
+                        WHERE m.processed_at IS NULL
+                          AND m.dead_lettered_at IS NULL
+                          AND m.available_at <= v_now
+                          AND (m.locked_until IS NULL OR m.locked_until <= v_now)
+                        ORDER BY m.available_at ASC, m.occurred_at ASC
                         LIMIT GREATEST(1, LEAST(p_batch_size, 500))
                         FOR UPDATE SKIP LOCKED
                     ),
                     updated AS (
                         UPDATE public.outbox_messages AS m
-                        SET "LockedBy" = p_worker_id,
-                            "LockedUntil" = v_now + make_interval(secs => GREATEST(5, p_lease_seconds)),
-                            "Attempts" = m."Attempts" + 1
+                        SET locked_by = p_worker_id,
+                            locked_until = v_now + make_interval(secs => GREATEST(5, p_lease_seconds)),
+                            attempts = m.attempts + 1
                         FROM candidates AS c
-                        WHERE m."Id" = c."Id"
-                        RETURNING m."Id", m."ProjectId", m."EventType"::text, m."PayloadJson"::text, m."OccurredAt", m."Attempts"
+                        WHERE m.id = c.id
+                        RETURNING m.id, m.project_id, m.event_type::text, m.payload_json::text, m.occurred_at, m.attempts
                     )
-                    SELECT u."Id", u."ProjectId", u."EventType", u."PayloadJson", u."OccurredAt", u."Attempts"
+                    SELECT u.id, u.project_id, u.event_type, u.payload_json, u.occurred_at, u.attempts
                     FROM updated AS u
-                    ORDER BY u."OccurredAt" ASC;
+                    ORDER BY u.occurred_at ASC;
                 END;
                 $$;
 
@@ -401,19 +403,20 @@ namespace SmkDoc.Infrastructure.Migrations
                 SECURITY DEFINER
                 SET search_path = pg_catalog, public
                 AS $$
+                #variable_conflict use_column
                 DECLARE
                     v_deleted integer := 0;
                 BEGIN
                     WITH doomed AS (
-                        SELECT k."Id"
+                        SELECT k.id
                         FROM public.idempotency_keys AS k
-                        WHERE k."ExpiresAt" <= clock_timestamp()
-                        ORDER BY k."ExpiresAt" ASC
+                        WHERE k.expires_at <= clock_timestamp()
+                        ORDER BY k.expires_at ASC
                         LIMIT GREATEST(1, LEAST(p_batch_size, 5000))
                     )
                     DELETE FROM public.idempotency_keys AS t
                     USING doomed AS d
-                    WHERE t."Id" = d."Id";
+                    WHERE t.id = d.id;
 
                     GET DIAGNOSTICS v_deleted = ROW_COUNT;
                     RETURN v_deleted;
@@ -459,9 +462,9 @@ namespace SmkDoc.Infrastructure.Migrations
                 DROP FUNCTION IF EXISTS public.fn_touch_api_key_last_used(uuid, timestamp with time zone);
                 DROP FUNCTION IF EXISTS public.fn_resolve_api_key_for_auth(text, text);
 
-                DROP POLICY IF EXISTS "idempotency_keys_scope_isolation" ON public."idempotency_keys";
-                ALTER TABLE public."idempotency_keys" NO FORCE ROW LEVEL SECURITY;
-                ALTER TABLE public."idempotency_keys" DISABLE ROW LEVEL SECURITY;
+                DROP POLICY IF EXISTS idempotency_keys_scope_isolation ON public.idempotency_keys;
+                ALTER TABLE public.idempotency_keys NO FORCE ROW LEVEL SECURITY;
+                ALTER TABLE public.idempotency_keys DISABLE ROW LEVEL SECURITY;
                 """);
 
             string[] controlPlaneDualTables =
@@ -474,9 +477,9 @@ namespace SmkDoc.Infrastructure.Migrations
             foreach (var table in controlPlaneDualTables)
             {
                 migrationBuilder.Sql($"""
-                    DROP POLICY IF EXISTS "{table}_tenant_or_control_plane" ON public."{table}";
-                    ALTER TABLE public."{table}" NO FORCE ROW LEVEL SECURITY;
-                    ALTER TABLE public."{table}" DISABLE ROW LEVEL SECURITY;
+                    DROP POLICY IF EXISTS {table}_tenant_or_control_plane ON public.{table};
+                    ALTER TABLE public.{table} NO FORCE ROW LEVEL SECURITY;
+                    ALTER TABLE public.{table} DISABLE ROW LEVEL SECURITY;
                     """);
             }
 
@@ -492,9 +495,9 @@ namespace SmkDoc.Infrastructure.Migrations
             foreach (var table in strictChildTables)
             {
                 migrationBuilder.Sql($"""
-                    DROP POLICY IF EXISTS "{table}_tenant_isolation" ON public."{table}";
-                    ALTER TABLE public."{table}" NO FORCE ROW LEVEL SECURITY;
-                    ALTER TABLE public."{table}" DISABLE ROW LEVEL SECURITY;
+                    DROP POLICY IF EXISTS {table}_tenant_isolation ON public.{table};
+                    ALTER TABLE public.{table} NO FORCE ROW LEVEL SECURITY;
+                    ALTER TABLE public.{table} DISABLE ROW LEVEL SECURITY;
                     """);
             }
 
@@ -511,9 +514,9 @@ namespace SmkDoc.Infrastructure.Migrations
             foreach (var table in strictTenantTables)
             {
                 migrationBuilder.Sql($"""
-                    DROP POLICY IF EXISTS "{table}_tenant_isolation" ON public."{table}";
-                    ALTER TABLE public."{table}" NO FORCE ROW LEVEL SECURITY;
-                    ALTER TABLE public."{table}" DISABLE ROW LEVEL SECURITY;
+                    DROP POLICY IF EXISTS {table}_tenant_isolation ON public.{table};
+                    ALTER TABLE public.{table} NO FORCE ROW LEVEL SECURITY;
+                    ALTER TABLE public.{table} DISABLE ROW LEVEL SECURITY;
                     """);
             }
 

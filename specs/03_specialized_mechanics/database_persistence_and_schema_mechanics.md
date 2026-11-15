@@ -67,7 +67,7 @@ Signal: [ARCH_EVOLUTION_DATABASE]
 ```yaml
 TableNamingFirewall:
   Invariant: "All database tables must be plural snake_case; columns must be singular snake_case."
-  ActionOnViolation: "Configure builder.ToTable('plural_snake_case') and check column names."
+  ActionOnViolation: "Ensure DbContext uses UsePostgreSqlConventions(...) (UseSnakeCaseNamingConvention) and explicit builder.ToTable('plural_snake_case')."
 
 PrimaryKeyGenerationFirewall:
   Invariant: "Entities must use C# UUIDv7 with ValueGeneratedNever()."
@@ -83,7 +83,7 @@ MultiTenantIndexFirewall:
 
 ConcurrencyTokenFirewall:
   Invariant: "Mutable entities must implement IConcurrencyAware with Version mapped as concurrency token."
-  ActionOnViolation: "Implement IConcurrencyAware and add builder.Property(e => e.Version).HasColumnName(\"version\").IsConcurrencyToken()."
+  ActionOnViolation: "Implement IConcurrencyAware and configure builder.Property(e => e.Version).HasColumnName(\"version\").IsConcurrencyToken() (with UseSnakeCaseNamingConvention)."
 
 MigrationExpandContractFirewall:
   Invariant: "Never drop or rename a column in a single migration pass while old code is running."

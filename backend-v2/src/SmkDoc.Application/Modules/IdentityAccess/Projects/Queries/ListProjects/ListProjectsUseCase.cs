@@ -9,9 +9,6 @@ public sealed class ListProjectsUseCase(
 {
     public async Task<ProjectPagedResultDto> ExecuteAsync(ListProjectsQuery query, CancellationToken ct)
     {
-        int page = Math.Max(1, query.Page);
-        int pageSize = Math.Clamp(query.PageSize, 1, 100);
-
         var uId = new UserId(query.UserId);
         var now = timeProvider.GetUtcNow();
 
@@ -19,10 +16,11 @@ public sealed class ListProjectsUseCase(
             uId,
             now,
             query.SearchTerm,
-            page,
-            pageSize,
+            query.Page,
+            query.Limit,
+            query.IncludeTotal,
             ct);
 
-        return new ProjectPagedResultDto(items, totalCount, page, pageSize);
+        return new ProjectPagedResultDto(items, totalCount, query.Page, query.Limit);
     }
 }

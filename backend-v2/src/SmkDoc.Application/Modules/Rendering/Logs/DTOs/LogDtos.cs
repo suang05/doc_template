@@ -45,15 +45,15 @@ public sealed record AppUsageMetricDto(
 /// Paged result envelope for generation logs query.
 /// </summary>
 public record GenerationLogPagedResultDto(
-    IEnumerable<GenerationLogDto> Logs,
-    int Total,
+    IReadOnlyList<GenerationLogDto> Logs,
+    long? Total,
     int Page,
     int Limit
 );
 
 public sealed record GenerationLogPagedResult(
-    IEnumerable<GenerationLogDto> Logs,
-    int Total,
+    IReadOnlyList<GenerationLogDto> Logs,
+    long? Total,
     int Page,
     int Limit
 ) : GenerationLogPagedResultDto(Logs, Total, Page, Limit);

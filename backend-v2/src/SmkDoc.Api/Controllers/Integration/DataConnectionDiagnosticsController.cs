@@ -50,7 +50,7 @@ public sealed class DataConnectionDiagnosticsController(
 
     /// <summary>Legacy connectivity check alias. Use POST /api/v1/data-connections/connectivity-checks instead.</summary>
     [HttpPost("test")]
-    [DeprecatedEndpoint]
+    [DeprecatedEndpoint(successorPath: "/api/v1/data-connections/connectivity-checks")]
     [EnableRateLimiting("test-conn")]
     [ProducesResponseType(typeof(ApiResponse<TestDataConnectionResultDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]

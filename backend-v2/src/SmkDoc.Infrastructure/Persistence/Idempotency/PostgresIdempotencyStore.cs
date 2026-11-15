@@ -36,28 +36,28 @@ public sealed class PostgresIdempotencyStore(
             upsertCmd.Transaction = tx;
             upsertCmd.CommandText = """
                 INSERT INTO public.idempotency_keys (
-                    "Id", "ProjectId", "CredentialId", "Scope", "IdempotencyKey",
-                    "RequestFingerprint", "Status", "LockedUntil", "CreatedAt", "ExpiresAt"
+                    id, project_id, credential_id, scope, idempotency_key,
+                    request_fingerprint, status, locked_until, created_at, expires_at
                 )
                 VALUES (
                     @p_id, @p_project_id, @p_credential_id, @p_scope, @p_key,
                     @p_fingerprint, 'in_progress', @p_locked_until, @p_now, @p_expires_at
                 )
-                ON CONFLICT ("TenantScopeId", "CredentialId", "Scope", "IdempotencyKey")
+                ON CONFLICT (tenant_scope_id, credential_id, scope, idempotency_key)
                 DO UPDATE SET
-                    "Id" = EXCLUDED."Id",
-                    "RequestFingerprint" = EXCLUDED."RequestFingerprint",
-                    "Status" = 'in_progress',
-                    "StatusCode" = NULL,
-                    "ResponseJson" = NULL,
-                    "ResponseHeadersJson" = NULL,
-                    "ResultResourceId" = NULL,
-                    "LockedUntil" = EXCLUDED."LockedUntil",
-                    "CreatedAt" = EXCLUDED."CreatedAt",
-                    "ExpiresAt" = EXCLUDED."ExpiresAt"
-                WHERE public.idempotency_keys."ExpiresAt" <= @p_now
-                   OR (public.idempotency_keys."Status" = 'in_progress' AND public.idempotency_keys."LockedUntil" <= @p_now)
-                RETURNING "Id";
+                    id = EXCLUDED.id,
+                    request_fingerprint = EXCLUDED.request_fingerprint,
+                    status = 'in_progress',
+                    status_code = NULL,
+                    response_json = NULL,
+                    response_headers_json = NULL,
+                    result_resource_id = NULL,
+                    locked_until = EXCLUDED.locked_until,
+                    created_at = EXCLUDED.created_at,
+                    expires_at = EXCLUDED.expires_at
+                WHERE public.idempotency_keys.expires_at <= @p_now
+                   OR (public.idempotency_keys.status = 'in_progress' AND public.idempotency_keys.locked_until <= @p_now)
+                RETURNING id;
                 """;
             upsertCmd.Parameters.Add(new NpgsqlParameter("p_id", NpgsqlDbType.Uuid) { Value = Guid.CreateVersion7() });
             upsertCmd.Parameters.Add(new NpgsqlParameter("p_project_id", NpgsqlDbType.Uuid)
@@ -83,13 +83,13 @@ public sealed class PostgresIdempotencyStore(
         await using var selectCmd = conn.CreateCommand();
         selectCmd.Transaction = tx;
         selectCmd.CommandText = """
-            SELECT "RequestFingerprint", "Status", "StatusCode", "ResponseJson",
-                   "ResponseHeadersJson", "CreatedAt", "ResultResourceId", "LockedUntil"
+            SELECT request_fingerprint, status, status_code, response_json,
+                   response_headers_json, created_at, result_resource_id, locked_until
             FROM public.idempotency_keys
-            WHERE "TenantScopeId" = @p_scope_id
-              AND "CredentialId" = @p_credential_id
-              AND "Scope" = @p_scope
-              AND "IdempotencyKey" = @p_key
+            WHERE tenant_scope_id = @p_scope_id
+              AND credential_id = @p_credential_id
+              AND scope = @p_scope
+              AND idempotency_key = @p_key
             LIMIT 1;
             """;
         selectCmd.Parameters.Add(new NpgsqlParameter("p_scope_id", NpgsqlDbType.Uuid) { Value = request.ProjectId ?? GlobalTenantScopeId });
@@ -130,25 +130,25 @@ public sealed class PostgresIdempotencyStore(
         cmd.Transaction = tx;
         cmd.CommandText = """
             INSERT INTO public.idempotency_keys (
-                "Id", "ProjectId", "CredentialId", "Scope", "IdempotencyKey",
-                "RequestFingerprint", "Status", "StatusCode", "ResponseJson",
-                "ResponseHeadersJson", "ResultResourceId", "LockedUntil", "CreatedAt", "ExpiresAt"
+                id, project_id, credential_id, scope, idempotency_key,
+                request_fingerprint, status, status_code, response_json,
+                response_headers_json, result_resource_id, locked_until, created_at, expires_at
             )
             VALUES (
                 @p_id, @p_project_id, @p_credential_id, @p_scope, @p_key,
                 @p_fingerprint, 'completed', @p_status_code, CAST(@p_response_json AS jsonb),
                 CAST(@p_headers_json AS jsonb), @p_result_id, @p_now, @p_now, @p_expires_at
             )
-            ON CONFLICT ("TenantScopeId", "CredentialId", "Scope", "IdempotencyKey")
+            ON CONFLICT (tenant_scope_id, credential_id, scope, idempotency_key)
             DO UPDATE SET
-                "RequestFingerprint" = EXCLUDED."RequestFingerprint",
-                "Status" = 'completed',
-                "StatusCode" = EXCLUDED."StatusCode",
-                "ResponseJson" = EXCLUDED."ResponseJson",
-                "ResponseHeadersJson" = EXCLUDED."ResponseHeadersJson",
-                "ResultResourceId" = EXCLUDED."ResultResourceId",
-                "LockedUntil" = EXCLUDED."LockedUntil",
-                "ExpiresAt" = EXCLUDED."ExpiresAt";
+                request_fingerprint = EXCLUDED.request_fingerprint,
+                status = 'completed',
+                status_code = EXCLUDED.status_code,
+                response_json = EXCLUDED.response_json,
+                response_headers_json = EXCLUDED.response_headers_json,
+                result_resource_id = EXCLUDED.result_resource_id,
+                locked_until = EXCLUDED.locked_until,
+                expires_at = EXCLUDED.expires_at;
             """;
         cmd.Parameters.Add(new NpgsqlParameter("p_id", NpgsqlDbType.Uuid) { Value = Guid.CreateVersion7() });
         cmd.Parameters.Add(new NpgsqlParameter("p_project_id", NpgsqlDbType.Uuid)
@@ -188,11 +188,11 @@ public sealed class PostgresIdempotencyStore(
         cmd.Transaction = tx;
         cmd.CommandText = """
             DELETE FROM public.idempotency_keys
-            WHERE "TenantScopeId" = @p_scope_id
-              AND "CredentialId" = @p_credential_id
-              AND "Scope" = @p_scope
-              AND "IdempotencyKey" = @p_key
-              AND "Status" = 'in_progress';
+            WHERE tenant_scope_id = @p_scope_id
+              AND credential_id = @p_credential_id
+              AND scope = @p_scope
+              AND idempotency_key = @p_key
+              AND status = 'in_progress';
             """;
         cmd.Parameters.Add(new NpgsqlParameter("p_scope_id", NpgsqlDbType.Uuid) { Value = projectId ?? GlobalTenantScopeId });
         cmd.Parameters.Add(new NpgsqlParameter("p_credential_id", NpgsqlDbType.Text) { Value = credentialId });

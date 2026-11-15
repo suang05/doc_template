@@ -31,7 +31,7 @@ flowchart TD
 
     subgraph Defense ["2. Defense Strategy: Defense-in-Depth (3-Tier Guard & 5-Layer Isolation)"]
         direction TB
-        DataPlane --> T1["Tier 1: Perimeter Guard (TenantResolutionMiddleware + ITenantResolutionResolver)\n• Channel A (Authorization: ApiKey) / Channel B (Bearer JWT)\n• Missing Project-Id Header? -> 400 Bad Request (PROJECT_CONTEXT_REQUIRED)\n• API Key vs Project-Id Mismatch? -> 400 Bad Request (PROJECT_CONTEXT_MISMATCH)\n• Member Unknown/Non-Member Project-Id? -> 404 Not Found (NOT_FOUND, Anti-Enumeration)\n• SuperAdmin without Membership or BreakGlassGrant? -> 403 Forbidden (CROSS_TENANT_ACCESS_DENIED)\n• Member's Project Inactive? -> 403 Forbidden (PROJECT_DEACTIVATED)"]
+        DataPlane --> T1["Tier 1: Perimeter Guard (ProjectContextMiddleware + ITenantResolutionResolver)\n• Channel A (Authorization: ApiKey) / Channel B (Bearer JWT)\n• Missing Project-Id Header? -> 400 Bad Request (PROJECT_CONTEXT_REQUIRED)\n• API Key vs Project-Id Mismatch? -> 400 Bad Request (PROJECT_CONTEXT_MISMATCH)\n• Member Unknown/Non-Member Project-Id? -> 404 Not Found (NOT_FOUND, Anti-Enumeration)\n• SuperAdmin without Membership or BreakGlassGrant? -> 403 Forbidden (CROSS_TENANT_ACCESS_DENIED)\n• Member's Project Inactive? -> 403 Forbidden (PROJECT_DEACTIVATED)"]
         T1 -- Tenant Resolved & Permitted --> T2["Tier 2: Application Guard (UseCase PEMR in Trusted Zone)\n• Never checks HTTP headers, never throws 401 Unauthorized\n• Evaluates business preconditions & domain context"]
         T2 --> T3["Tier 3: Domain Invariants, EF Filter, Write Interceptor & PostgreSQL RLS\n• Entity Factory Methods (Create) enforce business invariants\n• EF Core Global Query Filter (WHERE IsResolved AND project_id = @Id)\n• TenantWriteEnforcementInterceptor + PostgreSQL RLS (SET LOCAL app.current_project_id)"]
     end
@@ -54,7 +54,7 @@ flowchart TD
 ### 1.3 Dimension 2: Defense-in-Depth Strategy (The 3-Tier Guard Model)
 | Defense Tier | Gatekeeper Component | Operating Environment | Primary Verification Concerns | Rejection Exception & HTTP Status |
 |---|---|---|---|---|
-| **Tier 1: Perimeter Guard** | `TenantResolutionMiddleware` | HTTP Wire Boundary | Identity, route plane, `Project-Id` header extraction, cached `ITenantResolutionResolver` binding & membership check, project active status, ZSA / Break-Glass boundary. | `400 Bad Request` (`PROJECT_CONTEXT_REQUIRED`, `PROJECT_CONTEXT_MISMATCH`), `401 Unauthorized`, `403 Forbidden` (`PROJECT_DEACTIVATED`, `CROSS_TENANT_ACCESS_DENIED`, `INSUFFICIENT_KEY_SCOPE`), `404 Not Found` (`NOT_FOUND`). |
+| **Tier 1: Perimeter Guard** | `ProjectContextMiddleware` | HTTP Wire Boundary | Identity, route plane, `Project-Id` header extraction, cached `ITenantResolutionResolver` binding & membership check, project active status, ZSA / Break-Glass boundary. | `400 Bad Request` (`PROJECT_CONTEXT_REQUIRED`, `PROJECT_CONTEXT_MISMATCH`), `401 Unauthorized`, `403 Forbidden` (`PROJECT_DEACTIVATED`, `CROSS_TENANT_ACCESS_DENIED`, `INSUFFICIENT_KEY_SCOPE`), `404 Not Found` (`NOT_FOUND`). |
 | **Tier 2: Application Guard** | UseCase PEMR (Step 1 & 2) | Trusted Application Zone | Ambient context binding (`GetRequiredProjectId()`), business uniqueness, aggregate existence (cross-tenant returns `404`), Two-Phase Explicit Concurrency (`ExpectedVersion`), payload schema. | `TenantContextNotResolvedException` (`500`), `NotFoundException` (`404`), `ConflictException` (`409`), `PreconditionFailedException` (`412`), `SchemaValidationException` (`422`). |
 | **Tier 3: Domain, Interceptor & RLS Guard** | Entities, EF Core Interceptors & PostgreSQL RLS | Core Domain & Relational Engine | Aggregate root business invariants, state transition validity, relational row-level tenant filtering (`WHERE project_id = @Id`), `TenantWriteEnforcementInterceptor`, PostgreSQL RLS (`app.current_project_id`), and `version bigint` concurrency token. | `DomainValidationException` (`422`), `BusinessRuleViolationException` (`409`), `DbUpdateConcurrencyException` → `PreconditionFailedException` (`412`). |
 
@@ -78,7 +78,7 @@ flowchart TD
 | **Delegated Sub-Key Quota** | Project Admins manage operational sub-keys on `/api/v1/api-keys` under a strict budget of maximum 2 active keys per tenant (1 `ReadOnly` + 1 `ReadWrite`), returning `409 Conflict` on duplicate scope. | Key Governance |
 | **Key Masking Wire Egress** | Key list/get endpoints return masked keys derived from authentic components (`$"{KeyPrefix}_{KeyId}_****{KeySuffix}"`). Synthesizing pseudo-suffixes from the hash is prohibited. | Contract Privacy |
 | **Deterministic `Project-Id` Binding**| Data Plane requests require the `Project-Id` header (no `X-` prefix). Missing `Project-Id` returns `400 PROJECT_CONTEXT_REQUIRED`; API key binding mismatch returns `400 PROJECT_CONTEXT_MISMATCH`; unknown or non-member `Project-Id` lookup by a regular JWT user returns `404 NOT_FOUND` (anti-enumeration). | Tenant Extraction |
-| **Perimeter Scope Enforcement** | Channel A keys with `ApiKeyScope.ReadOnly` are blocked at `TenantResolutionMiddleware` from executing mutating HTTP verbs (`POST`/`PUT`/`PATCH`/`DELETE`) returning `403 Forbidden` (`INSUFFICIENT_KEY_SCOPE`), permitting only stateless `/preview` and `/validate`. | Perimeter Firewall |
+| **Perimeter Scope Enforcement** | Channel A keys with `ApiKeyScope.ReadOnly` are blocked at `ProjectContextMiddleware` from executing mutating HTTP verbs (`POST`/`PUT`/`PATCH`/`DELETE`) returning `403 Forbidden` (`INSUFFICIENT_KEY_SCOPE`), permitting only stateless `/preview` and `/validate`. | Perimeter Firewall |
 | **Authenticated Preview Protection**| Preview endpoints require authenticated tenant context to resolve templates and protect Gotenberg Chromium pods. Anonymous public access to `/preview` is prohibited. | Render Perimeter |
 | **Tenant Idempotency Partition**| Distributed idempotency keys are persisted in PostgreSQL `idempotency_keys` partitioned strictly by `(project_id, credential_id, idempotency_key)` with SHA-256 request fingerprint. Shared caller keying is prohibited. | Idempotency Partitioning |
 
@@ -203,7 +203,7 @@ ReadOnlyScopeFirewall:
 
 ## 3. Level 3: Canonical Working Archetypes (Surgical AST Recipes)
 
-### 3.1 Tier 1 Perimeter Guard Archetype (`ApiKeyVerifier` & `TenantResolutionMiddleware`)
+### 3.1 Tier 1 Perimeter Guard Archetype (`ApiKeyVerifier` & `ProjectContextMiddleware`)
 >> MANDATORY CANONICAL BLUEPRINT [RULE-SEC-001]:
 ```csharp
 public sealed class ApiKeyVerifier(
@@ -262,7 +262,7 @@ public sealed class ApiKeyVerifier(
     }
 }
 
-public sealed class TenantResolutionMiddleware(RequestDelegate next)
+public sealed class ProjectContextMiddleware(RequestDelegate next)
 {
     public async Task InvokeAsync(
         HttpContext context,

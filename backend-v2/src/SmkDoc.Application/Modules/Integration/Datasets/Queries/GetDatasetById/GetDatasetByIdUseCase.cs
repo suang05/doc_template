@@ -14,16 +14,6 @@ public sealed class GetDatasetByIdUseCase(
 
         var connection = dataset.DataConnection ?? await connectionRepo.GetByIdAsync(dataset.DataConnectionId, ct);
 
-        return new DatasetResultDto(
-            dataset.Id.Value,
-            dataset.Name.Value,
-            dataset.Description,
-            dataset.DataConnectionId.Value,
-            connection?.Name.Value ?? string.Empty,
-            dataset.SqlQuery,
-            dataset.CacheSeconds,
-            dataset.CreatedAt,
-            dataset.UpdatedAt,
-            dataset.Version);
+        return dataset.ToResultDto(connection?.Name.Value);
     }
 }

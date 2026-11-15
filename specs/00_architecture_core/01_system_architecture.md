@@ -95,7 +95,7 @@ flowchart TD
         I -- "Valid state" --> J["IUnitOfWork.CommitAsync (entities + outbox) and ResultDto"]
     end
 ```
-1. **Tier 1: Perimeter Guard**. Implemented as three separate ASP.NET Core stages (single responsibility): `UseAuthentication` (two schemes: `ApiKey`, `Jwt`, implemented as `AuthenticationHandler`s), `TenantResolutionMiddleware` (plane routing, `Project-Id` resolution, membership and active check via cached `ITenantResolutionResolver` lookup with event-based invalidation; never direct `AppDbContext`), and `UseAuthorization` (policies such as `RequireSuperAdmin`, `TenantMember`). Controllers and UseCases never receive un-tenanted Data Plane requests.
+1. **Tier 1: Perimeter Guard**. Implemented as three separate ASP.NET Core stages (single responsibility): `UseAuthentication` (two schemes: `ApiKey`, `Jwt`, implemented as `AuthenticationHandler`s), `ProjectContextMiddleware` (plane routing, `Project-Id` resolution, membership and active check via cached `ITenantResolutionResolver` lookup with event-based invalidation; never direct `AppDbContext`), and `UseAuthorization` (policies such as `RequireSuperAdmin`, `TenantMember`). Controllers and UseCases never receive un-tenanted Data Plane requests.
 2. **Tier 2: Application Guard** (UseCase PEMR). Operates in a **Trusted Zone**: does not re-check HTTP headers or authentication.
    - Archetype A UseCases (create entities, build storage paths or cache keys from the project) call `projectContext.GetRequiredProjectId()` in Step 1. If the tenant is unresolved here, it is a **programming error** (middleware bypassed): `TenantContextNotResolvedException` (internal error, alert), not a client error. `TryGetProjectId()` exists for code that tolerates absence.
    - Archetype B UseCases (by-ID or collection reads and updates) do not inject `ICurrentProjectContext`; tenant scoping is enforced by the layers in §1.1.3.
@@ -146,25 +146,25 @@ Rules: contexts talk only through the published contracts above (ports, IDs, dom
 
 ### 1.4 The 3 Core Execution Pipelines
 ```
-[PIPELINE_A: M2M SYNCHRONOUS DOCUMENT GENERATION (Durable audit, zero truncated-200)]
-HTTP Request (API Key, Idempotency-Key REQUIRED)
-  => Tier 1 (ApiKey authentication => Tenant resolution => Authorization)
-  => DocumentsController (<= 5 LOC)
+[PIPELINE_A: M2M SYNCHRONOUS DOCUMENT GENERATION (Durable audit, zero truncated artifacts)]
+HTTP Request (Authorization: ApiKey, Idempotency-Key supported)
+  => Tier 1 (ApiKey authentication => ProjectContextMiddleware => Authorization)
+  => DocumentGenerationController (<= 5 LOC)
   => GenerateDocumentUseCase (PEMR — never holds a DB transaction open during external I/O)
        Step 1 Parse:  value objects, tenant (GetRequiredProjectId), idempotency key claim
        Step 2 Ensure: quota check (IQuotaReader), published TemplateVersion snapshot (AsNoTracking/cache),
                       tenant dataset extraction & JSON Schema validation (IDataBindingEngine)
        Step 3 Mutate:
-         3a. Render via engine dispatcher (Gotenberg / OpenXML / ClosedXML) into a bounded HybridSpoolStream
-             (64 KB ArrayPool<byte> in RAM; spills to a DeleteOnClose temp file up to the format size cap).
-             Computes exact Content-Length and SHA-256 checksum before any HTTP 200 header is sent.
-         3b. Stream-upload the spooled artifact to MinIO (deterministic key outputs/{projectId}/{yyyy/MM/dd}/{documentId}.{ext}).
+         3a. Render via engine dispatcher (Gotenberg / OpenXML / ClosedXML) into a bounded SpooledRenderOutput / HybridSpoolStream
+             (65_536-byte LOH-safe pooled ArrayPool<byte> in RAM; spills to DeleteOnClose temp file up to the format size cap).
+             Computes exact SizeBytes and SHA-256 checksum before upload and DB commit.
+         3b. Stream-upload the spooled artifact to private MinIO (key outputs/{projectId}/{yyyy/MM/dd}/{documentId}.{ext}, 24h TTL retention).
          3c. Persist Document + GenerationLog(Succeeded, checksum, sizeBytes, storageKey) + IdempotencyRecord
              + OutboxMessage(DocumentRenderedDomainEvent) atomically in ONE short DB transaction (< 5 ms).
-       Step 4 Return: rewind HybridSpoolStream and return via FileStreamResult (disposes spool stream on completion).
-  Failure policy: if rendering fails mid-stream, no 200 header has been written so GlobalExceptionHandler returns
-  502/504 ProblemDetails (the caller never receives a truncated 200). If the short DB commit fails after upload,
-  the orphaned MinIO object is cleaned up by the background retention worker.
+       Step 4 Return: 201 Created JSON metadata (ApiResponse<GenerateDocumentResultDto>) carrying Gateway artifact stream URL
+                      (/api/v1/generation-logs/{generationId}/artifact/file) and expiresAt; binary bytes stream server-side via DocumentArtifactController.
+  Failure policy: if rendering fails mid-stream, GlobalExceptionHandler returns 502/504 ProblemDetails and no GenerationLog/Document is committed.
+  If the short DB commit fails after upload, compensating storage deletion (or DocumentRetentionWorker) cleans up the orphaned MinIO object.
 
 [PIPELINE_B: WEB STUDIO LIVE PREVIEW (Non-Persistent)]
 HTTP Request (JWT Bearer)
@@ -354,8 +354,8 @@ SliceModularityFirewall:
   Enforcement: "Analyzer (SA1402/SA1649 or custom), NetArchTest naming rules."
 
 CompositionRootFirewall:
-  Invariant: "DI registrations are modular per Bounded Context / Subsystem (Add{Context}Module, Add{Subsystem}Infrastructure). No monolithic Program.cs or root DependencyInjection.cs."
-  Enforcement: "Line-count and registration-count test on composition files; code review checklist."
+  Invariant: "DI registrations are grouped cohesively by Bounded Context / Subsystem where justified by scaling, domain boundary, or testability per YAGNI (avoiding both monolithic god-files mixing unrelated concerns and premature micro-file fragmentation)."
+  Enforcement: "Architecture/code review checks for cohesive subsystem installers across Presentation, Application, and Infrastructure."
 
 GodServiceEliminationFirewall:
   Invariant: "Business capabilities are isolated vertical slices (1 UseCase = 1 Command/Query = 1 responsibility). Generic CRUD service base classes are not allowed; plumbing generics (AggregateRoot<TId>, IUseCase<,>) are fine."

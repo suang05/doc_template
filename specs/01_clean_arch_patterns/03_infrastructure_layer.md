@@ -5,7 +5,7 @@ Category: 01_clean_arch_patterns
 Domain: Infrastructure Layer Architecture, Port Adapters & Modular DI
 SoleResponsibilities:
   - External port implementations (`IStoragePort` MinIO, `ISqlDriverFactory`, PostgreSQL durable state & Redis cache)
-  - Modular Infrastructure DI composition root (`Extensions/` feature installers <= 25 LOC)
+  - Modular Infrastructure DI composition root (`Extensions/` installers partitioned for scaling and YAGNI)
   - `HybridTemplateDraftCache` (L1 MemoryCache + L2 Redis multiplexer)
   - Transactional unit of work (`TransactionalUnitOfWork.cs`) and `OutboxSaveChangesInterceptor` (`outbox_messages`)
 Target: `SmkDoc.Infrastructure/` (`Storage/`, `Data/Drivers/`, `Cache/`, `Extensions/`, `Persistence/`)
@@ -38,7 +38,7 @@ Signal: [ARCH_EVOLUTION_INFRASTRUCTURE]
 | **Response-Owning Gotenberg Streams**| Wrap Gotenberg HTTP responses in `ResponseDisposingStream` using `ResponseHeadersRead` to deterministically release sockets upon stream closure. | Network Socket Lifecycle |
 | **Bounded Pooled Stream Sizing** | Object storage uploads require seekable streams with known `Stream.Length` spooled via `HybridSpoolStream` (`65_536`-byte pooled chunks); initialized buckets are cached in `ConcurrentDictionary`. | Storage Gateway |
 | **Durable Idempotency & Cache Topology** | Idempotency keys (`idempotency_keys`) and async batch jobs (`document_jobs` with `FOR UPDATE SKIP LOCKED`) are persisted durably in PostgreSQL; Redis is used for L2 caching and distributed rate-limit partitioning (`TRAP-SCALE-014`). | Multi-Pod Scalability |
-| **Modular Feature Installers (CompositionRootFirewall)** | Infrastructure DI enforces the system-wide `CompositionRootFirewall` by registering dependencies through 5 single-responsibility extension installers (`Persistence`, `Storage`, `RenderingEngines`, `DistributedInfrastructure`, `SecurityInfrastructure`). The composition root `SmkDoc.Infrastructure/DependencyInjection.cs` remains a lean $\le 25$ LOC coordinator. | Composition Root |
+| **Modular Feature Installers (CompositionRootFirewall)** | Infrastructure DI enforces the system-wide `CompositionRootFirewall` by registering dependencies through single-responsibility extension installers partitioned for team scaling and YAGNI (avoiding artificial LOC fragmentation). | Composition Root |
 | **Hybrid Draft Cache SSoT (CodebaseSSoTFirewall)** | Enforces system-wide `CodebaseSSoTAndDeduplicationFirewall`. Ephemeral template drafts are cached via `HybridTemplateDraftCache` (L1 in-memory LRU with transparent L2 Redis synchronization), guaranteeing zero conditional DI branching or duplicate cache classes across environments. | Ephemeral Cache |
 | **Singleton Handlebars Registry** | Pre-registers custom helpers once at application startup and injects `IHandlebars` as a thread-safe singleton. Per-request or scoped re-instantiation of Handlebars is prohibited. | Engine Initialization |
 | **Polymorphic SQL Execution** | Execute external SQL datasets via `ISqlDriverFactory` resolving provider-specific strategies (`PostgresDriverStrategy`, `SqlServerDriverStrategy`) with `ConnectionHostValidator` IP pinning, `DbConnectionStringBuilder`, `BEGIN TRANSACTION READ ONLY`, 5s statement timeout, and `10_000`-row cap (`TRAP-SQL-011`). | Data Federation |
@@ -322,7 +322,7 @@ public static class PersistenceServiceExtensions
             ?? throw new InvalidOperationException("Connection string required.");
         services.AddDbContext<AppDbContext>((sp, options) =>
         {
-            options.UseNpgsql(connectionString, sql => sql.EnableRetryOnFailure(5, TimeSpan.FromSeconds(10), null));
+            options.UsePostgreSqlConventions(connectionString, sql => sql.EnableRetryOnFailure(5, TimeSpan.FromSeconds(10), null));
             options.AddInterceptors(
                 sp.GetRequiredService<TenantWriteEnforcementInterceptor>(),
                 sp.GetRequiredService<OutboxSaveChangesInterceptor>());

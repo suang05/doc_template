@@ -18,7 +18,7 @@ public sealed class TenantIsolationIntegrationTests
     private static DbContextOptions<AppDbContext> CreateOptions(TenantSecuritySaveChangesInterceptor? interceptor = null)
     {
         var builder = new DbContextOptionsBuilder<AppDbContext>()
-            .UseNpgsql("Host=localhost;Database=test_isolation_db;Username=test;Password=test");
+            .UsePostgreSqlConventions("Host=localhost;Database=test_isolation_db;Username=test;Password=test");
 
         if (interceptor != null)
         {

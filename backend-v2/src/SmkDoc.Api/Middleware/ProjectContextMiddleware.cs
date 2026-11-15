@@ -16,7 +16,7 @@ namespace SmkDoc.Api.Middleware;
 /// <summary>
 /// Centralized perimeter security gateway enforcing dual-channel authentication,
 /// Control Plane vs Data Plane separation, Zero Standing Access (ZSA), and strict tenant scoping.
-/// Converges X-API-Key (M2M) and Authorization Bearer (Web Studio) into <see cref="ICurrentProjectContextSetter"/>.
+/// Converges Authorization: ApiKey (M2M) and Authorization: Bearer (Web Studio) into <see cref="ICurrentProjectContextSetter"/>.
 /// </summary>
 public sealed partial class ProjectContextMiddleware(
     RequestDelegate next,
@@ -109,10 +109,9 @@ public sealed partial class ProjectContextMiddleware(
             return;
         }
 
-        if (context.Request.Headers.TryGetValue(HttpHeaderConstants.ApiKeyHeader, out var extractedApiKey) &&
-            !string.IsNullOrWhiteSpace(extractedApiKey))
+        if (HttpHeaderConstants.TryExtractApiKey(context.Request.Headers, out var extractedApiKey))
         {
-            await HandleApiKeyAuthAsync(context, projectContextSetter, validateApiKeyUseCase, extractedApiKey.ToString(), path);
+            await HandleApiKeyAuthAsync(context, projectContextSetter, validateApiKeyUseCase, extractedApiKey, path);
             return;
         }
 
@@ -120,7 +119,7 @@ public sealed partial class ProjectContextMiddleware(
             context,
             StatusCodes.Status401Unauthorized,
             "Unauthorized",
-            "Authentication credentials missing or invalid. Provide an X-API-Key header or Bearer token.",
+            "Authentication credentials missing or invalid. Provide an Authorization: ApiKey header or Bearer token.",
             ErrorCodes.Unauthorized);
     }
 
@@ -240,12 +239,7 @@ public sealed partial class ProjectContextMiddleware(
         if (project is null)
         {
             LogTenantNotFound(logger, targetProjectId);
-            await WriteProblemDetailsAsync(
-                context,
-                StatusCodes.Status404NotFound,
-                "Not Found",
-                $"Project '{targetProjectId}' not found.",
-                ErrorCodes.NotFound);
+            await WriteProjectNotFoundAsync(context, targetProjectId);
             return false;
         }
 
@@ -257,13 +251,9 @@ public sealed partial class ProjectContextMiddleware(
 
         if (membership is null)
         {
+            // Return 404 NOT_FOUND externally to avoid confirming project existence across tenants.
             LogZeroStandingAccessDenied(logger, userIdValue, parsedSystemRole, targetProjectId);
-            await WriteProblemDetailsAsync(
-                context,
-                StatusCodes.Status403Forbidden,
-                "Forbidden",
-                $"User does not have permission to access project '{targetProjectId}'.",
-                ErrorCodes.CrossTenantAccessDenied);
+            await WriteProjectNotFoundAsync(context, targetProjectId);
             return false;
         }
 
@@ -293,34 +283,18 @@ public sealed partial class ProjectContextMiddleware(
         if (project is null)
         {
             LogTenantNotFound(logger, targetProjectId);
-            await WriteProblemDetailsAsync(
-                context,
-                StatusCodes.Status404NotFound,
-                "Not Found",
-                $"Project '{targetProjectId}' not found.",
-                ErrorCodes.NotFound);
+            await WriteProjectNotFoundAsync(context, targetProjectId);
             return false;
         }
 
         Guid userIdValue = parsedUserId?.Value ?? Guid.Empty;
-        if (!project.IsActive)
-        {
-            LogTenantInactiveForUser(logger, userIdValue, targetProjectId);
-            await WriteProblemDetailsAsync(
-                context,
-                StatusCodes.Status403Forbidden,
-                "Forbidden",
-                $"Project '{targetProjectId}' is deactivated.",
-                ErrorCodes.ProjectDeactivated);
-            return false;
-        }
-
         return await AuthorizeMemberOrBreakGlassAsync(
             context,
             projectContextSetter,
             tenantResolutionResolver,
             securityAuditService,
             timeProvider,
+            project,
             targetProjectId,
             userIdValue,
             parsedSystemRole,
@@ -335,6 +309,7 @@ public sealed partial class ProjectContextMiddleware(
         ITenantResolutionResolver tenantResolutionResolver,
         ISecurityAuditService securityAuditService,
         TimeProvider timeProvider,
+        ResolvedProjectState project,
         ProjectId targetProjectId,
         Guid userIdValue,
         SystemRole parsedSystemRole,
@@ -350,6 +325,12 @@ public sealed partial class ProjectContextMiddleware(
 
         if (roleMapping is not null)
         {
+            if (!project.IsActive)
+            {
+                await WriteDeactivatedProjectAsync(context, userIdValue, targetProjectId);
+                return false;
+            }
+
             if (context.User.Identity is ClaimsIdentity memberIdentity)
             {
                 EnsureRoleClaim(memberIdentity, roleMapping.RoleName);
@@ -359,14 +340,27 @@ public sealed partial class ProjectContextMiddleware(
             return true;
         }
 
-        if (isSuperAdmin &&
-            userIdValue != Guid.Empty &&
+        if (!isSuperAdmin)
+        {
+            // Return 404 NOT_FOUND for active or deactivated non-member projects (Anti-Enumeration).
+            LogZeroStandingAccessDenied(logger, userIdValue, parsedSystemRole, targetProjectId);
+            await WriteProjectNotFoundAsync(context, targetProjectId);
+            return false;
+        }
+
+        if (userIdValue != Guid.Empty &&
             await tenantResolutionResolver.HasActiveBreakGlassGrantAsync(
                 typedUserId,
                 targetProjectId,
                 timeProvider.GetUtcNow(),
                 context.RequestAborted))
         {
+            if (!project.IsActive)
+            {
+                await WriteDeactivatedProjectAsync(context, userIdValue, targetProjectId);
+                return false;
+            }
+
             securityAuditService.LogBreakGlassAccessUsed(userIdValue, targetProjectId.Value, path);
             if (context.User.Identity is ClaimsIdentity breakGlassIdentity)
             {
@@ -382,11 +376,28 @@ public sealed partial class ProjectContextMiddleware(
             context,
             StatusCodes.Status403Forbidden,
             "Forbidden",
-            isSuperAdmin
-                ? "SuperAdmin data-plane access requires an explicit project role or active break-glass grant."
-                : $"User does not have permission to access project '{targetProjectId}'.",
+            "SuperAdmin data-plane access requires an explicit project role or active break-glass grant.",
             ErrorCodes.CrossTenantAccessDenied);
         return false;
+    }
+
+    private Task WriteProjectNotFoundAsync(HttpContext context, ProjectId targetProjectId) =>
+        WriteProblemDetailsAsync(
+            context,
+            StatusCodes.Status404NotFound,
+            "Not Found",
+            $"Project '{targetProjectId}' not found.",
+            ErrorCodes.NotFound);
+
+    private Task WriteDeactivatedProjectAsync(HttpContext context, Guid userIdValue, ProjectId targetProjectId)
+    {
+        LogTenantInactiveForUser(logger, userIdValue, targetProjectId);
+        return WriteProblemDetailsAsync(
+            context,
+            StatusCodes.Status403Forbidden,
+            "Forbidden",
+            $"Project '{targetProjectId}' is deactivated.",
+            ErrorCodes.ProjectDeactivated);
     }
 
     private async Task<Guid?> TryResolveDataPlaneProjectIdAsync(HttpContext context, string path)

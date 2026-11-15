@@ -126,7 +126,7 @@ public sealed partial class DocumentRetentionWorker(
         var ids = new List<Guid>();
         await using var conn = await source.OpenConnectionAsync(ct);
         await using var cmd = conn.CreateCommand();
-        cmd.CommandText = "SELECT \"ProjectId\" FROM public.fn_list_active_project_ids();";
+        cmd.CommandText = "SELECT project_id FROM public.fn_list_active_project_ids();";
 
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))

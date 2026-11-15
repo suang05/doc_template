@@ -167,14 +167,8 @@ public sealed class GenerateDocumentUseCaseTests
             .Returns(new MemoryStream(Encoding.UTF8.GetBytes(output)));
     }
 
-    private void SetupPresignedUrl(string url = "https://minio.sammakorn.co.th/outputs/sample.pdf")
-    {
-        _storageService.GetPresignedUrlAsync("outputs", Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>())
-            .Returns(url);
-    }
-
     [Fact]
-    public async Task ExecuteAsync_WhenTemplateActive_ShouldGenerateAndReturnPresignedUrl()
+    public async Task ExecuteAsync_WhenTemplateActive_ShouldGenerateAndReturnGatewayUrl()
     {
         // Arrange
         var (template, currentVersion) = SetupActiveHtmlTemplate(
@@ -186,7 +180,6 @@ public sealed class GenerateDocumentUseCaseTests
         var versionId = currentVersion.Id;
 
         SetupRenderEnginePdfOutput("%PDF-1.4 Mock Output");
-        SetupPresignedUrl("https://minio.sammakorn.co.th/outputs/sample.pdf?signature=valid");
 
         _documentRepo.GetByDocumentRefWithVersionsAsync(Arg.Any<DocumentReference>(), Arg.Any<CancellationToken>())
             .Returns((Document?)null);
@@ -199,7 +192,7 @@ public sealed class GenerateDocumentUseCaseTests
 
         // Assert
         result.Should().NotBeNull();
-        result.Url.Should().StartWith("https://minio.sammakorn.co.th");
+        result.Url.Should().Be($"/api/v1/generation-logs/{result.GenerationId:D}/artifact/file");
         result.OutputFormat.Should().Be("pdf");
         result.GenerationId.Version.Should().Be(7);
 
@@ -230,7 +223,6 @@ public sealed class GenerateDocumentUseCaseTests
         using var renderStream = new NonSeekableReadOnlyStream(payloadBytes);
         _engine.RenderStreamAsync(Arg.Any<Stream>(), Arg.Any<string>(), Arg.Any<OutputFormat>(), Arg.Any<CancellationToken>())
             .Returns(renderStream);
-        SetupPresignedUrl("https://minio.sammakorn.co.th/outputs/non-seekable.pdf");
 
         using var jsonDoc = JsonDocument.Parse("{}");
         var request = new GenerateDocumentCommand("non-seekable-doc", jsonDoc.RootElement, OutputFormat: "pdf");
@@ -276,7 +268,6 @@ public sealed class GenerateDocumentUseCaseTests
         // Arrange
         SetupActiveHtmlTemplate(slug: "commit-fail-doc");
         SetupRenderEnginePdfOutput("%PDF-1.4");
-        SetupPresignedUrl("https://minio.sammakorn.co.th/outputs/orphan.pdf");
         _unitOfWork.CommitAsync(Arg.Any<CancellationToken>())
             .ThrowsAsync(new InvalidOperationException("PostgreSQL deadlock"));
 
@@ -342,8 +333,6 @@ public sealed class GenerateDocumentUseCaseTests
                 return new MemoryStream(Encoding.UTF8.GetBytes("%PDF-1.4 Mock Output"));
             });
 
-        SetupPresignedUrl("https://minio.sammakorn.co.th/outputs/sample.pdf");
-
         using var jsonDoc = JsonDocument.Parse("{\"contract\":{\"price\":\"2500000\"}}");
         var request = new GenerateDocumentCommand("contract-direct", jsonDoc.RootElement);
 
@@ -376,7 +365,6 @@ public sealed class GenerateDocumentUseCaseTests
             .WithTime(now);
 
         SetupRenderEnginePdfOutput("%PDF-1.4");
-        SetupPresignedUrl("https://minio.sammakorn.co.th/outputs/sc.pdf");
 
         existingDocument.CreateVersion(Guid.NewGuid(), Guid.NewGuid(), "v1", "app", now);
         existingDocument.CreateVersion(Guid.NewGuid(), Guid.NewGuid(), "v2", "app", now);
@@ -464,7 +452,6 @@ public sealed class GenerateDocumentUseCaseTests
         SetupRenderEnginePdfOutput();
         _storageService.UploadAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<Stream>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns("outputs/invoice.pdf");
-        SetupPresignedUrl("https://example.com/download/invoice.pdf");
 
         using var jsonDoc = JsonDocument.Parse("""{"customer":"ACME"}""");
         var request = new GenerateDocumentCommand("invoice", jsonDoc.RootElement, OutputFormat: "pdf", SkipValidation: true);
@@ -475,7 +462,7 @@ public sealed class GenerateDocumentUseCaseTests
         // Assert
         _schemaValidation.DidNotReceive().Validate(Arg.Any<string>(), Arg.Any<string>());
         await _engine.Received(1).RenderStreamAsync(Arg.Any<Stream>(), Arg.Any<string>(), Arg.Any<OutputFormat>(), Arg.Any<CancellationToken>());
-        result.Url.Should().Be("https://example.com/download/invoice.pdf");
+        result.Url.Should().Be($"/api/v1/generation-logs/{result.GenerationId:D}/artifact/file");
     }
 
     [Fact]
@@ -487,7 +474,6 @@ public sealed class GenerateDocumentUseCaseTests
             name: "Fallback Contract",
             htmlContent: "<html><body>Fallback</body></html>");
         SetupRenderEnginePdfOutput("%PDF-1.4 Mock Output");
-        SetupPresignedUrl("https://example.com/download/fallback.pdf");
 
         using var jsonDoc = JsonDocument.Parse("{}");
         var request = new GenerateDocumentCommand("fallback-contract", jsonDoc.RootElement, OutputFormat: "unknown_format", SkipValidation: true);
@@ -501,7 +487,7 @@ public sealed class GenerateDocumentUseCaseTests
             Arg.Any<string>(),
             OutputFormat.Pdf,
             Arg.Any<CancellationToken>());
-        result.Url.Should().Be("https://example.com/download/fallback.pdf");
+        result.Url.Should().Be($"/api/v1/generation-logs/{result.GenerationId:D}/artifact/file");
     }
 
     private sealed class NonSeekableReadOnlyStream(byte[] bytes) : Stream

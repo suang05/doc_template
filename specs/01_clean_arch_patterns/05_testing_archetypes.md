@@ -29,7 +29,7 @@ flowchart TD
 
     subgraph Defense ["2. Defense Strategy: Defense-in-Depth (3-Tier Guard)"]
         direction TB
-        TestT1["Tier 1 (Perimeter Test): Middleware / Integration\n• Test TenantResolutionMiddleware with missing 'Project-Id' -> 400 (PROJECT_CONTEXT_REQUIRED)\n• Test credential mismatch -> 400 (PROJECT_CONTEXT_MISMATCH)\n• Test Zero Standing Access -> 403 (CROSS_TENANT_ACCESS_DENIED)"]
+        TestT1["Tier 1 (Perimeter Test): Middleware / Integration\n• Test ProjectContextMiddleware with missing 'Project-Id' -> 400 (PROJECT_CONTEXT_REQUIRED)\n• Test credential mismatch -> 400 (PROJECT_CONTEXT_MISMATCH)\n• Test non-member project -> 404 (NOT_FOUND) & Zero Standing Access -> 403 (CROSS_TENANT_ACCESS_DENIED)"]
         TestT2["Tier 2 (Application Guard Test): Unit Tests (SmkDoc.Tests)\n• Archetype A: Test var projectId = projectContext.GetRequiredProjectId() fail-fast\n• Archetype B: Test with ZERO context mock (Compile-time purity)"]
         TestT3["Tier 3 (Domain Invariant Test): Pure POCO Tests (SmkDoc.Tests)\n• 100% Real POCOs (Zero Mock): Factory Create, Version increment & Invariants"]
         TestT1 --> TestT2 --> TestT3

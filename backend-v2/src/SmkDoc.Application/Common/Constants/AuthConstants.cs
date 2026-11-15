@@ -8,7 +8,9 @@ public static class AuthConstants
     /// <summary>
     /// Default Access Token lifetime in seconds (24 hours).
     /// </summary>
-    public const int AccessTokenLifetimeSeconds = 86400;
+    public const int DefaultAccessTokenMinutes = 15;
+    public const int MaxAccessTokenMinutes = 15;
+    public const int AccessTokenLifetimeSeconds = 900;
 
     /// <summary>
     /// Default Refresh Token lifetime in days (7 days).

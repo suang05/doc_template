@@ -14,7 +14,7 @@ namespace SmkDoc.Api.Controllers.Authoring;
 
 /// <summary>
 /// Template field mappings management and live preview rendering.
-/// Auth: Channel A (X-API-Key) or Channel B (Portal Bearer JWT).
+/// Auth: Channel A (Authorization: ApiKey) or Channel B (Portal Bearer JWT).
 /// </summary>
 [ApiController]
 [Route("api/v1/templates/{id:guid}/mappings")]

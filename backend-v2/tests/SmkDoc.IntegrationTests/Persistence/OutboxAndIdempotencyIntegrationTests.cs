@@ -111,7 +111,7 @@ public sealed class OutboxAndIdempotencyIntegrationTests(PostgreSqlContainerFixt
                 await using var checkDs = new NpgsqlDataSourceBuilder(fixture.ConnectionString).Build();
                 await using var conn = await checkDs.OpenConnectionAsync();
                 await using var cmd = conn.CreateCommand();
-                cmd.CommandText = "SELECT \"ProcessedAt\", \"Attempts\" FROM public.outbox_messages WHERE \"Id\" = @id;";
+                cmd.CommandText = "SELECT processed_at, attempts FROM public.outbox_messages WHERE id = @id;";
                 cmd.Parameters.Add(new NpgsqlParameter("id", NpgsqlDbType.Uuid) { Value = persistedOutboxId });
                 await using var reader = await cmd.ExecuteReaderAsync();
                 if (await reader.ReadAsync())

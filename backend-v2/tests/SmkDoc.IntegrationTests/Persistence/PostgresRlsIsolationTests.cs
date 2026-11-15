@@ -95,9 +95,9 @@ public sealed class PostgresRlsIsolationTests(PostgreSqlContainerFixture fixture
             await using var cmd = unsetConn.CreateCommand();
             cmd.CommandText = """
                 SELECT
-                    (SELECT COUNT(*) FROM public.templates WHERE "Id" IN (@ta, @tb)) AS tpl_count,
-                    (SELECT COUNT(*) FROM public.document_jobs WHERE "Id" IN (@ja, @jb)) AS job_count,
-                    (SELECT COUNT(*) FROM public.document_job_items WHERE "DocumentJobId" IN (@ja, @jb)) AS item_count;
+                    (SELECT COUNT(*) FROM public.templates WHERE id IN (@ta, @tb)) AS tpl_count,
+                    (SELECT COUNT(*) FROM public.document_jobs WHERE id IN (@ja, @jb)) AS job_count,
+                    (SELECT COUNT(*) FROM public.document_job_items WHERE document_job_id IN (@ja, @jb)) AS item_count;
                 """;
             cmd.Parameters.Add(new NpgsqlParameter("ta", NpgsqlDbType.Uuid) { Value = templateA.Id.Value });
             cmd.Parameters.Add(new NpgsqlParameter("tb", NpgsqlDbType.Uuid) { Value = templateB.Id.Value });
@@ -128,10 +128,10 @@ public sealed class PostgresRlsIsolationTests(PostgreSqlContainerFixture fixture
                 rawCmd.Transaction = tx;
                 rawCmd.CommandText = """
                     SELECT
-                        (SELECT COUNT(*) FROM public.templates WHERE "Id" = @ta) AS own_tpl,
-                        (SELECT COUNT(*) FROM public.templates WHERE "Id" = @tb) AS cross_tpl,
-                        (SELECT COUNT(*) FROM public.document_job_items WHERE "DocumentJobId" = @ja) AS own_items,
-                        (SELECT COUNT(*) FROM public.document_job_items WHERE "DocumentJobId" = @jb) AS cross_items;
+                        (SELECT COUNT(*) FROM public.templates WHERE id = @ta) AS own_tpl,
+                        (SELECT COUNT(*) FROM public.templates WHERE id = @tb) AS cross_tpl,
+                        (SELECT COUNT(*) FROM public.document_job_items WHERE document_job_id = @ja) AS own_items,
+                        (SELECT COUNT(*) FROM public.document_job_items WHERE document_job_id = @jb) AS cross_items;
                     """;
                 rawCmd.Parameters.Add(new NpgsqlParameter("ta", NpgsqlDbType.Uuid) { Value = templateA.Id.Value });
                 rawCmd.Parameters.Add(new NpgsqlParameter("tb", NpgsqlDbType.Uuid) { Value = templateB.Id.Value });
@@ -216,8 +216,8 @@ public sealed class PostgresRlsIsolationTests(PostgreSqlContainerFixture fixture
             await using var cmd = unsetConn.CreateCommand();
             cmd.CommandText = """
                 SELECT
-                    (SELECT COUNT(*) FROM public.api_keys WHERE "Id" IN (@ka, @kb)),
-                    (SELECT COUNT(*) FROM public.project_quotas WHERE "ProjectId" IN (@pa, @pb));
+                    (SELECT COUNT(*) FROM public.api_keys WHERE id IN (@ka, @kb)),
+                    (SELECT COUNT(*) FROM public.project_quotas WHERE project_id IN (@pa, @pb));
                 """;
             cmd.Parameters.Add(new NpgsqlParameter("ka", NpgsqlDbType.Uuid) { Value = keyA.Id.Value });
             cmd.Parameters.Add(new NpgsqlParameter("kb", NpgsqlDbType.Uuid) { Value = keyB.Id.Value });
@@ -245,8 +245,8 @@ public sealed class PostgresRlsIsolationTests(PostgreSqlContainerFixture fixture
             cmd.Transaction = tx;
             cmd.CommandText = """
                 SELECT
-                    (SELECT COUNT(*) FROM public.api_keys WHERE "Id" IN (@ka, @kb)),
-                    (SELECT COUNT(*) FROM public.project_quotas WHERE "ProjectId" IN (@pa, @pb));
+                    (SELECT COUNT(*) FROM public.api_keys WHERE id IN (@ka, @kb)),
+                    (SELECT COUNT(*) FROM public.project_quotas WHERE project_id IN (@pa, @pb));
                 """;
             cmd.Parameters.Add(new NpgsqlParameter("ka", NpgsqlDbType.Uuid) { Value = keyA.Id.Value });
             cmd.Parameters.Add(new NpgsqlParameter("kb", NpgsqlDbType.Uuid) { Value = keyB.Id.Value });
@@ -274,5 +274,52 @@ public sealed class PostgresRlsIsolationTests(PostgreSqlContainerFixture fixture
         // Wrong secret with same KeyId must return null cleanly.
         var tamperedKey = $"{mintedA.KeyPrefix}_{mintedA.KeyId}_WrongSecretValue0123456789abcdef";
         (await verifier.VerifyAsync(tamperedKey, CancellationToken.None)).Should().BeNull();
+    }
+
+    [RequiresPostgreSqlFact]
+    public async Task InformationSchema_AllPublicTablesColumnsAndConstraints_MustBePureLowercaseSnakeCase()
+    {
+        await using var adminDs = new NpgsqlDataSourceBuilder(fixture.ConnectionString).Build();
+        await using var conn = await adminDs.OpenConnectionAsync();
+
+        var violations = new List<string>();
+        await using (var cmd = conn.CreateCommand())
+        {
+            cmd.CommandText = """
+                SELECT 'table' AS kind, table_name AS ident
+                FROM information_schema.tables
+                WHERE table_schema = 'public'
+                  AND table_type = 'BASE TABLE'
+                  AND table_name <> '__EFMigrationsHistory'
+                  AND table_name ~ '[A-Z]'
+                UNION ALL
+                SELECT 'column' AS kind, table_name || '.' || column_name AS ident
+                FROM information_schema.columns
+                WHERE table_schema = 'public'
+                  AND table_name <> '__EFMigrationsHistory'
+                  AND column_name ~ '[A-Z]'
+                UNION ALL
+                SELECT 'constraint' AS kind, table_name || '.' || constraint_name AS ident
+                FROM information_schema.table_constraints
+                WHERE constraint_schema = 'public'
+                  AND table_name <> '__EFMigrationsHistory'
+                  AND constraint_name ~ '[A-Z]'
+                UNION ALL
+                SELECT 'index' AS kind, tablename || '.' || indexname AS ident
+                FROM pg_indexes
+                WHERE schemaname = 'public'
+                  AND tablename <> '__EFMigrationsHistory'
+                  AND indexname ~ '[A-Z]';
+                """;
+
+            await using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                violations.Add($"{reader.GetString(0)}:{reader.GetString(1)}");
+            }
+        }
+
+        violations.Should().BeEmpty(
+            $"Live PostgreSQL schema must use 100% lowercase snake_case identifiers. Found: {string.Join(", ", violations)}");
     }
 }

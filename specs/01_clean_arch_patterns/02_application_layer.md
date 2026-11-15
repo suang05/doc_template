@@ -30,7 +30,7 @@ flowchart TD
 
     subgraph Defense ["2. Defense Strategy: Defense-in-Depth (3-Tier Guard)"]
         direction TB
-        Tier1["Tier 1: Perimeter Guard (TenantResolutionMiddleware)\n• Gatekeeper: Who, Where, Which Tenant?\n• Rejects missing tenant with 400 (PROJECT_CONTEXT_REQUIRED) or mismatch with 400 (PROJECT_CONTEXT_MISMATCH)"]
+        Tier1["Tier 1: Perimeter Guard (ProjectContextMiddleware)\n• Gatekeeper: Who, Where, Which Tenant?\n• Rejects missing tenant with 400 (PROJECT_CONTEXT_REQUIRED) or mismatch with 400 (PROJECT_CONTEXT_MISMATCH)"]
         Tier2["Tier 2: Application Guard (UseCase PEMR Step 1 & 2)\n• Trusted Zone: Business Preconditions & Context Binding\n• Never checks HTTP headers or throws 401 Unauthorized"]
         Tier3["Tier 3: Domain Invariants & 5-Layer Isolation\n• Aggregate Root Invariants (POCO Create/Verbs)\n• Fail-Closed EF Global Filter + Write Interceptor + PostgreSQL RLS"]
         Tier1 --> Tier2 --> Tier3
@@ -303,7 +303,7 @@ public sealed class {Verb}{Aggregate}UseCase(
 >> MANDATORY CANONICAL BLUEPRINT [RULE-APP-QRY-003]:
 * Validates `Page >= 1` and `Limit` (`1..100`) via FluentValidation (`422 VALIDATION_FAILED` if out of range).
 * Projects directly to lightweight scalar DTOs via `I{Aggregate}ReadModel` (`.AsNoTracking()`), bypassing heavy `jsonb` payloads.
-* **Zero Phantom Context Injection**: Relies on Tier 1 Perimeter Guard (`TenantResolutionMiddleware`) to reject un-tenanted calls with `400 PROJECT_CONTEXT_REQUIRED`, while `I{Aggregate}ReadModel` / EF Core + RLS automatically applies the tenant filter. **Must NOT inject `ICurrentProjectContext` or pass `projectId` manually.**
+* **Zero Phantom Context Injection**: Relies on Tier 1 Perimeter Guard (`ProjectContextMiddleware`) to reject un-tenanted calls with `400 PROJECT_CONTEXT_REQUIRED`, while `I{Aggregate}ReadModel` / EF Core + RLS automatically applies the tenant filter. **Must NOT inject `ICurrentProjectContext` or pass `projectId` manually.**
 
 ```csharp
 // --- File: Queries/List{Aggregate}s/List{Aggregate}sQuery.cs ---
@@ -427,7 +427,7 @@ public sealed class Update{Aggregate}UseCase(
 
 ### 3.6 Modular Application DI Composition Archetype (`AddApplicationServices` & Bounded Context Modules)
 >> MANDATORY CANONICAL BLUEPRINT [RULE-APP-DI-006]:
-* Root `AddApplicationServices()` acts strictly as a lightweight orchestrator (< 25 LOC), delegating to modular Bounded Context extensions.
+* Root `AddApplicationServices()` acts as a cohesive orchestrator delegating to modular Bounded Context extensions (organized by domain scaling and YAGNI rather than arbitrary line-count ceilings).
 * Each Bounded Context manages its own registrations via `{BoundedContext}ModuleExtensions.cs` using `services.AddUseCase<TRequest, TResponse, TImplementation>()`.
 * Prohibits monolithic dumping of all use cases or services directly into root `DependencyInjection.cs`.
 

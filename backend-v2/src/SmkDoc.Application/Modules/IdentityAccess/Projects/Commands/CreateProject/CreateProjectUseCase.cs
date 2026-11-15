@@ -30,7 +30,7 @@ public sealed class CreateProjectUseCase(
         var (readKey, writeKey) = await ProvisionInitialApiKeysAsync(project.Id, command.Name, command.Slug, now, ct);
         await unitOfWork.CommitAsync(ct);
 
-        return ToResultDto(project, readKey, writeKey);
+        return project.ToResultDto(readKey, writeKey);
     }
 
     private async Task<Project> ProvisionProjectAggregateAsync(CreateProjectCommand command, DateTimeOffset now, CancellationToken ct)
@@ -49,16 +49,6 @@ public sealed class CreateProjectUseCase(
 
         return project;
     }
-
-    private static ProjectResultDto ToResultDto(Project project, string readKey, string writeKey) =>
-        new(project.Id.Value,
-            project.Name.Value,
-            project.Slug.Value,
-            project.IsActive,
-            project.CreatedAt,
-            readKey,
-            writeKey,
-            Version: project.Version);
 
     private async Task EnsureUniqueSlugAsync(string slug, CancellationToken ct)
     {

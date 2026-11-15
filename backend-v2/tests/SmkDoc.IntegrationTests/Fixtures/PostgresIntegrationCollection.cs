@@ -31,7 +31,7 @@ internal static class PostgresIntegrationTestSupport
     {
         var effectiveTime = timeProvider ?? TimeProvider.System;
         var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseNpgsql(dataSource)
+            .UsePostgreSqlConventions(dataSource)
             .AddInterceptors(
                 new TenantDbConnectionInterceptor(projectContext),
                 new TenantDbTransactionInterceptor(projectContext),
@@ -45,7 +45,7 @@ internal static class PostgresIntegrationTestSupport
     public static AppDbContext CreatePlainDbContext(string connectionString, CurrentProjectContext projectContext)
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseNpgsql(connectionString)
+            .UsePostgreSqlConventions(connectionString)
             .AddInterceptors(
                 new TenantDbConnectionInterceptor(projectContext),
                 new TenantDbTransactionInterceptor(projectContext),

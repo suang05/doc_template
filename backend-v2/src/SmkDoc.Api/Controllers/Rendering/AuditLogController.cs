@@ -30,9 +30,10 @@ public sealed class AuditLogController(
         [FromQuery] int page = 1,
         [FromQuery] int limit = 50,
         [FromQuery] string? app = null,
+        [FromQuery] bool includeTotal = false,
         CancellationToken ct = default)
     {
-        var query = new ListGenerationLogsQuery(page, limit, app);
+        var query = new ListGenerationLogsQuery(page, limit, app, includeTotal);
         var result = await listUseCase.ExecuteAsync(query, ct);
         return Ok(new PagedApiResponse<GenerationLogDto>(result.Logs, result.Total, result.Page, result.Limit));
     }

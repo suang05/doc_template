@@ -56,7 +56,6 @@ public sealed class PreviewDocumentUseCaseTests
 
         // Zero side-effects verification:
         await _storage.DidNotReceive().UploadAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<Stream>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
-        await _storage.DidNotReceive().GetPresignedUrlAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]

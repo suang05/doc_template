@@ -9,11 +9,13 @@ public sealed class ListGenerationLogsUseCase(IGenerationLogQueryService logQuer
         ListGenerationLogsQuery query,
         CancellationToken ct)
     {
-        int page = Math.Max(1, query.Page);
-        int limit = Math.Clamp(query.Limit, 1, 200);
+        var (items, total) = await logQueryService.ListPagedAsync(
+            query.CallerApp,
+            query.Page,
+            query.Limit,
+            query.IncludeTotal,
+            ct);
 
-        var (items, total) = await logQueryService.ListPagedAsync(query.CallerApp, page, limit, ct);
-
-        return new GenerationLogPagedResult(items, total, page, limit);
+        return new GenerationLogPagedResult(items, total, query.Page, query.Limit);
     }
 }

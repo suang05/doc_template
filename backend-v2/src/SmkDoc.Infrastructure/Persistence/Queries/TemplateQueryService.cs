@@ -9,12 +9,13 @@ public sealed class TemplateQueryService(AppDbContext context) : ITemplateQueryS
 {
     private readonly AppDbContext _context = context;
 
-    public async Task<(IReadOnlyList<TemplateResultDto> Items, int TotalCount)> ListPagedAsync(
+    public async Task<(IReadOnlyList<TemplateResultDto> Items, long? TotalCount)> ListPagedAsync(
         string? searchTerm,
         string? category,
         bool? isActive,
         int page,
-        int pageSize,
+        int limit,
+        bool includeTotal,
         CancellationToken ct)
     {
         IQueryable<Template> query = _context.Templates
@@ -39,15 +40,15 @@ public sealed class TemplateQueryService(AppDbContext context) : ITemplateQueryS
                 EF.Functions.ILike(EF.Property<string>(t, "Slug"), term));
         }
 
-        var totalCount = await query.CountAsync(ct);
+        long? totalCount = includeTotal ? await query.LongCountAsync(ct) : null;
 
         var safePage = page < 1 ? 1 : page;
-        var safePageSize = pageSize < 1 ? 20 : Math.Min(pageSize, 100);
+        var safeLimit = limit < 1 ? 20 : Math.Min(limit, 100);
 
         var rows = await query
             .OrderByDescending(t => t.UpdatedAt ?? t.CreatedAt)
-            .Skip((safePage - 1) * safePageSize)
-            .Take(safePageSize)
+            .Skip((safePage - 1) * safeLimit)
+            .Take(safeLimit)
             .Select(t => new
             {
                 t.Id,

@@ -27,12 +27,13 @@ public sealed class PortalProjectsController(
     public async Task<IActionResult> ListAccessibleProjects(
         [FromQuery] string? search,
         [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 20,
+        [FromQuery] int limit = 20,
+        [FromQuery] bool includeTotal = false,
         CancellationToken ct = default)
     {
         var userId = User.GetUserId();
-        var query = new ListProjectsQuery(userId, search, page, pageSize);
+        var query = new ListProjectsQuery(userId, search, page, limit, includeTotal);
         var result = await listProjectsUseCase.ExecuteAsync(query, ct);
-        return Ok(new PagedApiResponse<ProjectResultDto>(result.Items, result.TotalCount, result.Page, result.PageSize));
+        return Ok(new PagedApiResponse<ProjectResultDto>(result.Items, result.TotalCount, result.Page, result.Limit));
     }
 }

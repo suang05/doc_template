@@ -23,7 +23,7 @@ public sealed class RefreshTokenConfiguration : IEntityTypeConfiguration<Refresh
         builder.Property(e => e.CreatedAt).HasDefaultValueSql("NOW()");
 
         builder.HasIndex(e => new { e.UserId, e.ExpiresAt })
-            .HasFilter("\"RevokedAt\" IS NULL");
+            .HasFilter("revoked_at IS NULL");
 
         builder.HasOne<User>()
             .WithMany()

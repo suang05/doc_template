@@ -5,7 +5,7 @@ Category: 02_frontend_patterns
 Domain: UI Component Architecture, Design Tokens & Client-Side Validation
 SoleResponsibilities:
   - Ice-White enterprise theme design tokens and Tailwind CSS utility conventions
-  - Headless UI primitives (Radix UI), CVA component variants, and Lucide icons
+  - Typed accessible shared UI primitives (`src/components/ui/`), Tailwind CSS/CVA variants, and Lucide icons
   - Monaco Editor template authoring studio integration and live preview panels
   - Client-side Zod validation schemas (`*.schema.ts`) and Vitest component testing
 Target: `frontend-v2/` (`src/components/ui/`, `src/features/*/components/`, `src/features/*/schemas/`)
@@ -21,7 +21,7 @@ Signal: [ARCH_EVOLUTION_FRONTEND_UI]
 |---|---|---|---|
 | **Design Tokens** | CSS Custom Properties (`:root`) | Defines ice-white surfaces and slate typography | Tailwind CSS Theme Configuration |
 | **Component Variants**| Caller Props (`variant`, `size`) | Dispatches variant classes via CVA | DOM HTML Attributes (`className`) |
-| **Form Inputs** | User Keystrokes | Validates shape at runtime via Zod schema | React Hook Form State |
+| **Form Inputs** | User Keystrokes | Validates shape at runtime via Zod schema (`*.schema.ts`) | Controlled React State / Server Action |
 | **Icons** | Lucide React Icon Package | Consistent 16px/18px stroke rendering | UI Buttons, Headers & Status Badges |
 | **Test Verification** | Production Schemas (`@/features/*/schemas/`) | Co-located Vitest execution (`src/__tests__/`) | Quality Gate CI Pipeline |
 
@@ -34,7 +34,7 @@ Signal: [ARCH_EVOLUTION_FRONTEND_UI]
 | **Standardized Iconography** | Icons are imported exclusively from `lucide-react` with fixed `size={16}` or `size={18}` strokes. Inlining raw `<svg>` elements or mixing external icon packages is prohibited. | Icon Assets |
 | **SSoT Validation Schemas** | Form and payload validation schemas reside in `src/features/{slice}/schemas/` and are imported into both UI forms and Vitest specs. Redefining duplicate schemas in tests is prohibited. | Schema Integrity |
 | **Co-Located Test Directory** | Frontend unit and schema tests reside strictly under `frontend-v2/src/__tests__/` matching source structure. Separate or isolated `src/tests/` folders are prohibited. | Test Organization |
-| **Controlled UI Primitives** | Interactive elements wrap accessible Radix/CVA primitives (`<Button>`, `<Input>`, `<Card>`). Bare unstyled HTML form elements are prohibited. | DOM Primitives |
+| **Controlled UI Primitives** | Interactive elements wrap accessible shared primitives in `src/components/ui/` (`<Button>`, `<Input>`, `<Card>`, `<Select>`, `<Badge>`). Ad-hoc unstyled HTML form elements with duplicated inline utility classes are prohibited. | DOM Primitives |
 
 ---
 

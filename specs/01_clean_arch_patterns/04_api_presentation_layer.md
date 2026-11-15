@@ -24,13 +24,13 @@ The Presentation Layer serves as the gateway to the 3-Tier Governance Hierarchy,
 flowchart TD
     subgraph Macro ["1. Macro Architecture: Zoning Strategy"]
         direction TB
-        CP_Ctrl["Control Plane Controllers (/api/v1/management/**)\n• Management*Controller (Projects, Global Fonts, Quotas)\n• Policy: [Authorize(Policy = 'RequireSuperAdmin')]\n• Tenancy: Permitted without resolved tenant"]
+        CP_Ctrl["Control Plane Controllers (/api/v1/management/**)\n• Platform/Management Controllers (Projects, Global Fonts, Quotas, Platform API Keys)\n• Policy: [Authorize(Policy = 'RequireSuperAdmin')]\n• Tenancy: Permitted without resolved tenant"]
         DP_Ctrl["Data Plane Controllers (/api/v1/**)\n• *Controller (Templates, Documents, DocumentJobs, Datasets, API Keys)\n• Policy: [Authorize(Policy = 'Can*')]\n• Tenancy: 100% Ambient Tenant Mandatory via 'Project-Id' Header"]
     end
 
     subgraph Defense ["2. Defense Strategy: Defense-in-Depth (3-Tier Guard)"]
         direction TB
-        T1["Tier 1: Perimeter Guard (TenantResolutionMiddleware)\n• Executes BEFORE controller action\n• Blocks missing 'Project-Id' (400 PROJECT_CONTEXT_REQUIRED) & mismatch (400 PROJECT_CONTEXT_MISMATCH)\n• Blocks SuperAdmin on Data Plane without Break-Glass (403 CROSS_TENANT_ACCESS_DENIED)"]
+        T1["Tier 1: Perimeter Guard (ProjectContextMiddleware)\n• Executes BEFORE controller action\n• Blocks missing 'Project-Id' (400 PROJECT_CONTEXT_REQUIRED) & mismatch (400 PROJECT_CONTEXT_MISMATCH)\n• Blocks non-member 'Project-Id' (404 NOT_FOUND) & SuperAdmin on Data Plane without Break-Glass (403 CROSS_TENANT_ACCESS_DENIED)"]
         T2["Tier 2: Application Guard (UseCase PEMR)\n• Controller delegates immediately: await useCase.ExecuteAsync(cmd, ct)\n• Zero controller-side tenancy checks, 0 LOC business logic"]
         T1 --> CP_Ctrl
         T1 --> DP_Ctrl
@@ -47,7 +47,7 @@ flowchart TD
 ```
 
 * **Zoning Boundary Enforcement**:
-  * **Control Plane (`/api/v1/management/**`)**: Handled strictly by `Management*Controller` classes decorated with `[Authorize(Policy = "RequireSuperAdmin")]`. Un-tenanted access is permitted for platform lifecycle operations.
+  * **Control Plane (`/api/v1/management/**`)**: Handled by platform/management controllers (`PlatformProjectsController`, `PlatformFontsController`, `ManagementGlobalFontsController`, `ManagementSystemQuotasController`, `ManagementPlatformApiKeysController`, `AuditLogsController`, `BreakGlassGrantsController`) decorated with `[Authorize(Policy = "RequireSuperAdmin")]`. Un-tenanted access is permitted for platform lifecycle operations.
   * **Data Plane (`/api/v1/**`)**: Handled by standard `*Controller` classes decorated with project-level policies (`RequireProjectAdmin`, `CanManageTemplates`, `CanGenerateDocuments`). Un-tenanted traffic is intercepted at Tier 1 before reaching controller actions.
 * **Perimeter Handoff**: Controllers are thin dispatchers ($\le 5$ LOC) that instantiate the command/query DTO from route/body parameters and forward directly to `IUseCase<TRequest, TResponse>`. Controllers MUST NOT inject `ICurrentProjectContext` or manually check tenant status.
 
@@ -59,7 +59,7 @@ flowchart TD
 | **POST Mutation Safeguard**| Costly Creating `POST` Methods (`/documents`, `/document-jobs`) | Enforces durable deduplication via `Idempotency-Key` | PostgreSQL `idempotency_keys` (`request_hash` SHA-256) |
 | **PUT/DELETE Concurrency** | Versioned `PUT` / `DELETE` / `:verb` | Binds `If-Match: "v{version}"` (`428` if missing, `412` if stale) | `command.ExpectedVersion` & EF Core `.IsConcurrencyToken()` |
 | **Wire Egress** | Application DTO (`{Aggregate}ResultDto`) | Envelopes into `ApiResponse<T>` with `ETag: "v{version}"` | Client (`200 OK`, `201 Created` + `Location`) |
-| **Streaming Egress** | Binary Render Stream | Returns `FileStreamResult` (transferring stream disposal) | HTTP Stream (`application/pdf`, `Document-Id`) |
+| **Streaming Egress** | Binary Preview / Artifact Stream (`DocumentArtifactController`) | Returns `FileStreamResult` (transferring stream disposal) | HTTP Stream (`application/pdf` / `Content-Disposition`) |
 | **Error Egress** | Unhandled Exceptions | Dispatches to RFC 9457 `ProblemDetails` (`GlobalExceptionHandler`) | HTTP Client (`application/problem+json`) |
 
 ### 1.3 Affirmative Presentation Invariants
@@ -74,13 +74,13 @@ flowchart TD
 | **SSRF Perimeter Defense** | External data connections execute pre-flight `await hostValidator.ResolveAndValidateAsync(hostname, port, projectId, ct)` via `ConnectionHostValidator` (normalizing IPv4-mapped IPv6, checking platform deny-list + per-tenant allow-list CIDRs, and pinning the validated IP addresses while preserving TLS SNI/SAN hostname verification). Any blocked target throws `SecurityViolationException` (`403 EGRESS_DENIED`). | Network Boundary |
 | **Bounded Pooled Streaming Egress** | Binary render/download endpoints return `File(result.ContentStream, result.ContentType, result.FileName, enableRangeProcessing: false)` **without** wrapping the stream in `await using` (`TRAP-SEC-002` / `TRAP-MEM-003`). | Memory & GC |
 | **Plural RESTful Taxonomy** | Routes adhere to plural kebab-case `api/v1/{resources}` on `{Aggregate}sController`, with state transitions using `/{resource}/{id}:{verb}` (`:publish`, `:cancel`, `:retry`). Legacy `/api/*` and verb path segments (`/generate-async`, `/test`) are prohibited. | Route Routing |
-| **Dual-Track Rendering** | Document generation is partitioned into Pipeline A (`POST /api/v1/documents`, sync with `rendering` rate limit) and Pipeline C (`POST /api/v1/document-jobs`, returning `202 Accepted` + `Location: /api/v1/document-jobs/{id}` + `Retry-After`). | Rendering Gateway |
+| **Dual-Track Rendering** | Document generation is partitioned into Pipeline A (`POST /api/v1/documents`, sync with `rendering` rate limit returning `201 Created` `ApiResponse<GenerateDocumentResultDto>` with Gateway download URL `/api/v1/generation-logs/{generationId}/artifact/file` served by `DocumentArtifactController`) and Pipeline C (`POST /api/v1/document-jobs`, returning `202 Accepted` + `Location: /api/v1/document-jobs/{id}` + `Retry-After`). | Rendering Gateway |
 | **Unified Preview Gateway** | Live preview requests (Monaco raw HTML, template draft ID, template slug, or template UUID) route exclusively through `PreviewDocumentUseCase`. Duplicate preview use cases are prohibited. | Preview SSoT |
 | **Pure Schema Ingestion** | Incoming JSON payloads are validated fail-fast during generation (`422 SCHEMA_VALIDATION_FAILED`) without mutating payload data or duplicating validation endpoints. | Ingestion Pipeline |
 | **Declarative Policy Security**| Actions are authorized via declarative `[Authorize(Policy = "...")]` attributes matching the Declarative Authorization Policies Matrix. | Endpoint Authorization |
 | **Separated API Key Routes** | Tenant sub-key operations reside on `/api/v1/api-keys` (Project Admin, quota max 2), while platform-wide governance resides on `/api/v1/management/api-keys` (SuperAdmin). | Key Governance |
 | **OpenAPI Schema Contracts** | Every controller action declares explicit `[ProducesResponseType(typeof(ApiResponse<T>), 2xx)]` for success envelopes and type-less `[ProducesResponseType(StatusCodes.Status4xx)]` for error statuses. | Contract Metadata |
-| **Ambient Tenant Ingress Purity** | Multi-tenant context resolves exclusively via Tier 1 Perimeter Middleware (`TenantResolutionMiddleware`) from the `Project-Id` header into `ICurrentProjectContext`. Controllers never declare `[FromQuery] Guid? projectId` or inject `ICurrentProjectContext`. Archetype A UseCases call `var projectId = projectContext.GetRequiredProjectId();`. | Controller Tenancy |
+| **Ambient Tenant Ingress Purity** | Multi-tenant context resolves exclusively via Tier 1 Perimeter Middleware (`ProjectContextMiddleware`) from the `Project-Id` header into `ICurrentProjectContext`. Controllers never declare `[FromQuery] Guid? projectId` or inject `ICurrentProjectContext`. Archetype A UseCases call `var projectId = projectContext.GetRequiredProjectId();`. | Controller Tenancy |
 
 ---
 

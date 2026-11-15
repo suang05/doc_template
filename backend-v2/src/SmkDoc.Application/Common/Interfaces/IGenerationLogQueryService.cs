@@ -7,9 +7,10 @@ namespace SmkDoc.Application.Common.Interfaces;
 /// </summary>
 public interface IGenerationLogQueryService
 {
-    Task<(IReadOnlyList<GenerationLogDto> Items, int TotalCount)> ListPagedAsync(
+    Task<(IReadOnlyList<GenerationLogDto> Items, long? TotalCount)> ListPagedAsync(
         string? callerApp,
         int page,
         int limit,
+        bool includeTotal,
         CancellationToken ct);
 }

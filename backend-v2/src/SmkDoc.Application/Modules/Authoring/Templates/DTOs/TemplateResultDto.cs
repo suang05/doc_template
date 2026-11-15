@@ -28,8 +28,8 @@ public sealed record TemplateResultDto(
 /// </summary>
 public sealed record TemplatePagedResultDto(
     IReadOnlyList<TemplateResultDto> Items,
-    int TotalCount,
+    long? TotalCount,
     int Page,
-    int PageSize
+    int Limit
 );
 

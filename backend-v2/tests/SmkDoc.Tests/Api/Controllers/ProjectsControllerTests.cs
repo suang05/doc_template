@@ -51,9 +51,9 @@ public sealed class ProjectsControllerTests
         // Arrange
         var pagedDto = new ProjectPagedResultDto(
             [new ProjectResultDto(Guid.NewGuid(), "Project Alpha", "project-alpha", true, DateTimeOffset.UtcNow, null, null, 1L)],
-            TotalCount: 1,
+            TotalCount: 1L,
             Page: 1,
-            PageSize: 20);
+            Limit: 20);
 
         _listUseCase.ExecuteAsync(Arg.Any<ListProjectsQuery>(), Arg.Any<CancellationToken>())
             .Returns(pagedDto);
@@ -61,16 +61,21 @@ public sealed class ProjectsControllerTests
         var controller = CreateSut();
 
         // Act
-        var result = await controller.ListProjects(search: "Alpha", page: 1, pageSize: 20, CancellationToken.None);
+        var result = await controller.ListProjects(search: "Alpha", page: 1, limit: 20, includeTotal: true, CancellationToken.None);
 
         // Assert
         var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
         var response = okResult.Value.Should().BeOfType<PagedApiResponse<ProjectResultDto>>().Subject;
         response.Data.Should().HaveCount(1);
-        response.Pagination.TotalCount.Should().Be(1);
+        response.Pagination.TotalCount.Should().Be(1L);
 
         await _listUseCase.Received(1).ExecuteAsync(
-            Arg.Is<ListProjectsQuery>(q => q.UserId == _currentUserId && q.SearchTerm == "Alpha" && q.Page == 1 && q.PageSize == 20),
+            Arg.Is<ListProjectsQuery>(q =>
+                q.UserId == _currentUserId &&
+                q.SearchTerm == "Alpha" &&
+                q.Page == 1 &&
+                q.Limit == 20 &&
+                q.IncludeTotal),
             Arg.Any<CancellationToken>());
     }
 

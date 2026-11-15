@@ -6,6 +6,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="SmkDoc.IntegrationTests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\SmkDoc.Application\SmkDoc.Application.csproj" />
     <ProjectReference Include="..\SmkDoc.Infrastructure\SmkDoc.Infrastructure.csproj" />
   </ItemGroup>

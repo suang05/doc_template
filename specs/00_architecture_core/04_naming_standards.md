@@ -110,15 +110,17 @@ Clipped words are prohibited. Only the industry-standard abbreviations in the al
 
 | Aggregate / Resource | Controller Name | Route Segment |
 |---|---|---|
-| `Company` | `CompaniesController` | `/api/v1/management/companies` |
-| `Project` | `ProjectsController` | `/api/v1/management/projects` |
-| `Font` (global) | `GlobalFontsController` | `/api/v1/management/fonts` |
-| `Template` | `TemplatesController` | `/api/v1/templates` |
-| `Document` | `DocumentsController` | `/api/v1/documents` |
+| `Project` (Control Plane) | `TenantProjectsController` / `ProjectsController` | `/api/v1/management/projects` / `/api/v1/projects` |
+| `Font` (global) | `PlatformFontsController` | `/api/v1/management/fonts` |
+| `ProjectQuota` | `ProjectQuotasController` | `/api/v1/management/projects/{projectId}/quota` |
+| `BreakGlassGrant` | `BreakGlassAccessController` | `/api/v1/management/break-glass-grants` |
+| `Template` | `TemplatesController` / `TemplateStudioController` / `TemplateLifecycleController` | `/api/v1/templates` |
+| `Document` / `Artifact` | `DocumentGenerationController` / `DocumentArtifactController` / `DocumentHistoryController` | `/api/v1/documents` / `/api/v1/generation-logs` |
 | `DocumentJob` | `DocumentJobsController` | `/api/v1/document-jobs` |
 | `DataConnection` | `DataConnectionsController` | `/api/v1/data-connections` |
 | `Dataset` | `DatasetsController` | `/api/v1/datasets` |
 | `ApiKey` | `ApiKeysController` | `/api/v1/api-keys` |
+| `GenerationLog` (Audit) | `AuditLogController` | `/api/v1/generation-logs` |
 
 #### 1.4.2 Wire, Database & TypeScript Naming Matrix
 | Surface | Standard | Examples | Prohibited |
@@ -154,7 +156,7 @@ Every non-entity class uses the suffix of its architectural role from the closed
 | **Caching & bounded stream** | Infra | `*Cache`, `*Stream` | `HybridTemplateDraftCache`, `HybridSpoolStream`, `ResponseDisposingStream` |
 | **Object / contract construction** | All | `*Factory`, `*Builder` (stateful/fluent only) | `RenderEngineFactory`, `ProblemDetailsFactory`, `DatasetCacheKeyBuilder` |
 | **Calculation / resolution / parsing**| All | `*Calculator`, `*Resolver`, `*Parser`, `*Verifier`, `*Validator` | `RequestFingerprintCalculator`, `RateLimitPartitionKeyResolver`, `ConnectionHostValidator`, `ApiKeyVerifier` |
-| **HTTP pipeline components** | Api | `*Middleware`, `*Filter`, `*Binder`, `*ExceptionHandler`, `*AuthenticationHandler` | `TenantResolutionMiddleware`, `IfMatchVersionBinder`, `GlobalExceptionHandler` |
+| **HTTP pipeline components** | Api | `*Middleware`, `*Filter`, `*Binder`, `*ExceptionHandler`, `*AuthenticationHandler` | `ProjectContextMiddleware`, `IfMatchVersionBinder`, `GlobalExceptionHandler` |
 | **EF Core interceptors** | Infrastructure | `*SaveChangesInterceptor` | `TenantSecuritySaveChangesInterceptor` |
 | **Background host loops** | Worker / Infra | `*Worker` | `DocumentJobWorker`, `OutboxRelayWorker`, `DocumentRetentionWorker` |
 | **Strongly-typed configuration** | All | `*Options` | `EgressPolicyOptions`, `RateLimitOptions` |

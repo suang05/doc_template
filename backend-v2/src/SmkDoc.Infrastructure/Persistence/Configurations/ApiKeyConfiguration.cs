@@ -32,14 +32,14 @@ public sealed class ApiKeyConfiguration : IEntityTypeConfiguration<ApiKey>
 
         builder.HasIndex(e => e.KeyId)
             .IsUnique()
-            .HasFilter("\"KeyId\" IS NOT NULL");
+            .HasFilter("key_id IS NOT NULL");
 
         builder.Property(e => e.KeySuffix)
             .IsRequired(false)
             .HasMaxLength(4);
 
         builder.Property(e => e.SecretHash)
-            .HasColumnName("SecretHashBytes")
+            .HasColumnName("secret_hash_bytes")
             .HasColumnType("bytea")
             .IsRequired(false)
             .HasConversion(
@@ -54,7 +54,7 @@ public sealed class ApiKeyConfiguration : IEntityTypeConfiguration<ApiKey>
                 v => string.IsNullOrWhiteSpace(v) ? null : new Sha256Hash(v));
 
         builder.Property(e => e.Expiration)
-            .HasColumnName("ExpiresAt")
+            .HasColumnName("expires_at")
             .IsRequired(false)
             .HasConversion(
                 v => v != null ? v.ExpiresAt : null,

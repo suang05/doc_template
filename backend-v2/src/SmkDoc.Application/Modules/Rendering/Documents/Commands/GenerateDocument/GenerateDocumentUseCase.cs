@@ -177,7 +177,7 @@ public sealed class GenerateDocumentUseCase(
         try
         {
             var expiry = TimeSpan.FromHours(24);
-            string downloadUrl = await storageService.GetPresignedUrlAsync(StorageBuckets.Outputs, outputKey, expiry, ct);
+            string downloadUrl = $"/api/v1/generation-logs/{generationId:D}/artifact/file";
 
             await auditProcessor.LogSuccessAsync(
                 generationId,

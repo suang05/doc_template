@@ -936,12 +936,20 @@
             }
           },
           {
-            "name": "pageSize",
+            "name": "limit",
             "in": "query",
             "schema": {
               "type": "integer",
               "format": "int32",
               "default": 20
+            }
+          },
+          {
+            "name": "includeTotal",
+            "in": "query",
+            "schema": {
+              "type": "boolean",
+              "default": false
             }
           }
         ],
@@ -1457,6 +1465,14 @@
             "in": "query",
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "includeTotal",
+            "in": "query",
+            "schema": {
+              "type": "boolean",
+              "default": false
             }
           },
           {
@@ -3200,7 +3216,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfDocumentJobListResult"
+                  "$ref": "#/components/schemas/PagedApiResponseOfDocumentJobResultDto"
                 }
               }
             }
@@ -6221,12 +6237,20 @@
             }
           },
           {
-            "name": "pageSize",
+            "name": "limit",
             "in": "query",
             "schema": {
               "type": "integer",
               "format": "int32",
               "default": 20
+            }
+          },
+          {
+            "name": "includeTotal",
+            "in": "query",
+            "schema": {
+              "type": "boolean",
+              "default": false
             }
           }
         ],
@@ -6767,12 +6791,20 @@
             }
           },
           {
-            "name": "pageSize",
+            "name": "limit",
             "in": "query",
             "schema": {
               "type": "integer",
               "format": "int32",
               "default": 20
+            }
+          },
+          {
+            "name": "includeTotal",
+            "in": "query",
+            "schema": {
+              "type": "boolean",
+              "default": false
             }
           }
         ],
@@ -9918,12 +9950,20 @@
             }
           },
           {
-            "name": "pageSize",
+            "name": "limit",
             "in": "query",
             "schema": {
               "type": "integer",
               "format": "int32",
               "default": 20
+            }
+          },
+          {
+            "name": "includeTotal",
+            "in": "query",
+            "schema": {
+              "type": "boolean",
+              "default": false
             }
           },
           {
@@ -12007,25 +12047,6 @@
         },
         "description": "Standard API Response wrapper for successful requests that return data.\r\nEnforces the \"Envelope Pattern\" for consistent JSON schemas."
       },
-      "ApiResponseOfDocumentJobListResult": {
-        "required": [
-          "data"
-        ],
-        "type": "object",
-        "properties": {
-          "data": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/DocumentJobListResult"
-              }
-            ]
-          }
-        },
-        "description": "Standard API Response wrapper for successful requests that return data.\r\nEnforces the \"Envelope Pattern\" for consistent JSON schemas."
-      },
       "ApiResponseOfDocumentJobResultDto": {
         "required": [
           "data"
@@ -13403,31 +13424,6 @@
           }
         }
       },
-      "DocumentJobListResult": {
-        "required": [
-          "items",
-          "nextCursor",
-          "hasMore"
-        ],
-        "type": "object",
-        "properties": {
-          "items": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/DocumentJobResultDto"
-            }
-          },
-          "nextCursor": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "hasMore": {
-            "type": "boolean"
-          }
-        }
-      },
       "DocumentJobResultDto": {
         "required": [
           "jobId",
@@ -14242,6 +14238,24 @@
         },
         "description": "Resolved payload result for an audit log entry."
       },
+      "PagedApiResponseOfDocumentJobResultDto": {
+        "type": "object",
+        "properties": {
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationMetadata"
+          },
+          "data": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/DocumentJobResultDto"
+            }
+          }
+        },
+        "description": "Paged API Response wrapper for collection endpoints.\r\nEncapsulates resource items in 'data' and pagination metadata in 'pagination'."
+      },
       "PagedApiResponseOfGenerationLogDto": {
         "type": "object",
         "properties": {
@@ -14306,7 +14320,10 @@
         "type": "object",
         "properties": {
           "page": {
-            "type": "integer",
+            "type": [
+              "null",
+              "integer"
+            ],
             "format": "int32"
           },
           "limit": {
@@ -14314,12 +14331,24 @@
             "format": "int32"
           },
           "totalCount": {
-            "type": "integer",
-            "format": "int32"
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int64"
           },
           "totalPages": {
-            "type": "integer",
+            "type": [
+              "null",
+              "integer"
+            ],
             "format": "int32"
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         },
         "description": "Standard pagination telemetry metadata envelope conforming to global REST API standards."
@@ -15435,7 +15464,7 @@
           "expiresIn": {
             "type": "integer",
             "format": "int32",
-            "default": 86400
+            "default": 900
           },
           "tokenType": {
             "type": "string",
@@ -15798,10 +15827,9 @@
     },
     "securitySchemes": {
       "ApiKey": {
-        "type": "apiKey",
-        "description": "Machine-to-machine API key. Send it in the X-API-Key header.",
-        "name": "X-API-Key",
-        "in": "header"
+        "type": "http",
+        "description": "Machine-to-machine API key. Send it as: Authorization: ApiKey <rawKey>.",
+        "scheme": "apikey"
       },
       "Bearer": {
         "type": "http",

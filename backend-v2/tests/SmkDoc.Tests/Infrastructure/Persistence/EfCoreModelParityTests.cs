@@ -14,7 +14,7 @@ public sealed class EfCoreModelParityTests
     private static AppDbContext CreateDesignTimeDbContext()
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseNpgsql("Host=localhost;Database=smkdoc_parity_check;Username=postgres;Password=postgres")
+            .UsePostgreSqlConventions("Host=localhost;Database=smkdoc_parity_check;Username=postgres;Password=postgres")
             .Options;
 
         return new AppDbContext(options);
@@ -125,6 +125,93 @@ public sealed class EfCoreModelParityTests
         jobFk.Properties.Single().Name.Should().Be(nameof(DocumentJobItem.DocumentJobId));
         jobFk.DeleteBehavior.Should().Be(Microsoft.EntityFrameworkCore.DeleteBehavior.Cascade);
     }
+
+    [Fact]
+    public void RelationalSchema_MustUsePureLowercaseSnakeCaseIdentifiers()
+    {
+        using var context = CreateDesignTimeDbContext();
+        var model = context.GetService<IDesignTimeModel>().Model;
+
+        var violations = new List<string>();
+        foreach (var entityType in model.GetEntityTypes())
+        {
+            var tableName = entityType.GetTableName();
+            if (string.IsNullOrEmpty(tableName))
+            {
+                continue;
+            }
+
+            if (tableName.Any(char.IsUpper))
+            {
+                violations.Add($"Table '{tableName}'");
+            }
+
+            var storeObject = StoreObjectIdentifier.Table(tableName, entityType.GetSchema());
+
+            foreach (var property in entityType.GetProperties())
+            {
+                var colName = property.GetColumnName(storeObject);
+                if (!string.IsNullOrEmpty(colName) && colName.Any(char.IsUpper))
+                {
+                    violations.Add($"Column '{tableName}.{colName}'");
+                }
+
+                var computedSql = property.GetComputedColumnSql(storeObject);
+                if (HasUppercaseSqlIdentifier(computedSql))
+                {
+                    violations.Add($"ComputedSql '{tableName}.{colName}': {computedSql}");
+                }
+            }
+
+            foreach (var key in entityType.GetKeys())
+            {
+                var keyName = key.GetName(storeObject);
+                if (!string.IsNullOrEmpty(keyName) && keyName.Any(char.IsUpper))
+                {
+                    violations.Add($"Key '{tableName}.{keyName}'");
+                }
+            }
+
+            foreach (var fk in entityType.GetForeignKeys())
+            {
+                var principalTable = fk.PrincipalEntityType.GetTableName();
+                if (string.IsNullOrEmpty(principalTable))
+                {
+                    continue;
+                }
+
+                var principalStoreObject = StoreObjectIdentifier.Table(principalTable, fk.PrincipalEntityType.GetSchema());
+                var fkName = fk.GetConstraintName(storeObject, principalStoreObject);
+                if (!string.IsNullOrEmpty(fkName) && fkName.Any(char.IsUpper))
+                {
+                    violations.Add($"ForeignKey '{tableName}.{fkName}'");
+                }
+            }
+
+            foreach (var index in entityType.GetIndexes())
+            {
+                var indexName = index.GetDatabaseName(storeObject);
+                if (!string.IsNullOrEmpty(indexName) && indexName.Any(char.IsUpper))
+                {
+                    violations.Add($"Index '{tableName}.{indexName}'");
+                }
+
+                var filterSql = index.GetFilter(storeObject);
+                if (HasUppercaseSqlIdentifier(filterSql))
+                {
+                    violations.Add($"IndexFilter '{tableName}.{indexName}': {filterSql}");
+                }
+            }
+        }
+
+        violations.Should().BeEmpty(
+            $"All PostgreSQL tables, columns, keys, constraints, indexes, filters, and computed SQL must use pure lowercase snake_case. Found: {string.Join(" | ", violations)}");
+    }
+
+    private static bool HasUppercaseSqlIdentifier(string? sql) =>
+        !string.IsNullOrWhiteSpace(sql) &&
+        (System.Text.RegularExpressions.Regex.IsMatch(sql, "\"[^\"]*[A-Z][^\"]*\"") ||
+         System.Text.RegularExpressions.Regex.IsMatch(sql, @"\b[A-Z][a-z]+[A-Za-z]*\b"));
 
     private static string FormatOperation(MigrationOperation op) => op switch
     {

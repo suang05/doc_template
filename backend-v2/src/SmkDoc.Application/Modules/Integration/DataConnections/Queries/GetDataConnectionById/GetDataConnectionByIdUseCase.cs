@@ -11,12 +11,6 @@ public sealed class GetDataConnectionByIdUseCase(
         var c = await repository.GetByIdAsync(new DataConnectionId(query.Id), ct)
             ?? throw new NotFoundException("DataConnection", query.Id);
 
-        return new DataConnectionResultDto(
-            c.Id.Value,
-            c.Name.Value,
-            c.Provider.Name,
-            c.CreatedAt,
-            c.UpdatedAt,
-            c.Version);
+        return c.ToResultDto();
     }
 }

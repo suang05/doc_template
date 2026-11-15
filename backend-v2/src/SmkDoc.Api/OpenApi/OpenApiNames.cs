@@ -18,7 +18,8 @@ public static class OpenApiNames
     public const string DefaultServerUrl = "/";
 
     public const string ApiVersion = "2.0.0";
-    public const string ApiKeyHeader = HttpHeaderConstants.ApiKeyHeader;
+    public const string ApiKeyHeader = HttpHeaderConstants.AuthorizationHeader;
+    public const string ApiKeyAuthScheme = HttpHeaderConstants.AuthorizationApiKeyScheme;
     public const string ProjectIdHeader = HttpHeaderConstants.ProjectIdHeader;
     public const string IdempotencyKeyHeader = IdempotencyFilter.HeaderName;
     public const string IfMatchHeader = "If-Match";

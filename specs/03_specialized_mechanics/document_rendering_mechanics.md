@@ -52,7 +52,7 @@ Signal: [ARCH_EVOLUTION_RENDERING]
 ## 2. Level 2: Core Rendering SSoT ASTs & Cognitive Rendering Engine
 
 ### 2.1 Engineering Rationale & Architectural Decisions
-* **Why 3-Pipeline Rendering Architecture (Pipeline A / B / C):** Live preview in Monaco Studio (Pipeline B) requires sub-second stateless turnaround. Synchronous single-document generation (Pipeline A) spools to `HybridSpoolStream`, uploads to MinIO, and commits metadata in a single `< 5 ms` transaction before streaming to the caller. High-volume ERP batch generation (Pipeline C, e.g. 5,000 invoices at month-end) is persisted in PostgreSQL `document_jobs` (`202 Accepted` + `Location: /api/v1/document-jobs/{id}`) and claimed via `FOR UPDATE SKIP LOCKED` by `DocumentJobWorker` pods at a bounded concurrency matched to Gotenberg capacity.
+* **Why 3-Pipeline Rendering Architecture (Pipeline A / B / C):** Live preview in Monaco Studio (Pipeline B) requires sub-second stateless turnaround returning a binary stream directly (`200 OK`). Synchronous single-document generation (Pipeline A) spools to `HybridSpoolStream`, uploads the artifact to MinIO with a 24-hour retention TTL (`DocumentRetentionWorker`), commits generation/audit metadata in PostgreSQL, and returns `201 Created` `ApiResponse<GenerateDocumentResultDto>` containing the Gateway stream URL (`/api/v1/generation-logs/{generationId}/artifact/file`), which clients fetch cleanly via `DocumentArtifactController` (`FileStreamResult`). High-volume ERP batch generation (Pipeline C, e.g. 5,000 invoices at month-end) is persisted in PostgreSQL `document_jobs` (`202 Accepted` + `Location: /api/v1/document-jobs/{id}`) and claimed via `FOR UPDATE SKIP LOCKED` by `DocumentJobWorker` pods at a bounded concurrency matched to Gotenberg capacity.
 * **Why Banning HTTP 307 Redirects to Internal MinIO:** MinIO operates inside an internal container network (`http://minio:9000`). Emitting a 307 redirect exposes private infrastructure endpoints to outside clients, breaks corporate firewalls, and leaks storage topology. Streaming through the API gateway enforces Zero-Trust isolation.
 * **Why Bounded 64 KB (`65_536`-Byte) Pooled Buffers & `HybridSpoolStream`:** The .NET runtime allocates objects $\ge 85,000$ bytes on the Large Object Heap (LOH). Continuous multi-MB PDF buffering in `new MemoryStream()` or `byte[]` produces severe LOH fragmentation and Gen 2 GC stalls. Streaming with `65_536`-byte buffers rented from `ArrayPool<byte>` and spooling seekable OpenXML/ClosedXML packages or Pipeline A outputs via `HybridSpoolStream` (`<= 64 KB` pooled `ArrayPool<byte>` in RAM, spilling to a `DeleteOnClose` temp `FileStream` above `64 KB`) or `RecyclableMemoryStream` keeps memory strictly bounded.
 * **Why Polymorphic Engine Factory with FrozenDictionary:** Using `IRenderEngineFactory` with `FrozenDictionary<RenderEngineType, IRenderEngine>` provides $O(1)$ zero-allocation engine lookup while honoring the Open/Closed Principle.
@@ -409,7 +409,7 @@ public sealed class DataBindingEngine(
 * Connects Application directly to `IDataBindingEngine` and `IRenderEngineFactory`.
 * Enforces fail-fast JSON Schema Draft-07 validation with immediate validation failure auditing.
 * Spools unseekable engine outputs to `HybridSpoolStream` (`65_536`-byte pooled chunks) and uploads to MinIO before opening the DB write transaction (Pipeline A Spool-Before-Commit: single `< 5 ms` transaction).
-* Preserves Storage Perimeter Isolation by returning the gateway download path `/api/v1/documents/{generationId}/content` (never internal MinIO presigned URLs) with compensating storage deletion if post-upload commit fails.
+* Preserves Storage Perimeter Isolation by returning the gateway download path `/api/v1/generation-logs/{generationId}/artifact/file` (never internal MinIO presigned URLs) with compensating storage deletion if post-upload commit fails.
 
 ```csharp
 public sealed class Generate{Resource}UseCase(
@@ -525,7 +525,7 @@ public sealed class Generate{Resource}UseCase(
         try
         {
             var expiry = TimeSpan.FromHours(24);
-            string downloadPath = $"/api/v1/documents/{generationId:D}/content";
+            string downloadPath = $"/api/v1/generation-logs/{generationId:D}/artifact/file";
 
             await auditService.LogSuccessAsync(
                 generationId, aggregate.Id.Value, currentVersion.Id, render.PreparedDataJson, outputKey, outputFormat, render.FileSizeBytes, render.ElapsedMilliseconds, ct);
