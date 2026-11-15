@@ -2,41 +2,13 @@ import NextAuth, { type Session } from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
 import type { JWT } from 'next-auth/jwt';
 import { decodeBackendJwt, jwtRole, jwtGivenName, jwtFamilyName, shouldRefreshBackendToken } from '@/lib/auth/jwt';
-import { rotateBackendRefreshToken } from '@/lib/auth/refreshCoordinator';
+import { applyRotatedTokens, BACKEND_INTERNAL_URL, rotateBackendRefreshToken } from '@/lib/auth/refreshCoordinator';
+import type { ApiEnvelope, LoginResultDto } from '@/lib/api/types';
 
-// Server-only — never exposed to the browser. Falls back to the public URL for local dev
-// where the Next.js server and the backend both resolve `localhost` the same way.
-const BACKEND_INTERNAL_URL =
-  process.env.API_INTERNAL_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
-
-interface BackendUserData {
-  id?: string;
-  email?: string;
-  firstName?: string;
-  lastName?: string;
-  role?: string;
-  systemRole?: string;
-}
-
-interface BackendLoginData {
-  accessToken: string;
-  refreshToken?: string;
-  tokenType?: string;
-  expiresIn?: number;
-  user?: BackendUserData;
-  defaultProjectId?: string | null;
-  activeProjectId?: string | null;
-  activeRole?: string | null;
-}
-
-interface BackendApiResponse<T> {
-  data?: T;
-  success?: boolean;
-  message?: string;
-  errorCode?: string;
-}
-
-async function loginAgainstBackend(email: string, password: string): Promise<BackendLoginData | null> {
+async function loginAgainstBackend(
+  email: string,
+  password: string,
+): Promise<(LoginResultDto & { accessToken: string }) | null> {
   const res = await fetch(`${BACKEND_INTERNAL_URL}/api/v1/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -45,26 +17,10 @@ async function loginAgainstBackend(email: string, password: string): Promise<Bac
 
   if (!res || !res.ok) return null;
 
-  const json = (await res.json()) as BackendApiResponse<BackendLoginData> & {
-    token?: string;
-    accessToken?: string;
-    refreshToken?: string;
-  };
-
-  const data = json.data;
-  const accessToken = data?.accessToken || json.accessToken || json.token;
-  if (!accessToken) return null;
-
-  return {
-    accessToken,
-    refreshToken: data?.refreshToken || json.refreshToken,
-    tokenType: data?.tokenType || 'Bearer',
-    expiresIn: data?.expiresIn ?? 900,
-    user: data?.user,
-    defaultProjectId: data?.defaultProjectId,
-    activeProjectId: data?.activeProjectId,
-    activeRole: data?.activeRole,
-  };
+  const json = (await res.json()) as ApiEnvelope<LoginResultDto | null>;
+  const accessToken = json.data?.accessToken;
+  if (!json.data || !accessToken) return null;
+  return { ...json.data, accessToken };
 }
 
 async function refreshBackendToken(token: JWT): Promise<JWT> {
@@ -74,17 +30,7 @@ async function refreshBackendToken(token: JWT): Promise<JWT> {
 
   try {
     const rotated = await rotateBackendRefreshToken(token.refreshToken);
-
-    return {
-      ...token,
-      backendToken: rotated.accessToken,
-      refreshToken: rotated.refreshToken,
-      backendTokenExp: rotated.exp,
-      role: rotated.role ?? token.role,
-      systemRole: rotated.systemRole ?? token.systemRole,
-      projectId: rotated.projectId ?? token.projectId,
-      error: null,
-    };
+    return applyRotatedTokens(token, rotated);
   } catch {
     return { ...token, error: 'RefreshAccessTokenError' };
   }

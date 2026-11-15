@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import type { JWT } from 'next-auth/jwt';
 import {
+  applyRotatedTokens,
   attachSessionCookie,
+  bffProblemJson,
   clearSessionCookies,
   readSessionJwt,
   rotateBackendRefreshToken,
@@ -11,32 +12,14 @@ export async function POST(req: NextRequest) {
   const sessionJwt = await readSessionJwt(req);
 
   if (!sessionJwt?.token?.refreshToken) {
-    const res = NextResponse.json(
-      {
-        type: 'https://httpstatuses.io/401',
-        title: 'Unauthorized',
-        status: 401,
-        detail: 'No valid session refresh token available',
-      },
-      { status: 401 },
-    );
+    const res = bffProblemJson(401, 'Unauthorized', 'No valid session refresh token available');
     clearSessionCookies(res);
     return res;
   }
 
   try {
     const rotated = await rotateBackendRefreshToken(sessionJwt.token.refreshToken);
-
-    const updatedToken: JWT = {
-      ...sessionJwt.token,
-      backendToken: rotated.accessToken,
-      refreshToken: rotated.refreshToken,
-      backendTokenExp: rotated.exp,
-      systemRole: rotated.systemRole ?? sessionJwt.token.systemRole ?? null,
-      projectId: rotated.projectId ?? sessionJwt.token.projectId ?? null,
-      role: rotated.role ?? sessionJwt.token.role ?? null,
-      error: null,
-    };
+    const updatedToken = applyRotatedTokens(sessionJwt.token, rotated);
 
     const res = NextResponse.json({
       ok: true,
@@ -49,15 +32,7 @@ export async function POST(req: NextRequest) {
     await attachSessionCookie(res, sessionJwt.cookieName, updatedToken);
     return res;
   } catch {
-    const res = NextResponse.json(
-      {
-        type: 'https://httpstatuses.io/401',
-        title: 'Session Expired',
-        status: 401,
-        detail: 'Refresh token is expired or revoked',
-      },
-      { status: 401 },
-    );
+    const res = bffProblemJson(401, 'Session Expired', 'Refresh token is expired or revoked');
     clearSessionCookies(res);
     return res;
   }

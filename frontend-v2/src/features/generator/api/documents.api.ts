@@ -3,12 +3,9 @@ import type {
   ApiEnvelope,
   DocumentVersionDto,
   GenerateDocumentResultDto,
+  PreviewDocumentRequest,
 } from '@/lib/api/types';
-import {
-  GenerateDocumentResponseSchema,
-  type GenerateDocumentFormRequest,
-  type PreviewDocumentRequest,
-} from '../schemas/document.schema';
+import type { GenerateDocumentFormRequest } from '../schemas/document.schema';
 
 export const documentsApi = {
   /**
@@ -30,10 +27,9 @@ export const documentsApi = {
       }),
       idempotencyKey: idempotencyKey || crypto.randomUUID(),
     });
-    const parsed = GenerateDocumentResponseSchema.parse(res.data);
     return {
-      ...parsed,
-      documentRef: parsed.documentRef ?? null,
+      ...res.data,
+      documentRef: res.data.documentRef ?? null,
     };
   },
 

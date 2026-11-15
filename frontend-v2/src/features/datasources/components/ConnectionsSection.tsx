@@ -14,6 +14,7 @@ import {
 import {
   Button,
   CardBlock,
+  ConfirmModal,
   Input,
   Select,
   Modal,
@@ -26,6 +27,7 @@ import { ApiError, extractErrorMessage } from '@/lib/api/client';
 import type { DataConnectionDto } from '@/lib/api/types';
 import { databaseProviders, type DatabaseProvider } from '@/constants/domain';
 import { useConflictRecovery } from '@/hooks/useConflictRecovery';
+import { formatThaiDate } from '@/utils/format';
 import { dataconnectionsApi } from '../api/dataconnections.api';
 import { useDataConnections } from '../hooks/useDataConnections';
 
@@ -73,6 +75,8 @@ export const ConnectionsSection: React.FC = () => {
   const [checkingId, setCheckingId] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [deleteTarget, setDeleteTarget] = useState<DataConnectionDto | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [toast, setToast] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(
     null,
   );
@@ -217,16 +221,22 @@ export const ConnectionsSection: React.FC = () => {
     }
   };
 
-  const handleDelete = async (row: DataConnectionDto) => {
-    if (!confirm(`คุณแน่ใจหรือไม่ว่าต้องการลบการเชื่อมต่อ "${row.name}"?`)) return;
+  const executeDelete = async () => {
+    if (!deleteTarget) return;
+    const row = deleteTarget;
+    setIsDeleting(true);
     clearConflict();
     try {
       const latest = await dataconnectionsApi.getWithETag(row.id);
       await deleteConnection(row.id, latest.etag);
+      setDeleteTarget(null);
       setToast({ type: 'success', message: `ลบการเชื่อมต่อ "${row.name}" สำเร็จ` });
     } catch (err) {
+      setDeleteTarget(null);
       if (captureConflict(err)) return;
       setToast({ type: 'error', message: extractErrorMessage(err) });
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -235,8 +245,7 @@ export const ConnectionsSection: React.FC = () => {
     { header: 'ประเภท (Provider)', accessor: (row: DataConnectionDto) => row.provider },
     {
       header: 'วันที่สร้าง',
-      accessor: (row: DataConnectionDto) =>
-        row.createdAt ? new Date(row.createdAt).toLocaleDateString('th-TH') : '—',
+      accessor: (row: DataConnectionDto) => formatThaiDate(row.createdAt),
     },
     {
       header: 'จัดการ',
@@ -263,7 +272,7 @@ export const ConnectionsSection: React.FC = () => {
           <Button
             variant="danger"
             size="sm"
-            onClick={() => void handleDelete(row)}
+            onClick={() => setDeleteTarget(row)}
             aria-label={`ลบ ${row.name}`}
           >
             <Trash2 className="w-4 h-4" />
@@ -403,6 +412,24 @@ export const ConnectionsSection: React.FC = () => {
           </div>
         </div>
       </Modal>
+
+      <ConfirmModal
+        isOpen={deleteTarget !== null}
+        onClose={() => {
+          if (!isDeleting) setDeleteTarget(null);
+        }}
+        onConfirm={executeDelete}
+        title="ยืนยันการลบการเชื่อมต่อฐานข้อมูล"
+        message={
+          <>
+            คุณแน่ใจหรือไม่ว่าต้องการลบการเชื่อมต่อ{' '}
+            <strong className="text-textPrimary">&ldquo;{deleteTarget?.name}&rdquo;</strong>?
+          </>
+        }
+        confirmLabel="ลบการเชื่อมต่อ"
+        variant="danger"
+        loading={isDeleting}
+      />
     </>
   );
 };

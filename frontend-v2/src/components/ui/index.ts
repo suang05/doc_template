@@ -5,6 +5,7 @@ export * from './StatBlock';
 export * from './Input';
 export * from './Select';
 export * from './Modal';
+export * from './ConfirmModal';
 export * from './Table';
 export * from './Pagination';
 export * from './Tabs';

@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ShieldAlert, Plus, RefreshCw, Ban } from 'lucide-react';
 import {
   Badge,
   Button,
+  ConfirmModal,
   Input,
   Modal,
   Select,
@@ -17,7 +18,10 @@ import type {
   GrantBreakGlassAccessRequest,
   ProjectDto,
 } from '@/lib/api/types';
-import { grantBreakGlassSchema, toFieldErrorMap } from '../schemas/project.schema';
+import { useIdempotencyKey } from '@/hooks/useIdempotencyKey';
+import { formatThaiDateTime } from '@/utils/format';
+import { grantBreakGlassSchema } from '../schemas/project.schema';
+import { toFieldErrorMap } from '@/utils/zod';
 
 interface BreakGlassTabSectionProps {
   tenants: ProjectDto[];
@@ -58,7 +62,11 @@ export const BreakGlassTabSection: React.FC<BreakGlassTabSectionProps> = ({
   const [submitting, setSubmitting] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [confirmRevokeGrant, setConfirmRevokeGrant] = useState<BreakGlassGrantDto | null>(null);
-  const idempotencyKeyRef = useRef<string | null>(null);
+  const {
+    getKey: getGrantIdempotencyKey,
+    rotateKey: rotateGrantIdempotencyKey,
+    resetKey: resetGrantIdempotencyKey,
+  } = useIdempotencyKey();
 
   useEffect(() => {
     setLoadError(null);
@@ -75,7 +83,7 @@ export const BreakGlassTabSection: React.FC<BreakGlassTabSectionProps> = ({
     setDurationMinutes('60');
     setReason('');
     setGrantErrors({});
-    idempotencyKeyRef.current = crypto.randomUUID();
+    rotateGrantIdempotencyKey();
     setIsGrantModalOpen(true);
   };
 
@@ -95,8 +103,7 @@ export const BreakGlassTabSection: React.FC<BreakGlassTabSectionProps> = ({
 
     setGrantErrors({});
     setSubmitting(true);
-    const attemptKey = idempotencyKeyRef.current ?? crypto.randomUUID();
-    idempotencyKeyRef.current = attemptKey;
+    const attemptKey = getGrantIdempotencyKey();
 
     try {
       await onIssueGrant(
@@ -109,7 +116,7 @@ export const BreakGlassTabSection: React.FC<BreakGlassTabSectionProps> = ({
         attemptKey,
       );
       setIsGrantModalOpen(false);
-      idempotencyKeyRef.current = null;
+      resetGrantIdempotencyKey();
       onNotify('success', 'ออกสิทธิ์ Break-Glass Access แบบจำกัดเวลาสำเร็จ');
     } catch (err) {
       if (err instanceof ApiError && Object.keys(err.fieldErrors).length > 0) {
@@ -124,11 +131,12 @@ export const BreakGlassTabSection: React.FC<BreakGlassTabSectionProps> = ({
   const handleConfirmRevoke = async () => {
     if (!confirmRevokeGrant) return;
     const target = confirmRevokeGrant;
-    setConfirmRevokeGrant(null);
     try {
       await onRevokeGrant(target.grantId);
+      setConfirmRevokeGrant(null);
       onNotify('info', 'เพิกถอนสิทธิ์ Break-Glass เรียบร้อยแล้ว');
     } catch (err) {
+      setConfirmRevokeGrant(null);
       if (onConflict(err, () => onLoadGrants(filterProjectId))) return;
       onNotify('error', extractErrorMessage(err, 'เพิกถอนสิทธิ์ Break-Glass ไม่สำเร็จ'));
     }
@@ -165,8 +173,8 @@ export const BreakGlassTabSection: React.FC<BreakGlassTabSectionProps> = ({
       header: 'ช่วงเวลาหมดอายุ',
       accessor: (item) => (
         <div className="text-[11px] font-mono text-textMuted space-y-0.5">
-          <div>เริ่ม: {new Date(item.grantedAt).toLocaleString('th-TH')}</div>
-          <div>หมดอายุ: {new Date(item.expiresAt).toLocaleString('th-TH')}</div>
+          <div>เริ่ม: {formatThaiDateTime(item.grantedAt)}</div>
+          <div>หมดอายุ: {formatThaiDateTime(item.expiresAt)}</div>
         </div>
       ),
     },
@@ -324,39 +332,26 @@ export const BreakGlassTabSection: React.FC<BreakGlassTabSectionProps> = ({
         </form>
       </Modal>
 
-      {/* Confirm Revoke Modal */}
-      <Modal
+      <ConfirmModal
         isOpen={confirmRevokeGrant !== null}
-        onClose={() => setConfirmRevokeGrant(null)}
+        onClose={() => {
+          if (revokingGrantId !== confirmRevokeGrant?.grantId) {
+            setConfirmRevokeGrant(null);
+          }
+        }}
+        onConfirm={handleConfirmRevoke}
         title="ยืนยันการเพิกถอนสิทธิ์ Break-Glass"
-        maxWidth="sm"
-      >
-        <div className="space-y-3">
-          <p className="text-xs text-textSecondary">
+        message={
+          <>
             คุณต้องการเพิกถอนสิทธิ์ Break-Glass Grant{' '}
             <code className="font-mono text-textPrimary">{confirmRevokeGrant?.grantId}</code>{' '}
             ทันทีใช่หรือไม่?
-          </p>
-          <div className="flex justify-end gap-2 pt-2 border-t border-border">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => setConfirmRevokeGrant(null)}
-            >
-              ยกเลิก
-            </Button>
-            <Button
-              type="button"
-              variant="danger"
-              size="sm"
-              onClick={() => void handleConfirmRevoke()}
-            >
-              เพิกถอนทันที
-            </Button>
-          </div>
-        </div>
-      </Modal>
+          </>
+        }
+        confirmLabel="เพิกถอนทันที"
+        variant="danger"
+        loading={confirmRevokeGrant !== null && revokingGrantId === confirmRevokeGrant.grantId}
+      />
     </div>
   );
 };

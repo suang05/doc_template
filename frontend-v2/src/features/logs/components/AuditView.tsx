@@ -15,6 +15,7 @@ import {
 } from '@/components/ui';
 import { extractErrorMessage } from '@/lib/api/client';
 import type { DocumentVersionDto } from '@/lib/api/types';
+import { formatThaiDateTime } from '@/utils/format';
 import { useLegalAudit } from '../hooks/useLegalAudit';
 
 export const AuditView: React.FC = () => {
@@ -80,7 +81,7 @@ export const AuditView: React.FC = () => {
       header: 'วัน-เวลาที่สร้าง',
       accessor: (item) => (
         <span className="text-[11px] text-textMuted font-mono">
-          {new Date(item.createdAt).toLocaleString('th-TH')}
+          {formatThaiDateTime(item.createdAt)}
         </span>
       ),
     },
@@ -202,7 +203,7 @@ export const AuditView: React.FC = () => {
               <div className="text-right">
                 <span className="text-textMuted text-[11px] block">วัน-เวลาที่จัดทำ</span>
                 <span className="font-mono text-textPrimary text-xs">
-                  {new Date(inspectVersion.createdAt).toLocaleString('th-TH')}
+                  {formatThaiDateTime(inspectVersion.createdAt)}
                 </span>
               </div>
             </div>

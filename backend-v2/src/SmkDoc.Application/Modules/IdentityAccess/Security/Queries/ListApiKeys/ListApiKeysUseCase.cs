@@ -12,20 +12,6 @@ public sealed class ListApiKeysUseCase(
             ? await apiKeyRepo.ListByProjectAsync(new ProjectId(query.ProjectId.Value), ct)
             : await apiKeyRepo.ListCurrentProjectAsync(ct);
 
-        return keys.Select(ToMaskedDto).ToList();
-    }
-
-    private static ApiKeyResultDto ToMaskedDto(Domain.Entities.ApiKey k)
-    {
-        return new ApiKeyResultDto(
-            k.Id.Value,
-            k.Name.Value,
-            k.CallerApp,
-            k.IsActive,
-            k.LastUsedAt,
-            k.CreatedAt,
-            k.Scope.Name,
-            k.GetMaskedKey(),
-            Version: k.Version);
+        return keys.Select(ApiKeyResultDto.FromEntity).ToList();
     }
 }

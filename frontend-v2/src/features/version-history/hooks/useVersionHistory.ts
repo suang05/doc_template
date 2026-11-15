@@ -67,7 +67,6 @@ export function useVersionHistory(initialTemplateId?: string) {
 
   const handleRollback = async (version: number) => {
     if (!selectedTemplateId) return;
-    if (!confirm(`ยืนยันการย้อนเวอร์ชัน (Rollback) กลับไปเป็น v${version} หรือไม่?`)) return;
 
     setRollingBack(true);
     setError(null);

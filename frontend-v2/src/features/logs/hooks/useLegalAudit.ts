@@ -4,6 +4,7 @@ import { useState, useCallback } from 'react';
 import { extractErrorMessage } from '@/lib/api/client';
 import type { DocumentVersionDto } from '@/lib/api/types';
 import { documentsApi } from '@/features/generator/api/documents.api';
+import { downloadBlobFile } from '@/utils/download';
 
 export function useLegalAudit() {
   const [documentRef, setDocumentRef] = useState('');
@@ -32,14 +33,7 @@ export function useLegalAudit() {
     setDownloadingVersion(version);
     try {
       const { blob, fileName } = await documentsApi.downloadDocumentVersion(ref, version);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = fileName || `${ref}-v${version}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      downloadBlobFile(blob, fileName || `${ref}-v${version}.pdf`);
     } catch (err) {
       throw new Error(extractErrorMessage(err, 'ดาวน์โหลดเอกสารล้มเหลว'));
     } finally {

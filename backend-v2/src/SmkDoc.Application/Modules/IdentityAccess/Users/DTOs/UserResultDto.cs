@@ -18,4 +18,14 @@ public sealed record UserResultDto(
 {
     [JsonIgnore]
     public Guid ResourceId => Id;
+
+    internal static UserResultDto FromEntity(Domain.Entities.User user, string roleName, long version) =>
+        new(user.Id.Value,
+            user.Email.Value,
+            user.FirstName,
+            user.LastName,
+            roleName,
+            user.IsActive,
+            user.CreatedAt,
+            version);
 }

@@ -5,7 +5,9 @@ import { RefreshCw, Save, Gauge } from 'lucide-react';
 import { Button, CardBlock, EmptyState, Input, Select } from '@/components/ui';
 import { ApiError, extractErrorMessage } from '@/lib/api/client';
 import type { ProjectDto, ProjectQuotaDto, UpsertProjectQuotaRequest } from '@/lib/api/types';
-import { toFieldErrorMap, upsertProjectQuotaSchema } from '../schemas/project.schema';
+import { upsertProjectQuotaSchema } from '../schemas/project.schema';
+import { formatBytes, formatThaiDateTime } from '@/utils/format';
+import { toFieldErrorMap } from '@/utils/zod';
 
 interface QuotasTabSectionProps {
   tenants: ProjectDto[];
@@ -23,15 +25,6 @@ interface QuotasTabSectionProps {
   ) => Promise<ProjectQuotaDto>;
   onConflict: (err: unknown, reloadFn?: () => Promise<void>) => boolean;
   onNotify: (type: 'success' | 'error' | 'info', message: string) => void;
-}
-
-function formatStorageReadable(bytesValue: string): string {
-  const bytes = Number(bytesValue);
-  if (!Number.isFinite(bytes) || bytes <= 0) return '-';
-  if (bytes >= 1024 * 1024 * 1024) {
-    return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
-  }
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 export const QuotasTabSection: React.FC<QuotasTabSectionProps> = ({
@@ -202,7 +195,7 @@ export const QuotasTabSection: React.FC<QuotasTabSectionProps> = ({
                 min={1}
                 value={maxStorageBytes}
                 onChange={(e) => setMaxStorageBytes(e.target.value)}
-                helperText={`ขนาดโดยประมาณ: ${formatStorageReadable(maxStorageBytes)}`}
+                helperText={`ขนาดโดยประมาณ: ${formatBytes(Number(maxStorageBytes))}`}
                 error={fieldErrors.maxStorageBytes}
               />
               <Input
@@ -229,7 +222,7 @@ export const QuotasTabSection: React.FC<QuotasTabSectionProps> = ({
             <div className="flex items-center justify-between pt-3 border-t border-border">
               <span className="text-[11px] text-textMuted font-mono">
                 {quota?.updatedAt
-                  ? `อัปเดตล่าสุด: ${new Date(quota.updatedAt).toLocaleString('th-TH')}`
+                  ? `อัปเดตล่าสุด: ${formatThaiDateTime(quota.updatedAt)}`
                   : 'ใช้ค่าโควตาเริ่มต้นของระบบ (ยังไม่เคยกำหนดค่าเฉพาะ)'}
               </span>
               <Button type="submit" size="sm" icon={Save} loading={saving} disabled={loading}>

@@ -2,7 +2,7 @@ import type { NavigationItemId } from '@/components/layout/Sidebar';
 import type { UserRole } from '@/constants/domain';
 
 // Higher number = higher privilege — Record<UserRole> ensures compile-time sync with schema
-export const ROLE_LEVEL: Record<UserRole, number> = {
+const ROLE_LEVEL: Record<UserRole, number> = {
   Viewer: 1,
   Developer: 2,
   Admin: 3,
@@ -13,7 +13,7 @@ export const SUPER_ADMIN_ONLY_ITEMS: ReadonlySet<NavigationItemId> = new Set([
 ]);
 
 /** Minimum project role required to access each nav item */
-export const NAV_MIN_ROLE: Record<NavigationItemId, UserRole> = {
+const NAV_MIN_ROLE: Record<NavigationItemId, UserRole> = {
   generator: 'Viewer',
   jobs: 'Viewer',
   audit: 'Viewer',

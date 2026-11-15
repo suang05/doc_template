@@ -165,11 +165,29 @@ export interface ResolvedSessionJwt {
   cookieName: string;
 }
 
-export function detectSessionCookieName(req: NextRequest): string {
-  if (req.cookies.has(SECURE_SESSION_COOKIE)) {
-    return SECURE_SESSION_COOKIE;
-  }
-  return STANDARD_SESSION_COOKIE;
+export function applyRotatedTokens(token: JWT, rotated: RotatedBackendTokens): JWT {
+  return {
+    ...token,
+    backendToken: rotated.accessToken,
+    refreshToken: rotated.refreshToken,
+    backendTokenExp: rotated.exp,
+    systemRole: rotated.systemRole ?? token.systemRole ?? null,
+    projectId: rotated.projectId ?? token.projectId ?? null,
+    role: rotated.role ?? token.role ?? null,
+    error: null,
+  };
+}
+
+export function bffProblemJson(status: number, title: string, detail: string): NextResponse {
+  return NextResponse.json(
+    {
+      type: `https://httpstatuses.io/${status}`,
+      title,
+      status,
+      detail,
+    },
+    { status },
+  );
 }
 
 export async function readSessionJwt(req: NextRequest): Promise<ResolvedSessionJwt | null> {

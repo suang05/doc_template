@@ -1,6 +1,7 @@
 import React from 'react';
 import { Modal } from '@/components/ui';
 import type { TemplateVersionDto } from '@/lib/api/types';
+import { formatThaiDateTime } from '@/utils/format';
 
 export interface StudioHistoryModalProps {
   isOpen: boolean;
@@ -31,7 +32,7 @@ export const StudioHistoryModal: React.FC<StudioHistoryModalProps> = ({
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-textPrimary">v{v.version}</span>
                     <span className="text-textMuted text-[11px]">
-                      {new Date(v.createdAt).toLocaleString('th-TH')}
+                      {formatThaiDateTime(v.createdAt)}
                     </span>
                   </div>
                   <p className="text-textSecondary text-[11px]">{v.commitMessage || 'ไม่มีรายละเอียด'}</p>

@@ -132,17 +132,6 @@ export const FONT_STYLE_OPTIONS = [
 export const MAX_PLATFORM_FONT_BYTES = 8 * 1024 * 1024;
 export const ACCEPTED_FONT_EXTENSIONS = ['.ttf', '.otf', '.woff', '.woff2'] as const;
 
-export function toFieldErrorMap(error: z.ZodError): Record<string, string> {
-  const result: Record<string, string> = {};
-  for (const issue of error.issues) {
-    const key = issue.path.join('.') || '_root';
-    if (!result[key]) {
-      result[key] = issue.message;
-    }
-  }
-  return result;
-}
-
 export function slugifyProjectName(name: string): string {
   return name
     .toLowerCase()

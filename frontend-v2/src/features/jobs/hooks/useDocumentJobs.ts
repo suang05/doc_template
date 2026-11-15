@@ -8,6 +8,7 @@ import type {
   DocumentJobResultDto,
 } from '@/lib/api/types';
 import { TERMINAL_JOB_STATUSES } from '@/constants/domain';
+import { downloadBlobFile } from '@/utils/download';
 import { jobsApi } from '../api/jobs.api';
 
 const DEFAULT_POLL_MS = 2500;
@@ -194,18 +195,11 @@ export function useDocumentJobs() {
     setDownloadingJobId(job.jobId);
     try {
       const { blob, fileName } = await jobsApi.downloadResult(job.jobId);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download =
-        fileName ||
-        (job.totalItems > 1
+      const fallbackName =
+        job.totalItems > 1
           ? `${job.templateSlug}-${job.jobId.slice(0, 8)}.zip`
-          : `${job.templateSlug}-${job.jobId.slice(0, 8)}.${job.outputFormat}`);
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+          : `${job.templateSlug}-${job.jobId.slice(0, 8)}.${job.outputFormat}`;
+      downloadBlobFile(blob, fileName || fallbackName);
     } finally {
       setDownloadingJobId(null);
     }

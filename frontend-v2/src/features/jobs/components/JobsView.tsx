@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   Layers,
   Plus,
@@ -33,6 +33,8 @@ import {
 } from '@/constants/domain';
 import type { SystemStatus } from '@/tokens';
 import { useConflictRecovery } from '@/hooks/useConflictRecovery';
+import { useIdempotencyKey } from '@/hooks/useIdempotencyKey';
+import { formatThaiDateTime } from '@/utils/format';
 import { useTemplates } from '@/features/templates';
 import { useDocumentJobs } from '../hooks/useDocumentJobs';
 
@@ -109,19 +111,19 @@ export const JobsView: React.FC = () => {
   const [toast, setToast] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(
     null,
   );
-  const idempotencyKeyRef = useRef<string | null>(null);
+  const { getKey: getJobIdempotencyKey, rotateKey: rotateJobIdempotencyKey, resetKey: resetJobIdempotencyKey } = useIdempotencyKey();
 
   const openCreateModal = () => {
     setFieldErrors({});
     setSlug((prev) => prev || templates[0]?.slug || '');
-    idempotencyKeyRef.current = crypto.randomUUID();
+    rotateJobIdempotencyKey();
     setIsCreateOpen(true);
   };
 
   const closeCreateModal = () => {
     setIsCreateOpen(false);
     setFieldErrors({});
-    idempotencyKeyRef.current = null;
+    resetJobIdempotencyKey();
   };
 
   const handleModeChange = (nextMode: 'single' | 'batch') => {
@@ -169,8 +171,7 @@ export const JobsView: React.FC = () => {
     }
 
     setIsSubmitting(true);
-    const attemptKey = idempotencyKeyRef.current ?? crypto.randomUUID();
-    idempotencyKeyRef.current = attemptKey;
+    const attemptKey = getJobIdempotencyKey();
 
     try {
       const created = await createJob(
@@ -307,7 +308,7 @@ export const JobsView: React.FC = () => {
       header: 'สร้างเมื่อ',
       accessor: (job) => (
         <span className="text-[11px] font-mono text-textMuted">
-          {new Date(job.createdAt).toLocaleString('th-TH')}
+          {formatThaiDateTime(job.createdAt)}
         </span>
       ),
     },

@@ -18,15 +18,6 @@ public sealed class GetApiKeyByIdUseCase(
             throw new NotFoundException("ApiKey", query.KeyId);
         }
 
-        return new ApiKeyResultDto(
-            key.Id.Value,
-            key.Name.Value,
-            key.CallerApp,
-            key.IsActive,
-            key.LastUsedAt,
-            key.CreatedAt,
-            key.Scope.Name,
-            key.GetMaskedKey(),
-            key.Version);
+        return ApiKeyResultDto.FromEntity(key);
     }
 }

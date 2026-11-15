@@ -12,5 +12,4 @@ export * from './api/templateDatasets.api';
 
 export * from './schemas/dataset.schema';
 export * from './schemas/dataconnection.schema';
-export * from './schemas/templateDataset.schema';
 

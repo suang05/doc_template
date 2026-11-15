@@ -13,7 +13,9 @@ import {
 } from 'lucide-react';
 import { Modal, Button, Input, Select, Badge } from '@/components/ui';
 import { extractErrorMessage } from '@/lib/api/client';
+import { toFieldErrorMap } from '@/utils/zod';
 import { templatesApi } from '../api/templates.api';
+import { CreateTemplateRequestSchema } from '../schemas/template.schema';
 
 export interface CreateTemplateChoiceModalProps {
   isOpen: boolean;
@@ -37,6 +39,7 @@ export const CreateTemplateChoiceModal: React.FC<CreateTemplateChoiceModalProps>
   const [starterTemplate, setStarterTemplate] = useState<'blank' | 'standard'>('standard');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const resetState = () => {
     setStep('choice');
@@ -45,6 +48,7 @@ export const CreateTemplateChoiceModal: React.FC<CreateTemplateChoiceModalProps>
     setCategory('contract');
     setStarterTemplate('standard');
     setError(null);
+    setFieldErrors({});
     setLoading(false);
   };
 
@@ -60,11 +64,14 @@ export const CreateTemplateChoiceModal: React.FC<CreateTemplateChoiceModalProps>
 
   const handleCreateHtmlTemplate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !slug.trim()) {
-      setError('กรุณาระบุชื่อแม่แบบและ Slug ภาษาอังกฤษ');
+    const parsed = CreateTemplateRequestSchema.safeParse({ name, slug, category });
+    if (!parsed.success) {
+      setFieldErrors(toFieldErrorMap(parsed.error));
+      setError('กรุณาตรวจสอบข้อมูลชื่อแม่แบบและ Slug ให้ถูกต้อง');
       return;
     }
 
+    setFieldErrors({});
     setLoading(true);
     setError(null);
 
@@ -269,6 +276,7 @@ export const CreateTemplateChoiceModal: React.FC<CreateTemplateChoiceModalProps>
             placeholder="เช่น สัญญาจะซื้อจะขายห้องชุด"
             value={name}
             onChange={(e) => setName(e.target.value)}
+            error={fieldErrors.name}
             required
             autoFocus
           />
@@ -278,7 +286,8 @@ export const CreateTemplateChoiceModal: React.FC<CreateTemplateChoiceModalProps>
             placeholder="เช่น condo-sales-agreement"
             value={slug}
             onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-_]/g, ''))}
-            helperText="ใช้ระบุตัวตนใน REST API เช่น /api/v1/documents/generate/:slug"
+            error={fieldErrors.slug}
+            helperText="ใช้ระบุตัวตนใน REST API เช่น POST /api/v1/documents (body.slug)"
             required
           />
 

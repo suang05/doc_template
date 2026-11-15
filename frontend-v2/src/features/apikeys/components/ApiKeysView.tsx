@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Key, Plus, Trash2, Copy, AlertTriangle, CheckCircle } from 'lucide-react';
 import {
   Button,
   Badge,
+  ConfirmModal,
   Input,
   Select,
   Table,
@@ -19,7 +20,11 @@ import { ApiError, extractErrorMessage } from '@/lib/api/client';
 import type { ApiKeyDto } from '@/lib/api/types';
 import { apiKeyScopes, type ApiKeyScope } from '@/constants/domain';
 import { useConflictRecovery } from '@/hooks/useConflictRecovery';
+import { useIdempotencyKey } from '@/hooks/useIdempotencyKey';
+import { formatThaiDate, formatThaiDateTime } from '@/utils/format';
+import { toFieldErrorMap } from '@/utils/zod';
 import { apiKeysApi } from '../api/apikeys.api';
+import { CreateApiKeyRequestSchema } from '../schemas/apikey.schema';
 import { useApiKeys } from '../hooks/useApiKeys';
 
 const SCOPE_OPTIONS = apiKeyScopes.map((scope) => ({
@@ -47,44 +52,47 @@ export const ApiKeysView: React.FC = () => {
   const [callerApp, setCallerApp] = useState('');
   const [scope, setScope] = useState<ApiKeyScope>('ReadWrite');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [revokeTarget, setRevokeTarget] = useState<ApiKeyDto | null>(null);
+  const [isRevoking, setIsRevoking] = useState(false);
   const [copied, setCopied] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [toast, setToast] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(
     null,
   );
-  const idempotencyKeyRef = useRef<string | null>(null);
+  const { getKey: getCreateKeyIdempotency, rotateKey: rotateCreateKeyIdempotency, resetKey: resetCreateKeyIdempotency } = useIdempotencyKey();
 
   const openCreateModal = () => {
     setFieldErrors({});
-    idempotencyKeyRef.current = crypto.randomUUID();
+    rotateCreateKeyIdempotency();
     setIsCreateOpen(true);
   };
 
   const closeCreateModal = () => {
     setIsCreateOpen(false);
     setFieldErrors({});
-    idempotencyKeyRef.current = null;
+    resetCreateKeyIdempotency();
   };
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !callerApp.trim()) {
+    const parsed = CreateApiKeyRequestSchema.safeParse({ name, callerApp, scope });
+    if (!parsed.success) {
+      setFieldErrors(toFieldErrorMap(parsed.error));
       setToast({ type: 'error', message: 'กรุณากรอกชื่อคีย์และ Caller App ให้ครบถ้วน' });
       return;
     }
 
     setIsSubmitting(true);
     setFieldErrors({});
-    const attemptKey = idempotencyKeyRef.current ?? crypto.randomUUID();
-    idempotencyKeyRef.current = attemptKey;
+    const attemptKey = getCreateKeyIdempotency();
 
     try {
       await createKey(
         {
-          name: name.trim(),
-          callerApp: callerApp.trim(),
-          scope,
-          effectiveScope: scope,
+          name: parsed.data.name,
+          callerApp: parsed.data.callerApp,
+          scope: parsed.data.scope,
+          effectiveScope: parsed.data.scope,
         },
         attemptKey,
       );
@@ -103,16 +111,22 @@ export const ApiKeysView: React.FC = () => {
     }
   };
 
-  const handleRevoke = async (item: ApiKeyDto) => {
-    if (!confirm(`ต้องการเพิกถอนสิทธิ์ API Key "${item.name}" หรือไม่?`)) return;
+  const executeRevoke = async () => {
+    if (!revokeTarget) return;
+    const item = revokeTarget;
+    setIsRevoking(true);
     clearConflict();
     try {
       const latest = await apiKeysApi.getWithETag(item.id);
       await revokeKey(item.id, latest.etag);
+      setRevokeTarget(null);
       setToast({ type: 'success', message: `เพิกถอน API Key "${item.name}" สำเร็จ` });
     } catch (err) {
+      setRevokeTarget(null);
       if (captureConflict(err)) return;
       setToast({ type: 'error', message: extractErrorMessage(err, 'เพิกถอน API Key ล้มเหลว') });
+    } finally {
+      setIsRevoking(false);
     }
   };
 
@@ -175,7 +189,7 @@ export const ApiKeysView: React.FC = () => {
       header: 'ใช้งานล่าสุด',
       accessor: (item) => (
         <span className="text-[11px] font-mono text-textMuted">
-          {item.lastUsedAt ? new Date(item.lastUsedAt).toLocaleString('th-TH') : 'ยังไม่มีการใช้งาน'}
+          {item.lastUsedAt ? formatThaiDateTime(item.lastUsedAt) : 'ยังไม่มีการใช้งาน'}
         </span>
       ),
     },
@@ -183,7 +197,7 @@ export const ApiKeysView: React.FC = () => {
       header: 'วันที่สร้าง',
       accessor: (item) => (
         <span className="text-[11px] font-mono text-textMuted">
-          {new Date(item.createdAt).toLocaleDateString('th-TH')}
+          {formatThaiDate(item.createdAt)}
         </span>
       ),
     },
@@ -195,7 +209,7 @@ export const ApiKeysView: React.FC = () => {
           size="sm"
           disabled={!item.isActive}
           icon={Trash2}
-          onClick={() => void handleRevoke(item)}
+          onClick={() => setRevokeTarget(item)}
           className="text-red-600 hover:text-red-700 hover:bg-red-50"
         >
           เพิกถอน
@@ -327,6 +341,25 @@ export const ApiKeysView: React.FC = () => {
           </div>
         </div>
       </Modal>
+
+      <ConfirmModal
+        isOpen={revokeTarget !== null}
+        onClose={() => {
+          if (!isRevoking) setRevokeTarget(null);
+        }}
+        onConfirm={executeRevoke}
+        title="ยืนยันการเพิกถอน API Key"
+        message={
+          <>
+            คุณต้องการเพิกถอน API Key{' '}
+            <strong className="text-textPrimary">&ldquo;{revokeTarget?.name}&rdquo;</strong>{' '}
+            ใช่หรือไม่? การกระทำนี้ไม่สามารถย้อนกลับได้ และระบบภายนอกที่ใช้คีย์นี้จะถูกปฏิเสธทันที
+          </>
+        }
+        confirmLabel="เพิกถอนคีย์"
+        variant="danger"
+        loading={isRevoking}
+      />
     </div>
   );
 };

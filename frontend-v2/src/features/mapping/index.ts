@@ -8,5 +8,3 @@ export * from './hooks/useFieldMapping';
 export * from './domain/mappingMapper';
 export * from './domain/previewSimulator';
 
-export * from './schemas/mapping.schema';
-

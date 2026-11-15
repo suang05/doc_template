@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { PageHeader, Button, Badge } from '@/components/ui';
 import { isSuccessGenerationStatus } from '@/constants/domain';
+import { formatThaiTime } from '@/utils/format';
 import type { DocumentFormat } from '@/tokens';
 import { useAnalytics } from '../hooks/useAnalytics';
 
@@ -264,7 +265,7 @@ export const AnalyticsView: React.FC = () => {
                         {log.callerApp || 'direct-portal'}
                       </span>
                       <span className="text-textMuted ml-2 text-[11px]">
-                        {new Date(log.createdAt).toLocaleTimeString('th-TH')}
+                        {formatThaiTime(log.createdAt)}
                       </span>
                     </div>
                   </div>

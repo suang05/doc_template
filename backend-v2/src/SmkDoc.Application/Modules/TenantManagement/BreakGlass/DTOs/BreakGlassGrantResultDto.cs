@@ -16,4 +16,16 @@ public sealed record BreakGlassGrantResultDto(
 {
     [JsonIgnore]
     public Guid ResourceId => GrantId;
+
+    internal static BreakGlassGrantResultDto FromEntity(Domain.TenantManagement.BreakGlassGrant grant, DateTimeOffset now) =>
+        new(grant.Id.Value,
+            grant.TargetProjectId.Value,
+            grant.SuperAdminUserId.Value,
+            grant.GrantedByUserId.Value,
+            grant.Reason,
+            grant.GrantedAt,
+            grant.ExpiresAt,
+            grant.RevokedAt,
+            grant.IsActiveAt(now),
+            grant.Version);
 }

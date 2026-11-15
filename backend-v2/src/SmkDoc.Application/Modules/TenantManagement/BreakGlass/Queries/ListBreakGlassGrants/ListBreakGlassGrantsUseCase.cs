@@ -19,16 +19,6 @@ public sealed class ListBreakGlassGrantsUseCase(
 
         var grants = await grantRepo.ListActiveGrantsAsync(superAdminId, projectId, now, ct);
 
-        return grants.Select(g => new BreakGlassGrantResultDto(
-            g.Id.Value,
-            g.TargetProjectId.Value,
-            g.SuperAdminUserId.Value,
-            g.GrantedByUserId.Value,
-            g.Reason,
-            g.GrantedAt,
-            g.ExpiresAt,
-            g.RevokedAt,
-            g.IsActiveAt(now),
-            g.Version)).ToList();
+        return grants.Select(g => BreakGlassGrantResultDto.FromEntity(g, now)).ToList();
     }
 }

@@ -1,12 +1,5 @@
 import { z } from 'zod';
-import {
-  documentJobStatuses,
-  outputFormats,
-  TERMINAL_JOB_STATUSES,
-  type DocumentJobStatus,
-} from '@/constants/domain';
-
-export { documentJobStatuses, TERMINAL_JOB_STATUSES, type DocumentJobStatus };
+import { outputFormats } from '@/constants/domain';
 
 export const CreateDocumentJobFormSchema = z.object({
   slug: z.string().min(1, 'กรุณาเลือกแม่แบบเอกสาร'),
@@ -20,4 +13,5 @@ export const CreateDocumentJobFormSchema = z.object({
     .or(z.literal(''))
     .optional(),
 });
+
 export type CreateDocumentJobForm = z.infer<typeof CreateDocumentJobFormSchema>;

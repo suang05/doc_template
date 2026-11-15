@@ -19,23 +19,15 @@ public sealed class GrantBreakGlassAccessUseCase(
         _ = await projectRepo.GetByIdAsync(projectId, ct)
             ?? throw new NotFoundException("Project", command.TargetProjectId);
 
-        var targetAdminId = new UserId(command.SuperAdminUserId);
-        var targetAdmin = await userRepo.GetByIdAsync(targetAdminId, ct)
-            ?? throw new NotFoundException("User", command.SuperAdminUserId);
+        var targetAdminId = await EnsureActiveSuperAdminAsync(
+            command.SuperAdminUserId,
+            "Break-glass grants may only be issued for active SuperAdmin accounts.",
+            ct);
 
-        if (!targetAdmin.IsActive || targetAdmin.SystemRole != SystemRole.SuperAdmin)
-        {
-            throw new ForbiddenException("Break-glass grants may only be issued for active SuperAdmin accounts.");
-        }
-
-        var granterId = new UserId(command.GrantedByUserId);
-        var granter = await userRepo.GetByIdAsync(granterId, ct)
-            ?? throw new NotFoundException("User", command.GrantedByUserId);
-
-        if (!granter.IsActive || granter.SystemRole != SystemRole.SuperAdmin)
-        {
-            throw new ForbiddenException("Only active SuperAdmin accounts may issue break-glass grants.");
-        }
+        var granterId = await EnsureActiveSuperAdminAsync(
+            command.GrantedByUserId,
+            "Only active SuperAdmin accounts may issue break-glass grants.",
+            ct);
 
         var now = timeProvider.GetUtcNow();
         var expiresAt = now.AddMinutes(command.DurationMinutes);
@@ -46,16 +38,20 @@ public sealed class GrantBreakGlassAccessUseCase(
 
         securityAuditService.LogBreakGlassAccessGranted(grant.Id.Value, grant.TargetProjectId.Value, grant.SuperAdminUserId.Value, grant.ExpiresAt);
 
-        return new BreakGlassGrantResultDto(
-            grant.Id.Value,
-            grant.TargetProjectId.Value,
-            grant.SuperAdminUserId.Value,
-            grant.GrantedByUserId.Value,
-            grant.Reason,
-            grant.GrantedAt,
-            grant.ExpiresAt,
-            grant.RevokedAt,
-            grant.IsActiveAt(now),
-            grant.Version);
+        return BreakGlassGrantResultDto.FromEntity(grant, now);
+    }
+
+    private async Task<UserId> EnsureActiveSuperAdminAsync(Guid rawUserId, string forbiddenMessage, CancellationToken ct)
+    {
+        var userId = new UserId(rawUserId);
+        var user = await userRepo.GetByIdAsync(userId, ct)
+            ?? throw new NotFoundException("User", rawUserId);
+
+        if (!user.IsActive || user.SystemRole != SystemRole.SuperAdmin)
+        {
+            throw new ForbiddenException(forbiddenMessage);
+        }
+
+        return userId;
     }
 }

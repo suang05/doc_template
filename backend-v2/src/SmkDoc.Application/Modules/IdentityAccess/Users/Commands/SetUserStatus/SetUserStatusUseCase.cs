@@ -36,7 +36,7 @@ public sealed class SetUserStatusUseCase(
         await uow.CommitAsync(ct);
 
         var roleName = await ResolveRoleNameAsync(uId, ct);
-        return ToResultDto(user, roleName);
+        return UserResultDto.FromEntity(user, roleName, user.Version);
     }
 
     private void EnsureSuperAdminAuthorization()
@@ -79,16 +79,6 @@ public sealed class SetUserStatusUseCase(
             }
         }
     }
-
-    private static UserResultDto ToResultDto(User user, string roleName) =>
-        new(user.Id.Value,
-            user.Email.Value,
-            user.FirstName,
-            user.LastName,
-            roleName,
-            user.IsActive,
-            user.CreatedAt,
-            user.Version);
 
     private async Task<string> ResolveRoleNameAsync(UserId userId, CancellationToken ct)
     {

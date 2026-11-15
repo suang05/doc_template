@@ -4,6 +4,7 @@ import {
   ACTIVE_PROJECT_COOKIE,
   attachSessionCookie,
   BACKEND_INTERNAL_URL,
+  bffProblemJson,
   readSessionJwt,
 } from '@/lib/auth/refreshCoordinator';
 
@@ -23,43 +24,19 @@ interface PortalProjectsEnvelope {
 export async function POST(req: NextRequest) {
   const sessionJwt = await readSessionJwt(req);
   if (!sessionJwt?.token?.backendToken) {
-    return NextResponse.json(
-      {
-        type: 'https://httpstatuses.io/401',
-        title: 'Unauthorized',
-        status: 401,
-        detail: 'Authentication required',
-      },
-      { status: 401 },
-    );
+    return bffProblemJson(401, 'Unauthorized', 'Authentication required');
   }
 
   let body: unknown;
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json(
-      {
-        type: 'https://httpstatuses.io/400',
-        title: 'Invalid JSON',
-        status: 400,
-        detail: 'Invalid request payload',
-      },
-      { status: 400 },
-    );
+    return bffProblemJson(400, 'Invalid JSON', 'Invalid request payload');
   }
 
   const parsed = activeProjectPayloadSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json(
-      {
-        type: 'https://httpstatuses.io/400',
-        title: 'Validation Failed',
-        status: 400,
-        detail: parsed.error.issues[0]?.message ?? 'Invalid projectId',
-      },
-      { status: 400 },
-    );
+    return bffProblemJson(400, 'Validation Failed', parsed.error.issues[0]?.message ?? 'Invalid projectId');
   }
 
   const targetProjectId = parsed.data.projectId;
@@ -81,41 +58,17 @@ export async function POST(req: NextRequest) {
         (p) => p.id.toLowerCase() === targetProjectId.toLowerCase(),
       );
       if (!match && !isSuperAdmin) {
-        return NextResponse.json(
-          {
-            type: 'https://httpstatuses.io/403',
-            title: 'Forbidden',
-            status: 403,
-            detail: 'คุณไม่มีสิทธิ์เข้าถึงโปรเจกต์ที่เลือก',
-          },
-          { status: 403 },
-        );
+        return bffProblemJson(403, 'Forbidden', 'คุณไม่มีสิทธิ์เข้าถึงโปรเจกต์ที่เลือก');
       }
       if (match?.role) {
         resolvedRole = match.role;
       }
     } else if (!isSuperAdmin) {
-      return NextResponse.json(
-        {
-          type: 'https://httpstatuses.io/403',
-          title: 'Forbidden',
-          status: 403,
-          detail: 'ไม่สามารถยืนยันสิทธิ์เข้าถึงโปรเจกต์ได้',
-        },
-        { status: 403 },
-      );
+      return bffProblemJson(403, 'Forbidden', 'ไม่สามารถยืนยันสิทธิ์เข้าถึงโปรเจกต์ได้');
     }
   } catch {
     if (!isSuperAdmin) {
-      return NextResponse.json(
-        {
-          type: 'https://httpstatuses.io/502',
-          title: 'Bad Gateway',
-          status: 502,
-          detail: 'ไม่สามารถเชื่อมต่อระบบเพื่อตรวจสิทธิ์โปรเจกต์',
-        },
-        { status: 502 },
-      );
+      return bffProblemJson(502, 'Bad Gateway', 'ไม่สามารถเชื่อมต่อระบบเพื่อตรวจสิทธิ์โปรเจกต์');
     }
   }
 

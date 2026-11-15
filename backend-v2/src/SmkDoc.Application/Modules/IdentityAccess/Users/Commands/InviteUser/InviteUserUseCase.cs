@@ -28,7 +28,7 @@ public sealed class InviteUserUseCase(
         var role = await AssignProjectRoleAsync(pId, user.Id, roleType, now, ct);
         await uow.CommitAsync(ct);
 
-        return ToResultDto(user, roleType, role.Version);
+        return UserResultDto.FromEntity(user, roleType.Name, role.Version);
     }
 
     private async Task EnsureNotMemberAsync(Domain.ValueObjects.Ids.ProjectId pId, User user, CancellationToken ct)
@@ -51,14 +51,4 @@ public sealed class InviteUserUseCase(
         await roleRepo.AddAsync(newRole, ct);
         return newRole;
     }
-
-    private static UserResultDto ToResultDto(User user, RoleType roleType, long version) =>
-        new(user.Id.Value,
-            user.Email.Value,
-            user.FirstName,
-            user.LastName,
-            roleType.Name,
-            user.IsActive,
-            user.CreatedAt,
-            version);
 }

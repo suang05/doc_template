@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { RefreshCw, Upload } from 'lucide-react';
 import {
   Badge,
@@ -13,6 +13,8 @@ import {
 } from '@/components/ui';
 import { ApiError, extractErrorMessage } from '@/lib/api/client';
 import type { PlatformFontDto } from '@/lib/api/types';
+import { useIdempotencyKey } from '@/hooks/useIdempotencyKey';
+import { formatThaiDateTime } from '@/utils/format';
 import type { RegisterPlatformFontPayload } from '../api/projects.api';
 import {
   ACCEPTED_FONT_EXTENSIONS,
@@ -20,8 +22,8 @@ import {
   FONT_WEIGHT_OPTIONS,
   MAX_PLATFORM_FONT_BYTES,
   registerPlatformFontSchema,
-  toFieldErrorMap,
 } from '../schemas/project.schema';
+import { toFieldErrorMap } from '@/utils/zod';
 
 interface PlatformFontsTabSectionProps {
   fonts: PlatformFontDto[];
@@ -51,7 +53,7 @@ export const PlatformFontsTabSection: React.FC<PlatformFontsTabSectionProps> = (
   const [fileError, setFileError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [loadError, setLoadError] = useState<string | null>(null);
-  const idempotencyKeyRef = useRef<string | null>(null);
+  const { getKey: getUploadIdempotencyKey, rotateKey: rotateUploadIdempotencyKey, resetKey: resetUploadIdempotencyKey } = useIdempotencyKey();
 
   useEffect(() => {
     setLoadError(null);
@@ -67,7 +69,7 @@ export const PlatformFontsTabSection: React.FC<PlatformFontsTabSectionProps> = (
     setStyle('normal');
     setFileError(null);
     setFieldErrors({});
-    idempotencyKeyRef.current = crypto.randomUUID();
+    rotateUploadIdempotencyKey();
     setIsUploadOpen(true);
   };
 
@@ -113,8 +115,7 @@ export const PlatformFontsTabSection: React.FC<PlatformFontsTabSectionProps> = (
     }
 
     setFieldErrors({});
-    const attemptKey = idempotencyKeyRef.current ?? crypto.randomUUID();
-    idempotencyKeyRef.current = attemptKey;
+    const attemptKey = getUploadIdempotencyKey();
 
     try {
       const created = await onUploadFont(
@@ -127,7 +128,7 @@ export const PlatformFontsTabSection: React.FC<PlatformFontsTabSectionProps> = (
         attemptKey,
       );
       setIsUploadOpen(false);
-      idempotencyKeyRef.current = null;
+      resetUploadIdempotencyKey();
       onNotify('success', `ลงทะเบียนฟอนต์ "${created.familyName}" สำเร็จ`);
     } catch (err) {
       if (err instanceof ApiError && Object.keys(err.fieldErrors).length > 0) {
@@ -186,7 +187,7 @@ export const PlatformFontsTabSection: React.FC<PlatformFontsTabSectionProps> = (
       header: 'ลงทะเบียนเมื่อ',
       accessor: (item) => (
         <span className="text-[11px] font-mono text-textMuted">
-          {new Date(item.createdAt).toLocaleString('th-TH')}
+          {formatThaiDateTime(item.createdAt)}
         </span>
       ),
     },

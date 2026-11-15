@@ -1,18 +1,5 @@
 import { z } from 'zod';
-import { userRoles, type UserRole } from '@/constants/domain';
-
-export { userRoles, type UserRole };
-
-export const UserListItemSchema = z.object({
-  id: z.string().uuid(),
-  email: z.string().email(),
-  firstName: z.string(),
-  lastName: z.string(),
-  role: z.enum(userRoles),
-  isActive: z.boolean(),
-  createdAt: z.string(),
-});
-export type UserListItem = z.infer<typeof UserListItemSchema>;
+import { userRoles } from '@/constants/domain';
 
 export const InviteUserRequestSchema = z.object({
   email: z.string().email('กรุณากรอกอีเมลที่ถูกต้อง'),
@@ -21,9 +8,5 @@ export const InviteUserRequestSchema = z.object({
   lastName: z.string().min(1, 'กรุณากรอกนามสกุล'),
   role: z.enum(userRoles),
 });
-export type InviteUserFormInput = z.infer<typeof InviteUserRequestSchema>;
 
-export const UpdateUserRoleRequestSchema = z.object({
-  role: z.enum(userRoles),
-});
-export type UpdateUserRoleFormInput = z.infer<typeof UpdateUserRoleRequestSchema>;
+export type InviteUserFormInput = z.infer<typeof InviteUserRequestSchema>;

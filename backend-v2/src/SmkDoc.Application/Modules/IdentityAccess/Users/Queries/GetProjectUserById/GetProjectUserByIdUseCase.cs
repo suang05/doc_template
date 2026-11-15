@@ -15,14 +15,6 @@ public sealed class GetProjectUserByIdUseCase(
         var user = await userRepo.GetByIdAsync(userId, ct)
             ?? throw new NotFoundException("User", query.UserId);
 
-        return new UserResultDto(
-            user.Id.Value,
-            user.Email.Value,
-            user.FirstName,
-            user.LastName,
-            role.Role.Name,
-            user.IsActive,
-            user.CreatedAt,
-            role.Version);
+        return UserResultDto.FromEntity(user, role.Role.Name, role.Version);
     }
 }

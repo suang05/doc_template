@@ -19,6 +19,17 @@ public sealed record ApiKeyResultDto(
 {
     [JsonIgnore]
     public Guid ResourceId => Id;
+
+    internal static ApiKeyResultDto FromEntity(Domain.Entities.ApiKey key) =>
+        new(key.Id.Value,
+            key.Name.Value,
+            key.CallerApp,
+            key.IsActive,
+            key.LastUsedAt,
+            key.CreatedAt,
+            key.Scope.Name,
+            key.GetMaskedKey(),
+            key.Version);
 }
 
 /// <summary>

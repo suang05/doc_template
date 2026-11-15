@@ -13,8 +13,7 @@ import {
   FileText,
 } from 'lucide-react';
 import { useAuthContext } from '@/contexts/AuthContext';
-import { checkHealth as checkHealthApi } from '../api/health.api';
-import type { HealthCheck, HealthReport, HealthStatus } from '../schemas/health.schema';
+import { checkHealth as checkHealthApi, type HealthCheck, type HealthReport, type HealthStatus } from '../api/health.api';
 import { tokens, type SystemStatus } from '@/tokens';
 import { CardBlock, Button, Badge, PageHeader, Tabs } from '@/components/ui';
 

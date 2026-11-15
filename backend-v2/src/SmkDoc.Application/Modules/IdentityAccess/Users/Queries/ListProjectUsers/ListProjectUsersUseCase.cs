@@ -15,18 +15,8 @@ public sealed class ListProjectUsersUseCase(
         var userMap = users.ToDictionary(u => u.Id);
         return roles
             .Where(r => userMap.ContainsKey(r.UserId))
-            .Select(r => ToUserResultDto(r, userMap[r.UserId]))
+            .Select(r => UserResultDto.FromEntity(userMap[r.UserId], r.Role.Name, r.Version))
             .OrderBy(u => u.Email)
             .ToList();
     }
-
-    private static UserResultDto ToUserResultDto(Domain.Entities.UserProjectRole r, Domain.Entities.User u) =>
-        new(u.Id.Value,
-            u.Email.Value,
-            u.FirstName,
-            u.LastName,
-            r.Role.ToString(),
-            u.IsActive,
-            u.CreatedAt,
-            r.Version);
 }

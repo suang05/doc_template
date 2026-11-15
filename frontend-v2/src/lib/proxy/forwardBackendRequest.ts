@@ -3,8 +3,10 @@ import type { JWT } from 'next-auth/jwt';
 import { auth } from '@/auth';
 import {
   ACTIVE_PROJECT_COOKIE,
+  applyRotatedTokens,
   attachSessionCookie,
   BACKEND_INTERNAL_URL,
+  bffProblemJson,
   readSessionJwt,
   rotateBackendRefreshToken,
 } from '@/lib/auth/refreshCoordinator';
@@ -33,22 +35,6 @@ const HOP_BY_HOP_RESPONSE_HEADERS = new Set([
   'upgrade',
   'content-encoding',
 ]);
-
-const EXPLICIT_FORWARD_HEADERS = [
-  'etag',
-  'location',
-  'document-id',
-  'retry-after',
-  'ratelimit-limit',
-  'ratelimit-remaining',
-  'ratelimit-reset',
-  'x-ratelimit-limit',
-  'x-ratelimit-remaining',
-  'x-ratelimit-reset',
-  'content-disposition',
-  'content-type',
-  'cache-control',
-] as const;
 
 interface PreparedBody {
   buffer?: ArrayBuffer;
@@ -136,12 +122,6 @@ function copyUpstreamResponseHeaders(upstreamHeaders: Headers): Headers {
       out.set(key, value);
     }
   });
-  for (const name of EXPLICIT_FORWARD_HEADERS) {
-    const val = upstreamHeaders.get(name);
-    if (val !== null) {
-      out.set(name, val);
-    }
-  }
   return out;
 }
 
@@ -214,15 +194,7 @@ export async function handleProxyRequest(
       preparedBody,
     );
   } catch {
-    return NextResponse.json(
-      {
-        type: 'https://httpstatuses.io/502',
-        title: 'Backend Service Unavailable',
-        status: 502,
-        detail: 'Cannot connect to backend service',
-      },
-      { status: 502 },
-    );
+    return bffProblemJson(502, 'Backend Service Unavailable', 'Cannot connect to backend service');
   }
 
   let rotatedTokenCookiePayload: { cookieName: string; token: JWT } | null = null;
@@ -234,16 +206,7 @@ export async function handleProxyRequest(
   ) {
     try {
       const rotated = await rotateBackendRefreshToken(sessionJwt.token.refreshToken);
-      const updatedToken: JWT = {
-        ...sessionJwt.token,
-        backendToken: rotated.accessToken,
-        refreshToken: rotated.refreshToken,
-        backendTokenExp: rotated.exp,
-        systemRole: rotated.systemRole ?? sessionJwt.token.systemRole ?? null,
-        projectId: rotated.projectId ?? sessionJwt.token.projectId ?? null,
-        role: rotated.role ?? sessionJwt.token.role ?? null,
-        error: null,
-      };
+      const updatedToken = applyRotatedTokens(sessionJwt.token, rotated);
       rotatedTokenCookiePayload = {
         cookieName: sessionJwt.cookieName,
         token: updatedToken,

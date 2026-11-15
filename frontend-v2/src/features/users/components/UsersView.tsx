@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback } from 'react';
 import { UserPlus, Trash2, Shield, UserCheck, UserX, Users } from 'lucide-react';
 import {
   Button,
   Badge,
+  ConfirmModal,
   Input,
   Select,
   Table,
@@ -22,6 +23,9 @@ import type { UserDto } from '@/lib/api/types';
 import { userRoles, type UserRole } from '@/constants/domain';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { useConflictRecovery } from '@/hooks/useConflictRecovery';
+import { useIdempotencyKey } from '@/hooks/useIdempotencyKey';
+import { formatThaiDate } from '@/utils/format';
+import { toFieldErrorMap } from '@/utils/zod';
 import {
   getManagementUserWithETag,
   getUserWithETag,
@@ -70,18 +74,22 @@ export function UsersView() {
   const [toast, setToast] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(
     null,
   );
-  const inviteIdempotencyRef = useRef<string | null>(null);
+  const {
+    getKey: getInviteIdempotencyKey,
+    rotateKey: rotateInviteIdempotencyKey,
+    resetKey: resetInviteIdempotencyKey,
+  } = useIdempotencyKey();
 
   const openInviteModal = () => {
     setInviteErrors({});
-    inviteIdempotencyRef.current = crypto.randomUUID();
+    rotateInviteIdempotencyKey();
     setIsInviteOpen(true);
   };
 
   const closeInviteModal = () => {
     setIsInviteOpen(false);
     setInviteErrors({});
-    inviteIdempotencyRef.current = null;
+    resetInviteIdempotencyKey();
   };
 
   const openRoleModal = async (u: UserDto) => {
@@ -144,18 +152,12 @@ export function UsersView() {
 
     const parsed = InviteUserRequestSchema.safeParse(inviteForm);
     if (!parsed.success) {
-      const errs: Record<string, string> = {};
-      for (const issue of parsed.error.issues) {
-        const field = String(issue.path[0] ?? 'general');
-        errs[field] = issue.message;
-      }
-      setInviteErrors(errs);
+      setInviteErrors(toFieldErrorMap(parsed.error));
       return;
     }
 
     setIsSubmitting(true);
-    const attemptKey = inviteIdempotencyRef.current ?? crypto.randomUUID();
-    inviteIdempotencyRef.current = attemptKey;
+    const attemptKey = getInviteIdempotencyKey();
 
     try {
       await inviteUser(parsed.data, attemptKey);
@@ -272,11 +274,7 @@ export function UsersView() {
       header: 'เพิ่มเมื่อ',
       accessor: (u) => (
         <span className="text-xs text-textMuted">
-          {new Date(u.createdAt).toLocaleDateString('th-TH', {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric',
-          })}
+          {formatThaiDate(u.createdAt)}
         </span>
       ),
     },
@@ -461,7 +459,7 @@ export function UsersView() {
         </div>
       </Modal>
 
-      <Modal
+      <ConfirmModal
         isOpen={isRemoveOpen}
         onClose={() => {
           setIsRemoveOpen(false);
@@ -469,44 +467,28 @@ export function UsersView() {
           setRemoveEtag(null);
           clearConflict();
         }}
+        onConfirm={handleRemove}
         title="ลบผู้ใช้ออกจากโปรเจกต์"
-      >
-        <div className="space-y-4">
-          {conflict && (
-            <ConflictBanner
-              conflict={conflict}
-              onReload={handleReloadConflict}
-              onDismiss={clearConflict}
-            />
-          )}
-          <p className="text-xs text-textSecondary">
-            คุณต้องการลบ <span className="font-semibold text-textPrimary">{removeTarget?.email}</span>{' '}
-            ออกจากโปรเจกต์นี้ใช่หรือไม่?
-          </p>
-          <div className="flex justify-end gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setIsRemoveOpen(false);
-                setRemoveTarget(null);
-                setRemoveEtag(null);
-                clearConflict();
-              }}
-            >
-              ยกเลิก
-            </Button>
-            <Button
-              size="sm"
-              variant="danger"
-              loading={isSubmitting}
-              onClick={() => void handleRemove()}
-            >
-              ลบออก
-            </Button>
+        message={
+          <div className="space-y-3">
+            {conflict && (
+              <ConflictBanner
+                conflict={conflict}
+                onReload={handleReloadConflict}
+                onDismiss={clearConflict}
+              />
+            )}
+            <p>
+              คุณต้องการลบ{' '}
+              <span className="font-semibold text-textPrimary">{removeTarget?.email}</span>{' '}
+              ออกจากโปรเจกต์นี้ใช่หรือไม่?
+            </p>
           </div>
-        </div>
-      </Modal>
+        }
+        confirmLabel="ลบออก"
+        variant="danger"
+        loading={isSubmitting}
+      />
     </div>
   );
 }

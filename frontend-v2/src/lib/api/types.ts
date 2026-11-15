@@ -1,31 +1,23 @@
 import type { components } from './schema';
 
-export type SchemaOf<Name extends keyof components['schemas']> =
+type SchemaOf<Name extends keyof components['schemas']> =
   components['schemas'][Name];
-
-export type ProblemDetailsDto = SchemaOf<'ProblemDetails'>;
-export type ValidationErrorItemDto = SchemaOf<'ValidationErrorItem'>;
 
 // Auth & User Profile
 export type LoginRequest = SchemaOf<'LoginRequest'>;
 export type LoginResultDto = SchemaOf<'LoginResultDto'>;
 export type TokenResultDto = SchemaOf<'TokenResultDto'>;
-export type UserProfileDto = SchemaOf<'UserProfileResultDto'>;
-export type CurrentUserProfileDto = SchemaOf<'CurrentUserProfileResultDto'>;
-export type AccessibleProjectDto = SchemaOf<'AccessibleProjectResultDto'>;
 
 // Templates & Studio
 export type TemplateDto = SchemaOf<'TemplateResultDto'>;
 export type UpdateTemplateMetadataRequest = SchemaOf<'UpdateTemplateMetadataRequest'>;
 export type TemplateStudioDto = SchemaOf<'TemplateStudioDto'>;
-export type TemplatePageSettingsDto = SchemaOf<'TemplatePageSettings'>;
 export type SaveHtmlRequest = SchemaOf<'SaveHtmlRequest'>;
 export type SaveHtmlResultDto = SchemaOf<'SaveHtmlResultDto'>;
 export type RollbackVersionResultDto = SchemaOf<'RollbackVersionResultDto'>;
 export type TemplateVersionDto = SchemaOf<'TemplateVersionDto'>;
 export type TemplateValidationResultDto = SchemaOf<'TemplateValidationResultDto'>;
 export type TemplateSchemaDto = SchemaOf<'TemplateSchemaDto'>;
-export type ValidateTemplatePayloadResultDto = SchemaOf<'ValidateTemplatePayloadResult'>;
 export type ScanFieldsResultDto = SchemaOf<'ScanFieldsResultDto'>;
 export type ParseDraftResultDto = SchemaOf<'ParseDraftResultDto'>;
 export type CommitDraftRequest = SchemaOf<'CommitDraftRequest'>;
@@ -79,6 +71,7 @@ export type FontDescriptorDto = SchemaOf<'FontDescriptorDto'>;
 export type CreateDocumentRequest = SchemaOf<'CreateDocumentRequest'>;
 export type GenerateDocumentRequest = SchemaOf<'GenerateDocumentRequest'>;
 export type GenerateDocumentResultDto = SchemaOf<'GenerateDocumentResultDto'>;
+export type PreviewDocumentRequest = SchemaOf<'PreviewDocumentRequest'>;
 export type DocumentJobResultDto = SchemaOf<'DocumentJobResultDto'>;
 export type DocumentJobItemDto = SchemaOf<'DocumentJobItemDto'>;
 export type DocumentJobListResult = SchemaOf<'DocumentJobListResult'>;

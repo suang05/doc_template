@@ -20,6 +20,7 @@ import { documentsApi } from '@/features/generator';
 import { extractErrorMessage } from '@/lib/api/client';
 import type { GenerationLogDto, LogPayloadResultDto } from '@/lib/api/types';
 import { isSuccessGenerationStatus } from '@/constants/domain';
+import { formatThaiDateTime } from '@/utils/format';
 import type { DocumentFormat } from '@/tokens';
 import { logsApi } from '../api/logs.api';
 import { useGenerationLogs } from '../hooks/useGenerationLogs';
@@ -120,7 +121,7 @@ export const LogsView: React.FC = () => {
       header: 'วัน-เวลาที่สร้าง',
       accessor: (item) => (
         <span className="text-[11px] font-mono text-textMuted">
-          {new Date(item.createdAt).toLocaleString('th-TH')}
+          {formatThaiDateTime(item.createdAt)}
         </span>
       ),
     },

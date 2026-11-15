@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import {
   Plus,
   Search,
@@ -24,14 +24,16 @@ import {
 } from '@/components/ui';
 import { ApiError, extractErrorMessage } from '@/lib/api/client';
 import type { ProjectControlPlaneDto, ProjectDto, ResourceWithETag } from '@/lib/api/types';
+import { useIdempotencyKey } from '@/hooks/useIdempotencyKey';
+import { formatThaiDateTime } from '@/utils/format';
 import type { TenantsPaginationState } from '../hooks/useProjectsControlPlane';
 import {
   createProjectSchema,
   parseAndValidateEgressCidrs,
   slugifyProjectName,
-  toFieldErrorMap,
   transferProjectOwnerSchema,
 } from '../schemas/project.schema';
+import { toFieldErrorMap } from '@/utils/zod';
 
 interface TenantsTabSectionProps {
   tenants: ProjectDto[];
@@ -93,7 +95,11 @@ export const TenantsTabSection: React.FC<TenantsTabSectionProps> = ({
   const [creating, setCreating] = useState(false);
   const [provisionedProject, setProvisionedProject] = useState<ProjectDto | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
-  const createIdempotencyRef = useRef<string | null>(null);
+  const {
+    getKey: getCreateIdempotencyKey,
+    rotateKey: rotateCreateIdempotencyKey,
+    resetKey: resetCreateIdempotencyKey,
+  } = useIdempotencyKey();
 
   const [egressTarget, setEgressTarget] = useState<ProjectDto | null>(null);
   const [egressEtag, setEgressEtag] = useState<string | null>(null);
@@ -113,7 +119,7 @@ export const TenantsTabSection: React.FC<TenantsTabSectionProps> = ({
     setCreateSlug('');
     setSlugTouched(false);
     setCreateErrors({});
-    createIdempotencyRef.current = crypto.randomUUID();
+    rotateCreateIdempotencyKey();
     setIsCreateOpen(true);
   };
 
@@ -134,13 +140,12 @@ export const TenantsTabSection: React.FC<TenantsTabSectionProps> = ({
 
     setCreateErrors({});
     setCreating(true);
-    const attemptKey = createIdempotencyRef.current ?? crypto.randomUUID();
-    createIdempotencyRef.current = attemptKey;
+    const attemptKey = getCreateIdempotencyKey();
 
     try {
       const created = await onCreateProject(parsed.data, attemptKey);
       setIsCreateOpen(false);
-      createIdempotencyRef.current = null;
+      resetCreateIdempotencyKey();
       onNotify('success', `สร้างโปรเจกต์ "${created.name}" สำเร็จ`);
       if (created.readApiKey || created.writeApiKey) {
         setProvisionedProject(created);
@@ -325,7 +330,7 @@ export const TenantsTabSection: React.FC<TenantsTabSectionProps> = ({
       header: 'สร้างเมื่อ',
       accessor: (item) => (
         <span className="text-[11px] font-mono text-textMuted">
-          {new Date(item.createdAt).toLocaleString('th-TH')}
+          {formatThaiDateTime(item.createdAt)}
         </span>
       ),
     },

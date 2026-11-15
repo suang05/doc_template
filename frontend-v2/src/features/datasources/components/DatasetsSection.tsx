@@ -16,6 +16,7 @@ import {
 import {
   Button,
   CardBlock,
+  ConfirmModal,
   Input,
   Select,
   Modal,
@@ -90,6 +91,8 @@ export const DatasetsSection: React.FC<DatasetsSectionProps> = ({ connections })
   const [dryRunResult, setDryRunResult] = useState<DryRunDatasetResultDto | null>(null);
   const [dryRunLocalError, setDryRunLocalError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [deleteTarget, setDeleteTarget] = useState<DatasetDto | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [toast, setToast] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(
     null,
   );
@@ -245,16 +248,22 @@ export const DatasetsSection: React.FC<DatasetsSectionProps> = ({ connections })
     }
   };
 
-  const handleDelete = async (row: DatasetDto) => {
-    if (!confirm(`ยืนยันการลบ Dataset "${row.name}"? FieldMapping ที่ใช้อยู่จะสูญเสียข้อมูล SQL`)) return;
+  const executeDelete = async () => {
+    if (!deleteTarget) return;
+    const row = deleteTarget;
+    setIsDeleting(true);
     clearConflict();
     try {
       const latest = await datasetsApi.getWithETag(row.id);
       await deleteDataset(row.id, latest.etag);
+      setDeleteTarget(null);
       setToast({ type: 'success', message: `ลบ Dataset "${row.name}" สำเร็จ` });
     } catch (err) {
+      setDeleteTarget(null);
       if (captureConflict(err)) return;
       setToast({ type: 'error', message: extractErrorMessage(err) });
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -315,7 +324,7 @@ export const DatasetsSection: React.FC<DatasetsSectionProps> = ({ connections })
           <Button
             variant="danger"
             size="sm"
-            onClick={() => void handleDelete(row)}
+            onClick={() => setDeleteTarget(row)}
             aria-label={`ลบ ${row.name}`}
           >
             <Trash2 className="w-4 h-4" />
@@ -578,6 +587,25 @@ export const DatasetsSection: React.FC<DatasetsSectionProps> = ({ connections })
           </div>
         </div>
       </Modal>
+
+      <ConfirmModal
+        isOpen={deleteTarget !== null}
+        onClose={() => {
+          if (!isDeleting) setDeleteTarget(null);
+        }}
+        onConfirm={executeDelete}
+        title="ยืนยันการลบ Dataset"
+        message={
+          <>
+            คุณแน่ใจหรือไม่ว่าต้องการลบ Dataset{' '}
+            <strong className="text-textPrimary">&ldquo;{deleteTarget?.name}&rdquo;</strong>?
+            FieldMapping ที่ใช้อยู่จะสูญเสียข้อมูล SQL
+          </>
+        }
+        confirmLabel="ลบ Dataset"
+        variant="danger"
+        loading={isDeleting}
+      />
     </>
   );
 };

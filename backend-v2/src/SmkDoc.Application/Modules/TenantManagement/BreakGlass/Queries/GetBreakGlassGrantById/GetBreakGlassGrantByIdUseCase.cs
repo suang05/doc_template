@@ -13,16 +13,6 @@ public sealed class GetBreakGlassGrantByIdUseCase(
             ?? throw new NotFoundException("BreakGlassGrant", query.GrantId);
 
         var now = timeProvider.GetUtcNow();
-        return new BreakGlassGrantResultDto(
-            grant.Id.Value,
-            grant.TargetProjectId.Value,
-            grant.SuperAdminUserId.Value,
-            grant.GrantedByUserId.Value,
-            grant.Reason,
-            grant.GrantedAt,
-            grant.ExpiresAt,
-            grant.RevokedAt,
-            grant.IsActiveAt(now),
-            grant.Version);
+        return BreakGlassGrantResultDto.FromEntity(grant, now);
     }
 }

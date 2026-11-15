@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { useAuth } from '../hooks/useAuth';
 import { loginRequestSchema } from '../schemas/auth.schema';
 import { ApiError, extractErrorMessage } from '@/lib/api/client';
+import { toFieldErrorMap } from '@/utils/zod';
 
 export function LoginView() {
   const { login } = useAuth();
@@ -22,12 +23,7 @@ export function LoginView() {
 
     const parsed = loginRequestSchema.safeParse({ email, password });
     if (!parsed.success) {
-      const fieldErrors: typeof errors = {};
-      for (const issue of parsed.error.issues) {
-        const field = issue.path[0] as 'email' | 'password';
-        fieldErrors[field] = issue.message;
-      }
-      setErrors(fieldErrors);
+      setErrors(toFieldErrorMap(parsed.error));
       return;
     }
 

@@ -24,6 +24,7 @@ import {
   Button,
   Badge,
   CardBlock,
+  ConfirmModal,
   Input,
   Select,
   Toolbar,
@@ -38,6 +39,8 @@ import {
 import { extractErrorMessage } from '@/lib/api/client';
 import type { TemplateDto } from '@/lib/api/types';
 import { useConflictRecovery } from '@/hooks/useConflictRecovery';
+import { downloadBlobFile } from '@/utils/download';
+import { formatThaiDate } from '@/utils/format';
 import { templatesApi } from '../api/templates.api';
 import { CreateTemplateChoiceModal } from './CreateTemplateChoiceModal';
 
@@ -72,6 +75,8 @@ export const TemplatesView: React.FC<TemplatesViewProps> = ({
   const { conflict, captureConflict, clearConflict } = useConflictRecovery();
 
   const [isChoiceModalOpen, setIsChoiceModalOpen] = useState(false);
+  const [deactivateTarget, setDeactivateTarget] = useState<{ id: string; name: string } | null>(null);
+  const [deactivating, setDeactivating] = useState(false);
   const [toast, setToast] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
   const viewMode: 'cards' | 'table' = searchParams.get('view') === 'cards' ? 'cards' : 'table';
 
@@ -81,32 +86,31 @@ export const TemplatesView: React.FC<TemplatesViewProps> = ({
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   };
 
-  const handleDeactivate = async (id: string, name: string) => {
-    if (!confirm(`ต้องการยกเลิกการใช้งานแม่แบบ "${name}" หรือไม่?`)) return;
+  const executeDeactivate = async () => {
+    if (!deactivateTarget) return;
+    const { id, name } = deactivateTarget;
+    setDeactivating(true);
     clearConflict();
     try {
       const { etag } = await templatesApi.getTemplateWithETag(id);
       await templatesApi.deactivateTemplate(id, etag);
+      setDeactivateTarget(null);
       await refresh();
       setToast({ type: 'success', message: `อัปเดตสถานะแม่แบบ "${name}" เรียบร้อยแล้ว` });
     } catch (err: unknown) {
+      setDeactivateTarget(null);
       if (!captureConflict(err)) {
         setToast({ type: 'error', message: extractErrorMessage(err, 'ปิดใช้งานล้มเหลว') });
       }
+    } finally {
+      setDeactivating(false);
     }
   };
 
   const handleDownload = async (id: string, slug: string) => {
     try {
       const { blob, fileName } = await templatesApi.downloadTemplate(id);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = fileName || `${slug}-template.html`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      downloadBlobFile(blob, fileName || `${slug}-template.html`);
     } catch (err: unknown) {
       setToast({ type: 'error', message: extractErrorMessage(err, 'ดาวน์โหลดแม่แบบล้มเหลว') });
     }
@@ -177,11 +181,7 @@ export const TemplatesView: React.FC<TemplatesViewProps> = ({
       header: 'แก้ไขล่าสุด',
       accessor: (item) => (
         <span className="text-[11px] font-mono text-textMuted">
-          {new Date(item.updatedAt ?? item.createdAt).toLocaleDateString('th-TH', {
-            day: 'numeric',
-            month: 'short',
-            year: 'numeric',
-          })}
+          {formatThaiDate(item.updatedAt ?? item.createdAt)}
         </span>
       ),
       align: 'center',
@@ -208,13 +208,13 @@ export const TemplatesView: React.FC<TemplatesViewProps> = ({
                       { id: 'studio', label: 'แก้ไขโค้ด (Monaco Studio)', icon: Edit3, onClick: () => onOpenStudio(item.id) },
                       { id: 'duplicate', label: 'ทำสำเนา', icon: Copy, onClick: () => console.log('Duplicate', item.id) },
                       { id: 'download', label: 'ดาวน์โหลดไฟล์ HTML', icon: Download, onClick: () => handleDownload(item.id, item.slug) },
-                      { id: 'deactivate', label: item.isActive !== false ? 'ระงับการใช้งาน' : 'เปิดใช้งาน', icon: Trash2, danger: item.isActive !== false, onClick: () => handleDeactivate(item.id, item.name) },
+                      { id: 'deactivate', label: item.isActive !== false ? 'ระงับการใช้งาน' : 'เปิดใช้งาน', icon: Trash2, danger: item.isActive !== false, onClick: () => setDeactivateTarget({ id: item.id, name: item.name }) },
                     ]
                   : [
                       { id: 'mapping', label: 'กำหนดฟิลด์ (Field Mapping)', icon: GitFork, onClick: () => onOpenMapping(item.id) },
                       { id: 'history', label: 'ประวัติเวอร์ชัน', icon: History, onClick: () => console.log('Version history', item.id) },
                       { id: 'download', label: 'ดาวน์โหลดไฟล์ต้นฉบับ', icon: Download, onClick: () => handleDownload(item.id, item.slug) },
-                      { id: 'deactivate', label: item.isActive !== false ? 'ระงับการใช้งาน' : 'เปิดใช้งาน', icon: Trash2, danger: item.isActive !== false, onClick: () => handleDeactivate(item.id, item.name) },
+                      { id: 'deactivate', label: item.isActive !== false ? 'ระงับการใช้งาน' : 'เปิดใช้งาน', icon: Trash2, danger: item.isActive !== false, onClick: () => setDeactivateTarget({ id: item.id, name: item.name }) },
                     ]
               }
             />
@@ -398,11 +398,7 @@ export const TemplatesView: React.FC<TemplatesViewProps> = ({
                   </div>
                   
                   <div className="text-[10px] text-textMuted font-mono">
-                    {new Date(t.updatedAt ?? t.createdAt).toLocaleDateString('th-TH', {
-                      day: 'numeric',
-                      month: 'short',
-                      year: 'numeric',
-                    })}
+                    {formatThaiDate(t.updatedAt ?? t.createdAt)}
                   </div>
                 </div>
 
@@ -416,13 +412,13 @@ export const TemplatesView: React.FC<TemplatesViewProps> = ({
                             { id: 'studio', label: 'แก้ไขโค้ด (Monaco Studio)', icon: Edit3, onClick: () => onOpenStudio(t.id) },
                             { id: 'duplicate', label: 'ทำสำเนา', icon: Copy, onClick: () => console.log('Duplicate', t.id) },
                             { id: 'download', label: 'ดาวน์โหลดไฟล์ HTML', icon: Download, onClick: () => handleDownload(t.id, t.slug) },
-                            { id: 'deactivate', label: t.isActive !== false ? 'ระงับการใช้งาน' : 'เปิดใช้งาน', icon: Trash2, danger: t.isActive !== false, onClick: () => handleDeactivate(t.id, t.name) },
+                            { id: 'deactivate', label: t.isActive !== false ? 'ระงับการใช้งาน' : 'เปิดใช้งาน', icon: Trash2, danger: t.isActive !== false, onClick: () => setDeactivateTarget({ id: t.id, name: t.name }) },
                           ]
                         : [
                             { id: 'mapping', label: 'กำหนดฟิลด์ (Field Mapping)', icon: GitFork, onClick: () => onOpenMapping(t.id) },
                             { id: 'history', label: 'ประวัติเวอร์ชัน', icon: History, onClick: () => console.log('Version history', t.id) },
                             { id: 'download', label: 'ดาวน์โหลดไฟล์ต้นฉบับ', icon: Download, onClick: () => handleDownload(t.id, t.slug) },
-                            { id: 'deactivate', label: t.isActive !== false ? 'ระงับการใช้งาน' : 'เปิดใช้งาน', icon: Trash2, danger: t.isActive !== false, onClick: () => handleDeactivate(t.id, t.name) },
+                            { id: 'deactivate', label: t.isActive !== false ? 'ระงับการใช้งาน' : 'เปิดใช้งาน', icon: Trash2, danger: t.isActive !== false, onClick: () => setDeactivateTarget({ id: t.id, name: t.name }) },
                           ]
                     }
                   />
@@ -451,6 +447,25 @@ export const TemplatesView: React.FC<TemplatesViewProps> = ({
         }}
         onOpenStudio={(templateId) => onOpenStudio(templateId)}
         onCreated={() => refresh()}
+      />
+
+      <ConfirmModal
+        isOpen={deactivateTarget !== null}
+        onClose={() => {
+          if (!deactivating) setDeactivateTarget(null);
+        }}
+        onConfirm={() => void executeDeactivate()}
+        title="ยืนยันการเปลี่ยนสถานะแม่แบบเอกสาร"
+        message={
+          <>
+            คุณต้องการเปลี่ยนสถานะการใช้งานแม่แบบ{' '}
+            <strong className="text-textPrimary">&ldquo;{deactivateTarget?.name}&rdquo;</strong>{' '}
+            ใช่หรือไม่?
+          </>
+        }
+        confirmLabel="ยืนยัน"
+        variant="danger"
+        loading={deactivating}
       />
 
       {toast && (

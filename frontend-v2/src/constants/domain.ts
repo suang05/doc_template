@@ -1,9 +1,6 @@
 export const userRoles = ['Viewer', 'Developer', 'Admin'] as const;
 export type UserRole = (typeof userRoles)[number];
 
-export const systemRoles = ['Standard', 'SuperAdmin'] as const;
-export type SystemRole = (typeof systemRoles)[number];
-
 export const apiKeyScopes = ['ReadOnly', 'ReadWrite'] as const;
 export type ApiKeyScope = (typeof apiKeyScopes)[number];
 
@@ -31,21 +28,9 @@ export const TERMINAL_JOB_STATUSES: ReadonlySet<string> = new Set([
   'Canceled',
 ]);
 
-export const generationStatuses = [
-  'SUCCESS',
-  'FAILED',
-  'PROCESSING',
-  'TIMEOUT',
-  'VALIDATION_FAILED',
-] as const;
-export type GenerationStatus = (typeof generationStatuses)[number];
-
 export function isSuccessGenerationStatus(status: string | null | undefined): boolean {
   return typeof status === 'string' && status.toUpperCase() === 'SUCCESS';
 }
-
-export const templateVersionStatuses = ['Draft', 'Published', 'Archived'] as const;
-export type TemplateVersionStatus = (typeof templateVersionStatuses)[number];
 
 export const ThaiTransformTypes = [
   { value: 'none', label: 'ไม่แปลง (Raw)' },
@@ -59,5 +44,3 @@ export const ThaiTransformTypes = [
   { value: 'uppercase', label: 'ตัวพิมพ์ใหญ่ (UPPERCASE)' },
   { value: 'lowercase', label: 'ตัวพิมพ์เล็ก (lowercase)' },
 ] as const;
-
-export type ThaiTransformType = (typeof ThaiTransformTypes)[number]['value'];

@@ -25,5 +25,5 @@ fi
 
 if printf '%s\n' "$STAGED" | grep -Eq '^frontend-v2/.*\.(ts|tsx|mts|mjs|js|jsx)$'; then
   npm --prefix frontend-v2 run typecheck
-  npm --prefix frontend-v2 run lint -- --max-warnings=28
+  npm --prefix frontend-v2 run lint -- --max-warnings=0
 fi

@@ -14,7 +14,8 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import { useVersionHistory } from '../hooks/useVersionHistory';
-import { PageHeader, Button, Select, Badge, EmptyState, ConflictBanner } from '@/components/ui';
+import { PageHeader, Button, Select, Badge, EmptyState, ConflictBanner, ConfirmModal } from '@/components/ui';
+import { formatThaiDate } from '@/utils/format';
 
 const DiffEditor = dynamic(
   () => import('@monaco-editor/react').then((mod) => mod.DiffEditor),
@@ -43,6 +44,7 @@ export const VersionHistoryView: React.FC = () => {
   } = useVersionHistory();
 
   const [sideBySide, setSideBySide] = useState(true);
+  const [confirmRollbackVersion, setConfirmRollbackVersion] = useState<number | null>(null);
 
   const templateOptions = templates.map((t) => ({
     value: t.id,
@@ -162,7 +164,7 @@ export const VersionHistoryView: React.FC = () => {
 
                       <span className="text-[10px] font-mono text-textMuted flex items-center gap-1">
                         <Calendar className="w-3 h-3" />
-                        {new Date(ver.createdAt).toLocaleDateString('th-TH')}
+                        {formatThaiDate(ver.createdAt)}
                       </span>
                     </div>
 
@@ -219,7 +221,7 @@ export const VersionHistoryView: React.FC = () => {
                   size="sm"
                   icon={RotateCcw}
                   loading={rollingBack}
-                  onClick={() => handleRollback(activeVersionObj.version)}
+                  onClick={() => setConfirmRollbackVersion(activeVersionObj.version)}
                 >
                   ย้อนกลับเป็น v{activeVersionObj.version}
                 </Button>
@@ -247,6 +249,21 @@ export const VersionHistoryView: React.FC = () => {
           </div>
         </div>
       </div>
+
+      <ConfirmModal
+        isOpen={confirmRollbackVersion !== null}
+        onClose={() => setConfirmRollbackVersion(null)}
+        onConfirm={async () => {
+          if (confirmRollbackVersion === null) return;
+          await handleRollback(confirmRollbackVersion);
+          setConfirmRollbackVersion(null);
+        }}
+        title="ยืนยันการย้อนเวอร์ชันแม่แบบ"
+        message={`คุณต้องการย้อนกลับไปใช้แม่แบบเวอร์ชัน v${confirmRollbackVersion ?? ''} หรือไม่? การกระทำนี้จะสร้างเวอร์ชันใหม่ทับเวอร์ชันปัจจุบัน`}
+        confirmLabel="ยืนยัน Rollback"
+        variant="primary"
+        loading={rollingBack}
+      />
     </div>
   );
 };

@@ -32,7 +32,7 @@ public sealed class UpdateUserRoleUseCase(
         var user = await userRepo.GetByIdAsync(uId, ct)
             ?? throw new NotFoundException("User not found.");
 
-        return ToResultDto(user, roleEntry);
+        return UserResultDto.FromEntity(user, roleEntry.Role.Name, roleEntry.Version);
     }
 
     private async Task EnsureNotDemotingLastAdminAsync(
@@ -49,14 +49,4 @@ public sealed class UpdateUserRoleUseCase(
             }
         }
     }
-
-    private static UserResultDto ToResultDto(User user, UserProjectRole roleEntry) =>
-        new(user.Id.Value,
-            user.Email.Value,
-            user.FirstName,
-            user.LastName,
-            roleEntry.Role.Name,
-            user.IsActive,
-            user.CreatedAt,
-            roleEntry.Version);
 }

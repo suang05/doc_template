@@ -259,13 +259,13 @@ function toFetchInit(config: RequestConfig, headers: Record<string, string>): Re
   };
 }
 
-export async function apiRequestWithMeta<T>(
+async function executeRequest(
   endpoint: string,
   config: RequestConfig = {},
-): Promise<ResourceWithETag<T>> {
+  defaultJsonContentType = true,
+): Promise<Response> {
   const url = resolveRequestUrl(endpoint);
-  const headers = buildPlainHeaders(config, true);
-
+  const headers = buildPlainHeaders(config, defaultJsonContentType);
   const response = await fetch(url, toFetchInit(config, headers));
 
   if (!response.ok) {
@@ -273,6 +273,23 @@ export async function apiRequestWithMeta<T>(
     throw await parseErrorResponse(response);
   }
 
+  return response;
+}
+
+function extractDownloadMetadata(headers: Headers) {
+  const disposition = getHeaderCaseInsensitive(headers, 'content-disposition');
+  return {
+    fileName: parseContentDispositionFilename(disposition),
+    contentType: getHeaderCaseInsensitive(headers, 'content-type') || 'application/octet-stream',
+    etag: getHeaderCaseInsensitive(headers, 'ETag'),
+  };
+}
+
+export async function apiRequestWithMeta<T>(
+  endpoint: string,
+  config: RequestConfig = {},
+): Promise<ResourceWithETag<T>> {
+  const response = await executeRequest(endpoint, config, true);
   const etag = getHeaderCaseInsensitive(response.headers, 'ETag');
 
   if (response.status === 204 || response.status === 205) {
@@ -300,82 +317,35 @@ export async function apiClientText(
   endpoint: string,
   config: RequestConfig = {},
 ): Promise<string> {
-  const url = resolveRequestUrl(endpoint);
-  const headers = buildPlainHeaders(config, false);
-
-  const response = await fetch(url, toFetchInit(config, headers));
-
-  if (!response.ok) {
-    handleUnauthorizedSession(endpoint, response.status);
-    throw await parseErrorResponse(response);
-  }
-
+  const response = await executeRequest(endpoint, config, false);
   return response.text();
-}
-
-export async function apiBlobWithMeta(
-  endpoint: string,
-  config: RequestConfig = {},
-): Promise<BlobDownloadResult> {
-  const url = resolveRequestUrl(endpoint);
-  const headers = buildPlainHeaders(config, true);
-
-  const response = await fetch(url, toFetchInit(config, headers));
-
-  if (!response.ok) {
-    handleUnauthorizedSession(endpoint, response.status);
-    throw await parseErrorResponse(response);
-  }
-
-  const disposition = getHeaderCaseInsensitive(response.headers, 'content-disposition');
-  const fileName = parseContentDispositionFilename(disposition);
-  const contentType =
-    getHeaderCaseInsensitive(response.headers, 'content-type') || 'application/octet-stream';
-  const lengthStr = getHeaderCaseInsensitive(response.headers, 'content-length');
-  const parsedLen = lengthStr ? Number.parseInt(lengthStr, 10) : NaN;
-  const contentLength = Number.isFinite(parsedLen) ? parsedLen : null;
-  const etag = getHeaderCaseInsensitive(response.headers, 'ETag');
-
-  const blob = await response.blob();
-  return { blob, fileName, contentType, contentLength, etag, headers: response.headers };
 }
 
 export async function apiClientBlob(
   endpoint: string,
   config: RequestConfig = {},
-): Promise<{
-  blob: Blob;
-  fileName: string | null;
-  contentType: string;
-  contentLength: number | null;
-}> {
-  const { blob, fileName, contentType, contentLength } = await apiBlobWithMeta(endpoint, config);
-  return { blob, fileName, contentType, contentLength };
+): Promise<BlobDownloadResult> {
+  const response = await executeRequest(endpoint, config, true);
+  const { fileName, contentType, etag } = extractDownloadMetadata(response.headers);
+  const lengthStr = getHeaderCaseInsensitive(response.headers, 'content-length');
+  const parsedLen = lengthStr ? Number.parseInt(lengthStr, 10) : NaN;
+  const contentLength = Number.isFinite(parsedLen) ? parsedLen : null;
+
+  const blob = await response.blob();
+  return { blob, fileName, contentType, contentLength, etag, headers: response.headers };
 }
 
 export async function apiClientStream(
   endpoint: string,
   config: RequestConfig = {},
 ): Promise<StreamDownloadResult> {
-  const url = resolveRequestUrl(endpoint);
-  const headers = buildPlainHeaders(config, true);
-
-  const response = await fetch(url, toFetchInit(config, headers));
-
-  if (!response.ok) {
-    handleUnauthorizedSession(endpoint, response.status);
-    throw await parseErrorResponse(response);
-  }
+  const response = await executeRequest(endpoint, config, true);
 
   if (!response.body) {
     throw new ApiError(response.status, 'Response body is empty');
   }
 
-  const disposition = getHeaderCaseInsensitive(response.headers, 'content-disposition');
-  const fileName = parseContentDispositionFilename(disposition);
-  const contentType =
-    getHeaderCaseInsensitive(response.headers, 'content-type') || 'application/octet-stream';
-  const etag = getHeaderCaseInsensitive(response.headers, 'ETag');
+  const { fileName, contentType, etag } = extractDownloadMetadata(response.headers);
 
   return {
     stream: response.body,

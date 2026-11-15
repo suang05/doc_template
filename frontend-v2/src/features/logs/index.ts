@@ -4,5 +4,4 @@ export * from './components/AuditView';
 export * from './hooks/useGenerationLogs';
 export * from './hooks/useLegalAudit';
 export * from './api/logs.api';
-export * from './schemas/log.schema';
 
